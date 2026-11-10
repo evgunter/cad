@@ -396,8 +396,11 @@ impl ChartRegionError {
     ///   branches astride it disagreeing).
     /// - A limit (row 2: a reading not built, or a bound on the work):
     ///   [`Self::ChartDivergence`], [`Self::NonPlanarTrim`],
-    ///   [`Self::ArmUnbounded`], [`Self::SeamBranch`], both witness caps,
-    ///   and [`Self::EdgeScale`] (an edge length no ordinary number holds).
+    ///   [`Self::ArmUnbounded`], [`Self::SeamBranch`] and both witness
+    ///   caps.
+    /// - A limit (row 1(b): a precision limit the model controls, which no
+    ///   tolerance moves; its lever is the model's scale):
+    ///   [`Self::EdgeScale`] (an edge length no ordinary number holds).
     /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
     ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
     ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4); and two
@@ -3863,24 +3866,92 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// One sample of every variant kind, through a `match` with no
+    /// wildcard, so an arm added without a sample here is a compile
+    /// error rather than a row that never runs.
+    pub(super) fn sample(kind: ChartRegionErrorKind) -> ChartRegionError {
+        let diag = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: band(),
+            predicate: Some("chart_region_area"),
+            terminal_sliver: false,
+        };
+        match kind {
+            ChartRegionErrorKind::ChartDivergence => {
+                ChartRegionError::ChartDivergence { detail: "same-key" }
+            }
+            ChartRegionErrorKind::NonPlanarTrim => ChartRegionError::NonPlanarTrim {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                what: "a Harmonic image",
+            },
+            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
+            },
+            ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
+                half_edge: HalfEdgeKey::default(),
+            },
+            ChartRegionErrorKind::ArmUnbounded => ChartRegionError::ArmUnbounded { chart: "cone" },
+            ChartRegionErrorKind::SeamBranch => ChartRegionError::SeamBranch,
+            ChartRegionErrorKind::PeriodFold => ChartRegionError::PeriodFold,
+            ChartRegionErrorKind::CarrierTilt => ChartRegionError::CarrierTilt,
+            ChartRegionErrorKind::TouchingBoundary => ChartRegionError::TouchingBoundary,
+            ChartRegionErrorKind::DegenerateLoop => ChartRegionError::DegenerateLoop {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+            },
+            ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
+            ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
+            ChartRegionErrorKind::WitnessSegmentCapExceeded => {
+                ChartRegionError::WitnessSegmentCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP + 1,
+                }
+            }
+            ChartRegionErrorKind::WitnessCellCapExceeded => {
+                ChartRegionError::WitnessCellCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP,
+                    cells: WITNESS_CELL_CAP,
+                }
+            }
+            ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
+            ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
+        }
+    }
+
     /// [`ChartRegionError::refusal`] by its `[failure.taxonomy]` rows (QML
-    /// T4): one variant per class.
+    /// T4), over every variant ([`sample`]): the expected standing is a
+    /// `match` with no wildcard, so changing a standing, or adding a
+    /// variant without stating one here, goes red.
     #[test]
     fn a_chart_region_refusal_stands_by_its_row() {
         use geom_core::ladder::{Aborts, Refusal};
-        assert_eq!(
-            ChartRegionError::TouchingBoundary.refusal(),
-            Ok(Refusal::InBand)
-        );
-        assert_eq!(ChartRegionError::SeamBranch.refusal(), Ok(Refusal::Limit));
-        assert_eq!(ChartRegionError::EdgeScale.refusal(), Ok(Refusal::Limit));
-        assert_eq!(ChartRegionError::Corrupt.refusal(), Err(Aborts));
-        assert_eq!(ChartRegionError::CarrierTilt.refusal(), Err(Aborts));
-        let degenerate = ChartRegionError::DegenerateLoop {
-            face: FaceKey::default(),
-            r#loop: LoopKey::default(),
-        };
-        assert_eq!(degenerate.refusal(), Err(Aborts), "mixed until split");
+        for kind in <ChartRegionErrorKind as strum::IntoEnumIterator>::iter() {
+            let e = sample(kind);
+            let want = match kind {
+                ChartRegionErrorKind::Escalated => match e {
+                    ChartRegionError::Escalated(diag) => Ok(Refusal::Margin(diag)),
+                    _ => unreachable!("the sample is its kind"),
+                },
+                ChartRegionErrorKind::RayExhausted
+                | ChartRegionErrorKind::TouchingBoundary
+                | ChartRegionErrorKind::PeriodFold => Ok(Refusal::InBand),
+                ChartRegionErrorKind::ChartDivergence
+                | ChartRegionErrorKind::NonPlanarTrim
+                | ChartRegionErrorKind::ArmUnbounded
+                | ChartRegionErrorKind::SeamBranch
+                | ChartRegionErrorKind::WitnessSegmentCapExceeded
+                | ChartRegionErrorKind::WitnessCellCapExceeded
+                | ChartRegionErrorKind::EdgeScale => Ok(Refusal::Limit),
+                ChartRegionErrorKind::MissingCache
+                | ChartRegionErrorKind::CarrierTilt
+                | ChartRegionErrorKind::Corrupt
+                | ChartRegionErrorKind::DegenerateLoop
+                | ChartRegionErrorKind::TrimOffFace => Err(Aborts),
+            };
+            assert_eq!(e.refusal(), want, "{kind:?}");
+        }
     }
 
     /// **A trim off its plane ends by the door that reads it**: a
@@ -4011,57 +4082,6 @@ mod tests {
             "declare",
             "rescale",
         ];
-        let diag = Indeterminate {
-            margin: geom_core::MarginDiag::value(5e-9),
-            band: band(),
-            predicate: Some("chart_region_area"),
-            terminal_sliver: false,
-        };
-        // Every arm, constructed: one sample per variant kind, through a
-        // `match` with no wildcard, so an arm added without a sample here
-        // is a compile error rather than a row that never runs.
-        let sample = |kind: ChartRegionErrorKind| match kind {
-            ChartRegionErrorKind::ChartDivergence => {
-                ChartRegionError::ChartDivergence { detail: "same-key" }
-            }
-            ChartRegionErrorKind::NonPlanarTrim => ChartRegionError::NonPlanarTrim {
-                face: FaceKey::default(),
-                half_edge: HalfEdgeKey::default(),
-                what: "a Harmonic image",
-            },
-            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
-                face: FaceKey::default(),
-                half_edge: HalfEdgeKey::default(),
-                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
-            },
-            ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
-                half_edge: HalfEdgeKey::default(),
-            },
-            ChartRegionErrorKind::ArmUnbounded => ChartRegionError::ArmUnbounded { chart: "cone" },
-            ChartRegionErrorKind::SeamBranch => ChartRegionError::SeamBranch,
-            ChartRegionErrorKind::PeriodFold => ChartRegionError::PeriodFold,
-            ChartRegionErrorKind::CarrierTilt => ChartRegionError::CarrierTilt,
-            ChartRegionErrorKind::TouchingBoundary => ChartRegionError::TouchingBoundary,
-            ChartRegionErrorKind::DegenerateLoop => ChartRegionError::DegenerateLoop {
-                face: FaceKey::default(),
-                r#loop: LoopKey::default(),
-            },
-            ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
-            ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
-            ChartRegionErrorKind::WitnessSegmentCapExceeded => {
-                ChartRegionError::WitnessSegmentCapExceeded {
-                    segments: WITNESS_SEGMENT_CAP + 1,
-                }
-            }
-            ChartRegionErrorKind::WitnessCellCapExceeded => {
-                ChartRegionError::WitnessCellCapExceeded {
-                    segments: WITNESS_SEGMENT_CAP,
-                    cells: WITNESS_CELL_CAP,
-                }
-            }
-            ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
-            ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
-        };
         let arms: Vec<_> = <ChartRegionErrorKind as strum::IntoEnumIterator>::iter()
             .map(sample)
             .collect();

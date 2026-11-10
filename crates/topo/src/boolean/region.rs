@@ -69,25 +69,21 @@ pub(crate) enum RegionRefusal {
 }
 
 impl RegionRefusal {
-    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]), as
-    /// its image in the point-in-loop door stands
-    /// ([`crate::splitting::containment::PointInLoopError::refusal`]): an
-    /// escalation by its margin, a walk no path of which settled in band
-    /// (`[failure.taxonomy]` row 1(b)), an edge whose boundary reading ran
-    /// out a limit (row 2), and an arc wound past a turn, a corrupt face,
-    /// an abort (row 4). Exhaustive with no catch-all arm.
+    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]): its
+    /// image's in the point-in-solid door ([`Self::of_face`],
+    /// [`PointInSolidError::refusal`]), derived, so the two cannot part.
+    /// An escalation by its margin and a walk no path of which settled in
+    /// band (`[failure.taxonomy]` row 1(b)); an edge whose boundary
+    /// reading ran out of depth or budget, a limit, as the door's
+    /// `EdgeCarrierUnsupported` is (row 2, a bound on the work); and an
+    /// arc wound past a turn, a corrupt face, an abort (row 4). The face
+    /// the image names does not move its standing.
     ///
     /// # Errors
     ///
     /// [`geom_core::ladder::Aborts`] for [`Self::WoundPastPeriod`].
-    const fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
-        use geom_core::ladder::{Aborts, Refusal};
-        match self {
-            Self::Escalated(diag) => Ok(Refusal::Margin(*diag)),
-            Self::RayExhausted { .. } => Ok(Refusal::InBand),
-            Self::Unreadable(_) => Ok(Refusal::Limit),
-            Self::WoundPastPeriod => Err(Aborts),
-        }
+    fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        self.of_face(FaceKey::default()).refusal()
     }
 
     /// The refusal as the point-in-solid door states it, for a point on
@@ -1431,18 +1427,44 @@ mod tests {
 #[cfg(test)]
 mod standing_rows {
     use geom_core::ladder::{Aborts, Refusal};
+    use geom_core::{Band, Indeterminate, MarginDiag};
 
     use super::RegionRefusal;
+    use crate::entity::{EdgeKey, LoopKey};
+    use crate::splitting::containment::{Uncrossable, UncrossableCarrier};
 
+    /// **Every variant stands as its point-in-solid image does**
+    /// ([`RegionRefusal::refusal`]), the expected standing a `match` with
+    /// no wildcard: changing a standing, or adding a variant without one
+    /// here, goes red.
     #[test]
     fn a_region_refusal_stands_as_its_point_in_loop_image() {
-        assert_eq!(
+        let diag = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("test_region_standing"),
+            terminal_sliver: false,
+        };
+        let every = [
+            RegionRefusal::Escalated(diag),
             RegionRefusal::RayExhausted {
-                outer: crate::entity::LoopKey::default()
-            }
-            .refusal(),
-            Ok(Refusal::InBand)
-        );
-        assert_eq!(RegionRefusal::WoundPastPeriod.refusal(), Err(Aborts));
+                outer: LoopKey::default(),
+            },
+            RegionRefusal::WoundPastPeriod,
+            RegionRefusal::Unreadable(Uncrossable {
+                r#loop: LoopKey::default(),
+                edge: EdgeKey::default(),
+                carrier: UncrossableCarrier::Spline,
+            }),
+        ];
+        for e in every {
+            let want = match e {
+                RegionRefusal::Escalated(diag) => Ok(Refusal::Margin(diag)),
+                RegionRefusal::RayExhausted { .. } => Ok(Refusal::InBand),
+                RegionRefusal::Unreadable(_) => Ok(Refusal::Limit),
+                RegionRefusal::WoundPastPeriod => Err(Aborts),
+            };
+            assert_eq!(e.refusal(), want, "{e:?}");
+        }
     }
 }
