@@ -29,7 +29,7 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
-use crate::gate::{Escalation, Gate, decide, prove};
+use crate::gate::{Escalation, Gate, decide, decide_passing, prove};
 use geom_core::{Band, BandError, Circles, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use crate::validate::{FilletLeg, NoCornerReason};
@@ -242,6 +242,11 @@ pub(crate) enum TrimRefusal<T: Real> {
     Escalated(Escalation),
 }
 
+/// What `fillet_leg_fit` passes: a run (`Positive`) or none (`Zero`).
+/// A leg the setback overruns refuses, so an overrun in band is no size a
+/// smaller tolerance keeps, and its ending offers none.
+const RUN_PASSES: geom_core::SizedPass = geom_core::SizedPass::NonNegative;
+
 /// The ratified line×line fillet closed form (#101 review MAJOR-1;
 /// docs on the fillet constructor), extracted verbatim so the algebra
 /// lowering and the builder door share one code path: with legs
@@ -274,7 +279,12 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let len1 = v1.norm_squared().sqrt();
     let len2 = v2.norm_squared().sqrt();
     let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
-        match decide(Gate::FilletLegFit, Margin::of(len - setback), band) {
+        match decide_passing(
+            Gate::FilletLegFit,
+            Margin::of(len - setback),
+            band,
+            RUN_PASSES,
+        ) {
             Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
                 leg,
                 setback,
@@ -670,9 +680,9 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             prove(Gate::FilletLegReach, Margin::of(sb_out)).map_err(ArcTrimRefusal::Escalated)?;
         let margin_in = leg_in.len - sb_in;
         let margin_out = leg_out.len - sb_out;
-        let fit_in = decide(Gate::FilletLegFit, Margin::of(margin_in), band)
+        let fit_in = decide_passing(Gate::FilletLegFit, Margin::of(margin_in), band, RUN_PASSES)
             .map_err(ArcTrimRefusal::Escalated)?;
-        let fit_out = decide(Gate::FilletLegFit, Margin::of(margin_out), band)
+        let fit_out = decide_passing(Gate::FilletLegFit, Margin::of(margin_out), band, RUN_PASSES)
             .map_err(ArcTrimRefusal::Escalated)?;
         let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
         if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
@@ -828,8 +838,8 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 ///
 /// # The exact-fit structural zero, and the exact domain it holds on
 ///
-/// The fit gate turns on `extent − setback` being bit-zero when the
-/// tangent point lands on the leg's far end. There both quantities are
+/// An exact fit reads Zero at every ε because `extent − setback` is
+/// bit-zero when the tangent point lands on the leg's far end. There both quantities are
 /// `radius ·` an angle computed from the SAME difference `d`: the
 /// extent takes `d.reduce_periodic(τ)` and the setback takes
 /// `d.reduce_periodic_centred(τ)`. Both floors return zero, both

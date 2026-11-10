@@ -209,6 +209,21 @@ fn straight_joint_at_start(eps0: f64) -> Door {
     }
 }
 
+/// `line(2).fillet(0.5)` arriving up x = 2.5 + `d`: the fillet leaves a
+/// run of `d` on the leg (an overrun where `d` is negative).
+fn straight_run(d: f64) -> Door {
+    let t = tol();
+    path(
+        Open.at(Point2::new(0.0, 0.0))
+            .angle(0.0, t)
+            .and_then(|p| p.line(2.0, t))
+            .and_then(|p| p.fillet(0.5, t))
+            .and_then(|p| p.toward(0.0, 1.0, t))
+            .and_then(|p| p.to(Point2::new(2.5 + d, 2.0), t))
+            .and_then(|p| p.line_to(Start, t)),
+    )
+}
+
 /// One gate driven in band at a door.
 struct Driven {
     /// What the row drives.
@@ -227,6 +242,20 @@ struct Driven {
 const MOVE: &str = "move the geometry";
 
 const DRIVEN: &[Driven] = &[
+    Driven {
+        id: "a fillet's run in band",
+        gate: Gate::FilletLegFit,
+        lever: profile::FILLET_FIT_RECOURSE,
+        offers: true,
+        run: |e| straight_run(5.0 * e),
+    },
+    Driven {
+        id: "a fillet's overrun in band",
+        gate: Gate::FilletLegFit,
+        lever: profile::FILLET_FIT_RECOURSE,
+        offers: false,
+        run: |e| straight_run(-5.0 * e),
+    },
     Driven {
         id: "line-circle clearance",
         gate: Gate::FilletOffsetLineCircle,
@@ -382,7 +411,6 @@ const DRIVEN: &[Driven] = &[
 
 /// The gates no door in this suite drives in band, each with why.
 const NOT_DRIVEN: &[(Gate, &str)] = &[
-    (Gate::FilletLegFit, EXACT),
     (Gate::FilletLegReach, EXACT),
     (Gate::CanonicalOrderX, EXACT),
     (Gate::CanonicalOrderY, EXACT),

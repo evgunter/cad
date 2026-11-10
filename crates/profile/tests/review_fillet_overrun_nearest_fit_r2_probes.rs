@@ -207,6 +207,8 @@ fn line_arc_grid_side_census_under_the_leg_rule() {
 /// radius.
 #[test]
 fn the_recourse_census_on_grid_a() {
+    let (inside_in, inside_out, _) = crate::common::grid_a_overruns_inside_the_band();
+    let inside = inside_in + inside_out;
     let (mut builds, mut refuses, mut not_a_request) = (0_usize, 0_usize, 0_usize);
     let mut past: Vec<&'static str> = Vec::new();
     grid_a(|_, case, r, out| {
@@ -228,7 +230,7 @@ fn the_recourse_census_on_grid_a() {
     });
     assert_eq!(
         builds + past.len() + refuses + not_a_request,
-        3_185 - crate::common::grid_a_overruns_inside_the_band(),
+        3_185 - inside,
         "grid A's anchor-fit entries"
     );
     println!("recourse census: builds {builds}, past the corner at this ε: {past:?}");
@@ -237,11 +239,7 @@ fn the_recourse_census_on_grid_a() {
     }
     assert_eq!(
         (builds + past.len(), refuses, not_a_request),
-        (
-            605,
-            2_111 - crate::common::grid_a_overruns_inside_the_band(),
-            469
-        ),
+        (605, 2_111 - inside, 469),
         "anchor fit satisfied / still refuses / not a request"
     );
 

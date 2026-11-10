@@ -167,10 +167,8 @@ fn tangent_joints_are_derived_alike_at_interval() {
 
 // ------------------------------- arc-carrier fillet corners at the interval
 //
-// The exact-order predicate `fillet_leg_fit` has no in-band row at
-// `f64` — no representable `f64` lies strictly inside the hairline band
-// — so its third trio row lives here, where an enclosure straddling the
-// hairline escalates honestly (M5 S2).
+// `fillet_leg_fit` reads a run on the linear band; here an exact fit's
+// enclosure, a few ulps wide, lies inside that band's Zero and decides.
 
 /// An `Interval` sketch point from exact `f64` coordinates.
 fn ip2(x: f64, y: f64) -> geom_core::Point2<Interval> {

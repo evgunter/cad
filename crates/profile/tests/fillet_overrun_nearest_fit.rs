@@ -388,18 +388,17 @@ fn grid_a_census_of_the_reports_that_changed() {
     });
     assert_eq!(authorings, 18_144);
     assert_eq!(hits, 19, "every changed authoring is visited");
+    // At an ε row whose band holds some of the grid's overruns, those
+    // anchor fits are Zero or in band rather than refused.
+    let (inside_in, inside_out, _) = crate::common::grid_a_overruns_inside_the_band();
     assert_eq!(
         entries,
-        3_185 - crate::common::grid_a_overruns_inside_the_band(),
+        3_185 - inside_in - inside_out,
         "grid A's anchor-fit entries"
     );
     assert_eq!(
         (incoming, outgoing),
-        if crate::common::grid_a_overruns_inside_the_band() == 0 {
-            (1_555, 1_630)
-        } else {
-            (1_552, 1_627)
-        },
+        (1_555 - inside_in, 1_630 - inside_out),
         "the side census under the leg rule"
     );
 }

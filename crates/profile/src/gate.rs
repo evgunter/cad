@@ -305,6 +305,16 @@ pub(crate) fn decide<T: Decide>(
     gate.read(|name| geom_core::k_stats::decide(name, margin, band))
 }
 
+/// [`geom_core::k_stats::decide_passing`] under `gate`'s name.
+pub(crate) fn decide_passing<T: Decide>(
+    gate: Gate,
+    margin: Margin<T>,
+    band: Band,
+    passes: geom_core::SizedPass,
+) -> Result<Sign, Escalation> {
+    gate.read(|name| geom_core::k_stats::decide_passing(name, margin, band, passes))
+}
+
 /// [`geom_core::k_stats::prove`] under `gate`'s name: a proof's
 /// inequality read exactly (the exact-order band, validate module docs),
 /// with no `Band` parameter to pass a wider one by mistake.

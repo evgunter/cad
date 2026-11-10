@@ -66,13 +66,14 @@ fn straight(
 }
 
 /// **A run below the band is no run.** `line(2).fillet(0.5)` arriving at
-/// x = 2.5 + d leaves a run of d: at and below a tenth of ε it is a Zero
-/// fit, the arc springs off the leg's end (2, 0), and the loop holds
+/// x = 2.5 + d leaves a run of d: for |d| up to 0.99ε, either side (the
+/// margin carries the setback's rounding, so d = ε itself reads just
+/// past ε), it is a Zero fit, the arc springs off the leg's end (2, 0), and the loop holds
 /// four vertices and validates — bare and after `.tangent()` alike.
 #[test]
 fn a_run_below_the_band_is_a_zero_fit() {
     for before in [Before::Nothing, Before::Tangent] {
-        for d in [0.0, -1e-6, 1e-6, 1e-4, 1e-3, 1e-2, 0.1].map(|k| k * eps()) {
+        for d in [0.0, -1e-6, 1e-6, 1e-3, 0.1, 0.5, 0.9, 0.99, -0.5, -0.99].map(|k| k * eps()) {
             let what = format!("{before:?} d = {d:e}");
             let c = straight(before, 2.0, 0.5, 2.5 + d).unwrap_or_else(|e| panic!("{what}: {e}"));
             let end = c.loop_.as_loop().vertices()[1];
@@ -93,8 +94,11 @@ fn a_run_below_the_band_is_a_zero_fit() {
 
 /// **A run in the band escalates at the fit**, before anything is
 /// built: at d = 2ε and 5ε the run is neither a segment validation
-/// would keep nor one it would drop. A run well past the band (100ε)
-/// is a segment of its own, and the loop holds five vertices.
+/// would keep nor one it would drop. From (K + 1)ε, the upper end of
+/// the window just past the band where a built run still escalates a
+/// span check ([`a_run_just_past_the_band_builds_and_then_escalates_a_span`]),
+/// the run is a segment of its own, the loop holds five vertices, and
+/// it validates.
 #[test]
 fn a_run_in_the_band_escalates_at_the_fit_and_one_past_it_is_built() {
     for before in [Before::Nothing, Before::Tangent] {
@@ -107,10 +111,12 @@ fn a_run_in_the_band_escalates_at_the_fit_and_one_past_it_is_built() {
                 "fillet_leg_fit"
             );
         }
-        let what = format!("{before:?} d = 100ε");
-        let c = straight(before, 2.0, 0.5, 2.5 + 100.0 * eps()).expect("builds");
-        assert_eq!(c.loop_.as_loop().vertices().len(), 5, "{what}: the run");
-        validated(&c, &what);
+        for kd in [k() + 1.0, 2.0 * k(), 100.0] {
+            let what = format!("{before:?} d = {kd}ε");
+            let c = straight(before, 2.0, 0.5, 2.5 + kd * eps()).expect("builds");
+            assert_eq!(c.loop_.as_loop().vertices().len(), 5, "{what}: the run");
+            validated(&c, &what);
+        }
     }
 }
 
@@ -253,5 +259,54 @@ fn a_run_out_below_the_band_is_a_zero_fit() {
     assert_eq!(
         escalated_on(side(2.0 * eps()), "a run out 2ε long"),
         "fillet_leg_fit"
+    );
+}
+
+/// The band's multiplier `K`: the band is `(ε, Kε)`.
+fn k() -> f64 {
+    let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+    band.escalate() / band.zero()
+}
+
+/// **A run just past the band builds and then escalates a span check.**
+/// Pinned red on
+/// `work/round/a-fillet-run-just-past-the-band-builds-and-then-escalates-a-span.md`:
+/// at d = 1.05·Kε the fit decides the run Positive and builds it, and
+/// validation's `arc_span` on the leg and the fillet arc, which meet
+/// across that short run, escalates — bare and after `.tangent()`, at
+/// every ε row. The arc-tip extension's window moves with the row: at
+/// `rf = 1 − 14ε` it stops on `line_span` at 1e-9 and 1e-6 and on
+/// `carrier_line_circle` at 1e-12.
+#[test]
+fn a_run_just_past_the_band_builds_and_then_escalates_a_span() {
+    for before in [Before::Nothing, Before::Tangent] {
+        let what = format!("{before:?} d = 1.05Kε");
+        test_utils::pinned_red::row(
+            eps(),
+            &test_utils::pinned_red::EVERY_ROW,
+            &what,
+            &[
+                &format!("{what}: the loop validates, got Escalated"),
+                "gate: ArcSpan",
+            ],
+            || {
+                let c = straight(before, 2.0, 0.5, 2.5 + 1.05 * k() * eps()).expect("builds");
+                validated(&c, &what);
+            },
+        );
+    }
+    let what = "the arc-tip extension at rf = 1 − 14ε";
+    test_utils::pinned_red::row(
+        eps(),
+        &test_utils::pinned_red::EVERY_ROW,
+        what,
+        &[
+            &format!("{what}: the loop validates, got Escalated"),
+            "SegmentPair",
+        ],
+        || {
+            let c = arc_extension_at_the_tip(0.3, 1.0 - 14.0 * eps()).expect("builds");
+            validated(&c, what);
+        },
     );
 }

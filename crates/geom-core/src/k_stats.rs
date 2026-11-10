@@ -695,6 +695,25 @@ pub fn decide<T: Decide>(
     classify(name, margin.value(), band).map(|d| d.sign)
 }
 
+/// **[`decide`] for a decision on a size the user may intend that
+/// passes only `passes`**: the same classification and record, with an
+/// undecided reading tagged with the pass set, so its sized ending
+/// offers a tighter tolerance only on the side a smaller tolerance
+/// decides passing (D4 ¶1 (i)). A margin in band on a refused side
+/// shows no size, and offers none.
+///
+/// # Errors
+///
+/// [`decide`]'s, its reading tagged with `passes`.
+pub fn decide_passing<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+    passes: SizedPass,
+) -> Result<Sign, Indeterminate> {
+    decide(name, margin, band).map_err(|e| e.undecided_passing(passes))
+}
+
 /// **A proof's inequality, read exactly**, and logged under `name`: the
 /// sign of `margin` with no band but the least pair of positive `f64`s,
 /// so only an enclosure that straddles zero fails to decide. It is for

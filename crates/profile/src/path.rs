@@ -4487,27 +4487,43 @@ impl<T: Decide> Core<T> {
         meta: &PendingMeta,
         run: Option<verbs::SideRun<T>>,
     ) -> Result<(), PathError<T>> {
-        if t.fit_in == Sign::Positive {
-            match t.in_arc {
-                None => return self.push_straight_run_in(meta.bound_at, t.t1),
-                Some((centre, sweep)) => {
-                    let head = self.head()?;
-                    let run = run.ok_or(PathError::UnderdeterminedLeg {
-                        site: "an arc side's run without its opened arc side",
-                    })?;
-                    let arc = side_arc(head, t.t1, centre, run.radius, sweep, run.head_on_circle)
-                        .through(run.through);
-                    // The incoming carrier is the BINDER's own argument
-                    // wherever the arrival finally emits it.
-                    if meta.incoming_radius {
-                        self.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier)?;
-                    }
-                    self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
-                    self.push_arc(t.t1, arc)?;
-                    self.construct_last();
-                }
+        if t.fit_in != Sign::Positive {
+            return Ok(());
+        }
+        match t.in_arc {
+            None => self.push_straight_run_in(meta.bound_at, t.t1),
+            Some((centre, sweep)) => {
+                let run = run.ok_or(PathError::UnderdeterminedLeg {
+                    site: "an arc side's run without its opened arc side",
+                })?;
+                self.push_arc_run_in(meta, t.t1, centre, sweep, run)
             }
         }
+    }
+
+    /// A fillet's arc run in along its side's carrier about `centre` to
+    /// its tangent point `t1`, credited to the step that bound the fillet
+    /// (its carrier radius too, where a radius argument authored it),
+    /// with the joint at `t1` constructed.
+    fn push_arc_run_in(
+        &mut self,
+        meta: &PendingMeta,
+        t1: Point2<T>,
+        centre: Point2<T>,
+        sweep: ArcSweep,
+        run: verbs::SideRun<T>,
+    ) -> Result<(), PathError<T>> {
+        let head = self.head()?;
+        let arc =
+            side_arc(head, t1, centre, run.radius, sweep, run.head_on_circle).through(run.through);
+        // The incoming carrier is the BINDER's own argument wherever the
+        // arrival finally emits it.
+        if meta.incoming_radius {
+            self.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier)?;
+        }
+        self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
+        self.push_arc(t1, arc)?;
+        self.construct_last();
         Ok(())
     }
 

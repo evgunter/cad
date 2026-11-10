@@ -431,9 +431,10 @@ it was resolving with that lever and no coincidence tail: a fillet the
 caller asked for constructs its joints, so "declare the coincidence"
 names a declaration that does not exist. A gate whose margin is a size
 the user may intend, and which a smaller ε decides in the request's
-favour, adds the conditional, valued tighten. Every other gate ends in
-its lever alone: the two classified against the exact-order band,
-`fillet_leg_fit` and `fillet_leg_reach`, which no ε moves, and
+favour, adds the conditional, valued tighten — `fillet_leg_fit` on a run
+in band only, since an overrun in band refuses at every smaller ε. Every
+other gate ends in its lever alone: `fillet_leg_reach`, classified
+against the exact-order band, which no ε moves, and
 `fillet_offset_lever`, whose least lever grows as ε shrinks, so a smaller
 tolerance decides it against the request. The
 stored-form read is a site of its own (`EscalatedAt::StoredForm`),
@@ -450,8 +451,8 @@ built, and one in the band escalates at the fit. Of the other two,
 `fillet_corner_arm` is shadowed by magnitude — its margin IS the lever
 arm, so putting it in the band puts a length-shaped path gate in the
 band on the same request — and `fillet_leg_reach` classifies against
-the exact-order band, which no representable `f64` lies inside. Two of the six are levered or scene-scaled rather than
-radius-scaled, which is why their sentences name the leg extent and the
+the exact-order band, which no representable `f64` lies inside. Two of
+the seven are levered or scene-scaled rather than radius-scaled, which is why their sentences name the leg extent and the
 bound on the lever's own window.
 
 ## The refusal envelope: every refusing crossing, named

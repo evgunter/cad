@@ -194,20 +194,25 @@ fn p1_grid_a_re_taken_at_the_head() {
     );
     assert_eq!(authorings, 18_144, "grid A is the PR body's grid");
     assert_eq!(longer, 0, "a carrier pair derives at most two corners");
-    // The PR body's cells, to the count.
-    // At an ε row where some anchor-fit overruns fall inside the run's
-    // band (`grid_a_overruns_inside_the_band`), those refusals leave the
-    // census.
-    let want = if crate::common::grid_a_overruns_inside_the_band() == 0 {
-        (10_694, 8_182, 2_512, 1_727)
-    } else {
-        (10_688, 8_178, 2_510, 1_725)
-    };
+    // The PR body's cells, to the count. At an ε row whose band holds
+    // some of the grid's anchor-fit overruns
+    // (`grid_a_overruns_inside_the_band`), each such refusal leaves the
+    // census, and the cells it sat in are not computed here: only their
+    // sum is held there.
+    let (_, _, inside) = crate::common::grid_a_overruns_inside_the_band();
+    assert_eq!(refusals, 10_694 - inside, "the PR body's refusal count");
     assert_eq!(
-        (refusals, len1, len2, mixed),
-        want,
-        "the PR body's refusal count, length-1, length-2 and mixed-reason cells"
+        len1 + len2,
+        refusals,
+        "every refusal is a length-1 or length-2 envelope"
     );
+    if inside == 0 {
+        assert_eq!(
+            (len1, len2, mixed),
+            (8_182, 2_512, 1_727),
+            "the PR body's length-1, length-2 and mixed-reason cells"
+        );
+    }
 }
 
 /// **C2 over the grid, not over one fixture.**

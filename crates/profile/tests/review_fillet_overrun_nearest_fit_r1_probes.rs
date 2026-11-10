@@ -42,6 +42,8 @@ fn same_point(a: Point2<f64>, b: Point2<f64>) -> bool {
 /// row is what goes red if a future pick reads the other leg.
 #[test]
 fn every_anchor_fit_report_names_a_leg_whose_setback_outruns_its_extent() {
+    let (inside_in, inside_out, _) = crate::common::grid_a_overruns_inside_the_band();
+    let inside = inside_in + inside_out;
     let mut entries = 0_usize;
     grid_a(|n, _, _, out| {
         let Err(err) = out else { return };
@@ -53,11 +55,7 @@ fn every_anchor_fit_report_names_a_leg_whose_setback_outruns_its_extent() {
             );
         }
     });
-    assert_eq!(
-        entries,
-        3_185 - crate::common::grid_a_overruns_inside_the_band(),
-        "grid A's anchor-fit entries"
-    );
+    assert_eq!(entries, 3_185 - inside, "grid A's anchor-fit entries");
 }
 
 /// **The reported deficit is not the reduction that makes the corner
@@ -126,6 +124,8 @@ fn following_the_reported_deficit_can_leave_the_same_corner_refusing() {
 /// rule moves them.
 #[test]
 fn the_grid_a_recourse_census_says_which_way_the_reported_deficit_errs() {
+    let (inside_in, inside_out, _) = crate::common::grid_a_overruns_inside_the_band();
+    let inside = inside_in + inside_out;
     let (mut not_a_request, mut still_refusing, mut builds, mut other) = (0, 0, 0, 0);
     let mut past: Vec<&'static str> = Vec::new();
     grid_a(|_, case, r, out| {
@@ -159,12 +159,7 @@ fn the_grid_a_recourse_census_says_which_way_the_reported_deficit_errs() {
     }
     assert_eq!(
         (not_a_request, still_refusing, builds + past.len(), other),
-        (
-            469,
-            2_111 - crate::common::grid_a_overruns_inside_the_band(),
-            605,
-            0
-        ),
+        (469, 2_111 - inside, 605, 0),
         "the recourse census over grid A"
     );
 }
