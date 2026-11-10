@@ -281,3 +281,21 @@ ordinary fillet insert. Fix pass to the implementer.
 
 The fix changed the fit gate's band, which is new correctness surface,
 so the fix-pass delta gets a second FULL review before merge.
+
+6682 re-review: APPROVE-WITH-FIXES.
+- Confirmed: the Zero-arm geometry (the arc lands ≤ ε off, joints
+  stay constructed) and that the in-band escalation is real (its
+  reader is `sweep::swept::cosurface`).
+- Fix now:
+  - F1 (D4): the fit's Sized ending offered a tighten on an in-band
+    overrun, which then refuses. Tag it `NonNegative`, reword the lever
+    per side, and give it a Driven row in `gate_kinds_followed`.
+  - F3: compute the per-ε census from the grid instead of a literal
+    lookup.
+  - F4: stale docs.
+  - Style: the arc run-in gets one home.
+- Filed and pinned, not fixed: F2, a ~1ε build-then-escalate window just
+  above Kε (the span checks on the non-adjacent pair). The window is
+  new for the ray and arc-tip extensions and already on main for
+  authored runs. The fix belongs in validation's span reading, so it
+  gets a ROUND P2 issue.
