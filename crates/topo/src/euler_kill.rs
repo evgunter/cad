@@ -3946,8 +3946,8 @@ mod tests {
         body.mev_line(fan, Point3::new(1.2, 0.1, 0.0), tol).unwrap();
         assert_eq!(validate(&body), Ok(()));
         let (he, m) = (circle.he_plus, circle.he_minus);
-        let x = body.get_half_edge(he).unwrap().start;
-        assert_eq!(body.get_half_edge(m).unwrap().start, x, "both ends are `x`");
+        let (x, y) = body.edge_vertices(circle.edge).unwrap();
+        assert_eq!(y, x, "both ends are `x`");
         let next_he = body.get_half_edge(he).unwrap().next;
         let next_m = body.get_half_edge(m).unwrap().next;
         assert!(

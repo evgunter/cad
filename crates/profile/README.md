@@ -534,7 +534,9 @@ the other carrier, the smaller over the candidate's overrun legs, each
 leg's solution taken on the branch of the candidate it belongs to. The
 tangency condition is linear in the radius on both leg kinds, so it is
 a closed form at the site, not a search; it is `None` only where that
-form degenerates.
+form degenerates. Beside it rides the same form with the anchor moved
+toward the corner by half the fit band's coincidence threshold, the
+far edge of the exact-fit band the rendering lands in.
 
 The two numbers meter the two levers, each stated as the value to set
 rather than an amount to add. A leg fits when its anchor lies at least
@@ -543,17 +545,20 @@ carrier that stays put changes `available` one for one, so `setback` is
 the anchor's target; `radius_at_anchor` is this corner's bound for the
 radius. The sentence names, for each overrunning leg, where its anchor
 must lie, and the radius, each rendered strictly on the fitting side of
-the exact value (an exact boundary value typed back lands in the band):
+the exact value (the exact value's float can land on the overrun side,
+so the rendering lands within the exact-fit band on the fitting side,
+and the named fillet ends at the anchor):
 "anchor that leg at least S m from the corner, or use a radius of X m or
-less" (the sentence's cause clause has already given both legs' setbacks
-and where their anchors are). It promises this corner's
+less" (the sentence's cause clause has already given each overrunning
+leg's setback and where its anchor is). It promises this corner's
 anchor fit and nothing more; a smaller radius can still refuse at
 another gate, in that gate's own words. Where `radius_at_anchor` is
 `None` the radius lever is named without a value. A corner's recourse
 is a closed `Recourse`, and a pair's one recourse is their exhaustive
 merge, taking the largest radius bound among its corners. The pins are
 `tests/fillet_overrun_nearest_fit.rs` and the two review probe suites
-beside it (`review_fillet_overrun_nearest_fit_r1_probes`, `_r2_probes`).
+beside it (`review_fillet_overrun_nearest_fit_r1_probes`, `_r2_probes`),
+and the radius lever's `tests/fillet_radius_at_anchor.rs`.
 
 ## The profile loop: format and tangency
 

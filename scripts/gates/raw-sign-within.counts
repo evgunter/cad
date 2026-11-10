@@ -1,10 +1,6 @@
 # Production `.sign_within(` outside geom-core's doors and scalar impls,
 # counted per file (scripts/gates/raw-sign-within.sh). A raw read names
-# no predicate for the K recorder and logs no verdict, so each entry says
-# why its read is no decision. The two below predate the gate and are
-# unaudited: work/onecopy/three-raw-sign-within-reads-predate-their-gate.md.
-#
-# The replay's zero test of a coincidence lane, discharged or deferred.
-crates/editor-core/src/coincide/replay.rs 1
-# A region's placement against a ball: "not a decision about the pair".
-crates/geom-brep/src/pair_section/cylinders.rs 1
+# no predicate for the K recorder and logs no verdict. A read that
+# decides nothing says so at its site with a `// NO-DECISION: <why>` line
+# directly above it, and is not counted here; a read that decides goes
+# through a named k_stats door, or is entered here with why it cannot yet.

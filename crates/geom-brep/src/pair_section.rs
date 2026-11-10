@@ -345,14 +345,16 @@ impl<T: Decide> CylinderSpherePose<T> {
         band: Band,
     ) -> Result<(Point3<T>, T, CsStance<T>), PoseRefusal> {
         let geom::Line { origin, dir: axis } = axis;
-        let read = |name: &'static str, value: T| {
+        let read_as = |name: &'static str, value: T| {
             geom_core::k_stats::decide_reported(name, Margin::of(value), band)
         };
+        const CYLINDER_RADIUS: &str = "cs_cylinder_radius";
+        const SPHERE_RADIUS: &str = "cs_sphere_radius";
         for (name, value, radius) in [
-            ("cs_cylinder_radius", r, SectionRadius::Cylinder),
-            ("cs_sphere_radius", big_r, SectionRadius::Sphere),
+            (CYLINDER_RADIUS, r, SectionRadius::Cylinder),
+            (SPHERE_RADIUS, big_r, SectionRadius::Sphere),
         ] {
-            match read(name, value) {
+            match read_as(name, value) {
                 Ok(Decided {
                     sign: Sign::Positive,
                     ..
@@ -366,7 +368,8 @@ impl<T: Decide> CylinderSpherePose<T> {
             }
         }
         let pose = |decision: CsDecision, value: T| {
-            read(decision.name(), value).map_err(|diag| PoseRefusal::Undecided { decision, diag })
+            read_as(decision.name(), value)
+                .map_err(|diag| PoseRefusal::Undecided { decision, diag })
         };
         // `axis` is unit by the surface's own invariant.
         let (off, d) = square_part(center - origin, axis);
@@ -2343,7 +2346,9 @@ fn seat_at(
             let ends = [net.eval(lo), net.eval(hi)];
             return match at_the_start(net.eval(at), ends, band) {
                 Ok(true) => Ok(component.clone()),
-                Ok(false) => Err(CarryError::Refused(CarryRefusal::Seat(e))),
+                Ok(false) => Err(CarryError::Refused(CarryRefusal::Seat(
+                    geom_core::spline::Built::new(e),
+                ))),
                 Err(diag) => Err(CarryError::Escalated(diag)),
             };
         }
@@ -2482,7 +2487,7 @@ pub enum CarryRefusal {
     Unwalked(geom::PieceWalkRefusal),
     /// A closed fitted component could not be opened at its first site
     /// ([`PairSection::seat`]): the knot edit refused.
-    Seat(geom_core::spline::KnotAlgebraError),
+    Seat(geom_core::spline::Built<geom_core::spline::KnotAlgebraError>),
 }
 
 impl CarryRefusal {
@@ -2537,12 +2542,9 @@ impl CarryRefusal {
                  {why}. {}",
                 why.recourse()
             ),
-            // The seat is a knot edit at a parameter the kernel chose
-            // strictly inside the carrier, so its refusal is the kernel's.
             Self::Seat(e) => write!(
                 f,
-                "the section's closed loop could not be opened at its first site: {}. {defect}",
-                e.fact()
+                "the section's closed loop could not be opened at its first site: {e}. {defect}"
             ),
         }
     }

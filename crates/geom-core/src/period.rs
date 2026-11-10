@@ -164,6 +164,34 @@ impl<T: Real> Period<T> {
     pub fn rate(self, k: i32, carrier: Period<T>) -> T {
         self.times(k) / carrier.length()
     }
+
+    /// **`t`'s margins from the start and the stop of the span
+    /// `(lo, hi)`, each also read on `t`'s copy a period away**: the
+    /// start's is the greater of `t − lo` and `hi − (t + P)`, the stop's
+    /// the greater of `hi − t` and `(t − P) − lo`. Each is negative only
+    /// where `t` is past that end on its own copy and before the other
+    /// end on the copy a period away, so a box named whole on one copy
+    /// ([`Period::near`] about a span's middle, a box astride the
+    /// middle's antipode) whose other copy reaches into the span reads
+    /// no end decided past.
+    ///
+    /// For a `t` within half a period of the span's middle, each copy's
+    /// margin is at most `t`'s own in ℝ (`hi − (t + P) − (t − lo)` is
+    /// `2(mid − t) − P`, at most `0`, and likewise at the stop), so on a
+    /// point named about the middle the margins are its own. They are
+    /// equal only at the tie, `t` half a period from the middle, the
+    /// antipode, which a point there is past on either copy: at or within
+    /// rounding of it the copy's rounding can move the margin's last bit,
+    /// never its sign past the band (measured over topo, sweep,
+    /// editor-core, step-import and mesh at ε 1e-9 and 1e-12: every moved
+    /// point reading is at or within rounding of such a tie).
+    /// `geom_brep::curve_pair::Span` reads its ends' sides through this
+    /// on a closed carrier, and so does `topo`'s ring lane, each with its
+    /// own meter.
+    pub fn span_margins(self, t: T, (lo, hi): (T, T)) -> (T, T) {
+        let p = self.length;
+        ((t - lo).max(hi - (t + p)), (hi - t).max((t - p) - lo))
+    }
 }
 
 impl<T: Decide> Period<T> {
@@ -328,8 +356,9 @@ impl<T: Decide> Period<T> {
     /// middle's antipode lands on one copy, and where the span's gap is
     /// narrower than the box, part of it lies inside the span on the copy
     /// a turn away: a reader of such a box against the ends reads each
-    /// side on both copies (`geom_brep::curve_pair::Span`, "A parameter a
-    /// turn away").
+    /// side on both copies, through [`Period::span_margins`], the copy
+    /// rule's home (`geom_brep::curve_pair::Span`, "A parameter a turn
+    /// away", and `topo`'s ring lane read it).
     ///
     /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
     /// is not finite, or a gap no `i32` of periods names, has no copy, and
@@ -1219,26 +1248,26 @@ mod period_rows {
         use crate::{InfSpeed, SupSpeed};
         let band = band();
         let rates = (InfSpeed::new(1.0_f64), SupSpeed::new(1000.0));
-        let rows = ("t_forward", "t_chord", "t_sense");
+        const ARC_ROWS: (&str, &str, &str) = ("t_forward", "t_chord", "t_sense");
         let chord = |x: f64| crate::Vec3::new(x, 0.0, 0.0);
         let dt = 5e-11;
         assert!(matches!(
             Extent::forward("t_forward", 0.0, dt, rates.0, band),
             Err(NotForward::Zero(_))
         ));
-        let extent = Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-8), band)
+        let extent = Extent::forward_by_arc(ARC_ROWS, 0.0, dt, rates, chord(5e-8), band)
             .expect("forward by its chord");
         assert_eq!(extent.get(), dt);
         assert!(
             matches!(
-                Extent::forward_by_arc(rows, dt, 0.0, rates, chord(-5e-8), band),
+                Extent::forward_by_arc(ARC_ROWS, dt, 0.0, rates, chord(-5e-8), band),
                 Err(NotForward::Reversed(_))
             ),
             "run backwards, apart past the band: reversed, not a point"
         );
         assert!(
             matches!(
-                Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-10), band),
+                Extent::forward_by_arc(ARC_ROWS, 0.0, dt, rates, chord(5e-10), band),
                 Err(NotForward::Zero(_))
             ),
             "a chord in the zero"
@@ -1603,7 +1632,7 @@ mod turn_rows {
     }
 
     /// The rule at an inf of 1 and a sup of 20, with what it recorded.
-    fn bounded(h: f64) -> (Result<Turn, TurnUndecided>, crate::k_stats::Recorded) {
+    fn turn_of(h: f64) -> (Result<Turn, TurnUndecided>, crate::k_stats::Recorded) {
         let bracket = Bracket::open();
         let rate = Bounded::new(InfSpeed::new(1.0), SupSpeed::new(20.0));
         let got = one_turn().turn(ROWS, past(h), rate, band());
@@ -1651,7 +1680,7 @@ mod turn_rows {
     #[test]
     fn a_bounded_rate_decides_on_the_sound_bound() {
         for (h, short) in [(20.0 * EPS, true), (-20.0 * EPS, false)] {
-            let (got, recorded) = bounded(h);
+            let (got, recorded) = turn_of(h);
             let want = if short { "short" } else { "over" };
             assert!(
                 matches!(
@@ -1662,11 +1691,11 @@ mod turn_rows {
             );
             assert_eq!(reads(&recorded), 1, "{want}: the inf reading alone");
         }
-        let (got, recorded) = bounded(0.04 * EPS);
+        let (got, recorded) = turn_of(0.04 * EPS);
         assert!(matches!(got, Ok(Turn::Whole(_))), "whole: {got:?}");
         assert_eq!(reads(&recorded), 2, "whole: both readings");
         for (h, over) in [(-0.9 * EPS, true), (0.9 * EPS, false)] {
-            let (got, recorded) = bounded(h);
+            let (got, recorded) = turn_of(h);
             let Err(
                 undecided @ TurnUndecided {
                     diag,
@@ -1702,7 +1731,7 @@ mod turn_rows {
         // The inf reading in the band: undecided on its own margin, over at
         // the sup where the sup reading is definitely negative.
         for (h, over) in [(-3.0 * EPS, true), (3.0 * EPS, false)] {
-            let (got, _) = bounded(h);
+            let (got, _) = turn_of(h);
             assert!(
                 matches!(
                     got,
@@ -1714,7 +1743,7 @@ mod turn_rows {
         }
         // The inf reading Zero, the sup in the band: undecided on the sup's
         // margin, not over.
-        let (got, _) = bounded(-0.3 * EPS);
+        let (got, _) = turn_of(-0.3 * EPS);
         assert!(
             matches!(
                 got,
