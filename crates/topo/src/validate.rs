@@ -3215,7 +3215,7 @@ impl WedgeCheck {
 /// crease (positive) and on a smooth join (zero), and refuses only in
 /// band.
 const WEDGE: SizedDecision = SizedDecision {
-    lever: "move the geometry so the faces meet either clearly creased or clearly smooth",
+    lever: geom_core::move_lever!("so the faces meet either clearly creased or clearly smooth"),
     size: "angle",
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
@@ -3226,8 +3226,10 @@ const WEDGE: SizedDecision = SizedDecision {
 /// they curve apart (positive) and when they do not (zero), and refuses
 /// only in band.
 const SEPARATION: SizedDecision = SizedDecision {
-    lever: "move the geometry so the faces either clearly curve apart where they touch or \
-            clearly share their curvature there",
+    lever: geom_core::move_lever!(
+        "so the faces either clearly curve apart where they touch or \
+            clearly share their curvature there"
+    ),
     size: "curvature difference",
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
@@ -4776,9 +4778,11 @@ impl ValidationError {
                 f,
                 "two faces lie flat against each other from opposite sides at an edge, \
                  which no contact declaration can make valid: either the body has zero \
-                 thickness here, or one face is inside-out. Recourse: move the geometry so \
-                 the body has thickness here; if it already has, report the inside-out face \
-                 as a kernel defect"
+                 thickness here, or one face is inside-out. {}",
+                geom_core::move_recourse!(
+                    "so the body has thickness here; if it already has, report the \
+                     inside-out face as a kernel defect"
+                )
             ),
             Self::LoopRoleInverted { .. } => write!(
                 f,

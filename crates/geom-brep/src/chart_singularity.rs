@@ -566,7 +566,7 @@ enum Near<T> {
 
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
 /// [`Curve3::nearest`] seeded at `from`, `None` where the carrier
-/// has none. A periodic carrier's ([`Curve3::is_periodic`]) is brought
+/// has none. A periodic carrier's ([`Curve3::period`]) is brought
 /// into `[from, from + τ)`, the turn at or past `from`
 /// ([`geom_core::period::Period::at_or_above`]): a point a hair behind
 /// `from` whose lift rounds onto `from + τ` reads `from`. A
@@ -574,11 +574,7 @@ enum Near<T> {
 /// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     let t = carrier.nearest(x, from)?;
-    Some(if carrier.is_periodic() {
-        geom_core::period::Period::new(T::tau()).at_or_above(t, from)
-    } else {
-        t
-    })
+    Some(carrier.period().map_or(t, |p| p.at_or_above(t, from)))
 }
 
 /// **The point of `e` nearest `x`**, decided once at `band`

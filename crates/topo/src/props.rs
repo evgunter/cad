@@ -5611,7 +5611,7 @@ pub enum ShellClassifyError {
 /// definite gap. One decision and one lever, at rest and at a boolean's
 /// door alike (`BooleanDecision::ShellRole`).
 pub const AIMED_PAIR: SizedDecision = SizedDecision {
-    lever: "move the geometry so the two faces the aimed ray met are clearly apart",
+    lever: geom_core::move_lever!("so the two faces the aimed ray met are clearly apart"),
     size: "gap",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,

@@ -549,6 +549,10 @@ impl<T: Decide> FaceOnLocus<T> {
                     == geom_core::Sign::Positive,
             )
         };
+        // Two decided rides of opposite sign answer `RidesBothWays` (a
+        // theorem), but a ride in band refuses first: a deviation from
+        // the ladder rule, scheduled on
+        // `work/onecopy/the-ladder-has-no-climb-for-a-disagreement-that-answers.md`.
         let mut seen: Option<geom_core::Sign> = None;
         for &(lo, hi, sign) in &self.rides {
             for &k in wraps {

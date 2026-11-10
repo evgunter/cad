@@ -578,6 +578,11 @@ fn ruling_pairs<T: Decide>(
     crossings: &[Crossing<T>],
     band: Band,
 ) -> Result<Vec<(HalfEdgeKey, HalfEdgeKey)>, SplitJoinError> {
+    // Each ruling runs along the cylinder's stored axis
+    // (`PlaneCylinderSection::ParallelLines`, nonzero at rest by tier 3's
+    // check 1) or a ruling of the cone's squared frame
+    // (`PlaneConeSection::ApexLinePair`, never the zero vector), so its
+    // direction normalizes with no decision.
     let mut lines = Vec::with_capacity(2);
     for ruling in rulings {
         let Some(geom::Line { origin, dir }) = ruling.as_line() else {

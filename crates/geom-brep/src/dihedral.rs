@@ -148,8 +148,10 @@ use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 /// zero needs a stored radius below zero, which a profile refuses at a
 /// build and the at-rest representability check reports first.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
-    lever: "move the geometry so that edge's faces clearly run farther and none curves tightly \
-            there",
+    lever: geom_core::move_lever!(
+        "so that edge's faces clearly run farther and none curves tightly \
+            there"
+    ),
     size: "width or the gap its faces open",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
