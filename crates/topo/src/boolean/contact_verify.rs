@@ -133,7 +133,8 @@ pub fn rest_pair_verdict<T: Decide>(
         }),
         // Every caller reads a validated body, and tier 3 refuses such a
         // torus first (`ValidationError::DegenerateTorus`), so no row
-        // reaches this arm through one.
+        // reaches this arm through one; at a dual, `Replay`'s "A tier-3
+        // premise at a dual".
         Err(CarrierEqError::OffRing { refusal, .. }) => Err(match refusal.verdict {
             geom_brep::TorusVerdict::Undecided(diag) => ContactRefusal::Escalated { diag },
             geom_brep::TorusVerdict::Refused(_) => ContactRefusal::NotCertifiable {

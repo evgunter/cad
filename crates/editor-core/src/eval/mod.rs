@@ -3831,7 +3831,7 @@ impl<B> OwnRecord for geom_core::Sym<B> where geom_core::Sym<B>: EvalScalar {}
 /// ([`NodeErrorKind::RecordRefused`]): this is the one place a dual
 /// operand's tier-3 premise is asserted, so topo's readings that state
 /// "tier 3 refuses it first" hold at a dual too
-/// (`topo::boolean`'s "At a dual" note).
+/// ([`topo::Replay`]'s "A tier-3 premise at a dual").
 pub trait BoundToRecord: EvalScalar {
     /// The base scalar whose evaluation is this one's build of record.
     type Record: OwnRecord;

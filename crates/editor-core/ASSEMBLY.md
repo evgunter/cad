@@ -13,7 +13,7 @@ contact vocabulary is `crates/topo/README.md`; the user-facing walk is
 | Decisions | Modules |
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs`; the copy's frame in `src/eval/framed.rs` |
-| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`, `src/stackup.rs`; the memo's drop in `src/eval/mod.rs` |
+| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`, `src/stackup.rs`; the memo's drop and the dual's build of record (`evaluate_recorded`, `RecordMispaired`) in `src/eval/mod.rs` |
 | A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `Node::Space`, `InstantiatePart`'s `target` and `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Value`, `Coord`, `MateRef`, `MateFault`), `src/mate/orient.rs` (`Orientation`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs` (`Placed`, `stand`), `src/mate/corner.rs` (`corner_frame`), `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split, inline and flatten | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
@@ -89,6 +89,9 @@ The doors that refuse:
 - `stackup::sensitivities` and `stackup::stackup`
   (`BindingViolation::EvaluationOfAnotherDocument`), for the handed
   build of record, which DUAL-DESIGN DL3 binds by revision as well.
+- `eval::evaluate_recorded` (`NodeErrorKind::RecordMispaired`, on every
+  node, before any runs): a dual evaluation's build of record, whose
+  refused nodes it refuses (DUAL-DESIGN DL3).
 
 The memo reads the stamp too, and since `evaluate` returns no `Result`
 it refuses by dropping: a prior of another document is dropped whole
