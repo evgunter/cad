@@ -1624,18 +1624,14 @@ fn torus_coefficients_excess(
     (excess, h)
 }
 
-/// **A fat torus's `R² − r²` is charged at `R² + r²`, once.** Draw 367 of
-/// [`the_other_charts_circle_coefficients_stay_within_their_charge`] at
-/// `CAD_FUZZ_SEED=0xbb6048d2e37fd735`: a circle of radius 0.055 near the
-/// axis of a torus with `R` 605.5 and `r` 589.1. `R² − r²` (about 19613)
-/// cancels about 18 to 1, and `p₀ = |w|² + R² − r²` carries the rounding
-/// of `R²` and `r²` into `p₀²`. Measured, the excess is between 1.1 and
-/// 1.5 times what charging `p` at `|p|²` alone allowed; the analytic
-/// worst case for this draw, `2·p₀·δk` at `δk ≈ 1e-10`, is about 4e-6,
-/// 3.7 times that charge (1.07e-6). Charged at `|p|·(|S| + R² + r²)`,
-/// linear in the radii's rounding, it is within, and the excess is 0.048
-/// of the charge. Squared, `(|S| + R² + r²)²`, the charge stood about 2⁹
-/// above the excess.
+/// **A fat torus's charge is linear in its radii's rounding.** Draw 367
+/// of [`the_other_charts_circle_coefficients_stay_within_their_charge`]
+/// at `CAD_FUZZ_SEED=0xbb6048d2e37fd735`: a circle of radius 0.055 near
+/// the axis of a torus with `R` 605.5 and `r` 589.1. `R² − r²`, about
+/// 19613, cancels about 18 to 1, and `p₀ = |w|² + R² − r²` carries the
+/// rounding of `R²` and `r²` into `p ⊗ p` once. Charged at
+/// `|p|·(|S| + R² + r²)`, the excess is 0.048 of the charge. The window
+/// `[1/32, 1]` fails a charge three times looser.
 #[test]
 fn a_fat_toruss_coefficients_charge_its_radii_whole() {
     let carrier = Curve3::circle(
@@ -1656,16 +1652,17 @@ fn a_fat_toruss_coefficients_charge_its_radii_whole() {
     );
     let tight = excess.ratio(&crate::exact_q::Q::of(geom_core::rounding_charge(h.terms)));
     assert!(
-        (1.0 / 64.0..=1.0).contains(&tight),
+        (1.0 / 32.0..=1.0).contains(&tight),
         "the fat torus's coefficients' exact excess is {tight} of their charge"
     );
 }
 
 /// **A thin torus's charge is its coefficients' scale, squared.** A
-/// circle of radius 10 about a torus's axis, on its core circle, `R` 10
-/// and `r` 0.01: `R² − r²` cancels nothing, `|p|` is `|S| + R² + r²` to
-/// within `2r²`, and the charge is the square it was. The excess is 0.065
-/// of it.
+/// circle of radius 10, centred 10 m from the centre of a torus of `R` 10
+/// and `r` 0.01 and tilted to its axis. `R² − r²` cancels nothing, and
+/// `|p|` is `|S| + R² + r²` to within `2r²`, so the charge is that
+/// square. The excess is 0.065 of it, and the window `[1/32, 1]` fails a
+/// charge three times looser.
 #[test]
 fn a_thin_toruss_coefficients_charge_their_scale() {
     let (at, axis) = (Point3::new(0.3, -0.7, 0.2), Vec3::new(0.48, 0.6, 0.64));
@@ -1678,7 +1675,7 @@ fn a_thin_toruss_coefficients_charge_their_scale() {
     let (excess, h) = torus_coefficients_excess(conic, at, axis, 10.0, 0.01);
     let tight = excess.ratio(&crate::exact_q::Q::of(geom_core::rounding_charge(h.terms)));
     assert!(
-        (1.0 / 64.0..=1.0).contains(&tight),
+        (1.0 / 32.0..=1.0).contains(&tight),
         "the thin torus's coefficients' exact excess is {tight} of their charge"
     );
 }
@@ -1728,11 +1725,13 @@ fn a_ring_a_float_from_fat_keeps_its_floor() {
 
 /// **The torus's charge holds on every family the suites build.** Thin
 /// tori (`r/R` up to 0.1), ordinary ones and fat ones (`r/R` from 0.9 to
-/// within 1e-5 of one), against circles and ellipses on the tube, near the axis and
-/// on the rim, near and far from the origin: the exact excess of the
-/// stored coefficients is within `rounding_charge(terms)`. Over 6000
-/// draws the excess stood at most 0.48 of the charge, in every family
-/// alike.
+/// within 1e-5 of one), against circles and ellipses placed near the axis
+/// (within `0.2R` of it), along the axis (anywhere on it) and on the core
+/// circle (within `r` of it), near and far from the origin: the exact
+/// excess of the stored coefficients is within `rounding_charge(terms)`.
+/// A scratch sweep of 6000 such draws, measured once on 2026-11-10 and
+/// not kept, put the excess at most 0.48 of the charge in every family;
+/// this row guards only that each draw is within.
 #[test]
 fn the_torus_charge_holds_on_every_family() {
     let mut s = fuzz::start("pcurve_cache::circle_lane_rows::torus_families");
@@ -1758,17 +1757,20 @@ fn the_torus_charge_holds_on_every_family() {
         let u = n.cross(Vec3::new(0.3, 1.0, -0.2)).normalize();
         let (place, centre) = match (i / 3) % 3 {
             0 => (
-                "tube",
+                "near the axis",
                 at + axis * (s.range(-1.0, 1.0) * small) + unit(&mut s) * big * s.range(0.0, 0.2),
             ),
             1 => (
-                "axis",
+                "along the axis",
                 at + axis * s.range(-3.0, 3.0) * scale
                     + unit(&mut s) * scale * s.log_uniform(1e-6, 2.0),
             ),
             _ => {
                 let radial = unit(&mut s).cross(axis).normalize();
-                ("rim", at + radial * big + axis * small * s.range(-1.0, 1.0))
+                (
+                    "on the core circle",
+                    at + radial * big + axis * small * s.range(-1.0, 1.0),
+                )
             }
         };
         let radius = scale * s.log_uniform(1e-4, 3.0);
