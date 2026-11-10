@@ -38,7 +38,7 @@ use geom::NurbsCurve3;
 use geom::NurbsSurface;
 use geom_core::k_stats::decide;
 use geom_core::spline::basis::basis_funs_in;
-use geom_core::spline::{SpanLocate, SplineError};
+use geom_core::spline::{Built, SpanLocate, SplineError};
 use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::ssi::ChartAxis;
@@ -53,15 +53,16 @@ use crate::ssi::ChartAxis;
 /// [`SplineError::NonFiniteWeight`] for a bad weight on the extracted
 /// row (its `index` counts along the row) — unreachable for a surface
 /// `NurbsSurface::new` built, surfaced rather than swallowed (D4 ¶2).
+/// The row is this door's build, so the refusal is [`Built`].
 pub fn boundary_iso_u<T: SpanLocate>(
     s: &NurbsSurface<T>,
     end: bool,
-) -> Result<NurbsCurve3<T>, SplineError> {
+) -> Result<NurbsCurve3<T>, Built<SplineError>> {
     let (nu, nv) = s.control_counts();
     let base = if end { (nu - 1) * nv } else { 0 };
     let control = s.control()[base..base + nv].to_vec();
     let weights = s.weights()[base..base + nv].to_vec();
-    NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_v().clone(), control, weights).map_err(Built::new)
 }
 
 /// `column` run back: its knots reflected through 0
@@ -96,12 +97,12 @@ pub fn reversed_column<T: SpanLocate>(column: &NurbsCurve3<T>) -> NurbsCurve3<T>
 pub fn boundary_iso_v<T: SpanLocate>(
     s: &NurbsSurface<T>,
     end: bool,
-) -> Result<NurbsCurve3<T>, SplineError> {
+) -> Result<NurbsCurve3<T>, Built<SplineError>> {
     let (nu, nv) = s.control_counts();
     let offset = if end { nv - 1 } else { 0 };
     let control = (0..nu).map(|iu| s.control()[iu * nv + offset]).collect();
     let weights = (0..nu).map(|iu| s.weights()[iu * nv + offset]).collect();
-    NurbsCurve3::new(s.knot_values_u().clone(), control, weights)
+    NurbsCurve3::new(s.knot_values_u().clone(), control, weights).map_err(Built::new)
 }
 
 /// **The interior iso-curve `u = u*` of a clamped surface, by de Boor
@@ -180,8 +181,11 @@ pub fn interior_iso_u<T: SpanLocate>(
         // A poison `u*` locates no span, and the row is poison in every
         // channel `u*` carries.
         let control = vec![Point3::<T>::origin().map(|_| geom_core::spline::poison_from(u)); nv];
-        return NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
-            .map_err(|source| IsoRowError::Structure { source });
+        return NurbsCurve3::new(s.knot_values_v().clone(), control, weights).map_err(|e| {
+            IsoRowError::Structure {
+                source: Built::new(e),
+            }
+        });
     };
     let mut hulled: Option<Vec<Point3<T>>> = None;
     for index in first.span().index()..=last.span().index() {
@@ -240,8 +244,11 @@ pub fn interior_iso_u<T: SpanLocate>(
     let Some(control) = hulled else {
         unreachable!("locate_spans returned no nonempty span")
     };
-    NurbsCurve3::new(s.knot_values_v().clone(), control, weights)
-        .map_err(|source| IsoRowError::Structure { source })
+    NurbsCurve3::new(s.knot_values_v().clone(), control, weights).map_err(|e| {
+        IsoRowError::Structure {
+            source: Built::new(e),
+        }
+    })
 }
 
 /// Why [`iso_boundary_row`] or [`interior_iso_u`] could not hand back
@@ -262,10 +269,11 @@ pub enum IsoRowError<T: Real> {
     },
     /// The row is not valid spline structure — unreachable for a surface
     /// `NurbsSurface::new` built, surfaced rather than swallowed
-    /// (D4 ¶2).
+    /// (D4 ¶2). Its text is the fact alone: the holder ends it, by
+    /// whether the surface was built or read at rest.
     Structure {
-        /// The spline layer's typed refusal.
-        source: SplineError,
+        /// The spline layer's typed refusal of the row this door built.
+        source: Built<SplineError>,
     },
     /// The domain-endpoint coincidence test escalated.
     Escalated {
