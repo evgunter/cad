@@ -1490,6 +1490,58 @@ impl<T: SpanLocate> NurbsSurface<T> {
         acc
     }
 
+    /// **The jet at `(u, v)` read beside a breakpoint**: in a direction
+    /// given `Some((run, above))`, on the nonempty span just above (or just
+    /// below) breakpoint run `run` of that direction's knots, whatever span
+    /// `(u, v)` lies in; in a direction given `None`, located as
+    /// [`Self::ders`] locates it, its cells hulled. Across an interior run
+    /// of multiplicity at least the degree the surface is only continuous,
+    /// so its partials there have a value on each side; this is the one on
+    /// the named side. Run `0` above is the domain's first span and the
+    /// last run below its last, the two sides of a closed chart's seam.
+    /// Poison where a run names no span on that side, or a parameter
+    /// locates none.
+    pub fn ders_beside(
+        &self,
+        u: T,
+        v: T,
+        (beside_u, beside_v): (Option<(usize, bool)>, Option<(usize, bool)>),
+    ) -> SurfaceJet<T> {
+        let spans = |knots: &Knots<T>, t: T, beside: Option<(usize, bool)>| match beside {
+            Some((run, above)) => span_beside_run(knots.structure(), run, above).map(|i| (i, i)),
+            None => knots
+                .locate(t)
+                .map(|(a, b)| (a.span().index(), b.span().index())),
+        };
+        let (Some((u0, u1)), Some((v0, v1))) = (
+            spans(&self.knots_u, u, beside_u),
+            spans(&self.knots_v, v, beside_v),
+        ) else {
+            return poison_jet(u + v);
+        };
+        let mut acc: Option<SurfaceJet<T>> = None;
+        for cu in u0..=u1 {
+            for cv in v0..=v1 {
+                let Some(win) = self.window(cu, cv) else {
+                    continue;
+                };
+                let jet = win.ders_in_span(u, v);
+                acc = Some(match acc {
+                    None => jet,
+                    Some(acc) => SurfaceJet {
+                        point: hull_point(acc.point, jet.point),
+                        du: hull_vec(acc.du, jet.du),
+                        dv: hull_vec(acc.dv, jet.dv),
+                        duu: hull_vec(acc.duu, jet.duu),
+                        duv: hull_vec(acc.duv, jet.duv),
+                        dvv: hull_vec(acc.dvv, jet.dvv),
+                    },
+                });
+            }
+        }
+        acc.unwrap_or_else(|| poison_jet(u + v))
+    }
+
     /// The third-order jet at `(u, v)` — [`NurbsSurface::ders`]'s span
     /// selection and channel-independent cell hulling, one order up
     /// (M5 PR 7's ℝ⁴ trace).
@@ -1972,6 +2024,19 @@ fn hull_vec<T: SpanLocate>(a: Vec3<T>, b: Vec3<T>) -> Vec3<T> {
     )
 }
 
+/// The knot index of the nonempty span just above (`above`) or just below
+/// breakpoint run `run` of `structure`: the run's last knot, or the knot
+/// before its first. `None` past either end of the knots.
+fn span_beside_run(structure: &spline::KnotStructure, run: usize, above: bool) -> Option<usize> {
+    let mult = structure.multiplicities();
+    let first: usize = mult.get(..run)?.iter().sum();
+    if above {
+        Some(first + mult.get(run)? - 1)
+    } else {
+        first.checked_sub(1)
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod reversal_tests {
@@ -2388,6 +2453,73 @@ mod memo_tests {
         assert!(
             s.axis_floors.get().is_some() && s.area_floor.get().is_some(),
             "a read outside a session left a memo empty"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod beside_tests {
+    use super::*;
+
+    /// A degree-1 fold in `u` at the knot `½`: `z` rises to `1` at the
+    /// middle column and falls back, flat (quadratic) along `v`.
+    fn roof() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for (x, z) in [(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)] {
+            for y in [0.0, 0.5, 1.0] {
+                control.push(Point3::new(x, y, z));
+            }
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; 9]).unwrap()
+    }
+
+    /// **The jet beside a run reads that span's derivatives**: on the
+    /// roof's crease the span below rises (`S_u = (1, 0, 2)`) and the one
+    /// above falls (`(1, 0, −2)`), at the same point; `None` reads as
+    /// [`NurbsSurface::ders`] does; and off the run each side reads its
+    /// own span's derivative continued, the point that span's
+    /// polynomial's.
+    #[test]
+    fn the_jet_beside_a_run_reads_that_spans_derivatives() {
+        let s = roof();
+        let below = s.ders_beside(0.5, 0.3, (Some((1, false)), None));
+        let above = s.ders_beside(0.5, 0.3, (Some((1, true)), None));
+        assert!(
+            (below.du - Vec3::new(1.0, 0.0, 2.0)).norm() < 1e-12,
+            "{:?}",
+            below.du
+        );
+        assert!(
+            (above.du - Vec3::new(1.0, 0.0, -2.0)).norm() < 1e-12,
+            "{:?}",
+            above.du
+        );
+        assert!((below.point - above.point).norm() < 1e-12);
+        let plain = s.ders_beside(0.25, 0.3, (None, None));
+        assert!((plain.du - s.ders(0.25, 0.3).du).norm() == 0.0);
+        assert!((plain.point - s.ders(0.25, 0.3).point).norm() == 0.0);
+        // The first run's span above is the first span; the last run has
+        // none above and the first none below: poison, not a jet.
+        let first = s.ders_beside(0.0, 0.3, (Some((0, true)), None));
+        assert!(
+            (first.du - Vec3::new(1.0, 0.0, 2.0)).norm() < 1e-12,
+            "{:?}",
+            first.du
+        );
+        assert!(
+            s.ders_beside(0.0, 0.3, (Some((0, false)), None))
+                .du
+                .x
+                .is_nan()
+        );
+        assert!(
+            s.ders_beside(1.0, 0.3, (Some((2, true)), None))
+                .du
+                .x
+                .is_nan()
         );
     }
 }

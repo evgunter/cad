@@ -96,8 +96,11 @@
 //!   [`SelfTouch::SecondOrder`]) — a cone's apex or a vertex in the band
 //!   of its axis, a cusp corner whose edges' bends do not part it, a horn
 //!   beside a sheet along its ray or a ring of horns that reads as no
-//!   thorn, a spline face held off a corner, a face whose foot normal,
-//!   reach or corner face does not read, a curved edge with no certified
+//!   thorn, a spline face held off a corner, a face whose foot normal
+//!   or reach does not read, a spline corner face on a placeholder chart
+//!   or with no certified curve or pcurve there (a spline corner on a
+//!   crease reads its sector's side, or refuses by the crease's
+//!   standing; it is not left here), a curved edge with no certified
 //!   curve, sheets along a tied ray that one order down meet or do not
 //!   part, a curved sheet holding a tied ray inside it, two whole tangent
 //!   planes on one plane, or sectors read lying on each other (two
@@ -8560,7 +8563,10 @@ enum SelfTouch {
     /// its ray or a ring of horns that reads as no thorn, a spline face
     /// held off a corner, a face whose normal at the foot or whose reach
     /// does not read, a corner face [`crate::sector_face::resolve`]
-    /// refuses, a curved edge with no certified curve, sheets along a
+    /// has no arm or no chart image for (a spline corner on a crease reads
+    /// the normal on its sector's side, and one the band cannot read
+    /// refuses the reading by the crease's standing, not here), a curved
+    /// edge with no certified curve, sheets along a
     /// tied ray that one order down meet or do not part, a curved sheet
     /// holding such a ray inside it, or two whole tangent planes on one
     /// plane (two kissing balls at any pose included). A sign one order
@@ -8880,7 +8886,8 @@ impl<T: Decide> Link<T> {
     /// with no tangent plane at the point (a cone's apex, or a vertex in
     /// the band of its axis), a cusp corner its bends do not part, a
     /// spline face held anywhere but a
-    /// corner, a curved edge with no certified curve, or a face whose
+    /// corner (a corner on a crease is read on its sector's side), a curved
+    /// edge with no certified curve, or a face whose
     /// normal or reach does not read is [`TouchUnread::Unreadable`]; a
     /// reading of it in band, [`TouchUnread::InBand`].
     fn tangent_of(
@@ -9055,15 +9062,16 @@ fn corner_normal<T: Decide>(
             VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(TouchUnread::Unreadable),
         },
         Err(SectorFaceError::ApexUndecided { .. }) => Err(TouchUnread::kept(Refusal::of_apex())),
-        // A corner on a spline crease is unread whatever its reading: the
-        // touch at it goes undetected (module docs), which
-        // `work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`
-        // weighs against refusing it by the crease's own standing.
-        Err(
-            SectorFaceError::Crease { .. }
-            | SectorFaceError::Unsupported { .. }
-            | SectorFaceError::Unplaced { .. },
-        ) => Err(TouchUnread::Unreadable),
+        // A corner on a spline crease reads the normal on its sector's
+        // side (`sector_face`); a crease that refuses still is an
+        // irregular point, or a side the band cannot read, and refuses by
+        // the crease's own standing: in band, or a limit where decided.
+        Err(SectorFaceError::Crease { reading, .. }) => {
+            Err(TouchUnread::kept(Refusal::of_crease(reading)))
+        }
+        Err(SectorFaceError::Unsupported { .. } | SectorFaceError::Unplaced { .. }) => {
+            Err(TouchUnread::Unreadable)
+        }
     }
 }
 

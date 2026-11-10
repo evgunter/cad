@@ -266,12 +266,13 @@ pub(crate) enum SectorFaceError {
         /// The kind that has none.
         kind: SurfaceKind,
     },
-    /// A spline face's chart has no one normal at the vertex: the vertex
-    /// lies within the band of an irregular point of the chart (a pole,
-    /// coincident control rows) or of a line its normal is not continuous
-    /// across (an interior knot run of multiplicity at least the degree,
-    /// a closed chart's seam), where a normal read off one side of the
-    /// line is not the other's ([`geom_brep::chart_normal_at`]).
+    /// A spline face's chart has no one normal at the vertex on the
+    /// sector's side: the vertex lies within the band of an irregular point
+    /// of the chart (a pole, coincident control rows), or of a line its
+    /// normal is not continuous across (an interior knot run of
+    /// multiplicity at least the degree, a closed chart's seam) whose side
+    /// the sector lies on the band does not read
+    /// ([`geom_brep::chart_normal_beside`]).
     Crease {
         /// The spline face.
         face: FaceKey,
@@ -472,9 +473,13 @@ pub(crate) fn resolve<T: Decide>(
 /// the face's sheet by construction, where a foot of the point could
 /// land on another sheet of the carrier that passes within the band.
 /// The normal is read only where the chart has one there
-/// ([`geom_brep::regular_jet`], [`geom_brep::chart_normal_at`]), over the
-/// carrier's farthest reach from the vertex, its control net's (the face
-/// is a trim of the carrier, so it reaches no farther).
+/// ([`geom_brep::regular_jet`]), over the carrier's farthest reach from
+/// the vertex, its control net's (the face is a trim of the carrier, so it
+/// reaches no farther). On a line the chart's normal is not continuous
+/// across (a crease run, a closed chart's seam) it is the normal on the
+/// side the sector lies on, the side the edge's half at the vertex lies
+/// on in this chart ([`geom_brep::chart_normal_beside`]); a side the band
+/// cannot read, and an irregular point, refuse as a crease.
 fn spline_normal<T: Decide>(
     body: &Body<T>,
     at: geom_core::Point3<T>,
@@ -503,8 +508,17 @@ fn spline_normal<T: Decide>(
     // carrier's first end where `he` walks it forward.
     let (t0, t1) = curve.params();
     let t = if he == edge.he_plus { t0 } else { t1 };
-    let uv = body.pcurve(into).ok_or(unplaced)?.pcurve().eval(t);
+    let pcurve = body.pcurve(into).ok_or(unplaced)?.pcurve();
+    let uv = pcurve.eval(t);
     let uv = (uv.x, uv.y);
+    // The half of the edge at the vertex, in this face's chart: the side
+    // of a crease the face's sector at the vertex lies on.
+    let mid = geom::mid_param(t0, t1);
+    let leaving = if he == edge.he_plus {
+        pcurve.chart_box(t0, mid)
+    } else {
+        pcurve.chart_box(mid, t1)
+    };
     let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), at).lever();
     let crease = |reading| SectorFaceError::Crease {
         face,
@@ -512,7 +526,7 @@ fn spline_normal<T: Decide>(
         reading,
     };
     let jet = geom_brep::regular_jet(chart, uv, reach.length(), band).map_err(crease)?;
-    geom_brep::chart_normal_at(chart, sense, &jet, uv, reach, band)
+    geom_brep::chart_normal_beside(chart, sense, &jet, uv, &leaving, reach, band)
         .map(|(normal, _)| normal)
         .map_err(crease)
 }
@@ -885,39 +899,33 @@ pub(crate) mod tests {
         }
     }
 
-    /// **A vertex on a crease of the chart refuses; the same vertex on a
-    /// smooth knot reads.** The top face's `y = 0` edge is split at
-    /// `x = ½`, where the chart's `u` knot `½` lies. On a degree-1 chart
-    /// that knot is a crease run (multiplicity at least the degree), where
-    /// the face has a normal on each side, so the vertex refuses typed. On
-    /// a degree-2 chart the same simple knot is smooth, and the vertex
-    /// reads `+z`.
+    /// **A vertex on a crease of the chart reads its sector's side; the
+    /// same vertex on a smooth knot reads.** The top face's `y = 0` edge is
+    /// split at `x = ½`, where the chart's `u` knot `½` lies. On a degree-1
+    /// chart that knot is a crease run (multiplicity at least the degree),
+    /// where the face has a normal on each side: the vertex reads the one
+    /// on the side its sector's edge leaves along, `+z` on this flat chart
+    /// ([`geom_brep::chart_normal_beside`]). On a degree-2 chart the same
+    /// simple knot is smooth, and the vertex reads `+z` as well.
     #[test]
-    fn a_vertex_on_a_crease_of_the_chart_refuses_and_one_on_a_smooth_knot_reads() {
+    fn a_vertex_on_a_crease_of_the_chart_reads_its_sides_normal_and_one_on_a_smooth_knot_reads() {
         let creased = planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]);
         let smooth = planar_chart(
             vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0],
             2,
             &[0.0, 0.25, 0.75, 1.0],
         );
-        for (chart, crease) in [(creased, true), (smooth, false)] {
+        for (chart, what) in [(creased, "on the crease"), (smooth, "on a smooth knot")] {
             let (body, top, mid) = split_at_half(chart);
             let got = resolve(&body, mid, sector_of(&body, mid, top), band());
-            if crease {
-                assert!(
-                    matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs, .. }) if face == top),
-                    "a vertex on the crease refuses: {got:?}"
-                );
-            } else {
-                let n = got
-                    .expect("a vertex on a smooth knot reads")
-                    .at_vertex
-                    .tangent();
-                assert!(
-                    (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
-                    "{n:?}"
-                );
-            }
+            let n = got
+                .unwrap_or_else(|e| panic!("a vertex {what} reads: {e:?}"))
+                .at_vertex
+                .tangent();
+            assert!(
+                (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
+                "{what}: {n:?}"
+            );
         }
     }
 
@@ -1157,9 +1165,11 @@ mod review_5802 {
 
     /// A crease in `v` (degree 1, knot `½` along `y`), the vertex at the
     /// middle of the `x = 0` edge, which runs along `v` across it; and the
-    /// same crease in `u` reached through the transpose.
+    /// same crease in `u` reached through the transpose. The edge leaves
+    /// the vertex across the crease, so its side is read, and the vertex
+    /// reads the flat chart's `±z` on it.
     #[test]
-    fn a_crease_in_v_refuses() {
+    fn a_crease_in_v_reads_its_sectors_side() {
         let creased = chart(
             (vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]),
             (vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]),
@@ -1169,9 +1179,13 @@ mod review_5802 {
             let (mut body, top) = topped(chart, sense);
             let mid = split_top(&mut body, |p| p.x == 0.0);
             let got = resolve(&body, mid, sector_of(&body, mid, top), band());
+            let n = got
+                .unwrap_or_else(|e| panic!("sense {sense}: {e:?}"))
+                .at_vertex
+                .tangent();
             assert!(
-                matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs, .. }) if face == top),
-                "sense {sense}: {got:?}"
+                (n.z.abs() - 1.0).abs() < 1e-12 && n.x.abs() < 1e-12 && n.y.abs() < 1e-12,
+                "sense {sense}: {n:?}"
             );
         }
     }

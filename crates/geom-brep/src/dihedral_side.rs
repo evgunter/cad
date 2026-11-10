@@ -443,7 +443,43 @@ fn on_a_crease<T: Decide>(
     (u, v): (T, T),
     band: Band,
 ) -> Option<CreaseReading> {
+    creases_near(chart, at, (u, v), band, true)
+        .into_iter()
+        .next()
+        .map(|c| c.reading)
+}
+
+/// A line of a chart its normal is not continuous across, near a point
+/// ([`creases_near`]).
+#[derive(Clone, Copy, Debug)]
+struct CreaseLine<T: Decide> {
+    /// Whether the line is one of `u` (an iso line `u = c`, across which
+    /// `u` changes) or of `v`.
+    along_u: bool,
+    /// The breakpoint run it lies on: an interior crease run, or for a
+    /// closed chart's seam the first run (its other copy the last).
+    run: usize,
+    /// Its parameter value.
+    at: T,
+    /// For a seam, the domain's other end.
+    seam_end: Option<(usize, T)>,
+    /// The point's distance from it, as decided: zero, or in band.
+    reading: CreaseReading,
+}
+
+/// The lines of `chart` its normal is not continuous across that the
+/// foot `at`, at chart parameters `(u, v)`, lies within the band of, in
+/// the order [`on_a_crease`] reads them, at most one per direction
+/// (`first` stops at the first).
+fn creases_near<T: Decide>(
+    chart: &NurbsSurface<T>,
+    at: Point3<T>,
+    (u, v): (T, T),
+    band: Band,
+    first: bool,
+) -> Vec<CreaseLine<T>> {
     let near = |q: Point3<T>| near_as("dihedral_side_crease", (q - at).norm(), band);
+    let mut lines = Vec::new();
     for (knots, along_u) in [
         (chart.knot_values_u(), true),
         (chart.knot_values_v(), false),
@@ -456,18 +492,144 @@ fn on_a_crease<T: Decide>(
             }
         };
         let runs: Vec<T> = knots.breakpoints().collect();
+        let mut found = None;
         for r in knots.structure().crease_runs() {
             if let Some(reading) = near(at_line(runs[r])) {
-                return Some(reading);
+                found = Some(CreaseLine {
+                    along_u,
+                    run: r,
+                    at: runs[r],
+                    seam_end: None,
+                    reading,
+                });
+                break;
             }
         }
-        if let (Some(reading), Some(_)) =
-            (near(at_line(runs[0])), near(at_line(runs[runs.len() - 1])))
+        let last = runs.len() - 1;
+        if found.is_none()
+            && let (Some(reading), Some(_)) = (near(at_line(runs[0])), near(at_line(runs[last])))
         {
-            return Some(reading);
+            found = Some(CreaseLine {
+                along_u,
+                run: 0,
+                at: runs[0],
+                seam_end: Some((last, runs[last])),
+                reading,
+            });
+        }
+        if let Some(line) = found {
+            lines.push(line);
+            if first {
+                break;
+            }
         }
     }
-    None
+    lines
+}
+
+/// **A spline face's outward normal at a corner `(u, v)` on its sector's
+/// side of a crease**: where the chart point lies within the band of a
+/// line its normal is not continuous across ([`chart_normal_at`]'s
+/// refusal), the face has a normal on each side of the line, and the
+/// sector a boundary half-edge leaves into lies on one of them. `leaving`
+/// is that half-edge's pcurve's chart box over the stretch of it nearest
+/// the corner ([`crate::Pcurve::chart_box`]). Its side of each line is
+/// decided (`dihedral_side_crease_side`, the box's reach past the line on
+/// either side, metered at the chart's speed across it on that side's
+/// span at the corner):
+/// the box reaching past the line on one side and not the other names
+/// that side, and the jet is read on the span beside the line there
+/// ([`geom::NurbsSurface::ders_beside`]). A closed chart's seam is the
+/// first run on its first span's side and the last on the last's. Off
+/// every crease it is [`chart_normal_at`]'s reading.
+///
+/// # Errors
+///
+/// The side's reading in band, as its [`CreaseReading`]; the box reaching
+/// past a line on both sides, or on neither, as the line's own; and an
+/// irregular point of the one-sided jet ([`regular_jet`]'s reading).
+pub fn chart_normal_beside<T: Decide>(
+    chart: &NurbsSurface<T>,
+    sense: bool,
+    jet: &SurfaceJet<T>,
+    (u, v): (T, T),
+    leaving: &crate::ChartWindow<T>,
+    reach: Lever<T>,
+    band: Band,
+) -> Result<(OutwardNormal<T>, Lever<T>), CreaseReading> {
+    let lines = creases_near(chart, jet.point, (u, v), band, false);
+    if lines.is_empty() {
+        return chart_normal_at(chart, sense, jet, (u, v), reach, band);
+    }
+    let mut beside = (None, None);
+    for line in lines {
+        let (lo, hi) = if line.along_u {
+            (leaving.u_min, leaving.u_max)
+        } else {
+            (leaving.v_min, leaving.v_max)
+        };
+        // A parameter reach past the line on the span beside it, metered
+        // at the chart's speed across the line on that span: the located
+        // jet's speed is one side's, or a hull of both, and a side whose
+        // span is degenerate there has no speed of its own to lend.
+        let past = |m: T, (run, above): (usize, bool)| {
+            let across = |b| {
+                if line.along_u {
+                    (Some(b), None)
+                } else {
+                    (None, Some(b))
+                }
+            };
+            let side = chart.ders_beside(u, v, across((run, above)));
+            let speed = if line.along_u { side.du } else { side.dv }.norm();
+            crate::dihedral::decide_magnitude_reported(
+                "dihedral_side_crease_side",
+                Margin::metered(m, geom_core::InfSpeed::new(speed)),
+                band,
+            )
+            .map(|(magnitude, _)| magnitude == Magnitude::Positive)
+        };
+        // An interior line: the box reaches past it on one side only. A
+        // seam: the box touches one end of the domain, and lies beside the
+        // first run (above it) or the last (below it).
+        let (above, below) = match line.seam_end {
+            None => {
+                let up = past(hi - line.at, (line.run, true)).map_err(Err)?;
+                let down = past(line.at - lo, (line.run, false)).map_err(Err)?;
+                (up && !down, down && !up)
+            }
+            Some((last, end)) => {
+                let off_first = past(lo - line.at, (line.run, true)).map_err(Err)?;
+                let off_last = past(end - hi, (last, false)).map_err(Err)?;
+                (!off_first, !off_last)
+            }
+        };
+        let named = match (above, below, line.seam_end) {
+            (true, false, _) => (line.run, true),
+            (false, true, None) => (line.run, false),
+            (false, true, Some((last, _))) => (last, false),
+            _ => return Err(line.reading),
+        };
+        if line.along_u {
+            beside.0 = Some(named);
+        } else {
+            beside.1 = Some(named);
+        }
+    }
+    let side_jet = chart.ders_beside(u, v, beside);
+    if let Some(reading) = near_as(
+        "dihedral_side_regular",
+        irregular_reach(&side_jet, reach.length()),
+        band,
+    ) {
+        return Err(reading);
+    }
+    let kappa = crate::shape_operator::max_principal_curvature(&side_jet);
+    let (arm, _) = crate::ssi::point_arm(kappa, reach);
+    Ok((
+        OutwardNormal::from_chart(side_jet.du.cross(side_jet.dv).normalize(), sense),
+        arm,
+    ))
 }
 
 #[cfg(test)]
@@ -965,5 +1127,115 @@ mod tests {
         let cut = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 1.0), X);
         let got = side(face(&loop_, true), face(&cut, true), ON_EDGE, X);
         assert!(is_crease(got), "the C1 seam read {got:?}");
+    }
+
+    /// [`chart_normal_beside`] on `surface`'s chart at `(u, v)`, leaving
+    /// into the box `[u0, u1] × [v0, v1]`, read to a unit vector.
+    fn beside(
+        surface: &Surface<f64>,
+        (u, v): (f64, f64),
+        ((u0, u1), (v0, v1)): ((f64, f64), (f64, f64)),
+    ) -> Result<Vec3<f64>, CreaseReading> {
+        let chart = surface.spline_chart().unwrap();
+        let jet = chart.ders(u, v);
+        let leaving = crate::ChartWindow {
+            u_min: u0,
+            u_max: u1,
+            v_min: v0,
+            v_max: v1,
+        };
+        let reach = crate::ExtentBall::of_control_net_from(chart.control(), jet.point).lever();
+        chart_normal_beside(chart, true, &jet, (u, v), &leaving, reach, band())
+            .map(|(normal, _)| normal.vec())
+    }
+
+    fn unit(x: f64, y: f64, z: f64) -> Vec3<f64> {
+        Vec3::new(x, y, z).normalize()
+    }
+
+    /// **Each side of a fold reads its own normal.** On the creased
+    /// carrier at `(0.3, 0, 0)`, on the crease `v = ½`, a box leaving
+    /// below the crease reads the lower half's normal `∝ (0, 1, 1)`, one
+    /// leaving above it the upper half's `∝ (0, −1, 1)`, and a box off
+    /// the crease in `u` changes nothing (no line of `u` is near).
+    #[test]
+    fn each_side_of_a_fold_reads_its_own_normal() {
+        let c = creased();
+        let at = (0.65, 0.5);
+        for ((v0, v1), want, side) in [
+            ((0.3, 0.5), unit(0.0, 1.0, 1.0), "below"),
+            ((0.5, 0.7), unit(0.0, -1.0, 1.0), "above"),
+        ] {
+            let got =
+                beside(&c, at, ((0.6, 0.7), (v0, v1))).unwrap_or_else(|e| panic!("{side}: {e:?}"));
+            assert!((got - want).norm() < 1e-12, "{side}: {got:?}");
+        }
+    }
+
+    /// **A box along the crease, or astride it, refuses in band**: neither
+    /// side, or both, is named, so the line's own reading comes back.
+    #[test]
+    fn a_box_along_or_astride_the_crease_refuses() {
+        let c = creased();
+        for (box_v, what) in [((0.5, 0.5), "along"), ((0.3, 0.7), "astride")] {
+            let got = beside(&c, (0.65, 0.5), ((0.6, 0.7), box_v));
+            assert!(got.is_err(), "{what}: {got:?}");
+        }
+        // Within the band of the crease on the far side still names none.
+        let a = band().zero() / 10.0;
+        let got = beside(&c, (0.65, 0.5), ((0.6, 0.7), (0.5 - a, 0.5 + a)));
+        assert!(got.is_err(), "in band: {got:?}");
+    }
+
+    /// **An irregular side refuses**: the fold's upper span has coincident
+    /// control rows, so `S_v` vanishes on it, and a box leaving into it
+    /// reads no side of the crease there, while the lower side reads; and
+    /// a side decided whose one-sided jet is irregular reads no normal.
+    #[test]
+    fn an_irregular_side_refuses_and_the_regular_one_reads() {
+        let c = ruled(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            &[(-1.0, 1.0), (0.0, 0.0), (0.0, 0.0)],
+        );
+        let at = (0.65, 0.5);
+        let upper = beside(&c, at, ((0.6, 0.7), (0.5, 0.7)));
+        assert!(upper.is_err(), "the degenerate side read {upper:?}");
+        let lower = beside(&c, at, ((0.6, 0.7), (0.3, 0.5))).unwrap();
+        assert!((lower - unit(0.0, 1.0, 1.0)).norm() < 1e-12, "{lower:?}");
+        // A named side whose span is irregular: above the crease `S_v`
+        // runs along the edge, parallel to `S_u`, so the side is decided
+        // (its speed across the line is not zero) and its normal is not.
+        let along = spline(
+            |s| Point3::new(s, 0.0, 0.0),
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            &[
+                Vec3::new(0.0, -1.0, 1.0),
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ],
+        );
+        let upper = beside(&along, at, ((0.6, 0.7), (0.5, 0.7)));
+        assert!(upper.is_err(), "the side along the edge read {upper:?}");
+        let lower = beside(&along, at, ((0.6, 0.7), (0.3, 0.5))).unwrap();
+        assert!((lower - unit(0.0, 1.0, 1.0)).norm() < 1e-12, "{lower:?}");
+    }
+
+    /// **A closed chart's seam reads the end the box touches**: the
+    /// two-span fin's first span leaves the edge along `(0, 1, 1)` and its
+    /// last arrives back along `(0, 1, −1)`, so the two ends read the
+    /// normals `∝ (0, −1, 1)` and `∝ (0, 1, 1)`, each on its own span (a
+    /// one-span chart's two ends share their span).
+    #[test]
+    fn a_seam_reads_the_end_the_box_touches() {
+        let fin = ruled(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            &[(0.0, 0.0), (1.0, 1.0), (-1.0, 1.0), (0.0, 0.0)],
+        );
+        let first = beside(&fin, (0.65, 0.0), ((0.6, 0.7), (0.0, 0.2))).unwrap();
+        let last = beside(&fin, (0.65, 1.0), ((0.6, 0.7), (0.8, 1.0))).unwrap();
+        assert!((first - unit(0.0, -1.0, 1.0)).norm() < 1e-12, "{first:?}");
+        assert!((last - unit(0.0, 1.0, 1.0)).norm() < 1e-12, "{last:?}");
+        let both = beside(&fin, (0.65, 0.0), ((0.6, 0.7), (0.0, 1.0)));
+        assert!(both.is_err(), "a box over the whole loop read {both:?}");
     }
 }
