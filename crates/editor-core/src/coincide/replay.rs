@@ -488,6 +488,16 @@ fn one_cylinder(
     // arm the band means is the-replays-cylinder-axis-is-levered-at-an-
     // unsourced-metre (audit F40).
     let metre = geom_core::Lever::unsourced(<Lane as geom_core::Real>::one());
+    {
+        use geom_core::Bounds as _;
+        let c = da.cross(db);
+        let arm = topo::boolean::carrier_pair_arm(a, fa, b, fb, band)
+            .map(|l| l.length().lo());
+        eprintln!(
+            "PROBE-CYLAXIS stated={stated} s=[{:e},{:e},{:e}] norm={:e} ra={:e} rb={:e} arm={:?} zero={:e}",
+            c.x.lo(), c.y.lo(), c.z.lo(), c.norm().lo(), ra.lo(), rb.lo(), arm, band.zero()
+        );
+    }
     let established = || {
         if !stated {
             let (cross, off) = (da.cross(db), (ob - oa).cross(db));

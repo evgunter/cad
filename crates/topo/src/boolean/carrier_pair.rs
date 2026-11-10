@@ -296,6 +296,29 @@ pub fn carrier_pair_decided<T: Decide>(
     )
 }
 
+/// **The arm [`carrier_pair_decided`] levers the pair's angular data
+/// at**: the reach of the ball enclosing both faces, from the pivot the
+/// ladder reads the pair's position datum at (two cylinders: the foot of
+/// the ball's centre on the second axis). A reader deciding the same
+/// tilt on its own reading of the two carriers levers it here, so the
+/// two judge one tilt alike.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`]'s [`PairUnread`].
+pub fn carrier_pair_arm<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<geom_core::Lever<T>, PairUnread> {
+    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
+    Ok(super::carrier_eq::consumed_arm(&ca, &cb, extent.reach))
+}
+
 /// The row a torus face's witness of two carriers is decided on
 /// ([`torus_pair_witnessed`]).
 const TORUS_WITNESS: &str = "carrier_torus_witness";
