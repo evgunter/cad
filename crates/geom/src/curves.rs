@@ -1019,8 +1019,9 @@ impl<T: Decide> Ray<T> {
     /// ray does not re-derive `at`; a reader that passes a parameter of
     /// another line decides nothing about this ray.
     ///
-    /// The touch analysis's ahead readings (`LINK_AHEAD`) do not come
-    /// here; `topo` `link.rs`'s `ahead` says why.
+    /// Of the touch analysis's ahead readings (`LINK_AHEAD`), only its
+    /// face sector's plain-band test comes here; `topo` `link.rs`'s
+    /// `ahead` says why the others do not.
     ///
     /// # Errors
     ///

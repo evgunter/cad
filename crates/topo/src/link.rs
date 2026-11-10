@@ -345,6 +345,25 @@ pub(crate) mod metric {
         read_as(name, d.0, band)
     }
 
+    /// **Whether `q` lies ahead of `from` along the unit `dir`**, as the
+    /// K row `name`; `None` in band. This is [`geom::Ray::ahead`]'s
+    /// decision of the parameter `dir·(q − from)`, which over a unit
+    /// `dir` is `q`'s offset in metres, the same margin and the same
+    /// record as [`sign_as`] over [`Distance::of`]. It is kept in the
+    /// door so that every verdict sign of the touch analysis is read
+    /// here.
+    pub(crate) fn ray_ahead<T: Decide>(
+        name: &'static str,
+        q: Point3<T>,
+        from: Point3<T>,
+        dir: Vec3<T>,
+        band: Band,
+    ) -> Option<Sign> {
+        geom::Ray::new(from, dir)
+            .ahead(dir.dot(q - from), name, band)
+            .ok()
+    }
+
     /// The distance's sign under `r` ([`Reading`]): Zero as the band
     /// reads it, a definite sign only where the distance moved by the
     /// slack toward zero reads the same; `None` otherwise.
@@ -1437,11 +1456,10 @@ fn wedge_distance<T: Decide>(
 ///   the reading is the cone's own.
 ///
 /// [`FaceSector::chord`]'s `past` closure has neither: on the plain band,
-/// over a unit direction, it is `Ray::ahead`'s decision bit for bit
-/// (`Ray::new(from, d).ahead(d·(apex − from), ..)`). It stays here, under
-/// `LINK_AHEAD`, for organisation only: every verdict sign of the touch
-/// analysis comes through the module's one door ([`metric`], whose
-/// single `Margin::of` a row pins).
+/// over a unit direction, it is `Ray::ahead`'s decision, and it calls
+/// it, through [`metric::ray_ahead`], so that every verdict sign of the
+/// touch analysis still comes through the module's one door
+/// ([`metric`], whose single `Margin::of` a row pins).
 fn ahead<T: Decide>(p: Point3<T>, r: Point3<T>, x: Point3<T>, rd: Reading<T>) -> Option<Sign> {
     ahead_settle(p, r, x, rd).ok()
 }
@@ -3031,9 +3049,9 @@ impl<T: Decide> FaceSector<T> {
         if let Some(apex) = apex {
             let [a, b] = face.ends;
             let d = unit(b - a);
-            // `Ray::ahead`'s decision, kept in the touch door ([`ahead`]).
+            // `Ray::ahead`'s decision, read through the touch door ([`ahead`]).
             let past = |from: Point3<T>, dir: Vec3<T>| {
-                metric::sign_as(LINK_AHEAD, Distance::of(apex, from, dir), band)
+                metric::ray_ahead(LINK_AHEAD, apex, from, dir, band)
             };
             match (past(b, d), past(a, -d)) {
                 (Some(Positive | Zero), _) | (_, Some(Positive | Zero)) => {}
@@ -3828,10 +3846,7 @@ impl<T: Decide> Round<T> {
     /// normalised here, `convex` a pin's.
     pub fn cylinder(axis: geom::Line<T>, radius: T, convex: bool) -> Self {
         Self {
-            at: Axis::Line(geom::Line {
-                origin: axis.origin,
-                dir: axis.dir.normalize(),
-            }),
+            at: Axis::Line(axis.unit()),
             radius,
             convex,
         }
