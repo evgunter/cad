@@ -1545,3 +1545,4 @@
 - 05:25Z 6716 FULL: FIX (K-gate doc/proof false after the set rule; link loses Aborts → one Undecided::of classifier for join/offset/link; stale text; Band-cover row; cyclic-cmp guard; ledger check; geom_core::ladder imports) → argmin lane.
 - 05:30Z 6718 fold (9f95eaa6) read by orchestrator (counts, one desync const, so-prefix const assert); merged main → a3ee29bd, check+gates clean, gating, merge on green. 6713 fix pass (e19102a5) → same reviewer.
 - 05:33Z 6714 review: FIX (the "never main's reading" pin was 5889's, moved by PR 6504 — shallow clone hid it; frozen 3257→3281 also 6504; one ledger; sweep other "unbisected" pins) → census lane.
+- 05:40Z PR 6722 ladder T4 (1a6a1bf4; 4 ports pinned, 4 filed; ratchet 144→143) → FULL review. Ladder lane → QML remainder after 6722.
