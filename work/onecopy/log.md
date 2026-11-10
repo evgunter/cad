@@ -1468,3 +1468,9 @@
     - **[ev] PR 6702 opened:** DESIGN edited to the recommended text, fork-log row 255 (recommendation half, labels only), each designer's For Ev verbatim as A and B. Subscribed for Ev's answer.
   - **edge-ends-turns:** certification check 2 was unratified (born in an M2 fix pass), so it was fixed. `Extent::forward_by_arc` accepts the end chord as a second lower bound on arc; the thin-ellipse e2e now splits at all three cuts and ε. Full runs are going.
   - **6698 FULL: FIX** (the face_cone arm's stated gate is wrong; the S8 definition is unpinned; "every edge a line" is walked three times).
+- 2026-11-10 05:45Z
+  - **Merged PR 6695 (torus-ring-names).** 13592/13592 on the merged tree; the torus-words follow-up starts.
+  - **[ev] 6702 CI green;** it waits on Ev.
+  - **6701 (T3) FULL: FIX (small).** Two broken doc links in the moved ladder; nonexistent carrier names in the row and body; stale register/row paths; mixed geom-brep spellings; pole_side's tuple-shaped hand-rolled `Rung::holds` slips the gate; `PieceWalkRefusal::recourse` restates `refusal()`; one pin per port. Back to the ladder lane.
+  - **6689 fix pass** (d6fedd06: one torus-text home `refused_ended`; fate routed through `standing()`; the dual-premise row filed) → delta review.
+  - **held-and-pierce:** the carrier-held-points row was already closed by 6669. Four more sites state a held premise but read the unheld door (node, rim_wedge, overlap place, line_through_both_faces), so they are done here. The two that read OffCarrier as data are decided from the code first.
