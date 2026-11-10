@@ -61,17 +61,41 @@ apart from rounding, which the carried verdict
 (`a-rigid-motion-rewrites-and-recertifies-every-edge`) relies on, so
 this row is built first, before the `moved` door.
 
-Done when: `check_rigid` returns the re-minted motion; F10's
-`decide_flagged` site is gone and the census count drops by one; at
-the kernel band, a literal frame with a column inside ε/(2S) passes,
-is re-minted and places a 2.5 m-radius cylinder about 1 km out that
-passes check 1, and one 1e-10 off unit at the default ε refuses
-`NotRigid` naming the column; a STEP file whose ε_in admits a column
-1e-10 off unit passes, is re-minted, and places the cylinder at 1 km
-past check 1, and one beyond its band refuses `PlacementMap` naming
-the transform. A map whose every entry is a plain `f64` is decided and
-re-minted at `f64` at every scalar, so the box lanes receive the
-`f64` lane's frame (`computed_at`).
+**Revised by PR 6717's review (2026-11-10).** Ev ratified on PR 5068
+that a frame exists at a scalar only by being minted there, so no door
+lifts an `f64` re-mint to a box scalar. A levered band also charges an
+honest rotation its own rounding. The rule is therefore:
+
+- **Within rounding.** A margin within its own rounding (at most
+  `rounding_charge` of its term bound, `16u·t`, the admission floor's
+  statement) is a rigid map stored in floating point. It is admitted as
+  given, at its own scalar, decided at no band.
+- **At the band.** A margin beyond that is levered by the session box
+  and decided against the band. `Zero` admits the map as given at the
+  door; a decided defect refuses `NotRigid`, naming the check.
+- **Re-mint at the boundary.** A map rigid only at the band is re-minted
+  (Gram–Schmidt) where the value enters the model (`RigidMotion::adopt`),
+  and the re-mint is a reported model change.
+- **Minted at its scalar.** A door that computes its turn at an
+  enclosure scalar (the sphere re-cut) mints it there.
+
+Done when:
+- F10's `decide_flagged` site is gone, and the census count drops by
+  one.
+- `check_rigid` admits within-rounding and at-band maps as given. 2000
+  honest rotations are admitted at ε = 1e-12, at `EPS_MIN`, and at
+  `K = 2` and `K = 1.1` at their least ε, at `f64` and point-entered
+  at `Interval`.
+- STEP adopts a placement at ε_in bounded by the run's `K·ε`:
+  - a placement inside that band is re-minted, reported as
+    `PlacementReMinted`, and places a 2.5 m cylinder about 1 km out past
+    check 1;
+  - one beyond the band refuses `PlacementMap`, naming the transform.
+- The sphere re-cut mints its turns (`turned_between`).
+- **Still open, pending the fork on where a document's literal frame
+  is adopted:** a placement's literal frame inside the levered band is
+  admitted as given (main's behaviour, levered), and its re-mint is not
+  yet built.
 
 ## Fence
 

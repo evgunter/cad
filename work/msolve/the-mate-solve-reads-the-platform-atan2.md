@@ -38,7 +38,7 @@ tangent is the dual's own.
 Make `f64`'s `solve_atan2` the `Real` one (libm). Then delete the
 trait method, since every lane's would be `Real::atan2`. Re-baseline the
 mate corpus fence
-(`msolve14_run_scalar::a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus`)
+(`msolve14_run_scalar::a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus`)
 and any pose that moved, and say what moved.
 
 ## Released from the D10 hold (2026-10-08)

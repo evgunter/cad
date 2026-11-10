@@ -400,9 +400,12 @@ pub use crate::eval::solve_document_at;
 /// [`SOLVE_MAP_REWITNESS`]): each point's map is its own orthonormal
 /// frame, so the witness encloses every point's map, and its third
 /// axis is the cross product, which a map of turns alone holds.
-/// The door re-mints what it admits by the same Gram–Schmidt, so both
-/// arms return a motion that is rigid apart from rounding; a decided
-/// defect is refused, not re-minted.
+/// Neither a decided defect nor a map the door calls is touched, so a
+/// map read at a point keeps its bits. A placement's literal frame
+/// passes this door as a solved map does, so a map rigid only at the
+/// band is admitted as given here, pending where a document's frame is
+/// adopted
+/// (`work/onehome/a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses.md`).
 ///
 /// Every mated placement's map passes this door, whole or as the part
 /// the solve did not compose as motions ([`super::value::Composed`]); a
@@ -1683,15 +1686,15 @@ mod tests {
         assert_eq!((zero.value.lo(), zero.value.hi()), (0.0, 0.0));
     }
 
-    /// **Both arms of the solved map's door return a motion rigid apart
-    /// from rounding**: a map the door decides, whose column is off
-    /// unit inside the band at the session box's extent, comes back
-    /// re-minted; one off by 0.4 of the band unlevered refuses as the
-    /// decided defect it is; and an enclosure too wide for the levered
-    /// margins to decide is re-witnessed by Gram–Schmidt.
+    /// **Both arms of the solved map's door return a rigid motion**: a
+    /// map the door decides, whose column is off unit inside the band at
+    /// the session box's extent, comes back as given; one off by 0.4 of
+    /// the band unlevered refuses as the decided defect it is; and an
+    /// enclosure too wide for the levered margins to decide is
+    /// re-witnessed by Gram–Schmidt.
     ///
-    /// *Breaks if* the decided arm hands back the map's own columns, or
-    /// the undecided arm refuses a box of rigid maps.
+    /// *Breaks if* the decided arm touches the map's bits, or the
+    /// undecided arm refuses a box of rigid maps.
     #[test]
     fn both_arms_of_the_admission_return_a_rigid_motion() {
         use geom_core::linalg::{Affine3, Mat3, Vec3};
@@ -1711,10 +1714,10 @@ mod tests {
         };
         let inside = 0.2 * band.zero() / SESSION_BOX_EXTENT;
         let decided = super::admitted(&stretched(inside), band).expect("inside the band");
-        let u = decided.u().get();
-        assert!(
-            (u.dot(u) - 1.0).abs() <= 4.0 * f64::EPSILON,
-            "the decided arm re-mints the column it admits"
+        assert_eq!(
+            decided.u().get().x.to_bits(),
+            stretched(inside).linear.c0.x.to_bits(),
+            "the decided arm keeps the map's bits"
         );
         assert!(
             matches!(

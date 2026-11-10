@@ -2959,6 +2959,13 @@ fn import_report_row_tags_are_stable() {
             NormalizationKind::FaceSplitAtC0Knot,
             "face_split_at_c0_knot",
         ),
+        (
+            NormalizationKind::PlacementReMinted {
+                transform: 9002,
+                moved_by: 4.5e-9,
+            },
+            "placement_re_minted",
+        ),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -5296,6 +5303,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edge_split_at_c0_knot",
             "face_split_at_c0_knot",
             "joined_edges",
+            "placement_re_minted",
             "seamless_periodic_band",
             "surface_promotion",
         ],

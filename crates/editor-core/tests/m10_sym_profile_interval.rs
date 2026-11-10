@@ -428,10 +428,10 @@ const PLATE_MAX_TERMS: usize = 38;
 /// freezing is not monotone in reach, so a form frozen past the degree
 /// budget can flip a verdict elsewhere.
 ///
-/// **Moved with the rigidity re-mint** (`RigidMotion::check_rigid`, a
-/// written frame's turn decided at the `f64` it was written in): the
-/// two holes' placements no longer decide their seven rigidity margins
-/// at this scalar, so `Plain/Decision` loses those 14 calls (1203 →
+/// **Moved with ONEHOME's rigidity door** (`RigidMotion::check_rigid`:
+/// a map within its own rounding is admitted as given and decides
+/// nothing): the two holes' placements no longer decide their seven
+/// rigidity margins, so `Plain/Decision` loses those 14 calls (1203 →
 /// 1189) and the nine forms they built (55907 → 55898). No other line
 /// moves.
 const PLATE_LEDGER: &str = "\

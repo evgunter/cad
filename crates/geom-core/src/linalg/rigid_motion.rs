@@ -29,11 +29,13 @@
 //!   - at `Sym`, the same, with the expressions carried;
 //!   - at `Dual`, a rigid value channel with the tangent the
 //!     construction's own arithmetic transports.
-//! - **A motion ADMITTED at the decided door is rigid up to rounding**
-//!   too: [`RigidMotion::check_rigid`] decides the map's seven rigidity
-//!   margins levered by the session box, then re-mints it by
-//!   Gram–Schmidt, so a product of admitted factors is a product of
-//!   rigid ones and drifts by rounding only.
+//! - **A motion ADMITTED at the decided door is rigid within the band**:
+//!   [`RigidMotion::check_rigid`] admits a map whose seven rigidity
+//!   margins are within their own rounding, or whose excess over it is
+//!   levered by the session box and decided `Zero`, as given. Where a
+//!   value enters the model, [`RigidMotion::adopt`] re-mints a map rigid
+//!   only at the band by Gram–Schmidt, so a product of adopted factors
+//!   drifts by rounding only.
 //! - The origin and every entry are finite numbers: each mint and the
 //!   decided door ask it exactly at every scalar ([`Real::is_bounded`]:
 //!   both endpoints at an enclosure); a non-finite linear entry poisons
@@ -151,17 +153,19 @@
 //!
 //! # The decided door
 //!
-//! [`RigidMotion::check_rigid`] admits a raw [`Affine3`] — a literal
-//! placement frame, a STEP placement, a library caller's matrix: the
-//! map's seven rigidity margins (three column norms, three pairwise
-//! orthogonalities, the determinant), each levered by the session box
-//! and classified against the band, then its translation's finiteness.
-//! An admitted map is re-minted by Gram–Schmidt, so every motion the
-//! type holds is rigid apart from rounding, whichever door made it. It
-//! is the one door from twelve numbers into the type, and the one home
-//! of that rule. It returns a margin it decided non-zero as
+//! [`RigidMotion::check_rigid`] admits a raw [`Affine3`] — a placement's
+//! map, a STEP placement, a library caller's matrix: the map's seven
+//! rigidity margins (three column norms, three pairwise orthogonalities,
+//! the determinant), each zero within its own rounding or, beyond it,
+//! levered by the session box and classified against the band, then its
+//! translation's finiteness. It admits the map as given, at its own
+//! scalar. It is the one door from twelve numbers into the type, and the
+//! one home of that rule. It returns a margin it decided non-zero as
 //! [`RigidMotionError::NotRigid`] and one it could not decide as
-//! [`RigidMotionError::Undecided`].
+//! [`RigidMotionError::Undecided`]. [`RigidMotion::adopt`] is the same
+//! rule where a value enters the model, and re-mints there a map rigid
+//! only at the band, so a model's motion is rigid apart from rounding
+//! from then on.
 //!
 //! There is deliberately **no** door that takes rigidity on trust, for
 //! the reason [`UnitVec3`]'s docs give for the direction: a caller
@@ -412,27 +416,39 @@ fn rigid_defect(check: &str) -> &'static str {
     }
 }
 
-/// **The re-mint's displacement bound, in bands**: a point within the
-/// session box of every axis moves by at most this many `ε` when a map
-/// whose seven margins decide `Zero` is re-minted
-/// ([`RigidMotion::check_rigid`]).
-const RE_MINT_BANDS: f64 = 4.5;
+/// The seven rigidity margins' K rows, in [`RigidMotion::check_rigid`]'s
+/// order. They reach the funnel through a loop variable, so each is a
+/// `const` geom-core's roster declares a carrier, which is where the
+/// census reads it. A row added here is a roster change
+/// (`docs/K-REPORT.md`, "The inventory method, restated").
+const COL0_UNIT: &str = "transform_rigid_col0_unit";
+const COL1_UNIT: &str = "transform_rigid_col1_unit";
+const COL2_UNIT: &str = "transform_rigid_col2_unit";
+const COL01_ORTH: &str = "transform_rigid_col01_orth";
+const COL12_ORTH: &str = "transform_rigid_col12_orth";
+const COL02_ORTH: &str = "transform_rigid_col02_orth";
+const DET_PLUS_ONE: &str = "transform_rigid_det_plus_one";
 
-/// **The band the seven rigidity margins are decided against**: `band`
-/// scaled by `min(1, (K − 1)/4.5)`, `K` its escalation over its zero, so
-/// the re-mint's displacement ([`RE_MINT_BANDS`]) fits the run's
-/// headroom `(K − 1)·ε` at every `K` the run admits. At the default
-/// `K = 10` it is `band` itself.
-fn rigidity_band(band: Band) -> Result<Band, RigidMotionError> {
-    let k = band.escalate() / band.zero();
-    let scale = ((k - 1.0) / RE_MINT_BANDS).min(1.0);
-    if scale >= 1.0 {
-        return Ok(band);
+/// How [`RigidMotion::check_rigid`] read a map's seven margins.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Rigidity {
+    /// Every margin within its own rounding: a rigid map in floating
+    /// point, decided nothing.
+    WithinRounding,
+    /// Some margin beyond its rounding, every excess decided `Zero` at
+    /// the band.
+    AtTheBand,
+}
+
+/// Whether `m`'s value is, for every value its scalar stands for, at
+/// most its charge: the enclosure's magnitude against the charge's
+/// least, read off the brackets ([`SpanLocate::structure_bracket`]), a
+/// comparison of numbers that decides no sign. Poison is not within.
+fn within_rounding<T: Decide>(m: crate::Rounded<T>) -> bool {
+    match (m.value.structure_bracket(), m.error.structure_bracket()) {
+        (Some((lo, hi)), Some((charge, _))) => lo.abs().max(hi.abs()) <= charge,
+        _ => false,
     }
-    // A positive scale of a band's two thresholds keeps them ordered and
-    // finite, so this refuses only where the band's own numbers could not.
-    Band::new(band.zero() * scale, band.escalate() * scale)
-        .map_err(|_| RigidMotionError::NonFinite(MotionPart::Linear))
 }
 
 /// `Ok(p)` when every component of `p` [`Real::is_bounded`] — a
@@ -817,72 +833,56 @@ impl RigidMotion<f64> {
 
 impl<T: Decide> RigidMotion<T> {
     /// **The decided door**: a raw [`Affine3`] admitted as the rigid
-    /// motion nearest it, when every rigidity margin levered by the
-    /// session box classifies `Zero` against `band` and every
-    /// translation component is finite — the one home of that rule,
-    /// asked of a literal placement frame, a STEP placement, or a
-    /// library caller's matrix.
+    /// motion it is, its columns as given, when each of its seven
+    /// rigidity margins is zero within its own rounding or, beyond that,
+    /// levered by the session box and decided `Zero` against `band`, and
+    /// every translation component is finite. The one home of that rule,
+    /// asked of a placement's map, a STEP placement or a library
+    /// caller's matrix.
     ///
     /// First the linear part's finiteness, asked of each entry as the
     /// mints ask it ([`Real::is_bounded`]): a non-finite entry is the
     /// caller's input, refused [`RigidMotionError::NonFinite`] naming
     /// [`MotionPart::Linear`] rather than read as a poisoned margin.
     ///
-    /// The seven margins, in order: the three column norms squared
-    /// less one, the three pairwise orthogonalities, the determinant
-    /// less one. Each is dimensionless, and a defect `δ` in a column
-    /// displaces a point at distance `r` by `δ·r`, so each is levered
-    /// by the session box ([`Lever::session_box`]), the arm where no
-    /// geometry is in hand. A margin decided non-zero refuses
-    /// [`RigidMotionError::NotRigid`]; one the band cannot decide
-    /// refuses [`RigidMotionError::Undecided`] with the decision's own
-    /// diagnostic. Then the translation's finiteness, asked exactly as
-    /// the mints ask it ([`Real::is_bounded`] of each component: both
-    /// endpoints at an enclosure), which is not a band decision and
-    /// logs no row.
+    /// The seven margins, in order: the three column norms squared less
+    /// one, the three pairwise orthogonalities, the determinant less one.
     ///
-    /// The admitted motion is the map **re-minted**, not its columns
-    /// verbatim: Gram–Schmidt over the first two columns, in
-    /// [`Self::gram_schmidt`]'s order (`u = c₀/|c₀|`, then `c₁`'s
-    /// residual against `u` normalized, then `w = u × v`), with the
-    /// translation kept. Every margin it would otherwise decide has
-    /// been decided above, so it decides nothing. The motion is then a
-    /// rotation and a translation apart from rounding, which is what a
-    /// verdict carried across it relies on.
+    /// **Exact apart from rounding.** A margin whose magnitude is, for
+    /// every value its scalar stands for, at most the rounding a short
+    /// chain is charged against the margin's own term bound
+    /// ([`crate::rounding_charge`], [`crate::SHORT_CHAIN_ULPS`] units of
+    /// roundoff of the sum of the magnitudes it subtracts: `|c|² + 1`
+    /// for a norm, `|cᵢ|² + |cⱼ|²` for an orthogonality, the mean
+    /// squared norm cubed plus one for the determinant) is the margin of
+    /// a rigid map stored in floating point. That is the admission
+    /// floor's own statement ([`crate::tolerance::ADMISSION_FLOOR`]): a
+    /// dimensionless defect `δ` displaces a point at the box's edge by
+    /// about `δ·S`, and the floor budgets `16u·S` of rounding on in-box
+    /// coordinates, so no band is charged with it. A map all seven of
+    /// whose margins are within it is rigid by definition: admitted as
+    /// given, deciding nothing and logging no row.
     ///
-    /// **What the re-mint moves.** A `Zero` unit margin bounds a column's
-    /// norm defect by `ε/2S` and an orthogonality by `ε/S`, `S` the box's
-    /// extent. To first order the re-mint moves `u` by `c₀`'s defect,
-    /// `v` by `c₁`'s plus `c₀ · c₁`, and `w` by `c₂`'s plus its two
-    /// orthogonalities, so a point with every coordinate within `S`
-    /// moves by at most `(½ + 3⁄2 + 5⁄2)·ε = 4.5ε`. The margins are
-    /// decided against the band scaled by `min(1, (K − 1)/4.5)`, so that
-    /// displacement fits the run's headroom `(K − 1)·ε` at every `K` the
-    /// run admits; at the default `K = 10` the band is the run's own.
+    /// **Beyond rounding.** Otherwise each margin's excess over its
+    /// charge ([`crate::Rounded::toward_zero`]) is levered by the session
+    /// box ([`Lever::session_box`]), the arm where no geometry is in
+    /// hand, and decided against `band`. A margin decided non-zero
+    /// refuses [`RigidMotionError::NotRigid`]; one the band cannot
+    /// decide refuses [`RigidMotionError::Undecided`] with the
+    /// decision's own diagnostic. Seven `Zero`s admit the map as given.
+    /// A map computed at an enclosure scalar (a turn built at
+    /// `Interval`) carries its computation's width, which is no rounding
+    /// of a stored rigid map, so it is decided here: its enclosures hold
+    /// the true turn, so it reads `Zero` or undecided, never not rigid,
+    /// and a door that computes such maps mints them instead
+    /// ([`Self::gram_schmidt`]).
     ///
-    /// **Where it is decided.** A map whose every LINEAR entry is a plain
-    /// `f64` ([`SpanLocate::plain_constant`]) has its linear part decided
-    /// and re-minted at that `f64`: its own rounding is what the run's
-    /// admission budget covers, so deciding the seven margins over this
-    /// scalar's enclosure of that rounding would charge it twice, and
-    /// every lane receives the one turn the `f64` lane does. That turn
-    /// is a function of no parameter, a constant of the model, so it is
-    /// entered as one ([`Real::from_f64`]): at [`crate::Sym`] a literal,
-    /// where an exactly orthonormal input comes back the literals it was
-    /// written as and a mapped point still cancels against its mapped
-    /// carrier. Entered as computed values ([`Real::from_computed`]),
-    /// each axis component would be an unknown of its own there, and no
-    /// identity through the turn would be proved. This is not the
-    /// computed value E12 keeps out of `from_f64`, one standing in for a
-    /// function of the parameters: only parameter-free entries take this
-    /// path, and once the margins admit the map the re-minted turn IS the
-    /// motion the model stores and every lane moves by, not a computation
-    /// standing in for one. The translation enters no margin and is kept as
-    /// the scalar it is, so a boxed or symbolic shift under a written
-    /// turn stays the box or the form it was, its correlation with every
-    /// other use of its parameter intact. A map whose linear part is a
-    /// box, or carries a tangent or a symbol, is decided and re-minted at
-    /// this scalar.
+    /// Then the translation's finiteness, asked exactly as the mints
+    /// ask it (both endpoints at an enclosure), which logs no row.
+    ///
+    /// The door re-mints nothing and crosses no scalar ("Crossing
+    /// scalars" above). Where a value enters the model, a map rigid only
+    /// at the band is re-minted there instead ([`Self::adopt`]).
     ///
     /// # Errors
     ///
@@ -890,79 +890,104 @@ impl<T: Decide> RigidMotion<T> {
     /// naming the check, or [`RigidMotionError::NonFinite`] naming
     /// [`MotionPart::Linear`] or [`MotionPart::Translation`].
     pub fn check_rigid(map: &Affine3<T>, band: Band) -> Result<Self, RigidMotionError> {
+        Self::rigidity(map, band)?;
+        let origin = finite(at(map.translation), MotionPart::Translation)?;
+        Ok(Self::from_linear(map.linear, origin))
+    }
+
+    /// **The boundary re-mint's displacement bound, in bands**: a point
+    /// with every coordinate within the session box moves by at most this
+    /// many `ε` when a map whose seven margins decide `Zero` is re-minted
+    /// ([`Self::adopt`], which derives it).
+    pub const RE_MINT_BANDS: f64 = 4.5;
+
+    /// **A map admitted where it enters the model** — STEP's placement
+    /// at import, the door's band the file's adoption band
+    /// ([`crate::FileCoincidence::adoption_band`]): [`Self::check_rigid`]'s
+    /// rule, then, where a margin was beyond rounding, the map
+    /// **re-minted** by [`Self::gram_schmidt`] over its first two columns
+    /// under `site` (`u = c₀/|c₀|`, `c₁`'s residual against `u`
+    /// normalized, `w = u × v`; column-order dependent, from `c₀`), with
+    /// the translation kept. The `bool` says whether it was re-minted:
+    /// a re-mint is a change to the model the importer reports.
+    ///
+    /// **What the re-mint moves.** Each margin decided `Zero` is at most
+    /// `δ = ε/S`, the band's zero over the box's extent. To first order
+    /// the re-mint replaces `c₀` by `c₀(1 − a₀)`, `c₁` by
+    /// `c₁(1 − a₁) − c₀·d₀₁` and `c₂` by `c₂(1 − a₂) − c₀·d₀₂ − c₁·d₁₂`
+    /// (`aᵢ = (|cᵢ|² − 1)/2`, `dᵢⱼ = cᵢ · cⱼ`; the determinant's margin
+    /// keeps `u × v` on `c₂`'s side), so the columns move by at most
+    /// `δ/2`, `3δ/2` and `5δ/2`. A point `p` moves by `Σᵢ pᵢ·Δcᵢ`, so
+    /// with every coordinate `|pᵢ| ≤ S` it moves by at most
+    /// `(½ + 3⁄2 + 5⁄2)·δ·S = 4.5ε` ([`Self::RE_MINT_BANDS`]), and with
+    /// `|p| ≤ S` by at most `√(¼ + 9⁄4 + 25⁄4)·ε ≈ 2.96ε`. Pinned against
+    /// the measured displacement of maps at the band's edge.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::check_rigid`]'s; a re-mint's direction refusal reads as
+    /// the margin it is about, undecided.
+    pub fn adopt(
+        map: &Affine3<T>,
+        site: &'static str,
+        band: Band,
+    ) -> Result<(Self, bool), RigidMotionError> {
+        let re_mint = Self::rigidity(map, band)? == Rigidity::AtTheBand;
+        let origin = finite(at(map.translation), MotionPart::Translation)?;
+        if !re_mint {
+            return Ok((Self::from_linear(map.linear, origin), false));
+        }
+        let l = &map.linear;
+        Self::gram_schmidt(origin, l.c0, l.c1, site, band)
+            .map(|m| (m, true))
+            .map_err(|e| {
+                let check = match e.axis {
+                    OrthoAxis::U => COL0_UNIT,
+                    OrthoAxis::V => COL01_ORTH,
+                };
+                match e.error {
+                    UnitVec3Error::Escalated(source) => {
+                        RigidMotionError::Undecided { check, source }
+                    }
+                    _ => RigidMotionError::NotRigid { check },
+                }
+            })
+    }
+
+    /// [`Self::check_rigid`]'s seven margins, read: all within their
+    /// rounding, or beyond it and decided `Zero` at the band, the linear
+    /// part's finiteness asked first.
+    fn rigidity(map: &Affine3<T>, band: Band) -> Result<Rigidity, RigidMotionError> {
         let l = &map.linear;
         for column in [l.c0, l.c1, l.c2] {
             finite(at(column), MotionPart::Linear)?;
         }
-        // A map every linear entry of which is a plain f64 has its turn
-        // decided and re-minted at that f64 and entered here as the
-        // model constant it is (the doc above): its own rounding is the
-        // run's admission budget, so deciding it again over this
-        // scalar's enclosure of that rounding would charge it twice.
-        let constant = |v: Vec3<T>| {
-            Some(Vec3::new(
-                v.x.plain_constant()?,
-                v.y.plain_constant()?,
-                v.z.plain_constant()?,
-            ))
-        };
-        let linear = (|| {
-            Some(Mat3::from_cols(
-                constant(l.c0)?,
-                constant(l.c1)?,
-                constant(l.c2)?,
-            ))
-        })();
-        match linear {
-            Some(linear) => {
-                let turn = RigidMotion::<f64>::re_minted(
-                    &Affine3::from_parts(linear, Vec3::zero()),
-                    band,
-                )?;
-                // The turn is a constant of the model: entered as one
-                // (`Real::from_f64`), a literal at `Sym`, so a written
-                // turn cancels as the literals it was written as.
-                let axis = |a: UnitVec3<f64>| UnitVec3::by_construction(a.get().map(T::from_f64));
-                Ok(Self {
-                    origin: finite(at(map.translation), MotionPart::Translation)?,
-                    u: axis(turn.u),
-                    v: axis(turn.v),
-                    w: axis(turn.w),
-                })
-            }
-            None => Self::re_minted(map, band),
-        }
-    }
-
-    /// [`Self::check_rigid`]'s decision and re-mint at this scalar, the
-    /// linear part's finiteness already asked.
-    fn re_minted(map: &Affine3<T>, band: Band) -> Result<Self, RigidMotionError> {
-        let band = rigidity_band(band)?;
-        let l = &map.linear;
         let one = T::one();
-        // A table of K row names: they reach the funnel through the loop
-        // variable below, so each is a `const` geom-core's roster declares
-        // a carrier, which is where the census reads it. A row added here
-        // is a roster change (`docs/K-REPORT.md`, "The inventory method,
-        // restated").
-        const COL0_UNIT: &str = "transform_rigid_col0_unit";
-        const COL1_UNIT: &str = "transform_rigid_col1_unit";
-        const COL2_UNIT: &str = "transform_rigid_col2_unit";
-        const COL01_ORTH: &str = "transform_rigid_col01_orth";
-        const COL12_ORTH: &str = "transform_rigid_col12_orth";
-        const COL02_ORTH: &str = "transform_rigid_col02_orth";
-        const DET_PLUS_ONE: &str = "transform_rigid_det_plus_one";
-        let checks: [(&'static str, T); 7] = [
-            (COL0_UNIT, l.c0.dot(l.c0) - one),
-            (COL1_UNIT, l.c1.dot(l.c1) - one),
-            (COL2_UNIT, l.c2.dot(l.c2) - one),
-            (COL01_ORTH, l.c0.dot(l.c1)),
-            (COL12_ORTH, l.c1.dot(l.c2)),
-            (COL02_ORTH, l.c0.dot(l.c2)),
-            (DET_PLUS_ONE, l.determinant() - one),
+        let (n0, n1, n2) = (l.c0.dot(l.c0), l.c1.dot(l.c1), l.c2.dot(l.c2));
+        let mean = (n0 + n1 + n2) / T::from_f64(3.0);
+        let checks: [(&'static str, T, T); 7] = [
+            (COL0_UNIT, n0 - one, n0 + one),
+            (COL1_UNIT, n1 - one, n1 + one),
+            (COL2_UNIT, n2 - one, n2 + one),
+            (COL01_ORTH, l.c0.dot(l.c1), n0 + n1),
+            (COL12_ORTH, l.c1.dot(l.c2), n1 + n2),
+            (COL02_ORTH, l.c0.dot(l.c2), n0 + n2),
+            (DET_PLUS_ONE, l.determinant() - one, mean.powi(3) + one),
         ];
-        for (check, defect) in checks {
-            let margin = Margin::levered(defect, Lever::session_box());
+        let charged = checks.map(|(check, defect, terms)| {
+            (
+                check,
+                crate::Rounded {
+                    value: defect,
+                    error: crate::rounding_charge(terms),
+                },
+            )
+        });
+        if charged.iter().all(|(_, m)| within_rounding(*m)) {
+            return Ok(Rigidity::WithinRounding);
+        }
+        for (check, m) in charged {
+            let margin = Margin::levered(m.toward_zero(), Lever::session_box());
             match crate::k_stats::decide(check, margin, band) {
                 Ok(Sign::Zero) => {}
                 Ok(Sign::Positive | Sign::Negative) => {
@@ -971,16 +996,7 @@ impl<T: Decide> RigidMotion<T> {
                 Err(source) => return Err(RigidMotionError::Undecided { check, source }),
             }
         }
-        let origin = finite(at(map.translation), MotionPart::Translation)?;
-        let u = UnitVec3::by_construction(l.c0.normalize());
-        let k = u.get();
-        let v = UnitVec3::by_construction((l.c1 - k * l.c1.dot(k)).normalize());
-        Ok(Self {
-            origin,
-            u,
-            v,
-            w: UnitVec3::cross_of_orthonormal(u, v),
-        })
+        Ok(Rigidity::AtTheBand)
     }
 
     /// **A computed pair, orthonormalized** — Gram–Schmidt, with `u`
@@ -1845,8 +1861,8 @@ mod motion_rows {
     /// **The decided door refuses a raw shear or scale**, naming the
     /// check, and it RETURNS AN UNDECIDED MARGIN AS UNDECIDED: an
     /// interval column norm straddling the band is not a decided
-    /// defect. A rigid map passes, and comes back re-minted: its
-    /// translation bit for bit, its columns within rounding.
+    /// defect. A rigid map passes as given: its twelve numbers bit for
+    /// bit.
     #[test]
     fn the_decided_door_refuses_shear_and_scale_and_keeps_undecided_apart() {
         let shear = Affine3::from_parts(
@@ -1908,109 +1924,98 @@ mod motion_rows {
             0.9,
         );
         let admitted = RigidMotion::check_rigid(&turn, band()).expect("a rotation is rigid");
-        let (a, t) = (admitted.to_affine(), turn);
         assert_eq!(
-            bits12(&a)[9..],
-            bits12(&t)[9..],
-            "the translation is carried verbatim"
+            bits12(&admitted.to_affine()),
+            bits12(&turn),
+            "a rigid map is admitted as given"
         );
-        for (got, want) in [
-            (a.linear.c0, t.linear.c0),
-            (a.linear.c1, t.linear.c1),
-            (a.linear.c2, t.linear.c2),
-        ] {
-            assert!(
-                (got - want).norm() <= 8.0 * f64::EPSILON,
-                "a rotation's re-mint moves a column by rounding only: {got:?} vs {want:?}"
-            );
-        }
     }
 
-    /// **The door's band fits the re-mint into the run's headroom at
-    /// every `K`**: at `K = 2` the headroom is one `ε`, under the
-    /// re-mint's `4.5ε`, so the band is scaled by `1/4.5`. A column whose
-    /// margin at the box's extent is `0.6ε` is admitted at `K = 10` and
-    /// refuses at `K = 2`, naming its check; one at `0.1ε` passes both.
+    /// **An honest rotation is within its own rounding at every row**:
+    /// 2000 `f64` rotations about random axes, by random angles, about
+    /// random anchors in the box, read at `f64` and entered at
+    /// `Interval` as points, are admitted at ε = 1e-12, at the least ε
+    /// the default `K` admits, at `K = 2` and at `K = 1.1` at their own
+    /// least ε: none undecided, none not rigid. The band would charge
+    /// such a map its own rounding (the levered margin of a 12u defect
+    /// is past the zero at 1e-12): it is never asked.
     #[test]
-    fn the_rigidity_band_fits_the_headroom_at_every_k() {
-        let eps = 1e-9;
-        let at_k = |k: f64| Band::new(eps, k * eps).unwrap();
-        let reach = crate::tolerance::SESSION_BOX_EXTENT;
-        let stretched = |margin: f64| {
-            let delta = margin * eps / reach / 2.0;
-            Affine3::from_parts(
-                Mat3::from_cols(
-                    Vec3::new(1.0 + delta, 0.0, 0.0),
-                    Vec3::unit_y(),
-                    Vec3::unit_z(),
-                ),
-                Vec3::zero(),
-            )
-        };
-        assert!(
-            RigidMotion::check_rigid(&stretched(0.6), at_k(10.0)).is_ok(),
-            "0.6ε at the box's extent is admitted at the default K"
-        );
-        assert!(
-            matches!(
-                RigidMotion::check_rigid(&stretched(0.6), at_k(2.0)),
-                Err(RigidMotionError::NotRigid {
-                    check: "transform_rigid_col0_unit"
-                })
+    fn an_honest_rotation_is_within_its_rounding_at_every_row() {
+        use crate::tolerance::{EPS_MIN, eps_min};
+        let rows = [
+            ("1e-12", Band::new(1e-12, 1e-11).unwrap()),
+            ("EPS_MIN", Band::new(EPS_MIN, 10.0 * EPS_MIN).unwrap()),
+            (
+                "K = 2",
+                Band::new(eps_min(2.0), 2.0 * eps_min(2.0)).unwrap(),
             ),
-            "0.6ε at the box's extent refuses at K = 2"
-        );
-        for k in [2.0, 10.0] {
-            assert!(
-                RigidMotion::check_rigid(&stretched(0.1), at_k(k)).is_ok(),
-                "0.1ε at the box's extent is admitted at K = {k}"
-            );
+            (
+                "K = 1.1",
+                Band::new(eps_min(1.1), 1.1 * eps_min(1.1)).unwrap(),
+            ),
+        ];
+        let mut seed = 0x5eed_u64;
+        let mut next = || {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            #[allow(clippy::cast_precision_loss)]
+            let x = (seed >> 11) as f64 / (1u64 << 53) as f64;
+            2.0 * x - 1.0
+        };
+        let mut turns = Vec::new();
+        for _ in 0..2000 {
+            let at = Point3::new(1e3 * next(), 1e3 * next(), 1e3 * next());
+            let axis = Vec3::new(next(), next(), next());
+            turns.push(Affine3::rotation_about_axis(
+                at,
+                axis,
+                core::f64::consts::PI * next(),
+            ));
+        }
+        for (row, band) in rows {
+            let refused = turns
+                .iter()
+                .filter(|t| {
+                    RigidMotion::check_rigid(t, band).is_err()
+                        || RigidMotion::check_rigid(&t.map(Interval::from_f64), band).is_err()
+                })
+                .count();
+            assert_eq!(refused, 0, "{row}: an honest rotation refuses");
         }
     }
 
-    /// **A point map is decided and re-minted at `f64` at every scalar**:
-    /// a turn's twelve entries entered as point intervals and as `Sym`
-    /// literals are admitted as the `f64` lane's frame, bit for bit, and
-    /// stay points, so a box lane's frame is the witness's and a reader
-    /// that wants a point frame gets one.
+    /// **A map within its rounding is admitted as given, at its own
+    /// scalar**: a turn's twelve entries at `f64`, entered as point
+    /// intervals and as `Sym` literals, come back bit for bit, still
+    /// points, still literals; a boxed shift under it is the box it came
+    /// in as. Nothing is re-minted and nothing crosses a scalar, so a
+    /// mapped point cancels against its mapped carrier as the literals
+    /// it was written as.
     #[test]
-    fn a_point_map_is_the_f64_frame_at_every_scalar() {
+    fn a_map_within_rounding_is_admitted_as_given_at_its_own_scalar() {
         use crate::sym::Sym;
         let turn = Affine3::rotation_about_axis(
             Point3::new(0.25, -1.0, 2.0),
             Vec3::new(1.0, 2.0, -0.5),
             0.9,
         );
+        let want = bits12(&turn);
         let at_f64 = RigidMotion::check_rigid(&turn, band()).expect("a rotation is rigid");
-        let want = bits12(&at_f64.to_affine());
+        assert_eq!(bits12(&at_f64.to_affine()), want, "f64");
         let at_interval = RigidMotion::check_rigid(&turn.map(Interval::from_f64), band())
             .expect("a point map is rigid at Interval")
             .point_value()
             .expect("and stays a point");
         assert_eq!(bits12(&at_interval.to_affine()), want, "Interval");
-        let at_sym = RigidMotion::check_rigid(&turn.map(Sym::<f64>::from_f64), band())
-            .expect("a point map is rigid at Sym")
-            .point_value()
-            .expect("and stays a point");
-        assert_eq!(bits12(&at_sym.to_affine()), want, "Sym");
-    }
-
-    /// **A boxed shift under a written turn keeps its box, and the turn
-    /// is the `f64` lane's**, entered as model constants: a shift enters
-    /// no margin, so a box in it does not send the turn to be re-minted
-    /// at the box scalar. Re-minted there, the turn's axes are
-    /// normalizations at that scalar, and a point mapped by them no
-    /// longer cancels against its carrier's mapped origin: a boxed plane
-    /// read its own station twice the box off it. Red if the turn of a
-    /// map whose shift is a box is re-minted at the box scalar.
-    #[test]
-    fn a_boxed_shift_under_a_written_turn_keeps_its_box() {
-        let turn = Affine3::rotation_about_axis(
-            Point3::new(0.25, -1.0, 2.0),
-            Vec3::new(1.0, 2.0, -0.5),
-            0.9,
-        );
-        let want = RigidMotion::check_rigid(&turn, band()).expect("a rotation is rigid");
+        let at_sym = RigidMotion::check_rigid(&turn.map(Sym::<Interval>::from_f64), band())
+            .expect("a point map is rigid at Sym");
+        for axis in [at_sym.u, at_sym.v, at_sym.w] {
+            let a = axis.get();
+            for c in [a.x, a.y, a.z] {
+                assert!(c.plain_constant().is_some(), "an axis at Sym is a literal");
+            }
+        }
         let shift = Vec3::new(
             Interval::from_bounds(0.95, 1.05),
             Interval::from_f64(1.0),
@@ -2018,14 +2023,6 @@ mod motion_rows {
         );
         let boxed = Affine3::from_parts(turn.linear.map(Interval::from_f64), shift);
         let got = RigidMotion::check_rigid(&boxed, band()).expect("a boxed shift is rigid");
-        let bits = |v: Vec3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
-        for (axis, (g, w)) in [(got.u, want.u), (got.v, want.v), (got.w, want.w)]
-            .into_iter()
-            .enumerate()
-        {
-            let point = g.get().map(|c| c.plain_constant().expect("a point axis"));
-            assert_eq!(bits(point), bits(w.get()), "axis {axis} is the f64 lane's");
-        }
         for (g, s) in [
             (got.origin.x, shift.x),
             (got.origin.y, shift.y),
@@ -2036,19 +2033,6 @@ mod motion_rows {
                 (s.lo().to_bits(), s.hi().to_bits()),
                 "the shift is the box it came in as"
             );
-        }
-        // At `Sym` the turn is literals, so an identity through it is
-        // proved: an axis entered as computed values is an unknown each.
-        let symbolic = Affine3::from_parts(
-            turn.linear.map(crate::sym::Sym::<Interval>::from_f64),
-            Vec3::new(1.0, 1.0, 0.0).map(crate::sym::Sym::<Interval>::from_f64),
-        );
-        let at_sym = RigidMotion::check_rigid(&symbolic, band()).expect("rigid at Sym");
-        for axis in [at_sym.u, at_sym.v, at_sym.w] {
-            let a = axis.get();
-            for c in [a.x, a.y, a.z] {
-                assert!(c.plain_constant().is_some(), "an axis at Sym is a literal");
-            }
         }
     }
 
@@ -2278,16 +2262,15 @@ mod motion_rows {
         );
     }
 
-    /// **The door re-mints what it admits, so products of admitted
-    /// factors do not drift**, and its band is levered by the session
-    /// box: a stretch whose column defect, at the box's extent, is
-    /// `0.4` of the band's zero is admitted as an exact unit column,
-    /// its 64-fold product stays unit to rounding, and a stretch of
-    /// `0.4` of the zero unlevered, which a metre-band reading would
-    /// have admitted, moves a point at the box's edge by hundreds of
-    /// bands and refuses.
+    /// **A stretch at the band is admitted as given by the door and
+    /// re-minted where it enters the model**: a column `0.2ε/S` off unit
+    /// is beyond its rounding, decided `Zero` at the band, and
+    /// [`RigidMotion::check_rigid`] keeps its bits; [`RigidMotion::adopt`]
+    /// re-mints it to the unit column and says so, and the products of
+    /// the re-mint do not drift. A column `0.4ε` off unit (hundreds of
+    /// bands at the box's edge) refuses either way.
     #[test]
-    fn an_admitted_stretch_is_re_minted_and_its_products_do_not_drift() {
+    fn a_stretch_at_the_band_is_kept_by_the_door_and_re_minted_on_adoption() {
         let zero = band().zero();
         let reach = crate::tolerance::SESSION_BOX_EXTENT;
         let stretch = |s: f64| {
@@ -2296,13 +2279,23 @@ mod motion_rows {
                 Vec3::zero(),
             )
         };
-        let one = RigidMotion::check_rigid(&stretch(1.0 + 0.2 * zero / reach), band())
-            .expect("inside the levered band: admitted");
+        let s = 1.0 + 0.2 * zero / reach;
+        let kept = RigidMotion::check_rigid(&stretch(s), band()).expect("inside the levered band");
+        assert_eq!(
+            kept.u().get().x.to_bits(),
+            s.to_bits(),
+            "the door keeps the bits"
+        );
+        let (one, re_minted) =
+            RigidMotion::adopt(&stretch(s), SITE, band()).expect("inside the levered band");
+        assert!(re_minted, "adoption re-mints a map rigid only at the band");
         assert_eq!(
             one.u().get().x.to_bits(),
             1.0_f64.to_bits(),
-            "the admitted stretch is re-minted to the unit column"
+            "the adopted stretch is re-minted to the unit column"
         );
+        let (_, again) = RigidMotion::adopt(&one.to_affine(), SITE, band()).unwrap();
+        assert!(!again, "a re-minted map is within its rounding");
         let mut product = one;
         for k in 2..=64_u32 {
             product = product.compose(one).unwrap();
@@ -2313,14 +2306,68 @@ mod motion_rows {
                 "the {k}-fold product's column defect {defect:e} is past rounding"
             );
         }
+        for door in [
+            RigidMotion::check_rigid(&stretch(1.0 + 0.4 * zero), band()).map(|_| ()),
+            RigidMotion::adopt(&stretch(1.0 + 0.4 * zero), SITE, band()).map(|_| ()),
+        ] {
+            assert!(
+                matches!(
+                    door,
+                    Err(RigidMotionError::NotRigid {
+                        check: "transform_rigid_col0_unit"
+                    })
+                ),
+                "a column 0.4 zeros off unit moves a point at the box's edge by hundreds of bands"
+            );
+        }
+    }
+
+    /// **The boundary re-mint moves a point by at most
+    /// [`RigidMotion::RE_MINT_BANDS`] `ε`, and the bound is not vacuous**: maps whose
+    /// seven margins sit at the band's zero over the box's extent, in
+    /// every combination of signs and columns, re-minted by
+    /// [`RigidMotion::adopt`], move the box's corners by at most
+    /// `4.5ε`, and the worst moves more than `2ε`, so a bound loose by
+    /// more than about two would read here.
+    #[test]
+    fn the_boundary_re_mint_moves_a_point_by_at_most_its_bound() {
+        let eps = band().zero();
+        let reach = crate::tolerance::SESSION_BOX_EXTENT;
+        let d = 0.95 * eps / reach;
+        let mut worst = 0.0_f64;
+        for signs in 0..64_u32 {
+            let sg = |b: u32| if signs & (1 << b) == 0 { 1.0 } else { -1.0 };
+            // Unit defects of d/2 per column (|c|² − 1 ≈ 2·d/2), and
+            // orthogonalities of d, by the sign pattern.
+            let c0 = Vec3::new(1.0 + sg(0) * d / 2.0, 0.0, 0.0);
+            let c1 = Vec3::new(sg(1) * d, 1.0 + sg(2) * d / 2.0, 0.0);
+            let c2 = Vec3::new(sg(3) * d, sg(4) * d, 1.0 + sg(5) * d / 2.0);
+            let map = Affine3::from_parts(Mat3::from_cols(c0, c1, c2), Vec3::zero());
+            let Ok((m, true)) = RigidMotion::adopt(&map, SITE, band()) else {
+                continue;
+            };
+            let to = m.to_affine();
+            for corner in 0..8_u32 {
+                let c = |b: u32| {
+                    if corner & (1 << b) == 0 {
+                        reach
+                    } else {
+                        -reach
+                    }
+                };
+                let p = Point3::new(c(0), c(1), c(2));
+                worst = worst.max(to.transform_point(p).distance(map.transform_point(p)));
+            }
+        }
         assert!(
-            matches!(
-                RigidMotion::check_rigid(&stretch(1.0 + 0.4 * zero), band()),
-                Err(RigidMotionError::NotRigid {
-                    check: "transform_rigid_col0_unit"
-                })
-            ),
-            "a column 0.4 zeros off unit moves a point at the box's edge by hundreds of bands"
+            worst <= RigidMotion::<f64>::RE_MINT_BANDS * eps,
+            "the re-mint moved a corner {:.3}ε, past the bound",
+            worst / eps
+        );
+        assert!(
+            worst > 2.0 * eps,
+            "the worst corner moved {:.3}ε: the probe does not reach the bound's order",
+            worst / eps
         );
     }
 
@@ -2428,10 +2475,8 @@ mod crossing_and_turn_rows {
     /// **Up to the band's escalation edge, the turn is rigid and carries
     /// `a` onto `b` to rounding**, at `f64` and at `Interval`: over six
     /// generic pairs at `1 + a·b` from `0.5` down to four escalations,
-    /// every turn builds, the rigidity door admits it at `f64` and entered
-    /// at `Interval`, and never reads the `Interval` turn, a box, as not
-    /// rigid,
-    /// its seven rigidity defects stay below `1e-14`, and `a` lands
+    /// every turn builds, the rigidity door admits it at `f64` and, entered
+    /// at `Interval`, as the same twelve numbers, its seven rigidity defects stay below `1e-14`, and `a` lands
     /// within `1e-14` of `b` (at `Interval`, the enclosure of the miss
     /// within `1e-13`). Neither bound depends on how near opposed the
     /// pair is or on the run's ε, so the row holds at every ε row.
@@ -2483,10 +2528,14 @@ mod crossing_and_turn_rows {
                     RigidMotion::check_rigid(&m.to_affine(), band()).is_ok(),
                     "{at}: the rigidity door admits the f64 turn"
                 );
-                assert!(
-                    RigidMotion::check_rigid(&m.to_affine().map(Interval::from_f64), band())
-                        .is_ok(),
-                    "{at}: the rigidity door admits the f64 turn entered at Interval"
+                let entered = m.to_affine().map(Interval::from_f64);
+                assert_eq!(
+                    RigidMotion::check_rigid(&entered, band())
+                        .ok()
+                        .and_then(RigidMotion::point_value)
+                        .map(|p| bits12(&p.to_affine())),
+                    Some(bits12(&m.to_affine())),
+                    "{at}: the rigidity door admits the f64 turn entered at Interval, as given"
                 );
                 // The same two directions at `Interval`, as point
                 // enclosures: each is the aim of an `f64` frame, entered
@@ -2505,17 +2554,6 @@ mod crossing_and_turn_rows {
                 let (ai, bi) = (at_interval(a), at_interval(b));
                 let mi = RigidMotion::turned_between(ai, bi, Point3::origin(), SITE, band())
                     .unwrap_or_else(|e| panic!("{at}, Interval: {e}"));
-                // The Interval turn is a box: the door decides it at the
-                // box's extent, where its own enclosure of rounding can
-                // straddle the tightest band, but never reads it as not
-                // rigid.
-                assert!(
-                    !matches!(
-                        RigidMotion::check_rigid(&mi.to_affine(), band()),
-                        Err(RigidMotionError::NotRigid { .. })
-                    ),
-                    "{at}: the rigidity door reads the Interval turn as not rigid"
-                );
                 let off = mi.turn(ai).get() - bi.get();
                 let reach = [off.x, off.y, off.z]
                     .into_iter()

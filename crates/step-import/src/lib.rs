@@ -426,7 +426,28 @@ pub enum NormalizationKind {
     /// own splits) and the faces it became with every edge and vertex
     /// they use.
     FaceSplitAtC0Knot,
+    /// **An assembly placement re-minted as an exact rigid motion**
+    /// (`[import]`, `[tolerance.boundary]`): the file's
+    /// `ITEM_DEFINED_TRANSFORMATION` is rigid at the file's adoption band
+    /// ([`geom_core::FileCoincidence::adoption_band`]) but not within its
+    /// own rounding, so the import re-mints it by Gram–Schmidt
+    /// ([`geom_core::RigidMotion::adopt`]) and places the copy by the
+    /// re-mint. A healing move, reported: a point with every coordinate
+    /// within the session box moves by at most `moved_by`. Keyed by the
+    /// transformation's instance id, not a face; its census pair is
+    /// empty, since no face, edge or vertex changes.
+    PlacementReMinted {
+        /// The `ITEM_DEFINED_TRANSFORMATION` that was re-minted.
+        transform: u64,
+        /// The re-mint's displacement bound (metres): the adoption
+        /// band's zero times [`geom_core::RigidMotion::RE_MINT_BANDS`].
+        moved_by: f64,
+    },
 }
+
+/// [`NormalizationKind::PlacementReMinted`]'s K row: the re-mint's two
+/// directions, decided under one name.
+pub const STEP_PLACEMENT_RE_MINT: &str = "step_placement_re_mint";
 
 /// Where a file put a chart singularity that is not yet a vertex in
 /// the pole form ([`NormalizationKind::ChartSingularityVertex`]).
@@ -799,9 +820,9 @@ pub fn import_step(
             // for id.
             //
             // Each instance then goes through the kernel's own
-            // placement doors (M7-4 Leg D): the map is decided rigid, and
-            // re-minted, at `RigidMotion::check_rigid` at the file's band,
-            // and `transform_rigid`
+            // placement doors (M7-4 Leg D): the map is adopted at the
+            // file's band (`RigidMotion::adopt`), re-minted and reported
+            // where it is rigid only at that band, and `transform_rigid`
             // RE-CERTIFIES every carrier against the mapped geometry,
             // so a placed copy is as first-class as an unplaced one —
             // and a map this reader let through that the kernel will
@@ -823,6 +844,7 @@ pub fn import_step(
             // from the same spec, so joins the same vertices.
             let mut normalizations = model.normalizations.clone();
             let mut joined = std::collections::BTreeSet::new();
+            let mut reminted = std::collections::BTreeSet::new();
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
                 let file = geom_core::FileCoincidence::new(eps_in);
@@ -830,15 +852,17 @@ pub fn import_step(
                 if joined.insert(instance.solid) {
                     normalizations.extend(joins);
                 }
+                let mut applied = None;
                 let one = match instance.placed {
                     Some(entities::Placed {
                         map: Some(map),
                         transform,
                         ..
                     }) => {
-                        // A placement is adopted at the file's own band: its
-                        // re-mint to an exact rigid motion may move a point
-                        // by up to ε_in.
+                        // A placement is adopted at the file's own band
+                        // (ε_in, bounded by the run's K·ε): a map rigid
+                        // there but not within its rounding is re-minted,
+                        // and the re-mint is reported.
                         let band = file.adoption_band(tol).map_err(|source| {
                             StepImportError::Placement {
                                 transform,
@@ -846,10 +870,30 @@ pub fn import_step(
                                 file,
                             }
                         })?;
-                        let motion =
-                            geom_core::RigidMotion::check_rigid(&map, band).map_err(|source| {
-                                StepImportError::PlacementMap { transform, source }
-                            })?;
+                        let (motion, re_minted) =
+                            geom_core::RigidMotion::adopt(&map, STEP_PLACEMENT_RE_MINT, band)
+                                .map_err(|source| StepImportError::PlacementMap {
+                                    transform,
+                                    source,
+                                })?;
+                        if re_minted && reminted.insert(transform) {
+                            let empty = FaceCensus {
+                                faces: 0,
+                                edges: 0,
+                                vertices: 0,
+                            };
+                            normalizations.push(StructureNormalization {
+                                face: transform,
+                                kind: NormalizationKind::PlacementReMinted {
+                                    transform,
+                                    moved_by: band.zero()
+                                        * geom_core::RigidMotion::<f64>::RE_MINT_BANDS,
+                                },
+                                file_census: empty,
+                                kernel_census: empty,
+                            });
+                        }
+                        applied = Some(motion.to_affine());
                         topo::transform_rigid(&one, &motion, tol).map_err(|source| {
                             StepImportError::Placement {
                                 transform,
@@ -891,7 +935,7 @@ pub fn import_step(
                     occurrence: instance.placed.and_then(|p| p.occurrence),
                     relationship: instance.placed.map(|p| p.relationship),
                     transform: instance.placed.map(|p| p.transform),
-                    placement: instance.placed.and_then(|p| p.map),
+                    placement: applied,
                 });
             }
             // **The shared at-rest validation gate** (M7-7, the #260
