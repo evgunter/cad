@@ -81,8 +81,8 @@ impl<T: Decide> Held<T> {
     /// classified at `band` outside the log (F38), reads `Zero` for a
     /// constructed or decided point, and never definitely off for one
     /// held in band. Skipped only where the residual is honestly
-    /// unavailable: a poison residual, which a spline or approximated
-    /// carrier always reads, having no implicit form.
+    /// unavailable: a carrier with no implicit form ([`premise_reads`]),
+    /// or a poison residual.
     ///
     /// **No lever.** The residual is a length, the point's offset from
     /// the carrier (linearized on a curved one), read against the band's
@@ -100,7 +100,7 @@ impl<T: Decide> Held<T> {
     /// that no longer puts its point on the carrier, a defect.
     #[track_caller]
     pub(crate) fn check(self, surface: &Surface<T>, band: Band) {
-        if !cfg!(debug_assertions) {
+        if !cfg!(debug_assertions) || !premise_reads(surface) {
             return;
         }
         let residual = geom_brep::implicit_residual(surface, self.at);
@@ -129,4 +129,14 @@ impl<T: Decide> Held<T> {
             );
         }
     }
+}
+
+/// **Whether a held point's premise can be checked on `surface`**: the
+/// carrier has an implicit form ([`geom_brep::has_implicit_form`]), which
+/// [`Held::check`] reads the point's residual against. A spline or an
+/// approximated carrier has none, so a door that places a point on one
+/// has no premise check beside it, and reads its door's answer as the
+/// only reading of the point (`crate::cell_region`'s held door).
+pub(crate) fn premise_reads<T: geom_core::Real>(surface: &Surface<T>) -> bool {
+    geom_brep::has_implicit_form(surface)
 }

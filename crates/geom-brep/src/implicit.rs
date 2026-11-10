@@ -164,10 +164,20 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
     rho * cos_a - s * sin_a
 }
 
+/// **Whether `s` has an implicit form** that [`implicit_residual`] reads:
+/// every kind but a spline ([`Surface::Nurbs`]) and an approximated one
+/// ([`Surface::Approx`]), whose residual is poison. The one list of the
+/// kinds no residual reads; a reader that must know whether a point's
+/// place on a carrier can be checked asks here.
+#[must_use]
+pub fn has_implicit_form<T: Real>(s: &Surface<T>) -> bool {
+    !matches!(s, Surface::Nurbs(_) | Surface::Approx(_))
+}
+
 /// The linearized implicit residual of `p` against `s`, in meters (the
 /// module-doc table). Zero on the surface; agrees with the signed
-/// distance to first order near it. Total: poison in, poison out;
-/// [`Surface::Nurbs`] yields poison.
+/// distance to first order near it. Total: poison in, poison out; a
+/// carrier with no implicit form ([`has_implicit_form`]) yields poison.
 pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let two = T::from_f64(2.0);
     match *s {
@@ -231,7 +241,13 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
         // M5 PR 4) owns that story, not this module. `Approx` joins it:
         // the fit is a spline, and an offset description has no
         // implicit form to inherit either.
-        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            debug_assert!(
+                !has_implicit_form(s),
+                "the kinds with no implicit form are one list"
+            );
+            poison()
+        }
     }
 }
 
