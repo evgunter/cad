@@ -616,6 +616,7 @@ fn placement<T: Decide>(ball: ExtentBall<T>, region: ExtentBall<T>, band: Band) 
     let apart = (ball.center() - region.center()).norm();
     let positive = |m: T| {
         matches!(
+            // NO-DECISION: which listing of the pair to take, each sound.
             m.sign_within(band),
             Ok(Decided {
                 sign: Sign::Positive,
