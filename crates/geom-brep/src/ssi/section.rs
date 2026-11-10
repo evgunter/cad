@@ -400,6 +400,12 @@ pub(crate) struct SignBudget;
 /// The pieces as given are all read before any is halved, so two of
 /// opposite sign read `None` in any order.
 ///
+/// A refinement over enclosures, not an agreeing ladder
+/// (`geom_core::ladder::climb_agreeing`): no hull is a band decision, and
+/// a piece that straddles is halved and read again, not kept. Which
+/// refusal surfaces can depend on the order the pieces are read, and no
+/// outcome rests on which.
+///
 /// # Errors
 ///
 /// [`SignBudget`] where a halving is due with `budget` spent.
