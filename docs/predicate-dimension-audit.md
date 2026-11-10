@@ -1860,6 +1860,24 @@ Flagged, NOT fixed here (dispositions):
   `edge_join_carried_far`. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.
 
+- **F40** (added by ONECOPY's roster-reach unit) `replay_one_cylinder`,
+  `replay_one_cylinder_axis` — `editor-core/src/coincide/replay.rs`
+  `one_cylinder`: whether two faces on cylinders are one cylinder, read
+  as one axis, one radius and one sense. Each component is decided Zero
+  or not; Zero discharges it, anything else keeps the row deferred
+  (`deferred::discharge_or_why`). It was a raw `sign_within` until this
+  unit, so its samples reached the K sink `<unnamed>`.
+  `replay_one_cylinder` takes the metre data through `Margin::of`: the
+  second axis's offset from the first, crossed with its unit direction
+  (`(ob − oa) × db`), and the radius differences (a rim's radius less its
+  cylinder's, and the two cylinders'). `replay_one_cylinder_axis` takes
+  the axes' cross product `da × db`, a sine of two unit directions,
+  **dimensionless**, through `Margin::levered` at `Lever::unsourced(1 m)`.
+  That is bit-identical to the raw read, which held the sine against the
+  band as though it were a length. **FLAG**: the lever has no source.
+  `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
+  carries the real one, with its candidates and a measurement plan.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

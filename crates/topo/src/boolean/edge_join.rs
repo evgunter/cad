@@ -447,7 +447,6 @@ fn crease_at<T: Decide>(body: &Body<T>, e: EdgeKey, d: &crate::entity::Edge, w: 
     // answer, so no crease.
     [a, b].into_iter().chain(knots.crease_values()).any(|k| {
         (t - k)
-            // NO-DECISION: a stored parameter's exact equality with a knot.
             .sign_within(Band::least())
             .is_ok_and(|d| d.sign == Sign::Zero)
     })

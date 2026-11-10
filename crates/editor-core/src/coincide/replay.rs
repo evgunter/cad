@@ -434,8 +434,11 @@ fn carrier_verdict(
     }
 }
 
-/// The name [`one_cylinder`]'s components are each decided Zero under.
+/// The name [`one_cylinder`]'s metre data — the axes' offset, the
+/// radii's differences — are each decided Zero under.
 const ONE_CYLINDER: &str = "replay_one_cylinder";
+/// The name [`one_cylinder`]'s axis parallelism is decided Zero under.
+const ONE_CYLINDER_AXIS: &str = "replay_one_cylinder_axis";
 
 /// **Two faces on cylinders, read as one axis, one radius and one
 /// sense**: the axis as stated where `stated`, else the two axes one
@@ -474,17 +477,25 @@ fn one_cylinder(
     else {
         return None;
     };
-    let zero = |x: Lane| {
-        geom_core::k_stats::decide_reported(ONE_CYLINDER, geom_core::Margin::of(x), band)
+    let zero = |name, m: geom_core::Margin<Lane>| {
+        geom_core::k_stats::decide_reported(name, m, band)
             .map_or(Err(deferred::Undischarged::Otherwise), |d| {
                 deferred::discharge_or_why(d.margin)
             })
     };
+    // The axes' cross product is a sine of two unit directions, read
+    // against a band in metres at an unsourced metre of arm.
+    let metre = geom_core::Lever::unsourced(<Lane as geom_core::Real>::one());
     let established = || {
         if !stated {
             let (cross, off) = (da.cross(db), (ob - oa).cross(db));
-            for r in [cross.x, cross.y, cross.z, off.x, off.y, off.z] {
-                zero(r).map_err(|why| (Component::Axis, why))?;
+            for s in [cross.x, cross.y, cross.z] {
+                zero(ONE_CYLINDER_AXIS, geom_core::Margin::levered(s, metre))
+                    .map_err(|why| (Component::Axis, why))?;
+            }
+            for r in [off.x, off.y, off.z] {
+                zero(ONE_CYLINDER, geom_core::Margin::of(r))
+                    .map_err(|why| (Component::Axis, why))?;
             }
         }
         let radius = |why| (Component::Radius, why);
@@ -494,10 +505,10 @@ fn one_cylinder(
                 return Err(radius(deferred::Undischarged::Otherwise));
             }
             for rim in rims {
-                zero(rim - *r).map_err(radius)?;
+                zero(ONE_CYLINDER, geom_core::Margin::of(rim - *r)).map_err(radius)?;
             }
         }
-        zero(ra - rb).map_err(radius)?;
+        zero(ONE_CYLINDER, geom_core::Margin::of(ra - rb)).map_err(radius)?;
         if (sa == sb) != (wanted == CarrierRelation::SameOriented) {
             return Err((Component::Sense, deferred::Undischarged::Otherwise));
         }

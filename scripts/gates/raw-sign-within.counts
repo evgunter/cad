@@ -3,4 +3,9 @@
 # no predicate for the K recorder and logs no verdict. A read that
 # decides nothing says so at its site with a `// NO-DECISION: <why>` line
 # directly above it, and is not counted here; a read that decides goes
-# through a named k_stats door. No file needs an entry today.
+# through a named k_stats door, or is entered here with why it cannot yet.
+#
+# The knot test of a join's crease (`crease_at`): a decision no least-band
+# door keeps the split of, and whether a straddle reads as a crease is a
+# design call (work/onecopy/three-raw-sign-within-reads-predate-their-gate.md).
+crates/topo/src/boolean/edge_join.rs 1
