@@ -269,11 +269,7 @@ mod tests {
         // The same cube at f64 (D9: the same keys) gives the edge's
         // corners as f64, which the carrier is lifted from.
         let reference = cube::<f64>(tol);
-        let (edge_key, edge) = reference
-            .edges()
-            .next()
-            .map(|(k, e)| (k, e.clone()))
-            .unwrap();
+        let edge_key = reference.edges().next().map(|(k, _)| k).unwrap();
         let (s1, s2) = crate::readback::edge_sides(&body, edge_key)
             .unwrap()
             .surfaces();
@@ -282,8 +278,8 @@ mod tests {
                 .get_point(reference.get_vertex(v).unwrap().point)
                 .unwrap()
         };
-        let p0 = corner(reference.get_half_edge(edge.he_plus).unwrap().start);
-        let p1 = corner(reference.half_edge_end(edge.he_plus).unwrap());
+        let (v0, v1) = crate::query::edge_ends(&reference, edge_key);
+        let (p0, p1) = (corner(v0), corner(v1));
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
         let carrier = NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0])
             .unwrap()

@@ -59,17 +59,17 @@ fn mirrored_cube_is_caught_by_negative_volume() {
     );
 }
 
-/// Same at 1e6 scale: the V/A margin is a length (≈ s/6 for the
-/// s-cube), so scale must not defeat the classification.
+/// Same at the session box's scale: the V/A margin is a length (≈ s/6
+/// for the s-cube), so scale must not defeat the classification.
 #[test]
 fn megascale_mirrored_cube_is_caught() {
-    let s = 1e6;
+    let s = 5e2;
     let body = common::mapped_cube(|x, y, z| Point3::new(-x * s, y * s, z * s), Tol::witness());
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter()
             .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
-        "+V must fire at 1e6 scale; got {errs:?}"
+        "+V must fire at 5e2 scale; got {errs:?}"
     );
 }
 

@@ -310,7 +310,7 @@ impl Face {
     /// order.
     ///
     /// The keys as the record holds them, unresolved. A walk of a body
-    /// in this crate resolves them through `Body::face_loops_linked`,
+    /// in this crate resolves them through `FaceView::loops`,
     /// whose every hop is a link that panics on a miss; this is the
     /// reader for a walk that reports a miss itself (the validators), or
     /// that hands each loop to a door that resolves it and answers its
@@ -338,7 +338,7 @@ impl Face {
 /// **A loop's place on its face** ([`Face::loop_roles`]): the outer loop,
 /// or the ring at this index of [`Face::rings`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LoopRole {
+pub enum LoopRole {
     /// [`Face::outer`].
     Outer,
     /// `Face::rings[i]`.
@@ -356,7 +356,7 @@ impl LoopRole {
     }
 
     /// Whether this is the outer loop.
-    pub(crate) const fn is_outer(self) -> bool {
+    pub const fn is_outer(self) -> bool {
         matches!(self, Self::Outer)
     }
 

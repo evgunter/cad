@@ -54,21 +54,19 @@
 //! the above end ([`Body::mev_null_run`]). Each copy's side verdict is
 //! cached ON (the old vertex's own point: structural coincidence).
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Real, Sign, Vec3};
 use slotmap::SecondaryMap;
 
-use super::neighborhood::{EntryRay, sector_face};
 use super::{
-    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SplitPlane,
-    SplitReduceError,
+    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SplitPlane, SplitReduceError,
 };
 use crate::body::Body;
 use crate::chord_join::ApexRulingFault;
 use crate::entity::{HalfEdgeKey, VertexKey};
 use crate::live::Proven;
 use crate::null::NewVertexSide;
-use crate::sector_face::VertexFace;
+use crate::star::{Star, StarFace};
 use crate::validate::{decide, decide_nonzero};
 
 /// **The section's corners at the vertex** (module docs): `cuts` (two or
@@ -124,10 +122,11 @@ fn section_chords<T: Decide>(
 ) -> Result<Vec<[usize; 2]>, SplitReduceError> {
     let Neighborhood {
         vertex,
-        entries,
-        rays,
+        star,
+        classes,
+        in_plane,
     } = *hood;
-    let n = entries.len();
+    let n = classes.len();
     let escalated = |reading, diag| SplitReduceError::SectionGermsEscalated {
         vertex,
         reading,
@@ -140,18 +139,18 @@ fn section_chords<T: Decide>(
         .iter()
         .map(|&c| {
             let (a, b) = (c, (c + 1) % n);
-            let (u, w) = (rays[a], rays[b]);
-            let arm = u.dir.norm().min(w.dir.norm());
-            match (u.in_plane, w.in_plane) {
-                (true, false) => return Ok((u.dir.normalize(), arm, Some(a))),
-                (false, true) => return Ok((w.dir.normalize(), arm, Some(b))),
+            let (u, w) = (&star.bounds[a], &star.bounds[b]);
+            let arm = u.ray().norm().min(w.ray().norm());
+            match (in_plane[a], in_plane[b]) {
+                (true, false) => return Ok((u.dir, arm, Some(a))),
+                (false, true) => return Ok((w.dir, arm, Some(b))),
                 (true, true) => return Err(unordered(SectionGermFault::NoLine)),
                 (false, false) => {}
             }
             if let Some(germ) = apex_germs[c] {
                 return Ok((germ, arm, None));
             }
-            let (u, w) = (u.dir.normalize(), w.dir.normalize());
+            let (u, w) = (u.dir, w.dir);
             let d = u * w.dot(normal).abs() + w * u.dot(normal).abs();
             match decide(
                 "split_germ_line",
@@ -172,11 +171,11 @@ fn section_chords<T: Decide>(
     // plane is tangent to it there, which refuses. At a cone's apex the
     // section is a ruling, straight: it bends by nothing.
     let section_bend = |c: usize, t: Vec3<T>, across: Vec3<T>| -> Result<T, SplitReduceError> {
-        let (face, at_vertex, _) = sector_face(body, vertex, entries[cuts[c]].he, band)?;
-        if let VertexFace::Apex(_) = at_vertex {
+        let sector = &star.sectors[cuts[c]];
+        if let StarFace::Apex(_) = sector.at {
             return Ok(T::zero());
         }
-        let surface = body.proven_face_surface(face);
+        let surface = body.proven_face(sector.face).surface();
         Ok(geom_brep::implicit_graph_acceleration(
             surface, point, t, across,
         ))
@@ -266,7 +265,7 @@ fn section_chords<T: Decide>(
     }
     // Each pair along one in-plane entry in the order the alternation
     // fixes from the first lone germ, or end first where there is none.
-    let starts = |i: usize| entries[cuts[i]].class == PlaneSide::Above;
+    let starts = |i: usize| classes[cuts[i]] == PlaneSide::Above;
     let first = groups.iter().position(|(_, m)| m.len() == 1).unwrap_or(0);
     let mut start = groups[first].1.len() == 1 && starts(groups[first].1[0]);
     let mut seq = Vec::with_capacity(cuts.len());
@@ -310,7 +309,7 @@ fn section_chords<T: Decide>(
 ///
 /// [`SplitReduceError::SectionGermsEscalated`] where the table or the
 /// reading escalates; [`SplitReduceError::ApexSection`] where the table
-/// and the walk disagree on the apex ([`ApexSectionReading`]): the table
+/// and the walk disagree on the apex ([`ApexSectionReading`](crate::splitting::ApexSectionReading)): the table
 /// refuses, or reads the section clear of the apex, or not exactly one of
 /// its rulings lies inside the sub-sector the walk read the plane
 /// crossing.
@@ -321,13 +320,9 @@ fn apex_germ<T: Decide>(
     c: usize,
     band: Band,
 ) -> Result<Option<Vec3<T>>, SplitReduceError> {
-    let Neighborhood {
-        vertex,
-        entries,
-        rays,
-    } = *hood;
-    let (u, w) = (rays[c], rays[(c + 1) % entries.len()]);
-    let Some(apex) = u.apex else {
+    let Neighborhood { vertex, star, .. } = *hood;
+    let (u, w) = (star.bounds[c].ray(), star.start(c).ray());
+    let StarFace::Apex(apex) = star.sectors[c].at else {
         return Ok(None);
     };
     let escalated = |diag| SplitReduceError::SectionGermsEscalated {
@@ -335,20 +330,20 @@ fn apex_germ<T: Decide>(
         reading: SectionGermReading::Line,
         diag,
     };
-    let face = crate::sector_face::face_of(body, vertex, entries[c].he);
+    let face = star.sectors[c].face;
     let disagrees = |reading| SplitReduceError::ApexSection {
         vertex,
         face,
         reading,
     };
-    let arm = geom_brep::sector_shape::metering_arm(u.dir.norm().min(w.dir.norm()));
+    let arm = geom_brep::sector_shape::metering_arm(u.norm().min(w.norm()));
     crate::chord_join::apex_section_ruling(
         body,
         band,
         (plane.origin, plane.normal),
         (face, vertex),
         &apex,
-        (w.dir, u.dir),
+        (w, u),
         arm,
     )
     .map(Some)
@@ -358,13 +353,15 @@ fn apex_germ<T: Decide>(
     })
 }
 
-/// One ON vertex's classified neighborhood: its entries, and each
-/// entry's ray (`neighborhood::classify_neighborhood_rays`).
+/// One ON vertex's classified neighbourhood (`neighborhood::classify`):
+/// its star, each bound's side after rules (a) and (b), and whether the
+/// plane held the bound before them.
 #[derive(Clone, Copy)]
 pub(super) struct Neighborhood<'a, T: Real> {
     pub vertex: VertexKey,
-    pub entries: &'a [SectorEntry],
-    pub rays: &'a [EntryRay<T>],
+    pub star: &'a Star<T>,
+    pub classes: &'a [PlaneSide],
+    pub in_plane: &'a [bool],
 }
 
 /// Mints the vertex's null edges (module docs): one per corner of the
@@ -384,12 +381,12 @@ pub(super) fn insert_null_edges<T: Decide>(
     germs: &mut SecondaryMap<HalfEdgeKey, Vec3<T>>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let (vertex, entries) = (hood.vertex, hood.entries);
-    let n = entries.len();
-    let Some(anchor) = entries.iter().position(|e| e.class == PlaneSide::Below) else {
+    let (vertex, classes) = (hood.vertex, hood.classes);
+    let n = classes.len();
+    let Some(anchor) = classes.iter().position(|&c| c == PlaneSide::Below) else {
         return Ok(());
     };
-    let above = |c: usize| entries[c % n].class == PlaneSide::Above;
+    let above = |c: usize| classes[c % n] == PlaneSide::Above;
     let cuts: Vec<usize> = (0..n).filter(|&c| above(c) != above(c + 1)).collect();
     if cuts.is_empty() {
         return Ok(());
@@ -400,17 +397,17 @@ pub(super) fn insert_null_edges<T: Decide>(
     // ruling at the join.
     let mut apex_germs = vec![None; n];
     for &c in &cuts {
-        let (u, w) = (hood.rays[c], hood.rays[(c + 1) % n]);
-        if u.apex.is_none() {
+        if let StarFace::Tangent(_) = hood.star.sectors[c].at {
             continue;
         }
-        apex_germs[c] = match (u.in_plane, w.in_plane) {
-            (true, false) => Some(u.dir.normalize()),
-            (false, true) => Some(w.dir.normalize()),
+        apex_germs[c] = match (hood.in_plane[c], hood.in_plane[(c + 1) % n]) {
+            (true, false) => Some(hood.star.bounds[c].dir),
+            (false, true) => Some(hood.star.start(c).dir),
             (true, true) => None,
             (false, false) => apex_germ(body, plane, hood, c, band)?,
         };
     }
+    let members = hood.star.moved(|k| classes[k] == PlaneSide::Above);
     let corners = match cuts[..] {
         [a, b] => vec![[a, b]],
         _ => section_chords(body, plane.normal.get(), hood, &cuts, &apex_germs, band)?,
@@ -443,10 +440,10 @@ pub(super) fn insert_null_edges<T: Decide>(
             start: (anchor + p + 1) % n,
             len: q - p,
         };
-        let side = entries[arc.start].class;
+        let side = classes[arc.start];
         // A corner pairs a start with an end, and either way round the
         // orbit its arc leaves the one and reaches the other on one side.
-        let end = entries[(anchor + q) % n].class;
+        let end = classes[(anchor + q) % n];
         if end != side {
             unreachable!(
                 "the corner {:?} at {vertex:?} has an arc from {side:?} to {end:?}",
@@ -465,7 +462,7 @@ pub(super) fn insert_null_edges<T: Decide>(
         // and Q lie just outside the arc, in the parent region, and
         // another corner's mint splices only at its own arc's ends, so
         // Q's corner is still at `at`.
-        let site = crate::star::arc_site(body, at, entries, arc, || {
+        let site = crate::star::arc_site(body, at, &members, arc, || {
             format!("the arc {:?} of {vertex:?}", (p, q))
         });
         let side = match side {

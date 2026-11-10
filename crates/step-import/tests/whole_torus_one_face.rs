@@ -68,6 +68,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// One face, two edges, one vertex: each edge has both halves in the

@@ -29,6 +29,7 @@ fn cone() -> Body<f64> {
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn face_of(b: &Body<f64>, he: HalfEdgeKey) -> FaceKey {
@@ -37,10 +38,7 @@ fn face_of(b: &Body<f64>, he: HalfEdgeKey) -> FaceKey {
 }
 
 fn is_plane(b: &Body<f64>, f: FaceKey) -> bool {
-    matches!(
-        b.get_surface(b.get_face(f).unwrap().surface),
-        Some(geom::Surface::Plane { .. })
-    )
+    matches!(b.face_surface(f), Some(geom::Surface::Plane { .. }))
 }
 
 /// Dumps every valence-2 vertex whose two edges separate the same face
@@ -78,7 +76,7 @@ fn dump_poles(b: &Body<f64>, label: &str) {
 fn brick_operand() -> topo::AtRestBody<f64> {
     sweep::test_support::finished(
         "the straddling brick",
-        sweep::test_support::brick((-0.5, 0.5), (-0.5, 0.5), (0.0, 0.4), Tol::witness()),
+        sweep::test_support::brick::<f64>((-0.5, 0.5), (-0.5, 0.5), (0.0, 0.4), Tol::witness()),
         Tol::witness(),
     )
 }

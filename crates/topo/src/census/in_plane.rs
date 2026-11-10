@@ -51,7 +51,7 @@
 //!   not place, and refuses.
 //!
 //! Either role is tried for each face. An edge pair is apart along a
-//! direction ([`crate::boolean::separating::apart`]): the axis between
+//! direction ([`crate::separating::apart`]): the axis between
 //! their anchors, the world axes, and the directions the pair's faces
 //! propose (`depth_gap::toward`, `depth_gap::across`); the gap is less
 //! both edges' [`sweep_pad`], as a face pair's is. A placement counts only
@@ -68,11 +68,12 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::boxes::{BoxFrame, edge_end_point, sweep_pad};
-use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
-use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
-use crate::entity::{EdgeKey, EntityId, FaceKey};
-use crate::live::proven;
+use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
+use crate::boxes::sweep_pad;
+use crate::cover::{edge_cover, edge_end_point};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
+use crate::live::{BoundaryMember, proven};
+use crate::separating::{Item, apart, planar_axis, world_axes};
 use crate::validate::decide;
 
 /// K name: a vertex's offset from the other face's plane, read by the
@@ -100,9 +101,13 @@ struct Loop<T: geom_core::Real> {
 /// `face`'s loops; `None` where one is a lone vertex, which bounds no
 /// edge to read.
 fn loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Loop<T>>> {
-    body.proven_face_cycles(face)
-        .into_iter()
-        .map(|(_, cycle)| {
+    body.proven_face(face)
+        .boundary_by_loop()
+        .map(|(_, members, _)| {
+            let cycle: Vec<HalfEdgeKey> = members
+                .iter()
+                .map(BoundaryMember::half_edge)
+                .collect::<Option<_>>()?;
             let &first = cycle.first()?;
             let he = proven(&body.half_edges, first, EntityId::HalfEdge);
             let point = edge_end_point(body, he.edge, first, "start");
@@ -149,10 +154,7 @@ pub(super) fn apart_in_plane<T: Decide>(
     };
     let one_plane = matches!(
         crate::boolean::carrier_pair_decided(body, a, body, b, band),
-        Ok(Ok((
-            CarrierRelation::SameOriented | CarrierRelation::SameOpposite,
-            Some(_)
-        )))
+        Ok(Ok(verdict)) if verdict.one().is_some()
     );
     if one_plane {
         return la.iter().all(|x| outside(body, b, x.point, band))
@@ -186,8 +188,8 @@ fn standing<T: Decide>(
     edges_apart: &dyn Fn(EdgeKey, EdgeKey) -> bool,
     band: Band,
 ) -> bool {
-    let face = proven(&body.faces, a, EntityId::Face);
-    let geom::Surface::Plane { origin, .. } = *body.face_surface_linked(a, face) else {
+    let face = body.proven_face(a);
+    let geom::Surface::Plane { origin, .. } = *face.surface() else {
         return false;
     };
     let (Some((n, _)), Some((nb, lever))) = (normal(body, a, band), normal(body, b, band)) else {
@@ -217,12 +219,8 @@ fn standing<T: Decide>(
                 return false;
             }
         }
-        if !matches!(
-            body.edge_curve_linked(e, edge)
-                .certified()
-                .map(geom_brep::EdgeCurve::carrier),
-            Some(geom::Curve3::Line(_))
-        ) {
+        let straight = super::edge_line(body, e).is_some();
+        if !straight {
             arcs.push(e);
         } else if s0 == Sign::Zero || s1 == Sign::Zero {
             touching.push((e, ends, [s0, s1]));
@@ -232,12 +230,13 @@ fn standing<T: Decide>(
         return false;
     };
     let off = |e: EdgeKey| {
-        let Some((lo, hi)) = super::edge_reach_in(body, e, &BoxFrame::aimed(n)) else {
+        let Ok(cover) = edge_cover(body, e) else {
             return false;
         };
+        let (lo, hi) = cover.range_along(n.get());
         let gap = match sense {
-            Sign::Positive => lo.x - level,
-            _ => level - hi.x,
+            Sign::Positive => lo - level,
+            _ => level - hi,
         };
         matches!(
             decide(REGION_ARC_SIDE, Margin::of(gap), band),

@@ -195,7 +195,7 @@ fn join1_delta_brick_battery() {
     }
     let a = finished(
         "the unit brick",
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     );
     let ov = |p: (f64, f64), q: (f64, f64)| (p.1.min(q.1) - p.0.max(q.0)).max(0.0);
@@ -203,7 +203,7 @@ fn join1_delta_brick_battery() {
     for &x in &ranges {
         for &y in &ranges {
             for &z in &zs {
-                let b = finished("the brick", brick(x, y, z, tol()), tol());
+                let b = finished("the brick", brick::<f64>(x, y, z, tol()), tol());
                 let vb = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
                 let vi = ov((0.0, 1.0), x) * ov((0.0, 1.0), y) * ov((0.0, 1.0), z);
                 for (order, l, r) in [("AB", &a, &b), ("BA", &b, &a)] {
@@ -275,19 +275,16 @@ fn an_apex_edge_in_the_partners_face_is_recorded() {
         let bb = r.body().unwrap();
         let body = &bb.body;
         let ends = |e| {
-            let d = body.get_edge(e).unwrap();
+            let (start, end) = body.edge_vertices(e).unwrap();
             let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            (
-                p(body.get_half_edge(d.he_plus).unwrap().start),
-                p(body.half_edge_end(d.he_plus).unwrap()),
-            )
+            (p(start), p(end))
         };
         let apex = |e| {
             let (p, q) = ends(e);
             on_apex(p) && on_apex(q) && (p.z - q.z).abs() > 2.0 - 1e-12
         };
         let holder = |c| match c {
-            topo::Cell::Face(f) => match body.get_surface(body.get_face(f).unwrap().surface) {
+            topo::Cell::Face(f) => match body.face_surface(f) {
                 Some(geom::Surface::Plane { origin, normal, .. }) => {
                     !along && normal.x.abs() < 1e-12 && (origin.y - 0.5).abs() < 1e-12
                 }
@@ -351,7 +348,7 @@ fn the_seam_body_is_an_operand() {
     let a = zprism(&hex, (0.0, 0.0), (0.0, 2.0));
     let b = finished(
         "the box",
-        brick((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
+        brick::<f64>((-0.5, -0.25), (-0.5, -0.25), (-1.0, 3.0), tol()),
         tol(),
     );
     // The continuation is one carrier by margin: the union glues it,
@@ -366,7 +363,7 @@ fn the_seam_body_is_an_operand() {
     assert!((vr - 1.71875).abs() < 1e-9, "{vr}");
     let c = finished(
         "the brick",
-        brick((-0.4, -0.1), (-0.7, -0.3), (0.5, 1.5), tol()),
+        brick::<f64>((-0.4, -0.1), (-0.7, -0.3), (0.5, 1.5), tol()),
         tol(),
     );
     let lines = [
@@ -403,7 +400,7 @@ fn the_peg_collar_unions_are_operands() {
     use sweep::test_support::brick;
     let far = finished(
         "the far brick",
-        brick((5.0, 6.0), (5.0, 6.0), (0.0, 1.0), tol()),
+        brick::<f64>((5.0, 6.0), (5.0, 6.0), (0.0, 1.0), tol()),
         tol(),
     );
     let mut lines = Vec::new();

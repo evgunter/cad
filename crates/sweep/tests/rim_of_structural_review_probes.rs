@@ -329,7 +329,10 @@ fn corpus() -> Vec<(String, Body<f64>)> {
                         e.error.render(geom_brep::recourse::Reading::Build)
                     )
                 });
-            v.push((format!("filleted {name}_of_arcs({n})"), out.body));
+            v.push((
+                format!("filleted {name}_of_arcs({n})"),
+                out.body.into_body(),
+            ));
         }
     }
     v

@@ -278,6 +278,106 @@ fn min_x(body: &topo::Body<f64>) -> f64 {
         .fold(f64::INFINITY, f64::min)
 }
 
+// ---- A dual inside a part is bound to the record's build of it ----
+
+/// The extrude node of a [`part`] document: the node every later node
+/// of the part, and so its product, reads.
+fn extrude_of(part: &ProfileDoc) -> RecipeNodeId {
+    part.ids()
+        .into_iter()
+        .find(|&id| matches!(part.node(id), Some(Node::Extrude { .. })))
+        .expect("the part extrudes")
+}
+
+/// **A node the record refused inside a part is refused at the dual
+/// inside that part** (DUAL-DESIGN DL3), before the part's later node
+/// that reads it runs: the dual's instance fails with the part's
+/// product poisoned through the refused node, whose refusal is
+/// `RecordRefused`. The record here refuses the part's extrude, as a
+/// tier-3 refusal inside the part at `f64` would; it is planted, since
+/// no fixture builds a body tier 2 passes and tier 3 refuses.
+#[test]
+fn a_node_the_record_refused_inside_a_part_is_refused_at_the_dual_inside_it() {
+    let mut store = StubStore::default();
+    let part_doc = part("asm2a-dual-part", 0.0, 1.0);
+    let extrude = extrude_of(&part_doc);
+    let doc_ref = store.insert(part_doc, Tol::witness());
+    let opts = with_resolver(store);
+    let (doc, ids) = placed_assembly("asm2a-dual-asm", &[doc_ref], &opts);
+    let cancel = CancelToken::new();
+    let mut record = evaluate::<f64>(&doc, None, &cancel, &opts.of_record(), Tol::witness());
+    let dual = |record: &Evaluation<f64>| {
+        editor_core::evaluate_recorded::<geom_core::Dual64>(
+            &doc,
+            None,
+            record,
+            &cancel,
+            &opts,
+            Tol::witness(),
+        )
+    };
+    assert!(
+        matches!(dual(&record).result(ids[0]), Some(NodeResult::Ok(_))),
+        "a record that built the part binds nothing in it"
+    );
+    assert!(record.plant_part_refusal(doc_ref, Tol::witness(), extrude));
+    let bound = dual(&record);
+    let fault = match bound.result(ids[0]) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::Part { fault, .. } => fault.clone(),
+            other => panic!("expected a Part refusal, got {other:?}"),
+        },
+        other => panic!("expected a failed instance, got {other:?}"),
+    };
+    let (at, refusal) = fault
+        .carried()
+        .expect("the fault carries the part's refusal");
+    assert_eq!(
+        at, extrude,
+        "the part's refused node is the record's: {fault:?}"
+    );
+    assert!(
+        matches!(refusal.kind(), NodeErrorKind::RecordRefused),
+        "refused by the record, before it ran: {refusal:?}"
+    );
+    assert!(
+        matches!(&fault, PartFault::PartProductPoisoned { node, through, .. } if *through == extrude && *node != extrude)
+            || matches!(&fault, PartFault::PartProductFailed { node, .. } if *node == extrude),
+        "the part's later node never ran: {fault:?}"
+    );
+}
+
+/// **An instance of a part the record holds no build of is refused
+/// before its part is entered** (DUAL-DESIGN DL3): `RecordRefused` at
+/// the instance, and the dual evaluates no referenced document.
+#[test]
+fn an_instance_of_a_part_the_record_never_built_is_refused_before_entering_it() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part("asm2a-dual-unbuilt", 0.0, 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (doc, ids) = placed_assembly("asm2a-dual-unbuilt-asm", &[doc_ref], &opts);
+    let cancel = CancelToken::new();
+    let mut record = evaluate::<f64>(&doc, None, &cancel, &opts.of_record(), Tol::witness());
+    assert!(record.forget_part(doc_ref, Tol::witness()));
+    let bound = editor_core::evaluate_recorded::<geom_core::Dual64>(
+        &doc,
+        None,
+        &record,
+        &cancel,
+        &opts,
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            bound.result(ids[0]),
+            Some(NodeResult::Failed(e)) if matches!(e.kind, NodeErrorKind::RecordRefused)
+        ),
+        "the instance is refused by the record: {:?}",
+        bound.result(ids[0])
+    );
+    assert_eq!(bound.part_evaluations, 0, "no part was entered");
+}
+
 // ---- Row 1: two instances at different frames ----
 
 /// Row 1 (kernel half) — an assembly of TWO instances of one part at

@@ -40,14 +40,15 @@ fn twisted_loft() -> topo::Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
         .expect("the twisted loft builds")
         .body
+        .into_body()
 }
 
 /// The `z = 1` cap.
 fn top_cap(body: &topo::Body<f64>) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.z > 0.5 && origin.z > 0.5
             )

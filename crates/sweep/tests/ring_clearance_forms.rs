@@ -82,7 +82,10 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
         "{name}: closed-form faces only"
     );
     assert_eq!(out.band_faces.len(), rims.len(), "{name}: one band per rim");
-    (after.enclosure.volume - before.enclosure.volume, out.body)
+    (
+        after.enclosure.volume - before.enclosure.volume,
+        out.body.into_body(),
+    )
 }
 
 /// The bar every closed form below is held to: an absolute `1e-12`,

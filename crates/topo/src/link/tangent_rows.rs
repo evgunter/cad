@@ -17,6 +17,32 @@ fn band() -> Band {
     Band::linear(Tol::witness()).expect("the witness tolerance is a band")
 }
 
+/// The sector [`FaceSector::tangent`] reads a face as: a cusp corner it
+/// keeps as a horn is no sector, and refuses here.
+fn sector<T: Decide>(
+    surface: geom::Surface<T>,
+    sense: bool,
+    outward: Vec3<T>,
+    apex: Point3<T>,
+    fan_of: TangentFan<T>,
+    band: Band,
+) -> Result<FaceSector<T>, TouchUnread> {
+    match FaceSector::tangent(surface, sense, outward, apex, fan_of, band)? {
+        TangentPiece::Sector(sector) => Ok(sector),
+        TangentPiece::Horn(_) => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+    }
+}
+
+impl<T: Real> CornerTurn<T> {
+    /// The fan's wedges; `None` for a horn.
+    fn fan(self) -> Option<Vec<Segment<T>>> {
+        match self {
+            Self::Fan(wedges) => Some(wedges),
+            Self::Horn => None,
+        }
+    }
+}
+
 fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
 }
@@ -63,6 +89,15 @@ fn cylinder() -> geom::Surface<f64> {
     }
 }
 
+/// The bound along `edge`, a line or a curve with no bend.
+fn tag(edge: EdgeKey, line: bool) -> Bound<f64> {
+    Bound {
+        edge,
+        line,
+        bend: Vec3::zero(),
+    }
+}
+
 /// A whole tangent plane `z = 0` of `surface` at the origin, outward
 /// `±z`.
 fn whole(surface: geom::Surface<f64>, up: bool) -> FaceSector<f64> {
@@ -71,7 +106,7 @@ fn whole(surface: geom::Surface<f64>, up: bool) -> FaceSector<f64> {
         reach: 2.0,
         frame: [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)],
     };
-    FaceSector::tangent(surface, true, n, Point3::origin(), fan, band()).expect("a whole plane")
+    sector(surface, true, n, Point3::origin(), fan, band()).expect("a whole plane")
 }
 
 /// A corner at the origin over `ring` (its rays, around its axis), its
@@ -101,7 +136,7 @@ fn corner_at(
         .map(|k| {
             let (a, b) = (k, (k + 1) % n);
             let m = ring[a].cross(ring[b]).normalize();
-            let tag = |i: usize| (keys[i], !curves.contains(&i));
+            let tag = |i: usize| tag(keys[i], !curves.contains(&i));
             let (m, d0, d1, bounds) = if (m.dot(axis) < 0.0) == inside {
                 (m, ring[a], ring[b], [tag(a), tag(b)])
             } else {
@@ -113,7 +148,7 @@ fn corner_at(
                 bounds,
                 spur: false,
             };
-            FaceSector::tangent(plane(m), true, m, p, fan, band()).expect("a corner's face")
+            sector(plane(m), true, m, p, fan, band()).expect("a corner's face")
         })
         .collect()
 }
@@ -139,8 +174,17 @@ fn a_corners_fan_turns_as_its_departures_do() {
         v(t.cos(), t.sin(), 0.0) * 2.0
     };
     for (deg, wedges) in [(90.0, 1), (191.0, 3), (300.0, 4), (180.0, 2)] {
-        let fan =
-            corner_fan(Point3::origin(), z, (at(0.0), at(deg)), false, band()).expect("a fan");
+        let fan = corner_fan(
+            Point3::origin(),
+            z,
+            (at(0.0), at(deg)),
+            [Vec3::zero(); 2],
+            false,
+            band(),
+        )
+        .expect("a fan")
+        .fan()
+        .expect("a fan");
         assert_eq!(fan.len(), wedges, "{deg}°: {fan:?}");
         for &(a, b) in &fan {
             let (a, b) = (a - Point3::origin(), b - Point3::origin());
@@ -161,8 +205,15 @@ fn a_corners_fan_turns_as_its_departures_do() {
     }
     assert!(
         matches!(
-            corner_fan(Point3::origin(), z, (at(0.0), at(0.0) * 0.5), false, band()),
-            Err(TouchUnread::Unreadable)
+            corner_fan(
+                Point3::origin(),
+                z,
+                (at(0.0), at(0.0) * 0.5),
+                [Vec3::zero(); 2],
+                false,
+                band()
+            ),
+            Err(TouchUnread::Curved(CurvedUnread::Unreadable))
         ),
         "a cusp"
     );
@@ -196,7 +247,7 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     on_ball.push(whole(sphere(-1.0), true));
     assert_eq!(
         read(on_ball),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "along a ball"
     );
     let mut on_ruling = corner(&flat, true, &k, &[]);
@@ -215,7 +266,7 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     arc_on_floor.push(whole(plane(v(0.0, 0.0, 1.0)), true));
     assert_eq!(
         read(arc_on_floor),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "a curve's tangent along a floor"
     );
     // Two corners on one point, meeting along the ray `x`: edge 0 of
@@ -243,30 +294,34 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     );
     assert_eq!(
         pinch(false, true),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "a line on a curve's tangent"
     );
     assert_eq!(
         pinch(true, false),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "a curve's tangent on a line"
     );
     // Two balls kissing at the origin, and a ball in a socket.
     for (c, up) in [(1.0, false), (-2.0, true)] {
         let s = vec![whole(sphere(-1.0), true), whole(sphere(c), up)];
-        assert_eq!(read(s), Unread(TouchUnread::Unreadable), "two balls, {c}");
+        assert_eq!(
+            read(s),
+            Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            "two balls, {c}"
+        );
     }
     // No reading but the one-material one takes a tangent link.
     let tangent = Link::of(Point3::origin(), corner(&up, true, &k, &[])).unwrap();
     let ball = Round::of(&sphere(-1.0), true).unwrap();
     assert_eq!(
         rest::judge(&tangent, &tangent, band()),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "judged"
     );
     assert_eq!(
         rest::by_round(&tangent, &ball, 1.0, band()),
-        Unread(TouchUnread::Unreadable),
+        Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
         "against a ball"
     );
 }
@@ -287,7 +342,7 @@ fn ball(c: Point3<f64>, r: f64, a: Vec3<f64>) -> geom::Surface<f64> {
 fn whole_at(s: geom::Surface<f64>, n: Vec3<f64>, p: Point3<f64>, reach: f64) -> FaceSector<f64> {
     let frame = crate::census::carrier_frame(&s).expect("an analytic carrier");
     let fan = TangentFan::Inside { reach, frame };
-    FaceSector::tangent(s, true, n, p, fan, band()).expect("a whole plane")
+    sector(s, true, n, p, fan, band()).expect("a whole plane")
 }
 
 fn read_at(p: Point3<f64>, sectors: Vec<FaceSector<f64>>) -> TouchVerdict {
@@ -328,7 +383,7 @@ fn a_sphere_poles_whole_plane_reads_by_its_first_order_at_any_tilt() {
             let socket = whole_at(ball(p - a * (2.0 * r), 2.0 * r, a), -a, p, 1.0);
             for (what, other) in [("kissing", kiss), ("in a socket", socket)] {
                 let got = read_at(p, vec![other, below()]);
-                if got != Unread(TouchUnread::Unreadable) {
+                if got != Unread(TouchUnread::Curved(CurvedUnread::Unreadable)) {
                     bad.push(format!("{raw:?} {far}: {what}: {got:?}"));
                 }
             }
@@ -341,7 +396,7 @@ fn a_sphere_poles_whole_plane_reads_by_its_first_order_at_any_tilt() {
                 whole_at(ball(p + n * r, r, a), -n, p, 1.0),
             );
             let got = read_at(p, vec![one, two]);
-            if got != Unread(TouchUnread::Unreadable) {
+            if got != Unread(TouchUnread::Curved(CurvedUnread::Unreadable)) {
                 bad.push(format!("{raw:?} {far}: kissing off the pole: {got:?}"));
             }
             let ring = [
@@ -379,7 +434,7 @@ fn two_whole_planes_are_read_one_plane_either_way_round() {
     ] {
         assert_eq!(
             read(s),
-            TouchVerdict::Unread(TouchUnread::Unreadable),
+            TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
             "{what}"
         );
     }
@@ -393,11 +448,21 @@ fn two_whole_planes_are_read_one_plane_either_way_round() {
 fn a_spurs_tip_is_the_whole_turn_and_a_cusp_refuses() {
     let z = v(0.0, 0.0, 1.0);
     let d = v(2.0, 0.0, 0.0);
-    let tip = corner_fan(Point3::origin(), z, (d, d), true, band()).expect("a spur's tip");
+    let tip = corner_fan(Point3::origin(), z, (d, d), [Vec3::zero(); 2], true, band())
+        .expect("a spur's tip")
+        .fan()
+        .expect("a spur's tip");
     assert_eq!(tip.len(), 4, "{tip:?}");
     assert!(matches!(
-        corner_fan(Point3::origin(), z, (d, d), false, band()),
-        Err(TouchUnread::Unreadable)
+        corner_fan(
+            Point3::origin(),
+            z,
+            (d, d),
+            [Vec3::zero(); 2],
+            false,
+            band()
+        ),
+        Err(TouchUnread::Curved(CurvedUnread::Unreadable))
     ));
 }
 
@@ -435,13 +500,16 @@ fn a_bound_is_kept_only_on_a_bound_it_lies_ahead_on() {
             bounds,
             spur: false,
         };
-        FaceSector::tangent(cylinder(), true, n, Point3::origin(), fan, band()).unwrap()
+        sector(cylinder(), true, n, Point3::origin(), fan, band()).unwrap()
     };
     let s = vec![
-        half(v(0.0, 0.0, 1.0), [(a, true), (d, false)]),
-        half(v(0.0, -1.0, 0.0), [(d, false), (c, true)]),
+        half(v(0.0, 0.0, 1.0), [tag(a, true), tag(d, false)]),
+        half(v(0.0, -1.0, 0.0), [tag(d, false), tag(c, true)]),
     ];
-    assert_eq!(read(s), TouchVerdict::Unread(TouchUnread::Unreadable));
+    assert_eq!(
+        read(s),
+        TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable))
+    );
 }
 
 /// **Only a spur's tip is the whole turn**: two departures a tenth of the
@@ -456,8 +524,15 @@ fn a_near_full_turn_off_one_edge_is_a_cusp() {
     for d1 in [v(2.0, tiny, 0.0), v(2.0, -tiny, 0.0)] {
         assert!(
             matches!(
-                corner_fan(Point3::origin(), z, (d0, d1), false, band()),
-                Err(TouchUnread::Unreadable)
+                corner_fan(
+                    Point3::origin(),
+                    z,
+                    (d0, d1),
+                    [Vec3::zero(); 2],
+                    false,
+                    band()
+                ),
+                Err(TouchUnread::Curved(CurvedUnread::Unreadable))
             ),
             "{d1:?}"
         );
@@ -472,7 +547,7 @@ fn corner_on(other: geom::Surface<f64>, sense: bool) -> TouchVerdict {
     let n = v(0.0, 0.0, 1.0);
     let frame = crate::census::carrier_frame(&other).unwrap();
     let fan = TangentFan::Inside { reach: 2.0, frame };
-    let whole = FaceSector::tangent(other, sense, n, Point3::origin(), fan, band()).unwrap();
+    let whole = sector(other, sense, n, Point3::origin(), fan, band()).unwrap();
     let ring = [v(1.0, 0.0, 0.0), v(-0.2, 0.3, 1.0), v(-0.1, -0.4, 1.0)];
     let mut s = corner(&ring, true, &k, &[]);
     s.push(whole);
@@ -500,7 +575,7 @@ fn a_line_in_a_huge_carriers_plane_is_kept_only_along_a_ruling() {
         radius: big,
         u_ref: v(0.0, 0.0, 1.0),
     };
-    let refused = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let refused = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     assert_eq!(corner_on(sphere, true), refused, "a sphere");
     assert_eq!(
         corner_on(tube(v(0.0, 1.0, 0.0)), true),
@@ -538,5 +613,8 @@ fn a_frame_direction_opposite_the_normal_turns_no_fan() {
         whole_at(ball(p + u * r, r, a), -u, p, 1.0),
         whole_at(ball(p - u * r, r, a), u, p, 1.0),
     ];
-    assert_eq!(read_at(p, s), TouchVerdict::Unread(TouchUnread::Unreadable));
+    assert_eq!(
+        read_at(p, s),
+        TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable))
+    );
 }

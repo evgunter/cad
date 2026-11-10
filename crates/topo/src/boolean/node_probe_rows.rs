@@ -72,8 +72,8 @@ fn arc(pair: SurfacePair, carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> EdgeCu
 
 /// Each boundary edge of `face`: its carrier and its midpoint.
 fn arcs(body: &Body<f64>, face: crate::FaceKey) -> Vec<(Curve3<f64>, Point3<f64>)> {
-    let fd = body.get_face(face).expect("the face");
-    body.face_boundary_linked(face, fd)
+    let view = body.proven_face(face);
+    view.boundary()
         .filter_map(|m| match m {
             crate::live::BoundaryMember::Edge { ek, .. } => Some(ek),
             crate::live::BoundaryMember::Isolated { .. } => None,
@@ -208,9 +208,9 @@ fn the_bicylinder_built_by_hand_is_a_finished_body() {
     assert_eq!((c.v, c.e, c.f), (2, 4, 4));
     assert!(
         matches!(
-            crate::AtRestPolicy::gate_at_rest_kept(bicylinder(false), tol)
+            crate::finish(bicylinder(false), tol)
                 .as_ref()
-                .map_err(Vec::as_slice),
+                .map_err(|e| &e[..]),
             Err([crate::ValidationError::NegativeVolume { .. }])
         ),
         "inside out, the gate refuses the volume's sign"
@@ -403,6 +403,6 @@ fn both_pieces_of_the_subtraction_as_one_body() {
     eprintln!("PROBE both pieces, census: {census:?}");
     eprintln!(
         "PROBE both pieces, gate: {:?}",
-        crate::AtRestPolicy::gate_at_rest_kept(both, tol).map(|_| "finished")
+        crate::finish(both, tol).map(|_| "finished")
     );
 }

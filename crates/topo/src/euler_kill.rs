@@ -1102,7 +1102,7 @@ impl<T: Decide> Body<T> {
                 && self.joint(after).is_some()
             {
                 return Err(EulerOpError::PcurveMint {
-                    face: crate::pcurves::half_edge_face(self, half).0,
+                    face: crate::pcurves::half_edge_face(self, half).key(),
                     refusal: crate::pcurves::SiteRowRefusal::KeysOnly,
                 });
             }
@@ -2434,8 +2434,10 @@ mod tests {
             Some(vec![seg.he_plus, seg.he_minus])
         );
         // The segment now runs seed.vertex → strut.vertex.
-        assert_eq!(body.get_half_edge(seg.he_plus).unwrap().start, seed.vertex);
-        assert_eq!(body.half_edge_end(seg.he_plus), Some(strut.vertex));
+        assert_eq!(
+            body.edge_vertices(seg.edge),
+            Some((seed.vertex, strut.vertex))
+        );
     }
 
     #[test]
@@ -3944,8 +3946,8 @@ mod tests {
         body.mev_line(fan, Point3::new(1.2, 0.1, 0.0), tol).unwrap();
         assert_eq!(validate(&body), Ok(()));
         let (he, m) = (circle.he_plus, circle.he_minus);
-        let x = body.get_half_edge(he).unwrap().start;
-        assert_eq!(body.get_half_edge(m).unwrap().start, x, "both ends are `x`");
+        let (x, y) = body.edge_vertices(circle.edge).unwrap();
+        assert_eq!(y, x, "both ends are `x`");
         let next_he = body.get_half_edge(he).unwrap().next;
         let next_m = body.get_half_edge(m).unwrap().next;
         assert!(

@@ -4,6 +4,8 @@ kind: issue
 title: Python has no slot word for an indexed read's index slot, so an index cannot be re-pointed after insert
 status: open
 opened: 2026-10-10
+priority: P3
+cost: E
 ---
 
 

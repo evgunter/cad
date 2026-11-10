@@ -18,6 +18,7 @@ use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 
 use super::bracket::{mid, pt};
+use super::trig::{rotate, spread_cos, spread_sin, trig_at};
 
 /// The Taylor coefficients `g⁽ᵏ⁾/k!`, `k = 0..=4`, of a function of `t`,
 /// each an enclosure: at a node they are thin; over a piece (inputs
@@ -140,7 +141,7 @@ pub(super) fn composite_by<const N: usize, C>(
     let mut removable = [0.0_f64; N];
     for i in 0..pieces {
         let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
-        let x = p + (q - p) * 0.5;
+        let x = geom::bracket_mid((p, q));
         let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
         // `∫_p^q (t − x)ᵏ dt`, `k = 0..=4`.
         let weight: [Interval; ORDER] = core::array::from_fn(|k| {
@@ -172,6 +173,152 @@ pub(super) fn composite_by<const N: usize, C>(
     (total, removable)
 }
 
+/// **The rule over consecutive intervals**: [`composite_by`] over each
+/// `(a, b, item)` of `intervals` (an edge's Bézier spans, or its carrier
+/// interval cut at breaks), `pieces` pieces each, summed with their
+/// removable widths; `prepare` reads the interval's item. The one home of
+/// the per-interval accumulator every curved-rim lane cuts an edge by.
+pub(super) fn composite_over<S, C, const N: usize>(
+    intervals: impl IntoIterator<Item = (f64, f64, S)>,
+    pieces: usize,
+    prepare: impl Fn(&S, f64, f64) -> C,
+    g: impl Fn(&C, Interval) -> [Jet; N],
+) -> ([Interval; N], [f64; N]) {
+    let mut total = [Interval::zero(); N];
+    let mut removable = [0.0_f64; N];
+    for (a, b, item) in intervals {
+        let (part, rem) = composite_by(pt(a), pt(b), pieces, |p, q| prepare(&item, p, q), &g);
+        for k in 0..N {
+            total[k] = total[k] + part[k];
+            removable[k] += rem[k];
+        }
+    }
+    (total, removable)
+}
+
+/// **`Σ h·bound` over the pieces of consecutive intervals**, as
+/// [`composite_over`] cuts them: `bound` reads the jets enclosing a piece
+/// and answers an upper bound of a nonnegative rate over it, so the sum
+/// bounds that rate's integral from above (a length, where the rate is a
+/// speed).
+pub(super) fn rate_bound_over<S, C>(
+    intervals: impl IntoIterator<Item = (f64, f64, S)>,
+    pieces: usize,
+    prepare: impl Fn(&S, f64, f64) -> C,
+    bound: impl Fn(&C, Interval) -> f64,
+) -> f64 {
+    let mut total = 0.0_f64;
+    for (a, b, item) in intervals {
+        for i in 0..pieces {
+            let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
+            let rate = bound(&prepare(&item, p, q), Interval::from_bounds(p, q));
+            total += (pt(rate) * (pt(q) - pt(p))).hi();
+        }
+    }
+    total
+}
+
+/// The jets of `t`, `cos t` and `sin t` over the bracket `t`, the
+/// values read through [`trig_of`], so a refused `t` gives refused jets.
+pub(super) fn trig_jets(t: Interval) -> (Jet, Jet, Jet) {
+    let (c, s) = trig_of(t);
+    let z = Interval::zero();
+    (
+        Jet([t, Interval::one(), z, z, z]),
+        Jet([c, -s, -c / pt(2.0), s / pt(6.0), c / pt(24.0)]),
+        Jet([s, c, -s / pt(2.0), -c / pt(6.0), s / pt(24.0)]),
+    )
+}
+
+/// `(cos t, sin t)` over every `t ∈ [lo, hi]`, exact `f64` ends: rotated
+/// from the exact `(1, 0)` at `t = 0` to the midpoint, then widened over
+/// the half-width by the interval rotation — the one widening every
+/// enclosure here reads (a parameter bracket, a piece, an edge's span).
+/// Exact for `lo = hi`; the whole circle past a half-width of `1.5`.
+pub(super) fn trig_range(lo: f64, hi: f64) -> (Interval, Interval) {
+    let m = geom::bracket_mid((lo, hi));
+    if !(m.is_finite() && lo <= hi) {
+        return (Interval::refused(), Interval::refused());
+    }
+    let at = trig_at((Interval::one(), Interval::zero()), m);
+    let hw = (pt(hi) - pt(m)).hi().max((pt(m) - pt(lo)).hi());
+    rotate(at.0, at.1, spread_cos(hw), spread_sin(hw))
+}
+
+/// [`trig_range`] over a parameter bracket.
+pub(super) fn trig_of(x: Interval) -> (Interval, Interval) {
+    if !x.is_certified() {
+        return (Interval::refused(), Interval::refused());
+    }
+    trig_range(x.lo(), x.hi())
+}
+
+/// `∫_a^b g` for `N` integrands at once, `pieces` equal pieces (the rule
+/// in the module docs), plus the endpoint-bracket pad: `a`, `b` are the
+/// brackets' midpoints, and `widths` their summed half-widths, paid at
+/// `sup|g|` over the span's own window; and per integrand the summed
+/// width of its remainder terms `g₄·∫(t − x)⁴`, the part of its width a
+/// later round removes. The integrands see `t`, `cos t` and `sin t` as
+/// jets ([`composite_by`] over them).
+pub(super) fn composite<const N: usize>(
+    t0: Interval,
+    t1: Interval,
+    pieces: usize,
+    g: impl Fn(Jet, Jet, Jet) -> [Jet; N],
+) -> ([Interval; N], [f64; N]) {
+    composite_by(
+        t0,
+        t1,
+        pieces,
+        |_, _| (),
+        |(), t| {
+            let (tj, cj, sj) = trig_jets(t);
+            g(tj, cj, sj)
+        },
+    )
+}
+
+// ---------------------------------------------------------------------
+// The work of a piece
+// ---------------------------------------------------------------------
+
+/// Weight of one piece of one spiric edge (and of any integrand read
+/// through the trig jets and one reciprocal: a projected circle), in
+/// [`super::quad::FACE_WORK_WALL`]'s unit.
+pub(super) const W_SPIRIC: usize = 46;
+
+/// Weight of one piece of one Bézier span of a rational rim edge
+/// ([`super::rational_rim`]), in [`super::quad::FACE_WORK_WALL`]'s unit,
+/// by the carrier's degree: a piece shifts four power forms of the
+/// degree's length to the piece and reads them by Horner twice, so its
+/// cost grows with the degree. Measured in release on this box (a timing
+/// probe, reverted), 50 calls of 256 pieces on one span of each degree,
+/// against a spiric piece's 13.2 µs measured on the same box, which
+/// [`W_SPIRIC`] weighs at 46: the weight is the time in that ratio,
+/// rounded up. Past degree 7, each degree adds the last step's 60.
+///
+/// | degree | µs a piece | weight |
+/// |---|---|---|
+/// | 1 | 34.5 | 120 |
+/// | 2 | 44.5 | 155 |
+/// | 3 | 63.0 | 220 |
+/// | 4 | 77.4 | 270 |
+/// | 5 | 90.6 | 316 |
+/// | 6 | 116 | 404 |
+/// | 7 | 132 | 460 |
+pub(super) const fn w_rational(degree: usize) -> usize {
+    match degree {
+        0 | 1 => 120,
+        2 => 155,
+        3 => 220,
+        4 => 270,
+        5 => 316,
+        6 => 404,
+        7 => 460,
+        _ => 460 + 60 * (degree - 7),
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -199,6 +346,33 @@ mod tests {
             "{:?} {:?}",
             sq.0[0],
             mul.0[0]
+        );
+    }
+
+    /// **The trig jets of an uncertified bracket refuse**: `√[−1, 4]` is
+    /// `[0, 2]` with ordinary ends and a clamped domain, and every
+    /// coefficient of its `cos` and `sin` jets refuses, where the same
+    /// ends read bare (`trig_range`) certify.
+    #[test]
+    fn the_trig_jets_of_an_uncertified_bracket_refuse() {
+        let t = Interval::from_bounds(-1.0, 4.0).sqrt();
+        assert!(
+            !t.is_certified() && t.lo().is_finite() && t.hi().is_finite(),
+            "the fixture is an uncertified bracket with ordinary ends: {t:?}"
+        );
+        let (_, cj, sj) = trig_jets(t);
+        for (name, jet) in [("cos", cj), ("sin", sj)] {
+            for (k, c) in jet.0.iter().enumerate() {
+                assert!(
+                    !c.is_certified(),
+                    "{name} jet coefficient {k} certifies: {c:?}"
+                );
+            }
+        }
+        let (c, s) = trig_range(t.lo(), t.hi());
+        assert!(
+            c.is_certified() && s.is_certified(),
+            "the bare ends certify, so the refusal is trig_jets' own: {c:?} {s:?}"
         );
     }
 }

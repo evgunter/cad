@@ -104,6 +104,7 @@ fn donut() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The **spool** profile: a unit square section whose outer edge bulges
@@ -143,6 +144,7 @@ fn spool() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A quarter revolve of the donut's circle: the torus face is trimmed in
@@ -160,6 +162,7 @@ fn quarter_donut() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A quarter revolve of [`spool_loop`]: BOTH windows trim the torus
@@ -173,6 +176,7 @@ fn quarter_spool() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
@@ -234,10 +238,8 @@ fn donut_clearance(q: Point3<f64>) -> f64 {
 fn torus_door_classifies_the_donut_interior_exterior_and_boundary() {
     let body = donut();
     assert!(
-        body.faces().all(|(_, f)| matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Torus { .. })
-        )),
+        body.faces()
+            .all(|(fk, _)| matches!(body.face_surface(fk), Some(geom::Surface::Torus { .. }))),
         "the donut must carry torus faces and nothing else"
     );
     // Interior: the tube's spine circle, on the seam and off it.
@@ -620,7 +622,7 @@ fn the_clamp_floor_clears_the_shell_about_the_top_circle() {
 #[test]
 fn a_disjoint_union_with_a_donut_now_assembles() {
     let a = finished("the donut", donut(), Tol::witness());
-    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
+    let b = brick::<f64>((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
     let b = finished("the brick", b, Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
@@ -756,7 +758,7 @@ fn a_spindle_profile_revolves_to_a_sheet_and_no_torus() {
         .body;
     let kinds: Vec<_> = body
         .faces()
-        .filter_map(|(_, f)| body.get_surface(f.surface))
+        .filter_map(|(fk, _)| body.face_surface(fk))
         .collect();
     assert!(
         !kinds
@@ -772,7 +774,8 @@ fn a_spindle_profile_revolves_to_a_sheet_and_no_torus() {
         )),
         "its arc sweeps the apple sheet R = {big_r}, r = {r}: {kinds:?}"
     );
-    topo::AtRestBody::validate(body, Tol::witness()).unwrap();
+    // The revolve door finishes what it ships.
+    let _: topo::AtRestBody<f64> = body;
 }
 
 /// **The analytic oracle.** Two and a half thousand points on a lattice

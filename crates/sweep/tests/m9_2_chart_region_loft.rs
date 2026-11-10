@@ -37,9 +37,9 @@ fn band() -> Band {
 /// The first described-NURBS wall face of a lofted body.
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, face)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(face.surface),
+                body.face_surface(*fk),
                 Some(Surface::Nurbs(payload)) if !payload.is_placeholder()
             )
         })
@@ -142,9 +142,9 @@ fn a_rational_iso_arc_wall_extracts_and_certifies_positive_area() {
     // Find the arc wall: the NURBS face whose rims are IsoArc.
     let arc_wall = body
         .faces()
-        .filter(|(_, face)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(face.surface),
+                body.face_surface(*fk),
                 Some(Surface::Nurbs(payload)) if !payload.is_placeholder()
             )
         })

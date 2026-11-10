@@ -138,7 +138,7 @@ mod verbs_gate_r1_probes {
         println!("klein wall 3: {joined:?}");
         assert!(
             wall3_pinned(&joined, &bulb_body, &top),
-            "wall 3 must refuse the loop's start-cap rim arc on the bulb's neck cylinder: \
+            "wall 3 must refuse the bulb's cone against the loop's spline wall at the germ frame: \
              {joined:?}"
         );
 
@@ -257,9 +257,10 @@ mod wall_gap_support {
 
     /// The vertices of `f`'s loops.
     fn vertices(body: &Body<f64>, f: FaceKey) -> BTreeSet<VertexKey> {
-        let face = body.get_face(f).expect("a live face");
-        core::iter::once(face.outer)
-            .chain(face.rings.iter().copied())
+        body.face(f)
+            .expect("a live face")
+            .loops()
+            .map(|(lk, _, _)| lk)
             .flat_map(|l| match body.get_loop(l).expect("a live loop").boundary {
                 LoopBoundary::Empty { vertex } => vec![vertex],
                 LoopBoundary::Cycle { first } => body
@@ -278,9 +279,9 @@ mod wall_gap_support {
         let body = bottle::<f64>(tol).top;
         let walls: Vec<(FaceKey, BTreeSet<VertexKey>)> = body
             .faces()
-            .filter(|(_, face)| {
+            .filter(|(fk, _)| {
                 matches!(
-                    body.get_surface(face.surface).expect("a live surface"),
+                    body.face_surface(*fk).expect("a live surface"),
                     Surface::Nurbs(_)
                 )
             })

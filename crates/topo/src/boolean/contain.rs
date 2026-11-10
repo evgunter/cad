@@ -20,13 +20,11 @@ use super::region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
-use crate::ray_walk::ParityRows;
 use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
-    BoundaryRows, ConicRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
+    BoundaryRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
 };
-use crate::splitting::pieced_arc::ArcRows;
-use crate::splitting::{Escalation, LoopDecision, PointInLoopError, Uncrossable};
+use crate::splitting::{Escalation, LoopDecision, Uncrossable};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -243,10 +241,11 @@ pub enum ContainError {
     /// The face the caller passed does not resolve in this body.
     StaleFace(FaceKey),
     /// A loop of the face is a lone vertex: it bounds no region a
-    /// point could be placed against.
+    /// point could be placed against. Its standing is the crate's one
+    /// lone-loop standing (`live::LONE_LOOP_REFUSAL`).
     EmptyLoop(LoopKey),
     /// The in-plane walk refused a loop
-    /// ([`PointInLoopError::CorruptLoop`], carried).
+    /// ([`PointInLoopError::CorruptLoop`](crate::splitting::PointInLoopError::CorruptLoop), carried).
     LoopUnreadable(LoopKey),
     /// The walk could not read a loop at this point: an edge of it it
     /// could not cross stood in the way of every ray.
@@ -260,6 +259,29 @@ pub enum ContainError {
     /// definite readings that disagree, carried with the arc's ends
     /// read against those corners.
     ArcEndClearOfCorners(Box<ArcEndGaps>),
+}
+
+impl ContainError {
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]), beside the variants it reads:
+    /// an escalation by its margin; a schedule no ray settled in band; a
+    /// loop the door cannot read a limit; a curved face's refusal as the
+    /// solid door states it; a face that does not resolve, or two
+    /// definite readings of an arc's end that disagree, a refusal of the
+    /// whole query ([`geom_brep::ladder::Aborts`]).
+    pub(in crate::boolean) fn refusal(
+        &self,
+    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted => Ok(Refusal::InBand),
+            Self::EmptyLoop(_) => Ok(crate::live::LONE_LOOP_REFUSAL),
+            Self::LoopUnreadable(_) | Self::Uncrossable(_) => Ok(Refusal::Limit),
+            Self::Curved(e) => e.refusal(),
+            Self::StaleFace(_) | Self::ArcEndClearOfCorners(_) => Err(Aborts),
+        }
+    }
 }
 
 /// **An arc's two carrier ends read against its edge's two stored
@@ -323,29 +345,6 @@ impl core::fmt::Display for ArcEndGaps {
                 f,
                 "each end lies within ±{zero:e} of one corner, a parting this K cannot resolve"
             ),
-        }
-    }
-}
-
-impl From<PointInLoopError> for ContainError {
-    fn from(e: PointInLoopError) -> Self {
-        match e {
-            PointInLoopError::Escalated {
-                decision,
-                escalation,
-                diag,
-                ..
-            } => Self::Escalated {
-                decision: Some(decision.into()),
-                escalation,
-                diag,
-            },
-            PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
-            PointInLoopError::CorruptLoop { r#loop } => Self::LoopUnreadable(r#loop),
-            PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
-            PointInLoopError::OffPlane(_) => {
-                unreachable!("contfp reads loops through carrier_loop, which certifies no plane")
-            }
         }
     }
 }
@@ -434,14 +433,11 @@ pub(crate) fn driver_face_stale(face: FaceKey) -> ! {
     )
 }
 
-/// `face`'s outer loop and rings ([`Body::face_loops_linked`]), the face
+/// `face`'s outer loop and rings ([`crate::live::FaceView::loops`]), the face
 /// the caller's key.
 fn face_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Vec<LoopKey>, ContainError> {
-    let face_data = body.get_face(face).ok_or(ContainError::StaleFace(face))?;
-    Ok(body
-        .face_loops_linked(face, face_data)
-        .map(|(lk, _, _)| lk)
-        .collect())
+    let face_data = body.face(face).ok_or(ContainError::StaleFace(face))?;
+    Ok(face_data.loops().map(|(lk, _, _)| lk).collect())
 }
 
 /// **`contfp`** — classifies point `q` (already on the plane of `face`,
@@ -465,6 +461,9 @@ pub fn contfp<T: Decide>(
 
 /// [`contfp`], with the margin that decided an `OnEdge` or `OnVertex`
 /// verdict (`None` for `In` and `Out`, which decide no coincidence).
+/// A site that reads a face of either kind reads
+/// [`placement_unheld`], the one dispatch, rather than this beside
+/// the curved door.
 ///
 /// # Errors
 ///
@@ -523,9 +522,10 @@ pub(crate) fn contfp_decided<T: Decide>(
 /// **That row classifies the loop, not a point.** Arcs whose circles
 /// agree to within the band are read as one circle; check 9 decides a
 /// PAIR of disc-class loops from the circles' centres and radii, a
-/// question the band's own width already bounds. A definite
-/// disagreement is `None`; an ESCALATION escalates, exactly as every
-/// row of [`curved_face_containment`] does.
+/// question the band's own width already bounds. Any arc decided off
+/// the first arc's circle, or any edge that is no circle's arc, is
+/// `None`, whatever another edge read; an arc read in band refuses only
+/// where every other edge is on the circle.
 ///
 /// # Errors
 ///
@@ -536,40 +536,53 @@ pub(crate) fn loop_circle<T: Decide>(
     r#loop: crate::entity::LoopKey,
     band: Band,
 ) -> Result<Option<geom::Circle<T>>, ContainError> {
-    // The WHOLE cycle is walked: an escalation on a later edge pair
-    // escalates even after an earlier edge has ruled the class out.
-    let mut circle: Option<geom::Circle<T>> = None;
-    let mut one_circle = true;
-    for (_, he, _) in loop_cycle_points(body, r#loop)? {
-        let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let edge = linked(
-            &body.edges,
-            edge_key,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let carrier = body
-            .edge_curve_linked(edge_key, edge)
-            .certified()
-            .map(|c| c.carrier().clone());
-        match carrier {
-            Some(geom::Curve3::Circle(arc)) => match circle {
-                None => circle = Some(arc),
-                Some(c) => {
-                    let (c0, a0, r0) = (c.frame.origin, c.frame.axis, c.radius);
-                    let d = (arc.frame.origin - c0).norm()
-                        + (arc.radius - r0).abs()
-                        + arc.frame.axis.cross(a0).norm() * r0;
-                    match decide("bool_face_disc_carrier", Margin::of(d), band) {
-                        Ok(Sign::Zero) => {}
-                        Ok(Sign::Positive | Sign::Negative) => one_circle = false,
-                        Err(diag) => {
-                            return Err(ContainError::on(ContainDecision::OneCircle, diag));
-                        }
-                    }
+    use geom_core::ladder::{Answering, Climb, Refusal, Rung, climb};
+    // Each edge's carrier, in cycle order; the first circle is the one
+    // every other edge is read against.
+    let carriers: Vec<Option<geom::Curve3<T>>> = loop_cycle_points(body, r#loop)?
+        .into_iter()
+        .map(|(_, he, _)| {
+            let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let edge = linked(
+                &body.edges,
+                edge_key,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            body.edge_curve_linked(edge_key, edge)
+                .certified()
+                .map(|c| c.carrier().clone())
+        })
+        .collect();
+    let reference = carriers
+        .iter()
+        .position(|c| matches!(c, Some(geom::Curve3::Circle(_))));
+    let Some(at) = reference else {
+        return Ok(None);
+    };
+    let Some(geom::Curve3::Circle(c)) = carriers[at] else {
+        unreachable!("loop_circle: the reference is a circle")
+    };
+    let (c0, a0, r0) = (c.frame.origin, c.frame.axis, c.radius);
+    // Any edge decided off the reference circle answers "not one circle",
+    // whatever another edge read ([`climb`], [`Answering::Any`]: an
+    // identity). An edge read in band is kept, and refuses only where
+    // every other edge is on the circle.
+    let off = climb(
+        Answering::Any,
+        carriers.iter().enumerate().filter(|&(k, _)| k != at),
+        |(_, carrier)| match carrier {
+            Some(geom::Curve3::Circle(arc)) => {
+                let d = (arc.frame.origin - c0).norm()
+                    + (arc.radius - r0).abs()
+                    + arc.frame.axis.cross(a0).norm() * r0;
+                match decide("bool_face_disc_carrier", Margin::of(d), band) {
+                    Ok(Sign::Zero) => Rung::Passes,
+                    Ok(Sign::Positive | Sign::Negative) => Rung::Answers(()),
+                    Err(diag) => Refusal::Margin(diag).rung(diag),
                 }
-            },
+            }
             // A line, a non-circular conic, a spiric or a spline, or null
             // scaffolding (which tier 2 refuses upstream): not one
             // circle's arc.
@@ -579,10 +592,14 @@ pub(crate) fn loop_circle<T: Decide>(
                 | geom::Curve3::Spiric { .. }
                 | geom::Curve3::Nurbs(_),
             )
-            | None => one_circle = false,
-        }
+            | None => Rung::Answers(()),
+        },
+    );
+    match off {
+        Climb::Answered { .. } => Ok(None),
+        Climb::Passed => Ok(Some(c)),
+        Climb::Undecided(diag) => Err(ContainError::on(ContainDecision::OneCircle, diag)),
     }
-    Ok(circle.filter(|_| one_circle))
 }
 
 /// **Boundary containment** for an on-carrier point against a CURVED
@@ -625,6 +642,12 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// — for the conic disposition — `bool_contact_arc_{span,straddle,end_vertex}`,
 /// for the spiric `bool_contact_spiric{,_end,_clear,_leaf}`, and for the
 /// spline `bool_contact_spline{,_end,_clear,_leaf}`.
+///
+/// Which cell holds `q` is the answer (`OnVertex(v)`, `OnEdge(e)`: its
+/// consumers read the key), so a cell read in band may be the true
+/// holder and no later cell answers past it: a vertex's escalation
+/// refuses ahead of every edge, and one loop's ahead of every later loop,
+/// as [`crate::splitting::containment::CarrierLoop::place_off`] refuses ahead of a later edge.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[LoopKey],
@@ -643,7 +666,7 @@ fn boundary_pre_pass<T: Decide>(
     }
     let mut read = Vec::with_capacity(loops.len());
     for &lk in loops {
-        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS.conic, band)?
+        let OnLoop { lp, edge: i, on } = match carrier_loop(body, lk, ROWS.conic(), band)?
             .place_off(q, ROWS, band)
             .map_err(|e| ContainError::Escalated {
                 decision: Some(LoopDecision::Boundary.into()),
@@ -714,34 +737,8 @@ enum PrePass<T: geom_core::Real> {
 /// `bool_contact_spiric_end`, `bool_contact_spline_end`).
 const END_VERTEX: &str = "bool_contact_arc_end_vertex";
 
-/// The pre-pass's rows for a straight edge: [`crate::ray_walk::on_segment`]
-/// reads `segment` (the edge's own length, the degeneracy gate) and
-/// `boundary` (the distance from `q` to the closed segment) and nothing
-/// else, so `side` and `advance` are never minted.
-const EDGE_ROWS: ParityRows = ParityRows {
-    segment: "bool_contact_edge_length",
-    boundary: "bool_contact_edge",
-    side: "bool_contact_edge_side",
-    advance: "bool_contact_edge_advance",
-};
-
 /// The pre-pass's rows ([`crate::splitting::containment::LoopEdge::contact`]).
-const ROWS: BoundaryRows = BoundaryRows {
-    line: &EDGE_ROWS,
-    conic: ConicRows::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
-    spiric: ArcRows {
-        end: "bool_contact_spiric_end",
-        clear: "bool_contact_spiric_clear",
-        on: "bool_contact_spiric",
-        leaf: "bool_contact_spiric_leaf",
-    },
-    spline: ArcRows {
-        end: "bool_contact_spline_end",
-        clear: "bool_contact_spline_clear",
-        on: "bool_contact_spline",
-        leaf: "bool_contact_spline_leaf",
-    },
-};
+const ROWS: BoundaryRows = crate::rows::CONTACT;
 
 /// **Point-in-face containment on a CURVED face** — the face-level
 /// analog of the solid door's hit test, and the door the curved sweep
@@ -810,9 +807,9 @@ pub(crate) enum CurvedPlacement {
 /// and in a boolean's carry onto the pieces of a divided face, and a
 /// section witness in its face. On a plane, `q` is first decided on the
 /// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
-/// decision's nonzero, then [`contfp`] places it; on a curved face its
-/// region places it ([`curved_face_placement`]). `Trim(None)` is the
-/// curved door's remainder, a face it does not read.
+/// decision's nonzero, then [`placement_unheld`] places it; on a
+/// curved face that door places it outright. `Trim(None)` is the curved
+/// door's remainder, a face it does not read.
 ///
 /// # Errors
 ///
@@ -825,18 +822,65 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
-    let f = proven(&body.faces, face, EntityId::Face);
-    match *body.face_surface_linked(face, f) {
-        geom::Surface::Plane { origin, normal, .. } => {
-            match decide(on_plane, Margin::of((q - origin).dot(normal)), band) {
-                Ok(Sign::Zero) => contfp(body, face, normal, q, band)
-                    .map(|at| CurvedPlacement::Trim(Some(at)))
-                    .map_err(PlacementError::Door),
-                Ok(Sign::Positive | Sign::Negative) => Ok(CurvedPlacement::OffCarrier),
-                Err(diag) => Err(PlacementError::OnPlane(diag)),
-            }
+    if let geom::Surface::Plane { origin, normal, .. } = *body.proven_face(face).surface() {
+        match decide(
+            on_plane,
+            Margin::of(geom::plane_offset(origin, normal, q)),
+            band,
+        ) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
+            Err(diag) => return Err(PlacementError::OnPlane(diag)),
         }
-        _ => curved_face_placement(body, face, q, band).map_err(PlacementError::Door),
+    }
+    placement_unheld(body, face, q, band)
+        .map(|(at, _, _)| at)
+        .map_err(PlacementError::Door)
+}
+
+/// **Where a point the caller holds on `face`'s carrier lies against
+/// the face** ([`crate::held::Held`]): its premise checked in debug
+/// builds, then [`placement_unheld`]. On a plane it decides no on-plane
+/// margin; what a curved face's `OffCarrier` means at a held point is
+/// the caller's to say, at the call.
+///
+/// # Errors
+///
+/// The containment door's own refusal.
+#[track_caller]
+pub(in crate::boolean) fn placement_on_carrier<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    held: crate::held::Held<T>,
+    band: Band,
+) -> Result<ChartedPlacement, ContainError> {
+    if let Some(view) = body.face(face) {
+        held.check(view.surface(), band);
+    }
+    placement_unheld(body, face, held.point(), band)
+}
+
+/// **Where a point lies against `face`, with nothing said of its
+/// carrier**: the dispatch of every placement, the plane's
+/// [`contfp_decided`] (with the face's stored normal, which it reads
+/// sign-blind) or the curved [`curved_face_placement_decided`], whose
+/// `OffCarrier` is a reading. A point the caller holds on the carrier
+/// goes through [`placement_on_carrier`].
+///
+/// # Errors
+///
+/// The containment door's own refusal.
+pub(in crate::boolean) fn placement_unheld<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<ChartedPlacement, ContainError> {
+    let view = body.face(face).ok_or(ContainError::StaleFace(face))?;
+    match *view.surface() {
+        geom::Surface::Plane { normal, .. } => contfp_decided(body, face, normal, q, band)
+            .map(|(at, margin)| (CurvedPlacement::Trim(Some(at)), margin, None)),
+        _ => curved_face_placement_decided(body, face, q, band),
     }
 }
 
@@ -878,7 +922,7 @@ pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<
 /// # Errors
 ///
 /// As [`curved_face_containment`].
-pub(crate) fn curved_face_placement_decided<T: Decide>(
+fn curved_face_placement_decided<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
@@ -903,16 +947,15 @@ fn curved_interior_placement<T: Decide>(
     band: Band,
     cut: Option<&[usize]>,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    let analytic = match *body.face_surface_linked(face, face_data) {
+    let view = body.proven_face(face);
+    let analytic = match *view.surface() {
         geom::Surface::Cylinder {
             origin,
             axis,
             radius,
             ..
         } => {
-            let w = q - origin;
-            let radial = w - axis * w.dot(axis);
+            let radial = geom::Line { origin, dir: axis }.offset(q);
             ruled_face_containment(body, face, radial.norm() - radius, q, band, cut)
         }
         // The whole DOUBLE cone ([`geom_brep::cone_elevation`] with no
@@ -925,7 +968,15 @@ fn curved_interior_placement<T: Decide>(
             half_angle,
             ..
         } => {
-            let elevation = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
+            let elevation = geom_brep::cone_elevation(
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                None,
+                q,
+            );
             ruled_face_containment(body, face, elevation, q, band, cut)
         }
         geom::Surface::Sphere { center, radius, .. } => {
@@ -941,8 +992,10 @@ fn curved_interior_placement<T: Decide>(
             body,
             face,
             TorusCarrier {
-                center,
-                axis,
+                axis: geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
                 major_radius,
                 minor_radius,
             },
@@ -997,7 +1050,7 @@ fn sphere_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match super::sphere_region::sphere_face_region(body, face, center, radius) {
+    let region = match super::sphere_region::sphere_face_region(body, face) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
@@ -1030,8 +1083,7 @@ fn region_placement(
 
 /// One torus carrier's data, as [`torus_face_containment`] reads it.
 struct TorusCarrier<T: geom_core::Real> {
-    center: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
 }
@@ -1061,13 +1113,11 @@ fn torus_face_containment<T: Decide>(
     cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
     let TorusCarrier {
-        center,
         axis,
         major_radius,
         minor_radius,
     } = carrier;
-    let elevation =
-        super::solid_contain::torus_elevation(center, axis, major_radius, minor_radius, q);
+    let elevation = super::solid_contain::torus_elevation(axis, major_radius, minor_radius, q);
     if cut.is_none() {
         match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
             Ok(Sign::Zero) => {}
@@ -1125,13 +1175,12 @@ fn ruled_face_containment<T: Decide>(
 /// the one dispatch), its boundary cut to those cycles
 /// ([`super::region::Region::keep_cycles`]), so a cycle is read alone or
 /// against a torus's essential pair. `q` is a vertex of the body, which
-/// tier 3's check 3 holds to the face's carrier, or a chart singularity
-/// of the face's own surface (a sphere's pole, a cone's apex), which lies
-/// on it by construction, so the cut reading reads no carrier decision
-/// and never answers `OffCarrier`.
-/// `Trim(Some(In))` on the face's side of the cycles, `Trim(Some(Out))`
-/// off it, `Trim(None)` on one of them or where no door reads the face (a
-/// plane, a spline chart, an edge of a kind its door does not admit).
+/// tier 3's check 3 holds to the face's carrier (at a dual, [`crate::Replay`]'s "A tier-3 premise
+/// at a dual"), or a chart singularity of the face's own surface (a sphere's pole, a cone's apex),
+/// which lies on it by construction, so the cut reading reads no carrier decision and never answers
+/// `OffCarrier`. `Trim(Some(In))` on the face's side of the cycles, `Trim(Some(Out))` off it,
+/// `Trim(None)` on one of them or where no door reads the face (a plane, a spline chart, an edge of
+/// a kind its door does not admit).
 ///
 /// # Errors
 ///
@@ -1204,6 +1253,44 @@ mod tests {
     use crate::entity::LoopBoundary;
     use geom_core::Tol;
 
+    /// **The face-level containment door keeps its two kinds of `Out`
+    /// apart on a cone** (on `crate::boxes`' cone-wall fixture). A point
+    /// on the MIRROR nappe is on the double-cone carrier the face's
+    /// surface states, so
+    /// `curved_face_placement` answers `Trim(Some(Out))` — a sibling
+    /// face's incidence — and never `OffCarrier`, which the crossing
+    /// layer reads as a contradiction of its own on-carrier
+    /// certificate. A point off the carrier is `OffCarrier`, and a
+    /// carrier point outside the azimuth window is `Trim(Some(Out))`.
+    #[test]
+    fn a_cone_band_places_the_mirror_nappe_on_its_carrier() {
+        use crate::boxes::tests::cone_wall;
+        let alpha = 30.0_f64.to_radians();
+        let (mut body, face) = cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let band = Band::linear(Tol::witness()).unwrap();
+        crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, Tol::witness());
+        let at = |u: f64, z: f64, off: f64| {
+            let rho = z.abs() * alpha.tan() + off;
+            Point3::new(rho * u.cos(), rho * u.sin(), z)
+        };
+        let place = |p| curved_face_placement(&body, face, p, band).unwrap();
+        assert_eq!(
+            place(at(0.5, 0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::In))
+        );
+        assert_eq!(
+            place(at(0.5, -0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::Out)),
+            "the mirror nappe is on the carrier"
+        );
+        assert_eq!(place(at(0.5, 0.75, 1e-3)), CurvedPlacement::OffCarrier);
+        assert_eq!(
+            place(at(2.0, 0.75, 0.0)),
+            CurvedPlacement::Trim(Some(FaceContainment::Out)),
+            "outside the azimuth window"
+        );
+    }
+
     /// Each escalation ends as its decision and its reading give it (D4
     /// ¶1 (i)), pinned by literal text over the arms each site can raise:
     /// a sized decision's lever with the tolerance its in-band margin
@@ -1219,6 +1306,7 @@ mod tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: the margin's cause an escalation's ending is read for
             predicate: Some("a_margin"),
             terminal_sliver: false,
         };
@@ -1359,7 +1447,7 @@ mod tests {
                 "{row}: the refusal renders its payload and the one ending"
             );
             if let Some(ContainDecision::Loop(decision)) = decision {
-                let walk = PointInLoopError::Escalated {
+                let walk = crate::splitting::PointInLoopError::Escalated {
                     r#loop: LoopKey::default(),
                     decision,
                     escalation,
@@ -1491,8 +1579,8 @@ mod tests {
         let body = holed.body;
         let band = Band::linear(Tol::witness()).unwrap();
         let mut loops = 0;
-        for (fk, f) in body.faces() {
-            for (lk, ..) in body.face_loops_linked(fk, f) {
+        for f in body.face_views() {
+            for (lk, ..) in f.loops() {
                 loops += 1;
                 assert!(
                     loop_circle(&body, lk, band)

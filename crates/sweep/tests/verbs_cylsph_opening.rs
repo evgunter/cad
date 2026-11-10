@@ -53,6 +53,7 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
@@ -191,8 +192,9 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 /// pierce's sector side certifies, the matcher pairs the cylinder ×
 /// sphere germs by foot on the section's one loop (`R < r + d`), and the
 /// join cuts both sides' chords from that loop; the cylinder face they
-/// bound has no volume lane for a projected boundary
-/// (`crate::cylinder_sphere_frame::Door::Projected`), in both poses.
+/// bound measures through the rotational lane, and the sphere face has
+/// no lane for its chord (`crate::cylinder_sphere_frame::Door::Sphere`),
+/// in both poses.
 #[test]
 fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
@@ -205,10 +207,10 @@ fn a_transversal_pose_reaches_the_join_lane_in_both_poses() {
             finished(label, c, Tol::witness()),
             finished(label, s, Tol::witness()),
         );
-        let err = topo::union(&c, &s, Tol::witness()).expect_err("no projected volume lane");
+        let err = topo::union(&c, &s, Tol::witness()).expect_err("no sphere volume lane");
         assert_eq!(
             crate::cylinder_sphere_frame::door(&err),
-            Some(crate::cylinder_sphere_frame::Door::Projected),
+            Some(crate::cylinder_sphere_frame::Door::Sphere),
             "{label}: {err:?}"
         );
     }
@@ -386,10 +388,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
             .and_then(|e| torus.get_curve_geom(e.curve))
             .and_then(topo::CurveGeom::certified)
             .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-        let wall = matches!(
-            a.get_face(*f).and_then(|f| a.get_surface(f.surface)),
-            Some(topo::Surface::Cylinder { .. })
-        );
+        let wall = matches!(a.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
         circle && wall
     });
     assert!(
@@ -458,7 +457,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         },
     )
     .unwrap();
-    let errors = topo::AtRestBody::validate(b, Tol::witness())
+    let errors = topo::finish(b, Tol::witness())
         .expect_err("a NURBS placeholder wall is not a finished body");
     assert!(
         errors.iter().any(

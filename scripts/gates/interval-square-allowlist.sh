@@ -278,15 +278,14 @@ CENSUS_REGISTER=(
   # zero and the plain product's four-corner minimum already IS the
   # tight bound — which is this gate's own rule for a `lo >= 0`
   # enclosure, stated at the top of this file.
-  "two-statement|crates/geom-brep/src/props/quad/trig.rs|let a3 = a1 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
-  "two-statement|crates/geom-brep/src/props/quad/trig.rs|let a5 = a3 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
-  "two-statement|crates/geom-brep/src/props/quad/trig.rs|let a7 = a5 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+  "two-statement|crates/geom-brep/src/props/trig.rs|let a3 = a1 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+  "two-statement|crates/geom-brep/src/props/trig.rs|let a5 = a3 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+  "two-statement|crates/geom-brep/src/props/trig.rs|let a7 = a5 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
   # The spiric's radial pair: `rho = R + r·cos v` is AFFINE in `c`, and
   # the product the matcher pairs it with (`rho * c` in `deriv2`'s f″)
   # multiplies two distinct quantities, ρ and cos v — there is no x·x
   # here for `powi` to tighten.
   "two-statement|crates/geom/src/curves.rs|let rho = major + minor * c|1|not a square: rho = R + r·cos v is affine in c, and rho * c (deriv2's f″ term) is a product of two distinct quantities, ρ and cos v"
-  "two-statement|crates/topo/src/splitting/containment.rs|let along = px * ex + py * ey|1|not a square: along = P·Ê is the dot product of the query's unit-coordinate position P and the unit ray direction Ê, two distinct vectors"
 )
 
 # Set by `--register FILE`, which replaces the array above. It exists so

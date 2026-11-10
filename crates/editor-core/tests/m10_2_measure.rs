@@ -1158,6 +1158,7 @@ fn gathers_placing(
     );
     editor_core::product(doc, &ev, Tol::witness())
         .unwrap_or_else(|e| panic!("the product gathers: {e:?}"))
+        .into_body()
 }
 
 /// The edges tier 3's check 4 marks `Tangent` in `body` — a
@@ -1179,11 +1180,8 @@ fn tangent_marks(body: &topo::Body<f64>, at: impl Fn(&Point3<f64>) -> bool) -> (
         if *mark != topo::ContactMark::Tangent {
             continue;
         }
-        let he = body.get_edge(edge).expect("live edge").he_plus;
-        let ends = [
-            point(body.get_half_edge(he).expect("live half-edge").start),
-            point(body.half_edge_end(he).expect("live half-edge")),
-        ];
+        let (v0, v1) = body.edge_vertices(edge).expect("live edge");
+        let ends = [point(v0), point(v1)];
         if ends.iter().all(&at) {
             on += 1;
         } else {
@@ -1204,7 +1202,7 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
 /// the body (D1's second-order arm, ratified on PR 3317). The red-first
 /// row of
 /// `work/gather/product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares.md`,
-/// which refused `PieceInvalid` / `UndeclaredCusp` before.
+/// which refused the product's at-rest gate (`UndeclaredCusp`) before.
 #[test]
 fn a_cusp_extrude_document_gathers_at_the_product_gate() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-lune");

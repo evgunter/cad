@@ -24,7 +24,7 @@ use viewer::evalseam::{CertifyDone, CertifyRequest, CertifyService};
 use viewer::generation::Generation;
 use viewer::props::Notation;
 use viewer::session::{ClearedSeat, DocSession, SessionOp};
-use viewer::test_support::{CLEARANCE_GAP as GAP, CLEARANCE_SIDE as SIDE, len, two_blocks_apart};
+use viewer::test_support::{CLEARANCE_SIDE as SIDE, STEP_GAP as GAP, len, two_blocks_apart};
 use viewer::tree::{Certified, Readout, TreeRow};
 
 /// Millimetres, so every bound reads as written.
@@ -735,10 +735,13 @@ fn a_body_drawn_twice_is_refused_at_the_pick_in_the_tools_words() {
 fn a_requirement_over_a_patterns_members_refuses_in_words() {
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
+    // Picked on the left block's world copy, the pattern repeats the copy
+    // in the world, where the right block's copy stands.
+    let left_copy = crate::common::copy_of(session.committed_doc(), left);
     let pattern = add(
         &mut session,
         SessionOp::AddPattern {
-            input: left.into(),
+            input: left_copy.into(),
             count: 3,
             rule: viewer::session::PatternRuleSpec::Linear {
                 direction: viewer::PatternDirection::Axis(pncad::document::TargetAxis::Y),
@@ -797,10 +800,9 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
         door.answer
     );
     // A face of the second member, picked where the picture draws it.
-    let doc = session.committed_doc();
-    let [drawn] = viewer::world::placements_of(doc, pattern)[..] else {
-        panic!("the pattern is drawn once");
-    };
+    // The family stands in the world and is drawn as itself.
+    let drawn = pattern;
+    assert!(viewer::world::is_drawn(session.committed_doc(), drawn));
     let (landed, eval) = session.landed_pair().expect("landed");
     let index = viewer::pickindex::PickIndex::build(
         landed,

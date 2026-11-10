@@ -47,13 +47,14 @@
 //! **The walk is the closed forms' differential test oracle** (the rows),
 //! never a runtime fallback.
 
+pub mod on_surface;
 mod polish;
 pub mod pose;
 pub mod span;
 mod walk;
 
-pub use pose::{Candidate, Pose, PoseRefusal, Sense, pose};
-pub use span::{Hit, Place, Reading, Span, SpanEnd};
+pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, pose};
+pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd, SpanRefusal};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -138,32 +139,198 @@ pub struct Meetings<T: geom_core::Real> {
 }
 
 /// Why [`meet`] gave no answer.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MeetFault {
-    /// A decision fell in the band's gap.
+    /// A decision fell in the band's gap. Ranked by its margin.
     Escalated(Indeterminate),
     /// A root finder read the pair in the band's gap where they can meet
     /// ([`RootRefusal::Touch`]): a meeting in band, which escalates where
     /// the spans are the model's and is the probe's where the caller
-    /// chose one.
+    /// chose one. Ranked by its margin.
     Touch(Indeterminate),
     /// A root finder, a meter or the walk's budget reached its limit
-    /// before it could certify the candidates.
+    /// before it could certify the candidates. Unsettled: no margin, and
+    /// a coarser band may settle it.
     Unsettled(Unsettled),
-    /// A pose the pair's arm has no closed form for.
+    /// A spline's piece walk could not run, reading a point on a span. As
+    /// the walk's refusal stands ([`geom::PieceWalkRefusal::refusal`]).
+    Unwalked(geom::PieceWalkRefusal),
+    /// A pose the pair's arm has no closed form for. A limit.
     Unsupported {
         /// The pose.
         pose: &'static str,
     },
-    /// A carrier is not of the kind its arm reads.
+    /// A carrier is not of the kind its arm reads. An abort: a kernel
+    /// fault.
     Desync,
     /// Two readings of the pose contradict each other, which their
     /// definitions rule out but for rounding: a kernel fault, never a
-    /// pose.
+    /// pose. An abort.
     Contradiction {
         /// The readings.
         readings: &'static str,
     },
+}
+
+impl MeetFault {
+    /// What this refusal is to a ladder over the readings that meet it
+    /// ([`crate::ladder::Refusal`]): its group's ([`MeetKind::refusal`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a carrier the arm misread or two
+    /// readings that contradict: a kernel fault, never a pose.
+    pub fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        self.kind().refusal()
+    }
+}
+
+/// **What a [`MeetFault`] is to a consumer that does not tell its
+/// limits apart** ([`MeetFault::kind`]): the one grouping of its arms,
+/// so no consumer spells the group by hand.
+#[derive(Clone, Copy, Debug)]
+pub enum MeetKind {
+    /// A decision fell in the band's gap ([`MeetFault::Escalated`]).
+    Escalated(Indeterminate),
+    /// A meeting in band ([`MeetFault::Touch`]).
+    Touch(Indeterminate),
+    /// The reading did not run to an answer, and no margin says how far
+    /// it was ([`MeetUnread`]).
+    Unread(MeetUnread),
+    /// A kernel fault, never a pose: the carrier misread, or the readings
+    /// that contradict.
+    Fault {
+        /// What faulted.
+        what: &'static str,
+    },
+}
+
+impl MeetKind {
+    /// What this group is to a ladder ([`crate::ladder::Refusal`]): an
+    /// escalation or a touch ranked by its margin, an unread reading as
+    /// it stands ([`MeetUnread::refusal`]), a kernel fault an abort. The
+    /// one table of a meeting refusal's standing.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a kernel fault.
+    pub fn refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        use crate::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(diag)),
+            Self::Unread(why) => why.refusal(),
+            Self::Fault { .. } => Err(Aborts),
+        }
+    }
+}
+
+/// **A meeting reading that did not run to an answer**, with no margin
+/// to say how far it was ([`MeetKind::Unread`]): the fault itself,
+/// narrowed to [`MeetFault::Unsettled`], [`MeetFault::Unwalked`] or
+/// [`MeetFault::Unsupported`] by its one constructor ([`Self::of`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MeetUnread(MeetFault);
+
+impl MeetUnread {
+    /// `fault` where it is a reading that did not run to an answer.
+    #[must_use]
+    pub const fn of(fault: MeetFault) -> Option<Self> {
+        match fault {
+            MeetFault::Unsettled(_) | MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } => {
+                Some(Self(fault))
+            }
+            MeetFault::Escalated(_)
+            | MeetFault::Touch(_)
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => None,
+        }
+    }
+
+    /// The fault it is.
+    #[must_use]
+    pub const fn fault(self) -> MeetFault {
+        self.0
+    }
+
+    /// Its standing: the finder's ([`Unsettled::refusal`]), the walk's
+    /// ([`geom::PieceWalkRefusal::refusal`]), or a limit for a pose with
+    /// no closed form.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] where the finder's does
+    /// ([`Unsettled::refusal`]).
+    pub fn refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self.0 {
+            MeetFault::Unsettled(why) => why.refusal(),
+            MeetFault::Unwalked(why) => Ok(why.refusal()),
+            MeetFault::Unsupported { .. } => Ok(crate::ladder::Refusal::Limit),
+            MeetFault::Escalated(_)
+            | MeetFault::Touch(_)
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => {
+                unreachable!("a MeetUnread holds an unread arm (MeetUnread::of)")
+            }
+        }
+    }
+
+    /// The one sentence it is rendered by: what the finder met
+    /// ([`Unsettled::sentence`]), the walk's
+    /// ([`geom::PieceWalkRefusal::sentence`]), or the pose.
+    #[must_use]
+    pub fn sentence(self) -> &'static str {
+        match self.0 {
+            MeetFault::Unsettled(why) => why.sentence(),
+            MeetFault::Unwalked(why) => why.sentence(),
+            MeetFault::Unsupported { pose } => pose,
+            MeetFault::Escalated(_)
+            | MeetFault::Touch(_)
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => {
+                unreachable!("a MeetUnread holds an unread arm (MeetUnread::of)")
+            }
+        }
+    }
+
+    /// The pose the arm has no closed form for, where that is why.
+    #[must_use]
+    pub const fn pose(self) -> Option<&'static str> {
+        match self.0 {
+            MeetFault::Unsupported { pose } => Some(pose),
+            _ => None,
+        }
+    }
+
+    /// The recourse its rendering ends with: its standing's
+    /// ([`crate::ladder::Refusal::recourse`]). A reason that aborts is a
+    /// payload that mixes classes and aborts until it is split (a meeting
+    /// at a spline's crease): its ending is the unbuilt split's, no way
+    /// through yet, not a kernel defect.
+    #[must_use]
+    pub fn recourse(self) -> crate::ladder::Ending {
+        match self.refusal() {
+            Ok(standing) => standing.recourse(),
+            Err(crate::ladder::Aborts) => crate::ladder::Ending::NotYet,
+        }
+    }
+}
+
+impl MeetFault {
+    /// This refusal's group ([`MeetKind`]).
+    #[must_use]
+    pub const fn kind(&self) -> MeetKind {
+        match self {
+            Self::Escalated(diag) => MeetKind::Escalated(*diag),
+            Self::Touch(diag) => MeetKind::Touch(*diag),
+            Self::Unsettled(_) | Self::Unwalked(_) | Self::Unsupported { .. } => {
+                MeetKind::Unread(MeetUnread(*self))
+            }
+            Self::Desync => MeetKind::Fault {
+                what: "a carrier the meeting table misread",
+            },
+            Self::Contradiction { readings } => MeetKind::Fault { what: readings },
+        }
+    }
 }
 
 impl From<RootRefusal> for MeetFault {
@@ -180,15 +347,8 @@ impl From<RootRefusal> for MeetFault {
 }
 
 impl From<geom::PieceWalkRefusal> for MeetFault {
-    /// A spline's walk past its budget as unsettled, and a spline with no
-    /// speed bound as a pose the reader does not serve.
     fn from(why: geom::PieceWalkRefusal) -> Self {
-        match why {
-            geom::PieceWalkRefusal::Exhausted => Self::Unsettled(Unsettled::Exhausted),
-            geom::PieceWalkRefusal::Unbounded => Self::Unsupported {
-                pose: "a spline whose speed bound is zero or poison",
-            },
-        }
+        Self::Unwalked(why)
     }
 }
 
@@ -289,6 +449,7 @@ fn candidate<T: Decide>(a: &Span<'_, T>, b: &Span<'_, T>, m: &Meeting<T>) -> Can
         point: m.point,
         ta: a.at(m.on_a),
         tb: b.at(m.on_b),
+        bound: None,
     }
 }
 
@@ -315,9 +476,12 @@ fn ringed_by<T: Decide>(
     })
 }
 
+/// A meeting's two sides: where its point sits on each span.
+type Sides<T> = (Hit<T>, Hit<T>);
+
 /// A point read on both spans: a meeting's two sides, `None` off either,
 /// or the first refusal.
-type Both<T> = Result<Option<(Hit<T>, Hit<T>)>, geom::CarrierRefusal>;
+type Both<T> = Result<Option<Sides<T>>, geom::CarrierRefusal>;
 
 /// Two point-on-span readings as one [`Both`].
 fn both<T>(
@@ -335,7 +499,7 @@ fn both<T>(
 /// candidate by candidate under C5's stretch rule.
 struct Found<T: geom_core::Real> {
     points: Vec<Meeting<T>>,
-    held: Vec<(Point3<T>, geom::CarrierRefusal)>,
+    held: Vec<(Point3<T>, MeetFault)>,
 }
 
 impl<T: geom_core::Real> Default for Found<T> {
@@ -348,29 +512,69 @@ impl<T: geom_core::Real> Default for Found<T> {
 }
 
 impl<T: Decide> Found<T> {
-    /// `c` read on both spans at its own parameters, unless it is ringed.
+    /// **`c` read on both spans at its own parameters**, unless it is
+    /// ringed: the one composition of a candidate's point with what its
+    /// generator states of its window ([`pose::WindowBound`], `pose`'s
+    /// module docs, "The gap's lower bound"). A candidate with no window
+    /// is its point's reading on both spans. One with a window is no
+    /// meeting where its floor reads past the band
+    /// (`curve_pair_pose_closest`); otherwise its point read on both is a
+    /// meeting, and an Off there prunes only where the window's run lies
+    /// past a span ([`Span::past_by`], by the reach and the run arm).
+    /// Any other Off is a straddle of the floor and the gap at the pair
+    /// (`curve_pair_meet_window`), and escalates.
     fn read(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
+        let on_both = || {
+            both(
+                a.contact(c.point, c.ta, band).map_err(|r| r.refused()),
+                b.contact(c.point, c.tb, band).map_err(|r| r.refused()),
+            )
+        };
+        let Some(bound) = c.bound else {
+            self.offer(c.point, on_both, band);
+            return;
+        };
+        if ringed(&self.points, c.point, band) {
+            return;
+        }
+        let floor = geom_core::k_stats::decide_reported(
+            "curve_pair_pose_closest",
+            geom_core::Margin::of(bound.floor),
+            band,
+        );
+        if matches!(
+            floor,
+            Ok(geom_core::Decided {
+                sign: geom_core::Sign::Positive,
+                ..
+            })
+        ) {
+            return;
+        }
         self.offer(
             c.point,
-            || {
-                both(
-                    a.contact(c.point, c.ta, band),
-                    b.contact(c.point, c.tb, band),
-                )
+            || match on_both() {
+                Ok(None) => window_off(a, b, c, bound, floor, band),
+                read => read.map_err(MeetFault::from),
             },
             band,
         );
     }
 
     /// `point` read on both spans by `read`, unless it is ringed.
-    fn offer(&mut self, point: Point3<T>, read: impl FnOnce() -> Both<T>, band: Band) {
+    fn offer<E: Into<MeetFault>>(
+        &mut self,
+        point: Point3<T>,
+        read: impl FnOnce() -> Result<Option<Sides<T>>, E>,
+        band: Band,
+    ) {
         if ringed(&self.points, point, band) {
             return;
         }
         match read() {
             Ok(None) => {}
             Ok(Some((on_a, on_b))) => self.points.push(Meeting { point, on_a, on_b }),
-            Err(diag) => self.held.push((point, diag)),
+            Err(why) => self.held.push((point, why.into())),
         }
     }
 
@@ -388,7 +592,7 @@ impl<T: Decide> Found<T> {
             .held
             .iter()
             .find(|(q, _)| !ringed(&self.points, *q, band))
-            .map(|&(_, diag)| MeetFault::from(diag));
+            .map(|&(_, fault)| fault);
         let fault = match (held, shared) {
             (Some(fault), _) => Some(fault),
             (None, Some(_)) => None,
@@ -419,6 +623,64 @@ impl<T: Decide> Found<T> {
             }),
         }
     }
+}
+
+/// **A window's candidate read off a span** ([`Found::read`]): no
+/// meeting where the window's run lies past either span
+/// ([`Span::past_by`], by the reach and the run arm); otherwise the
+/// escalation, the straddle of the floor against the gap at the pair
+/// where both decide, and else whichever reading did not. Where every
+/// reading decided and none cleared, the gap at the pair reads zero
+/// while the point's contact read it off a span and no end read near:
+/// the two readings disagree at rounding, and that refuses typed,
+/// `Meter { row: "curve_pair_meet_window_contact" }`.
+fn window_off<T: Decide>(
+    a: &Span<'_, T>,
+    b: &Span<'_, T>,
+    c: Candidate<T>,
+    bound: pose::WindowBound<T>,
+    floor: Result<geom_core::Decided, Indeterminate>,
+    band: Band,
+) -> Result<Option<Sides<T>>, MeetFault> {
+    let q = b.carrier().eval(c.tb);
+    // The run arm's premise (`pose`'s module docs, "The run"): the
+    // polished pair is itself a pair of the run, its gap in the zero band.
+    let in_run = geom_core::k_stats::decide(
+        "curve_pair_meet_run_pair",
+        geom_core::Margin::norm3(q - c.point),
+        band,
+    ) == Ok(geom_core::Sign::Zero);
+    let (run_a, run_b) = (
+        in_run.then(|| (b.carrier(), bound.bend)),
+        in_run.then(|| (a.carrier(), bound.bend)),
+    );
+    let sides = [
+        a.past_by(c.point, c.ta, (bound.reach, run_a), band),
+        b.past_by(q, c.tb, (bound.reach, run_b), band),
+    ];
+    if sides.contains(&PastBy::Clear) {
+        return Ok(None);
+    }
+    let gap = geom_core::k_stats::decide_reported(
+        "curve_pair_meet_window_gap",
+        geom_core::Margin::norm3(q - c.point),
+        band,
+    );
+    let near = sides.iter().find_map(|side| match side {
+        PastBy::Near(diag) => Some(*diag),
+        PastBy::Not | PastBy::Clear => None,
+    });
+    Err(MeetFault::Escalated(match (floor, gap, near) {
+        (Ok(lower), Ok(upper), _) if upper.sign == geom_core::Sign::Positive => {
+            geom_core::k_stats::straddle("curve_pair_meet_window", lower, upper, band)
+        }
+        (_, _, Some(diag)) | (Err(diag), _, None) | (Ok(_), Err(diag), None) => diag,
+        (Ok(_), Ok(_), None) => {
+            return Err(MeetFault::Unsettled(Unsettled::Meter {
+                row: "curve_pair_meet_window_contact",
+            }));
+        }
+    }))
 }
 
 /// **Whether each meeting is the one meeting of its stretch** (C5): two
@@ -470,7 +732,14 @@ fn stretches<T: Decide>(
                 margin,
             },
             Ok(Some(Hit::End(which))) => {
-                let end = b.carrier().eval(b.end(which));
+                // Only an ended span reads a point at an end, so the end
+                // is one of its two.
+                let nth = usize::from(which == SpanEnd::Stop);
+                let Some((_, end)) = b.ends().nth(nth) else {
+                    return Err(MeetFault::Contradiction {
+                        readings: "a point read at an end of a span with no ends",
+                    });
+                };
                 match geom_core::k_stats::decide_reported(
                     "curve_pair_span_end_chord",
                     geom_core::Margin::norm3(q - end),
@@ -510,12 +779,10 @@ fn before<T: Decide>(s: T, t: T) -> bool {
     compare("curve_pair_meet_order", s, t) == Some(geom_core::Sign::Negative)
 }
 
-/// **Two parameters compared, read exactly** (the least pair of positive
-/// `f64`s) under `row`: the sign of `s − t`, `None` where an enclosure
-/// straddles. A parameter is no distance the band resolves, so the band
-/// plays no part.
-pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
-    geom_core::k_stats::decide(row, geom_core::Margin::of(s - t), Band::least()).ok()
+/// [`geom_core::k_stats::param_order`], `None` where an enclosure
+/// straddles.
+pub(super) fn compare<T: Decide>(name: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
+    geom_core::k_stats::param_order(name, s, t).ok()
 }
 
 impl From<geom::CarrierRefusal> for MeetFault {
@@ -528,6 +795,15 @@ impl From<geom::CarrierRefusal> for MeetFault {
     }
 }
 
+impl From<SpanRefusal> for MeetFault {
+    /// A point-on-span refusal as the meeting's: the refusal it is
+    /// ranked by ([`SpanRefusal::refused`]) as its own
+    /// ([`From<geom::CarrierRefusal>`]).
+    fn from(refusal: SpanRefusal) -> Self {
+        refusal.refused().into()
+    }
+}
+
 #[cfg(test)]
 mod meet_oracle;
 #[cfg(test)]
@@ -535,6 +811,10 @@ mod meet_rows;
 #[cfg(test)]
 mod one_curve_rows;
 #[cfg(test)]
+mod order_rows;
+#[cfg(test)]
 mod plane_rows;
 #[cfg(test)]
 mod span_rows;
+#[cfg(test)]
+mod touch_spread_rows;

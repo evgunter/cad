@@ -838,7 +838,14 @@ fn a_small_carrier_through_the_apex_refuses_at_the_rung_that_cannot_read_it() {
     for (label, half, rad, want) in [
         ("clear of the apex", 0.2, 1e-3, Unsettled::AtApex),
         ("a definite side change", 1.2, 3e-4, Unsettled::Tangency),
-        ("the slack meter", 0.6, 1e-3, Unsettled::Meter),
+        (
+            "the slack meter",
+            0.6,
+            1e-3,
+            Unsettled::Meter {
+                row: "bool_conic_cone_root_slack",
+            },
+        ),
     ] {
         let s = cone([1.0, -0.7, 0.3], [0.0, 0.0, 1.0], half);
         let u = Vec3::new(1.0, 0.0, 0.0);

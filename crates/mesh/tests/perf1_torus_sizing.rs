@@ -34,6 +34,7 @@
 use crate::common::{axis_y, eps, sampled_deviation, validated};
 use core::f64::consts::{FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
+use geom_core::period::Period;
 use geom_core::{Point2, Point3, Tol};
 use mesh::cert::cert_torus;
 use mesh::tessellate;
@@ -42,7 +43,6 @@ use profile::test_support::bulge_loop;
 use sweep::{Revolution, revolve};
 use topo::Body;
 use topo::chart::Chart;
-use topo::chart_iso::unwrap_near;
 
 /// The unit's minor radius; `R/r` and `δ/r` are the sweep's axes.
 const MINOR: f64 = 1.0;
@@ -60,6 +60,7 @@ fn tube(major: f64, sweep: Revolution<f64>) -> Body<f64> {
     revolve(&validated(vec![lp]), axis_y(), sweep, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The derivation's steps, re-derived: `h_u = √(4δ/((1+β)(R+r)))`,
@@ -92,12 +93,12 @@ fn triangle_uv(chart: &Chart, tri: [Point3<f64>; 3]) -> [[f64; 2]; 3] {
     [
         raw[0],
         [
-            unwrap_near(raw[1][0], raw[0][0]),
-            unwrap_near(raw[1][1], raw[0][1]),
+            Period::new(core::f64::consts::TAU).near(raw[1][0], raw[0][0]),
+            Period::new(core::f64::consts::TAU).near(raw[1][1], raw[0][1]),
         ],
         [
-            unwrap_near(raw[2][0], raw[0][0]),
-            unwrap_near(raw[2][1], raw[0][1]),
+            Period::new(core::f64::consts::TAU).near(raw[2][0], raw[0][0]),
+            Period::new(core::f64::consts::TAU).near(raw[2][1], raw[0][1]),
         ],
     ]
 }
@@ -118,8 +119,7 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
     let mut worst: f64 = 0.0;
     let mut torus_patches = 0;
     for patch in &mesh.patches {
-        let face = body.get_face(patch.face).unwrap();
-        let surface = body.get_surface(face.surface).unwrap();
+        let surface = body.face_surface(patch.face).unwrap();
         let Surface::Torus { .. } = surface else {
             continue;
         };
@@ -193,9 +193,7 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
         for hek in [edge.he_plus, edge.he_minus] {
             let lp = body.get_half_edge(hek).unwrap().parent_loop;
             let fk = body.get_loop(lp).unwrap().face;
-            let surface = body
-                .get_surface(body.get_face(fk).unwrap().surface)
-                .unwrap();
+            let surface = body.face_surface(fk).unwrap();
             if let Surface::Torus { axis: taxis, .. } = *surface {
                 on_torus = Some(taxis);
             }

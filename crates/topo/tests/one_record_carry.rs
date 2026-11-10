@@ -23,7 +23,7 @@ fn band() -> Band {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    common::finished(what, common::brick(x, y, z, tol()), tol())
+    common::finished(what, common::brick::<f64>(x, y, z, tol()), tol())
 }
 
 fn union_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
@@ -188,10 +188,7 @@ fn a_split_across_a_resting_ridge_lands_its_minted_vertex_on_the_minted_chord() 
 /// The vertex of `body` at `p`.
 fn vertex_at(body: &topo::Body<f64>, p: Point3<f64>) -> topo::VertexKey {
     body.vertices()
-        .find(|(_, v)| {
-            body.get_point(v.point)
-                .is_some_and(|q| q.x == p.x && q.y == p.y && q.z == p.z)
-        })
+        .find(|(_, v)| body.get_point(v.point).is_some_and(|q| q.equals_exactly(p)))
         .map(|(k, _)| k)
         .expect("a vertex there")
 }
@@ -215,9 +212,9 @@ fn a_record_lands_by_lineage_and_is_stale_only_on_a_divided_cell() {
     let far = base
         .body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                base.body.get_surface(f.surface),
+                base.body.face_surface(*fk),
                 Some(topo::Surface::Plane { origin, normal, .. })
                     if normal.x.abs() == 1.0 && origin.x == 2.0
             )
@@ -368,9 +365,9 @@ fn a_carried_record_on_cells_the_boolean_keeps_lands_unread() {
     let bottom = base
         .body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                base.body.get_surface(f.surface),
+                base.body.face_surface(*fk),
                 Some(topo::Surface::Plane { origin, normal, .. })
                     if normal.z.abs() == 1.0 && origin.z == 0.0
             )
@@ -614,9 +611,9 @@ fn a_notch_that_removes_a_recorded_overlap_consumes_it() {
 /// normal runs along that axis.
 fn face_on(body: &topo::Body<f64>, axis: usize, at: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(topo::Surface::Plane { origin, normal, .. })
                     if [normal.x, normal.y, normal.z][axis].abs() == 1.0
                         && [origin.x, origin.y, origin.z][axis] == at

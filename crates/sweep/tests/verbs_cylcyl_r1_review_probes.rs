@@ -12,6 +12,7 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
+use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
 use crate::common::differential::outcome;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
@@ -34,6 +35,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -57,137 +59,150 @@ fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
     .unwrap()
 }
 
-/// Every crossing pose this reviewer could author must refuse TYPED —
-/// and if any ever answers, the answer must not be the operand-volume
-/// sum (the D10 double-count). Varied radii, axes, heights, offsets.
-/// A pose whose answer is audited carries the volume its solids share,
-/// and an answer there is held to `differential::outcome`'s SOUND (tiers
-/// 2 and 3′, the certificate, a legal operand, the closed form): two
-/// upright cylinders whose walls cross with parallel axes, which the join
-/// splits along their rulings, share the lens of their discs over the
-/// heights they share ([`parallel_shared`]).
+/// Every crossing pose this reviewer could author must refuse TYPED at a
+/// frontier the join has not reached, or answer correctly — never the
+/// operand-volume sum (the D10 double-count). Varied radii, axes,
+/// heights, offsets. A pose marked to answer must; each answer is held to
+/// `differential::outcome`'s SOUND (tiers 2 and 3′, the certificate, a
+/// legal operand, the volume): two upright cylinders whose walls cross
+/// with parallel axes, which the join splits along their rulings, share
+/// the lens of their discs over the heights they share
+/// ([`parallel_shared`]); a pair whose axes cross is read against the
+/// sliced volume of the two solids (`common::crossed_cylinders`), the
+/// pose's own `Cylinder`s carried as its bodies are.
 #[test]
 fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
     let tol = Tol::witness();
+    let about = |axis: Vec3<f64>, angle: f64| {
+        Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle)
+    };
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let crossed_pose = |a: Cylinder, b: (Cylinder, Affine3<f64>, Vec3<f64>)| {
+        Truth::Crossed(a, b.0.under(b.1).under(Affine3::translation(b.2)))
+    };
     let poses: Vec<Audited> = vec![
         (
             "perpendicular unequal radii",
             cyl(0.0, 0.0, 2.0, -3.0, 3.0),
             moved(
-                &turned(
-                    &cyl(0.0, 0.0, 0.7, -4.0, 4.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    PI / 2.0,
-                ),
-                Vec3::new(0.0, 0.0, 0.0),
+                &turned(&cyl(0.0, 0.0, 0.7, -4.0, 4.0), x, PI / 2.0),
+                Vec3::zero(),
             ),
-            None,
+            crossed_pose(
+                Cylinder::upright(0.0, 0.0, 2.0, (-3.0, 3.0)),
+                (
+                    Cylinder::upright(0.0, 0.0, 0.7, (-4.0, 4.0)),
+                    about(x, PI / 2.0),
+                    Vec3::zero(),
+                ),
+            ),
         ),
         (
             "skew axes, crossing walls",
             cyl(0.0, 0.0, 1.0, 0.0, 6.0),
             moved(
-                &turned(
-                    &cyl(0.0, 0.0, 0.8, -5.0, 5.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    0.7,
-                ),
+                &turned(&cyl(0.0, 0.0, 0.8, -5.0, 5.0), x, 0.7),
                 Vec3::new(0.9, 0.0, 3.0),
             ),
-            None,
+            crossed_pose(
+                Cylinder::upright(0.0, 0.0, 1.0, (0.0, 6.0)),
+                (
+                    Cylinder::upright(0.0, 0.0, 0.8, (-5.0, 5.0)),
+                    about(x, 0.7),
+                    Vec3::new(0.9, 0.0, 3.0),
+                ),
+            ),
         ),
         (
             "no-edge-event lens, unequal radii",
             cyl(0.0, 0.0, 1.0, 0.0, 10.0),
             moved(
-                &turned(
-                    &cyl(0.0, 0.0, 0.6, -10.0, 10.0),
-                    Vec3::new(0.0, 1.0, 0.0),
-                    PI / 2.0,
-                ),
+                &turned(&cyl(0.0, 0.0, 0.6, -10.0, 10.0), y, PI / 2.0),
                 Vec3::new(0.0, 1.2, 5.0),
             ),
-            None,
+            crossed_pose(
+                Cylinder::upright(0.0, 0.0, 1.0, (0.0, 10.0)),
+                (
+                    Cylinder::upright(0.0, 0.0, 0.6, (-10.0, 10.0)),
+                    about(y, PI / 2.0),
+                    Vec3::new(0.0, 1.2, 5.0),
+                ),
+            ),
         ),
         (
             "parallel axes, shallow overlap",
             cyl(0.0, 0.0, 1.5, 0.0, 4.0),
             cyl(2.9, 0.0, 1.5, 1.0, 5.0),
-            parallel_shared((0.0, 1.5, (0.0, 4.0)), (2.9, 1.5, (1.0, 5.0))),
+            Truth::Parallel(
+                parallel_shared((0.0, 1.5, (0.0, 4.0)), (2.9, 1.5, (1.0, 5.0)))
+                    .expect("the walls cross"),
+            ),
         ),
         (
             "tall thin through short fat",
             cyl(0.0, 0.0, 0.2, -8.0, 8.0),
             moved(
-                &turned(
-                    &cyl(0.0, 0.0, 3.0, -1.0, 1.0),
-                    Vec3::new(0.0, 1.0, 0.0),
-                    PI / 2.0,
-                ),
-                Vec3::new(0.0, 0.0, 0.0),
+                &turned(&cyl(0.0, 0.0, 3.0, -1.0, 1.0), y, PI / 2.0),
+                Vec3::zero(),
             ),
-            None,
+            crossed_pose(
+                Cylinder::upright(0.0, 0.0, 0.2, (-8.0, 8.0)),
+                (
+                    Cylinder::upright(0.0, 0.0, 3.0, (-1.0, 1.0)),
+                    about(y, PI / 2.0),
+                    Vec3::zero(),
+                ),
+            ),
         ),
     ];
-    for (name, a, b, shared) in &poses {
+    // The poses whose every op answers: the crossed pairs the join carries
+    // and the rotational lane measures, and the parallel pair the join
+    // splits along its rulings.
+    let answering = [
+        "perpendicular unequal radii",
+        "skew axes, crossing walls",
+        "parallel axes, shallow overlap",
+    ];
+    for (name, a, b, truth) in &poses {
         let (a, b) = (
             finished(name, a.clone(), tol),
             finished(name, b.clone(), tol),
         );
         let va = topo::test_support::pinned_volume("the measured body", &a, tol).volume;
         let vb = topo::test_support::pinned_volume("the measured body", &b, tol).volume;
-        for (op_name, out) in [
-            ("union", topo::union(&a, &b, tol)),
-            ("subtract", topo::subtract(&a, &b, tol)),
-            ("intersect", topo::intersect(&a, &b, tol)),
+        for (op_name, op, out) in [
+            ("union", Op::Union, topo::union(&a, &b, tol)),
+            ("subtract", Op::Subtract, topo::subtract(&a, &b, tol)),
+            ("intersect", Op::Intersect, topo::intersect(&a, &b, tol)),
         ] {
-            if let (Some(shared), Ok(_)) = (shared, &out) {
-                let want = match op_name {
-                    "union" => va + vb - shared,
-                    "subtract" => va - shared,
-                    _ => *shared,
-                };
-                let line = outcome(out, want, tol);
-                assert!(line.starts_with("OK SOUND"), "{name}/{op_name}: {line}");
-                continue;
-            }
-            match out {
+            let want = match (truth, op) {
+                (Truth::Crossed(ca, cb), op) => crossed::volume(*ca, *cb, op),
+                (Truth::Parallel(shared), Op::Union) => va + vb - shared,
+                (Truth::Parallel(shared), Op::Subtract) => va - shared,
+                (Truth::Parallel(shared), Op::Intersect) => *shared,
+            };
+            if let Err(e) = &out
+                && !answering.contains(name)
+            {
                 // The frontier refusals are honest outcomes; an invariant
-                // is not. A marched pair the join carries reaches the
-                // result gate, whose volume lane has no arm yet for a
-                // spline-chorded wall
-                // (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`).
-                Err(e) => assert!(
+                // is not, and neither is the volume lane, which measures
+                // a spline-chorded wall now.
+                assert!(
                     matches!(
                         e.kind(),
                         BooleanErrorKind::NodeUnbuilt
                             | BooleanErrorKind::GermFrameUnsupported
                             | BooleanErrorKind::FallbackExtentUnsupported
-                    ) || matches!(&e, BooleanError::ResultInvalid { errors }
-                        if errors.iter().all(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))),
+                    ),
                     "{name}/{op_name}: refused {:?}, not a frontier refusal: {e_at}",
                     e.kind(),
                     e_at = e.render(geom_brep::recourse::Reading::Build)
-                ),
-                Ok(topo::BooleanResult::Body(body)) => {
-                    let v = topo::test_support::pinned_volume("the measured body", &body.body, tol)
-                        .volume;
-                    // The one FORBIDDEN outcome: the interpenetrating
-                    // union metered as the disjoint sum.
-                    if op_name == "union" {
-                        assert!(
-                            (v - (va + vb)).abs() > 1e-6,
-                            "{name}: union answered the DISJOINT SUM {v} for an \
-                             interpenetrating pair — the D10 wrong answer"
-                        );
-                    }
-                    panic!(
-                        "{name}/{op_name}: answered OK (volume {v}) — no join arm is \
-                         audited for this pose, so an answer here needs its own audit"
-                    );
-                }
-                Ok(other) => panic!("{name}/{op_name}: unexpected non-body result {other:?}"),
+                );
+                continue;
             }
+            let line = outcome(out, want, tol);
+            assert!(line.starts_with("OK SOUND"), "{name}/{op_name}: {line}");
         }
     }
 }
@@ -208,9 +223,18 @@ fn externally_tangent_walls_touch_at_every_op() {
     );
 }
 
-/// A pose: its name, its two operands, and the volume they share where
-/// an answer is audited ([`parallel_shared`]).
-type Audited = (&'static str, Body<f64>, Body<f64>, Option<f64>);
+/// A pose: its name, its two operands, and the truth its answers are
+/// read against.
+type Audited = (&'static str, Body<f64>, Body<f64>, Truth);
+
+/// What a pose's answers are read against.
+enum Truth {
+    /// The volume two upright cylinders with parallel axes share
+    /// ([`parallel_shared`]).
+    Parallel(f64),
+    /// The two solids, for the sliced volume of each op.
+    Crossed(Cylinder, Cylinder),
+}
 
 /// The volume two upright cylinders `(centre x, radius, z span)` share
 /// where their walls cross with parallel axes: the lens of their discs
@@ -289,12 +313,7 @@ fn off_carrier_points_are_out_at_every_probed_radius() {
     let body = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(walls.len(), 2);
@@ -337,9 +356,9 @@ fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     };
     let walls: Vec<topo::FaceKey> = below
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                below.get_surface(f.surface),
+                below.face_surface(*fk),
                 Some(geom::Surface::Cylinder { .. })
             )
         })
@@ -385,6 +404,7 @@ fn revolved_cyl(r: f64, h: f64) -> Body<f64> {
     sweep::revolve(&vp, axis, sweep::Revolution::Full, tol)
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The gate catches a crossing pose built from REVOLVE-minted
@@ -430,12 +450,7 @@ fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
     let body = revolved_cyl(1.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     let q = Point3::new(2.0_f64.cos(), 1.0, -(2.0_f64.sin()));
@@ -488,7 +503,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     // the corpus `rounded_plate` above carries.
     let pocket = finished(
         "the pocket",
-        brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        brick::<f64>((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
         tol,
     );
 
@@ -498,9 +513,9 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     // The corner round at (5, 5), by geometry rather than by key.
     let corner = plate
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                plate.get_surface(f.surface),
+                plate.face_surface(*fk),
                 Some(geom::Surface::Cylinder { origin: o, radius, .. })
                     if (*radius - 6.0).abs() < 1e-9
                         && (o.x - 6.0).abs() < 1e-9
@@ -591,6 +606,7 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The D5 trap stays closed through the PUBLIC boolean door: the

@@ -46,6 +46,7 @@ use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
+use crate::blend::arms::perp_unit;
 use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
@@ -100,9 +101,8 @@ impl<T: Decide + Bounds> EndCut<T> {
     /// **Plan one cut-off end** of the band over `crease` between
     /// `face_a` and `face_b`, whose trimlines on those faces pass
     /// through `q_a` and `q_b` along `along`; `section` is what the
-    /// battery read the band's section to be, and `spine` a cylinder
-    /// band's spine point (still to be carried to the end face) and
-    /// radius.
+    /// battery read the band's section to be, and `band` the band's
+    /// surface, whose spine a round section is placed about.
     ///
     /// Every point is a stored trimline or spine point carried along
     /// `along` to the stored end plane; nothing is sampled. `along` is
@@ -130,20 +130,17 @@ impl<T: Decide + Bounds> EndCut<T> {
         (q_a, q_b): (Point3<T>, Point3<T>),
         along: Vec3<T>,
         section: EndSection<T>,
-        spine: Option<(Point3<T>, T)>,
+        band: &Surface<T>,
     ) -> Result<Self, BlendError> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let stored = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .ok_or_else(|| {
-                unresolved(
-                    EntityId::Face(face),
-                    "a cut-off's end face's stored surface",
-                )
-            })?;
+        let stored = body.face_surface(face).ok_or_else(|| {
+            unresolved(
+                EntityId::Face(face),
+                "a cut-off's end face's stored surface",
+            )
+        })?;
         let Surface::Plane {
             origin: po,
             normal: n,
@@ -187,15 +184,32 @@ impl<T: Decide + Bounds> EndCut<T> {
                 placed
             }))
         };
+        let spine = match *band {
+            Surface::Cylinder {
+                origin,
+                radius,
+                u_ref,
+                ..
+            } => Some((origin, radius, u_ref)),
+            _ => None,
+        };
         let curve = match (section, spine) {
             (EndSection::Chord, _) => EndCurve::Chord,
-            (EndSection::Circle, Some((spine, radius))) => {
+            (EndSection::Circle, Some((spine, radius, u_ref))) => {
                 let center = carry(spine);
-                let circle =
-                    Curve3::circle(center, n.normalize(), radius, (foot_a - center).normalize());
+                // The band's own seam reference points at `face_a`'s
+                // trimline (`arms`), so laid into the cap it points at
+                // `foot_a`.
+                let n = n.normalize();
+                let u_ref = perp_unit(u_ref, n);
+                debug_assert!(
+                    (foot_a - center).dot(u_ref).lo() > 0.0,
+                    "the band's seam reference points at face_a's foot"
+                );
+                let circle = Curve3::circle(center, n, radius, u_ref);
                 round(Some(circle), center)?
             }
-            (EndSection::Ellipse(ellipse), Some((spine, _))) => {
+            (EndSection::Ellipse(ellipse), Some((spine, ..))) => {
                 let center = carry(spine);
                 let origin = Point3::new(T::zero(), T::zero(), T::zero());
                 round(ellipse.translated(center - origin), center)?
@@ -438,7 +452,7 @@ impl<T: Bounds> SectionFrame<T> {
     }
 }
 
-impl<T: Bounds> CapSliver<T> {
+impl<T: Decide + Bounds> CapSliver<T> {
     /// **How clear one end-face edge is of the sliver**: the `carrier`
     /// over `window` misses `Ω` when this is positive. `None` for a
     /// carrier with no closed form ([`piece_distance`]).
@@ -454,7 +468,7 @@ impl<T: Bounds> CapSliver<T> {
     pub(in crate::blend) fn clearance(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
         let whole = self.whole_clearance(carrier, window)?;
         Some(match carrier.as_line() {
-            Some(geom::Line { origin, dir }) => whole.max(self.line_clearance(origin, dir, window)),
+            Some(line) => whole.max(self.line_clearance(line, window)),
             None => whole,
         })
     }
@@ -509,20 +523,31 @@ impl<T: Bounds> CapSliver<T> {
     /// line meets the end curve at most twice, so a segment that meets
     /// `S` has an end in it. The rest of the candidates buy carves, and
     /// only a unit test against a sampled least can see one go missing.
-    fn line_clearance(&self, origin: Point3<T>, dir: Vec3<T>, (ta, tb): (T, T)) -> T {
+    fn line_clearance(&self, line: geom::Line<T>, (ta, tb): (T, T)) -> T {
         let zero = T::zero();
         let one = T::one();
-        let pa = origin + dir * ta;
-        let chord = origin + dir * tb - pa;
-        // An edge has positive length, so `len` is no divisor of zero.
+        let pa = line.at(ta);
+        let chord = line.at(tb) - pa;
+        // The chord is not the zero vector: the window is a certified
+        // edge's, decided forward at certification, and certification
+        // refuses a line carrier whose `dir` is the zero vector
+        // (`EdgeCurve::certify`'s Line arm), so a surgery-minted line of
+        // zero direction cannot reach this reading. That is all it
+        // decides: a chord shorter than the format's squares reach
+        // (about 1e-154 m at `f64`) still reads `len` as zero here, as
+        // any plain norm does.
         let len = chord.norm();
         let e = chord * (one / len);
         let q0 = pa - self.center;
         // `‖q‖² = (s + b)² + d2`, `d2` read off the foot's own offset
         // as [`piece_distance`] reads it, which does not cancel far
         // from `center` as `q0·q0 − b²` does.
-        let b = q0.dot(e);
-        let d2 = (q0 - e * b).norm().powi(2);
+        let (b, rho) = geom::Line {
+            origin: self.center,
+            dir: e,
+        }
+        .height_and_distance(pa);
+        let d2 = rho.powi(2);
         let minor = self.inside.map(|s| s.minor());
         // Each floor as `a + k·s`.
         let affine = || {
@@ -609,7 +634,7 @@ impl<T: Bounds> CapSliver<T> {
 /// semi-axis, which holds it, and the disc of its minor, which it holds.
 /// Two segments are read by each one's line: two segments that do not
 /// meet always leave one of them wholly on one side of the other's line.
-fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
+fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| {
         c.conic()
             .map(|k| (k.frame().origin, k.speed_hi(), k.speed_lo()))
@@ -836,7 +861,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         ];
         // The end curve's centre, and on a round end the section's frame.
         let (center, round) = match curve {
-            EndCurve::Chord => (foot_a + (foot_b - foot_a) * T::from_f64(0.5), None),
+            EndCurve::Chord => (foot_a.mid(foot_b), None),
             EndCurve::Round(arc) => {
                 // The frame with the major semi-axis first
                 // (`Curve3::major_frame`).
@@ -1076,15 +1101,14 @@ fn rim_piece<T: Decide + Bounds>(
     vertex: VertexKey,
     foot: Point3<T>,
 ) -> Result<Piece<'_, T>, BlendError> {
-    let he_plus = body
-        .get_edge(rim)
-        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
-        .he_plus;
+    let (start, end) = body
+        .edge_vertices(rim)
+        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?;
     let (carrier, (t0, t1)) = stored_piece(body, rim)?;
     let t = foot_param(body, rim, vertex, foot)?;
-    if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
+    if start == vertex {
         Ok((carrier, (t0, t)))
-    } else if body.half_edge_end(he_plus) == Some(vertex) {
+    } else if end == vertex {
         Ok((carrier, (t, t1)))
     } else {
         Err(disagrees(
@@ -1323,11 +1347,18 @@ mod tests {
             let dir = Vec3::new(b.0 - a.0, b.1 - a.1, 0.0);
             let iv = Interval::from_f64;
             (
-                self.sliver::<f64>()
-                    .line_clearance(at(a.0, a.1), dir, (0.0, 1.0)),
+                self.sliver::<f64>().line_clearance(
+                    geom::Line {
+                        origin: at(a.0, a.1),
+                        dir,
+                    },
+                    (0.0, 1.0),
+                ),
                 self.sliver::<Interval>().line_clearance(
-                    Point3::new(iv(a.0), iv(a.1), iv(0.0)),
-                    Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                    geom::Line {
+                        origin: Point3::new(iv(a.0), iv(a.1), iv(0.0)),
+                        dir: Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                    },
                     (iv(0.0), iv(1.0)),
                 ),
             )

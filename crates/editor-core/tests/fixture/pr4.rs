@@ -9,7 +9,7 @@
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
-    Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, evaluate,
+    Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName,
 };
 
 use super::{insert, len, minted, slid, step, value_slot};
@@ -31,9 +31,9 @@ use geom_core::Tol;
 /// headers); `m4_pr4_banked` pins both strategies side by side.
 fn run<T>(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
-    T: editor_core::EvalScalar,
+    T: editor_core::test_support::AnyEvaluate,
 {
-    evaluate::<T>(
+    editor_core::test_support::evaluate_any::<T>(
         doc,
         prior,
         &CancelToken::new(),
@@ -73,7 +73,7 @@ fn block(
 /// rows and scalars.
 pub fn diagnosis_corpus<T>() -> Vec<(&'static str, Resolution)>
 where
-    T: editor_core::EvalScalar,
+    T: editor_core::test_support::AnyEvaluate,
 {
     let mut out = Vec::new();
 

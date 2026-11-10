@@ -55,42 +55,64 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SWEEP_PATH_TANGENT"),
     NameCarrier::Const("SWEEP_PATH_CHORD"),
     NameCarrier::Const("SWEEP_PATH_TURN"),
+    // The loft's pinned rim is an identity over its control rows, read
+    // by `geom_brep::ladder::read_identity` under this constant's name.
+    NameCarrier::Const("LOFT_RIM_PINNED"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,
 /// as `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
     (
-        "blend/mod.rs: name",
+        "blend/mod.rs: classify: name",
         "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
          `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
     (
-        "swept.rs: name",
-        "the swept-traversal funnel, forwarding its parameter",
+        "blend/mod.rs: classify_positive: name",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
     (
-        "swept.rs: names.lines",
-        "a `CosurfaceNames` field — the line half of a caller's table",
+        "blend/mod.rs: classify_reported: name",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
     (
-        "swept.rs: names.arcs",
-        "a `CosurfaceNames` field — the arc half of the same table",
+        "loft/stacking.rs: read_identity#1(a.iter())",
+        "the loft's pinned-rim identity, whose data are named by `LOFT_RIM_PINNED`, a declared \
+         carrier",
     ),
     (
-        "revolve/axis.rs: name",
+        "revolve/axis.rs: classify_segment: name",
         "the axis clearance's funnel, naming the closed `ClearanceDecision` it takes — its \
          names are `ClearanceDecision::ALL`'s",
     ),
     (
-        "revolve/tube.rs: name",
+        "revolve/tube.rs: build: name",
         "the tube's funnel, naming the closed `TubeDecision` it takes — its names are \
          `TubeDecision::ALL`'s",
     ),
     (
-        "revolve/turn_rows.rs: name",
+        "revolve/turn_rows.rs: old_decide: name",
         "the tube's old funnel, kept as the agreement test's oracle, naming the closed \
          `TubeDecision` it takes",
+    ),
+    (
+        "swept.rs: cosurface: names.arcs()",
+        "a `CosurfaceNames` field — the arc half of the same table",
+    ),
+    (
+        "swept.rs: cosurface: names.lines()",
+        "a `CosurfaceNames` field — the line half of a caller's table",
+    ),
+    (
+        "swept.rs: decide: name",
+        "the swept-traversal funnel, forwarding its parameter",
+    ),
+    (
+        "swept.rs: decide_reported: name",
+        "the swept-traversal funnel, forwarding its parameter",
     ),
 ];
 
@@ -163,6 +185,18 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     (
         BlendDecision::MaterialSide,
         sweep::blend::FILLET3_CHAIN_RECOURSE,
+    ),
+    (
+        BlendDecision::KnifeEnd,
+        sweep::blend::FILLET3_KNIFE_END_RECOURSE,
+    ),
+    (
+        BlendDecision::KnifeRoom,
+        sweep::blend::FILLET3_KNIFE_RECOURSE,
+    ),
+    (
+        BlendDecision::BallRoom,
+        sweep::blend::FILLET3_BALL_ROOM_RECOURSE,
     ),
     (
         BlendDecision::RingClearance,
@@ -392,11 +426,13 @@ const NO_TOLERANCE: &[BlendDecision] = &[
 ];
 
 /// The decisions that pass on a negative sign as well as a positive one:
-/// the convexity sign on either side, the material side either way, and
-/// the contact edge's second-order separation on any definite sign.
+/// the convexity sign on either side, the material side either way, a
+/// knife's end either way (a cusp or a slit), and the contact edge's
+/// second-order separation on any definite sign.
 const TWO_SIDED: &[BlendDecision] = &[
     BlendDecision::ConvexitySign,
     BlendDecision::MaterialSide,
+    BlendDecision::KnifeEnd,
     BlendDecision::ContactSecondOrder,
 ];
 
@@ -567,30 +603,18 @@ fn the_material_side_offer_names_the_margin_it_carries() {
 /// A name built somewhere other than the call — a const, a struct
 /// field, a `concat!` — is exactly the name a census misses, and two
 /// hand-rolled readers were defeated that way before the shared one
-/// existed. So the reader reports rather than skips, and each kind of
-/// report is a red row here: an indirect site whose carrier nobody has
-/// declared, a spelling it cannot parse, and a file it does not walk.
+/// existed. So the reader reports rather than skips, and the checks
+/// every roster makes of what it reports are one harness
+/// (`test_utils::source::roster_violations`): an indirect site not
+/// declared in INDIRECT, a const site whose const is not a carrier, a
+/// stale carrier, a spelling it cannot parse, and a file it does not
+/// walk.
 #[test]
 fn nothing_in_src_is_invisible_to_the_reader() {
-    let census = census();
-    let declared: BTreeSet<String> = INDIRECT.iter().map(|(site, _)| site.to_string()).collect();
-    assert_eq!(
-        census.indirect, declared,
-        "the funnel calls whose name the reader cannot read at the site are not the ones \
-         declared in INDIRECT"
-    );
-    assert!(
-        census.unreadable.is_empty(),
-        "a `decide*` call is spelled in a way the reader cannot parse, so the gate it names \
-         is outside the roster: {:?}",
-        census.unreadable
-    );
-    assert!(
-        census.unwalked.is_empty(),
-        "an `include!` or `#[path]` pulls source into this crate from a file the reader does \
-         not walk, so a gate there is outside the roster: {:?}",
-        census.unwalked
-    );
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let violations =
+        test_utils::source::roster_violations(&src, &census(), CARRIERS, Some(INDIRECT));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 /// **`split_edge`'s in-band interiority reads whole through the blend's
@@ -607,7 +631,7 @@ fn the_split_param_escalation_reads_whole_through_the_blend_door() {
         site: "meridian split",
         source: Box::new(topo::EulerOpError::SplitParamEscalated {
             edge: topo::EdgeKey::default(),
-            diag: escalation(Some("split_edge_param_interior")),
+            diag: escalation(Some("curve_pair_span_end_chord")),
         }),
     }
     .render(geom_brep::recourse::Reading::Build);

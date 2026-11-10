@@ -101,7 +101,10 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// The axial/radial decomposition `(h, w)` of `p` relative to an anchor
 /// point and unit axis: `q = p − anchor`, `h = q·axis`,
 /// `w = q − axis·h`. Shared by every axisymmetric form below (fixed
-/// order, D9).
+/// order, D9). The forms' running twins ([`conic_cone_residual`] and
+/// its siblings) repeat this order term for term to stay bit-identical
+/// to it, so it is not [`geom::Line::param_and_offset`], whose division
+/// by `|axis|²` the twins do not carry.
 pub(crate) fn axial_radial<T: Real>(
     p: Point3<T>,
     anchor: Point3<T>,
@@ -109,8 +112,7 @@ pub(crate) fn axial_radial<T: Real>(
 ) -> (T, Vec3<T>) {
     let q = p - anchor;
     let h = q.dot(axis);
-    let w = q - axis * h;
-    (h, w)
+    (h, q - axis * h)
 }
 
 /// **A point's elevation off a cone, in metres** — the cone's residual
@@ -134,12 +136,15 @@ pub(crate) fn axial_radial<T: Real>(
 /// LOWER bound on the distance `√(ρ² + s²)` (Cauchy–Schwarz), which is
 /// all a carrier verdict needs: definitely off stays definitely off.
 pub fn cone_elevation<T: Real>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     half_angle: T,
     nappe: Option<crate::Nappe>,
     p: Point3<T>,
 ) -> T {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let (s_a, c_a) = half_angle.sin_cos();
     let (h, w) = axial_radial(p, apex, axis);
     let s = match nappe {
@@ -166,7 +171,7 @@ pub fn cone_offset<T: Real>(rho: T, s: T, sin_a: T, cos_a: T) -> T {
 pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let two = T::from_f64(2.0);
     match *s {
-        Surface::Plane { origin, normal, .. } => (p - origin).dot(normal),
+        Surface::Plane { origin, normal, .. } => geom::plane_offset(origin, normal, p),
         Surface::Sphere { center, radius, .. } => {
             let d2 = (p - center).norm_squared();
             (d2 - radius.powi(2)) / (two * radius)
@@ -185,7 +190,15 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             axis,
             half_angle,
             ..
-        } => cone_elevation(apex, axis, half_angle, None, p),
+        } => cone_elevation(
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+            None,
+            p,
+        ),
         Surface::Torus {
             center,
             axis,
@@ -251,7 +264,7 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             let (h, w) = axial_radial(p, apex, axis);
             // w/ρ poisons on the axis (0/0) — including the apex, where
             // no tangent plane exists (honest, per the module docs).
-            let w_hat = w / w.norm();
+            let w_hat = w.normalize();
             w_hat * c_a - axis * s_a.copysign(h)
         }
         Surface::Torus {
@@ -269,8 +282,7 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
             ..
         } => {
             let (h, w) = axial_radial(p, center, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             (w_hat * (rho - major_radius) + axis * h) / minor_radius
         }
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
@@ -470,8 +482,7 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         } => {
             let (_, c_a) = half_angle.sin_cos();
             let (_, w) = axial_radial(p, apex, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             let d_ax = d.dot(axis);
             let d_w = d.dot(w_hat);
             (d.norm_squared() - d_ax.powi(2) - d_w.powi(2)) * c_a / rho
@@ -493,8 +504,7 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
             ..
         } => {
             let (_, w) = axial_radial(p, center, axis);
-            let rho = w.norm();
-            let w_hat = w / rho;
+            let (w_hat, rho) = w.direction_and_length();
             let d_ax = d.dot(axis);
             let d_w = d.dot(w_hat);
             let d_perp2 = d.norm_squared() - d_ax.powi(2) - d_w.powi(2);
@@ -609,7 +619,7 @@ pub(crate) fn implicit_restricted_trace<T: Real>(
 /// Poison in, poison out (singular points, `Nurbs`).
 pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     let g = implicit_gradient(s, p);
-    let n_hat = g / g.norm();
+    let n_hat = g.normalize();
     let [
         Vec3 {
             x: hxx,
@@ -680,7 +690,9 @@ pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 /// `(aa − bb)/2`, to the sum beside it that dominates it. To first order
 /// the ceiling is off by well under `32u`, and `64u` doubles that for
 /// the second-order terms. A ROUNDING estimate, as
-/// [`geom_core::SHORT_CHAIN_ULPS`] is.
+/// [`geom_core::SHORT_CHAIN_ULPS`] is. The torus's floor ([`ring_floor`],
+/// four operations from the radii, each off by `u` relative) is divided
+/// by it.
 const CEILING_PAD: f64 = 1.0 + 64.0 * geom_core::UNIT_ROUNDOFF;
 
 /// `|F″|` over the whole carrier for a harmonic residual: the true
@@ -706,6 +718,16 @@ fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
 /// to, never `(|C₀| + D)²`: a point a kilometre out against a
 /// micrometre ball rounds its coordinates at a kilometre's ulp, but
 /// squares only the micrometre offset.
+///
+/// **The point is summed from the conic's stored terms**, its centre and
+/// semi-axes, so it rounds at their scale, not the point's: a section
+/// ellipse centred megametres out sums an in-box point from megametre
+/// terms. That is a carrier's stored terms amplifying, which the run's
+/// admission rule (`geom_core::tolerance::admissible`) does not cover,
+/// and is charged here until
+/// `work/oneround/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`
+/// evaluates the point from its vertex. The share over in-box
+/// coordinates is not separated out of it.
 fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
     let two = T::from_f64(2.0);
     let a = conic.speed_hi();
@@ -1063,10 +1085,16 @@ pub struct ConicHarmonics<T> {
     pub s2: T,
     /// A bound on every magnitude the coefficients are built from (m²,
     /// before the division by [`Self::per`]), the rounding of the
-    /// projection included: `(|C₀ − o| + max(|a|, |b|))² + r²` — the
-    /// scale their rounding is charged against, read at the semi-axes'
-    /// MAGNITUDES (a signed or ordered read under-charges a negative
-    /// `semi_u`, or a `semi_v` stored larger).
+    /// projection included: `(|C₀ − o| + max(|a|, |b|))² + r²` on a sphere
+    /// or a wall, and on a cone `cos²α·ρ·(ρ + λ_ρ) + sin²α·h·(h + λ_h)`,
+    /// `ρ = |⊥(C₀ − o)| + ρ̃` and `h = |(C₀ − o)·â| + h̃` (`ρ̃`, `h̃` the
+    /// sups of the carrier's radial and axial harmonics), each part of
+    /// its form at its own factor, and `λ_ρ`, `λ_h` the levers its
+    /// projections' rounding enters at (the magnitudes `d·â`, `u·â`,
+    /// `v·â`, `⊥d` and `n × u` are formed at, read per component) — the
+    /// scale their rounding is charged against, read at
+    /// the semi-axes' MAGNITUDES (a signed or ordered read under-charges a
+    /// negative `semi_u`, or a `semi_v` stored larger).
     pub terms: T,
     /// The length the m² form is divided by to give the polynomial:
     /// `2r` on a sphere or a wall, the carrier's reach from the apex on
@@ -1113,10 +1141,13 @@ fn quadric_harmonics<T: Real>(
 #[must_use]
 pub fn conic_cylinder_harmonics<T: Real>(
     conic: &dyn Conic<T>,
-    origin: Point3<T>,
-    w_axis: Vec3<T>,
+    wall: geom::Line<T>,
     w_radius: T,
 ) -> ConicHarmonics<T> {
+    let geom::Line {
+        origin,
+        dir: w_axis,
+    } = wall;
     // Named binding so the interval-square tripwire's grep does not
     // false-positive on `a * a.dot(x)` (vector × projection
     // coefficient, not a scalar square) — the blend.rs precedent.
@@ -1158,10 +1189,13 @@ pub fn conic_sphere_harmonics<T: Real>(
 #[must_use]
 pub fn conic_cone_harmonics<T: Real>(
     conic: &dyn Conic<T>,
-    apex: Point3<T>,
-    c_axis: Vec3<T>,
+    cone: geom::Line<T>,
     half_angle: T,
 ) -> ConicHarmonics<T> {
+    let geom::Line {
+        origin: apex,
+        dir: c_axis,
+    } = cone;
     let two = T::from_f64(2.0);
     let half = T::from_f64(0.5);
     let (sin_a, cos_a) = half_angle.sin_cos();
@@ -1195,14 +1229,60 @@ pub fn conic_cone_harmonics<T: Real>(
     let reach_m = d.norm() + conic.speed_hi();
     let pad = T::from_f64(CEILING_PAD);
     let per = reach_m * pad;
-    let terms = reach_m.powi(2);
+    // The form's coefficients are `cos²α` times the wall's, built from
+    // magnitudes up to the carrier's reach from the axis, less `sin²α`
+    // times the height's, up to its reach along it (each part's centre
+    // plus its harmonic's sup): each weighted by its own factor, so a
+    // wide cone's tiny `cos²α` charges its large radial terms only that
+    // much, and a circle across the axis charges no radial reach to its
+    // height.
+    let radial_reach = e.norm() + crate::harmonic::harmonic_sup(up * a, vp * b);
+    let axial_reach = h0.abs() + harmonic_sup_scalar(hu, hv);
+    // Each part also carries the rounding of the projections it is read
+    // from, which is not relative to the part: `d·â`, `u·â` and `v·â`
+    // round at the scale of their products' magnitudes however small
+    // the dot comes out, and `⊥d` at `|d|`'s, `v = n × u` at its own
+    // products'. Each error enters a coefficient times the part's other
+    // factor, so it is charged as the part's reach times its lever —
+    // the magnitudes the error is formed at, read per component so an
+    // axis-aligned pose (whose dots are exact) is charged nothing: a
+    // needle cone's section far from its apex has a radial reach a
+    // sliver of `|d|`, and a wide cone's section a height a sliver of
+    // its radius.
+    let abs_dot =
+        |x: Vec3<T>, y: Vec3<T>| (x.x * y.x).abs() + (x.y * y.y).abs() + (x.z * y.z).abs();
+    let (n, uu_ref) = (conic.frame().axis, conic.frame().u_ref);
+    let v_abs = Vec3::new(
+        (n.y * uu_ref.z).abs() + (n.z * uu_ref.y).abs(),
+        (n.z * uu_ref.x).abs() + (n.x * uu_ref.z).abs(),
+        (n.x * uu_ref.y).abs() + (n.y * uu_ref.x).abs(),
+    );
+    let (d_dot, u_dot, v_dot) = (
+        abs_dot(d, c_axis),
+        abs_dot(u, c_axis),
+        abs_dot(v_abs, c_axis),
+    );
+    let (a_m, b_m) = (a.abs(), b.abs());
+    let radial_lever = d.norm()
+        + T::from_f64(5.0) * d_dot
+        + T::from_f64(4.0) * a_m * u_dot
+        + b_m * (two * v_abs.norm() + T::from_f64(6.0) * v_dot);
+    let axial_lever = two * d_dot + T::from_f64(3.0) * a_m * u_dot + T::from_f64(5.0) * b_m * v_dot;
+    let terms = cc * radial_reach * (radial_reach + radial_lever)
+        + ss * axial_reach * (axial_reach + axial_lever);
+    #[cfg(test)]
+    let terms = if crate::pcurve_cache::mutants::cone_terms_unprojected() {
+        cc * radial_reach.powi(2) + ss * axial_reach.powi(2)
+    } else {
+        terms
+    };
     let form = |k: usize| (cc * wall[k] - ss * height[k]) / per;
     // `|q|²`'s least value, from its own harmonics, less their rounding.
     let (uu, vv) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
     let near_sq = d.norm_squared() + (uu + vv) * half
         - harmonic_sup_scalar(two * a * d.dot(u), two * b * d.dot(v))
         - harmonic_sup_scalar((uu - vv) * half, a * b * u.dot(v))
-        - rounding_charge(terms);
+        - rounding_charge(reach_m.powi(2));
     let near = near_sq.max(T::zero()).sqrt();
     ConicHarmonics {
         c0: form(0),
@@ -1214,6 +1294,135 @@ pub fn conic_cone_harmonics<T: Real>(
         per,
         floor: sin_a.min(cos_a) * near / per,
     }
+}
+
+/// **A bound on a conic's chart form `|f|` over its whole turn**, in the
+/// form's own units, which the projected row converts to metres
+/// (`pcurve_cache::projected::Meters`): on a sphere or a wall
+/// `|⊥(p − o)|² − r²` (m²), on a cone `cos²α·|⊥q|² − sin²α·(q·â)²` (m²),
+/// on a torus `F` (m⁴, [`ConicTorusHarmonics`]). It is the family's own
+/// harmonics ([`conic_sphere_harmonics`], [`conic_cylinder_harmonics`],
+/// [`conic_cone_harmonics`], [`conic_torus_harmonics`]), each pair read
+/// at its exact sup ([`FormSup::harmonics`]), plus the rounding their
+/// coefficients carry ([`FormSup::rounding`]: [`rounding_charge`] of
+/// their terms, charged twice on the quadrics, whose polynomial is
+/// stored divided by [`ConicHarmonics::per`] and is multiplied back
+/// here). The charge is what makes the bound hold at `f64`: the torus's
+/// degree-four form cancels to `R⁴·ε` of its terms, which is `R²·ε/r`
+/// in metres. `None` off those four kinds.
+#[must_use]
+pub(crate) fn conic_form_sup<T: Real>(
+    surface: &Surface<T>,
+    conic: &dyn Conic<T>,
+) -> Option<FormSup<T>> {
+    let quadric = |h: ConicHarmonics<T>| FormSup {
+        harmonics: (h.c0.abs() + harmonic_sup_scalar(h.c1, h.s1) + harmonic_sup_scalar(h.c2, h.s2))
+            * h.per,
+        rounding: T::from_f64(2.0) * rounding_charge(h.terms),
+    };
+    Some(match *surface {
+        Surface::Sphere { center, radius, .. } => {
+            quadric(conic_sphere_harmonics(conic, center, radius))
+        }
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => quadric(conic_cylinder_harmonics(
+            conic,
+            geom::Line { origin, dir: axis },
+            radius,
+        )),
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => quadric(conic_cone_harmonics(
+            conic,
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+        )),
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let h = conic_torus_harmonics(
+                conic,
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
+                major_radius,
+                minor_radius,
+            );
+            FormSup {
+                harmonics: (1..5).fold(h.cos[0].abs(), |sum, k| {
+                    sum + harmonic_sup_scalar(h.cos[k], h.sin[k])
+                }),
+                rounding: rounding_charge(h.terms),
+            }
+        }
+        Surface::Plane { .. }
+        | Surface::Spindle { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => {
+            return None;
+        }
+    })
+}
+
+/// [`conic_form_sup`]'s answer: `|f| ≤ harmonics + rounding` over the
+/// whole turn.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FormSup<T> {
+    /// The computed polynomial's bound, its harmonics at their sups.
+    pub(crate) harmonics: T,
+    /// The computed coefficients' distance from the exact ones, charged.
+    pub(crate) rounding: T,
+}
+
+impl<T: Real> FormSup<T> {
+    /// `harmonics + rounding`.
+    pub(crate) fn bound(self) -> T {
+        self.harmonics + self.rounding
+    }
+}
+
+/// **A floor on a conic's distance from the axis `(origin, axis)`** over
+/// its whole turn: `|⊥(C(θ) − o)|²` is a trigonometric polynomial of
+/// degree two, at least its constant less its two harmonics' sups and
+/// the rounding their coefficients carry, floored at `0` before the
+/// root. `axis` unit, unchecked.
+#[must_use]
+pub(crate) fn conic_axis_distance_floor<T: Real>(conic: &dyn Conic<T>, axis: geom::Line<T>) -> T {
+    let geom::Line { origin, dir: axis } = axis;
+    let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
+    let (a, b) = conic.semi_axes();
+    let perp = |x: Vec3<T>| {
+        let along = axis.dot(x);
+        x - axis * along
+    };
+    let d = conic.frame().origin - origin;
+    let (e, up, vp) = (
+        perp(d),
+        perp(conic.frame().u_ref),
+        perp(conic.frame().v_ref()),
+    );
+    let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
+    let terms = (d.norm() + conic.speed_hi()).powi(2);
+    let near_sq = e.norm_squared() + (aa + bb) * half
+        - harmonic_sup_scalar(two * a * e.dot(up), two * b * e.dot(vp))
+        - harmonic_sup_scalar((aa - bb) * half, a * b * up.dot(vp))
+        - rounding_charge(terms);
+    near_sq.max(T::zero()).sqrt()
 }
 
 /// The conic's running point at `theta` ([`Conic::running_point`]) less
@@ -1238,11 +1447,14 @@ fn running_offset<T: Real>(
 #[must_use]
 pub fn conic_cone_residual<T: Real>(
     conic: &dyn Conic<T>,
-    apex: Point3<T>,
-    c_axis: Vec3<T>,
+    cone: geom::Line<T>,
     half_angle: T,
     theta: T,
 ) -> Rounded<T> {
+    let geom::Line {
+        origin: apex,
+        dir: c_axis,
+    } = cone;
     use geom_core::running::{dot, exact_vec};
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let transcendental = |x: T| Rounded {
@@ -1283,8 +1495,8 @@ pub fn conic_cone_residual<T: Real>(
 ///
 /// `F = 2r·res·Q` with `res` the torus's [`implicit_residual`] and
 /// `Q = (ρ + R)² + h² − r²` (`ρ` the distance from the axis), so
-/// `|F|` per metre of residual is at least [`Self::f_per_metre_lo`]
-/// everywhere, at most [`Self::f_per_metre_hi`] along the carrier, and at
+/// `|F|` per metre of residual is at least [`ring_floor`] everywhere on a
+/// ring, at most [`Self::f_per_metre_hi`] along the carrier, and at
 /// most [`Self::f_per_metre_surface`] within `r` of the surface.
 #[derive(Debug, Clone, Copy)]
 pub struct ConicTorusHarmonics<T> {
@@ -1294,12 +1506,27 @@ pub struct ConicTorusHarmonics<T> {
     pub sin: [T; 5],
     /// A bound on every magnitude the coefficients are built from (m⁴),
     /// the scale their rounding is charged against
-    /// ([`rounding_charge`]): `(|S + R² − r²|)² + 4R²(|S| + |h|²)` read
-    /// at the coefficients' magnitudes.
+    /// ([`rounding_charge`]): `|p|·(|S| + R² + r²) + 4R²(|S| + |h|²)`
+    /// read at the coefficients' magnitudes, `p = S + R² − r²`.
+    ///
+    /// `p ⊗ p` rounds at `u·|p|²`, and its inputs' rounding `δp` enters
+    /// it once, as `2|p|·δp`. `δp` is relative to `|S| + R² + r²`, not to
+    /// `|p|`: `R²` and `r²` round relative to themselves, and their
+    /// difference, on a fat torus (`r` near `R`), is far smaller. Both
+    /// are within `|p|·(|S| + R² + r²)`, since `|p| ≤ |S| + R² + r²`. On a
+    /// thin torus that is `(|S| + R² + r²)²`; on a fat one it is linear
+    /// in the radii's rounding rather than square in it.
+    ///
+    /// The bound is first order: it drops `δp ⊗ δp`, which stays below
+    /// `u·|p|·δp`'s scale only while `|p| ≳ δp`. Since `|p| ≥ R² − r²` on a
+    /// ring, that is the premise `R² − r² ≳ u(R² + r²)`. A ring the band
+    /// certifies ([`geom::RingTorus`], which every reader of the charge
+    /// against a floor holds, [`ring_floor`]) meets it: such a ring has
+    /// `R − r > ε`, so `R² − r² > ε(R + r)`. And `ε` is at least
+    /// `geom_core::tolerance::COORDINATE_FLOOR`, one unit roundoff of the
+    /// 1 km session box, so `ε(R + r)` stands within a factor of two of
+    /// `u(R + r)²` or above it for any torus the box holds.
     pub terms: T,
-    /// A floor on `|F| / |res|`: `2r(R² − r²)`, `Q`'s least value on a
-    /// ring torus.
-    pub f_per_metre_lo: T,
     /// A ceiling on `|F| / |res|` along the whole carrier:
     /// `2r(|C₀ − c| + ‖C − C₀‖ + R)²` (`(ρ + R)² + h² ≤ (|q| + R)²`), the
     /// carrier's reach `‖C − C₀‖` read off the frame AS STORED — the root
@@ -1345,15 +1572,20 @@ fn trig_product<T: Real>(a: ([T; 5], [T; 5]), b: ([T; 5], [T; 5])) -> ([T; 5], [
 /// [`ConicTorusHarmonics`] of `conic` against the torus
 /// `(t_center, t_axis, major_radius, minor_radius)`. `t_axis` unit,
 /// unchecked; the conic's frame need not be orthonormal (module docs of
-/// the struct). Total arithmetic.
+/// the struct). Total arithmetic, on any torus: the floor on `|F|` per
+/// metre, which holds only on a ring, is [`ring_floor`]'s, read off the
+/// convention's witness.
 #[must_use]
 pub fn conic_torus_harmonics<T: Real>(
     conic: &dyn Conic<T>,
-    t_center: Point3<T>,
-    t_axis: Vec3<T>,
+    torus: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
 ) -> ConicTorusHarmonics<T> {
+    let geom::Line {
+        origin: t_center,
+        dir: t_axis,
+    } = torus;
     let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
     let (a, b) = conic.semi_axes();
     let (u, v) = (conic.frame().u_ref, conic.frame().v_ref());
@@ -1391,7 +1623,10 @@ pub fn conic_torus_harmonics<T: Real>(
             .chain(s.iter())
             .fold(T::zero(), |acc, &x| acc + x.abs())
     };
-    let (s_abs, p_abs, h_abs) = (abs_sum(s.0, s.1), abs_sum(p.0, p.1), abs_sum(h.0, h.1));
+    let (s_abs, h_abs) = (abs_sum(s.0, s.1), abs_sum(h.0, h.1));
+    // `p`'s own magnitude, and the scale its inputs round at: `R² − r²`
+    // rounds relative to `R² + r²`, and enters `p ⊗ p` once.
+    let (p_abs, p_inputs) = (abs_sum(p.0, p.1), s_abs + rr + minor_radius.powi(2));
     // `max_θ |a·û cos θ + b·v̂ sin θ|²`: the Gram matrix's larger
     // eigenvalue, `(A + B)/2 + |((A − B)/2, C)|`.
     let off = a * b * u.dot(v);
@@ -1402,14 +1637,44 @@ pub fn conic_torus_harmonics<T: Real>(
     ConicTorusHarmonics {
         cos,
         sin,
-        terms: p_abs.powi(2) + four_rr * (s_abs + h_abs.powi(2)),
-        f_per_metre_lo: two * minor_radius * k,
+        terms: p_abs * p_inputs + four_rr * (s_abs + h_abs.powi(2)),
         f_per_metre_hi: two * minor_radius * reach.powi(2),
         f_per_metre_surface: two
             * minor_radius
             * (tube.powi(2) + T::from_f64(3.0) * minor_radius.powi(2))
             * pad,
     }
+}
+
+/// **The floor on `|F| / |res|` along any carrier, on a ring**:
+/// `2r(R² − r²)`, `Q`'s least value on a ring torus
+/// ([`ConicTorusHarmonics`]), formed as `2r(R − r)(R + r)` and padded
+/// down ([`CEILING_PAD`]). Each of its four operations is off by `u`
+/// relative to what it forms. `R − r` is exact once `r ≥ R/2`
+/// (Sterbenz), and below that it is off by `u` of itself, as any rounded
+/// difference of two positive lengths is. So the product's rounding is
+/// relative to `R² − r²` itself, and the padded value stands at or below
+/// the exact floor and above zero, however near `r` is to `R`. `R² − r²`
+/// formed as a difference rounds relative to `R² + r²`, and there it can
+/// stand above the true floor.
+///
+/// It takes the convention's witness ([`geom::RingTorus`]): off a ring
+/// `Q` has no positive floor, and the witness is decided against a band
+/// whose ε is at least `geom_core::tolerance::COORDINATE_FLOOR` (about
+/// 1.1e-13 m), so the product is at least `4ε³`, a normal number whose
+/// rounding is relative.
+#[must_use]
+pub fn ring_floor<T: Real>(ring: geom::RingTorus<T>) -> T {
+    ring_floor_of(ring.major_radius(), ring.minor_radius())
+}
+
+/// [`ring_floor`]'s formula on radii no witness holds: the floor rows'
+/// reading of radii the band does not certify.
+pub(crate) fn ring_floor_of<T: Real>(major_radius: T, minor_radius: T) -> T {
+    T::from_f64(2.0)
+        * minor_radius
+        * ((major_radius - minor_radius) * (major_radius + minor_radius))
+        / T::from_f64(CEILING_PAD)
 }
 
 /// The torus's [`implicit_residual`] at the [`Conic`] point of parameter
@@ -1423,13 +1688,12 @@ pub fn conic_torus_harmonics<T: Real>(
 #[must_use]
 pub fn conic_torus_residual<T: Real>(
     conic: &dyn Conic<T>,
-    t_center: Point3<T>,
-    t_axis: Vec3<T>,
+    torus: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
     theta: T,
 ) -> Rounded<T> {
-    let (rho, h) = conic_torus_split(conic, t_center, t_axis, theta);
+    let (rho, h) = conic_torus_split(conic, torus, theta);
     let d = rho - Rounded::exact(major_radius);
     let r = Rounded::exact(minor_radius);
     (d.square() + h.square() - r.square()).div_exact(T::from_f64(2.0) * minor_radius)
@@ -1445,13 +1709,12 @@ pub fn conic_torus_residual<T: Real>(
 #[must_use]
 pub fn conic_torus_implicit<T: Real>(
     conic: &dyn Conic<T>,
-    t_center: Point3<T>,
-    t_axis: Vec3<T>,
+    torus: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
     theta: T,
 ) -> Rounded<T> {
-    let (rho, h) = conic_torus_split(conic, t_center, t_axis, theta);
+    let (rho, h) = conic_torus_split(conic, torus, theta);
     let (big, r) = (Rounded::exact(major_radius), Rounded::exact(minor_radius));
     let (hh, rr) = (h.square(), r.square());
     ((rho - big).square() + hh - rr) * ((rho + big).square() + hh - rr)
@@ -1486,12 +1749,15 @@ pub fn conic_torus_implicit<T: Real>(
 #[must_use]
 pub fn conic_torus_jet<T: Real>(
     conic: &dyn Conic<T>,
-    t_center: Point3<T>,
-    t_axis: Vec3<T>,
+    torus: geom::Line<T>,
     major_radius: T,
     minor_radius: T,
     theta: T,
 ) -> [Rounded<T>; 4] {
+    let geom::Line {
+        origin: t_center,
+        dir: t_axis,
+    } = torus;
     use geom_core::running::{cross, dot, exact_vec};
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let (sin, cos) = theta.sin_cos();
@@ -1549,10 +1815,13 @@ pub fn conic_torus_jet<T: Real>(
 /// running bounds of [`conic_torus_residual`]'s chain.
 fn conic_torus_split<T: Real>(
     conic: &dyn Conic<T>,
-    t_center: Point3<T>,
-    t_axis: Vec3<T>,
+    torus: geom::Line<T>,
     theta: T,
 ) -> (Rounded<T>, Rounded<T>) {
+    let geom::Line {
+        origin: t_center,
+        dir: t_axis,
+    } = torus;
     use geom_core::running::{dot, exact_vec};
     let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
     let (sin, cos) = theta.sin_cos();
@@ -1657,7 +1926,7 @@ pub struct CircleSphereHarmonic<T> {
 impl<T: Real> CircleSphereHarmonic<T> {
     /// The constant term `c₀ = (lo + hi)/2`.
     pub fn c0(&self) -> T {
-        (self.lo + self.hi) / T::from_f64(2.0)
+        geom::mid_param(self.lo, self.hi)
     }
 
     /// The amplitude `A₁ = (hi − lo)/2 ≥ 0`.
@@ -1761,7 +2030,7 @@ fn conic_residual_harmonics<T: Real>(
             radius,
             ..
         } => (
-            conic_cylinder_harmonics(conic, origin, axis, radius),
+            conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
             radius,
         ),
         // `Approx` joins the no-closed-form group: the fit is a spline
@@ -3203,7 +3472,7 @@ mod conic_tests {
             Vec3::new(-0.441_532_65, -0.871_819_51, -0.212_084_08).normalize(),
         );
         let (big, small) = (0.267_368_886_091_117, 0.162_217_785_042_628_35);
-        let h = conic_torus_harmonics(&conic, c, ax, big, small);
+        let h = conic_torus_harmonics(&conic, geom::Line { origin: c, dir: ax }, big, small);
         let q_at = |p: Point3<f64>| {
             let q = p - c;
             let along = q.dot(ax);
@@ -3325,8 +3594,22 @@ mod conic_tests {
                 for j in 0..97 {
                     let t = TAU * f64::from(j) / 97.0 - 1.3;
                     let r = match *s {
-                        Surface::Torus { .. } => conic_torus_residual(conic, c, ax, big, small, t),
-                        Surface::Cone { .. } => conic_cone_residual(conic, apex, ax, half, t),
+                        Surface::Torus { .. } => conic_torus_residual(
+                            conic,
+                            geom::Line { origin: c, dir: ax },
+                            big,
+                            small,
+                            t,
+                        ),
+                        Surface::Cone { .. } => conic_cone_residual(
+                            conic,
+                            geom::Line {
+                                origin: apex,
+                                dir: ax,
+                            },
+                            half,
+                            t,
+                        ),
                         Surface::Sphere { radius, .. } => {
                             conic_quadric_residual(conic, (c, None, radius), t)
                         }
@@ -3395,7 +3678,7 @@ mod conic_tests {
         }));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
-                let h = conic_torus_harmonics(conic, c, ax, big, small);
+                let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
                 let noise = rounding_charge(h.terms);
                 for j in 0..64 {
                     let t = TAU * f64::from(j) / 64.0;
@@ -3424,10 +3707,10 @@ mod conic_tests {
                     if res.abs() > 1e-6 {
                         let ratio = direct.abs() / res.abs();
                         assert!(
-                            ratio >= h.f_per_metre_lo * (1.0 - 1e-9)
+                            ratio >= ring_floor_of(big, small) * (1.0 - 1e-9)
                                 && ratio <= h.f_per_metre_hi * (1.0 + 1e-9),
                             "conic {k}: |F|/|res| = {ratio} outside [{}, {}]",
-                            h.f_per_metre_lo,
+                            ring_floor_of(big, small),
                             h.f_per_metre_hi
                         );
                     }
@@ -3493,11 +3776,12 @@ mod conic_tests {
         }));
         for (k, conic) in conics.iter().map(AsRef::as_ref).enumerate() {
             for &(c, ax, big, small) in &tori {
-                let h = conic_torus_harmonics(conic, c, ax, big, small);
+                let h = conic_torus_harmonics(conic, geom::Line { origin: c, dir: ax }, big, small);
                 let noise = rounding_charge(h.terms);
                 for i in 0..64 {
                     let t = TAU * f64::from(i) / 64.0;
-                    let jet = conic_torus_jet(conic, c, ax, big, small, t);
+                    let jet =
+                        conic_torus_jet(conic, geom::Line { origin: c, dir: ax }, big, small, t);
                     for (j, got) in jet.iter().enumerate() {
                         let want = (1..5).fold(if j == 0 { h.cos[0] } else { 0.0 }, |acc, m| {
                             let mf = f64::from(m);
@@ -3534,10 +3818,12 @@ mod conic_tests {
             rho,
         );
         let (c, ax) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-        let noise = rounding_charge(conic_torus_harmonics(&graze, c, ax, big, small).terms);
+        let noise = rounding_charge(
+            conic_torus_harmonics(&graze, geom::Line { origin: c, dir: ax }, big, small).terms,
+        );
         assert!(noise > 1e-4, "the harmonics' noise at ρ = {rho}: {noise}");
         for t in [0.0, 1e-4, -2e-3] {
-            let jet = conic_torus_jet(&graze, c, ax, big, small, t);
+            let jet = conic_torus_jet(&graze, geom::Line { origin: c, dir: ax }, big, small, t);
             for (j, got) in jet.iter().enumerate() {
                 let scale = (big + small).powi(4) * rho.powi(j as i32);
                 assert!(
@@ -3633,7 +3919,7 @@ mod conic_tests {
                         axis,
                         radius,
                         ..
-                    } => conic_cylinder_harmonics(conic, origin, axis, radius),
+                    } => conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
                     _ => unreachable!(),
                 };
                 for k in 0..360 {

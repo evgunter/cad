@@ -130,7 +130,7 @@ fn joined(
 /// The cone carrier of `body`'s one cone face.
 fn cone_of(body: &Body<f64>) -> Surface<f64> {
     body.faces()
-        .filter_map(|(_, f)| body.get_surface(f.surface))
+        .filter_map(|(fk, _)| body.face_surface(fk))
         .find(|s| matches!(s, Surface::Cone { .. }))
         .expect("a cone face")
         .clone()
@@ -311,7 +311,7 @@ fn the_slabs_chords_are_its_faces_circles_on_both_sides() {
     let frustum = widening();
     let slab = finished(
         "B4's slab",
-        brick((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
+        brick::<f64>((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
         tol,
     );
     let cone = cone_of(&frustum);
@@ -463,15 +463,12 @@ fn lune_loops(
 ) -> Vec<(LuneRole, f64)> {
     let points: std::collections::HashMap<_, _> = body.vertex_points().collect();
     let mut found = Vec::new();
-    for (_, face) in body.faces() {
-        if !body
-            .get_surface(face.surface)
-            .is_some_and(|s| same_cone(s, cone))
-        {
+    for (fk, face) in body.faces() {
+        if !body.face_surface(fk).is_some_and(|s| same_cone(s, cone)) {
             continue;
         }
         let mut on_face = Vec::new();
-        for &lp in std::iter::once(&face.outer).chain(&face.rings) {
+        for (lp, _, _) in body.face(fk).expect("a live face").loops() {
             let topo::LoopBoundary::Cycle { first } = body.get_loop(lp).unwrap().boundary else {
                 on_face.push((lp, None));
                 continue;
@@ -501,10 +498,10 @@ fn lune_loops(
                     all_lune = false;
                     break;
                 }
-                let start = |h: topo::HalfEdgeKey| points[&body.get_half_edge(h).unwrap().start];
+                let (a, b) = body.edge_vertices(half.edge).unwrap();
                 let (t0, t1) = (
-                    ellipse_param(carrier, start(edge.he_plus)),
-                    ellipse_param(carrier, start(edge.he_minus)),
+                    ellipse_param(carrier, points[&a]),
+                    ellipse_param(carrier, points[&b]),
                 );
                 let sweep = (t1 - t0).rem_euclid(std::f64::consts::TAU);
                 polygon.push(points[&half.start]);
@@ -620,7 +617,7 @@ fn poses() -> [Pose; 3] {
             cone: widening(),
             other: finished(
                 "B4's slab",
-                brick((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
+                brick::<f64>((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), tol),
                 tol,
             ),
             volumes: (
@@ -819,14 +816,18 @@ fn a_parabola_or_a_hyperbola_refuses_at_the_frame_in_every_op() {
             "C2",
             finished(
                 "C2's brick",
-                brick((0.3, 6.3), (-3.0, 3.0), (-3.0, 3.0), tol),
+                brick::<f64>((0.3, 6.3), (-3.0, 3.0), (-3.0, 3.0), tol),
                 tol,
             ),
             geom_brep::OpenConic::Hyperbola,
         ),
         (
             "B1",
-            finished("B1", brick((0.6, 2.0), (0.3, 0.8), (-0.2, 0.2), tol), tol),
+            finished(
+                "B1",
+                brick::<f64>((0.6, 2.0), (0.3, 0.8), (-0.2, 0.2), tol),
+                tol,
+            ),
             geom_brep::OpenConic::Hyperbola,
         ),
         (

@@ -77,8 +77,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // the number the body stores, bit for bit. (`==`, not a
     // tolerance — that is the whole point of the retirement.)
     let mut stored: Vec<f64> = Vec::new();
-    for (_, face) in tube.faces() {
-        if let Some(Surface::Torus { minor_radius, .. }) = tube.get_surface(face.surface) {
+    for (fk, _) in tube.faces() {
+        if let Some(Surface::Torus { minor_radius, .. }) = tube.face_surface(fk) {
             stored.push(*minor_radius);
         }
     }
@@ -143,6 +143,10 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             azim: 72.0,
             up: 'z',
         },
-        bodies: vec![SceneBody::plain("tube_along_arc", [0.80, 0.68, 0.32], tube)],
+        bodies: vec![SceneBody::plain(
+            "tube_along_arc",
+            [0.80, 0.68, 0.32],
+            tube.into_body(),
+        )],
     }]
 }

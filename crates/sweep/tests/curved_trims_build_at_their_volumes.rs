@@ -82,7 +82,7 @@ fn definite_tilt() -> f64 {
 fn base() -> AtRestBody<f64> {
     finished(
         "the base",
-        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     )
 }
@@ -238,7 +238,7 @@ fn a_notched_wall_measures_in_closed_form() {
     );
     let notch = finished(
         "the notch",
-        brick((1.5, 2.5), (1.5, 2.5), (0.5, 2.5), tol()),
+        brick::<f64>((1.5, 2.5), (1.5, 2.5), (0.5, 2.5), tol()),
         tol(),
     );
     let body = body_of(
