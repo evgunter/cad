@@ -114,13 +114,16 @@
 //!    ladder's widest rung; `edge_nurbs.rs`'s per-sample lever, a
 //!    refusal's payload) or the type's own body (`interval.rs`'s
 //!    `from_certified` and span locator).
-//! 8. **A const-generic argument written with braces** (`Foo<{ N }>`)
+//! 8. **A const-generic argument written with braces** (`Foo<{ N + 1 }>`)
 //!    in a signature is read as the item's body: the walk's terminator
 //!    ([`source::item_body`]) treats `<` as no bracket, so the `{` of
-//!    `{ N }` opens the "body". No production item in the population is
-//!    spelled so today; one that is would attribute its reads to the
-//!    braces and, where its true body follows, red as unterminated or
-//!    mis-attributed.
+//!    `{ N + 1 }` opens a "body" that is balanced and closes at once.
+//!    Nothing reds — no item is unterminated — and the true body that
+//!    follows is no item's, so its reads fall to the ENCLOSING item: at
+//!    module level that is none, a false "not asking"; but inside an
+//!    outer `fn` that asks `is_certified()`, it is a false "asks", the
+//!    unsafe direction, and silent. No production item in the population
+//!    is spelled so today.
 //!
 //! # Where it lives, and why here
 //!
