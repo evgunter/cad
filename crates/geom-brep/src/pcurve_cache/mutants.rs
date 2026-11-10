@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 34] = [
+pub(super) const SITES: [&str; 35] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -59,6 +59,7 @@ pub(super) const SITES: [&str; 34] = [
     "spline-product-uncharged",
     "sampled-line-incidence",
     "arc-rim-weight-unpaid",
+    "arc-rim-span-unpaid",
 ];
 
 fn on(site: &str) -> bool {
@@ -323,4 +324,11 @@ pub(crate) fn cone_terms_unprojected() -> bool {
 /// band (its rows are `iso_arc_weight_miss` and its search).
 pub(super) fn arc_rim_weight_unpaid() -> bool {
     on("arc-rim-weight-unpaid")
+}
+
+/// An arc rim's in-band overshoot past its image's arc left out of its
+/// envelope: the envelope misses the chord the clamped map leaves (its
+/// row is `iso_arc_weight_rows::a_span_past_the_arc_pays_its_overshoot`).
+pub(super) fn arc_rim_span_unpaid() -> bool {
+    on("arc-rim-span-unpaid")
 }

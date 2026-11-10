@@ -9,7 +9,9 @@
 //! of its dumped rows at 50 digits.
 //!
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `arc-rim-weight-unpaid`
-//! (the payment dropped), every row here and the search go red.
+//! (the payment dropped), every weight row here and the search go red;
+//! naming `arc-rim-span-unpaid` (an in-band overshoot past the arc left
+//! unpaid), the overshoot row does.
 //!
 //! The rows' wall: a circle of radius `R` about the origin in `z = 0`,
 //! and a wall of `n` uniform rational-quadratic sub-arcs of angle `h` in
@@ -154,6 +156,12 @@ impl ArcRow {
 
     /// The arc rim's certificate at `T`, at the run's band.
     pub(super) fn certify<T: Decide + Bounds>(&self) -> Verdict {
+        self.certify_to::<T>(self.angle())
+    }
+
+    /// The arc rim's certificate at `T` for an edge over `[0, end]`, the
+    /// image picked over the whole arc.
+    pub(super) fn certify_to<T: Decide + Bounds>(&self, end: f64) -> Verdict {
         let band = band();
         let f = T::from_f64;
         let (carrier, wall) = (self.carrier::<T>(), self.wall::<T>());
@@ -162,7 +170,7 @@ impl ArcRow {
             Err(e) => Verdict::NoPick(format!("{e:?}")),
             Ok(None) => Verdict::NoPick("none".into()),
             Ok(Some(image)) => {
-                match PcurveCache::certify(image, f(0.0), angle, &carrier, &wall, band) {
+                match PcurveCache::certify(image, f(0.0), f(end), &carrier, &wall, band) {
                     Ok(c) => Verdict::Certified {
                         envelope: c.certificate().envelope.hi(),
                     },
@@ -176,9 +184,13 @@ impl ArcRow {
     /// parameters and refined about the worst: a lower bound on the
     /// miss, read off the image and the wall rather than any formula.
     pub(super) fn sampled_miss(&self) -> f64 {
+        self.sampled_miss_to(self.angle())
+    }
+
+    /// The same over an edge `[0, end]`, the image picked over the arc.
+    pub(super) fn sampled_miss_to(&self, end: f64) -> f64 {
         let (carrier, wall) = (self.carrier::<f64>(), self.wall::<f64>());
-        let angle = self.angle();
-        let image: Pcurve<f64> = pick_arc_rim(&carrier, (0.0, angle), &wall, band())
+        let image: Pcurve<f64> = pick_arc_rim(&carrier, (0.0, self.angle()), &wall, band())
             .expect("pick decided")
             .expect("an arc rim");
         let miss = |t: f64| {
@@ -187,7 +199,7 @@ impl ArcRow {
         };
         const N: usize = 4000;
         #[allow(clippy::cast_precision_loss)]
-        let at = |i: usize| angle * i as f64 / N as f64;
+        let at = |i: usize| end * i as f64 / N as f64;
         let (mut best, mut arg) = (0.0_f64, 0);
         for i in 0..=N {
             let m = miss(at(i));
@@ -290,5 +302,31 @@ fn a_wide_sub_arc_pays_past_the_radius() {
         );
         assert!(env > R * d, "{deg}°: the envelope reads past the radius");
         assert_holds::<Interval>(&row, "wide sub-arc");
+    }
+}
+
+/// An edge running past its image's arc by a tenth of the band in
+/// metres reads as on the arc's end, and pays the chord the clamped map
+/// leaves there.
+#[test]
+fn a_span_past_the_arc_pays_its_overshoot() {
+    let row = ArcRow::quarter(R, [1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0]);
+    let end = row.angle() + zero() / (10.0 * R);
+    let miss = row.sampled_miss_to(end);
+    assert!(
+        miss > 1e3 * row.eval_rounding(),
+        "the edge runs off the arc: {miss:e}"
+    );
+    for (scalar, verdict) in [
+        ("f64", row.certify_to::<f64>(end)),
+        ("interval", row.certify_to::<Interval>(end)),
+    ] {
+        match verdict {
+            Verdict::Certified { envelope } => assert!(
+                envelope >= miss - row.eval_rounding(),
+                "{scalar}: envelope {envelope:e} under the overshoot's miss {miss:e}"
+            ),
+            other => panic!("{scalar}: expected a certificate, got {other:?}"),
+        }
     }
 }

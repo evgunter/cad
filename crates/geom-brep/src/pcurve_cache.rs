@@ -8215,8 +8215,12 @@ fn run_iso_arc_checks<T: Decide>(
     // `t1 ≤ at0 + angle`, each decided in metres along the arc. The
     // envelope below bounds the miss over the image's own arc, where
     // `Ĉ(g(t)) = C(t)`; off it the map clamps and the envelope holds
-    // nothing. A span inside the band of an arc end reads as on it.
+    // nothing. A span inside the band of an arc end reads as on it, and
+    // pays its overshoot: the map clamps at the arc's end, so the miss
+    // there is the chord to it, at most `R·overshoot`.
+    let mut slack_span = T::zero();
     for room in [t0 - at0, at0 + angle - t1] {
+        slack_span = slack_span.max(*radius * escape(-room));
         match decide(
             "pcurve_iso_arc_span",
             Margin::metered(room, param_rate(carrier)),
@@ -8541,7 +8545,11 @@ fn run_iso_arc_checks<T: Decide>(
         (p0.x + pd.x - cu0).abs()
     };
     let slack_affine = slack_start.max(stretch_u.to_meters(far));
-    let envelope = hull + slack_v + slack_affine + slack_knots + slack_weight;
+    #[cfg(test)]
+    if mutants::arc_rim_span_unpaid() {
+        slack_span = T::zero();
+    }
+    let envelope = hull + slack_v + slack_affine + slack_knots + slack_weight + slack_span;
     envelope_verdict(envelope, band, || PcurveCheck::Envelope)?;
 
     Ok(PcurveCertificate::closed(
