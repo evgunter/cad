@@ -1923,9 +1923,22 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         let open = cursor;
         at = open + 1;
         let arg = code[open + 1..].trim_start();
-        if let Some(names) = literal_tuple(&bare[bare.len() - arg.len()..], arg) {
+        let arg_bare = &bare[bare.len() - arg.len()..];
+        if let Some(names) = literal_tuple(arg_bare, arg) {
             out.extend(names.into_iter().map(|name| (SiteKind::Name, name)));
             continue;
+        }
+        // A group of names some of which are not literals
+        // (`[OFFSET, "row_floor"]`): its literals are names, and the group
+        // is an indirect site for the rest.
+        if arg_bare.starts_with('(') || arg_bare.starts_with('[') {
+            if let Some(close) = balanced_end(arg_bare, 0) {
+                out.extend(
+                    direct_literals(&arg[1..close])
+                        .into_iter()
+                        .map(|name| (SiteKind::Name, name)),
+                );
+            }
         }
         match first_literal(arg) {
             Some(name) => out.push((SiteKind::Name, name)),
@@ -2619,9 +2632,10 @@ mod tests {
         );
     }
 
-    /// **A tuple of plain literals at a funnel's head is its names**: a
-    /// row and its straddle row are both read, and a tuple holding
-    /// anything but literals is an indirect site.
+    /// **A tuple or array of plain literals at a funnel's head is its
+    /// names**: a row and its straddle row are both read. A group holding
+    /// anything but literals is an indirect site, and its literals are
+    /// still read.
     #[test]
     fn a_funnels_literal_tuple_is_read_as_its_names() {
         let raw = "decide_levered((\"row\", \"row_straddle\"), x, band); \
@@ -2633,7 +2647,11 @@ mod tests {
             .filter(|(kind, _)| matches!(kind, super::SiteKind::Name))
             .map(|(_, name)| name.as_str())
             .collect();
-        assert_eq!(named, ["row", "row_straddle", "gap", "gap_floor"], "{raw}");
+        assert_eq!(
+            named,
+            ["row", "row_straddle", "gap", "gap_floor", "lone"],
+            "{raw}"
+        );
         assert!(
             sites
                 .iter()

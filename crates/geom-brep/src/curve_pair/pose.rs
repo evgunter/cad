@@ -727,7 +727,7 @@ fn sense<T: Decide>(cosine: T, lever: Lever<T>, band: Band) -> Result<Sense, Mee
 }
 
 /// Whether `margin` is definitely nonzero (`row`).
-fn definite<T: Decide>(
+fn definite_as<T: Decide>(
     row: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -960,7 +960,7 @@ fn route<T: Decide>(
         Margin::levered(tilt, geom_core::Lever::unsourced(length + e + e)),
         band,
     ) == Ok(Sign::Zero)
-        || !definite(row::TILT, Margin::levered(tilt, lever), band)?;
+        || !definite_as(row::TILT, Margin::levered(tilt, lever), band)?;
     if !level {
         return Ok(Route::Crossing);
     }
@@ -998,7 +998,7 @@ fn one_line<T: Decide>(
 ) -> Result<bool, MeetFault> {
     for ((p0, p1), other) in [(a, lb), (b, la)] {
         for q in [p0, p1] {
-            if definite(row::OFFSET, Margin::of(other.distance(q)), band)? {
+            if definite_as(row::OFFSET, Margin::of(other.distance(q)), band)? {
                 return Ok(false);
             }
         }
@@ -1082,7 +1082,7 @@ fn line_line<T: Decide>(
         // Level where they can meet but apart past the band along a span:
         // a shallow corner, read as the crossing the longer span's tilt
         // decides.
-        Route::Level if definite(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
+        Route::Level if definite_as(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
         Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter { row: row::TILT })),
     }
 }
@@ -1155,7 +1155,7 @@ fn line_conic<T: Decide>(
     let c0 = (k.frame().origin - o).dot(m);
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
-    if !definite(row::SWING, Margin::of(swing), band)? {
+    if !definite_as(row::SWING, Margin::of(swing), band)? {
         return Err(MeetFault::Unsupported {
             pose: "a conic the band reads as thin as the line it lies beside",
         });
@@ -1306,7 +1306,7 @@ pub(super) fn one_curve<T: Decide>(
     f: &dyn Conic<T>,
     band: Band,
 ) -> Result<bool, MeetFault> {
-    Ok(!definite(
+    Ok(!definite_as(
         row::ONE_CURVE,
         Margin::of(one_curve_gap(e, f)),
         band,
@@ -1485,7 +1485,7 @@ fn coplanar_circles<T: Decide>(
     let w = ka.frame().origin - kb.frame().origin;
     let w = w - ka.frame().axis * w.dot(ka.frame().axis);
     let d = w.norm();
-    if !definite(row::CENTRES, Margin::norm3(w), band)? {
+    if !definite_as(row::CENTRES, Margin::norm3(w), band)? {
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
         // radii whose gap reads zero all round with the centres' are one
         // curve, which the one-curve reading has just denied.
