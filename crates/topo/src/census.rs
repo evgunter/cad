@@ -8257,24 +8257,26 @@ fn between_scan<T: Real>(
 }
 
 /// **What a recorded or shared site scans as** in [`blocked`], its touch
-/// read as `at`: a crossing, or an abort, wherever it stands; a reason
-/// that waits only where the site is read `strict` (a shared key, or a
-/// record not taken on its word), and nothing where a declaration
-/// vouches for it. No declaration vouches for an abort: a kernel defect,
-/// or two readings of one fact that disagree.
+/// read as `at`: a crossing wherever it stands; a fault that aborts
+/// (a kernel defect, or two readings of one fact that disagree)
+/// wherever it stands, since no declaration vouches for one; and a
+/// reason that waits, or a curved germ no reading here reaches
+/// ([`TouchUnread::curved_unread`]), only where the site is read
+/// `strict` (a shared key, or a record not taken on its word). Where a
+/// declaration vouches for the site, those are taken on its word: a
+/// designed curved contact is what one declares.
 fn site_scan<T: Real>(site: TouchSite, strict: bool, at: Option<Unrest<T>>) -> Option<Scan<T>> {
     match at? {
         Unrest::Crossing(at) => Some(Scan::Crossing(site, at)),
-        Unrest::Aborts(why) => {
-            if !strict {
-                use std::io::Write;
-                let name = std::thread::current().name().unwrap_or("?").to_string();
-                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(format!("/tmp/claude-0/-home-user-cad/b6e0c139-d1ac-5d9b-a208-ff9f91c2be5c/scratchpad/st2/{}.log", std::process::id())) {
-                    let _ = writeln!(f, "DECLARED_ABORT\t{name}");
-                }
-            }
-            Some(Scan::Aborts(why))
+        // A declaration vouches for a curved touch the analysis cannot
+        // read: that is what declaring a designed curved contact is for.
+        // It vouches for no fault.
+        Unrest::Aborts(why)
+            if !strict && matches!(why, Undecided::Touch(t) if t.curved_unread()) =>
+        {
+            None
         }
+        Unrest::Aborts(why) => Some(Scan::Aborts(why)),
         Unrest::Undecided(why) => strict.then_some(Scan::Undecided(why)),
     }
 }
@@ -8444,13 +8446,15 @@ mod blocked_rows {
         assert_eq!(Undecided::CurvedTouch.what(), CURVED.what(), "one sentence");
     }
 
-    /// **A site taken on a declaration's word still aborts**
-    /// ([`site_scan`]): a reading that waits is dropped there, but an
-    /// abort, which no declaration vouches for, ends the pair's reading
-    /// as it does at a site read strictly. Red against dropping every
-    /// reading a non-strict site does not decide.
+    /// **A site taken on a declaration's word still aborts on a fault**
+    /// ([`site_scan`]): a reading that waits, or a curved germ no reading
+    /// here reaches, is taken on the declaration's word, but a fault (a
+    /// kernel defect, or two readings that disagree), which no
+    /// declaration vouches for, ends the pair's reading as it does at a
+    /// site read strictly. Red against dropping every reading a
+    /// non-strict site does not decide.
     #[test]
-    fn a_declared_site_still_aborts() {
+    fn a_declared_site_still_aborts_on_a_fault() {
         let corrupt = Some(Unrest::<f64>::Aborts(Undecided::CorruptInstance));
         assert!(
             matches!(
@@ -8462,6 +8466,17 @@ mod blocked_rows {
         assert!(
             site_scan(site(), false, Some(Unrest::<f64>::Undecided(WAITS))).is_none(),
             "a reason that waits, on its word"
+        );
+        assert!(
+            site_scan(site(), false, Some(Unrest::<f64>::Aborts(CURVED))).is_none(),
+            "an unreadable curved germ, on its word: a designed curved contact"
+        );
+        assert!(
+            matches!(
+                site_scan(site(), true, Some(Unrest::<f64>::Aborts(CURVED))),
+                Some(Scan::Aborts(_))
+            ),
+            "the same, read strictly, aborts"
         );
         assert!(
             matches!(
@@ -10619,10 +10634,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     // `records_on_their_word` is the declared-only pair's reading (the
     // loop's argument says why): its records are read only for a
     // decided crossing, and a record the analysis cannot read is taken
-    // on its word, except where the reading aborts: a kernel defect or
-    // two readings of one fact that disagree, which no declaration
-    // vouches for, and which ends the pair's reading at once as anywhere
-    // else ([`blocked`]). A face-pair record is read by no analysis here: it
+    // on its word, except where the reading is a fault that aborts (a
+    // kernel defect, or two readings of one fact that disagree), which
+    // no declaration vouches for, and which ends the pair's reading at
+    // once as anywhere else ([`site_scan`]). A face-pair record is read by no analysis here: it
     // answers for its boundary's events only once confirmed, a rest,
     // and otherwise leaves them standing as findings.
     let blocks = |standing_errors: &[ValidationError],

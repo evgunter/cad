@@ -46,3 +46,10 @@ The ports:
 - `ring_path::tests::a_circle_apart_from_a_conic_misses_it_past_a_plane_meeting_in_band`: a unit circle rising to a conic's plane within the band, against a conic decided apart, through `path_parity`.
 
 **Reach**: no suite reaches a ported path. A probe on each new answer-past branch logged nothing over the topo, sweep and editor-core `ci` sets at default ε, 1e-12 and 1e-6.
+
+**Folded in from PR 6757's review.**
+- **ST1.** `census.rs`'s `TouchUnread::unrest` and `TouchUnread::scan` each matched on `refusal()`. Both now carry one reading of the touch's standing, `TouchUnread::backstop_standing` (`Kept::{Waits, Aborts}`).
+- **ST2.** A site read on a declaration's word (`site_scan`, non-strict) used to drop an `Unrest::Aborts`, taking a fault on the record's word. It now aborts on a fault: a corrupt body, readings that disagree, a normal's fault or a contradicted edge tangent.
+  - It still takes an unreadable curved germ (`TouchUnread::curved_unread`) on the declaration's word: a designed curved contact is what one declares.
+  - A probe of the declared aborts over the topo, sweep and editor-core `ci` sets at all three ε met exactly two, both `Touch(Curved(Unreadable))`. They are the sweep rows `m5_pr9_boss_union::a_touching_curved_assembly_validates_declared_and_refuses_undeclared` and `tube_rim_touch_rows::a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime`, and both went red when every declared abort was honoured. So the narrowed rule moves no suite verdict.
+  - Pinned by `census::blocked_rows::a_declared_site_still_aborts_on_a_fault`.
