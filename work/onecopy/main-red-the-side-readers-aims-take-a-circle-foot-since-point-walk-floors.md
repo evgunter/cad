@@ -41,3 +41,7 @@ without an azimuth (the row stands, and the read moves).
 
 Reproduce: `CAD_TOLERANCE_EPS=1e-9 cargo test -p sweep --features probe
 --test all -- side_reader_aims_ask_nothing::`.
+
+## Closed (2026-11-10): fixed by PR 6666
+
+PR 6666 (`onecopy/distance-homes`), commit `3cad686a`: `distance_within`'s circle arm reads the foot's place by a cosine against the half span, with no azimuth and no foot, "the side reader's aims take none again". On main `e1b1d4b9`, `CAD_TOLERANCE_EPS=1e-9 cargo test -p sweep --features probe --test all -- side_reader_aims_ask_nothing::` passes both rows, `the_aims_at_cylinder_walls_take_no_circle_foot` included. The row's claim stands unmoved: the read moved, as its second branch asked.
