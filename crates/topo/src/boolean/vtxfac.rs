@@ -438,6 +438,10 @@ pub(super) fn partner_side<T: Decide>(
             datum.side(s.end, s.end_reach, rd)?,
         ]);
     }
+    // Not `climb_agreeing`: bounds on both sides are an answer of their
+    // own (`Across`), so a side read past a bound kept in band could be
+    // that answer unread. Every bound is read above, and one in band
+    // refuses.
     let mut side = None;
     for c in codes.iter().flatten().filter(|&&c| c != SideCode::On) {
         if side.is_some_and(|k| k != *c) {

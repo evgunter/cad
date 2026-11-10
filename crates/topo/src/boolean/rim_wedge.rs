@@ -548,6 +548,9 @@ impl<T: Decide> FaceOnLocus<T> {
                     == geom_core::Sign::Positive,
             )
         };
+        // Not `climb_agreeing`: rides both ways are an answer of their own
+        // (`RidesBothWays`), so a sign read past a ride kept in band could
+        // be that answer unread. A ride in band refuses.
         let mut seen: Option<geom_core::Sign> = None;
         for &(lo, hi, sign) in &self.rides {
             for &k in wraps {
