@@ -218,8 +218,8 @@ by a kernel bug is a different kind of thing from a failure caused by
 the input, and which kind a failure is is always plain: a bug panics,
 as early as it is detectable; an input never panics and gets a typed
 error that names the failing check, the entity and the recourse; valid
-input the kernel has not built yet gets a typed `Unsupported*` refusal
-naming its blocker. These are the project conventions of [failure] and
+input the kernel has not built yet gets a typed refusal whose standing
+is `Refusal::Unbuilt`, naming its blocker. These are the project conventions of [failure] and
 [tolerance.recourse].
 
 ### The code is as simple as it can be `[simple]`
@@ -285,7 +285,7 @@ of them is a defect.
 | Which version of a document a reference means | its content pin | [assemblies.pins] |
 | Which document a held value is of | the identity it carries, never its node ids | [assemblies.pairing] |
 | A document's validity | `persist::check::validate_document`, at save and at load | [engineering] |
-| The frontier | typed `Unsupported*` refusals, grep-able from the tree | [failure] |
+| The frontier | refusals whose standing is `Refusal::Unbuilt`, grep-able from the tree | [failure] |
 
 ### One reading per question `[one-way.readings]`
 
@@ -969,8 +969,9 @@ tiers".
   exception requires.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
-message naming its own blocker ([failure.taxonomy], row 2), so the
-frontier is grep-able from the tree. Its prose inventory is
+message naming its own blocker, and its standing is `Refusal::Unbuilt`
+([failure.taxonomy], row 2), so the frontier is grep-able from the tree:
+it is every site that mints `Refusal::Unbuilt`. Its prose inventory is
 `docs/KERNEL-VERBS.md` — the "present today" paragraph, the crate
 READMEs, and the standing frontier entries (c)–(f) older citations
 name — and its schedule is the tracker.
@@ -1968,7 +1969,7 @@ swallowed.
 |---|---|---|
 | **0** | **Can this state be made unrepresentable?** — asked of every state, before the rows below | **change the type.** Preferred over every row below whenever available |
 | 1 | Reachable by input, **invalid** | typed error |
-| 2 | Reachable by input, **valid but unbuilt** | typed `Unsupported*` error |
+| 2 | Reachable by input, **valid but unbuilt** | typed error, standing `Refusal::Unbuilt` |
 | 3 | **Value-domain degeneracy** | poison — NaN / empty |
 | 4 | **Kernel bug**, observable in a branch | `unreachable!` |
 | 5 | **Kernel bug**, detectable only by re-derivation | `debug_assert` |
@@ -1992,19 +1993,27 @@ swallowed.
   subdivision driver exists (`editor_core::drive`, ERROR-DESIGN E6): a
   curable indeterminate unwinds to it and is not reported as invalid
   input.
-- *Row 2 is a naming rule.* `Unsupported*` means "valid input, the
-  kernel has not built this yet" and nothing else, which makes the
-  frontier inventory grep-able. A panicking `not_implemented!` macro is
-  rejected: these refusals are reachable by valid input and must stay
-  recoverable. Where a frontier branch genuinely cannot be reached it
-  is row 4, with a message.
+- *Row 2 is a typed standing.* Every refusal type a valid input can
+  reach states each variant's class in one exhaustive standing method
+  (a shared `Standing` trait, so a type without one does not compile
+  where refusals reach the user). Row 2 is `Refusal::Unbuilt`; `Limit`
+  is a row-1(b) limit no tolerance moves, ending on its own lever. A
+  standing reads a payload field only where that field is the cause;
+  otherwise the variant splits. Names say what happened and carry no
+  class. The frontier inventory is every site that mints
+  `Refusal::Unbuilt`: grep-able, and complete within each type by the
+  compiler. A panicking `not_implemented!` macro is rejected: these
+  refusals are reachable by valid input and must stay recoverable.
+  Where a frontier branch genuinely cannot be reached it is row 4, with
+  a message.
 - *Row 3:* poison flows through **values**, never through decisions
   ([scalars]). `sup_norm_bound` returning NaN on every poison path is the
   pattern.
 - *A site whose firing a correct kernel can reach is not a defect* but
   a precision limit the model controls (row 1, a lever and
-  `KERNEL_LIMIT_RECOURSE`) or a case not built yet (row 2,
-  `NOT_YET_ENDING`), and it takes that row's ending. A file is input, so
+  `KERNEL_LIMIT_RECOURSE`) or a case not built yet (row 2: its blocker's
+  recourse where one exists, else `NOT_YET_ENDING`), and it takes that
+  row's ending. A file is input, so
   a document check, or a check at the import door, is row 1.
 - *A load-bearing check panics in release.* A re-deriving check that
   ships, because removing it would ship a wrong result (a validate
