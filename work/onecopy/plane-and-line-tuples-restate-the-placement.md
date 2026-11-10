@@ -2,10 +2,11 @@
 id: plane-and-line-tuples-restate-the-placement
 kind: issue
 title: A plane travels as a (point, normal) tuple or pair at several doors; waits on stage 3's Plane
-status: open
+status: parked
 opened: 2026-11-03
 priority: P2
 cost: M
+blocked_on: [analytic-surfaces-spell-their-frame-field-by-field]
 ---
 
 
@@ -64,3 +65,7 @@ no `u_ref`), while `Frame` carries one. Does a seamless plane need its
 own reading (a `Plane` built from a `Frame` whose seam no reader reads,
 or a seam-free placement type)? Or do these holders read a `Frame` with
 a conventional seam?
+
+## Parked on stage 3 (2026-11-09, `onecopy/placement-holders`)
+
+Nothing here can move without the stage-3 `Plane`: every holder left is a plane, and the orchestrator ruled that no plane type lands before stage 3. Beside the listed `intersect/conic_arc.rs` tuple (`OpenConicSection::new`'s `(q, n)`), the section's own placement now holds a `geom::Frame` (`placement-holders-the-frame-sweep-found`); the tuple stays a plane's.
