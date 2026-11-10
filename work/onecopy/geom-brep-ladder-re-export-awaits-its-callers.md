@@ -30,9 +30,11 @@ spelling through the re-export (the review of PR 6701).
 ## Done when
 
 Nothing outside geom-brep's library spells `geom_brep::ladder`: every
-spelling is ported to `geom_core::ladder` (156 at filing, counted raw,
-code, test modules, `tests/`, doc links and prose alike: `crates/topo`
-153, `crates/sweep` 2, geom-brep's own integration tests 1).
+spelling is ported to `geom_core::ladder` (counted raw: code, test modules, `tests/`, doc links and prose
+alike; 156 at filing; main at `abf4562e77d` brought 3 more, in
+`crates/topo/src/face_normal.rs`, and that file was ported whole, leaving
+`crates/topo` 144, `crates/sweep` 2, geom-brep's own integration tests
+1).
 `scripts/gates/ladder-re-export-callers.sh` holds that count per crate
 and lets it only fall: it reds a new spelling, and refuses a module
 alias (`use geom_brep::ladder;`, `as`, or `ladder` in a group) that would
