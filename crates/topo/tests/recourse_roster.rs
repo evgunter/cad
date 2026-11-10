@@ -602,19 +602,10 @@ const INDIRECT: &[(&str, &str)] = &[
         "solid_contain.rs: clear_of_carrier: rows.clearance()",
         ROW_FIELD,
     ),
-    (
-        "solid_contain.rs: edge_meets: rows.edge()",
-        ROW_FIELD,
-    ),
-    (
-        "solid_contain.rs: edge_meets: rows.edge_span()",
-        ROW_FIELD,
-    ),
+    ("solid_contain.rs: edge_meets: rows.edge()", ROW_FIELD),
+    ("solid_contain.rs: edge_meets: rows.edge_span()", ROW_FIELD),
     ("solid_contain.rs: pair_as: order", FORWARDS),
-    (
-        "solid_contain.rs: ray_crossings: rows.denom()",
-        ROW_FIELD,
-    ),
+    ("solid_contain.rs: ray_crossings: rows.denom()", ROW_FIELD),
     (
         "solid_contain.rs: ray_crossings: rows.represents()",
         ROW_FIELD,
