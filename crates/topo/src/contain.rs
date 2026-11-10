@@ -1337,6 +1337,9 @@ mod tests {
         let above = diag(MarginDiag::value(5e-9));
         let below = diag(MarginDiag::value(-5e-9));
         let poisoned = diag(MarginDiag::INVALID);
+        // The wording pin: each decision's user-visible words spelled once,
+        // as literals, so a change to `placement_lever` or a decision's
+        // `lever` shows here. Every other test reads the words from those.
         const NOTE: &str = "an unreadable margin may indicate a kernel bug worth reporting";
         const NOTE_AT_REST: &str =
             "an unreadable margin may indicate a kernel or file defect worth reporting";
