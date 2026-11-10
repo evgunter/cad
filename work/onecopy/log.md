@@ -1512,3 +1512,4 @@
 - 03:05Z Ev on 6570 follow-up: "would it be sound for all of these to only guarantee that we return a witness, not the actual minimum?" → lane answers per consumer, updates the decision doc in place if yes.
 - 03:10Z 6570 answer (6757600459): a witness is sound per consumer, but not across them — census 5′ confine matches a found point to a declared contact within band, and two witnesses can be √(2z/κ) apart → keep the reproducible bisected minimum; offered Ev an optional clause. Lane tracing other distance-matching readers.
 - 03:12Z 6570 follow-up (6757638104): second distance-matching reader, the curved pierce (reduce.rs:3181, carrier_cross.rs:157 held_on). Lane idle as 6570 owner.
+- 03:20Z Merged 6701 (b83a7685; gate green at 88a23b0f, main moved only by round [ev] 6547 docs). [ev] 6702 merged main: fork-log row 255 was taken by 6547 → renumbered 256 (3845545d), body updated. T4 unblocked for ladder lane.
