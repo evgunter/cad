@@ -184,10 +184,9 @@ impl<T: Real> Period<T> {
     /// rounding of it the copy's rounding can move the margin's last bit,
     /// never its sign past the band (measured over topo, sweep,
     /// editor-core, step-import and mesh at ε 1e-9 and 1e-12: every moved
-    /// point reading is at or within rounding of such a tie).
-    /// `geom_brep::curve_pair::Span` reads its ends' sides through this
-    /// on a closed carrier, and so does `topo`'s ring lane, each with its
-    /// own meter.
+    /// point reading is at or within rounding of such a tie). A reader
+    /// takes the period from its carrier (`geom::Curve3::period`), never
+    /// one of its own, and meters the margins itself.
     pub fn span_margins(self, t: T, (lo, hi): (T, T)) -> (T, T) {
         let p = self.length;
         ((t - lo).max(hi - (t + p)), (hi - t).max((t - p) - lo))
@@ -357,8 +356,7 @@ impl<T: Decide> Period<T> {
     /// narrower than the box, part of it lies inside the span on the copy
     /// a turn away: a reader of such a box against the ends reads each
     /// side on both copies, through [`Period::span_margins`], the copy
-    /// rule's home (`geom_brep::curve_pair::Span`, "A parameter a turn
-    /// away", and `topo`'s ring lane read it).
+    /// rule's home.
     ///
     /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
     /// is not finite, or a gap no `i32` of periods names, has no copy, and

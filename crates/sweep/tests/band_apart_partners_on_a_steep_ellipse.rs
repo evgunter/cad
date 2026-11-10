@@ -152,21 +152,32 @@ fn shared(k: f64, g: f64) -> f64 {
         .sum()
 }
 
-/// Where a run that does not build may stop, by `k`. With the pair order
-/// fixed the `k = 10` pose moves on, and must then build.
+/// Where a run that does not build may stop, by `k`.
 ///
 /// - `k = 10`, past the travel order: the notch's two walls are parallel
 ///   and `24ε` apart, and their section arcs' chords differ by a few ε,
-///   so the order between the two pairs ties in band
-///   (`bool_join_nearest`;
+///   so the order between the two pairs reads in band
+///   (`bool_join_nearest`). The round is all mutual, so that order is
+///   free (`join::first_pair`: its matching is the round's in any order),
+///   and the run moves on to the finish. It stops there: the coplanar
+///   merge's pcurve span check on a merged half-edge reads in band
+///   (`pcurve_interval_forward`), an escalation at a later door, not a
+///   guess
+///   (`work/onecopy/a-steep-ellipses-band-apart-pose-stops-at-the-merges-pcurve-span.md`;
 ///   `work/sect/a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale.md`).
 /// - `k = 60`, at the travel order: `24` bands of arc do not clear the
 ///   sites' slack of `60` (`bool_join_arc_clear`).
 fn stops_where_expected(k: f64, e: &BooleanError) -> bool {
     match e {
-        BooleanError::Escalated { diag, .. } if k == 10.0 => {
-            diag.predicate == Some("bool_join_nearest")
-        }
+        BooleanError::Merge(merge) if k == 10.0 => matches!(
+            merge.error(),
+            topo::MergeCoplanarError::Pcurve {
+                source: topo::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::Escalated { cause, .. },
+                    ..
+                },
+            } if cause.predicate == Some("pcurve_interval_forward")
+        ),
         BooleanError::Escalated { diag, .. } if k == 60.0 => {
             diag.predicate == Some("bool_join_arc_clear")
         }
@@ -177,8 +188,9 @@ fn stops_where_expected(k: f64, e: &BooleanError) -> bool {
 /// **Every op on two partners `2g` apart along a steep ellipse's flank
 /// builds `SOUND` at the closed form or refuses where
 /// [`stops_where_expected`] says**, in both operand orders: at `k = 10`,
-/// where the plane distance read `4.78` bands and escalated, past the
-/// travel order; at `k = 60`, where it read `0.8` and tied, at the
+/// where the plane distance read `4.78` bands, past the travel order, and
+/// the all-mutual round's free order moves the run on to the merge's
+/// pcurve span check; at `k = 60`, where it read `0.8` and tied, at the
 /// travel's clearance.
 #[test]
 fn band_apart_partners_on_a_steep_ellipse_build_or_stop_where_expected() {
