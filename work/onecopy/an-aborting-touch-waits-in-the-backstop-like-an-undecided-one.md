@@ -38,7 +38,10 @@ The orchestrator ruled one meaning of an abort, the ladder's: the first touch wh
 - 123 backstop readings per ε met a touch then read as aborting, all `Curved(Unreadable)`.
 - None ended in a crossing or `Stands`. Each lost to another undecided reason (`Unexamined` 121, `LoneLoop` 2).
 
-All 123 were stand-ins, so the F1 ruling returns them to waiting, and their findings read as before. The sweep helper `only_curved_within_reach` was loosened for three rows and is now back to `Unexamined` alone.
+**Measured after F1** with a probe in `blocked` over the same sets at default ε and 1e-12, which gave the same counts at both:
+- 124 readings end at an abort: topo 58, sweep 55, editor-core 11. These are the 123 above plus this PR's own rows. All are site-read touches; no suite reading reaches `blocked` with a stand-in finding.
+- None has a crossing scanned after it, so no verdict moves. The only aborts ahead of a crossing, the only `CorruptInstance` abort and every stand-in are in `census::blocked_rows`, which plant exactly those cases.
+- The sweep rows behind `common/touch_union.rs`'s `only_curved_within_reach` each see the curved touch as the solid pair's finding, never `Unexamined`. A probe of all 5 call sites, the three in `bisector_nodes.rs` included, showed this at both ε. So the helper now requires that reason exactly, and a precedence revert reds all 8 rows (`two_discs_kissing_externally_touch_at_every_op`, `externally_tangent_walls_touch_at_every_op`, `a_same_side_tangent_touch_answers_every_op`, `r2_every_same_side_touch_pose_answers_as_a_touch`, and bisector_nodes' `a_rod_against_a_bore_builds_every_operation`, `equal_cylinders_with_meeting_axes_build_every_operation_at_the_closed_forms`, `the_family_re_posed_builds_the_same`, `slanted_bores_build_every_operation_one_difference_pinched_to_itself`). It was measured red on all 8 with the reason check reverted to `Unexamined`.
 
 **Pinned** in `census::blocked_rows`:
 - `an_aborting_touch_is_reported_ahead_of_a_later_crossing`: an abort scanned before a decided crossing reports the abort, and it is red under the old rule.

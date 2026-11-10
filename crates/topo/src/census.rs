@@ -10580,7 +10580,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 Named::Nothing => Some(Undecided::Unexamined),
                 Named::One(id) => owns(id).then_some(Undecided::Unexamined),
                 Named::Two(x, y, said) if between(x, y) => {
-                    return between_scan(said, &touch, |a, b| declared.confirmed.contains(&(a, b)));
+                    return between_scan(said, touch, |a, b| declared.confirmed.contains(&(a, b)));
                 }
                 Named::Two(x, y, said) if owns(x) && solid_of_entity(x) == solid_of_entity(y) => {
                     match said {
