@@ -23,3 +23,25 @@ Both read at the least band (`prove`), so no band's metres meaning enters the si
 3. Rule that an exact parameter comparison at the least band is no margin, and record it under its own kind.
 
 The sweep for further instances is part of the fix: `Margin::of(` over a `t`, `s`, `u` or `param` difference.
+
+## The sweep's classes, and (c) landed
+
+The ruling (orchestrator, 2026-11-10) applies D4 (iii) as written. The
+sweep sorted the band-decided parameter differences into four classes:
+- **(a)** `param_order` and its two readers (`curve_pair::compare` and
+  `edge_join`'s crease reader): still open;
+- **(b)** the choose sites (the period's `run_from`, and `in_window` ×2):
+  still open;
+- **(c)** decided against the band, with a rate in hand or a ledger row.
+  Landed on branch `onecopy/param-difference`:
+  - `nurbs_iso::iso_boundary_row` (`iso_row_at_domain_end`) is metered at
+    the chart's sup stretch along the axis;
+  - `slit::parting_order` (`PARTING_ORDER`) is metered at the sup of the
+    carrier's `speed_range`;
+  - `replace_face`'s `iso_row_runs_against` has no certifiable inf rate,
+    so it rides `decide_flagged` under ledger row F41;
+- **(d)** already metres, so nothing to do: `offset_derive`.
+
+A probe moved no decision at default ε or 1e-12: 29
+`iso_row_at_domain_end` readings and 112 `parting_order` readings at
+each.

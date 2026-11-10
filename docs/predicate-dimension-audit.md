@@ -92,7 +92,7 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F10 ×1 — one loop over seven
-rigidity residuals — F13 ×1, F14 ×1, F16 ×1, F22 ×1 — 5 shipped sites, tracked as issue #214 and pinned by
+rigidity residuals — F13 ×1, F14 ×1, F16 ×1, F22 ×1, F41 ×1, F42 ×1 — 7 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -1892,6 +1892,38 @@ Flagged, NOT fixed here (dispositions):
   band as though it were a length. **FLAG**: the lever has no source.
   `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
   carries the real one, with its candidates and a measurement plan.
+
+- **F41** (added by ONECOPY's param-difference unit)
+  `iso_row_runs_against` — `topo/src/replace_face.rs`, the iso-row lane:
+  whether an edge's span `(s0, s1)` along a fit's boundary row runs
+  against the row (`s1 − s0` Negative), so its carrier is the reflected
+  column. The comparand is a **parameter difference** along the row, no
+  length, and it was read through `Margin::of` against the band. D4
+  (iii) meters a parameter through a per-kind metric door, but only an
+  INF rate makes a definite Negative sound here, and a fit's stretch
+  floor along the row (`NurbsSurface::stretch_floor`) is signed and can
+  read zero or below, so no certified inf is in hand. **FLAG**: it
+  rides `decide_flagged(.., "F41")`, its sign the parameter's own.
+  `work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`
+  carries the class; the row's span is certified forward on the OLD
+  carrier, so a sign on the row that is not the old one is a reflection,
+  never a degenerate span, which is why the raw sign has served.
+
+- **F42** (added by ONECOPY's param-difference unit)
+  `bool_parting_order` — `topo/src/boolean/slit.rs` `parting_order`, the
+  order of two crossings along an edge `divide` divides (`a − b`). The
+  comparand is a **parameter difference** along the edge's carrier. D4
+  (iii) meters it at the carrier's speed, and the order (a decided side)
+  is sound only at an INF rate: it reads `Margin::metered` at
+  `speed_range`'s floor wherever that floor is decided positive
+  (`structure_ascends(0, floor)`). A spline's floor
+  (`NurbsCurve3::speed_lower_bound`) may read zero, below zero or poison,
+  so no certified inf is in hand there. **FLAG**: that arm rides
+  `decide_flagged(.., "F42")`, its sign the parameter's own. Its Zero is
+  read again at the sup (`bool_parting_one_point`), as on every arm, so
+  "one point" stays sound in metres.
+  `work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`
+  carries the class.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
