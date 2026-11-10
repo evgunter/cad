@@ -1694,7 +1694,14 @@ impl<T: Decide> ConicArc<T> {
 /// in the parameter, [`charge`]), each reading kept whole, escalations
 /// included.
 ///
-/// `t` is a parameter of `carrier`, and on a carrier with a period
+/// **Its premise, which this door cannot check:** `t` and `span` are
+/// both a parameter of `carrier`, the curve whose span is read: a piece's
+/// own circle (`CircleArc::carrier`), a section arc's conic or oval, a
+/// crest's circle, or a ruling's line, each handed by the arm that read
+/// `t` off it. A ruling's carrier is formed from its line only to answer
+/// that it has no period.
+///
+/// On a carrier with a period
 /// ([`geom::Curve3::period`]) each end's distance is also read on `t`'s
 /// copy a period away
 /// ([`Period::span_margins`](geom_core::period::Period::span_margins)):

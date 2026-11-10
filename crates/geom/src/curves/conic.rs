@@ -58,6 +58,7 @@
 //!
 //! [`speed_floor`]: crate::carrier_speed::speed_floor
 
+use geom_core::period::Period;
 use geom_core::{Decide, Point3, Real, Rounded, Vec3};
 
 use crate::azimuth::{self, Azimuth};
@@ -66,14 +67,8 @@ use crate::frame::Frame;
 
 /// **A full circle**, `P(θ) = origin + (u_ref·cos θ + v_ref·sin θ)·radius`.
 ///
-/// **Who holds one.** A holder of a circle holds this type wherever its
-/// circle meets the invariants below (a unit axis, a positive radius),
-/// whether or not it reads the seam: a seam carried and never read costs
-/// nothing, and a second circle type that differs only by not reading it
-/// would be the same circle spelled twice (`pair_section::winds`' torus
-/// core holds one). A holder whose circle cannot meet them (an axis read
-/// at any nonzero length, a radius read by its magnitude) holds its own
-/// type and says which invariant it cannot meet (`cover::Core`).
+/// Its invariants: the axis is unit, the radius positive, and the seam
+/// (`u_ref`) is carried whether or not a reader reads it.
 #[derive(Clone, Copy, Debug)]
 pub struct Circle<T: Real> {
     /// The placement: `origin` the centre, `axis` the unit plane normal
@@ -167,6 +162,12 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// The principal frame with the larger semi-axis first, whichever the
     /// seam is at; a tie, and a circle, keep the seam's own axis.
     fn major_frame(&self) -> MajorFrame<T>;
+
+    /// **The parameter's period**, one turn: a conic's parameter is an
+    /// angle, so a parameter names its point modulo `τ`.
+    fn period(&self) -> Period<T> {
+        Period::angle()
+    }
 
     /// **The point at `θ` with a first-order running bound on its
     /// rounding** ([`Rounded`]), from `sin θ` and `cos θ` already charged:

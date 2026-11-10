@@ -138,13 +138,12 @@ impl<T: Real> Period<T> {
         Self { length }
     }
 
-    /// **An angle's period, `τ`**: the one spelling of a turn as a
-    /// period. A reader whose channel is an angle by construction (an
-    /// azimuth, a sweep's or revolve's angle, a root's angle about its
-    /// circle) takes this; a reader that holds a carrier or a chart asks
-    /// that for its period (`geom::Curve3::period`,
-    /// `geom::Surface::angle_periods`), which answer with this where the
-    /// channel is an angle.
+    /// **An angle's period, `τ`**: one turn, as a period. What a conic's,
+    /// a spiric's and an analytic chart's angle channels each state
+    /// (`geom::Conic::period`, `geom::spiric_period`,
+    /// `geom::Surface::angle_periods`), and what a channel that is an
+    /// angle by construction reads (an azimuth, a sweep's or a revolve's
+    /// angle).
     pub fn angle() -> Self {
         Self::new(T::tau())
     }

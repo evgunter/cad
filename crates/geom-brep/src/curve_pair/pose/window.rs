@@ -494,7 +494,8 @@ impl<T: Decide> Window<'_, T> {
         }
         let (t0, t1) = self.span_a;
         let level = level_on(self.a, self.b);
-        let turn = geom_core::period::Period::angle();
+        // The carrier's own period (`Conic::period`).
+        let turn = self.a.period();
         // The turns of `t` from the one nearest the span's start up to
         // the span's end, at most `MAX_TURNS`; `None` past that. A copy
         // half a turn or more below the start meets the span only through

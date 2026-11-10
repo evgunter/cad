@@ -1534,6 +1534,16 @@ impl<T: Real> SectionCurve<T> {
         }
     }
 
+    /// **The curve's period**: a conic's own ([`Conic::period`]) or a
+    /// spiric oval's ([`geom::spiric_period`]). Total: a section curve
+    /// closes.
+    fn period(&self) -> geom_core::period::Period<T> {
+        match self {
+            Self::Conic(c) => c.conic().period(),
+            Self::Oval(_) => geom::spiric_period(),
+        }
+    }
+
     /// The carrier itself.
     fn carrier(&self) -> &geom::Curve3<T> {
         match self {
@@ -2037,10 +2047,7 @@ fn oriented_arc<T: Decide>(
     to: ArcEnd<T>,
     ccw: bool,
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
-    // The curve's turn is its carrier's own period (`Curve3::period`).
-    let Some(turn) = conic.carrier().period() else {
-        unreachable!("a section curve's carrier is a conic or a spiric, which close")
-    };
+    let turn = conic.period();
     // The span forward from `th1` to a distinct end, in `[0, τ)`: a
     // chord may span more than half the conic. Its window jumps at a
     // span of zero, two ends sharing a conic parameter, which is either
@@ -2092,9 +2099,7 @@ fn chord_arc<T: Decide>(
     let seamed = match curve {
         SectionCurve::Conic(conic) => {
             let half = T::from_f64(0.5);
-            let Some(turn) = conic.carrier.period() else {
-                unreachable!("a section conic's carrier is a circle or an ellipse, which close")
-            };
+            let turn = conic.conic().period();
             let th1 = conic.param(p1);
             let middle = match p2 {
                 None => th1,
@@ -3048,7 +3053,7 @@ fn carried_chord_spec<T: Decide>(
     // one of the loop's sites, the least foot of any (`boolean::join`'s
     // `carried_seats`), not on anything read here: the forward reading
     // below refuses a chord that would cross it.
-    let turn = (spline.is_none() && component.closed()).then_some(hi - lo);
+    let turn = carrier.period().filter(|_| component.closed());
     let seat = carrier.eval(lo);
     let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
         if !component.closed() {
@@ -3065,7 +3070,7 @@ fn carried_chord_spec<T: Decide>(
     let place = |p: Point3<T>| -> Result<geom_brep::ArcPlace<T>, SplitJoinError> {
         match component.place(&ctx.nodes, p, band) {
             Ok(geom_brep::ArcPlace::At(t)) => Ok(geom_brep::ArcPlace::At(match turn {
-                Some(turn) => geom_core::period::Period::new(turn).at_or_above(t, lo),
+                Some(turn) => turn.at_or_above(t, lo),
                 None => t,
             })),
             Ok(end) => Ok(end),

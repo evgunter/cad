@@ -903,12 +903,10 @@ impl<T: Decide> ConicArc<T> {
         rows: ConicRows,
         band: Band,
     ) -> Result<Option<Self>, ConicArcError> {
-        if carrier.conic().is_none() {
+        let Some(conic) = carrier.conic() else {
             return Ok(None);
-        }
-        let Some(one_turn) = carrier.period() else {
-            unreachable!("a conic carrier has a period (`Curve3::period`)")
         };
+        let one_turn = conic.period();
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
         };

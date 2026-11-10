@@ -31,15 +31,19 @@ fn read(a: (&Curve3<f64>, (f64, f64)), b: (&Curve3<f64>, (f64, f64)), band: Band
 
 /// Whether two hits on one span are one place: the same end, or
 /// parameters within `slack`, modulo a turn on a closed carrier.
-fn same_hit(x: &Hit<f64>, y: &Hit<f64>, closed: bool, slack: f64) -> bool {
+fn same_hit(
+    x: &Hit<f64>,
+    y: &Hit<f64>,
+    period: Option<geom_core::period::Period<f64>>,
+    slack: f64,
+) -> bool {
     match (x, y) {
         (Hit::On { t: s, .. }, Hit::On { t, .. }) => {
             let d = s - t;
-            let d = if closed {
-                d.rem_euclid(TAU).min(TAU - d.rem_euclid(TAU))
-            } else {
-                d.abs()
-            };
+            let d = period.map_or(d.abs(), |p| {
+                let p = p.length();
+                d.rem_euclid(p).min(p - d.rem_euclid(p))
+            });
             d <= slack
         }
         (Hit::End(p), Hit::End(q)) => p == q,
@@ -75,8 +79,8 @@ fn agree(
     for p in &got.points {
         let partner = back.points.iter().any(|q| {
             (p.point - q.point).norm() <= e
-                && same_hit(&p.on_a, &q.on_b, a.period().is_some(), slack)
-                && same_hit(&p.on_b, &q.on_a, b.period().is_some(), slack)
+                && same_hit(&p.on_a, &q.on_b, a.period(), slack)
+                && same_hit(&p.on_b, &q.on_a, b.period(), slack)
         });
         if !partner {
             return Some(format!("{label}: {p:?} has no swapped partner in {back:?}"));
