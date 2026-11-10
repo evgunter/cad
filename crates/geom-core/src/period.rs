@@ -140,7 +140,7 @@ impl<T: Real> Period<T> {
 
     /// **An angle's period, `τ`**: one turn, as a period. What a conic's,
     /// a spiric's and an analytic chart's angle channels each state
-    /// (`geom::Conic::period`, `geom::spiric_period`,
+    /// (`geom::conic_period`, `geom::spiric_period`,
     /// `geom::Surface::angle_periods`), and what a channel that is an
     /// angle by construction reads (an azimuth, a sweep's or a revolve's
     /// angle).
