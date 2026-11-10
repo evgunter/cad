@@ -153,9 +153,9 @@ pub(crate) fn edge<T: Real + Bounds>(body: &Body<T>, a: [f64; 3], b: [f64; 3]) -
     query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let ps = point(body.get_half_edge(he).expect("a half").start);
-            let pt = point(body.half_edge_end(he).expect("an end"));
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
+            let ps = point(v0);
+            let pt = point(v1);
             (at(ps, a) && at(pt, b)) || (at(ps, b) && at(pt, a))
         })
         .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
@@ -626,14 +626,13 @@ fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
     let rim: Vec<EdgeKey> = query::all_edges(&body)
         .into_iter()
         .filter(|&e| {
-            let he = body.get_edge(e).expect("e").he_plus;
+            let (v0, v1) = body.edge_vertices(e).expect("e");
             let p = |v| {
                 *body
                     .get_point(body.get_vertex(v).expect("v").point)
                     .expect("p")
             };
-            at(p(body.get_half_edge(he).expect("h").start))
-                && at(p(body.half_edge_end(he).expect("end")))
+            at(p(v0)) && at(p(v1))
         })
         .collect();
     assert_eq!(rim.len(), 3, "two lines and the arc");

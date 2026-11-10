@@ -131,6 +131,7 @@ test_utils::gated_to![
     "crates/pncad-py/src/",
     "crates/profile/src/",
     "crates/quantity/src/",
+    "crates/source-scope/src/",
     "crates/step-export/src/",
     "crates/step-import/src/",
     "crates/stl/src/",

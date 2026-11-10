@@ -342,21 +342,12 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
 
     // 4. set_edge_curve: non-adjacent Intersection description.
     let foreign = body.get_face(seed.face).unwrap().surface;
-    let (ek, e) = body.edges().next().map(|(k, e)| (k, e.clone())).unwrap();
+    let ek = body.edges().next().map(|(k, _)| k).unwrap();
+    let (start, end) = body.edge_vertices(ek).unwrap();
     let p0 = *body
-        .get_point(
-            body.get_vertex(body.get_half_edge(e.he_plus).unwrap().start)
-                .unwrap()
-                .point,
-        )
+        .get_point(body.get_vertex(start).unwrap().point)
         .unwrap();
-    let p1 = *body
-        .get_point(
-            body.get_vertex(body.half_edge_end(e.he_plus).unwrap())
-                .unwrap()
-                .point,
-        )
-        .unwrap();
+    let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
     spec.description = EdgeDescriptionSpec::wrap(foreign);
     let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();

@@ -2031,7 +2031,7 @@ pub(crate) fn loop_reach<T: Decide>(
 /// plane is read as its projection along `normal`, the region the walk
 /// reads there. Each root is then read along the ray
 /// (`point_in_arc_loop_conic_advance`) and on the arc's span by the plane
-/// door ([`RootPlace`]): a root at an end grazes, one in band of an end
+/// door ([`RootPlace`](geom_brep::curve_face::plane_crossing::RootPlace)): a root at an end grazes, one in band of an end
 /// sets the ray aside.
 ///
 /// **The ray's plane is built, not read off `face`'s record**: the plane
@@ -2042,7 +2042,7 @@ pub(crate) fn loop_reach<T: Decide>(
 /// `normal`, and each way in holds it differently:
 /// - [`point_in_loop`] certifies it ([`certify_plane`]).
 /// - On the projected read it is that read's own premise, above.
-/// - [`contfp`](crate::boolean::contain::contfp), through
+/// - [`contfp`](crate::boolean::contfp), through
 ///   [`carrier_loop_side`], takes it unchecked from its caller: "`q`
 ///   already on the plane of `face`, with unit plane normal `normal`".
 ///

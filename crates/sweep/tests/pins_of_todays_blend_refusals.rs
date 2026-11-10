@@ -120,16 +120,9 @@ fn pin_today_a_slot_end_arc_alone_folds_its_smooth_neighbour_to_indeterminate() 
     let arc = topo::query::all_edges(&body)
         .into_iter()
         .find(|&e| {
-            let he = body
-                .get_half_edge(body.get_edge(e).unwrap().he_plus)
-                .unwrap();
+            let (start, end) = body.edge_vertices(e).unwrap();
             let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            let (a, b) = (
-                p(he.start),
-                p(body
-                    .half_edge_end(body.get_edge(e).unwrap().he_plus)
-                    .unwrap()),
-            );
+            let (a, b) = (p(start), p(end));
             a.z > 0.5 && b.z > 0.5 && a.x > 0.9 && b.x > 0.9 && (a.y - b.y).abs() > 0.9
         })
         .expect("the slot's right top arc");

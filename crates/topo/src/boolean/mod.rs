@@ -370,9 +370,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "split_edge_param_interior" | "bool_wall_root_in_span" => {
-            CrossingDecision::OnEdge.subject()
-        }
+        "bool_wall_root_in_span" => CrossingDecision::OnEdge.subject(),
         "plane_crossing_root_order"
         | "plane_crossing_roots_apart"
         | "spline_composite_roots_apart"
@@ -4190,6 +4188,13 @@ pub enum BooleanError {
     /// capability gaps with a body defect, so the abort is not the class of every case it carries,
     /// and a ladder that reads one splits it first.
     JoinUndecided(edge_join::JoinUndecided),
+    /// **Two partners of a germ are decided equally near**, where no
+    /// proof frees the join's choice of them (`join::find_match`): the
+    /// join does not pick one by scan order. A precision limit (row
+    /// 1(b)): the two lie within the band's zero along the germ line
+    /// (`bool_join_nearest`, `bool_join_foot_travel`,
+    /// `bool_join_arc_travel`), so a tighter tolerance may part them.
+    JoinPartnersTied,
     /// **A curved join on a carrier the stage cannot run on.** The join
     /// restates the kept edge over both edges' span on its own carrier
     /// (`edge_join::joined_spec` says where the far parameter comes
@@ -4711,6 +4716,8 @@ pub enum BooleanErrorKind {
     Join,
     /// [`BooleanError::JoinUndecided`].
     JoinUndecided,
+    /// [`BooleanError::JoinPartnersTied`].
+    JoinPartnersTied,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
     /// [`BooleanError::CarryRefused`].
@@ -4987,6 +4994,7 @@ impl BooleanError {
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
+            Self::JoinPartnersTied => BooleanErrorKind::JoinPartnersTied,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
@@ -5047,6 +5055,7 @@ impl BooleanError {
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
+            Self::JoinPartnersTied => Ok(Refusal::InBand),
             Self::JoinUndecided(u) => match &u.reading {
                 edge_join::JoinReading::Regularity(diag)
                 | edge_join::JoinReading::Crease(diag)
@@ -5274,7 +5283,9 @@ impl BooleanError {
                 convention,
                 verdict,
                 ..
-            } => f.write_str(&convention.refused_ended("a torus face's", *verdict, at)),
+            } => f.write_str(
+                &geom_brep::TorusRefusal::decided(*convention, *verdict).said("a torus face's", at),
+            ),
             Self::CurvedPierceUnsupported { operand, .. } => write!(
                 f,
                 "an edge of the {} operand touches or crosses a curved face of the \
@@ -5861,6 +5872,11 @@ impl BooleanError {
                 read_at(e.error(), at)
             ),
             Self::JoinUndecided(e) => write!(f, "{}", read_at(e, at)),
+            Self::JoinPartnersTied => f.write_str(
+                "the operands' sections meet where two of their ends lie equally near one \
+                 another, so the Boolean cannot tell which to join. Recourse: move the parts \
+                 so the sections' ends clearly part",
+            ),
             Self::JoinCarrierUnsupported {
                 edge,
                 carrier,
@@ -6047,17 +6063,7 @@ impl BooleanError {
             Self::EdgeInFace { edge, face, gap } => {
                 if let Some(torus) = gap.torus() {
                     write!(f, "edge {edge:?} of the result lies in face {face:?}, and ")?;
-                    match (torus.verdict, at) {
-                        (geom_brep::TorusVerdict::Refused(verdict), at) => f.write_str(
-                            &torus
-                                .convention
-                                .refused_ended("a torus face's", verdict, at),
-                        ),
-                        (geom_brep::TorusVerdict::Undecided(_), Some(at)) => {
-                            f.write_str(&torus.render(at))
-                        }
-                        (geom_brep::TorusVerdict::Undecided(_), None) => write!(f, "{torus}"),
-                    }
+                    f.write_str(&torus.said("a torus face's", at))
                 } else if gap.is_defect() {
                     write!(
                         f,
@@ -9995,6 +10001,7 @@ mod tests {
                 BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
+                BooleanErrorKind::JoinPartnersTied => "JoinPartnersTied",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",

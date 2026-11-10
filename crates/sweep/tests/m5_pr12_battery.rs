@@ -367,9 +367,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         .into_iter()
         .find(|&e| {
             let ed = round.get_edge(e).unwrap();
-            let he = ed.he_plus;
-            let s = round.get_half_edge(he).unwrap().start;
-            let t = round.half_edge_end(he).unwrap();
+            let (s, t) = round.edge_vertices(e).unwrap();
             let z = |v| {
                 round
                     .get_point(round.get_vertex(v).unwrap().point)
