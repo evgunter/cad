@@ -1,7 +1,7 @@
 ---
 id: an-argmin-by-decided-comparison-is-spelled-three-ways
 kind: issue
-title: The decided argmin (geom_core::ladder::argmin_decided) is built and ported; first_pair's tie between mutual pairs stays on its old fold
+title: The decided argmin (geom_core::ladder::argmin_decided) is built and ported, first_pair included; the folds left outside it are registered
 status: open
 opened: 2026-11-09
 priority: P3
@@ -76,31 +76,13 @@ does not rest on it). Ported, with no outcome moved over the `ci` sets:
 - the 525 conic-tie processes (526 at default ε, 519 at `1e-12`) are all among them;
 - no production round that is not all mutual meets a tie or an in-band reading. Only the counterexample's pin and the premises row do.
 
-**Draft proof for straight germs** (written against the old scan, not a live declaration, and not needed by any measured round). It would free a tie in a round that is not all mutual, where every germ whose nearest lies in a committed pair ranks by chord at `K > 2`. Every germ straight, `K > 2`, and `T` the pairs tied at the round's minimum, each mutual; commit `P = (g, h)`.
-- A germ's nearest partner is decided apart from every other
-  (`own_nearest` is free of nothing). On a straight germ the order
-  along its line is the chord's, so for a mutual `Q = (p, q)` in `T`,
-  every other partner `y` of `p` stands more than `K·zero` farther than
-  `q`. A pair `(y, p)` then reads decided farther than `Q`, and cannot
-  be committed before it: `Q` keeps its germs until it is committed, and
-  stays mutual with its key unchanged.
-- A germ `y` whose nearest was `g` or `h` takes a partner decided
-  farther than that one, which was not decided nearer than the minimum,
-  so its new pair stands past the minimum by more than `(K − 1)·zero`:
-  farther than `T`'s pairs at `K > 2`, or in band, which escalates the
-  run under either order.
-- So both orders commit every pair of `T` before any pair touching their
-  germs, and reach one state: the matching is free of which goes first,
-  though not the run.
-
-A conic germ ranks by travel, so the first step does not hold for it
-(the counterexample below).
+**Not all mutual: a tie refuses, measured and unguarded on purpose.** The `ci` set holds no production round that is not all mutual and meets a tie or an in-band reading; that is a measurement, not a guarantee. No counter guards it, because the lane cannot go wrong silently: such a round's tie refuses, typed (`JoinPairsTied`), so a production reach shows as a refusal naming its cause, never as a matching chosen by scan order. A straight-germ argument that would free such a tie at `K > 2` was drafted against the old scan and is not carried: nothing measured needs it.
 
 ## The tie with a conic germ in the round (`onecopy/first-pair-conic-counterexample`, 2026-11-10)
 
 ### A tie between mutual pairs is not enough
 
-The row `boolean::join::first_pair_rows::a_tie_between_mutual_conic_pairs_can_move_the_matching`
+The row `boolean::join::first_pair_rows::a_tie_between_mutual_pairs_beside_a_non_mutual_germ_refuses`
 is a counterexample. It runs through `Turn::facing`, `germ_arm`,
 `own_nearest` and `first_pair` as they are.
 
@@ -121,9 +103,8 @@ the two tied pairs are both mutual.
   The matching is `{(z, g), (q, p), (h, w)}`.
 - **`(h, g)` first:** the matching is `{(h, g), (q, p), (z, w)}`.
 
-Both runs complete. This is where the straight draft above breaks: its
-second step needs a germ's next partner to rank past the tie by chord.
-Along a conic it ranks past it by travel, and the chord can be shorter.
+Both runs complete: a germ's next partner ranks past the tie by travel
+along a conic, and its chord can be shorter than the tie's.
 
 ### What does hold: an all-mutual round
 
@@ -212,14 +193,7 @@ an edge (ranked by foot travel).
 - **Rounds that are not all mutual** (a tie among mutual pairs beside a
   germ whose nearest lies in one of them) are outside the theorem.
   - The counterexample above is one, with conic germs.
-  - The straight draft above covers such a round only where every germ
-    whose nearest lies in a committed pair ranks by chord, at `K > 2`.
-    That holds where those germs are straight: a germ's partners share
-    its loci (`partners` requires equal `a_locus` and `b_locus`), so
-    the conic germs of other locus pairs in the round do not reach it.
-  - That draft was written against the old scan, and the set rule has
-    not been re-checked against it here.
-
+  - They refuse a tie (`JoinPairsTied`), whatever their germs.
 ### Alternation, and how a check would read it
 
 **The geometric premise.** For each locus pair `(a_locus, b_locus)` and

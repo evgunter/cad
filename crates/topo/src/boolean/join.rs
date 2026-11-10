@@ -135,9 +135,13 @@
 //! # The fixpoint sweep and lockstep discipline
 //!
 //! All pair records register up front, and [`matched_records`]
-//! matches them: it repeatedly takes the nearest valid match in
-//! deterministic scan order until quiescent (each match consumes its
-//! germs, so the next round ranks only the germs still free). The criterion
+//! matches them: it repeatedly takes the nearest valid match until
+//! quiescent (each match consumes its germs, so the next round ranks only
+//! the germs still free). Each germ's nearest partner, and the nearest of
+//! those pairs, are the decided argmin's ([`own_nearest`], [`first_pair`]):
+//! scan order picks among pairs only where the round is all mutual, which
+//! leaves the matching the same in every order, and a tie elsewhere
+//! refuses. The criterion
 //! reads only record data — loci, senses, site points, section
 //! frames — and the segments are decided before any chord is minted.
 //! Surgery moves no site, but a chord dividing a face moves the
@@ -2370,7 +2374,7 @@ fn own_nearest<T: Decide>(
 /// pair can turn a germ whose nearest was in it to its next partner, and
 /// along a conic that partner's chord can be shorter than the pairs the
 /// round tied (the counterexample row
-/// `a_tie_between_mutual_conic_pairs_can_move_the_matching`). A tie
+/// `a_tie_between_mutual_pairs_beside_a_non_mutual_germ_refuses`). A tie
 /// between two pairs refuses ([`BooleanError::JoinPairsTied`]) rather
 /// than commit one by scan order, and an in-band reading left in
 /// contention refuses on its margin.
@@ -2387,7 +2391,17 @@ fn first_pair<T: Decide>(
     } else {
         FreeOf::Nothing
     };
-    let mut met: Vec<_> = own.into_values().collect();
+    // One entry per pair: a mutual pair is held twice, once from each
+    // germ, at one distance, and would read tied with itself. Its entry
+    // met first in scan order stands for it.
+    let mut met: Vec<_> = own
+        .iter()
+        .filter(|&(germ, &(at, _, (partner, _)))| {
+            own.get(&partner)
+                .is_none_or(|&(back_at, _, (back, _))| back != *germ || at < back_at)
+        })
+        .map(|(_, &m)| m)
+        .collect();
     met.sort_by_key(|&(at, ..)| at);
     let cmp = |a: &Met<T>, b: &Met<T>| {
         nearest_sign(a.1, b.1, band)
@@ -7794,6 +7808,31 @@ mod first_pair_rows {
             if diag.predicate == Some("bool_join_nearest"))
     }
 
+    /// **A round that is not all mutual builds where one pair is nearest**
+    /// ([`first_pair`], free of nothing): `a↔b` at a chord of 3, `c↔d` at
+    /// 1, and `x→d` at 2, `x` not mutual. Each mutual pair is held twice,
+    /// once from each germ, and reads as one pair, so `c↔d` is decided
+    /// nearer than every other and commits. Red where a mutual pair's two
+    /// entries read tied with each other (the round would refuse
+    /// [`BooleanError::JoinPairsTied`] on a pair tied with itself).
+    #[test]
+    fn a_round_not_all_mutual_with_one_nearest_pair_builds() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let (a, b, c, d, x) = ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0));
+        let own = by_germ(vec![
+            met(1, a, b, 3.0),
+            met(2, b, a, 3.0),
+            met(3, c, d, 1.0),
+            met(4, d, c, 1.0),
+            met(5, x, d, 2.0),
+        ]);
+        let got = first_pair(own, band);
+        assert!(
+            matches!(got, Ok(Some((partner, germ))) if partner == d && germ == c),
+            "the nearest pair commits, met first from c: {got:?}"
+        );
+    }
+
     /// **An in-band order between two pairs is free exactly where the
     /// round is all mutual** ([`first_pair`]). Two disjoint mutual straight
     /// pairs whose chords differ by five zeros, at `K = 10`: the pair met
@@ -7966,28 +8005,18 @@ mod first_pair_rows {
             (5, 7),
         ];
         let band = Band::new(1.0, 1.1).unwrap();
-        let escalated_mutual = std::cell::Cell::new(None);
+        let reached = std::cell::Cell::new(false);
         let got = rounds(&points, &edges, band, |own| {
-            let mutual = own.iter().all(|(germ, &(_, reach, (partner, _)))| {
-                reach.turn.is_none()
-                    && own
-                        .get(&partner)
-                        .is_some_and(|&(_, _, (back, _))| back == *germ)
-            });
-            let pick = first_pair(own, band);
-            if pick.is_err() {
-                escalated_mutual.set(Some(mutual));
-            }
-            pick
+            reached.set(true);
+            first_pair(own, band)
         });
         assert!(
             matches!(&got, Err(BooleanError::JoinPartnersTied)),
             "a germ's partners tied: {got:?}"
         );
-        assert_eq!(
-            escalated_mutual.get(),
-            None,
-            "the tie refuses before any round reaches first_pair's K gate"
+        assert!(
+            !reached.get(),
+            "the tie refuses before any round reaches first_pair"
         );
     }
 
