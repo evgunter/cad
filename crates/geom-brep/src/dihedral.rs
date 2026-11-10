@@ -125,7 +125,8 @@ use core::ops::ControlFlow;
 
 use crate::enters::{LeverEscalation, OutwardNormal};
 use geom::Surface;
-use geom_core::k_stats::{Magnitude, NonzeroSign};
+use geom_core::NonzeroSign;
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};

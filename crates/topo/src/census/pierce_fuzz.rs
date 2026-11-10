@@ -378,7 +378,7 @@ fn each_residual_stays_inside_its_charge_and_the_span_holds_the_crossing() {
                 boundary: BTreeSet::new(),
                 loops: Vec::new(),
                 polygon: false,
-                walked: true,
+                walked: Ok(()),
             };
             let e = segment((p0, p1));
             let read = [e.p0, e.p1].map(|p| (p - o).dot(n));
@@ -459,7 +459,7 @@ fn the_worst_residual_drawn_stays_inside_half_its_charge() {
         boundary: BTreeSet::new(),
         loops: Vec::new(),
         polygon: false,
-        walked: true,
+        walked: Ok(()),
     };
     let exact = exact_residual(p, o, n);
     let off = (big((p - o).dot(n)) << 1074_usize) - exact;
