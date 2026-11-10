@@ -78,11 +78,11 @@ const INDIRECT: &[(&str, &str)] = &[
         "the swept-traversal funnel, forwarding its parameter",
     ),
     (
-        "swept.rs: names.lines",
+        "swept.rs: names.lines()",
         "a `CosurfaceNames` field — the line half of a caller's table",
     ),
     (
-        "swept.rs: names.arcs",
+        "swept.rs: names.arcs()",
         "a `CosurfaceNames` field — the arc half of the same table",
     ),
     (
