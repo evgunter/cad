@@ -2,8 +2,10 @@
 id: spline-error-holders-may-pass-a-caller-recourse-to-the-user
 kind: issue
 title: Twelve SplineError holders may render its caller-facing recourse where the kernel built the spline
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6684
 ---
 
 
