@@ -21,7 +21,7 @@ fn band() -> Band {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    common::finished(what, common::brick(x, y, z, tol()), tol())
+    common::finished(what, common::brick::<f64>(x, y, z, tol()), tol())
 }
 
 fn union_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
@@ -55,9 +55,9 @@ fn tilted_cube() -> AtRestBody<f64> {
 /// The plane face of `body` on z = `z`.
 fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.z.abs() == 1.0 && origin.z == z
             )
@@ -323,9 +323,9 @@ fn a_side_holding_two_fragments_lands_the_record_on_the_one_holding_the_corner()
             let body = body?;
             let tops = body
                 .faces()
-                .filter(|(_, f)| {
+                .filter(|(fk, _)| {
                     matches!(
-                        body.get_surface(f.surface),
+                        body.face_surface(*fk),
                         Some(Surface::Plane { origin, normal, .. })
                             if normal.z.abs() == 1.0 && origin.z == 1.0
                     )

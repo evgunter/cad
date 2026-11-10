@@ -376,9 +376,10 @@ pub(crate) fn overused_identified_edge_in(
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
 /// of a whole number of turns from it; otherwise (`raw` about half a turn
 /// from `prev`) the copy of the two either side nearer `anchor` (module
-/// docs: the wire-band pole junction, meridians exactly π apart). A
-/// two-reference rule [`Period::near`] does not state, so it is not that
-/// door (`work/onecopy/held-angle-renames-the-angle-reads-sweep-left.md`).
+/// docs: the wire-band pole junction, meridians exactly π apart). Not
+/// [`Period::near`], which renames about one reference and breaks only an
+/// exact tie, to the upper copy: here a whole zone, a quarter turn either
+/// side of the tie, is placed by a second reference, `anchor`.
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
     let k = (prev - raw) / TAU;
     if (k - k.round()).abs() < 0.25 {
@@ -855,8 +856,7 @@ fn closing_side(starts: &[bool]) -> usize {
 /// one that keeps every operand at the loop's own scale: a fixed
 /// anchor pays cancellation in proportion to the loop's distance from
 /// it, which the direction-only consumer in [`loop_polygon`] reads as
-/// a rotated — eventually reversed — area vector. Overflow-robust
-/// midpoint, the spelling `validate::signed_volume` uses.
+/// a rotated — eventually reversed — area vector.
 ///
 /// An empty cycle has no anchor and no area.
 fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
@@ -866,7 +866,7 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
     let (lo, hi) = pts
         .iter()
         .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
-    let o = lo + (hi - lo) * 0.5;
+    let o = lo.mid(hi);
     let mut area = Vec3::new(0.0, 0.0, 0.0);
     for (i, p) in pts.iter().enumerate() {
         let q = pts[(i + 1) % pts.len()];
@@ -914,11 +914,7 @@ pub(crate) fn loop_polygon(
     let face_record = body
         .get_face(face)
         .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let surface = body
-        .get_surface(face_record.surface)
-        .ok_or(TessellateError::MissingEntity {
-            what: "face surface",
-        })?;
+    let surface = crate::tessellate::face_surface(body, face)?;
     let surface_kind = surface.kind();
     require_a_meridian(kinds, face, surface_kind)?;
     let m = travs.len();
@@ -1126,7 +1122,7 @@ pub(crate) fn loop_polygon(
             travs
                 .iter()
                 .map(|t| match t.kind {
-                    TravKind::Meridian { u_raw } => Period::new(TAU).near(u_raw, mid_az),
+                    TravKind::Meridian { u_raw } => Period::<f64>::angle().near(u_raw, mid_az),
                     TravKind::Rim { .. } => f64::NAN,
                 })
                 .collect(),
@@ -1154,8 +1150,8 @@ pub(crate) fn loop_polygon(
         let jpole = pole_v(jid);
         match cur.kind {
             TravKind::Rim { v_raw } => {
-                let v_own = if chart.v_periodic() && k > 0 {
-                    Period::new(TAU).near(v_raw, prev_v)
+                let v_own = if chart.v_domain_wraps() && k > 0 {
+                    Period::<f64>::angle().near(v_raw, prev_v)
                 } else {
                     v_raw
                 };
@@ -1176,7 +1172,7 @@ pub(crate) fn loop_polygon(
                 let ju = if k == 0 {
                     chart.u_of(positions[jid as usize])
                 } else if prev_was_rim {
-                    Period::new(TAU).near(chart.u_of(positions[jid as usize]), prev_u)
+                    Period::<f64>::angle().near(chart.u_of(positions[jid as usize]), prev_u)
                 } else {
                     prev_u
                 };
@@ -1188,7 +1184,7 @@ pub(crate) fn loop_polygon(
                 });
                 prev_u = ju;
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
-                    let u = Period::new(TAU).near(chart.u_of(positions[id as usize]), prev_u);
+                    let u = Period::<f64>::angle().near(chart.u_of(positions[id as usize]), prev_u);
                     out.push(UvPoint {
                         u,
                         v: v_edge,
@@ -1289,8 +1285,8 @@ pub(crate) fn loop_polygon(
                         prev_v
                     } else {
                         let v = chart.v_of(positions[jid as usize]);
-                        if chart.v_periodic() && k > 0 {
-                            Period::new(TAU).near(v, prev_v)
+                        if chart.v_domain_wraps() && k > 0 {
+                            Period::<f64>::angle().near(v, prev_v)
                         } else {
                             v
                         }
@@ -1306,8 +1302,8 @@ pub(crate) fn loop_polygon(
                 prev_u = ut;
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
                     let v_raw_pt = chart.v_of(positions[id as usize]);
-                    let v = if chart.v_periodic() {
-                        Period::new(TAU).near(v_raw_pt, prev_v)
+                    let v = if chart.v_domain_wraps() {
+                        Period::<f64>::angle().near(v_raw_pt, prev_v)
                     } else {
                         v_raw_pt
                     };
@@ -2009,11 +2005,11 @@ mod tests {
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords =
             crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
-        let (fk, face) = body
+        let (fk, _) = body
             .faces()
-            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .find(|&(k, _)| matches!(body.face_surface(k), Some(Surface::Sphere { .. })))
             .expect("the revolve mints a sphere wall");
-        let chart = Chart::of(body.get_surface(face.surface).unwrap()).unwrap();
+        let chart = Chart::of(body.face_surface(fk).unwrap()).unwrap();
         for (lk, _) in body.loops().filter(|(_, l)| l.face == fk) {
             let _ = loop_polygon(
                 &body,

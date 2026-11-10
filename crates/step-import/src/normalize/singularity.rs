@@ -45,6 +45,12 @@ use crate::entities::{EdgeSpec, EdgeUse, FaceSpec, LoopSpec, SolidSpec};
 use crate::error::StepImportError;
 use crate::{FaceCensus, NormalizationKind, SingularityFound, StructureNormalization};
 
+/// **Two lines this close to parallel have no crossing** for the pass: a
+/// squared sine between their directions ([`geom::LinePair::sin2`]) at or
+/// below it is a pair whose closest approach is lost to cancellation in
+/// `f64`, a dozen digits below the operands' own scale.
+const NO_CROSSING_SIN2: f64 = 1e-12;
+
 /// The surface data the pass reads: the axis through the singular
 /// points, the reference azimuth, and the points themselves.
 #[derive(Clone, Copy)]
@@ -513,8 +519,7 @@ fn nappe(solid: &SolidSpec, fi: usize, chart: Chart, read: &Read) -> Result<f64,
     let walk =
         home::walk_loop(&inverse, &points, &images[0], read.coarser).ok_or(unreadable(face_id))?;
     match home::nappe(&walk) {
-        Ok(geom_core::k_stats::NonzeroSign::Positive) => Ok(1.0),
-        Ok(geom_core::k_stats::NonzeroSign::Negative) => Ok(-1.0),
+        Ok(side) => Ok(side.unit()),
         Err(why) => Err(read.unread(Unread::Side { r#loop: 0, why }, face_id)),
     }
 }
@@ -628,15 +633,6 @@ enum Hit {
     Refused(StepImportError),
 }
 
-/// The carrier length per unit parameter (the radius for a circle).
-fn speed(carrier: &Curve3<f64>) -> f64 {
-    match *carrier {
-        Curve3::Circle(geom::Circle { radius, .. }) => radius,
-        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
-        _ => 1.0,
-    }
-}
-
 /// The first point past its start at which `ray` meets the boundary of
 /// face `fi`, ignoring `skip`'s edge (a seam the ray leaves from), or
 /// reaches one of `singular` off the boundary.
@@ -649,7 +645,13 @@ fn first_hit(
     read: &Read,
 ) -> Result<(Hit, Point3<f64>), StepImportError> {
     let face = &solid.faces[fi];
-    let lead = read.escalate / speed(&ray.carrier);
+    let Some(speed) = geom::carrier_speed::speed_at(&ray.carrier, ray.from) else {
+        unreachable!(
+            "a ray runs on a sphere's meridian circle or a cone's generator line \
+             (`meridian_rays`), whose speed `speed_at` reads in closed form"
+        )
+    };
+    let lead = read.escalate / speed;
     let mut best: Option<(f64, Hit, Point3<f64>)> = None;
     let offer =
         |delta: f64, hit: Hit, p: Point3<f64>, best: &mut Option<(f64, Hit, Point3<f64>)>| {
@@ -662,17 +664,18 @@ fn first_hit(
         };
     let delta_of = |t: f64| (t - ray.from) * ray.sign;
     // How far along the ray its parameter `t` lies: on a circle, the
-    // representative past the start by at most a turn.
+    // representative in `(lead, lead + τ]`, past the start by at most a turn.
+    // That window is a turn from the start only while `lead`, the band's
+    // escalation over the circle's radius, is under a turn: a circle that
+    // small is inside its own band.
+    let turn = ray.carrier.period();
+    assert!(
+        turn.is_none_or(|turn| lead < turn.length()),
+        "a ray circle within its own band (lead {lead})"
+    );
     let walked = |t: f64| {
-        let mut delta = delta_of(t);
-        if matches!(ray.carrier, Curve3::Circle(..)) {
-            let tau = core::f64::consts::TAU;
-            delta = delta.rem_euclid(tau);
-            if delta <= lead {
-                delta += tau;
-            }
-        }
-        delta
+        let delta = delta_of(t);
+        turn.map_or(delta, |turn| turn.above(delta, lead))
     };
     let mut edges: Vec<u64> = face
         .loops
@@ -837,14 +840,17 @@ fn crossings(
         ) => {
             // The closest approach of two lines; generators of one cone
             // meet only at its apex, which the caller's lead skips.
-            let wv = o - oe;
-            let (aa, bb, cc, dd, ee) = (g.dot(g), g.dot(ge), ge.dot(ge), g.dot(wv), ge.dot(wv));
-            let den = aa * cc - bb.powi(2);
-            if den.abs() <= 1e-12 * aa * cc {
+            let pair = geom::Line { origin: o, dir: g }.closest_params(&geom::Line {
+                origin: oe,
+                dir: ge,
+            });
+            // An import's policy: lines within NO_CROSSING_SIN2 of
+            // parallel (or with a zero direction, NaN) have no crossing.
+            let crossing = pair.sin2.abs() > NO_CROSSING_SIN2;
+            if !crossing {
                 return Some(Vec::new());
             }
-            let t = (bb * ee - cc * dd) / den;
-            let s = (aa * ee - bb * dd) / den;
+            let (t, s) = (pair.s, pair.t);
             let (p, q) = (ray.eval(t), other.eval(s));
             Some(if (p - q).norm() <= read.escalate {
                 vec![(t, p)]
@@ -912,7 +918,12 @@ fn meridian_rays(chart: Chart, k: usize, d: Vec3<f64>, nappe: f64) -> [Ray; 2] {
             ..
         } => Ray {
             carrier: crate::signed_zero::plus_zero_curve(geom::pole_form::cone_generator(
-                apex, axis, half_angle, d,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                d,
             )),
             from: 0.0,
             sign: nappe,
@@ -1032,9 +1043,8 @@ fn interior(
     {
         let lp = &solid.faces[fi].loops[0];
         let radial = |p: Point3<f64>| {
-            let w = p - origin;
-            let r = w - axis * w.dot(axis);
-            (r.norm() > read.escalate).then(|| r / r.norm())
+            let r = geom::Line { origin, dir: axis }.offset(p);
+            (r.norm() > read.escalate).then(|| r.normalize())
         };
         let mut sum = Vec3::new(0.0, 0.0, 0.0);
         let mut count = 0.0;
@@ -1111,8 +1121,10 @@ fn strut_tip(
     let spec = &solid.edges[&seam];
     let Some(twin) = geom::pole_form::half_turn_curve(
         &spec.carrier,
-        chart.origin(),
-        chart.axis(),
+        geom::Line {
+            origin: chart.origin(),
+            dir: chart.axis(),
+        },
         crate::signed_zero::plus_zero_point,
         crate::signed_zero::plus_zero,
     ) else {
@@ -1124,10 +1136,8 @@ fn strut_tip(
     } else {
         (spec.t1, -1.0)
     };
-    let reach = match twin {
-        Curve3::Circle(..) => core::f64::consts::TAU,
-        _ => f64::INFINITY,
-    };
+    // A closed carrier is walked at most a turn; an open one without end.
+    let reach = twin.period().map_or(f64::INFINITY, |turn| turn.length());
     let ray = Ray {
         carrier: twin,
         from,

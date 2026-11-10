@@ -42,6 +42,7 @@ fn yz_prism(lp: ProfileLoop<f64>, x0: f64, dist: f64) -> Body<f64> {
     )
     .expect("the profile extrudes")
     .body
+    .into_body()
 }
 
 /// A 240° arc of the circle about `(y, z) = (1.3, 0)`, `r = 0.5`, from
@@ -255,12 +256,7 @@ fn the_pin_alone_still_answers_its_closed_form() {
 
 fn cylinder_faces(b: &Body<f64>) -> Vec<topo::FaceKey> {
     b.faces()
-        .filter(|(_, fd)| {
-            matches!(
-                b.get_surface(fd.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(b.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect()
 }

@@ -2328,7 +2328,7 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
 /// axis, the equator's tangent, a tilt about the centre's radial, the
 /// radius, a turn about the vertex's tangent — and the torus arm's
 /// answer is checked: an image it mints and certifies has an envelope
-/// over the dense residual, and `CarrierOffChart` is never the answer
+/// over the dense residual, and a read off the chart (`IncidenceRead::Off`) is never the answer
 /// for a circle whose dense distance from the torus is within `ε`.
 #[test]
 fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
@@ -2411,7 +2411,7 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
                     );
                 }
             }
-            Err(PcurveCertifyError::CarrierOffChart { .. }) => {
+            Err(ref e) if matches!(IncidenceRead::of(e), Some(IncidenceRead::Off(_))) => {
                 answers[1] += 1;
                 assert!(
                     dense > b.zero(),
@@ -2426,7 +2426,12 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
                 gap: crate::LaneGap::Pose { .. },
                 ..
             }) => answers[2] += 1,
-            Err(PcurveCertifyError::Escalated { .. }) => answers[3] += 1,
+            Err(ref e)
+                if matches!(IncidenceRead::of(e), Some(IncidenceRead::Undecided(_)))
+                    || matches!(e, PcurveCertifyError::Escalated { .. }) =>
+            {
+                answers[3] += 1;
+            }
             Err(other) => panic!(
                 "{}: refused untyped for this arm: {other_at} — {}",
                 context(),

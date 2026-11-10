@@ -97,7 +97,7 @@ use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{AtRestBody, Body, FaceKey, ShellError};
+use pncad::topo::{Body, FaceKey, ShellError};
 
 use crate::{SceneBody, TourStop, View};
 
@@ -213,6 +213,7 @@ fn revolved(lp: ConstructedLoop<f64>, turn: Revolution<f64>, tol: Tol) -> Body<f
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// The scene's own body: the bellied vessel, fully revolved.
@@ -334,7 +335,7 @@ fn assert_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
 fn stored_minors(body: &Body<f64>) -> Vec<f64> {
     let mut out: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
@@ -347,8 +348,8 @@ fn stored_minors(body: &Body<f64>) -> Vec<f64> {
 /// The faces of the plane chart at station `y`.
 pub fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -406,7 +407,7 @@ pub fn wall_probes(tol: Tol) {
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol,
     );
-    let quarter = AtRestBody::validate(quarter, tol).expect("the sectioned vessel is a valid body");
+    let quarter = pncad::topo::finish(quarter, tol).expect("the sectioned vessel is a valid body");
     let sectioned = pncad::topo::shell(&quarter, WALL, tol)
         .expect("the sectioned vessel hollows through tier 3")
         .body;
@@ -440,7 +441,7 @@ pub fn wall_probes(tol: Tol) {
 }
 
 pub fn stops(tol: Tol) -> Vec<TourStop> {
-    let body = AtRestBody::validate(bellied(tol), tol).expect("the operand: tier 3");
+    let body = pncad::topo::finish(bellied(tol), tol).expect("the operand: tier 3");
     assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
     assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
     let props =
@@ -561,7 +562,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let litres = v_cav * 1000.0;
 
     // ---- THE SENSE TWIN: the same stations, the other centre ----
-    let twin = AtRestBody::validate(waisted(tol), tol).expect("the twin is a finished body");
+    let twin = pncad::topo::finish(waisted(tol), tol).expect("the twin is a finished body");
     assert_eq!(census(&twin), (12, 18, 10), "the twin's operand census");
     let twin_hollow = pncad::topo::shell(&twin, WALL, tol)
         .expect("the waisted twin hollows through the same arm")
@@ -680,6 +681,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // a seam the merge declines by design.
     let merged = cup
         .clone()
+        .into_body()
         .merge_coplanar_faces(tol)
         .expect("the merge runs on the cup");
     let closures = merged
@@ -808,7 +810,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 up: 'y',
             },
             bodies: vec![
-                SceneBody::plain("torusvessel", [0.76, 0.48, 0.36], sealed)
+                SceneBody::plain("torusvessel", [0.76, 0.48, 0.36], sealed.into_body())
                     .transparent(45)
                     .step_at_frontier(
                         |e| {
@@ -862,7 +864,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 azim: -122.0,
                 up: 'y',
             },
-            bodies: vec![SceneBody::plain("torusvesselcup", [0.76, 0.48, 0.36], cup)],
+            bodies: vec![SceneBody::plain(
+                "torusvesselcup",
+                [0.76, 0.48, 0.36],
+                cup.into_body(),
+            )],
         },
     ]
 }

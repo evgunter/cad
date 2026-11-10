@@ -2,9 +2,10 @@
 id: an-interval-census-of-the-reshaped-rod-finds-what-f64-does-not-at-1e-12
 kind: issue
 title: at 1e-12 the census door finds a defect on the reshaped rod at Interval that it does not find at f64
-status: open
+status: closed
 priority: P1
 opened: 2026-10-19
+closed: 2026-11-09
 ---
 
 
@@ -32,3 +33,8 @@ Still red at 1e-12 only (nightly run 40066431545, main `3dfb96b91c`):
 `reshaped_rod: the census door disagreed across certifying scalars (f64
 None vs Interval Some("2 finding(s) ... the kernel cannot yet check a
 contact between faces of these kinds ...`.
+
+
+## Closed (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09)
+
+The row is green at 1e-12 since PR 6482 (`onecopy/angle-reads`, merge `a6f0b5e99c`: the F31 angle reads). Which of its reads moved this row was not traced. A first-parent bisect of the pinned row finds it "stopped otherwise" from at least `e9eaae651d` up to `a6f0b5e99c^1`, and "it passed" from `a6f0b5e99c` on. Before PR 6482 the row stopped earlier, on `die_composed_tour`, with the same cross-scalar census disagreement, which 6482 also cleared without disclosing it (6691's review). So `reshaped_rod`'s own reading before 6482 was never measured: the row stopped before it reached that document. Which of 6482's reads cleared both is filed as `work/onecopy/the-angle-reads-cleared-two-cross-scalar-census-disagreements-untraced.md`. At `a6f0b5e99c` and on main (merged 2026-11-09) both scalars read `reshaped_rod` the same way: no could-not-look finding at f64 or at Interval (`Ok(false)` each). So the two scalars now agree, on the f64 reading. The pin is removed in `crates/editor-core/tests/m10_di_dual_corpus.rs`, and `at_rest_census_verdicts_match_f64_at_interval` passes unpinned at 1e-6, 1e-9 and 1e-12.

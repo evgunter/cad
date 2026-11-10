@@ -7,11 +7,8 @@
 //! an off piece is past the zero band throughout, an on piece within it,
 //! a receding piece's distance never falls away from the joint.
 //!
-//! The rounding charged at a reading's call sites (the level's
-//! `rounding_charge`, the height's `noise`) is not checked here: it covers
-//! the f64 harmonics' distance from the true polynomials, below the
-//! resolution of an f64 distance. Its guarantee rests on the shared
-//! `rounding_charge` estimate, and the Interval lane reads enclosures.
+//! The height and the level are read locally and uncharged at `f64`;
+//! the Interval lane reads their enclosures.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::many_single_char_names)]
 
@@ -22,13 +19,14 @@ test_utils::gated_to![
     "crates/geom/src/curves/on_carrier.rs",
 ];
 
-use core::f64::consts::TAU;
+use core::f64::consts::{PI, TAU};
 
 use geom::Curve3;
 use geom_core::{Band, Point3, Vec3};
 use test_utils::fuzz;
 
 use super::{Joint, Read, Window};
+use crate::curve_pair::Span;
 use crate::curve_pair::pose::{height, level_on};
 use geom::Conic;
 
@@ -168,24 +166,19 @@ fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, 
     (a, b, (big_a, big_b), scale)
 }
 
-/// The window reader of `a` against `b`, its height and rounding read as
-/// the pose reads them.
+/// The window reader of `a` against `b`, its height read as the pose
+/// reads it.
 fn window<'w, T: geom_core::Decide>(
     ka: &'w dyn Conic<T>,
     kb: &'w dyn Conic<T>,
-    b: &'w Curve3<T>,
+    b: &'w Span<'w, T>,
 ) -> Window<'w, T> {
-    let lever = ka.speed_hi().max(kb.speed_hi());
-    let o = Point3::origin();
     Window {
         a: ka,
         span_a: (T::from_f64(-1.0), T::from_f64(1.0)),
         b: kb,
-        carrier_b: b,
+        span_b: b,
         height: height(ka, kb.frame().origin, kb.frame().axis),
-        noise: geom_core::rounding_charge(
-            (ka.frame().origin - o).norm() + (kb.frame().origin - o).norm() + lever + lever,
-        ),
     }
 }
 
@@ -199,30 +192,35 @@ fn check(
     piece: (f64, f64),
     away: bool,
     band: Band,
-) -> Result<Vec<Read>, String> {
+) -> Result<Vec<Made>, String> {
     let z = band.zero();
     let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
     let iv = |x: f64| geom_core::Interval::from_bounds(x, x);
     let (ia, ib) = (a.map_scalar(iv), b.map_scalar(iv));
     let (ika, ikb) = (ia.conic().unwrap(), ib.conic().unwrap());
-    let reads = [
-        (
-            "f64",
-            window(&ka, &kb, b).read(piece, away, &level_on(&ka, &kb), band),
-        ),
-        (
-            "interval",
-            window(&ika, &ikb, &ib).read(
-                (iv(piece.0), iv(piece.1)),
-                away,
-                &level_on(&ika, &ikb),
-                band,
-            ),
-        ),
-    ];
+    let sb = Span::new(b, (-PI, PI));
+    let isb = Span::new(&ib, (iv(-PI), iv(PI)));
+    // Each lane reads the piece outward from the joint, and as an arc no
+    // ring bounds, where off is past the escalation and receding is up `θ`
+    // or down it. An unringed off the piece's own (i) floor does not read is
+    // its near end's (the span is whole, so never the span's).
+    let e = band.escalate();
+    let read = |ring: Option<bool>| {
+        let (w, iw) = (window(&ka, &kb, &sb), window(&ika, &ikb, &isb));
+        let ipiece = (iv(piece.0), iv(piece.1));
+        let got = w.read(piece, ring, &level_on(&ka, &kb), band);
+        let igot = iw.read(ipiece, ring, &level_on(&ika, &ikb), band);
+        let near =
+            |plain: bool, got: Option<Read>| ring.is_none() && got == Some(Read::Off) && !plain;
+        [
+            ("f64", ring, got, near(w.off(piece, e), got)),
+            ("interval", ring, igot, near(iw.off(ipiece, iv(e)), igot)),
+        ]
+    };
+    let reads: Vec<_> = read(Some(away)).into_iter().chain(read(None)).collect();
     // A piece neither lane reads has no claim to check: the dense
     // distance is sampled only where one was made.
-    if reads.iter().all(|(_, read)| read.is_none()) {
+    if reads.iter().all(|(_, _, read, _)| read.is_none()) {
         return Ok(Vec::new());
     }
     let n = 2000;
@@ -238,32 +236,50 @@ fn check(
     // half of the touch family's scales (the #5477 review's M2).
     let tol = (1e-13 * scale.max(1.0)).min(z / 8.0);
     let mut made = Vec::new();
-    for (lane, read) in reads {
+    for (lane, ring, read, near_end) in reads {
         let Some(read) = read else {
             continue;
         };
+        let off = if ring.is_some() { z } else { band.escalate() };
         let ok = match read {
-            Read::Off => ds.iter().all(|&d| d > z - tol),
+            Read::Off | Read::OffSpan => ds.iter().all(|&d| d > off - tol),
             Read::On => ds.iter().all(|&d| d <= z + tol),
+            // Outward from the ring, or with no ring either way.
             Read::Recedes => {
-                let mut seq = ds.clone();
-                if !away {
-                    seq.reverse();
-                }
-                let mut most = f64::NEG_INFINITY;
-                seq.into_iter().all(|d| {
-                    let ok = d >= most - tol;
-                    most = most.max(d);
-                    ok
-                })
+                let grows = |seq: Vec<f64>| {
+                    let mut most = f64::NEG_INFINITY;
+                    seq.into_iter().all(|d| {
+                        let ok = d >= most - tol;
+                        most = most.max(d);
+                        ok
+                    })
+                };
+                let (up, down) = match ring {
+                    Some(away) => (away, !away),
+                    None => (true, true),
+                };
+                (up && grows(ds.clone())) || (down && grows(ds.iter().rev().copied().collect()))
             }
         };
         if !ok {
-            return Err(format!("{lane}: {read:?} on {piece:?} away {away}"));
+            return Err(format!("{lane}: {read:?} on {piece:?} ring {ring:?}"));
         }
-        made.push(read);
+        made.push(Made {
+            ringed: ring.is_some(),
+            read,
+            near_end,
+        });
     }
     Ok(made)
+}
+
+/// A reading [`check`] made and held to the dense distance: whether its
+/// arc is ringed, and, for an unringed off, whether its near end read it.
+#[derive(Debug)]
+struct Made {
+    ringed: bool,
+    read: Read,
+    near_end: bool,
 }
 
 /// **No reading contradicts the dense distance** (module docs). Half the
@@ -275,7 +291,10 @@ fn each_window_reading_holds_on_a_dense_distance() {
     let mut rng = fuzz::start("curve_pair::pose::window::oracle");
     let band = Band::new(1e-9, 1e-8).unwrap();
     let draws = fuzz::scaled(60);
-    let (mut counts, mut bad) = ([0usize; 3], Vec::new());
+    // Off, on and receding, ringed and unringed, and the unringed offs read
+    // by a piece's near end.
+    let (mut ringed, mut unringed, mut near_end) = ([0usize; 3], [0usize; 3], 0usize);
+    let mut bad = Vec::new();
     for draw in 0..draws {
         let (a, b, axes, scale) = pair(&mut rng, band.zero(), false);
         for _ in 0..20 {
@@ -290,15 +309,20 @@ fn each_window_reading_holds_on_a_dense_distance() {
             let away = if rng.unit() < 0.85 { m > 0.0 } else { m < 0.0 };
             match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
                 Ok(made) => {
-                    for read in made {
-                        counts[read as usize] += 1;
+                    for m in made {
+                        let counts = if m.ringed { &mut ringed } else { &mut unringed };
+                        counts[m.read as usize % 3] += 1;
+                        near_end += usize::from(m.near_end);
                     }
                 }
                 Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),
             }
         }
     }
-    println!("off, on, recedes: {counts:?}");
+    println!(
+        "off, on, recedes: ringed {ringed:?}, unringed {unringed:?}, \
+         {near_end} unringed offs read by the near end"
+    );
     assert!(
         bad.is_empty(),
         "{} readings contradicted ({}): {:#?}",
@@ -307,8 +331,13 @@ fn each_window_reading_holds_on_a_dense_distance() {
         &bad[..bad.len().min(8)]
     );
     assert!(
-        counts.iter().all(|&c| c > 0),
-        "every reading drawn ({}): {counts:?}",
+        ringed.iter().all(|&c| c > 0),
+        "every ringed reading drawn ({}): {ringed:?}",
+        fuzz::replay()
+    );
+    assert!(
+        unringed[Read::Off as usize] > 0 && near_end > 0,
+        "unringed offs drawn, some read by the near end ({}): {unringed:?}, {near_end}",
         fuzz::replay()
     );
 }
@@ -334,7 +363,10 @@ fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
          work/cpair/a-touch-window-fuzz-seed-contradicts-the-dense-distance-at-1e-12)"
     );
     for band in [Band::new(1e-9, 1e-8).unwrap()] {
-        let (mut counts, mut bad) = ([0usize; 3], Vec::new());
+        // Off, on and receding, ringed and unringed, and the unringed offs
+        // read by a piece's near end.
+        let (mut ringed, mut unringed, mut near_end) = ([0usize; 3], [0usize; 3], 0usize);
+        let mut bad = Vec::new();
         for draw in 0..fuzz::scaled(60) {
             let (a, b, axes, scale) = pair(&mut rng, band.zero(), true);
             for _ in 0..20 {
@@ -349,15 +381,21 @@ fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
                 let away = if rng.unit() < 0.85 { m > 0.0 } else { m < 0.0 };
                 match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
                     Ok(made) => {
-                        for read in made {
-                            counts[read as usize] += 1;
+                        for m in made {
+                            let counts = if m.ringed { &mut ringed } else { &mut unringed };
+                            counts[m.read as usize % 3] += 1;
+                            near_end += usize::from(m.near_end);
                         }
                     }
                     Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),
                 }
             }
         }
-        println!("ε {}: off, on, recedes: {counts:?}", band.zero());
+        println!(
+            "ε {}: off, on, recedes: ringed {ringed:?}, unringed {unringed:?}, \
+             {near_end} unringed offs read by the near end",
+            band.zero()
+        );
         assert!(
             bad.is_empty(),
             "ε {}: {} readings contradicted ({}): {:#?}",
@@ -367,8 +405,8 @@ fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
             &bad[..bad.len().min(8)]
         );
         assert!(
-            counts[Read::On as usize] > 0,
-            "ε {}: touches read on ({}): {counts:?}",
+            ringed[Read::On as usize] > 0,
+            "ε {}: touches read on ({}): {ringed:?}",
             band.zero(),
             fuzz::replay()
         );
@@ -508,7 +546,8 @@ fn seam_pose(
     let parted = (1..400).any(|i| dist(delta * f64::from(i) / 400.0) > 1.2 * band.zero());
     let p_on = in_span(delta) && parted && dist(delta) < 0.9 * band.zero();
     let (ka, kb) = (a.conic().unwrap(), b.conic().unwrap());
-    let mut w = window(&ka, &kb, &b);
+    let sb = Span::new(&b, (-PI, PI));
+    let mut w = window(&ka, &kb, &sb);
     w.span_a = span;
     let js: Vec<_> = joints
         .iter()
@@ -602,4 +641,52 @@ fn a_span_four_turns_out_is_read_at_every_turn_of_the_window() {
         !certified,
         "a window with the second meeting in it is not the joints'"
     );
+}
+
+/// **A far, thin touch reads its level locally** (the delta review of PR
+/// 6525): a circle of radius 7.8 tangent near the major vertex of a
+/// `9.8 × 0.027` ellipse, two pieces about `2·10⁻⁹` rad from the touch at
+/// the fine band. The level posed about the ellipse's centre rounds by
+/// `((|w| + R)/s)²` ulps, past the band's zero: read from those harmonics
+/// uncharged, the first piece reads on where the dense distance is past
+/// the zero band. Guards that the window's level is read about the piece.
+#[test]
+fn a_far_thin_touch_reads_its_level_locally() {
+    let a = Curve3::circle(
+        Point3::new(
+            2.000_733_089_906_098,
+            0.120_290_927_807_544_09,
+            0.001_545_478_629_104_394_5,
+        ),
+        Vec3::new(
+            0.000_198_388_305_349_933_14,
+            -3.064_147_273_603_985e-6,
+            0.999_999_980_316_345_4,
+        ),
+        7.789_240_998_753_546,
+        Vec3::new(
+            0.999_880_724_536_364_6,
+            -0.015_443_358_874_471_637,
+            -0.000_198_411_967_124_295_83,
+        ),
+    );
+    let axes = (9.789_045_031_948_858, 0.026_598_861_928_547_84);
+    let b = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        axes.0,
+        axes.1,
+    ));
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    for piece in [
+        (-2.876_367_476_779_094_8e-9, -2.239_056_786_136_914_6e-9),
+        (-1.956_978_469_885_861_5e-9, -1.955_894_014_129_153_5e-9),
+    ] {
+        if let Err(why) = check(&a, &b, (axes, axes.0), piece, false, band) {
+            panic!("{why}");
+        }
+    }
 }

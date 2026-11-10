@@ -37,7 +37,8 @@
 //! After `movefac`, a shell is classified by its section faces (seed
 //! knowledge, Program 14.12) — mixed above/below section faces in one
 //! shell is a typed kernel-bug error; a shell with NO section face
-//! (an uncut component) falls back to its first vertex's cached side.
+//! (an uncut component) reads its own side (`shell_side`): its
+//! vertices' cached sides, then its curved edges'.
 //! A shell consisting **only** of section faces bounds no volume. The
 //! join's zero-area check refuses every area section that could make
 //! one, so such a shell is a kernel defect, refused loudly
@@ -106,20 +107,19 @@ use geom_core::Tol;
 // boxing would tax every real-result access to slim the rare Empty.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-pub enum SplitPart<T: Real> {
-    /// The side's material, as an independent body, finished: the split
-    /// gated it at rest ([`crate::AtRestPolicy::gate_at_rest_kept`]) and
-    /// keeps the verdict, as a Boolean's result does
+pub enum SplitPart<T: crate::props::AtRestPolicy> {
+    /// The side's material, as an independent body, finished
+    /// ([`crate::AtRestPolicy::finish`]), as a Boolean's result is
     /// ([`crate::BooleanBody::body`]). A caller wanting the body by value
-    /// takes [`crate::AtRestBody::into_body`].
-    Body(crate::AtRestBody<T>),
+    /// takes [`crate::FinishedBody::into_body`].
+    Body(T::Finished),
     /// No material on this side.
     Empty,
 }
 
-impl<T: Real> SplitPart<T> {
+impl<T: crate::props::AtRestPolicy> SplitPart<T> {
     /// The body, if this side has material.
-    pub fn body(&self) -> Option<&crate::AtRestBody<T>> {
+    pub fn body(&self) -> Option<&T::Finished> {
         match self {
             Self::Body(b) => Some(b),
             Self::Empty => None,
@@ -138,19 +138,54 @@ pub(crate) enum RawPart<T: Real> {
     Empty,
 }
 
-/// The split pipeline's own result: [`SplitResult`] before its sides are
-/// gated at rest (`super::split`).
-#[derive(Debug)]
-pub(crate) struct RawSplit<T: Real> {
-    pub(crate) above: RawPart<T>,
-    pub(crate) below: RawPart<T>,
-    pub(crate) naming: SplitNaming,
-    pub(crate) coincidences: Vec<crate::Coincidence>,
+pub(in crate::splitting) use raw::RawSplit;
+
+/// [`RawSplit`] and the one way to make one: its record is the reduce's
+/// rows, so its constructor takes them as [`super::ReducedRows`], which
+/// only the reduce mints and a [`SplitReduction`] gives up by value, and
+/// its record field is private to this module.
+mod raw {
+    use super::super::ReducedRows;
+    use super::{RawPart, SplitNaming};
+    use geom_core::Real;
+
+    /// The split pipeline's own result: [`super::SplitResult`] before
+    /// its sides are gated at rest (`super::super::split`).
+    #[derive(Debug)]
+    pub(in crate::splitting) struct RawSplit<T: Real> {
+        pub(in crate::splitting) above: RawPart<T>,
+        pub(in crate::splitting) below: RawPart<T>,
+        pub(in crate::splitting) naming: SplitNaming,
+        coincidences: Vec<crate::Coincidence>,
+    }
+
+    impl<T: Real> RawSplit<T> {
+        /// The split's two sides and naming, recording `rows`.
+        pub(in crate::splitting) fn from_reduction(
+            rows: ReducedRows,
+            (above, below): (RawPart<T>, RawPart<T>),
+            naming: SplitNaming,
+        ) -> Self {
+            Self {
+                above,
+                below,
+                naming,
+                coincidences: rows.0,
+            }
+        }
+
+        /// Its sides, naming and record.
+        pub(in crate::splitting) fn into_parts(
+            self,
+        ) -> (RawPart<T>, RawPart<T>, SplitNaming, Vec<crate::Coincidence>) {
+            (self.above, self.below, self.naming, self.coincidences)
+        }
+    }
 }
 
 /// The result of a plane split: both sides, functionally.
 #[derive(Debug)]
-pub struct SplitResult<T: Real> {
+pub struct SplitResult<T: crate::props::AtRestPolicy> {
     /// The material on the plane normal's side.
     pub above: SplitPart<T>,
     /// The material on the opposite side.
@@ -175,7 +210,7 @@ pub struct SplitContacts {
     pub below: crate::boolean::ContactRecords,
 }
 
-impl<T: Decide> SplitResult<T> {
+impl<T: crate::props::AtRestPolicy + Decide> SplitResult<T> {
     /// `records`, the operand's, carried onto the split's two sides
     /// through [`Self::lineage`] ([`crate::ContactRecords::carried_through`],
     /// at `band` through `region`), each side's records citing the
@@ -285,7 +320,7 @@ impl<T: Decide> SplitResult<T> {
     }
 }
 
-impl<T: Real> SplitResult<T> {
+impl<T: crate::props::AtRestPolicy> SplitResult<T> {
     /// **What the split made of each operand cell** (D1), in the scratch
     /// keys both sides were carved from, read through each side's merges and joins:
     /// a vertex the cut copied is kept under its key and its copies
@@ -346,12 +381,7 @@ impl<T: Real> SplitResult<T> {
                         .is_some_and(|fs| fs.into_iter().any(section))
                 };
                 for &e in &pieces {
-                    let Some(ends) = body.get_edge(e).and_then(|d| {
-                        Some([
-                            body.get_half_edge(d.he_plus)?.start,
-                            body.get_half_edge(d.he_minus)?.start,
-                        ])
-                    }) else {
+                    let Some(ends) = body.edge_vertices(e).map(<[_; 2]>::from) else {
                         continue;
                     };
                     for v in ends.into_iter().filter(|&v| on_section(v)) {
@@ -756,8 +786,9 @@ pub enum SplitFinishError {
         /// The offending shell.
         shell: ShellKey,
     },
-    /// A component has no section face and no off-plane vertex to
-    /// classify by (kernel bug or fully-coplanar garbage).
+    /// A component has no section face and no off-plane vertex or
+    /// curved edge to classify by ([`shell_side`]; kernel bug or
+    /// fully-coplanar garbage).
     UnclassifiableComponent {
         /// The offending shell.
         shell: ShellKey,
@@ -928,44 +959,23 @@ pub enum SplitFinishError {
     },
     /// A finished side fails tier 2 ([`crate::validate_closed`]): a
     /// split never returns a body that is not a closed solid. Reached
-    /// by a kernel defect: [`super::split`] reads its operand's tier 2
-    /// at every scalar before it cuts (`gate_finished`). `side` is in the
-    /// caller's orientation.
+    /// by a kernel defect: [`super::split`]'s operand is a finished body.
+    /// `side` is in the caller's orientation.
     ResultInvalid {
         /// The side whose body failed.
         side: PlaneSide,
         /// The validator's findings.
         errors: Vec<crate::validate::ValidationError>,
     },
-    /// A side, sorted into its solids, fails the scalar's at-rest gate
-    /// ([`crate::AtRestPolicy::gate_at_rest`]: [`crate::validate_geometric`]
-    /// at a certifying scalar, nothing at a dual), the gate the Boolean's
-    /// result passes, on findings that are the kernel's: at a certifying
-    /// scalar a split never returns a side its validator refuses. Typed and
-    /// worded as the Boolean's [`crate::BooleanError::ResultInvalid`], each
-    /// finding with its own ending. `side` is in the caller's orientation.
+    /// A side, sorted into its solids, is not a finished body
+    /// ([`crate::AtRestPolicy::finish`], the gate the Boolean's result
+    /// passes): every finding, each read through its family. `side` is
+    /// in the caller's orientation.
     ResultNotAtRest {
         /// The side whose body failed.
         side: PlaneSide,
-        /// The validator's findings.
-        errors: Vec<crate::validate::ValidationError>,
-    },
-    /// A side fails the at-rest gate only on shells whose role it
-    /// certified in band: the Boolean's [`crate::BooleanError::Escalated`]
-    /// on [`crate::BooleanDecision::ShellRole`], at this door and in its
-    /// lever ([`crate::BooleanDecision::render_at_split`]). `side` is in
-    /// the caller's orientation. No split is known to reach it: the
-    /// reduction's input readings refuse an in-band sliver first
-    /// ([`super::SplitReduceError::SliverVertex`], the section's area
-    /// certificate), so the typing's own row (`at_rest_rows`) is its
-    /// guard.
-    ResultEscalated {
-        /// The side whose body failed.
-        side: PlaneSide,
-        /// [`crate::BooleanDecision::ShellRole`] on the binding shell.
-        decision: crate::BooleanDecision,
-        /// The binding shell's certified reading.
-        diag: geom_core::Indeterminate,
+        /// The finish's findings.
+        findings: crate::NotFinished,
     },
     /// The join a side ends with ([`crate::Body::join_edges`](crate::construction::Construct::join_edges)) refused
     /// on that side's body.
@@ -983,25 +993,6 @@ pub enum SplitFinishError {
         /// Why the merge refused.
         error: crate::MergeCoplanarError,
     },
-}
-
-impl SplitFinishError {
-    /// The refusal of `side`, whose body the at-rest gate refused on
-    /// `errors`, typed as the Boolean types its result
-    /// ([`crate::boolean::at_rest_refusal`]).
-    pub(crate) fn not_at_rest(
-        side: PlaneSide,
-        errors: Vec<crate::validate::ValidationError>,
-    ) -> Self {
-        match crate::boolean::at_rest_refusal(errors) {
-            crate::boolean::AtRestRefusal::InBand { decision, diag } => Self::ResultEscalated {
-                side,
-                decision,
-                diag,
-            },
-            crate::boolean::AtRestRefusal::Kernel(errors) => Self::ResultNotAtRest { side, errors },
-        }
-    }
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -1227,21 +1218,12 @@ impl SplitFinishError {
                 side.word(),
                 read_at(error, at)
             ),
-            Self::ResultNotAtRest { side, errors } => crate::validate::write_result_not_at_rest(
+            Self::ResultNotAtRest { side, findings } => write!(
                 f,
-                format_args!("the piece on the {} side of the plane", side.word()),
-                errors,
-                at,
-            ),
-            Self::ResultEscalated {
-                side,
-                decision,
-                diag,
-            } => write!(
-                f,
-                "the piece on the {} side of the plane: {}",
+                "the piece on the {} side of the plane is not a finished body, so no body is \
+                 returned: {}",
                 side.word(),
-                decision.render_at_split(diag)
+                read_at(findings, at)
             ),
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
@@ -1299,15 +1281,25 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // tier-1 sweep over the reassembled body before it is carved into
     // the two sides. The guard owns the borrow, so a refusal on the
     // way closes the scope by dropping it.
+    let rows = red.coincidences;
     let mut reassembled = red.body;
     let mut body = reassembled.begin_surgery();
     let solid = single_solid(&body)?;
 
-    // No section polygons: the plane did not cut — the whole operand
-    // is one side (an ON-touching contact mints no null faces).
+    // No section polygons: the plane did not cut, so each shell lies on
+    // one side (an ON-touching contact mints no null faces).
     if completed.is_empty() {
         body.sweep_and_close();
-        return whole_body_side(reassembled, &red.sides, &red.plane, tol);
+        // The record is the reduce's, as on the cut path. No fixture
+        // reaches a reduce row here: one needs two runs of a side about
+        // an ON vertex, which crosses the plane and mints a section
+        // (`work/onecopy/an-uncut-split-at-a-shared-non-manifold-vertex-is-unbuilt.md`).
+        let sides = whole_body_side(reassembled, &red.sides, &red.plane, tol)?;
+        return Ok(RawSplit::from_reduction(
+            rows,
+            sides,
+            SplitNaming::default(),
+        ));
     }
     let mut naming = SplitNaming {
         sections: Vec::with_capacity(completed.len() * 2),
@@ -1463,8 +1455,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // ---- Classification + the degenerate net. ----
-    let mut above_shells = Vec::new();
-    let mut below_shells = Vec::new();
+    let mut binned = ShellSides::default();
     for shell in all_shells {
         let faces = &body
             .get_shell(shell)
@@ -1483,15 +1474,17 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             );
             continue;
         }
-        let (side, has_real_face) = classify_shell(&body, shell, &section_side, &red.sides)?;
+        let (side, has_real_face) =
+            classify_shell(&body, shell, &section_side, &red.sides, &red.plane, band)?;
         if !has_real_face {
             return Err(SplitFinishError::DegenerateSide { shell, side });
         }
-        match side {
-            PlaneSide::Above => above_shells.push(shell),
-            _ => below_shells.push(shell),
-        }
+        binned.bin(shell, side);
     }
+    let ShellSides {
+        above: above_shells,
+        below: below_shells,
+    } = binned;
     if above_shells.is_empty() || below_shells.is_empty() {
         // With ≥1 completed section both sides must hold material.
         return Err(SplitFinishError::Corrupt);
@@ -1505,12 +1498,11 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let above = carve(&reassembled, solid, &above_shells)?;
     let below = carve(&reassembled, solid, &below_shells)?;
-    Ok(RawSplit {
-        above: RawPart::Body(above),
-        below: RawPart::Body(below),
+    Ok(RawSplit::from_reduction(
+        rows,
+        (RawPart::Body(above), RawPart::Body(below)),
         naming,
-        coincidences: red.coincidences,
-    })
+    ))
 }
 
 /// Each section face that is a hole — sense `false`: its loop winds
@@ -2034,51 +2026,125 @@ pub(crate) fn single_solid<T: Decide>(body: &Body<T>) -> Result<SolidKey, SplitF
     }
 }
 
-/// The un-cut case: the whole body lands on one side. Every off-plane
-/// point of an un-cut body reads the same side, so the ladder
-/// ([`geom_brep::ladder::climb`], [`Answering::Any`]) reads the cached
-/// vertex verdicts (arena order), then, for a body whose every vertex
-/// is ON, the first curved edge whose mid-parameter point is off the
-/// plane (`split_edge_side`; edge arena order): a one-segment cylinder
-/// touching the plane along its seam strut has its two vertices there.
-/// A curved edge read in band refuses only where no later reading
-/// decides a side.
-///
-/// [`Answering::Any`]: geom_brep::ladder::Answering::Any
+/// The un-cut case's two sides, above then below: no section, so each
+/// shell lies whole on one side ([`shell_side`]). Where every shell
+/// reads one side the whole body lands there; where they differ (two
+/// lumps that meet only within the plane, a pinch on it) each side is
+/// carved from its own shells, as a cut body's are.
 fn whole_body_side<T: Decide>(
     body: Body<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     plane: &super::SplitPlane<T>,
     tol: Tol,
-) -> Result<RawSplit<T>, SplitFinishError> {
+) -> Result<(RawPart<T>, RawPart<T>), SplitFinishError> {
+    let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+    let solid = single_solid(&body)?;
+    let mut binned = ShellSides::default();
+    for &shell in body
+        .shells_of_solid(solid)
+        .ok_or(SplitFinishError::Corrupt)?
+    {
+        match shell_side(&body, shell, sides, plane, band)? {
+            Some(side) => binned.bin(shell, side),
+            // Every vertex and every curved edge ON: a zero-volume
+            // shell, which no closed solid holds; the operand is never
+            // validated, so this refuses here.
+            None => return Err(SplitFinishError::Corrupt),
+        }
+    }
+    let ShellSides { above, below } = binned;
+    Ok(match (above.is_empty(), below.is_empty()) {
+        // A solid with no shell holds no material to place.
+        (true, true) => return Err(SplitFinishError::Corrupt),
+        (false, true) => (RawPart::Body(body), RawPart::Empty),
+        (true, false) => (RawPart::Empty, RawPart::Body(body)),
+        (false, false) => (
+            RawPart::Body(carve(&body, solid, &above)?),
+            RawPart::Body(carve(&body, solid, &below)?),
+        ),
+    })
+}
+
+/// The shells of each side of a split, as the distribution bins them
+/// ([`ShellSides::bin`]): the cut path's components and the uncut
+/// path's shells alike.
+#[derive(Default)]
+struct ShellSides {
+    above: Vec<ShellKey>,
+    below: Vec<ShellKey>,
+}
+
+impl ShellSides {
+    /// Bins `shell` on `side`: `Above`, or `Below` for every other side.
+    fn bin(&mut self, shell: ShellKey, side: PlaneSide) {
+        match side {
+            PlaneSide::Above => self.above.push(shell),
+            _ => self.below.push(shell),
+        }
+    }
+}
+
+/// **The side of a shell no section touches**: every off-plane point of
+/// it reads the same side, so the ladder ([`geom_brep::ladder::climb`],
+/// [`Answering::Any`]) reads its cached vertex verdicts (face and cycle
+/// order), then, for a shell whose every vertex is ON, the first curved
+/// edge whose mid-parameter point is off the plane (`split_edge_side`):
+/// a one-segment cylinder touching the plane along its seam strut has
+/// its two vertices there. A curved edge read in band refuses only
+/// where no later reading decides a side. `None` where every reading
+/// is ON.
+///
+/// [`Answering::Any`]: geom_brep::ladder::Answering::Any
+fn shell_side<T: Decide>(
+    body: &Body<T>,
+    shell: ShellKey,
+    sides: &SecondaryMap<VertexKey, PlaneSide>,
+    plane: &super::SplitPlane<T>,
+    band: geom_core::Band,
+) -> Result<Option<PlaneSide>, SplitFinishError> {
     use geom_brep::ladder::{Answering, Climb, Rung, climb};
     enum Reading<T: Decide> {
         Vertex(VertexKey),
         Edge(EdgeKey, geom::Curve3<T>, (T, T)),
     }
-    let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
-    let vertices = body.vertices().map(|(v, _)| Reading::Vertex(v));
-    let edges = body.edges().filter_map(|(key, edge)| {
-        let curve = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)?;
-        curve
-            .carrier()
-            .is_curved()
-            .then(|| Reading::Edge(key, curve.carrier().clone(), curve.params()))
-    });
-    let side = match climb(
+    let shell_data = body.get_shell(shell).ok_or(SplitFinishError::Corrupt)?;
+    let (mut vertices, mut edges) = (Vec::new(), Vec::new());
+    let (mut seen_v, mut seen_e) = (SecondaryMap::new(), SecondaryMap::new());
+    for &face in &shell_data.faces {
+        let view = body.linked_face(face, EntityId::Shell(shell), "faces");
+        for member in view.boundary() {
+            let vertex = member.vertex();
+            if seen_v.insert(vertex, ()).is_none() {
+                vertices.push(Reading::Vertex(vertex));
+            }
+            let BoundaryMember::Edge { ek, edge, .. } = member else {
+                continue;
+            };
+            if seen_e.insert(ek, ()).is_some() {
+                continue;
+            }
+            let Some(curve) = body
+                .get_curve_geom(edge.curve)
+                .and_then(crate::null::CurveGeom::certified)
+            else {
+                continue;
+            };
+            if curve.carrier().is_curved() {
+                edges.push(Reading::Edge(ek, curve.carrier().clone(), curve.params()));
+            }
+        }
+    }
+    match climb(
         Answering::Any,
-        vertices.chain(edges),
+        vertices.into_iter().chain(edges),
         |reading| match reading {
             Reading::Vertex(v) => match sides.get(v) {
                 Some(&side @ (PlaneSide::Above | PlaneSide::Below)) => Rung::Answers(side),
                 Some(PlaneSide::On) | None => Rung::Passes,
             },
             Reading::Edge(edge, carrier, (t0, t1)) => {
-                let mid = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
-                let offset =
-                    geom_brep::sector_shape::plane_offset(plane.origin, plane.normal.get(), mid);
+                let mid = carrier.eval(geom::bracket_mid((t0, t1)));
+                let offset = geom::plane_offset(plane.origin, plane.normal.get(), mid);
                 Rung::decide(
                     "split_edge_side",
                     geom_core::Margin::of(offset),
@@ -2093,29 +2159,11 @@ fn whole_body_side<T: Decide>(
             }
         },
     ) {
-        Climb::Answered { answer, .. } => Some(answer),
-        Climb::Passed => None,
+        Climb::Answered { answer, .. } => Ok(Some(answer)),
+        Climb::Passed => Ok(None),
         Climb::Undecided((edge, diag)) => {
-            return Err(SplitFinishError::WholeBodySideEscalated { edge, diag });
+            Err(SplitFinishError::WholeBodySideEscalated { edge, diag })
         }
-    };
-    match side {
-        Some(PlaneSide::Above) => Ok(RawSplit {
-            above: RawPart::Body(body),
-            below: RawPart::Empty,
-            naming: SplitNaming::default(),
-            coincidences: Vec::new(),
-        }),
-        Some(_) => Ok(RawSplit {
-            above: RawPart::Empty,
-            below: RawPart::Body(body),
-            naming: SplitNaming::default(),
-            coincidences: Vec::new(),
-        }),
-        // Every vertex and every curved edge ON: a zero-volume
-        // operand, which no closed solid is; the operand is never
-        // validated, so this refuses here.
-        None => Err(SplitFinishError::Corrupt),
     }
 }
 
@@ -2161,12 +2209,15 @@ fn section_sense<T: crate::props::AtRestPolicy>(
 }
 
 /// Classifies one component shell (module docs): section-face seeds,
-/// vertex-side fallback; returns (side, has-any-non-section-face).
+/// else the uncut shell's own side ([`shell_side`]); returns (side,
+/// has-any-non-section-face).
 fn classify_shell<T: Decide>(
     body: &Body<T>,
     shell: ShellKey,
     section_side: &SecondaryMap<FaceKey, PlaneSide>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
+    plane: &super::SplitPlane<T>,
+    band: geom_core::Band,
 ) -> Result<(PlaneSide, bool), SplitFinishError> {
     let shell_data = body.get_shell(shell).ok_or(SplitFinishError::Corrupt)?;
     let mut side: Option<PlaneSide> = None;
@@ -2186,20 +2237,11 @@ fn classify_shell<T: Decide>(
     if let Some(s) = side {
         return Ok((s, has_real_face));
     }
-    // No section face: an uncut component — classify by its first
-    // off-plane vertex (deterministic face-list/cycle order walk).
-    for &face in &shell_data.faces {
-        let view = body.linked_face(face, EntityId::Shell(shell), "faces");
-        for member in view.boundary() {
-            let BoundaryMember::Edge { half, .. } = member else {
-                continue;
-            };
-            if let Some(&s @ (PlaneSide::Above | PlaneSide::Below)) = sides.get(half.start) {
-                return Ok((s, has_real_face));
-            }
-        }
+    // No section face: an uncut component.
+    match shell_side(body, shell, sides, plane, band)? {
+        Some(s) => Ok((s, has_real_face)),
+        None => Err(SplitFinishError::UnclassifiableComponent { shell }),
     }
-    Err(SplitFinishError::UnclassifiableComponent { shell })
 }
 
 /// Carves the sub-body spanned by `keep` shells out of `src`: a clone
@@ -2957,121 +2999,19 @@ mod joined_lineage_rows {
     }
 }
 
-/// **The split types its at-rest refusal as the Boolean does, in its own
-/// lever.** A side refused only on a reading in band — an aimed ray's
-/// pair — is `ResultEscalated` on it, ending in the split's lever; beside
-/// a definite finding it is the kernel's, `ResultNotAtRest`, and so is a
-/// solid's volume whose certified enclosure holds zero, which is never in
-/// band (D10).
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod at_rest_rows {
-    use super::{PlaneSide, SplitFinishError};
-    use crate::entity::{FaceKey, ShellKey, SolidKey};
-    use crate::{
-        AimedPair, BooleanDecision, OrientationUnread, ShellClassifyError, ValidationError,
-    };
-    use geom_core::{Band, Indeterminate, MarginDiag};
-
-    #[test]
-    fn an_in_band_shell_escalates_in_the_splits_lever() {
-        let band = Band::new(1e-9, 1e-8).unwrap();
-        let read = |margin, predicate| Indeterminate {
-            margin,
-            band,
-            predicate: Some(predicate),
-            terminal_sliver: false,
-        };
-        let gap = read(MarginDiag::value(3.05e-9), "side_at_infinity_order");
-        let shell: ShellKey = slotmap::KeyData::from_ffi((1 << 32) | 1).into();
-        let near: FaceKey = slotmap::KeyData::from_ffi((1 << 32) | 2).into();
-        let role = ValidationError::ShellRoleUndecided {
-            solid: SolidKey::default(),
-            error: ShellClassifyError::RayInBand {
-                shell,
-                pair: Box::new(AimedPair {
-                    shell,
-                    aimed: near,
-                    aim: "(0.5, 0.5, 1.0)".to_owned(),
-                    near,
-                    far: FaceKey::default(),
-                    gap,
-                }),
-            },
-        };
-        let refusal = SplitFinishError::not_at_rest(PlaneSide::Below, vec![role.clone()]);
-        assert!(
-            matches!(
-                &refusal,
-                SplitFinishError::ResultEscalated {
-                    side: PlaneSide::Below,
-                    decision: BooleanDecision::ShellRole { near: n, others: 0, .. },
-                    diag,
-                } if *n == near && *diag == gap
-            ),
-            "an in-band pair alone escalates on it: {refusal:?}"
-        );
-        let msg = refusal.render(geom_brep::recourse::Reading::Build);
-        assert!(
-            msg.starts_with("the piece on the below side of the plane: ")
-                && msg.contains("whether a shell of the result bounds material or a cavity")
-                && msg.contains(
-                    "move the split plane or the geometry so the two faces the aimed ray met are \
-                     clearly apart"
-                )
-                && !msg.contains("move the geometry so the two"),
-            "the split's lever, not the Boolean's: {msg}"
-        );
-        // A solid no aimed ray read, its volume's certified enclosure
-        // holding zero: the kernel's.
-        let holding_zero = ValidationError::OrientationUndecided {
-            solid: SolidKey::default(),
-            reading: OrientationUnread::Volume {
-                margin: Some(read(
-                    MarginDiag::enclosure(-1e-20, 3e-20),
-                    "positive_volume_exact",
-                )),
-                aimed: 0,
-                set_aside: Vec::new(),
-            },
-        };
-        assert!(
-            matches!(
-                SplitFinishError::not_at_rest(PlaneSide::Above, vec![holding_zero]),
-                SplitFinishError::ResultNotAtRest { side: PlaneSide::Above, errors } if errors.len() == 1
-            ),
-            "an enclosure holding zero is the kernel's"
-        );
-        let beside = SplitFinishError::not_at_rest(
-            PlaneSide::Above,
-            vec![
-                role,
-                ValidationError::NegativeVolume {
-                    solid: SolidKey::default(),
-                },
-            ],
-        );
-        assert!(
-            matches!(
-                &beside,
-                SplitFinishError::ResultNotAtRest { side: PlaneSide::Above, errors } if errors.len() == 2
-            ),
-            "beside a definite finding it is the kernel's: {beside:?}"
-        );
-    }
-}
-
-/// `whole_body_side`'s ladder over the curved edges of a body whose
-/// every vertex reads ON: an edge read in band refuses typed, and only
-/// where no other edge decides the side.
+/// `shell_side`'s ladder over the curved edges of a shell whose every
+/// vertex reads ON, through both its readers (the uncut split and a cut
+/// split's uncut component): an edge read in band refuses typed, and
+/// only where no other edge decides the side.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod whole_body_side_rows {
     use geom_core::{Band, Point3, Tol, Vec3};
     use slotmap::SecondaryMap;
 
-    use super::{RawPart, SplitFinishError, whole_body_side};
+    use super::{RawPart, SplitFinishError, classify_shell, whole_body_side};
     use crate::body::Body;
+    use crate::splitting::PlaneSide;
     use crate::splitting::SplitPlane;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, split_plane};
 
@@ -3113,11 +3053,31 @@ mod whole_body_side_rows {
         assert_eq!(diag.predicate, Some("split_edge_side"), "{diag:?}");
         let tilted = plane(Vec3::new(0.0, 1.0, 0.1), in_band, tol);
         match whole_body_side(wall(tol), &on, &tilted, tol) {
-            Ok(split) => assert!(
-                matches!(split.above, RawPart::Body(_)) && matches!(split.below, RawPart::Empty),
+            Ok((above, below)) => assert!(
+                matches!(above, RawPart::Body(_)) && matches!(below, RawPart::Empty),
                 "the decided arc answers Above"
             ),
             Err(e) => panic!("the arc at height 1 decides Above: {e:?}"),
+        }
+    }
+
+    /// **A lone vertex is a vertex of its shell**: a bare seed, whose one
+    /// vertex sits in its face's empty outer loop off the plane, lies on
+    /// that vertex's side, where a reading of edge members alone read it
+    /// ON everywhere and refused `Corrupt`.
+    #[test]
+    fn a_shell_whose_one_vertex_is_lone_reads_that_vertexs_side() {
+        let tol = Tol::witness();
+        let mut body = Body::new();
+        let seed = body.mvfs(Point3::new(0.0, 1.0, 1.0), true).unwrap();
+        let mut sides = SecondaryMap::new();
+        sides.insert(seed.vertex, PlaneSide::Above);
+        match whole_body_side(body, &sides, &plane(Vec3::unit_z(), 0.0, tol), tol) {
+            Ok((above, below)) => assert!(
+                matches!(above, RawPart::Body(_)) && matches!(below, RawPart::Empty),
+                "the lone vertex places its shell Above"
+            ),
+            Err(e) => panic!("the lone vertex decides Above: {e:?}"),
         }
     }
 
@@ -3138,5 +3098,30 @@ mod whole_body_side_rows {
             panic!("an infinite offset escalates the side: {got:?}")
         };
         assert!(diag.margin.is_invalid(), "{diag:?}");
+    }
+
+    /// **A cut split's uncut component is placed by its curved edges**
+    /// where every vertex reads ON: the wall's vertices lie on the plane
+    /// `y = 0` and its arcs' midpoints above it, so the component is
+    /// `Above`. Red when the component's fallback reads its vertices
+    /// alone, which places nothing here.
+    #[test]
+    fn an_uncut_component_with_every_vertex_on_reads_its_curved_edges() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let body = wall(tol);
+        let (shell, _) = body.shells().next().expect("the wall's shell");
+        let got = classify_shell(
+            &body,
+            shell,
+            &SecondaryMap::new(),
+            &SecondaryMap::new(),
+            &plane(Vec3::unit_y(), 1.0, tol),
+            band,
+        );
+        assert!(
+            matches!(got, Ok((PlaneSide::Above, true))),
+            "the arcs place the component Above: {got:?}"
+        );
     }
 }

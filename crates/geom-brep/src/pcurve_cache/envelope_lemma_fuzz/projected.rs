@@ -1184,7 +1184,10 @@ fn an_off_chart_spline_refuses_by_incidence() {
     );
     let err = super::super::chart_pcurve(&off, &torus, b).expect_err("off the torus");
     assert!(
-        matches!(err, PcurveCertifyError::CarrierOffChart { .. }),
+        matches!(
+            crate::IncidenceRead::of(&err),
+            Some(crate::IncidenceRead::Off(_))
+        ),
         "{err:?}"
     );
     let _ = Tol::witness();

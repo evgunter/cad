@@ -45,6 +45,7 @@ use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop};
 use sweep::ExtrudeSide;
 use sweep::test_support::{block, brick, extruded, prism, sketch_at};
+use topo::FinishedBody as _;
 use topo::{Body, EdgeKey};
 
 /// The 4 x 4 x 1 slab, `z in [0, 1]` — the plainest operand a boolean
@@ -230,6 +231,7 @@ pub fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: 
     )
     .expect("the framed bar extrudes")
     .body
+    .into_body()
 }
 
 /// **A prism whose right side is a half-round**, unit high, and the
@@ -256,11 +258,8 @@ pub fn half_round_end() -> (Body<f64>, EdgeKey) {
     let edge = topo::query::all_edges(&body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let mut ends = [
-                at(body.get_half_edge(he).expect("a half").start),
-                at(body.half_edge_end(he).expect("an end")),
-            ];
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
+            let mut ends = [at(v0), at(v1)];
             ends.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
             ends == [(0.0, 0.0, 1.0), (2.0, 0.0, 1.0)]
         })
@@ -336,11 +335,7 @@ pub fn edge_between<T: Bounds>(body: &Body<T>, a: [f64; 3], b: [f64; 3]) -> Edge
     topo::query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let (p, q) = (
-                body.get_half_edge(he).expect("a half").start,
-                body.half_edge_end(he).expect("an end"),
-            );
+            let (p, q) = body.edge_vertices(e).expect("an edge");
             (at(p, a) && at(q, b)) || (at(p, b) && at(q, a))
         })
         .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
@@ -421,7 +416,11 @@ pub fn parallelepiped_at<T: Decide + Bounds + topo::AtRestPolicy>(s: f64) -> Bod
 
 /// The axis-aligned block `x × y × z` ([`brick`]), at rest.
 pub fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::AtRestBody<f64> {
-    sweep::test_support::finished("the bar", brick(x, y, z, Tol::witness()), Tol::witness())
+    sweep::test_support::finished(
+        "the bar",
+        brick::<f64>(x, y, z, Tol::witness()),
+        Tol::witness(),
+    )
 }
 
 /// A body about `y` from radius `inner` (0 for a rod) to `outer` over

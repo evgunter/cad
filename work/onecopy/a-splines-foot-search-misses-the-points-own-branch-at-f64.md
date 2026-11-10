@@ -2,10 +2,13 @@
 id: a-splines-foot-search-misses-the-points-own-branch-at-f64
 kind: issue
 title: A spline's foot search, at f64, can polish a point on the carrier to a far branch from every seed but its own, so on_carrier escalates where On is the answer
-status: open
+status: closed
 opened: 2026-11-03
 priority: P3
 cost: M
+closed: 2026-11-06
+branch: onecopy/spline-walks
+pr: 6563
 ---
 
 

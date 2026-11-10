@@ -69,3 +69,5 @@ Un-pinning owes a re-measure: each pin stops its row at main's first stop, so wh
 The base six ray-wall pairs are owned by
 `work/cpair/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
 since 2026-10-28 (PR 5966), which also pins the row at today's 62.
+
+**The ray-wall twins row is no longer this row's (2026-11-06).** `curve_foot_branch` scales since PR 6349 and is not recorded since PR 6482; the row is re-pinned on `work/onecopy/the-ray-wall-twins-read-the-angle-predicates-off-scale.md` and `work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`.

@@ -170,15 +170,19 @@ fn the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket() {
     );
     // And the SHAPES differ on the other side, at every tolerance: the
     // seed holds no boundary above the nominal, so the certificate
-    // says "proven to the seed's edge" where the probe can only say
-    // "looked this far and found nothing".
+    // says "proven to the seed's edge" where the probe reports the
+    // first refusal its steps meet, the 1 km session box
+    // (`[tolerance.units]`): a slab deeper than it is refused.
     assert!(
         (chi - 1.5).abs() < 1e-12,
         "the hi side certifies to the seed's edge, got {chi}"
     );
+    let extent = geom_core::tolerance::SESSION_BOX_EXTENT;
     assert!(
-        matches!(bounds.high, Bound::Open { .. }),
-        "the probe reports its reach upward, never a proof: {:?}",
+        matches!(bounds.high, Bound::Edge { valid, invalid }
+            if valid <= extent && extent < invalid && invalid - valid <= 1.0),
+        "the probe reports its reach upward, never a proof: the session box's edge, \
+         bracketed to its step, got {:?}",
         bounds.high
     );
 }

@@ -42,6 +42,14 @@ struct Fixture {
     arc: ((f64, f64), f64, (f64, f64)),
 }
 
+/// **The far scale**, `reach_split_gate_pose`'s. These fixtures lie in
+/// the sphere of radius 1.5 about the origin (the ball's top, `CY + R`;
+/// the cylinder's rim at `√2`), and the skew pose moves one `0.7·s`
+/// more, so at [`FAR`] a posed fixture reaches no farther than 770 m, in
+/// the 1 km session box (`[tolerance.units]`); one past it is refused by
+/// it ([`a_fixture_past_the_session_box_is_refused_by_it`]).
+use crate::reach_split_gate_pose::FAR;
+
 /// The sphere of radius 5/4 about `(0, 1/4)`.
 const R: f64 = 1.25;
 const CY: f64 = 0.25;
@@ -99,6 +107,11 @@ fn fixtures() -> Vec<Fixture> {
 }
 
 fn build(f: &Fixture, s: f64) -> Body<f64> {
+    revolved(f, s).unwrap().body.into_body()
+}
+
+/// The revolve door's answer on `f` at scale `s`.
+fn revolved(f: &Fixture, s: f64) -> Result<sweep::Revolved<f64>, sweep::RevolveError> {
     let n = f.chain.len();
     let at = |p: Point2<f64>| Point2::new(p.x * s, p.y * s);
     let chain = (0..n)
@@ -117,8 +130,21 @@ fn build(f: &Fixture, s: f64) -> Body<f64> {
         Revolution::Partial(f.theta),
         Tol::witness(),
     )
-    .unwrap()
-    .body
+}
+
+/// **A fixture past the session box is refused by it**: the capped
+/// cylinder at ×700, its cap's crown 1050 m up. At ε = 1e-12 limb 2's
+/// kernel limit on its sphere reads first, and that is what the row
+/// asserts there.
+#[test]
+fn a_fixture_past_the_session_box_is_refused_by_it() {
+    let f = fixtures().remove(0);
+    crate::common::refused_by_the_box_or_limb_2(
+        &format!("the {} ×700", f.name),
+        (CY + R) * 700.0,
+        &[1e-12],
+        revolved(&f, 700.0),
+    );
 }
 
 /// The sense of the revolve's azimuth: a profile point `(ρ, y)` at
@@ -433,7 +459,7 @@ fn posed_bodies(f: &Fixture, s: f64) -> Vec<(&'static str, Affine3<f64>, AtRestB
             let at_rest = transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
                 .map_err(|e| format!("posing it refused ({e})"))
                 .and_then(|posed| {
-                    <f64 as topo::AtRestPolicy>::gate_at_rest_kept(posed, tol)
+                    topo::finish(posed, tol)
                         .map_err(|e| format!("the posed body is not finished ({e:?})"))
                 });
             match at_rest {
@@ -459,7 +485,7 @@ fn posed_bodies(f: &Fixture, s: f64) -> Vec<(&'static str, Affine3<f64>, AtRestB
 fn probe() {
     for f in fixtures() {
         let sigma = sense(&build(&f, 1.0), f.theta);
-        for s in [1e-3, 1.0, 1e3] {
+        for s in [1e-3, 1.0, FAR] {
             for (pose, map, posed) in posed_bodies(&f, s) {
                 let mut t = Tally::default();
                 for (n, d) in planes(&f, sigma) {
@@ -572,7 +598,7 @@ fn every_cut_clear_of_a_partial_turn_sphere_face_splits_row() {
                 f.name
             );
         }
-        for s in [1e-3, 1.0, 1e3] {
+        for s in [1e-3, 1.0, FAR] {
             let posed = posed_bodies(&f, s);
             if posed.is_empty() {
                 continue;

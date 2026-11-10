@@ -586,7 +586,7 @@ fn cylinder_walls(body: &Body<f64>) -> Vec<(FaceKey, f64)> {
     topo::query::all_faces(body)
         .into_iter()
         .filter_map(|f| {
-            let s = body.get_surface(body.get_face(f)?.surface)?;
+            let s = body.face_surface(f)?;
             match s {
                 geom::Surface::Cylinder { radius, .. } => Some((f, *radius)),
                 _ => None,
@@ -668,10 +668,7 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     );
     let mut tori = 0;
     for face in topo::query::all_faces(&body) {
-        let carrier = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .expect("a live face on a carrier");
+        let carrier = body.face_surface(face).expect("a live face on a carrier");
         if let geom::Surface::Torus { minor_radius, .. } = carrier {
             assert!(
                 (minor_radius - R).abs() < 1e-9,
@@ -1004,6 +1001,7 @@ fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A kernel-direct rigid spin, for the twin.

@@ -183,7 +183,11 @@ impl Digest {
 /// One node's record: its id, its result arm, and its payload read
 /// through the scalar's value channel. The single feed both entry
 /// points below share.
-fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, id: RecipeNodeId) {
+fn feed_node<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
+    d: &mut Digest,
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) {
     d.u64(u64::from(id.0.ordinal()));
     d.u64(id.0.digest());
     match ev.result(id) {
@@ -241,7 +245,13 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.u64(18);
                     d.u64(bodies.len() as u64);
                     for b in bodies {
-                        d.body(b.body());
+                        match b {
+                            None => d.u64(0),
+                            Some(b) => {
+                                d.u64(1);
+                                d.body(b.body());
+                            }
+                        }
                     }
                 }
                 // 20 and 25 were a mate's and a gauge's, and 28 a
@@ -329,7 +339,7 @@ pub fn fold_words(words: impl IntoIterator<Item = u64>) -> u64 {
 
 /// The whole evaluation's value channel as one word — what a row
 /// comparing two runs wholesale reads.
-pub fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
+pub fn value_digest<T: topo::AtRestPolicy + Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
     let mut d = Digest::new();
     for &id in &ev.order {
         feed_node(&mut d, ev, id);
@@ -344,7 +354,7 @@ pub fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
 /// at; one over [`value_digest`] can only report that two numbers
 /// differ, which for a corpus of thirty documents is a starting point
 /// and not a finding.
-pub fn value_digest_nodes<T: Decide + ValueChannelBits>(
+pub fn value_digest_nodes<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
     ev: &Evaluation<T>,
 ) -> Vec<(RecipeNodeId, u64, usize)> {
     ev.order
@@ -379,12 +389,16 @@ pub fn placed_body_digest(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(u64
             d.u64(14);
             d.body(&crate::fixture::in_space(b));
         }
-        // A family: each member's body, in member order.
+        // A family: each member's body, in member order, and a word of
+        // its own at an empty member.
         ValuePayload::Instances(members) => {
             d.u64(15);
             d.u64(members.len() as u64);
             for b in members {
-                d.body(&crate::fixture::in_space(b));
+                match b {
+                    None => d.u64(0),
+                    Some(b) => d.body(&crate::fixture::in_space(b)),
+                }
             }
         }
         _ => return None,

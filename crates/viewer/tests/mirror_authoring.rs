@@ -1,8 +1,8 @@
 //! **The mirror tool, replayed headlessly**: a body and a picked face
 //! through the selection stream the viewport feeds, one committed
-//! action — the image, and for a body the world draws, the symmetric
-//! part taking over its copies — its typed refusals, and the saved
-//! document read back.
+//! action — the image, and the symmetric part, the body or the copy
+//! picked unioned with its image where it stands (Ev, PR 6353) — its
+//! typed refusals, and the saved document read back.
 //!
 //! Every geometric row compares with its source reflected across the
 //! picked face's plane, worked out from the boxes' literal dimensions:
@@ -161,15 +161,16 @@ fn own_cap(node: RecipeNodeId) -> pncad::prelude::StableName {
     }
 }
 
-/// **A body mirrored across one of its own faces becomes its symmetric
-/// part**: one face pick holds the body and the plane; the commit
-/// inserts the image, whose plane is that face read as a plane, and the
-/// union of the block and its image, and re-points the block's one
-/// drawn copy to the union. The image is the block reflected across
-/// x = −20 mm, the copy draws the 80 mm part, and the saved document
-/// reads back bit for bit and builds the same image.
+/// **A copy mirrored across one of its own faces becomes its symmetric
+/// part**: one face pick on the block's copy holds the copy and the
+/// plane; the commit inserts the image of the copy, whose plane is that
+/// face read as a plane, and the union of the copy and its image, in the
+/// world where the copy stands, and writes no placement (Ev, PR 6353).
+/// The image is the copy reflected across x = −20 mm, the part draws
+/// 80 mm, and the saved document reads back bit for bit and builds the
+/// same image.
 #[test]
-fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
+fn a_copy_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     let tol = Tol::witness();
     let (mut session, block) = block(tol);
     let copy = common::copy_of(session.committed_doc(), block);
@@ -178,8 +179,8 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     let tool = tools.mirror().expect("open");
     assert_eq!(
         tool.input(),
-        Some(block),
-        "a pick on the copy seats its body"
+        Some(copy),
+        "a pick on the copy seats the copy"
     );
     assert_eq!(tool.plane(), Some(&wall), "and its face is the plane");
 
@@ -198,8 +199,8 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     };
     assert_eq!(
         body.read,
-        Operand::Node(block),
-        "the image reflects the block"
+        Operand::Node(copy),
+        "the image reflects the copy"
     );
     assert!(plane.role.is_none(), "the plane is read plainly");
     let Operand::Pose(pose) = &plane.read else {
@@ -223,16 +224,28 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
         panic!("two nodes minted: {:?}", outcome.minted)
     };
     let doc = session.committed_doc();
-    assert_eq!(
-        crate::common::drawn_copies(doc),
-        [copy],
-        "the block's copy stays the one drawn copy"
+    assert!(
+        outcome.committed.iter().all(|edit| matches!(
+            edit,
+            DocEdit::InsertNode { .. }
+                | DocEdit::SetProduct { .. }
+                | DocEdit::SetParam {
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Member(_)),
+                    ..
+                }
+        )),
+        "no placement is written: {:?}",
+        outcome.committed
     );
-    assert_eq!(common::world(doc), [part], "and draws the symmetric part");
+    assert_eq!(
+        viewer::world::drawn_nodes(doc),
+        [part],
+        "the symmetric part is drawn where the copy stood"
+    );
     assert_eq!(
         doc.node_space(part),
-        doc.node_space(block),
-        "in the block's space"
+        Some(pncad::document::VarId::WORLD),
+        "in the copy's space, the world"
     );
 
     let source = corners(&mut session, block);
@@ -245,11 +258,11 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     );
     assert_drawn(
         &mut session,
-        copy,
+        part,
         [-3.0 * HALF_X, -BLOCK[1] / 2.0, 0.0],
         [HALF_X, BLOCK[1] / 2.0, BLOCK[2]],
         2.0 * volume_of(BLOCK),
-        "the copy",
+        "the part",
     );
     let rows = session.tree_rows();
     for node in [image, part] {
@@ -298,30 +311,34 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
 /// with the copy**: the block's copy stands 0.1 m along x and its `−x`
 /// wall is clicked where it is drawn, at x = 0.08, so the drawn part
 /// spans x ∈ [0.04, 0.12]. Sliding the copy to 0.2 m afterwards, by the
-/// slot of its own placement, carries the whole part to [0.14, 0.22].
+/// slot of its own placement, carries the whole part to [0.14, 0.22]:
+/// the part reads the copy, and its image the copy's wall.
 #[test]
 fn the_part_is_drawn_where_its_copy_stands_and_moves_with_it() {
     let tol = Tol::witness();
-    let (mut session, block, copy) = moved_block(tol, [0.1, 0.0, 0.0]);
+    let (mut session, _, copy) = moved_block(tol, [0.1, 0.0, 0.0]);
     let wall = face_toward(&session, 1.0);
     assert_eq!(wall.node, copy, "the ray met the moved copy");
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
     let (image, part) = mirror_in(&mut session, mirror_op(&tools));
-    assert!(part.is_some(), "a drawn block becomes its part");
+    let part = part.expect("a picked copy becomes its part");
     let (y, z) = (BLOCK[1] / 2.0, BLOCK[2]);
     let volume = 2.0 * volume_of(BLOCK);
     assert_drawn(
         &mut session,
-        copy,
+        part,
         [0.04, -y, 0.0],
         [0.12, y, z],
         volume,
         "at 0.1",
     );
-    let source = corners(&mut session, block);
+    let source = corners(&mut session, copy);
     assert!(
-        same_points(&corners(&mut session, image), &reflected(&source, -HALF_X)),
-        "in its own space the image is across the block's own wall"
+        same_points(
+            &corners(&mut session, image),
+            &reflected(&source, 0.1 - HALF_X)
+        ),
+        "the image is across the copy's own wall"
     );
 
     let slide_x = pncad::document::Coord::slide(pncad::document::TargetAxis::X);
@@ -342,7 +359,7 @@ fn the_part_is_drawn_where_its_copy_stands_and_moves_with_it() {
     assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
     assert_drawn(
         &mut session,
-        copy,
+        part,
         [0.14, -y, 0.0],
         [0.22, y, z],
         volume,
@@ -350,12 +367,13 @@ fn the_part_is_drawn_where_its_copy_stands_and_moves_with_it() {
     );
 }
 
-/// **A body drawn twice becomes its part at both copies**: the block at
-/// 0.1 m along x and at 0.1 m along y, its wall clicked on the first.
-/// Both copies are taken over, each drawing the block and its image
-/// across that copy's own `−x` wall.
+/// **A mirror on one of two copies is that copy's part alone** (Ev, PR
+/// 6353): the block at 0.1 m along x and at 0.1 m along y, its wall
+/// clicked on the first. The first copy becomes the block and its image
+/// across that copy's `−x` wall; the second copy is untouched, and
+/// still places the block.
 #[test]
-fn a_body_drawn_twice_is_its_symmetric_part_at_both_copies() {
+fn a_mirror_on_one_of_two_copies_is_that_copys_part_alone() {
     let tol = Tol::witness();
     let (session, block, first) = moved_block(tol, [0.1, 0.0, 0.0]);
     let (doc, second) = crate::fixture::insert(
@@ -375,29 +393,37 @@ fn a_body_drawn_twice_is_its_symmetric_part_at_both_copies() {
     assert_eq!(wall.node, first, "the ray met the first copy");
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
     let (_, part) = mirror_in(&mut session, mirror_op(&tools));
-    let part = part.expect("a drawn block becomes its part");
+    let part = part.expect("the picked copy becomes its part");
+    let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::placements_of(session.committed_doc(), part),
+        viewer::world::placements_of(doc, block),
         [first, second],
-        "both copies draw the part"
+        "both copies still place the block"
+    );
+    let mut drawn = viewer::world::drawn_nodes(doc);
+    drawn.sort_unstable();
+    let mut want = vec![second, part];
+    want.sort_unstable();
+    assert_eq!(
+        drawn, want,
+        "the second copy and the first's part are drawn"
     );
     let (y, z) = (BLOCK[1] / 2.0, BLOCK[2]);
-    let volume = 2.0 * volume_of(BLOCK);
     assert_drawn(
         &mut session,
-        first,
+        part,
         [0.04, -y, 0.0],
         [0.12, y, z],
-        volume,
-        "the first",
+        2.0 * volume_of(BLOCK),
+        "the first's part",
     );
     assert_drawn(
         &mut session,
         second,
-        [-3.0 * HALF_X, 0.1 - y, 0.0],
+        [-HALF_X, 0.1 - y, 0.0],
         [HALF_X, 0.1 + y, z],
-        volume,
-        "the second",
+        volume_of(BLOCK),
+        "the second, as it was",
     );
 }
 
@@ -405,7 +431,7 @@ fn a_body_drawn_twice_is_its_symmetric_part_at_both_copies() {
 /// block standing 0.1 m along x is rested on the plane of the block's
 /// top by the mate tool's flow (its slides keep their 0.1 and 0), then
 /// mirrored across its own `−x` wall. The mate still places the copy,
-/// now drawing the small block's part, seated on that plane.
+/// and the part, which reads the copy, is drawn seated on that plane.
 #[test]
 fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
     let tol = Tol::witness();
@@ -442,12 +468,12 @@ fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
     let wall = displayed_face_at(&session, &index, &along_x(1.0, 0.0, z + SMALL[2] / 2.0));
     assert_eq!(wall.node, small_copy, "the ray met the seated copy's wall");
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
-    assert_eq!(tools.mirror().and_then(|t| t.input()), Some(small));
+    assert_eq!(tools.mirror().and_then(|t| t.input()), Some(small_copy));
     let (_, part) = mirror_in(&mut session, mirror_op(&tools));
-    assert!(part.is_some(), "the seated block becomes its part");
+    let part = part.expect("the seated copy becomes its part");
     assert_drawn(
         &mut session,
-        small_copy,
+        part,
         [0.1 - 3.0 * x, -y, z],
         [0.1 + x, y, z + SMALL[2]],
         2.0 * volume_of(SMALL),
@@ -575,7 +601,7 @@ fn the_mirrors_label_lands_on_the_mirror_whether_its_body_is_placed_or_not() {
 }
 
 /// **A body mirrored across a face of another body in its space**: the
-/// unplaced block duplicated is a stand-in and a stepped copy, both in
+/// unplaced block placed twice is a stand-in and a stepped copy, both in
 /// the block's own space. The first face pick (the stand-in's) seats
 /// the stand-in; the second (the stepped copy's far `+x` wall) re-picks
 /// the plane alone; the image is the stand-in reflected across that
@@ -584,14 +610,15 @@ fn the_mirrors_label_lands_on_the_mirror_whether_its_body_is_placed_or_not() {
 fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let tol = Tol::witness();
     let (mut session, block) = unplaced_block(tol);
-    let duplicated = session.perform(SessionOp::Duplicate {
-        input: block.into(),
-        beside: None,
-    });
-    assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
-    let [stand_in, copy] = duplicated.minted[..] else {
-        panic!("a stand-in and a stepped copy: {:?}", duplicated.minted);
-    };
+    let stand_in = common::placed_by(&mut session, SessionOp::Place { body: block.into() });
+    let copy = common::placed_by(&mut session, SessionOp::Place { body: block.into() });
+    let op = common::transformed(
+        &mut session,
+        copy,
+        &common::slides([8.0 * HALF_X, 0.0, 0.0]),
+    );
+    let stepped = session.perform(op);
+    assert!(stepped.refusal.is_none(), "{:?}", stepped.refusal);
     session.pump();
 
     let own = face_toward(&session, 1.0);
@@ -611,7 +638,7 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
         .fold(f64::NEG_INFINITY, f64::max);
     assert!(
         at > HALF_X,
-        "the duplicate's far wall is clear of the block: {at}"
+        "the stepped copy's far wall is clear of the block: {at}"
     );
     let (image, part) = mirror_in(&mut session, mirror_op(&tools));
     let source = corners(&mut session, stand_in);
@@ -918,12 +945,11 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
     );
 }
 
-/// **A click on a copy seats the block and says the copy**: a face
-/// clicked on the block's copy seats the block as the body, and the
-/// plane is said as the block's wall on the copy it was clicked on —
-/// the plane was taken there.
+/// **A click on a copy seats the copy and says it**: a face clicked on
+/// the block's copy seats the copy as the body (Ev, PR 6353), and the
+/// plane is said as the block's wall on the copy it was clicked on.
 #[test]
-fn a_click_on_a_copy_seats_the_block_and_says_the_plane_on_the_copy() {
+fn a_click_on_a_copy_seats_the_copy_and_says_the_plane_on_it() {
     let tol = Tol::witness();
     let (session, block) = block(tol);
     let wall = face_toward(&session, 1.0);
@@ -936,8 +962,8 @@ fn a_click_on_a_copy_seats_the_block_and_says_the_plane_on_the_copy() {
         .expect("open")
         .line(viewer::frame::landed_speaker(session.landed_pair()));
     let plane = line
-        .strip_prefix(&format!("mirrored body: {said}; mirror plane: "))
-        .unwrap_or_else(|| panic!("the body seat says the block: {line:?}"));
+        .strip_prefix(&format!("mirrored body: {copy}; mirror plane: "))
+        .unwrap_or_else(|| panic!("the body seat says the copy: {line:?}"));
     assert!(
         plane.starts_with("the side wall ") && plane.ends_with(&format!(" of {said}, on {copy}")),
         "the plane is the block's wall in its words, said on the copy clicked: {line:?}"
@@ -945,36 +971,25 @@ fn a_click_on_a_copy_seats_the_block_and_says_the_plane_on_the_copy() {
 }
 
 /// **A face on a split's second half is read on that half**: the
-/// block split at mid-height, its lower half placed and drawn 0.1 m
-/// along x, and the half's underside clicked there. The mirror's plane
-/// reads that face on the split's LOWER output by its port — not the
-/// upper half, which has no such face, nor the block, whose start cap
-/// lies in the same plane — and the image is the block reflected below
-/// z = 0.
+/// block split at mid-height, the split drawn in the block's place, and
+/// the lower half's underside clicked there with the lower half the
+/// body. The mirror's plane reads that face on the split's LOWER output
+/// by its port — not the upper half, which has no such face, nor the
+/// block, whose start cap lies in the same plane — and the image is the
+/// lower half reflected below z = 0.
 #[test]
 fn a_face_on_a_splits_lower_half_reads_that_half() {
     let tol = Tol::witness();
     let (session, block, split) = drawn::split_box(BLOCK, tol);
     let below = pncad::select::SplitHalf::Below;
-    let (mut session, half) = drawn::half_placed(
-        &session,
-        split,
-        below,
-        &drawn::translated([0.1, 0.0, 0.0]),
-        tol,
-    );
     let index = plate_index(&session);
-    let floor = displayed_face_at(&session, &index, &common::up_at(0.1, 0.0));
-    assert_eq!(floor.node, half, "the ray met the lower half's copy");
+    let floor = displayed_face_at(&session, &index, &common::up_at(0.0, 0.0));
+    assert_eq!(floor.node, split, "the ray met the split drawn as itself");
+    assert_eq!(floor.body, u32::from(below.port()), "on its lower half");
+    let mut session = session;
     let mut tools = Tools::new();
     tools.open(ToolKind::Mirror);
-    let picks = [
-        SessionOp::Select(Selection::Node(common::drawn_node(
-            session.committed_doc(),
-            block,
-        ))),
-        SessionOp::Select(Selection::Face(floor)),
-    ];
+    let picks = [SessionOp::Select(Selection::Face(floor))];
     assert!(
         tools
             .feed(
@@ -1007,15 +1022,20 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
         "the plane's face is read on the lower half by its port"
     );
     let image = outcome.minted[0];
+    // The lower half: the block's corners, its top brought down to the
+    // cut at mid-height.
     let source = corners(&mut session, block);
     let built = corners(&mut session, image);
     let want: Vec<[f64; 3]> = {
-        let mut w: Vec<[f64; 3]> = source.iter().map(|&[x, y, z]| [x, y, -z]).collect();
+        let mut w: Vec<[f64; 3]> = source
+            .iter()
+            .map(|&[x, y, z]| [x, y, -z.min(MID_Z)])
+            .collect();
         w.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
         w
     };
     assert!(
         same_points(&built, &want),
-        "the image is the block below z = 0: {built:?} vs {want:?}"
+        "the image is the lower half below z = 0: {built:?} vs {want:?}"
     );
 }

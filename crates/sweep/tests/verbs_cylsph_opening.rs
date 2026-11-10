@@ -53,6 +53,7 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
@@ -387,10 +388,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
             .and_then(|e| torus.get_curve_geom(e.curve))
             .and_then(topo::CurveGeom::certified)
             .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-        let wall = matches!(
-            a.get_face(*f).and_then(|f| a.get_surface(f.surface)),
-            Some(topo::Surface::Cylinder { .. })
-        );
+        let wall = matches!(a.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
         circle && wall
     });
     assert!(
@@ -459,7 +457,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         },
     )
     .unwrap();
-    let errors = topo::AtRestBody::validate(b, Tol::witness())
+    let errors = topo::finish(b, Tol::witness())
         .expect_err("a NURBS placeholder wall is not a finished body");
     assert!(
         errors.iter().any(

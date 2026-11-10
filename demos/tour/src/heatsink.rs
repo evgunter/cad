@@ -56,8 +56,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     Bodies, BodyRead, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Formula, LoopProgram,
-    Node, Operand, ProfileProgram, RecipeNodeId, TargetAxis, ValuePayload, VarDecl, VarId, VarName,
-    VarRef, apply, evaluate, parse_formula,
+    Node, Operand, ProfileProgram, RecipeNodeId, TargetAxis, VarDecl, VarId, VarName, VarRef,
+    apply, evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -298,7 +298,7 @@ pub fn solidify<S: Scalar>(
     tol: Tol,
 ) -> pncad::topo::Body<S> {
     let value = ev.value(r.solid).expect("the fillet node evaluated");
-    let ValuePayload::Body(body) = &value.payload else {
+    let Some(Some(body)) = value.payload.one_body() else {
         panic!("fillet payload: {:?}", value.payload);
     };
     let body = &crate::world::in_its_space(body, tol);

@@ -19,7 +19,7 @@ use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
-use sweep::test_support::{ball_poled_y, block, dome, one_edge_rim_at, realized};
+use sweep::test_support::{ball_poled_y, block, circle_arcs_at_z, disc_of_arcs, realized};
 use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
@@ -55,6 +55,7 @@ fn notched() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A 4 × 4 × 1 slab with ONE spherical pip bitten out of its top face
@@ -162,17 +163,21 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
 // Predicate 1 — fillet3_radius_headroom.
 // ---------------------------------------------------------------------
 
-/// A dome of radius 0.5 cannot host a rolling ball of radius 0.9 on
-/// its equator: the ball rolls INSIDE the sphere there (a convex rim on
-/// a convex sphere), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0` of
-/// headroom. The refusal names the SPHERE support face and arrives with
-/// no surface minted.
+/// A disc of radius 0.5 cannot host a rolling ball of radius 0.9 on
+/// its base rim: the ball rolls INSIDE the cylinder there (a convex
+/// rim on a convex wall), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0`
+/// of headroom. The refusal names the CYLINDER support face and
+/// arrives with no surface minted. (A plane–sphere rim with the ball
+/// inside the sphere does not witness it: on the plane through the
+/// centre the ball has no room past half the radius, and on a plane at
+/// distance `d` from the centre its room `R − r − |d ± r|` is at most
+/// `|d| − R < 0` once `r ≥ R`, so `fillet3_ball_room` answers first.)
 #[test]
 fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
-    let body = dome(0.5, Tol::witness());
+    let body = disc_of_arcs(2, 0.5, 1.0, Tol::witness());
     let req = BlendRequest {
         body: &body,
-        edges: vec![one_edge_rim_at(&body, 0.5, 0.0)],
+        edges: circle_arcs_at_z(&body, 0.0),
         size: 0.9,
     };
     match run_battery(&req, band()) {
@@ -184,8 +189,8 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
             assert_eq!(margin.predicate, "fillet3_radius_headroom");
             assert_eq!(
                 query::face_surface_kind(&body, face),
-                Some(SurfaceKind::Sphere),
-                "the sphere's curvature ran out"
+                Some(SurfaceKind::Cylinder),
+                "the cylinder's curvature ran out"
             );
             let m = margin
                 .reading
@@ -333,8 +338,8 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     let body = block::<f64>(1.0, 1.0, 1.0, Tol::witness());
     let bottom = body
         .faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(geom::Surface::Plane { normal, .. })
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(geom::Surface::Plane { normal, .. })
                 if normal.z.abs() > 0.9)
         })
         .map(|(k, _)| k)
@@ -366,9 +371,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
         .into_iter()
         .find(|&e| {
             let ed = round.get_edge(e).unwrap();
-            let he = ed.he_plus;
-            let s = round.get_half_edge(he).unwrap().start;
-            let t = round.half_edge_end(he).unwrap();
+            let (s, t) = round.edge_vertices(e).unwrap();
             let z = |v| {
                 round
                     .get_point(round.get_vertex(v).unwrap().point)

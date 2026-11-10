@@ -404,14 +404,16 @@ pub struct CarrierDomainRefusal {
     pub fault: CarrierDomainFault,
 }
 
-/// The domain door's refusal of a carrier domain, in the two shapes it
-/// takes on a validated image: `SplineError`'s other arms are about
+/// The domain door's refusal of a carrier domain, in the two faults it
+/// reports on a validated image: `SplineError`'s other arms are about
 /// weights and counts, which the door carries over verbatim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarrierDomainFault {
-    /// [`SplineError::DomainInvalid`]: the interval is not a finite
-    /// increasing interval of finite width — for a validated carrier,
-    /// a width that overflows.
+    /// The interval admits no knot vector: [`SplineError::DomainInvalid`],
+    /// not a finite increasing interval of finite width (for a validated
+    /// carrier, a width that overflows), or
+    /// [`KnotVectorIssue::PastHalfMax`](geom_core::spline::KnotVectorIssue::PastHalfMax),
+    /// an end past [`KNOT_MAGNITUDE_MAX`](geom_core::spline::KNOT_MAGNITUDE_MAX).
     Interval,
     /// [`SplineError::KnotRunsNotIncreasing`]: rounding put two of the
     /// image's breakpoints on one value on a domain too narrow for the
@@ -432,7 +434,12 @@ impl CarrierDomainRefusal {
     /// that collide before a clamp clause could.
     fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
         let fault = match e {
-            SplineError::DomainInvalid { .. } => CarrierDomainFault::Interval,
+            // An end past half the largest finite number: no knot
+            // vector admits the domain, which is the interval's fault.
+            SplineError::DomainInvalid { .. }
+            | SplineError::KnotVectorInvalid {
+                reason: geom_core::spline::KnotVectorIssue::PastHalfMax { .. },
+            } => CarrierDomainFault::Interval,
             SplineError::KnotVectorInvalid { .. }
             | SplineError::NonPositiveWeight { .. }
             | SplineError::NonFiniteWeight { .. }
@@ -470,7 +477,7 @@ impl CarrierDomainRefusal {
             CarrierDomainFault::Interval => write!(
                 f,
                 "the carrier's parameter domain [{lo}, {hi}] is not a finite increasing interval \
-                 of finite width"
+                 of finite width within half the largest finite number"
             )?,
             CarrierDomainFault::Merge => write!(
                 f,
@@ -556,10 +563,12 @@ impl PlaneNurbsRefusal {
     /// The ending this refusal's decision gives it, read at `at`
     /// ([`Self::decided`], through the one decision table's
     /// [`Decision::ending`]): a check's refused arm by its routing
-    /// ([`CertCheck::recourse`]), a certificate limb's escalation and
-    /// the one-arc proof as the SSI door ends them, a lane's capability
-    /// gap "not yet", the image producer's own refusal the door's
-    /// defect, and a lever on the input its own.
+    /// ([`CertCheck`]'s
+    /// [`DoorCheck::recourse`](crate::recourse::DoorCheck::recourse)), a
+    /// certificate limb's escalation and the one-arc proof as the SSI
+    /// door ends them, a lane's capability gap "not yet", the image
+    /// producer's own refusal the door's defect, and a lever on the
+    /// input its own.
     ///
     /// `Display` renders the payload alone, as [`crate::CertifyError`]'s
     /// does, and the door that reports the refusal appends this, or
@@ -1058,21 +1067,17 @@ pub fn arc_rim_measured<T: Decide>(
     (t0, span): (T, T),
     band: Band,
 ) -> Vec<Pcurve<T>> {
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        ..
-    }) = *carrier
-    else {
+    // A circle carrier, read in its own period.
+    let (Curve3::Circle(circle), Some(turn)) = (carrier, carrier.period()) else {
         return Vec::new();
     };
+    let geom::Frame {
+        origin: center,
+        axis,
+        u_ref,
+    } = circle.frame;
     let vref = axis.cross(u_ref);
     let spans = arc_rim_spans(chart);
-    let turn = crate::pcurve_cache::Period::new(T::tau());
     arc_rim_images(chart, |end, forward| {
         let row = crate::nurbs_iso::boundary_iso_v(chart, end).ok()?;
         let angle = crate::pcurve_cache::arc_rim_turn(&row, spans, band)?;
@@ -1764,8 +1769,8 @@ fn exact_chart_image<T: Decide>(
         });
     }
     let control = knots
-        .runs()
-        .map(|(t, _)| cache.pcurve().eval(t))
+        .breakpoints()
+        .map(|t| cache.pcurve().eval(t))
         .collect::<Vec<_>>();
     let weights = vec![T::one(); control.len()];
     let polyline = NurbsCurve2::new(knots.clone(), control, weights).map_err(|_| {
@@ -1943,7 +1948,7 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// reading is the enclosure `[floor, upper]` of that distance — `floor`
 /// the certified value at the break the rounds stopped on, `0` where
 /// they stopped on the bound — decided as one margin
-/// ([`limb2_enclosure`]): `upper` within the band passes, a floor past
+/// ([`limb2_enclosure_as`]): `upper` within the band passes, a floor past
 /// it is the measured miss ([`AnalyticRung3Refusal::Limb`]), and
 /// anything else is undecided at this input: a bare upper bound refuses
 /// [`AnalyticRung3Refusal::Stalled`], claiming no cause and no
@@ -1990,7 +1995,7 @@ fn limb2<T: Decide>(
     } = read.map_err(refused)?;
     let decided = match (T::WITNESS, offset) {
         (geom_core::Witness::Exact, Offset::Bound(_) | Offset::Miss { bound: Ok(_), .. }) => {
-            limb2_enclosure(kind, floor, upper, band, |free| {
+            limb2_enclosure_as(kind, floor, upper, band, |free| {
                 free_residual(carrier, params, operand, free)
             })
         }
@@ -2028,7 +2033,7 @@ fn limb2<T: Decide>(
 /// ([`AnalyticRung3Refusal::Escalated`] on [`Rung3Limb::HullValue`]),
 /// the classifier's terminal bit kept: a distance measured in the
 /// sliver is one no subdivision decides.
-fn limb2_enclosure<T: Decide>(
+fn limb2_enclosure_as<T: Decide>(
     operand: geom::SurfaceKind,
     floor: f64,
     upper: f64,
@@ -2057,7 +2062,7 @@ fn limb2_enclosure<T: Decide>(
     }
 }
 
-/// **Limb 2's symbolic identity** ([`limb2_enclosure`]): the residual of
+/// **Limb 2's symbolic identity** ([`limb2_enclosure_as`]): the residual of
 /// the carrier's own description against `operand`, with the carrier's
 /// parameter free (`free` mints it). The operand is read as the
 /// composite reads it, its frame made orthonormal
@@ -2084,7 +2089,7 @@ fn free_residual<T: Decide>(
     let Curve3::Nurbs(net) = carrier else {
         return at(params.0);
     };
-    let breaks: Vec<T> = net.knot_values().runs().map(|(v, _)| v).collect();
+    let breaks: Vec<T> = net.knot_values().breakpoints().collect();
     let spans: Vec<T> = breaks
         .windows(2)
         .map(|w| at((w[0] + w[1]) / (T::one() + T::one())))
@@ -2116,8 +2121,11 @@ fn free_residual<T: Decide>(
 ///   band, and otherwise is only an upper bound, which says nothing
 ///   about the input.
 ///
-/// Both ends passing certify the edge (`Some(Ok)`); a miss, then an
-/// escalation, refuses (`Some(Err)`); an end that is only an upper bound
+/// Both ends passing certify the edge (`Some(Ok)`). The ends are an
+/// identity ([`crate::ladder::climb`], `Any`): a miss at either answers
+/// (`Some(Err)`) with the larger of the two ends' misses
+/// ([`MarginDiag::larger`]), whichever end answers, and with none an
+/// escalation refuses (`Some(Err)`); an end that is only an upper bound
 /// past the band, with neither, decides nothing (`None`), and [`limb2`]
 /// lets the composite's own stall stand. No ratio over the net's width
 /// enters, and no round-to-nearest product: at `f64` a dot product at
@@ -2128,31 +2136,62 @@ fn measured_ends(
     ends: [(geom_core::Interval, geom_core::Interval); 2],
     band: Band,
 ) -> Option<Result<(), AnalyticRung3Refusal>> {
-    let (mut miss, mut escalation, mut bare) = (None, None, false);
-    for (measure, lever) in ends {
+    use crate::ladder::{Answering, Climb, Rung, climb};
+    // One end's distance from the plane, decided.
+    let decide = |(measure, lever): (geom_core::Interval, geom_core::Interval)| {
         let distance = measure.abs();
         let end = geom_core::Margin::over_lever(distance, lever);
-        match crate::dihedral::decide_reported("ssi_hull_value", end, band) {
-            Ok(Decided {
-                sign: Sign::Zero, ..
-            }) => {}
-            Ok(Decided { margin, .. }) => {
-                miss.get_or_insert(AnalyticRung3Refusal::Limb { operand, margin });
-            }
-            Err(cause) if geom_core::Bounds::lo(distance) > 0.0 => {
-                escalation.get_or_insert(AnalyticRung3Refusal::Escalated {
-                    operand: Some(operand),
-                    limb: Rung3Limb::HullValue,
-                    cause,
-                });
-            }
-            Err(_) => bare = true,
+        (
+            distance,
+            crate::dihedral::decide_reported("ssi_hull_value", end, band),
+        )
+    };
+    // An end decided off the plane, and its miss.
+    let off = |decided: &Result<Decided, Indeterminate>| match decided {
+        Ok(Decided { sign, margin }) if *sign != Sign::Zero => Some(*margin),
+        _ => None,
+    };
+    // An identity over the two ends: either one decided off the plane
+    // says the edge is not on it. An escalation is kept by its margin and
+    // a bare end as unsettled (ranked after it), the composite's stall.
+    let climbed = climb(Answering::Any, ends, |end| {
+        let (distance, decided) = decide(end);
+        if let Some(margin) = off(&decided) {
+            return Rung::Answers(margin);
         }
-    }
-    match (miss.or(escalation), bare) {
-        (Some(refusal), _) => Some(Err(refusal)),
-        (None, true) => None,
-        (None, false) => Some(Ok(())),
+        match decided {
+            Ok(_) => Rung::Passes,
+            Err(cause) if geom_core::Bounds::lo(distance) > 0.0 => {
+                Rung::kept(cause).map_kept(|cause| {
+                    Some(AnalyticRung3Refusal::Escalated {
+                        operand: Some(operand),
+                        limb: Rung3Limb::HullValue,
+                        cause,
+                    })
+                })
+            }
+            Err(_) => Rung::Unsettled(None),
+        }
+    });
+    match climbed {
+        Climb::Answered { answer: margin, .. } => {
+            // The refusal reports the larger of the ends' misses, whichever
+            // end the identity met first: at the import door the miss
+            // decides whether "set ε to ε_in" is offered and in which words
+            // (`FileCoincidence::miss_recourse_in_file`). The ends are read
+            // again only to name the refusal the identity made, so the
+            // reading is detached and its recording dropped: the log stays
+            // the identity's own, an end it never reached unread on it.
+            let (margin, _unrecorded) = geom_core::k_stats::detached(|| {
+                ends.into_iter()
+                    .filter_map(|end| off(&decide(end).1))
+                    .fold(margin, geom_core::MarginDiag::larger)
+            });
+            Some(Err(AnalyticRung3Refusal::Limb { operand, margin }))
+        }
+        Climb::Undecided(Some(refusal)) => Some(Err(refusal)),
+        Climb::Undecided(None) => None,
+        Climb::Passed => Some(Ok(())),
     }
 }
 
@@ -2393,7 +2432,7 @@ pub enum AnalyticRung3Refusal {
     /// **Limb 2 undecided at this input** — at an enclosure scalar, the
     /// composite's enclosure `[0, upper]` of the carrier's distance from
     /// the operand neither clears the band nor shows a measured miss
-    /// ([`limb2_enclosure`]). It claims no cause and no terminality: over
+    /// ([`limb2_enclosure_as`]). It claims no cause and no terminality: over
     /// a parameter box a smaller box is the remedy and the drive bisects
     /// it (E6), its escalation on the node's log. A floor measured inside
     /// the band is not this: it escalates on the measured value
@@ -3049,7 +3088,7 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let decide = |b: Interval| {
             let upper = Offset::Bound(b).upper();
-            limb2_enclosure::<Interval>(geom::SurfaceKind::Plane, 0.0, upper, band, |_| b)
+            limb2_enclosure_as::<Interval>(geom::SurfaceKind::Plane, 0.0, upper, band, |_| b)
         };
         assert!(
             decide(Interval::from_bounds(0.0, 0.0)).is_ok(),
@@ -3673,6 +3712,56 @@ mod tests {
             "{:?}",
             edge(1.0001e-8)
         );
+    }
+
+    /// **Two ends off a plane report the larger miss, in either order**
+    /// ([`measured_ends`]): at the import door the refusal's miss decides
+    /// whether "set ε to ε_in" is offered and in which words, so it is the
+    /// larger of the two ends' misses, not the one the identity happens to
+    /// meet first. The log is the identity's own: the far end, never
+    /// reached, leaves no verdict on it.
+    #[test]
+    fn two_ends_off_a_plane_report_the_worse_miss_in_either_order() {
+        use geom::{Curve3, Surface};
+        use geom_core::k_stats::Bracket;
+        use geom_core::{Interval, Point3, Vec3};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let lift = Interval::from_f64;
+        let wall = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+        .map_scalar(lift);
+        // Off the wall by 1e-6 at t = 0 and by 3e-6 at t = 1.
+        let line =
+            Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, 2e-6, 0.0)).map_scalar(lift);
+        let ends = line_plane_ends(&line, (lift(0.0), lift(1.0)), &wall).unwrap();
+        let reach = |got: Option<Result<(), AnalyticRung3Refusal>>| match got {
+            Some(Err(AnalyticRung3Refusal::Limb { margin, .. })) => margin.readable().to_string(),
+            other => panic!("both ends decided off answer a miss: {other:?}"),
+        };
+        let bracket = Bracket::open();
+        let forward = reach(measured_ends(geom::SurfaceKind::Plane, ends, band));
+        let read = bracket.finish();
+        let [first, second] = ends;
+        let backward = reach(measured_ends(
+            geom::SurfaceKind::Plane,
+            [second, first],
+            band,
+        ));
+        // The 3e-6 end's reading, an enclosure about it; the 1e-6 end's
+        // would read 1e-6.
+        assert!(
+            forward.contains("3.0000000000000005e-6") && forward == backward,
+            "the worse miss, whichever end is met first: {forward} and {backward}"
+        );
+        let verdicts = read
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == "ssi_hull_value")
+            .count();
+        assert_eq!(verdicts, 1, "only the answering end is on the log");
     }
 
     /// **A line just past ε off its plane does not pass at `f64`**

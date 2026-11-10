@@ -15,11 +15,12 @@
 
 use super::metric::{self, Departure, Distance, Reading};
 use super::{
-    Band, Bound, Decide, LINK_PLANE, LINK_SECOND_ORDER, Link, Material, Place, Point3, Sign,
-    TouchUnread, Vec3, ahead, wedge_side,
+    Band, Bound, CurvedUnread, Decide, LINK_PLANE, LINK_SECOND_ORDER, Link, Material, Place,
+    Point3, Sign, TouchUnread, Vec3, ahead, wedge_side,
 };
 use crate::entity::EdgeKey;
 use geom_core::Lever;
+use geom_core::ladder::{Climb, Rung, climb_agreeing};
 
 /// The arm of a departure `d` from `apex`: the point it reaches, read
 /// from `apex` (the link's own idiom, [`Link::of`]).
@@ -70,7 +71,7 @@ pub(super) fn cusp<T: Decide>(
     let w = m.cross(t0).normalize();
     let residue = Distance::of(apex + t1 * l, apex + t0 * l, w);
     let bend = Distance::departure(Departure::Parted(k1 - k0), w, arm);
-    match metric::settle(
+    match metric::settle_as(
         LINK_SECOND_ORDER,
         bend,
         Reading::plain(band).charged(residue),
@@ -97,12 +98,12 @@ pub(super) fn cusp<T: Decide>(
 /// sheet of the cone comes near the ray, and the region round the
 /// polygon winds one less than inside it for a thorn, one more for a
 /// needle. Two cycles must lie on rays decidedly apart. Anything else
-/// is [`TouchUnread::Unreadable`]: a horn beside a sector along its ray,
+/// is [`crate::CurvedUnread::Unreadable`]: a horn beside a sector along its ray,
 /// a ring of two horns (no vertex off a side), a polygon the band does
 /// not part.
 pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), TouchUnread> {
     let (p, horns) = (link.cone.p, &link.horns);
-    let unread = TouchUnread::Unreadable;
+    let unread = TouchUnread::Curved(CurvedUnread::Unreadable);
     let along = |d: Vec3<T>, l: T| p + d.normalize() * l;
     // Each horn's next: the horn whose edge out is this one's edge back
     // in, along the same ray.
@@ -141,19 +142,37 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
             .fold(reach(p, horns[start].ends[0].0), Lever::min);
         let l = arm.length();
         let vertex = |i: usize| horns[cycle[i]].ends[0];
-        let mut side = None;
-        for i in 0..cycle.len() {
-            let face = &horns[cycle[i]];
-            let (ta, a) = vertex(i);
-            for j in (0..cycle.len()).filter(|&j| j != i && j != (i + 1) % cycle.len()) {
-                let (tc, c) = vertex(j);
-                let s = beside(p, (ta, a), (tc, c), face.outward, arm, rd).ok_or(unread)?;
-                if side.is_some_and(|x| x != s) {
-                    return Err(unread);
+        let n = cycle.len();
+        let pairs = (0..n).flat_map(|i| {
+            (0..n)
+                .filter(move |&j| j != i && j != (i + 1) % n)
+                .map(move |j| (i, j))
+        });
+        // Every vertex off a side on one side of that side's face
+        // ([`climb_agreeing`]): two that differ, or one that does not
+        // read, leave the polygon unread. A pair that does not read aborts
+        // rather than being kept: the polygon's convexity needs every
+        // pair, so an agreement read past an unread pair would claim a
+        // convexity no reading showed.
+        let side = match climb_agreeing(
+            pairs,
+            |(i, j)| {
+                let (ta, a) = vertex(i);
+                match beside(p, (ta, a), vertex(j), horns[cycle[i]].outward, arm, rd) {
+                    Some(s) => Rung::Answers(Some(s)),
+                    None => Rung::Aborts(None),
                 }
-                side = Some(s);
+            },
+            |x: &Option<Sign>, y: &Option<Sign>| x == y,
+        ) {
+            Ok(Climb::Answered {
+                answer: Some(s), ..
+            }) => Some(s),
+            Ok(Climb::Passed) => None,
+            Ok(Climb::Answered { answer: None, .. } | Climb::Undecided(())) | Err(_) => {
+                return Err(unread);
             }
-        }
+        };
         let ray = along(horns[start].ends[0].0, l);
         let around = if link.cone.sectors.is_empty() {
             Material::Out
@@ -170,7 +189,7 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
         for (other, _) in &rays[k + 1..] {
             let off = |f: &usize| {
                 matches!(
-                    metric::sign(
+                    metric::sign_as(
                         LINK_PLANE,
                         Distance::of(*other, p, horns[*f].outward),
                         rd.band
@@ -202,10 +221,10 @@ fn beside<T: Decide>(
 ) -> Option<Sign> {
     let l = arm.length();
     let residue = Distance::of(p + tc.normalize() * l, p + ta.normalize() * l, m);
-    if metric::sign(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
+    if metric::sign_as(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
         return None;
     }
-    metric::settle(
+    metric::settle_as(
         LINK_SECOND_ORDER,
         Distance::departure(Departure::Parted(c.bend - a.bend), m, arm),
         rd.charged(residue),
@@ -357,11 +376,11 @@ fn misses<T: Decide>(
     // `also` charged beside the anchors' first-order parting.
     let off = |n: Vec3<T>, also: Option<Distance<T>>| {
         let residue = Distance::of(p + b.at * l, p + a.at * l, n);
-        if metric::sign(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
+        if metric::sign_as(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
             return None;
         }
         let rd = also.map_or(rd, |d| rd.charged(d)).charged(residue);
-        metric::settle(
+        metric::settle_as(
             LINK_SECOND_ORDER,
             Distance::departure(Departure::Parted(b.anchor - a.anchor), n, arm),
             rd,

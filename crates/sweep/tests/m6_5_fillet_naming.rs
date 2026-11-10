@@ -93,7 +93,11 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The pipped cube of `corpus/die_composed.rs`, its 12 surviving box
 /// edges and its pip rim's two arcs.
 fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
-    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
+    let cube0 = finished(
+        "the cube",
+        cube::<f64>(DIE_L, Tol::witness()),
+        Tol::witness(),
+    );
     let box_keys: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pip = ball_poled_z(PIP_R, Vec3::new(0.5, 0.5, DIE_L + (PIP_R - PIP_H)));
     let pip = finished("the pip ball", pip, Tol::witness());
@@ -214,7 +218,7 @@ fn the_records_have_the_shape_the_surgery_built() {
 /// The census is the die's: `V=8, E=12, F=6` rounds to 24 / 48 / 26.
 #[test]
 fn the_every_edge_request_records_every_entity_it_mints() {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = cube::<f64>(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let out = fillet_edges(
         &sweep::test_support::at_rest(&cube0, Tol::witness()),
@@ -304,7 +308,7 @@ fn the_every_edge_request_records_every_entity_it_mints() {
 /// emitter would refuse `MissingUpstream`, but the bug belongs here.
 #[test]
 fn every_every_edge_record_names_a_source_entity() {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = cube::<f64>(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let out = fillet_edges(
         &sweep::test_support::at_rest(&cube0, Tol::witness()),
@@ -345,7 +349,8 @@ fn every_every_edge_record_names_a_source_entity() {
 /// sidecar, which are cross-revision by construction.
 #[test]
 fn the_every_edge_fillet_is_deterministic() {
-    let cube0 = sweep::test_support::finished("cube0", cube(DIE_L, Tol::witness()), Tol::witness());
+    let cube0 =
+        sweep::test_support::finished("cube0", cube::<f64>(DIE_L, Tol::witness()), Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let a = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery");
     let b = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery again");

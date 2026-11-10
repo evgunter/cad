@@ -104,11 +104,8 @@ fn at(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
 }
 
 fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
-    let h = body.get_edge(e).unwrap().he_plus;
-    [
-        body.get_half_edge(h).unwrap().start,
-        body.half_edge_end(h).unwrap(),
-    ]
+    let (v0, v1) = body.edge_vertices(e).unwrap();
+    [v0, v1]
 }
 
 /// The edges of `body` on the keel's line, `x = 1, y = 0`.
@@ -396,9 +393,10 @@ fn winds(ring: &[Point3<f64>], q: Point3<f64>) -> bool {
 
 /// The points of each loop of `face`, in walk order.
 fn rings(body: &Body<f64>, face: FaceKey) -> Vec<Vec<Point3<f64>>> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|l| match body.get_loop(l).unwrap().boundary {
             LoopBoundary::Cycle { first } => Some(
                 body.loop_cycle(first)

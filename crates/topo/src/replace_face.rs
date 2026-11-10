@@ -222,11 +222,13 @@ use std::sync::Arc;
 
 use geom::SurfaceKind;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+use geom_brep::ladder::{Answering, Climb, Kept, Rung, climb, decided};
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfacePair};
 use geom_core::k_stats::decide;
 use geom_core::{
-    Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Decided, Indeterminate,
+    KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, MOVE_RECOURSE, Margin, NOT_YET_ENDING,
+    Point3, Real, Sign, Tol, Vec3,
 };
 
 use crate::attach::Rechart;
@@ -252,6 +254,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// of `Band::linear`'s arms reach it from a tolerance the run's
     /// validator admits (an ε within a factor K of `f64::MAX`, or a
     /// subnormal ε with K near 1).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     Band {
         /// The band constructor's typed refusal.
         error: BandError,
@@ -259,12 +263,16 @@ pub enum ReplaceFaceError<T: Real> {
     /// `face`, a key the caller handed over, does not resolve in the
     /// body. A key the body's own records hold that does not resolve is
     /// a torn body, and the door panics naming the record (D2 row 4).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     StaleFace {
         /// The unresolvable face.
         face: FaceKey,
     },
     /// The analytic offset mint refused: the radius floor, the torus
     /// ring convention, non-closure, or an escalation.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Offset {
         /// The face whose surface refused.
         face: FaceKey,
@@ -274,6 +282,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// The approximating-surface fit refused: the regularity or
     /// collapse meter, a rational operand, the refinement budget, or a
     /// certificate limb.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Fit {
         /// The face whose fit refused.
         face: FaceKey,
@@ -286,6 +296,8 @@ pub enum ReplaceFaceError<T: Real> {
     ///
     /// Where `Some` comes from, and what its absence means:
     /// [`crate::AtRestPolicy::offset_fit_lane`].
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     ApproxLaneUnsupported {
         /// The face whose kind needs the (`f64`-only) fit door.
         face: FaceKey,
@@ -299,6 +311,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// them would name one face's surface and lie on the other's.
     /// Replacing a solid's wearers of a chart is a whole-group
     /// operation: name every one.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SharedSurfaceKey {
         /// The face the door was called on.
         face: FaceKey,
@@ -306,9 +320,13 @@ pub enum ReplaceFaceError<T: Real> {
         other: FaceKey,
     },
     /// No face was named.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     EmptyGroup,
     /// The named faces do not all carry ONE chart, so there is no
     /// single surface to offset.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     GroupChartsDiffer {
         /// The first named face.
         face: FaceKey,
@@ -317,6 +335,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// The face carries the "not yet described" placeholder surface,
     /// which has no locus to offset.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     PlaceholderSurface {
         /// The face carrying the placeholder.
         face: FaceKey,
@@ -325,6 +345,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// the cone offset's `d·cot α`, reaches or crosses the apex: the
     /// minted cone's nappe attribution flips inside the window, so the
     /// mint is not this face's offset.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ApexWindow {
         /// The face whose window crosses.
         face: FaceKey,
@@ -341,6 +363,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// one chart do not agree on a nappe — in both readings there is no
     /// single side for the offset's sign to be turned onto. Refused
     /// rather than guessed, at both offset doors.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     NappeStraddles {
         /// The face with no nappe, or the first group member that
         /// disagreed.
@@ -355,6 +379,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// The face carries a cone but has no boundary carrier to read a
     /// `v`-window off. Refusing is the only honest answer: inventing a
     /// window would decide the apex predicate on made-up data.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ApexWindowUnknown {
         /// The cone-faced face with no derivable window.
         face: FaceKey,
@@ -362,6 +388,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// **The C5 boundary.** An intrinsic description's pair — the moved
     /// surface's kind against the neighbour's — has no route arm, so
     /// the edge cannot be re-stated as an intersection of the two.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NeighborPairUnroutable {
         /// The edge that cannot be re-described.
         edge: EdgeKey,
@@ -378,6 +406,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// not serve — an offset wedge cap no longer through a cone's apex
     /// or a torus's axis, say — so the edge cannot be re-stated as an
     /// intersection of the two either.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NeighborPoseUnroutable {
         /// The edge that cannot be re-described.
         edge: EdgeKey,
@@ -402,6 +432,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// - a curve still under construction (a scaffold edge);
     /// - a seam the face shares with itself that is not described on
     ///   its own chart.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     FittedBoundaryUnsupported {
         /// The edge the fitted chart cannot carry.
         edge: EdgeKey,
@@ -412,6 +444,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// (surface kind, carrier kind) combination the edge presents. A
     /// scope statement, not a geometric verdict: the combination is
     /// named so the unit that needs it knows what to build.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     CarrierLaneUnsupported {
         /// The edge whose carrier this door cannot transport.
         edge: EdgeKey,
@@ -421,22 +455,19 @@ pub enum ReplaceFaceError<T: Real> {
     /// The fitted chart's boundary-row extraction refused: an interior
     /// iso parameter, an escalated coincidence, or a row the spline
     /// layer would not build.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     IsoRow {
         /// The edge whose row could not be extracted.
         edge: EdgeKey,
         /// The extraction door's typed refusal, verbatim.
         error: geom_brep::IsoRowError<T>,
     },
-    /// A NURBS structure operation on a carrier or a fit row refused.
-    Structure {
-        /// The edge whose carrier could not be built.
-        edge: EdgeKey,
-        /// The spline layer's typed refusal.
-        error: geom_core::spline::SplineError,
-    },
     /// Two boundary edges meeting at one vertex transport it to
     /// definitely different points: the re-derivation is not coherent,
     /// so no point is written.
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     VertexDisagreement {
         /// The vertex the edges disagree about.
         vertex: VertexKey,
@@ -450,6 +481,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// is a tangency there. The edge is that section wherever the held
     /// surface is not carried onto itself by the move, so nothing else
     /// stands in for it.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     EdgeSection {
         /// The edge whose section was refused.
         edge: EdgeKey,
@@ -464,6 +497,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// edge meeting it** (or of a held surface along a moved edge): the
     /// surface grazes the edge's carrier, does not meet it near the
     /// corner, or meets it where this door solves no root.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     CornerSection {
         /// The corner.
         vertex: VertexKey,
@@ -479,6 +514,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// record does not describe and there is no other description to
     /// state it by. Unreachable at rest, where tier 3's transience
     /// fence refuses a scaffold.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     DeclaredEdgeTilted {
         /// The scaffolded edge.
         edge: EdgeKey,
@@ -488,6 +525,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// neighbour**, re-asked the must-carry rule after the move: the
     /// two bracket an in-band point the schedule did not sample, so the
     /// edge is certifiable as neither (D2's mixed edge).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     MixedEdge {
         /// The moved edge.
         edge: EdgeKey,
@@ -506,6 +545,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// moved face — a lofted wall's seam, whose carrier ends where its
     /// patch does, a carrier minted only as long as its edge, and a
     /// section of a fit no wider than its face.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ReanchorPastCarrierEnd {
         /// The edge whose carrier ends short of the moved vertex.
         edge: EdgeKey,
@@ -525,6 +566,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// wrong. A periodic carrier's non-forward span may be a turn chosen
     /// wrongly, so it stays the attach door's [`ReplaceFaceError::Op`],
     /// which that door refuses typed.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ReanchorCollapse {
         /// The edge the move collapses or reverses.
         edge: EdgeKey,
@@ -533,6 +576,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// A spline carrier's foot-point Newton did not converge from the
     /// moved endpoint's old parameter. No foot is offered in its place.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(b), a reading that did not settle: kept as unsettled.
     ReanchorInconclusive {
         /// The edge whose carrier the foot was sought on.
         edge: EdgeKey,
@@ -544,6 +589,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// point with ([`crate::AtRestPolicy::spline_foot`] answers `None`),
     /// or a spline edge's section or root needs the section lane the
     /// scalar does not hold. A fact about the scalar, not the body.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NurbsLaneUnsupported {
         /// The edge whose carrier needs the lane.
         edge: EdgeKey,
@@ -554,6 +601,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// move is not a plane. Its corner solve is three plane equations,
     /// and a curved face has no such equation;
     /// [`crate::offset_surfaces_together`] roots those corners.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherNonPlanar {
         /// The face that is not a plane.
         face: FaceKey,
@@ -564,6 +613,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// was not in the moving set. Every corner's answer depends on all
     /// the planes meeting it, so a set the door was not told about in
     /// full is a set it cannot solve against.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherPartialSet {
         /// A face of the body that no chart move named.
         face: FaceKey,
@@ -574,6 +625,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// concur after the offset, so no point satisfies them all. Refused
     /// rather than solved on a subset and hoped over: a corner placed
     /// off one of its own planes is a wrong body no tier catches.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherCorner {
         /// The vertex.
         vertex: VertexKey,
@@ -589,6 +642,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// names the OPERATION rather than one of them: a message that said
     /// `offset_planes_together` under a body of revolution would send a
     /// reader to the wrong file.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherChartMixed {
         /// The face whose surface differs.
         face: FaceKey,
@@ -597,6 +652,8 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The simultaneous door: a face was named by more than one chart
     /// move**, so its offset is two different numbers.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherFaceRepeated {
         /// The face named twice.
         face: FaceKey,
@@ -627,6 +684,8 @@ pub enum ReplaceFaceError<T: Real> {
     ///   was this meter, on the axis edge between its two moved caps —
     ///   the site an earlier draft of this doc misdescribed as an
     ///   endpoint disagreement.)
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     TogetherEdgeDisagreement {
         /// The edge whose re-derived geometry failed verification.
         edge: EdgeKey,
@@ -643,6 +702,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// centred `(R, h_c)`, the sphere's circle centred `(0, h_c)` with
     /// one more number. An off-axis torus refuses at the axis gate
     /// below, not here.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     TogetherAxialUnsupported {
         /// The face.
         face: FaceKey,
@@ -655,6 +716,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// plane cutting it obliquely. The meridian reduction has no coordinates
     /// for such a corner, so it refuses rather than solving in a frame
     /// the geometry does not live in.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherNotAxial {
         /// The face.
         face: FaceKey,
@@ -668,6 +731,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// through the axis over-determines. Refused rather than solved on
     /// a subset: a corner placed off one of its own surfaces is a wrong
     /// body no tier catches.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     TogetherAxialCorner {
         /// The vertex.
         vertex: VertexKey,
@@ -681,6 +746,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// carries — a mapped description on a chart whose motion is a
     /// radius change, a circular edge whose plane is not normal to the
     /// axis, a carrier that is neither a line nor a circle.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     TogetherAxialEdge {
         /// The edge.
         edge: EdgeKey,
@@ -700,6 +767,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// refused here, read off the re-chart's refusal of that edge
     /// (`EulerOpError::RechartFalsifies` with the cone's
     /// `NoTubeEnclosure`).
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     TogetherConicArc {
         /// The edge.
         edge: EdgeKey,
@@ -711,6 +780,10 @@ pub enum ReplaceFaceError<T: Real> {
     /// refuses the shape before it reads any pose, in the half's own
     /// words. The door does not validate the body it is handed, so the
     /// neighbour's torus is whatever the body carries.
+    ///
+    /// Standing: as the convention states it
+    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.
         edge: EdgeKey,
@@ -721,11 +794,15 @@ pub enum ReplaceFaceError<T: Real> {
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3). No
     /// offset door takes a declaration, so its ending offers the
     /// geometry lever alone ([`COINCIDENCE_RECOURSE`]).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(b), a precision limit: kept by its margin.
     Escalated {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
     /// An attach-layer door refused the planned mutation.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Op {
         /// The edge the attach door refused; absent for the re-chart,
         /// whose refusal names the edges itself.
@@ -734,6 +811,8 @@ pub enum ReplaceFaceError<T: Real> {
         error: EulerOpError,
     },
     /// The whole-body pcurve mint refused on the re-described body.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Pcurve {
         /// The mint's typed refusal.
         source: PcurveMintError,
@@ -741,6 +820,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// The join the public offset doors end with
     /// ([`Body::join_edges`](crate::construction::Construct::join_edges)) refused on the offset body. The body is
     /// untouched.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     Join {
         /// Why the join refused.
         refusal: crate::boolean::JoinRefusal,
@@ -755,6 +836,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// always: under debug assertions it panics naming the door
     /// ([`crate::construction::Surgery::close_gated`]) instead of arriving here, and
     /// with them off it arrives here ahead of the tier-2 findings.
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     ResultNotClosed {
         /// The validator's report.
         errors: Vec<ValidationError>,
@@ -762,6 +845,71 @@ pub enum ReplaceFaceError<T: Real> {
 }
 
 impl<T: Real> ReplaceFaceError<T> {
+    /// **This refusal's standing** ([`geom_brep::ladder::Refusal`]), each
+    /// variant's `[failure.taxonomy]` row as its doc states it:
+    /// [`Escalated`](Self::Escalated), row 1(b), is kept by its margin and
+    /// [`ReanchorInconclusive`](Self::ReanchorInconclusive) as unsettled;
+    /// the unbuilt lanes, row 2 (`*Unsupported`, the C5 boundary's
+    /// `*Unroutable`), are limits; an invalid input (1(a)), a kernel or
+    /// stored-data fault (4) and a payload that mixes classes (`Offset`,
+    /// `Fit`, `IsoRow`, the sections, `Op`, `Pcurve`,
+    /// `Join`) abort until split. Exhaustive with no catch-all arm, so an
+    /// added variant states its standing here before it compiles.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`] for an invalid input, a kernel or
+    /// stored-data fault and a payload that mixes classes.
+    pub(crate) const fn refusal(
+        &self,
+    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        match self {
+            Self::Escalated { source } => Ok(geom_brep::ladder::Refusal::Margin(*source)),
+            Self::DegenerateTorus { refusal, .. } => refusal.refusal(),
+            Self::ReanchorInconclusive { .. } => Ok(geom_brep::ladder::Refusal::Unsettled),
+            Self::ApproxLaneUnsupported { .. }
+            | Self::NeighborPairUnroutable { .. }
+            | Self::NeighborPoseUnroutable { .. }
+            | Self::FittedBoundaryUnsupported { .. }
+            | Self::CarrierLaneUnsupported { .. }
+            | Self::NurbsLaneUnsupported { .. }
+            | Self::TogetherAxialUnsupported { .. } => Ok(geom_brep::ladder::Refusal::Limit),
+            Self::Band { .. }
+            | Self::StaleFace { .. }
+            | Self::SharedSurfaceKey { .. }
+            | Self::EmptyGroup
+            | Self::GroupChartsDiffer { .. }
+            | Self::PlaceholderSurface { .. }
+            | Self::ApexWindow { .. }
+            | Self::NappeStraddles { .. }
+            | Self::ApexWindowUnknown { .. }
+            | Self::DeclaredEdgeTilted { .. }
+            | Self::MixedEdge { .. }
+            | Self::ReanchorPastCarrierEnd { .. }
+            | Self::ReanchorCollapse { .. }
+            | Self::TogetherNonPlanar { .. }
+            | Self::TogetherPartialSet { .. }
+            | Self::TogetherCorner { .. }
+            | Self::TogetherChartMixed { .. }
+            | Self::TogetherFaceRepeated { .. }
+            | Self::TogetherNotAxial { .. }
+            | Self::TogetherAxialCorner { .. }
+            | Self::VertexDisagreement { .. }
+            | Self::TogetherEdgeDisagreement { .. }
+            | Self::ResultNotClosed { .. }
+            | Self::Offset { .. }
+            | Self::Fit { .. }
+            | Self::IsoRow { .. }
+            | Self::EdgeSection { .. }
+            | Self::CornerSection { .. }
+            | Self::TogetherAxialEdge { .. }
+            | Self::TogetherConicArc { .. }
+            | Self::Op { .. }
+            | Self::Pcurve { .. }
+            | Self::Join { .. } => Err(geom_brep::ladder::Aborts),
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
@@ -790,6 +938,13 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::Fit { error, .. } => {
                 write!(f, "{}", read_at(error, geom_brep::recourse::at_build(at)))
             }
+            // The row is read off the face's own fitted surface: a row
+            // that is not valid structure is the kernel's
+            // (`IsoRowError::Structure`, which its holders end).
+            Self::IsoRow {
+                error: error @ geom_brep::IsoRowError::Structure { .. },
+                ..
+            } => write!(f, "{error}. {KERNEL_DEFECT_ENDING}"),
             Self::IsoRow { error, .. } => write!(f, "{error}"),
             Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,
@@ -878,12 +1033,6 @@ impl<T: Real> ReplaceFaceError<T> {
                 f,
                 "an edge beside the face cannot follow the offset: {what}. {NOT_YET_ENDING}"
             ),
-            // The carriers moved are valid splines already, so the
-            // spline layer's reason (in `Debug`) is the kernel's.
-            Self::Structure { .. } => write!(
-                f,
-                "an edge's moved curve is not a valid spline. {KERNEL_DEFECT_ENDING}"
-            ),
             Self::VertexDisagreement { gap, .. } => write!(
                 f,
                 "two edges move one corner of the face to points {gap:?} m apart, so the \
@@ -916,7 +1065,7 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::MixedEdge { stations, .. } => {
                 write!(
                     f,
-                    "along an edge the offset moves, {stations}. Recourse: {COINCIDENCE_RECOURSE}"
+                    "along an edge the offset moves, {stations}. {MOVE_RECOURSE}"
                 )
             }
             Self::ReanchorPastCarrierEnd { gap, .. } => write!(
@@ -1067,16 +1216,6 @@ pub(crate) fn error_count(n: usize) -> String {
 /// ruling/nappe on the kinds whose chart normal varies with position.
 type Transported<T> = Option<(Curve3<T>, Option<Vec3<T>>)>;
 
-/// Why a transport could not be produced — kept distinct from "this
-/// lane does not exist", which is what `Ok(None)` says.
-enum TransportError {
-    /// A named margined predicate escalated.
-    Escalated(Indeterminate),
-    /// The transported control net is not valid spline structure. A
-    /// STRUCTURE failure, never a scope one: the lane exists and ran.
-    Structure(geom_core::spline::SplineError),
-}
-
 fn transport_curve<T: Decide>(
     old: &Surface<T>,
     nappe: Nappe,
@@ -1084,23 +1223,17 @@ fn transport_curve<T: Decide>(
     curve: &Curve3<T>,
     mid: Point3<T>,
     band: Band,
-) -> Result<Transported<T>, TransportError> {
+) -> Result<Transported<T>, Indeterminate> {
     Ok(match old {
         Surface::Plane { normal, .. } => {
             let delta = *normal * d;
-            Some((
-                translate_curve(curve, delta).map_err(TransportError::Structure)?,
-                Some(delta),
-            ))
+            Some((translate_curve(curve, delta), Some(delta)))
         }
         Surface::Cylinder { origin, axis, .. } => match curve {
             Curve3::Line(_) | Curve3::Nurbs(_) => {
                 let radial = (mid - *origin).reject_from(*axis).normalize();
                 let delta = radial * d;
-                Some((
-                    translate_curve(curve, delta).map_err(TransportError::Structure)?,
-                    Some(delta),
-                ))
+                Some((translate_curve(curve, delta), Some(delta)))
             }
             Curve3::Circle(geom::Circle {
                 frame:
@@ -1125,7 +1258,14 @@ fn transport_curve<T: Decide>(
             // three faces of the mint's own action, and this door reads
             // all three rather than re-deriving any (the drift that
             // costs is a second copy, not a second call).
-            let action = geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d);
+            let action = geom_brep::ConeOffset::new(
+                geom::Line {
+                    origin: *apex,
+                    dir: *axis,
+                },
+                *half_angle,
+                d,
+            );
             let (sin_a, cos_a) = half_angle.sin_cos();
             match curve {
                 // A chart line is a generator, and the action's
@@ -1133,10 +1273,7 @@ fn transport_curve<T: Decide>(
                 // not vary), so the transport is rigid.
                 Curve3::Line(_) | Curve3::Nurbs(_) => {
                     let delta = action.displacement(nappe, mid);
-                    Some((
-                        translate_curve(curve, delta).map_err(TransportError::Structure)?,
-                        Some(delta),
-                    ))
+                    Some((translate_curve(curve, delta), Some(delta)))
                 }
                 // A parallel: `v` shifts by the action's own shift, and
                 // the circle re-mints against the action's own APEX —
@@ -1171,9 +1308,7 @@ fn transport_curve<T: Decide>(
         // map — no per-kind case analysis, only per-kind arithmetic.
         Surface::Sphere { center, radius, .. } => {
             let k = (*radius + d) / *radius;
-            homothety(curve, *center, k)
-                .map_err(TransportError::Structure)?
-                .map(|c| (c, None))
+            homothety(curve, *center, k).map(|c| (c, None))
         }
         Surface::Torus {
             center,
@@ -1202,8 +1337,7 @@ fn transport_curve<T: Decide>(
                         "offset_torus_carrier_axis",
                         Margin::of(along.abs() - T::from_f64(0.5)),
                         band,
-                    )
-                    .map_err(TransportError::Escalated)?,
+                    )?,
                     Sign::Positive
                 );
                 if parallel {
@@ -1238,10 +1372,7 @@ fn transport_curve<T: Decide>(
             None => None,
             Some(n0) => {
                 let delta = n0 * d;
-                Some((
-                    translate_curve(curve, delta).map_err(TransportError::Structure)?,
-                    Some(delta),
-                ))
+                Some((translate_curve(curve, delta), Some(delta)))
             }
         },
         // The offset door mints no spindle sheet, so no edge is moved
@@ -1256,7 +1387,10 @@ fn transport_curve<T: Decide>(
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
     let (u0, u1) = s.knots_u_f64_interim().domain();
     let (v0, v1) = s.knots_v_f64_interim().domain();
-    let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
+    let jet = s.ders(
+        T::from_f64(geom::mid_param(u0, u1)),
+        T::from_f64(geom::mid_param(v0, v1)),
+    );
     let n = jet.du.cross(jet.dv).normalize();
     (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
 }
@@ -1264,11 +1398,8 @@ fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
 /// `curve` translated by `delta` — exact on every carrier kind (a
 /// translation acts on the stored anchor and leaves every frame,
 /// radius and weight alone).
-pub(crate) fn translate_curve<T: Real>(
-    curve: &Curve3<T>,
-    delta: Vec3<T>,
-) -> Result<Curve3<T>, geom_core::spline::SplineError> {
-    Ok(match curve {
+pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Curve3<T> {
+    match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
         Curve3::Circle(c) => Curve3::Circle(geom::Circle {
             frame: c.frame.translated(delta),
@@ -1296,18 +1427,14 @@ pub(crate) fn translate_curve<T: Real>(
         // A translation is affine: the net's image, knots and weights
         // as they are held.
         Curve3::Nurbs(n) => Curve3::Nurbs(Arc::new(n.map_points(|p| p + delta))),
-    })
+    }
 }
 
 /// `curve` under the homothety of ratio `k` about `c` — the sphere
 /// offset's own map.
-fn homothety<T: Real>(
-    curve: &Curve3<T>,
-    c: Point3<T>,
-    k: T,
-) -> Result<Option<Curve3<T>>, geom_core::spline::SplineError> {
+fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
-    Ok(Some(match curve {
+    Some(match curve {
         Curve3::Circle(geom::Circle {
             frame:
                 geom::Frame {
@@ -1323,8 +1450,8 @@ fn homothety<T: Real>(
         // A line, an ellipse or a spiric does not lie on a sphere, so
         // a carrier of any of those kinds is not a curve this map was
         // derived for.
-        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => return Ok(None),
-    }))
+        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Spiric { .. } => return None,
+    })
 }
 
 // ---------------------------------------------------------------------
@@ -1958,8 +2085,16 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
             ..
         } = old_surface
         {
-            let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
-                .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
+            let (v_min, v_max) = group_cone_v_window(
+                body,
+                faces,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle.cos(),
+            )
+            .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
             // The nappe decides which end of the window is the one
             // nearest the apex; the window decides whether that end has
             // CLEARED the apex. One predicate, on the near end alone,
@@ -2077,8 +2212,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 &plan.spec.carrier,
                 plan.spec.param_start,
                 plan.spec.param_end,
-                apex,
-                axis,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
                 half_angle.cos(),
             );
             window = Some(match window {
@@ -2273,7 +2410,15 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
             axis,
             half_angle,
             ..
-        } => geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d).shift(),
+        } => geom_brep::ConeOffset::new(
+            geom::Line {
+                origin: *apex,
+                dir: *axis,
+            },
+            *half_angle,
+            d,
+        )
+        .shift(),
         _ => T::zero(),
     }
 }
@@ -2293,16 +2438,28 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
 fn group_cone_v_window<T: Decide>(
     body: &Body<T>,
     group: &[FaceKey],
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     cos_a: T,
 ) -> Option<(T, T)> {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let mut window: Option<(T, T)> = None;
     for edge in group_boundary(body, group) {
         let edge_data = proven(&body.edges, edge, EntityId::Edge);
         let curve = body.edge_curve_linked(edge, edge_data).certified()?;
         let (t0, t1) = curve.params();
-        let (lo, hi) = cone_v_range(curve.carrier(), t0, t1, apex, axis, cos_a);
+        let (lo, hi) = cone_v_range(
+            curve.carrier(),
+            t0,
+            t1,
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            cos_a,
+        );
         window = Some(match window {
             None => (lo, hi),
             Some((a, b)) => (a.min(lo), b.max(hi)),
@@ -2317,10 +2474,13 @@ fn cone_v_range<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     cos_a: T,
 ) -> (T, T) {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
     match carrier {
         // `v` is affine in `t`, so the endpoints are the extremes.
@@ -2660,10 +2820,7 @@ fn plan_edge<'s, T: Decide>(
     }
 
     let (carrier, delta) = transport_curve(old_surface, nappe, d, &old_carrier, mid, band)
-        .map_err(|e| match e {
-            TransportError::Escalated(source) => ReplaceFaceError::Escalated { source },
-            TransportError::Structure(error) => ReplaceFaceError::Structure { edge, error },
-        })?
+        .map_err(|source| ReplaceFaceError::Escalated { source })?
         .ok_or(ReplaceFaceError::CarrierLaneUnsupported {
             edge,
             what: "its kind of curve has no exact offset on this kind of surface",
@@ -3008,7 +3165,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
     let old = curve.carrier();
     let description = curve.description().clone();
     untilted(edge, &description)?;
-    if let Some((carrier, delta)) = carried_alike(edge, old, (t0, t1), (a, b), band, tol)? {
+    if let Some((carrier, delta)) = carried_alike(old, (t0, t1), (a, b), band, tol)? {
         // Both charts move, so an image in either has slid within it and
         // is derived afresh from the moved carrier; a declaration rides
         // the edge's own rigid shift.
@@ -3099,7 +3256,6 @@ fn plan_between_moved<'w, 's, T: Decide>(
 /// translation and a homothety, or two homotheties, that agree at two
 /// distinct points are one map; and three points fix a circle.
 fn carried_alike<T: Decide>(
-    edge: EdgeKey,
     old: &Curve3<T>,
     (t0, t1): (T, T),
     (a, b): (&MovedChart<'_, T>, &MovedChart<'_, T>),
@@ -3116,21 +3272,40 @@ fn carried_alike<T: Decide>(
     }
     let mid = old.mid_point(t0, t1);
     let transport = |c: &MovedChart<'_, T>| {
-        transport_curve(&c.old_surface, c.nappe, c.d, old, mid, band).map_err(|e| match e {
-            TransportError::Escalated(source) => ReplaceFaceError::Escalated { source },
-            TransportError::Structure(error) => ReplaceFaceError::Structure { edge, error },
-        })
+        transport_curve(&c.old_surface, c.nappe, c.d, old, mid, band)
+            .map_err(|source| ReplaceFaceError::Escalated { source })
     };
-    let (Some(on_a), Some((on_b, _))) = (transport(a)?, transport(b)?) else {
-        return Ok(None);
+    // A side with no image is no witness, whatever the other side read
+    // ([`climb`], [`Answering::Any`]): an escalation on one side is kept,
+    // and refuses only where the other side has an image.
+    let (mut on_a, mut on_b) = (None, None);
+    let unwitnessed = climb(
+        Answering::Any,
+        [(a, &mut on_a), (b, &mut on_b)],
+        |(c, image)| match transport(c) {
+            Ok(Some(read)) => {
+                *image = Some(read);
+                Rung::Passes
+            }
+            Ok(None) => Rung::Answers(Ok(())),
+            Err(e) => Rung::refused(e, ReplaceFaceError::refusal, Err),
+        },
+    );
+    let (on_a, (on_b, _)) = match (unwitnessed, on_a, on_b) {
+        (Climb::Answered { answer, .. }, ..) => return answer.map(|()| None),
+        (Climb::Undecided(e), ..) => return Err(e),
+        (Climb::Passed, Some(on_a), Some(on_b)) => (on_a, on_b),
+        (Climb::Passed, ..) => unreachable!("every side passed, so each side's image was read"),
     };
-    let tm = (t0 + t1) * T::from_f64(0.5);
-    for t in [t0, tm, t1] {
-        if !gap_within_eps(on_a.0.eval(t).distance(on_b.eval(t)), tol, band)? {
-            return Ok(None);
-        }
+    let tm = geom::mid_param(t0, t1);
+    // Alike at every sample: any sample decided past ε answers "not
+    // alike", whatever an earlier sample read ([`gaps_apart`]).
+    let samples = [t0, tm, t1].map(|t| on_a.0.eval(t).distance(on_b.eval(t)));
+    match gaps_apart(&samples, tol, band) {
+        Ok(Some(_)) => Ok(None),
+        Ok(None) => Ok(Some(on_a)),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
-    Ok(Some(on_a))
 }
 
 /// An edge still scaffolded between two distinct surfaces, at least one
@@ -4017,13 +4192,81 @@ fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<
 /// 2ε reads coincident, one past ε + K·ε does not, and one between the
 /// two escalates by the predicate's name.
 fn gap_within_eps<T: Decide>(gap: T, tol: Tol, band: Band) -> Result<bool, ReplaceFaceError<T>> {
-    decide(
-        "offset_vertex_agreement",
-        Margin::of(T::from_f64(tol.eps()) - gap),
-        band,
+    decided(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band)
+        .map(|d| !past_eps(&d))
+        .map_err(|kept| {
+            let (Kept::InBand(source) | Kept::Blocked(source)) = kept;
+            ReplaceFaceError::Escalated { source }
+        })
+}
+
+/// [`gap_within_eps`]'s sign test, the file's one spelling of it: the
+/// margin `ε − gap` decided negative is a gap past ε.
+fn past_eps(d: &Decided) -> bool {
+    d.sign == Sign::Negative
+}
+
+/// **Whether every gap of `gaps` is within ε**, the file's one reading
+/// of "every gap within ε": any gap decided past ε is the disagreement,
+/// whatever an earlier gap read ([`climb`], [`Answering::Any`]; a gap
+/// in band is kept). `Some` of that gap and its index where one is past
+/// ε, `None` where every gap is within it.
+///
+/// **Which gap is reported is a choice among true reports.** The index
+/// and the gap are a witness, and every answering rung's is a gap decided
+/// past ε. They become [`ReplaceFaceError::VertexDisagreement`]'s vertex
+/// and gap, whose ending is "not yet" and sizes nothing, and the shell
+/// operation reads the vertex back to name the face that failed
+/// (`shell::offending_face`, `ShellError::Face`; the editor's shell verb
+/// carries it on). So rung order chooses which disagreeing vertex, and
+/// which face, the user is told about, and every choice is a true one.
+///
+/// # Errors
+///
+/// The kept reading, where no gap is past ε and one is in band.
+fn gaps_apart<T: Decide>(
+    gaps: &[T],
+    tol: Tol,
+    band: Band,
+) -> Result<Option<(usize, T)>, Indeterminate> {
+    climb(
+        Answering::Any,
+        gaps.iter().copied().enumerate(),
+        |(at, gap)| {
+            Rung::decide(GAP_WITHIN_EPS, gap_within_eps_margin(gap, tol), band, |d| {
+                past_eps(&d).then_some((at, gap))
+            })
+        },
     )
-    .map(|s| !matches!(s, Sign::Negative))
-    .map_err(|source| ReplaceFaceError::Escalated { source })
+    .into_reading()
+}
+
+/// **Whether one corner's solved points are one point**: every pair
+/// within ε ([`gaps_apart`]). `Some` of a pair's gap where one is past
+/// ε, `None` where every pair is within it.
+///
+/// # Errors
+///
+/// The kept reading, where no pair is past ε and one is in band.
+fn corner_apart<T: Decide>(
+    points: &[Point3<T>],
+    tol: Tol,
+    band: Band,
+) -> Result<Option<T>, Indeterminate> {
+    let pairs: Vec<T> = points
+        .iter()
+        .enumerate()
+        .flat_map(|(i, a)| points[i + 1..].iter().map(move |b| a.distance(*b)))
+        .collect();
+    gaps_apart(&pairs, tol, band).map(|apart| apart.map(|(_, gap)| gap))
+}
+
+/// [`gap_within_eps`]'s predicate name.
+const GAP_WITHIN_EPS: &str = "offset_vertex_agreement";
+
+/// [`gap_within_eps`]'s margin, `ε − gap`: negative where `gap` is past ε.
+fn gap_within_eps_margin<T: Decide>(gap: T, tol: Tol) -> Margin<T> {
+    Margin::of(T::from_f64(tol.eps()) - gap)
 }
 
 /// The parameter of `point`'s foot on the spline `carrier`, nearest
@@ -4415,13 +4658,10 @@ fn solve_corners<T: Decide>(
             }
             points
         };
-        for (i, a) in points.iter().enumerate() {
-            for b in &points[i + 1..] {
-                let gap = a.distance(*b);
-                if !gap_within_eps(gap, tol, band)? {
-                    return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-                }
-            }
+        if let Some(gap) = corner_apart(&points, tol, band)
+            .map_err(|source| ReplaceFaceError::Escalated { source })?
+        {
+            return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
         }
         corners.groups.push((group, points[0]));
         corners.offsets.push(d);
@@ -4596,11 +4836,15 @@ fn read_ends<T: Decide>(
             }
         }
     };
-    for (vertex, point, t) in [(plan.start, p_start, t0), (plan.end, p_end, t1)] {
-        let gap = carrier.eval(t).distance(point);
-        if !gap_within_eps(gap, tol, band)? {
-            return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-        }
+    // Both ends on the carrier: either end past ε the disagreement
+    // ([`gaps_apart`]).
+    let ends = [(plan.start, p_start, t0), (plan.end, p_end, t1)];
+    let gaps = ends.map(|(_, point, t)| carrier.eval(t).distance(point));
+    if let Some((at, gap)) =
+        gaps_apart(&gaps, tol, band).map_err(|source| ReplaceFaceError::Escalated { source })?
+    {
+        let (vertex, ..) = ends[at];
+        return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
     }
     plan.spec.param_start = t0;
     plan.spec.param_end = t1;
@@ -5995,5 +6239,53 @@ mod from_computed_rows {
                 laundered: 0,
             }
         );
+    }
+}
+
+/// **`ReplaceFaceError`'s standing by row** ([`ReplaceFaceError::refusal`]):
+/// a lane not built (row 2) is a limit, and an invalid input (row 1(a))
+/// aborts.
+#[cfg(test)]
+mod refusal_rows {
+    use geom_brep::ladder::{Aborts, Refusal};
+
+    use super::ReplaceFaceError;
+    use crate::entity::FaceKey;
+
+    #[test]
+    fn an_unbuilt_lane_is_a_limit_and_invalid_input_aborts() {
+        let unbuilt = ReplaceFaceError::<f64>::ApproxLaneUnsupported {
+            face: FaceKey::default(),
+            scalar: "f64",
+        };
+        assert_eq!(unbuilt.refusal(), Ok(Refusal::Limit));
+        assert_eq!(ReplaceFaceError::<f64>::EmptyGroup.refusal(), Err(Aborts));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod corner_rows {
+    use geom_core::{Band, Point3, Tol};
+
+    use super::{corner_apart, gaps_apart};
+
+    /// A corner whose first pair is in band and whose next pair is a unit
+    /// apart disagrees: the pair past ε answers past the pair in band.
+    #[test]
+    fn a_pair_past_eps_answers_past_a_pair_in_band() {
+        let (tol, band) = (Tol::witness(), Band::linear(Tol::witness()).unwrap());
+        // A gap between ε and the band's edge, found by reading the rung
+        // itself over a fine geometric sweep (the file reads ε once).
+        let in_band = (0..2000)
+            .map(|k| 1e-14 * 1.01f64.powi(k))
+            .find(|&g| gaps_apart(&[g], tol, band).is_err())
+            .expect("some gap between ε and its band's edge reads in band");
+        let points = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(in_band, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        assert_eq!(corner_apart(&points, tol, band).ok(), Some(Some(1.0)));
     }
 }

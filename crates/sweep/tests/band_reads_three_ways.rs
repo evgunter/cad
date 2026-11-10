@@ -45,7 +45,9 @@ fn band() -> Band {
 const R: f64 = 0.5;
 
 /// The block `[0, 4]³` less `void`.
-fn less<T: Decide + Bounds + AtRestPolicy>(void: Body<T>) -> AtRestBody<T> {
+fn less<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    void: Body<T>,
+) -> AtRestBody<T> {
     let t = tol();
     let block = sweep::test_support::finished(
         "block",
@@ -62,12 +64,18 @@ fn less<T: Decide + Bounds + AtRestPolicy>(void: Body<T>) -> AtRestBody<T> {
 }
 
 /// The block less the box void `[1.9, 2.1] × y × z`.
-fn voided_box<T: Decide + Bounds + AtRestPolicy>(y: (f64, f64), z: (f64, f64)) -> AtRestBody<T> {
+fn voided_box<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    y: (f64, f64),
+    z: (f64, f64),
+) -> AtRestBody<T> {
     less(sweep::test_support::brick::<T>((1.9, 2.1), y, z, tol()))
 }
 
 /// The block less the box void `[1.9, 2.1] × [lo, hi]²`.
-fn voided<T: Decide + Bounds + AtRestPolicy>(lo: f64, hi: f64) -> AtRestBody<T> {
+fn voided<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    lo: f64,
+    hi: f64,
+) -> AtRestBody<T> {
     voided_box((lo, hi), (lo, hi))
 }
 
@@ -91,8 +99,10 @@ impl Verb {
         let out = topo::test_support::finished(
             "out",
             match self {
-                Self::Fillet => fillet_edges(body, edges, size, tol()).map(|f| f.body),
-                Self::Chamfer => chamfer_edges(body, edges, size, tol()).map(|c| c.body),
+                Self::Fillet => fillet_edges(body, edges, size, tol()).map(|f| f.body.into_body()),
+                Self::Chamfer => {
+                    chamfer_edges(body, edges, size, tol()).map(|c| c.body.into_body())
+                }
             }
             .map_err(|e| e.error)?,
             tol(),
@@ -134,8 +144,7 @@ fn bracket(m: &ClassifiedMargin) -> (f64, f64) {
 /// `|origin · normal|` of a plane face: which plane of the fixture it
 /// lies on.
 fn plane_offset<T: Bounds>(body: &Body<T>, f: topo::FaceKey) -> f64 {
-    let face = body.get_face(f).expect("a source face");
-    match body.get_surface(face.surface) {
+    match body.face_surface(f) {
         Some(geom::Surface::Plane { origin, normal, .. }) => {
             let d = (*origin - Point3::origin()).dot(*normal);
             0.5 * (d.lo() + d.hi()).abs()

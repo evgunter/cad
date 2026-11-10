@@ -189,7 +189,7 @@ pub(crate) fn compute_chords(
             n,
         )?;
         let n = sphere_arm_tighten(body, ek, (t0, t1), delta, n)?;
-        let (vs, ve) = edge_vertices(body, ek)?;
+        let (vs, ve) = edge_ends(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
         })?;
@@ -802,23 +802,14 @@ fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     }
 }
 
-/// The (start, end) vertices of the edge's `he_plus`.
-pub(crate) fn edge_vertices(
+/// The two end vertices of `ek` ([`Body::edge_vertices`]), the edge's
+/// miss named as the tessellator names it.
+pub(crate) fn edge_ends(
     body: &Body<f64>,
     ek: EdgeKey,
 ) -> Result<(topo::VertexKey, topo::VertexKey), TessellateError> {
-    let edge = body
-        .get_edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    let he = body
-        .get_half_edge(edge.he_plus)
-        .ok_or(TessellateError::MissingEntity { what: "he_plus" })?;
-    let end = body
-        .half_edge_end(edge.he_plus)
-        .ok_or(TessellateError::MissingEntity {
-            what: "he_plus end",
-        })?;
-    Ok((he.start, end))
+    body.edge_vertices(ek)
+        .ok_or(TessellateError::MissingEntity { what: "edge" })
 }
 
 /// An edge's two sides, the edge's miss named as the tessellator names

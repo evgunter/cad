@@ -360,11 +360,11 @@ fn an_ellipse_definitely_off_ends_as_its_incidence_read() {
             ("f64", at_f64.map(|_| ())),
             ("Interval", at_interval.map(|_| ())),
         ] {
-            let Err(err @ PcurveCertifyError::CarrierOffChart { margin, .. }) = &got else {
+            let Err(err) = &got else {
                 panic!("{what} ({lane}): ends as its incidence read: {got:?}")
             };
             assert!(
-                !matches!(margin, Some(crate::OffMargin::InBand(_))),
+                matches!(IncidenceRead::of(err), Some(IncidenceRead::Off(_))),
                 "{what} ({lane}): the definite miss: {err:?}"
             );
             for (at, culprit) in doors {

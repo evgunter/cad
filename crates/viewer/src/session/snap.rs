@@ -29,8 +29,8 @@ use editor_core::mate::{
 use editor_core::{Coord, Formula, Orientation, SlideAxes};
 use pncad::document::pose::{PoseValue, RoleRead};
 use pncad::document::{
-    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, Operand, OperandSlot,
-    Placed, ProfileProgram, RecipeNodeId, Recording,
+    ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, OperandSlot, Placed,
+    ProfileProgram, RecipeNodeId, Recording,
 };
 use pncad::geom_core::Tol;
 use pncad::geom_core::linalg::{Mat3, Point3, Vec3};
@@ -115,7 +115,7 @@ pub(crate) struct DraftSnap {
 
 impl DraftSnap {
     /// **The number each of `coords` reads where the snap stands the
-    /// copy**, under the chart's orientation `orient` (the one Apply
+    /// copy**, under the chart's orientation `orient` (the one the bundle
     /// writes); `None` where the chart does not read it.
     pub(crate) fn read<R>(
         &self,
@@ -208,81 +208,60 @@ pub(crate) fn loaded_chain_turn<R>(
 }
 
 /// **A draft's copy snapped onto `mates`**, read off `ev`, the landed
-/// evaluation of `doc`: the copy where it stands now (an Edit's placement
-/// where it is solved; a Create's body where it stands, the identity),
-/// moved the least way that makes the mates hold (module docs). `None`
-/// where the copy stands nowhere, or the mates do not write as a bundle:
-/// the verdict then says why.
+/// evaluation of `doc`: the copy where `placement` stands it now, moved
+/// the least way that makes the mates hold (module docs). `None` where
+/// the copy stands nowhere, or the mates do not write as a bundle: the
+/// door then says why.
 pub(crate) fn draft_snap(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
-    door: &crate::matetool::PlaceDoor,
-    target: Option<pncad::document::VarId>,
+    placement: RecipeNodeId,
     mates: &[Mate<Formula>],
     tol: pncad::geom_core::Tol,
 ) -> Option<DraftSnap> {
-    use crate::matetool::PlaceDoor;
     let bundle = Placed::of(doc, mates.to_vec(), Vec::new()).bundle();
     let mut run = Recording::start(doc, tol);
-    // Where the copy stands before the draft: an Edit's placement where
-    // it is solved, a Create's body where it stands. A mate reading
-    // another space than the copy's is applied with the copy moved
-    // there by name (`SessionOp::SetBundle`'s `into_target_space`): a
-    // bundle holding a mate is first stood at the identity, and one of
-    // values alone stands on the new space's axes as it stood on the
-    // old's.
-    let (placement, before, written) = match door {
-        PlaceDoor::Edit { placement, .. } => {
-            let into = mates
-                .first()
-                .and_then(|m| doc.operand_space(&m.to))
-                .filter(|&space| Some(space) != doc.node_space(*placement));
-            let mated = super::held_bundle(doc, *placement)
-                .iter()
-                .any(|c| c.mate().is_some());
-            let before = if into.is_some() && mated {
-                Frame::IDENTITY
-            } else {
-                pncad::document::SolvedPoses::of(doc, ev).relative(*placement)?
-            };
-            let moved =
-                into.is_none_or(|space| super::into_space(&mut run, *placement, space).is_ok());
-            let written = moved
-                && run
-                    .apply(DocEdit::SetConstraints {
-                        placement: *placement,
-                        constraints: bundle,
-                        fresh: Vec::new(),
-                    })
-                    .is_ok();
-            (Some(*placement), before, written)
-        }
-        PlaceDoor::Create { body } => {
-            let placement = target.and_then(|target| {
-                run.insert(Node::place(
-                    pncad::document::BodyRead::plain(body.clone()),
-                    Operand::Var(target),
-                    bundle,
-                ))
-                .ok()
-            });
-            (placement, Frame::IDENTITY, placement.is_some())
-        }
+    // Where the copy stands before the draft: where its placement is
+    // solved. A mate reading another space than the copy's is applied
+    // with the copy moved there by name (`SessionOp::SetBundle`'s
+    // `into_target_space`): a bundle holding a mate is first stood at the
+    // identity, and one of values alone stands on the new space's axes
+    // as it stood on the old's.
+    let into = mates
+        .first()
+        .and_then(|m| doc.operand_space(&m.to))
+        .filter(|&space| Some(space) != doc.node_space(placement));
+    let mated = super::held_bundle(doc, placement)
+        .iter()
+        .any(|c| c.mate().is_some());
+    let before = if into.is_some() && mated {
+        Frame::IDENTITY
+    } else {
+        pncad::document::SolvedPoses::of(doc, ev).relative(placement)?
     };
+    let moved = into.is_none_or(|space| super::into_space(&mut run, placement, space).is_ok());
+    let written = moved
+        && run
+            .apply(DocEdit::SetConstraints {
+                placement,
+                constraints: bundle,
+                fresh: Vec::new(),
+            })
+            .is_ok();
     let (r0, t0) = parts(&before);
     let affine = |r: Mat3<f64>, t: Vec3<f64>| pncad::geom_core::linalg::Affine3::from_parts(r, t);
     // Where the mates do not write as a bundle, or a pose of theirs does
     // not evaluate, nothing is snapped: the copy is read where it stands,
-    // and the verdict says why.
+    // and the door says why.
     let unsnapped = DraftSnap {
         at: affine(r0, t0),
         orient: None,
         along: None,
         chart: None,
     };
-    let Some(placement) = placement.filter(|_| written) else {
+    if !written {
         return Some(unsnapped);
-    };
+    }
     let doc = run.doc();
     let (raw, instance) = match doc.node(placement)? {
         Node::Place { constraints, .. } => (constraints.clone(), false),

@@ -48,7 +48,7 @@ fn distant_brick() -> AtRestBody<f64> {
     let tol = Tol::witness();
     finished(
         "the distant brick",
-        brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        brick::<f64>((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
         tol,
     )
 }
@@ -128,7 +128,7 @@ fn assert_refused_on_its_seams(b: Body<f64>, seams: usize, what: &str) -> Vec<to
             "{what}, {door}: the gate refuses on a seam: {err:?}"
         );
     }
-    let errors = AtRestBody::validate(b, Tol::witness()).expect_err(&format!(
+    let errors = topo::finish(b, Tol::witness()).expect_err(&format!(
         "{what} is an ordinary non-maximal pair and does not finish as the split leaves it"
     ));
     println!("{what} => {errors:?}");
