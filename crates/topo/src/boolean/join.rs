@@ -2393,6 +2393,36 @@ fn first_pair<T: Decide>(
     // One entry per pair: a mutual pair is held twice, once from each
     // germ, at one distance, and would read tied with itself. Its entry
     // met first in scan order stands for it.
+    // The entry dropped stands for the one kept only where the two read
+    // one distance, which `partners` builds them to: checked, so a pair
+    // read two ways is a desync (`JoinDesync`), and a poisoned reading on
+    // either side escalates, rather than being discarded unread. A decided
+    // `Zero` is superseded (the pick does not rest on it); any other
+    // reading the refusal rests on, live.
+    for (germ, &(at, reach, (partner, _))) in &own {
+        let Some(&(back_at, back_reach, (back, _))) = own.get(&partner) else {
+            continue;
+        };
+        if back != *germ || at < back_at {
+            continue;
+        }
+        let (same, log) = geom_core::k_stats::detached(|| nearest_sign(reach, back_reach, band));
+        match same {
+            Ok(Sign::Zero) => geom_core::k_stats::splice_superseded(log),
+            // A poisoned or undecided reading escalates as the argmin's
+            // own would: the poison is the reading's, and stays visible.
+            Err(diag) => {
+                geom_core::k_stats::splice(log);
+                return Err(join_escalate(diag));
+            }
+            Ok(Sign::Negative | Sign::Positive) => {
+                geom_core::k_stats::splice(log);
+                return Err(BooleanError::JoinDesync {
+                    what: "a mutual pair's two entries read different distances",
+                });
+            }
+        }
+    }
     let mut met: Vec<_> = own
         .iter()
         .filter(|&(germ, &(at, _, (partner, _)))| {
@@ -2406,19 +2436,18 @@ fn first_pair<T: Decide>(
         nearest_sign(a.1, b.1, band)
             .map_err(|diag| Undecided::of(diag).map(|diag| Box::new(join_escalate(diag))))
     };
-    match argmin_decided(met, cmp, free_of) {
-        Ok(best) => Ok(best.map(|(_, _, m)| m)),
-        Err(
-            Unpicked::Contested {
-                in_band: Some(e), ..
-            }
-            | Unpicked::Aborted(e),
-        ) => Err(*e),
-        Err(Unpicked::Contested { in_band: None, .. }) => Err(BooleanError::JoinPairsTied),
-        Err(Unpicked::Cyclic) => Err(BooleanError::ClassificationInvariant {
-            what: "the join's pair order ranks in a cycle",
-        }),
-    }
+    argmin_decided(met, cmp, free_of)
+        .map(|best| best.map(|(_, _, m)| m))
+        .map_err(|unpicked| {
+            *unpicked.refusal(
+                |_| Box::new(BooleanError::JoinPairsTied),
+                || {
+                    Box::new(BooleanError::ClassificationInvariant {
+                        what: "the join's pair order ranks in a cycle",
+                    })
+                },
+            )
+        })
 }
 
 /// **Whether two unused germ slots are match partners** — the
@@ -7807,6 +7836,40 @@ mod first_pair_rows {
     fn escalates_nearest(got: &Result<Option<(Slot, Slot)>, BooleanError>) -> bool {
         matches!(got, Err(BooleanError::Escalated { diag, .. })
             if diag.predicate == Some("bool_join_nearest"))
+    }
+
+    /// **A mutual pair's two entries must read one distance**
+    /// ([`first_pair`]): the entry dropped stands for the one kept only
+    /// where they decide `Zero` apart. Two entries a band apart refuse as
+    /// a desync, and a poisoned chord on the entry dropped escalates on
+    /// its margin, rather than either being discarded unread. Red where
+    /// the dropped entry is not read.
+    #[test]
+    fn a_mutual_pairs_two_entries_read_one_distance_or_desync() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let (a, b, c, d) = ((0, 0), (1, 0), (2, 0), (3, 0));
+        let desync = |got: &Result<Option<(Slot, Slot)>, BooleanError>| {
+            matches!(got, Err(BooleanError::JoinDesync { .. }))
+        };
+        let apart = by_germ(vec![
+            met(1, a, b, 3.0),
+            met(2, b, a, 3.5),
+            met(3, c, d, 1.0),
+            met(4, d, c, 1.0),
+        ]);
+        let got = first_pair(apart, band);
+        assert!(desync(&got), "two entries a band apart: {got:?}");
+        let poisoned = by_germ(vec![
+            met(1, a, b, 3.0),
+            met(2, b, a, f64::NAN),
+            met(3, c, d, 1.0),
+            met(4, d, c, 1.0),
+        ]);
+        let got = first_pair(poisoned, band);
+        assert!(
+            matches!(&got, Err(BooleanError::Escalated { diag, .. }) if diag.margin.is_invalid()),
+            "a poisoned entry dropped escalates: {got:?}"
+        );
     }
 
     /// **A round that is not all mutual builds where one pair is nearest**
