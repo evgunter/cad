@@ -753,3 +753,48 @@ fn a_span_over_a_hairpin_closer_than_the_band_reads_on_at_the_seeds_branch() {
         "Interval, the span's middle: on at the near branch: {mid:?}"
     );
 }
+
+/// **A box straddling a near-full arc's gap is read past the span by no
+/// copy of its parameter alone.** The arc is a gap of `1e-3` short of a
+/// turn, the box sits off the circle astride the gap's start-side edge,
+/// and its foot's parameter about the middle is renamed whole onto the
+/// copy past the stop end (`Period::near`'s tie takes the upper copy).
+/// That copy reads past the stop end, but the box's points beyond the
+/// gap have feet inside the span past its start: a turn back, the copy
+/// reads inside. So the place is not `Past`: it refuses, its side
+/// straddling.
+#[test]
+fn a_box_astride_a_near_full_arcs_gap_is_not_read_past() {
+    use geom_core::Interval;
+    let iv = |x: f64| Interval::from_bounds(x, x);
+    let circle: Curve3<Interval> = Curve3::circle(
+        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+        Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+        iv(1.0),
+        Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+    );
+    let span = Span::new(&circle, (iv(0.0), iv(TAU - 1e-3)));
+    // Raw azimuths about `[-9e-4, 3e-4]` at radius 2: the gap, and past
+    // the start into the span.
+    let (lo, hi) = (-9e-4f64, 3e-4f64);
+    let q = Point3::new(
+        Interval::from_bounds(2.0 * lo.cos().min(hi.cos()), 2.0),
+        Interval::from_bounds(2.0 * lo.sin(), 2.0 * hi.sin()),
+        iv(0.0),
+    );
+    let mid = geom::mid_param(iv(0.0), iv(TAU - 1e-3));
+    let got = span.place(q, mid, band());
+    assert!(
+        !matches!(got, Ok(Place::Past)),
+        "a box with feet inside the span reads past it: {got:?}"
+    );
+    // The same box wholly in the gap reads past.
+    let (lo, hi) = (-9e-4f64, -2e-4f64);
+    let q = Point3::new(
+        Interval::from_bounds(2.0 * lo.cos().min(hi.cos()), 2.0 * hi.cos()),
+        Interval::from_bounds(2.0 * lo.sin(), 2.0 * hi.sin()),
+        iv(0.0),
+    );
+    let got = span.place(q, mid, band());
+    assert!(matches!(got, Ok(Place::Past)), "a box in the gap: {got:?}");
+}

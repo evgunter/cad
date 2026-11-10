@@ -1,13 +1,12 @@
-//! **A fillet on a straight leg's end extends the leg only along the
-//! leg's own forward tangent.**
+//! **A fillet on a straight leg's end keeps the leg's end.**
 //!
 //! A bare `fillet(r)` and `.tangent().fillet(r)` on a straight leg's end
-//! open a ray that continues the leg, so the incoming run's emission
-//! moves the leg's end vertex forward to the trim point and the leg's
-//! authored end stays on the path, interior to the extended segment.
-//! `.cusp()` reverses that ray: the run doubles back from the leg's end,
-//! so it is emitted as its own segment from the leg's end, which keeps
-//! the declared cusp — exactly what `.cusp().line(..)` emits. On a
+//! open a ray that continues the leg, and the incoming run is emitted as
+//! a segment of its own from the leg's authored end, which stays a
+//! vertex with a constructed tangent joint. `.cusp()` reverses that ray:
+//! the run doubles back from the leg's end, emitted the same way, and
+//! the joint keeps the declared cusp — exactly what `.cusp().line(..)`
+//! emits. On a
 //! straight leg that run lies on the leg's own carrier, so the loop is
 //! a collinear spike and validation refuses it as an overlap, as it
 //! refuses `.cusp().line(..)`; at an exact incoming fit there is no run,
@@ -107,17 +106,22 @@ fn build(before: Before, x_arr: f64) -> Result<ClosedLoop<f64>, PathError<f64>> 
     .line_to(Start, t)
 }
 
-/// The forward ray extends the leg: its end moves to t1 = (2.5, 0) and
-/// the joint declared there is the leg→arc tangency.
+/// The forward ray's run is its own segment: the leg keeps its authored
+/// end (2, 0) as vertex 1 with a constructed joint, and the run goes on
+/// to t1 = (2.5, 0), where the arc's joint is constructed too. Both
+/// validate as tangent joints, on one carrier at vertex 1.
 #[test]
-fn a_bare_fillet_extends_the_straight_leg() {
+fn a_bare_fillet_keeps_the_straight_legs_end() {
     let c = build(Before::Nothing, 3.0).expect("builds");
-    assert_vertices(&c, &[(0.0, 0.0), (2.5, 0.0), (3.0, 0.5), (3.0, 2.0)]);
-    assert_eq!(kinds(&c), ["line", "arc", "line", "line"]);
-    assert_eq!(c.loop_.constructed_joints(), &[1, 2]);
+    assert_vertices(
+        &c,
+        &[(0.0, 0.0), (2.0, 0.0), (2.5, 0.0), (3.0, 0.5), (3.0, 2.0)],
+    );
+    assert_eq!(kinds(&c), ["line", "line", "arc", "line", "line"]);
+    assert_eq!(c.loop_.constructed_joints(), &[1, 2, 3]);
     assert_replays(&c);
     let v = validated(&c).expect("validates");
-    assert_eq!(v.loops()[0].tangent_joints(), &[1, 2]);
+    assert_eq!(v.loops()[0].tangent_joints(), &[1, 2, 3]);
     assert!(v.loops()[0].cusp_joints().is_empty());
 }
 

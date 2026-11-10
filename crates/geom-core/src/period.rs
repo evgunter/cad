@@ -323,7 +323,13 @@ impl<T: Decide> Period<T> {
     /// from the middle is in doubt: on a span shorter than a period it is
     /// outside the span on either copy, and on a whole-period span it IS
     /// the span's end, which lands on the upper one, `hi`, and every
-    /// reader of an end reads `lo` and `hi` alike.
+    /// reader of an end reads `lo` and `hi` alike. That holds for a point.
+    /// An enclosure is renamed whole by one `k`, so a box astride the
+    /// middle's antipode lands on one copy, and where the span's gap is
+    /// narrower than the box, part of it lies inside the span on the copy
+    /// a turn away: a reader of such a box against the ends reads each
+    /// side on both copies (`geom_brep::curve_pair::Span`, "A parameter a
+    /// turn away").
     ///
     /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
     /// is not finite, or a gap no `i32` of periods names, has no copy, and
