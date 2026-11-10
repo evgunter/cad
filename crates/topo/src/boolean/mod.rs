@@ -79,6 +79,38 @@ pub mod carrier_eq;
 pub(crate) mod carrier_pair;
 mod carrier_touch;
 pub(crate) mod combine;
+/// **A pierce's refusal as a rung of the pierce pass's ladder**, by its
+/// own standing ([`BooleanError::refusal`]): kept by its kind, or, where
+/// it refuses the whole query, stopping the pass with the refusal itself.
+fn pierce_rung(e: BooleanError) -> Rung<BooleanError, BooleanError> {
+    Rung::refused(e, BooleanError::refusal, core::convert::identity)
+}
+
+/// **The pierce pass's refusal, A's pierces ranked with B's after
+/// them** (`boolean_reduce`'s vertex-on-face pass): where one operand's
+/// reads kept a refusal, the other's are read too before the pass
+/// refuses, so an abort in them (`read_later`'s `Err`) ends the pass
+/// first, and otherwise the pass refuses on the ranked one of both runs,
+/// the earlier run's on a tie ([`Evidence::then`]). Where nothing was
+/// kept the pass goes on, and `read_later` is not read: B's pierces are
+/// read after A's are minted.
+///
+/// # Errors
+///
+/// The later run's abort, or the ranked kept refusal.
+fn pierces_refused(
+    kept: Evidence<BooleanError>,
+    read_later: impl FnOnce() -> Result<Evidence<BooleanError>, BooleanError>,
+) -> Result<(), BooleanError> {
+    if kept.is_empty() {
+        return Ok(());
+    }
+    match kept.then(read_later()?).refusal() {
+        Some(refused) => Err(refused),
+        None => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod cone_frame_rows;
 mod conic_quadric;
@@ -6684,7 +6716,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         if wall.is_some_and(|w| w.faces[0] == c.face) {
                             refused_firsts.insert(c.vertex);
                         }
-                        Rung::refused(e, BooleanError::refusal, core::convert::identity)
+                        pierce_rung(e)
                     }
                 }
             });
@@ -6698,14 +6730,10 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         (Operand::B, &contacts.b_on_a),
     ] {
         let (reads, kept) = read_pierces(operand, &a, &b)?;
-        let kept = if operand == Operand::A && !kept.is_empty() {
-            kept.then(read_pierces(Operand::B, &a, &b)?.1)
-        } else {
-            kept
-        };
-        if let Some(escalated) = kept.refusal() {
-            return Err(escalated);
-        }
+        pierces_refused(kept, || match operand {
+            Operand::A => read_pierces(Operand::B, &a, &b).map(|(_, later)| later),
+            Operand::B => Ok(Evidence::default()),
+        })?;
         let mut minted = Vec::with_capacity(pierced.len());
         // Each wall's first face's moved halves and edge classes, which
         // its second face's classes gather.

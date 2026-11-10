@@ -3,7 +3,7 @@
 //! on both sides of the split. Red where an arm is re-classed by hand, a
 //! delegate stops reading its payload, or a split reads one side for both.
 
-#![allow(clippy::unwrap_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::ladder::{Aborts, Refusal};
 use geom_core::{Band, Indeterminate, MarginDiag};
@@ -337,4 +337,79 @@ fn in_face(gap: super::slit::EdgeInFaceGap) -> BooleanError {
         face: FaceKey::default(),
         gap,
     }
+}
+
+/// **The pierce pass ranks A's pierces, then B's**, through the pass's
+/// own pieces: each read's refusal is its rung by its own standing
+/// ([`super::pierce_rung`]), each operand's reads one climb, and the two
+/// runs ranked by [`super::pierces_refused`]. Red where B is not read
+/// once A kept a refusal, where the runs are ranked B first, or where a
+/// limit stops the pass as an abort.
+#[test]
+fn the_pierce_pass_ranks_a_then_b() {
+    use geom_brep::ladder::{Answering, Evidence, climb_evidence};
+    let climb = |errors: Vec<BooleanError>| -> Result<Evidence<BooleanError>, BooleanError> {
+        match climb_evidence(Answering::First, errors, super::pierce_rung) {
+            Ok((_, aborted)) => Err(aborted),
+            Err(kept) => Ok(kept),
+        }
+    };
+    let pass = |a: Vec<BooleanError>, b: Vec<BooleanError>| {
+        super::pierces_refused(climb(a).expect("A's reads abort nothing"), || climb(b))
+    };
+    let in_band = || BooleanError::CrossingAtConeApex {
+        operand: Operand::A,
+        face: FaceKey::default(),
+        edge: EdgeKey::default(),
+        band: band(),
+    };
+    let limit = || BooleanError::TangencyUnsupported;
+    let other_limit = || BooleanError::CurvedBooleanUnsupported {
+        operand: Operand::B,
+        face: FaceKey::default(),
+        kind: geom::SurfaceKind::Torus,
+    };
+    let abort = || BooleanError::ClassificationInvariant { what: "b" };
+    assert!(
+        matches!(
+            pass(vec![in_band()], vec![limit()]),
+            Err(BooleanError::TangencyUnsupported)
+        ),
+        "B is read once A kept a refusal, and its limit outranks A's reading in band"
+    );
+    assert!(
+        matches!(
+            pass(vec![limit()], vec![abort()]),
+            Err(BooleanError::ClassificationInvariant { what: "b" })
+        ),
+        "a limit A kept does not stop the pass: B's abort ends it"
+    );
+    assert!(
+        matches!(
+            pass(vec![limit()], vec![other_limit()]),
+            Err(BooleanError::TangencyUnsupported)
+        ),
+        "of two limits, A's is reported"
+    );
+    assert!(
+        matches!(
+            pass(vec![in_band(), limit()], Vec::new()),
+            Err(BooleanError::TangencyUnsupported)
+        ),
+        "A's later limit outranks its earlier reading in band"
+    );
+    assert!(
+        matches!(
+            climb(vec![limit(), abort()]),
+            Err(BooleanError::ClassificationInvariant { .. })
+        ),
+        "an abort in A's reads ends A's run"
+    );
+    assert!(
+        super::pierces_refused(Evidence::default(), || -> Result<_, BooleanError> {
+            panic!("B is read after A's pierces are minted, not here")
+        })
+        .is_ok(),
+        "nothing kept: the pass goes on"
+    );
 }

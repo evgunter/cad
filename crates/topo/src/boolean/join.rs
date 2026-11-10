@@ -5608,7 +5608,7 @@ fn seam_germ_side<T: Decide>(
                 Ok(Ok(Some(n_f))) => n_f,
                 Ok(Ok(None)) => return Rung::Passes,
                 Ok(Err(why)) => {
-                    return rung_or_abort(why.refusal(), why, |why| Err(why.aborted()))
+                    return Rung::refused(why, HoldingUnread::refusal, |why| Err(why.aborted()))
                         .map_kept(|_| ());
                 }
                 Err(e) => return Rung::Aborts(Err(e)),
