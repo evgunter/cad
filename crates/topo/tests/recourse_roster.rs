@@ -385,7 +385,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("walk_schedule"),
     NameCarrier::Call("why_as"),
     NameCarrier::Call("zero_as"),
-    NameCarrier::Call("ends_as"),
     NameCarrier::Call("turn_as"),
     NameCarrier::Call("zero_refused"),
 ];
