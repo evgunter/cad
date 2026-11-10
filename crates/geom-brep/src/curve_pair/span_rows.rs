@@ -798,3 +798,63 @@ fn a_box_astride_a_near_full_arcs_gap_is_not_read_past() {
     let got = span.place(q, mid, band());
     assert!(matches!(got, Ok(Place::Past)), "a box in the gap: {got:?}");
 }
+
+/// **A gap from a span's end is metered over the gap**
+/// ([`Span::end_gap`]): on a thin ellipse, where the speed moves most
+/// between a parameter and an end, the `Clear` reading never exceeds the
+/// arc over the gap and the `Within` reading never falls short of it,
+/// against a Simpson quadrature of `|C′|` (the oracle). The speed at the
+/// parameter alone, the meter the door replaces, over-reads the arc on
+/// one side of a vertex and under-reads it on the other: the row counts
+/// both, so it is red against that meter.
+#[test]
+fn a_gap_from_a_spans_end_is_metered_over_the_gap() {
+    use super::GapMeter;
+    let thin = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+        3.0,
+        0.05,
+    ));
+    let speed = |t: f64| thin.ders1(t).1.norm();
+    let arc = |a: f64, b: f64| {
+        let n = 4000;
+        let h = (b - a) / f64::from(n);
+        let mut sum = speed(a) + speed(b);
+        for i in 1..n {
+            sum += speed(a + h * f64::from(i)) * if i % 2 == 1 { 4.0 } else { 2.0 };
+        }
+        sum * h / 3.0
+    };
+    let (mut over, mut under) = (0, 0);
+    for k in 0..40 {
+        let t1 = 0.2 + 0.07 * f64::from(k);
+        let span = Span::new(&thin, (0.1, t1));
+        for g in [1e-3, 1e-2, 0.1, -1e-2] {
+            let t = t1 - g;
+            let true_arc = arc(t.min(t1), t.max(t1)).copysign(g);
+            let clear = span.end_gap(t, SpanEnd::Stop, GapMeter::Clear).value();
+            let within = span.end_gap(t, SpanEnd::Stop, GapMeter::Within).value();
+            let tol = 1e-12 * (1.0 + true_arc.abs());
+            assert!(
+                clear.abs() <= true_arc.abs() + tol,
+                "clear over-reads at t1 {t1}, gap {g}"
+            );
+            assert!(
+                within.abs() + tol >= true_arc.abs(),
+                "within under-reads at t1 {t1}, gap {g}"
+            );
+            assert_eq!(clear.signum(), g.signum());
+            let pointwise = g * speed(t);
+            if pointwise.abs() > true_arc.abs() + tol {
+                over += 1;
+            }
+            if pointwise.abs() + tol < true_arc.abs() {
+                under += 1;
+            }
+        }
+    }
+    assert!(
+        over > 0 && under > 0,
+        "the pointwise meter errs both ways: {over} over, {under} under"
+    );
+}
