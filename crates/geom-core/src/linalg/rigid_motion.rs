@@ -3026,7 +3026,7 @@ mod turned_onto_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod construction_mint_rows {
-    use super::tests::{SITE, band};
+    use super::tests::{SITE, band, bits12};
     use super::*;
 
     fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
@@ -3079,10 +3079,8 @@ mod construction_mint_rows {
         let back = RigidMotion::check_rigid(&m.to_affine())
             .unwrap_or_else(|e| panic!("{what}: the f64 door refuses the mint: {e}"));
         assert_eq!(
-            back.to_affine()
-                .cols()
-                .map(|c| c.to_array().map(f64::to_bits)),
-            m.to_affine().cols().map(|c| c.to_array().map(f64::to_bits)),
+            bits12(&back.to_affine()),
+            bits12(&m.to_affine()),
             "{what}: admitted as given"
         );
     }
