@@ -483,7 +483,7 @@ mod tests {
     /// length reads (`0`).
     #[test]
     fn a_poisoned_direction_reads_no_angle() {
-        let band = Band::new(1e-9, 1e-8).unwrap();
+        let band = Band::least();
         for (y, x) in [
             (f64::NAN, 1.0),
             (0.0, f64::NAN),
