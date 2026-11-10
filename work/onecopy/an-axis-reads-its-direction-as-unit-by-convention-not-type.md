@@ -48,5 +48,5 @@ Before you fix it, decide the type's home and its mint. One option is a `Frame::
 - **`end_face` `line_clearance`'s chord** is `dir·(tb − ta)` over a certified edge's window.
   - The window is decided forward at certification.
   - The one hole was certification itself: `EdgeCurve::certify` decided a Line's span forward in parameter, not in metres, so a line of zero `dir` certified.
-  - It now decides the span in metres, at the line's speed `|dir|` (`Margin::metered` with `carrier_speed::speed_range`), as the Nurbs arm already does. A zero-direction line refuses as `IntervalNotForward`, so no certified line edge carries a zero `dir`.
+  - Where `dir` is the zero vector, it now also decides the span in metres, at the line's speed `|dir|` (`Margin::metered` with `carrier_speed::speed_range`), as the Nurbs arm does. The margin is an exact zero, and the line refuses as `IntervalNotForward`, so no certified line edge carries a zero `dir`. Every other line is decided once, in parameter, as before, so neither its K stream nor its symbolic forms move.
   - Pinned by `certify::tests::a_lines_span_is_forward_in_metres`, which is red on main.
