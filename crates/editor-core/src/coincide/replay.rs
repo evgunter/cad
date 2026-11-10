@@ -605,6 +605,7 @@ fn face_of<'e>(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use topo::test_support::{CylFrame, cyl_wall_sheet};
