@@ -452,6 +452,14 @@ impl<'a, T: Decide> Span<'a, T> {
         // turn away, against the other end: past the stop end only where
         // the copy a turn back is also before the start (module docs, "A
         // parameter a turn away"). At `f64` the copy is no nearer.
+        // Through this span's own naming (`Self::branch`) only the stop
+        // arm moves anything: a box needs its copy only where it straddles
+        // the middle's antipode, and there `Period::near`'s mark is
+        // undecided and takes the upper copy, past the stop end. Every
+        // reading here is so named (`place_param` and `place_at` both read
+        // `branch`), so the start arm moves nothing today: it is the same
+        // reading for a parameter on the lower copy, kept so the side does
+        // not rest on which copy the tie takes.
         let ends = if self.carrier.is_periodic() {
             let tau = T::tau();
             [
