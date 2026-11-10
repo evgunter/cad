@@ -235,11 +235,56 @@ impl Sign {
     /// The definite side, or `None` at `Zero`: where a caller that has
     /// decided a sign states its own refusal of `Zero`.
     #[must_use]
-    pub fn nonzero(self) -> Option<crate::k_stats::NonzeroSign> {
+    pub fn nonzero(self) -> Option<NonzeroSign> {
         match self {
-            Self::Negative => Some(crate::k_stats::NonzeroSign::Negative),
+            Self::Negative => Some(NonzeroSign::Negative),
             Self::Zero => None,
-            Self::Positive => Some(crate::k_stats::NonzeroSign::Positive),
+            Self::Positive => Some(NonzeroSign::Positive),
+        }
+    }
+}
+
+/// **A definite sign**: [`Sign`] without `Zero`, what a
+/// [`crate::k_stats::decide_nonzero`] decision admits and [`Sign::nonzero`]
+/// reads. `Zero` is not one of its values, which is what lets a caller
+/// match the gate's outcome exhaustively without an arm for an answer
+/// the gate escalated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonzeroSign {
+    /// The margin classified definitely positive.
+    Positive,
+    /// The margin classified definitely negative.
+    Negative,
+}
+
+impl NonzeroSign {
+    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
+    /// spelling of a ±1 read off a sign already decided. Its hull twin,
+    /// read off a value rather than a decision, is
+    /// [`crate::Real::unit_sign`].
+    #[must_use]
+    pub fn unit<T: crate::Real>(self) -> T {
+        match self {
+            Self::Positive => T::one(),
+            Self::Negative => -T::one(),
+        }
+    }
+
+    /// The other side.
+    #[must_use]
+    pub fn flip(self) -> Self {
+        match self {
+            Self::Positive => Self::Negative,
+            Self::Negative => Self::Positive,
+        }
+    }
+}
+
+impl From<NonzeroSign> for Sign {
+    fn from(side: NonzeroSign) -> Self {
+        match side {
+            NonzeroSign::Positive => Self::Positive,
+            NonzeroSign::Negative => Self::Negative,
         }
     }
 }
@@ -1330,12 +1375,13 @@ enum Reading {
     Invalid,
 }
 
-/// What a gate door adds to the decided reading it rejects: the sign
-/// the classifier decided and the signs the gate passes. Minted only by
-/// [`MarginDiag::rejected_by`], which only `k_stats`' gate doors call.
+/// What a gate door adds to the reading it refuses: the sign the
+/// classifier decided, where it decided one, and the signs the gate
+/// passes. Minted only by [`MarginDiag::rejected_by`] and
+/// [`MarginDiag::undecided_passing`], which only `k_stats`' doors call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Rejection {
-    sign: Sign,
+    sign: Option<Sign>,
     passes: SizedPass,
 }
 
@@ -1914,7 +1960,21 @@ impl MarginDiag {
     /// rejected its decided `sign` — the one mint of the tag
     /// [`MarginDiag::rejected_sign`] reads.
     pub(crate) const fn rejected_by(self, sign: Sign, passes: SizedPass) -> Self {
-        let tag = Some(Rejection { sign, passes });
+        self.tagged(Rejection {
+            sign: Some(sign),
+            passes,
+        })
+    }
+
+    /// This undecided reading, as a decision passing only `passes` left
+    /// it undecided: the pass set its ending reads, with no decided sign
+    /// ([`k_stats::decide_passing`](crate::k_stats::decide_passing)).
+    pub(crate) const fn undecided_passing(self, passes: SizedPass) -> Self {
+        self.tagged(Rejection { sign: None, passes })
+    }
+
+    const fn tagged(self, rejection: Rejection) -> Self {
+        let tag = Some(rejection);
         Self(match self.0 {
             Reading::Value(m, _, zero) => Reading::Value(m, tag, zero),
             Reading::Enclosure { lo, hi, zero, .. } => Reading::Enclosure { lo, hi, tag, zero },
@@ -2077,7 +2137,10 @@ impl MarginDiag {
     /// number.
     #[must_use]
     pub fn rejected_sign(self) -> Option<Sign> {
-        self.tag().map(|r| r.sign)
+        match self.tag() {
+            Some(r) => r.sign,
+            None => None,
+        }
     }
 
     /// The gate's tag, where a gate rejected this reading.
@@ -3084,6 +3147,13 @@ impl Indeterminate {
     /// could not rule out).
     fn passes(&self) -> SizedPass {
         self.margin.tag().map_or(SizedPass::NonZero, |r| r.passes)
+    }
+
+    /// This escalation, its undecided reading tagged as a decision
+    /// passing only `passes` left it ([`MarginDiag::undecided_passing`]).
+    pub(crate) fn undecided_passing(mut self, passes: SizedPass) -> Self {
+        self.margin = self.margin.undecided_passing(passes);
+        self
     }
 
     /// The word this escalation's payload says after its placement, read

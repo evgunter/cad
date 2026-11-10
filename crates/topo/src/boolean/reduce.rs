@@ -4104,10 +4104,7 @@ const SHEET_OFF_CARRIER: &str = "bool_spline_sheet_off_carrier";
 
 /// The rows [`spline_off_carrier`] decides a torus carrier a ring under,
 /// its tube and then its ring.
-const SHEET_RING_TORUS: geom::RingSites = geom::RingSites::new(
-    "bool_spline_sheet_torus_tube",
-    "bool_spline_sheet_ring_torus",
-);
+const SHEET_RING_TORUS: geom::RingSites = geom::RingReader::BooleanSheet.sites();
 
 /// **Whether spline sheet `sheet` lies on analytic `carrier` along no
 /// piece**: true where every Bézier piece of the net (each cell between

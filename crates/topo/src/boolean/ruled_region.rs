@@ -500,7 +500,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         Ok(
             crate::validate::decide_nonzero("bool_ruled_region_nappe", Margin::of(h), band)
                 .map_err(RegionRefusal::Escalated)?
-                == geom_core::k_stats::NonzeroSign::Positive,
+                == geom_core::NonzeroSign::Positive,
         )
     }
 
@@ -690,7 +690,7 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
 
     const COMPONENT: &'static str = "bool_ruled_region_component";
 
-    const SIDE: (&'static str, &'static str) =
+    const SIDE_ROWS: (&'static str, &'static str) =
         ("bool_ruled_region_order", "bool_ruled_region_cross");
 
     fn lever(&self) -> T {

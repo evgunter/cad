@@ -71,3 +71,7 @@ branch's whole diff stashed (main `2fee45b9`).
 - `0xce1d0edd5fbb1372` at ε 1e-9 reports `cone 22, split` and `cone 22, conic`, the same message.
 
 The reviewer measured about 10% of random seeds red at `CAD_FUZZ_EFFORT=1`. The fuzzer is not fixed there.
+
+**One more (2026-11-09, reported to ONECOPY's orchestrator; recorded by `onecopy/main-reds-triage`)**: seed `0xb699506f073b8f0f` reports `cone 21`, `split` and `conic`, the same message, at ε 1e-6 and at the default ε (reproduced by PR 6691's review).
+
+**A further seed** (ONECOPY, `onecopy/topo-forwarders`, PR 6686, whose renames do not reach the fuzz's draw or its oracle): seed `0x1b29dd259aa2977b` at `CAD_TOLERANCE_EPS=1e-12`, `CAD_FUZZ_EFFORT=1`, cone 29, reports "the drawn cone bounds no one material (a fixture defect)" for both the `split` and `conic` readings. Replayed on a clean `origin/main` worktree at `3eea1540`, it is red there too, identically. Found by a slow-set run of `link::cone_fuzz::the_consumers_paths_never_contradict_the_exact_oracle` (1 in 7 runs).
