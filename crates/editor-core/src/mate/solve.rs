@@ -400,8 +400,9 @@ pub use crate::eval::solve_document_at;
 /// [`SOLVE_MAP_REWITNESS`]): each point's map is its own orthonormal
 /// frame, so the witness encloses every point's map, and its third
 /// axis is the cross product, which a map of turns alone holds.
-/// Neither a decided defect nor a map the door calls is touched, so a
-/// map read at a point keeps its bits.
+/// The door re-mints what it admits by the same Gram–Schmidt, so both
+/// arms return a motion that is rigid apart from rounding; a decided
+/// defect is refused, not re-minted.
 ///
 /// Every mated placement's map passes this door, whole or as the part
 /// the solve did not compose as motions ([`super::value::Composed`]); a
@@ -1680,5 +1681,67 @@ mod tests {
             Sym::opaque(Interval::from_bounds(1.0, 2.0)),
         );
         assert_eq!((zero.value.lo(), zero.value.hi()), (0.0, 0.0));
+    }
+
+    /// **Both arms of the solved map's door return a motion rigid apart
+    /// from rounding**: a map the door decides, whose column is off
+    /// unit inside the band at the session box's extent, comes back
+    /// re-minted; one off by 0.4 of the band unlevered refuses as the
+    /// decided defect it is; and an enclosure too wide for the levered
+    /// margins to decide is re-witnessed by Gram–Schmidt.
+    ///
+    /// *Breaks if* the decided arm hands back the map's own columns, or
+    /// the undecided arm refuses a box of rigid maps.
+    #[test]
+    fn both_arms_of_the_admission_return_a_rigid_motion() {
+        use geom_core::linalg::{Affine3, Mat3, Vec3};
+        use geom_core::tolerance::SESSION_BOX_EXTENT;
+        use geom_core::{Band, Interval, Real, RigidMotionError, Tol};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (s, c) = 0.3_f64.sin_cos();
+        let stretched = |k: f64| {
+            Affine3::from_parts(
+                Mat3::from_cols(
+                    Vec3::new(c, s, 0.0) * (1.0 + k),
+                    Vec3::new(-s, c, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                ),
+                Vec3::new(1.0, 2.0, 3.0),
+            )
+        };
+        let inside = 0.2 * band.zero() / SESSION_BOX_EXTENT;
+        let decided = super::admitted(&stretched(inside), band).expect("inside the band");
+        let u = decided.u().get();
+        assert!(
+            (u.dot(u) - 1.0).abs() <= 4.0 * f64::EPSILON,
+            "the decided arm re-mints the column it admits"
+        );
+        assert!(
+            matches!(
+                super::admitted(&stretched(0.4 * band.zero()), band),
+                Err(crate::NodeErrorKind::Motion(RigidMotionError::NotRigid {
+                    check: "transform_rigid_col0_unit"
+                }))
+            ),
+            "a column 0.4 bands off unit is a decided defect at the box's extent"
+        );
+        let w = band.escalate() / SESSION_BOX_EXTENT;
+        let wide = |x: f64| Interval::from_bounds(x - w, x + w);
+        let boxed = Affine3::from_parts(
+            Mat3::from_cols(
+                Vec3::new(wide(c), wide(s), Interval::from_f64(0.0)),
+                Vec3::new(wide(-s), wide(c), Interval::from_f64(0.0)),
+                Vec3::new(0.0, 0.0, 1.0).map(Interval::from_f64),
+            ),
+            Vec3::new(1.0, 2.0, 3.0).map(Interval::from_f64),
+        );
+        assert!(
+            matches!(
+                geom_core::RigidMotion::check_rigid(&boxed, band),
+                Err(RigidMotionError::Undecided { .. })
+            ),
+            "the box is too wide for the levered margins to decide"
+        );
+        super::admitted(&boxed, band).expect("the undecided arm re-witnesses a box of turns");
     }
 }

@@ -49,12 +49,15 @@ fn non_finite_translation_is_refused_not_laundered() {
 
 /// R1b: near-rigid maps around the band edges at the decided door,
 /// with probes derived from the AMBIENT tolerance (valid on every gate
-/// ε row). Rounding-level defects (≤ zero) are decided Zero and pass;
-/// an in-band defect is UNDECIDED, and a definite one is not rigid.
+/// ε row) and read at the session box's extent, the arm the door levers
+/// its dimensionless defects by. Rounding-level defects (≤ zero) are
+/// decided Zero and pass; an in-band defect is UNDECIDED, and a
+/// definite one is not rigid.
 #[test]
 fn near_rigid_door_band_behavior() {
     let tol = geom_core::Tol::witness().get();
-    let (eps, kesc) = (tol.eps, tol.eps * tol.k);
+    let reach = geom_core::tolerance::SESSION_BOX_EXTENT;
+    let (eps, kesc) = (tol.eps / reach, tol.eps * tol.k / reach);
     let band = Band::linear(Tol::witness()).unwrap();
     let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let with_c0x = |s: f64| {

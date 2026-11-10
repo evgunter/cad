@@ -57,3 +57,13 @@ outside comments and the census, at `bb25fa4f`:
 is the tripwire and agrees on six `decide_flagged` call sites. The
 owners above are whoever holds each file's ground today; this register
 routes, it does not execute.
+
+## F10 retired (2026-11-10, ONEHOME rigid-motion unit)
+
+`RigidMotion::check_rigid` now decides its seven rigidity residuals
+through `Margin::levered` at `Lever::session_box()`, and it re-mints
+the map it admits by Gram–Schmidt. That is fork 256's decision, on
+PR 6589 and the row
+`work/onehome/a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses.md`.
+The F10 row leaves the table above. `LEDGER_FLAGGED_SITES` is 4: F13,
+F14, F16 and F22.

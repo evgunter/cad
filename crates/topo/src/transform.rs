@@ -19,10 +19,9 @@
 //! at its own door. A uniform scale is affinely self-consistent on planar
 //! bodies, so re-certification alone would NOT catch one while it
 //! silently broke every unit-vector convention downstream; the type is
-//! what keeps one out, to the type's own standard: a minted motion is
-//! rigid up to rounding, a door-admitted factor within the band, and a
-//! product of `k` admitted factors — not decided again — within about
-//! `k` bands (`RigidMotion`'s module docs). On top of that, every edge
+//! what keeps one out: every motion, minted or re-minted at the
+//! decided door, is rigid up to rounding (`RigidMotion`'s module
+//! docs). On top of that, every edge
 //! carrier is **re-attached** against the mapped geometry through the
 //! scalar's edge door ([`crate::AtRestPolicy::attach_edge`]: certified in
 //! full where the scalar certifies, minted where it never does) — so a

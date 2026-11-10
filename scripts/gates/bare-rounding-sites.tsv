@@ -3,6 +3,7 @@
 crates/bvh/tests/proximity.rs	test	1	oracle
 crates/bvh/tests/proximity_r2.rs	test	1	oracle
 crates/bvh/tests/ray_r2.rs	test	2	oracle
+crates/editor-core/src/mate/solve.rs	test	1	oracle
 crates/editor-core/src/mate/value.rs	prod	1	pose
 crates/editor-core/src/placement.rs	test	1	oracle
 crates/editor-core/src/range.rs	test	5	oracle
@@ -149,6 +150,7 @@ crates/sweep/tests/a_keel_on_a_bores_ruling.rs	test	1	oracle
 crates/sweep/tests/a_slit_tip_on_a_curved_face_reads_its_full_turn.rs	test	1	oracle
 crates/sweep/tests/a_thin_cap_keeps_its_digits.rs	test	2	oracle
 crates/sweep/tests/a_vertex_on_a_grazing_plane.rs	test	3	oracle
+crates/sweep/tests/an_admitted_frame_is_re_minted_at_its_door.rs	test	1	oracle
 crates/sweep/tests/blend2_r2_probes.rs	test	3	oracle
 crates/sweep/tests/blend_arms_centre_placement.rs	test	1	oracle
 crates/sweep/tests/bool2_r2_probes.rs	test	1	oracle
