@@ -2,11 +2,12 @@
 id: a-carried-cylinder-pair-marches-for-minutes-before-the-volume-lane-refuses
 kind: issue
 title: A skew or unequal-radius cylinder boolean takes 5–12 s per operation in release, now that it builds through the volume lane
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [a-projected-boundary-on-an-analytic-chart-has-no-volume-lane]
+branch: spiricarm/cylinder-pair-cost
 ---
 
 
@@ -68,3 +69,13 @@ Measure the split between march, carry, chord and measurement, in
 release, and cheapen the dominant step. The earlier fix, deciding before
 marching that no volume lane can take the result, retires: the lane
 takes it.
+
+## Dispatched (2026-11-10)
+
+Branch `spiricarm/cylinder-pair-cost`.
+
+**Phase 0 measures** the release split for one skew and one unequal-radius op: march, carry, chord, result gate (tier 3′), volume lane. Use a profiler (`perf`, or `cargo flamegraph` if installed) or timing spans, not guesses.
+
+**Then cheapen the dominant step**, if it is on SPIRICARM's ground (the volume lane, `quad/rotational.rs`, `quad_lane.rs`). If it is on another program's ground (SECT's march, SPLICE's carry), file a row on that slate with the measured split, and fix what is ours.
+
+**Review tier:** single FULL review. A speed change to certification code can certify less soundly while reading as faster. Containment rows must stay green, and any changed bound needs a mutant row.

@@ -19,7 +19,7 @@
 use geom::{Curve3, Surface};
 use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
-use super::ruling::{self, RuledCylinders, SweepRefusal};
+use super::ruling::{self, RuledCylinders};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
     NodeLine, NodeSet, PairPose, PairSection, PairSide, RaySense, SectionComponent,
@@ -1008,12 +1008,7 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                     let ruled = pose.ruled().unwrap_or_else(|| {
                         unreachable!("a crossing stance's pose reads its ruled side")
                     });
-                    let swept = ruling::sweep(&ruled, pose.region, band).map_err(|e| match e {
-                        SweepRefusal::Escalated(diag) => SectionError::Escalated(diag),
-                        SweepRefusal::Inconsistent(cause) => SectionError::Unaccounted {
-                            cause: cause.to_owned(),
-                        },
-                    })?;
+                    let swept = ruling::sweep(&ruled, pose.region, band)?;
                     debug_assert_eq!(
                         swept.loops,
                         if nest.map(|n| n.sign) == Some(Sign::Positive) {

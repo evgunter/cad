@@ -171,3 +171,13 @@
     - The fix pass was sent to the part-way lane, resumed.
   - **Class (logged at adjudication):** "a mutant declared equivalent without running every row of its subject" was wrong here. A row in another file caught it. An equivalence claim needs the whole subject's rows, not the PR's own set.
 - 2026-11-10 — **PR 6521's fix pass is taken** (head `3de36b3eb8`, CI green). The orchestrator read `apex_grading`, which is a cut schedule and decides nothing. MINOR-2 (the near-sphere lune) is fixed in the unit: limb 2 gains breaks graded toward an axis end, and the lune row went from 4.5 s to 0.7 s. M1–M8, S1, S17 and G are all red. The horn-cusp row now builds its needle at 1e-6, and the four-arc horn refuses its mesh; both are recorded on that row. The row is closed. **The nightly on main is red on unrelated jobs** (editor-core battery, viewer, k-lint, 2026-11-10); those are not this track's ground.
+- 2026-11-10 — **PR 6521 merged; the part-way row is closed.** Two P1 rows dispatched while the sphere chart's fix pass finishes. The torus stage waits on PR 6509, because it builds on the same lane files.
+  - `a-carried-cylinder-pair-…` (M, single FULL review): measure the release split, then cheapen the dominant step on SPIRICARM ground or file it where it lives.
+  - `a-horns-cusp-…` (H, dual): a phase-0 decide on a certificate at a tangency, with a stop rule for forks.
+- 2026-11-10 — **PR 6509's fix pass is taken** (head `7c8e438b4e`, CI green, main's 3057 commits merged).
+  - The sphere's pads now have red rows. Three are argued at their sites. The merged mutant battery is red except four, each argued.
+  - The frame pins are structural. Teapot wall 2 reads its refused face's kind. The sense docs are corrected.
+  - The orchestrator read the one unrequested change and accepted it: `a_cylinder_split_just_off_its_rim_vertex` allows `2·ε_mach·π` for the row's own f64 sum of two midpoints and π, which is rounding in the oracle, not the kernel.
+  - The row is `docs/dual-review-log/rows/PR-6509.md` (a fair pair, with R2's reading shortfall noted).
+  - **Stage 2 is closed.** The P0 projected-boundary row closes with the volume lane in. Its operand half now stands at INSIDE's P0.
+  - **Next:** stage 3, the torus chart, which closes `a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane` (P0) and teapot wall 2's stop.
