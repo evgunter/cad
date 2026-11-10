@@ -9794,7 +9794,7 @@ mod tests {
                 Ending::Incidence => crate::IncidenceRead::Off(None).ending(Reading::Build),
                 _ => check.recourse(RefusedArm::SignCertain(None), Reading::Build),
             };
-            let named = at_build.starts_with("Recourse: move the geometry");
+            let named = at_build.starts_with(geom_core::MOVE_RECOURSE);
             assert_eq!(named, matches!(want, Class::Sized(..)), "{check:?}");
         }
     }

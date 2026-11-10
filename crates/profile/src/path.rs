@@ -2261,10 +2261,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "the declared seam arrival (Start.arrives_tangent()) does not continue the \
                  entry\'s outgoing direction: it misses by {margin} m over the arriving \
-                 leg\'s {arm} m arm. Recourse: move the geometry so the leg arrives along \
-                 that side, or drop the declaration and author the seam at a CORNER; for a \
-                 closing ARC tangent at BOTH ends, use the seam FILLET \
-                 (.angle(theta).fillet(r).to(Start))",
+                 leg\'s {arm} m arm. {recourse}",
+                recourse = geom_core::move_recourse!(
+                    "so the leg arrives along that side, or drop the declaration and author the \
+                     seam at a CORNER; for a closing ARC tangent at BOTH ends, use the seam \
+                     FILLET (.angle(theta).fillet(r).to(Start))"
+                ),
                 margin = num(margin),
                 arm = num(arm)
             ),

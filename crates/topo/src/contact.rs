@@ -107,13 +107,16 @@ impl GlueClass {
 /// glues a pair whose margin decides Zero and refuses one in band under
 /// every setting (D10), so a contact that is too close to call is
 /// settled only by geometry that is not.
-pub const CONTACT_RECOURSE: &str = "move the geometry so the faces clearly touch or clearly part";
+pub const CONTACT_RECOURSE: &str = concat!(
+    geom_core::coincidence_move_arm!(),
+    " so the faces clearly touch or clearly part"
+);
 
 /// [`CONTACT_RECOURSE`] with the recourse marker, as a finding the
 /// viewer shows ends on it (`contact_recourse_is_one_sentence` holds
 /// the two spellings to one).
 pub(crate) const CONTACT_RECOURSE_MARKED: &str =
-    "Recourse: move the geometry so the faces clearly touch or clearly part";
+    geom_core::move_recourse!("so the faces clearly touch or clearly part");
 
 /// **A contact verification's typed refusal**.
 ///

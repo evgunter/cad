@@ -882,7 +882,7 @@ impl DescribeRefusal {
 /// The recourse of the decision whether the faces at a kept face's
 /// boundary edge cross or meet smoothly, shared by its refused arms.
 const CROSS_OR_SMOOTH: &str =
-    "Recourse: move the geometry so the faces at that edge clearly cross or are clearly smooth";
+    geom_core::move_recourse!("so the faces at that edge clearly cross or are clearly smooth");
 
 impl MergeCoplanarError {
     /// The door's refusal for `refusal` at one of `boundary`'s edges,

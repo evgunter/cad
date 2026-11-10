@@ -2072,7 +2072,7 @@ pub(in crate::boolean) mod tests {
     fn coincide_settled(which: Coincide) -> Option<Ending> {
         match which {
             Coincide::OnPlanes | Coincide::Carriers => {
-                Some(Ending::Lever("Recourse: move the geometry"))
+                Some(Ending::Lever(geom_core::MOVE_RECOURSE))
             }
             Coincide::Sectors => Some(Ending::Sized(
                 "Recourse: move the parts so they clearly meet or clearly stand apart there",
@@ -3436,7 +3436,7 @@ pub(in crate::boolean) mod tests {
         }
         .render(geom_brep::recourse::Reading::Build);
         assert!(
-            pierce.ends_with("Recourse: move the geometry"),
+            pierce.ends_with(geom_core::MOVE_RECOURSE),
             "the frontier's definite half keeps its in-band sibling's levers, less the \
              tolerance: {pierce}"
         );

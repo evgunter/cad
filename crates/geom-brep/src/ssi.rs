@@ -2316,8 +2316,9 @@ pub(crate) const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the 
 /// zero ([`TubeDegeneracy::WallConstantAcrossLocus`]): the face's own
 /// degeneracy. The stored face is what the lever edits, so the ending
 /// is the same at rest as at a build.
-const WALL_COLLAPSED_RECOURSE: &str = "Recourse: move the geometry so the spline face does not \
-     collapse to a point or a curve where the surfaces meet";
+const WALL_COLLAPSED_RECOURSE: &str = geom_core::move_recourse!(
+    "so the spline face does not collapse to a point or a curve where the surfaces meet"
+);
 
 /// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
 /// on **one shared parameter** (the OQ4 contract).
