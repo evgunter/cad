@@ -645,8 +645,8 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
         let what = what(op);
         match want(op) {
             Want::Sector => {
-                // The sector question, or the corner's bound tie that a
-                // flat sector of the unglued pair refuses on.
+                // The sector question, or the corner's chord bound tie
+                // that a flat sector of the unglued pair refuses on.
                 assert!(
                     matches!(
                         &run,
@@ -658,8 +658,8 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
                         &run,
                         Err(BooleanError::Escalated {
                             decision: BooleanDecision::Coincidence(Coincide::CornerBound, _),
-                            ..
-                        })
+                            diag,
+                        }) if diag.predicate == Some("bool_chord_side")
                     ),
                     "{what}: refuses on the sector question, got {:?}",
                     run.map(|_| ())
@@ -711,7 +711,7 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
 ///
 /// Turned at ε 1e-9 at 12ε, the same operands refuse earlier, in the
 /// reduction's sector question (`bool_sector_within`) or on a flat
-/// sector's bound tie (`Coincide::CornerBound`)
+/// sector's chord bound tie (`Coincide::CornerBound`, `bool_chord_side`)
 /// (`work/germ/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
 #[test]
 fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {

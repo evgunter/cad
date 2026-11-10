@@ -408,23 +408,28 @@ pub(crate) mod metric {
         };
         match decided_as(name, moved, r.band) {
             Ok(m) if m.sign == got.sign => Ok(got),
-            // Farther from zero than the band's reading, `away` decides
-            // its sign wherever that reading's margin is readable.
-            Ok(moved) => match decided_as(name, away, r.band) {
-                Ok(away) => {
-                    let (lower, upper) = if got.sign == Sign::Positive {
-                        (moved, away)
-                    } else {
-                        (away, moved)
-                    };
-                    Err(Refusal::Slack {
-                        decided: got,
-                        lower,
-                        upper,
-                    })
-                }
-                Err(why) => Err(Refusal::Moved { decided: got, why }),
-            },
+            // `moved` decided, so the slack is readable; `away` is the
+            // band's reading moved by it farther from zero, so it decides
+            // the sign that reading decided.
+            Ok(moved) => {
+                let away = decided_as(name, away, r.band).unwrap_or_else(|why| {
+                    unreachable!(
+                        "`{name}`: a reading decided {:?} moved by its slack away from zero \
+                         reads in band: {why:?}",
+                        got.sign
+                    )
+                });
+                let (lower, upper) = if got.sign == Sign::Positive {
+                    (moved, away)
+                } else {
+                    (away, moved)
+                };
+                Err(Refusal::Slack {
+                    decided: got,
+                    lower,
+                    upper,
+                })
+            }
             Err(why) => Err(Refusal::Moved { decided: got, why }),
         }
     }

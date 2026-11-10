@@ -312,7 +312,7 @@ impl<T: Decide> PierceDatum<T> {
     ) -> Result<SideCode, BooleanError> {
         let lever = self.lever.within(reach.lever().length());
         super::sectors::pierce_side(dir, reach, self.normal, self.bend, lever, rd)
-            .map(|(read, _)| read.code)
+            .map(|(code, _)| code)
     }
 
     /// [`Self::side`] as a cone is handed it on the reading `rd`
@@ -628,7 +628,7 @@ struct Entry {
     is_edge: bool,
     class: SideCode,
     /// What tied the bound's first-order reading with the face, where it
-    /// tied ([`super::sectors::PierceSide::tied`]).
+    /// tied ([`super::sectors::pierce_side`]).
     tie: Option<EntryTie>,
     /// The class is not this bound's first-order reading: Delta 2's
     /// lump, or, for a bound two tangent sectors share, their
@@ -926,7 +926,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             crate::link::metric::Reading::plain(band),
         );
         let (class, tie) = match side {
-            Ok((read, on)) => (read.code, on.map(EntryTie::Tie)),
+            Ok((code, on)) => (code, on.map(EntryTie::Tie)),
             Err(BooleanError::Escalated {
                 decision: super::BooleanDecision::ConicBend,
                 diag,
@@ -3426,7 +3426,7 @@ mod tests {
                 crate::link::metric::Reading::plain(band),
             )
             .unwrap();
-            assert_eq!(side.code, On, "f {f}: the bisector reads On");
+            assert_eq!(side, On, "f {f}: the bisector reads On");
             for side in [Out, In] {
                 let what = format!("f {f}, {side:?}");
                 let bisector = Entry {
@@ -3550,19 +3550,16 @@ mod tests {
                 radius,
                 rd,
             )
-            .map(|(side, _)| side)
+            .map(|(code, on)| (code, on.is_some()))
             .unwrap()
         };
         assert_eq!(
             edge(plain),
-            super::super::sectors::PierceSide {
-                code: SideCode::Out,
-                tied: true
-            },
+            (SideCode::Out, true),
             "tied at first order, the edge leaves the ball's face on the band"
         );
         assert_eq!(
-            edge(offset).code,
+            edge(offset).0,
             SideCode::On,
             "over the offset its parting is unresolved"
         );

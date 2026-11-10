@@ -749,35 +749,6 @@ mod rows {
         }
     }
 
-    /// A quarter-turn sector at the origin on the plane through it with
-    /// unit normal `normal`, its bounds `arm` long, bending as `bend`.
-    fn flat_corner(
-        normal: Vec3<f64>,
-        arm: f64,
-        face: u64,
-        bend: crate::bound_side::FaceBend<f64>,
-    ) -> BoolSector<f64> {
-        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
-        let start = normal.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
-        let end = normal.cross(start);
-        let o = Point3::new(0.0, 0.0, 0.0);
-        let chord = |d: Vec3<f64>| Reach::Chord {
-            base: o,
-            far: o + d * arm,
-        };
-        BoolSector {
-            he: HalfEdgeKey::from(key(face)),
-            start,
-            end,
-            start_reach: chord(start),
-            end_reach: chord(end),
-            face: FaceKey::from(key(face)),
-            at_vertex: BoolFace::Tangent(geom_brep::OutwardNormal::from_chart(normal, true)),
-            bend,
-            arm: geom_core::test_support::fixture_lever(arm),
-        }
-    }
-
     /// **A corner opens the coplanar branch only from a glued pair's
     /// record** ([`meeting`]): two faces tilted `0.1·zero` over the 1 mm
     /// arm read parallel there. Two planes the glue door glued meet as a
@@ -801,8 +772,16 @@ mod rows {
         let rest = Some(PlaneRelation::SameOpposite);
         let meet = |rise: f64, bend, glued| {
             meeting(
-                (Operand::A, None, &flat_corner(up, arm, 1, plane)),
-                (Operand::B, None, &flat_corner(tilted(rise), arm, 2, bend)),
+                (
+                    Operand::A,
+                    None,
+                    &super::super::sectors::flat_corner(up, arm, 1, plane),
+                ),
+                (
+                    Operand::B,
+                    None,
+                    &super::super::sectors::flat_corner(tilted(rise), arm, 2, bend),
+                ),
                 glued,
                 b,
             )

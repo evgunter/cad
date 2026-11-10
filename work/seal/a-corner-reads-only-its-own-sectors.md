@@ -69,7 +69,7 @@ Built to the fork `unglued-corner-ending` design (PR 6693). The PR body has the 
 
 **A corner lying on a plane face by its bounds** (recl's flanks and line cones, vtxfac's flat sector):
 - It refuses on the reading that put it there, carried from where it was read: the flank's tie (`recl::FlankKey::On`), the line cone's representative's own reading (`sectors::SheetRead`), and the steeper of the flat sector's two ties (`vtxfac::EntryTie`).
-- The refusal is `Coincide::CornerBound` (`boolean::unglued_corner`, which either definite side passes). A Zero tie is the nonzero gate's rejection. A slack's tie is the slack's own reading: the moved reading in band, or the band's reading and the slack's straddling the band (`bool_corner_side_slack_straddle`).
+- The refusal is `Coincide::CornerBound` (`boolean::unglued_corner`, which either definite side passes). A Zero tie is the nonzero gate's rejection. A slack's tie is the slack's own reading: the moved reading in band, or the distance moved by the slack either way, `[d − s, d + s]`, straddling the band (`bool_corner_side_slack_straddle`).
 - `bounds_off` is deleted.
 - A record the meeting read as one coincidence carries how (`fan::Coincident`: the glue door's relation, or the frontier's curved face), so `recl_sectors` never re-reads the glue record. Where a line cone reads its representative `On` but the representative's own reading decided it off the face, the pass ends `LineUnread::Contradicted`.
 

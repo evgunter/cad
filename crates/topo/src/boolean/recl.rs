@@ -336,7 +336,9 @@ pub(super) fn recl_sectors<T: Decide>(
 /// record has at most one On per side).
 fn on_bound(codes: (SideCode, SideCode)) -> Option<bool /* at start */> {
     match codes {
-        (SideCode::On, SideCode::On) => None, // handled by 15.10
+        // A coincidence's are lumped by 15.10 (`recl_sectors`); a crossing
+        // record's both On is not resolved here.
+        (SideCode::On, SideCode::On) => None,
         (SideCode::On, _) => Some(true),
         (_, SideCode::On) => Some(false),
         _ => None,
@@ -1750,12 +1752,18 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 Ok(Material::Boundary) => Err(unread(super::LineUnread::Along)),
                 Ok(Material::On(k)) => match from[k] {
                     // The representative's own reading of the face is what
-                    // put it there; where that reading decided it off the
-                    // face at first order, the cone's reading of its point
-                    // contradicts it.
+                    // put it there. A sheet that reading decided off the
+                    // face at first order was given its nonzero side, and
+                    // the cone reads `On` only a sheet given Zero or given
+                    // nothing (`link::Cone::reads_given`: a given side the
+                    // cone agrees with is that side, one it decides against
+                    // is `Unsettled::Contradicted`).
                     Sheet::Sector(oi) => match on[k] {
                         Some(read) => coplanar(own, own_idx, oi, read.corner_on(band)),
-                        None => Err(unread(super::LineUnread::Contradicted)),
+                        None => Err(BooleanError::ClassificationInvariant {
+                            what: "a line cone read a representative on a sheet its own \
+                                   reading decided it off at first order",
+                        }),
                     },
                     Sheet::Held(face) => Err(face.along(super::AlongFace::Flush)),
                 },
@@ -3222,8 +3230,9 @@ mod tests {
     /// cone reads the flank in band of A's face: its side. With the tie
     /// `0.9·zero`, the band decides the dip and the slack (`1.8·zero`) does
     /// not: the flank's side is unresolved, so it lies on A's face to the
-    /// orders read, and the corner refuses on what put it there, the
-    /// band's reading and the slack's, which straddle the band.
+    /// orders read, and the corner refuses on what put it there: the dip
+    /// moved by the slack either way, `[d − s, d + s]`, which straddles
+    /// the band.
     #[test]
     fn a_sheets_side_decided_within_the_cones_tie_is_the_corners() {
         use super::super::sectors::BoundSupport;
@@ -3316,8 +3325,8 @@ mod tests {
         assert_eq!(
             corner(&slack),
             Some((Some("bool_corner_side_slack_straddle"), None)),
-            "dipped within the slack, on the face to the orders read: the band's reading and \
-             the slack's straddle the band: {slack:?}"
+            "dipped within the slack, on the face to the orders read: the dip moved by the \
+             slack either way straddles the band: {slack:?}"
         );
         // The straddle encloses the dip's reading over the slack either
         // way: the flank dips under A's face, `d = −1.5·zero` as the side

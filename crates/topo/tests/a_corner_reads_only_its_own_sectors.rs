@@ -137,28 +137,32 @@ fn assert_corner_crossing(
 
 /// The generic and hinged corner poses and the needle pose, at two tilts
 /// scaled to the run's band, through every op in both orders: each the
-/// corner's crossing refusal on the arm's tilt. Measured at ε 1e-9 and
-/// 1e-12; at ε 1e-6 the tilt `100ε` is `1e-4`, and the generic pose's
-/// containment of its 10 m edge reads in band first (`bool_contact_edge`,
-/// `θ/|a| ≈ 10ε`).
+/// corner's crossing refusal on the arm's tilt.
+///
+/// Above ε 1e-7 the two tool poses meet the tool's own fixture first:
+/// its short edge `c` leans `1e-4` m off the block's corner, and its long
+/// edge `a` turns `0.0995` rad off the block's `x` edge, so the edge
+/// contact reads `≈ 9.95e-6` whatever the tilt (measured at both tilts
+/// and both poses), in band at ε 1e-6. There they refuse that
+/// containment (`bool_contact_edge`), pinned. The needle poses have no
+/// such edge and refuse on the corner at every ε.
 #[test]
 fn an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt() {
     let tol = Tol::witness();
-    if tol.eps() > 1e-7 {
-        test_utils::vacuity::stood_down(
-            "eps above 1e-7",
-            "the corner poses' 10 m edges tilt by 100ε, which reads in band at their containment",
-        );
-        return;
-    }
     let band = Band::linear(tol).expect("the witness band");
+    let tool_meets_its_edge_first = tol.eps() > 1e-7;
     for k in [100.0, 300.0] {
         let theta = k * band.zero();
         for (pose, psi) in [("generic", 0.0), ("hinged", HINGED_ALONG_B)] {
             let bodies = corner_pose(theta, psi, tol);
             let margin = theta / (1.0 + theta * theta).sqrt() * ARM;
             for (op, out) in six(&bodies, tol) {
-                assert_corner_crossing(&format!("{pose}, θ = {k}ε, {op}"), &out, margin, band);
+                let label = format!("{pose}, θ = {k}ε, {op}");
+                if tool_meets_its_edge_first {
+                    assert_edge_contact_first(&label, &out);
+                } else {
+                    assert_corner_crossing(&label, &out, margin, band);
+                }
             }
         }
         for (tilt, span) in [((1.0, 0.0), (-45.0, 45.0)), ((0.6, -0.8), (30.0, 60.0))] {
@@ -170,6 +174,27 @@ fn an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt() {
             }
         }
     }
+}
+
+/// Asserts `out` is the tool pose's edge contact read in band
+/// (`bool_contact_edge`, margin `≈ 9.95e-6`), which the tool's fixture
+/// meets ahead of the corner above ε 1e-7.
+fn assert_edge_contact_first(label: &str, out: &Result<topo::BooleanResult<f64>, BooleanError>) {
+    let Err(BooleanError::Escalated {
+        decision: BooleanDecision::Containment { .. },
+        diag,
+    }) = out
+    else {
+        panic!("{label}: the edge contact's containment: {out:?}");
+    };
+    assert_eq!(diag.predicate, Some("bool_contact_edge"), "{label}");
+    let ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text() else {
+        panic!("{label}: a value margin: {diag:?}");
+    };
+    assert!(
+        (m - 9.95e-6).abs() < 1e-2 * 9.95e-6,
+        "{label}: the fixture's edge contact, whatever the tilt: {m:e}"
+    );
 }
 
 /// What the six runs of a corner pose at the design tilt `1e-7` did, at

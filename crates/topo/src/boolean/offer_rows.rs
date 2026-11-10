@@ -846,40 +846,20 @@ fn tool_on_a_block_corner(margin: f64) -> Result<(), BooleanError> {
 /// gluing neither: `A`'s on `z = 0`, `B`'s tilted to rise `margin` at
 /// their 1 mm arm. [`super::super::fan::meeting`] reads where they meet.
 fn corner_tilted_at_its_arm(margin: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::BoolSector;
-    let arm = 1e-3;
-    let o = Point3::new(0.0, 0.0, 0.0);
-    let sector = |normal: Vec3<f64>, n: u64| {
-        let start = normal.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
-        let end = normal.cross(start);
-        let chord = |d: Vec3<f64>| BoundSupport::Chord {
-            base: o,
-            far: o + d * arm,
-        };
-        let key = slotmap::KeyData::from_ffi((1 << 32) | n);
-        BoolSector {
-            he: crate::entity::HalfEdgeKey::from(key),
-            start,
-            end,
-            start_reach: chord(start),
-            end_reach: chord(end),
-            face: crate::entity::FaceKey::from(key),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-                normal, true,
-            )),
-            bend: crate::bound_side::FaceBend::Plane,
-            arm: geom_core::test_support::fixture_lever(arm),
-        }
-    };
-    let flat = sector(Vec3::new(0.0, 0.0, 1.0), 1);
-    let tilted = sector(Vec3::new(margin / arm, 0.0, 1.0).normalize(), 2);
-    super::super::fan::meeting(
+    use super::super::fan::Meeting;
+    use super::super::sectors::flat_corner;
+    let (arm, plane) = (1e-3, crate::bound_side::FaceBend::Plane);
+    let flat = flat_corner(Vec3::new(0.0, 0.0, 1.0), arm, 1, plane);
+    let tilted = flat_corner(Vec3::new(margin / arm, 0.0, 1.0).normalize(), arm, 2, plane);
+    match super::super::fan::meeting(
         (Operand::A, None, &flat),
         (Operand::B, None, &tilted),
         None,
         band(),
-    )
-    .map(|_| ())
+    )? {
+        Meeting::Rays(_) => Ok(()),
+        other => panic!("tilted past the band, the corner's faces meet along a line: {other:?}"),
+    }
 }
 
 /// The union of a block and a wedge sunk half its height into the
