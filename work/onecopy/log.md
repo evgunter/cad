@@ -1522,3 +1522,4 @@
 - 03:48Z 6708 at 2024a739 (row closed) → FULL review session_013mPGJ4RRKJeyVYD9u7SSLi. Doc-gate lane → angle-census-trace (the-angle-reads-cleared… row) if it can push.
 - 03:52Z Merged 6690 bracket-mid (gate green at 028ea772; main moved only by onehome docs, disjoint).
 - 03:54Z PR 6712 torus-charge follow-up (17ef9d14, docs+row; stacked on 6711) → merge after 6711. S3 (f_per_metre_lo floor on rounded k) left as a decision on the new P3 row.
+- 03:56Z PR 6713 placement-holders (c0b4d0ed; 8 holders ported, 2 kept, rows parked on stage 3) → FULL review. Bracket lane idle.
