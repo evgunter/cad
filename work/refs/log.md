@@ -248,3 +248,7 @@
     - `names_members`, its `Reach` exception and the three whole-read branches are deleted;
     - no converter helper.
   - Waiting for Ev's confirmation before DM3 is written and the unit is built into the PR.
+- 2026-11-10 — **Ev ruled on PR 6555** (comment 6757433076): "if the thing you're suggesting is "form 1 is entirely deleted including all code to produce or consume it", then yes that sounds good".
+  - Confirmed on the PR, with the one sharpening "consumes" implies: no door check that inspects `Member`-headed names. A selection reads one body, so a selection of the family read whole refuses whatever its names. Producers (Python `select` on a family read whole, the viewport pick's family names) and consumers (`names_members`, its `Reach` exception, the three whole-read branches) are deleted. `Member` names inside a body built from the family stay.
+  - Written on the PR branch (`72135e738c`): DM3's sentence, and fork row 254's Ev, match and A/B columns (bytes 215, 249: Fable = A, Opus = B).
+  - The build goes into PR 6555 as one lane, dispatched once SEAL's step-4 rework lane hands back (serial, per Ev's opening message). It also pins `a-selection-of-a-member-of-a-family-with-an-empty-member-refuses` in its new form (`xs[i]` at an empty member refuses `EmptyOperand`).
