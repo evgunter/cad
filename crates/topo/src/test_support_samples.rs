@@ -273,6 +273,7 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
         }),
         S::Loop(L::RayExhausted { r#loop }),
         S::Loop(L::CorruptLoop { r#loop }),
+        S::Loop(L::LoneLoop { r#loop }),
         S::Loop(L::Uncrossable(uncrossable())),
         S::Loop(L::OffPlane(OffPlane {
             r#loop,
