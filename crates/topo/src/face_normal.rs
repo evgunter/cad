@@ -197,7 +197,7 @@ pub enum NormalAtError {
     /// tangent plane: definite or in band, there is no normal to answer
     /// with. In band: it carries no reading to tell a point at the apex
     /// from one in band of the axis, and a tighter tolerance may part the
-    /// latter from it ([`geom_brep::ladder::Refusal::of_apex`]).
+    /// latter from it ([`geom_core::ladder::Refusal::of_apex`]).
     AtConeApex {
         /// The band the distance off the axis was classified against.
         band: Band,
@@ -207,7 +207,7 @@ pub enum NormalAtError {
     /// multiplicity at least the degree, a closed chart's seam): the face
     /// has a normal on each side, and no one of them is the normal there
     /// ([`geom_brep::chart_normal_at`]). As its reading stands
-    /// ([`geom_brep::ladder::Refusal::of_crease`]).
+    /// ([`geom_core::ladder::Refusal::of_crease`]).
     SplineCrease {
         /// The band the distance from the line was classified against.
         band: Band,
@@ -227,7 +227,7 @@ pub enum NormalAtError {
 }
 
 /// **Which row an aborting normal refusal is** (DESIGN
-/// `[failure.taxonomy]`, as [`geom_brep::ladder::Refusal`]'s docs read
+/// `[failure.taxonomy]`, as [`geom_core::ladder::Refusal`]'s docs read
 /// it): the error's own fact, so a caller names an abort's answer by it
 /// rather than by matching a variant ([`NormalAtError::standing`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -308,7 +308,7 @@ impl NormalAbort {
 impl NormalAtError {
     /// **This refusal's standing, an abort's row included**: what it is
     /// to a ladder over the points it is read at
-    /// ([`geom_brep::ladder::Refusal`]), as each variant's docs state it;
+    /// ([`geom_core::ladder::Refusal`]), as each variant's docs state it;
     /// or, where it refuses the whole query, which row that abort is
     /// ([`NormalAbort`]). The one table of a normal refusal's class.
     ///
@@ -317,8 +317,8 @@ impl NormalAtError {
     /// [`NormalAbort::KernelFault`] for a point definitely off the face's
     /// surface; [`NormalAbort::InvalidInput`] for a torus the model never
     /// represents.
-    pub const fn standing(&self) -> Result<geom_brep::ladder::Refusal, NormalAbort> {
-        use geom_brep::ladder::Refusal;
+    pub const fn standing(&self) -> Result<geom_core::ladder::Refusal, NormalAbort> {
+        use geom_core::ladder::Refusal;
         match self {
             Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
             Self::SplineCrease { reading, .. } | Self::SplineIrregular { reading, .. } => {
@@ -335,7 +335,7 @@ impl NormalAtError {
             .refusal()
             {
                 Ok(standing) => Ok(standing),
-                Err(geom_brep::ladder::Aborts) => Err(NormalAbort::InvalidInput {
+                Err(geom_core::ladder::Aborts) => Err(NormalAbort::InvalidInput {
                     convention: *convention,
                     verdict: *verdict,
                 }),
@@ -349,12 +349,12 @@ impl NormalAtError {
     ///
     /// # Errors
     ///
-    /// [`geom_brep::ladder::Aborts`] wherever [`Self::standing`] names an
+    /// [`geom_core::ladder::Aborts`] wherever [`Self::standing`] names an
     /// abort.
-    pub const fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+    pub const fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
         match self.standing() {
             Ok(standing) => Ok(standing),
-            Err(_) => Err(geom_brep::ladder::Aborts),
+            Err(_) => Err(geom_core::ladder::Aborts),
         }
     }
 }
@@ -917,7 +917,7 @@ mod tests {
     /// the in-band apex read before it.
     #[test]
     fn an_apex_and_a_crease_in_band_rank_below_a_decided_crease() {
-        use geom_brep::ladder::{Evidence, Refusal};
+        use geom_core::ladder::{Evidence, Refusal};
         let in_band = geom_core::Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
             band: band(),

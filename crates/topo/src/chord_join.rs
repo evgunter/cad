@@ -476,7 +476,7 @@ pub enum SplitJoinError {
     /// A site's place on its section's spline component could not be
     /// read: the component's piece walk could not run
     /// ([`geom_brep::SiteRefusal::Unwalked`]), not a fault, and standing
-    /// as the walk's refusal does.
+    /// as the walk's refusal does ([`geom::PieceWalkRefusal::refusal`]).
     SectionUnwalked(geom::PieceWalkRefusal),
     /// A plane's section of a curved face the chord layer has no arm
     /// for: valid input whose lane is not yet built (D2 addendum row 2),
