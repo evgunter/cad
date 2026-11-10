@@ -110,8 +110,9 @@ pub enum FitError {
         /// The offending value.
         tolerance: f64,
     },
-    /// A linear solve refused (degenerate collocation/normal system).
-    Lsq(LsqError),
+    /// A linear solve of the system the fit built refused (a degenerate
+    /// collocation or normal system).
+    Lsq(Built<LsqError>),
     /// The caller asked for a spline structure none has (degree 0).
     Structure(SplineError),
     /// A spline the fit assembled from the knots and control points it
@@ -186,13 +187,18 @@ impl geom_core::spline::Fact for FitError {
                  has to be a number to compare against",
                 Readable(*tolerance)
             ),
+            FitError::ParamCountMismatch { params, points } if params == points => write!(
+                f,
+                "the fit's {params} explicit parameters do not ascend strictly from exactly 0 to \
+                 exactly 1, and the fitting stack needs that of them"
+            ),
             FitError::ParamCountMismatch { params, points } => write!(
                 f,
                 "the fit was given {params} explicit parameters for {points} points, and the \
                  fitting stack needs one strictly-ascending finite parameter per point running \
                  exactly 0 to 1"
             ),
-            FitError::Lsq(e) => write!(f, "the fit refused: {}", e.fact()),
+            FitError::Lsq(e) => write!(f, "the fit's linear system refused: {e}"),
             FitError::Structure(e) => write!(f, "the fit refused: {}", e.fact()),
             FitError::Assembly(e) => write!(
                 f,
@@ -220,8 +226,11 @@ impl core::fmt::Display for FitError {
         let fact = self.fact();
         match self {
             // The payload ends itself: its fact, then its own recourse.
-            FitError::Lsq(e) => write!(f, "the fit refused: {e}"),
             FitError::Structure(e) => write!(f, "the fit refused: {e}"),
+            // The system is the fit's own, built from samples the caller's
+            // counts already admitted: a degenerate one is the
+            // approximation's limit.
+            FitError::Lsq(_) => write!(f, "{fact}. {KERNEL_LIMIT_RECOURSE}"),
             FitError::Assembly(_) => write!(f, "{fact}. {KERNEL_LIMIT_RECOURSE}"),
             FitError::KnotAlgebra(_) => write!(f, "{fact}. {KERNEL_DEFECT_ENDING}"),
             FitError::TooFewPoints { .. } => {
@@ -363,6 +372,11 @@ pub fn averaged_knot_vector(params: &[f64], degree: usize) -> Result<KnotVector,
     averaged_knots(params, degree)
 }
 
+/// A refusal of the linear system the fit built.
+fn lsq(e: LsqError) -> FitError {
+    FitError::Lsq(Built::new(e))
+}
+
 /// The fit's degree rule, its one home: a positive degree, and at least
 /// `degree + 1` samples (the knot vector's `p + 1` clamped ends need
 /// them).
@@ -387,6 +401,29 @@ fn check_degree(n: usize, degree: usize) -> Result<(), FitError> {
 /// The ends are the points `0` and `1`, and each step ascends for every
 /// value it stands for ([`geom_core::structure_ascends`]): at `f64`
 /// that is `a < b`, which a NaN parameter fails.
+///
+/// `count` is how many parameters the caller's data needs (one per point
+/// or per section): a mismatch and a misordering are both
+/// [`FitError::ParamCountMismatch`], whose counts tell them apart. The
+/// one check of a caller's parameterization, read by every door that
+/// takes one (the fits here, `averaged_knot_vector`, and `sweep`'s
+/// explicit-parameter skin and loft doors).
+///
+/// # Errors
+///
+/// [`FitError::ParamCountMismatch`] when `params` is not `count` long or
+/// not clamped `0 → 1` and strictly ascending.
+pub fn check_parameterization<T: SpanLocate>(params: &[T], count: usize) -> Result<(), FitError> {
+    if params.len() != count {
+        return Err(FitError::ParamCountMismatch {
+            params: params.len(),
+            points: count,
+        });
+    }
+    check_ordered(params)
+}
+
+/// The order half of [`check_parameterization`].
 fn check_ordered<T: SpanLocate>(params: &[T]) -> Result<(), FitError> {
     let ordered = params.first().and_then(|u| u.point_value()) == Some(0.0)
         && params.last().and_then(|u| u.point_value()) == Some(1.0)
@@ -524,8 +561,8 @@ pub fn interpolate_columns_in<T: SpanLocate>(
     check_degree(n, degree)?;
     let knots = averaged_knots_in(params, degree)?;
     let (first, basis) = banded_rows(params.iter().map(|u| unit_row_in(&knots, *u)), n);
-    let lu = banded::factor(&first, &basis).map_err(FitError::Lsq)?;
-    let control = lu.solve(rows).map_err(FitError::Lsq)?;
+    let lu = banded::factor(&first, &basis).map_err(lsq)?;
+    let control = lu.solve(rows).map_err(lsq)?;
     Ok((knots, control))
 }
 
@@ -727,7 +764,7 @@ impl Collocation {
             .iter()
             .map(|u| rational_row(&knots, &unit, *u))
             .unzip();
-        let lu = banded::factor(&first, &rows).map_err(FitError::Lsq)?;
+        let lu = banded::factor(&first, &rows).map_err(lsq)?;
         Ok(Self {
             params: params.to_vec(),
             knots,
@@ -751,7 +788,7 @@ impl Collocation {
     }
 
     fn solve(&self, rows: &[Vec<f64>]) -> Result<Vec<Vec<f64>>, FitError> {
-        self.lu.solve(rows).map_err(FitError::Lsq)
+        self.lu.solve(rows).map_err(lsq)
     }
 }
 
@@ -1144,7 +1181,7 @@ macro_rules! nurbs_fit {
                     Err(LsqError::LsqDegenerate { .. }) => {
                         return Ok((cur, bound, Some(RefitSkip::DegenerateSystem)));
                     }
-                    Err(e) => return Err(FitError::Lsq(e)),
+                    Err(e) => return Err(lsq(e)),
                 };
                 let mut control = cur.control().to_vec();
                 for (i, row) in sol.iter().enumerate() {
@@ -1498,12 +1535,16 @@ mod tests {
             FitError::InvalidTolerance {
                 tolerance: f64::NAN,
             },
-            FitError::Lsq(lsq.clone()),
+            FitError::Lsq(Built::new(lsq.clone())),
             FitError::Structure(structure.clone()),
             FitError::Assembly(assembly.clone()),
             FitError::KnotAlgebra(Built::new(knot_algebra.clone())),
             FitError::ParamCountMismatch {
                 params: 3,
+                points: 4,
+            },
+            FitError::ParamCountMismatch {
+                params: 4,
                 points: 4,
             },
             FitError::RaggedRows {
@@ -1516,7 +1557,16 @@ mod tests {
                 achieved: 2e-3,
             },
         ];
-        assert_eq!(arms.len(), 11, "an arm was added without a row here");
+        assert_eq!(arms.len(), 12, "an arm was added without a row here");
+        assert!(
+            FitError::ParamCountMismatch {
+                params: 4,
+                points: 4
+            }
+            .to_string()
+            .contains("do not ascend strictly"),
+            "counts that agree name the order, not a count"
+        );
         for arm in &arms {
             let msg = arm.to_string();
             let fact = geom_core::spline::Fact::fact(arm).to_string();
@@ -1524,14 +1574,11 @@ mod tests {
                 !fact.contains("Recourse") && msg.starts_with(&fact),
                 "the fact is the text's prefix: {fact} | {msg}"
             );
-            let carrier = match arm {
-                FitError::Lsq(e) => Some(e.to_string()),
-                _ => None,
-            };
             // A refusal of what the fit built ends at this door, on the
             // fact alone: the payload's caller-facing recourse is not
             // the user's.
             let built = match arm {
+                FitError::Lsq(e) => Some((e.to_string(), KERNEL_LIMIT_RECOURSE)),
                 FitError::Assembly(e) => Some((e.to_string(), KERNEL_LIMIT_RECOURSE)),
                 FitError::KnotAlgebra(e) => Some((e.to_string(), KERNEL_DEFECT_ENDING)),
                 _ => None,
@@ -1541,18 +1588,6 @@ mod tests {
                     msg.contains(&fact) && msg.ends_with(ending),
                     "the fact, then the door's ending: {msg}"
                 );
-                assert_eq!(
-                    test_utils::refusal::recourse_markers(&msg),
-                    1,
-                    "not exactly one labelled repair: {msg}"
-                );
-                continue;
-            }
-            if let Some(carrier) = carrier {
-                assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
-                // The carrier's own repair is the one the reader sees,
-                // and this arm adds none: its enforcement row above
-                // makes that a statement about every payload.
                 assert_eq!(
                     test_utils::refusal::recourse_markers(&msg),
                     1,

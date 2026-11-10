@@ -58,8 +58,10 @@ pub enum PcurveError {
     /// The rational-quadratic chain's structure refused (unreachable
     /// for valid spans; typed rather than assumed).
     Structure(geom_core::spline::Built<geom_core::spline::SplineError>),
-    /// The degree or tolerance asked of the fit is none a fit takes:
-    /// degree 0, or a tolerance that is not finite and positive.
+    /// The degree or tolerance asked of the fit is none it takes: degree
+    /// 0, a degree its [`PCURVE_FIT_SAMPLES`] samples cannot fit (it
+    /// needs `degree + 1` of them), or a tolerance that is not finite
+    /// and positive.
     InvalidRequest {
         /// The degree asked for.
         degree: usize,
@@ -89,8 +91,9 @@ impl core::fmt::Display for PcurveError {
             Self::InvalidRequest { degree, tolerance } => write!(
                 f,
                 "pcurve: a fit of degree {degree} to tolerance {tolerance} m is none the \
-                 fitting loop takes. Recourse: ask for degree 1 or above and a finite tolerance \
-                 strictly above zero"
+                 fitting loop takes. Recourse: ask for a degree from 1 to {} and a finite \
+                 tolerance strictly above zero",
+                PCURVE_FIT_SAMPLES - 1
             ),
             // The samples are the door's own: an approximation the kernel
             // chose, or a knot edit no valid sample set reaches.
@@ -262,7 +265,11 @@ pub fn ellipse_pcurve_on_cylinder(
     if span > core::f64::consts::TAU {
         return Err(PcurveError::SpanExceedsPeriod);
     }
-    if degree == 0 || !(tolerance.is_finite() && tolerance > 0.0) {
+    // The schedule's fixed sample count bounds the degree it can fit.
+    if degree == 0
+        || degree >= PCURVE_FIT_SAMPLES as usize
+        || !(tolerance.is_finite() && tolerance > 0.0)
+    {
         return Err(PcurveError::InvalidRequest { degree, tolerance });
     }
     // The chart coordinates of a carrier point (`Surface::chart_point`

@@ -170,7 +170,9 @@ fn skin_payload(e: &pncad::sweep::SkinError) {
 fn fit_payload(e: &pncad::geom::FitError) {
     match e {
         pncad::geom::FitError::Lsq(inner) => {
-            named::<&pncad::geom_core::linalg::lsq::LsqError>(inner);
+            named::<&pncad::geom_core::spline::Built<pncad::geom_core::linalg::lsq::LsqError>>(
+                inner,
+            );
         }
         pncad::geom::FitError::KnotAlgebra(inner) => {
             named::<&pncad::geom_core::spline::Built<pncad::geom_core::spline::KnotAlgebraError>>(

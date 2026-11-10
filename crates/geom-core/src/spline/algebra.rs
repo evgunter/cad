@@ -2566,6 +2566,7 @@ mod tests {
             KnotAlgebraError::WeightCollapse { index: 2 },
             KnotAlgebraError::UnboundedAtEnclosure { index: 1 },
         ];
+        assert_eq!(arms.len(), 9, "an arm was added without a row here");
         for e in &arms {
             match e {
                 KnotAlgebraError::Structure(_)

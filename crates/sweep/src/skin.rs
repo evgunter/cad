@@ -521,6 +521,12 @@ impl core::fmt::Display for SkinError {
                  may be rounding alone (a constant sweep of exactly a full turn), and then \
                  {POINT_SCALAR_LEVER}"
             ),
+            Self::ParametersInvalid { params, sections } if params == sections => write!(
+                f,
+                "the skin's {params} parameters do not ascend strictly from exactly 0 to exactly \
+                 1, and it needs that of them. Recourse: supply that, or skin through the door \
+                 that parameterizes the sections itself"
+            ),
             Self::ParametersInvalid { params, sections } => write!(
                 f,
                 "the skin was given {params} parameters for {sections} sections, and it needs \
@@ -1095,19 +1101,23 @@ pub fn skin_on<T: SpanLocate>(
     v_degree: usize,
     params: &[T],
 ) -> Result<NurbsSurface<T>, SkinError> {
-    let ordered = params.len() == sections.len()
-        && params.first().and_then(|u| u.point_value()) == Some(0.0)
-        && params.last().and_then(|u| u.point_value()) == Some(1.0)
-        && params
-            .windows(2)
-            .all(|w| geom_core::structure_ascends(w[0], w[1]));
-    if !ordered {
-        return Err(SkinError::ParametersInvalid {
-            params: params.len(),
-            sections: sections.len(),
-        });
+    let k = sections.len();
+    if k < 2 {
+        return Err(SkinError::TooFewSections { have: k, need: 2 });
     }
+    check_parameters(params, k)?;
     skin_with(sections, v_degree, params)
+}
+
+/// The caller's parameterization of `sections` sections, checked by the
+/// fit's one rule ([`geom::curves::fit::check_parameterization`]).
+fn check_parameters<T: SpanLocate>(params: &[T], sections: usize) -> Result<(), SkinError> {
+    geom::curves::fit::check_parameterization(params, sections).map_err(|_| {
+        SkinError::ParametersInvalid {
+            params: params.len(),
+            sections,
+        }
+    })
 }
 
 /// [`skin_on`] past its check of the caller's parameters: the body
@@ -1473,8 +1483,10 @@ pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
 /// naming the disagreeing section and count,
 /// [`SkinError::SectionProfile`] for a section the profile door
 /// refuses, [`SkinError::EmptyProfile`] for one with no loops,
-/// [`SkinError::BadDegree`], and every refusal
-/// [`segment_curve`], [`make_compatible`] and [`skin_on`] carry.
+/// [`SkinError::BadDegree`], [`SkinError::ParametersInvalid`] for
+/// `params` that are not one per section, clamped `0 → 1` and strictly
+/// ascending, and every refusal [`segment_curve`], [`make_compatible`]
+/// and [`skin_on`] carry.
 pub fn loft_geometry<L: SectionLoop>(
     sections: &[Section<L>],
     places: &[SketchPlane<f64>],
@@ -1483,6 +1495,7 @@ pub fn loft_geometry<L: SectionLoop>(
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
     let (validated, _) = validate_loft(sections, places, v_degree, tol)?;
+    check_parameters(params, sections.len())?;
     let compat = compatible_strips(&validated, places)?;
     skin_strips(validated, compat, v_degree, params)
 }

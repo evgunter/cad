@@ -3,18 +3,22 @@
 # registered as one whose input its caller built. ONE home; ci.yml's
 # `lint` job runs every gate in this directory.
 #
-# THE RULE. `geom_core::spline::SplineError` and `KnotAlgebraError` end
-# on a recourse addressed to whoever supplied the spline or asked for
-# the knot edit. A holder whose input the kernel built (or adopted from
+# THE RULE. `geom_core::spline::SplineError` and `KnotAlgebraError`,
+# and the fitting stack's `geom::FitError` and `geom_core::linalg::lsq::
+# LsqError`, end on a recourse addressed to whoever supplied the input
+# or asked for the operation. A holder whose input the kernel built (or adopted from
 # a file) holds `geom_core::spline::Built<E>` instead, set at the
 # `map_err` of the kernel's own build: its `Display` is the refused fact
 # alone, so the caller-facing recourse cannot reach a user who never
 # wrote that input, and the holder ends it at its own door. A holder
-# that keeps the bare type passes its caller's own input back to that
-# caller, and says so with a row in the register below.
+# that keeps the bare type says with a row in the register below why
+# that recourse cannot reach a user who never wrote the input: its
+# caller built the input, or the holder renders its own sentence and
+# never the payload's text.
 #
 # WHAT THE MATCHER SEES, in production code with test modules skipped,
-# either type bare or through `spline::` or `geom_core::spline::`:
+# each type bare or through its module path (`spline::`,
+# `geom_core::spline::`, `geom::curves::fit::`, `geom_core::linalg::lsq::`):
 #  - a field on one line, `name: SplineError,`;
 #  - an element of a one-line tuple arm or tuple struct, alone or among
 #    others: `Name(SplineError),`, `Name(SplineError, usize),`,
@@ -31,7 +35,7 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 REGISTER=scripts/gates/spline-refusal-holders.counts
-TYPE_RE='((pncad::)?geom_core::)?(spline::)?(SplineError|KnotAlgebraError)'
+TYPE_RE='((pncad::)?(geom_core|geom)::)?((spline|curves|fit|linalg|lsq)::)*(SplineError|KnotAlgebraError|FitError|LsqError)'
 VIS_RE='(pub(\([a-z]+\))?[[:space:]]+)?'
 FIELD_RE="^[^:]*:[0-9]+:[[:space:]]*${VIS_RE}[a-z_][a-z0-9_]*:[[:space:]]*${TYPE_RE},\$"
 TUPLE_RE="[A-Z][A-Za-z0-9]*\\(([^()]*,[[:space:]]*)?${VIS_RE}${TYPE_RE}[[:space:]]*(,[^()]*)?\\)"
@@ -51,10 +55,10 @@ gate() {
   diff=$(diff <(printf '%s\n' "$live" | sed '/^$/d' | sort) <(printf '%s\n' "$want" | sed '/^$/d') || true)
   if [ -n "$diff" ]; then
     printf '%s\n' "$diff"
-    gate_error "bare spline-refusal holders differ from $REGISTER ('<' is the tree, '>' the register): hold geom_core::spline::Built where the kernel built the input, or register the holder with why its caller built it"
+    gate_error "bare spline-refusal holders differ from $REGISTER ('<' is the tree, '>' the register): hold geom_core::spline::Built where the kernel built the input, or register the holder with why the payload's caller recourse cannot reach the user"
     exit 1
   fi
-  gate_ok "every bare spline-refusal holder is registered as passing its caller's own input back"
+  gate_ok "every bare spline-layer or fitting-stack refusal holder is registered with why its payload's caller recourse cannot reach the user"
 }
 
 gate_plant_clean() {
