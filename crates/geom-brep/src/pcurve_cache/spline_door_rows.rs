@@ -368,7 +368,8 @@ fn a_row_shorter_than_its_edge_is_read_over_the_edge_at_interval() {
 /// the walk alone, on the chart and off it, and never panics.
 #[test]
 fn a_chart_too_narrow_for_its_foot_is_walked() {
-    let (lo, hi) = (1.0f64, 1.0 + 4.0 * f64::EPSILON);
+    let lo = 1.0f64;
+    let hi = (0..4).fold(lo, |x, _| x.next_up());
     let net = NurbsSurface::new(
         KnotVector::clamped(vec![lo, lo, hi, hi], 1).unwrap(),
         KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),

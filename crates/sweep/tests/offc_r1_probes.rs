@@ -141,7 +141,7 @@ fn assert_honest_reattach_refusal(r: &ReattachRefusal, d: f64) {
         );
     };
     assert!(
-        edge_read_off(&error, Some(geom::SurfaceKind::Approx), None),
+        edge_read_off(error, Some(geom::SurfaceKind::Approx), None),
         "below the threshold the residual DEFINITELY exceeds the band, and the re-attached \
          carrier is off the wall's fit by more than it, which the refused meter's incidence \
          read ends — got {error:?}"

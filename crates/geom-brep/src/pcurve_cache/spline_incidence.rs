@@ -452,7 +452,7 @@ impl<'a, T: Decide> Net<'a, T> {
                     .min_by(|(a, _), (b, _)| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)))
                     .map(|(_, cell)| {
                         let [u0, u1, v0, v1] = cell.rect;
-                        (u0 + (u1 - u0) * 0.5, v0 + (v1 - v0) * 0.5)
+                        (geom::bracket_mid((u0, u1)), geom::bracket_mid((v0, v1)))
                     })
             });
             if let Some(at) = start.and_then(|start| self.foot(q, start)) {
@@ -534,7 +534,7 @@ impl<'a, T: Decide> Net<'a, T> {
             match decide(FOOT, Margin::of(distance), band) {
                 Ok(Sign::Zero) => {
                     if let Some(hint) = hint.as_deref_mut() {
-                        *hint = Some((u0 + (u1 - u0) * 0.5, v0 + (v1 - v0) * 0.5));
+                        *hint = Some((geom::bracket_mid((u0, u1)), geom::bracket_mid((v0, v1))));
                     }
                     return Read::On;
                 }
@@ -802,14 +802,15 @@ fn shadow_box<T: SpanLocate>(control: &[Point3<T>]) -> ([f64; 3], [f64; 3]) {
     (lo, hi)
 }
 
-/// The rectangle `[u0, u1] × [v0, v1]` shrunk by a few roundings of its
-/// coordinates at each side, so a parameter held in it and computed into
-/// the scalar ([`Real::from_computed`]) stays on the patch. `None` where a
-/// side is too narrow to shrink: the foot is not read there.
+/// The rectangle `[u0, u1] × [v0, v1]` shrunk by two representable
+/// steps at each side, so a parameter held in it and computed into the
+/// scalar ([`Real::from_computed`], which widens it by at most a step)
+/// stays on the patch. `None` where a side is too narrow to shrink: the
+/// foot is not read there.
 fn inside(u0: f64, u1: f64, v0: f64, v1: f64) -> Option<[f64; 4]> {
     let shrink = |lo: f64, hi: f64| {
-        let d = 8.0 * UNIT_ROUNDOFF * lo.abs().max(hi.abs()).max(hi - lo);
-        (lo + d < hi - d).then_some((lo + d, hi - d))
+        let (a, b) = (lo.next_up().next_up(), hi.next_down().next_down());
+        (a < b).then_some((a, b))
     };
     let ((a, b), (c, d)) = (shrink(u0, u1)?, shrink(v0, v1)?);
     Some([a, b, c, d])

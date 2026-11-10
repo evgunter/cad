@@ -9597,13 +9597,13 @@ pub(crate) fn incidence_ended_unwitnessed<T: Decide, R, E>(
     })
 }
 
-/// Whether `certified` is shown to hold `asked`: both ends decided in
-/// exact order ([`Band::least`]). An order in band, as an enclosure
-/// straddling an end reads, is not shown.
+/// Whether `certified` is shown to hold `asked`: both ends read in exact
+/// order ([`geom_core::k_stats::param_order`]). An order that does not
+/// decide, as an enclosure straddling an end reads, is not shown.
 fn covers<T: Decide>((c0, c1): (T, T), (a0, a1): (T, T)) -> bool {
-    [a0 - c0, c1 - a1].into_iter().all(|gap| {
+    [(a0, c0), (c1, a1)].into_iter().all(|(s, t)| {
         matches!(
-            decide("pcurve_span_covered", Margin::of(gap), Band::least()),
+            geom_core::k_stats::param_order("pcurve_span_covered", s, t),
             Ok(Sign::Positive | Sign::Zero)
         )
     })
