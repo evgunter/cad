@@ -7,6 +7,7 @@ opened: 2026-11-10
 priority: P3
 cost: M
 closed: 2026-11-10
+pr: 6767
 ---
 
 
