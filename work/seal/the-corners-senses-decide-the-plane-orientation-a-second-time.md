@@ -6,7 +6,9 @@ status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
-closed: 2026-11-09
+closed: 2026-11-10
+pr: 6693
+parent: a-corner-reads-only-its-own-sectors
 ---
 
 
@@ -24,11 +26,9 @@ On a pair whose plane ladder already ran its orientation rung, this is a second 
 
 The ladder's rung reports the orientation it decided (it already rides in `CarrierVerdict::One::relation` and `CarrierEqError::Undecided::relation`). A corner reads it from there, or decides it once per corner and reuses it. Step 4 (`a-corner-reads-only-its-own-sectors`) rewrites these readers and should take this.
 
-## Closed (2026-11-09, step 4)
+## Closed (2026-11-10, step 4, PR 6693)
 
-Closed by `a-corner-reads-only-its-own-sectors`. No corner runs the plane ladder any more (`recl::require_same` and `vtxfac::unglued_flat_sector` no longer call `carrier_eq_reading`), so no orientation rung runs at a corner for `senses` to repeat.
+Closed by `a-corner-reads-only-its-own-sectors`. `plane_eq::senses` is deleted, and so is `GlueClass::of_senses`.
 
-- `recl` calls `plane_eq::senses` once per corner. Its second call, in the ladder's `Escalated` arm, went with the ladder.
-- `vtxfac` calls it on two exclusive branches, so once per corner.
-
-The glue door's ladder reads the orientation over the faces' consumed extent. `senses` reads it at the corner's arm, which is another lever and so another datum, not a second decision of the door's.
+- No corner runs the plane ladder any more.
+- No corner reads the pair's orientation either: carrier identity is the glue door's alone, and an unglued corner's refusal admits no class (`DeclarationRead::Moot`), so nothing reads the senses.

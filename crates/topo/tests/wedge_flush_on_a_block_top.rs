@@ -12,17 +12,14 @@
 //! off the wedge's plane by more than θ. So the glue door leaves the pair
 //! unglued (D10, Booleans: the sliver band refuses), and every op meets
 //! the pair at the wedge's corner, in `vtxfac`'s coplanar lump, where its
-//! bounds lie on the block's plane by `θ·sin φ`, Zero. At `|k| ≥ 1.2` the
-//! sector's tilt is in band at its reach; at `|k| = 0.5` it is Zero there
-//! too and the corner reads the pair one plane, its offset off the
-//! block's a rounding residue. Either way it refuses
-//! `Coincidence(Sectors)` quoting the bounds' margin, which is the one a
-//! smaller tolerance clears; where no tolerance a run admits decides it
-//! (at ε 1e-12, `θ·sin φ / K` lies below the floor at `k = ±0.5`), it
-//! refuses on the glue door's in-band reading instead; `offer_rows`' `thin_wedge_in_band_over_its_faces`
-//! and `flat_wedge_*` rows execute it, and
-//! `the_in_band_wedge_is_in_band_at_the_glue_door` shows the glue door's
-//! own offer would be false.
+//! bounds lie on the block's plane by `θ·sin φ`, Zero. Carrier identity is
+//! the glue door's alone, so the corner refuses on its own reading:
+//! `Coincidence(CornerBound)`, the steeper bound's first-order tie, which
+//! a smaller tolerance reads off the plane. Where no tolerance a run
+//! admits decides it (at ε 1e-12, `θ·sin φ / K` lies below the floor at
+//! `k = ±0.5`), it says so; the glue door's in-band reading, which binds
+//! nothing, is not quoted. `offer_rows`' `thin_wedge_in_band_over_its_faces`
+//! and `flat_wedge_*` rows execute the offer.
 //!
 //! `wedge_flush_review_probes.rs` holds the ignored battery over other
 //! openings, wedge lengths, blocks and tilts.
@@ -62,24 +59,19 @@ fn a_wedge_tilted_in_band_over_a_block_top_refuses_every_op_on_its_bounds_margin
             face_facing(&tool, facing),
             band,
         );
-        let door = match glue {
-            Ok(Err(PlaneEqError::Escalated {
-                rung: PlaneRung::Parallel,
-                diag,
-            })) => diag,
-            other => panic!("{label}: the glue door reads the pair's tilt in band: {other:?}"),
-        };
+        // The door reads the pair in band and glues nothing; the corner
+        // refuses on its own reading, never on the door's.
+        assert!(
+            matches!(
+                glue,
+                Ok(Err(PlaneEqError::Escalated {
+                    rung: PlaneRung::Parallel,
+                    ..
+                }))
+            ),
+            "{label}: the glue door reads the pair's tilt in band: {glue:?}"
+        );
         let bounds = theta.abs() * phi.sin();
-        // A tilt Zero at the arm reaches the carrier ladder, which reads
-        // the pair one plane: where no tolerance a run admits decides the
-        // bounds (their offer at or below the floor), the corner lies on
-        // the block's plane at every tolerance, and the refusal names the
-        // glue door's reading. A tilt in band refuses on the bounds first.
-        let binding = if k.abs() > 1.0 || band.offer_deciding(bounds).is_some() {
-            ("bool_sector_coplanar", bounds)
-        } else {
-            ("bool_plane_parallel", upper(door.margin))
-        };
         let ops = [
             ("A ∪ B", topo::union(&block, &tool, tol)),
             ("B ∪ A", topo::union(&tool, &block, tol)),
@@ -89,32 +81,35 @@ fn a_wedge_tilted_in_band_over_a_block_top_refuses_every_op_on_its_bounds_margin
             ("B ∖ A", topo::subtract(&tool, &block, tol)),
         ];
         for (op, out) in ops {
-            // Each admits the class the pair's senses make it
-            // (`Settles`); `recl`'s `unglued_tilt`, which quotes the
-            // bounds' predicate and margin, admits none.
             let Err(BooleanError::Escalated {
-                decision: BooleanDecision::Coincidence(which, DeclarationRead::Settles(_)),
+                decision: BooleanDecision::Coincidence(Coincide::CornerBound, DeclarationRead::Moot),
                 diag,
             }) = out
             else {
-                panic!("{label}, {op}: refuses on a coincidence: {out:?}");
+                panic!("{label}, {op}: refuses on the corner's own reading: {out:?}");
             };
-            let (predicate, margin) = binding;
-            let want = if predicate == "bool_sector_coplanar" {
-                Coincide::Sectors
-            } else {
-                Coincide::OnPlanes
-            };
-            assert_eq!(which, want, "{label}, {op}: the binding reading's question");
             assert_eq!(
                 diag.predicate,
-                Some(predicate),
-                "{label}, {op}: its predicate"
+                Some("bool_chord_side"),
+                "{label}, {op}: the steeper bound's first-order tie"
             );
+            // A Zero rejected by the gate either definite side passes.
+            assert_eq!(
+                diag.margin.rejected_sign(),
+                Some(geom_core::Sign::Zero),
+                "{label}, {op}: a Zero tie"
+            );
+            assert!(
+                format!("{:?}", diag.margin).contains("passes: NonZero"),
+                "{label}, {op}: either side passes: {:?}",
+                diag.margin
+            );
+            // The far vertex's coordinates round at the block's few metres,
+            // which at ε 1e-12 is a part in a hundred of the smallest rise.
             let m = upper(diag.margin).abs();
             assert!(
-                (m - margin).abs() <= 1e-3 * margin,
-                "{label}, {op}: quotes the binding margin {margin}, got {m}"
+                (m - bounds).abs() <= 1e-3 * bounds + 1e-15,
+                "{label}, {op}: quotes the bound's margin {bounds}, got {m}"
             );
         }
     }

@@ -750,11 +750,6 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // what [`crate::face_normal::face_plane`] reports as its normal
     // (it builds it from this very door),
     // which is what keeps the planar lane's arithmetic unmoved.
-    //
-    // `plane` itself survives only for Delta 2's planar carrier
-    // algebra, which needs an ORIGIN as well as a direction; the
-    // curved lane refuses there rather than building one (below).
-    let plane = plane_desc(pierced_body, contact.face);
     let unbuilt = || BooleanError::CurvedBooleanUnsupported {
         operand: pierced_op,
         face: contact.face,
@@ -1044,12 +1039,20 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let rel = match declared.glued_relation(piercing, s.face, pierced_op, contact.face) {
             Some(rel) => rel,
             None => {
+                let ends = [k, (k + 1) % n];
                 return Err(unglued_flat_sector(
                     (orbit_body, piercing, s),
                     (pierced_op, contact.face, pierced_kind),
-                    plane,
-                    n_pierced.vec(),
-                    declared,
+                    ends.map(|e| entries[e].on),
+                    || {
+                        let at = unread_bends
+                            .iter()
+                            .position(|(e, _)| ends.contains(e))
+                            .map(|at| unread_bends.swap_remove(at).1);
+                        at.unwrap_or(BooleanError::ClassificationInvariant {
+                            what: "a flat sector tied at both bounds with no reading of either",
+                        })
+                    },
                     band,
                 ));
             }
@@ -2833,16 +2836,12 @@ fn tie_breaks_after<T: Decide>(
 }
 
 /// **The refusal of a flat sector whose pair the glue door did not
-/// glue.** The tilt between the sector's normal and the pierced face's
-/// at `p`, levered at the sector's reach, proposes coplanarity. A tilt
-/// the bounds read On and the normals do not (in band, or decided off:
-/// a thin sector tilted about one bound rises at its arm by more than
-/// at its other bound) leaves the question undecided at this tolerance,
-/// and the margin that decides it is the bounds' own: a smaller
-/// tolerance reads the steeper bound off the plane and the sector with
-/// it. A tilt decided Zero, or bounds whose steeper departure decides
-/// off, refuse on the sector's own reading where the glue door read
-/// nothing of the pair ([`super::unglued_corner`]).
+/// glue.** Carrier identity is the glue door's alone, so the sector lies
+/// on the pierced face's plane by its bounds' first-order ties alone, and
+/// refuses on the steeper one's ([`super::unglued_corner`]): the reading
+/// a smaller tolerance reads off the plane first, and the sector with it.
+/// A bound whose bend read no side carries no tie; where neither does,
+/// the refusal is `unread`, that bend's.
 ///
 /// C8: a CURVED on-carrier sector is opened by the glue door's verdict
 /// and by nothing else. A tangency the witness lane verifies is glued
@@ -2860,61 +2859,37 @@ fn tie_breaks_after<T: Decide>(
 fn unglued_flat_sector<T: Decide>(
     (piercing_body, piercing, s): (&Body<T>, Operand, &BoolSector<T>),
     (pierced_op, pierced, pierced_kind): (Operand, crate::entity::FaceKey, geom::SurfaceKind),
-    plane: Option<super::plane_eq::PlaneDesc<T>>,
-    n_pierced: Vec3<T>,
-    declared: &super::GluedPairs<T>,
+    ties: [Option<super::sectors::OnReading>; 2],
+    unread: impl FnOnce() -> BooleanError,
     band: Band,
 ) -> BooleanError {
-    let pair = (piercing, s.face, pierced_op, pierced);
-    let m = Margin::levered(s.tangent().vec().cross(n_pierced).norm(), s.span());
-    let tilt = decide("bool_sector_coplanar", m, band);
-    if !matches!(tilt, Ok(Sign::Zero)) {
-        // The refusal names the one-carrier class the pair's senses make
-        // it against a planar pierced face, or none where it cannot read
-        // them. A decided tilt names no class: no glue settles it.
-        let decided_tilt = matches!(tilt, Ok(Sign::Positive | Sign::Negative));
-        let senses = (plane.is_some() && !decided_tilt)
-            .then(|| super::plane_eq::senses(s.tangent().vec(), n_pierced, s.arm, band))
-            .flatten();
-        return match s.bounds_off(n_pierced, band) {
-            Err(diag) => BooleanError::coincidence(
-                Coincide::Sectors,
-                super::sectors_read(declared, pair, senses),
-                diag,
-            ),
-            // Its bounds each read On at first order and their steeper
-            // departure decided off: refused as the coplanar corner's
-            // gate rejects it ([`super::unglued_corner`]).
-            Ok(off) => super::unglued_corner(declared, pair, senses, Ok(off), band),
+    let kind = piercing_body.proven_face(s.face).surface().kind();
+    if kind != geom::SurfaceKind::Plane {
+        return BooleanError::CurvedBooleanUnsupported {
+            operand: piercing,
+            face: s.face,
+            kind,
         };
     }
-    let curved = |body: &Body<T>, operand, face| {
-        let kind = body.proven_face(face).surface().kind();
-        BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        }
-    };
-    let Some(super::carrier_eq::CarrierDesc::Plane { .. }) =
-        super::carrier_pair::face_carrier(piercing_body, s.face)
-    else {
-        return curved(piercing_body, piercing, s.face);
-    };
-    if plane.is_none() {
+    if pierced_kind != geom::SurfaceKind::Plane {
         return BooleanError::CurvedBooleanUnsupported {
             operand: pierced_op,
             face: pierced,
             kind: pierced_kind,
         };
     }
-    super::unglued_corner(
-        declared,
-        pair,
-        super::plane_eq::senses(s.tangent().vec(), n_pierced, s.arm, band),
-        s.bounds_off(n_pierced, band),
-        band,
-    )
+    let steeper = match ties {
+        [Some(a), Some(b)] => Some(if a.decided.margin.binds_before(b.decided.margin) {
+            b
+        } else {
+            a
+        }),
+        [one, other] => one.or(other),
+    };
+    match steeper {
+        Some(tie) => super::unglued_corner(super::CornerOn::Tie(tie), band),
+        None => unread(),
+    }
 }
 
 /// On-edge resolution (module docs; the deliberate divergence), after
@@ -3423,6 +3398,7 @@ mod tests {
                     sign: geom_core::Sign::Zero,
                     margin: geom_core::MarginDiag::value(on_margin),
                 },
+                hidden: None,
             }),
             lumped: false,
         }

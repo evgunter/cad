@@ -76,17 +76,6 @@ impl GlueClass {
         }
     }
 
-    /// **The one-carrier class two faces' senses make them**, the one
-    /// place a sense is read as a class: the class whose
-    /// [`Self::carrier_relation`] it is. Two distinct carriers are
-    /// neither, and name no class.
-    pub(crate) fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
-        Self::ALL
-            .iter()
-            .copied()
-            .find(|class| class.carrier_relation() == Some(relation))
-    }
-
     /// The carrier relation a one-carrier class glues under: its
     /// [`Self::relation`] as the carrier ladder spells it. `None` for a
     /// tangency, whose carriers are distinct.

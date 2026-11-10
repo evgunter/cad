@@ -27,10 +27,4 @@ Where a refusal quotes the glue door's in-band reading, its recourse also names 
 
 PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. The two ops that met CLEAVE's volume-backstop refusal at the looser tolerance no longer meet it (CLEAVE's `a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`, closed), so all six may build there; not re-measured.
 
-## A second site of the shape: the corner's far bound decided off (2026-11-09, SEAL)
-
-SEAL's `a-corner-reads-only-its-own-sectors` ends an unglued pair whose corner reads its faces parallel at the near arm while the sector's far bound is decided off as `Coincidence(Sectors)`. The payload is the far bound's departure, as the corner's coplanar question's gate rejection (`k_stats::gate_rejection` under `SizedPass::Zero`, in `boolean::unglued_corner`). Its ending is the lever alone ("move the parts so they clearly meet or clearly stand apart there"), with no tolerance.
-
-A tolerance does clear that corner, but it is a *smaller* one, not a looser one: below the near arm's margin over K (`1 mm·θ/K` in the scene), `fan::meeting` decides the faces apart, the pair search no longer records a coincidence, and the corner is not reached. Not executed.
-
-The scene is `crates/topo/tests/a_corner_reads_only_its_own_sectors.rs`: a 1 mm and a 10 m bound, θ = 100ε. This row's owed offer would name the near arm's tolerance there.
+Evidence (2026-11-10, SEAL PR 6693): the glue door's in-band arm at the corner retired with that PR (`door_refusal`, `Glue::in_band`). An unglued corner now refuses on its own reading, `Coincidence(CornerCrossing)` or `Coincidence(CornerBound)`, which offers "tighten the tolerance below" where a run admits it. The refusal this row names, the door's in-band reading quoted at the corner, is no longer minted there.

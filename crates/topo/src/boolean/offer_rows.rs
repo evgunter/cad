@@ -223,71 +223,82 @@ cases! {
         line_drifting_off_a_walls_axis(D);
     endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
-    thin_wedge_on_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    thin_wedge_on_a_block: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
-    thin_wedge_cut_from_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    thin_wedge_cut_from_a_block: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Subtract, 5.0, D);
-    thin_wedge_meeting_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    thin_wedge_meeting_a_block: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Intersect, 5.0, D);
     // Tilted past the band at the arm, so the normals decide it off, while
     // its bounds still read On: the bounds' margin decides it.
-    thinner_wedge_tilted_past_the_band: "Coincidence(Sectors)", 1.5e-8 * sin_deg(2.0), Public,
+    thinner_wedge_tilted_past_the_band: "Coincidence(CornerBound)", 1.5e-8 * sin_deg(2.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 2.0, 1.5e-8);
     // Tilted in band over the two faces, so the glue door leaves the pair
     // unglued: the corner's bounds' margin, not the glue door's, is the
     // one a smaller tolerance clears.
-    thin_wedge_in_band_over_its_faces: "Coincidence(Sectors)", 2e-9 * sin_deg(5.0), Public,
+    thin_wedge_in_band_over_its_faces: "Coincidence(CornerBound)", 2e-9 * sin_deg(5.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
     // Tilted inside the zero band at its arm, so the corner reads the
     // pair one plane, and in band over the two faces at the glue door:
     // at every opening the bounds' margin is the one a smaller tolerance
     // clears, not the glue door's and not the corner's offset.
-    flat_wedge_at_2_degrees: "Coincidence(Sectors)", Z * sin_deg(2.0), Public, Valued =>
+    flat_wedge_at_2_degrees: "Coincidence(CornerBound)", Z * sin_deg(2.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 2.0, Z);
-    flat_wedge_at_5_degrees: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+    flat_wedge_at_5_degrees: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, Z);
-    flat_wedge_at_20_degrees: "Coincidence(Sectors)", Z * sin_deg(20.0), Public, Valued =>
+    flat_wedge_at_20_degrees: "Coincidence(CornerBound)", Z * sin_deg(20.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 20.0, Z);
-    flat_wedge_at_60_degrees: "Coincidence(Sectors)", Z * sin_deg(60.0), Public, Valued =>
+    flat_wedge_at_60_degrees: "Coincidence(CornerBound)", Z * sin_deg(60.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 60.0, Z);
-    flat_wedge_at_90_degrees: "Coincidence(Sectors)", Z * sin_deg(90.0), Public, Valued =>
+    flat_wedge_at_90_degrees: "Coincidence(CornerBound)", Z * sin_deg(90.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 90.0, Z);
-    flat_wedge_cut_from_a_block: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+    flat_wedge_cut_from_a_block: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Subtract, 5.0, Z);
-    flat_wedge_meeting_a_block: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+    flat_wedge_meeting_a_block: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Intersect, 5.0, Z);
+    // Tilted down off the block's top: the bound's tie is negative, and
+    // either definite side passes the corner.
+    flat_wedge_tilted_down_at_5_degrees: "Coincidence(CornerBound)", -Z * sin_deg(5.0), Public,
+        Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, -Z);
+    // A tool cornered on a block's corner, its top tilted off the block's
+    // so that the two faces read parallel at the tool's 1 mm arm and its
+    // 10 m edge stands far off: a pair the glue door did not glue refuses
+    // on the arm's tilt, and every op in both orders builds just below it.
+    tool_on_a_block_corner_tilted_at_its_arm: "Coincidence(CornerCrossing)", Z, Public,
+        Valued => tool_on_a_block_corner(Z);
     // Sunk into the block, its re-run meets the crossing insertion.
-    flat_wedge_sunk_at_5_degrees: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+    flat_wedge_sunk_at_5_degrees: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         sunk_wedge_in_a_block(5.0, Z);
-    flat_wedge_sunk_at_20_degrees: "Coincidence(Sectors)", Z * sin_deg(20.0), Public, Valued =>
+    flat_wedge_sunk_at_20_degrees: "Coincidence(CornerBound)", Z * sin_deg(20.0), Public, Valued =>
         sunk_wedge_in_a_block(20.0, Z);
     // The coincfr4 review's wedges (W1–W4), on its own poses: turned,
     // scaled, hanging from the bottom face, and tilted into the block,
     // each through the three public ops.
-    wedge_turned_on_a_block_union: "Coincidence(Sectors)", 2.0 * D * sin_deg(3.0), Public,
+    wedge_turned_on_a_block_union: "Coincidence(CornerBound)", 2.0 * D * sin_deg(3.0), Public,
         Valued => turned_wedge(0, true, 37.0, 3.0, 2.0, D);
-    wedge_turned_on_a_block_subtract: "Coincidence(Sectors)", 2.0 * D * sin_deg(3.0), Public,
+    wedge_turned_on_a_block_subtract: "Coincidence(CornerBound)", 2.0 * D * sin_deg(3.0), Public,
         Valued => turned_wedge(1, true, 37.0, 3.0, 2.0, D);
-    wedge_turned_on_a_block_intersect: "Coincidence(Sectors)", 2.0 * D * sin_deg(3.0), Public,
+    wedge_turned_on_a_block_intersect: "Coincidence(CornerBound)", 2.0 * D * sin_deg(3.0), Public,
         Valued => turned_wedge(2, true, 37.0, 3.0, 2.0, D);
-    small_wedge_on_a_block_union: "Coincidence(Sectors)", 0.5 * 5e-9 * sin_deg(8.0), Public,
+    small_wedge_on_a_block_union: "Coincidence(CornerBound)", 0.5 * 5e-9 * sin_deg(8.0), Public,
         Valued => turned_wedge(0, true, 120.0, 8.0, 0.5, 5e-9);
-    small_wedge_on_a_block_subtract: "Coincidence(Sectors)", 0.5 * 5e-9 * sin_deg(8.0), Public,
+    small_wedge_on_a_block_subtract: "Coincidence(CornerBound)", 0.5 * 5e-9 * sin_deg(8.0), Public,
         Valued => turned_wedge(1, true, 120.0, 8.0, 0.5, 5e-9);
-    small_wedge_on_a_block_intersect: "Coincidence(Sectors)", 0.5 * 5e-9 * sin_deg(8.0), Public,
+    small_wedge_on_a_block_intersect: "Coincidence(CornerBound)", 0.5 * 5e-9 * sin_deg(8.0), Public,
         Valued => turned_wedge(2, true, 120.0, 8.0, 0.5, 5e-9);
-    wedge_under_a_block_union: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    wedge_under_a_block_union: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         turned_wedge(0, false, 0.0, 5.0, 1.0, D);
-    wedge_under_a_block_subtract: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    wedge_under_a_block_subtract: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         turned_wedge(1, false, 0.0, 5.0, 1.0, D);
-    wedge_under_a_block_intersect: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    wedge_under_a_block_intersect: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         turned_wedge(2, false, 0.0, 5.0, 1.0, D);
     // Its re-run meets the crossing insertion, whose own offer is true.
-    wedge_tilted_into_a_block_union: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    wedge_tilted_into_a_block_union: "Coincidence(CornerBound)", -D * sin_deg(5.0), Public,
+        Valued =>
         turned_wedge(0, true, 200.0, 5.0, 1.0, -D);
-    wedge_tilted_into_a_block_subtract: "Coincidence(Sectors)", D * sin_deg(5.0), Public,
+    wedge_tilted_into_a_block_subtract: "Coincidence(CornerBound)", -D * sin_deg(5.0), Public,
         Valued => turned_wedge(1, true, 200.0, 5.0, 1.0, -D);
-    wedge_tilted_into_a_block_intersect: "Coincidence(Sectors)", D * sin_deg(5.0), Public,
+    wedge_tilted_into_a_block_intersect: "Coincidence(CornerBound)", -D * sin_deg(5.0), Public,
         Valued => turned_wedge(2, true, 200.0, 5.0, 1.0, -D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
@@ -391,7 +402,7 @@ cases! {
     // Overlapping plane flanks lie on one plane, which the corner then
     // refuses as a pair no glue door glued, on its own sector.
     flanks_along_a_short_arm: "Coincidence(FlankSense)", D, FLANK_SITE,
-        Withdrawn(Because::Refuses("Coincidence(Sectors)")) =>
+        Withdrawn(Because::Refuses("Coincidence(CornerBound)")) =>
         planar_flank_membership(false, false);
     // Declared `Rest`, the one face the door verified.
     flanks_along_a_short_arm_declared_rest: "Coincidence(FlankSense)", D, FLANK_SITE, Valued =>
@@ -801,6 +812,30 @@ fn wedge_on_a_block(
     .map(|_| ())
 }
 
+/// The generic pose of [`crate::test_support_fixtures::tool_on_a_block_corner`],
+/// its top tilted so the two faces' tilt at the corner's 1 mm arm is
+/// `margin`: every op in both orders, the first refusal.
+fn tool_on_a_block_corner(margin: f64) -> Result<(), BooleanError> {
+    use super::super::BooleanOp::{Intersect, Subtract, Union};
+    let tol = Tol::witness();
+    let theta = margin / 1e-3;
+    let (block, tool) = crate::test_support_fixtures::tool_on_a_block_corner(theta, 0.0, tol);
+    let (block, tool) = (finished("block", block, tol), finished("tool", tool, tol));
+    for op in [Intersect, Subtract, Union] {
+        for (a, b) in [(&block, &tool), (&tool, &block)] {
+            super::super::boolean_op_with(
+                op,
+                a,
+                b,
+                &super::super::BooleanInputs::default(),
+                super::super::SweepStrategy::Realized,
+                tol,
+            )?;
+        }
+    }
+    Ok(())
+}
+
 /// The union of a block and a wedge sunk half its height into the
 /// block's top, cornered on it as [`wedge_on_a_block`]'s.
 fn sunk_wedge_in_a_block(opening_deg: f64, tilt: f64) -> Result<(), BooleanError> {
@@ -834,7 +869,7 @@ fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::At
 }
 
 /// The wedge `thin_wedge_in_band_over_its_faces` raises, every op in
-/// both orders: the first outcome other than a `Coincidence(Sectors)`
+/// both orders: the first outcome other than a `Coincidence(CornerBound)`
 /// refusal, or that refusal where every op gives it.
 #[test]
 #[ignore = "a child row: the_in_band_wedge_is_in_band_at_the_glue_door runs it"]
@@ -862,8 +897,7 @@ fn wedge_in_band_every_op() {
         run(Subtract, &wedge, &block),
     ]
     .map(outcome);
-    let sectors =
-        |o: &Outcome| matches!(o, Outcome::Refused { key, .. } if key == "Coincidence(Sectors)");
+    let sectors = |o: &Outcome| matches!(o, Outcome::Refused { key, .. } if key == "Coincidence(CornerBound)");
     let first = outcomes
         .iter()
         .find(|o| !sectors(o))
@@ -920,7 +954,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
         .split_once("::")
         .map_or(module_path!(), |(_, m)| m);
     match run(&format!("{module}::wedge_in_band_every_op"), below) {
-        Outcome::Refused { key, .. } if key == "Coincidence(Sectors)" => {}
+        Outcome::Refused { key, .. } if key == "Coincidence(CornerBound)" => {}
         other => panic!("every op refuses at the corner at {below:e}: {other:?}"),
     }
 }
@@ -2470,6 +2504,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("fan.rs", "face_side_code", "Coincide::Sectors", 1),
     ("fan.rs", "fan_within_signs", "Coincide::Sectors", 1),
     ("fan.rs", "fans_overlap", "Coincide::Sectors", 1),
+    ("fan.rs", "meeting", "Coincide::CornerCrossing", 1),
     ("fan.rs", "meeting", "Coincide::Sectors", 1),
     ("fan.rs", "nappe_classes", "Coincide::Sectors", 1),
     ("fan.rs", "one_cone", "Coincide::Sectors", 1),
@@ -2529,9 +2564,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "segment_arm", "Coincide::Section", 1),
     ("join.rs", "stands_on", "Coincide::Sectors", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
-    ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
-    ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
-    ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
+    ("mod.rs", "unglued_corner", "Coincide::CornerBound", 1),
     ("mod.rs", "off_ring_torus", "BooleanDecision::Torus", 1),
     ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
@@ -2904,7 +2937,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ConicBend",
         1,
     ),
-    ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
         "read_vertex_on_face",
@@ -2985,7 +3017,7 @@ lever_rows! {
     // decides and the coplanar pair, which no glue door glued here,
     // refuses next on its own sector, whose own story is the
     // declaration, which passes.
-    overlapping_flanks_lengthened: Some("Coincidence(Sectors)") =>
+    overlapping_flanks_lengthened: Some("Coincidence(CornerBound)") =>
         planar_flank_membership_at(false, false, 1e-3);
     overlapping_flanks_lengthened_declared_rest: None =>
         planar_flank_membership_at(false, true, 1e-3);

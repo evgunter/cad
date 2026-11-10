@@ -335,11 +335,12 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     }
 }
 
-/// **`same_door` matches a gate's rejection by its decided margin.** Two
+/// **`same_door` matches a gate's rejection by its whole reading.** Two
 /// rejections of one sign whose margins lie within the zero band of each
-/// other are one door; a band-width apart, two.
+/// other are one door; a band-width apart, two; and two whose gates pass
+/// different signs are two, whatever their margins.
 #[test]
-fn same_door_tells_a_rejected_sign_from_another() {
+fn same_door_matches_a_rejection_by_its_reading() {
     use geom_core::{Decided, MarginDiag, SizedPass, k_stats::gate_rejection};
     let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
     let refusal = |sign: geom_core::Sign, m: f64| {
@@ -379,6 +380,25 @@ fn same_door_tells_a_rejected_sign_from_another() {
             &refusal(zero, 0.2 * band.zero())
         ),
         "two rejected zeros within the zero band of each other are one door"
+    );
+    let passing = |passes| BooleanError::Escalated {
+        decision: topo::BooleanDecision::Coincidence(
+            topo::Coincide::Sectors,
+            topo::DeclarationRead::Moot,
+        ),
+        diag: gate_rejection(
+            "bool_sector_coplanar",
+            Decided {
+                sign: zero,
+                margin: MarginDiag::value(0.5 * band.zero()),
+            },
+            band,
+            passes,
+        ),
+    };
+    assert!(
+        !same_door(&passing(SizedPass::NonZero), &passing(SizedPass::Positive)),
+        "two gates rejecting one Zero that pass different signs are two doors"
     );
 }
 

@@ -19,10 +19,9 @@
 //! pairs that do.
 //!
 //! A pair whose one-carrier coincidence does not decide (in band, or
-//! poisoned) is left to the stage that meets it, which refuses it there:
-//! two faces whose carriers do not decide one may never touch. The door
-//! keeps what it read of each such pair ([`Glue::in_band`]), for a
-//! corner that meets the pair to quote where that reading binds.
+//! poisoned) is left to the stage that meets it, which refuses it there
+//! on its own reading: two faces whose carriers do not decide one may
+//! never touch.
 
 use std::borrow::Cow;
 
@@ -30,8 +29,8 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, CarrierVerdict, DeclarationRead, Glue, GluedPair, InBandPair, Operand,
-    PairUnread, TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
+    BooleanError, CarrierVerdict, DeclarationRead, Glue, GluedPair, Operand, PairUnread,
+    TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
 use crate::entity::FaceKey;
@@ -59,10 +58,9 @@ pub(crate) fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
 }
 
 /// `decls` with every undeclared pair the operation decides one carrier
-/// added under its class, and every pair it reads in band added to
-/// [`Glue::in_band`] with that reading, each in A's face order and B's
-/// within each. `decls` itself comes back where neither adds anything,
-/// and an owned copy where either does, an in-band pair alone included.
+/// added under its class, in A's face order and B's within each. `decls`
+/// itself comes back where none is added, and an owned copy where one
+/// is.
 ///
 /// # Errors
 ///
@@ -78,7 +76,7 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
         return Ok(Cow::Borrowed(decls));
     }
     let declared = |fa, fb| decls.pairs.iter().any(|d| d.a == fa && d.b == fb);
-    let (mut found, mut in_band) = (Vec::new(), Vec::new());
+    let mut found = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
         if declared(fa, fb) {
             continue;
@@ -91,25 +89,17 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
             | Err(PairUnread::OutsideInventory) => {
                 tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency))
             }
-            Ok(Err(reading)) => {
-                in_band.push(InBandPair {
-                    a: fa,
-                    b: fb,
-                    reading,
-                });
-                None
-            }
-            // Unread, like in band: left to the stage that meets the pair (module doc).
-            Err(PairUnread::Extent(_)) => None,
+            // In band, or unread: left to the stage that meets the pair
+            // (module doc).
+            Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
         };
         found.extend(glued);
     }
-    if found.is_empty() && in_band.is_empty() {
+    if found.is_empty() {
         return Ok(Cow::Borrowed(decls));
     }
     let mut out = decls.clone();
     out.pairs.extend(found);
-    out.in_band.extend(in_band);
     Ok(Cow::Owned(out))
 }
 

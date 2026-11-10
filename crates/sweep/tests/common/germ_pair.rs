@@ -101,9 +101,10 @@ pub fn seams_off_the_pinch(h: f64, phi: f64) -> (Body<f64>, Body<f64>) {
 /// rejection of a decided sign, such as a corner's far bound read off
 /// the plane its near arm lies on): each pose reads it off its own
 /// coordinates, so the twins' margins agree to within the zero band
-/// rather than bit for bit. The decided sign is matched first: a
-/// rejection of another sign, or a margin a band-width away, is another
-/// door.
+/// rather than bit for bit. Everything else of the reading is matched
+/// exactly: the decision, the predicate, the band, whether it is a
+/// terminal sliver, and the gate's tag (the sign it rejected and the
+/// signs it passes); a margin a band-width away is another door.
 pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
     use geom_brep::recourse::Refused;
     use geom_core::{ErrorTextReading, MarginDiag};
@@ -120,6 +121,15 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
             ErrorTextReading::Enclosure { lo: l2, hi: h2 },
         ) => (l1 - l2).abs() <= zero && (h1 - h2).abs() <= zero,
         _ => false,
+    };
+    // The gate's tag as the margin's `Debug` spells it: the sign it
+    // rejected and the signs it passes, which no accessor reads whole.
+    let rejection = |m: MarginDiag| {
+        let text = format!("{m:?}");
+        text.find("Rejection {").map(|at| {
+            let tail = &text[at..];
+            tail[..tail.find('}').map_or(tail.len(), |end| end + 1)].to_owned()
+        })
     };
     match (a, b) {
         (
@@ -142,7 +152,9 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
         ) if x.margin.rejected_sign().is_some() => {
             da == db
                 && x.predicate == y.predicate
-                && x.margin.rejected_sign() == y.margin.rejected_sign()
+                && x.band == y.band
+                && x.terminal_sliver == y.terminal_sliver
+                && rejection(x.margin) == rejection(y.margin)
                 && near(x.margin, y.margin)
         }
         _ => format!("{a:?}") == format!("{b:?}"),

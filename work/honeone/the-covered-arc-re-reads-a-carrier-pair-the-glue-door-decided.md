@@ -14,7 +14,7 @@ Found by SEAL's `a-corner-reads-only-its-own-sectors` sweep (corner and vertex s
 
 ## What
 
-`reduce::parents_distinct_from` (`crates/topo/src/boolean/reduce.rs`) gates the covered-arc `LiesOn` lane on every parent face of the arc's edge reading `CarrierRelation::Distinct` against the other operand's face. It reads that through `carrier_pair::carrier_pair_relation`, which is `carrier_pair_decided` over `pair_extent`: the call the glue door makes for the same cross-operand pair (`glue.rs`, `carrier_pair_decided(a, fa, b, fb, band)`).
+`reduce::parents_distinct_from` (`crates/topo/src/boolean/reduce.rs:4067`, called at `reduce.rs:2301`) gates the covered-arc `LiesOn` lane on every parent face of the arc's edge reading `CarrierRelation::Distinct` against the other operand's face. It reads that through `carrier_pair::carrier_pair_relation` (`reduce.rs:4081`). That is `carrier_pair_decided` over `pair_extent` (`crates/topo/src/boolean/carrier_pair.rs:254`, `:278`, `:287`): the call the glue door makes for the same cross-operand pair (`crates/topo/src/boolean/glue.rs:84`).
 
 So where the door read the pair, this is a second decision of one row on one extent. The door keeps no table of its `Apart` pairs (fork `glue-disagreements-carry`: no reader needed one), so the reader decides it again, and each decision is logged.
 

@@ -1,12 +1,12 @@
 ---
 id: a-corner-reads-only-its-own-sectors
 kind: unit
-title: a corner meeting an unglued pair reads only its own sectors: no carrier re-read, unglued_coincidence and unglued_tilt retire, an off far bound ends Coincide::Sectors
+title: a corner reads only a glued pair as one surface; an unglued pair that reaches its coplanar branch refuses on the corner's own reading (CornerCrossing at a vertex pair's arm, CornerBound on a bound's tie)
 status: closed
 opened: 2026-11-09
 priority: P1
 cost: M
-closed: 2026-11-09
+closed: 2026-11-10
 pr: 6693
 parent: glue-disagreements-and-held-contradictions-after-stage-4
 ---
@@ -16,20 +16,35 @@ Step 4 of the parent's design (fork `glue-disagreements-carry`, 2026-11-09). Ste
 
 ## What
 
-Today a corner that meets a pair the glue door did not glue re-reads the carrier pair over its own arm: `carrier_eq_reading` in recl.rs and vtxfac.rs. `unglued_tilt` then decides `bool_plane_parallel` a third time. All of it serves only to build a refusal, and C22 (`unglued_coincidence`) is that refusal.
+A corner that meets a pair the glue door did not glue re-reads the carrier pair over its own arm (`carrier_eq_reading` in `recl.rs` and `vtxfac.rs`), and `unglued_tilt` decides `bool_plane_parallel` a third time. All of it serves only to build a refusal, and C22 (`unglued_coincidence`) is that refusal.
 
-- **`recl` and `vtxfac` stop calling the carrier ladder.** These go with it: `unglued_coincidence`, `unglued_tilt` and both "ON sector with definitely-distinct carriers" invariants.
-- **The glue door keeps no verdict table.** No corner branches on the door's Apart; it would feed only wording.
-- **Precedence, as today (`unglued_corner`):**
-  1. the bounds' reading, where it offers a tolerance (`Coincide::Sectors`);
-  2. else the door's in-band reading (`door_refusal`);
-  3. else the sector's own funnel reading.
-- **The open case: `ReadOn::Faces`.** The near arm meets within band (`fan::meeting`'s `bool_faces_parallel` decided Zero at the shorter arm), while `bounds_off` decides the far bound off.
-  - These are two readings of the sector over two extents. The case is reachable on valid input: a 1 mm and a 10 m bound tilted by θ with 1 mm·θ < ε and 10 m·θ > Kε.
-  - It ends `Coincide::Sectors` with `Off(Decided)` (the far bound's departure), told by the Sectors lever.
-  - `gate_rejection` is not available here: `Sectors` passes `AnySign`, so the door's `unreachable!` would fire.
-- **`ReadOn::FirstBounds`** reads one quantity twice (`BoundSupport::departure`). It ends the same way, retiring its `ClassificationInvariant`, unless a probe shows the two reads cannot disagree.
-- topo README C4's sentence "An unglued pair is read at a corner by the ladder over the corner's own arm, where every verdict but `Distinct` refuses" retires with the code. It is agent text (`c7571919b0`, PR 6079) with no ratification found.
+- **Carrier identity is the glue door's alone.** A corner reads a glued pair's record. An unglued Zero never opens the coplanar branch; it is a refusal.
+- **Retired:**
+  - the carrier re-read in `recl` and `vtxfac`;
+  - C22, `unglued_tilt` and `ReadOn`;
+  - the "definitely-distinct" and "departs definitely" invariants, which become unrepresentable;
+  - DR-245's three-step precedence, and with it the door's in-band arm (`door_refusal`, `Glue::in_band`, `InBandPair`).
+- **Vertex pairs** (the old `ReadOn::Faces`): the corner refuses at `fan::meeting`'s own reading, the tilt at its arm, under a new Positive-only `Coincide` row.
+- **A corner lying on a plane face by its bounds** (the old `ReadOn::FirstBounds`, and `vtxfac`'s flat sector): the corner refuses on the reading that put it there, carried from where it was read.
+- **README C4:** the sentence "An unglued pair is read at a corner by the ladder over the corner's own arm, where every verdict but `Distinct` refuses" is replaced by the design's. It is agent text (`c7571919b0`, PR 6079), with no ratification found.
+
+## Design (fork `unglued-corner-ending`, 2026-11-10)
+
+The review of PR 6693 falsified the orchestrator's ruling (b), a gate rejection of the far bound under `SizedPass::Zero`. The corner does not pass Zero: at an unglued corner a Zero refuses too, so that tag was chosen only to get past `gate_rejection`'s `unreachable!`, and a mutant to `SizedPass::Negative` survived every row. It also re-gated a margin `bounds_off`'s NonZero gate had admitted, and it quoted the far bound with no offer, although tightening is measured to build.
+
+Two designers (Fable A, Opus B) converged in round 2 on B's position, with no question for Ev:
+
+1. **Carrier identity is the glue door's alone.** A corner reads a glued pair's record. For planes, `Meeting::Coincident` opens only from a glued pair's record. An unglued Zero never authorizes a coplanar lump: the lump speaks for the full spans (DESIGN `[tolerance.epsilon]`), while an unglued Zero is a refusal acting over no extent. No `Off(Decided)` on the far bound.
+2. **The vertex-pair path.**
+   - The corner's question is whether these faces cross resolvably within this corner, read on `fan::meeting`'s `bool_faces_parallel` tilt at the corner's arm. The arm lever stays.
+   - Only Positive passes. An unglued Zero ends as `k_stats::gate_rejection("bool_faces_parallel", <that Decided Zero>, band, SizedPass::Positive)`, under a new `Coincide` row that passes only Positive.
+   - It carries the reading as read (θ·arm), offers "tighten below θ·arm/K" beside the lever, and is the same in both operand orders.
+3. **The bounds path, and `vtxfac`.**
+   - The refusal is the reading that put the sector on the coplanar branch: the steeper bound's tie, carried from where it was read. It is never re-read through `bounds_off`.
+   - A rejected Zero passes on the same rule. A tie read under a cone's slack ends as that in-band reading.
+   - `vtxfac`'s tilt at the span goes too.
+4. **The door's in-band arm never binds.** Whenever the corner reads a decided Zero, the tolerance it offers also decides the door's in-band margin apart, since Kε′ < θ·arm ≤ ε < the door's margin. DR-245's three steps collapse to the one rule.
+5. **The pose still refuses at the default ε.** Making it answer is SECTOR's P3 `a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
 
 ## To probe before filing anything
 
@@ -40,29 +55,41 @@ Today a corner that meets a pair the glue door did not glue re-reads the carrier
 
 No corner reads a carrier pair. Both `ReadOn` arms end on the sector's own reading, pinned by a scene of the 1 mm / 10 m shape.
 
-## Closed (2026-11-09)
+## Closed (2026-11-10)
 
-No corner reads a carrier pair. `recl::require_same` and `vtxfac::unglued_flat_sector` no longer call `carrier_eq_reading`. An unglued pair at a corner refuses through `boolean::unglued_corner` on its first sector's own bounds (`BoolSector::bounds_off` against the other sector's tangent plane), with the precedence unchanged:
-1. the bounds' reading where it offers a tolerance;
-2. else the glue door's in-band reading;
-3. else the bounds' reading as it stands.
+Built to the fork `unglued-corner-ending` design (PR 6693). The PR body has the per-site table, each ending before and after.
 
-Every arm is `Coincidence(Sectors)`. A far bound decided off is the corner's coplanar question's gate rejection: `k_stats::gate_rejection("bool_sector_coplanar", off, band, SizedPass::Zero)`, logged, `rejected_sign() = Positive`, read `Moot`, ending in the Sectors lever alone. The PR body has the per-site table, each ending before and after.
+**Carrier identity is the glue door's alone.** No corner reads a carrier pair: `recl::require_same` and `vtxfac::unglued_flat_sector` no longer call `carrier_eq_reading`.
 
-- **Gone:**
-  - `unglued_coincidence` (C22, `carrier_unglued_coincidence`);
-  - `unglued_tilt`;
-  - `ReadOn` (both arms now end the same way);
-  - the three "definitely-distinct" invariants (two in `recl`, one in `vtxfac`);
-  - both "a sector bound read On departs definitely from the (other's) plane" invariants (`recl`'s FirstBounds one, and `vtxfac`'s decided-tilt one, which ends the same way);
-  - the corner's plane-ladder `Escalated`, `Undecided` and `OffRing` arms;
-  - the offer rows `planes_facing_at_a_short_arm` and `facing_planes_lengthened`, whose `PlaneOrientation` question no corner asks any more.
-- **Premise correction:** "`gate_rejection` is not available here" was premised on Sectors' `AnySign`. The corner's own question passes only a Zero (`SizedPass::Zero`), so a far bound decided off is a rejection of it, and the door's `unreachable!` cannot fire. The tag's pass set (`Zero`) is the corner's, and the table's (`AnySign`) is the question's. Under `AnySign` a margin past the band ends in the lever with no tolerance (ruling (b) on the fork's residue).
-- **Probes:**
-  - **The 1 mm / 10 m scene** (`tests/a_corner_reads_only_its_own_sectors.rs`, θ = 100ε) reaches the `Faces` arm through the public union: arm 1e-3, span 10, `bounds_off = Ok(Positive, 10θ)`. On main it ended C22 with margin `0.0`. It is pinned at ε 1e-9 and 1e-12.
-  - **Probe 1** (`Faces` with the far bound in band): on chord bounds the corner is not reached. The vertex-on-face sweep refuses the far vertex first, on the same 10θ. Followed to that offer's tolerance, the op refuses at the glue door or the containment walk, not at the corner. Curved and bisector far bounds were not probed.
-  - **Probe 2** (fold step): an n-ary union of A, B and a far brick, in three member orders, refuses at the pairwise judgement of (A, B) with C22 (main) before any step runs. No step's corner reaches the arm on this shape.
-  - **Probe 3** (FirstBounds): the edge-sector flankers read their bounds on the run band (`flank_read`, `pair_codes`), the same departure `bounds_off` takes, so two tied bounds cannot decide off as their max. The edge-edge path reads a representative on the line cone's reading, which can carry a slack. `recl`'s `a_sheets_side_decided_within_the_cones_tie_is_the_corners` shows it: dipped 1.5·zero inside a 1.8·zero slack, the flank reads On, and the corner's own bound decides off. That row now pins the gate rejection.
-- **No tolerance offered:** the ending offers none, though a smaller tolerance (below the near arm's margin over K) clears the corner. That is recorded as evidence on `work/flushtail/a-door-refusal-with-no-offer-hides-the-looser-tolerance-that-glues`.
-- **Closed into this row:** `decided-coincidence-carries-a-synthetic-invalid-margin` (claimed from TWICE) and `the-corners-senses-decide-the-plane-orientation-a-second-time`.
-- **Filed (HONEONE):** `a-crossing-germ-re-decides-the-faces-parallelism-the-fan-decided` and `the-covered-arc-re-reads-a-carrier-pair-the-glue-door-decided`.
+**Vertex pairs** (`fan::meeting`):
+- Two plane faces parallel at the corner's arm open the coplanar branch only for a pair the glue door glued.
+- Unglued, the corner refuses on that reading: `Coincide::CornerCrossing`, the `bool_faces_parallel` Zero rejected by `gate_rejection(.., SizedPass::Positive)`. It carries θ·arm and offers θ·arm/K, the same in both operand orders.
+- A curved face keeps C8's frontier refusal.
+
+**A corner lying on a plane face by its bounds** (recl's flanks and line cones, vtxfac's flat sector):
+- It refuses on the reading that put it there, carried from where it was read: the flank's tie (`FlankKey::tie`), the representative's reading (`sectors::given_side_read`), and the steeper of the flat sector's two ties.
+- The refusal is `Coincide::CornerBound` (`boolean::unglued_corner`, which either definite side passes). A Zero tie is the nonzero gate's rejection. A slack's tie is the slack's own reading: the moved reading in band, or the band's reading and the slack's straddling the band (`bool_corner_side_slack_straddle`).
+- `bounds_off` is deleted.
+
+**Retired:**
+- C22 (`unglued_coincidence`), `unglued_tilt`, `ReadOn`, and the three "definitely-distinct" and two "departs definitely" invariants;
+- DR-245's precedence, with the glue door's in-band arm (`door_refusal`, `Glue::in_band`, `InBandPair`);
+- the cross-operand plane door (`PlaneDoor`) and what only it minted: `Coincide::OnPlanes`, `Coincide::Carriers`, `BooleanDecision::PlaneOrientation`, `undecided_coincidence`, `plane_eq::senses` and `GlueClass::of_senses`.
+
+**Probes:**
+- **The 1 mm / 10 m scene** reaches the vertex-pair corner through the public union. On main it ended C22 with margin `0.0`. It now ends `CornerCrossing` on θ·1 mm.
+- **The bounds' in-band offer on the `Faces` path:** on chord bounds the vertex-on-face sweep refuses the far vertex first, on the same margin, so no second corner refusal follows. Curved and bisector far bounds were not probed.
+- **The fold step:** an n-ary union of the scene and a far brick, in three member orders, refuses at the pairwise judgement before any step runs.
+- **The edge-edge path:** two reads of one bound disagree. `recl`'s `a_sheets_side_decided_within_the_cones_tie_is_the_corners` shows it: the line cone's slack reads the flank On while the band decides it. The row now pins the slack's straddle.
+
+**The door's in-band arm never binds.**
+- With `door_refusal` gone, the in-band wedge rows still refuse at the corner, and their offers execute (`offer_rows`' `thin_wedge_in_band_over_its_faces`, `the_in_band_wedge_is_in_band_at_the_glue_door`).
+- At ε 1e-12, where the corner's offer falls below the floor, the corner says so; the door offers none either.
+
+**Following the offer:** the designers' generic pose builds in all six runs just under the offer, and the hinged pose meets `bool_contact_edge` there (`the_corners_offer_executes`).
+
+**Closed into this row:** `decided-coincidence-carries-a-synthetic-invalid-margin` (from TWICE) and `the-corners-senses-decide-the-plane-orientation-a-second-time`.
+
+**Filed (HONEONE):** `a-crossing-germ-re-decides-the-faces-parallelism-the-fan-decided` and `the-covered-arc-re-reads-a-carrier-pair-the-glue-door-decided`.
+
+**Evidence added:** to SECTOR's P3 row (the span lever's measurement) and to FLUSHTAIL's door-offer row.

@@ -2577,6 +2577,7 @@ fn fan_germ_dir<T: Decide>(
     let super::fan::Meeting::Rays(rays) = super::fan::meeting(
         (super::Operand::A, Some((a_body, a_vertex)), sa),
         (super::Operand::B, Some((b_body, b_vertex)), sb),
+        false,
         band,
     )?
     else {

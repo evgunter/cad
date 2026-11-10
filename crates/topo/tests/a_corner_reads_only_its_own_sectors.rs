@@ -1,25 +1,43 @@
-//! **A corner meeting an unglued pair reads only its own sector.**
+//! **A corner reads only a glued pair as one surface.** Two plane faces
+//! meeting at a shared vertex, which the glue door did not glue, read
+//! parallel at the corner's arm (`bool_faces_parallel`, the normals'
+//! cross levered at the shorter of the two corners' arms) refuse there:
+//! `Coincidence(CornerCrossing)`, the Zero rejected by the question that
+//! only a definite tilt passes, its margin `θ·arm` and its offer the
+//! tolerance that decides that tilt. An unglued Zero acts over no extent,
+//! and a coplanar lump would speak for both faces' whole spans: here a
+//! far bound stands hundreds of bands off the other plane.
 //!
-//! A parallelepiped `A` holds a 1 mm and a 10 m edge on its bottom face
-//! at the origin; a unit parallelepiped `B` below it is cornered there,
-//! its top face tilted by `θ = 100·ε`. At the corner the two faces read
-//! parallel at the shorter arm (`1 mm·θ = ε/10`, Zero), so the pair search
-//! records a coincidence, while `A`'s 10 m bound stands `10 m·θ` off
-//! `B`'s plane, decided. The glue door reads the faces apart over their
-//! extent and glues nothing, so the corner refuses on the sector's own
-//! reading: `Coincidence(Sectors)`, the far bound's departure rejected
-//! by the corner's coplanar question (which goes on only on Zero), with
-//! the lever alone.
+//! The poses: the designers' tool on a block's corner
+//! (`test_support::tool_on_a_block_corner`, its corner's arm 1 mm),
+//! generic and hinged along `b`, and a parallelepiped with a 1 mm and a
+//! 10 m edge on its bottom cornered on a unit one below it.
 
 #![allow(clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, ErrorTextReading, Point3, Sign, Tol, Vec3};
-use topo::test_support::{finished, mapped_cube};
-use topo::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
+use test_utils::offer::{Outcome, report, run};
+use topo::test_support::{HINGED_ALONG_B, finished, mapped_cube, tool_on_a_block_corner};
+use topo::{AtRestBody, BooleanDecision, BooleanError, Coincide, DeclarationRead};
 
-/// `A` and `B`, `B`'s top face dipping `θ·(ta·x + tb·y)` and spanning
-/// the directions `b0`° to `b1`° about the origin.
-fn scene(theta: f64, (ta, tb): (f64, f64), (b0, b1): (f64, f64), tol: Tol) -> [topo::Body<f64>; 2] {
+/// The corner's arm in every pose here: 1 mm.
+const ARM: f64 = 1e-3;
+
+/// The tool on the block's corner at tilt `theta`, finished.
+fn corner_pose(theta: f64, psi: f64, tol: Tol) -> [AtRestBody<f64>; 2] {
+    let (block, tool) = tool_on_a_block_corner(theta, psi, tol);
+    [finished("block", block, tol), finished("tool", tool, tol)]
+}
+
+/// `A`, a parallelepiped with a 10 m and a 1 mm edge on its bottom at the
+/// origin, and `B`, a unit one below it cornered there, its top dipping
+/// `θ·(ta·x + tb·y)` and spanning the directions `b0`° to `b1`°.
+fn needle_on_a_corner(
+    theta: f64,
+    (ta, tb): (f64, f64),
+    (b0, b1): (f64, f64),
+    tol: Tol,
+) -> [AtRestBody<f64>; 2] {
     let o = Point3::new(0.0, 0.0, 0.0);
     let a = mapped_cube(
         |u, v, w| {
@@ -38,64 +56,184 @@ fn scene(theta: f64, (ta, tb): (f64, f64), (b0, b1): (f64, f64), tol: Tol) -> [t
         move |s, t, w| o + v * s + u * t + Vec3::new(0.0, 0.0, -1.0) * w,
         tol,
     );
-    [a, b]
+    [finished("A", a, tol), finished("B", b, tol)]
+}
+
+/// One run of an op on the pair.
+type Run = (&'static str, Result<topo::BooleanResult<f64>, BooleanError>);
+
+/// The six runs: each op in both operand orders.
+fn six([a, b]: &[AtRestBody<f64>; 2], tol: Tol) -> [Run; 6] {
+    [
+        ("A ∩ B", topo::intersect(a, b, tol)),
+        ("B ∩ A", topo::intersect(b, a, tol)),
+        ("A ∖ B", topo::subtract(a, b, tol)),
+        ("B ∖ A", topo::subtract(b, a, tol)),
+        ("A ∪ B", topo::union(a, b, tol)),
+        ("B ∪ A", topo::union(b, a, tol)),
+    ]
+}
+
+/// Asserts `out` is the corner's crossing refusal at `margin`, offering
+/// `margin/K`.
+fn assert_corner_crossing(
+    label: &str,
+    out: &Result<topo::BooleanResult<f64>, BooleanError>,
+    margin: f64,
+    band: Band,
+) {
+    let Err(err @ BooleanError::Escalated { decision, diag }) = out else {
+        panic!("{label}: refuses on an escalation: {out:?}");
+    };
+    assert_eq!(
+        *decision,
+        BooleanDecision::Coincidence(Coincide::CornerCrossing, DeclarationRead::Moot),
+        "{label}: the corner's crossing question: {diag:?}"
+    );
+    assert_eq!(
+        diag.predicate,
+        Some("bool_faces_parallel"),
+        "{label}: the tilt at the arm"
+    );
+    assert_eq!(
+        diag.margin.rejected_sign(),
+        Some(Sign::Zero),
+        "{label}: a Zero, rejected"
+    );
+    assert!(
+        format!("{:?}", diag.margin).contains("passes: Positive"),
+        "{label}: rejected by the question only a definite tilt passes: {:?}",
+        diag.margin
+    );
+    let ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text() else {
+        panic!("{label}: a value margin: {diag:?}");
+    };
+    assert!(
+        (m - margin).abs() <= 1e-6 * margin,
+        "{label}: the tilt levered at the arm, {margin:e}, got {m:e}"
+    );
+    let text = err.render(geom_brep::recourse::Reading::Build);
+    // The offer is the arm's tilt over K, where a run admits it.
+    match (
+        band.offer_deciding(margin),
+        test_utils::offer::offered_below(&text),
+    ) {
+        (Some(want), Some(offer)) => assert!(
+            (offer - want).abs() <= 1e-6 * want,
+            "{label}: offers the arm's tilt over K, {want:e}: {text}"
+        ),
+        (None, None) => assert!(
+            text.contains("no tolerance a run admits decides this rise"),
+            "{label}: below the floor, says so: {text}"
+        ),
+        (want, got) => panic!("{label}: offers {got:?} where a run admits {want:?}: {text}"),
+    }
+    assert!(
+        text.contains("move the parts so the two faces clearly cross where their corners meet"),
+        "{label}: the corner's lever: {text}"
+    );
+}
+
+/// The generic and hinged corner poses and the needle pose, at two tilts
+/// scaled to the run's band, through every op in both orders: each the
+/// corner's crossing refusal on the arm's tilt.
+#[test]
+fn an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the witness band");
+    for k in [100.0, 300.0] {
+        let theta = k * band.zero();
+        for (pose, psi) in [("generic", 0.0), ("hinged", HINGED_ALONG_B)] {
+            let bodies = corner_pose(theta, psi, tol);
+            let margin = theta / (1.0 + theta * theta).sqrt() * ARM;
+            for (op, out) in six(&bodies, tol) {
+                assert_corner_crossing(&format!("{pose}, θ = {k}ε, {op}"), &out, margin, band);
+            }
+        }
+        for (tilt, span) in [((1.0, 0.0), (-45.0, 45.0)), ((0.6, -0.8), (30.0, 60.0))] {
+            let bodies = needle_on_a_corner(theta, tilt, span, tol);
+            let margin = theta / (1.0 + theta * theta).sqrt() * ARM;
+            for (op, out) in six(&bodies, tol) {
+                let label = format!("needle, tilt {tilt:?}, span {span:?}, θ = {k}ε, {op}");
+                assert_corner_crossing(&label, &out, margin, band);
+            }
+        }
+    }
+}
+
+/// What the six runs of a corner pose at the design tilt `1e-7` did, at
+/// the tolerance this process runs at: the first refusal, keyed by its
+/// decision and predicate, or a pass.
+fn six_at_the_design_tilt(psi: f64) -> Outcome {
+    let tol = Tol::witness();
+    let bodies = corner_pose(1e-7, psi, tol);
+    six(&bodies, tol)
+        .into_iter()
+        .find_map(|(_, out)| out.err())
+        .map_or(Outcome::Pass, |err| Outcome::Refused {
+            key: match &err {
+                BooleanError::Escalated { decision, diag } => {
+                    format!("{decision:?} {:?}", diag.predicate)
+                }
+                other => format!("{other:?}"),
+            },
+            defect: false,
+            text: err.render(geom_brep::recourse::Reading::Build),
+        })
 }
 
 #[test]
-fn a_far_bound_off_the_plane_refuses_on_the_sectors_own_reading() {
-    let tol = Tol::witness();
-    let band = Band::linear(tol).expect("the witness band");
-    let theta = 100.0 * band.zero();
-    // (tilt, B's span, A's far bound's departure per θ)
-    let poses = [
-        ((1.0, 0.0), (-45.0, 45.0), 10.0),
-        ((0.6, -0.8), (30.0, 60.0), 6.0),
-    ];
-    for (tilt, span, far) in poses {
-        let [a, b] = scene(theta, tilt, span, tol);
-        let (a, b) = (finished("A", a, tol), finished("B", b, tol));
-        let ops = [
-            ("A ∪ B", topo::union(&a, &b, tol)),
-            ("A ∩ B", topo::intersect(&a, &b, tol)),
-            ("A ∖ B", topo::subtract(&a, &b, tol)),
-        ];
-        for (op, out) in ops {
-            let label = format!("tilt {tilt:?}, span {span:?}, {op}");
-            let Err(err @ BooleanError::Escalated { decision, diag }) = &out else {
-                panic!("{label}: refuses on an escalation: {out:?}");
-            };
-            assert_eq!(
-                *decision,
-                BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Moot),
-                "{label}: the corner's question, no class admitted: {diag:?}"
-            );
-            assert_eq!(
-                diag.predicate,
-                Some("bool_sector_coplanar"),
-                "{label}: the sector's reading"
-            );
-            assert_eq!(
-                diag.margin.rejected_sign(),
-                Some(Sign::Positive),
-                "{label}: a decided off, rejected"
-            );
-            let ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text() else {
-                panic!("{label}: a value margin: {diag:?}");
-            };
-            // The corner reads A's sector, whose 10 m bound is the
-            // steeper: not its 1 mm one, which reads Zero.
-            let want = far * theta;
-            assert!(
-                (m - want).abs() <= 1e-6 * want,
-                "{label}: the far bound's departure {want:e}, got {m:e}"
-            );
-            assert!(!diag.offers_tolerance(), "{label}: no tolerance to offer");
-            let text = err.render(geom_brep::recourse::Reading::Build);
-            assert!(
-                text.contains("move the parts so they clearly meet or clearly stand apart there")
-                    && !text.contains("tighten"),
-                "{label}: the Sectors lever alone: {text}"
-            );
+#[ignore = "a child row: the_corners_offer_executes runs it"]
+fn generic_corner_six_runs() {
+    report("generic_corner_six_runs", &six_at_the_design_tilt(0.0));
+}
+
+#[test]
+#[ignore = "a child row: the_corners_offer_executes runs it"]
+fn hinged_corner_six_runs() {
+    report(
+        "hinged_corner_six_runs",
+        &six_at_the_design_tilt(HINGED_ALONG_B),
+    );
+}
+
+/// **The corner's offer executes.** At the design tolerance (1e-9) the
+/// tool at tilt `1e-7` refuses on the arm's tilt, `1e-7·1 mm`, offering
+/// that over K. Just under the offer the generic pose builds in all six
+/// runs; the hinged pose, whose faces cross along the short edge, meets
+/// the contact edge's placement in band there, a decision of its own.
+#[test]
+fn the_corners_offer_executes() {
+    let module = module_path!()
+        .split_once("::")
+        .map_or(module_path!(), |(_, m)| m);
+    let design = 1e-9;
+    let k = geom_core::tolerance::DEFAULT_K;
+    let offer = 1e-7 / (1.0 + 1e-14_f64).sqrt() * ARM / k;
+    let below = test_utils::offer::BELOW * offer;
+    for (row, want) in [
+        ("generic_corner_six_runs", None),
+        ("hinged_corner_six_runs", Some("bool_contact_edge")),
+    ] {
+        let first = run(&format!("{module}::{row}"), design);
+        let Outcome::Refused { key, text, .. } = &first else {
+            panic!("{row} at {design:e}: refuses: {first:?}");
+        };
+        assert!(
+            key.starts_with("Coincidence(CornerCrossing, Moot)"),
+            "{row} at {design:e}: the corner's crossing: {first:?}"
+        );
+        let quoted = test_utils::offer::offered_below(text).expect("an offer");
+        assert!(
+            (quoted - offer).abs() <= 1e-6 * offer,
+            "{row}: offers {offer:e}, quoted {quoted:e}"
+        );
+        let got = run(&format!("{module}::{row}"), below);
+        match (want, &got) {
+            (None, Outcome::Pass) => {}
+            (Some(predicate), Outcome::Refused { key, .. })
+                if key.contains(predicate) && !key.contains("CornerCrossing") => {}
+            _ => panic!("{row} at {below:e}, just under the offer: {got:?}"),
         }
     }
 }

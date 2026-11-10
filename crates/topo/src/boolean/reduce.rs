@@ -820,11 +820,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 });
             }
             Err(super::PlaneEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(
-                    rung,
-                    super::PlaneDoor::Neighbours,
-                    diag,
-                ));
+                return Err(BooleanError::plane_identity(rung, diag));
             }
             Err(super::PlaneEqError::OffRing { torus, refusal }) => {
                 return Err(super::off_ring_torus(
@@ -7280,17 +7276,17 @@ mod declaration_order_rows {
         );
     }
 
-    /// **A coplanar sector's in-band parallelism refuses on the sector**,
-    /// on a union: a parallelepiped cornered at a point of a block's top
-    /// face by a 5° wedge angle, its face there tilted by an in-band
-    /// angle about the wedge's one edge, so the wedge's two edges read
-    /// on that face while its normal reads in-band parallel at the
-    /// corner's arm. Two poses: standing on the block, its bottom face
-    /// opposed to the block's top; and sunk into it, its top face flush
-    /// with the block's top and aligned with it. The sector names the
-    /// one-carrier class the senses make the pair (`Rest` opposed, a
-    /// continuation aligned), and its recourse is the geometry or the
-    /// tolerance, where that lies above `EPS_MIN` (D4 ¶4).
+    /// **A coplanar sector of a pair the glue door did not glue refuses
+    /// on its own bounds**, on a union: a parallelepiped cornered at a
+    /// point of a block's top face by a 5° wedge angle, its face there
+    /// tilted by an in-band angle about the wedge's one edge, so the
+    /// wedge's two edges read on that face. Two poses: standing on the
+    /// block, its bottom face opposed to the block's top; and sunk into
+    /// it, its top face flush with the block's top and aligned with it.
+    /// Either way the corner refuses on the steeper bound's tie, naming no
+    /// class (carrier identity is the glue door's alone), and its
+    /// recourse is the geometry or the tolerance, where that lies above
+    /// `EPS_MIN` (D4 ¶4).
     #[test]
     fn a_coplanar_sectors_in_band_parallelism_refuses_on_the_sector() {
         use crate::test_support_fixtures::{brick, mapped_cube};
@@ -7308,14 +7304,13 @@ mod declaration_order_rows {
             brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
             tol,
         );
-        let poses: [(&'static str, crate::body::Body<f64>, GlueClass); 2] = [
+        let poses: [(&'static str, crate::body::Body<f64>); 2] = [
             (
                 "standing on the block",
                 mapped_cube::<f64>(
                     move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
                     tol,
                 ),
-                GlueClass::Rest,
             ),
             (
                 "sunk into the block",
@@ -7325,19 +7320,17 @@ mod declaration_order_rows {
                     },
                     tol,
                 ),
-                GlueClass::Continuation,
             ),
         ];
-        for (label, wedge, class) in poses {
+        for (label, wedge) in poses {
             let wedge = finished(label, wedge, tol);
             let got = crate::boolean::union(&block, &wedge, tol).map(|_| ());
             assert!(
                 matches!(
                     decision_of(label, &got),
-                    BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
-                        if s.class() == class
+                    BooleanDecision::Coincidence(Coincide::CornerBound, DeclarationRead::Moot)
                 ),
-                "{label}: the sector names {class:?}, as the senses make the pair: {got:?}"
+                "{label}: the corner refuses on its own bound: {got:?}"
             );
             let Err(BooleanError::Escalated { diag, .. }) = &got else {
                 panic!("{label}: an escalation: {got:?}");
@@ -7352,13 +7345,14 @@ mod declaration_order_rows {
                 .expect_err("it refuses")
                 .render(geom_brep::recourse::Reading::Build);
             assert!(
-                text.starts_with("how two corners of the two solids overlap where they meet is ")
-                    && text.contains(
-                        "Recourse: move the parts so they clearly meet or clearly stand apart \
-                         there"
-                    )
-                    && text.contains(", or, if this gap is intended, tighten the tolerance below ")
-                        == offers
+                text.starts_with(
+                    "whether a corner of one solid lying on a face of the other leaves its plane \
+                     is "
+                ) && text.contains(
+                    "Recourse: move the parts so the corner's edges clearly leave the other \
+                     face's plane, or so the corners clearly stand apart"
+                ) && text.contains(", or, if this rise is intended, tighten the tolerance below ")
+                    == offers
                     && !text.contains("declare"),
                 "{label}: offered exactly above EPS_MIN ({offers}): {text}"
             );

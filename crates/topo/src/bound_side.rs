@@ -522,6 +522,38 @@ pub(crate) struct Tie<T: geom_core::Real> {
     /// The Zero, with the margin it was decided on; or, for a tie the
     /// slack made, the sign the band decided.
     pub decided: Decided,
+    /// For a tie the slack made, what the slack hid ([`Hidden`]).
+    pub hidden: Option<Hidden>,
+}
+
+/// **What a reading's slack hid** where it made a tie
+/// ([`TiedBy::Slack`]): the reading the band decided, beside the one the
+/// slack moved it to.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Hidden {
+    /// Moved by the slack, the reading lies in band: its escalation.
+    Moved(Indeterminate),
+    /// Moved by the slack, the reading decided another sign: the band's
+    /// reading and the moved one, two decided bounds on one distance
+    /// that straddle the band.
+    Across {
+        /// The band's reading.
+        decided: Decided,
+        /// The reading moved by the slack toward zero.
+        moved: Decided,
+    },
+}
+
+impl Hidden {
+    /// What `refusal` says the slack hid; `None` for a reading in band,
+    /// which no slack made.
+    fn of(refusal: Refusal) -> Option<Self> {
+        match refusal {
+            Refusal::InBand(_) => None,
+            Refusal::Moved { why, .. } => Some(Self::Moved(why)),
+            Refusal::Slack { decided, moved } => Some(Self::Across { decided, moved }),
+        }
+    }
 }
 
 /// **What made a first-order tie** ([`Tie::by`]).
@@ -630,7 +662,7 @@ fn first_order<T: Decide>(
             )
         }
     };
-    let tie = |by, decided| {
+    let tie = |by, decided, hidden| {
         Ok(Err(Tie {
             dir,
             reach,
@@ -639,6 +671,7 @@ fn first_order<T: Decide>(
             by,
             predicate,
             decided,
+            hidden,
         }))
     };
     match metric::settle_reported(predicate, d, rd) {
@@ -651,6 +684,7 @@ fn first_order<T: Decide>(
                 sign: Sign::Zero,
                 margin,
             },
+            None,
         ),
         Ok(decided) => Ok(Ok((
             if decided.sign == Sign::Negative {
@@ -662,8 +696,8 @@ fn first_order<T: Decide>(
             predicate,
             decided,
         ))),
-        Err(Refusal::Slack(decided) | Refusal::Moved { decided, .. }) => {
-            tie(TiedBy::Slack, decided)
+        Err(refusal @ (Refusal::Slack { decided, .. } | Refusal::Moved { decided, .. })) => {
+            tie(TiedBy::Slack, decided, Hidden::of(refusal))
         }
         Err(Refusal::InBand(diag)) => Err(match reach {
             BoundSupport::Chord { .. } => ReadFault::Chord(diag),
@@ -776,15 +810,18 @@ pub(crate) fn read<T: Decide>(
             Some(refused) => Err(BoundSideFault::Charge(refused)),
         },
         Err(Refusal::InBand(diag)) => Err(BoundSideFault::ChargeEscalated(diag)),
-        Err(Refusal::Slack(_) | Refusal::Moved { .. }) => Ok(FirstOrder::Tied(Tie {
-            dir,
-            reach,
-            face,
-            rd,
-            by: TiedBy::Slack,
-            predicate,
-            decided,
-        })),
+        Err(refusal @ (Refusal::Slack { .. } | Refusal::Moved { .. })) => {
+            Ok(FirstOrder::Tied(Tie {
+                dir,
+                reach,
+                face,
+                rd,
+                by: TiedBy::Slack,
+                predicate,
+                decided,
+                hidden: Hidden::of(refusal),
+            }))
+        }
     }
 }
 
@@ -871,6 +908,7 @@ impl<T: Decide> Tie<T> {
                         sign: Sign::Zero,
                         margin: escalation.diag().margin,
                     },
+                    hidden: None,
                 })
             }
             _ => None,
@@ -994,7 +1032,7 @@ impl<T: Decide> Tie<T> {
             Ok(Sign::Zero) => return Ok(rides),
             Ok(Sign::Negative) => Some(Side::Below),
             Ok(Sign::Positive) => Some(Side::Above),
-            Err(Refusal::Slack(_) | Refusal::Moved { .. }) => return Ok(slack),
+            Err(Refusal::Slack { .. } | Refusal::Moved { .. }) => return Ok(slack),
             Err(Refusal::InBand(diag)) if in_one_gap(diag) => None,
             Err(Refusal::InBand(diag)) => {
                 return Err(ReadFault::Parting(geom_brep::LeverEscalation::reading(
@@ -1053,7 +1091,7 @@ impl<T: Decide> Tie<T> {
         };
         let decided = match metric::settle_reported(WITNESS, offset, rd) {
             Ok(decided) => decided,
-            Err(Refusal::Slack(_) | Refusal::Moved { .. }) => {
+            Err(Refusal::Slack { .. } | Refusal::Moved { .. }) => {
                 return Ok(Descent::Unresolved(Unresolved::Slack));
             }
             Err(Refusal::InBand(diag)) if in_one_gap(diag) => {

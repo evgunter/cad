@@ -342,9 +342,9 @@ pub(crate) mod metric {
     pub(crate) enum Refusal {
         /// In band: the gate's escalation, on the log.
         InBand(Indeterminate),
-        /// Decided by the band, as this, and read another way over the
-        /// slack: no escalation.
-        Slack(Decided),
+        /// Decided by the band, as `decided`, and read another way over
+        /// the slack, as `moved`: no escalation.
+        Slack { decided: Decided, moved: Decided },
         /// Decided by the band, as `decided`, and in band once the slack
         /// moved it: the moved reading's escalation.
         Moved {
@@ -382,7 +382,10 @@ pub(crate) mod metric {
         };
         match decided(name, moved, r.band) {
             Ok(m) if m.sign == got.sign => Ok(got),
-            Ok(_) => Err(Refusal::Slack(got)),
+            Ok(moved) => Err(Refusal::Slack {
+                decided: got,
+                moved,
+            }),
             Err(why) => Err(Refusal::Moved { decided: got, why }),
         }
     }
@@ -431,7 +434,7 @@ impl<T> From<metric::Refusal> for Unsettled<T> {
             metric::Refusal::InBand(diag) | metric::Refusal::Moved { why: diag, .. } => {
                 Unsettled::InBand(diag)
             }
-            metric::Refusal::Slack(_) => Unsettled::Slack,
+            metric::Refusal::Slack { .. } => Unsettled::Slack,
         }
     }
 }
