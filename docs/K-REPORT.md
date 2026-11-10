@@ -3496,6 +3496,26 @@ Both are the segment's clearance of `p`. They do not pool:
 
 Pooled, the far reach's tail would pass for the near reading's.
 
+**`link_offset_tie` and `link_offset_ball` change their samples at this
+date too** (PR 6734).
+- `link_offset_tie` read a point's distance from its foot, and two points'
+  distance apart along the segment, as a projection onto a direction:
+  `normalize(x − f)·(x − f)`, or `normalize(e)·(x − y)`. Each now reads
+  the norm, `link::metric::Distance::apart`.
+  - Off the coincidence, the foot sample was the same quantity to
+    rounding.
+  - At it, it was a NaN, unread, and is now `0`, read Zero.
+  - The along-segment sample was signed, and is now its magnitude.
+  So a before-and-after comparison must split here, and the old samples'
+  signs stand for nothing in the new population.
+- `link_offset_ball` read a point's side of a ball's tangent plane toward
+  it, `n·(y − x − n·d)` with `n = normalize(y − x)`. It now reads its
+  signed distance from the sphere, `|y − x| − d`
+  (`Distance::from_sphere`).
+  - Off the centre, that is the same quantity to rounding.
+  - At the centre, the old sample was a NaN, unread, and the new one is
+    `−d`, inside.
+
 ## ONEREAD addendum (2026-11-02): a bound's side decided at the link's metric door
 
 **Roster: no name joins or leaves; three names change their door.** The

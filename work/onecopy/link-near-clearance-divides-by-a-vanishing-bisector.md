@@ -58,6 +58,20 @@ One candidate: read each end's distance along the wedge's own in-plane normal, o
 - The class's two siblings are re-posed through `Distance::apart(p, q)`, a sixth constructor that is `|p − q|` with no direction read off it. They read a norm as `Distance::of(x, f, normalize(x − f))`, which is NaN at the very configuration they decide:
   - `Link::lowest_on`'s `meets`;
   - `Cone::touches`' ray tie.
-- A sweep of `topo` for `Distance::of(a, b, (a − b).normalize())` in any spelling finds no other. The remaining normalized directions are a ray's own (`r − p`), which do not vanish.
+- A sweep of `topo` for `Distance::of(a, b, (a − b).normalize())` in any spelling finds no other.
 - `ArcReach::clears` returns `Result<(), Unsettled>`, so the impossible "does not clear" cannot be written. In release a clearance decided negative refuses as a zero does; it no longer passes silently. The dead `Ok(false) => Rung::Passes` arm and its doc line are gone.
 - The measurement narrative lives here (above), no longer in `clears`' doc.
+
+## Review of PR 6734 (2026-11-10)
+
+The follow-up's claim that the remaining normalized directions are a ray's own was false. The review named four more, each now guarded at its site or re-posed:
+- **`face_piece`'s bisecting probe**, `normalize(unit(qa) + unit(qb))`, the shape 6703 retired. It is guarded: `side` decided the pair under half a turn apart, past the band, and two unit directions `θ < π` apart sum to `2·cos(θ/2)`, no shorter than the sine `sin θ` that decision read. The comment at the site says so.
+- **`Cone::reads_given`'s wedge bisector**, `normalize(a − p) + normalize(b − p)`. It is guarded: a wedge is under half a turn (`Sector`'s doc), and each ray's point stands at its reach off `p`. The comment at the site says so.
+- **`Link::lowest_on`'s `along`**, `normalize(e)`, read only by the `apart` closure and the twin roots. Both are two points of the segment's line apart, so both now read `Distance::apart`, and `along` is gone.
+- **`LINK_BALL`**, `Distance::of(y, x + n·d, n)` with `n = normalize(y − x)`. That is `|y − x| − d`, a norm less a length, and it now reads so: `Distance::from_sphere(y, x, d)`, a seventh constructor. It reads `−d` at the centre, where the old spelling was NaN.
+
+**`Distance::clearance` of a segment of no length.** `to_segment`'s foot parameter divides by the segment's squared length, so coincident ends, or ends near enough that the square underflows, read `0/0`. That NaN propagated (`Real::max` propagates it) and refused in band, although the clearance is plainly `|q − p|`. A reference along `q`'s own ray at `q`'s distance is `q` itself, so the parity reading meets this arc whenever `q` stands on a reference's ray. `clearance` now reads a squared length that is an exact zero as structure (`geom_core::is_exact_zero`), and the clearance as `Distance::apart(p, q)`. Pinned by `link::clearance_rows::a_segment_of_no_length_clears_by_its_points_distance`.
+
+**Pins of what moved** (`link::tie_rows`):
+- On a segment of enclosures, `meets` joins a candidate on its foot. The old spelling dropped it.
+- `touches`' tie reads `q` on a closed ray Zero, where the old spelling left it unread. Its verdict, near, is the same.

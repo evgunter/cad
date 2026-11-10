@@ -117,12 +117,14 @@ const LINK_PIECE_REACH: &str = "link_piece_reach";
 /// metres — on the edge, or past an end.
 const LINK_PIECE_MEET: &str = "link_piece_meet";
 /// K name: a read point of a segment against the ball a refused
-/// point's distance from the boundary clears, in metres — its side of
-/// the ball's tangent plane toward it ([`Link::lowest_on`]).
+/// point's distance from the boundary clears, in metres — its signed
+/// distance from the ball's sphere ([`metric::Distance::from_sphere`];
+/// [`Link::lowest_on`]).
 const LINK_BALL: &str = "link_offset_ball";
-/// K name: a point of a segment against the piece of a link's boundary
-/// it is nearest, along the line to it, and two such points against each
-/// other along the segment, in metres ([`Link::lowest_on`]'s ties).
+/// K name: a point's distance from the piece of a link's boundary it is
+/// nearest, and two points of a segment's distance apart, in metres
+/// ([`Link::lowest_on`]'s ties, [`Cone::touches`]' rays), each a norm
+/// ([`metric::Distance::apart`]).
 const LINK_TIE: &str = "link_offset_tie";
 /// K name: a point of a link's boundary, or the lowest of a segment of
 /// it, against a sphere's or a cylinder's carrier, in metres — on the
@@ -145,9 +147,10 @@ const LINK_NORMAL: &str = "link_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
 /// through**, and the bound-side reading's ([`crate::bound_side`]). A
-/// [`Distance`] has a private field and six constructors, from a point
+/// [`Distance`] has a private field and seven constructors, from a point
 /// and a plane, from a point and a segment (its clearance), from two
-/// points (their distance apart), from a bound's departure off a plane at
+/// points (their distance apart), from a point and a sphere (its signed
+/// distance from it), from a bound's departure off a plane at
 /// its reach, and from a point or a segment and a sphere's or a
 /// cylinder's carrier, so
 /// a quantity none of them builds cannot be decided here as a verdict.
@@ -184,8 +187,20 @@ pub(crate) mod metric {
         /// direction is read off a quantity that can vanish, so a
         /// segment through `p` reads `0`, not the NaN of a normalized
         /// zero.
+        ///
+        /// A segment whose squared length is an exact zero (its ends one
+        /// point, or so near that the square underflows) is its first
+        /// end, and its clearance is [`Self::apart`]: the foot's
+        /// parameter divides by that square, and would read `0/0`. The
+        /// zero is read as structure ([`geom_core::is_exact_zero`]), not
+        /// decided, so a short segment that is not exactly degenerate
+        /// keeps the segment reading, whose clamp holds its foot on it.
         pub(crate) fn clearance(p: Point3<T>, seg: (Point3<T>, Point3<T>)) -> Self {
-            Self(super::to_segment(p, seg))
+            if geom_core::is_exact_zero((seg.1 - seg.0).norm_squared()) {
+                Self::apart(p, seg.0)
+            } else {
+                Self(super::to_segment(p, seg))
+            }
         }
 
         /// **Two points' distance apart**, `|p − q|`, never negative: a
@@ -194,6 +209,14 @@ pub(crate) mod metric {
         /// zero.
         pub(crate) fn apart(p: Point3<T>, q: Point3<T>) -> Self {
             Self((p - q).norm())
+        }
+
+        /// **`q`'s signed distance from the sphere about `centre` of
+        /// `radius`**, `|q − centre| − radius`, negative inside: a norm
+        /// less a length, with no direction read off it, so `q` at the
+        /// centre reads `−radius`.
+        pub(crate) fn from_sphere(q: Point3<T>, centre: Point3<T>, radius: T) -> Self {
+            Self((q - centre).norm() - radius)
         }
 
         /// The distance itself, for rows that pin a constructor's value.
@@ -1277,7 +1300,10 @@ pub(crate) fn face_piece<T: Decide>(
             }
         }
         // The bisecting ray, as a point at the nearer bound's reach along
-        // it: the scale its two bounds fix it at.
+        // it: the scale its two bounds fix it at. The sum does not vanish:
+        // `side` decided the pair under half a turn apart, past the band,
+        // and two unit directions `θ < π` apart sum to `2·cos(θ/2)`, no
+        // shorter than the sine `sin θ` that decision read.
         let probe = (unit(qa) + unit(qb)).normalize();
         let pr = p + probe * ((qa - p).norm().min((qb - p).norm()) * unit(qa).dot(probe));
         let front = |q: Point3<T>| ahead(p, pr, q, rd);
@@ -2149,7 +2175,9 @@ impl<T: Decide> Cone<T> {
             .flat_map(|(arc, t, base, s0)| {
                 // Each wedge's centroid, then its rays' bisector: a needle
                 // wedge's centroid lies along its long ray, within the band
-                // of the sector across it.
+                // of the sector across it. Neither sum vanishes: a wedge is
+                // under half a turn ([`Sector`]), and each ray's
+                // point stands at its reach off `p`.
                 s0.wedges.iter().flat_map(move |&(a, b)| {
                     let ray = (a - p).norm().min((b - p).norm());
                     [(a - p) + (b - p), (a - p).normalize() + (b - p).normalize()]
@@ -3362,7 +3390,7 @@ impl<T: Decide> Link<T> {
     /// A candidate whose parity refuses takes the membership of a read
     /// candidate inside the ball its distance clears (nothing of the
     /// boundary is in it), read through the door as the read point's
-    /// side of the ball's tangent plane toward it; it refuses the
+    /// signed distance from the ball's sphere; it refuses the
     /// segment only where no read candidate is that near.
     ///
     /// Its cost is quadratic in the link's pieces, the ties being pairs:
@@ -3395,11 +3423,7 @@ impl<T: Decide> Link<T> {
         let point = [x0.x, x0.y, x0.z, x1.x, x1.y, x1.z]
             .iter()
             .all(|v| v.point_value().is_some());
-        let joined = |d: Distance<T>| match metric::sign_as(LINK_TIE, d, band) {
-            Some(Sign::Zero) => true,
-            None => point,
-            Some(_) => false,
-        };
+        let joined = |d: Distance<T>| joins(d, point, band);
         // Each piece's squared distance from x(t), as [t², t, 1]
         // coefficients.
         let w = x0 - self.cone.p;
@@ -3458,13 +3482,12 @@ impl<T: Decide> Link<T> {
             }
         }
         let squared = |[o1, o0]: [T; 2]| [o1.powi(2), two * o0 * o1, o0.powi(2)];
-        let along = e.normalize();
         // Two pieces the segment's line meets at one point, within the
         // band's zero, tie only there: a double root already a candidate
         // (where each meets it), which rounding would scatter about it.
         // Only what `joined` joins is pruned.
         let apart = |x: Option<Point3<T>>, y: Option<Point3<T>>| match (x, y) {
-            (Some(x), Some(y)) => !joined(Distance::of(x, y, along)),
+            (Some(x), Some(y)) => !joined(Distance::apart(x, y)),
             _ => true,
         };
         let mut ts = vec![T::zero(), T::one(), -apex[1] / (two * apex[0])];
@@ -3503,7 +3526,7 @@ impl<T: Decide> Link<T> {
             // its square root is all rounding, and so is its derivative.
             let at = |t: T| x0 + e * t.max(T::zero()).min(T::one());
             let twin = roots.iter().all(|t| !t.is_poison() && t.is_bounded())
-                && joined(Distance::of(at(roots[0]), at(roots[1]), along));
+                && joined(Distance::apart(at(roots[0]), at(roots[1])));
             if twin {
                 ts.push(-b / (two * a));
             } else {
@@ -3538,8 +3561,7 @@ impl<T: Decide> Link<T> {
         }
         for (x, d, why) in refused {
             let held = read.iter().find_map(|&(y, _, held)| {
-                let n = (y - x).normalize();
-                let inside = metric::sign_as(LINK_BALL, Distance::of(y, x + n * d, n), band)
+                let inside = metric::sign_as(LINK_BALL, Distance::from_sphere(y, x, d), band)
                     == Some(Sign::Negative);
                 if inside { held } else { None }
             });
@@ -3615,9 +3637,9 @@ impl<T: Decide> Link<T> {
 
     /// **Whether `q` stands within the band of the cone's boundary**: of
     /// a wedge's plane where it stands over the wedge or within the band
-    /// of its ray (`LINK_PLANE`), or of one of its closed rays, read along
-    /// the line from the ray's nearest point to `q` (`LINK_TIE`; at that
-    /// point itself the reading is in band). A distance, not a place: a
+    /// of its ray (`LINK_PLANE`), or of one of its closed rays, read as
+    /// `q`'s distance from the ray's nearest point to it (`LINK_TIE`; `q`
+    /// on the ray reads zero, near). A distance, not a place: a
     /// wedge thinner than the band leaves `q`'s place in its face
     /// undecided however far off it `q` stands.
     fn touches(&self, q: Point3<T>, rd: Reading<T>) -> bool {
@@ -3642,6 +3664,19 @@ impl<T: Decide> Link<T> {
                     })
             })
         })
+    }
+}
+
+/// **Whether a reading joins two points** ([`Link::lowest_on`]'s ties,
+/// `LINK_TIE`): decided within the band's zero, or, for a segment of
+/// points (`point`), in band, since rounding cannot part what the band
+/// does not. An enclosure read in band stands for points the band does
+/// not join, so it joins nothing.
+fn joins<T: Decide>(d: Distance<T>, point: bool, band: Band) -> bool {
+    match metric::sign_as(LINK_TIE, d, band) {
+        Some(Sign::Zero) => true,
+        None => point,
+        Some(_) => false,
     }
 }
 
@@ -4814,7 +4849,7 @@ mod tests {
 
     /// The convex edge along `y` through the origin between the top face
     /// (`+z`) and the side face (`+x`): material where `x, z ≤ 0`.
-    fn ridge() -> Link<f64> {
+    pub(super) fn ridge() -> Link<f64> {
         let (y, ny) = (p(0.0, 1.0, 0.0), p(0.0, -1.0, 0.0));
         of_fans(
             O,
@@ -5835,17 +5870,16 @@ mod tests {
     ///   `select_le_zero`, `partial_cmp` or `total_cmp`, and no
     ///   `classify_dihedral` (a levered classifier of its own). No code
     ///   needs one today, so the list has no exemption;
-    /// - `Distance` is built in exactly two places: its field is private,
-    ///   `mod metric` holds exactly two `Self(` — one inside
-    ///   `Distance::of`, and one inside `Distance::off`, which is
-    ///   `Round::lowest_on` and nothing else — and no `Distance(`, and
-    ///   those are the module's only functions returning a `Distance`. So
-    ///   a product or a lever has no way to become one, not even through
-    ///   a third constructor.
+    /// - `Distance` is built in exactly seven places: its field is
+    ///   private, `mod metric` holds exactly seven `Self(`, one inside each
+    ///   of its constructors (the door's doc lists them), and no
+    ///   `Distance(`, and those are the module's only functions returning
+    ///   a `Distance`. So a product or a lever has no way to become one,
+    ///   not even through an eighth constructor.
     ///
     /// - structure (`is_poison(`, `is_bounded(`, `point_value(`,
-    ///   `plain_constant(`, `enclosure_hull(`) is read only at twelve
-    ///   named call sites, each
+    ///   `plain_constant(`, `enclosure_hull(`, `is_exact_zero(`) is read
+    ///   only at thirteen named call sites, each
     ///   occurring once: four in `Link::lowest_on` (a candidate that is no
     ///   bounded number is skipped; a candidate's location read as a
     ///   point; a band joining two points of a point segment), four in
@@ -5853,7 +5887,8 @@ mod tests {
     ///   standing in where an enclosure has no bounded least, and a point
     ///   scalar then reading its ends), two in `Round::reach_from_axis`
     ///   (a point exactly on the axis, and whether the scalar moves it),
-    ///   and two in `either` (a hull where the scalar holds one);
+    ///   two in `either` (a hull where the scalar holds one), and one in
+    ///   `Distance::clearance` (a segment of no length);
     /// - no text is made of a number: no `format!(`, `format_args!`,
     ///   `write!`, `writeln!`, `write_fmt` or `to_string(`;
     /// - the reading one order down (`link/second_order.rs`, a child
@@ -5950,6 +5985,7 @@ mod tests {
         );
         let either = body("\nfn either<");
         let reach_from_axis = body("\n    fn reach_from_axis(");
+        let clearance = body("\n        pub(crate) fn clearance(");
         let outside = |section: &str, needle: &str, allowed: &[&core::ops::Range<usize>]| {
             section
                 .match_indices(needle)
@@ -6034,6 +6070,10 @@ mod tests {
             ),
             (&either, "let both = lo.enclosure_hull(hi);"),
             (&either, "if both.is_poison() && !hi.is_poison() {"),
+            (
+                &clearance,
+                "if geom_core::is_exact_zero((seg.1 - seg.0).norm_squared()) {",
+            ),
         ]
         .into_iter()
         .map(|(r, site)| {
@@ -6052,6 +6092,7 @@ mod tests {
             "point_value(",
             "plain_constant(",
             "enclosure_hull(",
+            "is_exact_zero(",
         ] {
             stray.extend(outside(module, needle, &sites));
             stray.extend(outside(touch, needle, &[]));
@@ -6143,15 +6184,16 @@ mod tests {
         let of = body("\n        pub(crate) fn of(");
         let clearance = body("\n        pub(crate) fn clearance(");
         let apart = body("\n        pub(crate) fn apart(");
+        let from_sphere = body("\n        pub(crate) fn from_sphere(");
         let departure = body("\n        pub(crate) fn departure(");
         let off = body("\n        pub(crate) fn off(");
         let at = body("\n        pub(crate) fn at(");
         assert!(
-            [&of, &clearance, &apart, &departure, &off, &at]
+            [&of, &clearance, &apart, &from_sphere, &departure, &off, &at]
                 .iter()
                 .all(|r| metric.contains(&r.start)),
-            "`Distance::of`, `Distance::clearance`, `Distance::apart`, `Distance::departure`, \
-             `Distance::off` and `Distance::at` are in `mod metric`"
+            "`Distance::of`, `Distance::clearance`, `Distance::apart`, `Distance::from_sphere`, \
+             `Distance::departure`, `Distance::off` and `Distance::at` are in `mod metric`"
         );
         let builds: Vec<usize> = module
             .match_indices("Self(")
@@ -6160,16 +6202,18 @@ mod tests {
             .filter(|i| metric.contains(i))
             .collect();
         assert!(
-            builds.len() == 6
+            builds.len() == 7
                 && of.contains(&builds[0])
                 && clearance.contains(&builds[1])
                 && apart.contains(&builds[2])
-                && departure.contains(&builds[3])
-                && off.contains(&builds[4])
-                && at.contains(&builds[5]),
-            "`Distance` is built six times, inside `Distance::of` from a plane, inside \
+                && from_sphere.contains(&builds[3])
+                && departure.contains(&builds[4])
+                && off.contains(&builds[5])
+                && at.contains(&builds[6]),
+            "`Distance` is built seven times, inside `Distance::of` from a plane, inside \
              `Distance::clearance` from a segment, inside `Distance::apart` from two points, \
-             inside `Distance::departure` from a bound's departure off a plane, and inside \
+             inside `Distance::from_sphere` from a sphere, inside `Distance::departure` from a \
+             bound's departure off a plane, and inside \
              `Distance::off` and `Distance::at` from a round carrier: {} builds",
             builds.len()
         );
@@ -6228,10 +6272,10 @@ mod tests {
             door.matches("-> Self").count()
                 + door.matches("-> Option<Self>").count()
                 + door.matches("-> Distance").count(),
-            6,
-            "`Distance::of`, `Distance::clearance`, `Distance::apart`, `Distance::departure`, \
-             `Distance::off` and `Distance::at` are `mod metric`'s only functions returning a \
-             `Distance`"
+            7,
+            "`Distance::of`, `Distance::clearance`, `Distance::apart`, `Distance::from_sphere`, \
+             `Distance::departure`, `Distance::off` and `Distance::at` are `mod metric`'s only \
+             functions returning a `Distance`"
         );
     }
 }
@@ -6251,7 +6295,7 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod clearance_rows {
-    use geom_core::{Band, Point3, Tol};
+    use geom_core::{Band, Bounds, Interval, Point3, Real, Tol};
 
     use super::{ArcReach, Reading, Unsettled, metric::Distance};
 
@@ -6294,6 +6338,110 @@ mod clearance_rows {
         let r = Point3::new(1.25, 0.5, -2.0);
         assert_eq!(Distance::apart(p, p).metres(), 0.0);
         assert_eq!(Distance::apart(r, p).metres(), (r - p).norm());
+    }
+
+    /// **A segment of no length clears `p` by its point's distance**:
+    /// coincident ends, and ends so near that the squared length
+    /// underflows, read `|q − p|`, and the arc reads, where the segment
+    /// reading's `0/0` foot read NaN and refused in band. A reference
+    /// along `q`'s own ray at `q`'s distance is `q` itself, so this is the
+    /// arc a parity reading meets whenever `q` stands on a reference's
+    /// ray. Red with the structural read removed from
+    /// [`Distance::clearance`].
+    #[test]
+    fn a_segment_of_no_length_clears_by_its_points_distance() {
+        let band = Band::linear(Tol::witness()).expect("a band");
+        let p = Point3::new(0.25, -0.5, 0.75);
+        let q = Point3::new(1.25, 0.5, -2.0);
+        let truth = (q - p).norm();
+        let short = q + geom_core::Vec3::new(1e-170, 0.0, 0.0);
+        for w in [q, short] {
+            let read = Distance::clearance(p, (q, w)).metres();
+            assert!(
+                (read - truth).abs() <= 4.0 * f64::EPSILON * truth,
+                "{read} against {truth}"
+            );
+            for arc in [ArcReach::Near, ArcReach::Out] {
+                let got = arc.clears(p, q, w, Reading::plain(band));
+                assert!(got.is_ok(), "{w:?}: {got:?}");
+            }
+        }
+        // At the interval scalar: the degenerate hull reads its point's
+        // enclosure, which holds the distance.
+        let iv = |x: Point3<f64>| {
+            Point3::new(
+                Interval::from_f64(x.x),
+                Interval::from_f64(x.y),
+                Interval::from_f64(x.z),
+            )
+        };
+        let read = Distance::clearance(iv(p), (iv(q), iv(q))).metres();
+        assert!(!read.is_poison(), "{read:?}");
+        assert!(
+            read.lo() <= truth && truth <= read.hi(),
+            "{read:?} holds {truth}"
+        );
+    }
+}
+
+/// **The touch analysis's ties read a distance, not a projection onto
+/// its own direction** (PR 6734): a point on its foot reads `0` apart,
+/// Zero, where the old spelling `Distance::of(x, f, (x − f).normalize())`
+/// read a 0/0 NaN, unread.
+/// - `Link::lowest_on`'s `meets`: on a segment of enclosures
+///   (`point == false`), a candidate on its foot is joined, where the NaN
+///   fell to the `point` flag and the candidate was dropped. Red under the
+///   old spelling.
+/// - `Link::touches`' ray tie: `q` exactly on a closed ray reads the tie
+///   Zero, near, where the NaN read near by being unread; the verdict is
+///   the same and is pinned with its reading.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tie_rows {
+    use geom_core::{Band, Interval, Point3, Sign, Tol, Vec3};
+
+    use super::{LINK_TIE, Reading, joins, metric, metric::Distance, tests::ridge};
+
+    #[test]
+    fn a_point_on_its_foot_is_joined_and_touches() {
+        let band = Band::linear(Tol::witness()).expect("a band");
+        let x = Point3::new(0.25, -0.5, 0.75);
+        // `meets` on a segment of enclosures: joined.
+        assert!(joins(Distance::apart(x, x), false, band));
+        assert!(
+            !joins(Distance::of(x, x, (x - x).normalize()), false, band),
+            "the old spelling dropped the candidate"
+        );
+        let w = 1e-15;
+        let b = |c: f64| Interval::from_bounds(c - w, c + w);
+        let xi = Point3::new(b(x.x), b(x.y), b(x.z));
+        assert!(
+            joins(Distance::apart(xi, xi), false, band),
+            "an enclosure on its own foot"
+        );
+        // `touches` with `q` on the ridge's `+y` ray: the tie reads Zero.
+        let ridge = ridge();
+        let q = Point3::new(0.0, 0.5, 0.0);
+        let foot = geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        }
+        .foot_from(q, 0.0);
+        assert_eq!(
+            metric::sign_as(LINK_TIE, Distance::apart(q, foot), band),
+            Some(Sign::Zero)
+        );
+        assert_eq!(
+            metric::sign_as(
+                LINK_TIE,
+                Distance::of(q, foot, (q - foot).normalize()),
+                band
+            ),
+            None,
+            "the old spelling read it unread"
+        );
+        assert!(ridge.touches(q, Reading::plain(band)));
+        assert!(!ridge.touches(Point3::new(-0.5, 0.5, -0.5), Reading::plain(band)));
     }
 }
 
