@@ -167,9 +167,11 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
 /// its base rim: the ball rolls INSIDE the cylinder there (a convex
 /// rim on a convex wall), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0`
 /// of headroom. The refusal names the CYLINDER support face and
-/// arrives with no surface minted. (A sphere does not witness it: a
-/// ball inside a sphere and on a plane cutting it has no room past half
-/// the radius, so `fillet3_ball_room` answers first there.)
+/// arrives with no surface minted. (A plane–sphere rim with the ball
+/// inside the sphere does not witness it: on the plane through the
+/// centre the ball has no room past half the radius, and on a plane at
+/// distance `d` from the centre its room `R − r − |d ± r|` is at most
+/// `|d| − R < 0` once `r ≥ R`, so `fillet3_ball_room` answers first.)
 #[test]
 fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
     let body = disc_of_arcs(2, 0.5, 1.0, Tol::witness());

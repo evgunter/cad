@@ -41,8 +41,8 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BlendArm, Branch, EdgeBlend, Meridian, Ruling, chamfer_strip, inward_unit, knife_room,
-    line_meet, plane_plane_blend, plane_sphere_blend, plane_sphere_room, rim_room,
+    BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_strip, inward_unit,
+    line_meet, offset_room, plane_plane_blend, plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
 use super::open::end_face::CycleReading;
@@ -855,12 +855,26 @@ pub fn knife_end<T: Decide + Bounds>(
 
 /// **`fillet3_knife_room` / `fillet3_ball_room`** — does the ball of
 /// this radius exist at this link? The margin is the offset traces'
-/// secant margin in METERS ([`super::arms::knife_room`],
-/// [`super::arms::rim_room`], [`super::arms::plane_sphere_room`]),
+/// room in METERS ([`super::arms::offset_room`] in a sheet,
+/// [`super::arms::plane_sphere_room`] on the plane–sphere arm),
 /// positive exactly where they cross, so where the ball's centre is a
-/// point and not a root of a negative number. A knife's is decided
-/// under `fillet3_knife_room` and a rim's under `fillet3_ball_room`:
-/// the two branches ask the same question of different crossings.
+/// point and not a root of a negative number.
+///
+/// **One question, two refusals.** Both branches ask whether the
+/// offsets cross, on one margin; what differs is the user's situation,
+/// so the decision keeps two names and the refusal two shapes. At a
+/// knife the faces are tangent along the edge and the ball rests in
+/// the crescent they open into: `fillet3_knife_room` refuses
+/// [`BlendError::KnifeEdge`] beside that variant's other refusal (faces
+/// that never open), and its recourse names the crescent. At a rim the
+/// faces meet at an angle and a small enough ball always rolls in the
+/// wedge: `fillet3_ball_room` refuses [`BlendError::BallDoesNotFit`].
+/// The names stay apart because a predicate name is a K-corpus bucket.
+///
+/// Two straight traces carry no margin (`room` is `None`): at a rim
+/// they cross at every radius, so the ball exists and nothing is
+/// decided; at a knife they are one line and never open, which reads
+/// as a room of exactly zero.
 ///
 /// # Errors
 ///
@@ -870,16 +884,17 @@ pub fn knife_end<T: Decide + Bounds>(
 fn room_at<T: Decide + Bounds>(
     edge: EdgeKey,
     branch: &Branch<T>,
-    room: T,
+    room: Option<T>,
     radius: T,
     band: Band,
-) -> Result<(), BlendError> {
-    let decision = match branch {
-        Branch::Knife(_) => BlendDecision::KnifeRoom,
-        Branch::Rim => BlendDecision::BallRoom,
+) -> Result<BallRoom, BlendError> {
+    let (decision, room) = match (branch, room) {
+        (Branch::Rim, None) => return Ok(BallRoom(())),
+        (Branch::Rim, Some(room)) => (BlendDecision::BallRoom, room),
+        (Branch::Knife(_), room) => (BlendDecision::KnifeRoom, room.unwrap_or_else(T::zero)),
     };
     match classify(BlendSite::Link { edge }, decision, Margin::of(room), band)? {
-        Sign::Positive => Ok(()),
+        Sign::Positive => Ok(BallRoom(())),
         sign => {
             let margin = classified(decision, room, band, sign);
             let radius = radius.lo();
@@ -896,6 +911,63 @@ fn room_at<T: Decide + Bounds>(
                 },
             })
         }
+    }
+}
+
+/// **The verdict that a link's ball exists at its radius**, minted by
+/// [`room_at`] alone. The arms that root the offsets' crossing — the
+/// plane–sphere arm and the sheet reduction — are reached from the
+/// battery only through its methods, so a resolution that skips the
+/// decision has no token to call them with, and does not compile. The
+/// arms themselves stay total arithmetic, public, and callable bare.
+struct BallRoom(());
+
+impl BallRoom {
+    /// [`plane_sphere_blend`], on a ball decided to exist.
+    #[allow(clippy::too_many_arguments)]
+    fn plane_sphere<T: Real>(
+        self,
+        origin: Point3<T>,
+        n: Vec3<T>,
+        plane_u_ref: Vec3<T>,
+        sphere_c: Point3<T>,
+        sphere_r: T,
+        radius: T,
+        sphere_convex: bool,
+        convexity: Convexity,
+    ) -> EdgeBlend<T> {
+        plane_sphere_blend(
+            origin,
+            n,
+            plane_u_ref,
+            sphere_c,
+            sphere_r,
+            radius,
+            sphere_convex,
+            convexity,
+        )
+    }
+
+    /// [`Meridian::blend`], on a ball decided to exist.
+    fn meridian<T: Real>(
+        self,
+        sheet: &Meridian<T>,
+        traces: (SupportTrace<T>, SupportTrace<T>),
+        radius: T,
+        branch: Branch<T>,
+    ) -> EdgeBlend<T> {
+        sheet.blend(traces.0, traces.1, radius, branch)
+    }
+
+    /// [`Ruling::blend`], on a ball decided to exist.
+    fn ruling<T: Real>(
+        self,
+        sheet: &Ruling<T>,
+        traces: (SupportTrace<T>, SupportTrace<T>),
+        radius: T,
+        branch: Branch<T>,
+    ) -> EdgeBlend<T> {
+        sheet.blend(traces.0, traces.1, radius, branch)
     }
 }
 
@@ -1425,7 +1497,7 @@ fn classify_arm<T: Decide + Bounds>(
     // (coplanar faces are a lamina, a sphere touches a plane at a
     // point), and if one were asked the sheet reduction traces a plane
     // all the same, so `fillet3_knife_room` refuses it there, where
-    // every other knife's room is decided ([`super::arms::knife_room`]).
+    // every other knife's room is decided ([`super::arms::offset_room`]).
     if let Branch::Knife(_) = branch {
         return curved_arm(
             sa, sb, senses, convexity, branch, carrier, p, extent, radius, edge, band,
@@ -1436,7 +1508,7 @@ fn classify_arm<T: Decide + Bounds>(
     // the offset sphere, decided before the arm reads `√s²`.
     let ball_room = |origin, n, center, r, sense| {
         let room = plane_sphere_room(origin, n, center, r, radius, sense, convexity);
-        room_at(edge, &branch, room, radius, band)
+        room_at(edge, &branch, Some(room), radius, band)
     };
     match (sa, sb) {
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
@@ -1450,10 +1522,10 @@ fn classify_arm<T: Decide + Bounds>(
                 center, radius: r, ..
             },
         ) => {
-            ball_room(*origin, n_a, *center, *r, senses.1)?;
+            let room = ball_room(*origin, n_a, *center, *r, senses.1)?;
             Ok((
                 BlendArm::PlaneSphereTorus,
-                plane_sphere_blend(
+                room.plane_sphere(
                     *origin,
                     n_a,
                     plane_u(sa),
@@ -1472,8 +1544,8 @@ fn classify_arm<T: Decide + Bounds>(
             },
             Surface::Plane { origin, .. },
         ) => {
-            ball_room(*origin, n_b, *center, *r, senses.0)?;
-            let mut b = plane_sphere_blend(
+            let room = ball_room(*origin, n_b, *center, *r, senses.0)?;
+            let mut b = room.plane_sphere(
                 *origin,
                 n_b,
                 plane_u(sb),
@@ -1585,13 +1657,7 @@ fn curved_arm<T: Decide + Bounds>(
     // coaxial or co-ruled and before any centre is read, and before the
     // arm table is asked: a knife on a pair the table does not cover
     // (two planes) has no room, and says so there.
-    let room = |ta, tb| {
-        let room = match branch {
-            Branch::Rim => rim_room(p, ta, tb, radius),
-            Branch::Knife(_) => Some(knife_room(p, ta, tb, radius)),
-        };
-        room.map_or(Ok(()), |room| room_at(edge, &branch, room, radius, band))
-    };
+    let room = |ta, tb| room_at(edge, &branch, offset_room(p, ta, tb, radius), radius, band);
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
         Curve3::Circle(geom::Circle { frame, .. }) => {
@@ -1611,9 +1677,9 @@ fn curved_arm<T: Decide + Bounds>(
             };
             let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
             let axis = (topo::Relation::Coaxial, margin);
-            room(ta, tb)?;
+            let room = room(ta, tb)?;
             let arm = arm.ok_or_else(|| unsupported(ARM_ROSTER))?;
-            Ok((arm, sheet.blend(ta, tb, radius, branch), axis))
+            Ok((arm, room.meridian(&sheet, (ta, tb), radius, branch), axis))
         }
         Curve3::Line(geom::Line { dir, .. }) => {
             let arm = ruling_arm(sa, sb);
@@ -1633,9 +1699,9 @@ fn curved_arm<T: Decide + Bounds>(
             };
             let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
             let axis = (topo::Relation::CoRuled, margin);
-            room(ta, tb)?;
+            let room = room(ta, tb)?;
             let arm = arm.ok_or_else(|| unsupported(ARM_ROSTER))?;
-            Ok((arm, sheet.blend(ta, tb, radius, branch), axis))
+            Ok((arm, room.ruling(&sheet, (ta, tb), radius, branch), axis))
         }
         _ => Err(unsupported(ARM_ROSTER)),
     }

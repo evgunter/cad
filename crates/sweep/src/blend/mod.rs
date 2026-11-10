@@ -27,7 +27,11 @@
 //! without ever constructing a surface.
 //!
 //! The six, in C8's order — see [`battery`] for each one's margin,
-//! its units, and its lever arm:
+//! its units, and its lever arm — after the link-level decisions that
+//! resolve each requested edge (its wedge, its arm, and whether its
+//! ball exists at all: `fillet3_ball_room` at a rim,
+//! `fillet3_knife_room` at a knife, so no predicate below reads an arm
+//! whose ball has no centre):
 //!
 //! 1. [`battery::radius_headroom`] — `fillet3_radius_headroom`
 //! 2. [`battery::face_clearance`] — `fillet3_face_clearance`; its
@@ -280,8 +284,8 @@ pub enum BlendDecision {
     /// enough for the ball, whose centre lies where their offsets
     /// cross away from the edge.
     KnifeRoom,
-    /// `fillet3_ball_room`: a rim's supports leave room for the ball,
-    /// whose centre lies where their offsets cross.
+    /// `fillet3_ball_room`: a rim's supports leave the ball a path along
+    /// it, its centre running where their offsets cross.
     BallRoom,
     /// `fillet3_ring_clearance`: a trimline clears a ring or edge in its
     /// support face.
@@ -427,7 +431,9 @@ impl BlendDecision {
             Self::KnifeRoom => {
                 "whether a cusp or slit opens wide enough for the ball between its two faces"
             }
-            Self::BallRoom => "whether a ball of the radius can rest on both faces at once",
+            Self::BallRoom => {
+                "whether a ball of the radius rolls along the edge touching both faces"
+            }
             Self::RingClearance => "whether a trimline clears a hole in its support face",
             Self::SupportCoaxiality => "whether the two support faces share an axis or a ruling",
             Self::ContactArm => concat!(
@@ -1133,13 +1139,13 @@ pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a
 /// crossing.
 pub const FILLET3_KNIFE_RECOURSE: &str = "reduce the fillet radius until the ball fits in the crescent between the \
      cusp's or slit's faces, or leave that edge out of the request";
-/// The recourse for a rim whose supports leave no room for the ball
-/// ([`BlendDecision::BallRoom`]): the ball's centre lies where the
+/// The recourse for a rim whose supports leave the ball no path along
+/// it ([`BlendDecision::BallRoom`]): the ball's centre lies where the
 /// supports' offsets cross, and past some radius they do not. A smaller
 /// one always has room, since at a radius near zero the offsets cross
 /// near the rim, at the angle the faces meet at.
-pub const FILLET3_BALL_ROOM_RECOURSE: &str = "reduce the fillet radius until one ball can rest on both faces at \
-     once, or leave that edge out of the request";
+pub const FILLET3_BALL_ROOM_RECOURSE: &str = "reduce the fillet radius until a ball of it rolls along the edge \
+     touching both faces, or leave that edge out of the request";
 /// The recourse for a cusp or slit whose faces do not open measurably
 /// apart ([`BlendDecision::KnifeEnd`]): no radius has room between
 /// them, so it does not offer a smaller one. A definite reading here is
@@ -1152,16 +1158,18 @@ pub const FILLET3_KNIFE_END_RECOURSE: &str = "leave that cusp or slit out of the
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
 ///
-/// **No fixture in the followability suite reaches this sentence** —
-/// which is a fact about those fixtures, not about the door. On the
-/// one closed-form curved spine they build, a plane–sphere rim, the
-/// clearance screen answers at every radius from the one that builds
-/// to the one whose ball has no room (`fillet3_ball_room`). The PREMISE
-/// that does the work is that a plane–sphere rim's spine curvature, its
-/// clearance and its ball's room run out together; a spine that folds while clearance is ample would be
-/// handed this sentence, and nothing here shows there is no such body.
-/// Measured by
-/// `blend_recourse_followability::the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
+/// **The followability suite does not follow this sentence yet.** On
+/// its one closed-form curved spine, the dome's plane–sphere equator,
+/// the clearance screen answers from the radius that builds up to
+/// `R/2`, and past it the ball has no room (`fillet3_ball_room`), so
+/// that rim never reaches predicate 3 at verb level
+/// (`blend_recourse_followability::the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`).
+/// That holds of that rim alone. Off it, a spine folds while its ball's
+/// room and its faces' clearance hold: the lantern's sphere–cone
+/// shoulder refuses `SpineIrregular` at `r = 0.5`
+/// (`a_ball_with_no_room_at_its_rim_refuses_typed`), and the row that
+/// follows this sentence there is
+/// `work/bandreach/the-lantern-shoulder-witnesses-the-spine-recourse-the-followability-suite-says-has-none.md`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 where a curved link meets
@@ -1609,15 +1617,19 @@ pub enum BlendError {
         /// Why the knife is not built.
         refusal: KnifeRefusal,
     },
-    /// **No ball of this radius rests on both supports of a rim**:
-    /// their offsets, where the ball's centre would lie, do not cross
-    /// (`fillet3_ball_room` decided Zero or negative). A ball inside a
-    /// sphere resting on the plane through its centre is the witness:
-    /// none is larger than half the sphere's radius.
+    /// **No ball of this radius rolls along a rim touching both
+    /// supports**: their offsets, where the ball's centre would run, do
+    /// not cross (`fillet3_ball_room` decided Zero or negative). Past
+    /// the room no ball rests on both; at its Zero one does, but only
+    /// where its path has shrunk to a point (a spine of radius zero).
+    /// A ball inside a sphere and on the plane through its centre is
+    /// the witness: its path closes on the axis at half the sphere's
+    /// radius.
     BallDoesNotFit {
         /// The edge whose ball does not exist.
         edge: EdgeKey,
-        /// The offsets' secant margin, meters, as `fillet3_ball_room`
+        /// The offsets' room, meters ([`arms::offset_room`],
+        /// [`arms::plane_sphere_room`]), as `fillet3_ball_room`
         /// classified it.
         margin: ClassifiedMargin,
         /// The fillet radius, meters — the REQUEST quantity, a bare
@@ -2166,8 +2178,8 @@ impl BlendError {
             ),
             Self::BallDoesNotFit { margin, radius, .. } => write!(
                 f,
-                "no ball of radius {radius} m rests on both faces at the edge at once \
-                 ({margin}){}",
+                "no ball of radius {radius} m rolls along the edge touching both faces: \
+                 their offsets, where its centre would run, do not cross ({margin}){}",
                 ended(door.map(|door| BlendDecision::BallRoom.recourse(margin.arm(), door)))
             ),
             Self::SpineIrregular { margin, radius } => write!(

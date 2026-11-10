@@ -293,12 +293,12 @@ fn lune_slit_plate() -> (Body<f64>, EdgeKey, EdgeKey) {
     (body, kiss, corner)
 }
 
-/// **`FILLET3_BALL_ROOM_RECOURSE` — "reduce the fillet radius until one
-/// ball can rest on both faces at once".**
+/// **`FILLET3_BALL_ROOM_RECOURSE` — "reduce the fillet radius until a
+/// ball of it rolls along the edge touching both faces".**
 ///
 /// The dome's equator is a plane through the centre of a unit sphere,
-/// and the ball rests inside the sphere: no ball larger than `R/2`
-/// touches both (`fillet3_ball_room`, room `R − 2r`). At `r = 0.6` it
+/// and the ball rests inside the sphere: no ball of `R/2` or more rolls
+/// along the rim touching both (`fillet3_ball_room`, room `R − 2r`). At `r = 0.6` it
 /// refuses so, and the reduced radius builds and validates.
 #[test]
 fn the_ball_room_recourse_is_followed_by_a_ball_that_fits() {
@@ -1134,9 +1134,11 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 ///
 /// **The premise, stated as one:** on a plane–sphere rim the spine's
 /// curvature limit, the face's clearance limit and the ball's room are
-/// the same geometry, so the screen cannot be outrun. A body whose spine folds
-/// while clearance stays ample would be handed the sentence; this row
-/// does not claim there is none, and the suite builds no such body.
+/// the same geometry, so the screen cannot be outrun. A body whose
+/// spine folds while clearance stays ample is handed the sentence: the
+/// lantern's sphere–cone shoulder is one, outside this suite
+/// (`a_ball_with_no_room_at_its_rim_refuses_typed`), and its row is
+/// filed.
 /// That is the shape of witness to look for, and the two flipped
 /// verdicts above are what makes the distinction worth writing down.
 ///

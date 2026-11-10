@@ -448,9 +448,11 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
 /// - `r = 0.4` refuses the clearance screen on the base annulus, whose
 ///   `0.5` between the equator and the bore is less than the plane
 ///   setback `1 − √(1 − 2r)`;
-/// - from `r = 0.5` no ball rests on both supports: inside the sphere
-///   and on the plane through its centre the room is `R − 2r`, decided
-///   Zero at `r = 0.5` and negative past it (`fillet3_ball_room`).
+/// - from `r = 0.5` no ball rolls along the rim touching both
+///   supports: inside the sphere and on the plane through its centre
+///   the room is `R − 2r`, decided Zero at `r = 0.5` (one ball rests on
+///   both there, on the axis, and its path is a point) and negative
+///   past it (`fillet3_ball_room`).
 #[test]
 fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
     let body = sweep::test_support::finished("body", dome(1.0, tol()), tol());

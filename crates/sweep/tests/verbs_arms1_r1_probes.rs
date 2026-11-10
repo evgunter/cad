@@ -369,8 +369,8 @@ fn the_unbored_hemisphere_equator_carves_as_one_band() {
 
 /// **Near-limit radii refuse typed.** `s ≤ r` is predicate 3's
 /// refusal; an infeasible ball (no spine circle at all) refuses
-/// `BallDoesNotFit` on the offsets' secant margin; a trim circle reaching the bore is predicate
-/// 2's `FaceClearanceUncertified` — the exact pair family deviation 2
+/// `BallDoesNotFit` on the offsets' room; a trim circle reaching the
+/// bore is predicate 2's `FaceClearanceUncertified` — the exact pair family deviation 2
 /// says the consumption sweep meters for annulus rims. None of them
 /// may panic, succeed, or mint silent geometry.
 #[test]

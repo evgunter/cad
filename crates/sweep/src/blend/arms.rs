@@ -442,10 +442,11 @@ pub fn plane_plane_blend<T: Real>(
 /// **Neither degenerate case is gated here**, and they are two
 /// different cases, not one:
 ///
-/// - `s² ≤ 0` — no spine circle exists at all: the offset plane misses
-///   the offset sphere, so no ball of radius `r` rests on both supports
-///   (on the dome, a ball inside the sphere and on its equator's plane,
-///   past `r = R/2`). `s` would be poison. The caller decides it first,
+/// - `s² ≤ 0` — no spine circle exists: the offset plane misses the
+///   offset sphere, or touches it at one point, so no ball of radius
+///   `r` rolls along the rim touching both supports (on the dome, a
+///   ball inside the sphere and on its equator's plane, from
+///   `r = R/2`, where the one ball resting on both sits on the axis). `s` would be poison. The caller decides it first,
 ///   from [`plane_sphere_room`], and refuses typed before this arm runs.
 /// - `0 < s ≤ r` — a spine circle exists but the tube swallows it: `s`
 ///   and `1/s` are ordinary finite numbers, and predicate 3 refuses
@@ -573,14 +574,22 @@ impl<T: Real> PlaneSphereFold<T> {
 }
 
 /// **`fillet3_ball_room`'s margin on the plane–sphere arm**, in METERS:
-/// the offset sphere's radius less the offset plane's distance from its
-/// centre, `|R ∓ r| − |h|` in [`plane_sphere_blend`]'s terms — the
-/// line × circle secant [`knife_room`] reads in a sheet, here in the
-/// meridian. Its sign is the sign of `s² = offset² − h²`, so it is
-/// positive exactly where the spine circle exists and the ball of
-/// radius `r` rests on both supports. On the dome (a ball inside a
-/// sphere of radius `R`, on the plane through its centre) it is
-/// `R − 2r`: the largest ball a hemisphere holds has `r = R/2`.
+/// the offset sphere's SIGNED radius less the offset plane's distance
+/// from its centre, `(R ∓ r) − |h|` in [`plane_sphere_blend`]'s terms —
+/// the line × circle margin [`offset_room`] reads in a sheet, here in
+/// the meridian. It is positive exactly where `s² = offset² − h² > 0`
+/// with the offset on the ball's side, so where the spine circle
+/// exists. The radius is signed, not taken in magnitude: past `r = R`
+/// with the ball inside the sphere, `R − r` is a ball holding the
+/// sphere, not resting on it, and the margin keeps falling with the
+/// overshoot rather than reading that tangency. With the ball outside
+/// the sphere the offset is `R + r`, positive at every radius.
+///
+/// On the dome (a ball inside a sphere of radius `R`, on the plane
+/// through its centre) it is `R − 2r` at every radius: the largest ball
+/// a hemisphere holds has `r = R/2`. On a plane at distance `d` from
+/// the centre it is `R − r − |d ± r|`, so a cap holds more room than the
+/// hemisphere on one side and less on the other.
 #[must_use]
 pub fn plane_sphere_room<T: Real>(
     origin: Point3<T>,
@@ -600,26 +609,7 @@ pub fn plane_sphere_room<T: Real>(
         sphere_convex,
         convexity,
     );
-    fold.offset.abs() - fold.h.abs()
-}
-
-/// **`fillet3_ball_room`'s margin in a sheet, at a rim**: [`knife_room`]'s
-/// secant margin wherever a trace is round, positive exactly where the
-/// offset traces cross and so where [`sheet_center`]'s rim branch has a
-/// centre to return. `None` for two straight traces: at a rim whose
-/// wedge predicate 5 decided definite they cross at an angle, and so
-/// do their offsets, at every radius — there is no question to decide.
-#[must_use]
-pub fn rim_room<T: Real>(
-    rim: Point3<T>,
-    a: SupportTrace<T>,
-    b: SupportTrace<T>,
-    radius: T,
-) -> Option<T> {
-    match (a, b) {
-        (SupportTrace::Straight { .. }, SupportTrace::Straight { .. }) => None,
-        _ => Some(knife_room(rim, a, b, radius)),
-    }
+    fold.offset - fold.h.abs()
 }
 
 // ------------------------------------------------------------------
@@ -723,31 +713,44 @@ pub enum Branch<T: Real> {
     Knife(Vec3<T>),
 }
 
-/// **`fillet3_knife_room`'s margin**: whether the ball of radius
-/// `radius` exists at a knife edge, in METERS. At a cusp or slit the
-/// supports meet tangentially, so the offset traces the ball's centre
-/// lies on cross away from the rim or not at all; this is their secant
-/// margin, positive exactly where they cross in two points.
+/// **The room the offset traces leave the ball**, in METERS: whether
+/// the `radius`-offsets of two traces in the link's sheet cross, where
+/// the ball's centre lies. It is one margin for both branches —
+/// `fillet3_ball_room` reads it at a rim and `fillet3_knife_room` at a
+/// knife — positive exactly where they cross in two points, so where
+/// [`sheet_center`] has a centre to return on either branch.
 ///
-/// - **circle × circle**: [`Circles::secant`] of the two offset
-///   circles. Two cylinders kissing externally (the valley between two
-///   touching tubes) always cross; two internally tangent ones (a lune)
-///   cross while `r < R_big − R_small`, the room their crescent opens
-///   to: the offsets' internal clearance is `(R_big − R_small) −
-///   |R_big − R_small − 2r|`, which reaches zero there.
-/// - **line × circle**: the offset circle's radius less the offset
-///   line's distance from its centre. A knife between a line and a
-///   circle has the ball outside the circle, so this is positive at
-///   every radius; it is decided all the same.
-/// - **line × line**: zero. Two straight traces tangent at the rim are
-///   one line, whose offsets are parallel: the supports never open, so
-///   there is no ball (and no valid body carries the pair).
+/// Each offset circle's radius is SIGNED, `R ∓ r` by the ball's side
+/// ([`sided`]): past `r = R` with the ball inside a circle the offset is
+/// negative, a ball holding the support rather than resting on it, and
+/// the margin falls with the overshoot instead of reading that circle's
+/// magnitude.
+///
+/// - **circle × circle**: [`Circles::secant`] of the two offsets, which
+///   is positive only where both are. Two cylinders kissing externally
+///   (the valley between two touching tubes) always cross; two
+///   internally tangent ones (a lune) cross while `r < R_big − R_small`,
+///   the room their crescent opens to; two convex spheres' offsets
+///   about centres `d` apart cross while `2(R − r) > d` (the lentil).
+/// - **line × circle**: the offset circle's signed radius less the
+///   offset line's distance from its centre.
+/// - **line × line**: `None`. The two offsets are two lines, and whether
+///   they cross is the branch's, not a margin's: at a rim the traces
+///   cross at the angle predicate 5 decided definite, and so do their
+///   offsets at every radius; at a knife the traces are one line and
+///   their offsets parallel, so the supports never open (no valid body
+///   carries the pair).
 #[must_use]
-pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T>, radius: T) -> T {
+pub fn offset_room<T: Real>(
+    rim: Point3<T>,
+    a: SupportTrace<T>,
+    b: SupportTrace<T>,
+    radius: T,
+) -> Option<T> {
     use SupportTrace::{Round, Straight};
-    let offset = |rr: T, side| (rr - sided(side, radius)).abs();
+    let offset = |rr: T, side| rr - sided(side, radius);
     match (a, b) {
-        (Straight { .. }, Straight { .. }) => T::zero(),
+        (Straight { .. }, Straight { .. }) => None,
         (
             Straight { normal, side },
             Round {
@@ -765,7 +768,7 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
             Straight { normal, side },
         ) => {
             let line = rim - normal * sided(side, radius);
-            offset(rr, sr) - (center - line).dot(normal).abs()
+            Some(offset(rr, sr) - (center - line).dot(normal).abs())
         }
         (
             Round {
@@ -778,7 +781,7 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
                 radius: r_b,
                 side: s_b,
             },
-        ) => Circles::new(c_a.distance(c_b), offset(r_a, s_a), offset(r_b, s_b)).secant(),
+        ) => Some(Circles::new(c_a.distance(c_b), offset(r_a, s_a), offset(r_b, s_b)).secant()),
     }
 }
 
@@ -814,10 +817,10 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
 ///
 /// Total arithmetic in, classification at the caller: nothing is gated
 /// here, exactly as [`plane_sphere_blend`] gates nothing. Offset traces
-/// that do not cross have no centre, which the caller decides first
-/// (`fillet3_ball_room` at a rim from [`rim_room`], `fillet3_knife_room`
-/// at a knife from [`knife_room`]), so the root's argument is negative
-/// only on a pair those doors pass.
+/// that do not cross have no centre, which the caller decides first from
+/// [`offset_room`] (`fillet3_ball_room` at a rim, `fillet3_knife_room`
+/// at a knife), so no root here is taken of a negative number on a pair
+/// those doors pass.
 ///
 /// **At a knife edge the rim branch is undefined, and `branch` names
 /// the ball's side instead** ([`Branch::Knife`]). There the two traces
@@ -828,7 +831,7 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
 /// supports open into, on the side both faces leave the edge by, so
 /// the knife branch keeps the crossing on that side of the rim. A
 /// line × line pair has no knife crossing at all (parallel offsets),
-/// which [`knife_room`] decides before any centre is read.
+/// which the caller refuses before any centre is read ([`offset_room`]).
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,
@@ -1052,10 +1055,10 @@ impl<T: Real> Meridian<T> {
     /// and is stored SIGNED: a centre that has crossed the axis yields a
     /// negative major radius, which is a torus the surface inventory
     /// reports rather than one this arm quietly repairs (the `minor ≥
-    /// major` net). `spine_curvature` is `1/s`, so a spine that does not
-    /// exist at all reaches predicate 3 as poison and a spine the tube
-    /// swallows reaches it as a finite curvature — the two degenerate
-    /// cases [`plane_sphere_blend`] distinguishes, unchanged here.
+    /// major` net). `spine_curvature` is `1/s`, so a spine the tube
+    /// swallows reaches predicate 3 as a finite curvature. A spine that
+    /// does not exist at all never reaches this arm: the caller refuses
+    /// it from [`offset_room`] first, as it does [`plane_sphere_blend`]'s.
     #[must_use]
     pub fn blend(
         &self,
@@ -1155,10 +1158,8 @@ impl<T: Real> Ruling<T> {
     ///
     /// `spine_curvature` is zero — a straight spine never folds, so
     /// predicate 3 saturates exactly as it does on [`plane_plane_blend`].
-    /// That is also why a degenerate ruled crossing does NOT reach
-    /// predicate 3: the zero is unconditional, so poison from
-    /// [`sheet_center`] rides the cylinder's `origin` and `u_ref`
-    /// instead (see that function's family note).
+    /// Offsets that do not cross never reach this arm: the caller
+    /// refuses them from [`offset_room`] first.
     #[must_use]
     pub fn blend(
         &self,
