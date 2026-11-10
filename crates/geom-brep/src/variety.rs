@@ -166,7 +166,8 @@ mod rows {
 
     use super::{Piece, Variety};
 
-    const ROW_RING: geom::RingSites = geom::RingSites::new("variety_row_tube", "variety_row_ring");
+    /// A reader's own rows: the refusal names them, not the convention's.
+    const ROW_RING: geom::RingSites = geom::RingReader::BooleanRider.sites();
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -253,12 +254,12 @@ mod rows {
         let gap = 0.5 * (b.zero() + b.escalate());
         let ring = Variety::of(&torus(1.0 + gap, 1.0), ROW_RING, b).map(|v| v.is_some());
         assert!(
-            matches!(&ring, Err(d) if d.predicate == Some("variety_row_ring")),
+            matches!(&ring, Err(d) if d.predicate == Some(ROW_RING.ring())),
             "{ring:?}"
         );
         let tube = Variety::of(&torus(2.0, gap), ROW_RING, b).map(|v| v.is_some());
         assert!(
-            matches!(&tube, Err(d) if d.predicate == Some("variety_row_tube")),
+            matches!(&tube, Err(d) if d.predicate == Some(ROW_RING.tube())),
             "{tube:?}"
         );
         assert!(matches!(
