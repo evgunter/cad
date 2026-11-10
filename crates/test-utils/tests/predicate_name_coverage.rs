@@ -51,18 +51,11 @@ enum Missing {
 /// The crates whose decided names the union does not yet hold, each
 /// with why and the row that closes it. A reference only such a crate
 /// spells is held by its entry.
-const KNOWN_MISSING: &[(&str, Missing, &str)] = &[
-    (
-        "editor-core",
-        Missing::Roster,
-        "work/onecopy/editor-core-runs-no-predicate-name-roster.md",
-    ),
-    (
-        "profile",
-        Missing::ClosedTable,
-        "work/onecopy/the-census-reads-no-closed-type-name-table.md",
-    ),
-];
+const KNOWN_MISSING: &[(&str, Missing, &str)] = &[(
+    "profile",
+    Missing::ClosedTable,
+    "work/onecopy/the-census-reads-no-closed-type-name-table.md",
+)];
 
 /// A crate as this row reads it.
 struct Crate {

@@ -249,6 +249,8 @@ mod gap_reads_vertex_and_edge_cells;
 mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "refactor_pose_definitions.rs"]
 mod refactor_pose_definitions;
 #[path = "refusal_concision.rs"]

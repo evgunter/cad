@@ -1092,7 +1092,7 @@ fn constant_pairing<T: Decide>(
     band: Band,
 ) -> bool {
     use geom::Surface as S;
-    let zero = |name, margin| decide(name, margin, band) == Ok(Sign::Zero);
+    let zero_as = |name, margin| decide(name, margin, band) == Ok(Sign::Zero);
     match (outer, inner) {
         (S::Plane { .. }, S::Plane { .. }) => true,
         (
@@ -1108,18 +1108,18 @@ fn constant_pairing<T: Decide>(
             },
         ) => {
             let rel = *o2 - *o1;
-            zero(
+            zero_as(
                 AT_REST_QUIET_AXES_PARALLEL,
                 // Unsourced lever: two faces' reaches from one point summed
                 // (`crate::eval::measure::reach_of`), a sum no extent read spells.
                 Margin::levered(a1.cross(*a2).norm(), geom_core::Lever::unsourced(extent)),
-            ) && zero(
+            ) && zero_as(
                 AT_REST_QUIET_CENTRED,
                 Margin::of((rel - *a1 * rel.dot(*a1)).norm()),
             )
         }
         (S::Sphere { center: c1, .. }, S::Sphere { center: c2, .. }) => {
-            zero(AT_REST_QUIET_CENTRED, Margin::of((*c2 - *c1).norm()))
+            zero_as(AT_REST_QUIET_CENTRED, Margin::of((*c2 - *c1).norm()))
         }
         _ => false,
     }
