@@ -569,6 +569,13 @@ pub fn climb_evidence<I, A, E>(
     for (at, rung) in rungs.into_iter().enumerate() {
         let (got, log) = detached(|| read(rung));
         let Some((answer, aborts)) = held.take(got, log) else {
+            // The first-refusal mutant (`scripts/any-first-mutant.sh`): an
+            // `Any` ladder refuses at its first kept rung, so a pin that
+            // stays green under it does not reach the answer past one.
+            #[cfg(any_first_mutant)]
+            if answering == Answering::Any && !held.kept.is_empty() {
+                return Err(held.splice_all(false));
+            }
             continue;
         };
         held.splice_all(!aborts && answering == Answering::Any);

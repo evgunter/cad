@@ -93,7 +93,6 @@ use geom_core::ladder::{Answering, Differing, Evidence, Rung, climb_differing, c
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::contain::FaceContainment;
-use super::plane_eq::PlaneEqError;
 use super::reduce::plane_desc;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -107,7 +106,6 @@ use super::{
     PierceRingRecord, ReductionContacts, SectorRead, SideCode, VfContact,
 };
 use crate::body::Body;
-use crate::contact::GlueClass;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::null::NewVertexSide;
@@ -314,7 +312,7 @@ impl<T: Decide> PierceDatum<T> {
     ) -> Result<SideCode, BooleanError> {
         let lever = self.lever.within(reach.lever().length());
         super::sectors::pierce_side(dir, reach, self.normal, self.bend, lever, rd)
-            .map(|(read, _)| read.code)
+            .map(|(code, _)| code)
     }
 
     /// [`Self::side`] as a cone is handed it on the reading `rd`
@@ -644,16 +642,22 @@ struct Entry {
     he: HalfEdgeKey,
     is_edge: bool,
     class: SideCode,
-    /// The bound's first-order reading tied
-    /// ([`super::sectors::PierceSide::tied`]).
-    tied: bool,
-    /// The Zero this bound's own first-order reading decided, where it
-    /// read `On` there.
-    on: Option<super::sectors::OnReading>,
+    /// What tied the bound's first-order reading with the face, where it
+    /// tied ([`super::sectors::pierce_side`]).
+    tie: Option<EntryTie>,
     /// The class is not this bound's first-order reading: Delta 2's
     /// lump, or, for a bound two tangent sectors share, their
     /// second-order reading of it.
     lumped: bool,
+}
+
+/// **What tied a bound with the pierced face** ([`Entry::tie`]).
+#[derive(Clone, Copy, Debug)]
+enum EntryTie {
+    /// Its first-order tie.
+    Tie(super::sectors::OnReading),
+    /// A conic bound whose bend read no side: the bend's escalation.
+    Bend(geom_core::Indeterminate),
 }
 
 /// What [`read_vertex_on_face`] read of one pierce, writing nothing,
@@ -765,11 +769,6 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // what [`crate::face_normal::face_plane`] reports as its normal
     // (it builds it from this very door),
     // which is what keeps the planar lane's arithmetic unmoved.
-    //
-    // `plane` itself survives only for Delta 2's planar carrier
-    // algebra, which needs an ORIGIN as well as a direction; the
-    // curved lane refuses there rather than building one (below).
-    let plane = plane_desc(pierced_body, contact.face);
     let unbuilt = || BooleanError::CurvedBooleanUnsupported {
         operand: pierced_op,
         face: contact.face,
@@ -919,7 +918,6 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut entries = Vec::with_capacity(n);
     let mut read_against = Vec::with_capacity(n);
-    let mut unread_bends = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
         // A bound lies on the wall of either sector it bounds: entry `k`
         // is sector `k`'s end and sector `k − 1`'s start.
@@ -942,29 +940,19 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             datum.lever.within(s.end_reach.lever().length()),
             crate::link::metric::Reading::plain(band),
         );
-        let (read, on) = match side {
-            Ok(read) => read,
-            Err(
-                refusal @ BooleanError::Escalated {
-                    decision: super::BooleanDecision::ConicBend,
-                    ..
-                },
-            ) => {
-                unread_bends.push((entries.len(), refusal));
-                let unread = super::sectors::PierceSide {
-                    code: SideCode::On,
-                    tied: true,
-                };
-                (unread, None)
-            }
+        let (class, tie) = match side {
+            Ok((code, on)) => (code, on.map(EntryTie::Tie)),
+            Err(BooleanError::Escalated {
+                decision: super::BooleanDecision::ConicBend,
+                diag,
+            }) => (SideCode::On, Some(EntryTie::Bend(diag))),
             Err(e) => return Err(e),
         };
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge(),
-            class: read.code,
-            tied: read.tied,
-            on,
+            class,
+            tie,
             lumped: false,
         });
     }
@@ -982,18 +970,11 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // in metres; a bound read definitely off the plane decides the
     // sector off it. A conic bound that ties may read its bend off the
     // plane, and the lump's second order supersedes it.
-    // Where both read On, the normals' parallelism proposes coplanarity:
-    // at the sector's reach, the ball the carrier ladder reads an
-    // unglued pair over below; a glued pair's at the arm, its ladder
-    // reading over the glue's extent. A tilt the bounds
-    // read On and the normals do not (in
-    // band, or decided off: a thin sector tilted about one bound rises
-    // at its arm by more than at its other bound) leaves the question
-    // undecided at this tolerance, and the margin that decides it is the
-    // bounds' own: a smaller tolerance reads the steeper bound off the
-    // plane and the sector with it.
+    // Where both tie, a glued pair lumps by its record; any other pair
+    // refuses on the steeper bound's tie, which a smaller tolerance reads
+    // off the plane first ([`unglued_flat_sector`]).
     let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
-    let tied: Vec<bool> = entries.iter().map(|e| e.tied).collect();
+    let ties: Vec<Option<EntryTie>> = entries.iter().map(|e| e.tie).collect();
     let classes = entries
         .iter()
         .filter(|e| e.is_edge)
@@ -1004,14 +985,14 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // two, and the walk subdivided it where the plane's side turns, so
     // no sub-sector there has both bounds in the plane.
     let flat = |k: usize| {
-        let both = tied[k] && tied[(k + 1) % n];
+        let both = ties[k].zip(ties[(k + 1) % n]).map(|(a, b)| [a, b]);
         debug_assert!(
-            !(both && sectors[k].apex().is_some()),
+            !(both.is_some() && sectors[k].apex().is_some()),
             "a sub-sector at a cone's apex has both bounds in the pierced plane"
         );
         both
     };
-    let flush = (0..n).any(flat);
+    let flush = (0..n).any(|k| flat(k).is_some());
     let mut covered = Vec::new();
     let mut fates = super::fate::Fates::default();
     // A tangent sector touches the face only along the tangency locus,
@@ -1022,14 +1003,13 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     let mut tangent_lumps = Vec::new();
     let mut tangent = vec![false; n];
     for (k, s) in sectors.iter().enumerate() {
-        if !flat(k) {
+        let Some(ties) = flat(k) else {
             continue;
-        }
+        };
         // A glued pair is read through its record: a tangency lumps by
         // its curving, a one-carrier pair by the relation the glue door
         // recorded, and neither reads the sector's tilt again.
-        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
-        if class == Some(GlueClass::Tangent) {
+        if declared.glues_tangent(piercing, s.face, pierced_op, contact.face) {
             let s_sector = orbit_body.proven_face(s.face).surface().clone();
             let s_pierced = pierced_body.proven_face(contact.face).surface().clone();
             let read = declared.read(
@@ -1063,9 +1043,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 return Err(unglued_flat_sector(
                     (orbit_body, piercing, s),
                     (pierced_op, contact.face, pierced_kind),
-                    plane,
-                    (p, n_pierced.vec()),
-                    declared,
+                    ties,
                     band,
                 ));
             }
@@ -1124,8 +1102,15 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             entries[e].class = read[e];
         }
     }
-    if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
-        return Err(refusal);
+    if let Some(diag) = entries
+        .iter()
+        .filter(|e| !e.lumped)
+        .find_map(|e| match e.tie {
+            Some(EntryTie::Bend(diag)) => Some(diag),
+            _ => None,
+        })
+    {
+        return Err(bend_refusal(diag));
     }
 
     // On-edge resolution (module docs; the deliberate divergence).
@@ -2849,15 +2834,12 @@ fn tie_breaks_after<T: Decide>(
 }
 
 /// **The refusal of a flat sector whose pair the glue door did not
-/// glue.** The tilt between the sector's normal and the pierced face's
-/// at `p`, levered at the sector's reach, proposes coplanarity. A tilt
-/// the bounds read On and the normals do not (in band, or decided off:
-/// a thin sector tilted about one bound rises at its arm by more than
-/// at its other bound) leaves the question undecided at this tolerance,
-/// and the margin that decides it is the bounds' own: a smaller
-/// tolerance reads the steeper bound off the plane and the sector with
-/// it. A tilt decided Zero reads the pair one carrier about the corner,
-/// which no glue backs ([`super::unglued_corner`]).
+/// glue.** Carrier identity is the glue door's alone, so the sector lies
+/// on the pierced face's plane by its bounds' first-order ties alone, and
+/// refuses on the steeper one's ([`super::unglued_corner`]): the reading
+/// a smaller tolerance reads off the plane first, and the sector with it.
+/// A conic bound whose bend read no side carries no first-order reading;
+/// where neither bound does, the refusal is the bend's.
 ///
 /// C8: a CURVED on-carrier sector is opened by the glue door's verdict
 /// and by nothing else. A tangency the witness lane verifies is glued
@@ -2875,111 +2857,44 @@ fn tie_breaks_after<T: Decide>(
 fn unglued_flat_sector<T: Decide>(
     (piercing_body, piercing, s): (&Body<T>, Operand, &BoolSector<T>),
     (pierced_op, pierced, pierced_kind): (Operand, crate::entity::FaceKey, geom::SurfaceKind),
-    plane: Option<super::plane_eq::PlaneDesc<T>>,
-    (p, n_pierced): (geom_core::Point3<T>, Vec3<T>),
-    declared: &super::GluedPairs<T>,
+    ties: [EntryTie; 2],
     band: Band,
 ) -> BooleanError {
-    let pair = (piercing, s.face, pierced_op, pierced);
-    let m = Margin::levered(s.tangent().vec().cross(n_pierced).norm(), s.span());
-    let tilt = decide("bool_sector_coplanar", m, band);
-    if !matches!(tilt, Ok(Sign::Zero)) {
-        // The refusal names the one-carrier class the pair's senses make
-        // it against a planar pierced face, or none where it cannot read
-        // them. A decided tilt names no class: no glue settles it.
-        let decided_tilt = matches!(tilt, Ok(Sign::Positive | Sign::Negative));
-        let senses = (plane.is_some() && !decided_tilt)
-            .then(|| super::plane_eq::senses(s.tangent().vec(), n_pierced, s.arm, band))
-            .flatten();
-        let read = super::sectors_read(declared, pair, senses);
-        return match s.bounds_off(n_pierced, band) {
-            Err(diag) => BooleanError::coincidence(Coincide::Sectors, read, diag),
-            Ok(_) => BooleanError::ClassificationInvariant {
-                what: "a sector bound read On departs definitely from the plane",
-            },
+    use crate::bound_side::FaceShape;
+    if s.bend.shape() != FaceShape::Plane {
+        return BooleanError::CurvedBooleanUnsupported {
+            operand: piercing,
+            face: s.face,
+            kind: piercing_body.proven_face(s.face).surface().kind(),
         };
     }
-    let curved = |body: &Body<T>, operand, face| {
-        let kind = body.proven_face(face).surface().kind();
-        BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        }
-    };
-    let Some(super::carrier_eq::CarrierDesc::Plane {
-        origin: sector_origin,
-        normal: sector_normal,
-    }) = super::carrier_pair::face_carrier(piercing_body, s.face)
-    else {
-        return curved(piercing_body, piercing, s.face);
-    };
-    let Some(plane) = plane else {
+    if FaceShape::of_kind(pierced_kind) != FaceShape::Plane {
         return BooleanError::CurvedBooleanUnsupported {
             operand: pierced_op,
             face: pierced,
             kind: pierced_kind,
         };
-    };
-    let senses = super::plane_eq::senses(s.tangent().vec(), n_pierced, s.arm, band);
-    // Over the sector about `p`, out to its farther bound's reach, where
-    // the tilt above read it coplanar.
-    // Unsourced lever: the ball about the corner out to its farther
-    // bound's reach, a length the sector carries, not a ball the extent
-    // home reads off the bounds' geometry.
-    let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::unsourced(
-        p,
-        s.span().length(),
-    ));
-    match super::carrier_eq::carrier_eq_reading(
-        &super::carrier_eq::CarrierDesc::Plane {
-            origin: sector_origin,
-            normal: sector_normal,
-        },
-        &super::carrier_eq::CarrierDesc::Plane {
-            origin: plane.origin,
-            normal: plane.normal,
-        },
-        &extent,
-        band,
-    ) {
-        // The parallel rung reads the tilt above's margin, decided zero,
-        // and the offset is `p`'s standing off two planes it lies on.
-        Ok(super::CarrierVerdict::Apart(_) | super::CarrierVerdict::TwoKinds) => {
-            BooleanError::ClassificationInvariant {
-                what: "geometrically coplanar sector with definitely-distinct plane",
+    }
+    let tie = match ties {
+        [EntryTie::Tie(a), EntryTie::Tie(b)] => {
+            if a.decided.margin.binds_before(b.decided.margin) {
+                b
+            } else {
+                a
             }
         }
-        // One plane at the sector's arm, for a pair the glue door did
-        // not glue over the faces.
-        Ok(super::CarrierVerdict::One {
-            relation: rel,
-            margin,
-        }) => super::unglued_corner(
-            declared,
-            pair,
-            senses,
-            s.bounds_off(n_pierced, band).err(),
-            || super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band),
-        ),
-        // In band, unreachable here: `bool_sector_coplanar` read this
-        // same margin (the two normals' cross, at the sector's reach)
-        // zero above. The door is `recl`'s, which reaches it at another
-        // reach.
-        Err(PlaneEqError::Escalated { rung, diag }) => {
-            BooleanError::plane_identity(rung, declared.on_pair_door(pair, senses), diag)
-        }
-        Err(PlaneEqError::Undecided {
-            coincidence,
-            relation,
-        }) => super::undecided_coincidence(
-            coincidence,
-            [(piercing, s.face), (pierced_op, pierced)],
-            declared.carriers_read(pair, relation),
-        ),
-        Err(PlaneEqError::OffRing { torus, refusal }) => {
-            super::off_ring_torus(torus, refusal, [(piercing, s.face), (pierced_op, pierced)])
-        }
+        [EntryTie::Tie(tie), EntryTie::Bend(_)] | [EntryTie::Bend(_), EntryTie::Tie(tie)] => tie,
+        [EntryTie::Bend(diag), EntryTie::Bend(_)] => return bend_refusal(diag),
+    };
+    super::unglued_corner(super::CornerOn::Tie(tie), band)
+}
+
+/// The refusal of a conic bound whose bend read no side
+/// ([`EntryTie::Bend`]), as the entry loop held it.
+const fn bend_refusal(diag: geom_core::Indeterminate) -> BooleanError {
+    BooleanError::Escalated {
+        decision: super::BooleanDecision::ConicBend,
+        diag,
     }
 }
 
@@ -3031,11 +2946,11 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         if !entries[k].is_edge
             && !before.lumped
             && !after.lumped
-            && !before.tied
-            && !after.tied
+            && before.tie.is_none()
+            && after.tie.is_none()
             && prev == next
         {
-            let Some(on) = entries[k].on else {
+            let Some(EntryTie::Tie(on)) = entries[k].tie else {
                 unreachable!(
                     "a bisector classed On with no Zero of its own: a bisector reads On only at \
                      its own first-order Zero, or from a lump of two bounds both read On ({:?})",
@@ -3482,13 +3397,15 @@ mod tests {
             he: HalfEdgeKey::default(),
             is_edge,
             class,
-            tied: class == SideCode::On,
-            on: (class == On).then(|| super::super::sectors::OnReading {
-                predicate: "enters_material",
-                decided: geom_core::Decided {
-                    sign: geom_core::Sign::Zero,
-                    margin: geom_core::MarginDiag::value(on_margin),
-                },
+            tie: (class == On).then(|| {
+                EntryTie::Tie(super::super::sectors::OnReading {
+                    predicate: "enters_material",
+                    decided: geom_core::Decided {
+                        sign: geom_core::Sign::Zero,
+                        margin: geom_core::MarginDiag::value(on_margin),
+                    },
+                    by: crate::bound_side::TiedBy::Band,
+                })
             }),
             lumped: false,
         }
@@ -3524,11 +3441,11 @@ mod tests {
                 crate::link::metric::Reading::plain(band),
             )
             .unwrap();
-            assert_eq!(side.code, On, "f {f}: the bisector reads On");
+            assert_eq!(side, On, "f {f}: the bisector reads On");
             for side in [Out, In] {
                 let what = format!("f {f}, {side:?}");
                 let bisector = Entry {
-                    on,
+                    tie: on.map(EntryTie::Tie),
                     ..entry(false, On, 0.0)
                 };
                 let mut one_sided = [entry(true, side, 0.0), bisector, entry(true, side, 0.0)];
@@ -3648,19 +3565,16 @@ mod tests {
                 radius,
                 rd,
             )
-            .map(|(side, _)| side)
+            .map(|(code, on)| (code, on.is_some()))
             .unwrap()
         };
         assert_eq!(
             edge(plain),
-            super::super::sectors::PierceSide {
-                code: SideCode::Out,
-                tied: true
-            },
+            (SideCode::Out, true),
             "tied at first order, the edge leaves the ball's face on the band"
         );
         assert_eq!(
-            edge(offset).code,
+            edge(offset).0,
             SideCode::On,
             "over the offset its parting is unresolved"
         );
@@ -4453,8 +4367,9 @@ mod tests {
                             he: s.he,
                             is_edge: s.end_edge(),
                             class,
-                            tied: class == SideCode::On,
-                            on: None,
+                            tie: (class == SideCode::On)
+                                .then_some(entry(true, On, 0.0).tie)
+                                .flatten(),
                             lumped: false,
                         }
                     })

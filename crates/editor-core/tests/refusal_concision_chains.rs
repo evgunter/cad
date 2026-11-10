@@ -1685,12 +1685,10 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row("RecordRefused", NodeErrorKind::RecordRefused),
         row(
             "RecordMispaired",
-            NodeErrorKind::RecordMispaired(editor_core::RecordMispairing::Document(
-                editor_core::ident::Mispaired {
-                    expected: editor_core::ident::DocumentId(1),
-                    found: editor_core::ident::DocumentId(2),
-                },
-            )),
+            NodeErrorKind::RecordMispaired(editor_core::RecordMispairing::Document {
+                expected: editor_core::ident::DocumentId(1),
+                found: editor_core::ident::DocumentId(2),
+            }),
         ),
         row(
             "WrongOperand",
@@ -5245,7 +5243,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
                     decision: topo::BooleanDecision::Coincidence(
-                        topo::Coincide::Carriers,
+                        topo::Coincide::CornerCrossing,
                         topo::DeclarationRead::Moot,
                     ),
                     diag: diag(),
