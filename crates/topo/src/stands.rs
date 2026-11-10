@@ -241,6 +241,10 @@ fn witness_rung<T: Decide, S, K, E: From<LadderRefusal>>(
         Ok(None) => return Rung::Passes,
         Err(refusal) => return Rung::Aborts(Err(E::from(refusal))),
     };
+    // The witness ladder's table. `insides_at` reads `Witness` the other
+    // way up (`On` answers, a side passes and is recorded): one table
+    // with the inversion as a parameter would have to carry both the
+    // tallies here and the inside recording there.
     match probe(q) {
         Ok(Witness::Side(s)) => Rung::Answers(Ok(s)),
         Ok(Witness::On) => {
@@ -744,6 +748,8 @@ fn insides_at<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .enumerate()
         .filter(|&(t, _)| t != i && may_enclose(t));
+    // `Witness` read the other way up from the witness ladder's table
+    // (`witness_rung`): here `On` answers and a side passes.
     let on = climb_evidence(Answering::Any, probed, |(t, other)| {
         match Witness::of(point_in_solid_faces(body, &other.sel, q, band, tol)) {
             Ok(Witness::Side(side)) => {

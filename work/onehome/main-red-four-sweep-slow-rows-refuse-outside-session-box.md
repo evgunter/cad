@@ -1,7 +1,7 @@
 ---
 id: main-red-four-sweep-slow-rows-refuse-outside-session-box
 kind: issue
-title: main red: four sweep slow-set rows refuse their fixtures' extrude with OutsideSessionBox, likely since 8a97c7fab5 (the session box's edge reach as a true lower bound)
+title: main red: five sweep slow-set rows refuse their fixtures' extrude with OutsideSessionBox, likely since 8a97c7fab5 (the session box's edge reach as a true lower bound)
 status: open
 opened: 2026-11-09
 priority: P0
@@ -59,3 +59,5 @@ The whole slow set, run per crate on main `45185551` (a fresh build in its own t
 - `sign_walk_plus_v::an_undecided_sign_with_the_schedule_run_out_refuses` and `::a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket`: fail at the fixture's `the strip lofts at every ε row` expect, the refusal the nightly reading above names.
 
 None is moved by that branch, which builds nothing.
+
+**A fifth row** (the id keeps "four": other rows and logs cite it; 2026-11-10, found by `onecopy/crease-at`'s slow run): `crates/sweep/tests/parallel_cylinder_join.rs` `a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings` fails at default ε in its fixture's extrude, with `NotFinished { findings: [OutsideSessionBox { margin: -99000.0 }] }` (`sweep/src/test_support.rs:917`). It is the same on `origin/main` `223107e2`, and it passes at 1e-12.

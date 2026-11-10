@@ -1373,6 +1373,7 @@ mod tests {
         Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
             band: b(),
+            // UNDECIDED-NAME: a fixture diag; the pin reads its standing, not the name
             predicate: Some("test_region_in_band"),
             terminal_sliver: false,
         }
@@ -1444,6 +1445,7 @@ mod standing_rows {
         let diag = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
+            // UNDECIDED-NAME: a fixture diag; the pin reads its standing, not the name
             predicate: Some("test_region_standing"),
             terminal_sliver: false,
         };

@@ -1110,6 +1110,14 @@ fn segment<T: Decide>(
 /// One code for both is an invariant: two pieces of one operand In on
 /// the segment would overlap there, and two Out on it are each In
 /// on the rest of the orbit, and overlap there.
+///
+/// This is not [`crate::star::ring_tree`]'s parent relation, though it
+/// nests chords of one vertex: the struts are different pairs', and their
+/// germs lie inside one sector, where only a germ order places them
+/// ([`walks_before`]). One tree over every chord at the vertex needs every
+/// pair's germs in one order, and that order is the germs', not the
+/// star's: the star orders bounds, and each pair's germs sit between two
+/// of them.
 fn holds_whole<T: Decide>(
     secs: &[BoolSector<T>],
     (lo, hi, code): Segment<T>,
@@ -1456,8 +1464,11 @@ fn held_cut<T: Decide>(
     );
     let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
     // Any cut the run holds answers, whatever an earlier cut read
-    // ([`climb`], [`Answering::Any`]): the owner only names the
-    // `SharedVertexCrossings` refusal its caller raises. A cut read in
+    // ([`climb`], [`Answering::Any`]). The owner is a witness only
+    // (`Answering::Any`'s diagnostic payload): `reconcile_pass` reads
+    // whether a cut is held to choose the way round, and the owner only
+    // names the second partner of the `SharedVertexCrossings` refusal it
+    // raises where neither way mints. A cut read in
     // band is kept by its standing ([`BooleanError::refusal`]), refusing
     // only where no other cut is held. Each cut's reads are premises of
     // one another, so they stay inside its rung.
@@ -2524,7 +2535,7 @@ fn record_germ_dir<T: Decide>(
 /// (`sectors::rays_within` of the un-normalized line), so they single
 /// out the ray they found there. `±(n_a × n_b)` is
 /// a LINE and membership picks the ray, so neither normal's sign
-/// survives into it; they arrive outward from `sectors::sector_face`
+/// survives into it; they arrive outward from `crate::sector_face::resolve`
 /// and nothing is multiplied here. (A pierce germ is signed by its
 /// transition's codes instead, `vtxfac::pierce_germ_dir`, which reads
 /// both normals as outward.)
@@ -2976,7 +2987,7 @@ mod tests {
                         geom_core::test_support::fixture_lever(1.0),
                     ),
                     face: body.face_of_half_edge(he).unwrap(),
-                    at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
+                    at_vertex: crate::star::StarFace::Tangent(normal),
                     arm: geom_core::test_support::fixture_lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 })
@@ -3097,9 +3108,9 @@ mod tests {
                 geom_core::test_support::fixture_lever(1.0),
             ),
             face: body.face_of_half_edge(he).unwrap(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                geom_brep::OutwardNormal::from_chart(normal, true),
-            ),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                normal, true,
+            )),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -3226,9 +3237,10 @@ mod tests {
             start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             end_reach,
             face: FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
-            ),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                Vec3::new(0.0, 0.0, 1.0),
+                true,
+            )),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -3603,7 +3615,7 @@ mod tests {
                         geom_core::test_support::fixture_lever(1.0),
                     ),
                     face: body.face_of_half_edge(he).unwrap(),
-                    at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
+                    at_vertex: crate::star::StarFace::Tangent(normal),
                     arm: geom_core::test_support::fixture_lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 })
@@ -3694,9 +3706,7 @@ mod tests {
                 far: o + y,
             },
             face: FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-                normal, true,
-            )),
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(normal, true)),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -3939,7 +3949,7 @@ mod tests {
                             geom_core::test_support::fixture_lever(lever),
                         ),
                         face: FaceKey::default(),
-                        at_vertex: crate::boolean::sectors::BoolFace::Tangent(
+                        at_vertex: crate::star::StarFace::Tangent(
                             geom_brep::OutwardNormal::from_chart(flat, true),
                         ),
                         arm: geom_core::test_support::fixture_lever(lever),
@@ -4009,9 +4019,9 @@ mod tests {
             start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             face: FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                geom_brep::OutwardNormal::from_chart(n, true),
-            ),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                n, true,
+            )),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -4075,9 +4085,9 @@ mod tests {
             start_reach,
             end_reach,
             face: FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                geom_brep::OutwardNormal::from_chart(n, true),
-            ),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                n, true,
+            )),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -4309,9 +4319,7 @@ mod tests {
                 far: o + end,
             },
             face,
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-                normal, true,
-            )),
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(normal, true)),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };

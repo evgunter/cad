@@ -70,7 +70,7 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
     // the refusal is that read, never the residual's meter.
     assert!(
         matches!(err.incidence_read(), Some(geom_brep::IncidenceRead::Off(_)))
-            && err.incidence_kinds() == Some((unit_cylinder().kind(), geom::CurveKind::Line)),
+            && err.chart_carrier_kinds() == Some((unit_cylinder().kind(), geom::CurveKind::Line)),
         "a secant must refuse as the mint's incidence read, of the wall and the chord: {err:?}"
     );
 }

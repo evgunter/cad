@@ -173,16 +173,13 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
         /// built from ([`reach_of`]).
         reach: T,
     },
-    /// A cylindrical face's carrier: a point on the axis, the unit
-    /// axis direction, and the radius.
+    /// A cylindrical face's carrier: its axis line and the radius.
     Cylinder {
-        /// A point on the axis.
-        origin: Point3<T>,
-        /// The unit axis direction.
-        axis: Vec3<T>,
+        /// The axis: its origin a point on the axis, its direction unit.
+        axis: geom::Line<T>,
         /// The radius, positive by the surface's own convention.
         radius: T,
-        /// An UPPER bound on the distance from `origin` to any point of
+        /// An UPPER bound on the distance from `axis.origin` to any point of
         /// the face — the face's own extent, and the lever [`arm`] is
         /// built from ([`reach_of`]).
         reach: T,
@@ -395,8 +392,10 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef, band: Band) 
                         return Carrier::Other("a face with no cover");
                     };
                     Carrier::Cylinder {
-                        origin: *origin,
-                        axis: *axis,
+                        axis: geom::Line {
+                            origin: *origin,
+                            dir: *axis,
+                        },
                         radius: *radius,
                         reach,
                         round,
@@ -635,9 +634,8 @@ fn arm<T: Decide>(a: &Carrier<'_, T>, b: &Carrier<'_, T>) -> T {
 fn reference<T: Decide>(c: &Carrier<'_, T>) -> (Point3<T>, T) {
     match c {
         Carrier::Point { at, .. } => (*at, T::zero()),
-        Carrier::Plane { origin, reach, .. } | Carrier::Cylinder { origin, reach, .. } => {
-            (*origin, *reach)
-        }
+        Carrier::Plane { origin, reach, .. } => (*origin, *reach),
+        Carrier::Cylinder { axis, reach, .. } => (axis.origin, *reach),
         Carrier::Pose { pose, reach } => (pose.at(), reach.unwrap_or_else(T::zero)),
         Carrier::Sphere { center, reach, .. } => (*center, *reach),
         // A segment's length bounds its reach from either end.
@@ -730,22 +728,11 @@ fn distance<T: Decide>(
         // convention. Parallel axes only: skew axes have a distance
         // this formula computes but a common perpendicular no wall
         // pair shares, which is `gap`'s refusal for the same reason.
-        (
-            Carrier::Cylinder {
-                origin: oa,
-                axis: aa,
-                ..
-            },
-            Carrier::Cylinder {
-                origin: ob,
-                axis: ab,
-                ..
-            },
-        ) => {
-            if !parallel("carrier_cyl_axis_parallel", *aa, *ab, arm(a, b), band)? {
+        (Carrier::Cylinder { axis: la, .. }, Carrier::Cylinder { axis: lb, .. }) => {
+            if !parallel("carrier_cyl_axis_parallel", la.dir, lb.dir, arm(a, b), band)? {
                 return not_parallel("distance", "carrier_cyl_axis_parallel", a, b);
             }
-            Ok(axis_offset(*oa, *aa, *ob))
+            Ok(la.distance(lb.origin))
         }
         _ => pose_distance(a, b, band),
     }
@@ -855,13 +842,6 @@ const NO_LEVER: &str = "an axis read off no face, which no tilt can be levered o
 /// same lattice `Expr::max` uses, and no comparison is reified.
 fn magnitude<T: Decide>(d: T) -> T {
     d.max(-d).max(T::zero())
-}
-
-/// The perpendicular distance from a point to a line — the component
-/// of the separation orthogonal to a UNIT direction. A metre quantity
-/// throughout.
-fn axis_offset<T: Decide>(origin: Point3<T>, axis: Vec3<T>, point: Point3<T>) -> T {
-    geom::Line { origin, dir: axis }.distance(point)
 }
 
 /// `angle(a, b)` -> Angle: the unsigned angle in `[0, pi]` between two
@@ -985,28 +965,26 @@ fn gap<T: Decide>(
         // two lines as though it were a clearance.
         (
             Carrier::Cylinder {
-                origin: oo,
-                axis: ao,
+                axis: lo,
                 round: ro,
                 ..
             },
             Carrier::Cylinder {
-                origin: oi,
-                axis: ai,
+                axis: li,
                 round: ri,
                 ..
             },
         ) => {
             if !parallel(
                 "carrier_cyl_axis_parallel",
-                *ao,
-                *ai,
+                lo.dir,
+                li.dir,
                 arm(outer, inner),
                 band,
             )? {
                 return not_parallel("gap", "carrier_cyl_axis_parallel", outer, inner);
             }
-            round_pair(ro, ri, axis_offset(*oo, *ao, *oi), outer, band)
+            round_pair(ro, ri, lo.distance(li.origin), outer, band)
         }
         (Carrier::Plane { .. }, Carrier::Sphere { .. } | Carrier::Cylinder { .. }) => {
             plane_round(outer, inner, band).map(|(g, _)| g)
@@ -1189,16 +1167,11 @@ fn plane_round<T: Decide>(
     };
     let (centre, radius, convex) = match round {
         Carrier::Sphere { center, round, .. } => (*center, round.radius(), round.convex()),
-        Carrier::Cylinder {
-            origin: on,
-            axis,
-            round: r,
-            ..
-        } => {
+        Carrier::Cylinder { axis, round: r, .. } => {
             // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
             // points' separation, a sum no extent read spells in this order.
             let tilt = Margin::levered(
-                axis.dot(*outward),
+                axis.dir.dot(*outward),
                 geom_core::Lever::unsourced(arm(plane, round)),
             );
             match decide(GAP_AXIS_PARALLEL_TO_PLANE, tilt, band) {
@@ -1208,7 +1181,7 @@ fn plane_round<T: Decide>(
                     return Err(PrimitiveRefusal::Escalated(source));
                 }
             }
-            (*on, r.radius(), r.convex())
+            (axis.origin, r.radius(), r.convex())
         }
         _ => unreachable!("gap matched a sphere or a cylinder"),
     };
@@ -1664,12 +1637,15 @@ mod tests {
             reach: 1.0,
             round: topo::Round::sphere(p(0.0, 0.0, 0.0), 1.0, convex),
         };
-        let cylinder = |convex| Carrier::Cylinder {
+        let axis = geom::Line {
             origin: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            dir: v(0.0, 0.0, 1.0),
+        };
+        let cylinder = |convex| Carrier::Cylinder {
+            axis,
             radius: 1.0,
             reach: 5.0,
-            round: topo::Round::cylinder(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), 1.0, convex),
+            round: topo::Round::cylinder(axis, 1.0, convex),
         };
         let out = vertex(p(1.01, 0.0, 0.0));
         close(read(&sphere(true), &out), 0.01, "outside a ball");
@@ -1768,12 +1744,12 @@ mod tests {
         radius: f64,
         convex: bool,
     ) -> Carrier<'static, f64> {
+        let axis = geom::Line { origin, dir: axis };
         Carrier::Cylinder {
-            origin,
             axis,
             radius,
             reach: 10.0,
-            round: topo::Round::cylinder(origin, axis, radius, convex),
+            round: topo::Round::cylinder(axis, radius, convex),
         }
     }
 

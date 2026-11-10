@@ -2,11 +2,12 @@
 id: the-turn-refusal-names-no-corner-point
 kind: issue
 title: NoCornerForFillet { TurnWithinTolerance } describes one corner but travels the whole-pair channel with no corner point
-status: open
+status: closed
 opened: 2026-11-06
 priority: P3
 cost: E
-rides_with: anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction
+closed: 2026-11-10
+pr: 6719
 ---
 
 ## Finding
