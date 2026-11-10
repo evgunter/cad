@@ -78,7 +78,6 @@
 use geom::cover::Cover;
 use geom::{CarrierEscalation, CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{self, decide_reported, straddle};
-use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
 
@@ -531,8 +530,9 @@ impl<'a, T: Decide> Span<'a, T> {
         if !self.ended {
             return Ok(EndsPlace::Inside);
         }
-        // On a closed carrier each end's side is also read on the copy a
-        // turn away, against the other end ([`Period::span_margins`]):
+        // On a carrier with a period (`Curve3::period`) each end's side
+        // is also read on the copy a period away, against the other end
+        // (`Period::span_margins`):
         // past the stop end only where the copy a turn back is also before
         // the start (module docs, "A parameter a turn away"). At `f64` the
         // copy is no nearer. Through this span's own naming
@@ -543,15 +543,14 @@ impl<'a, T: Decide> Span<'a, T> {
         // (`place_param` and `place_at` both read `branch`), so the start
         // arm moves nothing today: it is the same reading for a parameter
         // on the lower copy, kept so the side does not rest on which copy
-        // the tie takes. The meter is this door's own (each side at the
-        // carrier's sup speed, [`Self::side`]): the copy rule is the one
-        // question it shares with `topo`'s ring lane, which meters a
-        // root's side by the slope its piece crosses at.
-        let (start, stop) = if self.carrier.is_periodic() {
-            Period::new(T::tau()).span_margins(t, (self.t0, self.t1))
-        } else {
-            (t - self.t0, self.t1 - t)
-        };
+        // the tie takes. The meter is this door's own: each side at the
+        // carrier's sup speed ([`Self::side`]).
+        let (start, stop) = self
+            .carrier
+            .period()
+            .map_or((t - self.t0, self.t1 - t), |p| {
+                p.span_margins(t, (self.t0, self.t1))
+            });
         let ends = [(SpanEnd::Start, start), (SpanEnd::Stop, stop)];
         // An end at the point first, on its raw chord: no side matters
         // beside it.

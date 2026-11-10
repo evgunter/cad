@@ -2775,20 +2775,20 @@ impl<T: Decide> CarriedComponent<T> {
     /// of the two. The desync, a witness past the end by less than that
     /// reach, is read at the sup (`section_site_in_span_past_near`), so
     /// "nearer than that" is sound; where the two meters disagree the
-    /// site escalates on both bounds. That holds because a conic component is a closed form, which
-    /// carries no pad: a pad widens the witness's reach by twice itself,
+    /// site escalates on both bounds. That holds because a conic component
+    /// is a closed form, which carries no pad: a pad widens the witness's reach by twice itself,
     /// and only a fitted component has one, on a spline carrier, which
     /// returns above. A conic component with a pad is a desync.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
-        if self.closed() || !matches!(self.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
+        let Some(conic) = self.carrier.conic().filter(|_| !self.closed()) else {
             return Ok(Some(t));
-        }
+        };
         if self.pad > 0.0 {
             return Err(SiteRefusal::Desync(
                 "a conic component carries a pad: its witness can stand past the band from its foot",
             ));
         }
-        let t = geom_core::period::Period::new(T::tau()).at_or_above(t, self.span.0);
+        let t = conic.period().at_or_above(t, self.span.0);
         use crate::curve_pair::{GapMeter, Span, SpanEnd};
         use geom_core::k_stats::{decide_nonzero, decide_nonzero_reported, straddle};
         use geom_core::{Decided, NonzeroSign, Sign};

@@ -14,7 +14,7 @@ pub const CROSSING_INTERIOR: &str = "whether a crossing lands strictly inside it
 /// The lever every door that splits an edge at a crossing has (the
 /// split, the blend, the Boolean): the geometry.
 pub const CROSSING_LEVER: &str =
-    "move the geometry so the crossing lands clearly away from the edge's ends";
+    geom_core::move_lever!("so the crossing lands clearly away from the edge's ends");
 
 /// What a crossing's interiority margin measures.
 pub const CROSSING_SIZE: &str = "distance from the edge's end";
@@ -51,7 +51,7 @@ impl CrossingDecision {
         let (lever, size) = match self {
             Self::OnEdge => (CROSSING_LEVER, CROSSING_SIZE),
             Self::Order => (
-                "move the geometry so the two crossings on that edge lie clearly apart",
+                geom_core::move_lever!("so the two crossings on that edge lie clearly apart"),
                 "distance between the crossings",
             ),
         };

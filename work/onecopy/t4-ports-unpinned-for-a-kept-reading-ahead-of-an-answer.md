@@ -1,7 +1,7 @@
 ---
 id: t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 kind: issue
-title: Seven of QML's Any ports (T4's four, T5's two, T6's one) have no pin for a kept reading ahead of an answer
+title: 26 of 45 production Any ladders have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
 status: open
 opened: 2026-11-10
 priority: P3
@@ -45,7 +45,33 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 - the first ray's bound reads in band (`Escalated { decision: Coincidence(SectorSide, Moot) }`), and the other two are decided on opposite sides.
 - Today: the escalation, in every rotation. Ported: `Across` in every rotation.
 
+## Every Any ladder, held by a gate (the any-pins unit, after PR 6739)
+
+`door-searches-left-on-the-hand-rolled-ladder` closed into this row. Its last item, "the `Any` record paths are unreached", was the same debt for every `Any` port, not only QML's. `scripts/gates/any-climb-pins.sh` now registers every production `Answering::Any` ladder, keyed by its function (44 at filing), in `any-climb-pins.counts`:
+- 19 name a pin: a test reading the production function with a kept reading ahead of an answer, or two kept readings ranked;
+- the rest name this row.
+
+A new `Any` ladder reds until it is named there. So **the register is this row's list**, and this row closes when no entry names it.
+
+A pin's name is checked by the gate (it must be a `#[test]` or `#[rstest]` fn); that it reaches the answer past a kept rung is checked by `scripts/any-first-mutant.sh`, nightly, which runs every pin under `--cfg any_first_mutant` (`climb_evidence` refusing an `Any` ladder at its first kept rung) and reds one that stays green. A new pin is run under it before it is registered.
+
+The 19 beyond the seven above (18 at filing, and `loop_circle` since), each with the fixture its pin needs (a kept rung read ahead of an answering one, through the production function):
+- `geom-brep` `chart_singularity::holds`: a chart point whose first bounding reading is in band of the singular point, a later one decided outside.
+- `geom-brep` `edge_nurbs::measured_ends`: a spline edge whose first end measures in band, its second decided.
+- `topo` `boolean::contain::loop_circle` (PR 6750, after filing): a loop of three arcs, the second in band of the first's circle and the third decided off it (`None` past the kept arc).
+- `topo` `boolean::fate::rehome`: a ring whose first vertex reads in band of the run's loop, a later one decided.
+- `topo` `boolean::rim_wedge::rim_exists` and `departures` (the abut climb): rim ends, one pair in band ahead of one that abuts.
+- `topo` `boolean::sectors::crescent`: a sector pair whose first bound pair is in band, a later one opening a crescent.
+- `topo` `boolean::slit::holding`: an edge in a slit face whose first placement reads in band, a later one decided. `an_unread_piece_refuses_ahead_of_an_earlier_in_band_one` climbs the production rung (`piece_rung`) by hand, so it is one call away.
+- `topo` `census::{planar,arc}_interiors_meet`, `shared_run`, `shared_interior_witness`: two interiors whose first piece reads in band and a later one meets. `interiors_ranking`'s rows climb by hand.
+- `topo` `chord_join::ring_side`, `holds_outer`: a ring whose first vertex reads in band of the run. `an_unreadable_side_refuses_ahead_of_an_earlier_in_band_one` climbs the production rung (`vertex_side`) by hand.
+- `topo` `link::place`: a link whose first piece reads in band ahead of a placing one. `a_degenerate_note_outranks_a_piece_in_band` reads `unread_or_rest`, not `place`.
+- `topo` `offset_nappe::face_nappe_reading`: a face whose first nappe reading is in band.
+- `topo` `replace_face::carried_alike`: one side's transport escalating ahead of a side with no image.
+- `topo` `side_reader::cast_aims`: an aimed ray's `Pair` in band ahead of a ray that decides (the door row's cheapest-named case; no fixture builds the pair today).
+- `topo` `splitting::finish::shell_side`: a shell whose first witness reads in band.
+
 ## Done when
 
-- Each of the seven has a pin as described, red under the old first-refusal loop, or a stated reason it cannot be reached.
+- No entry of `scripts/gates/any-climb-pins.counts` names this row: each has a pin as described, red under a first-refusal loop, or the register names a stated reason it cannot be reached.
 - `partner_side` is ported as above, with the fixture as its pin.

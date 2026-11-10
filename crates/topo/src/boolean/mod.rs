@@ -73,7 +73,6 @@
 //! tests pin both directions on brick fixtures.
 
 mod arcs;
-pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
 pub(crate) mod carrier_pair;
@@ -188,7 +187,6 @@ pub(crate) mod region;
 mod rim_wedge;
 pub(crate) mod ruled_region;
 pub(crate) mod sectors;
-pub(crate) mod separating;
 mod shell_witness;
 mod slit;
 pub use slit::EdgeInFaceGap;
@@ -392,8 +390,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | join::BOOL_GERM_PLANE_NORMAL
         | crate::cover::SPHERE_AXIS
         | crate::cover::SPHERE_SEAM_UNIT
-        | separating::PAIR_AXIS
-        | separating::PAIR_NORMAL
+        | crate::separating::PAIR_AXIS
+        | crate::separating::PAIR_NORMAL
         | solid_contain::POINT_AXIS => geom_core::DIRECTION_LENGTH_SUBJECT,
         crate::cover::SPHERE_SEAM => {
             "whether a sphere's seam direction is square to its polar axis"
@@ -403,7 +401,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         geom_core::UNIT_DIRECTION_ARM => {
             "whether the reach a direction is read over has any length"
         }
-        separating::PAIR_GAP => {
+        crate::separating::PAIR_GAP => {
             "how far apart two faces lie along a direction that turns with them"
         }
         "bool_pierce_normal_on_chart" | "bool_pierce_normal_on_cone" => {
@@ -4155,6 +4153,14 @@ pub enum BooleanError {
     /// (`bool_join_nearest`, `bool_join_foot_travel`,
     /// `bool_join_arc_travel`), so a tighter tolerance may part them.
     JoinPartnersTied,
+    /// **Two germs' nearest pairs are decided equally near**, in a round
+    /// where committing either first can move the matching
+    /// (`join::first_pair`): some germ's nearest lies in one of them
+    /// without being mutual, so the join does not pick one by scan order.
+    /// A precision limit (row 1(b)): the two pairs lie within the band's
+    /// zero of each other (`bool_join_nearest`), so a tighter tolerance may
+    /// part them.
+    JoinPairsTied,
     /// **A curved join on a carrier the stage cannot run on.** The join
     /// restates the kept edge over both edges' span on its own carrier
     /// (`edge_join::joined_spec` says where the far parameter comes
@@ -4686,6 +4692,8 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinPartnersTied`].
     JoinPartnersTied,
+    /// [`BooleanError::JoinPairsTied`].
+    JoinPairsTied,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
     /// [`BooleanError::CarryRefused`].
@@ -4960,6 +4968,7 @@ impl BooleanError {
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinPartnersTied => BooleanErrorKind::JoinPartnersTied,
+            Self::JoinPairsTied => BooleanErrorKind::JoinPairsTied,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
@@ -5032,7 +5041,7 @@ impl BooleanError {
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
-            Self::JoinPartnersTied => Ok(Refusal::InBand),
+            Self::JoinPartnersTied | Self::JoinPairsTied => Ok(Refusal::InBand),
             Self::JoinUndecided(u) => match &u.reading {
                 edge_join::JoinReading::Regularity(diag)
                 | edge_join::JoinReading::Crease(diag)
@@ -5851,6 +5860,12 @@ impl BooleanError {
                 "the operands' sections meet where two of their ends lie equally near one \
                  another, so the Boolean cannot tell which to join. Recourse: move the parts \
                  so the sections' ends clearly part",
+            ),
+            Self::JoinPairsTied => f.write_str(
+                "the operands' sections meet where two pairs of their ends lie equally near, \
+                 and which is joined first changes how the rest join, so the Boolean cannot \
+                 tell how to join them. Recourse: move the parts so the sections' ends \
+                 clearly part",
             ),
             Self::JoinCarrierUnsupported {
                 edge,
@@ -6802,14 +6817,14 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         // a curved face only where its box holds the point.
         let mut curved_boxes = std::collections::BTreeMap::new();
         if minted.iter().any(|(_, plan)| plan.is_some()) {
-            let pad = boxes::sweep_pad(band);
+            let pad = crate::boxes::sweep_pad(band);
             let curved: Vec<FaceKey> = piercing_body
                 .faces()
                 .map(|(k, _)| k)
                 .filter(|&k| crate::face_normal::face_plane(piercing_body, k).is_none())
                 .collect();
             for face in curved {
-                curved_boxes.insert(face, boxes::face_box(piercing_body, face, pad, band));
+                curved_boxes.insert(face, crate::boxes::face_box(piercing_body, face, pad, band));
             }
         }
         let box_holds = |face: FaceKey, p: Point3<T>| {
@@ -8234,7 +8249,7 @@ fn route_rim<T: Decide>(
 /// The pad a face's reach along a witness line is widened by: the
 /// band's sweep pad, a tolerance.
 fn witness_pad<T: Real>(band: Band) -> T {
-    T::from_f64(boxes::sweep_pad(band))
+    T::from_f64(crate::boxes::sweep_pad(band))
 }
 
 /// The parameter spans of the line `origin + t·dir` (`dir` unit) the
@@ -10015,6 +10030,7 @@ mod tests {
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinPartnersTied => "JoinPartnersTied",
+                BooleanErrorKind::JoinPairsTied => "JoinPairsTied",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",

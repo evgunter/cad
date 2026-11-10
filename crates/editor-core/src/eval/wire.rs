@@ -882,7 +882,7 @@ where
             .filter_map(|v| v.line)
             .map(|line| {
                 let o = line.foot() - geom_core::linalg::Point3::origin();
-                crate::mate::SolveScalar::upper(o.dot(o).sqrt())
+                crate::mate::SolveScalar::upper(o.norm())
             })
             .fold(0.0_f64, f64::max);
         let arm =
