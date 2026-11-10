@@ -2,10 +2,11 @@
 id: the-replays-cylinder-axis-is-levered-at-an-unsourced-metre
 kind: issue
 title: editor-core's replay reads two cylinders' axis parallelism at an unsourced metre of lever
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: M
+closed: 2026-11-10
 ---
 
 
