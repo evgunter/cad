@@ -2,10 +2,11 @@
 id: a-lever-opening-the-move-arm-without-so-passes-the-gate
 kind: issue
 title: Four production levers open "move the geometry" with a continuation other than "so", and the gate passes a fifth
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: C
+closed: 2026-11-10
 ---
 
 
