@@ -525,3 +525,8 @@ and bodies unchanged. No orchestrator yet.
     - guard the first-cut exception (m11 survives);
     - add a fast check against vacuous coverage;
     - plus the refusal-map copy, the slope charge, an unreachable arm and naming.
+- 2026-11-10 — **Resumed after the weekly limit** (stopped 2026-11-04 to 11-10). Both lanes resumed from their saved transcripts and clones:
+  - the PR 6518 fix pass, at `048e7d1`, pushed;
+  - NURBS 3b, at `61d6046` plus one uncommitted edit.
+  
+  Both were told to merge main first.
