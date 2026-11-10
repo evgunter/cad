@@ -1622,6 +1622,20 @@ pub enum NodeErrorKind {
         /// The door's refusal, unaltered.
         source: crate::analysis::SeedError,
     },
+    /// **The build of record refused this node** (DUAL-DESIGN DL3): a
+    /// dual evaluation is bound to the base-scalar evaluation of record
+    /// ([`evaluate_recorded`]), which ran the certified gates a dual does
+    /// not, and a node that evaluation refused is refused here before it
+    /// runs. Its cause is the record's own refusal at the same node, kept
+    /// there unaltered (kernel errors are not copied, spec D2). So no
+    /// reading a dual reaches leans on a gate the record failed: tier 3's
+    /// premises hold at a dual because only what the record finished is
+    /// evaluated there.
+    RecordRefused,
+    /// **The build of record is of another document** (DI3, the pairing
+    /// predicate): refused on EVERY node, before any node runs, so no
+    /// node is bound to a record that is not its own.
+    RecordMispaired(Mispaired),
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -2265,6 +2279,16 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::ParamBox { source } => write!(f, "{source}"),
             Self::Seed { source } => write!(f, "{source}"),
+            Self::RecordRefused => f.write_str(
+                "the build of record refused this node; its refusal is the record's own, at \
+                 the same node. Recourse: answer the record's refusal there",
+            ),
+            Self::RecordMispaired(Mispaired { expected, found }) => write!(
+                f,
+                "the build of record is of document {found:?}, not of {expected:?}, the \
+                 document evaluated. Recourse: hand the evaluation of this document as its \
+                 build of record"
+            ),
             Self::WrongOperand {
                 input,
                 expected,
@@ -3509,7 +3533,7 @@ impl<T: geom_core::Real> ProfileLane for geom_core::Dual<T> where geom_core::Dua
 /// evaluation's profile values and verdict logs against it. A part the
 /// document instantiates is evaluated with the skip.
 #[cfg(any(test, feature = "test-support"))]
-pub fn evaluate_running_pass_two<T: EvalScalar>(
+pub fn evaluate_running_pass_two<T: OwnRecord>(
     doc: &Doc<ProfileProgram>,
     opts: &EvalOptions,
     tol: Tol,
@@ -3519,6 +3543,7 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
         None,
         &CancelToken::new(),
         opts,
+        None,
         None,
         PassTwo::Run,
         tol,
@@ -3731,7 +3756,7 @@ pub fn solve_document_at<T>(
     tol: Tol,
 ) -> crate::mate::SolvedPoses<T>
 where
-    T: crate::mate::SolveScalar + EvalScalar,
+    T: crate::mate::SolveScalar + OwnRecord,
 {
     let evaluation = evaluate::<T>(doc, None, cancel, opts, tol);
     crate::mate::SolvedPoses::of(doc, &evaluation)
@@ -3784,6 +3809,112 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
     wire::pose::read_pose(doc, &ev.nodes, read, &ev.env, tol)
 }
 
+/// **A scalar whose evaluation is its own build of record**: one with
+/// certification rights (`f64`, `Probe`, `Interval`, `Sym`), whose
+/// finished bodies passed tier 3 ([`topo::AtRestPolicy::finish`]). Every
+/// reading such an evaluation reaches may lean on tier 3's premises,
+/// because the body it reads was finished at this scalar.
+pub trait OwnRecord: EvalScalar {}
+
+impl OwnRecord for f64 {}
+#[cfg(feature = "probe")]
+impl OwnRecord for geom_core::Probe {}
+impl OwnRecord for geom_core::Interval {}
+impl<B> OwnRecord for geom_core::Sym<B> where geom_core::Sym<B>: EvalScalar {}
+
+/// **A scalar bound to a build of record** (DUAL-DESIGN DL3): a dual,
+/// whose finished body is tier 2 alone ([`topo::Replay`]), so the tier-3
+/// premise every reading downstream leans on holds only through the
+/// base-scalar evaluation of record, which validated the same bits.
+/// It evaluates only through [`evaluate_recorded`], which takes that
+/// record and refuses every node the record refused
+/// ([`NodeErrorKind::RecordRefused`]): this is the one place a dual
+/// operand's tier-3 premise is asserted, so topo's readings that state
+/// "tier 3 refuses it first" hold at a dual too
+/// (`topo::boolean`'s "At a dual" note).
+pub trait BoundToRecord: EvalScalar {
+    /// The base scalar whose evaluation is this one's build of record.
+    type Record: OwnRecord;
+}
+
+impl<B> BoundToRecord for geom_core::Dual<B>
+where
+    geom_core::Dual<B>: EvalScalar,
+    B: OwnRecord,
+{
+    type Record = B;
+}
+
+/// **A dual evaluation, bound to its build of record** (DUAL-DESIGN
+/// DL3): [`evaluate`]'s run at a [`BoundToRecord`] scalar, where every node
+/// `record` refused is refused before it runs
+/// ([`NodeErrorKind::RecordRefused`]), so no node evaluates on a body
+/// the record's gates refused. `record` is the base-scalar evaluation
+/// of the same document; one of another document refuses every node
+/// ([`NodeErrorKind::RecordMispaired`]). The full build identity (the
+/// content pin, the parameter bits, the tolerance) is the report's to
+/// bind (`stackup`'s `BuildIdentity`), as DL3 places it.
+pub fn evaluate_recorded<T>(
+    doc: &Doc<ProfileProgram>,
+    prior: Option<&Evaluation<T>>,
+    record: &Evaluation<T::Record>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Evaluation<T>
+where
+    T: BoundToRecord,
+{
+    let binding = RecordBinding::of(record);
+    let mut ev = evaluate_at_descent(
+        doc,
+        prior,
+        cancel,
+        opts,
+        None,
+        Some(&binding),
+        PassTwo::SkippedAtF64,
+        tol,
+    );
+    if opts.pin {
+        ev.pin = Some(crate::persist::content_pin(doc, tol));
+    }
+    ev
+}
+
+/// **What a dual evaluation reads of its build of record**: the
+/// document it is of, and the nodes it refused.
+pub(crate) struct RecordBinding {
+    document: crate::ident::DocumentId,
+    refused: std::collections::BTreeSet<RecipeNodeId>,
+}
+
+impl RecordBinding {
+    fn of<B: topo::AtRestPolicy + Decide>(record: &Evaluation<B>) -> Self {
+        Self {
+            document: record.document,
+            refused: record
+                .nodes
+                .iter()
+                .filter(|(_, r)| matches!(r, NodeResult::Failed(_)))
+                .map(|(&id, _)| id)
+                .collect(),
+        }
+    }
+
+    /// The step of a node the record refused.
+    fn refusal<T: topo::AtRestPolicy + Decide>(&self, id: RecipeNodeId) -> Option<NodeStep<T>> {
+        self.refused.contains(&id).then(|| NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind: NodeErrorKind::RecordRefused,
+                escalations: Arc::default(),
+            }),
+            reused: false,
+        })
+    }
+}
+
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
 /// failure is a per-node typed result, never a top-level error or a
 /// panic.
@@ -3803,6 +3934,10 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
 /// result. A `parallel` request runs as the serial
 /// walk, and is checked between nodes, while a symbolic session or
 /// shape report is installed ([`EvalOptions::parallel`]).
+///
+/// A scalar that is not its own build of record, a dual, evaluates
+/// through [`evaluate_recorded`] instead (DUAL-DESIGN DL3): `T` is
+/// bounded on [`OwnRecord`], so no dual evaluation is record-free.
 pub fn evaluate<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
@@ -3811,9 +3946,18 @@ pub fn evaluate<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: EvalScalar,
+    T: OwnRecord,
 {
-    let mut ev = evaluate_at_descent(doc, prior, cancel, opts, None, PassTwo::SkippedAtF64, tol);
+    let mut ev = evaluate_at_descent(
+        doc,
+        prior,
+        cancel,
+        opts,
+        None,
+        None,
+        PassTwo::SkippedAtF64,
+        tol,
+    );
     if opts.pin {
         ev.pin = Some(crate::persist::content_pin(doc, tol));
     }
@@ -3856,6 +4000,7 @@ where
         cancel,
         opts,
         Some((reached, pin)),
+        None,
         PassTwo::SkippedAtF64,
         tol,
     )
@@ -3875,6 +4020,7 @@ fn evaluate_at_descent<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: Option<(parts::Reached<T>, &crate::ident::ContentPin)>,
+    record: Option<&RecordBinding>,
     pass_two: PassTwo,
     tol: Tol,
 ) -> Evaluation<T>
@@ -3894,6 +4040,13 @@ where
             None => (prior, None),
         };
     let sched = schedule::schedule(doc);
+    // The record's pairing (DI3): a dual bound to another document's
+    // record is bound to nothing of this one.
+    if let Some(mispaired) = record.and_then(|r| crate::ident::mispaired(doc.id(), r.document)) {
+        return refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
+            NodeErrorKind::RecordMispaired(mispaired)
+        });
+    }
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
@@ -3964,6 +4117,7 @@ where
                 cancel,
                 &nominal_opts,
                 None,
+                None,
                 PassTwo::SkippedAtF64,
                 tol,
             )
@@ -3991,6 +4145,7 @@ where
                     None,
                     cancel,
                     &midpoint_opts,
+                    None,
                     None,
                     PassTwo::SkippedAtF64,
                     tol,
@@ -4137,7 +4292,10 @@ where
             // Each node runs under a K-funnel frame of its own; its
             // bracket in `eval_node` nests inside that frame.
             let results = geom_core::k_stats::map_detached(level, |&id| {
-                eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
+                match record.and_then(|r| r.refusal(id)) {
+                    Some(refused) => Ok(refused),
+                    None => eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol),
+                }
             });
             for (&id, (step, recording)) in level.iter().zip(results) {
                 recordings.insert(id, recording);
@@ -4164,8 +4322,11 @@ where
             if !admission.admits(id) {
                 break;
             }
-            let Ok(step) = eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
-            else {
+            let step = match record.and_then(|r| r.refusal(id)) {
+                Some(refused) => Ok(refused),
+                None => eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol),
+            };
+            let Ok(step) = step else {
                 outcome = EvalOutcome::Canceled;
                 break;
             };

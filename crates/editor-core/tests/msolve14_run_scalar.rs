@@ -40,7 +40,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
     Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices, evaluate,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices,
     vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -776,12 +776,18 @@ fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     }
 }
 
-fn run_at<T: editor_core::EvalScalar>(
+fn run_at<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     opts: &EvalOptions,
     prior: Option<&Evaluation<T>>,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, prior, &CancelToken::new(), opts, Tol::witness())
+    editor_core::test_support::evaluate_any::<T>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        opts,
+        Tol::witness(),
+    )
 }
 
 /// **The corpus digest, per ε row**: every fault, space, solved pose

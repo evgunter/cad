@@ -1517,3 +1517,103 @@ mod tests {
         );
     }
 }
+
+/// **A dual evaluation bound to a build of record built here**: the
+/// base-scalar evaluation of `doc` at `opts` with no seed and no box
+/// (the nominal build, as `stackup`'s driver builds its record), then
+/// [`crate::eval::evaluate_recorded`] over it. The door a test that
+/// evaluates at a dual reads, so every dual run in the tests is bound
+/// to a record as a production one is (DUAL-DESIGN DL3).
+pub fn evaluate_bound<T: crate::eval::BoundToRecord>(
+    doc: &crate::Doc<crate::ProfileProgram>,
+    prior: Option<&crate::Evaluation<T>>,
+    cancel: &crate::CancelToken,
+    opts: &crate::EvalOptions,
+    tol: geom_core::Tol,
+) -> crate::Evaluation<T> {
+    let nominal = crate::EvalOptions {
+        seed: None,
+        param_box: None,
+        ..opts.clone()
+    };
+    let record = crate::evaluate::<T::Record>(doc, None, cancel, &nominal, tol);
+    crate::eval::evaluate_recorded(doc, prior, &record, cancel, opts, tol)
+}
+
+/// **A scalar a test evaluates at, whichever door its runs take**: a
+/// scalar that is its own build of record through
+/// [`crate::evaluate`], a dual through [`evaluate_bound`]. What a test
+/// helper generic over its scalar is bounded on, since the two doors
+/// take different arguments and a dual has no record-free one.
+pub trait AnyEvaluate: crate::EvalScalar {
+    /// This scalar's evaluation of `doc`, through its own door.
+    fn evaluate_here(
+        doc: &crate::Doc<crate::ProfileProgram>,
+        prior: Option<&crate::Evaluation<Self>>,
+        cancel: &crate::CancelToken,
+        opts: &crate::EvalOptions,
+        tol: geom_core::Tol,
+    ) -> crate::Evaluation<Self>;
+}
+
+macro_rules! own_record_evaluates {
+    ($($t:ty),* $(,)?) => {$(
+        impl AnyEvaluate for $t {
+            fn evaluate_here(
+                doc: &crate::Doc<crate::ProfileProgram>,
+                prior: Option<&crate::Evaluation<Self>>,
+                cancel: &crate::CancelToken,
+                opts: &crate::EvalOptions,
+                tol: geom_core::Tol,
+            ) -> crate::Evaluation<Self> {
+                crate::evaluate(doc, prior, cancel, opts, tol)
+            }
+        }
+    )*};
+}
+
+own_record_evaluates!(f64, geom_core::Interval);
+#[cfg(feature = "probe")]
+own_record_evaluates!(geom_core::Probe);
+
+impl<B> AnyEvaluate for geom_core::Sym<B>
+where
+    geom_core::Sym<B>: crate::eval::OwnRecord,
+{
+    fn evaluate_here(
+        doc: &crate::Doc<crate::ProfileProgram>,
+        prior: Option<&crate::Evaluation<Self>>,
+        cancel: &crate::CancelToken,
+        opts: &crate::EvalOptions,
+        tol: geom_core::Tol,
+    ) -> crate::Evaluation<Self> {
+        crate::evaluate(doc, prior, cancel, opts, tol)
+    }
+}
+
+impl<B> AnyEvaluate for geom_core::Dual<B>
+where
+    geom_core::Dual<B>: crate::eval::BoundToRecord,
+{
+    fn evaluate_here(
+        doc: &crate::Doc<crate::ProfileProgram>,
+        prior: Option<&crate::Evaluation<Self>>,
+        cancel: &crate::CancelToken,
+        opts: &crate::EvalOptions,
+        tol: geom_core::Tol,
+    ) -> crate::Evaluation<Self> {
+        evaluate_bound(doc, prior, cancel, opts, tol)
+    }
+}
+
+/// [`AnyEvaluate::evaluate_here`] at `T`: the generic test helper's
+/// call.
+pub fn evaluate_any<T: AnyEvaluate>(
+    doc: &crate::Doc<crate::ProfileProgram>,
+    prior: Option<&crate::Evaluation<T>>,
+    cancel: &crate::CancelToken,
+    opts: &crate::EvalOptions,
+    tol: geom_core::Tol,
+) -> crate::Evaluation<T> {
+    T::evaluate_here(doc, prior, cancel, opts, tol)
+}

@@ -615,6 +615,9 @@ fn driver(
             &own
         }
     };
+    // The build of record every dual pass is bound to (DUAL-DESIGN
+    // DL3): a node it refused is refused in each pass before it runs.
+    let built = record;
     let record = Record::new(doc, record, value).map_err(SensitivityRefusal::Binding)?;
 
     // The variables, in declaration order (deterministic in both schedules).
@@ -630,9 +633,10 @@ fn driver(
     // record that read other inputs is refused even where there is no
     // pass to refuse it — the nominal is read from it.
     let base: Evaluation<Dual64> = stamped(
-        evaluate(
+        crate::eval::evaluate_recorded(
             doc,
             None,
+            built,
             &stop.cancel,
             &pass_opts(None, resolver, stop),
             tol,
@@ -645,9 +649,10 @@ fn driver(
 
     let one = |name: &VarId| -> Result<Sensitivity, SensitivityRefusal> {
         let pass = stamped(
-            evaluate(
+            crate::eval::evaluate_recorded(
                 doc,
                 Some(&base),
+                built,
                 &stop.cancel,
                 &pass_opts(Some(*name), resolver, stop),
                 tol,
@@ -2234,7 +2239,13 @@ mod tests {
     fn pass_run(doc: &ProfileDoc, seed: VarId) -> Evaluation<Dual64> {
         let opts = pass_opts(Some(seed), None, &crate::Stop::default());
         stamped(
-            evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness()),
+            crate::test_support::evaluate_bound(
+                doc,
+                None,
+                &CancelToken::new(),
+                &opts,
+                Tol::witness(),
+            ),
             pin(doc),
         )
     }
