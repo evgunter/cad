@@ -3794,6 +3794,7 @@ MEMBERS_BOUND_AS = {
     "ParseError::Dimension": "ParseError.variant",
     "PathError::JunctionTangent": "PathError.variant",
     "PathError::JunctionCusp": "PathError.variant",
+    "PathError::CuspDoublesBackOverLeg": "PathError.variant",
     "PathError::SeamTangent": "PathError.variant",
     "PathError::SeamArrivalOffDirection": "PathError.variant",
     "PathError::SeamArrivalLeverTooShort": "PathError.variant",
