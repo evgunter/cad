@@ -3,7 +3,7 @@
 the instrument crates and the documents they feed
 
 Re-scoped 2026-09-20 by INSTR's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
+(`work/README.md`, Track size). Picked up 2026-11-10; the P0 is dispatched.
 
 ## The slate
 
@@ -12,6 +12,8 @@ Re-scoped 2026-09-20 by INSTR's priority-seam cut
 
 | pri | item | cost | status | title |
 |---|---|---|---|---|
+| P0 | `main-red-tess-lint-release-budget-gate-fires-eight-findings` | — | dispatched | main red: the nightly release-budget tess-lint gate fires 8 findings |
+| P1 | `k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs` | M | open | k-lint (dev-probe): the large-K lint fails on crowding margins once the probe sweep runs to the end |
 | P2 | `bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint` | M | open | bool_pair_gap records 24·eps on touching pairs: an eps-coupled margin off the rule (4) roster, 74 k-lint rule-2/3 flags per eps row |
 | P3 | `C15` | D | open | The budget gate's per-face join has no stable face identity — the same-shape face pairs the CSV cannot tell apart |
 | P3 | `baseline-census-chart-nurbs-assert-has-no-witness` | D | open | baseline_census's chart-is-nurbs assert can only red on a tag no committed blob carries |
