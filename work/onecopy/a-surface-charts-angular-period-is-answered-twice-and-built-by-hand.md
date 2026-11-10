@@ -48,3 +48,13 @@ Filed from `onecopy/carrier-period` (PR 6754), the unit that made a curve carrie
 - sweep `revolve/mod.rs:1110`, `revolve/tube.rs:337`.
 
 **The question.** C4 (`crates/geom-brep/README.md`) already says every whole-period question uses the channel's own period, which the chart owns. So, first, is the one home a `geom::Surface` method stating each analytic channel's period, which every door above asks and every surface-chart site above reads? Second, for a bare angle, is there a constructor in `geom_core` (`Period::turn` is taken: it decides a turn), so that `τ` as a period is one spelling?
+
+
+## Resolution (`onecopy/surface-chart-period`)
+
+Both questions are answered as code. Each applies C4 (`crates/geom-brep/README.md`: "every whole-period question uses the channel's own period, which the chart owns"); no design text changes.
+
+- **One home for an analytic chart's periods: `geom::Surface::angle_periods`.** It is matched by kind and returns `None` on a spline chart, whose periods are decided at a band. geom-brep's private `angle_periods` retires into it. topo's `chart_u_period`, `chart_v_period`, `ChartPeriods::stated` and `polar_arm` ask it, and each answers exactly as before for every kind (by reading). `chart_period`, which answered alike, retires into `chart_u_period`. `Chart::v_periodic` becomes `Chart::v_domain_wraps`, named for its own question.
+- **One spelling of an angle's turn: `geom_core::period::Period::angle()`.** `Conic::period`, `geom::spiric_period` and `Surface::angle_periods` state it. Every production `Period::new(τ)` in the lists above reads it; test fixtures keep their spelled inputs.
+- **The kind-generic chart readers ask the chart.** `chart_window`'s `run_azimuth_images` and `nearest_branch` take the azimuth's period from `Surface::angle_periods`, refusing typed where the chart has no azimuth. `edge_nurbs::arc_rim_measured` reads its circle carrier's `Conic::period`.
+- **The rest read `Period::angle()` inside one kind's own code**, where the channel is an angle by construction: a torus's or a spiric's chart pcurve, the projected lane, the `props` charts, mesh's and step-import's chart unwraps, the curve roots, and the bare angles. Asking the chart there would add a second statement of the kind the site already matched.

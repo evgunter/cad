@@ -1122,7 +1122,7 @@ pub(crate) fn loop_polygon(
             travs
                 .iter()
                 .map(|t| match t.kind {
-                    TravKind::Meridian { u_raw } => Period::new(TAU).near(u_raw, mid_az),
+                    TravKind::Meridian { u_raw } => Period::<f64>::angle().near(u_raw, mid_az),
                     TravKind::Rim { .. } => f64::NAN,
                 })
                 .collect(),
@@ -1151,7 +1151,7 @@ pub(crate) fn loop_polygon(
         match cur.kind {
             TravKind::Rim { v_raw } => {
                 let v_own = if chart.v_domain_wraps() && k > 0 {
-                    Period::new(TAU).near(v_raw, prev_v)
+                    Period::<f64>::angle().near(v_raw, prev_v)
                 } else {
                     v_raw
                 };
@@ -1172,7 +1172,7 @@ pub(crate) fn loop_polygon(
                 let ju = if k == 0 {
                     chart.u_of(positions[jid as usize])
                 } else if prev_was_rim {
-                    Period::new(TAU).near(chart.u_of(positions[jid as usize]), prev_u)
+                    Period::<f64>::angle().near(chart.u_of(positions[jid as usize]), prev_u)
                 } else {
                     prev_u
                 };
@@ -1184,7 +1184,7 @@ pub(crate) fn loop_polygon(
                 });
                 prev_u = ju;
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
-                    let u = Period::new(TAU).near(chart.u_of(positions[id as usize]), prev_u);
+                    let u = Period::<f64>::angle().near(chart.u_of(positions[id as usize]), prev_u);
                     out.push(UvPoint {
                         u,
                         v: v_edge,
@@ -1286,7 +1286,7 @@ pub(crate) fn loop_polygon(
                     } else {
                         let v = chart.v_of(positions[jid as usize]);
                         if chart.v_domain_wraps() && k > 0 {
-                            Period::new(TAU).near(v, prev_v)
+                            Period::<f64>::angle().near(v, prev_v)
                         } else {
                             v
                         }
@@ -1303,7 +1303,7 @@ pub(crate) fn loop_polygon(
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
                     let v_raw_pt = chart.v_of(positions[id as usize]);
                     let v = if chart.v_domain_wraps() {
-                        Period::new(TAU).near(v_raw_pt, prev_v)
+                        Period::<f64>::angle().near(v_raw_pt, prev_v)
                     } else {
                         v_raw_pt
                     };

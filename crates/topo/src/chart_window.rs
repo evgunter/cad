@@ -247,7 +247,13 @@ pub(crate) fn run_azimuth_images<T: Decide>(
     halves: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Vec<AzimuthImage<T>>, SplitJoinError> {
-    let turn = geom_brep::Period::angle();
+    // The azimuth's period is the chart's own (C4, `Surface::angle_periods`).
+    let Some((Some(turn), _)) = surface.angle_periods() else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chart with no azimuth channel has no azimuth images",
+        });
+    };
     let mut images = Vec::new();
     let mut prev_exit: Option<T> = None;
     let mut prev_edge: Option<EdgeKey> = None;
@@ -448,11 +454,18 @@ fn nearest_branch<T: Decide>(
         what: "a divided face's chart is the placeholder — it has no lever to decide a branch by",
     })?;
     let arm = crate::pcurves::joint_arm(chart, vertex);
+    // The azimuth's period is the chart's own (C4, `Surface::angle_periods`).
+    let Some((Some(turn), _)) = surface.angle_periods() else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chart with no azimuth channel names no azimuth branch",
+        });
+    };
     crate::pcurves::lever_periods(
         "chart_window_branch",
         arm,
         gap,
-        geom_brep::Period::angle(),
+        turn,
         crate::pcurves::Orbit::Periods,
         band,
     )
