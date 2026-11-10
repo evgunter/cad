@@ -1835,7 +1835,7 @@ impl<S: Real> Meters<S> {
         let h = geom::sheet_apex(major, minor).height;
         let inside = positive(major) && positive(near - h) && positive(minor - far);
         let level = |w: S| {
-            (w * w - (minor - major) * (minor + major))
+            (w.powi(2) - (minor - major) * (minor + major))
                 / (major + ((minor - w) * (minor + w)).sqrt())
         };
         inside.then(|| (rho_hi - level(near)).max(level(far) - rho_lo))
