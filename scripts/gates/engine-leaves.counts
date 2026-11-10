@@ -43,13 +43,13 @@ boolean-names-splitting     6  boolean/mod.rs
 boolean-names-splitting    16  boolean/ops.rs
 boolean-names-splitting     5  boolean/reduce.rs
 boolean-names-splitting     9  boolean/refusal_routes.rs
-boolean-names-splitting    17  boolean/region.rs
-boolean-names-splitting     3  boolean/ruled_region.rs
+boolean-names-splitting    16  boolean/region.rs
+boolean-names-splitting     1  boolean/ruled_region.rs
 boolean-names-splitting    18  boolean/sectors.rs
 boolean-names-splitting    36  boolean/solid_contain.rs
-boolean-names-splitting     6  boolean/sphere_region.rs
+boolean-names-splitting     4  boolean/sphere_region.rs
 boolean-names-splitting     3  boolean/spline_region.rs
-boolean-names-splitting    20  boolean/torus_region.rs
+boolean-names-splitting    18  boolean/torus_region.rs
 
 crate-visible              13  boolean/boxes.rs
 crate-visible               9  boolean/carrier_eq.rs
@@ -160,7 +160,7 @@ names-boolean               2  turn_rows.rs
 names-boolean              80  validate.rs
 
 names-splitting            10  cell_region.rs
-names-splitting            56  census.rs
+names-splitting            54  census.rs
 names-splitting             1  census/self_touch.rs
 names-splitting            46  chord_join.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            16  chord_join/ring_side_rows.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
