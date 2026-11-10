@@ -6433,7 +6433,7 @@ mod tests {
         // A bound's side of a face is decided at the metric's door at both
         // orders: no gate of its own in the first order or the descent.
         let bound_side = include_str!("bound_side.rs");
-        for anchor in ["\nfn first_order<", "\n    pub(crate) fn descend("] {
+        for anchor in ["\nfn first_order_as<", "\n    pub(crate) fn descend("] {
             let reading = item(bound_side, anchor);
             for needle in [
                 "decide(",
