@@ -130,8 +130,7 @@ pub enum ChartArm<T> {
         minor: T,
     },
     /// A spindle sheet; `v` the tube angle, closed on `[−v*, v*]` and read
-    /// in the latitude window, which holds that interval whole only for
-    /// `v* < π − 1` (`work/spiricarm/a-wide-apples-tube-angle-passes-the-latitude-windows-cut.md`).
+    /// about zero ([`ChartAngle::window`]).
     Spindle {
         /// The signed major radius R.
         major: T,
@@ -205,12 +204,17 @@ pub enum ChartAngle {
 
 impl ChartAngle {
     /// The window a point reading names this angle in (C4): the
-    /// latitude's for a sphere's latitude and a spindle sheet's tube
-    /// angle, the angle window for the rest.
-    pub fn window(self) -> Window {
+    /// latitude's for a sphere's latitude, the angle window for the
+    /// azimuth and a torus's tube angle. `None` for a spindle sheet's
+    /// tube angle, which is named about zero ([`Azimuth::near`]): the
+    /// sheet's `v` is closed on `[−v*, v*]`, `v* ≤ π`, and the one jump
+    /// of a read about zero, at `±π`, meets the sheet only at a horn's
+    /// cusp.
+    pub fn window(self) -> Option<Window> {
         match self {
-            Self::Azimuth | Self::Tube => Window::Angle,
-            Self::Latitude | Self::SheetTube => Window::Latitude,
+            Self::Azimuth | Self::Tube => Some(Window::Angle),
+            Self::Latitude => Some(Window::Latitude),
+            Self::SheetTube => None,
         }
     }
 }
@@ -366,9 +370,6 @@ impl<T: Decide> ChartInverse<T> {
             }
             ChartArm::Sphere { .. } => ChartChannels::Sphere,
             ChartArm::Torus { major, .. } => ChartChannels::Torus { major },
-            // A sheet's `v` is closed on `[−v*, v*]` about zero, read in the
-            // latitude's window, which holds it whole only for `v* < π − 1`:
-            // a wider apple's far side reads a turn off (filed).
             ChartArm::Spindle { major, .. } => ChartChannels::Spindle { major },
         };
         let mut tube = None;
@@ -376,7 +377,10 @@ impl<T: Decide> ChartInverse<T> {
             if matches!(angle, ChartAngle::Tube | ChartAngle::SheetTube) {
                 tube = Some(direction);
             }
-            direction.principal_in(angle.window(), band)
+            match angle.window() {
+                Some(window) => direction.principal_in(window, band),
+                None => direction.near(T::zero()),
+            }
         });
         let on_axis = || {
             read.rho
@@ -510,8 +514,9 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
-    /// A lemon and an apple with `R < r·cos 1`, as `(R, r)`.
-    const SHEETS: [(f64, f64); 2] = [(-0.1, 0.9), (0.4, 1.0)];
+    /// A lemon, an apple, a wide apple (`v* > π − 1`) and one near the
+    /// horn, as `(R, r)`.
+    const SHEETS: [(f64, f64); 4] = [(-0.1, 0.9), (0.4, 1.0), (0.8, 1.0), (0.999, 1.0)];
 
     fn surfaces() -> Vec<Surface<f64>> {
         let axis = Vec3::new(0.0, 0.6, 0.8);
@@ -582,11 +587,11 @@ mod tests {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             });
         }
-        // A lemon (`v* ≈ 1.459`) and an apple narrow enough for the
-        // latitude window (`R < r·cos 1`, `v* ≈ 1.982`): the sheet's
-        // foot is read by the signed major radius. On a sheet the walk's
-        // `|v| ≤ 1.42` is stretched onto `0.97·v*`, so the apple's
-        // samples run past `π/2` to near its apexes.
+        // A lemon (`v* ≈ 1.459`) and apples from `v* ≈ 1.982` to within
+        // `0.045` of the horn: the sheet's foot is read by the signed
+        // major radius. On a sheet the walk's `|v| ≤ 1.42` is stretched
+        // onto `0.97·v*`, so an apple's samples run past `π/2` to near
+        // its apexes, and a wide one's past `1 − π`.
         for (major_radius, minor_radius) in SHEETS {
             all.push(Surface::Spindle {
                 center: Point3::new(0.2, -0.1, 0.3),

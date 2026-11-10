@@ -705,12 +705,16 @@ fn sheet_form(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
 
 /// The exact distance in the meridian half-plane from `(ρ, z)` to the
 /// sheet `{(R + r cos v, r sin v) : |v| ≤ v*}`: the circle's nearest
-/// point where that lies at `ρ ≥ 0`, else the nearer apex (the arc's
-/// ends, `(0, ±√(r² − R²))`).
+/// point where that lies at `ρ ≥ 0` (its `ρ` is `R + r(ρ − R)/m`, so
+/// where `r·ρ + R·(m − r) ≥ 0`), else the nearer apex (the arc's ends,
+/// `(0, ±√(r² − R²))`). `m − r` is formed as
+/// `(ρ(ρ − 2R) + z² + (R − r)(R + r))/(m + r)`, which keeps its digits
+/// beside a horn's cusp.
 fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
     let m = ((rho - major).powi(2) + z * z).sqrt();
-    if major + minor * (rho - major) / m >= 0.0 {
-        (m - minor).abs()
+    let off = (rho * (rho - 2.0 * major) + z * z + (major - minor) * (major + minor)) / (m + minor);
+    if minor * rho + major * off >= 0.0 {
+        off.abs()
     } else {
         let h = geom::sheet_apex(major, minor).height;
         (rho * rho + (z - h).powi(2))
@@ -751,6 +755,10 @@ fn a_spindle_bound_is_this_sheets_distance() {
         let mut u = s.range(-0.98, 0.98);
         if u.abs() < 0.02 {
             u = 0.5;
+        }
+        // One draw in eight is the horn.
+        if s.unit() < 0.125 {
+            u = 1.0;
         }
         let major = minor * u;
         let h = (minor * minor - major * major).sqrt();
@@ -829,8 +837,15 @@ fn a_spindle_bound_is_this_sheets_distance_at_interval() {
     let mut s = fuzz::start("a_spindle_bound_is_this_sheets_distance_at_interval");
     for i in 0..fuzz::scaled(60_000) {
         let minor = s.range(0.2, 2.0);
-        let gap = s.log_uniform(1e-9, 0.9);
-        let sign = if s.unit() < 0.5 { -1.0 } else { 1.0 };
+        // One draw in eight is the horn, its apexes one cusp.
+        let (gap, sign) = if s.unit() < 0.125 {
+            (0.0, 1.0)
+        } else {
+            (
+                s.log_uniform(1e-9, 0.9),
+                if s.unit() < 0.5 { -1.0 } else { 1.0 },
+            )
+        };
         let major = sign * minor * (1.0 - gap);
         let h = geom::sheet_apex(major, minor).height;
         let apex = if s.unit() < 0.5 { h } else { -h };
@@ -898,6 +913,54 @@ fn a_spindle_bound_is_this_sheets_distance_at_interval() {
             bound.hi(),
             fuzz::replay()
         );
+    }
+}
+
+/// **A part beside a horn's cusp is read at its own height**: the horn
+/// `R = r = 1` and the box `ρ ∈ [0, 4.4·10⁻¹⁶]`, `z ∈ [7, 9]·10⁻¹¹`, a
+/// stretch of its meridian a net with `f64` rounding encloses (the sheet
+/// runs at `ρ ≈ z²/2 ≈ 3·10⁻²¹` there). The lever `(ρ + R)² + z² − r²`
+/// is only `z² ≈ 5·10⁻²¹` at the box's least, so `|f|` over it reads
+/// about `10⁻¹⁰`; the sheet's point at each height, `ρ_s(z)`, puts every
+/// point of the box within its width, `4.4·10⁻¹⁶`, which is what
+/// [`Meters::certified`] reads.
+///
+/// [`Meters::certified`]: super::super::projected::Meters::certified
+#[test]
+fn a_part_beside_a_horns_cusp_is_read_at_its_own_height() {
+    use super::super::projected::Meters;
+    let (major, minor) = (1.0_f64, 1.0_f64);
+    let (rho, z) = ((0.0, 4.4e-16), (7e-11, 9e-11));
+    let mut f_sup = 0.0_f64;
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        f_sup = f_sup.max(sheet_form(major, minor, a, b).abs());
+    }
+    let f_sup = 2.0 * f_sup;
+    let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
+    let lever = Meters::Spindle { major, minor }.over(f_sup, rho, z, positive);
+    assert!(
+        lever.is_ok_and(|d| d > 1e-11),
+        "the lever's reading is the rounding over z²: {lever:?}"
+    );
+    let pt = |x: f64| Interval::from_bounds(x, x);
+    let read = Meters::Spindle {
+        major: pt(major),
+        minor: pt(minor),
+    }
+    .certified(pt(f_sup), (pt(rho.0), pt(rho.1)), z, |l| {
+        l.is_certified() && l.lo() > 0.0
+    });
+    let Some(read) = read else {
+        panic!("a part beside the cusp reads")
+    };
+    assert!(
+        read.hi() <= 1e-15,
+        "the height reading is the box's width: {}",
+        read.hi()
+    );
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        let d = sheet_distance(major, minor, a, b);
+        assert!(d <= read.hi(), "({a}, {b}) is {d} from the horn, past {}", read.hi());
     }
 }
 

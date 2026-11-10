@@ -649,3 +649,46 @@ fn past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle() {
         "{got:?}"
     );
 }
+
+
+/// **Limb 2 against a horn reads the sheet up to its cusp.** The horn
+/// `R = r = 1` (its cusp at the centre) and its meridian, the circle
+/// about `(1, 0, 0)`, from its top to the cusp on either side
+/// (`π/2 ≤ t ≤ π` and `−π ≤ t ≤ −π/2`), certify at a band whose zero
+/// is `10⁻⁹` and at one whose zero is `10⁻¹²`. Beside the cusp the sheet
+/// runs at `ρ ≈ z²/2`, tangent to the axis: a part there is read at its
+/// own height, `|ρ − ρ_s(z)|` (`Meters::certified`), where `|f|` over the
+/// lever (`≈ z²`) reads only the net's rounding over `z²`. The same
+/// circle moved `10⁻⁶` off the axis, `10⁻⁶` from the horn at the cusp,
+/// refuses at both, read off (`Limb`) or not shown on (`KernelLimit`).
+#[test]
+fn limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp() {
+    let horn = Surface::Spindle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 1.0,
+        minor_radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let (_, plane) = lemon_and_its_meridian_plane();
+    for band in [Band::new(1e-9, 3e-9).unwrap(), Band::new(1e-12, 3e-12).unwrap()] {
+        for span in [(PI / 2.0, PI), (-PI, -PI / 2.0)] {
+            let own = geom_brep::analytic_edge_limbs(&meridian(1.0), span, &horn, &plane, band);
+            assert!(own.is_ok(), "band {band:?}, the horn's meridian over {span:?}: {own:?}");
+            let off = geom_brep::analytic_edge_limbs(&meridian(1.0 + 1e-6), span, &horn, &plane, band);
+            assert!(
+                matches!(
+                    off,
+                    Err(AnalyticRung3Refusal::KernelLimit {
+                        operand: geom::SurfaceKind::Spindle,
+                        ..
+                    } | AnalyticRung3Refusal::Limb {
+                        operand: geom::SurfaceKind::Spindle,
+                        ..
+                    })
+                ),
+                "band {band:?}, a circle 1e-6 off over {span:?}: {off:?}"
+            );
+        }
+    }
+}

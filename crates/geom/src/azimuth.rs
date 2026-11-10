@@ -412,8 +412,7 @@ pub fn separation<T: Real>(theta: T, at: T) -> T {
 pub enum Window {
     /// An angle of a periodic chart.
     Angle,
-    /// A sphere's latitude, and a spindle sheet's tube angle (which it
-    /// holds whole for `v* < π − 1`).
+    /// A sphere's latitude.
     Latitude,
 }
 

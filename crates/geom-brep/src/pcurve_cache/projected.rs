@@ -1784,14 +1784,59 @@ impl<S: Real> Meters<S> {
         z: (f64, f64),
         positive: impl Fn(S) -> bool,
     ) -> Option<S> {
-        self.over(
-            f,
-            rho,
-            z,
-            |lever, _| if positive(lever) { Ok(lever) } else { Err(()) },
-        )
-        .ok()
-        .or_else(|| self.apex_root(f, rho.1, z))
+        let over = self
+            .over(
+                f,
+                rho,
+                z,
+                |lever, _| if positive(lever) { Ok(lever) } else { Err(()) },
+            )
+            .ok();
+        let apex = self.apex_root(f, rho.1, z);
+        match self {
+            Self::Spindle { .. } => [over, self.at_height(rho, z, &positive)]
+                .into_iter()
+                .flatten()
+                .fold(apex, |least, d| least.map(|a| a.min(d))),
+            _ => over.or(apex),
+        }
+    }
+
+    /// **A sheet's reading at the part's own height**, on an apple or a
+    /// horn whose part lies at `|z| ≥ h` (the apexes' height) and below
+    /// the tube's top, `|z| < r`: the sheet's branch nearer the axis
+    /// passes every such height at `ρ_s(z) = R − √(r² − z²)`, a point of
+    /// the sheet (`ρ_s ≥ 0`), so the part is no farther from the sheet
+    /// than `|ρ − ρ_s(z)|`, and `ρ_s` grows with `|z|`. Near a horn's
+    /// cusp the sheet runs at `ρ_s ≈ z²/2r`, tangent to the axis, so this
+    /// reads a part beside the cusp by its own width where `|f|` over the
+    /// lever (`≈ z²`) reads its rounding over `z²`. `ρ_s` is formed as
+    /// `(z² − h²)/(R + √(r² − z²))`, which keeps its digits at the cusp.
+    /// `None` on a lemon, or where `positive` does not certify the part
+    /// inside those heights.
+    fn at_height(
+        self,
+        (rho_lo, rho_hi): (S, S),
+        z: (f64, f64),
+        positive: impl Fn(S) -> bool,
+    ) -> Option<S> {
+        let Self::Spindle { major, minor } = self else {
+            return None;
+        };
+        let abs = |at: f64| S::from_computed(at).abs();
+        let far = abs(z.0).max(abs(z.1));
+        let near = if z.0 <= 0.0 && 0.0 <= z.1 {
+            S::zero()
+        } else {
+            abs(z.0).min(abs(z.1))
+        };
+        let h = geom::sheet_apex(major, minor).height;
+        let inside = positive(major) && positive(near - h) && positive(minor - far);
+        let level = |w: S| {
+            (w * w - (minor - major) * (minor + major))
+                / (major + ((minor - w) * (minor + w)).sqrt())
+        };
+        inside.then(|| (rho_hi - level(near)).max(level(far) - rho_lo))
     }
 
     /// **Limb 2's reading of a part whose lever the band does not decide
@@ -1888,15 +1933,35 @@ impl<S: Real> Meters<S> {
                 } else {
                     z2(z.0).min(z2(z.1))
                 };
-                let (lo, hi) = ((rho + major).powi(2), (rho_hi + major).powi(2));
-                let least = lo.min(hi) + z_min - minor.powi(2);
-                let most = lo.max(hi) + z2(z.0).max(z2(z.1)) - minor.powi(2);
+                // `(ρ + R)² − r²` as `ρ(ρ + 2R) + (R − r)(R + r)`, which
+                // keeps its digits where the sheet nears the axis: at a
+                // horn's cusp both terms vanish.
+                let radial = |at: S| at * (at + major + major) + (major - minor) * (major + minor);
+                let (lo, hi) = (radial(rho), radial(rho_hi));
+                let least = lo.min(hi) + z_min;
+                let most = lo.max(hi) + z2(z.0).max(z2(z.1));
                 // `σ = sgn R`, decided at rest (`geom::meridian_side`).
                 let sigma = geom::meridian_side(major);
                 let half = S::from_f64(0.5);
                 let outer = ((S::one() + sigma) * least - (S::one() - sigma) * most) * half;
                 let d = torus(positive(outer, Lever::Divisor)?, minor);
-                positive(minor * rho - d * major.abs(), Lever::Side)?;
+                // The sheet's side of the lines from the tube centre
+                // through its apexes, `h(ρ − R) + R|z| ≥ 0`, at the box's
+                // least: an apple's `ρ ≥ R` clears it whatever `|z|`.
+                let h = geom::sheet_apex(major, minor).height;
+                let abs = |at: f64| S::from_computed(at).abs();
+                let z_far = abs(z.0).max(abs(z.1));
+                let z_near = if z.0 <= 0.0 && 0.0 <= z.1 {
+                    S::zero()
+                } else {
+                    abs(z.0).min(abs(z.1))
+                };
+                let apple = (rho - major).max(major * z_near + h * (rho - major));
+                let lemon = major * z_far + h * (rho - major);
+                positive(
+                    ((S::one() + sigma) * apple + (S::one() - sigma) * lemon) * half,
+                    Lever::Side,
+                )?;
                 d
             }
         })
