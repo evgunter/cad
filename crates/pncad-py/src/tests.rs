@@ -5773,6 +5773,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fit",
             "knot_algebra",
             "no_parameter_step",
+            "parameters_invalid",
             "path_folds_back",
             "path_stations_coincide",
             "path_tangent_vanishes",

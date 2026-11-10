@@ -271,7 +271,7 @@ pub enum StepImportError {
         /// discarded: which count or weight the wall's stored net
         /// broke. A count is the whole net's; a weight's `index`
         /// counts along the extracted COLUMN, not through the net.
-        source: geom_core::spline::SplineError,
+        source: geom_core::spline::Built<geom_core::spline::SplineError>,
     },
     /// D7's typed ambiguity at ε_in (stage-1 surface recognition,
     /// ruling #256): a face that cannot import WITHOUT promotion (a
