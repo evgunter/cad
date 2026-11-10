@@ -2,7 +2,7 @@
 id: k-lint-dev-probe-large-k-gate-fails-on-51730-margins-once-the-sweep-runs
 kind: issue
 title: k-lint (dev-probe): the large-K lint fails on 51,730 crowding margins (24,045 in band) once the probe sweep runs to the end
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: M
@@ -140,3 +140,7 @@ k-lint: GATE FAILED — the margin distribution changed: 10033 margin(s) crowd a
 51730 crowding margins on 2026-10-29 are 10033 now; rule 1 is 3997 (24045). The large-K gate still fails, as its nightly step pins (exit 2). Rule 1 by shape and predicate at 1e-9: `demo/lily_walls:bool_spline_region_carrier` 720, `demo/lily_walls:curve_pair_walk_foot_clear` 522, `demo/lily_walls:curve_pair_walk_foot_piece` 270, then `curve_pair_pose_parallel` on `lily` (72), `lily_walls` (62), `projectbox_cutaway` (48), `axis_projection` (40); at 1e-6 `bool_spline_region_carrier` is 1106. The lily's curve-pair walks are still the bulk of it, now beside the spline region's carrier read. The 1e-12 file still excludes the lily past its pinned stem.
 
 The driver lint (`--gate-rule-1-only`) passes: rule 1 is 0, with 342 advisory flags (108 / 117 / 117), the same 342 as before.
+
+## Dispatch
+
+2026-11-10, INSTR orchestrator. One implementer: lane `instr-klint`, branch `instr/klint-large-k`. **Phase A** measures on main and splits every flag, uncapped, by ε × rule × family. It finds each rule-1 family's owning row, and files a row where one is missing. It reads each rule-2/3 family as one of three things: ε-coupled and ruled, a stale floor, or a population for a row. It then recommends re-derivation, demotion, or a split, and stops with no change to the gate. **Phase B** builds the chosen ruling. Demoting the gate goes to Ev first, because the gate is Ev's ruling (PR #243).
