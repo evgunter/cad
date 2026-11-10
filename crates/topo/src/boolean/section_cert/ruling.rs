@@ -102,7 +102,7 @@
 //! at the chart's reach speed, and a pair the band cannot order is
 //! R-tan.
 
-pub(crate) use crate::rows::ChartRows;
+use crate::rows::ChartRows;
 use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 

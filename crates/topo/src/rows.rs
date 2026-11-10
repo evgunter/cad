@@ -25,10 +25,12 @@
 //! `props::RoleNames` (whose `one(name)` takes a caller's name, as every
 //! reader but check 7 builds it), `props::SignNames` (two of those), and
 //! `splitting::containment::ConicRows`, which is `geom_core::period::
-//! TurnRows`. A bundle here that holds one (a [`BoundaryRows`]'s conic)
+//! TurnRows` (named here as itself). A bundle here that holds one (a [`BoundaryRows`]'s conic)
 //! lists its names in its own entry.
 
-use crate::splitting::containment::ConicRows;
+/// A loop boundary's conic rows: [`geom_core::period::TurnRows`] with a
+/// straddle row, the type the splitting engine names `ConicRows`.
+type BoundaryConic = geom_core::period::TurnRows<&'static str>;
 use geom_brep::half_angle::SubdivisionRows;
 
 /// The four K rows one consumer meters its walk through. Distinct
@@ -344,7 +346,7 @@ pub(crate) struct BoundaryRows {
     /// A straight edge's rows.
     line: &'static ParityRows,
     /// A conic edge's rows.
-    conic: ConicRows,
+    conic: BoundaryConic,
     /// A spiric edge's rows.
     spiric: ArcRows,
     /// A spline edge's rows.
@@ -360,7 +362,7 @@ impl BoundaryRows {
 
     /// The `conic` rows.
     #[must_use]
-    pub(crate) const fn conic(&self) -> ConicRows {
+    pub(crate) const fn conic(&self) -> BoundaryConic {
         self.conic
     }
 
@@ -493,7 +495,7 @@ pub(crate) const RULED_REGION_LINE: SegmentRows = SegmentRows {
 /// The point-in-arc-loop walk's boundary rows (`splitting::containment`).
 pub(crate) const ARC_LOOP_WALK: BoundaryRows = BoundaryRows {
     line: &ARC_LOOP,
-    conic: ConicRows::bounded(
+    conic: BoundaryConic::bounded(
         "point_in_arc_loop_conic_span",
         "point_in_arc_loop_conic_straddle",
     ),
@@ -514,7 +516,7 @@ pub(crate) const ARC_LOOP_WALK: BoundaryRows = BoundaryRows {
 /// The Boolean's contact pre-pass's boundary rows (`boolean::contain`).
 pub(crate) const CONTACT: BoundaryRows = BoundaryRows {
     line: &CONTACT_EDGE,
-    conic: ConicRows::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
+    conic: BoundaryConic::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
     spiric: ArcRows {
         end: "bool_contact_spiric_end",
         clear: "bool_contact_spiric_clear",
