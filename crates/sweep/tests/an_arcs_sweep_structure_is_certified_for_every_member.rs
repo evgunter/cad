@@ -116,7 +116,11 @@ fn a_sweep_decision_some_members_break_refuses_undecided_with_its_margin() {
         ArcSweepDecision::TurnToItself,
     );
     match convert(FRAC_PI_2 * 0.99, FRAC_PI_2 * 1.05, false) {
-        Err(SkinError::Structure(SplineError::CarrierWeightNotAPoint { index: 1 })) => {}
+        Err(SkinError::Structure(e))
+            if matches!(
+                e.refusal(),
+                SplineError::CarrierWeightNotAPoint { index: 1 }
+            ) => {}
         other => panic!("a narrower box lifts the count: {:?}", other.map(|_| ())),
     }
 }
@@ -131,7 +135,11 @@ fn a_sweep_decision_some_members_break_refuses_undecided_with_its_margin() {
 #[test]
 fn an_arc_at_interval_refuses_at_the_carriers_door_until_s4_s5() {
     match convert(FRAC_PI_2, FRAC_PI_2, false) {
-        Err(SkinError::Structure(SplineError::CarrierWeightNotAPoint { index: 1 })) => {}
+        Err(SkinError::Structure(e))
+            if matches!(
+                e.refusal(),
+                SplineError::CarrierWeightNotAPoint { index: 1 }
+            ) => {}
         other => panic!("a point quarter turn at Interval: {:?}", other.map(|_| ())),
     }
     assert_eq!(sub_arcs(FRAC_PI_2, false), 1);
@@ -206,7 +214,11 @@ fn whether_an_arc_ends_where_it_starts_is_decided_for_every_member() {
         with_end(Point2::new(iv(0.0, 0.0), iv(1.0, 1.0))),
         Affine3::identity(),
     ) {
-        Err(SkinError::Structure(SplineError::CarrierWeightNotAPoint { index: 1 })) => {}
+        Err(SkinError::Structure(e))
+            if matches!(
+                e.refusal(),
+                SplineError::CarrierWeightNotAPoint { index: 1 }
+            ) => {}
         other => panic!("an end apart from the start: {:?}", other.map(|_| ())),
     }
 }

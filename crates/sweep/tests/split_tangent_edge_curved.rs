@@ -208,11 +208,8 @@ fn refuses_the_knife_edge(
     match knife.at {
         KnifeEdgeSite::Edge(edge) => {
             assert_eq!(contact, Contact::Edge, "{label}: read along {edge:?}");
-            let he = body.get_edge(edge).expect("an operand edge").he_plus;
-            let ends = [
-                body.get_half_edge(he).unwrap().start,
-                body.half_edge_end(he).unwrap(),
-            ];
+            let (v0, v1) = body.edge_vertices(edge).expect("an operand edge");
+            let ends = [v0, v1];
             for v in ends {
                 let q = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
                 assert!(

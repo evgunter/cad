@@ -29,9 +29,10 @@ use geom_core::Tol;
 use geom_core::{Arc2, Point2};
 use profile::path::{CornerReason, CornerWindow, PathNoCornerReason};
 use profile::{
-    ArcSweep, Center, ConstructedLoop, ConstructedProfile, FILLET_NO_CORNER_RECOURSE, FilletLeg,
+    ArcSweep, Center, ConstructedLoop, ConstructedProfile, FILLET_NO_CORNER_RECOURSE,
     FilletLegCarrier, NoCornerReason, Open, PathError, Profile, ProfileLoop, SketchPlane, Start,
 };
+use profile::{FilletLeg, OverrunLegs};
 
 /// √3 — the y coordinate of the crossing points of the unit-spaced
 /// radius-2 circles used by the arc×arc fixtures.
@@ -385,22 +386,27 @@ fn oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin() {
     let hit = crate::common::corners(&err)
         .iter()
         .find_map(|c| match &c.reason {
-            CornerReason::AnchorOutsideTrimmedExtent {
-                side,
-                carrier:
-                    FilletLegCarrier::Arc {
-                        radius,
-                        angular_margin,
-                    },
-                setback,
-                available,
-            } => Some((*side, *radius, *angular_margin, *setback, *available)),
+            CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+                Some((*legs, *overrun))
+            }
             _ => None,
         });
-    let Some((side, radius, angular_margin, setback, available)) = hit else {
-        panic!("expected an arc-side anchor-fit entry, got {err:?}")
+    let Some((legs, overrun)) = hit else {
+        panic!("expected an anchor-fit entry, got {err:?}")
     };
-    assert_eq!(side, FilletLeg::Outgoing);
+    assert_eq!(
+        overrun,
+        OverrunLegs::One(FilletLeg::Outgoing),
+        "the arrival overruns: {legs:?}"
+    );
+    let FilletLegCarrier::Arc {
+        radius,
+        angular_margin,
+    } = legs[1].carrier
+    else {
+        panic!("the arrival is the arc side: {legs:?}")
+    };
+    let (setback, available) = (legs[1].setback, legs[1].available);
     assert!((radius - 2.0).abs() < 1e-15, "carrier radius {radius}");
     assert!(angular_margin < 0.0, "angular margin {angular_margin}");
     assert!(setback > available, "{setback} vs {available}");
@@ -433,16 +439,20 @@ fn oversized_radius_on_a_straight_side_still_names_the_straight_carrier() {
     let hit = crate::common::corners(&err)
         .iter()
         .find_map(|c| match &c.reason {
-            CornerReason::AnchorOutsideTrimmedExtent { side, carrier, .. } => {
-                Some((*side, *carrier))
+            CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+                Some((*legs, *overrun))
             }
             _ => None,
         });
-    let Some((side, carrier)) = hit else {
-        panic!("expected a straight-side anchor-fit entry, got {err:?}")
+    let Some((legs, overrun)) = hit else {
+        panic!("expected an anchor-fit entry, got {err:?}")
     };
-    assert_eq!(side, FilletLeg::Incoming);
-    assert_eq!(carrier, FilletLegCarrier::Line);
+    assert_eq!(
+        overrun,
+        OverrunLegs::One(FilletLeg::Incoming),
+        "the ray overruns: {legs:?}"
+    );
+    assert_eq!(legs[0].carrier, FilletLegCarrier::Line);
 }
 
 #[test]
@@ -807,7 +817,10 @@ fn an_already_tangent_corner_asks_for_the_tangent_construction_instead() {
         .expect_err("a tangent corner must refuse");
     match err {
         PathError::NoCornerForFillet { reason, radius } => {
-            assert_eq!(reason, PathNoCornerReason::CarriersTangent);
+            assert!(
+                matches!(reason, PathNoCornerReason::CarriersTangent),
+                "{reason:?}"
+            );
             assert_eq!(radius, 0.5);
         }
         other => panic!("expected NoCornerForFillet, got {other:?}"),

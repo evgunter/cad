@@ -1037,11 +1037,6 @@ pub enum SelfCheck {
     /// (`bool_ring_run_winding`): a zero area is a degenerate run
     /// (`JoinDesync`).
     RingWinding,
-    /// Which piece of a face the op divided holds a record's point
-    /// (`ops::piece_reading`), asked as the census confirms a record. The
-    /// record certified at rest, so an undecided answer is one the
-    /// census could not decide either.
-    CarriedLineage,
     /// Which way a one-vertex seam edge runs against its partner
     /// (`bool_zip_one_vertex_sense`, `zip::one_vertex_sense`): the two
     /// halves leave one point along one conic, so a tangent too short
@@ -1059,9 +1054,6 @@ impl SelfCheck {
             Self::Normals => "whether the normals of two faces can be read",
             Self::ArcFacing => "which way a germ turns about the section it lies on",
             Self::RingWinding => "which way a ring run of the section winds",
-            Self::CarriedLineage => {
-                "where a contact lands on the pieces of a split edge or a divided face"
-            }
             Self::SeamSense => "which way a seam that closes at one vertex runs",
         }
     }
@@ -1698,6 +1690,7 @@ pub(in crate::boolean) mod tests {
         Indeterminate {
             margin,
             band: band(),
+            // UNDECIDED-NAME: the cause diag_of hands every route this suite walks
             predicate: Some("routing_probe"),
             terminal_sliver: false,
         }
@@ -2350,10 +2343,6 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::SelfCheck(SelfCheck::RingWinding) => {
                 ("which way a ring run of the section winds", Ending::Defect)
             }
-            BooleanDecision::SelfCheck(SelfCheck::CarriedLineage) => (
-                "where a contact lands on the pieces of a split edge or a divided face",
-                Ending::Defect,
-            ),
             BooleanDecision::SelfCheck(SelfCheck::SeamSense) => (
                 "which way a seam that closes at one vertex runs",
                 Ending::Defect,
@@ -2634,6 +2623,7 @@ pub(in crate::boolean) mod tests {
                 let diag = Indeterminate {
                     margin,
                     band: band(),
+                    // UNDECIDED-NAME: the cause each escalation's viewer sentence is budgeted under
                     predicate: Some("side_of_plane"),
                     terminal_sliver: false,
                 };

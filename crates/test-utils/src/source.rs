@@ -28,6 +28,13 @@
 //! unconverted reader, and adding the dev-dependency is the first
 //! step of converting it.
 //!
+//! **Scope is not answered here.** *Which binding does this name reach*
+//! (a `let`, a pattern, a parameter, a `use`) is a question about the
+//! syntax tree, and `crates/source-scope` answers it from a `syn` parse.
+//! The ledger's second half sends scope questions there and refuses a
+//! hand-rolled scope reader. This module keeps lexing and the item- and
+//! brace-level helpers, and stays zero-dependency.
+//!
 //! # One lexer, three views, and why the count is three
 //!
 //! [`keeping`] is the only thing in this module that knows Rust's
@@ -447,7 +454,7 @@ pub fn line_start(text: &str, at: usize) -> usize {
 /// operation is the defect the module docs above argue against.
 #[must_use]
 pub fn line(text: &str, at: usize) -> usize {
-    text[..at].lines().count()
+    text[..at].matches('\n').count() + 1
 }
 
 /// **Is the byte before `at` outside an identifier?** — what makes a
@@ -633,6 +640,39 @@ pub fn item_body(blanked: &str, from: usize) -> ItemBody {
         // that runs to the end of the file.
         None => ItemBody::Unterminated,
     }
+}
+
+/// **Every `fn` item with a body in a blanked view**: its name and its
+/// body's extent ([`item_body`]'s `Body`, both braces included), in
+/// order of appearance. A head is a `fn` keyword at a word boundary
+/// followed by a name, so a function-pointer type (`fn(u8)`) is no
+/// head. A declaration (a trait's default-less method) has no body and
+/// is skipped.
+///
+/// # Errors
+///
+/// `Err` naming the item where a head has no terminator or its `{`
+/// never closes ([`ItemBody::Unterminated`]): a walk that skipped one
+/// would lose every needle in what follows, with no count moving.
+pub fn fn_items(blanked: &str) -> Result<Vec<(String, std::ops::Range<usize>)>, String> {
+    let mut out = Vec::new();
+    for (at, _) in blanked.match_indices("fn ") {
+        if !boundary_before(blanked, at) {
+            continue;
+        }
+        let name = ident(blanked, skip_ws(blanked, at + 3));
+        if name.is_empty() {
+            continue;
+        }
+        match item_body(blanked, at) {
+            ItemBody::Body(body) => out.push((name.to_string(), body)),
+            ItemBody::Declaration(_) => {}
+            ItemBody::Unterminated => {
+                return Err(format!("`fn {name}` at byte {at} has no terminated body"));
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// The span an outer attribute starting at `attr_at` (its `#`) governs:
@@ -1544,6 +1584,26 @@ pub struct PredicateCensus {
     /// [`NameCarrier::Call`], no call or literal. A stale carrier reads
     /// as `Const(NAME)` or `Call(token)`.
     pub unfound: std::collections::BTreeSet<String>,
+    /// `(name, <file>:<line>)` per predicate name a site REFERS to
+    /// rather than decides: a plain literal in `predicate: Some("…")`,
+    /// `predicate == Some("…")` or `predicate, Some("…")` — a fixture
+    /// building a refusal, a test asserting the name one carried. A
+    /// roster holds each to a name some census decides
+    /// ([`unresolved_references`]), so a renamed predicate reds every
+    /// fixture still spelling the old one. A deliberate reference to a
+    /// name nothing decides says so on the line above it
+    /// (`// UNDECIDED-NAME: <why>`) and is collected in
+    /// [`Self::marked_references`] instead.
+    pub references: std::collections::BTreeSet<(String, String)>,
+    /// `(name, <file>:<line>)` per reference under an `UNDECIDED-NAME`
+    /// marker: a roster holds each to a name NO census decides, so a
+    /// marker outlives the name's absence only as a red.
+    pub marked_references: std::collections::BTreeSet<(String, String)>,
+    /// `<file>:<line>` per `UNDECIDED-NAME` marker outside test code — a
+    /// `#[cfg(test)]` item, a file a `#[cfg(test)] mod` mounts, or a
+    /// suite under `tests/`. A production reference to a name nothing
+    /// decides is a name with no home, not a deliberate negative.
+    pub misplaced_markers: std::collections::BTreeSet<String>,
     /// `<file>: <text>` per `decide*` occurrence this reader cannot
     /// even find an argument list for — a spelling it does not know.
     pub unreadable: std::collections::BTreeSet<String>,
@@ -1570,7 +1630,7 @@ pub struct PredicateCensus {
 /// carrier. Both are read here; anything still unread is reported, not
 /// dropped.
 ///
-/// **`geom_brep::ladder::read_identity` is a funnel too**, deciding each
+/// **`geom_core::ladder::read_identity` is a funnel too**, deciding each
 /// datum under the name it is handed beside it, and its data are an
 /// iterator this reader cannot follow. Every call of it is therefore an
 /// `indirect` site, `<file>: read_identity(<its first argument's head>)`,
@@ -1689,11 +1749,14 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
             while let Some(hit) = raw[at..].find(needle) {
                 let start = at + hit;
                 at = start + needle.len();
-                out.unwalked
-                    .insert(format!("{rel}:{}", line(raw, start) + 1));
+                out.unwalked.insert(format!("{rel}:{}", line(raw, start)));
             }
         }
     }
+    let refs = read_references(&files, false);
+    out.references = refs.found;
+    out.marked_references = refs.marked;
+    out.misplaced_markers = refs.misplaced;
     out.unfound = carriers
         .iter()
         .map(|carrier| match carrier {
@@ -1784,8 +1847,12 @@ pub fn roster_violations(
     out
 }
 
-/// Whether the unwalked site `<file>:<line>` under `src` is a
-/// `#[path = "…"]` mounting a file under `src`, which the walk reads.
+/// Whether the unwalked site `<file>:<line>` under `src` is one the
+/// walk covers after all: a `#[path = "…"]` mounting a file under
+/// `src`, which the walk reads; a `#[path]` mounting a file outside it
+/// that spells no `decide`; or an `include!("…")` of a data file under
+/// `src` — not a `.rs` file, and spelling no `decide`. Neither of the
+/// last two holds a site to read.
 fn mounted_under(src: &std::path::Path, site: &str) -> Result<(), String> {
     let (file, line) = site.rsplit_once(':').ok_or("not `<file>:<line>`")?;
     let line: usize = line.parse().map_err(|_| "not a line number")?;
@@ -1797,17 +1864,55 @@ fn mounted_under(src: &std::path::Path, site: &str) -> Result<(), String> {
         .nth(line.saturating_sub(1))
         .ok_or("no such line")?
         .trim();
-    let target = attr
+    let mount = attr
         .strip_prefix("#[path =")
         .and_then(|rest| rest.trim().strip_suffix(']'))
-        .and_then(plain_string_literal)
-        .ok_or_else(|| format!("not a `#[path = …]` mount: {attr}"))?;
+        .and_then(plain_string_literal);
+    let data = attr.split_once("include!(").and_then(|(_, rest)| {
+        let close = rest.find(')')?;
+        plain_string_literal(rest[..close].trim())
+    });
+    let (target, is_data) = match (mount, data) {
+        (Some(target), _) => (target, false),
+        (None, Some(target)) => (target, true),
+        (None, None) => {
+            return Err(format!(
+                "neither a `#[path = …]` mount nor an `include!` of a data file: {attr}"
+            ));
+        }
+    };
     let mounted = file
         .parent()
         .ok_or("a file with no directory")?
         .join(target);
-    if target.contains("..") || !mounted.starts_with(src) || !mounted.is_file() {
-        return Err(format!("mounts `{target}`, which is not a file under src"));
+    if !mounted.is_file() {
+        return Err(format!("mounts `{target}`, which is not a file"));
+    }
+    let under_src = !target.contains("..") && mounted.starts_with(src);
+    if !under_src && !is_data {
+        // A `#[path]` mount outside `src` (a test oracle shared with the
+        // integration suites) is walked by no census: it is no blind spot
+        // only while it spells no `decide`.
+        let body = std::fs::read_to_string(&mounted).map_err(|e| e.to_string())?;
+        if body.contains("decide") {
+            return Err(format!(
+                "mounts `{target}`, which is not under src and spells `decide`"
+            ));
+        }
+        return Ok(());
+    }
+    if !under_src {
+        return Err(format!(
+            "includes `{target}`, which is not a file under src"
+        ));
+    }
+    if is_data {
+        let body = std::fs::read_to_string(&mounted).map_err(|e| e.to_string())?;
+        if target.ends_with(".rs") || body.contains("decide") {
+            return Err(format!(
+                "includes `{target}`, source the walk does not read rather than data"
+            ));
+        }
     }
     Ok(())
 }
@@ -1901,9 +2006,22 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         let open = cursor;
         at = open + 1;
         let arg = code[open + 1..].trim_start();
-        if let Some(names) = literal_tuple(&bare[bare.len() - arg.len()..], arg) {
+        let arg_bare = &bare[bare.len() - arg.len()..];
+        if let Some(names) = literal_tuple(arg_bare, arg) {
             out.extend(names.into_iter().map(|name| (SiteKind::Name, name)));
             continue;
+        }
+        // A group of names some of which are not literals
+        // (`[OFFSET, "row_floor"]`): its literals are names, and the group
+        // is an indirect site for the rest.
+        if (arg_bare.starts_with('(') || arg_bare.starts_with('['))
+            && let Some(close) = balanced_end(arg_bare, 0)
+        {
+            out.extend(
+                direct_literals(&arg[1..close])
+                    .into_iter()
+                    .map(|name| (SiteKind::Name, name)),
+            );
         }
         match first_literal(arg) {
             Some(name) => out.push((SiteKind::Name, name)),
@@ -1971,6 +2089,251 @@ fn literals_within(code: &str) -> Vec<String> {
     out
 }
 
+/// Every plain literal a `predicate` field or comparison names
+/// (`predicate: Some("…")`, `predicate == Some("…")`, `predicate,
+/// Some("…")`), with its offset, in a blanked view and the view keeping
+/// literals.
+fn referenced_names(bare: &str, code: &str) -> Vec<(String, usize)> {
+    const TOKEN: &str = "predicate";
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find(TOKEN) {
+        let start = at + hit;
+        at = start + TOKEN.len();
+        if !boundary_before(bare, start) || !boundary_after(bare, at) {
+            continue;
+        }
+        let rest = bare[at..].trim_start();
+        let Some(rest) = [":", "==", ","]
+            .iter()
+            .find_map(|sep| rest.strip_prefix(sep))
+            .map(str::trim_start)
+        else {
+            continue;
+        };
+        let Some(rest) = rest.strip_prefix("Some(") else {
+            continue;
+        };
+        // Every alternative of an or-pattern (`Some("a" | "b")`) is a
+        // reference, each at its own offset.
+        let mut after = bare.len() - rest.len();
+        loop {
+            let held = code[after..].trim_start();
+            let lit = code.len() - held.len();
+            let Some(name) = first_literal(held) else {
+                break;
+            };
+            after = lit + name.len() + 2;
+            out.push((name, lit));
+            match bare[after..].trim_start().strip_prefix('|') {
+                Some(next) => after = bare.len() - next.len(),
+                None => break,
+            }
+        }
+    }
+    out
+}
+
+/// The why of a `// <WORD>: <why>` marker standing on the line directly
+/// above the 1-based `line_no` of `text`, where the why is not empty.
+#[must_use]
+pub fn marker_above<'t>(text: &'t str, line_no: usize, word: &str) -> Option<&'t str> {
+    let above = text.lines().nth(line_no.checked_sub(2)?)?;
+    let why = above
+        .trim_start()
+        .strip_prefix("// ")?
+        .strip_prefix(word)?
+        .strip_prefix(':')?
+        .trim();
+    (!why.is_empty()).then_some(why)
+}
+
+/// What [`read_references`] reads off a set of files.
+#[derive(Default)]
+struct References {
+    found: std::collections::BTreeSet<(String, String)>,
+    marked: std::collections::BTreeSet<(String, String)>,
+    misplaced: std::collections::BTreeSet<String>,
+}
+
+/// The references `files` (`(<rel path>, text)`) hold, each under its
+/// marker or not, and the markers that stand outside test code. Every
+/// file is test code where `all_test` (a crate's `tests/`).
+fn read_references(files: &[(String, String)], all_test: bool) -> References {
+    let mounted = test_mounted(files);
+    let mut out = References::default();
+    for (rel, text) in files {
+        let bare = code_only(text);
+        let code = code_and_literals(text);
+        let in_test_file = all_test || mounted.iter().any(|dir| under_module(rel, dir));
+        let extents = cfg_test_extents(&bare);
+        for (name, at) in referenced_names(&bare, &code) {
+            let line_no = line(text, at);
+            let site = format!("{rel}:{line_no}");
+            if marker_above(text, line_no, "UNDECIDED-NAME").is_some() {
+                if !in_test_file && !extents.iter().any(|e| e.contains(&at)) {
+                    out.misplaced.insert(site.clone());
+                }
+                out.marked.insert((name, site));
+            } else {
+                out.found.insert((name, site));
+            }
+        }
+    }
+    out
+}
+
+/// The byte ranges of the test-only items in a blanked view: those
+/// under `#[cfg(test)]` or `#[cfg(any(test, …))]` (a test-support
+/// feature beside `test`).
+fn cfg_test_extents(bare: &str) -> Vec<std::ops::Range<usize>> {
+    const ATTR: &str = "#[cfg(";
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find(ATTR) {
+        let start = at + hit;
+        at = start + ATTR.len();
+        let rest = bare[at..].trim_start();
+        let test_only = rest.starts_with("test)") || {
+            rest.strip_prefix("any(")
+                .is_some_and(|inner| inner.trim_start().starts_with("test"))
+        };
+        if test_only && let Some(extent) = attributed_extent(bare, start) {
+            out.push(extent);
+        }
+    }
+    out
+}
+
+/// The module paths (`<rel>` without `.rs`) that a test-only `mod
+/// <name>;` among `files` mounts — at `#[path = "…"]` where it carries
+/// one: each is test code, with everything under it.
+fn test_mounted(files: &[(String, String)]) -> Vec<String> {
+    let mut out = Vec::new();
+    for (rel, text) in files {
+        let bare = code_only(text);
+        let code = code_and_literals(text);
+        // A `mod` declared in `a/b.rs` mounts `a/b/<name>`; one in a
+        // `lib.rs`, `main.rs` or `mod.rs` mounts its sibling. A `#[path]`
+        // is relative to the declaring file's directory.
+        let (dir, stem) = match rel.rsplit_once('/') {
+            Some((dir, file)) => (dir.to_string(), file.trim_end_matches(".rs").to_string()),
+            None => (String::new(), rel.trim_end_matches(".rs").to_string()),
+        };
+        let join = |base: &str, tail: &str| {
+            if base.is_empty() {
+                tail.to_string()
+            } else {
+                format!("{base}/{tail}")
+            }
+        };
+        let base = if ["lib", "main", "mod"].contains(&stem.as_str()) {
+            dir.clone()
+        } else {
+            join(&dir, &stem)
+        };
+        for extent in cfg_test_extents(&bare) {
+            // Past the item's attributes, reading a `#[path]` among them.
+            let mut item = extent.start;
+            let mut path = None;
+            while bare[item..extent.end].starts_with("#[") {
+                let Some(close) = balanced_end(&bare, item + 1) else {
+                    break;
+                };
+                let attr = code[item..=close].trim();
+                if let Some(target) = attr
+                    .strip_prefix("#[path =")
+                    .and_then(|r| r.trim().strip_suffix(']'))
+                    .and_then(plain_string_literal)
+                {
+                    path = Some(target.trim_end_matches(".rs").to_string());
+                }
+                item = skip_ws(&bare, close + 1);
+            }
+            let decl = bare[item..extent.end].trim();
+            let decl = decl.strip_prefix("pub(crate) ").unwrap_or(decl);
+            let decl = decl.strip_prefix("pub ").unwrap_or(decl);
+            if let Some(name) = decl
+                .strip_prefix("mod ")
+                .and_then(|rest| rest.trim().strip_suffix(';'))
+            {
+                out.push(match &path {
+                    Some(target) => join(&dir, target),
+                    None => join(&base, name.trim()),
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Whether the file at `rel` is the module `module` or under it.
+fn under_module(rel: &str, module: &str) -> bool {
+    let path = rel.trim_end_matches(".rs");
+    path == module || path.starts_with(&format!("{module}/"))
+}
+
+/// Whether `dir` is a directory holding a `.rs` file at any depth —
+/// what a walk that refuses an empty tree ([`rust_sources`]) needs to
+/// know of a directory that may hold none (a crate's `tests/` of data).
+#[must_use]
+pub fn holds_rust_sources(dir: &std::path::Path) -> bool {
+    std::fs::read_dir(dir).is_ok_and(|entries| {
+        entries.flatten().any(|entry| {
+            let path = entry.path();
+            if path.is_dir() {
+                holds_rust_sources(&path)
+            } else {
+                path.extension().is_some_and(|e| e == "rs")
+            }
+        })
+    })
+}
+
+/// `(name, <file>:<line>)` per site, the shape a reference reads as.
+pub type SiteNames = std::collections::BTreeSet<(String, String)>;
+
+/// **The references a crate's `tests/` hold**: the same reading the
+/// census makes of `src` ([`PredicateCensus::references`] and its
+/// marked twin), over every `.rs` file under `tests`, all of it test
+/// code. `(found, marked)`, each `(name, <file>:<line>)` relative to
+/// `tests`.
+#[must_use]
+pub fn test_references(tests: &std::path::Path) -> (SiteNames, SiteNames) {
+    if !holds_rust_sources(tests) {
+        return Default::default();
+    }
+    let files: Vec<(String, String)> = rust_sources(tests)
+        .into_iter()
+        .filter_map(|path| {
+            let text = std::fs::read_to_string(&path).ok()?;
+            let rel = path
+                .strip_prefix(tests)
+                .ok()?
+                .to_string_lossy()
+                .replace('\\', "/");
+            Some((rel, text))
+        })
+        .collect();
+    let refs = read_references(&files, true);
+    (refs.found, refs.marked)
+}
+
+/// The references in `census` that name no name in `decided`, as
+/// `<file>:<line>: <name>`.
+#[must_use]
+pub fn unresolved_references(
+    census: &PredicateCensus,
+    decided: &std::collections::BTreeSet<String>,
+) -> Vec<String> {
+    census
+        .references
+        .iter()
+        .filter(|(name, _)| !decided.contains(name))
+        .map(|(name, site)| format!("{site}: {name}"))
+        .collect()
+}
+
 /// The identifier of every `const NAME` declaration in a blanked view.
 fn const_names(bare: &str) -> Vec<String> {
     let mut out = Vec::new();
@@ -2022,13 +2385,14 @@ fn arguments(inner: &str) -> Vec<String> {
         .collect()
 }
 
-/// The names of a tuple of plain string literals at the head of `code`
-/// — a funnel deciding under a row and its straddle row
-/// (`decide_levered(("row", "row_straddle"), …)`) — or `None` where the
-/// head is not such a tuple. `bare` is the same text blanked, so its
-/// brackets are real.
+/// The names of a tuple or array of plain string literals at the head
+/// of `code` — a funnel deciding under a row and its straddle row
+/// (`decide_levered(("row", "row_straddle"), …)`,
+/// `decide_across_reported(["row", "row_floor"], …)`) — or `None` where
+/// the head is not one. `bare` is the same text blanked, so its brackets
+/// are real.
 fn literal_tuple(bare: &str, code: &str) -> Option<Vec<String>> {
-    if !bare.starts_with('(') {
+    if !bare.starts_with('(') && !bare.starts_with('[') {
         return None;
     }
     let close = balanced_end(bare, 0)?;
@@ -2039,6 +2403,165 @@ fn literal_tuple(bare: &str, code: &str) -> Option<Vec<String>> {
         .map(|item| plain_string_literal(item).map(str::to_string))
         .collect::<Option<_>>()?;
     (!names.is_empty()).then_some(names)
+}
+
+/// **The carriers a roster file declares**, read off its text: each
+/// `NameCarrier::Const("…")` and `NameCarrier::Call("…")` in code, in
+/// order. The tree-wide coverage row builds each roster crate's census
+/// with its own roster's carriers this way, so the union it resolves
+/// references against is what the rosters read, with no second copy of
+/// their lists.
+#[must_use]
+pub fn declared_carriers(roster: &str) -> Vec<NameCarrier> {
+    let code = code_and_literals(roster);
+    let mut found: Vec<(usize, NameCarrier)> = Vec::new();
+    for (head, call) in [("NameCarrier::Const(", false), ("NameCarrier::Call(", true)] {
+        let mut at = 0usize;
+        while let Some(hit) = code[at..].find(head) {
+            let open = at + hit + head.len();
+            at = open;
+            let Some(close) = code[open..].find(')') else {
+                break;
+            };
+            if let Some(token) = plain_string_literal(code[open..open + close].trim()) {
+                let token: &'static str = Box::leak(token.to_string().into_boxed_str());
+                let carrier = if call {
+                    NameCarrier::Call(token)
+                } else {
+                    NameCarrier::Const(token)
+                };
+                found.push((open, carrier));
+            }
+        }
+    }
+    found.sort_by_key(|(at, _)| *at);
+    found.into_iter().map(|(_, carrier)| carrier).collect()
+}
+
+/// **The roster a crate runs, if it runs one**: the carriers
+/// `<crate>/tests/recourse_roster.rs` declares, where that file calls
+/// [`roster_violations`] in code; `None` where it does not, or there is
+/// no such file. The coverage row's one test of "runs a roster".
+#[must_use]
+pub fn crate_roster(crate_dir: &std::path::Path) -> Option<Vec<NameCarrier>> {
+    let text = std::fs::read_to_string(crate_dir.join("tests/recourse_roster.rs")).ok()?;
+    code_only(&text)
+        .contains("roster_violations(")
+        .then(|| declared_carriers(&text))
+}
+
+/// **The names a crate that runs no roster yet spells where a name is
+/// decided**: each `const NAME: &str` (or tuple or array of them) it
+/// declares and, for a crate whose names live in a closed type's table
+/// (`closed_table`), each `Variant => "lit"` arm. Never a reference site
+/// and never an arbitrary literal, so a hold is only ever a decide-shaped
+/// spelling of the name (the coverage row's `KNOWN_MISSING`).
+#[must_use]
+pub fn held_spellings(
+    src: &std::path::Path,
+    closed_table: bool,
+) -> std::collections::BTreeSet<String> {
+    let mut out = std::collections::BTreeSet::new();
+    for file in rust_sources(src) {
+        let Ok(text) = std::fs::read_to_string(&file) else {
+            continue;
+        };
+        let bare = code_only(&text);
+        let code = code_and_literals(&text);
+        for name in const_names(&bare) {
+            for decl in const_decls(&bare, &name) {
+                if let Some(names) = const_literal(&bare[decl..], &code[decl..]) {
+                    out.extend(names);
+                }
+            }
+        }
+        if closed_table {
+            for body in closed_table_bodies(&bare) {
+                out.extend(variant_arms(&bare[body.clone()], &code[body]));
+            }
+        }
+    }
+    out
+}
+
+/// The fn names whose body is a closed type's name table: a variant's
+/// row, its straddle and its floor.
+const TABLE_FNS: [&str; 5] = ["name", "predicate", "straddle", "floor", "row"];
+
+/// **The bodies a closed type spells its names in**, in a blanked view:
+/// each `fn name/predicate/straddle/floor/row` body, and each braced
+/// macro invocation (`gates! { … }`, the gate table's) — the only places
+/// a `Variant => "lit"` arm is a decided name rather than a label.
+fn closed_table_bodies(bare: &str) -> Vec<std::ops::Range<usize>> {
+    let mut out = Vec::new();
+    for name in TABLE_FNS {
+        let needle = format!("fn {name}(");
+        let mut at = 0usize;
+        while let Some(hit) = bare[at..].find(&needle) {
+            let start = at + hit;
+            at = start + needle.len();
+            if !boundary_before(bare, start) {
+                continue;
+            }
+            let Some(open) = bare[at..].find('{').map(|i| at + i) else {
+                continue;
+            };
+            if bare[at..open].contains(';') {
+                continue; // a trait's declaration, no body
+            }
+            if let Some(close) = balanced_end(bare, open) {
+                out.push(open..close);
+            }
+        }
+    }
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find('!') {
+        let bang = at + hit;
+        at = bang + 1;
+        let head = bare[..bang].trim_end();
+        let ident_start = head
+            .rfind(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .map_or(0, |i| i + 1);
+        let ident = &head[ident_start..];
+        if ident.is_empty() || ident == "macro_rules" {
+            continue;
+        }
+        let open = skip_ws(bare, at);
+        if bare[open..].starts_with('{')
+            && let Some(close) = balanced_end(bare, open)
+        {
+            out.push(open..close);
+        }
+    }
+    out
+}
+
+/// The literal of every `Variant => "lit"` arm: a `=>` whose left side
+/// ends in a capitalised identifier and whose right side opens with a
+/// plain literal.
+fn variant_arms(bare: &str, code: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find("=>") {
+        let arrow = at + hit;
+        at = arrow + 2;
+        let left = bare[..arrow].trim_end();
+        let ident_start = left
+            .rfind(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .map_or(0, |i| i + 1);
+        let capitalised = left[ident_start..]
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_uppercase());
+        if !capitalised {
+            continue;
+        }
+        let right = code[at..].trim_start();
+        if let Some(name) = first_literal(right) {
+            out.push(name);
+        }
+    }
+    out
 }
 
 /// The contents of a plain string literal at the head of `text`.
@@ -2114,7 +2637,17 @@ fn direct_literals(inner: &str) -> Vec<String> {
 /// cannot read.
 fn const_literal(bare: &str, code: &str) -> Option<Vec<String>> {
     const STR: [&str; 2] = ["&str", "&'staticstr"];
-    let end = code.find(';')?;
+    // The declaration's own `;`, at depth zero: `[&str; 2]` holds one.
+    let mut depth = 0usize;
+    let end = bare.char_indices().find_map(|(at, c)| {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            ';' if depth == 0 => return Some(at),
+            _ => {}
+        }
+        None
+    })?;
     let Some(eq) = code[..end].find('=') else {
         return Some(Vec::new());
     };
@@ -2132,9 +2665,19 @@ fn const_literal(bare: &str, code: &str) -> Option<Vec<String>> {
         .strip_prefix('(')
         .and_then(|t| t.strip_suffix(')'))
         .map(|t| t.split(',').filter(|p| !p.is_empty()).collect());
-    match parts {
-        Some(parts) if !parts.is_empty() && parts.iter().all(|p| STR.contains(p)) => {
+    // An array of them: `[&str; 2]`.
+    let array: Option<usize> = ty
+        .strip_prefix('[')
+        .and_then(|t| t.strip_suffix(']'))
+        .and_then(|t| t.split_once(';'))
+        .filter(|(elem, _)| STR.contains(elem))
+        .and_then(|(_, n)| n.parse().ok());
+    match (parts, array) {
+        (Some(parts), _) if !parts.is_empty() && parts.iter().all(|p| STR.contains(p)) => {
             literal_tuple(&bare[at..end], &code[at..end]).filter(|names| names.len() == parts.len())
+        }
+        (_, Some(n)) => {
+            literal_tuple(&bare[at..end], &code[at..end]).filter(|names| names.len() == n)
         }
         _ => Some(Vec::new()),
     }
@@ -2457,7 +3000,7 @@ mod tests {
         let raw = "use ladder::{read_identity};\n\
                    /// [`read_identity`] reads data.\n\
                    pub fn read_identity<T>(d: T) {}\n\
-                   fn f() { geom_brep::ladder::read_identity(\n    [(\"lit\", m)], band); \
+                   fn f() { geom_core::ladder::read_identity(\n    [(\"lit\", m)], band); \
                    read_identity(\n    [(\"other\", m)], band); \
                    read_identity(xs.map(|x| (NAME, x)), band); }\n";
         let dir = std::env::temp_dir().join(format!("tu-identity-{}", std::process::id()));
@@ -2482,7 +3025,7 @@ mod tests {
     }
 
     /// **A `Const` carrier reads every `&str` declaration of its name,
-    /// or tuple of them, and only those**: a longer identifier is not
+    /// or tuple or array of them, and only those**: a longer identifier is not
     /// it, a same-named const of another type or a trait's valueless
     /// declaration is not a name, and a `&str` whose value is not a
     /// plain literal is unreadable.
@@ -2495,7 +3038,8 @@ mod tests {
                    trait R { const APEX: &'static str; }\n\
                    const APEX: &str = concat!(\"a\", \"b\");\n\
                    const APEX: (&str, &'static str) = (\"row\", \"row_straddle\");\n\
-                   const APEX: (&str, &str) = (\"row\", other);\n";
+                   const APEX: (&str, &str) = (\"row\", other);\n\
+                   const APEX: [&str; 2] = [\"gap\", \"gap_floor\"];\n";
         let (bare, code) = (code_only(raw), code_and_literals(raw));
         let read: Vec<Option<Vec<String>>> = super::const_decls(&bare, "APEX")
             .into_iter()
@@ -2512,17 +3056,20 @@ mod tests {
                 None,
                 names(&["row", "row_straddle"]),
                 None,
+                names(&["gap", "gap_floor"]),
             ],
             "{raw}"
         );
     }
 
-    /// **A tuple of plain literals at a funnel's head is its names**: a
-    /// row and its straddle row are both read, and a tuple holding
-    /// anything but literals is an indirect site.
+    /// **A tuple or array of plain literals at a funnel's head is its
+    /// names**: a row and its straddle row are both read. A group holding
+    /// anything but literals is an indirect site, and its literals are
+    /// still read.
     #[test]
     fn a_funnels_literal_tuple_is_read_as_its_names() {
         let raw = "decide_levered((\"row\", \"row_straddle\"), x, band); \
+                   decide_across([\"gap\", \"gap_floor\"], x, band); \
                    decide_levered((\"lone\", s), x, band);";
         let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
         let named: Vec<&str> = sites
@@ -2530,7 +3077,11 @@ mod tests {
             .filter(|(kind, _)| matches!(kind, super::SiteKind::Name))
             .map(|(_, name)| name.as_str())
             .collect();
-        assert_eq!(named, ["row", "row_straddle"], "{raw}");
+        assert_eq!(
+            named,
+            ["row", "row_straddle", "gap", "gap_floor", "lone"],
+            "{raw}"
+        );
         assert!(
             sites
                 .iter()
@@ -2653,6 +3204,286 @@ mod tests {
             census.indirect.iter().collect::<Vec<_>>(),
             ["table.rs: name"]
         );
+    }
+
+    /// **A literal a `predicate` field or comparison names is a
+    /// reference**, read beside the decided names; one under an
+    /// `UNDECIDED-NAME` marker with its why is not, and a name only
+    /// mentioned in prose or in an unrelated `Some("…")` is not.
+    #[test]
+    fn a_predicate_literal_is_a_reference_unless_marked() {
+        let dir = std::env::temp_dir().join(format!("tu-refs-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn f() {\n\
+                 let e = Indeterminate { predicate: Some(\"made\"), ..x };\n\
+                 assert_eq!(d.predicate, Some(\"asserted\"));\n\
+                 assert!(d.predicate == Some(\"compared\"));\n\
+                 // UNDECIDED-NAME: a name no door decides, by design\n\
+                 assert_eq!(d.predicate, Some(\"negative\"));\n\
+                 let other = Some(\"not_a_name\");\n\
+                 // predicate: Some(\"prose\")\n\
+             }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        let names: Vec<&str> = census.references.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["asserted", "compared", "made"], "{census:?}");
+        let decided: std::collections::BTreeSet<String> = ["made".to_string()].into();
+        assert_eq!(
+            super::unresolved_references(&census, &decided),
+            ["a.rs:3: asserted", "a.rs:4: compared"]
+        );
+    }
+
+    /// **An `include!` of a data file is walked; one of source is not**:
+    /// the site is keyed at the line the `include!` stands on, even mid-
+    /// line, and a data file under `src` spelling no `decide` is no
+    /// blind spot, while an included `.rs` file is.
+    #[test]
+    fn an_included_data_file_is_no_blind_spot() {
+        let dir = std::env::temp_dir().join(format!("tu-include-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn f() {\n    let t: [f64; 1] = include!(\"t.in\");\n}\n",
+        )
+        .expect("write");
+        std::fs::write(dir.join("t.in"), "[1.0]\n").expect("write");
+        std::fs::write(dir.join("b.rs"), "fn g() {\n    include!(\"c.rs\");\n}\n").expect("write");
+        std::fs::write(dir.join("c.rs"), "fn h() {}\n").expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        let violations = super::roster_violations(&dir, &census, &[], None);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        let unwalked: Vec<&str> = census.unwalked.iter().map(String::as_str).collect();
+        assert_eq!(unwalked, ["a.rs:2", "b.rs:2"], "{census:?}");
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("b.rs:2") && violations[0].contains("c.rs"),
+            "{violations:?}"
+        );
+    }
+
+    /// **A mount from outside `src` is no blind spot while it spells no
+    /// `decide`**: a shared test oracle passes, a mounted file that
+    /// decides is red.
+    #[test]
+    fn a_mount_from_outside_src_is_walked_only_while_it_decides_nothing() {
+        let base = std::env::temp_dir().join(format!("tu-outside-{}", std::process::id()));
+        let (dir, outside) = (base.join("src"), base.join("tests"));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::create_dir_all(&outside).expect("temp dir");
+        std::fs::write(outside.join("oracle.rs"), "pub fn q() {}\n").expect("write");
+        std::fs::write(outside.join("decides.rs"), "fn d() { decide(x) }\n").expect("write");
+        std::fs::write(
+            dir.join("m.rs"),
+            "#[path = \"../tests/oracle.rs\"]\nmod oracle;\n\
+             #[path = \"../tests/decides.rs\"]\nmod decides;\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        let violations = super::roster_violations(&dir, &census, &[], None);
+        std::fs::remove_dir_all(&base).expect("cleanup");
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("m.rs:3") && violations[0].contains("decides.rs"),
+            "{violations:?}"
+        );
+    }
+
+    /// **A roster's carriers are read off its text, in order, and only a
+    /// file that calls the harness in code runs a roster**: a commented
+    /// call, or no file, is none.
+    #[test]
+    fn a_roster_is_read_off_its_text_and_runs_only_when_it_calls_the_harness() {
+        let text = "const C: &[NameCarrier] = &[\n\
+                    NameCarrier::Call(\"row_as\"),\n\
+                    // NameCarrier::Const(\"COMMENTED\"),\n\
+                    NameCarrier::Const(\"GAP\"),\n];\n";
+        let got: Vec<String> = super::declared_carriers(text)
+            .iter()
+            .map(|c| format!("{c:?}"))
+            .collect();
+        assert_eq!(got, [r#"Call("row_as")"#, r#"Const("GAP")"#], "{got:?}");
+        let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("tests")).expect("temp dir");
+        assert!(super::crate_roster(&dir).is_none(), "no file is no roster");
+        let roster = dir.join("tests/recourse_roster.rs");
+        std::fs::write(&roster, format!("{text}// roster_violations(&src)\n")).expect("write");
+        assert!(
+            super::crate_roster(&dir).is_none(),
+            "a commented call runs nothing"
+        );
+        std::fs::write(
+            &roster,
+            format!("{text}fn t() {{ roster_violations(&src); }}\n"),
+        )
+        .expect("write");
+        let carriers = super::crate_roster(&dir);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(carriers.map(|c| c.len()), Some(2));
+    }
+
+    /// **A hold is a decide-shaped spelling alone**: a `const` of a
+    /// name, and for a closed table a `Variant => "lit"` arm of its name
+    /// table (a `fn name`-shaped body, or a braced macro invocation) —
+    /// never a label arm elsewhere (`Low => "low"`), a reference, an
+    /// argument or prose.
+    #[test]
+    fn a_listed_crate_holds_a_name_only_where_it_is_spelled_as_decided() {
+        let dir = std::env::temp_dir().join(format!("tu-held-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "// \"in_prose\"\n\
+             const ROW: &str = \"const_row\";\n\
+             const PAIR: [&str; 2] = [\"pair_a\", \"pair_b\"];\n\
+             fn f() {\n\
+                 shape(\"circle\");\n\
+                 assert_eq!(d.predicate, Some(\"self_held\"));\n\
+                 match g { Level::Low => \"low\", _ => \"fallback\" }\n\
+             }\n\
+             impl Gate { fn name(self) -> &'static str { match self { Gate::Overlap => \"arm_row\" } } }\n\
+             gates! { Gated => \"macro_row\", Sized(1), \"its prose\"; }\n",
+        )
+        .expect("write");
+        let roster = super::held_spellings(&dir, false);
+        let table = super::held_spellings(&dir, true);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            roster.into_iter().collect::<Vec<_>>(),
+            ["const_row", "pair_a", "pair_b"]
+        );
+        assert_eq!(
+            table.into_iter().collect::<Vec<_>>(),
+            ["arm_row", "const_row", "macro_row", "pair_a", "pair_b"]
+        );
+    }
+
+    /// **Every alternative of an or-pattern is a reference**, and a
+    /// marker outside test code is misplaced while one in a
+    /// `#[cfg(test)]` item, or a file a `#[cfg(test)] mod` mounts, is
+    /// not.
+    #[test]
+    fn or_patterns_are_read_whole_and_a_marker_belongs_to_test_code() {
+        let dir = std::env::temp_dir().join(format!("tu-marks-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("lib")).expect("temp dir");
+        std::fs::write(
+            dir.join("lib.rs"),
+            "fn prod() -> E {\n\
+                 E {\n\
+                     // UNDECIDED-NAME: a raise with no home\n\
+                     predicate: Some(\"prod_raise\"),\n\
+                 }\n\
+             }\n\
+             #[cfg(test)]\n\
+             mod tests {\n\
+                 fn t() {\n\
+                     assert!(matches!(d.predicate, Some(\"alt_a\" | \"alt_b\")));\n\
+                     // UNDECIDED-NAME: the cause this test hands the door\n\
+                     assert_eq!(d.predicate, Some(\"inline_fixture\"));\n\
+                 }\n\
+             }\n\
+             #[cfg(test)]\n\
+             mod fixtures;\n\
+             #[cfg(test)]\n\
+             #[path = \"elsewhere.rs\"]\n\
+             mod renamed;\n\
+             #[cfg(any(test, feature = \"test-support\"))]\n\
+             mod support;\n",
+        )
+        .expect("write");
+        for (file, name) in [
+            ("elsewhere.rs", "path_fixture"),
+            ("support.rs", "support_fixture"),
+        ] {
+            std::fs::write(
+                dir.join(file),
+                format!(
+                    "fn f() {{\n    // UNDECIDED-NAME: {name}'s own cause\n    \
+                     let e = E {{ predicate: Some(\"{name}\") }};\n}}\n"
+                ),
+            )
+            .expect("write");
+        }
+        std::fs::write(
+            dir.join("fixtures.rs"),
+            "fn f() {\n\
+                 // UNDECIDED-NAME: a mounted fixture's own cause\n\
+                 let e = E { predicate: Some(\"mounted_fixture\") };\n\
+             }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        let found: Vec<&str> = census.references.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(found, ["alt_a", "alt_b"], "{census:?}");
+        let marked: Vec<&str> = census
+            .marked_references
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect();
+        assert_eq!(
+            marked,
+            [
+                "inline_fixture",
+                "mounted_fixture",
+                "path_fixture",
+                "prod_raise",
+                "support_fixture"
+            ]
+        );
+        assert_eq!(
+            census.misplaced_markers.iter().collect::<Vec<_>>(),
+            ["lib.rs:4"]
+        );
+    }
+
+    /// **A crate's `tests/` are read for references**, every file of
+    /// them test code.
+    #[test]
+    fn a_crates_tests_are_read_for_references() {
+        let dir = std::env::temp_dir().join(format!("tu-testrefs-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub")).expect("temp dir");
+        std::fs::write(
+            dir.join("sub/a.rs"),
+            "fn t() {\n\
+                 assert_eq!(e.predicate, Some(\"suite_ref\"));\n\
+                 // UNDECIDED-NAME: the suite's own probe\n\
+                 assert_eq!(e.predicate, Some(\"suite_probe\"));\n\
+             }\n",
+        )
+        .expect("write");
+        let (found, marked) = super::test_references(&dir);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            found.into_iter().collect::<Vec<_>>(),
+            [("suite_ref".to_string(), "sub/a.rs:2".to_string())]
+        );
+        assert_eq!(
+            marked.into_iter().collect::<Vec<_>>(),
+            [("suite_probe".to_string(), "sub/a.rs:4".to_string())]
+        );
+    }
+
+    /// **`fn_items` walks every item with a body through `item_body`**: a
+    /// bracketed `;` in a signature ends nothing, a declaration and a
+    /// function-pointer type are no items, and an unclosed body is an
+    /// error.
+    #[test]
+    fn fn_items_names_each_body_and_refuses_an_unclosed_one() {
+        let text = "fn a() -> [u8; 2] { [0; 2] }\n\
+                    trait T { fn b(&self); fn c(&self) {} }\n\
+                    type F = fn(u8);\n";
+        let names: Vec<String> = super::fn_items(text)
+            .expect("well-formed")
+            .into_iter()
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(names, ["a", "c"]);
+        assert!(super::fn_items("fn d() { {").is_err());
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the

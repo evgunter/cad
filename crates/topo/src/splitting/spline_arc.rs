@@ -202,12 +202,7 @@ mod tests {
     use crate::splitting::pieced_arc::{ArcHit, ArcRows};
     use geom_core::{Interval, Tol, Vec3};
 
-    const ROWS: ArcRows = ArcRows {
-        end: "test_spline_end",
-        clear: "test_spline_clear",
-        on: "test_spline_on",
-        leaf: "test_spline_leaf",
-    };
+    const ROWS: ArcRows = crate::rows::TEST_SPLINE_ARC;
 
     /// The plane the curve lies in, `z = 0.7`.
     const Z: f64 = 0.7;

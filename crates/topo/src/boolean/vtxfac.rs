@@ -438,6 +438,10 @@ pub(super) fn partner_side<T: Decide>(
             datum.side(s.end, s.end_reach, rd)?,
         ]);
     }
+    // Two decided bounds on opposite sides answer `Across` (a theorem),
+    // but a bound in band refuses above first: a deviation from the
+    // ladder rule, scheduled on
+    // `work/onecopy/the-ladder-has-no-climb-for-a-disagreement-that-answers.md`.
     let mut side = None;
     for c in codes.iter().flatten().filter(|&&c| c != SideCode::On) {
         if side.is_some_and(|k| k != *c) {
@@ -705,8 +709,7 @@ struct ReadRun<T: geom_core::Real> {
 /// refusal a reading of the pierce can meet is here, so a pass reads
 /// each pierce before it mints any; what is left to [`mint_pierce`] is
 /// the Euler operator's own refusal. Where the vertex is read again
-/// (`reread`, from
-/// [`pierced_and_paired`]) and crosses the face, refuses
+/// (`reread`, from [`pierced_and_paired`]) and crosses the face, refuses
 /// [`BooleanError::VertexReadTwice`].
 #[allow(clippy::too_many_arguments)]
 pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
@@ -802,7 +805,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         piercing,
         vertex,
         tips,
-        &super::sectors::Partners::Pierced(n_pierced.vec()),
+        &[crate::star::Datum::Plane(n_pierced.vec())],
         band,
     )?;
     let n = sectors.len();
@@ -3069,7 +3072,7 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
 /// tangent rather than a chord.
 ///
 /// Both normals arrive outward already (S10) — `s.normal` from
-/// `sectors::sector_face`, `pierced_normal` from the one door
+/// `crate::sector_face::resolve`, `pierced_normal` from the one door
 /// ([`crate::face_normal`]) — and the sign above reads them as such, so
 /// neither is multiplied again here.
 pub(super) fn pierce_germ_dir<T: Decide>(
@@ -3612,7 +3615,7 @@ mod tests {
                 far: o + tied,
             },
             face: crate::entity::FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(0.0, -1.0, 0.0),
                 true,
             )),
@@ -3707,7 +3710,7 @@ mod tests {
                 arc: crate::bound_side::ConicArc::on(&arc, 0.0, span),
             },
             face: crate::entity::FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(0.0, -1.0, 0.0),
                 true,
             )),
@@ -3767,7 +3770,7 @@ mod tests {
                 far: o + y,
             },
             face: crate::entity::FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(0.0, 0.0, 1.0),
                 true,
             )),
@@ -3842,9 +3845,10 @@ mod tests {
                         far: o + end,
                     },
                     face: crate::entity::FaceKey::from(key(100 + first + k as u64)),
-                    at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                        OutwardNormal::from_chart(start.cross(end).normalize(), true),
-                    ),
+                    at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
+                        start.cross(end).normalize(),
+                        true,
+                    )),
                     arm: geom_core::test_support::fixture_lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 }
@@ -3882,7 +3886,7 @@ mod tests {
                 far: o + d,
             },
             face: crate::entity::FaceKey::from(key(901)),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(1.0, 0.0, 0.0),
                 true,
             )),
@@ -3949,7 +3953,7 @@ mod tests {
                 far: o + d,
             },
             face: crate::entity::FaceKey::from(key(901)),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
+            at_vertex: crate::star::StarFace::Tangent(normal),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         }];
@@ -4014,7 +4018,7 @@ mod tests {
                 far: o + d,
             },
             face: crate::entity::FaceKey::from(key(900 + n)),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(1.0, 0.0, 0.0),
                 true,
             )),
@@ -4138,7 +4142,7 @@ mod tests {
                             far: o + a,
                         },
                         face: crate::entity::FaceKey::default(),
-                        at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
+                        at_vertex: crate::star::StarFace::Tangent(normal),
                         arm: geom_core::test_support::fixture_lever(1.0),
                         bend: crate::bound_side::FaceBend::Plane,
                     }
@@ -4326,9 +4330,7 @@ mod tests {
                 start_reach: chord(start),
                 end_reach: chord(end),
                 face: crate::entity::FaceKey::default(),
-                at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-                    z, true,
-                )),
+                at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(z, true)),
                 arm: geom_core::test_support::fixture_lever(1.0),
                 bend: crate::bound_side::FaceBend::Plane,
             };
@@ -4411,7 +4413,7 @@ mod tests {
             Operand::A,
             vertex,
             &crate::sector_shape::SlitTips::default(),
-            &crate::boolean::sectors::Partners::None,
+            &[],
             band,
         )
         .unwrap();

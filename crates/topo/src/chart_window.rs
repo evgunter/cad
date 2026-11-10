@@ -1203,7 +1203,7 @@ mod run_image_incidence {
     #![allow(clippy::unwrap_used)]
     use super::SplitJoinError;
     use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN};
-    use geom_brep::{OffMargin, PcurveCertifyError, PcurveCheck};
+    use geom_brep::{OffMargin, PcurveCertifyError};
     use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, MarginDiag};
 
     /// **A boundary edge's incidence refusal ends by the one map**,
@@ -1213,21 +1213,24 @@ mod run_image_incidence {
     /// a coincidence lever.
     #[test]
     fn a_run_edges_incidence_refusal_ends_by_its_read() {
-        let off = |margin| PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            carrier: geom::CurveKind::Circle,
-            why: "WHY",
-            margin,
-        };
-        let undecided = |margin| PcurveCertifyError::Escalated {
-            check: PcurveCheck::ChartIncidence,
-            sample: 0,
-            cause: Indeterminate {
+        let off = |margin| {
+            PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
                 margin,
-                band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("pcurve_cone_chart_incident"),
-                terminal_sliver: false,
-            },
+            ))
+        };
+        let undecided = |margin| {
+            PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::undecided(
+                0,
+                Indeterminate {
+                    margin,
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("pcurve_cone_chart_incident"),
+                    terminal_sliver: false,
+                },
+            ))
         };
         let m = MarginDiag::value(4e-10);
         for (refusal, ending) in [

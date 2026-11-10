@@ -175,8 +175,8 @@ use crate::loop_winding::{RunClosing, RunMissesEnd, Unwound};
 use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
-use geom_brep::ladder::{Climb, Rung, climb_agreeing, rung_or_abort};
 use geom_core::Tol;
+use geom_core::ladder::{Climb, FreeOf, Rung, Undecided, Unpicked, argmin_decided, climb_agreeing};
 
 /// The K funnel name of a germ plane's normal-length decision: the
 /// boolean reads a plane carrier's normal into the section lanes, and
@@ -1864,7 +1864,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
 /// **How far a partner site is along the germ line**, seen from the
 /// germ: which half-turn of the section conic it lies in, the chord to
 /// it, and on a conic the turn that reaches it. Ordered by
-/// [`nearer_along`] among one germ's candidates and by [`nearer`]
+/// [`along_sign`] among one germ's candidates and by [`nearest_sign`]
 /// between germs.
 #[derive(Clone, Copy)]
 struct PartnerDistance<T: geom_core::Real> {
@@ -1999,11 +1999,11 @@ fn join_escalate(diag: geom_core::Indeterminate) -> BooleanError {
 /// them (between there and the half-turn it keeps only the plane's
 /// sign), so a tie is two sites within the band of each other along the
 /// conic. A straight line, and two records at one site, take the chord.
-fn nearer_along<T: Decide>(
+fn along_sign<T: Decide>(
     cand: PartnerDistance<T>,
     best: PartnerDistance<T>,
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> Result<Sign, BooleanError> {
     if let (Some(c), Some(b)) = (cand.along, best.along) {
         let one_site = decide("bool_join_chord", Margin::norm3(c.site - b.site), band)
             .map_err(join_escalate)?
@@ -2011,9 +2011,8 @@ fn nearer_along<T: Decide>(
         if !one_site {
             let ahead = Margin::metered(c.travel - b.travel, geom_core::InfSpeed::new(c.speed));
             match decide("bool_join_foot_travel", ahead, band).map_err(join_escalate)? {
-                Sign::Negative => return Ok(true),
-                Sign::Positive => return Ok(false),
                 Sign::Zero => {}
+                sign => return Ok(sign),
             }
         }
     }
@@ -2023,18 +2022,51 @@ fn nearer_along<T: Decide>(
             == Sign::Zero;
         if !one_site {
             match travel("bool_join_arc_travel", b, c.site(), band)? {
-                Sign::Negative => return Ok(true),
-                Sign::Positive => return Ok(false),
                 Sign::Zero => {}
+                sign => return Ok(sign),
             }
         }
     }
-    nearer(cand, best, band)
+    nearest_sign(cand, best, band).map_err(join_escalate)
+}
+
+/// **A join comparison's escalation, as the decided argmin keeps it**
+/// ([`argmin_decided`]): in band, which a later candidate may close, or
+/// any other undecided reading (a poisoned margin, an enclosure
+/// straddling the band's edge), which stops it.
+fn kept(e: BooleanError) -> Undecided<Box<BooleanError>> {
+    match &e {
+        BooleanError::Escalated { diag, .. } => Undecided::of(*diag).map(|_| Box::new(e)),
+        _ => Undecided::Aborts(Box::new(e)),
+    }
+}
+
+/// **The nearest of `cands` by `sign`** ([`argmin_decided`], free of
+/// nothing): an in-band pair left in contention refuses on its margin,
+/// and candidates decided equally near refuse as
+/// [`BooleanError::JoinPartnersTied`].
+fn nearest_of<T: Decide, C>(
+    cands: Vec<(PartnerDistance<T>, C)>,
+    sign: impl Fn(PartnerDistance<T>, PartnerDistance<T>) -> Result<Sign, BooleanError>,
+) -> Result<Option<(PartnerDistance<T>, C)>, BooleanError> {
+    match argmin_decided(cands, |a, b| sign(a.0, b.0).map_err(kept), FreeOf::Nothing) {
+        Ok(nearest) => Ok(nearest),
+        Err(
+            Unpicked::Contested {
+                in_band: Some(e), ..
+            }
+            | Unpicked::Aborted(e),
+        ) => Err(*e),
+        Err(Unpicked::Contested { in_band: None, .. }) => Err(BooleanError::JoinPartnersTied),
+        Err(Unpicked::Cyclic) => Err(BooleanError::ClassificationInvariant {
+            what: "the join's nearest-partner comparison ranks in a cycle",
+        }),
+    }
 }
 
 /// **Which of two germs' nearest partners [`first_pair`] commits
 /// first.** Each was already chosen along its own germ line
-/// ([`nearer_along`]), so this picks an order among pairs rather than a
+/// ([`along_sign`]), so this picks an order among pairs rather than a
 /// partner: the half-turn, then the chord (`bool_join_nearest`, metres).
 fn nearer<T: Decide>(
     cand: PartnerDistance<T>,
@@ -2045,10 +2077,9 @@ fn nearer<T: Decide>(
 }
 
 /// [`nearer`] where the order cannot change the matching
-/// ([`first_pair`]): an in-band reading keeps the incumbent, as an
-/// exact tie does (scan order, D9). Any other undecided reading — a
-/// poisoned margin, an enclosure straddling the band's edge — escalates
-/// as [`nearer`]'s does.
+/// ([`first_pair`]): an in-band reading keeps the incumbent, as an exact
+/// tie does. Any other undecided reading (a poisoned margin, an
+/// enclosure straddling the band's edge) escalates as [`nearer`]'s does.
 fn nearer_or_scan<T: Decide>(
     cand: PartnerDistance<T>,
     best: PartnerDistance<T>,
@@ -2061,7 +2092,8 @@ fn nearer_or_scan<T: Decide>(
     }
 }
 
-/// The half-turn, then the chord: [`nearer`]'s one reading.
+/// The half-turn, then the chord: the order of two germs' nearest
+/// partners ([`nearer`]), and [`along_sign`]'s last reading.
 fn nearest_sign<T: Decide>(
     cand: PartnerDistance<T>,
     best: PartnerDistance<T>,
@@ -2174,7 +2206,7 @@ fn travel<T: Decide>(
 /// `Zero` reads [`GermArm::Ahead`]: an in-band distance puts the partner
 /// at the germ's own azimuth (no travel) or at the half-turn, and both
 /// sort ahead of every site genuinely `Behind`; within `Ahead`,
-/// [`nearer_along`] orders a half-turn site by its turn like any other.
+/// [`along_sign`] orders a half-turn site by its turn like any other.
 /// A tie stands only where [`travel`]'s slack is itself within the band,
 /// so a partner at the half-turn reads `Ahead` on a circle and on a
 /// mild ellipse, and escalates where `cot ψ` at the germ's site makes
@@ -2255,29 +2287,13 @@ fn rotational_sense<T: Decide>(
 /// at and the match it names.
 type Met<T> = (usize, PartnerDistance<T>, (Slot, Slot));
 
-/// The nearer of the incumbent `best` and `cand` under `nearer`; the
-/// incumbent keeps a tie (deterministic scan order, D9).
-fn keep_nearer<T, M>(
-    best: Option<(PartnerDistance<T>, M)>,
-    cand: (PartnerDistance<T>, M),
-    nearer: impl Fn(PartnerDistance<T>, PartnerDistance<T>) -> Result<bool, BooleanError>,
-) -> Result<Option<(PartnerDistance<T>, M)>, BooleanError>
-where
-    T: geom_core::Real,
-{
-    Ok(Some(match best {
-        Some(b) if !nearer(cand.0, b.0)? => b,
-        _ => cand,
-    }))
-}
-
 /// `scanjoin`, germ form (module docs): among all candidate/entry slot
 /// combinations whose A-side germs carry the SAME loci and whose
 /// two sites mutually FACE each other along the germ line
 /// (`bool_join_facing`, decided — the polygon edge's ends point at one
 /// another), with OPPOSED senses in both solids (the sense theorem's
 /// neighbor test), take each germ's NEAREST partner along its own line
-/// ([`nearer_along`]: non-adjacent same-line sites must not be chorded
+/// ([`along_sign`]: non-adjacent same-line sites must not be chorded
 /// across an intermediate one), then one of those pairs
 /// ([`first_pair`]). The B side consumes the SAME slots — slot `i`
 /// of the A and B germ arrays is one spatial germ (registration doc);
@@ -2287,8 +2303,10 @@ where
 /// skipped — that degeneracy gate is `bool_join_chord` (margin = the
 /// chord LENGTH), a separate question from `bool_join_nearest`'s
 /// selection (margin = a DIFFERENCE of chord lengths), so the two
-/// populations meter separately. Deterministic scan order breaks
-/// exact ties (D9).
+/// populations meter separately. Two partners of one germ decided
+/// equally near refuse ([`BooleanError::JoinPartnersTied`],
+/// [`own_nearest`]); [`first_pair`] keeps its incumbent on a tie between
+/// two germs' pairs.
 fn find_match<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -2301,10 +2319,10 @@ fn find_match<T: Decide>(
     fn slots<T: geom_core::Real>(side: &[(HalfGerm<T>, bool); 2]) -> Vec<usize> {
         (0..2).filter(|&g| !side[g].1).collect()
     }
-    // Each germ's nearest partner along its own line, kept with the scan
-    // position it was met at; then the nearest of those, met in scan
-    // order, so an exact tie goes to the pair scanned first.
-    let mut own: BTreeMap<Slot, Met<T>> = BTreeMap::new();
+    // Each germ's partners along its own line, kept with the scan
+    // position each was met at; then each germ's nearest, then the
+    // nearest of those, met in scan order.
+    let mut met: BTreeMap<Slot, Vec<Met<T>>> = BTreeMap::new();
     let mut at = 0;
     for (cand, rec) in open.iter().enumerate() {
         for (entry, e) in open.iter().enumerate() {
@@ -2318,35 +2336,39 @@ fn find_match<T: Decide>(
                         continue;
                     };
                     at += 1;
-                    keep_own(&mut own, (at, reach, ((entry, es), (cand, cs))), band)?;
+                    met.entry((cand, cs))
+                        .or_default()
+                        .push((at, reach, ((entry, es), (cand, cs))));
                 }
             }
         }
     }
-    first_pair(own, band)
+    first_pair(own_nearest(met, band)?, band)
 }
 
-/// Keeps `met` as its germ's nearest partner if it is nearer along the
-/// germ's line ([`nearer_along`]) than the one kept; the kept one holds a
-/// tie (scan order, D9).
-fn keep_own<T: Decide>(
-    own: &mut BTreeMap<Slot, Met<T>>,
-    met: Met<T>,
+/// **Each germ's nearest partner along its own line** ([`along_sign`]),
+/// of the partners `met` gives it, in scan order.
+///
+/// Free of nothing: no proof yet says a tie between two partners of one
+/// germ leaves the matching unchanged.
+fn own_nearest<T: Decide>(
+    met: BTreeMap<Slot, Vec<Met<T>>>,
     band: Band,
-) -> Result<(), BooleanError> {
-    let (_, reach, (_, germ)) = met;
-    match own.get(&germ) {
-        Some(&(_, kept, _)) if !nearer_along(reach, kept, band)? => {}
-        _ => {
-            own.insert(germ, met);
+) -> Result<BTreeMap<Slot, Met<T>>, BooleanError> {
+    let mut own = BTreeMap::new();
+    for (germ, partners) in met {
+        let cands = partners.into_iter().map(|m| (m.1, m)).collect();
+        let sign = |c, b| along_sign(c, b, band);
+        if let Some((_, m)) = nearest_of(cands, sign)? {
+            own.insert(germ, m);
         }
     }
-    Ok(())
+    Ok(own)
 }
 
 /// **The pair [`find_match`] commits this round**, from each germ's
 /// nearest partner (`own`, keyed by germ, each naming `(partner,
-/// germ)`): the nearest of those pairs ([`nearer`]), met in scan order.
+/// germ)`): the nearest of those pairs ([`nearest_sign`]), met in scan order.
 ///
 /// **Where the order cannot change the matching, an in-band order is
 /// not a refusal** ([`nearer_or_scan`]). The run then commits exactly
@@ -2358,27 +2380,26 @@ fn keep_own<T: Decide>(
 /// - every germ is straight, so its candidates rank by chord alone and
 ///   each reading is the difference of two chords;
 /// - the band's escalation threshold exceeds twice its zero (`K > 2`).
-///   A germ's scan keeps its incumbent unless a candidate reads at least
-///   `K·zero` nearer, and a tie is within `zero`. In the full scan, every
-///   candidate met before the winner `w` lost to an incumbent at least
-///   `K·zero` farther than `w`, so it lies at least `(K − 1)·zero`
-///   beyond `w`. Every candidate met after `w` lies no nearer than
-///   `w − zero`. A scan that has lost candidates other than `w` therefore
-///   meets `w` against an incumbent that `K > 2` puts past a tie: `w`
-///   takes the incumbency or the reading escalates, and nothing after it
-///   reads `K·zero` nearer. Two chained ties span `2·zero`, which a
-///   smaller `K` reads as definite.
 ///
-/// So each germ keeps its nearest as candidates go, and each later round
-/// holds the same pairs less the ones committed, still mutual. Its scans
-/// may escalate under one order and not another; the matching is free
-/// of the order, not the run. The order still picks which pair the
+/// Each germ's nearest is the decided argmin's ([`own_nearest`]): a
+/// germ drops a candidate only where another is decided nearer, so its
+/// nearest is the same in every order of its partners, and stands while
+/// its partner does (or the round refuses). Committing a mutual pair
+/// therefore removes no other germ's nearest, and each later round holds
+/// the same pairs less the ones committed, still mutual. A round's
+/// readings may escalate under one order and not another: the matching is
+/// free of the order, not the run. The order still picks which pair the
 /// surgery joins first.
+///
+/// The second and third premises carry nothing for an all-mutual round:
+/// they bounded the per-germ incumbent scan this round no longer runs.
+/// They stay read until the follow-up drops them on the argmin row's
+/// theorem (`work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md`).
 ///
 /// Elsewhere the order is read, and an in-band reading escalates.
 /// Committing a pair can turn a germ whose nearest was in it to its
 /// next partner, a pair this round never ranked. Along a conic,
-/// [`nearer_along`] ranks by travel from the incumbent's site rather
+/// [`along_sign`] ranks by travel from one candidate's site rather
 /// than by one number per candidate.
 fn first_pair<T: Decide>(
     own: BTreeMap<Slot, Met<T>>,
@@ -2395,9 +2416,17 @@ fn first_pair<T: Decide>(
     let order = if free { nearer_or_scan } else { nearer };
     let mut met: Vec<_> = own.into_values().collect();
     met.sort_by_key(|&(at, ..)| at);
+    // Not on the decided argmin yet: this fold keeps the incumbent on an
+    // exact tie in both lanes, and the door would refuse one outside the
+    // free lane, for want of a proof that the tie leaves the matching
+    // unchanged where a conic germ is in the round
+    // (work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md).
     let mut best: Option<(PartnerDistance<T>, (Slot, Slot))> = None;
     for (_, reach, m) in met {
-        best = keep_nearer(best, (reach, m), |c, b| order(c, b, band))?;
+        best = Some(match best {
+            Some(b) if !order(reach, b.0, band)? => b,
+            _ => (reach, m),
+        });
     }
     Ok(best.map(|(_, m)| m))
 }
@@ -3513,6 +3542,8 @@ pub(super) fn line_of<T: Decide>(
             .map_err(join_escalate)
     };
     let mut at_site = [false; 2];
+    // Each direction is a ruling, never the zero vector ([`ApexLines`]),
+    // so the distance's division by its length needs no decision.
     for (k, d) in lines.dirs.iter().enumerate() {
         let off = geom::Line {
             origin: lines.apex,
@@ -4537,7 +4568,7 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 
 /// Still-unused null-edge halves, each mapped to its geometric MATCH
 /// PARTNER's half in the same solid: the nearest loose germ along its
-/// line ([`nearer_along`]) that is its partner by [`partners`] —
+/// line ([`along_sign`]) that is its partner by [`partners`] —
 /// [`find_match`]'s own criterion,
 /// static in the germ geometry, which [`capture_rank`] reads to rank
 /// what a chord arc captures. Germ meta is shared between the solids,
@@ -4563,7 +4594,7 @@ fn loose_partners<T: Decide>(
     let mut a_map: LooseMap = SecondaryMap::new();
     let mut b_map: LooseMap = SecondaryMap::new();
     for &(i, s) in &loose {
-        let mut best: Option<(PartnerDistance<T>, (usize, usize))> = None;
+        let mut cands = Vec::new();
         for &(j, t) in &loose {
             // Across records, the matcher's own criterion ([`partners`]):
             // the separation constraint must see the pairs the matcher
@@ -4571,8 +4602,12 @@ fn loose_partners<T: Decide>(
             let Some(reach) = partners(open, red, sa, sb, (i, s), (j, t), band)? else {
                 continue;
             };
-            best = keep_nearer(best, (reach, (j, t)), |c, b| nearer_along(c, b, band))?;
+            cands.push((reach, (j, t)));
         }
+        // Free of nothing: no proof yet says a tie between two partners
+        // leaves the separation unchanged.
+        let sign = |c, b| along_sign(c, b, band);
+        let best = nearest_of(cands, sign)?;
         let partner = best.map(|(_, jt)| jt);
         a_map.insert(open[i].a[s].0.he, partner.map(|(j, t)| open[j].a[t].0.he));
         b_map.insert(open[i].b[s].0.he, partner.map(|(j, t)| open[j].b[t].0.he));
@@ -5581,11 +5616,9 @@ fn seam_germ_side<T: Decide>(
                 }
                 // A normal refused in band or at a limit is kept; an abort
                 // is answered by its own row. No row is assumed away:
-                // "tier 3 refuses a degenerate torus first" holds only at
-                // a certifying scalar, and at a dual the operand is a
-                // `Replay`, tier 2 alone, which can carry a horn or
-                // spindle torus here. That face is the operand's invalid
-                // input, not a kernel fault.
+                // a horn or spindle torus here is the operand's invalid
+                // input, not a kernel fault, whichever door it came
+                // through (`Replay`'s "A tier-3 premise at a dual").
                 Err(why) => {
                     return match why.standing() {
                         Ok(standing) => standing.rung(why),
@@ -5604,7 +5637,7 @@ fn seam_germ_side<T: Decide>(
                 Ok(Ok(Some(n_f))) => n_f,
                 Ok(Ok(None)) => return Rung::Passes,
                 Ok(Err(why)) => {
-                    return rung_or_abort(why.refusal(), why, |why| Err(why.aborted()))
+                    return Rung::refused(why, HoldingUnread::refusal, |why| Err(why.aborted()))
                         .map_kept(|_| ());
                 }
                 Err(e) => return Rung::Aborts(Err(e)),
@@ -6197,8 +6230,9 @@ mod travel_rows {
     //! axis-plane distance reads `Δ sin ψ`: 0.198Δ at `k = 10`, 0.033Δ at
     //! `k = 60`. `Δ` is in bands of the run's ε.
 
-    use super::{BooleanError, GermArm, PartnerDistance, Turn, germ_arm, nearer_along};
+    use super::{BooleanError, GermArm, PartnerDistance, Turn, along_sign, germ_arm};
     use core::f64::consts::FRAC_PI_4;
+    use geom_core::Sign;
     use geom_core::{Band, Point3, Tol, Vec3};
 
     fn band() -> Band {
@@ -6251,14 +6285,14 @@ mod travel_rows {
             let [near, far] = partners(k, bands);
             assert!(far.chord < near.chord, "k = {k}: the chord must disagree");
             assert!(
-                matches!(nearer_along(near, far, band()), Ok(true)),
+                matches!(along_sign(near, far, band()), Ok(Sign::Negative)),
                 "k = {k}: near against far: {:?}",
-                nearer_along(near, far, band()).err()
+                along_sign(near, far, band()).err()
             );
             assert!(
-                matches!(nearer_along(far, near, band()), Ok(false)),
+                matches!(along_sign(far, near, band()), Ok(Sign::Positive)),
                 "k = {k}: far against near: {:?}",
-                nearer_along(far, near, band()).err()
+                along_sign(far, near, band()).err()
             );
         }
     }
@@ -6274,17 +6308,17 @@ mod travel_rows {
         for (a, b) in [(near, far), (far, near)] {
             assert!(
                 matches!(
-                    nearer_along(a, b, band()),
+                    along_sign(a, b, band()),
                     Err(BooleanError::Escalated { ref diag, .. })
                         if diag.predicate == Some("bool_join_arc_clear")
                 ),
                 "{:?}",
-                nearer_along(a, b, band())
+                along_sign(a, b, band())
             );
         }
         let [near, far] = partners(1.0, 24.0);
         assert!(
-            matches!(nearer_along(near, far, band()), Ok(true)),
+            matches!(along_sign(near, far, band()), Ok(Sign::Negative)),
             "circle"
         );
     }
@@ -7864,7 +7898,7 @@ mod first_pair_rows {
 
     /// The rounds [`find_match`] runs, over straight germs at `points`
     /// partnered along `edges` (chord: the distance), each round's pair
-    /// chosen by `pick` from the germs' nearest partners ([`keep_own`]);
+    /// chosen by `pick` from the germs' nearest partners ([`own_nearest`]);
     /// the matching as sorted pairs.
     fn rounds(
         points: &[(f64, f64)],
@@ -7879,7 +7913,7 @@ mod first_pair_rows {
         let mut used = vec![false; points.len()];
         let mut matching = Vec::new();
         loop {
-            let mut own = BTreeMap::new();
+            let mut partners: BTreeMap<Slot, Vec<Met<f64>>> = BTreeMap::new();
             let mut at = 0;
             for g in 0..points.len() {
                 for &(i, j) in edges {
@@ -7894,10 +7928,13 @@ mod first_pair_rows {
                         continue;
                     }
                     at += 1;
-                    keep_own(&mut own, met(at, (g, 0), (h, 0), chord(g, h)), band)?;
+                    partners
+                        .entry((g, 0))
+                        .or_default()
+                        .push(met(at, (g, 0), (h, 0), chord(g, h)));
                 }
             }
-            let Some(((p, _), (g, _))) = pick(own)? else {
+            let Some(((p, _), (g, _))) = pick(own_nearest(partners, band)?)? else {
                 matching.sort_unstable();
                 return Ok(matching);
             };
@@ -7907,15 +7944,80 @@ mod first_pair_rows {
         }
     }
 
-    /// **At `K = 1.1` the order among mutual straight pairs moves the
-    /// matching, so [`first_pair`] reads it** ([`first_pair`]'s third
-    /// premise). Eight germs whose first round is all mutual: with the
-    /// in-band order free, each round's pairs folded in scan order, and
-    /// in scan order started at its third pair, build two different
-    /// matchings (a germ's shortened scan crosses two chained ties);
-    /// [`first_pair`] escalates. The witness is the PR 4769 review's.
+    /// **At `K = 1.1` [`first_pair`] reads the order among mutual
+    /// straight pairs** ([`first_pair`]'s third premise): eight germs whose
+    /// first round is all mutual, and a round whose fold meets an in-band
+    /// reading between two of its pairs, escalate. This pins that the gate
+    /// is read, not that the order moves the matching: here every rotation
+    /// of the scan builds the same matching. Whether `K > 2` is needed at
+    /// all is the follow-up's (an all-mutual round's matching is free of
+    /// the commit order at any `K`, the argmin row's theorem).
     #[test]
     fn at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs() {
+        // A seeded search's witness (seed 3118 over 8 germs in a 30 m
+        // square): no germ's partners tie or read in band of each other,
+        // so each round reaches `first_pair`.
+        let points = [
+            (29.917238827326724, 27.87786026681649),
+            (7.4858152912142355, 4.322009183593643),
+            (25.808946745765223, 19.214928804313665),
+            (27.701499409469754, 29.44760472044568),
+            (28.12692824627822, 16.893643512330684),
+            (1.2360764813614777, 13.116606996891312),
+            (12.298989298137148, 0.5569020398678726),
+            (5.528651116976726, 13.530660114789436),
+        ];
+        let edges = [
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (1, 6),
+            (2, 3),
+            (2, 4),
+            (2, 7),
+            (3, 4),
+            (3, 5),
+            (4, 5),
+            (4, 6),
+            (5, 6),
+            (5, 7),
+        ];
+        let band = Band::new(1.0, 1.1).unwrap();
+        let escalated_mutual = std::cell::Cell::new(None);
+        let got = rounds(&points, &edges, band, |own| {
+            let mutual = own.iter().all(|(germ, &(_, reach, (partner, _)))| {
+                reach.turn.is_none()
+                    && own
+                        .get(&partner)
+                        .is_some_and(|&(_, _, (back, _))| back == *germ)
+            });
+            let pick = first_pair(own, band);
+            if pick.is_err() {
+                escalated_mutual.set(Some(mutual));
+            }
+            pick
+        });
+        assert!(
+            matches!(&got, Err(BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("bool_join_nearest")),
+            "first_pair reads the order at K = 1.1: {got:?}"
+        );
+        assert_eq!(
+            escalated_mutual.get(),
+            Some(true),
+            "the escalating round is all mutual and straight, so the K gate is what reads it"
+        );
+    }
+
+    /// **A tie among one germ's partners refuses before the K gate**
+    /// (`own_nearest`, free of nothing): eight straight germs under a
+    /// band whose zero is a metre, against chords of one to two, so a
+    /// germ's partners read exactly tied. The run refuses
+    /// [`BooleanError::JoinPartnersTied`] and no round reaches
+    /// [`first_pair`]. Red where a germ's nearest partner keeps the one
+    /// met first on a tie.
+    #[test]
+    fn a_tie_among_a_germs_partners_refuses_before_the_k_gate() {
         let points = [
             (1.6374561303759052, 0.5775992446059082),
             (0.40233212126666984, 0.3418720853489539),
@@ -7962,14 +8064,13 @@ mod first_pair_rows {
             pick
         });
         assert!(
-            matches!(&got, Err(BooleanError::Escalated { diag, .. })
-                if diag.predicate == Some("bool_join_nearest")),
-            "first_pair reads the order at K = 1.1: {got:?}"
+            matches!(&got, Err(BooleanError::JoinPartnersTied)),
+            "a germ's partners tied: {got:?}"
         );
         assert_eq!(
             escalated_mutual.get(),
-            Some(true),
-            "the escalating round is all mutual and straight, so the K gate is what reads it"
+            None,
+            "the tie refuses before any round reaches first_pair's K gate"
         );
     }
 }
@@ -8075,7 +8176,7 @@ mod of_join_rows {
             );
             let text = got.to_string();
             assert!(
-                text.contains(&why.to_string()) && text.ends_with(why.recourse()),
+                text.contains(&why.to_string()) && text.ends_with(&*why.recourse()),
                 "{why:?}: the walk's refusal and its recourse: {text}"
             );
         }

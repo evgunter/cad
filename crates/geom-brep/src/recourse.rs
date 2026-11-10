@@ -951,7 +951,7 @@ pub const FITTED_GRADE_DOOR_RECOURSE: &str =
     "Recourse: hand a Fitted or General image to certify_fitted or certify_general";
 
 /// The recourse for a chart that is still the placeholder
-/// ([`crate::Surface::is_placeholder_chart`]).
+/// ([`Surface::is_placeholder_chart`](geom::Surface::is_placeholder_chart)).
 pub const PLACEHOLDER_RECOURSE: &str = "Recourse: describe the surface first, then ask again";
 
 /// The one recourse for a carrier whose parameter domain its chart

@@ -60,6 +60,7 @@ pub mod boxes;
 pub mod nurbs;
 pub mod projection;
 
+use crate::rows::{RingReader, RingSites};
 use std::sync::Arc;
 
 use geom_core::spline::SpanLocate;
@@ -519,7 +520,12 @@ pub fn ring_torus<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    ring_half(RingSites::CONVENTION.ring, major_radius, minor_radius, band)
+    ring_half(
+        RingReader::Convention.sites().ring(),
+        major_radius,
+        minor_radius,
+        band,
+    )
 }
 
 /// The ring half's one spelling, `R − r` as a length, under `name`.
@@ -550,11 +556,11 @@ pub fn torus_tube<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    tube_half(RingSites::CONVENTION.tube, minor_radius, band)
+    tube_half_as(RingReader::Convention.sites().tube(), minor_radius, band)
 }
 
 /// The tube half's one spelling, `r` as a length, under `name`.
-fn tube_half<T: geom_core::Decide>(
+fn tube_half_as<T: geom_core::Decide>(
     name: &'static str,
     minor_radius: T,
     band: Band,
@@ -600,96 +606,6 @@ pub fn is_ring_torus<T: geom_core::Decide>(major_radius: T, minor_radius: T, ban
 pub struct RingTorus<T> {
     major_radius: T,
     minor_radius: T,
-}
-
-/// **The site names one reader decides the ring convention under**, one
-/// per half, so a refusal and its `k_stats` stream name the reading that
-/// met them ([`RingTorus::of_at`]). Minted only by its reader
-/// ([`RingReader::sites`]), so no two readers share a name: the roster
-/// of every reader's rows is one const, checked distinct when this crate
-/// compiles (`reader_rows`, in this crate's root).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct RingSites {
-    tube: &'static str,
-    ring: &'static str,
-}
-
-impl RingSites {
-    /// The convention's own rows ([`torus_tube`], [`ring_torus`]).
-    pub const CONVENTION: Self = Self::new("torus_tube_positive", "ring_torus_convention");
-
-    /// The rows for the tube half (`r`) and the ring half (`R − r`).
-    /// Private: a reader names its rows at [`RingReader::sites`].
-    ///
-    /// # Panics
-    ///
-    /// Where the two names are equal: each names its own margin. In a
-    /// `const` item the panic is a compile error.
-    #[must_use]
-    pub(crate) const fn new(tube: &'static str, ring: &'static str) -> Self {
-        assert!(
-            !crate::str_eq(tube, ring),
-            "the ring convention's two halves need two names"
-        );
-        Self { tube, ring }
-    }
-
-    /// The ring half's row.
-    #[must_use]
-    pub const fn ring(self) -> &'static str {
-        self.ring
-    }
-
-    /// The tube half's row.
-    #[must_use]
-    pub const fn tube(self) -> &'static str {
-        self.tube
-    }
-}
-
-/// **Every reader of the ring convention**, each with its own rows
-/// ([`Self::sites`]): a new reader is a variant here, which the roster
-/// (`reader_rows`, in this crate's root) reads off this enum, so its names are
-/// checked against every other reader's when this crate compiles.
-///
-/// **This enum is the registry of who reads the convention.** It spells
-/// its callers' row names, `topo`'s and `geom-brep`'s, as strings only:
-/// those names are global to the `k_stats` stream and the ledger
-/// (`docs/predicate-dimension-audit.md`) already, and this crate depends
-/// on nothing of its callers to hold them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
-pub enum RingReader {
-    /// The convention's own rows ([`torus_tube`], [`ring_torus`]), which
-    /// tier 3, the pierce normal and the plane×torus section read.
-    Convention,
-    /// `topo`'s self-intersection engine, deciding a torus face
-    /// injective by its kind.
-    SelfIntersection,
-    /// The Boolean's spline-sheet reduction, deciding a torus carrier a
-    /// ring before reading a sheet off it.
-    BooleanSheet,
-    /// The Boolean's rider, deciding a torus face a ring before reading
-    /// an edge's carrier on it.
-    BooleanRider,
-}
-
-impl RingReader {
-    /// The reader's rows, its tube half's and then its ring half's.
-    #[must_use]
-    pub const fn sites(self) -> RingSites {
-        match self {
-            Self::Convention => RingSites::CONVENTION,
-            Self::SelfIntersection => RingSites::new(
-                "self_intersection_torus_tube",
-                "self_intersection_ring_torus",
-            ),
-            Self::BooleanSheet => RingSites::new(
-                "bool_spline_sheet_torus_tube",
-                "bool_spline_sheet_ring_torus",
-            ),
-            Self::BooleanRider => RingSites::new("bool_rider_torus_tube", "bool_rider_ring_torus"),
-        }
-    }
 }
 
 /// **Radii that are not a ring**, by the first half of the convention
@@ -746,13 +662,18 @@ impl NotARing {
 
 impl<T: geom_core::Decide> RingTorus<T> {
     /// **Decides radii `(major_radius, minor_radius)` a ring** under the
-    /// convention's own rows ([`RingSites::CONVENTION`]).
+    /// convention's own rows ([`RingReader::Convention`]).
     ///
     /// # Errors
     ///
     /// As [`RingTorus::of_at`].
     pub fn of(major_radius: T, minor_radius: T, band: Band) -> Result<Self, NotARing> {
-        Self::of_at(major_radius, minor_radius, RingSites::CONVENTION, band)
+        Self::of_at(
+            major_radius,
+            minor_radius,
+            RingReader::Convention.sites(),
+            band,
+        )
     }
 
     /// **Decides radii `(major_radius, minor_radius)` a ring under a
@@ -770,17 +691,17 @@ impl<T: geom_core::Decide> RingTorus<T> {
         band: Band,
     ) -> Result<Self, NotARing> {
         let positive = |d: &Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
-        let tube = tube_half(sites.tube, minor_radius, band);
+        let tube = tube_half_as(sites.tube(), minor_radius, band);
         if !positive(&tube) {
             return Err(NotARing::Tube {
-                site: sites.tube,
+                site: sites.tube(),
                 verdict: tube,
             });
         }
-        let ring = ring_half(sites.ring, major_radius, minor_radius, band);
+        let ring = ring_half(sites.ring(), major_radius, minor_radius, band);
         if !positive(&ring) {
             return Err(NotARing::Ring {
-                site: sites.ring,
+                site: sites.ring(),
                 verdict: ring,
             });
         }
@@ -878,16 +799,16 @@ pub fn spindle_sheet<T: geom_core::Decide>(
         Ok(d) if passes.contains(&d.sign) => Ok(()),
         _ => Err(SpindleMiss { end, verdict }),
     };
-    let read = |name, margin: T| {
+    let read_as = |name, margin: T| {
         geom_core::k_stats::decide_reported(name, geom_core::Margin::of(margin), band)
     };
     held(
-        read("spindle_far_end", major_radius + minor_radius),
+        read_as("spindle_far_end", major_radius + minor_radius),
         SpindleEnd::Far,
         &[Positive],
     )?;
     held(
-        read("spindle_not_sphere", major_radius),
+        read_as("spindle_not_sphere", major_radius),
         SpindleEnd::Sphere,
         &[Positive, Negative],
     )?;

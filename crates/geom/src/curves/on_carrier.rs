@@ -235,7 +235,8 @@ pub enum CarrierRefusal {
     /// The band's escalation.
     Escalated(CarrierEscalation),
     /// A spline's piece walk could not run: no closed-form carrier
-    /// walks.
+    /// walks. It stands as the walk's refusal does
+    /// ([`PieceWalkRefusal::refusal`]).
     Unwalked(PieceWalkRefusal),
 }
 
@@ -272,16 +273,26 @@ pub enum PieceWalkRefusal {
 }
 
 impl PieceWalkRefusal {
+    /// **This refusal's standing**, stated once for every reader of one
+    /// ([`geom_core::ladder::Refusal`]): a walk past its budget is
+    /// unsettled (no margin, and a coarser band may settle it); a spline
+    /// with no speed bound is a limit no tolerance moves.
+    #[must_use]
+    pub const fn refusal(self) -> geom_core::ladder::Refusal {
+        match self {
+            Self::Exhausted => geom_core::ladder::Refusal::Unsettled,
+            Self::Unbounded => geom_core::ladder::Refusal::Limit,
+        }
+    }
+
     /// **The recourse every rendering of this refusal ends with**: a walk
     /// past its budget is a kernel approximation limit, whose last resort
     /// is the tolerance; a spline with no speed bound is a carrier no walk
-    /// reads yet.
+    /// reads yet. It is the standing's own ending ([`Self::refusal`],
+    /// [`geom_core::ladder::Refusal::recourse`]), so the two cannot part.
     #[must_use]
-    pub const fn recourse(self) -> &'static str {
-        match self {
-            Self::Exhausted => geom_core::KERNEL_LIMIT_RECOURSE,
-            Self::Unbounded => geom_core::NOT_YET_ENDING,
-        }
+    pub fn recourse(self) -> std::borrow::Cow<'static, str> {
+        self.refusal().recourse().render()
     }
 }
 
@@ -527,6 +538,12 @@ impl<T: Decide> Curve3<T> {
     /// **A lower bound on `q`'s distance from the whole carrier**, in
     /// closed form (module docs); `None` on a spline, whose bound is its
     /// piece walk ([`Self::clear_of`]).
+    ///
+    /// A line reads [`crate::Line::distance`], whose `dir` must be nonzero, as an
+    /// axis's must for the conics' arms. That is the carrier's, decided
+    /// nowhere here: at rest `topo`'s tier-3 check 1 refuses a zero
+    /// direction, and a section's line is minted along a stored axis or a
+    /// cone's ruling, neither of them zero.
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
             Self::Line(line) => line.distance(q),

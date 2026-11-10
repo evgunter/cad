@@ -81,7 +81,13 @@ pub mod implicit;
 pub mod intersect;
 pub mod keys;
 mod krawczyk;
-pub mod ladder;
+/// Transitional: the ladder lives at [`geom_core::ladder`]; this path
+/// stays only until the callers move
+/// (`work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md`).
+#[doc(hidden)]
+pub mod ladder {
+    pub use geom_core::ladder::*;
+}
 pub mod locus;
 pub mod mapped;
 pub(crate) mod memo;
@@ -100,6 +106,7 @@ pub mod props;
 pub mod quartic;
 pub mod recourse;
 pub mod roots;
+pub mod rows;
 pub mod sector_shape;
 pub(crate) mod shape_operator;
 pub mod ssi;
@@ -220,14 +227,15 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, Channel, ChartMap, ChartMapRefusal,
-    ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage, FramedCarrier,
-    ISO_FAMILY_CLAUSE, IncidenceRead, IsoFamily, IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup,
-    OffMargin, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind,
-    Period, ProjectedChart, ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop,
-    WallTorus, angle_rate, chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf,
-    chart_stretch_sup, chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans,
-    minted_refusal, read_edge_incidence, read_incidence, read_point_incidence, ruling_miss,
+    ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, CertifyingDoor, Channel, ChartImage,
+    ChartMap, ChartMapRefusal, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm,
+    FocalImage, FramedCarrier, ISO_FAMILY_CLAUSE, IncidenceRead, IncidenceRefusal, IsoFamily,
+    IsoFamilyRefusal, IsoReading, LaneGap, NoChartSup, OffMargin, Pcurve, PcurveCache,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period, ProjectedChart,
+    ProjectedImage, Ruling, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
+    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, minted_refusal,
+    read_edge_incidence, read_incidence, read_point_incidence, ruling_miss,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

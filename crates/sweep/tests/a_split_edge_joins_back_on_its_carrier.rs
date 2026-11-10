@@ -29,12 +29,9 @@ fn certified(body: &Body<f64>, e: EdgeKey) -> &geom_brep::EdgeCurve<f64> {
 }
 
 fn ends(body: &Body<f64>, e: EdgeKey) -> (Point3<f64>, Point3<f64>) {
-    let d = body.get_edge(e).unwrap();
+    let (start, end) = body.edge_vertices(e).unwrap();
     let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-    (
-        p(body.get_half_edge(d.he_plus).unwrap().start),
-        p(body.half_edge_end(d.he_plus).unwrap()),
-    )
+    (p(start), p(end))
 }
 
 /// Every edge's carrier and interval, by value, with its description's
@@ -431,10 +428,9 @@ fn a_spline_with_a_c0_knot_joins_across_it_and_keeps_the_vertex_split_at_it() {
                     geom_brep::EdgeDescription::Intersection { .. }
                 )
                 && {
-                    let d = body.get_edge(e).unwrap();
+                    let (start, end) = body.edge_vertices(e).unwrap();
                     let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-                    p(body.get_half_edge(d.he_plus).unwrap().start).z == 1.0
-                        && p(body.half_edge_end(d.he_plus).unwrap()).z == 1.0
+                    p(start).z == 1.0 && p(end).z == 1.0
                 }
         })
         .unwrap();

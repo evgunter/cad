@@ -2,11 +2,10 @@
 id: run-loops-of-split-and-pierce-are-twins
 kind: issue
 title: splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home?
-status: dispatched
+status: open
 opened: 2026-10-06
 priority: P1
 cost: M
-branch: onehome/star-walk
 ---
 
 
@@ -87,7 +86,7 @@ Stages 2 and 3 remain on this row.
 
 ## Stage 2's design (2026-11-10)
 
-This applies PR 6359's decision and does not change it. Two designers weighed it, as fork 253; Ev declined the DESIGN edit on PR 6585 because no decision changed.
+This applies PR 6359's decision and does not change it. Two designers weighed it, as fork 257; Ev declined the DESIGN edit on PR 6585 because no decision changed.
 
 - **The star's walk reads no side.** `Star` is the cyclic list of bounds out of the vertex (a half-edge, real or a divider, a unit direction, and its `BoundSupport`) with the sector between consecutive bounds (a face, a tangent plane or a cone apex, its bend and its arm).
 - **Sectors are convex in their own geometry, and refined where a datum's side turns.**
@@ -106,9 +105,11 @@ This applies PR 6359's decision and does not change it. Two designers weighed it
   - the split's divider sides on grazed curved faces, which become descended instead of On by convention;
   - near-axis split vertices, which now refuse;
   - apex cut positions.
+- **`BoolSector` is a by-value view** (the orchestrator's ruling on PR 6725's FULL review, S3): each field is copied from the star's bound and sector by `BoolSector::of_star`, and it reads nothing the star does not. A lifetime would thread through about 260 pair-algebra sites and the planner's `Orbits` for no change in what is read.
 - **How it is built.** Build the star beside both walks and compare geometry only. The probe on `onehome/star-walk` @ `09d17537` is the starting point; its corrected D1′ count showed no disagreement. Then port each verb.
 - **Pins:**
   - a cylinder-graze divider reads its descended side, in both verbs;
   - every sector is convex, and every datum's side is monotone across it after refinement;
   - a near-axis split vertex refuses typed;
   - a whole-turn apex corner reads four pieces.
+- 2026-11-10: stage 2 landed in PR 6725, the side-free walk and one cut rule, after a full review and one fix pass. The review's MAJOR was fixed with per-fault `VertexRefusal` arms, and the reading consults only what main did. Stage 3 remains: the cut, the germ rule, the germ order and `entered_faces` reading the cuts. The row is open for it. (ONEHOME orchestrator)

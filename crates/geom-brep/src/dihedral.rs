@@ -458,7 +458,7 @@ pub struct Tangency<T: Real>(Reading<T>);
 /// normal is `+z` (the plus face) meeting a wall whose outward normal is
 /// `+y` along an edge the floor walks in `−x` is the top front edge of a
 /// block: convex. The pair of faces and the walk are produced together
-/// ([`WedgeWalk`]), so no reader orders one against the other by hand.
+/// ([`WedgeWalk`](crate::WedgeWalk)), so no reader orders one against the other by hand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Convexity {
     /// Material wedge below π.
@@ -519,7 +519,7 @@ impl<T: Decide> Corner<T> {
     /// margin toward the band, where this escalates. A `τ̂` REVERSED, or
     /// the faces swapped against the walk, decides the opposite sign
     /// definitely: nothing here can tell. That is why the faces and the
-    /// stations are built together ([`WedgeWalk`]) and read only through
+    /// stations are built together ([`WedgeWalk`](crate::WedgeWalk)) and read only through
     /// the fold.
     ///
     /// # Errors
@@ -1128,7 +1128,7 @@ fn second_order_verdict<T: Decide>(
 /// home of the schedule the must-carry rule's first-order gate,
 /// [`second_order_walk`] and tier 3's check 4 read.
 ///
-/// An edge's wedge reads them through [`WedgeWalk::along_edge`], which
+/// An edge's wedge reads them through [`WedgeWalk::along_edge`](crate::WedgeWalk::along_edge), which
 /// pairs them with the edge's faces.
 pub(crate) fn interior_stations<T: Decide>(
     carrier: &geom::Curve3<T>,

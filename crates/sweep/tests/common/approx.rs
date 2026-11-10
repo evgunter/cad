@@ -582,14 +582,11 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
     let Some(curve) = body.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
         return false;
     };
-    let Some(plus) = body.get_half_edge(e.he_plus) else {
-        return false;
-    };
-    let Some(end_v) = body.half_edge_end(e.he_plus) else {
+    let Some((start_v, end_v)) = body.edge_vertices(edge) else {
         return false;
     };
     let (Some(start), Some(end)) = (
-        body.get_vertex(plus.start)
+        body.get_vertex(start_v)
             .and_then(|v| body.get_point(v.point)),
         body.get_vertex(end_v).and_then(|v| body.get_point(v.point)),
     ) else {
