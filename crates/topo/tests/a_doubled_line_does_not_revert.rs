@@ -99,12 +99,8 @@ fn names_the_slit(what: &str, body: &Body<f64>, pose: &Pose, refusal: &RevertErr
     let RevertError::CoincidentEdges { edges, .. } = refusal;
     let near = |p: Point3<f64>, q: [f64; 3]| p.distance(pose.at(q)) < 1e-9;
     for &edge in edges {
-        let he = body.get_edge(edge).unwrap().he_plus;
-        let ends = [
-            body.get_half_edge(he).unwrap().start,
-            body.half_edge_end(he).unwrap(),
-        ]
-        .map(|v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap());
+        let (v0, v1) = body.edge_vertices(edge).unwrap();
+        let ends = [v0, v1].map(|v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap());
         assert!(
             ends.iter().any(|&e| near(e, MEET)) && ends.iter().any(|&e| near(e, OPEN)),
             "{what}: {edge:?} runs {:?}, not the keel",
@@ -474,11 +470,8 @@ fn wedges_refuse(
     let (p, q) = (pose.at(a), pose.at(b));
     let axis = (q - p).normalize();
     for &edge in [ea, eb] {
-        let he = body.get_edge(edge).unwrap().he_plus;
-        for v in [
-            body.get_half_edge(he).unwrap().start,
-            body.half_edge_end(he).unwrap(),
-        ] {
+        let (v0, v1) = body.edge_vertices(edge).unwrap();
+        for v in [v0, v1] {
             let x = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
             let off = (x - p).cross(axis).norm();
             assert!(

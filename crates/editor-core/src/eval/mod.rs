@@ -3367,6 +3367,10 @@ impl ComputingTwist {
         };
         Self {
             axis,
+            // An exact `fmod` into `[0, τ)` of any magnitude, read only as
+            // a turn's angle: `Period::at_or_above` would name the same
+            // copy, but reads NaN past `i32::MAX` turns, which an advanced
+            // angle may reach.
             angle: (self.angle + k * (s2 - 1.0)).rem_euclid(std::f64::consts::TAU),
             by: [
                 self.by[0] + (k * s3 * s5).cos(),
