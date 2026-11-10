@@ -45,6 +45,8 @@ reaches it. A census depends on them by text.
 All four (with `flagged_census`, PR 6603) were red together on
 `1b31bac52e`.
 
+The slow set's reach on a PR is decided in `dependents-slow-sets-skip-a-kernel-pr.md`'s policy: a PR runs its seeded crates' slow sets, and the nightly attributes each newly red slow test to its merge. A census is a slow test of geom-core or pncad-py, so it runs on a PR that seeds its own crate. A PR that moves a site elsewhere is reached by the nightly attribution, not by its gate. The options below stay as the census-specific alternatives.
+
 ## Options
 
 - **A. A slow test whose `gated_to!` names a path the diff touches runs on that PR.** Where a marker exists it already says which paths move the test; the slow set ignores it. But only `certified_endpoint_census.rs` carries a `gated_to!` today. `bounds_census.rs`, `sym_rule_f_rows.rs` and `flagged_census.rs` carry none, so as the tree stands A catches one census of the four. The other three each need a marker added: a hand-kept path list, which a check like `the_suite_is_gated_to_every_crate_it_walks` can hold to the walk. With all four marked, about 10 s on any kernel PR.

@@ -11,7 +11,24 @@ cost: M
 
 ## What
 
-#5229 enforced the fast-set time bars (0.5 s for a new test, 1 s as the backstop) and moved 566 tests into the slow set. The slow set now has 1117 entries. The slow-set step runs only the slow tests of the crates a diff SEEDS. A dependent crate in the diff's closure runs its fast set only. So a moved test in sweep no longer runs on a topo-only PR; the nightly runs it. Topo changes that red only sweep rows have happened (`a-sweep-diff-gates-no-eps-row-of-sweep`, PR 5192).
+#5229 enforced the fast-set time bars (0.5 s for a new test, 1 s as the backstop) and moved 566 tests into the slow set. The slow set now has 1117 entries. The slow-set step runs only the slow tests a diff's added lines spell (`scripts/slow_set.py`'s `is_new`): a seeded crate's other slow tests do not run, and a dependent crate in the diff's closure runs its fast set only. So a moved test in sweep no longer runs on a topo-only PR; the nightly runs it. Topo changes that red only sweep rows have happened (`a-sweep-diff-gates-no-eps-row-of-sweep`, PR 5192).
+
+## The policy (revisiting the 2026-10-16 ruling under its own clause)
+
+1. **A PR runs its seeded crates' slow sets.** Beside the slow tests a diff's added lines spell, the slow-set step runs every slow test of the crates the diff seeds (`scripts/ci-filter.py`'s seeds, not the dependent closure), one job per seeded crate.
+2. **The nightly attributes each newly red slow test to its merge.** A slow test red on tonight's nightly and green on the previous one is bisected over the first-parent merges between the two nightly heads. It runs alone, at the nightly's build profile, and the bisect names the first red merge. At most five tests are bisected a night; the rest are listed, unattributed, in the run's summary.
+3. **What the attribution writes**, as a tracker-only commit to main (as the STATUS render commits):
+   - **Where.** If a row under `work/` already names the test's id, it appends a dated `## Nightly attribution` section to that row. Otherwise it writes one row, `work/<program>/main-red-<test-leaf>.md`. `<program>` is the first red merge's head-branch prefix where that directory exists, and `green` otherwise.
+   - **The row.** `kind: issue`, `priority: P1`, `cost: E`, `status: open`, titled `main red: <binary> <test> since PR <n>`. Its body states:
+     - the test id;
+     - the first red merge (PR number, merge sha, head branch) and the last green one;
+     - the nightly run and its ε row;
+     - the failure's first panic line, verbatim;
+     - each probe as `sha: pass | fail`;
+     - the line "Found by the nightly attribution; not triaged."
+   - It decides nothing about the red's cause, and edits no other row.
+
+The measurements behind this are in `log.md`, 2026-11-10.
 
 ## Ev's ruling (2026-10-16, chat)
 

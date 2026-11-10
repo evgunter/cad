@@ -3072,3 +3072,44 @@ Load 15 of 30. Five unbanded rows carry it, and the next sitting prices
 and bands them.
 
 Signed (tracker sweep).
+
+## 2026-11-10 — the slow set's reach, measured (`onecopy/slow-set-reach`)
+
+The numbers behind `dependents-slow-sets-skip-a-kernel-pr`'s policy.
+
+**How.**
+- The whole slow set (1987 entries, 15 crates) was run per crate on main `45185551`, on a 4-core box like `ubuntu-latest`, with an unoptimized build.
+- Conversion to hosted speed uses `docs/perf-data/opt-level/1790512285-d0e3980.json`'s hosted execution times for the whole suite: opt-0 4840 s, opt-1 1605 s, opt-2 673 s, so ÷3.0 to opt-1 and ÷7.2 to opt-2.
+- Cross-check: 182 min ÷ 7.2 ≈ 25 min, against the nightly's opt-2 `full suite (eps default, slow set included)` job at 29.1 min (run 42567046151).
+
+**Per crate.** Wall-clock is local opt-0; the opt-1 column is the PR gate's library level, ÷3.
+
+| crate | slow tests | wall (opt-0) | ≈ wall (opt-1) | longest test (opt-0) |
+|---|---|---|---|---|
+| sweep | 725 | 78.1 min | 26 min | 1698 s (`germ_tilted_rod`) |
+| geom-brep | 353 | 36.4 min | 12 min | 998 s (`m5_pr7_ssi`) |
+| editor-core | 444 | 32.7 min | 11 min | 593 s |
+| topo | 280 | 16.5 min | 5.5 min | 304 s |
+| viewer, mesh, step-import, geom | 38, 36, 47, 18 | 2.4–4.0 min each | ≤ 1.3 min | ≤ 130 s |
+| the other seven | ≤ 19 each | < 2 min each | < 1 min | ≤ 13 s |
+| **all** | **1983** | **182 min** (591 cpu-min) | **≈ 60 min** | |
+
+- The time is in a tail: 20 tests are 33% of it, and 1486 tests under 10 s each make up 69 cpu-min.
+- The PR gate builds integration binaries at opt-0, so the opt-1 column is a floor, not an estimate.
+
+**The closure.** Through dev-dependencies, every kernel crate's dependent closure is nearly the whole workspace. topo's is editor-core, mesh, pncad, pncad-py, step-export, step-import, stl, sweep, verbs and viewer. So running the dependents' slow sets means running the whole slow set on every kernel PR: about 60 min at opt-1 on one runner, about 80 runner-hours a day at the 80 merges of 2026-11-03 and 2026-11-09.
+
+**A per-test path map**, measured on topo's 280 slow tests under `-Cinstrument-coverage`, against the last 30 merged PRs' diffs:
+- a file-level map selects a median 64% of the tests;
+- a function-level map (a 60-test sample) selects a median 43%, ranging from 0 to 95%.
+- `pcurves.rs` sits under 56% of the tests, `validate.rs` under 79% and `real.rs` under 93%.
+
+**A nightly bisect.**
+- The nightlies of 2026-11-03 to 2026-11-09 were 0–80 merges apart, so about 7 probes.
+- One bisect on 2026-11-09 took 13 probes in about 80 min (opt-0, 4 cores), about 6 min a probe.
+
+**Main's slow set today.** 35 distinct slow tests are red on main:
+- sweep 17, editor-core 10, step-import 3, step-export 2, geom-core 1, topo 1, viewer 1;
+- 29 are named in some `work/` row, and the other 6 share onehome's `OutsideSessionBox` family (PR 6730 adds them there as witnesses).
+
+Signed (ONECOPY slow-set-reach lane).
