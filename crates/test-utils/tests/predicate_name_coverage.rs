@@ -58,11 +58,6 @@ const KNOWN_MISSING: &[(&str, Missing, &str)] = &[
         "work/onecopy/editor-core-runs-no-predicate-name-roster.md",
     ),
     (
-        "geom",
-        Missing::Roster,
-        "work/onecopy/geom-runs-no-predicate-name-roster.md",
-    ),
-    (
         "geom-core",
         Missing::Roster,
         "work/onecopy/geom-core-runs-no-predicate-name-roster.md",
