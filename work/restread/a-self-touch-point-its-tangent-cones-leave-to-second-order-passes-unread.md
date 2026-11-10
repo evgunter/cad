@@ -2,13 +2,11 @@
 id: a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread
 kind: issue
 title: A self-touch point whose curved faces' tangent cones leave it to second order passes unread
-status: review
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face]
-pr: 6526
-branch: restread/self-touch-coincident-sheets
 ---
 
 
@@ -213,3 +211,14 @@ red. The arguments are in `crates/topo/README.md` beside the others.
 sweep rows red: `a_rim_flush_…`, `a_hole_sharing_…`, the cone apex, and
 `two_wedge_ends_on_one_line` ×2. Both `bisector_nodes` rows now read
 whole. Whether the remainder refuses is still Ev's call.
+
+## After PR 6526
+
+PR 6526 (`restread/self-touch-coincident-sheets`) merged on 2026-11-10
+with the reading above, so this row is open again for the 11 triples
+still skipped: the lunes (a horn beside a lens sharing one edge), two
+cylinders tangent inside on each other, a bound on a bound, the cone
+apex, a foot normal and a `resolve` refusal. Refusing them turns 5
+sweep rows red. The next unit is the lunes and the tangent-inside
+cylinders. Whether the remainder refuses in the meantime is still Ev's
+call.
