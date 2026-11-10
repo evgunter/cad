@@ -448,18 +448,28 @@ fn anchors_of() -> (Point2<f64>, Point2<f64>, Point2<f64>) {
 /// Red if the pair names the narrower lever, or names one per corner.
 #[test]
 fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
-    use profile::{FilletLegCarrier, LegFit, NoCornerReason, path::CornerRefusal};
+    use profile::{
+        FilletLeg, FilletLegCarrier, LegFit, LeverValue, NoCornerReason, OverrunLegs,
+        path::CornerRefusal,
+    };
     let leg = |setback: f64, available: f64| LegFit {
         carrier: FilletLegCarrier::Line,
         setback,
         available,
-        overruns: setback > available,
     };
+    // The straight pair's numbers at a clearance of 2·10⁻⁸ m: the
+    // outgoing anchor fits from 0.4 + 2·10⁻⁸ m, and the radius whose
+    // margin is the clearance is 0.3·(0.3 − 2·10⁻⁸)/0.4.
     let anchor = CornerRefusal {
         at: Point2::new(1.0, 0.0),
         reason: CornerReason::AnchorOutsideTrimmedExtent {
             legs: [leg(0.4, 1.0), leg(0.4, 0.3)],
-            radius_at_anchor: Some(0.225),
+            overrun: OverrunLegs::One(FilletLeg::Outgoing),
+            clearance: 2e-8,
+            radius_at_anchor: Some(LeverValue {
+                boundary: 0.225,
+                clear: 0.3 * (0.3 - 2e-8) / 0.4,
+            }),
         },
     };
     let radius = CornerRefusal {
@@ -477,8 +487,8 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         .to_string();
         assert!(
             said.ends_with(&format!(
-                ". Recourse: anchor the outgoing leg at least 0.4000000001 m from {which}, or use \
-                 a radius of 0.22499999999 m or less"
+                ". Recourse: anchor the outgoing leg at least 0.4000001 m from {which}, or use a \
+                 radius of 0.2249999 m or less"
             )),
             "the pair names the wider menu once: {said}"
         );

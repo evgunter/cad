@@ -32,7 +32,7 @@
 use crate::gate::{Escalation, Gate, decide, decide_passing, prove};
 use geom_core::{Band, BandError, Circles, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
-use crate::validate::{FilletLeg, NoCornerReason};
+use crate::validate::{FilletLeg, NoCornerReason, OverrunLegs};
 
 /// The sweep direction hint for [`bulge_from_center`] /
 /// the closing arc constructors: which way the arc winds about its
@@ -232,9 +232,10 @@ pub(crate) enum TrimRefusal<T: Real> {
     /// `[incoming, outgoing]` order.
     DoesNotFit {
         /// Which legs the setback overruns. The outgoing leg is
-        /// classified whatever the incoming one answered, and is not
-        /// called an overrun where its own classification escalated.
-        overruns: [bool; 2],
+        /// classified whatever the incoming one answered, because the
+        /// refusal's levers name every overrun leg; it is not called an
+        /// overrun where its own classification escalated.
+        overrun: OverrunLegs,
         /// The tangent setback from the corner, the same on both legs.
         setback: T,
         /// The legs' extents.
@@ -300,13 +301,12 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     // and is dead — total evaluation code, no branch.
     let t1 = corner - v1 * (setback / len1);
     let t2 = corner + v2 * (setback / len2);
-    let overruns = [
+    if let Some(overrun) = OverrunLegs::of(
         fit_in == Sign::Negative,
         matches!(fit_out, Ok(Sign::Negative)),
-    ];
-    if overruns.contains(&true) {
+    ) {
         return Err(TrimRefusal::DoesNotFit {
-            overruns,
+            overrun,
             setback,
             lengths: [len1, len2],
             tangents: [t1, t2],
@@ -497,6 +497,13 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         /// The `[incoming, outgoing]` legs' fillets that end exactly at
         /// their anchors, for the door to assign to the candidates.
         at_anchor: [AtAnchor<T>; 2],
+        /// The same legs' fillets that end `clearance` short of their
+        /// anchors, toward the corner: the radius at which that leg's
+        /// fit margin is `clearance`, past the gate's band.
+        clearing: [AtAnchor<T>; 2],
+        /// The fit margin a recourse's values clear the gate by
+        /// ([`fit_clearance`]).
+        clearance: T,
         /// The corner's turn sense, which every candidate rounds it in.
         sense: ArcSweep,
     },
@@ -529,6 +536,8 @@ pub(crate) struct OverrunCandidate<T: Real> {
     pub tangents: [Point2<T>; 2],
     /// Which branch of the offset construction it is on ([`branch`]).
     pub branch: T,
+    /// Which legs the fit gate refused.
+    pub overrun: OverrunLegs,
 }
 
 /// The fillet tangent to one leg's carrier exactly at that leg's
@@ -565,8 +574,6 @@ pub(crate) struct OverrunLeg<T: Real> {
     pub setback: T,
     /// The leg's extent.
     pub leg_length: T,
-    /// Whether the fit gate refused this leg.
-    pub overruns: bool,
 }
 
 /// The ratified arc-carrier fillet construction (M5 S2) — the
@@ -725,8 +732,9 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
         let fit_out = decide_passing(Gate::FilletLegFit, Margin::of(margin_out), band, RUN_PASSES)
             .map_err(ArcTrimRefusal::Escalated)?;
         let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
-        if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
-            survivors.push(ArcFilletCandidate {
+        let overrun = OverrunLegs::of(fit_in == Sign::Negative, fit_out == Sign::Negative);
+        match (corner_side, overrun) {
+            (true, None) => survivors.push(ArcFilletCandidate {
                 t1,
                 t2,
                 bulge: {
@@ -741,61 +749,63 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                 fit_in,
                 fit_out,
                 setbacks: [sb_in, sb_out],
-            });
-        } else if corner_side {
-            // This candidate rounds the corner the caller named, but the
-            // radius pushes a tangent point off the far end of a leg:
-            // the radius-does-not-fit situation.
-            //
-            // Attribution to the CORNER is sound because `corner_side`
-            // is a real test (signed setback, review MAJOR-1): a
-            // candidate rounding the OTHER intersection of the two
-            // carriers has a tangent point past the corner, classifies
-            // Negative, and never reaches this arm. So the numbers
-            // carried are this candidate's own, for the corner the
-            // author actually named.
-            //
-            // Which CANDIDATE the refusal is about is the door's pick (`path::arc_fillet::map_refusal`,
-            // through `fillet_select::nearest_candidate`): every
-            // corner-side overrun is carried out with both legs'
-            // numbers, in enumeration order, so that this `T: Decide`
-            // body compares nothing (Bounds scope rule) and gates
-            // nothing new. The four classifications above ran for this
-            // candidate whether or not it survives, so what is carried
-            // never changes the recorded sample sequence; an escalation
-            // in a later candidate's gates aborts through `?` and drops
-            // the array with it.
-            let leg_numbers = |leg: &Leg<T>, setback: T, margin: T, fit: Sign| OverrunLeg {
-                carrier_radius: leg.arc.map(|a| a.radius),
-                margin,
-                setback,
-                leg_length: leg.len,
-                overruns: fit == Sign::Negative,
-            };
-            let candidate = OverrunCandidate {
-                legs: [
-                    leg_numbers(&leg_in, sb_in, margin_in, fit_in),
-                    leg_numbers(&leg_out, sb_out, margin_out, fit_out),
-                ],
-                center,
-                tangents: [t1, t2],
-                branch: branch(&leg_in, &leg_out, center),
-            };
-            // Two distinct circles, or a line and a circle, meet in at
-            // most two points: that is why `offset_circles` and
-            // `offset_line_circle` hand back at most two centres, and
-            // why two slots are the honest size. The guarantee this site
-            // rests on is the producers' ARITY (each hands back a `vec!`
-            // of at most two centres); the geometry is why that arity is
-            // the right one. A third overrun is a broken producer, not a
-            // case, and is refused loudly.
-            match overruns {
-                [None, _] => overruns[0] = Some(candidate),
-                [Some(_), None] => overruns[1] = Some(candidate),
-                [Some(_), Some(_)] => {
-                    unreachable!("two offset carriers meet in at most two points")
+            }),
+            (true, Some(overrun)) => {
+                // This candidate rounds the corner the caller named, but the
+                // radius pushes a tangent point off the far end of a leg:
+                // the radius-does-not-fit situation.
+                //
+                // Attribution to the CORNER is sound because `corner_side`
+                // is a real test (signed setback, review MAJOR-1): a
+                // candidate rounding the OTHER intersection of the two
+                // carriers has a tangent point past the corner, classifies
+                // Negative, and never reaches this arm. So the numbers
+                // carried are this candidate's own, for the corner the
+                // author actually named.
+                //
+                // Which CANDIDATE the refusal is about is the door's pick (`path::arc_fillet::map_refusal`,
+                // through `fillet_select::nearest_candidate`): every
+                // corner-side overrun is carried out with both legs'
+                // numbers, in enumeration order, so that this `T: Decide`
+                // body compares nothing (Bounds scope rule) and gates
+                // nothing new. The four classifications above ran for this
+                // candidate whether or not it survives, so what is carried
+                // never changes the recorded sample sequence; an escalation
+                // in a later candidate's gates aborts through `?` and drops
+                // the array with it.
+                let leg_numbers = |leg: &Leg<T>, setback: T, margin: T| OverrunLeg {
+                    carrier_radius: leg.arc.map(|a| a.radius),
+                    margin,
+                    setback,
+                    leg_length: leg.len,
+                };
+                let candidate = OverrunCandidate {
+                    legs: [
+                        leg_numbers(&leg_in, sb_in, margin_in),
+                        leg_numbers(&leg_out, sb_out, margin_out),
+                    ],
+                    center,
+                    tangents: [t1, t2],
+                    branch: branch(&leg_in, &leg_out, center),
+                    overrun,
+                };
+                // Two distinct circles, or a line and a circle, meet in at
+                // most two points: that is why `offset_circles` and
+                // `offset_line_circle` hand back at most two centres, and
+                // why two slots are the honest size. The guarantee this site
+                // rests on is the producers' ARITY (each hands back a `vec!`
+                // of at most two centres); the geometry is why that arity is
+                // the right one. A third overrun is a broken producer, not a
+                // case, and is refused loudly.
+                match overruns {
+                    [None, _] => overruns[0] = Some(candidate),
+                    [Some(_), None] => overruns[1] = Some(candidate),
+                    [Some(_), Some(_)] => {
+                        unreachable!("two offset carriers meet in at most two points")
+                    }
                 }
             }
+            (false, _) => {}
         }
     }
     if survivors.is_empty() {
@@ -810,6 +820,12 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                             .map(|l| l.arc.map(|a| offset_radius(&a, sgn, radius))),
                     }
                 };
+                // The same fillets, ended `clearance` short of each
+                // anchor toward the corner. A leg no longer than the
+                // clearance has no such point on it, and the door reads
+                // that off the leg's extent.
+                let clearance = fit_clearance::<T>(band);
+                let short_of = |leg: &Leg<T>| leg.point_at(corner, leg.len - clearance);
                 ArcTrimRefusal::DoesNotFit {
                     first,
                     second,
@@ -817,6 +833,11 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                         at_anchor(&leg_in, head, &leg_out, next),
                         at_anchor(&leg_out, next, &leg_in, head),
                     ],
+                    clearing: [
+                        at_anchor(&leg_in, short_of(&leg_in), &leg_out, next),
+                        at_anchor(&leg_out, short_of(&leg_out), &leg_in, head),
+                    ],
+                    clearance,
                     sense,
                 }
             }
@@ -1093,7 +1114,35 @@ fn branch<T: Real>(leg_in: &Leg<T>, leg_out: &Leg<T>, o: Point2<T>) -> T {
     }
 }
 
+/// **The fit margin a recourse's values clear `fillet_leg_fit` by**:
+/// twice the band's escalation threshold. The gate decides a margin
+/// below that threshold as in band, so a radius or an anchor named at
+/// the boundary itself, typed back, would refuse again as an
+/// escalation; named at this margin it decides Positive.
+pub(crate) fn fit_clearance<T: Real>(band: Band) -> T {
+    T::from_f64(2.0 * band.escalate())
+}
+
 impl<T: Real> Leg<T> {
+    /// The point of this leg at `setback` from `corner` along it,
+    /// toward its far end (meters; an arc length on a circular leg) —
+    /// the inverse of [`Self::setback`].
+    fn point_at(&self, corner: Point2<T>, setback: T) -> Point2<T> {
+        match (self.arc, self.side) {
+            (None, FilletLeg::Incoming) => corner - self.dir * setback,
+            (None, FilletLeg::Outgoing) => corner + self.dir * setback,
+            (Some(arc), side) => {
+                let turned = arc.turn * setback / arc.radius;
+                let angle = match side {
+                    FilletLeg::Incoming => arc.corner_angle - turned,
+                    FilletLeg::Outgoing => arc.corner_angle + turned,
+                };
+                let (sin, cos) = angle.sin_cos();
+                arc.center + Vec2::new(cos, sin) * arc.radius
+            }
+        }
+    }
+
     /// The fillet tangent to this leg's carrier exactly at its anchor
     /// `at` and to `other`'s carrier (anchored at `other_at`), on the
     /// `sgn` turn side: its radius and its centre ([`AtAnchor`]).

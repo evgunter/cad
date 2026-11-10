@@ -32,6 +32,7 @@ use profile::{
     ArcSweep, Center, ConstructedLoop, ConstructedProfile, FILLET_NO_CORNER_RECOURSE,
     FilletLegCarrier, NoCornerReason, Open, PathError, Profile, ProfileLoop, SketchPlane, Start,
 };
+use profile::{FilletLeg, OverrunLegs};
 
 /// √3 — the y coordinate of the crossing points of the unit-spaced
 /// radius-2 circles used by the arc×arc fixtures.
@@ -385,14 +386,17 @@ fn oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin() {
     let hit = crate::common::corners(&err)
         .iter()
         .find_map(|c| match &c.reason {
-            CornerReason::AnchorOutsideTrimmedExtent { legs, .. } => Some(*legs),
+            CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+                Some((*legs, *overrun))
+            }
             _ => None,
         });
-    let Some(legs) = hit else {
+    let Some((legs, overrun)) = hit else {
         panic!("expected an anchor-fit entry, got {err:?}")
     };
-    assert!(
-        !legs[0].overruns && legs[1].overruns,
+    assert_eq!(
+        overrun,
+        OverrunLegs::One(FilletLeg::Outgoing),
         "the arrival overruns: {legs:?}"
     );
     let FilletLegCarrier::Arc {
@@ -435,14 +439,17 @@ fn oversized_radius_on_a_straight_side_still_names_the_straight_carrier() {
     let hit = crate::common::corners(&err)
         .iter()
         .find_map(|c| match &c.reason {
-            CornerReason::AnchorOutsideTrimmedExtent { legs, .. } => Some(*legs),
+            CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+                Some((*legs, *overrun))
+            }
             _ => None,
         });
-    let Some(legs) = hit else {
+    let Some((legs, overrun)) = hit else {
         panic!("expected an anchor-fit entry, got {err:?}")
     };
-    assert!(
-        legs[0].overruns && !legs[1].overruns,
+    assert_eq!(
+        overrun,
+        OverrunLegs::One(FilletLeg::Incoming),
         "the ray overruns: {legs:?}"
     );
     assert_eq!(legs[0].carrier, FilletLegCarrier::Line);

@@ -783,7 +783,10 @@ fn next_section_id_fault(fault: &SectionIdFault) -> Option<SectionIdFault> {
 /// each one the feature tree's census measures over 60 words.
 fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
     use profile::PathError as P;
-    use profile::{CornerReason, CornerRefusal, FilletLegCarrier, LegFit, NoCornerReason};
+    use profile::{
+        CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, LegFit, LeverValue,
+        NoCornerReason, OverrunLegs,
+    };
     vec![
         (
             "SeamArrivalOffDirection",
@@ -823,16 +826,19 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
                                     carrier: FilletLegCarrier::Line,
                                     setback: 0.4,
                                     available: 1.0,
-                                    overruns: false,
                                 },
                                 LegFit {
                                     carrier: FilletLegCarrier::Line,
                                     setback: 0.4,
                                     available: 0.3,
-                                    overruns: true,
                                 },
                             ],
-                            radius_at_anchor: Some(0.225),
+                            overrun: OverrunLegs::One(FilletLeg::Outgoing),
+                            clearance: 2e-8,
+                            radius_at_anchor: Some(LeverValue {
+                                boundary: 0.225,
+                                clear: 0.225 - 1.5e-8,
+                            }),
                         },
                     },
                     CornerRefusal {

@@ -4069,7 +4069,10 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     use geom_core::Point2;
     use payloads::*;
     use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
-    use profile::{CornerReason, CornerRefusal, FilletLegCarrier, LegFit, NoCornerReason};
+    use profile::{
+        CornerReason, CornerRefusal, FilletLegCarrier, LegFit, LeverValue, NoCornerReason,
+        OverrunLegs,
+    };
     use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
@@ -4319,16 +4322,19 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                                     carrier: FilletLegCarrier::Line,
                                     setback: 0.4,
                                     available: 1.0,
-                                    overruns: false,
                                 },
                                 LegFit {
                                     carrier: FilletLegCarrier::Line,
                                     setback: 0.4,
                                     available: 0.3,
-                                    overruns: true,
                                 },
                             ],
-                            radius_at_anchor: Some(0.225),
+                            overrun: OverrunLegs::One(FilletLeg::Outgoing),
+                            clearance: 2e-8,
+                            radius_at_anchor: Some(LeverValue {
+                                boundary: 0.225,
+                                clear: 0.225 - 1.5e-8,
+                            }),
                         },
                     },
                     CornerRefusal {
@@ -4414,16 +4420,19 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                                     carrier: FilletLegCarrier::Line,
                                     setback: 0.412_345_678,
                                     available: 1.0,
-                                    overruns: false,
                                 },
                                 LegFit {
                                     carrier: FilletLegCarrier::Line,
                                     setback: 0.412_345_678,
                                     available: 0.301_234_567,
-                                    overruns: true,
                                 },
                             ],
-                            radius_at_anchor: Some(0.225),
+                            overrun: OverrunLegs::One(FilletLeg::Outgoing),
+                            clearance: 2e-8,
+                            radius_at_anchor: Some(LeverValue {
+                                boundary: 0.225,
+                                clear: 0.225 - 1.5e-8,
+                            }),
                         },
                     },
                 ],

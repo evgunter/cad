@@ -71,8 +71,8 @@ use geom_core::{
 
 use super::program::Overrun;
 use super::{
-    ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, LegFit, PathError, PathNoCornerReason,
-    TurnLever, linear_band,
+    ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, LegFit, LeverValue, PathError,
+    PathNoCornerReason, TurnLever, linear_band,
 };
 use crate::fillet_select::{nearest_candidate, nearest_joint};
 use crate::structure::{
@@ -574,7 +574,10 @@ fn map_refusal<T: Bounds>(
         // that is not positive and below the authored one, an offset
         // radius that is not positive, or the other branch). The
         // unassigned minimum over both legs names the other
-        // candidate's bound on some corners.
+        // candidate's bound on some corners. The radius the sentence
+        // names is the same form with each anchor moved the clearance
+        // toward the corner (`sugar::fit_clearance`), read by the same
+        // rule: there every overrun leg's fit margin clears the band.
         //
         // Every read is an `f64` enclosure lower bound off the
         // diagnostic channel, exactly `nearest_joint`'s: a selection
@@ -588,6 +591,8 @@ fn map_refusal<T: Bounds>(
             first,
             second,
             at_anchor,
+            clearing,
+            clearance,
             sense,
         } => {
             let candidates: Vec<OverrunCandidate<T>> =
@@ -612,14 +617,31 @@ fn map_refusal<T: Bounds>(
                     // tangent offset pair, which is on both branches.
                     && fit.branch.lo() * nearest.branch.lo() >= 0.0
             };
+            // The cleared radius is the same form with the anchor moved
+            // `clearance` toward the corner, read by the same rule, on a
+            // leg long enough to hold that point and below the boundary.
+            let lever = |k: usize| -> Option<LeverValue<T>> {
+                let (exact, clear) = (&at_anchor[k], &clearing[k]);
+                (on_branch(exact)
+                    && on_branch(clear)
+                    && nearest.legs[k].leg_length.lo() > clearance.lo()
+                    && clear.radius.lo() < exact.radius.lo())
+                .then_some(LeverValue {
+                    boundary: exact.radius,
+                    clear: clear.radius,
+                })
+            };
             let radius_at_anchor = nearest
-                .legs
-                .iter()
-                .zip(at_anchor)
-                .filter(|(leg, _)| leg.overruns)
-                .map(|(_, fit)| on_branch(&fit).then_some(fit.radius))
-                .try_fold(None, |least: Option<T>, fit| {
-                    fit.map(|r| Some(least.map_or(r, |least| least.min(r))))
+                .overrun
+                .indices()
+                .map(lever)
+                .try_fold(None, |least: Option<LeverValue<T>>, fit| {
+                    fit.map(|r| {
+                        Some(least.map_or(r, |least| LeverValue {
+                            boundary: least.boundary.min(r.boundary),
+                            clear: least.clear.min(r.clear),
+                        }))
+                    })
                 })
                 .flatten();
             let leg = |leg: OverrunLeg<T>| LegFit {
@@ -632,11 +654,12 @@ fn map_refusal<T: Bounds>(
                 },
                 setback: leg.setback,
                 available: leg.leg_length,
-                overruns: leg.overruns,
             };
             CornerOutcome::Overrun(
                 CornerReason::AnchorOutsideTrimmedExtent {
                     legs: nearest.legs.map(leg),
+                    overrun: nearest.overrun,
+                    clearance,
                     radius_at_anchor,
                 },
                 Overrun::new(corner, nearest.center, radius, nearest.tangents, sense),
@@ -686,6 +709,7 @@ fn anchor_span<T: Bounds>(
 /// classified cannot be honestly ranked.
 pub(crate) fn resolve<T: Decide + Bounds>(
     guide: &mut Guide<T>,
+    step: usize,
     incoming: FilletSide<T>,
     arrival: FilletSide<T>,
     radius: T,
@@ -908,7 +932,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             if !overruns.is_empty()
                 && let Some(drawing) = guide.drawn()
             {
-                drawing.overran(overruns);
+                drawing.overran(step, overruns);
             }
             build_entries
         };

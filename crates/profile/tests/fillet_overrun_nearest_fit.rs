@@ -33,7 +33,7 @@ use crate::common::{anchor_fit_at, anchor_fit_payload_at, arc_arc, close, grid_a
 use geom_core::Sign;
 use geom_core::k_stats;
 use profile::path::CornerReason;
-use profile::{ArcSweep, FilletLeg, FilletLegCarrier, PathError, ProfileLoop};
+use profile::{ArcSweep, FilletLeg, FilletLegCarrier, OverrunLegs, PathError, ProfileLoop};
 
 const PI: f64 = core::f64::consts::PI;
 
@@ -132,8 +132,8 @@ fn two_overrunning_candidates_report_the_least_deficit_one() {
 #[test]
 fn both_overrunning_legs_ride_the_payload() {
     let err = arc_arc(CASE_11131, R_11131).expect_err("r = 0.15 refuses");
-    let (legs, _) = anchor_fit_payload_at(&err, CORNER_11131);
-    assert!(legs[0].overruns && legs[1].overruns, "{legs:?}");
+    let (legs, overrun, _) = anchor_fit_payload_at(&err, CORNER_11131);
+    assert_eq!(overrun, OverrunLegs::Both, "{legs:?}");
     assert!(
         close(legs[1].setback, CORNER_11131_WORSE.0)
             && close(legs[1].available, CORNER_11131_WORSE.1),
@@ -152,8 +152,8 @@ fn both_overrunning_legs_ride_the_payload() {
 #[test]
 fn a_single_candidate_carries_both_legs_on_the_line_arc_channel() {
     let err = line_arc_both_legs_overrun().expect_err("r = 1 overruns both legs");
-    let (legs, _) = anchor_fit_payload_at(&err, (2.0, 0.0));
-    assert!(legs[0].overruns && legs[1].overruns, "{legs:?}");
+    let (legs, overrun, _) = anchor_fit_payload_at(&err, (2.0, 0.0));
+    assert_eq!(overrun, OverrunLegs::Both, "{legs:?}");
     assert_eq!(legs[0].carrier, FilletLegCarrier::Line);
     assert!(
         close(legs[0].setback, 2.0) && close(legs[0].available, 1.8),
@@ -352,9 +352,9 @@ fn grid_a_census_of_the_reports_that_changed() {
             return;
         };
         for c in corners {
-            if let CornerReason::AnchorOutsideTrimmedExtent { legs, .. } = &c.reason {
+            if let CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } = &c.reason {
                 entries += 1;
-                match crate::common::worse_leg(legs).0 {
+                match crate::common::worse_leg(legs, *overrun).0 {
                     FilletLeg::Incoming => incoming += 1,
                     FilletLeg::Outgoing => outgoing += 1,
                 }

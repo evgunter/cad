@@ -168,7 +168,9 @@ fn on_loop(lp: &profile::ProfileLoop<f64>, centre: Point2<f64>, radius: f64, ban
 /// Every disagreement between one program's drawing and its replay,
 /// pushed onto `out`. Answers how many fillet circles, and how many
 /// overrunning ones, it checked.
-fn check(steps: &[Step<f64>], tol: Tol, out: &mut Vec<String>) -> (usize, usize) {
+/// One program's drawing against its replay: how many fillet circles,
+/// overrun circles and anchor-fit entries it checked.
+fn check(steps: &[Step<f64>], tol: Tol, out: &mut Vec<String>) -> (usize, usize, usize) {
     let (drawn_replay, built) = replay_drawn(steps, tol);
     let replayed = replay(steps, tol);
     if format!("{drawn_replay:?}") != format!("{replayed:?}") {
@@ -209,7 +211,7 @@ fn check(steps: &[Step<f64>], tol: Tol, out: &mut Vec<String>) -> (usize, usize)
             }
         }
     }
-    let mut circles = (0, 0);
+    let mut circles = (0, 0, 0);
     for c in &built {
         let band = 1e-7 * scale(c);
         match &c.fit {
@@ -246,6 +248,33 @@ fn check(steps: &[Step<f64>], tol: Tol, out: &mut Vec<String>) -> (usize, usize)
             Some(FilletFit::Overrun(overruns)) => {
                 circles.1 += overruns.len();
                 check_overruns(steps, c, overruns, &replayed, band, out);
+            }
+        }
+    }
+    // The converse: every anchor-fit entry of the refusal has an
+    // overrun record at its corner.
+    if let Err(profile::ReplayError {
+        kind: ReplayErrorKind::Path(PathError::NoCornerOfPair { corners, .. }),
+        ..
+    }) = &replayed
+    {
+        let recorded: Vec<(Point2<f64>, f64)> = built
+            .iter()
+            .filter_map(|c| match &c.fit {
+                Some(FilletFit::Overrun(overruns)) => Some((c, overruns)),
+                _ => None,
+            })
+            .flat_map(|(c, overruns)| overruns.iter().map(|o| (o.corner, 1e-7 * scale(c))))
+            .collect();
+        for e in corners
+            .iter()
+            .filter(|e| matches!(e.reason, CornerReason::AnchorOutsideTrimmedExtent { .. }))
+        {
+            circles.2 += 1;
+            if !recorded.iter().any(|(at, band)| at.distance(e.at) < *band) {
+                out.push(format!(
+                    "ANCHOR FIT WITH NO OVERRUN RECORD {e:?} recorded={recorded:?} prog={steps:?}"
+                ));
             }
         }
     }
@@ -339,7 +368,7 @@ fn a_replays_drawing_agrees_with_the_replay_over_generated_chains() {
         if rng.below(2) == 0 {
             steps.push(Step::LineTo(Target::Start));
         }
-        let (fillet, overrun) = check(&steps, tol, &mut out);
+        let (fillet, overrun, _) = check(&steps, tol, &mut out);
         fillets += fillet;
         overruns += overrun;
     }
@@ -401,7 +430,7 @@ fn a_replays_drawing_agrees_with_the_replay_over_the_perturbed_corpus() {
         }
     };
     let mut out = Vec::new();
-    let (mut fillets, mut overruns) = (0, 0);
+    let (mut fillets, mut overruns, mut entries) = (0, 0, 0);
     for closed in crate::common::coverage_corpus() {
         let steps = closed.program.clone();
         for (i, s) in steps.iter().enumerate() {
@@ -412,9 +441,10 @@ fn a_replays_drawing_agrees_with_the_replay_over_the_perturbed_corpus() {
                 for flip in [false, true] {
                     let mut p = steps.clone();
                     p[i] = perturbed(p[i], k, flip);
-                    let (fillet, overrun) = check(&p, tol, &mut out);
+                    let (fillet, overrun, entry) = check(&p, tol, &mut out);
                     fillets += fillet;
                     overruns += overrun;
+                    entries += entry;
                 }
             }
         }
@@ -423,6 +453,10 @@ fn a_replays_drawing_agrees_with_the_replay_over_the_perturbed_corpus() {
     assert!(
         overruns >= 10,
         "the corpus refuses fillets on the anchor fit: {overruns}"
+    );
+    assert!(
+        entries >= 10,
+        "the corpus's anchor-fit entries, each with its record: {entries}"
     );
     assert!(
         out.is_empty(),

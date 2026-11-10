@@ -186,9 +186,9 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
-    CornerRefusal, CornerWindow, EscalatedAt, LegFit, LineTarget, OntoTarget, Open, PartialPath,
-    PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Recourse, Start, Sweep,
-    TangentArcTarget, TurnLever, Via, circle, circle_split, rectangle,
+    CornerRefusal, CornerWindow, EscalatedAt, LegFit, LeverValue, LineTarget, OntoTarget, Open,
+    PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Recourse, Start,
+    Sweep, TangentArcTarget, TurnLever, Via, circle, circle_split, rectangle,
 };
 pub use seg::ArcRead;
 /// The path door's read-back rounding bounds and its magnitude
@@ -207,9 +207,9 @@ pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::ARC_SCENE_RESOLUTION_RECOURSE;
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,
-    FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, PINNED_UNDER_GUIDANCE, ProfileError,
-    SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, ValueNotAPoint,
-    is_full_turn,
+    FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, OverrunLegs, PINNED_UNDER_GUIDANCE,
+    ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+    ValueNotAPoint, is_full_turn,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed

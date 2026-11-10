@@ -534,7 +534,9 @@ the other carrier, the smaller over the candidate's overrun legs, each
 leg's solution taken on the branch of the candidate it belongs to. The
 tangency condition is linear in the radius on both leg kinds, so it is
 a closed form at the site, not a search; it is `None` only where that
-form degenerates.
+form degenerates. Beside that boundary it carries the same form with
+each anchor moved toward the corner by the clearance below, the radius
+at which every overrun leg's fit margin is that clearance.
 
 The two numbers meter the two levers, each stated as the value to set
 rather than an amount to add. A leg fits when its anchor lies at least
@@ -542,11 +544,14 @@ rather than an amount to add. A leg fits when its anchor lies at least
 carrier that stays put changes `available` one for one, so `setback` is
 the anchor's target; `radius_at_anchor` is this corner's bound for the
 radius. The sentence names, for each overrunning leg, where its anchor
-must lie, and the radius, each rendered strictly on the fitting side of
-the exact value (an exact boundary value typed back lands in the band):
+must lie, and the radius, each named on its fitting side past the fit
+gate's band — where that leg's fit margin is twice the band's
+escalation threshold — and spelled as the shortest decimal beyond that
+(the exact boundary, or a value inside the band, typed back refuses
+again as an escalation):
 "anchor that leg at least S m from the corner, or use a radius of X m or
-less" (the sentence's cause clause has already given both legs' setbacks
-and where their anchors are). It promises this corner's
+less" (the sentence's cause clause has already given each overrunning
+leg's setback and where its anchor is). It promises this corner's
 anchor fit and nothing more; a smaller radius can still refuse at
 another gate, in that gate's own words. Where `radius_at_anchor` is
 `None` the radius lever is named without a value. A corner's recourse

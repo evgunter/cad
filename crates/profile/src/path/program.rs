@@ -3419,24 +3419,28 @@ impl<T: Real> Drawing<T> {
         self.on(step, |built| built.fit = Some(fit));
     }
 
-    /// The open fillet's fit refused on the anchor fit, reporting
-    /// these candidates. The fit does not know its step, and needs not:
-    /// only one fillet is open at a time, and it is the last filed.
-    pub(crate) fn overran(&self, overruns: Vec<Overrun<T>>) {
-        self.with(|drawn| {
-            if let Some(built) = drawn.last_mut() {
-                built.fit = Some(FilletFit::Overrun(overruns));
-            }
-        });
+    /// The fit of the fillet `step` opened refused on the anchor fit,
+    /// reporting these candidates.
+    pub(crate) fn overran(&self, step: usize, overruns: Vec<Overrun<T>>) {
+        self.on(step, |built| built.fit = Some(FilletFit::Overrun(overruns)));
     }
 
     /// Writes into the record of the fillet `step` opened. Only one
     /// fillet is open at a time, so it is the last one filed.
+    ///
+    /// # Panics
+    ///
+    /// Where the last record filed is not `step`'s, or none is: a
+    /// binder or fit writing to a fillet that did not open, which only
+    /// a defect in the lattice's recording reaches, never an authoring.
     fn on(&self, step: usize, f: impl FnOnce(&mut FilletConstruction<T>)) {
-        self.with(|drawn| {
-            if let Some(built) = drawn.last_mut().filter(|built| built.step == step) {
-                f(built);
-            }
+        self.with(|drawn| match drawn.last_mut() {
+            Some(built) if built.step == step => f(built),
+            last => unreachable!(
+                "kernel defect: fillet step {step} wrote its construction, but the open \
+                 record is {:?}",
+                last.map(|built| built.step)
+            ),
         });
     }
 

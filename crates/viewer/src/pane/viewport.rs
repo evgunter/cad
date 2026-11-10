@@ -3683,6 +3683,52 @@ mod tests {
         assert_eq!(crossed([3.0, 2.5], false), 2, "the arrival tangent point's");
     }
 
+    /// **A turn refusal marks the corner it names**: the ray east at
+    /// height `y = 2 − 10⁻⁴`, starting 50 ε short of where it crosses
+    /// the circle of radius 2 about the origin, filleted onto that
+    /// circle. The arc door derives the corner (the crossing) before its
+    /// turn gate, whose levered margin is below the band, so the refusal
+    /// is the turn at tolerance at that corner, and the construction
+    /// marks it.
+    ///
+    /// Red if a turn refusal's corner is not marked.
+    #[test]
+    fn a_turn_refusal_marks_its_corner() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{ArcData, ArcSweep, Step, Target};
+        let y = 2.0_f64 - 1e-4;
+        let cx = -(4.0 - y * y).sqrt();
+        let steps = vec![
+            Step::At(Point2::new(cx - 50.0 * Tol::witness().eps(), y)),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::FilletArc {
+                radius: 0.05,
+                spec: ArcData::Center {
+                    c: Point2::new(0.0, 0.0),
+                    winding: ArcSweep::Ccw,
+                    target: Target::Point(Point2::new(0.0, -2.0)),
+                },
+            },
+            Step::LineTo(Target::Point(Point2::new(-3.0, -3.0))),
+            Step::LineTo(Target::Point(Point2::new(-3.0, 3.0))),
+            Step::LineTo(Target::Start),
+        ];
+        let (previews, constructions) = door(&[steps]);
+        assert!(
+            matches!(&previews.edit, Some(Err(_))),
+            "a fixture whose fillet refuses: {previews:?}"
+        );
+        let built = constructions
+            .edit
+            .as_ref()
+            .expect("the edit door drew its construction");
+        assert_eq!(built.refused_corners.len(), 1, "{built:?}");
+        assert!(
+            built.refused_corners[0].distance(Point2::new(cx, y)) < 1e-9,
+            "the crossing: {built:?}"
+        );
+    }
+
     /// **A wrong-side refusal draws the side it names**: the vesica
     /// with its incoming arc wound the other way refuses ("this corner
     /// lies behind the incoming ray's start"), and the heading mark at

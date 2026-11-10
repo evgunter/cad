@@ -35,7 +35,26 @@ which puts one more row over by two words:
 - `ProfileReplay/Path/NoCornerForFillet(turn, leg)`: 77 words
   (`crates/editor-core/tests/refusal_concision_chains.rs`, `OVER_BUDGET`).
 
-Each is admitted at that ceiling, citing this row. What is owed is a
+Each is admitted at that ceiling, citing this row.
+
+The rows above are synthetic. The kernel's own sentences show the
+size of the problem. Measured over grid A's 3 148 anchor-fit refusals
+(`crates/profile/tests/common/mod.rs`, `grid_a`) at the default ε,
+after the levers were named past the fit gate's band, which changed
+their digits but not their word counts:
+
+- 828 sentences are over 75 words, and the longest is 93;
+- by word count (five-word bins from the bin's floor): 1 457 at 50,
+  155 at 60, 20 at 65, 688 at 70, 10 at 75, 596 at 80, 92 at 85 and
+  130 at 90;
+- the over-budget ones list a second corner. The longest names both
+  legs' setbacks at one corner and a swallowed carrier at the other;
+- the line×arc grid's 246 are all within budget, the longest 63
+  words;
+- a synthetic pair with both legs overrun at both corners renders 107
+  words.
+
+What is owed is a
 shape that fits: the per-corner clauses are the bulk (a second
 corner's reason is fifteen words or more), so the likelier repair is a
 shorter per-corner clause, or a pair sentence that names the corner

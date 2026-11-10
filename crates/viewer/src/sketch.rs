@@ -53,8 +53,9 @@ use pncad::geom_core::{Arc2, Point2, Point3, Tol, Vec2};
 use pncad::profile::path::program::{FilletConstruction, replay_drawn};
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, ConstructedLoop, ConstructedProfile, PathErrorKind,
-    PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
-    Step, Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_recording,
+    PathNoCornerReason, PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure,
+    SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb, arc_specs_at, replay,
+    replay_recording,
 };
 use pncad::quantity::UnitDef;
 
@@ -1621,6 +1622,15 @@ pub fn drawn(
             ReplayErrorKind::Path(pncad::profile::PathError::NoCornerOfPair {
                 corners, ..
             }) => corners.iter().map(|c| c.at).collect(),
+            // The turn refusal names its corner where the door derived
+            // one before its turn gate (the arc door).
+            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerForFillet {
+                reason:
+                    PathNoCornerReason::TurnWithinTolerance {
+                        corner: Some(at), ..
+                    },
+                ..
+            }) => vec![*at],
             _ => Vec::new(),
         })
         .collect();
@@ -1644,8 +1654,9 @@ pub struct Construction {
     pub plane: SketchPlane<f64>,
     /// Every loop's fillet steps, in loop order and then program order.
     pub steps: Vec<FilletConstruction<f64>>,
-    /// Each corner a loop's refusal names ([`pncad::profile::CornerRefusal::at`]),
-    /// in loop order and then the refusal's own.
+    /// Each corner a loop's refusal names ([`pncad::profile::CornerRefusal::at`],
+    /// and a turn refusal's corner), in loop order and then the
+    /// refusal's own.
     pub refused_corners: Vec<pncad::geom_core::Point2<f64>>,
 }
 

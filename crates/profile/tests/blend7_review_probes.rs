@@ -127,8 +127,11 @@ fn entry_tag(reason: &CornerReason<f64>) -> String {
             "Encloses({side:?},R={carrier_radius},rho={offset_radius},bound={largest_tangent_radius:?})"
         ),
         CornerReason::NoTangentCircle(reason) => format!("NoTangent({reason:?})"),
-        CornerReason::AnchorOutsideTrimmedExtent { legs, .. } => {
-            format!("AnchorFit({:?})", crate::common::worse_leg(legs).0)
+        CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+            format!(
+                "AnchorFit({:?})",
+                crate::common::worse_leg(legs, *overrun).0
+            )
         }
         CornerReason::OutsideAnchors(window) => format!("Outside({window:?})"),
     }
