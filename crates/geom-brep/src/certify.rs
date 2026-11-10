@@ -3975,15 +3975,12 @@ fn decide_turn<T: Decide>(
     // radius (`|dP/dv| ≥ r`). The winding bound is the
     // 8kτ sample-alias argument about the parameter period, which all
     // three share.
-    Ok(match &spec.carrier {
-        periodic @ (Curve3::Circle(..) | Curve3::Ellipse(..) | Curve3::Spiric { .. }) => {
+    Ok(match (spec.carrier.period(), &spec.carrier) {
+        // A carrier with a period (`Curve3::period`).
+        (Some(one_turn), periodic) => {
             let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {
                 unreachable!("check 2: `speed_floor` answers every periodic carrier")
             };
-            // Each kind's own period: a conic's, or the spiric's.
-            let one_turn = periodic
-                .conic()
-                .map_or_else(geom::spiric_period, |conic| conic.period());
             // Forward at the floor, or, short of it, by the chord between
             // the span's end points with its sense at the sup speed: a
             // short span at an ellipse's fast vertex reads its arc at up
@@ -4015,6 +4012,9 @@ fn decide_turn<T: Decide>(
                 turn: wound(turn)?,
             })
         }
+        // A carrier with no period and no net: a line. A conic and a spiric
+        // have a period (`Curve3::period`), so they arrive above.
+        //
         // A line's span is forward in parameter, and then in metres where
         // its `dir` is the zero vector: such a line names one point at
         // every parameter, so no span on it is forward, and it refuses as
@@ -4023,9 +4023,17 @@ fn decide_turn<T: Decide>(
         // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
         // The metres decision runs on that line alone, so every other
         // line's span is decided once, as before.
-        line @ Curve3::Line(geom::Line { dir, .. }) => {
+        (
+            None,
+            line @ (Curve3::Line(_)
+            | Curve3::Circle(_)
+            | Curve3::Ellipse(_)
+            | Curve3::Spiric { .. }),
+        ) => {
             forward(Margin::of(span))?;
-            if matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero)) {
+            if line.as_line().is_some_and(|geom::Line { dir, .. }| {
+                matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero))
+            }) {
                 forward(Margin::metered(
                     span,
                     geom::carrier_speed::speed_range(line).0,
@@ -4061,7 +4069,7 @@ fn decide_turn<T: Decide>(
         // `degree + 1`), and `d1 - d0` of two distinct finite `f64`s in
         // that order is positive, so the sign this gate refuses is the
         // meter's alone.
-        Curve3::Nurbs(n) => {
+        (None, Curve3::Nurbs(n)) => {
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.knot_values().domain();
             let net_length = Margin::metered(d1 - d0, meter);

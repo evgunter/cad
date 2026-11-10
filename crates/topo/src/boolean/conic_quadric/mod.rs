@@ -520,7 +520,7 @@ fn through_the_apex<T: Decide>(
     use ThroughTheApex::{Clear, Read};
     let two = T::from_f64(2.0);
     let mid = geom::mid_param(t0, t1);
-    let near_mid = |theta: T| conic.period().near(theta, mid);
+    let near_mid = |theta: T| geom::conic_period().near(theta, mid);
     // Past every bound: a reading no bound holds refuses.
     let unbounded = T::from_f64(f64::INFINITY);
     // The apex's parameter on the conic, its projection's off the plane.
