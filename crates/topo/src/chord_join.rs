@@ -1950,7 +1950,10 @@ fn oriented_arc<T: Decide>(
     to: ArcEnd<T>,
     ccw: bool,
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
-    let tau = T::tau();
+    // The curve's turn is its carrier's own period (`Curve3::period`).
+    let Some(turn) = conic.carrier().period() else {
+        unreachable!("a section curve's carrier is a conic or a spiric, which close")
+    };
     // The span forward from `th1` to a distinct end, in `[0, τ)`: a
     // chord may span more than half the conic. Its window jumps at a
     // span of zero, two ends sharing a conic parameter, which is either
@@ -1962,15 +1965,15 @@ fn oriented_arc<T: Decide>(
     // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
         let span = match to {
-            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th1, th2),
-            ArcEnd::WholeTurn => tau,
+            ArcEnd::At(th2) => turn.run_from(th1, th2),
+            ArcEnd::WholeTurn => turn.length(),
         };
         Ok((conic.carrier().clone(), th1, th1 + span))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
         let span = match to {
-            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th2, th1),
-            ArcEnd::WholeTurn => tau,
+            ArcEnd::At(th2) => turn.run_from(th2, th1),
+            ArcEnd::WholeTurn => turn.length(),
         };
         let flipped = conic
             .carrier()
@@ -2001,16 +2004,15 @@ fn chord_arc<T: Decide>(
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
     let seamed = match curve {
         SectionCurve::Conic(conic) => {
-            let (tau, half) = (T::tau(), T::from_f64(0.5));
+            let half = T::from_f64(0.5);
+            let Some(turn) = conic.carrier.period() else {
+                unreachable!("a section conic's carrier is a circle or an ellipse, which close")
+            };
             let th1 = conic.param(p1);
             let middle = match p2 {
                 None => th1,
-                Some(p2) if ccw => {
-                    th1 + geom_core::period::Period::new(tau).run_from(th1, conic.param(p2)) * half
-                }
-                Some(p2) => {
-                    th1 - geom_core::period::Period::new(tau).run_from(conic.param(p2), th1) * half
-                }
+                Some(p2) if ccw => th1 + turn.run_from(th1, conic.param(p2)) * half,
+                Some(p2) => th1 - turn.run_from(conic.param(p2), th1) * half,
             };
             SectionCurve::Conic(conic.seamed_near(middle))
         }

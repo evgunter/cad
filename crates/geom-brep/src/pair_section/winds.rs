@@ -198,7 +198,8 @@ enum Channel {
     Axis(geom::Frame<f64>),
     /// About a torus's core circle: the circle of its major radius on
     /// its frame. Its seam is the torus's own and no reading here reads
-    /// it.
+    /// it, which keeps no holder off `geom::Circle` (its "Who holds
+    /// one").
     Core(geom::Circle<f64>),
 }
 

@@ -2784,7 +2784,10 @@ impl<T: Decide> CarriedComponent<T> {
             ));
         }
         let (lo, hi) = self.span;
-        let t = geom_core::period::Period::new(T::tau()).at_or_above(t, lo);
+        let Some(turn) = self.carrier.period() else {
+            unreachable!("a circle or an ellipse carrier has a period (`Curve3::period`)")
+        };
+        let t = turn.at_or_above(t, lo);
         let speed = self.carrier.ders1(t).1.norm();
         use geom_core::NonzeroSign;
         use geom_core::k_stats::decide_nonzero;
