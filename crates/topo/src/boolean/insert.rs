@@ -68,6 +68,7 @@
 //! to.
 
 use geom_core::NonzeroSign;
+use geom_core::ladder::{Answering, Rung, climb};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
@@ -1454,9 +1455,15 @@ fn held_cut<T: Decide>(
         lo.entry
     );
     let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
-    for &cut in cuts {
+    // Any cut the run holds answers, whatever an earlier cut read
+    // ([`climb`], [`Answering::Any`]): the owner only names the
+    // `SharedVertexCrossings` refusal its caller raises. A cut read in
+    // band is kept by its standing ([`BooleanError::refusal`]), refusing
+    // only where no other cut is held. Each cut's reads are premises of
+    // one another, so they stay inside its rung.
+    let holds = |cut: OtherCut<T>| -> Result<bool, BooleanError> {
         let at = cut.at;
-        let held =
+        Ok(
             if strut && (secs[at.entry].he != secs[lo.entry].he || nested(secs, own, cut, band)?) {
                 false
             } else {
@@ -1466,12 +1473,14 @@ fn held_cut<T: Decide>(
                     [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
                     [Some(true), Some(true)] => true,
                 }
-            };
-        if held {
-            return Ok(Some(cut.owner));
-        }
-    }
-    Ok(None)
+            },
+        )
+    };
+    climb(Answering::Any, cuts.iter().copied(), |cut| {
+        Rung::holds(holds(cut), cut.owner, BooleanError::refusal)
+    })
+    .into_reading()
+    .and_then(Option::transpose)
 }
 
 /// Whether `cut`'s run is a strut that the strut segment `own` holds
