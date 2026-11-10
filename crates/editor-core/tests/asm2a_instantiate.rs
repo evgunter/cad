@@ -22,8 +22,8 @@ use std::sync::Arc;
 use editor_core::{
     CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
     Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, ProductErrorKind, ProfileDoc,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, content_pin, evaluate, load,
-    product_named, save,
+    RecipeNodeId, RecordMispairing, ResolveFailure, ResolveFault, RoleSeg, StableName, content_pin,
+    evaluate, load, product_named, save,
 };
 use fixture::{insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -376,6 +376,80 @@ fn an_instance_of_a_part_the_record_never_built_is_refused_before_entering_it() 
         bound.result(ids[0])
     );
     assert_eq!(bound.part_evaluations, 0, "no part was entered");
+}
+
+/// A resolver that answers every reference by its id alone, ignoring
+/// its pin: A4's premise broken, which no shipped resolver does.
+#[derive(Debug)]
+struct PinBlind(BTreeMap<DocumentId, ProfileDoc>);
+
+impl PartResolver for PinBlind {
+    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
+        self.0
+            .get(&doc_ref.id)
+            .cloned()
+            .ok_or_else(|| ResolveFailure {
+                fault: ResolveFault::Unresolved,
+                message: "no such document".to_string(),
+            })
+    }
+}
+
+/// **A dual's part run is paired with the record's build of that part
+/// by content, not by its key alone** (DUAL-DESIGN DL3): where the
+/// dual's resolver answers the part's pin with other content than the
+/// record's did, the dual reads none of it, and its instance is refused
+/// as mispaired (`RecordMispaired(Revision)`), not built from a document
+/// the record never read.
+#[test]
+fn a_dual_part_whose_resolver_answers_the_pin_with_other_content_is_mispaired() {
+    let label = "asm2a-dual-other-content";
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(part(label, 0.0, 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (doc, ids) = placed_assembly("asm2a-dual-other-content-asm", &[doc_ref], &opts);
+    let cancel = CancelToken::new();
+    let record = evaluate::<f64>(&doc, None, &cancel, &opts.of_record(), Tol::witness());
+    assert!(
+        matches!(record.result(ids[0]), Some(NodeResult::Ok(_))),
+        "the record builds the part it resolved"
+    );
+    let other = part(label, 0.0, 2.0);
+    assert_eq!(other.id(), doc_ref.id, "the same document id");
+    assert_ne!(
+        content_pin(&other, Tol::witness()).expect("the pin computes"),
+        doc_ref.pin,
+        "other content"
+    );
+    let blind = EvalOptions {
+        resolver: Some(Arc::new(PinBlind(BTreeMap::from([(other.id(), other)])))),
+        ..EvalOptions::default()
+    };
+    let bound = editor_core::evaluate_recorded::<geom_core::Dual64>(
+        &doc,
+        None,
+        &record,
+        &cancel,
+        &blind,
+        Tol::witness(),
+    );
+    let fault = match bound.result(ids[0]) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::Part { fault, .. } => fault.clone(),
+            other => panic!("expected a Part refusal, got {other:?}"),
+        },
+        other => panic!("expected a failed instance, got {other:?}"),
+    };
+    let (_, refusal) = fault
+        .carried()
+        .expect("the fault carries the part's refusal");
+    assert!(
+        matches!(
+            refusal.kind(),
+            NodeErrorKind::RecordMispaired(RecordMispairing::Revision)
+        ),
+        "the part's run is mispaired with the record's build: {refusal:?}"
+    );
 }
 
 // ---- Row 1: two instances at different frames ----
