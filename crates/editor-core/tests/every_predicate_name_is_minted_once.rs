@@ -47,42 +47,84 @@ fn every_predicate_name_is_minted_once_tree_wide() {
     assert!(shared.is_empty(), "names minted twice: {shared:#?}");
 }
 
-/// **Only a crate's row registry mints a two-row turn bundle**: a call of
-/// `TurnRows::registered` in any crate's `src` lies in a `rows.rs`, where
-/// the registry's own bundle type wraps it. Anywhere else it would mint
-/// two names outside every roster.
+/// **Every row bundle is minted in its crate's registry, and nowhere
+/// else**, read once for every crate here, over the shared Rust reader
+/// (`test_utils::source`, comments and literals blanked):
+///
+/// - a call of `TurnRows::registered`, the one door to a two-row turn
+///   bundle outside geom-core, lies in a `rows.rs`, where that crate's
+///   registry wraps it in a bundle type of its own;
+/// - a `rows.rs` declares no `const` of one of its bundle types outside
+///   its `row_registry!` blocks, where it would escape the derived
+///   roster. Its bundle types are read off the consts inside the blocks,
+///   so a new type is covered the day its first const lands.
 #[test]
-fn only_a_registry_mints_a_two_row_turn_bundle() {
-    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+fn every_row_bundle_is_minted_in_its_registry() {
+    use test_utils::source::{balanced_end, code_only, repo_root, rust_sources};
+    let crates = repo_root(env!("CARGO_MANIFEST_DIR")).join("crates");
+    let mut minted_outside = Vec::new();
     let mut stray = Vec::new();
-    let mut stack: Vec<std::path::PathBuf> = std::fs::read_dir(&crates)
-        .unwrap()
-        .map(|e| e.unwrap().path().join("src"))
-        .filter(|p| p.is_dir())
-        .collect();
-    let mut read = 0;
-    while let Some(dir) = stack.pop() {
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if path.extension().is_some_and(|x| x == "rs") {
-                read += 1;
-                let text = std::fs::read_to_string(&path).unwrap();
-                let defines = path.ends_with("geom-core/src/period.rs");
-                let calls = text
-                    .lines()
-                    .filter(|l| !l.trim_start().starts_with("//"))
-                    .any(|l| l.contains("TurnRows::registered("));
-                if calls && !defines && !path.ends_with("rows.rs") {
-                    stray.push(path.display().to_string());
+    let mut registries = 0;
+    for entry in std::fs::read_dir(&crates).unwrap() {
+        let src = entry.unwrap().path().join("src");
+        if !src.is_dir() {
+            continue;
+        }
+        for path in rust_sources(&src) {
+            let code = code_only(&std::fs::read_to_string(&path).unwrap());
+            let is_registry = path.ends_with("rows.rs");
+            if !is_registry
+                && !path.ends_with("geom-core/src/period.rs")
+                && code.contains("TurnRows::registered(")
+            {
+                minted_outside.push(path.display().to_string());
+            }
+            if !is_registry || !code.contains("row_registry!") {
+                continue;
+            }
+            registries += 1;
+            let mut blocks = Vec::new();
+            let mut at = 0;
+            while let Some(hit) = code[at..].find("row_registry!") {
+                let open = at + hit + code[at + hit..].find('{').unwrap();
+                let end = balanced_end(&code, open).unwrap();
+                blocks.push(open..end);
+                at = end;
+            }
+            // `const NAME: TYPE`, at each `const ` that starts a declaration.
+            let decls: Vec<(usize, &str)> = code
+                .match_indices("const ")
+                .filter(|(k, _)| *k == 0 || !code.as_bytes()[k - 1].is_ascii_alphanumeric())
+                .filter_map(|(k, _)| {
+                    let rest = &code[k + "const ".len()..];
+                    let (name, after) = rest.split_once(':')?;
+                    if !name.trim().chars().all(|c| c.is_alphanumeric() || c == '_') {
+                        return None;
+                    }
+                    let ty = after.split(['=', ';']).next()?.trim();
+                    Some((k, ty))
+                })
+                .collect();
+            let inside = |k: usize| blocks.iter().any(|b| b.contains(&k));
+            let types: std::collections::BTreeSet<&str> = decls
+                .iter()
+                .filter(|(k, _)| inside(*k))
+                .map(|&(_, ty)| ty)
+                .collect();
+            for &(k, ty) in &decls {
+                if !inside(k) && types.contains(ty) {
+                    stray.push(format!("{}: const of {ty} at byte {k}", path.display()));
                 }
             }
         }
     }
-    assert!(read > 100, "the crates' sources were read: {read} files");
+    assert!(registries >= 3, "the registries were read: {registries}");
+    assert!(
+        minted_outside.is_empty(),
+        "two-row turn bundles minted outside a registry: {minted_outside:#?}"
+    );
     assert!(
         stray.is_empty(),
-        "two-row turn bundles minted outside a registry: {stray:#?}"
+        "bundle consts outside their registry's block: {stray:#?}"
     );
 }

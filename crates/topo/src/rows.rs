@@ -812,28 +812,3 @@ mod roster_rows {
         assert_eq!(geom_core::rows::first_shared_in(&all), None);
     }
 }
-
-#[cfg(test)]
-mod registry_source {
-    /// **No bundle const of this registry lies outside its
-    /// `row_registry!` blocks**, where it would escape the derived roster
-    /// ([`geom_core::rows::consts_outside_registry`]).
-    #[test]
-    fn every_bundle_const_is_in_the_registry_block() {
-        let stray = geom_core::rows::consts_outside_registry(
-            include_str!("rows.rs"),
-            &[
-                "ParityRows",
-                "SegmentRows",
-                "ArcRows",
-                "BoundaryRows",
-                "WedgeNames",
-                "RayRows",
-                "ChartRows",
-                "ConicRows",
-                "RoleNames",
-            ],
-        );
-        assert!(stray.is_empty(), "consts outside the registry: {stray:#?}");
-    }
-}

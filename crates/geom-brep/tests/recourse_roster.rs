@@ -96,6 +96,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("PLANE_INCIDENT"),
     NameCarrier::Const("CYLINDER_RADIUS"),
     NameCarrier::Const("SPHERE_RADIUS"),
+    NameCarrier::Call("FirstHarmonicRows"),
     NameCarrier::Call("HalfAngleRows"),
     NameCarrier::Call("QuarticRows"),
     NameCarrier::Call("SubdivisionRows"),
