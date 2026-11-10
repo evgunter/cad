@@ -1776,7 +1776,9 @@ impl<S: Real> Meters<S> {
     /// **A part's reading in certification arithmetic**
     /// ([`SpanHull::meters`]): [`Self::over`] with each lever taken where
     /// `positive` certifies it, else [`Self::apex_root`]; `None` where
-    /// neither reads.
+    /// neither reads. On a sheet, each of those and [`Self::at_height`]
+    /// bounds the part's distance from the sheet, and the reading is the
+    /// least that reads.
     pub(crate) fn certified(
         self,
         f: S,
@@ -1933,35 +1935,15 @@ impl<S: Real> Meters<S> {
                 } else {
                     z2(z.0).min(z2(z.1))
                 };
-                // `(ρ + R)² − r²` as `ρ(ρ + 2R) + (R − r)(R + r)`, which
-                // keeps its digits where the sheet nears the axis: at a
-                // horn's cusp both terms vanish.
-                let radial = |at: S| at * (at + major + major) + (major - minor) * (major + minor);
-                let (lo, hi) = (radial(rho), radial(rho_hi));
-                let least = lo.min(hi) + z_min;
-                let most = lo.max(hi) + z2(z.0).max(z2(z.1));
+                let (lo, hi) = ((rho + major).powi(2), (rho_hi + major).powi(2));
+                let least = lo.min(hi) + z_min - minor.powi(2);
+                let most = lo.max(hi) + z2(z.0).max(z2(z.1)) - minor.powi(2);
                 // `σ = sgn R`, decided at rest (`geom::meridian_side`).
                 let sigma = geom::meridian_side(major);
                 let half = S::from_f64(0.5);
                 let outer = ((S::one() + sigma) * least - (S::one() - sigma) * most) * half;
                 let d = torus(positive(outer, Lever::Divisor)?, minor);
-                // The sheet's side of the lines from the tube centre
-                // through its apexes, `h(ρ − R) + R|z| ≥ 0`, at the box's
-                // least: an apple's `ρ ≥ R` clears it whatever `|z|`.
-                let h = geom::sheet_apex(major, minor).height;
-                let abs = |at: f64| S::from_computed(at).abs();
-                let z_far = abs(z.0).max(abs(z.1));
-                let z_near = if z.0 <= 0.0 && 0.0 <= z.1 {
-                    S::zero()
-                } else {
-                    abs(z.0).min(abs(z.1))
-                };
-                let apple = (rho - major).max(major * z_near + h * (rho - major));
-                let lemon = major * z_far + h * (rho - major);
-                positive(
-                    ((S::one() + sigma) * apple + (S::one() - sigma) * lemon) * half,
-                    Lever::Side,
-                )?;
+                positive(minor * rho - d * major.abs(), Lever::Side)?;
                 d
             }
         })
