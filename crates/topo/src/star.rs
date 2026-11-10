@@ -1,15 +1,71 @@
 //! **A vertex's neighbourhood cut by a surface** (DESIGN
-//! `[one-way.places]`): the runs of its orbit on the side a verb moves,
-//! where each run's null edge lands, the tree its struts hang as, and
-//! the mint. A verb supplies its entries' sides ([`Member`]) and which
+//! `[one-way.places]`): the vertex's star — its bounds and the sectors
+//! between them — the runs of its orbit on the side a verb moves, where
+//! each run's null edge lands, the tree its struts hang as, and the mint.
+//! A verb supplies its datums, its reading of each bound's side, and which
 //! circle carries its chords; the star reads the orbit.
 //!
-//! The rest of the row's home lives in each verb today: the sector walk
-//! in `splitting::neighborhood` and `boolean::sectors`, the cuts and
-//! their germs in `splitting::insert` (`section_chords`, `apex_germ`)
-//! and in `boolean::vtxfac` and `boolean::sectors` (`pierce_germ_dir`,
-//! `germ_locus`), and the germs' order in `splitting::insert` and
-//! `boolean::vtxfac` (`germ_order`).
+//! The cuts and their germs still live in each verb: `splitting::insert`
+//! (`section_chords`, `apex_germ`) and `boolean::vtxfac` and
+//! `boolean::sectors` (`pierce_germ_dir`, `germ_locus`), and the germs'
+//! order in `splitting::insert` and `boolean::vtxfac` (`germ_order`).
+//!
+//! # The walk
+//!
+//! [`Star::walk`] reads no side. It is the cyclic list of the vertex's
+//! bounds ([`Bound`]: a half-edge, real or a divider, a unit direction,
+//! and what stands behind it, a [`crate::bound_side::BoundSupport`]),
+//! each with the sector after it ([`Sector`]: its face, what the face is
+//! at the vertex, a tangent plane or a cone's apex, its bend and its
+//! arm). A real edge's reach is the edge's: a line's chord to its far
+//! vertex, a curved edge's departure tangent at its extent with its bend
+//! and its arc ([`departure`]).
+//!
+//! Every sector is convex in its own geometry:
+//!
+//! - a reflex or straight corner of a tangent plane is cut at its
+//!   bisector, and a slit tip's or a wrap edge's full turn is quartered
+//!   ([`geom_brep::sector_shape::corner_shape`]);
+//! - a corner at a cone's apex is a fan of rulings round the axis, not
+//!   the positive cone of its bounds: a whole turn is quartered and a
+//!   window not under a half-turn halved
+//!   ([`crate::sector_shape::apex_over_half_turn`]), so every apex sector
+//!   spans less than a half-turn.
+//!
+//! A divider's reach is levered at its sector's arm: a tangent-plane
+//! divider bends as its face's normal section along it, a ruling is
+//! straight.
+//!
+//! A vertex within the band of a cone face's axis but off its apex has
+//! neither a decided tangent plane nor an apex there, and the walk refuses
+//! it as one fault ([`StarFault::NearAxis`]), which each verb maps into
+//! its own error.
+//!
+//! # Refinement
+//!
+//! A verb's datums are the surfaces through the vertex whose sides it
+//! reads off the bounds ([`Datum`]): the splitting plane, the pierced
+//! face's tangent plane, a partner vertex's faces. [`Star::refine`] cuts
+//! every sector at each datum's extremum strictly inside it, one rule for
+//! every pair of sector and datum:
+//!
+//! - a plane along a fan of rulings: its extremal rulings
+//!   ([`crate::sector_shape::apex_extrema_inside`]);
+//! - a partner cone at the same apex along a fan: the extremal rulings of
+//!   the plane square to its axis;
+//! - a partner cone along a planar sector: the directions in the sector's
+//!   plane nearest and farthest from its axis
+//!   ([`geom_brep::cone_plane_apex_extrema`]);
+//! - a plane along a planar sector: none, its side is monotone across any
+//!   convex sector.
+//!
+//! After refinement every datum's side is monotone across every sector,
+//! so a sector's bounds decide its interior's side, and every bound's
+//! side is read through the one bound-side reading
+//! ([`crate::bound_side`]) with its descent, against the verb's datum.
+//! A line edge's side stays the verb's (the split reads its far vertex's
+//! record, the pierce its chord), as does its fold of a tie (rule (a),
+//! the lumps), its error vocabulary and its record.
 //!
 //! # Sites
 //!
@@ -66,8 +122,8 @@ use crate::euler::{EulerOpError, MevCreated, MevSite};
 use crate::live::{NAMES_ONLY_LIVE, proven};
 use crate::null::{NewVertexSide, NullEdge};
 
-/// One entry of a verb's sector walk round a vertex, as the star reads
-/// it.
+/// One bound of a star as a verb's runs read it ([`Moved`], and the
+/// pierce's entries).
 pub(crate) trait Member {
     /// The orbit half-edge the entry's sector carries.
     fn he(&self) -> HalfEdgeKey;

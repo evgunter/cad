@@ -1109,6 +1109,14 @@ fn segment<T: Decide>(
 /// One code for both is an invariant: two pieces of one operand In on
 /// the segment would overlap there, and two Out on it are each In
 /// on the rest of the orbit, and overlap there.
+///
+/// This is not [`crate::star::ring_tree`]'s parent relation, though it
+/// nests chords of one vertex: the struts are different pairs', and their
+/// germs lie inside one sector, where only a germ order places them
+/// ([`walks_before`]). One tree over every chord at the vertex needs every
+/// pair's germs in one order, and that order is the germs', not the
+/// star's: the star orders bounds, and each pair's germs sit between two
+/// of them.
 fn holds_whole<T: Decide>(
     secs: &[BoolSector<T>],
     (lo, hi, code): Segment<T>,
