@@ -29,12 +29,10 @@ Ev's standing instructions for implementation work:
 
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
-  delegated to subagents, which may spawn their own. The design,
-  specs and rulings run on Opus (Ev, 2026-09-23), and so does every
-  other phase except the Fable half of the designer pair (below) and
-  the reviewed units under `docs/MODEL-COMPARE-PROTOCOL.md` (Ev,
-  2026-11-10): their implementer's model and a single review's are
-  drawn, and a dual's two reviewers are one Opus and one Fable.
+  delegated to subagents, which may spawn their own. **Which model
+  runs a phase comes from the experiments** ([[experiments]]); where
+  none specifies it, use the default, or whatever you would normally
+  choose (Ev, 2026-11-10).
 - **Review tiers — the orchestrator's call per unit, at spec time**
   (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
   the unit's item file names the tier and its one-line reason at
