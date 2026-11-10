@@ -1482,3 +1482,5 @@
     - 6694 FULL: FIX, one MAJOR: a silent regression on `use super::door` in a child mod. Also self::/super:: path calls, cfg duplicates and ledger holes. The DESIGN Layering row's "one home… refused" clause binds future work, so it is dropped (the rule lives in reader_census).
   - **New PR 6703 (link-bisector):** the near-clearance is re-posed as the segment clearance norm; FULL review: session_013mPGJ25dtYSzPuuQWtH4AY.
   - **crease_at, ruled (i):** an undecided knot on either edge stops the join; only a decided crease picks the kept edge. Tie=crease would have moved the kept carrier or produced JoinCarrierUnsupported. It goes as its own PR.
+
+- 01:32Z merged 6700 (census-sort narrowed, text-only) at 4a474089. 6696 lane reports ready at c77de79f; queued behind 6703 mergecheck (main moved since).
