@@ -3190,7 +3190,7 @@ pub fn march_torus_torus(
 /// defect.
 ///
 /// In a debug build the count is re-derived by the ruling angle's
-/// coverage ([`ruling_coverage`]).
+/// coverage ([`coverage`](crate::pair_section::ruling::coverage)).
 ///
 /// # Errors
 ///
