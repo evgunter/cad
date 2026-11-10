@@ -183,12 +183,14 @@ pub(crate) fn side_at_closest<T: Decide>(
 pub(crate) type Landing<T> = (Point3<T>, T, bool);
 
 /// **A query read onto its surface**: its chart coordinates and its point
-/// on the surface. A leg or a corner is built from the coordinates and
-/// from nothing else, so every leg lies on the surface wherever the query
-/// lies off it. The boundary pre-pass reads the point
-/// ([`QueryFoot::read`]): off the chart's singular readings, the foot read
-/// in closed form on no chart, which the legs' start at the coordinates
-/// matches only to rounding; on them, the chart's own point.
+/// on the surface. A leg's locus is built from the coordinates (C5), so
+/// every leg lies on the surface wherever the query lies off it; a circle
+/// leg's parametrisation starts at the point
+/// ([`geom_brep::curve_pair::on_surface::SurfaceCurve::starting_at`]), and
+/// a ruling, whose origin is its locus, at the coordinates. The boundary
+/// pre-pass reads the point ([`QueryFoot::read`]): off the chart's singular
+/// readings, the foot read in closed form on no chart; on them, the
+/// chart's own point.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
     uv: Point2<T>,

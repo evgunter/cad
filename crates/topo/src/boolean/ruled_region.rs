@@ -516,7 +516,8 @@ impl<T: Decide> RuledFaceRegion<T> {
     /// The parallel through `p`, run `forward` (right-handed about the
     /// axis) or back: at the surface's own radius at `p`'s height.
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::parallel(&self.charted, p.uv(), forward);
+        let curve =
+            SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(LegShape::Parallel(Round::on(region::built(curve))))
     }
 

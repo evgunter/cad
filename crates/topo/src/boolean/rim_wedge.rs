@@ -41,9 +41,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
-use super::contain::{
-    ContainError, CurvedPlacement, FaceContainment, PlacementError, face_placement,
-};
+use super::contain::{ContainError, CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::{Body, FaceKey};
 use geom_brep::PairSide;
 use geom_brep::ladder::{Answering, IdentityLadder, Rung, climb, read_identity};
@@ -593,15 +591,15 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
     }
 }
 
-/// The predicate [`contains`] decides a midpoint on a planar face's
-/// plane by ([`super::contain::face_placement`]).
-const RIM_ON_PLANE: &str = "bool_rim_wedge_on_plane";
-
 /// Whether the face holds `p`, a piece's midpoint on its carrier, as
-/// the one placement reads it ([`super::contain::face_placement`]): `In`
-/// is `true`, `Out` is `false`, and a point the read does not place is
-/// `None`. A reading off the carrier refuses: the midpoint is on it by
-/// construction.
+/// the held placement reads it ([`placement_on_carrier`]): `In` is
+/// `true`, `Out` is `false`, and a point the read does not place is
+/// `None`. The locus was decided one with the face's boundary carrier
+/// (a decision on the carriers' data, not a construction, and no margin
+/// of the point itself is in hand), so the midpoint is held in band
+/// ([`crate::held::Held::in_band`]) and no on-plane margin is decided
+/// again. A reading definitely off a curved face's carrier (a planar
+/// face's placement never says so) contradicts that decision, a fault.
 ///
 /// **A midpoint on the face's boundary is not placed.** The cut walk
 /// puts every point where the face's boundary meets the locus at a cut,
@@ -618,20 +616,18 @@ fn contains<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, RimUnread> {
     let unread = |why| RimUnread::Unplaced { side, why };
-    let read = match face_placement(body, face, p, band, RIM_ON_PLANE) {
+    let held = crate::held::Held::in_band(p);
+    let read = match placement_on_carrier(body, face, held, band).map(|(at, _, _)| at) {
         Ok(read) => read,
         // The boundary pass placed the point at an arc's end and clear of
         // its corners, two definite readings no verdict reconciles at this
         // band: the read does not place the point, as it does not place a
         // boundary curve outside its envelope.
-        Err(PlacementError::Door(ContainError::ArcEndClearOfCorners(_))) => return Ok(None),
-        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
-            super::contain::driver_face_stale(face)
-        }
-        Err(PlacementError::OnPlane(diag)) => return Err(diag.into()),
+        Err(ContainError::ArcEndClearOfCorners(_)) => return Ok(None),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
         // Any other refusal, by its standing ([`ContainError::refusal`]):
         // a margin is the escalation, the rest leave the piece unread.
-        Err(PlacementError::Door(e)) => {
+        Err(e) => {
             return Err(match e.refusal() {
                 Ok(geom_brep::ladder::Refusal::Margin(diag)) => diag.into(),
                 _ => unread(Unplaced::Door(e)),

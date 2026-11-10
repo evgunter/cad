@@ -402,6 +402,7 @@ which is what actually moves the number.
 | geom-core/src/period.rs (`Period::turn`, **the turn rule**; asked by every row that cites it, each under its own `TurnRows`) | the caller's `TurnRows::turn` / `TurnRows::straddle` | the headroom `(period − extent)` crossed at the rate: through `Margin::metered` at an `Exact` rate and at a `Bounded` rate's inf, through `Margin::metered_sup` at its sup — at a `Bounded` site `TurnRows::turn` carries both readings, two bounds on one quantity; a straddle carries the hull of the two readings | m | OK. Each question has one home — `Period::not_over` (with the one admission of an undecided reading, `TurnUndecided::not_over_at_sup`: the sup reads the headroom definitely positive), `Period::strictly_partial`, `Period::whole_turn` — and the rows citing this one ask through them. The extent is a parameter span (an `Extent`, never reversed), so it crosses through the rate pair (`[tolerance.margins]` (iii)), never `Margin::levered`. `Over` and `Short` read the inf, the "definitely apart" side; `Whole` reads the sup, which certifies smallness; a pair whose readings disagree escalates (`k_stats::straddle`, on the straddle row). At an `Exact` rate the two reads are one |
 | certify.rs:849/858 | interval_span_forward/winding (Circle) | span × radius / (τ−span) × radius, through `Margin::metered`; the winding half is the turn rule (row above) at `Exact(radius)` | m | OK. The radius IS the carrier's own parameter rate (`|dP/dθ| = r` exactly), the same number `pcurve_cache::param_rate` mints as an `InfSpeed` for a circle, so this crossing goes through the metric door like the Nurbs arm two rows down. Exact, so it is the inf and the sup at once: the forward claim is *definitely apart* (the inf side), and the winding half admits `Whole`, a smallness claim (the sup side), which an exact rate certifies too |
 | certify.rs:872/877 | interval_span_forward/winding / interval_span_winding_straddle (Ellipse, and Spiric at its minor radius) | span × min(\|major\|, \|minor\|), through `Margin::metered`; the winding half is the turn rule (two rows up) at `Bounded(geom::carrier_speed::turn_defect_speed_lo, geom::carrier_speed::turn_defect_speed_hi)` — the inf and the sup over the gap or overlap itself, which `ConicArc` reads too: on an ellipse the speed at its middle less or plus the larger semi-axis times half its width, the inf floored at the smaller semi-axis; on a spiric the minor radius below and `spiric_rate_bounds` over the defect above — whose straddle row is `interval_span_winding_straddle` | m | OK. `|dP/dθ| ≥ min(|a|, |b|)` (the semi-axes carry no order and no sign; `minor` in the ordinary order), so the smaller semi-axis magnitude is a certified LOWER bound on the ellipse's own parameter rate — an `InfSpeed`, the same mint `param_rate` and `splitting::classify` make for the same kind. Conservative in the direction a forward claim needs |
+| certify.rs (`decide_turn`, periodic arm) | interval_span_chord / interval_span_sense (Circle, Ellipse, Spiric; `Extent::forward_by_arc`) | the chord between the span's end points, through `Margin::norm3`; then the span × the carrier's sup speed (`speed_range`), through `Margin::metered_sup` | m | OK. Read only where `interval_span_forward` at the floor is short of positive. The chord is a lower bound on the arc, as the floor's product is, so the forward claim keeps its direction; the sup reading gives it the sense the chord lacks (`Δt·sup ≥ arc ≥ |chord|`). A short span at an ellipse's fast vertex reads up to `sup/inf` less at the floor, and the chord does not |
 | certify.rs:883 | interval_span_forward (Line) | span (t IS arc length) | m | OK |
 | certify.rs:1164 | nurbs_span_meter | knot-domain length × speed_lower_bound() — the net's arc-length lower bound, reparametrization-invariant | m | OK (metered door; the collapsed-arm gate on the meter) |
 | certify.rs:1175 | interval_span_forward (Nurbs) | span × (m/param) | m | OK |
@@ -629,7 +630,7 @@ which is what actually moves the number.
 | boolean/sectors.rs (`on_planar_face`, read by `runs_in`) | bool_germ_tie_plane | a point's signed height over a face's plane, `(p − o) · n̂` with `n̂` unit | m | OK |
 | boolean/sectors.rs, fate.rs, slit.rs (`geom_brep::parting`: read by `runs_into`, `crescent`, fate.rs's `corner_holds` and slit.rs's `walls_inside`) | bool_sector_runs_into_bend / bool_sector_crescent / bool_fate_corner_bend / bool_fate_corner_bend_straddle / bool_rider_wall_bend_across | `(κ − κ_b)·û·l²/2`: two curvature vectors at a vertex where their curves leave along one tangent, across it toward the side read, at a length `l` the site sets: `runs_into` an edge against a sector bound, at the shorter of their exact reaches; `crescent` two sectors' bounds, at the shorter bound's reach; `walls_inside` the floor's and the wall's normal sections across the line an edge rides, at the wall's reach; `corner_holds` a kept edge against a dropped face's corner bound, at the lever that bound's first-order side is read at, at both its bounds where a reach is known only from both sides and their straddle under `bool_fate_corner_bend_straddle` | m | OK (one reading, one name per site: each is its own decision with its own lever, and a refusal's diagnosis and `k_stats` name the site) |
 | boolean/fate.rs (`corner_holds`, `tip_wraps`, through `sign_at`; `bisector` and `tip_wraps`' half-turn count, through `sign`) | bool_fate_corner / bool_fate_corner_straddle | `n̂ · (a × b)` and `a · b` of two unit directions at a fate cut's corner (the sine and cosine of their angle), levered at the shorter of their reaches (`sectors::reading_lever`), at both bounds where a reach is known only from both sides and their straddle under `bool_fate_corner_straddle`; a sector's bisector sum's length, and a loop's half-turn count against its corners', dimensionless, each levered at 1 m | m | OK |
-| boolean/overlap.rs (`overlap`: `place`, `sort_params`, `one_sense`) | bool_overlap_on_plane / bool_overlap_cut_order / bool_overlap_senses | a point's offset from a face's plane (through `face_placement`); two meetings' parameter difference times the carrier's speed at the span's middle; the dot of two unit outward normals, dimensionless, levered at 1 m | m | OK |
+| boolean/overlap.rs (`overlap`: `sort_params`, `one_sense`) | bool_overlap_cut_order / bool_overlap_senses | two meetings' parameter difference times the carrier's speed at the span's middle; the dot of two unit outward normals, dimensionless, levered at 1 m (`place` decides nothing: its point is held on the face's carrier, `topo::held::Held`) | m | OK |
 | boolean/reduce.rs (`sheets_part`) | bool_touch_sheets_part | `û · v̂` of two unit directions into two tangent faces at a touch of their boundaries (`stands::inward`, each about its face's outward normal), a cosine levered at the longer of the two faces' reaches from their edges (`wedge_reach`, m) | m | OK |
 | boolean/join.rs (`stands_on`) | bool_rim_face_opposed | `n̂ · n̂_f` of a closed rim's coplanar planar face and the face it meets at a boundary vertex, unit outward normals, a cosine levered at the rim face's reach from the rim (`wedge_reach`, m) | m | OK |
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified); a pair `bool_faces_parallel` reads Zero is a near-coincidence and goes to the carrier ladder with every code On (its arm-setting bound reads On or in band) | m | OK |
@@ -694,7 +695,7 @@ which is what actually moves the number.
 | pair_section/spline_implicit/curved.rs (the curved partner's `hull` and `door`, C5 stage 1) | section_nurbs_implicit_hull / section_nurbs_implicit_coincident / section_nurbs_implicit_pole | each Bézier cell's enclosure of the composite `f∘S` (`hull(N)/hull(D)`) over the upper bound of the form's distance divisor over the net's hull in the partner's frame, a floor on the distance; the largest such `|f|` through `Meters::over` at the hull's least radial reach, a ceiling on it (`decide_magnitude`); `f` at a collapsed side's point over the divisor's upper bound there | m | OK (each is a distance bound in metres through the divisor, `|f| ≤ d·divisor`, read in the direction its decision needs) |
 | pair_section/spline_implicit/sweep/critical.rs (`decide`, a critical point of `φ`, C5 stage 3) | spline_critical_value | `φ` over the Krawczyk box of `∇φ`'s one zero: on the plane its height, on a curved partner a ceiling in metres on its distance, `Meters::over` at the box's least radial reach (`decide_magnitude`) | m | OK (a distance bound in metres, read on a ceiling, so Zero is a point within the band of the partner) |
 | pair_section/spline_implicit/sweep/critical.rs (`decide`, the critical point's kind) | (no funnel: the raw sign of a certified interval) | the determinant `φ_uu·φ_vv − φ_uv²` of `φ`'s Hessian over the Krawczyk box, enclosed: `lo > 0` a touch, `hi < 0` a node, a straddle declines. It is a sign, not a margin against the band: the Krawczyk test's success already makes every Hessian in the box invertible, so the enclosure decides definiteness or declines, and no ε enters | m⁻² (the Hessian of a metre-scaled `φ` over chart units², squared) | OK (a certified sign of an enclosure, which does not funnel through `decide`) |
-| split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK (metered door; the rate is an `InfSpeed` on every kind — the three closed forms by being exact, the net by `speed_lower_bound`'s derivation — which is what an interiority claim needs) |
+| split.rs (`split_edge`'s interiority) | (`curve_pair::Span::place_param_read`'s rows) | the split point's chord to each end, then its parameter side at the carrier's sup speed | m | OK (the span's one reading; an inf-metered Zero read an arc up to the speeds' ratio of the band) |
 | `geom-core` `linalg/rigid_motion.rs` (`RigidMotion::check_rigid`, the decided door a raw map is admitted at; a motion minted by construction asks none; the translation's finiteness is `Real::is_bounded`, as at the mints, and not a band decision) | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
 | validate.rs:1795 | tangent_second_order | κ_rel × arm²/2 | m | OK |
@@ -1584,6 +1585,18 @@ Flagged, NOT fixed here (dispositions):
     (an arc's `t1 − t0`: a whole turn or none at a tie) is a reading
     of the decision, so an enclosure caller that forms one would need
     the side logged at its own band, as `pcurve_chart_cut_side` is.
+  - `geom_core::Period::run_from` (`period_run_behind`, a `k_stats::choose`
+    under this row): the side of `from` on which `near`'s copy of `to`
+    about `from` lies, which decides whether the run is that copy's gap
+    or a period more. A tie on a point takes the zero run, as
+    `at_or_above`'s closed end does; a tie on an enclosure astride `from`
+    takes the hull of both runs, held to `[0, P]`, so it encloses every
+    run of its points. A point lift is not folded onto `from`, so a `to`
+    a hair behind `from` runs a hair short of a turn. Its readers
+    (`topo::chord_join`'s oriented arcs and arc middles, `topo::shell`'s
+    half-turn test) form an extent off it at `f64`, where the side is a
+    float difference's sign and is exact; an enclosure caller would need
+    the side logged at its own band, as above.
   - `geom::Azimuth::near` (`azimuth_near_cut_side`): which of the angle
     window's two `atan2` formulas, equal modulo a turn, reads the
     direction, before `Period::near` renames the read. A harmonic's
@@ -1859,6 +1872,24 @@ Flagged, NOT fixed here (dispositions):
   reading off the carrier. Its K samples reach the sink under
   `edge_join_carried_far`. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.
+
+- **F40** (added by ONECOPY's roster-reach unit) `replay_one_cylinder`,
+  `replay_one_cylinder_axis` — `editor-core/src/coincide/replay.rs`
+  `one_cylinder`: whether two faces on cylinders are one cylinder, read
+  as one axis, one radius and one sense. Each component is decided Zero
+  or not; Zero discharges it, anything else keeps the row deferred
+  (`deferred::discharge_or_why`). It was a raw `sign_within` until this
+  unit, so its samples reached the K sink `<unnamed>`.
+  `replay_one_cylinder` takes the metre data through `Margin::of`: the
+  second axis's offset from the first, crossed with its unit direction
+  (`(ob − oa) × db`), and the radius differences (a rim's radius less its
+  cylinder's, and the two cylinders'). `replay_one_cylinder_axis` takes
+  the axes' cross product `da × db`, a sine of two unit directions,
+  **dimensionless**, through `Margin::levered` at `Lever::unsourced(1 m)`.
+  That is bit-identical to the raw read, which held the sine against the
+  band as though it were a length. **FLAG**: the lever has no source.
+  `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
+  carries the real one, with its candidates and a measurement plan.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

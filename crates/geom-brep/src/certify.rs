@@ -2097,6 +2097,12 @@ impl<T: Copy> CertifiedTurn<T> {
 
 /// Check 2's forward row, every carrier's.
 const FORWARD_ROW: &str = "interval_span_forward";
+/// Check 2's chord row: a periodic span's end points apart past the band,
+/// a lower bound on its arc where the floor under-reads it.
+const FORWARD_CHORD_ROW: &str = "interval_span_chord";
+/// Check 2's sense row: the span's parameter run at the sup speed, which
+/// gives the chord's reading its direction.
+const FORWARD_SENSE_ROW: &str = "interval_span_sense";
 
 /// Check 2's winding rows: the headroom to one period, and the straddle
 /// of a bounded rate's two readings.
@@ -3971,7 +3977,22 @@ fn decide_turn<T: Decide>(
             let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {
                 unreachable!("check 2: `speed_floor` answers every periodic carrier")
             };
-            let extent = Extent::forward(FORWARD_ROW, t0, t1, floor, band).map_err(not_forward)?;
+            // Forward at the floor, or, short of it, by the chord between
+            // the span's end points with its sense at the sup speed: a
+            // short span at an ellipse's fast vertex reads its arc at up
+            // to `sup/inf` less at the floor, and the chord does not
+            // (`Extent::forward_by_arc`).
+            let sup = geom::carrier_speed::speed_range(periodic).1;
+            let chord = periodic.eval(t1) - periodic.eval(t0);
+            let extent = Extent::forward_by_arc(
+                (FORWARD_ROW, FORWARD_CHORD_ROW, FORWARD_SENSE_ROW),
+                t0,
+                t1,
+                (floor, sup),
+                chord,
+                band,
+            )
+            .map_err(not_forward)?;
             let turn = if let Curve3::Circle(..) = periodic {
                 let rows = TurnRows::exact(WINDING_ROWS.turn);
                 one_turn.turn(rows, extent, Exact::new(floor.get()), band)
@@ -5480,6 +5501,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(0.0),
             band: band(),
+            // UNDECIDED-NAME: the stand-in cause whose check, not name, a refusal sentence words
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -5528,6 +5550,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
+            // UNDECIDED-NAME: the cause each decision's noun is read under
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -7206,6 +7229,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
+            // UNDECIDED-NAME: the cause a two-tolerance pair's recourse is read for, any name
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8194,6 +8218,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
+            // UNDECIDED-NAME: the cause each residual pair's ending is read for; the pair routes it
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8255,6 +8280,7 @@ mod tests {
         let cause = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: the cause a certificate escalation carries to its limb
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8343,6 +8369,7 @@ mod tests {
             let cause = Indeterminate {
                 margin,
                 band,
+                // UNDECIDED-NAME: the cause a decision family's sentence routes (first)
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             };
@@ -8490,6 +8517,7 @@ mod tests {
             cause: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band,
+                // UNDECIDED-NAME: the cause a decision family's sentence routes (second)
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             },
@@ -8590,6 +8618,7 @@ mod tests {
             let cause = Indeterminate {
                 margin,
                 band,
+                // UNDECIDED-NAME: the cause the import door's at-rest wording is read under
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             };
@@ -9078,6 +9107,7 @@ mod tests {
         let undecided = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: the cause a certified-bound refusal reports as its limit
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
