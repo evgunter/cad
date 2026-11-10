@@ -21,9 +21,13 @@
 //!   member the gate strictly stops early.
 //!
 //! **The roster is scaled, not sampled.** Every body here is built at
-//! a multiple of the run's own ε where that matters, so each row
-//! asserts the same thing at every ε the matrix gates rather than
-//! going quietly vacuous at one of them.
+//! a multiple of the run's own ε where that matters, and measured at a
+//! resolution scaled with it, so each row asserts the same thing at
+//! every ε the matrix gates rather than going quietly vacuous at one of
+//! them. Where that multiple of ε would pass the 1 km session box the
+//! unit and the resolution shrink together ([`unit`]); the strip, at
+//! `1e14` units, has no room at ε = 1e-6, and its rows assert the box's
+//! refusal there.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{arc_section, quad_rounds, stacked, strip_section};
@@ -58,8 +62,10 @@ fn arc_loft(s: f64) -> Body<f64> {
 /// cylinder lane are the boolean cuts, and they reach it through the
 /// same `validate_geometric` this suite drives; what this roster
 /// cannot claim is that it exercised that lane itself.
-fn roster() -> Vec<(String, Body<f64>)> {
+fn roster() -> (Vec<(String, Body<f64>)>, topo::Settle<f64>) {
     let eps = Tol::witness().get().eps;
+    // The coarse loft reaches `2·1e11` units (its top station).
+    let unit = unit(eps, 2.0e11).expect("the roster fits the session box at every ε row");
     // TWO scales, and the cost is why there are not three. Each member
     // is a certified quadrature over a rational-walled body and this
     // suite pays it three times over (gate, continuation, measurement);
@@ -70,10 +76,58 @@ fn roster() -> Vec<(String, Body<f64>)> {
     // passes where the number refuses, and the fine one is the body
     // whose schedule runs ON, so the gate and the continuation split
     // the rounds between them.
-    [1.0e11, 1.0e9]
+    let members = [1.0e11, 1.0e9]
         .iter()
-        .map(|k| (format!("arc loft @ {k:e}·eps"), arc_loft(k * eps)))
-        .collect()
+        .map(|k| (format!("arc loft @ {k:e}·unit"), arc_loft(k * unit)))
+        .collect();
+    (members, resolution(unit))
+}
+
+/// **The length a row's fixture is scaled by**: ε, or less where a
+/// fixture reaching `reach` units would pass the 1 km session box
+/// (`[tolerance.units]`), with `1024·unit` its resolution
+/// ([`resolution`]). A fixture's posture is the ratio of its size to the
+/// resolution, so scaling both keeps it. `None` where the box leaves
+/// room only for a resolution finer than ε, which no measurement takes
+/// (`Settle::Resolution`).
+fn unit(eps: f64, reach: f64) -> Option<f64> {
+    let unit = eps.min(900.0 / reach);
+    (1024.0 * unit >= eps).then_some(unit)
+}
+
+/// [`unit`]'s resolution: the pinned `1024·ε`, scaled as the fixture is.
+fn resolution(unit: f64) -> topo::Settle<f64> {
+    topo::test_support::resolution(1024.0 * unit)
+}
+
+/// The strip's scale, in [`unit`]s: `1e14`, reaching `1e14` (its half
+/// width and its height are `s`).
+const STRIP: f64 = 1.0e14;
+
+/// **The strip's unit, or the box's refusal**: where the session box
+/// holds no strip of `1e14` units whose resolution is ε or coarser (at
+/// ε = 1e-6), asserts that the door refuses the ε-scaled strip by the
+/// box and gives `None`.
+fn strip_unit(eps: f64) -> Option<f64> {
+    let unit = unit(eps, STRIP);
+    if unit.is_none() {
+        let s = STRIP * eps;
+        let refused = loft_body::<f64>(
+            &[
+                strip_section(s, 0.1 * s, false),
+                strip_section(s, 0.1 * s, false),
+            ],
+            &stacked(&[0.0, 1.0], s),
+            1,
+            Tol::witness(),
+        );
+        assert!(
+            format!("{refused:?}").contains("OutsideSessionBox"),
+            "the strip {s:e} m across at ε = {eps:e} is past the session box: {refused:?}"
+        );
+        println!("at ε = {eps:e} the strip is past the session box; its refusal is asserted");
+    }
+    unit
 }
 
 /// The thin strip lofted TWO stations high at scale `s`, its rectangle
@@ -82,9 +136,11 @@ fn roster() -> Vec<(String, Body<f64>)> {
 /// Two stations at v-degree 1, not three at degree 2: the disposition
 /// this row pins is identical either way (measured at all three ε) and
 /// the cheaper body is half the build, which is where this row's cost
-/// actually is.
+/// actually is. It is the door's construction state, short of its
+/// finish: the door's finish runs check 7, which refuses the thin strip
+/// these rows read the refusal of.
 fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
-    loft_body::<f64>(
+    sweep::test_support::loft_body_construction::<f64>(
         &[
             strip_section(s, delta, reversed),
             strip_section(s, delta, reversed),
@@ -94,7 +150,7 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
         Tol::witness(),
     )
     .ok()
-    .map(|l| l.body.into_body())
+    .map(|l| l.body)
 }
 
 /// **A deciding predicate run out at the wall is THE refusal, and it
@@ -110,7 +166,10 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
 #[test]
 fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
     let tol = Tol::witness();
-    let s = 1.0e14 * tol.get().eps;
+    let Some(unit) = strip_unit(tol.get().eps) else {
+        return;
+    };
+    let s = STRIP * unit;
     let delta = 1e-10 * s;
     let body = strip_loft(s, delta, false).expect("the strip lofts at every ε row");
     let truth = 2.0 * s * delta * s;
@@ -182,7 +241,10 @@ fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
 #[test]
 fn an_undecided_sign_with_the_schedule_run_out_refuses() {
     let tol = Tol::witness();
-    let s = 1.0e14 * tol.get().eps;
+    let Some(unit) = strip_unit(tol.get().eps) else {
+        return;
+    };
+    let s = STRIP * unit;
     let (mut admitted, mut refused) = (0usize, 0usize);
     for rel in [1e-1, 1e-10] {
         for reversed in [false, true] {
@@ -226,18 +288,16 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
                 continue;
             };
             let e = cert.enclosure();
-            let measured = cert
-                .measure(topo::test_support::pinned_resolution(tol))
-                .unwrap_or_else(|refusal| {
-                    panic!(
-                        "{label}: the certificate measures: {refusal_at}",
-                        refusal_at = refusal.render(geom_brep::recourse::Reading::AtRest)
-                    )
-                });
+            let measured = cert.measure(resolution(unit)).unwrap_or_else(|refusal| {
+                panic!(
+                    "{label}: the certificate measures: {refusal_at}",
+                    refusal_at = refusal.render(geom_brep::recourse::Reading::AtRest)
+                )
+            });
             assert_ne!(
                 measured.stop,
                 topo::Stop::Met,
-                "{label}: at s = 1e14·ε no wall reaches the resolution, yet the number \
+                "{label}: at s = 1e14 units no wall reaches the resolution, yet the number \
                  measured: {measured:?}"
             );
             assert!(
@@ -266,7 +326,8 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
 fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
     let tol = Tol::witness();
     let mut strictly_early = 0usize;
-    for (label, body) in roster() {
+    let (roster, resolution) = roster();
+    for (label, body) in roster {
         // The gate. Tier 3 must ADMIT every body here: they are all
         // valid solids, and the only thing a tight ε can take from
         // them is the number.
@@ -295,7 +356,7 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         // The continuation, and the measurement door beside it.
         let mut continued = None;
         let refine = quad_rounds(|| {
-            continued = Some(gated.measure(topo::test_support::pinned_resolution(tol)));
+            continued = Some(gated.measure(resolution));
         });
         let continued = continued.expect("the closure ran").unwrap_or_else(|e| {
             panic!(
@@ -307,13 +368,8 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         let finished =
             topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
         let mut measured = None;
-        let one = quad_rounds(|| {
-            measured = Some(topo::mass_properties(
-                &finished,
-                tol,
-                topo::test_support::pinned_resolution(tol),
-            ))
-        });
+        let one =
+            quad_rounds(|| measured = Some(topo::mass_properties(&finished, tol, resolution)));
         let measured = measured.expect("the closure ran").unwrap_or_else(|e| {
             panic!(
                 "{label}: the measurement measures: {e_at}",
