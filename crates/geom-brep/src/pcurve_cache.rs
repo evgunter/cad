@@ -3475,21 +3475,12 @@ fn spans_of(
                 && z.1.is_finite()
             {
                 meters
-                    .over(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
-                        if lower(lever, true) > 0.0 {
-                            Ok(lever)
-                        } else {
-                            Err(())
-                        }
+                    .certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
+                        lower(lever, true) > 0.0
                     })
-                    .map_or_else(
-                        |()| {
-                            meters
-                                .apex_root(point(f_sup))
-                                .map_or(f64::INFINITY, |m| upper(m, true))
-                        },
-                        |m| upper(m, true),
-                    )
+                    // `+∞` off the cone and the sheet only: on them the
+                    // apex reading always reads.
+                    .map_or(f64::INFINITY, |m| upper(m, true))
             } else {
                 f64::NAN
             };
@@ -3650,7 +3641,7 @@ mod span_memo {
 /// distance from the operand's origin and never at its distance from the
 /// world's. The twin's canonical composite along the net is converted to
 /// metres per part (the cone's and the torus's lever per part, the cone's
-/// apex root where its lever is not positive) and halved under limb 2's
+/// and the sheet's apex reading where its lever is not positive) and halved under limb 2's
 /// budget ([`projected::offset_rounds`]): a spline's rounds insert their
 /// breaks into its own net exactly, and a closed form's re-enclose the
 /// spans they cut, over [`closed_form_grid`]'s first breaks. No round
@@ -3692,13 +3683,33 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
         unreachable!("an analytic chart has a frame")
     };
     let frame = crate::carrier_net::Frame::of(o, te);
-    let (domain, grid, per_span) = match carrier {
+    let (domain, mut grid, per_span) = match carrier {
         Curve3::Nurbs(net) => (net.domain(), Vec::new(), projected::INCIDENCE_CUTS),
         _ => {
             let (lo, hi) = crate::carrier_net::outer_ends(window);
             ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
         }
     };
+    // On a sheet, an end within `10⁻⁶ r` of the axis (read in `f64`, a
+    // schedule's reading) is graded toward ([`apex_grading`]).
+    if let Surface::Spindle {
+        center,
+        axis,
+        minor_radius,
+        ..
+    } = *surface
+    {
+        let mid = |x: T| geom_core::mid_param(x.lo(), x.hi());
+        let on_axis = |t: T| {
+            let d = carrier.eval(t) - center;
+            let rho2 = mid(d.dot(d)) - mid(d.dot(axis).powi(2)) / mid(axis.dot(axis));
+            rho2 <= (1e-6 * mid(minor_radius)).powi(2)
+        };
+        grid.extend(apex_grading(
+            crate::carrier_net::outer_ends(window),
+            [on_axis(window.0), on_axis(window.1)],
+        ));
+    }
     let round_over =
         |grid: &[f64],
          cuts: &[f64]|
@@ -4213,6 +4224,26 @@ mod limb2_quick {
         };
         Some((hull, size))
     }
+}
+
+/// **Breaks graded toward a sheet's apexes**: at `2⁻ᵏ` of `[lo, hi]`
+/// from each end `at_apex` marks. Only the part at an apex reads its
+/// distance from the apex ([`projected::Meters::apex_root`]), which falls
+/// only as that part shrinks; with these breaks the first round holds it
+/// at `f64`'s spacing there, where the rounds' halving would take one
+/// round per level. A schedule of cuts, not a decision: any cuts give a
+/// sound bound.
+fn apex_grading((lo, hi): (f64, f64), at_apex: [bool; 2]) -> Vec<f64> {
+    const LEVELS: i32 = 60;
+    let length = hi - lo;
+    [(at_apex[0], lo, 1.0), (at_apex[1], hi, -1.0)]
+        .into_iter()
+        .filter(|&(at, _, _)| at)
+        .flat_map(|(_, end, toward)| {
+            (1..=LEVELS).map(move |k| end + toward * length * 2f64.powi(-k))
+        })
+        .filter(|&c| lo < c && c < hi)
+        .collect()
 }
 
 /// The breaks a closed-form carrier's first net is cut at inside
