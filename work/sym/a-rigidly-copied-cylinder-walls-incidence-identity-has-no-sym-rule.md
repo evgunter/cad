@@ -29,9 +29,13 @@ In the D-tab (`crates/editor-core/tests/m10_bulge_interval.rs`,
 - `pcurve_chart_radial_moving [18, 24]`, the 4 that PR 6504's class
   gate standoff added (`[22, 20] → [18, 24]`).
 
-The last of the three is a second read of the same fact
-(`work/pcert/a-cylinder-lines-class-gate-re-decides-its-incidence-as-the-standoff.md`);
-fixing that removes those 4 without a rule. The other 8 need one.
+The third is not a second read of the incidence that a fold could
+remove. The class gate reads the gap at the meridian form's anchor,
+which is check 4's own `Radius` term, and that is a different fact from
+the span's incidence
+(`work/pcert/a-cylinder-lines-class-gate-re-decides-its-incidence-as-the-standoff.md`,
+closed with a counterexample). All 12 need the rule. Check 4's
+`pcurve_envelope [16, 4]` reads that same term on the copy.
 
 ## Fix
 
@@ -39,4 +43,4 @@ A rule that reduces a rigidly mapped point's distance from a mapped
 axis to the unmapped one (the rotation's orthonormality as a ring
 identity), or a receipt carrying the placement's isometry so the
 incidence margin is the unmapped body's. Re-pin the three D-tab rows
-when it lands.
+when it lands: radial_moving is expected back at `[22, 20]`.

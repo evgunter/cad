@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 36] = [
+pub(super) const SITES: [&str; 37] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -57,6 +57,7 @@ pub(super) const SITES: [&str; 36] = [
     "spline-bound-undercut",
     "spline-on-cut-short",
     "spline-product-uncharged",
+    "spline-shown-unread",
     "sampled-line-incidence",
     "arc-rim-weight-unpaid",
     "arc-rim-span-unpaid",
@@ -242,6 +243,13 @@ pub(super) fn spline_bound_undercut() -> bool {
 /// `spline_incidence_rows`'s on-chart row).
 pub(super) fn spline_on_cut_short() -> bool {
     on("spline-on-cut-short")
+}
+
+/// `read_shown`'s spline arm, and the point read's, passing every
+/// carrier and point unread: a carrier off its wall ends as its image's
+/// bound at the certificate doors (its rows are `spline_door_rows`).
+pub(super) fn spline_shown_unread() -> bool {
+    on("spline-shown-unread")
 }
 
 /// The cylinder arm's ruling reading folded again: an in-band reading
