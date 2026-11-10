@@ -207,12 +207,70 @@ fn a_transversal_pose_builds_in_both_poses() {
             finished(label, c, Tol::witness()),
             finished(label, s, Tol::witness()),
         );
-        let got = topo::union(&c, &s, Tol::witness())
-            .unwrap_or_else(|e| panic!("{label}: the union refused: {e:?}"));
-        let body = got.body().expect("the union has a body");
+        let got = topo::union(&c, &s, Tol::witness());
+        if let Some(off) = crate::cylinder_sphere_frame::at_its_volume(
+            label,
+            got,
+            transversal_union_volume(),
+            crate::cylinder_sphere_frame::Ends::Builds,
+            crate::common::differential::VOLUME_PAD_BUDGET,
+            None,
+        ) {
+            panic!("{off}");
+        }
+    }
+}
+
+/// The transversal pose's union, independently of the kernel: the
+/// cylinder `r = 1`, `z ∈ [−2, 2]`, and the ball of radius `1.5` about
+/// `(0.6, 0, 0)`, their common part sliced along the cylinder's axis,
+/// each slice the lens of the unit disc and the ball's disc
+/// `0.6` off it (`cylinder_sphere_frame::lens`), by adaptive
+/// Gauss–Kronrod.
+fn transversal_union_volume() -> f64 {
+    use crate::cylinder_sphere_frame::{gk, lens};
+    use core::f64::consts::PI;
+    let big = 1.5_f64;
+    let common = gk(
+        &|z: f64| lens(1.0, (big * big - z * z).max(0.0).sqrt(), 0.6),
+        -big,
+        big,
+        1e-13,
+        24,
+    );
+    PI * 4.0 + 4.0 / 3.0 * PI * big.powi(3) - common
+}
+
+/// **A chorded sphere face whose sense bit is flipped is refused at rest
+/// as a lamina**: the rotational lane reads the bit with no cross-check
+/// (a loop on a sphere bounds a face on each side), so under the flipped
+/// bit the face would measure as its complement; tier 3 exempts the
+/// face from its sense cross-check and refuses the body at check 4
+/// instead, where the flipped face meets its neighbours along a wedge of
+/// no angle (`ValidationError::LaminaWedge`). Every sphere face of the
+/// transversal union, flipped alone.
+#[test]
+fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
+    let tol = Tol::witness();
+    let c = finished("c", cyl(1.0, -2.0, 2.0), tol);
+    let s = finished("s", ball_at(1.5, Vec3::new(0.6, 0.0, 0.0)), tol);
+    let got = topo::union(&c, &s, tol).expect("the union builds");
+    let body = &got.body().expect("a body").body;
+    let spheres: Vec<_> = body
+        .faces()
+        .filter(|(k, _)| matches!(body.face_surface(*k), Some(geom::Surface::Sphere { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    assert!(!spheres.is_empty(), "the union holds a sphere face");
+    for k in spheres {
+        let flipped = body.flipped_face_sense_for_tests(k).unwrap();
+        let errs = topo::AtRestBody::validate(flipped, tol)
+            .err()
+            .unwrap_or_else(|| panic!("{k:?} flipped validates"));
         assert!(
-            crate::cylinder_sphere_frame::no_operand_at_the_sphere(&body.body),
-            "{label}: the union is no operand only at the chorded sphere face"
+            errs.iter()
+                .any(|e| matches!(e, topo::ValidationError::LaminaWedge { .. })),
+            "{k:?} flipped: {errs:?}"
         );
     }
 }

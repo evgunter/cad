@@ -73,7 +73,7 @@ const LOWER: Drum = Drum {
 };
 
 /// `∫ f` over `[a, b]` to `tol`, by adaptive 7–15 Gauss–Kronrod.
-fn gk(f: &dyn Fn(f64) -> f64, a: f64, b: f64, tol: f64, depth: u32) -> f64 {
+pub(crate) fn gk(f: &dyn Fn(f64) -> f64, a: f64, b: f64, tol: f64, depth: u32) -> f64 {
     let (k, err) = gk15(f, a, b);
     if err <= tol || depth == 0 {
         k
@@ -132,7 +132,7 @@ pub(crate) fn oracle(big: f64, c: [f64; 3], drum: Drum) -> f64 {
 
 /// The area of the lens of two discs of radii `a` and `b` whose centres
 /// are `d` apart.
-fn lens(a: f64, b: f64, d: f64) -> f64 {
+pub(crate) fn lens(a: f64, b: f64, d: f64) -> f64 {
     if d >= a + b {
         return 0.0;
     }
@@ -344,64 +344,121 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
 /// refuses `PartialSphereFace`
 /// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
 pub(crate) fn no_operand_at_the_sphere(body: &topo::AtRestBody<f64>) -> bool {
+    matches!(far_union(body), Operand::AtTheSphere)
+}
+
+/// How a run is pinned to end: a body at its volume, or the piece sort's
+/// refusal ([`Door::Pieces`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Ends {
+    /// A body, at its volume.
+    Builds,
+    /// The result's piece sort refuses on a chorded sphere face.
+    Pieces,
+}
+
+/// **Whether run `got` ends as `ends` says**, `None` if so and else what
+/// is off. A body passes tiers 2 and 3′ and the at-rest certificate, and
+/// holds `want` within `VOLUME_CLAIM` of its certified enclosure, no
+/// wider than `ceiling`; its union with a far brick builds (SOUND) or
+/// refuses `Containment(PartialSphereFace)` and nothing else
+/// ([`no_operand_at_the_sphere`]). A refusal is the piece sort's
+/// ([`Door::Pieces`]) where `ends` says so, and nothing else is.
+/// `guard`, where given, is a regression guard on the enclosure's
+/// half-width, not a soundness bound: four times the widest measured at
+/// ε `1e-9`. The run's line is printed.
+pub(crate) fn at_its_volume(
+    label: &str,
+    got: Result<topo::BooleanResult<f64>, BooleanError>,
+    want: f64,
+    ends: Ends,
+    ceiling: f64,
+    guard: Option<f64>,
+) -> Option<String> {
+    use crate::common::differential::VOLUME_CLAIM;
+    let tol = Tol::witness();
+    let body = match (&got, ends) {
+        (Err(e), Ends::Pieces) if door(e) == Some(Door::Pieces) => {
+            println!("{label}: refused at the piece sort");
+            return None;
+        }
+        (Err(e), _) => return Some(format!("{label}: refused at {:?}: {e:?}", door(e))),
+        (Ok(_), Ends::Pieces) => {
+            return Some(format!("{label}: built where the piece sort was pinned"));
+        }
+        (Ok(r), Ends::Builds) => match r.body() {
+            Some(bb) => bb,
+            None => return Some(format!("{label}: an empty result")),
+        },
+    };
+    let t2 = topo::validate_closed(&body.body).is_ok();
+    let t3 = topo::validate_pseudomanifold(&body.body, &body.contacts, tol).is_ok();
+    let cert = topo::validate_geometric_certificate(&body.body, tol).is_ok();
+    let operand = far_union(&body.body);
+    let measured =
+        topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
+            .map(|m| (m.enclosure.volume, m.enclosure.volume_pad));
+    println!(
+        "{label}: t2={t2} t3p={t3} cert={cert} operand={operand:?} volume={measured:?} want={want}"
+    );
+    let Ok((v, pad)) = measured else {
+        return Some(format!("{label}: unmeasured {measured:?}"));
+    };
+    let guarded = guard.is_none_or(|g| tol.get().eps != 1e-9 || pad <= g);
+    let held = t2
+        && t3
+        && cert
+        && matches!(operand, Operand::Legal | Operand::AtTheSphere)
+        && (v - want).abs() <= VOLUME_CLAIM + pad
+        && pad <= ceiling
+        && guarded;
+    (!held).then(|| {
+        format!(
+            "{label}: t2={t2} t3p={t3} cert={cert} operand={operand:?} v={v} pad={pad} \
+             want={want} ceiling={ceiling} guard={guard:?}"
+        )
+    })
+}
+
+/// What a body's union with a far brick reads: legal, refused only at
+/// point-in-solid's chorded sphere face, or refused otherwise.
+#[derive(Debug)]
+pub(crate) enum Operand {
+    Legal,
+    AtTheSphere,
+    Refused(String),
+}
+
+/// `body`'s union with a far brick, the question
+/// `common::differential::outcome`'s legal-operand check asks.
+pub(crate) fn far_union(body: &topo::AtRestBody<f64>) -> Operand {
     let tol = Tol::witness();
     let far = finished(
         "the far brick",
         sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
         tol,
     );
-    matches!(
-        topo::union(body, &far, tol),
-        Err(BooleanError::Containment(
-            topo::PointInSolidError::PartialSphereFace { .. }
-        ))
-    )
-}
-
-/// **Whether run `got` builds at `want` or refuses at its door**
-/// ([`Door::Pieces`]), `None` if so and else what is off: a body that
-/// builds passes tiers 2 and 3′ and the at-rest certificate, and holds
-/// `want` within `VOLUME_CLAIM` of its enclosure, no wider than
-/// `ceiling`. It is SOUND, or no legal operand only because a later
-/// boolean's point-in-solid walk cannot read its chorded sphere face
-/// ([`no_operand_at_the_sphere`]). The run's `outcome` line is printed.
-pub(crate) fn at_its_volume(
-    label: &str,
-    got: Result<topo::BooleanResult<f64>, BooleanError>,
-    want: f64,
-    ceiling: f64,
-) -> Option<String> {
-    use crate::common::differential::{VOLUME_CLAIM, Verdict, judged_within};
-    let tol = Tol::witness();
-    if let Err(e) = &got
-        && door(e) != Some(Door::Pieces)
-    {
-        return Some(format!("{label}: refused at {:?}: {e:?}", door(e)));
-    }
-    let no_operand = got
-        .as_ref()
-        .ok()
-        .and_then(|g| g.body())
-        .is_some_and(|bb| no_operand_at_the_sphere(&bb.body));
-    let j = judged_within(got, Some(want), tol, ceiling);
-    println!("{label}: {}", j.line);
-    let held = match j.verdict {
-        Verdict::Refused | Verdict::Sound | Verdict::EmptyOk => true,
-        Verdict::Bad if no_operand => {
-            let (v, pad) = (j.volume.unwrap_or(f64::NAN), j.pad.unwrap_or(f64::NAN));
-            j.line.contains("t2=true t3p=true cert=true operand=false")
-                && (v - want).abs() <= VOLUME_CLAIM + pad
-                && pad <= ceiling
+    match topo::union(body, &far, tol) {
+        Ok(_) => Operand::Legal,
+        Err(BooleanError::Containment(topo::PointInSolidError::PartialSphereFace { .. })) => {
+            Operand::AtTheSphere
         }
-        _ => false,
-    };
-    (!held).then(|| format!("{label}: {}", j.line))
+        Err(e) => Operand::Refused(format!("{e:?}")),
+    }
 }
 
-/// **Every run of pose `index` builds at its volume or refuses at its
-/// door** ([`at_its_volume`]), its enclosure no wider than the pinned
-/// resolution admits on the operands' area (the chorded faces accept the
-/// round that meets it).
+/// The widest volume half-width measured on each pose at ε `1e-9`,
+/// debug, over its runs that build: the rim poses accept a round only
+/// just inside the pinned resolution, the others far inside it.
+const MEASURED_PAD: [f64; 9] = [
+    1.4e-11, 6.9e-11, 6.6e-12, 1.0e-10, 4.5e-10, 1.7e-10, 3.3e-10, 7.6e-7, 1.2e-7,
+];
+
+/// **Every run of pose `index` ends as pinned** ([`at_its_volume`]): the
+/// two-loop poses' `A ∖ B` at the piece sort, every other run a body at
+/// its volume, its enclosure no wider than the pinned resolution admits
+/// on the operands' area and guarded at four times the pose's
+/// [`MEASURED_PAD`].
 fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     use crate::common::differential::{VOLUME_PAD_BUDGET, resolution_pad};
     let tol = Tol::witness();
@@ -411,11 +468,24 @@ fn builds_at_its_volume_or_refuses_at_its_door(index: usize) {
     let drum_area = 2.0 * PI * R * (pose.drum.z1 - pose.drum.z0) + 2.0 * PI * R * R / TILT.cos();
     let area = drum_area + 4.0 * PI * pose.big.powi(2);
     let ceiling = resolution_pad(tol, area).max(VOLUME_PAD_BUDGET);
+    let two_loops = pose.label.starts_with("two loops");
     let mut off = Vec::new();
     for (op_label, op, swapped, want) in runs(va, vb, vi) {
         let label = format!("{}, {op_label}", pose.label);
+        let ends = if two_loops && op_label == "A ∖ B" {
+            Ends::Pieces
+        } else {
+            Ends::Builds
+        };
         let (x, y) = if swapped { (&b, &a) } else { (&a, &b) };
-        off.extend(at_its_volume(&label, run(op, x, y), want, ceiling));
+        off.extend(at_its_volume(
+            &label,
+            run(op, x, y),
+            want,
+            ends,
+            ceiling,
+            Some(4.0 * MEASURED_PAD[index]),
+        ));
     }
     assert!(off.is_empty(), "{off:#?}");
 }

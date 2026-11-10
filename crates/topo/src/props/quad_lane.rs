@@ -514,6 +514,7 @@ pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> O
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
+    sense: bool,
     loops: &[super::FlatLoop<T>],
     band: Band,
     _tol: Tol,
@@ -525,13 +526,24 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         None => Ok(false),
         Some(len) => Ok(quad::mean_boundary_displacement(bounds.flux, bounds.area)? <= len),
     };
-    cut_face_lane(body, surface, loops, band, window, centre, &mut accept)
+    cut_face_lane(
+        body,
+        surface,
+        sense,
+        loops,
+        band,
+        window,
+        centre,
+        &mut accept,
+    )
 }
 
 /// [`cut_face_rounds`]' lanes, asking `accept` of every round.
+#[allow(clippy::too_many_arguments)]
 fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
+    sense: bool,
     loops: &[super::FlatLoop<T>],
     band: Band,
     window: RoundWindow,
@@ -584,7 +596,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             center,
             quad::RotationalChartQ::Sphere {
                 radius: iv(*radius),
-                outward: face_sense(body, loops)?,
+                outward: sense,
             },
         ),
         _ => {
@@ -716,23 +728,6 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         loops: terms,
     };
     quad::rotational_cut_face_rounds::<T>(&face, band, window, accept)
-}
-
-/// The sense bit of the face whose loops `loops` are: whether its normal
-/// is its surface's own. The sphere's terms read it (the rotational
-/// lane's module docs, the sphere): a sphere loop bounds a region on each
-/// side, and the bit says which one the face is.
-fn face_sense<T: Decide>(body: &Body<T>, loops: &[super::FlatLoop<T>]) -> Result<bool, PropsError> {
-    loops
-        .first()
-        .and_then(|(_, hes)| hes.first())
-        .and_then(|he| body.half_edges.get(*he))
-        .and_then(|he| body.loops.get(he.parent_loop))
-        .and_then(|lp| body.faces.get(lp.face))
-        .map(|face| face.sense)
-        .ok_or(PropsError::QuadratureUnsupported {
-            what: "a sphere face whose loops name no face of the body",
-        })
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an

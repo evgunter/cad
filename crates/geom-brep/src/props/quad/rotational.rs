@@ -58,13 +58,17 @@
 //! periodic, its differential is not), so the form reads a loop that
 //! winds the chart — a seamless band's rim — and a loop whose images
 //! sit in different branches of the chart alike; `u dv` reads neither.
-//! The loops' own traversal signs carry `s_f`, a ring's opposite to its
-//! face's, so no separate orientation classification is needed; what is
-//! decided is that the stored loops say so (every junction closes, a
-//! whole number of turns apart in the azimuth; each loop winds at most
-//! once and the face's loops none together, which makes the form
-//! independent of the anchor level `v_a`; every loop that does not wind,
-//! other than a non-band face's own, is wound against its face).
+//! On the cylinder the loops' own traversal signs carry `s_f`, a ring's
+//! opposite to its face's, so no separate orientation classification is
+//! needed; what is decided is that the stored loops say so (every
+//! junction closes, a whole number of turns apart in the azimuth; each
+//! loop winds at most once and the face's loops none together, which
+//! makes the form independent of the anchor level `v_a`; every loop that
+//! does not wind, other than a non-band face's own, is wound against its
+//! face). The sphere reads `s_f` off the face's sense bit (below), which
+//! the loops cannot carry, and nothing here checks the bit against them:
+//! under a flipped bit the lane certifies the complement, a valid face
+//! of its own, and tier 3 refuses the body that holds it.
 //!
 //! # The edge terms
 //!
@@ -130,7 +134,8 @@
 //! certificate's: each image tracks its carrier within its envelope `e`
 //! (metres through the map) at every parameter, and the face's true
 //! trim boundary lies within metric distance `e` of its images, the
-//! metric `ds² = r²du² + dv²`.
+//! chart's metric `ds² = r²du² + dv²` on the cylinder and
+//! `r²·(cos²v du² + dv²)` on the sphere.
 //!
 //! - **Map residual**: the chart-area defect between the images' region
 //!   and the true one is at most `Σ (metric edge length)·e`, and the flux
@@ -639,6 +644,14 @@ fn harmonic_metric_length(e: &TrimEdgeQ, chart: RotationalChartQ) -> f64 {
 /// nothing; the endpoint-bracket pad is the rim's `|G(V)·u′|` times its
 /// brackets' widths. The sphere's harmonic images are those two shapes,
 /// and any other refuses at the edge's entry ([`edge_entry`]).
+///
+/// That pad is sound by slack, and no row isolates it: the part of the
+/// true boundary between a bracket's midpoint and the true end lies on
+/// the junction's corner loop, whose leg along the boundary the end's
+/// slack already counts (the bracket's half-width times the speed,
+/// [`end_slack`]), so the corner pad ([`connector_terms`]) covers that
+/// region before this pad is read. It is kept as the rim's own reading of
+/// its bracket, as the cylinder's harmonic rule keeps its.
 fn sphere_harmonic_area(e: &TrimEdgeQ, radius: Interval) -> Interval {
     if e.u.is_flat(false) {
         return Interval::zero();
@@ -988,7 +1001,10 @@ fn junctions<'a>(
 /// `v`, read over their hull. At a sphere's pole, where the azimuth lever
 /// vanishes and the two ends' azimuths differ by the face's angle there,
 /// the connector is the pole's own edge of the chart and its term the
-/// pole's share.
+/// pole's share. Reading the forms over the hull rather than at either
+/// end matters only to second order, `|F′|·|Δv|·|Δu|`, the box the
+/// connector spans, which the corner pad covers by the same bound; no
+/// row isolates it.
 ///
 /// **The corner pad.** Between the connector and the true vertex `V`
 /// lies a closed curve: from the edge before's image end to its true

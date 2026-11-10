@@ -1280,6 +1280,13 @@ fn describe_join(ev: &Evaluation<f64>, node: RecipeNodeId) -> String {
 /// arm cannot be reached is a probe that can never tell the scene its
 /// wall is gone, and this scene's two walls are exactly the frontier
 /// whose retirement has to be noticed.
+/// Wall 2's refusal in the scene's evaluation, where it refuses: what
+/// the suite reads the refused face's kind off
+/// (`tests/teapot.rs`, `wall_2_refuses_on_the_handles_torus_face`).
+pub fn wall2_refusal<'a>(ev: &'a Evaluation<f64>, r: &Recipe) -> Option<&'a BooleanError> {
+    join_outcome(ev, r.handle_union).err()
+}
+
 fn join_outcome(ev: &Evaluation<f64>, node: RecipeNodeId) -> Result<(), &BooleanError> {
     match ev.node_error(node).map(|e| &e.kind) {
         None => Ok(()),
@@ -1552,7 +1559,8 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // handle's torus. The section value carries that pair's loops, the
     // segment lays them, and the union builds; its chorded sphere face
     // measures, but the handle's chorded torus face has no volume lane on
-    // its chart yet, so the result is invalid.
+    // its chart yet, so the result is invalid. The face is read as the
+    // torus by its kind in the suite (`wall_2_refuses_on_the_handles_torus_face`).
     crate::walls::wall(
         "teapot",
         2,

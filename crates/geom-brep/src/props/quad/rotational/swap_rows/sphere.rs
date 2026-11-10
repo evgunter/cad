@@ -22,8 +22,20 @@ enum Name {
     /// The sphere's twin `(u + π, π − v)`, harmonic edges and images
     /// alike.
     Twin,
-    /// The images' levels shifted by a constant that names no latitude.
-    Shifted(f64),
+    /// The images' levels shifted by a constant `by` that names no
+    /// latitude, on the own name or the twin.
+    Shifted {
+        /// Whether the images are on the twin first.
+        twin: bool,
+        /// The shift (rad).
+        by: f64,
+    },
+}
+
+impl Name {
+    fn twin(self) -> bool {
+        matches!(self, Self::Twin | Self::Shifted { twin: true, .. })
+    }
 }
 
 /// A sphere `c + r·(cos v·(cos u·û + sin u·ŵ) + sin v·â)`, `ŵ = â × û`.
@@ -168,6 +180,11 @@ impl Arc {
         net(knots, 2, control, weights)
     }
 
+    /// The arc's length.
+    fn length(self) -> f64 {
+        self.rho * (self.phi.1 - self.phi.0).abs()
+    }
+
     /// `½∫(P − c)×P′` over the arc, traversal folded in, by composite
     /// Simpson on its own parametrization.
     fn vector_area(self, c: Point3<f64>) -> Vec3<f64> {
@@ -196,6 +213,10 @@ struct SphereEdge {
     arc: Arc,
     harmonic: Option<TrimEdgeQ>,
     swap: bool,
+    /// An envelope the fixture states for an image standing off the true
+    /// boundary, added to the certified one (`None`: the image is the
+    /// boundary's own).
+    env: Option<f64>,
 }
 
 fn rim(ball: Ball, level: f64, us: (f64, f64), forward: bool, swap: bool) -> SphereEdge {
@@ -203,6 +224,7 @@ fn rim(ball: Ball, level: f64, us: (f64, f64), forward: bool, swap: bool) -> Sph
         arc: Arc::rim(ball, level, us, forward),
         harmonic: Some(harmonic(chan(0.0, 1.0), chan(level, 0.0), us, forward)),
         swap,
+        env: None,
     }
 }
 
@@ -211,6 +233,7 @@ fn meridian(ball: Ball, at: f64, vs: (f64, f64), forward: bool) -> SphereEdge {
         arc: Arc::meridian(ball, at, vs, forward),
         harmonic: Some(harmonic(chan(at, 0.0), chan(0.0, 1.0), vs, forward)),
         swap: false,
+        env: None,
     }
 }
 
@@ -219,6 +242,7 @@ fn tilted(ball: Ball, at: (f64, f64), theta: f64, forward: bool) -> SphereEdge {
         arc: Arc::tilted(ball, at, theta, forward),
         harmonic: None,
         swap: true,
+        env: None,
     }
 }
 
@@ -250,9 +274,13 @@ fn sphere_face(
         for e in edges {
             if !e.swap {
                 closed = closed + e.arc.vector_area(ball.c);
-                let h = e.harmonic.unwrap();
+                let mut h = e.harmonic.unwrap();
+                if let Some(env) = e.env {
+                    h.env = pt(env);
+                    ribbon += env * e.arc.length();
+                }
                 out.push(EdgeTermQ::Harmonic(match name {
-                    Name::Twin => TrimEdgeQ {
+                    _ if name.twin() => TrimEdgeQ {
                         u: HarmChan {
                             c0: h.u.c0 + pt(PI),
                             ..h.u
@@ -265,13 +293,19 @@ fn sphere_face(
                         },
                         ..h
                     },
-                    Name::Own | Name::Shifted(_) => h,
+                    _ => h,
                 }));
                 continue;
             }
             let n = e.arc.net();
             let carrier = Curve3::Nurbs(std::sync::Arc::new(n.clone()));
-            let image = chart_pcurve_over(&carrier, 0.0, 1.0, &surface, band).unwrap();
+            // A circle through a pole mints no image (the chart's mint
+            // refuses there), which a row reads as a refusal.
+            let image = chart_pcurve_over(&carrier, 0.0, 1.0, &surface, band).map_err(|_| {
+                PropsError::QuadratureUnsupported {
+                    what: "the fixture's carrier mints no image on the sphere",
+                }
+            })?;
             let env = PcurveCache::certify_projected(
                 image.projected().unwrap().clone(),
                 0.0,
@@ -283,16 +317,21 @@ fn sphere_face(
             )
             .unwrap()
             .certificate()
-            .envelope;
+            .envelope
+                + e.env.unwrap_or(0.0);
+            let image = if name.twin() {
+                image.map_affine(ChartMap::sphere_involution()).unwrap()
+            } else {
+                image
+            };
             let image = match name {
-                Name::Own => image,
-                Name::Twin => image.map_affine(ChartMap::sphere_involution()).unwrap(),
-                Name::Shifted(s) => image
+                Name::Shifted { by, .. } => image
                     .map_affine(ChartMap {
                         u: AxisMap::identity(),
-                        v: AxisMap::shift(s),
+                        v: AxisMap::shift(by),
                     })
                     .unwrap(),
+                Name::Own | Name::Twin => image,
             };
             let at = |t: f64| {
                 let p = image.eval(t);
@@ -383,6 +422,39 @@ fn sphere_holds(
     for (which, name) in [("own", Name::Own), ("twin", Name::Twin)] {
         let got = sphere_run(ball, outward, loops, about, name)
             .unwrap_or_else(|e| panic!("{label} ({which}): the lane refused: {e:?}"));
+        encloses(got.flux, flux, &format!("{label} ({which}) flux"));
+        encloses(got.area, area, &format!("{label} ({which}) area"));
+    }
+}
+
+/// The lane's enclosures of `images`, the edges as read, hold the closed
+/// forms of the face `truth` bounds, under both names: where an image
+/// stands off the true boundary within its stated envelope, only the
+/// pads pay for the strip between, and the lane stops at the floor they
+/// set rather than at the target.
+fn standing_off_holds(
+    label: &str,
+    ball: Ball,
+    outward: bool,
+    images: &[Vec<SphereEdge>],
+    truth: &[Vec<SphereEdge>],
+    area: f64,
+    about: Point3<f64>,
+) {
+    let (flux, area) = sphere_truth(ball, outward, truth, area, about);
+    let band = Band::linear(Tol::witness()).unwrap();
+    for (which, name) in [("own", Name::Own), ("twin", Name::Twin)] {
+        let got = sphere_face(ball, outward, images, about, name)
+            .and_then(|face| {
+                rotational_cut_face_rounds::<f64>(
+                    &face,
+                    band,
+                    RoundWindow::SCHEDULE,
+                    &mut to_target(1e-9),
+                )
+            })
+            .unwrap_or_else(|e| panic!("{label} ({which}): the lane refused: {e:?}"))
+            .bounds;
         encloses(got.flux, flux, &format!("{label} ({which}) flux"));
         encloses(got.area, area, &format!("{label} ({which}) area"));
     }
@@ -630,33 +702,414 @@ fn the_spheres_arm_refuses_what_it_cannot_read() {
         Err(PropsError::QuadratureUnsupported { what }) => what,
         other => panic!("expected a typed refusal, got {other:?}"),
     };
-    let what = refused(sphere_run(
+    for twin in [false, true] {
+        let name = if twin { Name::Twin } else { Name::Own };
+        // A level offset a deck's composition could not round to, near the
+        // tolerance and far past it (`latitude_name`).
+        for by in [0.3, 1e-3, 1e-9] {
+            let what = refused(sphere_run(
+                ball,
+                true,
+                &north_cap(ball, 0.4, true, true),
+                about,
+                Name::Shifted { twin, by },
+            ));
+            assert!(
+                what.contains("not a name of the latitude"),
+                "a level shifted by {by} (twin {twin}): {what}"
+            );
+        }
+        let slanted = SphereEdge {
+            arc: Arc::rim(ball, 0.4, (0.0, TAU), true),
+            harmonic: Some(harmonic(chan(0.0, 1.0), chan(0.4, 0.01), (0.0, TAU), true)),
+            swap: false,
+            env: None,
+        };
+        let what = refused(sphere_run(ball, true, &[vec![slanted]], about, name));
+        assert!(
+            what.contains("neither a rim nor a meridian"),
+            "twin {twin}: {what}"
+        );
+        let got = sphere_run(
+            ball,
+            true,
+            &[
+                vec![rim(ball, -0.3, (0.0, TAU), true, true)],
+                vec![rim(ball, 0.5, (0.0, TAU), true, false)],
+            ],
+            about,
+            name,
+        );
+        assert!(
+            matches!(got, Err(PropsError::RingWoundWithFace)),
+            "a ring wound with its face (twin {twin}): {got:?}"
+        );
+    }
+}
+
+/// **An open junction refuses under both names**: a cap sector whose rim
+/// stops `0.3` rad short of its second meridian, about `0.19` m at its
+/// latitude. Under the twin the latitude's cosine is negative, so the
+/// azimuth lever's magnitude is what keeps the gap from reading closed.
+#[test]
+fn an_open_junction_refuses_under_both_names() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let level = 0.4_f64;
+    let loops = [vec![
+        rim(ball, level, (0.0, 2.0), true, false),
+        meridian(ball, 2.3, (level, FRAC_PI_2), true),
+        meridian(ball, 0.0, (level, FRAC_PI_2), false),
+    ]];
+    for (which, name) in [("own", Name::Own), ("twin", Name::Twin)] {
+        let got = sphere_run(ball, true, &loops, about, name);
+        assert!(
+            matches!(got, Err(PropsError::ChartLoopOpen)),
+            "{which}: an open loop: {got:?}"
+        );
+    }
+}
+
+/// **Meridians standing off the true lune are paid for by the map
+/// residual, at the chart's level lever**: a lune of `1` rad on a sphere
+/// of radius `2` read through meridian images `α` outside it, each within
+/// its stated envelope `r·α` of the true one. The images' lune is `4αr²`
+/// larger; the residual pays `2·πr·rα`, at the meridians' metric length
+/// `πr`, which the level lever meters (read at `1` it pays `2π·rα`, short
+/// of the excess).
+#[test]
+fn a_lune_whose_meridians_stand_off_holds_its_closed_form() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 2.0);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (a, alpha) = (1.0, 1e-3);
+    let lune = |lo: f64, hi: f64, env: Option<f64>| {
+        vec![vec![
+            SphereEdge {
+                env,
+                ..meridian(ball, hi, (-FRAC_PI_2, FRAC_PI_2), true)
+            },
+            SphereEdge {
+                env,
+                ..meridian(ball, lo, (-FRAC_PI_2, FRAC_PI_2), false)
+            },
+        ]]
+    };
+    standing_off_holds(
+        "a lune read through meridians standing off it",
         ball,
         true,
-        &north_cap(ball, 0.4, true, true),
+        &lune(-alpha, a + alpha, Some(ball.r * alpha * (1.0 + 1e-9))),
+        &lune(0.0, a, None),
+        2.0 * a * ball.r * ball.r,
         about,
-        Name::Shifted(0.3),
-    ));
-    assert!(what.contains("not a name of the latitude"), "{what}");
-    let slanted = SphereEdge {
-        arc: Arc::rim(ball, 0.4, (0.0, TAU), true),
-        harmonic: Some(harmonic(chan(0.0, 1.0), chan(0.4, 0.01), (0.0, TAU), true)),
-        swap: false,
+    );
+}
+
+/// **A carrier standing off its circle, far out, is paid for by the map
+/// residual and the chart term's pad**: the sphere of radius `1.3`,
+/// `1e3` out, less a disc of angular radius `θ`, read through the circle
+/// at `θ + δ`, an exact rational quadratic on the sphere whose image is
+/// itself, within its stated envelope `r·δ` of the true circle. Its face
+/// is smaller by about `2πr²·sin θ·δ`, which the residual pays at the
+/// image's metric length (the projected speed bound's), and its vector
+/// area off by the ribbon, which the chart term's pad pays at the lever
+/// to the world origin.
+#[test]
+fn a_circle_standing_off_its_carrier_far_out_holds_its_closed_form() {
+    let ball = Ball::tilted(Point3::new(1e3, -1e3, 5e2), 1.3);
+    let (theta, delta) = (0.5_f64, 1e-5);
+    let image = SphereEdge {
+        env: Some(ball.r * delta * (1.0 + 1e-9)),
+        ..tilted(ball, (1.0, 0.2), theta + delta, false)
     };
-    let what = refused(sphere_run(ball, true, &[vec![slanted]], about, Name::Own));
-    assert!(what.contains("neither a rim nor a meridian"), "{what}");
-    let got = sphere_run(
+    standing_off_holds(
+        "the sphere less a disc, its circle standing off",
+        ball,
+        true,
+        &[vec![image]],
+        &[vec![tilted(ball, (1.0, 0.2), theta, false)]],
+        ball.sphere_area() - ball.cap(theta),
+        Point3::origin(),
+    );
+}
+
+/// Holds its closed forms under both names, or refuses typed, never a
+/// wrong enclosure; whether it held under both.
+fn holds_or_refuses(
+    label: &str,
+    ball: Ball,
+    outward: bool,
+    loops: &[Vec<SphereEdge>],
+    area: f64,
+    about: Point3<f64>,
+) -> bool {
+    let (flux, area) = sphere_truth(ball, outward, loops, area, about);
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut held = true;
+    for (which, name) in [("own", Name::Own), ("twin", Name::Twin)] {
+        let run = sphere_face(ball, outward, loops, about, name).and_then(|f| {
+            rotational_cut_face_rounds::<f64>(&f, band, RoundWindow::SCHEDULE, &mut to_target(1e-9))
+        });
+        match run {
+            Ok(got) => {
+                encloses(got.bounds.flux, flux, &format!("{label} ({which}) flux"));
+                encloses(got.bounds.area, area, &format!("{label} ({which}) area"));
+            }
+            Err(e) => {
+                println!("{label} ({which}): refused {e:?}");
+                held = false;
+            }
+        }
+    }
+    held
+}
+
+/// **A hemisphere exactly**, the rim at the equator where `sin v = 0`, in
+/// every sense and traversal, harmonic and swapped; and a tilted one.
+#[test]
+fn a_hemisphere_exactly_holds_its_closed_forms() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let half = 0.5 * ball.sphere_area();
+    for swap in [false, true] {
+        for (forward, outward) in [(true, true), (true, false), (false, false), (false, true)] {
+            assert!(holds_or_refuses(
+                &format!("hemisphere forward {forward} outward {outward} swapped {swap}"),
+                ball,
+                outward,
+                &north_cap(ball, 0.0, forward, swap),
+                half,
+                about,
+            ));
+        }
+    }
+    assert!(holds_or_refuses(
+        "a tilted hemisphere",
+        ball,
+        true,
+        &[vec![tilted(ball, (1.0, 0.2), FRAC_PI_2, true)]],
+        half,
+        about,
+    ));
+}
+
+/// **A cap sector and a lune wider than a half turn at the pole**, where
+/// the closure takes a whole turn off the pole junction, and exactly a
+/// half turn; each with its complement under the inward sense.
+#[test]
+fn pole_angles_past_a_half_turn_hold_their_closed_forms() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let level = 0.4_f64;
+    for a in [2.0, PI, 3.5, 4.5, 6.0, TAU - 1e-3] {
+        for swap in [true, false] {
+            let loops = [vec![
+                rim(ball, level, (0.0, a), true, swap),
+                meridian(ball, a, (level, FRAC_PI_2), true),
+                meridian(ball, 0.0, (level, FRAC_PI_2), false),
+            ]];
+            let area = a * ball.r * ball.r * (1.0 - level.sin());
+            assert!(holds_or_refuses(
+                &format!("sector {a} swapped {swap}"),
+                ball,
+                true,
+                &loops,
+                area,
+                about
+            ));
+            assert!(holds_or_refuses(
+                &format!("sector {a} swapped {swap}, its complement inward"),
+                ball,
+                false,
+                &loops,
+                ball.sphere_area() - area,
+                about,
+            ));
+        }
+        let lune = [vec![
+            meridian(ball, a, (-FRAC_PI_2, FRAC_PI_2), true),
+            meridian(ball, 0.0, (-FRAC_PI_2, FRAC_PI_2), false),
+        ]];
+        let area = 2.0 * a * ball.r * ball.r;
+        assert!(holds_or_refuses(
+            &format!("lune {a}"),
+            ball,
+            true,
+            &lune,
+            area,
+            about
+        ));
+        assert!(holds_or_refuses(
+            &format!("lune {a}, its complement inward"),
+            ball,
+            false,
+            &lune,
+            ball.sphere_area() - area,
+            about,
+        ));
+    }
+}
+
+/// **Near nothing and near the whole sphere**: tiny discs, the sphere
+/// less each, a tiny polar cap's complement, and a disc of radius near
+/// `π`. Each holds or refuses typed, never a wrong enclosure.
+#[test]
+fn tiny_and_near_full_faces_hold_or_refuse() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    for theta in [1e-2, 1e-3, 1e-4] {
+        let disc = ball.cap(theta);
+        let full = ball.sphere_area();
+        holds_or_refuses(
+            &format!("disc {theta}"),
+            ball,
+            true,
+            &[vec![tilted(ball, (1.0, 0.2), theta, true)]],
+            disc,
+            about,
+        );
+        holds_or_refuses(
+            &format!("sphere less disc {theta}"),
+            ball,
+            true,
+            &[vec![tilted(ball, (1.0, 0.2), theta, false)]],
+            full - disc,
+            about,
+        );
+        holds_or_refuses(
+            &format!("sphere less disc {theta}, inward"),
+            ball,
+            false,
+            &[vec![tilted(ball, (1.0, 0.2), theta, true)]],
+            full - disc,
+            about,
+        );
+        holds_or_refuses(
+            &format!("sphere less a polar cap {theta}"),
+            ball,
+            true,
+            &north_cap(ball, FRAC_PI_2 - theta, false, true),
+            full - disc,
+            about,
+        );
+    }
+    holds_or_refuses(
+        "a disc of radius π − 1e-3",
+        ball,
+        true,
+        &[vec![tilted(ball, (1.0, 0.2), PI - 1e-3, true)]],
+        ball.cap(PI - 1e-3),
+        about,
+    );
+}
+
+/// **A circle grazing a pole ever closer, and through it**: holds or
+/// refuses typed, never guesses.
+#[test]
+fn a_circle_grazing_the_pole_holds_or_refuses() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let theta = 0.4;
+    for miss in [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-9, 0.0, -1e-6, -1e-5, -1e-3] {
+        let at = (0.7, FRAC_PI_2 - theta - miss);
+        holds_or_refuses(
+            &format!("disc missing the pole by {miss}"),
+            ball,
+            true,
+            &[vec![tilted(ball, at, theta, true)]],
+            ball.cap(theta),
+            about,
+        );
+        holds_or_refuses(
+            &format!("sphere less that disc ({miss})"),
+            ball,
+            true,
+            &[vec![tilted(ball, at, theta, false)]],
+            ball.sphere_area() - ball.cap(theta),
+            about,
+        );
+    }
+}
+
+/// **Two holes**: the sphere less two discs, and a zone less a disc.
+#[test]
+fn two_holes_hold_their_closed_forms() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (t1, t2) = (0.3, 0.25);
+    assert!(holds_or_refuses(
+        "sphere less two discs",
         ball,
         true,
         &[
-            vec![rim(ball, -0.3, (0.0, TAU), true, true)],
-            vec![rim(ball, 0.5, (0.0, TAU), true, false)],
+            vec![tilted(ball, (1.0, 0.2), t1, false)],
+            vec![tilted(ball, (4.0, -0.5), t2, false)]
         ],
+        ball.sphere_area() - ball.cap(t1) - ball.cap(t2),
         about,
+    ));
+    let (low, high) = (-0.6_f64, 0.7_f64);
+    let zone = TAU * ball.r * ball.r * (high.sin() - low.sin());
+    assert!(holds_or_refuses(
+        "zone less a disc",
+        ball,
+        true,
+        &[
+            vec![rim(ball, low, (0.0, TAU), true, true)],
+            vec![rim(ball, high, (0.0, TAU), false, true)],
+            vec![tilted(ball, (2.0, 0.0), 0.2, false)],
+        ],
+        zone - ball.cap(0.2),
+        about,
+    ));
+}
+
+/// **A flipped sense bit certifies the complement**: the north cap's
+/// loop under the inward sense is the southern rest, a valid face of its
+/// own, which the lane cannot tell from a cap whose bit was flipped (the
+/// body's tier 3 refuses the flip,
+/// `sweep/tests/verbs_cylsph_opening.rs`,
+/// `a_flipped_chorded_sphere_face_is_refused_as_a_lamina`).
+#[test]
+fn a_flipped_bit_reads_the_complement() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let level = 0.4_f64;
+    let cap = ball.cap(FRAC_PI_2 - level);
+    let got = sphere_run(
+        ball,
+        false,
+        &north_cap(ball, level, true, true),
+        Point3::new(0.1, 0.5, -0.2),
         Name::Own,
-    );
-    assert!(
-        matches!(got, Err(PropsError::RingWoundWithFace)),
-        "a ring wound with its face: {got:?}"
+    )
+    .expect("the flipped cap measures");
+    encloses(got.area, ball.sphere_area() - cap, "the complement's area");
+}
+
+/// **The projected image's metric length is what the map residual pays
+/// at**: the cap north of a rim `0.02` rad above the equator, read
+/// through the swapped rim at that latitude standing for the true rim
+/// `δ` above it, within its stated envelope `r·δ`. The rim's cross
+/// product `p × p′` lies near the axis there, so the speed bound reads
+/// close to the true speed, and the strip between the two rims, about
+/// `L·r·δ`, is paid only at the image's length; read at half the speed
+/// bound the residual falls short.
+#[test]
+fn a_rim_standing_off_its_circle_is_paid_at_its_length() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 1.3);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let (level, delta) = (0.02_f64, 1e-4);
+    let image = SphereEdge {
+        env: Some(ball.r * delta * (1.0 + 1e-9)),
+        ..rim(ball, level, (0.0, TAU), true, true)
+    };
+    standing_off_holds(
+        "the cap read through a rim below its own",
+        ball,
+        true,
+        &[vec![image]],
+        &north_cap(ball, level + delta, true, true),
+        ball.cap(FRAC_PI_2 - level - delta),
+        about,
     );
 }

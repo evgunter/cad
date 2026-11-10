@@ -21,7 +21,7 @@ use core::f64::consts::PI;
 use crate::common::differential::VOLUME_PAD_BUDGET;
 use crate::common::germ_pair::cyl;
 use crate::conic_edge_curved_face::ball;
-use crate::cylinder_sphere_frame::{FULL, at_its_volume, oracle, run};
+use crate::cylinder_sphere_frame::{Ends, FULL, at_its_volume, oracle, run};
 use geom_core::Tol;
 use sweep::test_support::finished;
 use topo::BooleanOp;
@@ -61,7 +61,16 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
         } else {
             (&drum, &balls)
         };
-        off.extend(at_its_volume(label, run(op, x, y), want, VOLUME_PAD_BUDGET));
+        // A guard at four times the widest half-width measured at ε 1e-9
+        // (9.9e-11), not a soundness bound.
+        off.extend(at_its_volume(
+            label,
+            run(op, x, y),
+            want,
+            Ends::Builds,
+            VOLUME_PAD_BUDGET,
+            Some(4.0e-10),
+        ));
     }
     assert!(off.is_empty(), "{off:#?}");
 }

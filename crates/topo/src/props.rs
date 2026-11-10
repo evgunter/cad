@@ -624,6 +624,7 @@ fn round_hook<T: Decide>(
 ) -> impl Fn(
     &Body<T>,
     &Surface<T>,
+    bool,
     &[FlatLoop<T>],
     Band,
     Tol,
@@ -633,7 +634,7 @@ fn round_hook<T: Decide>(
 ) -> Result<Option<LaneRun>, PropsError>
 + Sync
 + Copy {
-    move |body, surface, loops, band, tol, window, about: Point3<T>, resolution| match quad {
+    move |body, surface, sense, loops, band, tol, window, about: Point3<T>, resolution| match quad {
         Some(lane) => {
             let about = Point3::new(
                 (lane.lift)(about.x),
@@ -643,6 +644,7 @@ fn round_hook<T: Decide>(
             (lane.cut_face_rounds)(
                 body,
                 surface,
+                sense,
                 loops,
                 band,
                 tol,
@@ -1717,6 +1719,7 @@ fn rederive_faces<T: Decide>(
                     (lane.cut_face_rounds)(
                         body,
                         surface,
+                        face.record().sense,
                         &flat,
                         band,
                         tol,
@@ -2440,6 +2443,7 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
 type QuadHook<'h, T> = dyn Fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -5283,11 +5287,14 @@ fn face_flux_about<T: Decide>(
             if loops.len() > 1 && !reads_rings {
                 return Err(MassPropsError::RingOnCurvedFace { face: face_key });
             }
-            // The S10 sense bit does not enter the quadrature lane: its
-            // Green form is winding-derived end to end (the signed UV area
-            // IS s_f·|Ω| through the stored loop traversal). An
-            // approximating face takes it as its fit's flux, the geometry
-            // the face carries.
+            // The S10 sense bit enters the quadrature lane on the sphere
+            // alone: a cylinder's, plane's or torus's Green form is
+            // winding-derived end to end (the signed UV area IS s_f·|Ω|
+            // through the stored loop traversal), while a sphere loop
+            // bounds a face on each side and the rotational lane reads
+            // the bit to say which (`quad_lane::cut_face_lane`), with no
+            // cross-check against the boundary. An approximating face
+            // takes it as its fit's flux, the geometry the face carries.
             let quad_out = if takes_quadrature(
                 surface,
                 loops
@@ -5295,7 +5302,10 @@ fn face_flux_about<T: Decide>(
                     .flat_map(|(edges, _)| edges)
                     .map(|e| &e.carrier),
             ) {
-                quad(body, surface, &loops, band, tol, window, about, resolution).map_err(wrap)?
+                quad(
+                    body, surface, face.sense, &loops, band, tol, window, about, resolution,
+                )
+                .map_err(wrap)?
             } else {
                 None
             };
@@ -6451,6 +6461,7 @@ pub struct QuadLane<T: Decide> {
     cut_face_rounds: fn(
         &Body<T>,
         &Surface<T>,
+        bool,
         &[FlatLoop<T>],
         Band,
         Tol,
@@ -6590,7 +6601,7 @@ mod wiring_rows {
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face_rounds,
-            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _) -> _,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _, _, _) -> _,
         ) {
             return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }

@@ -134,7 +134,13 @@ impl ProjectedEdgeQ {
 /// Whether the deck level `v_off + v_sign·v` names the latitude `v`'s
 /// point: `v_off` a whole number of turns (`v_sign = 1`) or a half turn
 /// past one (`v_sign = −1`, the twin), to within the rounding of the
-/// deck's own composition.
+/// deck's own composition. The deck is built of exact steps, the twin's
+/// `π` shift and reflection and whole-turn branch shifts, each one
+/// rounding in `T`: a few ulps of `π` per step, about `1e-16` of a turn,
+/// and `k` turns compose `k` such shifts. `1e-12·(1 + |k|)` turns holds
+/// thousands of steps per turn and is far below any level offset a
+/// chart map other than those could carry (`1e-9` rad already
+/// refuses, `the_spheres_arm_refuses_what_it_cannot_read`).
 fn latitude_name(v_off: Interval, v_sign: f64) -> bool {
     let tau = tau_bracket();
     let base = if v_sign > 0.0 { pt(0.0) } else { pt(0.5) * tau };

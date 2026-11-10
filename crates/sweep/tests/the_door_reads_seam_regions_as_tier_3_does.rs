@@ -76,7 +76,10 @@ fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
     } else if (e.contains("VolumeUncomputable") && e.contains("RingOnCurvedFace"))
         || (quadrature && e.contains("a trimmed face with no volume lane on its chart"))
     {
-        format!("{VOLUME_ON} {kind:?} face")
+        match kind {
+            Some(kind) => format!("{VOLUME_ON} {kind:?} face"),
+            None => format!("{VOLUME_ON} face of no recorded kind"),
+        }
     } else if e.starts_with("Pieces(Probe") && e.contains("PartialSphereFace") {
         PIECES.into()
     } else {
@@ -134,6 +137,49 @@ fn pinned(part: Part) -> Stops {
         .iter()
         .map(|&(op, at)| (op.to_string(), at.to_string()))
         .collect()
+}
+
+/// **A ball × cylinder boolean's volume, independently of the kernel**,
+/// for a corpus name `"{ball} {op} {cylinder}"` (`unit` or `tilt` with
+/// `rod`, `rodx` or `stub`), `None` for any other. Each cylinder is
+/// `cyl`'s about `z`, `rodx` then turned `0.7` about `x` through the
+/// origin, which fixes both balls' centres (on `x`), so every pair is
+/// read in the cylinder's own frame: the common part sliced along its
+/// axis, each slice the lens of its disc and the ball's
+/// (`cylinder_sphere_frame::lens`), by adaptive Gauss–Kronrod.
+fn ball_cylinder_volume(name: &str) -> Option<f64> {
+    use crate::cylinder_sphere_frame::{gk, lens};
+    use core::f64::consts::PI;
+    let mut words = name.split(' ');
+    let (ball, op, cylinder) = (words.next()?, words.next()?, words.next()?);
+    let centre = match ball {
+        "unit" => (0.0, 0.0, 0.0),
+        "tilt" => (0.1, 0.0, 0.0),
+        _ => return None,
+    };
+    let (cx, cy, r, z0, z1) = match cylinder {
+        "rod" => (0.1, 0.0, 0.3, -2.0, 2.0),
+        "rodx" => (0.0, 0.1, 0.25, -2.0, 2.0),
+        "stub" => (0.5, 0.2, 0.4, 0.3, 2.0),
+        _ => return None,
+    };
+    let d = (cx - centre.0).hypot(cy - centre.1);
+    let (lo, hi) = ((centre.2 - 1.0_f64).max(z0), (centre.2 + 1.0_f64).min(z1));
+    let common = gk(
+        &|z: f64| lens(r, (1.0 - (z - centre.2).powi(2)).max(0.0).sqrt(), d),
+        lo,
+        hi,
+        1e-13,
+        24,
+    );
+    let (vb, vc) = (4.0 / 3.0 * PI, PI * r * r * (z1 - z0));
+    Some(match op {
+        "u" => vb + vc - common,
+        "i" => common,
+        "a-b" => vb - common,
+        "b-a" => vc - common,
+        _ => return None,
+    })
 }
 
 fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
@@ -397,6 +443,22 @@ fn the_door_names_the_flipped_face_in(part: Part) {
     let tol = Tol::witness();
     let mut misnamed = Vec::new();
     let (bodies, stops) = corpus(part);
+    let res = topo::test_support::pinned_resolution(tol);
+    let mut wrong = Vec::new();
+    for (name, b) in &bodies {
+        let Some(want) = ball_cylinder_volume(name) else {
+            continue;
+        };
+        match topo::mass_properties(b, tol, res) {
+            Ok(m)
+                if (m.enclosure.volume - want).abs()
+                    <= crate::common::differential::VOLUME_CLAIM + m.enclosure.volume_pad => {}
+            got => wrong.push(format!(
+                "{name}: {:?} against {want}",
+                got.map(|m| (m.enclosure.volume, m.enclosure.volume_pad))
+            )),
+        }
+    }
     for (name, b) in bodies {
         if topo::validate_geometric(&b, tol).is_err() {
             continue;
@@ -432,6 +494,10 @@ fn the_door_names_the_flipped_face_in(part: Part) {
     assert!(
         misnamed.is_empty(),
         "the door names a correct neighbour: {misnamed:#?}"
+    );
+    assert!(
+        wrong.is_empty(),
+        "a ball × cylinder body off its volume: {wrong:#?}"
     );
 }
 

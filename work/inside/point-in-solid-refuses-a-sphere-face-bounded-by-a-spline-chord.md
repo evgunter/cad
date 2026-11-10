@@ -4,7 +4,7 @@ kind: issue
 title: point_in_solid refuses a sphere face bounded by a spline chord (PartialSphereFace), so every cylinder x sphere result that builds is no legal operand
 status: open
 opened: 2026-11-04
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -42,11 +42,21 @@ as an operand; the other 2 refuse at the piece sort. Every run of
 `verbs_cylsph_opening::a_transversal_pose_builds_in_both_poses` builds and
 is no operand. The other ε rows were not run.
 
-## Why P1
+## Why P0
 
 A normal boolean on normal geometry builds a body that no later boolean
-can take, so a cylinder × sphere result is a dead end for authoring. It
-is P1 rather than P0 only because the first boolean now answers.
+can take, so every cylinder × sphere result is a dead end for authoring,
+and five differences on normal geometry still refuse at the piece sort:
+a normal verb broken on normal geometry (`work/README.md`, Priority).
+Re-banded from P1 on PR 6509's review (2026-11-04).
+
+## One fix for two rows
+
+`splitdoor/a-sphere-cut-in-refuses-a-sphere-face-with-a-boundary-edge-that-is-not-a-circle`
+waits on the same reader: `sphere_region::sphere_face_region`'s circle
+roster, which `face_geo` reads here and `apply_cut_ins` reads there.
+Widening it past circles to a sphere face's projected chords serves
+both.
 
 ## Done when
 
