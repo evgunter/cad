@@ -1106,35 +1106,16 @@ enum NotScopeWhy {
 }
 
 impl NotScopeWhy {
-    /// The needles this reason answers for, and the only files it may
-    /// be claimed in.
-    fn admits(self) -> (&'static [&'static str], &'static [&'static str]) {
+    /// The needles this reason answers for. Which files and items may
+    /// claim it is [`NOT_SCOPE_AT_THE_HOMES_ARRIVAL`]'s to say.
+    fn admits(self) -> &'static [&'static str] {
         match self {
-            NotScopeWhy::Message => (
-                &["\"use\""],
-                &["crates/step-import/tests/inst_review_probes.rs"],
-            ),
-            NotScopeWhy::Visibility => (
-                &["\"super\""],
-                &["crates/sweep/tests/review_fillet_split_r2_probes.rs"],
-            ),
-            NotScopeWhy::LexerTables => (
-                &["\"let\"", "\"use\""],
-                &["crates/test-utils/src/source.rs"],
-            ),
-            NotScopeWhy::OwnNeedles => (
-                &SCOPE_KEYWORD_LITERALS,
-                &["crates/test-utils/tests/reader_census.rs"],
-            ),
-            NotScopeWhy::SkipsUseDeclarations => (
-                &["\"use\"", "\"use \""],
-                &[
-                    "crates/pncad-py/src/tests.rs",
-                    "crates/topo/src/boolean/offer_rows.rs",
-                    "crates/topo/src/source_walk.rs",
-                ],
-            ),
-            NotScopeWhy::SkipsADeclaringLet => (&["\"let\""], &["crates/pncad/tests/all.rs"]),
+            NotScopeWhy::Message => &["\"use\""],
+            NotScopeWhy::Visibility => &["\"super\""],
+            NotScopeWhy::LexerTables => &["\"let\"", "\"use\""],
+            NotScopeWhy::OwnNeedles => &SCOPE_KEYWORD_LITERALS,
+            NotScopeWhy::SkipsUseDeclarations => &["\"use\"", "\"use \""],
+            NotScopeWhy::SkipsADeclaringLet => &["\"let\""],
         }
     }
 }
@@ -1159,6 +1140,27 @@ const HAND_ROLLED_AT_THE_HOMES_ARRIVAL: [&str; 6] = [
     "crates/pncad-py/src/tests.rs::parse_tag_body",
     "crates/pncad/tests/all.rs::use_statement_roots",
     "crates/test-utils/tests/hand_written_impl_census.rs::self_aliases",
+];
+
+/// **The items that spell a binding keyword for a reason that is not a
+/// scope question, as they stood when the home landed: a record that
+/// only shrinks**, keyed `Reason path::item`. Every [`NotScope`] line's
+/// items are in it under the line's reason, and every entry is such an
+/// item that still spells one. The shrink gate holds it against the
+/// merge base with [`HAND_ROLLED_AT_THE_HOMES_ARRIVAL`], so a new reason,
+/// a new file for one, or a new item, is an edit the base refuses.
+const NOT_SCOPE_AT_THE_HOMES_ARRIVAL: [&str; 11] = [
+    "LexerTables crates/test-utils/src/source.rs::DECLARERS",
+    "LexerTables crates/test-utils/src/source.rs::ITEM_KEYWORDS",
+    "LexerTables crates/test-utils/src/source.rs::funnel_sites",
+    "Message crates/step-import/tests/inst_review_probes.rs::solid_clouds",
+    "OwnNeedles crates/test-utils/tests/reader_census.rs::the_scope_needle_finds_a_binding_keyword_spelled_to_be_searched_for",
+    "SkipsADeclaringLet crates/pncad/tests/all.rs::first_arg_literals",
+    "SkipsUseDeclarations crates/pncad-py/src/tests.rs::matches",
+    "SkipsUseDeclarations crates/pncad-py/src/tests.rs::top_form",
+    "SkipsUseDeclarations crates/topo/src/boolean/offer_rows.rs::every_site_names_the_decision_it_raises",
+    "SkipsUseDeclarations crates/topo/src/source_walk.rs::uses_blanked",
+    "Visibility crates/sweep/tests/review_fillet_split_r2_probes.rs::the_seam_and_the_open_bands_export_one_public_item_and_widen_nothing_else",
 ];
 
 /// **The scope ledger.** One line per reason a site [`asks_a_scope_question`]
@@ -1235,7 +1237,7 @@ const SCOPE_LEDGER: &[ScopeEntry] = &[
         path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
         seen: Seen::Needle,
         disposition: NotScope(NotScopeWhy::Visibility, "the open bands' `pub(super)`"),
-        items: &[],
+        items: &["the_seam_and_the_open_bands_export_one_public_item_and_widen_nothing_else"],
     },
     ScopeEntry {
         path: "crates/test-utils/src/source.rs",
@@ -1244,7 +1246,7 @@ const SCOPE_LEDGER: &[ScopeEntry] = &[
             NotScopeWhy::LexerTables,
             "the item-head keyword tables, and `funnel_sites`' skip of a `let` declaring the name",
         ),
-        items: &[],
+        items: &["DECLARERS", "ITEM_KEYWORDS", "funnel_sites"],
     },
     ScopeEntry {
         path: "crates/test-utils/tests/hand_written_impl_census.rs",
@@ -1256,7 +1258,7 @@ const SCOPE_LEDGER: &[ScopeEntry] = &[
         path: "crates/test-utils/tests/reader_census.rs",
         seen: Seen::Needle,
         disposition: NotScope(NotScopeWhy::OwnNeedles, "SCOPE_KEYWORD_LITERALS"),
-        items: &[],
+        items: &["the_scope_needle_finds_a_binding_keyword_spelled_to_be_searched_for"],
     },
     ScopeEntry {
         path: "crates/topo/src/boolean/offer_rows.rs",
@@ -1265,7 +1267,7 @@ const SCOPE_LEDGER: &[ScopeEntry] = &[
             NotScopeWhy::SkipsUseDeclarations,
             "a `use` line is no passing site",
         ),
-        items: &[],
+        items: &["every_site_names_the_decision_it_raises"],
     },
     ScopeEntry {
         path: "crates/topo/src/source_walk.rs",
@@ -1309,24 +1311,38 @@ fn scope_needle_hits(code: &str) -> Vec<(usize, &'static str)> {
     out
 }
 
-/// Every `fn` item of `code` (a code-only view) with its body's range.
+/// Every `fn` item of `code` (a code-only view) with its body's range,
+/// and every `const` and `static` item with its whole extent: the items
+/// a scope-ledger line names.
 fn fn_bodies(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
-    code.match_indices("fn ")
-        .filter(|(at, _)| test_utils::source::boundary_before(code, *at))
-        .filter_map(|(at, _)| {
-            let name_at = test_utils::source::skip_ws(code, at + "fn ".len());
-            let name = test_utils::source::ident(code, name_at);
-            match test_utils::source::item_body(code, at) {
-                test_utils::source::ItemBody::Body(body) if !name.is_empty() => {
-                    Some((name.to_string(), body))
-                }
-                _ => None,
+    let mut out = Vec::new();
+    for keyword in ["fn ", "const ", "static "] {
+        for (at, _) in code.match_indices(keyword) {
+            if !test_utils::source::boundary_before(code, at) {
+                continue;
             }
-        })
-        .collect()
+            let name_at = test_utils::source::skip_ws(code, at + keyword.len());
+            let name = test_utils::source::ident(code, name_at);
+            if name.is_empty() || name == "fn" || name == "mut" {
+                continue;
+            }
+            let extent = match test_utils::source::item_body(code, at) {
+                test_utils::source::ItemBody::Body(body) if keyword == "fn " => body,
+                // A `const`/`static` runs to its `;`, through any brace in
+                // its initializer.
+                _ if keyword != "fn " => match code[at..].find(";\n") {
+                    Some(end) => at..at + end + 1,
+                    None => continue,
+                },
+                _ => continue,
+            };
+            out.push((name.to_string(), extent));
+        }
+    }
+    out
 }
 
-/// The innermost `fn` whose body holds offset `at`.
+/// The innermost item whose extent holds offset `at`.
 fn innermost_fn(bodies: &[(String, std::ops::Range<usize>)], at: usize) -> Option<&str> {
     bodies
         .iter()
@@ -1410,19 +1426,21 @@ fn every_site_that_asks_a_scope_question_is_in_the_scope_ledger() {
 /// **Each line's claim, checked against its file.**
 ///
 /// - [`Parsed`]: the file calls the home's reader, not merely names it.
-/// - [`NotScope`]: its reason may be claimed in this file, and admits
-///   every needle its items hold.
-/// - Items: every needle hit in a file with a [`HandRolled`] or
-///   [`NotScope`] line lies in an item one of its lines lists (a hit
-///   outside every `fn` belongs to a line with no items), and each
-///   listed item still holds one. A converted reader's item holds none:
-///   remove it, and its record entry.
+/// - [`HandRolled`] and [`NotScope`] name their items, and in a file with
+///   either, every needle hit lies in an item some line lists: a reader
+///   added beside the listed ones is a hit no line answers for. Each
+///   listed item still holds a hit (a converted one holds none: remove
+///   it, and its record entry).
+/// - [`NotScope`]: each hit in the line's items is a needle its reason
+///   admits, and each item is recorded under that reason in
+///   [`NOT_SCOPE_AT_THE_HOMES_ARRIVAL`].
 /// - [`Seen::Anchor`]: the line's items are still in the file, and the
 ///   needle does not find the file.
 #[test]
 fn every_scope_line_holds_of_its_file() {
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let mut wrong: Vec<String> = Vec::new();
+    let mut held: Vec<String> = Vec::new();
     let mut paths: Vec<&str> = SCOPE_LEDGER.iter().map(|e| e.path).collect();
     paths.dedup();
     for path in paths {
@@ -1432,37 +1450,41 @@ fn every_scope_line_holds_of_its_file() {
         let lexed = code_and_literals(&text);
         let bodies = fn_bodies(&code);
         let lines: Vec<&ScopeEntry> = SCOPE_LEDGER.iter().filter(|e| e.path == path).collect();
+        let hits = scope_needle_hits(&lexed);
+        let in_items = |items: &[&str], at: usize| {
+            innermost_fn(&bodies, at).is_some_and(|f| items.contains(&f))
+        };
         let itemised = lines
             .iter()
-            .any(|e| matches!(e.disposition, HandRolled(_) | NotScope(..)) && !e.items.is_empty());
-        let hits = scope_needle_hits(&lexed);
+            .any(|e| matches!(e.disposition, HandRolled(_) | NotScope(..)));
         for e in &lines {
             match e.disposition {
                 Parsed if !calls_the_scope_home(&code) => wrong.push(format!(
                     "{path}: Parsed, but it does not call `{SCOPE_HOME_DOOR}::{SCOPE_HOME_READ}`"
                 )),
+                HandRolled(_) | NotScope(..) if e.items.is_empty() => wrong.push(format!(
+                    "{path}: a HandRolled or NotScope line names the items it answers for"
+                )),
                 NotScope(why, where_) => {
                     if where_.trim().is_empty() {
                         wrong.push(format!("{path}: NotScope({why:?}) says where in the file"));
                     }
-                    let (admitted, files) = why.admits();
-                    if !files.contains(&path) {
-                        wrong.push(format!(
-                            "{path}: NotScope({why:?}) is not a reason this file may claim \
-                             ({files:?})"
-                        ));
-                    }
                     for (at, n) in &hits {
-                        let in_line = e.items.is_empty()
-                            || innermost_fn(&bodies, *at).is_some_and(|f| e.items.contains(&f));
-                        if in_line
-                            && !admitted.contains(n)
-                            && (e.items.is_empty() || lines.len() == 1)
-                        {
+                        if in_items(e.items, *at) && !why.admits().contains(n) {
                             wrong.push(format!(
                                 "{path}: NotScope({why:?}) does not answer for {n} (byte {at})"
                             ));
                         }
+                    }
+                    for item in e.items {
+                        let key = format!("{why:?} {path}::{item}");
+                        if !NOT_SCOPE_AT_THE_HOMES_ARRIVAL.contains(&key.as_str()) {
+                            wrong.push(format!(
+                                "{key} is no item recorded under its reason in \
+                                 NOT_SCOPE_AT_THE_HOMES_ARRIVAL"
+                            ));
+                        }
+                        held.push(key);
                     }
                 }
                 _ => {}
@@ -1483,7 +1505,7 @@ fn every_scope_line_holds_of_its_file() {
                 if matches!(e.seen, Seen::Needle) && !holds {
                     wrong.push(format!(
                         "{path}: `{item}` holds no binding keyword now: converted, so remove it \
-                         from the line (and from HAND_ROLLED_AT_THE_HOMES_ARRIVAL)"
+                         from the line and from its record"
                     ));
                 }
             }
@@ -1496,15 +1518,22 @@ fn every_scope_line_holds_of_its_file() {
         if itemised {
             let listed: Vec<&str> = lines.iter().flat_map(|e| e.items.iter().copied()).collect();
             for (at, n) in &hits {
-                match innermost_fn(&bodies, *at) {
-                    Some(f) if listed.contains(&f) => {}
-                    f => wrong.push(format!(
+                if !in_items(&listed, *at) {
+                    wrong.push(format!(
                         "{path}: {n} at byte {at} (in {}) is in no item a line lists: a new \
                          scope reader beside the listed ones resolves through `{SCOPE_HOME_DOOR}`",
-                        f.map_or("no fn".to_string(), |f| format!("`{f}`"))
-                    )),
+                        innermost_fn(&bodies, *at)
+                            .map_or("no item".to_string(), |f| format!("`{f}`"))
+                    ));
                 }
             }
+        }
+    }
+    for entry in NOT_SCOPE_AT_THE_HOMES_ARRIVAL {
+        if !held.iter().any(|h| h == entry) {
+            wrong.push(format!(
+                "{entry} is no NotScope item now: remove it from NOT_SCOPE_AT_THE_HOMES_ARRIVAL"
+            ));
         }
     }
     assert!(wrong.is_empty(), "scope lines that do not hold: {wrong:#?}");

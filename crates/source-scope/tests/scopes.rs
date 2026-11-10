@@ -503,3 +503,32 @@ fn an_import_named_after_its_own_head_does_not_name_itself() {
         ]
     );
 }
+
+#[test]
+fn an_import_of_an_in_file_module_is_walked_on_wherever_it_stands() {
+    let src = parsed(
+        "mod a { pub use super::n as q; }
+        mod n { pub use x::door; }
+        mod m { pub use y::door; }
+        use self::a::q::door as leaf;
+        fn f() { a::q::door(); leaf(); }
+        mod t { use super::*; use m::door as g; fn h() { m::door(); g(); } }",
+    );
+    let got: Vec<Option<Bound>> = src
+        .events
+        .iter()
+        .filter(|e| e.args.is_some())
+        .map(|e| e.bound().cloned())
+        .collect();
+    let x = used(&["x", "door"]);
+    let y = used(&["y", "door"]);
+    let leaf = Some(Bound::Use {
+        path: vec!["x".into(), "door".into()],
+        alias: Some("leaf".into()),
+    });
+    let g = Some(Bound::Use {
+        path: vec!["y".into(), "door".into()],
+        alias: Some("g".into()),
+    });
+    assert_eq!(got, vec![x, leaf, y, g]);
+}

@@ -30,8 +30,8 @@
 //! and a field or a method binds nothing. An import whose path stays in
 //! the file (`use super::choose`, `use self::m::choose`, a glob of a
 //! glob) and a `self::`/`super::` call are followed to the import that
-//! leaves it, a path's head read first in the block around it. This census asks only its own question of what the parse
-//! resolves.
+//! leaves it, a path's head read first in the block around it. This
+//! census asks only its own question of what the parse resolves.
 //!
 //! **What the census cannot read, it lists rather than skips**: a row
 //! that is not a string literal and not a forwarded parameter; a
@@ -41,9 +41,9 @@
 //! `macro_rules!` body; a bare call of a door's name that nothing in its
 //! file resolves (no import, or a glob that leaves the file with nothing
 //! behind it); a `self::`/`super::` path, called or imported, that
-//! leaves the file; a
-//! name with two `#[cfg]`-kept bindings, the door among them; a `pub use`
-//! re-export of a door or of the module under another name. Each is a
+//! leaves the file; a name with two `#[cfg]`-kept bindings, the door
+//! among them; a `pub use` re-export of a door or of the module under
+//! another name. Each is a
 //! site citing no row. A home fn with two row-like parameters, a stale
 //! [`NON_ROW_DOORS`] entry and a file that does not parse stop it.
 //!
@@ -1317,4 +1317,56 @@ fn a_door_reached_through_a_block_scope_or_past_the_file() {
     .collect();
     want.sort();
     assert_eq!(got, want, "each head in its own scope");
+}
+
+/// **An import that names an in-file module re-enters the file**: a
+/// path's middle segment bound by an import of a sibling module (N1, and
+/// its `use` leaf form), and a module brought in by a `use super::*`
+/// glob, as a path's head (N18) and as an import's (N19), each reach the
+/// door the module re-exports (6694's second delta review).
+#[test]
+fn an_import_of_an_in_file_module_is_walked_on() {
+    let home = "k_stats.rs";
+    let files = [
+        planted(
+            home,
+            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
+        ),
+        planted(
+            "n1_middle_import.rs",
+            "mod a { pub use super::n as q; }\nmod n { pub use crate::k_stats::choose; }\nfn f() { a::q::choose(\"n\", x, \"N1\"); }\n",
+        ),
+        planted(
+            "n1_leaf.rs",
+            "mod a { pub use super::n as q; }\nmod n { pub use crate::k_stats::choose; }\nuse self::a::q::choose;\nfn f() { choose(\"n\", x, \"N1L\"); }\n",
+        ),
+        planted(
+            "n18_glob_brought_head.rs",
+            "mod m { pub use crate::k_stats::choose; }\nmod t {\n    use super::*;\n    fn f() { m::choose(\"n\", x, \"N18\"); }\n}\n",
+        ),
+        planted(
+            "n19_glob_brought_import.rs",
+            "mod m { pub use crate::k_stats::choose; }\nmod t {\n    use super::*;\n    use m::choose;\n    fn f() { choose(\"n\", x, \"N19\"); }\n}\n",
+        ),
+    ];
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let mut got = rows_of(&door_sites(&files, &roster));
+    got.sort();
+    let reexport = "<re-exports `choose` (`pub use crate::k_stats::choose`): its importers reach \
+                    the door by a path this census does not read>";
+    let mut want: Vec<(String, String)> = [
+        ("n18_glob_brought_head.rs", "N18"),
+        ("n18_glob_brought_head.rs", reexport),
+        ("n19_glob_brought_import.rs", "N19"),
+        ("n19_glob_brought_import.rs", reexport),
+        ("n1_leaf.rs", "N1L"),
+        ("n1_leaf.rs", reexport),
+        ("n1_middle_import.rs", "N1"),
+        ("n1_middle_import.rs", reexport),
+    ]
+    .into_iter()
+    .map(|(f, r)| (f.to_string(), r.to_string()))
+    .collect();
+    want.sort();
+    assert_eq!(got, want, "each import of an in-file module, walked on");
 }

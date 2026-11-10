@@ -739,12 +739,12 @@ impl Reader {
     /// **What `path`, written in scope node `n`, reaches — the one home of
     /// a path's head.** The head is resolved once: `self` and `super` from
     /// `n`'s module, `crate` as leaving the file, and any other name in
-    /// the scopes around `n` (an inline module declared there, or an
-    /// import, whose followed path then stands in for the head). Each
-    /// further segment is walked the same way from the module reached.
-    /// `None` where the head is not in the file (an extern crate) or a
-    /// `super` climbs past it. `declaring` is the import whose own path
-    /// this is, by its node and name: its head is not that import.
+    /// the scopes around `n` ([`Reader::head_in_scopes`]). Each further
+    /// segment is walked the same way from the module reached
+    /// ([`Reader::walk`]). `None` where the head is not in the file (an
+    /// extern crate) or a `super` climbs past it. `declaring` is the
+    /// import whose own path this is, by its node and name: its head is
+    /// not that import.
     fn path_from(
         &self,
         n: usize,
@@ -756,49 +756,21 @@ impl Reader {
             return None;
         }
         let (head, rest) = path.split_first()?;
-        let start = match head.as_str() {
-            "self" => self.module_of(n),
+        match head.as_str() {
+            "self" => self.walk(self.module_of(n), rest, depth + 1),
             "super" => {
                 let m = self.module_of(n);
-                self.module_of(self.nodes[m].parent?)
+                let up = self.module_of(self.nodes[m].parent?);
+                self.walk(up, rest, depth + 1)
             }
-            "crate" => return None,
-            name => match self.head_in_scopes(n, name, depth + 1, declaring)? {
-                Target::Module(m) => m,
-                Target::Bound(Bound::Use { path: through, .. }) => {
-                    let mut whole = through;
-                    whole.extend(rest.iter().cloned());
-                    return Some(Target::Bound(Bound::Use {
-                        path: whole,
-                        alias: None,
-                    }));
-                }
-                Target::Bound(Bound::Ambiguous(all)) => {
-                    let each = all
-                        .into_iter()
-                        .map(|b| match b {
-                            Bound::Use { path: through, .. } => {
-                                let mut whole = through;
-                                whole.extend(rest.iter().cloned());
-                                Bound::Use {
-                                    path: whole,
-                                    alias: None,
-                                }
-                            }
-                            other => other,
-                        })
-                        .collect();
-                    return Some(Target::Bound(Bound::Ambiguous(each)));
-                }
-                Target::Bound(_) => return None,
-            },
-        };
-        self.walk(start, rest, depth + 1)
+            "crate" => None,
+            name => self.head_in_scopes(n, name, rest, depth + 1, declaring),
+        }
     }
 
     /// The rest of a path, from module `m`: a last segment is a name in
-    /// `m`; a middle one is `self`, `super`, a child module, or an import
-    /// (whose path then stands in).
+    /// `m`; a middle one is `self`, `super`, or a name `m` holds
+    /// ([`Reader::head_in_node`]).
     fn walk(&self, m: usize, segs: &[String], depth: usize) -> Option<Target> {
         if depth > FOLLOW_DEPTH {
             return None;
@@ -806,90 +778,68 @@ impl Reader {
         let Some((seg, rest)) = segs.split_first() else {
             return Some(Target::Module(m));
         };
-        let next = match seg.as_str() {
-            "self" => m,
-            "super" => self.module_of(self.nodes[m].parent?),
-            child => match self.nodes[m].children.get(child) {
-                Some(&c) => c,
-                None if rest.is_empty() => {
-                    return self.in_node(m, child, depth + 1).map(Target::Bound);
-                }
-                None => {
-                    return match self.import_in(m, child, depth + 1)? {
-                        Bound::Use { path: through, .. } => {
-                            let mut whole = through;
-                            whole.extend(rest.iter().cloned());
-                            Some(Target::Bound(Bound::Use {
-                                path: whole,
-                                alias: None,
-                            }))
-                        }
-                        _ => None,
-                    };
-                }
+        match seg.as_str() {
+            "self" => self.walk(m, rest, depth + 1),
+            "super" => self.walk(self.module_of(self.nodes[m].parent?), rest, depth + 1),
+            name if rest.is_empty() => match self.nodes[m].children.get(name) {
+                Some(&c) => Some(Target::Module(c)),
+                None => self.in_node(m, name, depth + 1).map(Target::Bound),
             },
-        };
-        self.walk(next, rest, depth + 1)
-    }
-
-    /// The followed import of `name` in node `n`'s own declarations (a
-    /// path's head or middle names a module or a type, which only an
-    /// import can bring in by that name).
-    fn import_in(&self, n: usize, name: &str, depth: usize) -> Option<Bound> {
-        let imports: Vec<Bound> = self.nodes[n]
-            .names
-            .get(name)?
-            .iter()
-            .filter(|d| matches!(d.bound, Bound::Use { .. }))
-            .map(|d| self.follow(n, d.bound.clone(), depth + 1, name))
-            .collect();
-        match imports.len() {
-            0 => None,
-            1 => imports.into_iter().next(),
-            _ => Some(Bound::Ambiguous(imports)),
+            name => self.head_in_node(m, name, rest, depth + 1, None),
         }
     }
 
-    /// A path's head `name`, from node `n` outward to its module: an
-    /// inline module declared in a scope, or an import there (an import
-    /// of an in-file module is that module). The import `skip` names is
-    /// the one being declared, and is passed over.
+    /// A path's head `name` and the segments after it, from node `n`
+    /// outward to its module ([`Reader::head_in_node`] at each).
     fn head_in_scopes(
         &self,
         mut n: usize,
         name: &str,
+        rest: &[String],
         depth: usize,
         skip: Option<(usize, &str)>,
     ) -> Option<Target> {
         loop {
-            if let Some(&c) = self.nodes[n].children.get(name) {
-                return Some(Target::Module(c));
+            if let Some(found) = self.head_in_node(n, name, rest, depth + 1, skip) {
+                return Some(found);
             }
-            let imports: Vec<&Vec<String>> = if skip == Some((n, name)) {
-                Vec::new()
-            } else {
-                self.nodes[n]
-                    .names
-                    .get(name)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|d| match &d.bound {
-                        Bound::Use { path, .. } => Some(path),
-                        _ => None,
-                    })
-                    .collect()
-            };
-            let mut found: Vec<Target> = imports
+            match (self.nodes[n].module, self.nodes[n].parent) {
+                (false, Some(p)) => n = p,
+                _ => return None,
+            }
+        }
+    }
+
+    /// **A path segment `name` that node `n` holds, and the segments
+    /// after it**: an inline module declared there, walked on; an import
+    /// of it, through [`Reader::through_import`]; or what an in-file glob
+    /// of `n` brings in by that name. The import `skip` names is the one
+    /// being declared, and is passed over.
+    fn head_in_node(
+        &self,
+        n: usize,
+        name: &str,
+        rest: &[String],
+        depth: usize,
+        skip: Option<(usize, &str)>,
+    ) -> Option<Target> {
+        if depth > FOLLOW_DEPTH {
+            return None;
+        }
+        if let Some(&c) = self.nodes[n].children.get(name) {
+            return self.walk(c, rest, depth + 1);
+        }
+        if skip != Some((n, name)) {
+            let mut found: Vec<Target> = self.nodes[n]
+                .names
+                .get(name)
                 .into_iter()
-                .map(
-                    |path| match self.path_from(n, path, depth + 1, Some((n, name))) {
-                        Some(t) => t,
-                        None => Target::Bound(Bound::Use {
-                            path: path.clone(),
-                            alias: None,
-                        }),
-                    },
-                )
+                .flatten()
+                .filter_map(|d| match &d.bound {
+                    Bound::Use { path, .. } => Some(path),
+                    _ => None,
+                })
+                .map(|path| self.through_import(n, name, path, rest, depth + 1))
                 .collect();
             match found.len() {
                 0 => {}
@@ -906,10 +856,48 @@ impl Reader {
                     )));
                 }
             }
-            match (self.nodes[n].module, self.nodes[n].parent) {
-                (false, Some(p)) => n = p,
-                _ => return None,
+        }
+        for g in &self.nodes[n].globs {
+            if let Some(Target::Module(m)) = self.path_from(n, &g[..g.len() - 1], depth + 1, None)
+                && let Some(found) = self.head_in_node(m, name, rest, depth + 1, None)
+            {
+                return Some(found);
             }
+        }
+        None
+    }
+
+    /// **The one home of "an import's path stands in for the head"**:
+    /// the import of `name` in node `n`, by its written `path`, with the
+    /// segments `rest` after it. Its path is resolved first (its own head
+    /// skipping the import itself); an in-file module it reaches is walked
+    /// on, so resolution re-enters the file; a binding that leaves it
+    /// takes the rest appended; a path that does not resolve in the file
+    /// is kept as written, with the rest appended.
+    fn through_import(
+        &self,
+        n: usize,
+        name: &str,
+        path: &[String],
+        rest: &[String],
+        depth: usize,
+    ) -> Target {
+        let append = |mut whole: Vec<String>| {
+            whole.extend(rest.iter().cloned());
+            Target::Bound(Bound::Use {
+                path: whole,
+                alias: None,
+            })
+        };
+        match self.path_from(n, path, depth + 1, Some((n, name))) {
+            Some(Target::Module(m)) => self
+                .walk(m, rest, depth + 1)
+                .unwrap_or_else(|| append(path.to_vec())),
+            Some(Target::Bound(Bound::Use { path: through, .. })) if !rest.is_empty() => {
+                append(through)
+            }
+            Some(Target::Bound(b)) if rest.is_empty() => Target::Bound(b),
+            Some(Target::Bound(_)) | None => append(path.to_vec()),
         }
     }
 
