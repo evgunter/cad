@@ -208,9 +208,16 @@ impl ArcRow {
     }
 
     /// The rounding the sampled miss carries: an `f64` read of a point
-    /// at the radius's scale, a few units in the last place of it.
+    /// at the radius's scale, a few units in the last place of it,
+    /// amplified by the map's Möbius skew `max(λ, 1/λ)`. The oracle
+    /// re-derives the dumped rows exactly, without it.
     pub(super) fn eval_rounding(&self) -> f64 {
-        64.0 * f64::EPSILON * self.radius
+        let skew = self
+            .ends
+            .windows(2)
+            .map(|e| (e[0] / e[1]).sqrt().max((e[1] / e[0]).sqrt()))
+            .fold(1.0_f64, f64::max);
+        16.0 * f64::EPSILON * self.radius * skew
     }
 }
 
