@@ -860,15 +860,24 @@ impl<T: Decide> RigidMotion<T> {
     /// displacement fits the run's headroom `(K − 1)·ε` at every `K` the
     /// run admits; at the default `K = 10` the band is the run's own.
     ///
-    /// **Where it is decided.** A map whose every entry is a plain `f64`
-    /// ([`SpanLocate::plain_constant`]) is decided and re-minted at that
-    /// `f64` and entered at this scalar as the computed values it is
-    /// ([`RigidMotion::computed_at`]): its own rounding is what the
-    /// run's admission budget covers, so deciding the seven margins over
-    /// this scalar's enclosure of that rounding would charge it twice,
-    /// and every lane receives the one frame the `f64` lane does. A map
-    /// that is a box, or that carries a tangent or a symbol, is decided
-    /// and re-minted at this scalar.
+    /// **Where it is decided.** A map whose every LINEAR entry is a plain
+    /// `f64` ([`SpanLocate::plain_constant`]) has its linear part decided
+    /// and re-minted at that `f64`: its own rounding is what the run's
+    /// admission budget covers, so deciding the seven margins over this
+    /// scalar's enclosure of that rounding would charge it twice, and
+    /// every lane receives the one turn the `f64` lane does. That turn
+    /// is a function of no parameter, a constant of the model, so it is
+    /// entered as one ([`Real::from_f64`]): at [`crate::Sym`] a literal,
+    /// where an exactly orthonormal input comes back the literals it was
+    /// written as and a mapped point still cancels against its mapped
+    /// carrier. Entered as computed values ([`Real::from_computed`]),
+    /// each axis component would be an unknown of its own there, and no
+    /// identity through the turn would be proved. The translation enters no margin and is kept as
+    /// the scalar it is, so a boxed or symbolic shift under a written
+    /// turn stays the box or the form it was, its correlation with every
+    /// other use of its parameter intact. A map whose linear part is a
+    /// box, or carries a tangent or a symbol, is decided and re-minted at
+    /// this scalar.
     ///
     /// # Errors
     ///
@@ -880,11 +889,11 @@ impl<T: Decide> RigidMotion<T> {
         for column in [l.c0, l.c1, l.c2] {
             finite(at(column), MotionPart::Linear)?;
         }
-        // A map every entry of which is a plain f64 is decided and
-        // re-minted at that f64 and entered here as the computed values
-        // it is (module docs): its own rounding is the run's admission
-        // budget, so deciding it again over this scalar's enclosure of
-        // that rounding would charge it twice.
+        // A map every linear entry of which is a plain f64 has its turn
+        // decided and re-minted at that f64 and entered here as the
+        // model constant it is (the doc above): its own rounding is the
+        // run's admission budget, so deciding it again over this
+        // scalar's enclosure of that rounding would charge it twice.
         let constant = |v: Vec3<T>| {
             Some(Vec3::new(
                 v.x.plain_constant()?,
@@ -892,15 +901,29 @@ impl<T: Decide> RigidMotion<T> {
                 v.z.plain_constant()?,
             ))
         };
-        let point = (|| {
-            Some(Affine3::from_parts(
-                Mat3::from_cols(constant(l.c0)?, constant(l.c1)?, constant(l.c2)?),
-                constant(map.translation)?,
+        let linear = (|| {
+            Some(Mat3::from_cols(
+                constant(l.c0)?,
+                constant(l.c1)?,
+                constant(l.c2)?,
             ))
         })();
-        match point {
-            Some(point) => {
-                RigidMotion::<f64>::re_minted(&point, band).map(RigidMotion::computed_at)
+        match linear {
+            Some(linear) => {
+                let turn = RigidMotion::<f64>::re_minted(
+                    &Affine3::from_parts(linear, Vec3::zero()),
+                    band,
+                )?;
+                // The turn is a constant of the model: entered as one
+                // (`Real::from_f64`), a literal at `Sym`, so a written
+                // turn cancels as the literals it was written as.
+                let axis = |a: UnitVec3<f64>| UnitVec3::by_construction(a.get().map(T::from_f64));
+                Ok(Self {
+                    origin: finite(at(map.translation), MotionPart::Translation)?,
+                    u: axis(turn.u),
+                    v: axis(turn.v),
+                    w: axis(turn.w),
+                })
             }
             None => Self::re_minted(map, band),
         }
@@ -1957,6 +1980,63 @@ mod motion_rows {
             .point_value()
             .expect("and stays a point");
         assert_eq!(bits12(&at_sym.to_affine()), want, "Sym");
+    }
+
+    /// **A boxed shift under a written turn keeps its box, and the turn
+    /// is the `f64` lane's**, entered as model constants: a shift enters
+    /// no margin, so a box in it does not send the turn to be re-minted
+    /// at the box scalar. Re-minted there, the turn's axes are
+    /// normalizations at that scalar, and a point mapped by them no
+    /// longer cancels against its carrier's mapped origin: a boxed plane
+    /// read its own station twice the box off it. Red if the turn of a
+    /// map whose shift is a box is re-minted at the box scalar.
+    #[test]
+    fn a_boxed_shift_under_a_written_turn_keeps_its_box() {
+        let turn = Affine3::rotation_about_axis(
+            Point3::new(0.25, -1.0, 2.0),
+            Vec3::new(1.0, 2.0, -0.5),
+            0.9,
+        );
+        let want = RigidMotion::check_rigid(&turn, band()).expect("a rotation is rigid");
+        let shift = Vec3::new(
+            Interval::from_bounds(0.95, 1.05),
+            Interval::from_f64(1.0),
+            Interval::from_bounds(-0.05, 0.05),
+        );
+        let boxed = Affine3::from_parts(turn.linear.map(Interval::from_f64), shift);
+        let got = RigidMotion::check_rigid(&boxed, band()).expect("a boxed shift is rigid");
+        let bits = |v: Vec3<f64>| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()];
+        for (axis, (g, w)) in [(got.u, want.u), (got.v, want.v), (got.w, want.w)]
+            .into_iter()
+            .enumerate()
+        {
+            let point = g.get().map(|c| c.plain_constant().expect("a point axis"));
+            assert_eq!(bits(point), bits(w.get()), "axis {axis} is the f64 lane's");
+        }
+        for (g, s) in [
+            (got.origin.x, shift.x),
+            (got.origin.y, shift.y),
+            (got.origin.z, shift.z),
+        ] {
+            assert_eq!(
+                (g.lo().to_bits(), g.hi().to_bits()),
+                (s.lo().to_bits(), s.hi().to_bits()),
+                "the shift is the box it came in as"
+            );
+        }
+        // At `Sym` the turn is literals, so an identity through it is
+        // proved: an axis entered as computed values is an unknown each.
+        let symbolic = Affine3::from_parts(
+            turn.linear.map(crate::sym::Sym::<Interval>::from_f64),
+            Vec3::new(1.0, 1.0, 0.0).map(crate::sym::Sym::<Interval>::from_f64),
+        );
+        let at_sym = RigidMotion::check_rigid(&symbolic, band()).expect("rigid at Sym");
+        for axis in [at_sym.u, at_sym.v, at_sym.w] {
+            let a = axis.get();
+            for c in [a.x, a.y, a.z] {
+                assert!(c.plain_constant().is_some(), "an axis at Sym is a literal");
+            }
+        }
     }
 
     /// **A non-finite linear entry is the caller's input, refused by
