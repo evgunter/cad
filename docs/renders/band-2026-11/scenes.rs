@@ -39,6 +39,30 @@ fn slab(loops: Vec<ConstructedLoop<f64>>, z0: f64, h: f64) -> AtRestBody<f64> {
     )
     .expect("the profile extrudes")
     .body
+    .finish()
+}
+
+/// A body ready for the doors that take finished bodies. Today's
+/// `extrude` hands one back finished; the older kernel the rounded
+/// outline's branch builds on hands back construction state, finished
+/// through the scalar's at-rest gate (`make-stl.sh` turns the feature
+/// on for such a checkout).
+trait Finish {
+    fn finish(self) -> AtRestBody<f64>;
+}
+
+impl Finish for AtRestBody<f64> {
+    fn finish(self) -> AtRestBody<f64> {
+        self
+    }
+}
+
+#[cfg(feature = "older-kernel")]
+impl Finish for Body<f64> {
+    fn finish(self) -> AtRestBody<f64> {
+        <f64 as pncad::topo::AtRestPolicy>::gate_at_rest_kept(self, tol())
+            .expect("the extrusion is a finished body")
+    }
 }
 
 fn poly(points: &[(f64, f64)]) -> ConstructedLoop<f64> {
@@ -51,7 +75,10 @@ fn circle(cx: f64, cy: f64, r: f64) -> ConstructedLoop<f64> {
         .into()
 }
 
-fn body_of(what: &str, r: Result<BooleanResult<f64>, pncad::topo::BooleanError>) -> AtRestBody<f64> {
+fn body_of(
+    what: &str,
+    r: Result<BooleanResult<f64>, pncad::topo::BooleanError>,
+) -> AtRestBody<f64> {
     match r {
         Ok(BooleanResult::Body(b)) => b.body,
         other => panic!("{what}: {other:?}"),
@@ -66,6 +93,16 @@ fn point(body: &Body<f64>, v: pncad::topo::VertexKey) -> Point3<f64> {
     *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
 }
 
+/// The two ends of `e`.
+fn ends(body: &Body<f64>, e: EdgeKey) -> (Point3<f64>, Point3<f64>) {
+    let he = body.get_edge(e).unwrap().he_plus;
+    let start = body.get_half_edge(he).unwrap().start;
+    (
+        point(body, start),
+        point(body, body.half_edge_end(he).unwrap()),
+    )
+}
+
 fn near(p: &Point3<f64>, q: [f64; 3]) -> bool {
     (p.x - q[0]).abs() + (p.y - q[1]).abs() + (p.z - q[2]).abs() < 1e-9
 }
@@ -75,8 +112,7 @@ fn edge(body: &Body<f64>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
     let found: Vec<EdgeKey> = query::all_edges(body)
         .into_iter()
         .filter(|&e| {
-            let (v0, v1) = body.edge_vertices(e).unwrap();
-            let (p, q) = (point(body, v0), point(body, v1));
+            let (p, q) = ends(body, e);
             (near(&p, a) && near(&q, b)) || (near(&p, b) && near(&q, a))
         })
         .collect();
@@ -91,8 +127,8 @@ fn edges_where(body: &Body<f64>, at: impl Fn(&Point3<f64>) -> bool) -> Vec<EdgeK
     query::all_edges(body)
         .into_iter()
         .filter(|&e| {
-            let (v0, v1) = body.edge_vertices(e).unwrap();
-            at(&point(body, v0)) && at(&point(body, v1))
+            let (p, q) = ends(body, e);
+            at(&p) && at(&q)
         })
         .collect()
 }
@@ -116,7 +152,14 @@ impl Out {
     }
 
     /// Writes the operand, then each verb's result at `size` or its refusal.
-    fn blend(&mut self, name: &str, body: &AtRestBody<f64>, edges: &[EdgeKey], size: f64, verbs: &[&str]) {
+    fn blend(
+        &mut self,
+        name: &str,
+        body: &AtRestBody<f64>,
+        edges: &[EdgeKey],
+        size: f64,
+        verbs: &[&str],
+    ) {
         self.stl(&format!("{name}-before"), body);
         for &verb in verbs {
             let got = match verb {
@@ -163,9 +206,18 @@ fn l_bar() -> AtRestBody<f64> {
 /// A 6 × 4 × 0.5 plate and a 0.5 × 3 boss standing on it to z = 2, its
 /// low side at `x = inset`.
 fn plate_boss(inset: f64) -> AtRestBody<f64> {
-    let plate = slab(vec![poly(&[(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)])], 0.0, 0.5);
+    let plate = slab(
+        vec![poly(&[(0.0, 0.0), (6.0, 0.0), (6.0, 4.0), (0.0, 4.0)])],
+        0.0,
+        0.5,
+    );
     let boss = slab(
-        vec![poly(&[(inset, 0.5), (inset + 0.5, 0.5), (inset + 0.5, 3.5), (inset, 3.5)])],
+        vec![poly(&[
+            (inset, 0.5),
+            (inset + 0.5, 0.5),
+            (inset + 0.5, 3.5),
+            (inset, 3.5),
+        ])],
         0.25,
         1.75,
     );
@@ -223,7 +275,11 @@ fn lune() -> ConstructedLoop<f64> {
 }
 
 fn knife(out: &mut Out, size: f64) {
-    let plate = slab(vec![poly(&[(-1.8, -1.5), (1.8, -1.5), (1.8, 0.0), (-1.8, 0.0)])], 0.0, 1.0);
+    let plate = slab(
+        vec![poly(&[(-1.8, -1.5), (1.8, -1.5), (1.8, 0.0), (-1.8, 0.0)])],
+        0.0,
+        1.0,
+    );
     let left = slab(vec![circle(-1.0, 0.0, 1.0)], 0.0, 1.0);
     let right = slab(vec![circle(1.0, 0.0, 1.0)], 0.0, 1.0);
     let valley = union(&union(&plate, &left), &right);
@@ -251,20 +307,23 @@ fn rounded_rect(x0: f64, y0: f64) -> ConstructedLoop<f64> {
         .tangent()
         .tangent_arc_to(p(hx, -(hy - r)), tol())
         .unwrap()
-        .line_to(p(hx, hy - r), tol())
+        .tangent()
+        .line(2.0 * (hy - r), tol())
         .unwrap()
         .tangent()
         .tangent_arc_to(p(hx - r, hy), tol())
         .unwrap()
-        .line_to(p(-(hx - r), hy), tol())
+        .tangent()
+        .line(2.0 * (hx - r), tol())
         .unwrap()
         .tangent()
         .tangent_arc_to(p(-hx, hy - r), tol())
         .unwrap()
-        .line_to(p(-hx, -(hy - r)), tol())
+        .tangent()
+        .line(2.0 * (hy - r), tol())
         .unwrap()
         .tangent()
-        .tangent_arc_to(Start, tol())
+        .tangent_arc_to(Start.arrives_tangent(), tol())
         .unwrap()
         .into()
 }
@@ -274,14 +333,20 @@ fn chain(out: &mut Out, size: f64) {
     let all = query::all_edges(&plate);
     out.blend("rounded-plate", &plate, &all, size, &["fillet", "chamfer"]);
 
-    let block = slab(vec![poly(&[(0.0, 0.0), (3.0, 0.0), (3.0, 2.0), (0.0, 2.0)])], 0.0, 1.0);
+    let block = slab(
+        vec![poly(&[(0.0, 0.0), (3.0, 0.0), (3.0, 2.0), (0.0, 2.0)])],
+        0.0,
+        1.0,
+    );
     let cut = slab(vec![rounded_rect(1.5, 1.0)], 0.5, 1.0);
     let pocket = body_of("the pocket", pncad::topo::subtract(&block, &cut, tol()));
     let floor = edges_where(&pocket, |p| (p.z - 0.5).abs() < 1e-9);
     assert_eq!(floor.len(), 8, "the floor's rim: four lines and four arcs");
     out.blend("pocket-floor", &pocket, &floor, size, &["fillet"]);
     let mouth = edges_where(&pocket, |p| {
-        (p.z - 1.0).abs() < 1e-9 && (p.x - 1.5).abs() <= 1.0 + 1e-9 && (p.y - 1.0).abs() <= 0.6 + 1e-9
+        (p.z - 1.0).abs() < 1e-9
+            && (p.x - 1.5).abs() <= 1.0 + 1e-9
+            && (p.y - 1.0).abs() <= 0.6 + 1e-9
     });
     assert_eq!(mouth.len(), 8, "the mouth: four lines and four arcs");
     out.blend("pocket-mouth", &pocket, &mouth, size, &["fillet"]);

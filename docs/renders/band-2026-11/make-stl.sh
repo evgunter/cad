@@ -24,9 +24,16 @@ pncad = { path = "$checkout/crates/pncad" }
 
 [workspace]
 
+[features]
+older-kernel = []
+
 [profile.release]
 opt-level = 1
 debug-assertions = true
 overflow-checks = true
 TOML
-cargo run --release --manifest-path "$crate/Cargo.toml" -- "$2" "$3" "$4"
+# A kernel whose `extrude` still hands back construction state has no
+# `topo::finish` door; scenes.rs finishes through the at-rest gate there.
+features=()
+grep -q "pub fn finish<" "$checkout/crates/topo/src/finish.rs" 2>/dev/null || features=(--features older-kernel)
+cargo run --release --manifest-path "$crate/Cargo.toml" "${features[@]}" -- "$2" "$3" "$4"

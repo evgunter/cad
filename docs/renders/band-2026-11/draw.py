@@ -3,6 +3,9 @@
 
     python draw.py <stl-dir> <png-dir>
 
+`<stl-dir>/sizes.txt` names each scene's radius or setback, one
+`<scene> <size>` per line, and the panel labels carry it.
+
 One PNG per scene: the operand and each result that built, side by
 side, from one camera framed on the blend. The STL is the kernel's own
 tessellation; this script only rasterizes it. It reads binary STL with
@@ -40,7 +43,7 @@ STAND_UP = {"valley"}
 SCENES = {
     "lbar-inside": (
         "L-bar, the single inside edge (PR 6513)",
-        28, -60, (0.5, 0.5, 0.5), 1.0, ["before", "fillet", "chamfer"],
+        30, 40, (0.7, 0.7, 0.5), 1.1, ["before", "fillet", "chamfer"],
     ),
     "boss-vertical": (
         "Inset boss, its vertical edge alone (PR 6513)",
@@ -49,10 +52,6 @@ SCENES = {
     "flush-pair": (
         "Flush pair as a mitre: plate top edge + boss vertical edge, root unrequested (PR 6513)",
         24, -140, (0.0, 0.4, 0.6), 0.75, ["before", "fillet", "chamfer"],
-    ),
-    "inset-pair": (
-        "Inset pair: two concave root edges around the post (PR 6513)",
-        40, -60, (1.2, 1.0, 0.6), 1.2, ["before", "fillet", "chamfer"],
     ),
     "inset-rim": (
         "Inset boss's whole root rim, four concave edges (PR 6513)",
@@ -179,7 +178,7 @@ def font(size):
     return ImageFont.truetype(font_manager.findfont("DejaVu Sans"), size)
 
 
-def scene_png(stl_dir, name, spec):
+def scene_png(stl_dir, name, spec, size):
     title, elev, azim, centre, half, panels = spec
     shown = [p for p in panels if (stl_dir / f"{name}-{p}.stl").exists()]
     head, foot = 44, 30
@@ -191,7 +190,8 @@ def scene_png(stl_dir, name, spec):
         if name in STAND_UP:
             tris = np.stack([tris[..., 0], -tris[..., 2], tris[..., 1]], axis=-1)
         sheet.paste(rasterize(tris, elev, azim, centre, half), (PANEL * k, head))
-        draw.text((PANEL * k + PANEL // 2, head + PANEL + 4), panel, fill="black", font=font(18), anchor="ma")
+        label = panel if panel == "before" else f"{panel} {size}"
+        draw.text((PANEL * k + PANEL // 2, head + PANEL + 4), label, fill="black", font=font(18), anchor="ma")
         if k:
             draw.line([(PANEL * k, head), (PANEL * k, head + PANEL)], fill=(200, 200, 200), width=1)
     return sheet, shown
@@ -200,10 +200,14 @@ def scene_png(stl_dir, name, spec):
 def main():
     stl_dir, png_dir = Path(sys.argv[1]), Path(sys.argv[2])
     png_dir.mkdir(parents=True, exist_ok=True)
+    sizes = dict(line.split() for line in (stl_dir / "sizes.txt").read_text().splitlines() if line.strip())
     for name, spec in SCENES.items():
         if not (stl_dir / f"{name}-before.stl").exists():
             continue
-        sheet, shown = scene_png(stl_dir, name, spec)
+        sheet, shown = scene_png(stl_dir, name, spec, sizes[name])
+        if len(shown) < 2:
+            print(f"{name}: no result built, nothing drawn")
+            continue
         out = png_dir / f"{name}.png"
         sheet.save(out, optimize=True)
         print(f"{out}: {', '.join(shown)}")
