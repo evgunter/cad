@@ -2,11 +2,12 @@
 id: a-cusp-fillet-overlap-refusal-names-segments-not-the-run
 kind: issue
 title: line(L).cusp().fillet(r) refuses at validation as an overlap between segment 0 and segment 1, naming indices rather than the cusp or the fillet's run-in
-status: open
+status: closed
 opened: 2026-11-06
 priority: P3
 cost: E
-rides_with: anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction
+closed: 2026-11-10
+pr: 6719
 ---
 
 

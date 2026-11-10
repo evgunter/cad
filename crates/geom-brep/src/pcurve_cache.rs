@@ -179,7 +179,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
+use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError, constant_weight};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
     Vec3, rounding_charge,
@@ -2033,8 +2033,8 @@ pub enum PcurveCertifyError {
     /// with the spline layer's own refusal rather than swallowed
     /// (D4 ¶2).
     ChartRow {
-        /// The spline layer's typed refusal.
-        source: SplineError,
+        /// The spline layer's typed refusal of the row read.
+        source: Built<SplineError>,
     },
     /// A certificate limb of the fitted lane refused definitely: which
     /// limb, and what the classifier saw of its value
@@ -2241,8 +2241,7 @@ impl PcurveCertifyError {
             Self::ChartRow { source } => write!(
                 f,
                 "pcurve certification: the chart's control net, or the row or column read \
-                 from it, is not valid spline structure — {}",
-                source.payload()
+                 from it, is not valid spline structure — {source}"
             ),
             Self::FittedCertificate {
                 limb,
@@ -14261,7 +14260,7 @@ mod tests {
             margin: geom_core::MarginDiag::value(1e-7),
         };
         let row = PcurveCertifyError::ChartRow {
-            source: SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+            source: Built::new(SplineError::DomainInvalid { lo: 1.0, hi: 0.0 }),
         };
         for at in [Reading::Build, Reading::AtRest] {
             assert_eq!(band.ending(at), BAND_TOLERANCE_RECOURSE, "{at:?}");
