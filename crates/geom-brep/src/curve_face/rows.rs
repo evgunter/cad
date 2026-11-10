@@ -484,8 +484,8 @@ fn every_door_name_carries_a_listed_prefix() {
         NameCarrier::Const("PAST_THE_END"),
         NameCarrier::Call("spread_signs"),
         NameCarrier::Call("constant_residual_roots"),
-        NameCarrier::Call("gap"),
-        NameCarrier::Call("apart"),
+        NameCarrier::Call("gap_as"),
+        NameCarrier::Call("apart_as"),
     ];
     let (table, doors) = (
         predicate_census(&src.join("curve_face.rs"), &carriers),
@@ -515,10 +515,9 @@ fn every_door_name_carries_a_listed_prefix() {
         census.unwalked
     );
     // The sites whose name is not a literal there: `circle_roots`' rows,
-    // which its callers name; the carriers' own bodies (`row`); and
-    // `gap(…)` calls that are not the
-    // spline door's gap reading. A new one is a name this row cannot
-    // see, so it reds until it is read or listed.
+    // which its callers name, and the carriers' own bodies (`row`). A new
+    // one is a name this row cannot see, so it reds until it is read or
+    // listed.
     let indirect: Vec<&str> = census.indirect.iter().map(String::as_str).collect();
     assert_eq!(
         indirect,
@@ -529,9 +528,7 @@ fn every_door_name_carries_a_listed_prefix() {
             "circle_roots.rs: rows.noise",
             "circle_roots.rs: rows.root_slack",
             "composite.rs: row",
-            "spline_face.rs: exact(m[0])",
             "spline_face.rs: row",
-            "spline_face.rs: x.interval(0)",
         ],
         "the census's indirect sites"
     );

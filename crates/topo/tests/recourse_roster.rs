@@ -386,6 +386,18 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("zero_as"),
     NameCarrier::Call("turn_as"),
     NameCarrier::Call("zero_refused"),
+    // The split join's chord-leave rows, picked by a `match` on the datum.
+    NameCarrier::Const("CHORD_LEAVE_GERM"),
+    NameCarrier::Const("CHORD_LEAVE_SECTION"),
+    // The split order's two axis rows, read in a loop.
+    NameCarrier::Const("SPLIT_JOIN_ORDER_U"),
+    NameCarrier::Const("SPLIT_JOIN_ORDER_V"),
+    // A refusal's own row, which no door decides
+    // (`two-boolean-refusals-name-a-row-no-door-decides`).
+    NameCarrier::Const("CARRIER_UNGLUED_COINCIDENCE"),
+    // The funnels the tree-wide reference row found their callers'
+    // names behind.
+    NameCarrier::Call("first_within"),
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
