@@ -9,7 +9,7 @@ opened: 2026-11-09
 
 Found by the delta review of PR 6598 (head 4ec53e77).
 
-1. **N1, the ranking is unpinned.** `a_later_abort_outranks_a_kept_limit` (geom-brep ladder.rs) feeds hand-built rungs to `climb_evidence`. Each of these mis-wirings of `read_pierces` (topo boolean/mod.rs ~6446-6485) leaves it green:
+1. **N1, the ranking is unpinned.** `a_later_abort_outranks_a_kept_limit` (`crates/geom-core/src/ladder.rs`, moved from geom-brep by QML T3) feeds hand-built rungs to `climb_evidence`. Each of these mis-wirings of `read_pierces` (topo boolean/mod.rs ~6446-6485) leaves it green:
    - a `?` before the climb;
    - `kept.then` in the wrong order;
    - a Limit classed Aborts in `BooleanError::refusal`.

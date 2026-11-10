@@ -776,7 +776,7 @@ pub fn read_identity<T: Decide>(
 /// separation; `upper`, the reading of a sum of the data's magnitudes,
 /// bounds the displacement from above. Past the band it straddles the
 /// band with the data, under the site's `straddle` row
-/// ([`geom_core::k_stats::straddle`]); short of deciding, it is its own
+/// ([`crate::k_stats::straddle`]); short of deciding, it is its own
 /// reading. `data` is the data's `Zero` as [`IdentityLadder::Zero`] keeps
 /// it, the first datum's reading, so the straddle's low end is that
 /// datum's reading and not the largest of them.
@@ -791,7 +791,7 @@ pub fn read_identity<T: Decide>(
 ///
 /// Where `upper` decided `Zero`, the caller's one carrier, or
 /// `Negative`, which a sum of magnitudes never reads
-/// ([`geom_core::k_stats::straddle`]'s panic).
+/// ([`crate::k_stats::straddle`]'s panic).
 pub fn data_beneath_sum(
     straddle: &'static str,
     data: MarginDiag,

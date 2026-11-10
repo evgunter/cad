@@ -288,13 +288,11 @@ impl PieceWalkRefusal {
     /// **The recourse every rendering of this refusal ends with**: a walk
     /// past its budget is a kernel approximation limit, whose last resort
     /// is the tolerance; a spline with no speed bound is a carrier no walk
-    /// reads yet.
+    /// reads yet. It is the standing's own ending ([`Self::refusal`],
+    /// [`geom_core::ladder::Refusal::recourse`]), so the two cannot part.
     #[must_use]
-    pub const fn recourse(self) -> &'static str {
-        match self {
-            Self::Exhausted => geom_core::KERNEL_LIMIT_RECOURSE,
-            Self::Unbounded => geom_core::NOT_YET_ENDING,
-        }
+    pub fn recourse(self) -> std::borrow::Cow<'static, str> {
+        self.refusal().recourse().render()
     }
 }
 

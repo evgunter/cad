@@ -20,7 +20,7 @@
 //! carrier closed forms for the containment forest's parity test.
 
 use crate::gate::{Escalation, Gate, check_unlogged, decide, decide_reported};
-use geom_core::ladder::{Answering, Climb, Kept, Rung, climb};
+use geom_core::ladder::{Answering, Climb, Refusal, Rung, climb};
 use geom_core::one_line::on_one_line_2d;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
@@ -2019,7 +2019,9 @@ fn arc_arc<T: Decide>(
                         Rung::Passes
                     }
                     Ok(Sign::Negative) => Rung::Passes,
-                    Err(e) => Kept::of(*e.source()).map(|_| e).into(),
+                    // An `Escalation` wraps exactly one margin's
+                    // refusal, so it stands by that margin.
+                    Err(e) => Refusal::Margin(*e.source()).rung(e),
                 }
             }) {
                 Climb::Answered { .. } => return Ok(PairOutcome::Overlap),
@@ -3822,6 +3824,37 @@ mod pair_contact_tests {
             wrong_rows.is_empty(),
             "at eps {eps:e}:\n{}",
             wrong_rows.join("\n")
+        );
+    }
+
+    /// **An end inside the other span answers past an end in band**
+    /// (`arc_arc`'s cocircular climb, `Any`). Two arcs of the unit
+    /// circle: the first from angle 0 over a quarter turn; the second
+    /// starts an in-band distance past the first's end and runs back to
+    /// `π/4`. The second's start, read first, is in band of the first's
+    /// span; its end, strictly inside it, is an overlap. A first-refusal
+    /// loop escalated at the start.
+    #[test]
+    fn an_end_inside_answers_past_an_end_in_band() {
+        let t = Tol::witness().get();
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let mid = t.eps * ((1.0 + t.k) / 2.0);
+        let quarter = std::f64::consts::FRAC_PI_2;
+        let first = arc::<f64>((0.0, 0.0), 1.0, 0.0, quarter, band);
+        let second = arc::<f64>((0.0, 0.0), 1.0, quarter + mid, -(quarter / 2.0 + mid), band);
+        let (SegKind::Arc(g1), SegKind::Arc(g2)) = (&first.kind, &second.kind) else {
+            panic!("two arcs")
+        };
+        assert!(
+            arc_span(g1, second.a, band).is_err(),
+            "the second's start is in band of the first's span"
+        );
+        assert!(
+            matches!(
+                arc_arc(&first, g1, &second, g2, band),
+                Ok(PairOutcome::Overlap)
+            ),
+            "an end strictly inside the other span is an overlap"
         );
     }
 }
