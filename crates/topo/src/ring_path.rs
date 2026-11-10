@@ -1416,7 +1416,8 @@ pub(crate) fn path_parity<T: Decide>(
                     // plane's other loop, or out of the arc's span, read at
                     // the arc's least speed).
                     // Either end decided on the plane lets the miss answer
-                    // alone, so both ends are read before either refuses.
+                    // without the other end, so the miss is read before
+                    // either end's refusal; past it, both ends are needed.
                     if [s0, s1].contains(&Ok(Sign::Zero))
                         && let LoopArc::Conic(conic) = arc
                         && segment_misses((from, to), conic, slack, band)?

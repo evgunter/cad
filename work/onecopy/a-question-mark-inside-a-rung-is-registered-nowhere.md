@@ -32,16 +32,27 @@ The `rung:` register exists and reds an unregistered in-rung `?`, with each of t
 
 ## Outcome
 
-The register is `scripts/gates/escalation-question-marks-rung.counts`, keyed `rung:<file>:<fn>`, read by `scripts/gates/escalation_rungs.py` under `escalation-question-marks.sh`. A rung's reader is three things: every closure in the call's arguments, every argument naming a `let` closure bound earlier in the `fn`, and every such closure a reader calls by name. A line in it counts where it holds `)?` with the register's two matchers, or with the name of a `let` closure that reads the band. The last arm is what found `side(from)?, side(to)?`: the band reaches those lines through `side`.
+The register is `scripts/gates/escalation-question-marks-rung.counts`, keyed `rung:<file>:<fn>`, read by `scripts/gates/escalation_rungs.py` under `escalation-question-marks.sh`.
 
-**Measured** over the 71 climb calls: 15 `?`s across three `fn`s, after the port below.
+**The calls read** are those of the ladder's entry points, each `pub fn climb*` in `geom_core::ladder` (`gate_ladder_entry_points` in `scripts/gates/lib.sh`), outside the ladder's own home. A combinator added there is read by construction.
+
+**A rung's reader** is:
+- every closure in the call's arguments, its parameters and return type skipped whole;
+- every argument naming a `let` closure bound earlier in the `fn`;
+- every such closure a reader calls by name;
+- where a reader names a parameter of its `fn`, the closure each direct caller passes for it, keyed by the caller.
+
+**A line counts** where it holds `)?` with the register's two matchers, or with the name of a `let` closure that reads the band. The last arm is what found `side(from)?, side(to)?`: the band reaches those lines through `side`.
+
+**Measured** over 69 climb calls: 17 `?`s across five `fn`s, after the port below.
 - `held_cut`: 4, one more than this row listed. `on_arc(before, ..)?` reads the band through `before`.
 - `crescent`: 5.
 - `path_parity`: 6.
+- Through `ray_walk::walk`'s `read` parameter: `ruled_region::contains` 1 and `solid_contain::point_in_faces` 1.
 
 Two more `?`s sit in rungs on reads of no band: `seam_germ_side`'s topology desyncs (`.ok_or(desync(..))?`) and `link::Sector::place`'s `ahead_settle(.., rd)?`, its wedge's only read, whose band is named `rd`. The header names both as blind spots.
 
 **Dispositions.** The row's claim that every in-rung `?` is a premise does not hold. A rung that reads `x?`, answers `P` where `x` holds, and then reads a `y` that answers `P` alone is a search inside the rung.
 - **Ported:** `path_parity`'s two pairs of segment ends, the crest side and the conic plane side. Either end decided on the cylinder or plane answers alone, so both ends are now read before either refuses. The row `a_segment_ending_on_the_crest_cylinder_answers_past_an_end_in_band` reds against the old order.
-- **Registered `SEARCH` and filed** as `a-rungs-later-read-answers-past-its-earlier-question-mark`: one site each in `crescent`, `held_cut` and `path_parity`.
+- **Registered `SEARCH` and filed** as `a-rungs-later-read-answers-past-its-earlier-question-mark`: three `?`s in `crescent` (PR 6763's review, F1), one in `held_cut` and one in `path_parity`.
 - **`PREMISE`:** the rest, each named in the register.

@@ -39,11 +39,15 @@
 #   * `escalation-question-marks-rung.counts`: a line inside a rung's
 #     reader holding `)?` and a `decide*(` call, the word `band`, or the
 #     name of a `let` closure that reads the band, keyed
-#     `rung:<file>:<fn>` by the `fn` around the `climb`,
-#     `climb_evidence` or `climb_agreeing` call (`escalation_rungs.py`).
-#     A rung's reader is every closure in the call's arguments, every
-#     argument naming a `let` closure bound earlier in the `fn`, and
-#     every such closure a reader calls by name. A port that moves a
+#     `rung:<file>:<fn>` by the `fn` the reader is written in
+#     (`escalation_rungs.py`). The calls read are those of the ladder's
+#     entry points, each `pub fn climb*` in `geom_core::ladder`
+#     (`gate_ladder_entry_points`), outside the ladder's own home. A
+#     rung's reader is every closure in the call's arguments (its
+#     parameters and return type skipped whole), every argument naming a
+#     `let` closure bound earlier in the `fn`, every such closure a
+#     reader calls by name, and, where a reader names a parameter of its
+#     `fn`, the closure each direct caller passes for it. A port that moves a
 #     loop's reads into one rung moves its `?`s out of every loop, so
 #     the first two registers no longer see them; this one does. Each
 #     entry's disposition says whether every read the `?` stops is
@@ -78,7 +82,12 @@
 #     reads in sequence);
 #   * inside a rung, a `?` on a bare binding (`s0?`, read after the
 #     reads that could answer), a reader that is a `fn` (its own `?`s
-#     are its premises), and a band reached by another name (`rd`).
+#     are its premises), and a band reached by another name (`rd`);
+#   * a reader passed down through two parameters (a caller that hands
+#     on its own parameter): only the direct callers' closures are read;
+#   * a `let` helper's `?` is counted at its own line and again at each
+#     call to it that carries a `?`: the register's count is lines, not
+#     reads.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -168,9 +177,12 @@ gate() {
   gate_require_file "$CALLEE_REGISTER" "the callee question-mark register"
   gate_require_file "$RUNG_REGISTER" "the rung question-mark register"
   gate_production_sources
+  gate_ladder_entry_points
   local view rungs
+  local -a entries
+  mapfile -t entries <<<"$GATE_LADDER_ENTRY_POINTS"
   view=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}")
-  if ! rungs=$(printf '%s\n' "$view" | python3 -I "$RUNGS"); then
+  if ! rungs=$(printf '%s\n' "$view" | python3 -I "$RUNGS" "${entries[@]}"); then
     gate_error "$(gate_name): the rung counter failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
     exit 1
   fi
@@ -207,6 +219,50 @@ gate_plant_clean() {
   printf '# none\n' > "$1/$REGISTER"
   printf '# none\n' > "$1/$CALLEE_REGISTER"
   printf '# none\n' > "$1/$RUNG_REGISTER"
+  mkdir -p "$1/crates/geom-core/src"
+  printf 'pub fn climb<I>(a: Answering, rungs: I, read: R) -> Climb {\n    climb_evidence(a, rungs, read)\n}\npub fn climb_evidence<I>(a: Answering, rungs: I, read: R) -> Climb {\n    loop {}\n}\n' \
+    > "$1/crates/geom-core/src/ladder.rs"
+}
+
+plant_rung_generic_closure() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(v: &[f64], band: f64) -> Climb {\n    climb(Answering::Any, v.iter(), |x: Pair<f64, f64>| -> Rung<bool, E> {\n        let a = holds(*x, band)?;\n        Rung::holds(Ok(a), (), refusal)\n    })\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_rung_new_entry_point() {
+  printf 'pub fn climb_differing<I>(rungs: I, read: R) -> Climb {\n    loop {}\n}\n' >> "$1/crates/geom-core/src/ladder.rs"
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(v: &[f64], band: f64) -> Climb {\n    climb_differing(v.iter(), |x| Rung::holds(holds(*x, band)?, (), refusal))\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_rung_no_entry_point() {
+  printf 'pub fn read() {}\n' > "$1/crates/geom-core/src/ladder.rs"
+}
+
+plant_rung_parameter_reader() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'fn walk<R>(v: &[f64], read: R) -> Climb {\n    climb(Answering::Any, v.iter(), |x| Rung::of_reading(read(*x)))\n}\npub fn g(v: &[f64], band: f64) -> Climb {\n    walk(v, |x| Ok(holds(x, band)? && more(x)))\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_rung_parameter_registered() {
+  plant_rung_parameter_reader "$1"
+  printf 'rung:crates/planted/src/lib.rs:g 1\n' >> "$1/$RUNG_REGISTER"
+}
+
+plant_rung_two_parameters_down() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'fn walk<R>(v: &[f64], read: R) -> Climb {\n    climb(Answering::Any, v.iter(), |x| Rung::of_reading(read(*x)))\n}\nfn hand<R>(v: &[f64], read: R) -> Climb {\n    walk(v, read)\n}\npub fn g(v: &[f64], band: f64) -> Climb {\n    hand(v, |x| Ok(holds(x, band)? && more(x)))\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_rung_helper_counted_twice() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(v: &[f64], band: f64) -> Climb {\n    let side = |x: f64| -> Result<bool, E> { Ok(decide_m(x, band)? == Sign::Zero) };\n    climb(Answering::Any, v.iter(), |x| Rung::holds(Ok(side(*x)?), (), refusal))\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+  printf 'rung:crates/planted/src/lib.rs:f 2\n' >> "$1/$RUNG_REGISTER"
 }
 
 plant_rung_closure() {
@@ -335,9 +391,16 @@ gate_selftest() {
   gate_selftest_case "$rung" plant_rung_let_reader
   gate_selftest_passes "a registered rung" plant_rung_registered
   gate_selftest_passes "a rung that reads both ends before either refuses" plant_rung_read_before_refusing
+  gate_selftest_case "$rung" plant_rung_generic_closure
+  gate_selftest_case "$rung" plant_rung_new_entry_point
+  gate_selftest_case "$rung" plant_rung_parameter_reader
+  gate_selftest_case "declares no" plant_rung_no_entry_point
+  gate_selftest_passes "a parameter reader registered at its caller" plant_rung_parameter_registered
+  gate_selftest_passes "a reader two parameters down (a documented miss)" plant_rung_two_parameters_down
+  gate_selftest_passes "a let helper counted at its line and its call (a documented double count)" plant_rung_helper_counted_twice
   gate_selftest_without_tool python3 "the rung counter failed"
   gate_selftest_with_broken_tool python3 "without its DONE line" '"$GATE_REAL_TOOL" "$@" | sed "/^DONE/d"'
-  printf '%s selftest OK: passes a clean tree, a registered site, one outside any loop and one in a test module; fires on an unregistered site in a for, a while or an expression loop body, on a callee read in band inside a loop that answers early (by a value, a binding, a method on one, a call, a reference or a ?), and on a register entry the tree no longer carries; passes a callee read in a loop that answers nothing early; fires on an unregistered ? in a rung closure or in a let closure a rung reads through, passes a registered rung and one that reads every end before refusing, and fails loud when the rung counter fails or stops short\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, a registered site, one outside any loop and one in a test module; fires on an unregistered site in a for, a while or an expression loop body, on a callee read in band inside a loop that answers early (by a value, a binding, a method on one, a call, a reference or a ?), and on a register entry the tree no longer carries; passes a callee read in a loop that answers nothing early; fires on an unregistered ? in a rung closure or in a let closure a rung reads through, a closure whose types hold a generic comma, a call of an entry point the ladder just added, and a reader passed through a parameter, passes a registered rung, one that reads every end before refusing, a parameter reader registered at its caller, and the documented miss and double count, and fails loud when the ladder names no entry point or the rung counter fails or stops short\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
