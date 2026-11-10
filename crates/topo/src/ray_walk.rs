@@ -1194,6 +1194,7 @@ mod tests {
     ///   of the earlier in-band ray;
     /// - in band, then fatal, then deciding → the fatal error;
     /// - grazing only → the exhaustion.
+    ///
     /// The first-refusal loop refused at the first ray of each.
     #[test]
     fn a_deciding_ray_answers_past_one_in_band_and_a_limit_outranks_it() {
