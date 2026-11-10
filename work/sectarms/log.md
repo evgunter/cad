@@ -535,3 +535,6 @@ and bodies unchanged. No orchestrator yet.
   - It also fixed two defects the measurement found (a cancelling `1 − cos φ`, and a band-scale ball padding), added the empty-cut guard and the fast coverage row, and gave the refusal map one home.
   - The arm's rounding charges were removed under main's newly ratified `[simple.conditioned]`.
   - The cylinder × sphere lane was then asked to bisect `m5_pr7_ssi::a_corner_both_of_whose_sides…`, which went from about 30 s to over 1680 s after a main merge. It is plane × NURBS, and our stage 4 (PR 6479) is a suspect.
+- 2026-11-10 — **Slowdown bisected to our own PR 6479 (8383bea).** `m5_pr7_ssi::a_corner_both_of_whose_sides…` went from about 34 s to about 1870 s.
+  - **Profile:** 23 of 25 stack samples sit in the boundary pass's `strip_reach`. Stage 4 replaced the plane's closed-form side partial with the generic subdivided enclosure `ChartPhi::partial`, though a plane's ∇f is constant.
+  - **Fix dispatched** to the free cylinder × sphere lane, inside the one form: a constant-gradient short-cut in `ChartPhi::partial` for `Form::Plane`, not a separate plane path, so the one-home ruling holds. It must give the same answers, restore the time, and add a work-count guard. Tier M.
