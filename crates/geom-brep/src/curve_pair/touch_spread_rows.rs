@@ -18,6 +18,17 @@ use crate::roots::Unsettled;
 
 const SPREAD: &str = "curve_pair_pose_touch_spread";
 
+/// A touching pair: its name, the two carriers and spans, and where it
+/// touches.
+type Pair = (
+    &'static str,
+    Curve3<f64>,
+    (f64, f64),
+    Curve3<f64>,
+    (f64, f64),
+    Point3<f64>,
+);
+
 fn band(eps: f64) -> Band {
     Band::new(eps, 10.0 * eps).unwrap()
 }
@@ -28,16 +39,7 @@ fn band(eps: f64) -> Band {
 /// origin and one of a quarter that inside it, touching at `(at, 0)`;
 /// and that circle beside the line `x = at`, touching there (the closed
 /// forms). Each pair's spans, and where it touches.
-fn touches(
-    at: f64,
-) -> [(
-    &'static str,
-    Curve3<f64>,
-    (f64, f64),
-    Curve3<f64>,
-    (f64, f64),
-    Point3<f64>,
-); 3] {
+fn touches(at: f64) -> [Pair; 3] {
     [
         (
             "the subdivision's ellipses",
