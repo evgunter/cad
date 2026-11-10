@@ -19,3 +19,10 @@ Filed by the ONECOPY orchestrator on 2026-11-04. Two ONECOPY lanes saw this row 
 ## Owed
 
 Bisect which merge moved the golden. Then decide: either the move is an honest change of a reading, and the golden is re-pinned with that reason, or it is a regression, which is fixed at its root.
+
+## Evidence: every ε row (ONEHOME, `onehome/session-box-fixtures`, 2026-11-10)
+
+On `onehome/session-box-fixtures` (main at `75243665`), the row misses `tilted_cut_upper`'s line, and only that line, at all three ε rows:
+- 1e-9: `v=3fd921fb54442d18 a=40096d2e7648c6c9 vpad=3e81270c3aaaaaac apad=3ea9ba9257500000` read, against the golden's `…d1b …6cb vpad=3e81270c3c2aaaac apad=3ea9ba925a200000`.
+- 1e-12: the volume moves too (`v=3fd921fb54442d17`, golden `…d07`).
+- 1e-6: `vpad=3ee16a7af0139556 apad=3f0a1fb8681ac000` read, against `vpad=3ee16a7af0134000 apad=3f0a1fb8681c6000`. This row was hidden until now, because its arc lofts refused `OutsideSessionBox` before the digest was read. That branch moves those lofts into the box and re-cuts their 1e-6 lines, but it leaves `tilted_cut_upper`'s line as it was, because nothing on that branch explains the move. (ONEHOME session-box-fixtures lane)

@@ -97,12 +97,13 @@ fn strip_loft(s: f64, delta: f64) -> Body<f64> {
 /// door), `loft_prism` (described splines, the finding's own body), the
 /// arc lofts scaled against the run's own ε so no row goes vacuous at
 /// one point of the matrix, and the thin strip.
-fn roster() -> Vec<(String, Body<f64>)> {
-    let eps = Tol::witness().get().eps;
-    let mut out: Vec<(String, Body<f64>)> = vec![
-        ("quintic_prism".to_string(), quintic_prism()),
-        ("tilted_cut_upper".to_string(), tilted_cut_upper()),
-        ("bulged_extrusion".to_string(), bulged_extrusion()),
+fn roster() -> Vec<(String, Body<f64>, topo::Settle<f64>)> {
+    let eps = unit();
+    let pinned = topo::test_support::pinned_resolution(Tol::witness());
+    let mut out: Vec<(String, Body<f64>, topo::Settle<f64>)> = vec![
+        ("quintic_prism".to_string(), quintic_prism(), pinned),
+        ("tilted_cut_upper".to_string(), tilted_cut_upper(), pinned),
+        ("bulged_extrusion".to_string(), bulged_extrusion(), pinned),
         // `loft_prism` is in this roster because it is the body the
         // finding measured
         // (`work/perf/mass-properties-are-serial-per-face.md`: 157 ms)
@@ -111,33 +112,51 @@ fn roster() -> Vec<(String, Body<f64>)> {
         // is about. A corpus DOCUMENT cannot stand in for it here:
         // `editor-core` sits above this crate, so the kernel-side
         // fixture is the only reachable spelling.
-        ("loft_prism".to_string(), loft_prism(Tol::witness())),
+        ("loft_prism".to_string(), loft_prism(Tol::witness()), pinned),
     ];
-    out.extend(
-        [1.0e11, 1.0e9]
-            .iter()
-            .map(|k| (format!("arc_loft_{k:e}eps"), arc_loft(k * eps))),
-    );
+    out.extend([1.0e11, 1.0e9].iter().map(|k| {
+        (
+            format!("arc_loft_{k:e}eps"),
+            arc_loft(k * eps),
+            resolution(),
+        )
+    }));
     out.push((
         "thin_strip".to_string(),
         strip_loft(1.0e12 * eps, 1.0e9 * eps),
+        resolution(),
     ));
     out
 }
 
+/// **The roster's unit**: ε, or less where the strip at `1e12` units,
+/// reaching `1e12` (its half width and its height), would pass the 1 km
+/// session box (`[tolerance.units]`): at ε = 1e-6 the unit is `1e-9`,
+/// and the bodies there are the 1e-9 row's. The bodies are measured at
+/// [`resolution`], `1024` units, so a scaled body's size against its
+/// resolution is the same at every ε row; the fixed bodies are measured
+/// at the pinned `1024·ε`. The names keep `eps` for the unit.
+fn unit() -> f64 {
+    Tol::witness()
+        .get()
+        .eps
+        .min(geom_core::tolerance::SESSION_BOX_EXTENT / 1.0e12)
+}
+
+/// The pinned `1024·ε`, in [`unit`]s.
+fn resolution<T: geom_core::Real>() -> topo::Settle<T> {
+    topo::test_support::resolution(1024.0 * unit())
+}
+
 /// One body's line: the reading (bits, or the typed refusal — which is
 /// where the refusing FACE is named) and both recorded channels.
-fn line(name: &str, body: &Body<f64>) -> String {
+fn line(name: &str, body: &Body<f64>, resolution: topo::Settle<f64>) -> String {
     // Finished outside the bracket, so the line is the measurement's own
     // readings. Every body here finishes at every ε, and one that did not
     // would panic here rather than reach the pinned line.
     let at_rest = topo::test_support::finished(name, topo::Body::clone(body), Tol::witness());
     let bracket = Bracket::open();
-    let read = match topo::mass_properties(
-        &at_rest,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    ) {
+    let read = match topo::mass_properties(&at_rest, Tol::witness(), resolution) {
         Ok(m) => format!(
             "v={:016x} a={:016x} vpad={:016x} apad={:016x}",
             m.enclosure.volume.to_bits(),
@@ -164,7 +183,7 @@ fn line(name: &str, body: &Body<f64>) -> String {
 fn f64_block() -> String {
     roster()
         .iter()
-        .map(|(name, body)| line(name, body))
+        .map(|(name, body, resolution)| line(name, body, *resolution))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -195,9 +214,9 @@ fn sym_bodies() -> [(&'static str, SymBody); 2] {
     ]
 }
 
-/// The arc loft at `Sym<f64>`, at scale `1e9·ε`.
+/// The arc loft at `Sym<f64>`, at scale `1e9` [`unit`]s.
 fn sym_arc_loft() -> Body<Sym<f64>> {
-    let s = 1.0e9 * Tol::witness().get().eps;
+    let s = 1.0e9 * unit();
     loft_body::<Sym<f64>>(
         &sweep::test_support::lift_sections::<Sym<f64>>(&[
             arc_section(s),
@@ -218,7 +237,7 @@ fn sym_arc_loft() -> Body<Sym<f64>> {
 
 /// The thin strip at `Sym<f64>`.
 fn sym_thin_strip() -> Body<Sym<f64>> {
-    let eps = Tol::witness().get().eps;
+    let eps = unit();
     loft_body::<Sym<f64>>(
         &sweep::test_support::lift_sections::<Sym<f64>>(&[
             strip_section(1.0e12 * eps, 1.0e9 * eps, false),
@@ -310,12 +329,9 @@ fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receip
                 let built = geom_core::sym::session_counts().expect("a session is installed");
                 geom_core::sym::report::start_shape_report();
                 let refused = match &finished {
-                    Some(finished) => topo::mass_properties(
-                        finished,
-                        Tol::witness(),
-                        topo::test_support::pinned_resolution(Tol::witness()),
-                    )
-                    .is_err(),
+                    Some(finished) => {
+                        topo::mass_properties(finished, Tol::witness(), resolution()).is_err()
+                    }
                     None => topo::validate_geometric(&body, Tol::witness()).is_err(),
                 };
                 (refused, built)
@@ -558,12 +574,9 @@ fn bodies_built_before_the_session_trip_the_guard_while_disp_still_reads_zero() 
         .into_iter()
         .map(|door| {
             let (_, c) = with_session(budget(), || match door {
-                "mass_properties" => topo::mass_properties(
-                    &finished,
-                    Tol::witness(),
-                    topo::test_support::pinned_resolution(Tol::witness()),
-                )
-                .is_err(),
+                "mass_properties" => {
+                    topo::mass_properties(&finished, Tol::witness(), resolution()).is_err()
+                }
                 _ => topo::validate_geometric(&body, Tol::witness()).is_err(),
             });
             (door, c)
