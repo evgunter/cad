@@ -19,3 +19,7 @@ Two production sites in topo build a decision's result by hand, under a row name
 **The question for each:** route it through a door (`k_stats::decide`/`choose` over the margin it has, or a `straddle`-style mint the K recorder logs), or state at the site that the row is a refusal's label rather than a decision's.
 
 **Done** when each site either goes through a named door, or is a declared label the census reads as such, and the marker at `recl.rs` is gone.
+
+## Site 1 retired (SEAL PR 6693, 2026-11-10)
+
+SEAL's `a-corner-reads-only-its-own-sectors` deletes `unglued_coincidence` with C22. An unglued corner now refuses on its own reading through a door: `gate_rejection` (`fan::unglued_parallel`, `boolean::unglued_corner`) or `straddle` (`bool_corner_side_slack_straddle`). The const `CARRIER_UNGLUED_COINCIDENCE` and its roster entry go with it. Site 2, the bisector's `OnReading` in `recl.rs`, remains (`by: TiedBy::Band`).
