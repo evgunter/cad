@@ -1,7 +1,7 @@
 ---
 id: three-raw-sign-within-reads-predate-their-gate
 kind: issue
-title: Three production files read sign_within raw, outside a named k_stats door: each is either no decision (say so) or an unnamed one (route it)
+title: Two production files read sign_within raw, outside a named k_stats door (replay.rs, cylinders.rs): each is either no decision (say so) or an unnamed one (route it)
 status: open
 opened: 2026-11-06
 priority: P3
@@ -27,3 +27,9 @@ For each: if no outcome changes what is certified, say so where it is read (or t
 So the read stays registered.
 
 **An open question it raises.** Reading a straddle as "no crease" lets a join run a spline carrier on through a knot it cannot tell it is not on. The module docs rest the join on Ev's PR 5913 ruling, that every edge carrier is C¹ by its knot structure strictly inside its cell. A straddle read as "crease" (keep the other edge, or do not join) is the side that ruling allows. That reading is `choose` with its tie taken as a crease, and it moves outcomes only at an interval scalar, where a straddle can occur. Whether to take it is a design call, not a routing one.
+
+**`edge_join::crease_at` is done** (2026-11-10, `onecopy/crease-at`; orchestrator ruling (i)). It reads three values through `k_stats::prove("edge_join_crease_at", ..)` at the least band (`crease_read`): `Crease::Decided` where `t − k` is decided zero, `No` where every difference is decided nonzero, `Undecided` where one straddles. `prove` is the existing door that keeps the zero apart from the straddle, and its doc fits: a refusal is an outcome a narrower box can answer.
+- `joinable` takes the edges' pair through `kept_edge`: **an undecided knot stops the join; only a decided crease picks the kept edge.** A straddle therefore leads only to the split, a vertex left on a smooth edge, which is valid topology. Ev's PR 5913 ruling holds: no spline runs on through a knot the join could not rule out.
+- Pinned by `edge_join::crease::a_straddled_knot_reads_undecided_and_stops_the_join`.
+- Measured: no join moved anywhere in `topo`, `sweep` or `editor-core`. The fast suites ran 9595 tests at each ε, and the join-related slow set (`join|crease|spline|nurbs|knot`) 727, both instrumented to record every `Undecided` that stops a join; none fired. No test reaches a straddled knot.
+- The read is no longer raw, so `edge_join.rs` leaves `scripts/gates/raw-sign-within.counts`. Two sites remain (`replay.rs`, `cylinders.rs`).
