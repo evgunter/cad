@@ -441,7 +441,7 @@ impl<T: Decide> CylinderSpherePose<T> {
     /// where no leaf of the sweep decides a side. Every meeting stands `R`
     /// from the centre, so a cell's meetings read inside exactly where
     /// their enclosure's reach past its true points is under the padding
-    /// (less the band and the rounding). The padding is the sphere's own
+    /// (less the band). The padding is the sphere's own
     /// scale, so that it grows with the loops a cell must hold; and never
     /// under 64 escalation widths, so that a sphere a few bands across
     /// still has room many bands past the band. A cell's two ends then

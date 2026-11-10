@@ -544,25 +544,19 @@ impl<T: Real> RuledCylinderSphere<T> {
         }
     }
 
-    /// `ρ² = (r − d)² + 2rd(1 − cos φ)` over the cell: both terms are
-    /// read to their own relative precision, so the rounding is charged
-    /// at `ρ²`'s own size, and `ρ` stays tight where it is least.
+    /// `ρ² = (r − d)² + 2rd(1 − cos φ)` over the cell, both terms posed
+    /// to their own relative precision, so `ρ` stays well-conditioned
+    /// where it is least.
     fn reach_sq(&self, cell: &Cell<T>) -> Iv<T> {
         let (r, d) = (self.r, self.d);
-        let (near, turn) = ((r - d).powi(2), T::from_f64(2.0) * r * d);
-        let v = Self::versine(cell);
-        v.scale(turn)
-            .shift(near)
-            .widen(rounding_charge(near + turn * v.hi))
+        Self::versine(cell)
+            .scale(T::from_f64(2.0) * r * d)
+            .shift((r - d).powi(2))
     }
 
     /// `√(R² − ρ²)` over the cell, through zero where it straddles it.
     fn root(&self, cell: &Cell<T>) -> Iv<T> {
-        let big_r2 = self.big_r.powi(2);
-        self.reach_sq(cell)
-            .from(big_r2)
-            .widen(rounding_charge(big_r2))
-            .sqrt()
+        self.reach_sq(cell).from(self.big_r.powi(2)).sqrt()
     }
 }
 
@@ -572,44 +566,31 @@ impl<T: Real> Ruled<T> for RuledCylinderSphere<T> {
     }
 
     fn discriminant(&self, cell: &Cell<T>) -> Iv<T> {
-        self.reach_sq(cell)
-            .sqrt()
-            .from(self.big_r)
-            .widen(rounding_charge(self.big_r + self.r + self.d))
+        self.reach_sq(cell).sqrt().from(self.big_r)
     }
 
     /// `−rd·sin φ / R`: `Δ′ = −rd·sin φ / ρ` scaled by `ρ/R > 0`, so of
     /// its sign, and equal to it at a branch point, where `ρ = R`. It
     /// does not divide by `ρ`, which vanishes on a centre on the wall.
     fn discriminant_slope(&self, cell: &Cell<T>) -> Iv<T> {
-        cell.sin
-            .scale(T::zero() - self.r * self.d / self.big_r)
-            .widen(rounding_charge(self.r * self.d / self.big_r))
+        cell.sin.scale(T::zero() - self.r * self.d / self.big_r)
     }
 
     fn meeting(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
-        let size = (self.foot - Point3::origin()).norm() + self.r + self.big_r;
-        let t = self
-            .root(cell)
-            .scale(sheet.sign())
-            .widen(rounding_charge(self.big_r));
         V3::at(self.foot)
             .plus(V3::along(self.n, cell.cos.scale(self.r)))
             .plus(V3::along(self.v, cell.sin.scale(self.r)))
-            .plus(V3::along(self.axis, t))
-            .widen(rounding_charge(size))
+            .plus(V3::along(self.axis, self.root(cell).scale(sheet.sign())))
     }
 
     fn velocity(&self, cell: &Cell<T>, sheet: Sheet) -> V3<T> {
-        // `t′ = ∓ρρ′/√(R² − ρ²)`, `ρρ′ = rd·sin φ`; the quotient levers the
-        // numerator's rounding by `(r + d)/√(R² − ρ²)`.
-        let root = self.root(cell);
+        // `t′ = ∓ρρ′/√(R² − ρ²)`, `ρρ′ = rd·sin φ`, read only where `Δ` is
+        // decided positive, so the root is away from zero.
         let (r, d) = (self.r, self.d);
         let dt = cell
             .sin
             .scale(T::zero() - r * d * sheet.sign::<T>())
-            .over(root)
-            .widen(rounding_charge(self.big_r + r + d) * (T::one() + (r + d) / root.lo));
+            .over(self.root(cell));
         V3::along(self.n, cell.sin.scale(T::zero() - r))
             .plus(V3::along(self.v, cell.cos.scale(r)))
             .plus(V3::along(self.axis, dt))
