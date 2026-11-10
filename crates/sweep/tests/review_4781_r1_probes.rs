@@ -90,6 +90,11 @@ impl Shape {
             Self::Box { x, y, z } => ([x.0, y.0, z.0], [x.1, y.1, z.1]),
         }
     }
+    /// The largest `|coordinate|` of the shape.
+    fn reach(self) -> f64 {
+        let (lo, hi) = self.bbox();
+        lo.into_iter().chain(hi).fold(0.0, |m, c| m.max(c.abs()))
+    }
     fn scaled(self, s: f64) -> Self {
         match self {
             Self::Cyl { c, r, z } => Self::Cyl {
@@ -387,22 +392,26 @@ fn touch_pairs() -> Vec<(&'static str, Shape, Shape)> {
 }
 
 /// **Every touch-only pair answers every op right, both orders, three
-/// scales**, edges of unequal extent along the line included, read
+/// scales** (×1e-3, ×1 and the scale that puts the pair's largest
+/// `|coordinate|` at 900 m, the far end of the 1 km session box,
+/// `[tolerance.units]`; a pair past it is refused by the box,
+/// [`a_touch_pair_past_the_session_box_is_refused_by_it`]), edges of
+/// unequal extent along the line included, read
 /// against the running ε through [`coarse_at`] and
 /// [`past_f64_headroom`]. Prints each line; red on any other outcome.
 #[test]
 fn review_4781_touch_pairs_every_op() {
     // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a
-    // cylinder fixture (extent 2236) refuses as limb 2's kernel limit,
-    // bound 3.67e-12
+    // cylinder fixture (extent 671, at its pair's far scale) refuses as
+    // limb 2's kernel limit, bound 1.33e-12
     // (`work/shell/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the review 4781 touch rows",
         &[
-            "Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 3.667082637548463e-12",
-            "extent: 2236.067977499794",
+            "Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 1.333925562600302e-12",
+            "extent: 670.8203932499385",
         ],
         review_4781_touch_pairs_every_op_row,
     );
@@ -413,7 +422,8 @@ fn review_4781_touch_pairs_every_op_row() {
     let eps = tol().get().eps;
     let mut bad = Vec::new();
     for (name, a, b) in touch_pairs() {
-        for s in [1e-3, 1.0, 1e3] {
+        let far = 900.0 / a.reach().max(b.reach());
+        for s in [1e-3, 1.0, far] {
             for (order, x, y) in [("ab", a, b), ("ba", b, a)] {
                 let (x, y) = (x.scaled(s), y.scaled(s));
                 let (coarse, past_headroom) = (coarse_at(x, y, eps), past_f64_headroom(x, y, eps));
@@ -438,6 +448,43 @@ fn review_4781_touch_pairs_every_op_row() {
         }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **A touch pair past the session box is refused by it**: a box of the
+/// touch pairs, scaled until it reaches 1001 m. (A cylinder there meets
+/// limb 2's kernel limit first at ε = 1e-12.)
+#[test]
+fn a_touch_pair_past_the_session_box_is_refused_by_it() {
+    use ::profile::RawLoop as _;
+    let shape = touch_pairs()
+        .into_iter()
+        .flat_map(|(_, a, b)| [a, b])
+        .find(|shape| matches!(shape, Shape::Box { .. }))
+        .expect("a touch pair has a box");
+    let Shape::Box { x, y, z } = shape.scaled(1001.0 / shape.reach()) else {
+        unreachable!("a box scaled is a box");
+    };
+    let profile = Profile::new(
+        sketch_at(z.0),
+        vec![::profile::ProfileLoop::polygon(
+            [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
+                .into_iter()
+                .map(|(u, v)| geom_core::Point2::new(u, v)),
+        )],
+    )
+    .validate(tol())
+    .unwrap();
+    crate::common::refused_by_the_session_box(
+        "the box reaching 1001 m",
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth: z.1 - z.0,
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        ),
+    );
 }
 
 /// Whether the pose's smallest feature (a radius, a box half-extent)
