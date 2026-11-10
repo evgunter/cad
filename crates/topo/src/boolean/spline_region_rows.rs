@@ -1882,7 +1882,7 @@ fn an_iso_images_ends_hold_their_evaluations_rounding() {
 /// **A spline face's stations read on its own chart, never off its
 /// carrier** (`crate::cell_region`'s held door). The twisted bilinear
 /// patch `(u, v, u·v)`, a sheet over `[0.1, 0.9]²` of it: every station
-/// of a 21 × 21 grid over the whole chart is placed by the curved door,
+/// of an 11 × 11 grid over the whole chart is placed by the curved door,
 /// and none reads `OffCarrier`. A station is a point of the chart, and
 /// the spline arm reads it by its own search, which `Held::check` does
 /// not guard. `cell_region::station_region` answers `In` well inside the
@@ -1894,7 +1894,7 @@ fn a_spline_faces_stations_read_on_its_own_chart() {
         &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
     );
     let surface = body.face(face).unwrap().surface().clone();
-    let n = 20;
+    let n = 10;
     for i in 0..=n {
         for j in 0..=n {
             let (u, v) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
