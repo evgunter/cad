@@ -240,3 +240,15 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - Part 1's fix lane for #6505 was resumed.
   - **Class, from Ev's review:** DESIGN.md states what is decided and where; mechanics belong on the README page beside the code. A designer pair's converged text is a spec, not doc text, and has to be lifted to the doc's altitude before it goes to Ev.
   - (ONEDOOR orchestrator)
+- 2026-11-10 — **#6505 fix part 1 done (`2ef2ba1a`).**
+  - **The census reading is fixed by type.** `census::Facing { Same, Opposite }` is a required input to every cone reading, and a row pins 8 opposed cases with a mutant red.
+  - **The closed-conic pins are back to main's.** `abutting_walls` is gone, the charttail row is closed as a refuted premise, and the atrest root cause is corrected.
+  - **Small items:** `unify_across` is inventoried; `merge_coplanar_faces_glued` now refuses an unclosed input; `across_a_wall` is tightened again.
+  - **The viewer row's timing is not this PR's.** Head and main differ by +0.06 s, inside the spread, and main has since moved the row to the slow set.
+  - **Main merged** (3024 commits). Main's new declared-seat rows trip the debug one-record check three times. Filed as `a-declared-seats-two-records-trip-the-one-record-check`; part 2 resolves it.
+- 2026-11-10 — **Dispatched #6505 fix part 2 before Ev's confirmation on #6511.** This is a sequencing decision: Ev said the content matches what was agreed, and asked only for less detail in DESIGN.md.
+  - Part 2 builds the token, the same-record closure, the removal of `Vouch` and of the record-level union-find, the kept-side key rule, no value reads at rest, and the measure anchored at the face at both scalars. The mechanics go to the topo and geom-brep READMEs.
+  - The acceptance rows are the reviewers' probes, plus the peg-in-bore case.
+  - #6505 does not merge before #6511.
+  - **Review tier after part 2:** a single full review. This is a restructure the dual review did not see; the alternative, a second dual review, is not needed, because the design was weighed by designers.
+- (ONEDOOR orchestrator)
