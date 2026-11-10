@@ -1434,3 +1434,10 @@
     - SkinError::Fit / PcurveError::Fit route through Built<FitError>;
     - gate tuple-struct and multi-field blind spots.
   - 6691 merge check running; then 6695.
+- 2026-11-10 04:35Z
+  - **Two design forks dispatched** (protocol: 2 designers each by draw; bytes and labels committed to analysis/design-fork/{an-argmin-keeps-which-reading, a-row-2-refusal-takes-which-name}):
+    - argmin: what a decided tie and an in-band comparison leave of a decided argmin, per site or one rule. The lane builds the mechanical argmin_decided door meanwhile.
+    - row 2: name vs refusal() as the source of truth for the frontier (BooleanError's doc records a departure from DESIGN's `Unsupported*` naming rule). Ev's call; goes to an [ev] PR after reconciliation.
+  - **census-sort-home:** option 3. A ~28k-line cyclic placement move is onedoor unit 5's successor ground. The row is narrowed (PR 6700, text only).
+  - **New PRs:** 6694 (scope-parser), 6698 (lone-loop follow-ups) and 6699 (line-holders) → one FULL reviewer (session_013mPGJ5aJ9gfFg9N5TKN7m3), which is also asked whether 6694's DESIGN Layering row describes or decides.
+  - T3 still unopened; pinged the ladder lane.
