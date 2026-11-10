@@ -460,7 +460,7 @@ mod tests {
             Ok(PlaneSide::Above)
         };
         let decided = decide_vertex_on_plane(
-            "vertex_section_probe",
+            "bool_vertex_face_side",
             (&body, &SlitTips::of(&body)),
             (vertex, p),
             plane,
