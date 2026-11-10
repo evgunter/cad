@@ -65,8 +65,8 @@ impl GlueClass {
     }
 
     /// **The relation that glues a face pair under this class**: the one
-    /// table between classes and relations. [`crate::Relation::glued_class`],
-    /// [`Self::of_senses`] and [`Self::carrier_relation`] read it.
+    /// table between classes and relations. [`crate::Relation::glued_class`]
+    /// and [`Self::carrier_relation`] read it.
     #[must_use]
     pub const fn relation(self) -> crate::Relation {
         match self {
@@ -74,17 +74,6 @@ impl GlueClass {
             Self::Continuation => crate::Relation::SameOriented,
             Self::Tangent => crate::Relation::SurfaceTangent,
         }
-    }
-
-    /// **The one-carrier class two faces' senses make them**, the one
-    /// place a sense is read as a class: the class whose
-    /// [`Self::carrier_relation`] it is. Two distinct carriers are
-    /// neither, and name no class.
-    pub(crate) fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
-        Self::ALL
-            .iter()
-            .copied()
-            .find(|class| class.carrier_relation() == Some(relation))
     }
 
     /// The carrier relation a one-carrier class glues under: its

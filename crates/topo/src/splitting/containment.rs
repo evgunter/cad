@@ -221,9 +221,9 @@ impl LoopDecision {
         match self {
             Self::Boundary => "move the point exactly onto the boundary or clearly off it",
             Self::Ray => "nudge the point so no boundary corner lines up with it",
-            Self::ArcSpan => {
-                geom_core::move_lever!("so this arc stays clearly short of a full turn")
-            }
+            // The edge interval's winding decision's own lever: one arc
+            // short of a full turn, whichever reader asks.
+            Self::ArcSpan => geom_brep::recourse::SpanDecision::Winding.lever(),
             Self::Plane => geom_core::move_lever!("so the face is flat and the point lies on it"),
         }
     }

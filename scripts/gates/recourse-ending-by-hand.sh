@@ -32,7 +32,10 @@
 #     `"move the geometry so …"` (across `\` continuations too) rather
 #     than `geom_core::move_lever!("so …")`, for a slot a recourse label
 #     is put before (a `LeverOnly`'s or a `SizedDecision`'s `lever`).
-#   Test code is out of both, so a pin may spell the text it pins; the
+#   * `move_lever!(@words …)` outside `crates/geom-core`: the arm's
+#     inner form, which `#[macro_export]` makes public and which skips
+#     the `so ` check that `move_lever!` and `move_recourse!` make.
+#   Test code is out of all three, so a pin may spell the text it pins; the
 #   other subjects of a `Recourse: move …` (`the parts`, `the point`, …)
 #   are an operation's own levers and pass.
 #
@@ -163,7 +166,14 @@ gate() {
     gate_error "the move recourse spelled by hand: write MOVE_RECOURSE for the whole ending, geom_core::move_recourse!(\"so …\") for a move named more closely (a format! site passes it as an argument), or geom_core::move_lever!(\"so …\") for that move as an unlabelled lever"
     exit 1
   fi
-  gate_ok "every recourse fragment with an ending is ended through it ($(printf '%s\n' "$list" | sed 's/$/_RECOURSE/' | paste -sd, -),$named), and the move recourse is never spelled by hand, labelled or as a lever"
+  hits=$(printf '%s\n' "$view" | grep -v '^crates/geom-core/' \
+    | grep -E 'move_lever![[:space:]]*[(\[{][[:space:]]*@words' || true)
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits"
+    gate_error "move_lever!(@words …) outside geom-core skips the so-check: write geom_core::move_lever!(\"so …\")"
+    exit 1
+  fi
+  gate_ok "every recourse fragment with an ending is ended through it ($(printf '%s\n' "$list" | sed 's/$/_RECOURSE/' | paste -sd, -),$named), and the move recourse is never spelled by hand, labelled or as a lever, nor its inner @words form read outside geom-core"
 }
 
 plant_home() {
@@ -269,6 +279,19 @@ plant_move_lever_mid_sentence() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_inner_words() {
+  plant_home "$1"
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub const L: &str = geom_core::move_lever!(@words "nearer it");\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_inner_words_at_home() {
+  plant_home "$1"
+  printf 'macro_rules! move_recourse {\n    ($so:expr) => { concat!("Recourse: ", $crate::move_lever!(@words $so)) };\n}\n' \
+    >> "$1/crates/geom-core/src/lib.rs"
+}
+
 gate_selftest() {
   local want="a recourse fragment labelled by hand beside its ending"
   gate_selftest_clean
@@ -286,7 +309,9 @@ gate_selftest() {
   gate_selftest_passes "another subject of a move" plant_move_other_subject
   gate_selftest_case "the move recourse spelled by hand" plant_move_lever
   gate_selftest_passes "the move arm composed mid-sentence" plant_move_lever_mid_sentence
-  printf '%s selftest OK: passes a clean fixture, the ending written whole and the fragment mid-sentence; fires on the fragment named after the label, passed as the last argument after `Recourse: {}`, and wrapped in Recourse(…), and on the named pair COINCIDENCE_RECOURSE after the label (its MOVE_RECOURSE passes), and on a named pair geom-core no longer defines; fires on the words of the move recourse spelled by hand across a continuation, and passes them in a test module whose literal holds a closing brace, and another subject of a move; fires on the words of the move arm opening a lever across a continuation, and passes them mid-sentence\n' "$(gate_name)"
+  gate_selftest_case "skips the so-check" plant_inner_words
+  gate_selftest_passes "the inner @words form in its home" plant_inner_words_at_home
+  printf '%s selftest OK: passes a clean fixture, the ending written whole and the fragment mid-sentence; fires on the fragment named after the label, passed as the last argument after `Recourse: {}`, and wrapped in Recourse(…), and on the named pair COINCIDENCE_RECOURSE after the label (its MOVE_RECOURSE passes), and on a named pair geom-core no longer defines; fires on the words of the move recourse spelled by hand across a continuation, and passes them in a test module whose literal holds a closing brace, and another subject of a move; fires on the words of the move arm opening a lever across a continuation, and passes them mid-sentence; fires on the inner @words form outside geom-core, and passes it in its home\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -5245,7 +5245,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
                     decision: topo::BooleanDecision::Coincidence(
-                        topo::Coincide::Carriers,
+                        topo::Coincide::CornerCrossing,
                         topo::DeclarationRead::Moot,
                     ),
                     diag: diag(),

@@ -228,3 +228,7 @@ The census now panics on a meeting reading's kernel fault (`MeetFault::Desync`, 
 - `boolean/slit.rs` `meet_refused` (`MeetFault::Desync | MeetFault::Contradiction`).
 
 Outside topo, `sweep`'s `loft/stacking.rs` returns both faults as an `Err(&str)` reading.
+
+## The vtxfac coplanar invariant retired (SEAL PR 6693, 2026-11-10)
+
+The `boolean/vtxfac.rs` "geometrically coplanar sector with definitely-distinct plane" invariant, and the extent ball and offset rung it was read through, are retired by PR 6693 (SEAL's `a-corner-reads-only-its-own-sectors`). No corner reads a carrier pair: an unglued flat sector refuses on its steeper bound's tie.

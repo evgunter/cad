@@ -2143,6 +2143,14 @@ impl MarginDiag {
         }
     }
 
+    /// The signs the gate that rejected this reading passes, where a gate
+    /// rejected it; `None` for every other reading. With
+    /// [`MarginDiag::rejected_sign`], the whole of the gate's tag.
+    #[must_use]
+    pub fn rejected_passing(self) -> Option<SizedPass> {
+        self.tag().map(|r| r.passes)
+    }
+
     /// The gate's tag, where a gate rejected this reading.
     const fn tag(self) -> Option<Rejection> {
         match self.0 {
@@ -2705,7 +2713,9 @@ macro_rules! kernel_limit_recourse {
 /// `LeverOnly`'s or a `SizedDecision`'s `lever`, a refusal's own
 /// sentence). The literal must start with `so `, checked at compile
 /// time; that form is an expression, not a literal, so it does not nest
-/// in `concat!`. `move_recourse!` is this lever labelled.
+/// in `concat!`. `move_recourse!` is this lever labelled. Its `@words`
+/// arm is the two macros' shared inner form, which skips the check; no
+/// crate but this one names it (`scripts/gates/recourse-ending-by-hand.sh`).
 #[doc(hidden)]
 #[macro_export]
 macro_rules! move_lever {

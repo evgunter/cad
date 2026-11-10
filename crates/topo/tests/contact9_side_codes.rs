@@ -514,9 +514,10 @@ fn a_pierce_germ_line_is_read_at_the_sectors_reach() {
 /// A near-coincidence at a vertex pair, which the classification does
 /// not settle: a wedge on the block's CORNER whose 1 mm edge lies in the
 /// top's plane (outside the face) and whose 10 m edge rises `500·ε`
-/// over it. The pair of bottoms agrees at the 1 mm arm, so it goes to
-/// the carrier ladder as a coincidence its extent does not decide, and
-/// it refuses, typed. Read by its bounds instead, the pair is half a crossing, and
+/// over it. The pair of bottoms agrees at the 1 mm arm, which the glue
+/// door did not glue, so the corner refuses there on that reading
+/// (`Coincidence(CornerCrossing)`): an unglued Zero is no coplanar lump.
+/// Read by its bounds instead, the pair is half a crossing, and
 /// the vertex's germs came out odd (a kernel invariant). The same pose
 /// under 1 m edges answers. Making the short pose answer is filed:
 /// `work/sector/a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`.
@@ -542,12 +543,23 @@ fn a_near_coincident_pair_at_a_corner_refuses_typed() {
         ("−", subtract(&short, &block, tol)),
         ("∪", union(&short, &block, tol)),
     ] {
-        // The corner reads Zero for a pair the glue door did not glue
-        // (an unglued coincidence); at ε = 1e-6, where the 1 mm edges
+        // The corner reads its faces parallel at the 1 mm arm for a pair
+        // the glue door did not glue; at ε = 1e-6, where the 1 mm edges
         // are a thousand bands, an edge contact in band escalates first.
+        let corner = matches!(
+            &r,
+            Err(BooleanError::Escalated {
+                decision: topo::BooleanDecision::Coincidence(
+                    topo::Coincide::CornerCrossing,
+                    topo::DeclarationRead::Moot,
+                ),
+                diag,
+            }) if diag.predicate == Some("bool_faces_parallel")
+                && diag.margin.rejected_sign() == Some(geom_core::Sign::Zero)
+        );
         assert!(
-            matches!(r, Err(BooleanError::Escalated { .. })),
-            "{what}: the near-coincidence refuses typed, got {:?}",
+            corner || (tol.eps() > 1e-9 && matches!(r, Err(BooleanError::Escalated { .. }))),
+            "{what}: the near-coincidence refuses at the corner's tilt, got {:?}",
             r.as_ref().err()
         );
     }
