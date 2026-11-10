@@ -7,8 +7,8 @@ The dated entries live in `docs/IMPL-MODEL-LOG.md`, the rows one file
 each in `docs/impl-model-log/rows/`.
 
 **The question: how do Opus and Fable implementers compare on
-QUALITY, TIME and TOKEN COST?** It succeeds the suspended model A/B
-(`docs/MODEL-AB-LOG.md`), whose instrument it reuses where noted, on
+QUALITY, TIME and TOKEN COST?** It succeeds the concluded model A/B
+(`docs/doc-ledger/model-ab-experiment-concludes.md`), whose instrument it reuses where noted, on
 the current models (Opus 5.5, Fable 5.2) and under the protocol/log
 split. Its rows are not pooled with that log's: different models, a
 different population, a different instrument. This is process data,

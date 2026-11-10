@@ -260,7 +260,8 @@
 //! still the block's. It did not by itself say which sizing rule
 //! changed: a re-cut taken after a schedule
 //! change and the schedule change landing are one event. The dated
-//! record settles that — `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row reads
+//! record settles that — the model A/B log's TESS-SPLIT row (`git show
+//! b5075b345e:docs/MODEL-AB-LOG.md`) reads
 //! *"tour NURBS cells 163,182 -> 46,102"*, and 46,102 is what the
 //! committed file carried from that cut on.
 //!

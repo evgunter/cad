@@ -7,7 +7,7 @@ carries no history — git does. The rows live one file each in
 
 **The question: what does a SECOND independent review buy?** The
 instrument is the one the A/B protocol's v6 dual review stream ran on
-(`docs/MODEL-AB-LOG.md`) — the correspondence coding, the
+(concluded; `docs/doc-ledger/model-ab-experiment-concludes.md`) — the correspondence coding, the
 pre-registered adjudication instrument, blinded adjudication, lane
 isolation and the fair-pair rule — carried over unchanged except where
 a clause existed only to compare models. This is process data, not a

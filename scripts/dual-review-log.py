@@ -322,8 +322,8 @@ reference** — nothing here binds kernel design; it moves out of
 `docs/` when the experiment concludes.
 
 Standing experiment (Ev, in-chat, 2026-09-23), opened the day the
-model A/B protocol was suspended (`docs/MODEL-AB-LOG.md`, the
-suspension entry). **The protocol in force lives in
+model A/B protocol was suspended (concluded 2026-11-10;
+`docs/doc-ledger/model-ab-experiment-concludes.md`). **The protocol in force lives in
 `docs/DUAL-REVIEW-PROTOCOL.md`.** Each row names the protocol it was
 recorded under by commit hash, so `git show
 <hash>:docs/DUAL-REVIEW-PROTOCOL.md` reads that version. Ev's rulings

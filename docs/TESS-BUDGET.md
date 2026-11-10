@@ -384,7 +384,8 @@ whatever moved was a sizing rule. **It is not by itself evidence that
 the sizing rule was TESS-SPAN and TESS-SPLIT rather than an unrecorded
 drift**, because a re-cut taken after a schedule change looks the same
 either way — it is the same event. What settles that is the dated
-record: `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row says *"tour NURBS cells
+record: the model A/B log's TESS-SPLIT row (`git show
+b5075b345e:docs/MODEL-AB-LOG.md`) says *"tour NURBS cells
 163,182 → 46,102"* at the merge, and `46,102` is what the committed file
 read from that cut onwards.
 

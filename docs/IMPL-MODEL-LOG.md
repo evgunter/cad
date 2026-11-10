@@ -16,7 +16,8 @@ readouts' rulings and the close.
 
 - **Opened (Ev, in-chat, 2026-11-10).** Opus vs Fable implementers,
   compared on quality, time and token cost. Successor to the model
-  A/B (`docs/MODEL-AB-LOG.md`, suspended 2026-09-23), not a
+  A/B (suspended 2026-09-23, concluded the same day as this opened;
+  `docs/doc-ledger/model-ab-experiment-concludes.md`), not a
   continuation of it: its rows are not pooled with these.
 - **Instrument note (Ev, in-chat, 2026-11-10): FABLE 5.2 RELEASE
   BOUNDARY.** Fable 5.2 released 2026-11-09, the day before this log

@@ -36,13 +36,6 @@ Both leave `docs/` when the experiment concludes.
   time and token cost; every unit sent to a single or dual review
   draws its implementer's model, and is a row.
 
-**Suspended** (no need to read unless Ev reinstates it):
-
-- **Model A/B** (Opus 5 vs Fable 5.x implementation), suspended
-  2026-09-23 and succeeded by the implementer model comparison
-  (2026-11-10) — `docs/MODEL-AB-LOG.md`, kept as the record of its
-  era; its rows are not pooled with the successor's.
-
 **What binds under any experiment:**
 
 - **Which unit gets which treatment is not the experiment's to
