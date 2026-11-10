@@ -983,8 +983,10 @@ impl<T: Real> Line<T> {
 /// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
 /// a length only where the caller's `dir` is unit, which nothing here
 /// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
-/// The forward reading has one home, [`Ray::ahead`], decided under the
-/// reader's own row.
+/// A root's forward reading is [`Ray::ahead`], decided under the
+/// reader's own row. The touch analysis decides its own ahead readings
+/// through its verdict door (`topo` `link.rs`'s `ahead`, whose doc says
+/// how they differ, and which of them is this one's twin).
 #[derive(Clone, Copy, Debug)]
 pub struct Ray<T: Real> {
     /// The line the ray runs along, from its origin.
@@ -1013,9 +1015,13 @@ impl<T: Decide> Ray<T> {
     /// doc). The method takes the parameter, not a point, because every
     /// reader holds only a parameter computed on [`Ray::line`]: a root
     /// against a carrier (`line_*_roots`), or the closest-approach span of
-    /// an edge's passage. No point is minted before the forward test. The ray does not re-derive `at`; a
-    /// reader that passes a parameter of another line decides nothing
-    /// about this ray.
+    /// an edge's passage. No point is minted before the forward test. The
+    /// ray does not re-derive `at`; a reader that passes a parameter of
+    /// another line decides nothing about this ray.
+    ///
+    /// Of the touch analysis's ahead readings (`LINK_AHEAD`), only its
+    /// face sector's plain-band test comes here; `topo` `link.rs`'s
+    /// `ahead` says why the others do not.
     ///
     /// # Errors
     ///
