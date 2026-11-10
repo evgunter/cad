@@ -691,7 +691,9 @@ impl RingReader {
                 "bool_spline_sheet_torus_tube",
                 "bool_spline_sheet_ring_torus",
             ),
-            Self::BooleanRider => RingSites::rows_as("bool_rider_torus_tube", "bool_rider_ring_torus"),
+            Self::BooleanRider => {
+                RingSites::rows_as("bool_rider_torus_tube", "bool_rider_ring_torus")
+            }
         }
     }
 }

@@ -2250,18 +2250,16 @@ pub fn holds_rust_sources(dir: &std::path::Path) -> bool {
     })
 }
 
+/// `(name, <file>:<line>)` per site, the shape a reference reads as.
+pub type SiteNames = std::collections::BTreeSet<(String, String)>;
+
 /// **The references a crate's `tests/` hold**: the same reading the
 /// census makes of `src` ([`PredicateCensus::references`] and its
 /// marked twin), over every `.rs` file under `tests`, all of it test
 /// code. `(found, marked)`, each `(name, <file>:<line>)` relative to
 /// `tests`.
 #[must_use]
-pub fn test_references(
-    tests: &std::path::Path,
-) -> (
-    std::collections::BTreeSet<(String, String)>,
-    std::collections::BTreeSet<(String, String)>,
-) {
+pub fn test_references(tests: &std::path::Path) -> (SiteNames, SiteNames) {
     if !holds_rust_sources(tests) {
         return Default::default();
     }

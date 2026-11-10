@@ -360,6 +360,12 @@ const LEDGER: &[Entry] = &[
                              // they walk, code view
     },
     Entry {
+        path: "crates/test-utils/tests/predicate_name_coverage.rs",
+        disposition: Shared, // every crate's predicate census, references and
+                             // holds, through source::predicate_census,
+                             // test_references and held_spellings
+    },
+    Entry {
         path: "crates/test-utils/tests/reader_census.rs",
         disposition: Shared, // this census, literal view
     },

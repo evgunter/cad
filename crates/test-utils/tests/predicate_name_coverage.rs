@@ -46,8 +46,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use test_utils::source::{
-    PredicateCensus, crate_roster, held_spellings, holds_rust_sources, predicate_census, repo_root,
-    test_references,
+    PredicateCensus, SiteNames, crate_roster, held_spellings, holds_rust_sources, predicate_census,
+    repo_root, test_references,
 };
 
 /// Why a crate's decided names are not all in the census union yet.
@@ -95,7 +95,7 @@ struct Crate {
     test_names: BTreeSet<String>,
     /// The references its `tests/` hold, found and marked, each
     /// `(name, <file>:<line>)` relative to `tests`.
-    test_refs: (BTreeSet<(String, String)>, BTreeSet<(String, String)>),
+    test_refs: (SiteNames, SiteNames),
 }
 
 /// Every crate under `crates/` with a `src`, read once.
