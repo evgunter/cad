@@ -2048,12 +2048,10 @@ impl<P> Doc<P> {
             return crate::Operand::Var(var);
         }
         match self.vars.get(&var).map(Var::def) {
-            Some(VarDef::Select(select)) => {
-                crate::Operand::select(
-                    self.written_body(&select.body, crate::Operand::Var(select.body.read)),
-                    select.names.clone(),
-                )
-            }
+            Some(VarDef::Select(select)) => crate::Operand::select(
+                self.written_body(&select.body, crate::Operand::Var(select.body.read)),
+                select.names.clone(),
+            ),
             Some(VarDef::Pose(def)) => {
                 let written = def.try_map(
                     &mut |_, &read| Ok::<_, core::convert::Infallible>(self.written_operand(read)),

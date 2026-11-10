@@ -1658,7 +1658,10 @@ fn mint_selection<P: crate::ProfilePayload>(
         };
         at.push(lower_index(doc, &spoken(), index, formula)?);
     }
-    let own = doc.var_reach(read).chain().is_some_and(|chain| chain == at.as_slice());
+    let own = doc
+        .var_reach(read)
+        .chain()
+        .is_some_and(|chain| chain == at.as_slice());
     let body = crate::BodyRead {
         read,
         at: if own { Vec::new() } else { at },
@@ -5787,7 +5790,8 @@ impl MaintenanceNet {
                 Maintenance::StrandedRead { node, slot, var } => {
                     end.node(node.id()).is_some_and(|reader| {
                         reader.operand_rows().into_iter().any(|(at, read)| {
-                            at == *slot && end.selection(read).map_or(read, |s| s.body.read) == var.id()
+                            at == *slot
+                                && end.selection(read).map_or(read, |s| s.body.read) == var.id()
                         })
                     })
                 }
@@ -7228,7 +7232,11 @@ impl Recording<'_, crate::ProfileProgram> {
             let member: Option<Vec<u32>> = body
                 .at
                 .iter()
-                .map(|index| index.as_integer().and_then(|value| u32::try_from(value).ok()))
+                .map(|index| {
+                    index
+                        .as_integer()
+                        .and_then(|value| u32::try_from(value).ok())
+                })
                 .collect();
             let Some(name) =
                 member.and_then(|member| crate::names::family_entity(&ev, at, &member, face))

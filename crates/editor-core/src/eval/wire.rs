@@ -2533,10 +2533,7 @@ fn wire_clearance<'r, T>(
     doc: &crate::doc::Doc<ProfileProgram>,
     seats: [(crate::OperandSlot, crate::VarId); 2],
     bounds: &crate::measure::ClearanceBounds<crate::VarId>,
-    (results_at, params): (
-        &dyn Fn(usize) -> &'r Results<T>,
-        &crate::expr::VarEnv<T>,
-    ),
+    (results_at, params): (&dyn Fn(usize) -> &'r Results<T>, &crate::expr::VarEnv<T>),
     ends: &[geom_core::Interval],
     witness: Option<&Witnessing<'_>>,
     tol: Tol,
@@ -3064,7 +3061,14 @@ fn body_rows(
         .into_iter()
         .map(|(seat, var)| {
             let cell = pose::read_directly_off(doc, var).map_or(var, |(cell, _)| cell);
-            (seat, if doc.selection(cell).is_some() { cell } else { var })
+            (
+                seat,
+                if doc.selection(cell).is_some() {
+                    cell
+                } else {
+                    var
+                },
+            )
         })
         .collect()
 }
@@ -3122,7 +3126,11 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
             },
         };
         if let Some((family, at)) = member {
-            replaced.push(member_projected(family, value_of(results, family)?.whole(), &at)?);
+            replaced.push(member_projected(
+                family,
+                value_of(results, family)?.whole(),
+                &at,
+            )?);
             continue;
         }
         replaced.extend(split_port(var, doc, results)?);
@@ -3857,7 +3865,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let read = member.read;
                 let slot = O::Member(i);
                 let at = super::read_at(doc, slot, read)?;
-                let projected = reads_projected(node, &[(slot, read)], doc, (results, vals, params))?;
+                let projected =
+                    reads_projected(node, &[(slot, read)], doc, (results, vals, params))?;
                 let results = projected.as_ref().unwrap_or(results);
                 let value = value_of(results, at)?.whole();
                 // A family spelled as one read is its every member

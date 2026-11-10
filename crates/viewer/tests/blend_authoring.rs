@@ -218,7 +218,10 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
         .committed_doc()
         .selection(*selection)
         .expect("the fillet reads a selection");
-    assert_eq!(Some(stored.body.read), session.committed_doc().output(target, 0));
+    assert_eq!(
+        Some(stored.body.read),
+        session.committed_doc().output(target, 0)
+    );
     let selection = &stored.names;
     assert!(
         session.committed_doc().free(*radius).is_some(),
@@ -351,7 +354,10 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
         .committed_doc()
         .selection(*selection)
         .expect("the chamfer reads a selection");
-    assert_eq!(Some(stored.body.read), session.committed_doc().output(target, 0));
+    assert_eq!(
+        Some(stored.body.read),
+        session.committed_doc().output(target, 0)
+    );
     let selection = &stored.names;
     assert_eq!(
         session

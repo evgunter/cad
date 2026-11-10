@@ -1730,14 +1730,7 @@ impl Evaluation {
             super::doc::SelectAt::At(at) => {
                 let at = at.at();
                 self.one_body(py, at)?;
-                pncad::select::select_where(
-                    &self.inner,
-                    at,
-                    &selector.0,
-                    &atoms,
-                    &self.params,
-                    tol,
-                )
+                pncad::select::select_where(&self.inner, at, &selector.0, &atoms, &self.params, tol)
             }
         };
         match found {

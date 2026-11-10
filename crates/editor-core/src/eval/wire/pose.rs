@@ -724,7 +724,9 @@ pub(crate) fn key_words<T: Decide>(
         let role = node.seat_role(seat);
         // A plain read's and a plain selection's key is upstream's and
         // the names'; a pose's reads, a role and a member read say more.
-        let member = doc.selection(var).is_some_and(|select| select.body.is_indexed());
+        let member = doc
+            .selection(var)
+            .is_some_and(|select| select.body.is_indexed());
         if role.is_none() && !member && doc.var(var).and_then(|held| held.def().pose()).is_none() {
             continue;
         }

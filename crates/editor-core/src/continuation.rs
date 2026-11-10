@@ -377,15 +377,17 @@ fn handed<P: crate::ProfilePayload>(
             }
         }
         Operand::Node(_) | Operand::Output { .. } => Ok(Some(read.clone())),
-        Operand::Select { body, names } => Ok(handed(doc, dead, &body.read, at)?.map(|read| {
-            Operand::Select {
-                body: Box::new(crate::BodyRead {
-                    read,
-                    at: body.at.clone(),
+        Operand::Select { body, names } => {
+            Ok(
+                handed(doc, dead, &body.read, at)?.map(|read| Operand::Select {
+                    body: Box::new(crate::BodyRead {
+                        read,
+                        at: body.at.clone(),
+                    }),
+                    names: names.iter().map(|name| back(dead, name)).collect(),
                 }),
-                names: names.iter().map(|name| back(dead, name)).collect(),
-            }
-        })),
+            )
+        }
         Operand::Pose(def) => {
             let mut fault = None;
             let def = def.try_map(

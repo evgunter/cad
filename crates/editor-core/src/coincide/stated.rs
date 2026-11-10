@@ -385,7 +385,9 @@ fn pose_at<P: crate::ProfilePayload>(
     // A member read's construction is its member's, which the walk
     // from the family does not reach by the member's own name.
     let entity = |of: crate::VarId| {
-        let select = doc.selection(of).filter(|select| !select.body.is_indexed())?;
+        let select = doc
+            .selection(of)
+            .filter(|select| !select.body.is_indexed())?;
         let [name] = select.names.as_slice() else {
             return None;
         };

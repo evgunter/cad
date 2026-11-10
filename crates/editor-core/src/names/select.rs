@@ -998,7 +998,8 @@ pub fn select<T: topo::AtRestPolicy + Decide>(
     sel: &Selector,
 ) -> Vec<StableName> {
     // No value, no names: this function's doc.
-    ev.table_at(at).map_or_else(Vec::new, |table| matching(table, sel))
+    ev.table_at(at)
+        .map_or_else(Vec::new, |table| matching(table, sel))
 }
 
 /// **The names one member of the family `at` names answers matching
@@ -1041,7 +1042,11 @@ pub fn one_body<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
 ) -> Result<(), SelectRefusal> {
-    let Some(node) = ev.at_var(at).and_then(|var| ev.read_port(var)).map(|(node, _)| node) else {
+    let Some(node) = ev
+        .at_var(at)
+        .and_then(|var| ev.read_port(var))
+        .map(|(node, _)| node)
+    else {
         return Ok(());
     };
     match ev.value(node).and_then(|value| value.members.as_ref()) {

@@ -425,7 +425,9 @@ impl Saying {
         // A member read's names are its member's, which no row's cell
         // spells: the reference is no cell of a row.
         let selected = |var: VarId| {
-            let select = doc.selection(var).filter(|select| !select.body.is_indexed())?;
+            let select = doc
+                .selection(var)
+                .filter(|select| !select.body.is_indexed())?;
             let [name] = select.names.as_slice() else {
                 return None;
             };
@@ -954,7 +956,9 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
     };
     let face_of = |var: VarId, at: &crate::names::MemberAt| -> Option<(usize, FaceKey)> {
         // A member read names no copy the product gathers by its read.
-        let select = doc.selection(var).filter(|select| !select.body.is_indexed())?;
+        let select = doc
+            .selection(var)
+            .filter(|select| !select.body.is_indexed())?;
         let body = select.body.read;
         let [name] = select.names.as_slice() else {
             return None;
@@ -963,9 +967,9 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
         // The selection reads the copy, by the copy's own name; the
         // product's `⊔` keys that name by the copy it read.
         let entry = names.lookup(name).or_else(|| {
-            names.iter().find_map(|(held, entry)| {
-                (keyed_by(held, body) == Some(name)).then_some(entry)
-            })
+            names
+                .iter()
+                .find_map(|(held, entry)| (keyed_by(held, body) == Some(name)).then_some(entry))
         });
         let Some(Entry::Unique(EntityRef {
             key: EntityKey::Face(face),

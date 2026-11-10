@@ -118,7 +118,11 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
                 found = Some((
                     id,
                     doc.doc.read_operation(*selection).expect("a live target"),
-                    doc.doc.selection(*selection).expect("a selection").body.read,
+                    doc.doc
+                        .selection(*selection)
+                        .expect("a selection")
+                        .body
+                        .read,
                 ));
             }
         }

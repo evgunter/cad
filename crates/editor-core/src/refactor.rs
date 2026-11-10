@@ -4030,10 +4030,10 @@ pub fn inline(
         let Some(reader) = doc.node(id) else { continue };
         for (slot, var) in reader.operand_rows() {
             if let Some(leaves) = pose_leaves(doc, var) {
-                if leaves
-                    .iter()
-                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| reads_instance(s.body.read)))
-                {
+                if leaves.iter().any(|&leaf| {
+                    doc.selection(leaf)
+                        .is_some_and(|s| reads_instance(s.body.read))
+                }) {
                     pose_readers.push((id, slot, var));
                 }
                 continue;
