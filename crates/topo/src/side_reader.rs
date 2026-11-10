@@ -74,6 +74,19 @@ pub struct SetAside {
     pub why: SetAsideWhy,
 }
 
+/// Which in-band mark set a ray aside: a corner, a wedge, or a crossing
+/// the passage could not order (the point-in-solid door's marks, read
+/// into [`SetAsideWhy`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MarkKind {
+    /// [`SetAsideWhy::Corner`].
+    Corner,
+    /// [`SetAsideWhy::Wedge`].
+    Wedge,
+    /// [`SetAsideWhy::Order`].
+    Order,
+}
+
 /// Why an aimed ray read nothing ([`SetAside`]).
 ///
 /// **NOT carried to the façade's curated list, and that is a
@@ -761,7 +774,6 @@ fn aimed_ray<T: Decide>(
             },
             |hits| {
                 RayHit::unread(hits, |kind, faces, gap| {
-                    use crate::boolean::solid_contain::MarkKind;
                     Unread::Mark(match kind {
                         MarkKind::Wedge => SetAsideWhy::Wedge { faces, gap },
                         MarkKind::Corner => SetAsideWhy::Corner { faces, gap },

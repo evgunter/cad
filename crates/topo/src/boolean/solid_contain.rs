@@ -3076,17 +3076,6 @@ pub(crate) enum Mark {
     Graze,
 }
 
-/// Which in-band mark set a ray aside ([`RayHit::unread`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MarkKind {
-    /// [`Mark::Corner`].
-    Corner,
-    /// [`Mark::Wedge`].
-    Wedge,
-    /// [`Mark::Order`].
-    Order,
-}
-
 impl<T: Copy> RayHit<T> {
     /// The hit's count.
     pub(crate) const fn count(&self) -> i32 {
@@ -3183,12 +3172,14 @@ impl<T: Copy> RayHit<T> {
     }
 
     /// The fault a sideless hit the count reached reads, `unread` a
-    /// corner's, a wedge's or an unordered crossing's ([`MarkKind`]): a
+    /// corner's, a wedge's or an unordered crossing's
+    /// ([`crate::side_reader::MarkKind`]): a
     /// mark in band of the ray, else a graze.
     pub(crate) fn unread<E>(
         hits: &[&Self],
-        unread: impl FnOnce(MarkKind, [FaceKey; 2], Indeterminate) -> E,
+        unread: impl FnOnce(crate::side_reader::MarkKind, [FaceKey; 2], Indeterminate) -> E,
     ) -> RayFault<E> {
+        use crate::side_reader::MarkKind;
         match hits.iter().find_map(|h| {
             let faces = [h.face, h.other.unwrap_or(h.face)];
             match h.mark {
