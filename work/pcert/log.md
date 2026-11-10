@@ -1125,3 +1125,11 @@ E1c waits on the answer.
   - Filed:
     - `a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter` (P1). Every product path mints, so not P0; the construction tier and pncad's re-exported `EdgeCurve::certify` can obtain the sampled certificate but not store it.
     - onehome `an-elbow-revolve-costs-65x-since-the-finished-body-door` (P2, bisected to PR 6371; PR 6803).
+- 2026-11-10 — **`a-cylinder-lines-class-gate-re-decides-its-incidence-as-the-standoff` closed with no fold** (PR 6800). The premise failed: the class gate's `norm_gap` standoff and the incidence read are two facts.
+  - The gate reads the gap at the meridian form's anchor, the line's origin. That is check 4's own Radius term, which a Zero must bound to certify.
+  - The incidence read is the gap's supremum over the span. It bounds the origin's gap only when the span holds the origin.
+  - Counterexample row `a_line_whose_span_holds_no_origin_reads_its_origins_standoff`: green on main, red under the fold. AB1's row could not see the fold, because its lean is tangential.
+  - "Span sup + lean" is not exact either: second-order excess, unsound at Interval. `MarginDiag` is reporting-only and a lower bound.
+  - The m10 D-tab stays [18, 24] until sym's rule lands. Sym's row is narrowed: all 12 decisions need the rule, and `pcurve_envelope` reads the same term.
+  - The alternative, re-anchoring the meridian azimuth at a span point so one read serves both, would move every cylinder line's image and check 4's lemma, and would buy no decision. Not taken.
+  - Review tier: orchestrator's read. Its outcome changed no production code, only a row and two work files.
