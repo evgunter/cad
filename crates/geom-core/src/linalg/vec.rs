@@ -158,7 +158,7 @@ fn unscaled<T: Real>(n: T, k: Option<f64>) -> T {
 }
 
 /// **Why a vector names no direction**: its length leaves the format,
-/// or it is the zero vector. The refusal of
+/// or it may be the zero vector. The refusal of
 /// [`Vec3::checked_direction`], [`Vec3::checked_nonzero_length`] and
 /// their 2-D twins, so a door that needs a direction asks the zero
 /// question at the home rather than restating it.
@@ -166,8 +166,12 @@ fn unscaled<T: Real>(n: T, k: Option<f64>) -> T {
 pub enum NoDirection {
     /// The length leaves the format ([`LengthOutOfFormat`]).
     OutOfFormat(LengthOutOfFormat),
-    /// The vector is the zero vector: every component is zero
-    /// ([`is_zero_length`]).
+    /// The vector may be the zero vector, as a structure decision (C6,
+    /// [`crate::structure_nonzero`]'s question asked of the length): at a
+    /// point scalar every component is zero ([`is_zero_length`]); at the
+    /// interval scalar the length's enclosure holds zero, so some vector
+    /// it stands for has no direction, and a direction read from it
+    /// would be unbounded.
     Zero,
 }
 
@@ -203,6 +207,18 @@ impl<T: Real, V: Prescale<T>> Checked<V, T> {
     }
 }
 
+/// **Whether the prescaled norm `n` may be zero**, as a structure
+/// decision (C6) read with the ring alone: `n · (1/n)` is bounded
+/// ([`Real::is_bounded`]) exactly where every value `n` stands for is
+/// nonzero. At a point scalar that is `n ≠ 0`; at `Interval` an enclosure
+/// whose lower end is above zero, an enclosure that holds zero having an
+/// unbounded reciprocal (unbounded, not poison, so
+/// [`is_finite_length`] would not see it). The prescale keeps `n` in
+/// range, so a tiny length's reciprocal does not overflow.
+fn may_be_zero<T: Real>(n: T) -> bool {
+    !(n * (T::one() / n)).is_bounded()
+}
+
 /// `v` through the one prescale, or the rule's refusal. Inside the
 /// range the prescale is the identity, so the norm it reads IS the
 /// plain norm and is read once; past it the rule reads the plain norm
@@ -221,7 +237,7 @@ fn checked<T: Real, V: Prescale<T>>(v: V) -> Result<Checked<V, T>, LengthOutOfFo
             scaled,
             norm,
             power,
-            zero: is_zero_length(plain, witness),
+            zero: is_zero_length(plain, witness) || may_be_zero(norm),
         })
     }
 }
@@ -408,14 +424,17 @@ impl<T: Real> Vec2<T> {
     }
 
     /// [`checked_direction_and_length`](Self::checked_direction_and_length)
-    /// that also refuses the zero vector: the door for a site that needs
-    /// a direction, so no caller restates the zero question.
+    /// that also refuses a vector that may be the zero vector: the door
+    /// for a site that needs a direction, so no caller restates the zero
+    /// question. At the interval scalar "may be" is the structure
+    /// decision ([`NoDirection::Zero`]): a length whose enclosure holds
+    /// zero is refused, never read into an unbounded direction.
     ///
     /// # Errors
     ///
     /// [`NoDirection::OutOfFormat`] as
     /// [`checked_direction_and_length`](Self::checked_direction_and_length),
-    /// [`NoDirection::Zero`] for the zero vector.
+    /// [`NoDirection::Zero`] for a vector that may be the zero vector.
     pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
         let c = checked(self)?.nonzero()?;
         Ok((c.direction(), c.length()))
@@ -675,14 +694,17 @@ impl<T: Real> Vec3<T> {
     }
 
     /// [`checked_direction_and_length`](Self::checked_direction_and_length)
-    /// that also refuses the zero vector: the door for a site that needs
-    /// a direction, so no caller restates the zero question.
+    /// that also refuses a vector that may be the zero vector: the door
+    /// for a site that needs a direction, so no caller restates the zero
+    /// question. At the interval scalar "may be" is the structure
+    /// decision ([`NoDirection::Zero`]): a length whose enclosure holds
+    /// zero is refused, never read into an unbounded direction.
     ///
     /// # Errors
     ///
     /// [`NoDirection::OutOfFormat`] as
     /// [`checked_direction_and_length`](Self::checked_direction_and_length),
-    /// [`NoDirection::Zero`] for the zero vector.
+    /// [`NoDirection::Zero`] for a vector that may be the zero vector.
     pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
         let c = checked(self)?.nonzero()?;
         Ok((c.direction(), c.length()))
@@ -1134,6 +1156,50 @@ impl<T: Real> Div<T> for Vec3<T> {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// **At the interval scalar a length whose enclosure holds zero names
+    /// no direction** (C6): a vector straddling the origin, in one
+    /// dimension or all three, is `Zero` to the direction readers, where
+    /// the value channel alone reads a length of zero only for the exact
+    /// zero vector; a vector whose length is certainly above zero reads
+    /// its direction. A point scalar's answer is the value's.
+    #[test]
+    fn an_enclosure_that_holds_zero_names_no_direction() {
+        use crate::Interval;
+        let wide = Interval::from_bounds(-1e-15, 1e-15);
+        let iv = Interval::from_f64;
+        for v in [
+            Vec3::new(wide, iv(0.0), iv(0.0)),
+            Vec3::new(wide, wide, wide),
+            Vec3::new(Interval::from_bounds(0.0, 1e-9), iv(0.0), iv(0.0)),
+        ] {
+            assert_eq!(
+                v.checked_direction().map(|_| ()),
+                Err(NoDirection::Zero),
+                "{v:?}"
+            );
+            assert_eq!(
+                v.checked_nonzero_length().map(|_| ()),
+                Err(NoDirection::Zero),
+                "{v:?}"
+            );
+            assert_eq!(
+                Vec2::new(v.x, v.y).checked_direction().map(|_| ()),
+                Err(NoDirection::Zero),
+                "{v:?}"
+            );
+        }
+        let clear = Vec3::new(Interval::from_bounds(1e-9, 2e-9), wide, iv(0.0));
+        assert!(clear.checked_direction().is_ok(), "a length above zero");
+        assert_eq!(
+            Vec3::new(1e-100, 0.0, 0.0).checked_direction().map(|_| ()),
+            Ok(())
+        );
+        assert_eq!(
+            Vec3::new(0.0, 0.0, 0.0).checked_direction().map(|_| ()),
+            Err(NoDirection::Zero)
+        );
+    }
 
     /// **The checked readers, both dimensions, at every refusal.** An
     /// overflowed or poisoned plain norm is `NonFinite`, an underflowed
