@@ -1500,3 +1500,4 @@
 - 02:20Z 6698 fold (f46f3a98, gate green; one line_loops reading) → delta review. Argmin: first_pair tie free only for straight germs, mutual pairs (proof at the call); remeasure running.
 - 02:30Z 6701 re-review: MERGE. Merged main → ladder ratchet red (6689 added face_normal spellings); ported face_normal.rs to geom_core::ladder (topo 144) over the lane's bump; head 31655de7, gating. (Note: I pushed one merged head 600a676b before gates were read; superseded.)
 - 02:33Z 6698 delta: FIX (self-referential oracle — M4 survives; snapshot double walk; doc; two hand straightness reads) → small-sweeps lane.
+- 02:36Z 6690 fix pass (56ab588a) → delta review session_013mPGJ289CcZmz9ARdZqVph. Bracket lane resumes placement-holders PR.
