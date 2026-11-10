@@ -168,18 +168,29 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     // longer lie on it, which its incidence read shows. Tier 3's claim
     // is checked after.
     let minted = topo::mint_pcurves(&mut body, Tol::witness());
+    let Err(topo::PcurveMintError::Certify {
+        half_edge,
+        ref error,
+    }) = minted
+    else {
+        panic!("the re-mint refuses a row on the degraded chart: {minted:?}")
+    };
     assert!(
         matches!(
-            minted,
-            Err(topo::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Approx,
-                    ..
-                },
-                ..
-            })
+            geom_brep::IncidenceRead::of(error),
+            Some(geom_brep::IncidenceRead::Off(_))
         ),
         "the re-mint reads the degraded chart's carriers off it: {minted:?}"
+    );
+    assert_eq!(
+        topo::readback::face_carrier_kind(&body, body.face_of_half_edge(half_edge).unwrap()),
+        Ok(geom::SurfaceKind::Approx),
+        "the row read off is on the degraded chart"
+    );
+    assert_eq!(
+        geom_brep::IncidenceRead::kinds_of(error).map(|(chart, _)| chart),
+        Some(geom::SurfaceKind::Approx),
+        "the refusal names the degraded chart: {minted:?}"
     );
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded fit must not validate");
@@ -301,7 +312,7 @@ fn same_net(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>, what: &str) {
     assert_eq!(a.control().len(), b.control().len(), "{what}: net size");
     for (i, (p, q)) in a.control().iter().zip(b.control()).enumerate() {
         assert!(
-            p.x == q.x && p.y == q.y && p.z == q.z,
+            p.equals_exactly(*q),
             "{what}: control point {i} is {p:?}, not the mapped {q:?}"
         );
     }

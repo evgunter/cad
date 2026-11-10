@@ -338,7 +338,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | crate::census::LINE_WEDGE_STRAIGHT => BooleanDecision::LineWedges.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
-        "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
+        carrier_eq::CARRIER_CYL_AXIS_PARALLEL => refusal_routes::CYLINDER_AXES_PARALLEL,
         crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | crate::cover::SPHERE_AXIS
@@ -403,7 +403,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_curved_contain_carrier"
         | "bool_wall_outline_reach"
         | "bool_wall_turn_true"
-        | "bool_wrap_rim"
+        | surface_group::BOOL_WRAP_RIM
         | "bool_sphere_iso_meridian"
         | "bool_sphere_iso_rim"
         | "bool_sphere_trim_antipode"
@@ -473,8 +473,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spline_side"
         | "point_in_arc_loop_spline_turn"
         | "point_in_arc_loop_spline_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
-        spline_region::CARRIER => "how far a point lies off a spline face's carrier",
-        spline_region::ARM | spline_region::TRIM => {
+        spline_region::SPLINE_REGION_CARRIER => "how far a point lies off a spline face's carrier",
+        spline_region::SPLINE_REGION_ARM | spline_region::SPLINE_REGION_TRIM => {
             "whether a point of a spline face's carrier lies clear of the face's trim"
         }
         _ => return None,
@@ -2959,10 +2959,10 @@ pub enum SectionUnbuilt {
     /// The pair's section refused at the glue door, decided: an operand
     /// whose radius is not definitely positive.
     Refused(geom_brep::SectionError),
-    /// The section did not carry. Its escalation and its desync are not
-    /// held here: they refuse as the decision and as the join's desync
-    /// (`join::section_unbuilt`).
-    Carry(geom_brep::CarryError),
+    /// The section's carry refused, decided. A carry that escalated or
+    /// desynced is not this: it refuses as the decision and as the join's
+    /// desync (`join::section_unbuilt`).
+    Carry(geom_brep::CarryRefusal),
 }
 
 impl SectionUnbuilt {
@@ -5522,7 +5522,7 @@ impl BooleanError {
             Self::FallbackExtentUnsupported { what, .. } => write!(
                 f,
                 "the solids' boundaries do not cross, and the Boolean cannot be sure \
-                 whether one lies inside the other ({what}). Recourse: {}",
+                 whether one lies inside the other ({what}). {}",
                 refusal_routes::EXTENT_LEVER,
             ),
             // No operand is named, as the scan's other refusals name none.
@@ -5615,14 +5615,14 @@ impl BooleanError {
                 "a direction the Boolean measures where the solids meet has no finite \
                  length \u{2014} its components overflow, or one of them is not a \
                  number. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                geom_core::RANGE_ENDING
             ),
             Self::UnderflowedSectorChord { .. } => write!(
                 f,
                 "a direction the Boolean measures where the solids meet is too small \
                  for its length to be represented, so it measures exactly zero; no \
-                 tolerance reaches this. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 tolerance reaches this. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::Escalated { decision, diag } => write!(f, "{}", decision.written(diag, at)),
             Self::CoplanarNeighbours {

@@ -125,7 +125,8 @@ use core::ops::ControlFlow;
 
 use crate::enters::{LeverEscalation, OutwardNormal};
 use geom::Surface;
-use geom_core::k_stats::{Magnitude, NonzeroSign};
+use geom_core::NonzeroSign;
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
@@ -2637,7 +2638,7 @@ mod tests {
                     pair: got,
                     witness: w,
                 },
-            )) => assert!(got == pair && w.distance(witness) == 0.0, "{got:?} {w:?}"),
+            )) => assert!(got == pair && w.equals_exactly(witness), "{got:?} {w:?}"),
             other => panic!("jet-determinate must be the intrinsic tangency: {other:?}"),
         }
         assert!(matches!(

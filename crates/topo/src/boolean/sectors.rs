@@ -77,7 +77,7 @@ use geom_brep::LeverBounds;
 use geom_brep::enters_material;
 use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use geom_brep::{ConicDeparture, EntersMaterial, OutwardNormal};
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
@@ -5090,7 +5090,7 @@ mod tests {
         let b = band();
         let got = sector_face(&body, Operand::A, apex_vertex, apex_he, b);
         assert!(
-            matches!(got, Ok((f, BoolFace::Apex(at))) if f == face && at.apex.distance(apex) == 0.0),
+            matches!(got, Ok((f, BoolFace::Apex(at))) if f == face && at.apex.equals_exactly(apex)),
             "the apex corner: {got:?}"
         );
         let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)

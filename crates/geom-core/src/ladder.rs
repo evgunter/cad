@@ -486,7 +486,9 @@ pub enum Answering {
 pub enum Climb<A, E> {
     /// A rung answered: its index among the rungs, and its answer.
     Answered {
-        /// The answering rung's index.
+        /// The answering rung's index. Under [`Answering::Any`] it is a
+        /// diagnostic only: which rung answered rests on rung order, so no
+        /// caller branches on it.
         at: usize,
         /// Its answer.
         answer: A,
@@ -736,13 +738,14 @@ impl IdentityLadder {
 /// decided apart says the same "not one") whose answer is a datum decided
 /// apart.
 ///
-/// **A datum's name is spelled once, as a literal at the datum**, as a
-/// `decide*` call's is. `test_utils::source::predicate_census` reads
-/// names at `decide*` calls only, so a crate whose roster runs it
-/// (sweep's `recourse_roster`) carries each identity datum's name in a
-/// `const` and declares it (`NameCarrier::Const`, sweep's
-/// `LOFT_RIM_PINNED`). A crate with no such roster (topo) writes the
-/// literal.
+/// **A datum's name is spelled once.** `test_utils::source::predicate_census`
+/// cannot follow the data to their names, so it reports every call of
+/// this function as an indirect site; a crate whose roster runs it
+/// (sweep's and topo's `recourse_roster`) lists each call and spells
+/// each datum's name in a `const` the roster declares
+/// (`NameCarrier::Const`: sweep's `LOFT_RIM_PINNED`, topo's
+/// `BOOL_WRAP_RIM`), under its door's prefix where the roster keys doors
+/// by prefix (topo's).
 pub fn read_identity<T: Decide>(
     data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
     band: Band,

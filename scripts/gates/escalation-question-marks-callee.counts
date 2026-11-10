@@ -92,9 +92,9 @@ crates/topo/src/boolean/sectors.rs 5
 crates/topo/src/boolean/slit.rs 1
 # vtxfac: germ_order, a sort: NOT A SEARCH.
 crates/topo/src/boolean/vtxfac.rs 1
-# census: span_clear's two reads (anything meeting answers "not clear"):
-# HAND-ROLLED.
-crates/topo/src/census.rs 2
+# census: span_clear's three reads, a lone vertex's and a side's end and
+# interior (anything meeting answers "not clear"): HAND-ROLLED.
+crates/topo/src/census.rs 3
 # chart_region: polygon_relation, the first decisive vertex answers:
 # HAND-ROLLED.
 crates/topo/src/chart_region.rs 1

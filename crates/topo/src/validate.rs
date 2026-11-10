@@ -595,7 +595,7 @@ pub(crate) fn decide_nonzero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
-) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
+) -> Result<geom_core::NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
@@ -4140,10 +4140,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
             "a face the check asked about does not resolve in the body".into(),
             DEFECT.into(),
         ),
-        ContainError::EmptyLoop(_) => (
-            "a loop of its boundary is a lone vertex, which bounds no region".into(),
-            DEFECT.into(),
-        ),
+        ContainError::EmptyLoop(_) => (LONE_LOOP.into(), DEFECT.into()),
         ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
         ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET_ENDING.into()),
@@ -4176,6 +4173,8 @@ fn arc_end_clear_of_corners(
 }
 
 const UNWALKABLE: &str = "its boundary could not be walked";
+
+const LONE_LOOP: &str = "a loop of its boundary is a lone vertex, which bounds no region";
 
 /// No ray parity cast settled — each grazed or gave nothing to read —
 /// for a point a pre-pass had already placed off the boundary.
@@ -4248,6 +4247,7 @@ pub(crate) fn classify_point_in_solid(
             (GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
+        S::Loop(L::LoneLoop { .. }) => (LONE_LOOP.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
             (uncrossable(u), NOT_YET_ENDING.into())
         }
@@ -6041,9 +6041,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     ([`ValidationError::SolidOuterShells`] for two or more), and the
 ///     solid's shells bound winding number 0 or 1 everywhere — an
 ///     `Outer` shell adds `+1` inside itself, a `Void` `-1` inside its
-///     cavity — decided at one vertex of each shell (the first that
-///     touches no other shell) from the other shells' point-in-solid
-///     answers ([`ValidationError::ShellWinding`]). An ordinary cavity
+///     cavity — read at every witness of each shell that touches no
+///     other shell, from the other shells' point-in-solid answers, so a
+///     shell crossing another stands at a wrong winding somewhere
+///     ([`ValidationError::ShellWinding`]). An ordinary cavity
 ///     passes; a `Void` outside the `Outer` and a `Void` inside a `Void`
 ///     refuse. Silent where the walk or a shell's sign cannot answer
 ///     (the list below).
@@ -6721,10 +6722,15 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// the `Outer` (`-1` in its cavity), or a `Void` inside another `Void`
 /// (`-1`). Check 7's per-solid total is positive on both.
 ///
-/// **One decisive witness per shell, under the no-crossing premise**
-/// ([`crate::stands::witness_insides`], the witness ladder): the winding
-/// the OTHER shells put on shell `s` is `Σ ±[s inside t]` over them,
-/// which must be `0` if `s` is `Outer` and `1` if `s` is a `Void`.
+/// **Every witness of each shell** ([`crate::stands::witness_insides_everywhere`],
+/// the witness ladder read at every witness): the winding the OTHER
+/// shells put on shell `s` is `Σ ±[s inside t]` over them, which must be
+/// `0` if `s` is `Outer` and `1` if `s` is a `Void`. No check before this
+/// one establishes that shells do not cross (the embedding certificate
+/// is not built), so no one witness is taken for the shell: where two
+/// read different insides, the shell crosses another, and one of them
+/// stands at a wrong winding (behind one `Outer`, only one set of
+/// insides winds what a role requires), which is the finding.
 ///
 /// **A shell whose role does not read refuses the solid**
 /// ([`ValidationError::ShellRoleUndecided`], naming the shell's
@@ -6755,7 +6761,7 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Vec<ValidationError> {
     use crate::props::ShellRole;
-    use crate::stands::{Insides, ShellRead, witness_insides};
+    use crate::stands::{EveryInside, ShellRead, witness_insides_everywhere};
 
     let mut errors = Vec::new();
     for (solid, record) in body.solids.iter() {
@@ -6780,31 +6786,45 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         for (i, read) in reads.iter().enumerate() {
-            let Insides::Read(inside) = witness_insides(body, i, &reads, &|_| true, band, tol)
-            else {
-                continue;
+            let winding = |inside: &[bool]| -> i32 {
+                reads
+                    .iter()
+                    .zip(inside)
+                    .filter(|(_, inside)| **inside)
+                    .map(|(t, _)| match t.role {
+                        ShellRole::Outer => 1,
+                        ShellRole::Void => -1,
+                    })
+                    .sum()
             };
-            let winding: i32 = reads
-                .iter()
-                .zip(&inside)
-                .filter(|(_, inside)| **inside)
-                .map(|(t, _)| match t.role {
-                    ShellRole::Outer => 1,
-                    ShellRole::Void => -1,
-                })
-                .sum();
             // The winding the shell's own contribution puts just across
             // it, and the one place its role is read.
-            let (required, bounded) = match read.role {
-                ShellRole::Outer => (0, winding + 1),
-                ShellRole::Void => (1, winding - 1),
+            let (required, own) = match read.role {
+                ShellRole::Outer => (0, 1),
+                ShellRole::Void => (1, -1),
             };
-            if winding != required {
+            // A shell whose witnesses read different insides crosses
+            // another, and stands at a wrong winding at one of them: one
+            // `Outer` at most, so only one set of insides winds what the
+            // role requires.
+            let read_at = match witness_insides_everywhere(body, i, &reads, band, tol) {
+                EveryInside::Read(inside) => winding(&inside),
+                EveryInside::Crosses(first, other) => {
+                    let first = winding(&first);
+                    if first == required {
+                        winding(&other)
+                    } else {
+                        first
+                    }
+                }
+                EveryInside::Unread => continue,
+            };
+            if read_at != required {
                 errors.push(ValidationError::ShellWinding {
                     solid,
                     shell: read.shell,
-                    winding,
-                    bounded,
+                    winding: read_at,
+                    bounded: read_at + own,
                 });
             }
         }
@@ -9040,7 +9060,10 @@ pub(crate) fn point_corners<T: Decide>(
 /// **The normal check 9 reads a corner's wedge about**: `face_key`'s
 /// outward normal at `vertex`'s point
 /// ([`crate::face_normal::face_outward_normal_at`]); `None` where that
-/// door gives none there (`pinch_corner_errors`' residue).
+/// door gives none there (`pinch_corner_errors`' residue), a vertex the
+/// door reads off the face's surface among them: that is check 3's
+/// finding, and a caller that needs the normal refuses its absence
+/// (`splitting::section_cones`).
 ///
 /// # Errors
 ///
@@ -10370,13 +10393,13 @@ fn ring_nesting<T: Decide>(
     // contact half's question, not this one.
     match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
         let Some(rp) = vertex_point(body, rv) else {
-            return geom_brep::ladder::Rung::Passes;
+            return Ok(None);
         };
         match crate::splitting::containment::point_in_loop(body, outer, normal, rp, band) {
-            Ok(crate::splitting::LoopContainment::In) => geom_brep::ladder::Rung::Answers(true),
-            Ok(crate::splitting::LoopContainment::Out) => geom_brep::ladder::Rung::Answers(false),
-            Ok(crate::splitting::LoopContainment::OnBoundary) => geom_brep::ladder::Rung::Passes,
-            Err(source) => geom_brep::ladder::Rung::InBand(ContainError::from(source)),
+            Ok(crate::splitting::LoopContainment::In) => Ok(Some(true)),
+            Ok(crate::splitting::LoopContainment::Out) => Ok(Some(false)),
+            Ok(crate::splitting::LoopContainment::OnBoundary) => Ok(None),
+            Err(source) => Err(geom_brep::ladder::Kept::InBand(ContainError::from(source))),
         }
     }) {
         crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::Unplaced => {
@@ -15018,7 +15041,7 @@ mod tests {
     ) {
         let e = body.get_edge(edge).unwrap().clone();
         let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
-        assert!(s.distance(t) == 0.0, "a closed edge");
+        assert!(s.equals_exactly(t), "a closed edge");
         let radius = (s - center).norm();
         let u_ref = (s - center) / radius;
         let carrier = geom::Curve3::Circle(geom::Circle {
@@ -16582,7 +16605,7 @@ mod tests {
                 .iter()
                 .find(|(_, e)| {
                     edge_endpoints(&body, e.he_plus).is_some_and(|(a, b)| {
-                        let same = |x: Point3<f64>, y: Point3<f64>| (x - y).norm() == 0.0;
+                        let same = |x: Point3<f64>, y: Point3<f64>| x.equals_exactly(y);
                         (same(a, from) && same(b, to)) || (same(a, to) && same(b, from))
                     })
                 })
