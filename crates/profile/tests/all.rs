@@ -207,3 +207,6 @@ mod review_fillet_stored_tangency_r2_probes;
 
 #[path = "cusp_fillet_keeps_its_leg.rs"]
 mod cusp_fillet_keeps_its_leg;
+
+#[path = "fillet_run_fit.rs"]
+mod fillet_run_fit;

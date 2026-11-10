@@ -1061,11 +1061,11 @@ fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
 
 // ------------------------ the definitely / exactly / in-band predicate trios
 //
-// The exact-order predicates (`fillet_leg_fit`, `fillet_leg_reach`) have
-// no in-band row at `f64` by construction — no representable `f64` lies
-// strictly inside the hairline band — so their in-band rows live in the
-// interval lane (tests/interval_lane.rs), where a straddling enclosure
-// escalates honestly. Everything else has all three rows here.
+// The exact-order predicate `fillet_leg_reach` has no in-band row at
+// `f64` by construction — no representable `f64` lies strictly inside
+// the hairline band. `fillet_leg_fit` reads the run on the linear band;
+// its in-band rows are `fillet_run_fit.rs`'s. Everything else has all
+// three rows here.
 //
 // The algebra gates the DERIVED corner before it reaches the shared
 // construction, so two of the constructor door's gates are shadowed by
