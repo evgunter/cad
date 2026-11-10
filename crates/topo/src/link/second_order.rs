@@ -150,7 +150,10 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
         });
         // Every vertex off a side on one side of that side's face
         // ([`climb_agreeing`]): two that differ, or one that does not
-        // read, leave the polygon unread.
+        // read, leave the polygon unread. A pair that does not read aborts
+        // rather than being kept: the polygon's convexity needs every
+        // pair, so an agreement read past an unread pair would claim a
+        // convexity no reading showed.
         let side = match climb_agreeing(
             pairs,
             |(i, j)| {

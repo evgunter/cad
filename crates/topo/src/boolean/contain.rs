@@ -524,9 +524,10 @@ pub(crate) fn contfp_decided<T: Decide>(
 /// **That row classifies the loop, not a point.** Arcs whose circles
 /// agree to within the band are read as one circle; check 9 decides a
 /// PAIR of disc-class loops from the circles' centres and radii, a
-/// question the band's own width already bounds. A definite
-/// disagreement is `None`; an ESCALATION escalates, exactly as every
-/// row of [`curved_face_containment`] does.
+/// question the band's own width already bounds. Any arc decided off
+/// the first arc's circle, or any edge that is no circle's arc, is
+/// `None`, whatever another edge read; an arc read in band refuses only
+/// where every other edge is on the circle.
 ///
 /// # Errors
 ///
@@ -537,40 +538,53 @@ pub(crate) fn loop_circle<T: Decide>(
     r#loop: crate::entity::LoopKey,
     band: Band,
 ) -> Result<Option<geom::Circle<T>>, ContainError> {
-    // The WHOLE cycle is walked: an escalation on a later edge pair
-    // escalates even after an earlier edge has ruled the class out.
-    let mut circle: Option<geom::Circle<T>> = None;
-    let mut one_circle = true;
-    for (_, he, _) in loop_cycle_points(body, r#loop)? {
-        let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let edge = linked(
-            &body.edges,
-            edge_key,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let carrier = body
-            .edge_curve_linked(edge_key, edge)
-            .certified()
-            .map(|c| c.carrier().clone());
-        match carrier {
-            Some(geom::Curve3::Circle(arc)) => match circle {
-                None => circle = Some(arc),
-                Some(c) => {
-                    let (c0, a0, r0) = (c.frame.origin, c.frame.axis, c.radius);
-                    let d = (arc.frame.origin - c0).norm()
-                        + (arc.radius - r0).abs()
-                        + arc.frame.axis.cross(a0).norm() * r0;
-                    match decide("bool_face_disc_carrier", Margin::of(d), band) {
-                        Ok(Sign::Zero) => {}
-                        Ok(Sign::Positive | Sign::Negative) => one_circle = false,
-                        Err(diag) => {
-                            return Err(ContainError::on(ContainDecision::OneCircle, diag));
-                        }
-                    }
+    use geom_core::ladder::{Answering, Climb, Refusal, Rung, climb};
+    // Each edge's carrier, in cycle order; the first circle is the one
+    // every other edge is read against.
+    let carriers: Vec<Option<geom::Curve3<T>>> = loop_cycle_points(body, r#loop)?
+        .into_iter()
+        .map(|(_, he, _)| {
+            let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
+            let edge = linked(
+                &body.edges,
+                edge_key,
+                EntityId::Edge,
+                EntityId::HalfEdge(he),
+                "edge",
+            );
+            body.edge_curve_linked(edge_key, edge)
+                .certified()
+                .map(|c| c.carrier().clone())
+        })
+        .collect();
+    let reference = carriers
+        .iter()
+        .position(|c| matches!(c, Some(geom::Curve3::Circle(_))));
+    let Some(at) = reference else {
+        return Ok(None);
+    };
+    let Some(geom::Curve3::Circle(c)) = carriers[at] else {
+        unreachable!("loop_circle: the reference is a circle")
+    };
+    let (c0, a0, r0) = (c.frame.origin, c.frame.axis, c.radius);
+    // Any edge decided off the reference circle answers "not one circle",
+    // whatever another edge read ([`climb`], [`Answering::Any`]: an
+    // identity). An edge read in band is kept, and refuses only where
+    // every other edge is on the circle.
+    let off = climb(
+        Answering::Any,
+        carriers.iter().enumerate().filter(|&(k, _)| k != at),
+        |(_, carrier)| match carrier {
+            Some(geom::Curve3::Circle(arc)) => {
+                let d = (arc.frame.origin - c0).norm()
+                    + (arc.radius - r0).abs()
+                    + arc.frame.axis.cross(a0).norm() * r0;
+                match decide("bool_face_disc_carrier", Margin::of(d), band) {
+                    Ok(Sign::Zero) => Rung::Passes,
+                    Ok(Sign::Positive | Sign::Negative) => Rung::Answers(()),
+                    Err(diag) => Refusal::Margin(diag).rung(diag),
                 }
-            },
+            }
             // A line, a non-circular conic, a spiric or a spline, or null
             // scaffolding (which tier 2 refuses upstream): not one
             // circle's arc.
@@ -580,10 +594,14 @@ pub(crate) fn loop_circle<T: Decide>(
                 | geom::Curve3::Spiric { .. }
                 | geom::Curve3::Nurbs(_),
             )
-            | None => one_circle = false,
-        }
+            | None => Rung::Answers(()),
+        },
+    );
+    match off {
+        Climb::Answered { .. } => Ok(None),
+        Climb::Passed => Ok(Some(c)),
+        Climb::Undecided(diag) => Err(ContainError::on(ContainDecision::OneCircle, diag)),
     }
-    Ok(circle.filter(|_| one_circle))
 }
 
 /// **Boundary containment** for an on-carrier point against a CURVED

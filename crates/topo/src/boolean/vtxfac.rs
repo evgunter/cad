@@ -438,10 +438,10 @@ pub(super) fn partner_side<T: Decide>(
             datum.side(s.end, s.end_reach, rd)?,
         ]);
     }
-    // Not `climb_agreeing`: bounds on both sides are an answer of their
-    // own (`Across`), so a side read past a bound kept in band could be
-    // that answer unread. Every bound is read above, and one in band
-    // refuses.
+    // Two decided bounds on opposite sides answer `Across` (a theorem),
+    // but a bound in band refuses above first: a deviation from the
+    // ladder rule, scheduled on
+    // `work/onecopy/the-ladder-has-no-climb-for-a-disagreement-that-answers.md`.
     let mut side = None;
     for c in codes.iter().flatten().filter(|&&c| c != SideCode::On) {
         if side.is_some_and(|k| k != *c) {

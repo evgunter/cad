@@ -402,7 +402,9 @@ pub(crate) struct SignBudget;
 ///
 /// A refinement over enclosures, not an agreeing ladder
 /// (`geom_core::ladder::climb_agreeing`): no hull is a band decision, and
-/// a piece that straddles is halved and read again, never kept.
+/// a piece that straddles is halved and read again, not kept. Which
+/// refusal surfaces can depend on the order the pieces are read, and no
+/// outcome rests on which.
 ///
 /// # Errors
 ///
