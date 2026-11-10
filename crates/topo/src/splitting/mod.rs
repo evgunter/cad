@@ -179,6 +179,19 @@ pub enum ApexSectionReading {
 }
 
 impl ApexSectionReading {
+    /// **The reading of the table's refusal of the plane against the
+    /// cone**: an open conic is the plane missing the apex
+    /// ([`Self::OpenOffApex`]), the one disagreement a closed conic is too
+    /// ([`Self::ClosedOffApex`]), named here once; any other refusal is
+    /// carried whole ([`Self::Refused`]).
+    #[must_use]
+    pub fn of_table_refusal(section: SplitJoinError) -> Self {
+        match section {
+            SplitJoinError::OpenConicChord { .. } => Self::OpenOffApex,
+            other => Self::Refused(Box::new(other)),
+        }
+    }
+
     /// **What this reading is to a ladder** (the Boolean's vertex-on-face
     /// climb reads it, [`crate::BooleanError::ApexSection`]): the table and
     /// the walk disagreeing on one apex is a kernel fault, and the table's

@@ -2800,15 +2800,10 @@ pub(crate) fn apex_section_ruling<T: Decide>(
         Err(SplitJoinError::Escalated { diag, .. }) => {
             return Err(ApexRulingFault::Escalated(diag));
         }
-        // The table reads the plane missing the apex, open or closed: one
-        // disagreement with the walk, named here.
-        Err(SplitJoinError::OpenConicChord { .. }) => {
-            return Err(ApexRulingFault::Disagrees(ApexSectionReading::OpenOffApex));
-        }
         Err(section) => {
-            return Err(ApexRulingFault::Disagrees(ApexSectionReading::Refused(
-                Box::new(section),
-            )));
+            return Err(ApexRulingFault::Disagrees(
+                ApexSectionReading::of_table_refusal(section),
+            ));
         }
         Ok(Some(WallSection {
             case: SectionCase::Conic(_),
