@@ -60,7 +60,9 @@ pub(crate) enum RegionRefusal {
         outer: LoopKey,
     },
     /// A boundary arc winds definitely past a whole turn, which bounds
-    /// no region.
+    /// no region; or a conic arc whose carrier bounds no speed, which its
+    /// certification should have refused (`ConicHit::Uncertified`). Either
+    /// way the face is corrupt.
     WoundPastPeriod,
     /// The boundary reading of an edge on its own carrier ran out of depth
     /// or budget before it placed the point: no reading in the band, and
@@ -136,6 +138,9 @@ pub(crate) fn circle_edge_hit<T: Decide>(
         ConicHit::On(_) | ConicHit::End => Ok(true),
         ConicHit::Off | ConicHit::Carrier => Ok(false),
         ConicHit::Unsettled => Err(RegionRefusal::RayExhausted { outer }),
+        // A conic its certification should have refused: a corrupt face
+        // (`RegionRefusal::WoundPastPeriod`'s image), not a reading.
+        ConicHit::Uncertified => Err(RegionRefusal::WoundPastPeriod),
     }
 }
 

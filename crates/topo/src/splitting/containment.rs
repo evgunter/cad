@@ -894,9 +894,14 @@ pub(crate) enum ConicHit {
     /// On the conic within the band of one of the arc's ends.
     End,
     /// Not placed: an ellipse's `Past` stands on the span walk
-    /// ([`geom::Curve3::clear_of`]), which ran past its budget, or the
-    /// carrier bounds no speed to walk by.
+    /// ([`geom::Curve3::clear_of`]), which ran past its budget.
     Unsettled,
+    /// The carrier bounds no speed to walk by: a zero or poisoned radius
+    /// or semi-axis, which a certified conic cannot have (`geom`'s
+    /// `conic` module: a radius and both semi-axes are positive lengths,
+    /// and certification's speed floor refuses one that is not). A
+    /// construction fault, not a limit of the reading.
+    Uncertified,
 }
 
 impl<T: Decide> ConicArc<T> {
@@ -1056,7 +1061,14 @@ impl<T: Decide> ConicArc<T> {
             }
             // An ellipse's `Past` stands on the span walk, which can run
             // past its budget: not placed, typed.
-            Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
+            Err(geom::CarrierRefusal::Unwalked(geom::PieceWalkRefusal::Exhausted)) => {
+                ConicHit::Unsettled
+            }
+            // No speed bound: the conic's sizes are not the positive
+            // lengths its certification holds them to.
+            Err(geom::CarrierRefusal::Unwalked(geom::PieceWalkRefusal::Unbounded)) => {
+                ConicHit::Uncertified
+            }
         })
     }
 }
@@ -1084,6 +1096,8 @@ pub(crate) enum OffEdge {
     Carrier,
     /// [`EdgeContact::Unread`].
     Unread,
+    /// [`EdgeContact::Uncertified`].
+    Uncertified,
 }
 
 /// An [`EdgeContact`] that places the point on the edge or at one of its
@@ -1105,6 +1119,7 @@ impl EdgeContact {
             Self::Off => Ok(OffEdge::Off),
             Self::Carrier => Ok(OffEdge::Carrier),
             Self::Unread => Ok(OffEdge::Unread),
+            Self::Uncertified => Ok(OffEdge::Uncertified),
             Self::On(margin) => Err(OnEdge::On(margin)),
             Self::End => Err(OnEdge::End),
         }
@@ -1130,6 +1145,9 @@ pub(crate) enum EdgeContact {
     /// which it does not, since a conic's crossing count reads its own
     /// carrier.
     Unread,
+    /// A conic whose carrier bounds no speed ([`ConicHit::Uncertified`]):
+    /// a construction fault, which every reader refuses as corrupt.
+    Uncertified,
 }
 
 impl<T: Decide> LoopEdge<T> {
@@ -1158,6 +1176,7 @@ impl<T: Decide> LoopEdge<T> {
                 ConicHit::On(on) => EdgeContact::On(on),
                 ConicHit::End => EdgeContact::End,
                 ConicHit::Unsettled => EdgeContact::Unread,
+                ConicHit::Uncertified => EdgeContact::Uncertified,
             },
             Self::Spiric(k) => pieced_contact(k.contact(q, rows.spiric, band))?,
             Self::Spline(k) => pieced_contact(k.contact(q, rows.spline, band))?,
@@ -1952,6 +1971,9 @@ fn carrier_walk<T: Decide>(
                     carrier,
                 }));
             }
+            // A conic its certification should have refused: the loop
+            // does not stand on resolvable geometry.
+            (OffEdge::Uncertified, _) => return Err(PointInLoopError::CorruptLoop { r#loop }),
             (OffEdge::Off | OffEdge::Unread, _) => {}
             (OffEdge::Carrier, _) => on_carrier[i] = true,
         }
@@ -2233,6 +2255,67 @@ mod tests {
                 "w = {t1}: within the band of the start"
             );
         }
+    }
+
+    /// **A conic whose carrier bounds no speed is a corrupt loop**
+    /// ([`ConicHit::Uncertified`], [`OffEdge::Uncertified`]), not a limit
+    /// of the reading. The disc of radius 0.2 planted in a box's top face,
+    /// described at rest; its one edge read `Uncertified` by the boundary
+    /// pass refuses the walk as [`PointInLoopError::CorruptLoop`], where
+    /// the walk's budget (`Unread`) is read past. No certified conic
+    /// reaches the reading itself: an infinite, zero or poisoned size
+    /// fails earlier, poisoned or decided (`ConicArc::hit` over such a
+    /// carrier reads `Off` or a poisoned escalation), so the walk is
+    /// handed the reading directly.
+    #[test]
+    fn a_conic_with_no_speed_bound_is_a_corrupt_loop() {
+        use crate::test_support_fixtures::{plant_disc_face, prism_z};
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+        let prism = prism_z::<f64>(&square, 0.0, 1.0, tol);
+        let mut body = prism.body;
+        let outer = body.get_face(prism.top_face).unwrap().outer;
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+        else {
+            panic!("the top face's outer loop is a cycle");
+        };
+        let center = Point3::new(1.0, 1.0, 1.0);
+        let planted = plant_disc_face(&mut body, first, center, 0.2, tol);
+        let chart = body.get_face(prism.top_face).unwrap().surface;
+        let circle = geom::Curve3::circle(
+            center,
+            Vec3::new(0.0, 0.0, 1.0),
+            0.2,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle, 0.0, core::f64::consts::TAU)
+            .unwrap()
+            .at_rest_in_chart(chart, false);
+        body.set_edge_curve(planted.edge, spec, tol).unwrap();
+        let lp = carrier_loop(&body, planted.r#loop, WALK_ROWS.conic, band).unwrap();
+        let (normal, q) = (Vec3::new(0.0, 0.0, 1.0), Point3::new(1.05, 1.0, 1.0));
+        let walk = |off: OffEdge| {
+            carrier_walk(
+                planted.r#loop,
+                &lp,
+                normal,
+                q,
+                band,
+                Boundary::Decided(&[off]),
+            )
+        };
+        assert!(
+            matches!(
+                walk(OffEdge::Uncertified),
+                Err(PointInLoopError::CorruptLoop { .. })
+            ),
+            "an uncertified conic refuses the loop as corrupt"
+        );
+        assert!(
+            matches!(walk(OffEdge::Off), Ok(WalkSide::In)),
+            "the same loop read off its edge places the point inside"
+        );
     }
 
     /// A steep ellipse (`a/b = 20`) read at the band's own width in
