@@ -1210,6 +1210,18 @@ impl CertifyError {
         }
     }
 
+    /// **The chart and carrier kinds this incidence refusal names**,
+    /// beside its read ([`Self::incidence_read`]), as the pcurve layer's
+    /// [`crate::IncidenceRead::kinds_of`] reads them: where the refusal
+    /// carries them, and `None` otherwise.
+    #[must_use]
+    pub fn incidence_kinds(&self) -> Option<(geom::SurfaceKind, geom::CurveKind)> {
+        match self {
+            Self::CarrierOffChart { chart, carrier, .. } => Some((*chart, *carrier)),
+            _ => None,
+        }
+    }
+
     /// The payload and, where its decision gives one, the ending read at
     /// `at` ([`CertifyError::ending`]).
     #[must_use]

@@ -66,7 +66,8 @@
 //! reclassification), against the run's linear band. This is the
 //! `classify_dihedral` pattern.
 
-use geom_core::k_stats::{Magnitude, NonzeroSign};
+use geom_core::NonzeroSign;
+use geom_core::k_stats::Magnitude;
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Lever, Margin, MarginDiag, Real, Sign, Vec3,
 };

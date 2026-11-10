@@ -29,9 +29,10 @@
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
+use geom_core::NonzeroSign;
 use geom_core::Tol;
 use geom_core::k_stats::{
-    Bracket, Escalation, Magnitude, NonzeroSign, Verdict, decide, decide_flagged, decide_magnitude,
+    Bracket, Escalation, Magnitude, Verdict, decide, decide_flagged, decide_magnitude,
     decide_negative, decide_nonzero, decide_positive, decide_reported, gate_measured,
 };
 use geom_core::{

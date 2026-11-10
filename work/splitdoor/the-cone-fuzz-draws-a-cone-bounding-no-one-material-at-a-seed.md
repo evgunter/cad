@@ -71,3 +71,5 @@ branch's whole diff stashed (main `2fee45b9`).
 - `0xce1d0edd5fbb1372` at ε 1e-9 reports `cone 22, split` and `cone 22, conic`, the same message.
 
 The reviewer measured about 10% of random seeds red at `CAD_FUZZ_EFFORT=1`. The fuzzer is not fixed there.
+
+**One more (2026-11-09, reported to ONECOPY's orchestrator; recorded by `onecopy/main-reds-triage`)**: seed `0xb699506f073b8f0f` reports `cone 21`, `split` and `conic`, the same message, at ε 1e-6 and at the default ε (reproduced by PR 6691's review).

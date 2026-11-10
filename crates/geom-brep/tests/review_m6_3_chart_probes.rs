@@ -20,7 +20,7 @@ use geom_core::interval::certification::Certification;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{PcurveCache, PcurveCertifyError, chart_pcurve, chart_pcurve_over};
+use geom_brep::{PcurveCache, chart_pcurve, chart_pcurve_over};
 use geom_core::{Point3, Vec3};
 
 /// **Deliberately not `shared::surf::sphere`.** This sphere is placed
@@ -135,13 +135,14 @@ fn probe_apex_level_rim_refuses() {
         u_ref: Vec3::unit_x(),
     };
     let carrier = Curve3::circle(apex, Vec3::unit_z(), 1e-3, Vec3::unit_x());
-    match chart_pcurve(&carrier, &cone, band()) {
-        Err(PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            ..
-        }) => {}
-        other => panic!("expected CarrierOffChart, got {other:?}"),
-    }
+    let got = chart_pcurve(&carrier, &cone, band());
+    let refusal = got.as_ref().err();
+    assert!(
+        refusal.and_then(geom_brep::IncidenceRead::of).is_some()
+            && refusal.and_then(geom_brep::IncidenceRead::kinds_of)
+                == Some((cone.kind(), carrier.kind())),
+        "expected the cone's incidence refusal of the circle, got {got:?}"
+    );
 }
 
 /// Torus inner equator: the parallel at v = pi (radius R - r) derives

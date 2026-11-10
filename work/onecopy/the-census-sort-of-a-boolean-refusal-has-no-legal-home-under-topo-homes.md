@@ -54,3 +54,11 @@ No `[ev]` PR is needed. Nothing ratified changes, and both recommend against add
    - the `.counts` header states the migration practice: a new site is paid in the reader's pin, citing its move row, and never by a new `pub(crate)` in the engine (B).
 
    All three are agent text (PR 6458).
+
+## Also cited by (2026-11-09)
+
+`contain_loop.rs`'s `names-boolean` pin (`onecopy/small-sweeps`): the
+containment door's `From<PointInLoopError> for ContainError`, moved out
+of `boolean/contain.rs` so the boolean no longer names the splitting
+engine there. Its two sites are `ContainError`'s, and fall when step 1
+above moves `ContainError` to the crate root.
