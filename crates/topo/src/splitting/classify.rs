@@ -151,7 +151,7 @@ fn reach_clears<T: Decide>(
     let Some((lo, hi)) = reach else {
         return false;
     };
-    let pad = T::from_f64(crate::boolean::boxes::sweep_pad(band));
+    let pad = T::from_f64(crate::boxes::sweep_pad(band));
     // The frame turns about the world origin, so a reach's first
     // coordinate is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
