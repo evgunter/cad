@@ -1444,6 +1444,12 @@ impl<T: Real> SectionConic<T> {
         self.as_conic(geom::Curve3::conic)
     }
 
+    /// The carrier's period ([`geom::Curve3::period`]), which every
+    /// circle and ellipse states.
+    pub(crate) fn period(&self) -> geom_core::period::Period<T> {
+        self.as_conic(geom::Curve3::period)
+    }
+
     /// The carrier read by `read`, a reading every circle and ellipse
     /// answers.
     fn as_conic<'a, R>(&'a self, read: impl FnOnce(&'a geom::Curve3<T>) -> Option<R>) -> R {

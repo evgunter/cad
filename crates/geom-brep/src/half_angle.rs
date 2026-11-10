@@ -833,7 +833,11 @@ fn subdivision<T: Decide>(
     let Some(&(first, first_side)) = ends.first() else {
         return Err(uncut());
     };
-    ends.push((first + T::tau(), first_side));
+    // `θ` is an angle by construction: the walk closes one turn on.
+    ends.push((
+        first + geom_core::period::Period::<T>::angle().length(),
+        first_side,
+    ));
     // The pieces are walked left to right ([`geom_core::bisect`]), so the
     // bisection's raw midpoints come out in order; the reported roots do
     // not, since one in the walk's tail past `mid + π` re-centres to the

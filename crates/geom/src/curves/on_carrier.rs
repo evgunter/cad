@@ -625,13 +625,14 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// The parameter range a whole-carrier walk covers: a spline's
-    /// domain, a closed kind's one turn, a line's nothing (a line's
-    /// clearance is closed-form).
+    /// domain, a repeating kind's one period ([`Curve3::period`], which
+    /// states which kinds repeat), a line's nothing (a line's clearance is
+    /// closed-form).
     fn domain(&self) -> (T, T) {
-        match self {
-            Self::Nurbs(n) => n.knot_values().domain(),
-            Self::Circle(_) | Self::Ellipse(_) | Self::Spiric { .. } => (T::zero(), T::tau()),
-            Self::Line(_) => (T::zero(), T::zero()),
+        match (self, self.period()) {
+            (Self::Nurbs(n), _) => n.knot_values().domain(),
+            (_, Some(period)) => (T::zero(), period.length()),
+            (_, None) => (T::zero(), T::zero()),
         }
     }
 

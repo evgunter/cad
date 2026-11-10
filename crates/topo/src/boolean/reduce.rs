@@ -4035,7 +4035,11 @@ fn boundary_meets_circle_only_at<T: Decide>(
     let Some(boundary) = super::carrier_cross::face_boundary(y, face)? else {
         return Ok(false);
     };
-    let whole = Span::new(circle, (T::zero(), T::tau())).endless();
+    let turn = circle
+        .period()
+        .unwrap_or_else(|| unreachable!("a circle repeats"))
+        .length();
+    let whole = Span::new(circle, (T::zero(), turn)).endless();
     let reading = match boundary.read(&whole, band) {
         Ok(reading) => reading,
         Err(BoundaryRefusal::Met(MeetKind::Fault { what })) => {

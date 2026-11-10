@@ -748,7 +748,7 @@ fn conic_pairs<T: Decide>(
     let order = runs.concat();
     let (lo, hi) = (order[0], order[n - 1]);
     let mut across = walk.clone();
-    across[lo] = across[lo] + T::tau();
+    across[lo] = across[lo] + conic.period().length();
     let runs = if decide(
         "split_join_line_gap",
         Margin::of(gap(&across, lo, hi)),
@@ -777,7 +777,7 @@ fn conic_pairs<T: Decide>(
             return Err(refuse(ConicCrossingsCase::NotAlternating));
         };
         for &i in &order[..k] {
-            walk[i] = walk[i] + T::tau();
+            walk[i] = walk[i] + conic.period().length();
         }
         let mut cycled = order;
         cycled.rotate_left(k);

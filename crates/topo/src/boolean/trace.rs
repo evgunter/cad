@@ -263,7 +263,8 @@ pub fn circle_crossings<T: Decide>(
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
     let v_ref = axis.cross(u_ref);
-    let tau = T::tau();
+    // The circle's period: its parameter is its angle.
+    let tau = geom::conic_period::<T>().length();
     let points: Vec<Point3<T>> = match *surface {
         Surface::Plane { origin, normal, .. } => {
             // `A cos θ + B sin θ + K = 0`, solved for the cosine and sine.

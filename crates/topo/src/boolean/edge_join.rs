@@ -1205,16 +1205,17 @@ fn joined_spec<T: Decide>(
     let tx = if let Some(tx) = carried {
         tx
     } else if join.closed {
-        let period = T::from_f64(core::f64::consts::TAU);
-        match carrier {
-            geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
+        // The carrier's own period (`Curve3::period`), which a closed
+        // join runs once round: at `Interval`, τ's enclosure.
+        match carrier.period() {
+            Some(period) => {
                 if backward {
-                    t1 - period
+                    t1 - period.length()
                 } else {
-                    t0 + period
+                    t0 + period.length()
                 }
             }
-            _ => {
+            None => {
                 return Err(BooleanError::JoinCarrierUnsupported {
                     edge: join.kept,
                     carrier: carrier.kind(),
