@@ -28,6 +28,13 @@
 //! unconverted reader, and adding the dev-dependency is the first
 //! step of converting it.
 //!
+//! **Scope is not answered here.** *Which binding does this name reach*
+//! (a `let`, a pattern, a parameter, a `use`) is a question about the
+//! syntax tree, and `crates/source-scope` answers it from a `syn` parse.
+//! The ledger's second half sends scope questions there and refuses a
+//! hand-rolled scope reader. This module keeps lexing and the item- and
+//! brace-level helpers, and stays zero-dependency.
+//!
 //! # One lexer, three views, and why the count is three
 //!
 //! [`keeping`] is the only thing in this module that knows Rust's
