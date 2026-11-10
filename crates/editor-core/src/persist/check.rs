@@ -1775,15 +1775,6 @@ impl core::fmt::Display for SnapshotError {
                      variable. {}",
                     crate::sentence::Recourse(super::REGENERATE_RECOURSE)
                 ),
-                SelectionBodyFault::Kind {
-                    body,
-                    found: found @ crate::VarKind::Bodies,
-                } => write!(
-                    f,
-                    "{var} selects in {body}, which is {} {found}, not a body — a selection \
-                     reads one body: select from one member, `xs[i]`",
-                    crate::sentence::article(&found.to_string())
-                ),
                 SelectionBodyFault::Kind { body, found } => {
                     write!(
                         f,

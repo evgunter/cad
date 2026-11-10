@@ -4264,12 +4264,7 @@ impl EditError {
                         slot.label(),
                         crate::sentence::article(&found.to_string()),
                     )?;
-                    // A family where one body is read: one member is.
-                    if *found == VarKind::Bodies && expected.admits_kind(VarKind::Body) {
-                        tail.recourse(f, format_args!("read one member of it, `xs[i]`"))
-                    } else {
-                        tail.recourse(f, format_args!("read {expected} there"))
-                    }
+                    tail.recourse(f, format_args!("read {expected} there"))
                 }
             },
             Self::SlotUnresolvedVar { var, node, slot } => {

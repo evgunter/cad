@@ -375,12 +375,7 @@ impl SlotKind {
     /// Whether `var` may sit here, by its kind.
     #[must_use]
     pub fn admits(self, var: &crate::Var) -> bool {
-        self.admits_kind(var.kind())
-    }
-
-    /// Whether a variable of `kind` may sit here.
-    #[must_use]
-    pub fn admits_kind(self, kind: VarKind) -> bool {
+        let kind = var.kind();
         match self {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
