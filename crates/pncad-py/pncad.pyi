@@ -651,7 +651,9 @@ class SelectRefusal(PncadError):
     `frame_refused` (a candidate's body could not be read into the
     frame of the plane it is measured from), `not_a_plane`,
     `face_unresolved`, `not_a_length`, `bad_value`,
-    `band`, `read_not_an_output` (`Evaluation.resolve` asked in a read
+    `band`, `family` (`select` or `select_where` asked of a family
+    read whole: a selection reads one body, so ask one member,
+    `xs[i]`), `read_not_an_output` (`Evaluation.resolve` asked in a read
     that is no body output, so no table to ask), or `node_not_held`
     (`Evaluation.resolve` at a node handle the document no longer
     holds, for a name it did not mint). The other attributes are the
@@ -2229,7 +2231,7 @@ class Node:
         `DocEdit.set_loft_sections` writes them whole with their
         stations."""
     @staticmethod
-    def chamfer(target: _Operand, distance: _LengthArg, selection: list[str]) -> Node:
+    def chamfer(target: _BodyArg, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -2243,7 +2245,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: _Operand, thickness: _LengthArg, open: list[str]) -> Node:
+    def shell(target: _BodyArg, thickness: _LengthArg, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -2262,8 +2264,10 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: _Operand, radius: _LengthArg, selection: list[str]) -> Node:
-        """Constant-radius blends on named edges of `target`.
+    def fillet(target: _BodyArg, radius: _LengthArg, selection: list[str]) -> Node:
+        """Constant-radius blends on named edges of `target`: a body, or
+        one member of a family, `xs[i]`, named by that member's own
+        names (`Evaluation.select(xs[i], ...)`).
 
         `selection` is edge names as TEXT — the strings
         `Evaluation.all_edges` answers with, or the ones a role-name
@@ -4112,7 +4116,7 @@ class Doc:
 
     def sketch_on_face(
         self,
-        body: _Operand,
+        body: _BodyArg,
         face: str,
         outline: ClosedLoop | list[ClosedLoop],
         distance: _LengthArg,
@@ -4127,7 +4131,10 @@ class Doc:
         looking out along the outward normal, its origin over the face
         body's own, turned `spin` about the normal; zero when `None`),
         and `body` and the copy fused. `face` is opaque name text from
-        `Evaluation.all_faces` / `select`. `orient=` is the mate's
+        `Evaluation.all_faces` / `select`; on one member of a family,
+        `body` is `xs[i]` and `face` the member's own name
+        (`Evaluation.select(xs[i], ...)`), and the copy fuses with the
+        whole family. `orient=` is the mate's
         `Orientation`; when `None`, the one nearest where the copy
         stands, the profile's `z` along the face's outward normal. One
         putting `z` opposite the normal is written backwards
@@ -5595,24 +5602,32 @@ class Evaluation:
     def all_faces(self, node: NodeId | Var) -> list[str]: ...
     def all_vertices(self, node: NodeId | Var) -> list[str]: ...
     def all_bodies(self, node: NodeId | Var) -> list[str]: ...
-    def select(self, node: NodeId | Var, selector: Selector) -> list[str]:
+    def select(self, node: NodeId | Var | IndexedRead, selector: Selector) -> list[str]:
         """Every name of `node`'s output matching `selector`'s
         role-path shape, as of THIS evaluation — a materializer with
         `all_edges`' exact contract (canonical order, the caller
         stores it, frozen thereafter), answering in the same opaque
-        alphabet `Node.fillet` reads. Infallible: empty when nothing
-        matches."""
+        alphabet `Node.fillet` reads. Empty when nothing matches.
+
+        A selection reads one body. One member of a family is read as
+        `xs[i]`, each index a count written as a number, and answers
+        that member's own names, the ones a selection of `xs[i]`
+        holds; no member at those counts answers nothing. A family
+        read whole raises `SelectRefusal` (`reason="family"`): select
+        from `xs[i]`."""
 
     def select_where(
         self,
-        node: NodeId | Var,
+        node: NodeId | Var | IndexedRead,
         selector: Selector,
         geom: list[GeomPred],
     ) -> list[str]:
         """`select`, then filter the survivors by GEOMETRY: each is
         resolved to its entity in THIS evaluation and tested against
         the CONJUNCTION `geom`. An empty `geom` is exactly `select`;
-        run twice and concatenate for a union.
+        run twice and concatenate for a union. It reads `node` as
+        `select` does: one member `xs[i]` by its own names, and a
+        family read whole refuses.
 
         Raises `SelectRefusal`, typed, where the Rust door refuses:
         exact atoms are total, but a decided atom's in-band margin, a

@@ -2914,6 +2914,18 @@ pub fn split(
                 && world(at)
                 && matches!(doc.node(at), Some(Node::InstantiatePart { .. })))
     };
+    // A selection's names as its body's variable's table spells them: a
+    // member read's under the family's `Member` qualifier, which every
+    // body built from the family — a copy's among them — names it by.
+    // `None` for a member read at an index written as no count, which
+    // crosses no cut.
+    let whole_names = |select: &crate::var::Select| -> Option<Vec<StableName>> {
+        select
+            .names
+            .iter()
+            .map(|name| crate::mate::member::spelled_whole(doc, &select.body, name))
+            .collect()
+    };
     // **The piece a remainder whole read of the cut re-points to**: at a
     // body seat, a read of a cut world placement's copy or of a pick of
     // it, or a read of a body one cut world `Place` copies at the
@@ -3008,9 +3020,10 @@ pub fn split(
                     let carries = |leaf: VarId| {
                         doc.var_name(leaf).is_none()
                             && doc.selection(leaf).is_some_and(|select| {
-                                !select.body.is_indexed()
-                                    && doc.operation_of(select.body.read).is_some_and(|at| {
-                                    select.names.iter().all(|name| holds(name, at))
+                                doc.operation_of(select.body.read).is_some_and(|at| {
+                                    whole_names(select).is_some_and(|names| {
+                                        names.iter().all(|name| holds(name, at))
+                                    })
                                 })
                             })
                     };
@@ -3023,16 +3036,14 @@ pub fn split(
                     }
                     continue;
                 }
-                // A member read crosses no cut: a copy's part holds no
-                // member read to author it over.
                 let (body, crosses) = match doc.selection(var) {
                     Some(select) => (
                         select.body.read,
-                        !select.body.is_indexed()
-                            && doc.operation_of(select.body.read).is_some_and(|at| {
-                                cut.contains(&at)
-                                    && select.names.iter().all(|name| holds(name, at))
-                            }),
+                        doc.operation_of(select.body.read).is_some_and(|at| {
+                            cut.contains(&at)
+                                && whole_names(select)
+                                    .is_some_and(|names| names.iter().all(|name| holds(name, at)))
+                        }),
                     ),
                     None => match heir_of(node, slot, var) {
                         Ok(Some(heir)) => {
@@ -3101,8 +3112,8 @@ pub fn split(
             continue;
         };
         let body = doc.operation_of(select.body.read);
-        for name in &select.names {
-            if let Some((placement, true)) = home(name, body)
+        for name in whole_names(select).unwrap_or_default() {
+            if let Some((placement, true)) = home(&name, body)
                 && !places_at_identity(placement)
             {
                 return Err(SplitError::RemainderReadUncarried {
@@ -3643,8 +3654,8 @@ pub fn split(
                 crate::Operand::Var(copies),
                 crate::var::Select::canonical(
                     selection_kind(doc, var),
-                    select
-                        .names
+                    whole_names(select)
+                        .unwrap_or_else(|| unreachable!("a crossing selection spells its names"))
                         .iter()
                         .map(|name| in_part(name, doc.operation_of(select.body.read)))
                         .collect::<Result<Vec<_>, _>>()?,
@@ -3704,8 +3715,8 @@ pub fn split(
                 crate::Operand::Var(copies),
                 crate::var::Select::canonical(
                     selection_kind(doc, leaf),
-                    select
-                        .names
+                    whole_names(select)
+                        .unwrap_or_else(|| unreachable!("a crossing selection spells its names"))
                         .iter()
                         .map(|name| in_part(name, doc.operation_of(select.body.read)))
                         .collect::<Result<Vec<_>, _>>()?,
@@ -4354,21 +4365,35 @@ pub fn inline(
     };
     // A selection of the instance's copy authored afresh on the new
     // placement's copy, its names landed.
+    let spliced_at = current.doc().operation_of(spliced);
     let reselect = |var: VarId| -> Result<crate::Operand, InlineError> {
         let Some(select) = doc.selection(var) else {
             unreachable!("a selection reader reads a selection")
         };
-        Ok(crate::Operand::select(
-            doc.written_body(&select.body, host_body(select.body.read)),
-            crate::var::Select::canonical(
-                selection_kind(doc, var),
-                select
-                    .names
-                    .iter()
-                    .map(&to_host)
-                    .collect::<Result<Vec<_>, _>>()?,
+        let names = crate::var::Select::canonical(
+            selection_kind(doc, var),
+            select
+                .names
+                .iter()
+                .map(&to_host)
+                .collect::<Result<Vec<_>, _>>()?,
+        );
+        // A member read keeps its indices; a whole read of the copy whose
+        // names the family's table spells for one member — the copy was
+        // built from the family, which the new placement now is — reads
+        // that member.
+        Ok(match select.body.is_indexed() {
+            true => crate::Operand::select(
+                doc.written_body(&select.body, host_body(select.body.read)),
+                names,
             ),
-        ))
+            false => match spliced_at {
+                Some(family) => {
+                    crate::operand::selection_at(host_body(select.body.read), family, names)
+                }
+                None => crate::Operand::select(host_body(select.body.read), names),
+            },
+        })
     };
     {
         // Once per selection, as split authors them: a named one keeps
@@ -4775,7 +4800,9 @@ pub fn flatten(
             })
             .collect::<Result<Vec<_>, _>>()?;
         // Names a `⊔` source keys by one member's read are that member's
-        // own, read in the member: the `⊔` only grouped the copy.
+        // own, read in the member: the `⊔` only grouped the copy. A member
+        // that is a family reads the one of its members they name
+        // (`operand::selection_at`).
         let group = doc
             .operation_of(source)
             .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })));
@@ -4790,13 +4817,14 @@ pub fn flatten(
             && let Some(&(read, _)) = members.first()
             && members.iter().all(|(r, _)| *r == read)
         {
-            return Ok(crate::Operand::select(
-                crate::Operand::Var(read),
-                crate::var::Select::canonical(
-                    selection_kind(doc, var),
-                    members.into_iter().map(|(_, of)| of).collect(),
-                ),
-            ));
+            let names = crate::var::Select::canonical(
+                selection_kind(doc, var),
+                members.into_iter().map(|(_, of)| of).collect(),
+            );
+            return Ok(match doc.operation_of(read) {
+                Some(at) => crate::operand::selection_at(crate::Operand::Var(read), at, names),
+                None => crate::Operand::select(crate::Operand::Var(read), names),
+            });
         }
         Ok(crate::Operand::select(
             doc.written_body(&select.body, in_source(select.body.read)),

@@ -383,8 +383,9 @@ fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
 /// — the pattern shrunk under a mate that named copy 1.
 ///
 /// It refuses where the second top's placement EVALUATES, naming the
-/// mate and its target pose, whose selection no longer resolves — not
-/// "somewhere" and not at the gate. A pose is read once per mate, where
+/// mate and its target pose, whose selection's member read is past the
+/// family (`MemberOutOfRange`, REFERENCES DM3) — not "somewhere" and not
+/// at the gate. A pose is read once per mate, where
 /// its placement folds, and the sibling on copy 0 is unaffected.
 #[test]
 fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
@@ -429,7 +430,8 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
         matches!(
             &fault,
             editor_core::MateFault::SideUnevaluated { mate, side: MateSide::To, refusal }
-                if *mate == m1 && matches!(refusal.kind(), NodeErrorKind::SelectResolve { .. })
+                if *mate == m1
+                    && matches!(refusal.kind(), NodeErrorKind::MemberOutOfRange { at, .. } if at == &[1])
         ),
         "the refusal names the mate whose target's selection the count left: {fault:?}"
     );

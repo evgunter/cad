@@ -309,6 +309,43 @@ pub fn head_face<P: crate::ProfilePayload>(
     walk(doc, head.at, &head.name).ok()?.part_face()
 }
 
+/// **A name read in `body`, as the table of the variable it reads
+/// spells it**: itself for a plain read; for one member of a family
+/// (`xs[i]`, REFERENCES DM3), the member's own name under the `Member`
+/// qualifier at the index values the read writes — counts written in
+/// the document, never evaluated ([`crate::edit::written_count`]), so
+/// the family's table, and every body built from it, names the entity
+/// so. `None` where an index is no written count.
+pub(crate) fn spelled_whole<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    body: &crate::BodyRead<crate::VarId>,
+    name: &crate::names::StableName,
+) -> Option<crate::names::StableName> {
+    if !body.is_indexed() {
+        return Some(name.clone());
+    }
+    let chain = doc.var_reach(body.read).chain()?.to_vec();
+    if chain.len() != body.at.len() {
+        return None;
+    }
+    let values = chain
+        .into_iter()
+        .zip(&body.at)
+        .map(|(index, &written)| {
+            let value = crate::edit::written_count(doc, written)?;
+            Some((index, u32::try_from(value).ok()?))
+        })
+        .collect::<Option<crate::names::MemberAt>>()?;
+    Some(crate::names::StableName {
+        kind: name.kind,
+        node: doc.operation_of(body.read)?,
+        path: vec![RoleSeg::Member {
+            at: values,
+            of: crate::names::NameRef::new(name.clone()),
+        }],
+    })
+}
+
 /// **A mate side's head, read off its selection** (D10): the node whose
 /// output the selection's body read is, and the one face name the
 /// selection holds — where the member walk starts.
@@ -334,30 +371,7 @@ pub fn head_of<P: crate::ProfilePayload>(
         return None;
     };
     let at = doc.operation_of(select.body.read)?;
-    let name = if select.body.is_indexed() {
-        let chain = doc.var_reach(select.body.read).chain()?.to_vec();
-        if chain.len() != select.body.at.len() {
-            return None;
-        }
-        let values = chain
-            .into_iter()
-            .zip(&select.body.at)
-            .map(|(index, &written)| {
-                let value = crate::edit::written_count(doc, written)?;
-                Some((index, u32::try_from(value).ok()?))
-            })
-            .collect::<Option<crate::names::MemberAt>>()?;
-        crate::names::StableName {
-            kind: name.kind,
-            node: at,
-            path: vec![RoleSeg::Member {
-                at: values,
-                of: crate::names::NameRef::new(name.clone()),
-            }],
-        }
-    } else {
-        name.clone()
-    };
+    let name = spelled_whole(doc, &select.body, name)?;
     let name = crate::FaceName::new(name).ok()?;
     Some(crate::node::SitedFace::new(at, name))
 }

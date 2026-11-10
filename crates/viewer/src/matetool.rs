@@ -1269,7 +1269,11 @@ fn door_picked(
 /// defines several (a split's halves) ([`crate::world::copy_source`]);
 /// an instance's or a body's own read otherwise, and a copy whose body
 /// does not resolve as itself.
-fn on_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
+fn on_read(
+    doc: &Doc<ProfileProgram>,
+    ev: Option<&pncad::document::Evaluation<f64>>,
+    pick: &MatePick,
+) -> (SitedRef, Operand) {
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     match doc.node(pick.node()) {
         Some(Node::Place { .. }) => {
@@ -1283,18 +1287,22 @@ fn on_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
             (SitedRef::new(at, pick.name().clone()), read)
         }
         Some(Node::InstantiatePart { .. }) => (picked.clone(), picked.into()),
-        _ => (picked, crate::session::pick_read(doc, pick)),
+        _ => (picked, crate::session::pick_read(doc, ev, pick)),
     }
 }
 
 /// **The entity `pick` names as a `to` side reads it**: on a copy, the
 /// copy itself; on a drawn operation, the output picked
 /// ([`crate::session::pick_read`]).
-fn to_read(doc: &Doc<ProfileProgram>, pick: &MatePick) -> (SitedRef, Operand) {
+fn to_read(
+    doc: &Doc<ProfileProgram>,
+    ev: Option<&pncad::document::Evaluation<f64>>,
+    pick: &MatePick,
+) -> (SitedRef, Operand) {
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     let read = match doc.node(pick.node()) {
         Some(Node::Place { .. } | Node::InstantiatePart { .. }) => picked.clone().into(),
-        _ => crate::session::pick_read(doc, pick),
+        _ => crate::session::pick_read(doc, ev, pick),
     };
     (picked, read)
 }
@@ -2319,8 +2327,8 @@ impl MateTool {
                 }
                 let entity = pick.entity();
                 let (site, read) = match side {
-                    MateSide::On => on_read(doc, pick),
-                    MateSide::To => to_read(doc, pick),
+                    MateSide::On => on_read(doc, Some(ev), pick),
+                    MateSide::To => to_read(doc, Some(ev), pick),
                 };
                 let reading = MateReading::at_site(row.kind, seat, entity, ev, &site).ok_or(
                     MateToolError::KindDoesNotRead {

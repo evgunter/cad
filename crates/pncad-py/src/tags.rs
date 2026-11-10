@@ -311,6 +311,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::NotALength { .. } => "not_a_length",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
+        R::Family { .. } => "family",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }

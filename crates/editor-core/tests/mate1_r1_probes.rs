@@ -564,12 +564,12 @@ fn r1_pattern_free_solves_are_bit_identical() {
 ///
 /// **The first half is a NAME row, not a nesting row.** A member of a
 /// family of families is keyed by both indices. This name keys one,
-/// which is the name the family's table never mints, so it resolves to
-/// no face: the door admits the mate (it decides structure alone) and
-/// the placement refuses where it evaluates, its `to` pose unevaluated.
+/// which is the name the family's table never mints: the side it states
+/// reads the member at one index of two, which the door refuses as the
+/// read's rank (`SelectionFault::IndexRank`, REFERENCES DM3).
 ///
-/// *Breaks if* a one-index name over a family of families resolves to
-/// some face, or a family of a placed copy does not place the top.
+/// *Breaks if* a one-index name over a family of families is admitted,
+/// or a family of a placed copy does not place the top.
 #[test]
 fn r1_an_underqualified_nested_name_refuses_and_a_family_of_a_placed_copy_places() {
     // (a) a family OF A FAMILY of an instance.
@@ -587,23 +587,29 @@ fn r1_an_underqualified_nested_name_refuses_and_a_family_of_a_placed_copy_places
         crate::fixture::slides_along(outer_k, [0.0, 1.0, 0.0], 3.0),
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
-    let (doc, mate) = constrain(
-        doc,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            head(in_copy(outer, outer_k, 1, leg_part.cap(leg, CapEnd::End))),
-        ),
+    let refused = editor_core::apply(
+        &doc,
+        &editor_core::DocEdit::AddConstraint {
+            placement: top,
+            mate: Box::new(rest(
+                head(top_part.cap(top, CapEnd::Start)),
+                head(in_copy(outer, outer_k, 1, leg_part.cap(leg, CapEnd::End))),
+            )),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
     );
-    let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses.fault(top).cloned().expect("the placement refuses");
     assert!(
         matches!(
-            fault,
-            editor_core::MateFault::SideUnevaluated { mate: m, side: MateSide::To, .. }
-                if m == mate
+            refused,
+            Err(editor_core::EditError::SelectionShape {
+                fault: editor_core::SelectionFault::IndexRank { found: 1, rank: 2 },
+                ..
+            })
         ),
-        "a one-index name over a family of families reads no face: {fault:?}"
+        "a one-index name over a family of families refuses its read's rank: {refused:?}"
     );
+    let _ = &o;
 
     // (b) a family of a PLACEMENT of an instance.
     let mut store2 = PartStore::default();

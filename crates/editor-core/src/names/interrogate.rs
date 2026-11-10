@@ -524,6 +524,29 @@ pub fn member_entity<T: topo::AtRestPolicy + Decide>(
     Some((values.clone(), own.clone()))
 }
 
+/// **The family's name for the entity a member's own name names**:
+/// [`member_entity`]'s inverse, the entity `own` names in the own table
+/// of the member at `member` ([`member_table`]), found by its key at the
+/// member's place in the family's table. `None` where no member stands
+/// there, or `own` names no one entity of it.
+pub fn family_entity<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+    own: &StableName,
+) -> Option<StableName> {
+    let (var, place, table) = member_table(ev, at, member)?;
+    let Some(Entry::Unique(ent)) = table.lookup(own) else {
+        return None;
+    };
+    ev.table(var)?
+        .name_of(&crate::names::EntityRef {
+            body: place,
+            key: ent.key,
+        })
+        .cloned()
+}
+
 /// **What a name table answers a read door, where it answers no key**
 /// — the table's rungs of [`read`]'s ladder, without the node's: the
 /// kind that differs between two readers is the one they each ask for,

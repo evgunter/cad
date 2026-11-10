@@ -961,6 +961,48 @@ impl IndexedRead {
     }
 }
 
+impl IndexedRead {
+    /// **The member this read names, as a materializer reads it**: the
+    /// family's read and the member's index values, each a count written
+    /// as a number — a materializer answers for the evaluation in hand,
+    /// so it reads no index an expression would have to evaluate.
+    pub(crate) fn member(&self) -> PyResult<(pncad::select::At, Vec<u32>)> {
+        let at = match &self.read {
+            OperandArg::Node(node) => pncad::select::At::Node(node.0),
+            OperandArg::Var(var) => pncad::select::At::Read(var.0),
+            OperandArg::Pose(_) | OperandArg::Pick(_) => {
+                unreachable!("an indexed read is `[]` on a node or a variable")
+            }
+        };
+        let member = self
+            .at
+            .iter()
+            .map(|index| {
+                index
+                    .as_integer()
+                    .and_then(|value| u32::try_from(value).ok())
+                    .ok_or_else(|| {
+                        pyo3::exceptions::PyValueError::new_err(format!(
+                            "a member read here is at counts written as numbers, and {index} is \
+                             no such count"
+                        ))
+                    })
+            })
+            .collect::<PyResult<Vec<u32>>>()?;
+        Ok((at, member))
+    }
+}
+
+/// **What a selector reads, as Python writes it**: one member of a
+/// family (`op[i]`), or a node or a variable read as one body.
+#[derive(FromPyObject)]
+pub(crate) enum SelectAt {
+    /// One member of a family.
+    Member(IndexedRead),
+    /// A node or a variable.
+    At(AtArg),
+}
+
 /// **A read at a body seat as Python writes it**: an operand read
 /// plainly, or one member of a family (`op[i]`, [`IndexedRead`]).
 #[derive(FromPyObject, Clone)]
@@ -1724,7 +1766,7 @@ impl Doc {
     fn sketch_on_face(
         &mut self,
         py: Python<'_>,
-        body: OperandArg,
+        body: BodyArg,
         face: &str,
         outline: &Bound<'_, PyAny>,
         distance: super::expr::SlotArg,
@@ -2993,7 +3035,9 @@ impl Node {
     }
 
     /// Constant-radius rolling-ball blends on a SELECTION of
-    /// `target`'s edges.
+    /// `target`'s edges: a body, or one member of a family, `xs[i]`,
+    /// whose edges are named by the member's own names
+    /// (`Evaluation.select(xs[i], ...)`).
     ///
     /// `selection` is edge names as text: the strings
     /// `Evaluation.all_edges` answers with, or the ones a role-name
@@ -3029,7 +3073,7 @@ impl Node {
     #[staticmethod]
     fn fillet(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         radius: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -3073,7 +3117,7 @@ impl Node {
     #[staticmethod]
     fn chamfer(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         distance: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -3128,7 +3172,7 @@ impl Node {
     #[staticmethod]
     fn shell(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         thickness: super::expr::SlotArg,
         open: Vec<String>,
     ) -> PyResult<Self> {

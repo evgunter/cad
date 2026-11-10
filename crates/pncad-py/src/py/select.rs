@@ -858,6 +858,9 @@ pub(crate) fn select_refusal(
             "the comparand of a distance must be a length".to_string()
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
+        R::Family { .. } => "a selection reads one body, and this read is a family read \
+                              whole: select from one member of it, `xs[i]`"
+            .to_string(),
         R::Band(error) => format!(
             "the ambiguity band itself could not be built from the ambient \
              tolerance: {error}"

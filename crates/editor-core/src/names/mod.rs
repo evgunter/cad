@@ -77,7 +77,7 @@ pub(crate) use groups::Emitted;
 pub use groups::FragmentGroups;
 pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
-    face_frame, member_entity, member_table, vertex_position,
+    face_frame, family_entity, member_entity, member_table, vertex_position,
 };
 pub(crate) use nest::HoldMut;
 pub use nest::NameTextError;

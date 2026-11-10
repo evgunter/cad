@@ -1607,13 +1607,15 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
 }
 
 /// **The count `index` holds where it is written in the document**: an
-/// anonymous free count, a literal. `None` for any other variable,
-/// whose value is an evaluation's.
+/// anonymous variable a count literal lowered to. `None` for any other
+/// variable, whose value is an evaluation's.
 pub(crate) fn written_count<P>(doc: &Doc<P>, index: VarId) -> Option<i64> {
-    match doc.var(index).map(Var::def) {
-        Some(VarDef::Free(crate::doc::FreeVar::Count { value })) if doc.var_name(index).is_none() => {
-            Some(*value)
-        }
+    if doc.var_name(index).is_some() {
+        return None;
+    }
+    match doc.var(index).map(Var::def)? {
+        VarDef::Free(crate::doc::FreeVar::Count { value }) => Some(*value),
+        VarDef::Defined(expr) => expr.as_integer(),
         _ => None,
     }
 }
@@ -6999,7 +7001,7 @@ impl Recording<'_, crate::ProfileProgram> {
     #[allow(clippy::too_many_arguments)] // the gesture's own arguments, each a seat
     pub fn sketch_on_face(
         &mut self,
-        body: crate::Operand,
+        body: crate::BodyRead<Formula>,
         face: crate::StableName,
         profile: crate::ProfileProgram<Formula>,
         distance: Formula,
@@ -7010,6 +7012,7 @@ impl Recording<'_, crate::ProfileProgram> {
     ) -> Result<SketchedOnFace, EditError> {
         use crate::pose::{PoseDef, RoleRead};
         let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts, cancel));
+        let whole = body.read.clone();
         let profile = self.insert(Node::Profile(profile))?;
         let extrude = self.insert(Node::Extrude {
             profile: profile.into(),
@@ -7020,25 +7023,25 @@ impl Recording<'_, crate::ProfileProgram> {
             node: extrude,
             path: vec![crate::RoleSeg::Cap(crate::CapEnd::Start)],
         };
-        let plane = |of: crate::Operand, name: crate::StableName| {
+        let plane = |of: crate::BodyRead<Formula>, name: crate::StableName| {
             crate::Operand::Pose(Box::new(PoseDef::Plane {
                 face: crate::Operand::select(of, vec![name]),
             }))
         };
         let on = crate::Operand::Pose(Box::new(PoseDef::Flip {
-            pose: RoleRead::plain(plane(crate::Operand::Node(extrude), cap)),
+            pose: RoleRead::plain(plane(crate::Operand::Node(extrude).into(), cap)),
         }));
         // The copy joins the face's body's space, where the mate reads
         // the face; a body that does not resolve leaves the world,
         // which the union below refuses in the read's own words.
         let target = self
             .doc()
-            .operand_space(&body)
+            .operand_space(&whole)
             .map_or(crate::Operand::Var(VarId::WORLD), crate::Operand::Var);
         let placed = crate::mate::pin::Placed {
             mates: vec![crate::Mate {
                 on,
-                to: plane(body.clone(), face),
+                to: plane(body, face),
                 orient,
             }],
             values: crate::mate::slides_left_along(
@@ -7065,7 +7068,7 @@ impl Recording<'_, crate::ProfileProgram> {
         ))?;
         let union = self.insert(Node::Union {
             members: crate::Bodies::Spelled(vec![
-                crate::BodyRead::plain(body),
+                crate::BodyRead::plain(whole),
                 crate::BodyRead::plain(crate::Operand::Output {
                     node: placement,
                     port: 0,
@@ -7203,13 +7206,13 @@ impl Recording<'_, crate::ProfileProgram> {
     /// the face does not read.
     fn nearest_to_face(
         &self,
-        body: &crate::Operand,
+        body: &crate::BodyRead<Formula>,
         face: &crate::StableName,
         opts: &crate::EvalOptions,
         cancel: &crate::CancelToken,
     ) -> crate::Orientation {
         let doc = self.doc();
-        let at = match body {
+        let at = match &body.read {
             crate::Operand::Output { node, port } => doc
                 .output(*node, *port)
                 .map_or(crate::At::Node(*node), crate::At::Read),
@@ -7218,6 +7221,25 @@ impl Recording<'_, crate::ProfileProgram> {
             _ => return crate::Orientation::IDENTITY,
         };
         let ev: crate::Evaluation<f64> = crate::evaluate(doc, None, cancel, opts, self.tol);
+        // A member's face is named by the member's own name: the family's
+        // table names it otherwise.
+        let family_name;
+        let face = if body.is_indexed() {
+            let member: Option<Vec<u32>> = body
+                .at
+                .iter()
+                .map(|index| index.as_integer().and_then(|value| u32::try_from(value).ok()))
+                .collect();
+            let Some(name) =
+                member.and_then(|member| crate::names::family_entity(&ev, at, &member, face))
+            else {
+                return crate::Orientation::IDENTITY;
+            };
+            family_name = name;
+            &family_name
+        } else {
+            face
+        };
         crate::names::interrogate::face_frame(&ev, at, face).map_or(
             crate::Orientation::IDENTITY,
             |pose| {
@@ -7251,7 +7273,7 @@ pub struct SketchOutcome {
 #[allow(clippy::too_many_arguments)] // the gesture and its document
 pub fn sketch_on_face(
     doc: &Doc<crate::ProfileProgram>,
-    body: crate::Operand,
+    body: crate::BodyRead<Formula>,
     face: crate::StableName,
     profile: crate::ProfileProgram<Formula>,
     distance: Formula,

@@ -1413,6 +1413,14 @@ pub(crate) struct Evaluation {
 }
 
 impl Evaluation {
+    /// **`at` read as one body**: a selector reads one body, and a
+    /// family read whole raises `SelectRefusal` (`reason="family"`),
+    /// naming the member read to write, `xs[i]`.
+    fn one_body(&self, py: Python<'_>, at: pncad::select::At) -> PyResult<()> {
+        pncad::select::one_body(&self.inner, at)
+            .map_err(|refusal| super::select::select_refusal(py, &refusal, &self.doc, &self.inner))
+    }
+
     /// The stop the run was evaluated under ([`Self::stop`]).
     pub(crate) fn stop(&self) -> &d::Stop {
         &self.stop
@@ -1657,13 +1665,21 @@ impl Evaluation {
     fn select(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         selector: &super::select::Selector,
     ) -> PyResult<Vec<String>> {
-        names(
-            py,
-            pncad::select::select(&self.inner, node.at(), &selector.0),
-        )
+        let found = match node {
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member()?;
+                pncad::select::select_member(&self.inner, at, &member, &selector.0)
+            }
+            super::doc::SelectAt::At(at) => {
+                let at = at.at();
+                self.one_body(py, at)?;
+                pncad::select::select(&self.inner, at, &selector.0)
+            }
+        };
+        names(py, found)
     }
 
     /// **Materialize a selection narrowed by GEOMETRY**: `selector`
@@ -1693,20 +1709,38 @@ impl Evaluation {
     fn select_where(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
         let tol = Tol::witness();
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
-        match pncad::select::select_where(
-            &self.inner,
-            node.at(),
-            &selector.0,
-            &atoms,
-            &self.params,
-            tol,
-        ) {
+        let found = match node {
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member()?;
+                pncad::select::select_where_member(
+                    &self.inner,
+                    at,
+                    &member,
+                    &selector.0,
+                    &atoms,
+                    (&self.params, tol),
+                )
+            }
+            super::doc::SelectAt::At(at) => {
+                let at = at.at();
+                self.one_body(py, at)?;
+                pncad::select::select_where(
+                    &self.inner,
+                    at,
+                    &selector.0,
+                    &atoms,
+                    &self.params,
+                    tol,
+                )
+            }
+        };
+        match found {
             Ok(found) => names(py, found),
             Err(refusal) => Err(super::select::select_refusal(
                 py,

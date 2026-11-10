@@ -3976,9 +3976,10 @@ fn glued_block(
 }
 
 /// **`name` read at `at`**, of any entity kind: a one-name selection of
-/// `at`'s body.
+/// `at`'s body, or of the member of it a family's name states
+/// (`From<SitedRef> for Operand`).
 pub fn read_at(at: RecipeNodeId, name: StableName) -> editor_core::Operand {
-    editor_core::Operand::select(at, vec![name])
+    editor_core::SitedRef::new(at, name).into()
 }
 
 /// [`read_at`] where `name` is read ([`Sited`]): at the node that
