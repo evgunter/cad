@@ -989,9 +989,20 @@ pub fn poison<T: Real>() -> T {
 /// `Vec2::normalize`, whose prescale no finite chord overflows or
 /// flushes the squares of.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
-    #[allow(clippy::eq_op)]
-    let residual = x - x;
-    !residual.is_poison()
+    !width(x).is_poison()
+}
+
+/// **A scalar's own width about zero**, `x − x`: zero at a point scalar
+/// (any finite value), the enclosure `[−w, w]` at `Interval`, `w` its
+/// width, and poison where `x` is not finite. It names the one reading
+/// that subtracting a value from itself is: no arithmetic on a value
+/// gives its own spread otherwise, and a site that spells `x − x` reads
+/// as a mistake. Its callers are what `grep -rn "geom_core::width\|real::width"
+/// crates` finds: [`is_finite_length`], and `geom_brep::curve_pair`'s
+/// touch spread, a closed form's angle read as its enclosure.
+#[allow(clippy::eq_op)]
+pub fn width<T: Real>(x: T) -> T {
+    x - x
 }
 
 /// **Did this length UNDERFLOW to zero?** — the other end of
@@ -2226,6 +2237,21 @@ impl Real for f64 {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    /// **A scalar's width about zero** ([`width`]): zero at a finite
+    /// point, the enclosure's own width either side of zero at
+    /// `Interval`, and poison for poison.
+    #[test]
+    fn width_is_a_points_zero_and_an_enclosures_spread() {
+        assert_eq!(width(3.5_f64), 0.0);
+        assert!(width(f64::NAN).is_nan() && width(f64::INFINITY).is_nan());
+        let w = width(crate::Interval::from_bounds(1.0, 1.5));
+        assert!(
+            w.lo() <= -0.5 && w.hi() >= 0.5 && w.hi() <= 0.5 + 1e-15,
+            "{w:?}"
+        );
+        assert!(width(crate::Interval::from_bounds(2.0, 2.0)).hi() == 0.0);
+    }
 
     /// The finiteness predicate answers the VALUE channel at every
     /// scalar, and the interval arm is the one that would be wrong if
