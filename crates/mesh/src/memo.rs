@@ -743,13 +743,13 @@ impl FaceInputs {
         tol: Tol,
     ) -> Result<Self, TessellateError> {
         let face = body
-            .get_face(fk)
+            .face(fk)
             .ok_or(TessellateError::MissingEntity { what: "face" })?;
-        let mut loops = Vec::with_capacity(1 + face.rings.len());
+        let mut loops = Vec::new();
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lk, _, _) in face.loops() {
             let walk = loop_half_edges(body, lk, fk)?;
             // Each half-edge's image as the loop's lift places it — what
             // the trimmed lane walks (`topo::Body::loop_lift`); none for
@@ -810,7 +810,7 @@ impl FaceInputs {
             eps: ambient.eps,
             k: ambient.k,
             surface: surface.clone(),
-            sense: face.sense,
+            sense: face.sense(),
             loops,
         })
     }
@@ -1262,7 +1262,7 @@ impl KeyWriter {
                 for quarters in [image.azimuth(), image.tube()] {
                     self.len(quarters.len());
                     for &q in quarters {
-                        self.f64(f64::from(q));
+                        self.f64(f64::from(q.0));
                     }
                 }
                 let (u_off, v_off, v_sign) = image.deck();

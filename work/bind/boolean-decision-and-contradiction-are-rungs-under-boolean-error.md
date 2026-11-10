@@ -119,3 +119,7 @@ pair in one plane), carried by `BooleanError::PartnerAlongFace
 carrier, so its disposition is this row.
 
 - 2026-11-03 — moved from LIB to BIND by `git mv` when LIB closed, id and body unchanged; banded P4 and priced E in the move (LIB had three P1 rows left behind 124 closed ones; its library-door rows went to PYDOOR, opened for them, and its tag, stub, census and projection rows to BIND; Ev, in chat).
+
+## `Contradiction` retired (SEAL, `seal/tangent-verdict`)
+
+`topo::Contradiction` and `BooleanError::ContactContradicted`, its only carrier, are gone: the Boolean decides a glued tangency once and mints no contradiction (`work/seal/a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted`). Its `DISPOSITIONS` row is deleted. This row's carry is now `BooleanDecision`, `SectorRung`, `CrossingDecision` and the rungs added below; the title still names `Contradiction`.

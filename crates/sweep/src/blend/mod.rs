@@ -27,7 +27,11 @@
 //! without ever constructing a surface.
 //!
 //! The six, in C8's order — see [`battery`] for each one's margin,
-//! its units, and its lever arm:
+//! its units, and its lever arm — after the link-level decisions that
+//! resolve each requested edge (its wedge, its arm, and whether its
+//! ball exists at all: `fillet3_ball_room` at a rim,
+//! `fillet3_knife_room` at a knife, so no predicate below reads an arm
+//! whose ball has no centre):
 //!
 //! 1. [`battery::radius_headroom`] — `fillet3_radius_headroom`
 //! 2. [`battery::face_clearance`] — `fillet3_face_clearance`; its
@@ -271,6 +275,18 @@ pub enum BlendDecision {
     /// is a smooth seam or a cusp or slit
     /// ([`geom_brep::MATERIAL_PAIRING`]).
     MaterialSide,
+    /// `fillet3_knife_end`: a cusp's or slit's end, which side of the
+    /// edge its material lies on (`battery::knife_end`). Passes on
+    /// either definite sign: a cusp's ball rests in the material, a
+    /// slit's in the void.
+    KnifeEnd,
+    /// `fillet3_knife_room`: a cusp's or slit's supports open wide
+    /// enough for the ball, whose centre lies where their offsets
+    /// cross away from the edge.
+    KnifeRoom,
+    /// `fillet3_ball_room`: a rim's supports leave the ball a path along
+    /// it, its centre running where their offsets cross.
+    BallRoom,
     /// `fillet3_ring_clearance`: a trimline clears a ring or edge in its
     /// support face.
     RingClearance,
@@ -329,7 +345,7 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 22] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -337,6 +353,9 @@ impl BlendDecision {
         Self::ChainArm,
         Self::ConvexitySign,
         Self::MaterialSide,
+        Self::KnifeEnd,
+        Self::KnifeRoom,
+        Self::BallRoom,
         Self::RingClearance,
         Self::SupportCoaxiality,
         Self::ContactArm,
@@ -373,6 +392,9 @@ impl BlendDecision {
             Self::ChainArm => "fillet3_chain_arm",
             Self::ConvexitySign => "fillet3_convexity_sign",
             Self::MaterialSide => "material_wedge_side",
+            Self::KnifeEnd => "fillet3_knife_end",
+            Self::KnifeRoom => "fillet3_knife_room",
+            Self::BallRoom => "fillet3_ball_room",
             Self::RingClearance => "fillet3_ring_clearance",
             Self::SupportCoaxiality => "fillet3_support_coaxiality",
             Self::ContactArm => "dihedral_arm",
@@ -403,6 +425,15 @@ impl BlendDecision {
             Self::ChainArm => "whether a link of the chain is long enough to measure an angle over",
             Self::ConvexitySign => "whether the edge is convex or concave",
             Self::MaterialSide => geom_brep::material_pairing_clause!(),
+            Self::KnifeEnd => {
+                "whether a cusp's or slit's material lies between its two faces or around them"
+            }
+            Self::KnifeRoom => {
+                "whether a cusp or slit opens wide enough for the ball between its two faces"
+            }
+            Self::BallRoom => {
+                "whether a ball of the radius rolls along the edge touching both faces"
+            }
             Self::RingClearance => "whether a trimline clears a hole in its support face",
             Self::SupportCoaxiality => "whether the two support faces share an axis or a ruling",
             Self::ContactArm => concat!(
@@ -464,6 +495,9 @@ impl BlendDecision {
             // short to read a side over (`geom_brep::MATERIAL_PAIRING`):
             // the arm gate's own lever.
             Self::MaterialSide => FILLET3_CHAIN_RECOURSE,
+            Self::KnifeEnd => FILLET3_KNIFE_END_RECOURSE,
+            Self::KnifeRoom => FILLET3_KNIFE_RECOURSE,
+            Self::BallRoom => FILLET3_BALL_ROOM_RECOURSE,
             Self::RingClearance => FILLET3_RING_RECOURSE,
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactArm => FILLET3_CONTACT_ARM_RECOURSE,
@@ -488,6 +522,10 @@ impl BlendDecision {
                 Some(("curvature headroom", SizedPass::Positive))
             }
             Self::FaceClearance | Self::RingClearance => Some(("clearance", SizedPass::Positive)),
+            Self::KnifeRoom | Self::BallRoom => Some(("room", SizedPass::Positive)),
+            // The levered sagitta between the two faces: a smaller
+            // tolerance decides it a cusp or a slit.
+            Self::KnifeEnd => Some(("opening", SizedPass::NonZero)),
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
             Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
@@ -1089,29 +1127,49 @@ pub const FILLET3_CLEARANCE_RECOURSE: &str = "reduce the blend size, enlarge the
 pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlarge the shared support face, or split the request \
      into SEQUENTIAL calls (the second on the first's result), since the two setbacks \
      belong to different chains";
-/// The recourse for an edge whose supports meet tangentially with their
-/// material facing each other — a cusp or slit — and for a convexity
-/// sign in band. A cusp's or slit's blend is defined (its rolling ball
-/// rests where the supports' offsets meet, away from the edge) but not
-/// built: `work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`. So the sentence asks for the edge to be left out
-/// of the request. Both verbs meter the dihedral, so it speaks of the
-/// blend, not the ball.
-pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle, or leave a cusp or \
-     slit out of the request";
+/// The recourse for a convexity sign in band: an edge whose supports
+/// meet neither at a definite angle nor definitely tangent. Both verbs
+/// meter the dihedral, so it speaks of the blend, not the ball.
+pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a definite angle or definitely \
+     tangent, or leave it out of the request";
+/// The recourse for a fillet at a cusp or slit whose supports do not
+/// open wide enough for the ball ([`BlendDecision::KnifeRoom`]): the
+/// ball's centre lies where the supports' offsets cross, away from the
+/// edge, and a radius past the room the crescent opens to has no such
+/// crossing.
+pub const FILLET3_KNIFE_RECOURSE: &str = "reduce the fillet radius until the ball fits in the crescent between the \
+     cusp's or slit's faces, or leave that edge out of the request";
+/// The recourse for a rim whose supports leave the ball no path along
+/// it ([`BlendDecision::BallRoom`]): the ball's centre lies where the
+/// supports' offsets cross, and past some radius they do not. A smaller
+/// one always has room, since at a radius near zero the offsets cross
+/// near the rim, at the angle the faces meet at.
+pub const FILLET3_BALL_ROOM_RECOURSE: &str = "reduce the fillet radius until a ball of it rolls along the edge \
+     touching both faces, or leave that edge out of the request";
+/// The recourse for a cusp or slit whose faces do not open measurably
+/// apart ([`BlendDecision::KnifeEnd`]): no radius has room between
+/// them, so it does not offer a smaller one. A definite reading here is
+/// a lamina, which no valid body carries (`battery::knife_end`); the
+/// sentence serves the in-band reading, where the edge's side is not
+/// decided.
+pub const FILLET3_KNIFE_END_RECOURSE: &str = "leave that cusp or slit out of the request: its faces do not open measurably \
+     apart, so no ball has room between them";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
 ///
-/// **No fixture in the followability suite reaches this sentence** —
-/// which is a fact about those fixtures, not about the door. On the
-/// one closed-form curved spine they build, a plane–sphere rim, the
-/// clearance screen answers at every radius from the one that builds
-/// to the one that poisons. The PREMISE that does the work is that a
-/// plane–sphere rim's spine curvature and its clearance run out
-/// together; a spine that folds while clearance is ample would be
-/// handed this sentence, and nothing here shows there is no such body.
-/// Measured by
-/// `blend_recourse_followability::the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
+/// **The followability suite does not follow this sentence yet.** On
+/// its one closed-form curved spine, the dome's plane–sphere equator,
+/// the clearance screen answers from the radius that builds up to
+/// `R/2`, and past it the ball has no room (`fillet3_ball_room`), so
+/// that rim never reaches predicate 3 at verb level
+/// (`blend_recourse_followability::the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`).
+/// That holds of that rim alone. Off it, a spine folds while its ball's
+/// room and its faces' clearance hold: the lantern's sphere–cone
+/// shoulder refuses `SpineIrregular` at `r = 0.5`
+/// (`a_ball_with_no_room_at_its_rim_refuses_typed`), and the row that
+/// follows this sentence there is
+/// `work/bandreach/the-lantern-shoulder-witnesses-the-spine-recourse-the-followability-suite-says-has-none.md`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 where a curved link meets
@@ -1405,13 +1463,9 @@ pub enum Breach {
     /// hold: an edge with no certified carrier (a null edge), or a
     /// lone-vertex cycle. The one breach with a way through, and it is
     /// the advice every door gives an operand with scaffolding at rest
-    /// ([`topo::Unfinished::SCAFFOLDING_RECOURSE`]): a direct battery
+    /// ([`topo::SCAFFOLDING_RECOURSE`]): a direct battery
     /// caller hands in a body no door gated.
     Scaffolding,
-    /// The entity's stored carrier is degenerate: a length it is built on,
-    /// such as a cylinder's axis or radius, does not decide under the
-    /// run's band.
-    Degenerate,
 }
 
 /// The shared edge-blend refusal — both verbs' one error vocabulary,
@@ -1533,24 +1587,54 @@ pub enum BlendError {
         /// of the face's boundary inside the material, another outside.
         bounded: bool,
     },
-    /// **Predicate 5, the knife edge**: the dihedral's signed margin
-    /// decided Zero with the two faces' outward normals opposed
-    /// ([`geom_brep::EdgeWedge::Knife`]): a cusp (wedge 0) or a knife
-    /// slit (wedge 2π). Its rolling ball is defined, centred where the
-    /// supports' `r`-offsets meet and touching them away from the edge,
-    /// where they open to `2r` (the concave fill between two tangent
-    /// cylinders, centre at `R + r` from both axes); that construction
-    /// is not built (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`). (Zero with
-    /// the normals aligned is the smooth seam, which the verb leaves
-    /// as it is.) Distinct from [`BlendError::ConvexitySignFlip`]: a
-    /// `Zero` edge does not disagree with the chain's convexity — none
-    /// was decided.
+    /// **A knife edge the fillet does not build**: the dihedral's signed
+    /// margin decided Zero with the two faces' outward normals opposed
+    /// ([`geom_brep::EdgeWedge::Knife`]), a cusp (wedge 0) or a knife
+    /// slit (wedge 2π), and [`KnifeRefusal`] says why no band is made.
+    ///
+    /// The fillet builds a knife where its ball is defined: the ball
+    /// rests in the crescent the supports open into, on the material
+    /// side at a cusp and the void side at a slit, centred where their
+    /// `r`-offsets cross away from the edge (the concave fill between
+    /// two touching tubes, centre at `R + r` from both axes). It refuses
+    /// only where that crossing does not exist ([`KnifeRefusal::NoRoom`]),
+    /// or where the faces never open at all ([`KnifeRefusal::NeverOpens`]).
+    /// The chamfer does not reach this refusal: its one arm is
+    /// plane–plane, so a knife meets [`BlendError::ChamferArmUnsupported`]
+    /// as every curved pair does.
+    /// (Zero with the normals aligned is the smooth seam, which the verb
+    /// leaves as it is.) Distinct from [`BlendError::ConvexitySignFlip`]:
+    /// a knife does not disagree with the chain's convexity — its side
+    /// is read from the jet, not the dihedral.
     KnifeEdge {
         /// The edge whose dihedral decided Zero.
         edge: EdgeKey,
-        /// `((n_a × n_b)·τ̂)·arm`, meters — decided Zero at the
-        /// metered lever by `fillet3_convexity_sign`.
+        /// The reading the refusal was decided on, meters: the room
+        /// `fillet3_knife_room` decided Zero or negative
+        /// ([`KnifeRefusal::NoRoom`]), or the end `fillet3_knife_end`
+        /// decided Zero ([`KnifeRefusal::NeverOpens`]).
         margin: ClassifiedMargin,
+        /// Why the knife is not built.
+        refusal: KnifeRefusal,
+    },
+    /// **No ball of this radius rolls along a rim touching both
+    /// supports**: their offsets, where the ball's centre would run, do
+    /// not cross (`fillet3_ball_room` decided Zero or negative). Past
+    /// the room no ball rests on both; at its Zero one does, but only
+    /// where its path has shrunk to a point (a spine of radius zero).
+    /// A ball inside a sphere and on the plane through its centre is
+    /// the witness: its path closes on the axis at half the sphere's
+    /// radius.
+    BallDoesNotFit {
+        /// The edge whose ball does not exist.
+        edge: EdgeKey,
+        /// The offsets' room, meters ([`arms::offset_room`],
+        /// [`arms::plane_sphere_room`]), as `fillet3_ball_room`
+        /// classified it.
+        margin: ClassifiedMargin,
+        /// The fillet radius, meters — the REQUEST quantity, a bare
+        /// `f64` for the reason [`BlendError::RadiusHeadroom`]'s is.
+        radius: f64,
     },
     /// **Predicate 3**: the spine (the rolling-ball centre locus, an
     /// offset locus) folds on itself at this radius.
@@ -1612,11 +1696,15 @@ pub enum BlendError {
     ConvexitySignFlip {
         /// The edge whose sign disagrees with the chain's.
         edge: EdgeKey,
-        /// `((n₁ × n₂)·τ̂)·arm`, meters; positive = convex. This is
-        /// the link's OWN classified dihedral margin, the one
-        /// `fillet3_convexity_sign` decided when the link resolved —
-        /// the reading whose sign is the disagreement, carried from
-        /// the decision rather than re-derived at the refusal.
+        /// Meters; positive = convex. This is the link's OWN
+        /// classified margin, the one its convexity was decided from
+        /// when the link resolved (`battery::Link::convexity_margin`):
+        /// `((n₁ × n₂)·τ̂)·arm` under `fillet3_convexity_sign` on a
+        /// definite wedge, and on a knife link the end's levered
+        /// sagitta under `fillet3_knife_end` (a cusp convex, a slit
+        /// concave) — the reading whose sign is the disagreement,
+        /// carried from the decision rather than re-derived at the
+        /// refusal.
         margin: ClassifiedMargin,
         /// The chain's own convexity, as established by its first
         /// definitely-classified link.
@@ -1744,10 +1832,9 @@ pub enum BlendError {
     /// **Frontier** (D2 addendum row 2): a stored carrier, trimline or
     /// surface is not one of the shapes the surgery's closed forms
     /// cover (a circle rim carrier, a straight open trimline, a planar
-    /// support, a torus band). A carrier that is absent or degenerate is
-    /// no shape at all, and refuses [`BlendError::BodyNotIntact`]
-    /// ([`Breach::Scaffolding`], [`Breach::Degenerate`]): the shape
-    /// recourse does not reach it.
+    /// support, a torus band). A carrier that is absent is no shape at
+    /// all, and refuses [`BlendError::BodyNotIntact`]
+    /// ([`Breach::Scaffolding`]): the shape recourse does not reach it.
     UnsupportedGeometry {
         /// The entity whose stored geometry is not covered.
         at: EntityId,
@@ -1774,39 +1861,14 @@ pub enum BlendError {
         /// What the plan was reading there.
         detail: &'static str,
     },
-    /// **The operand is well-formed but not a closed solid at rest**:
-    /// it carries no tier-3 verdict (a dual's scalar runs no at-rest
-    /// gate), and tier 2 ([`topo::validate_closed`]) refuses it for
-    /// construction scaffolding an edit left behind — a strut's
-    /// valence-1 vertex, an empty loop, a null edge, a shell in pieces.
-    /// The blend serves finished solids only; no recourse is a blend
-    /// recourse.
-    ScaffoldingOperand {
-        /// The validator's tier-2 findings, each naming its entity.
-        errors: Vec<topo::ValidationError>,
-    },
-    /// **The operand holds material wound negative**, read where no
-    /// tier-3 verdict rides it: a solid whose signed volume check 7
-    /// decides definitely negative
-    /// ([`topo::ValidationError::NegativeVolume`]), or a shell check 10
-    /// finds bounding negative material inside a solid whose total is
-    /// positive ([`topo::ValidationError::ShellWinding`]). Its faces
-    /// bound the complement of the region they enclose, and the blend
-    /// would round that complement.
-    InsideOutOperand {
-        /// The validator's findings, each naming its solid (and, for a
-        /// shell, the shell).
-        errors: Vec<topo::ValidationError>,
-    },
-    /// **The operand holds a joinable vertex**, read where no tier-3
-    /// verdict rides it: tier 3's check 11 finds a vertex the join would
-    /// take ([`topo::ValidationError::JoinableVertexAtRest`]), or one
-    /// whose reading lands in the sliver band
-    /// ([`topo::ValidationError::JoinUndecidedAtRest`]). A finished body
-    /// holds none; this one is construction state.
-    UnjoinedOperand {
-        /// The check-11 findings, each naming its vertex.
-        errors: Vec<topo::ValidationError>,
+    /// **The blended body is not a finished body**
+    /// ([`topo::AtRestPolicy::finish`] at the door's end): every finding,
+    /// each read through its family. The operand was finished, so each
+    /// finding is a defect in what the blend built or a reading in band
+    /// its family's lever reaches.
+    NotFinished {
+        /// The finish's findings.
+        findings: topo::NotFinished,
     },
     /// **The surgery's OWN invariant did not hold** (D2 addendum row 4,
     /// announced instead of panicked): a carve step reached a state its
@@ -1945,6 +2007,23 @@ pub enum BlendError {
     },
 }
 
+/// Why a [`BlendError::KnifeEdge`] is not built.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum KnifeRefusal {
+    /// The supports' offsets do not cross away from the edge at this
+    /// radius (`fillet3_knife_room`), so the ball is not defined there.
+    NoRoom {
+        /// The fillet radius, meters — the REQUEST quantity, a bare
+        /// `f64` for the reason [`BlendError::RadiusHeadroom`]'s is.
+        radius: f64,
+    },
+    /// The supports never open (`fillet3_knife_end` decided Zero): no
+    /// ball has room between them at any radius. No valid body reaches
+    /// it — opposed tangent faces whose jets osculate are a lamina,
+    /// which tier 3 refuses (`battery::knife_end`).
+    NeverOpens,
+}
+
 impl BlendError {
     /// **The one edge this refusal is about**, where it names one: a
     /// link's, or the entity it was read at when that is an edge. A
@@ -1955,6 +2034,7 @@ impl BlendError {
         match self {
             Self::ChainNotConnected { edge }
             | Self::KnifeEdge { edge, .. }
+            | Self::BallDoesNotFit { edge, .. }
             | Self::ConvexitySignFlip { edge, .. }
             | Self::SpineUnsupported { edge, .. }
             | Self::ChamferArmUnsupported { edge, .. }
@@ -1981,9 +2061,7 @@ impl BlendError {
             | Self::UnsupportedCorner { .. }
             | Self::Escalated { .. }
             | Self::NonpositiveSize { .. }
-            | Self::ScaffoldingOperand { .. }
-            | Self::InsideOutOperand { .. }
-            | Self::UnjoinedOperand { .. }
+            | Self::NotFinished { .. }
             | Self::RingClearance { .. }
             | Self::Certify { .. }
             | Self::Op { .. }
@@ -1995,16 +2073,6 @@ impl BlendError {
 impl From<BandError> for BlendError {
     fn from(source: BandError) -> Self {
         Self::Band(source)
-    }
-}
-
-impl From<topo::Unfinished> for BlendError {
-    fn from(unfinished: topo::Unfinished) -> Self {
-        match unfinished {
-            topo::Unfinished::Scaffolding(errors) => Self::ScaffoldingOperand { errors },
-            topo::Unfinished::InsideOut(errors) => Self::InsideOutOperand { errors },
-            topo::Unfinished::Unjoined(errors) => Self::UnjoinedOperand { errors },
-        }
     }
 }
 
@@ -2088,11 +2156,31 @@ impl BlendError {
                     )
                 )
             }
-            Self::KnifeEdge { margin, .. } => write!(
+            Self::KnifeEdge {
+                margin,
+                refusal: KnifeRefusal::NeverOpens,
+                ..
+            } => write!(
                 f,
-                "an edge is a cusp or slit ({margin}), whose blend is not built yet: its ball \
-                 touches the supports away from the edge, where they open to 2r{}",
-                ended(door.map(|door| BlendDecision::ConvexitySign.recourse(margin.arm(), door)))
+                "a cusp's or slit's faces do not open apart ({margin}), so no ball fits \
+                 between them{}",
+                ended(door.map(|door| BlendDecision::KnifeEnd.recourse(margin.arm(), door)))
+            ),
+            Self::KnifeEdge {
+                margin,
+                refusal: KnifeRefusal::NoRoom { radius },
+                ..
+            } => write!(
+                f,
+                "a cusp's or slit's faces do not open wide enough for a ball of radius \
+                 {radius} m between them ({margin}){}",
+                ended(door.map(|door| BlendDecision::KnifeRoom.recourse(margin.arm(), door)))
+            ),
+            Self::BallDoesNotFit { margin, radius, .. } => write!(
+                f,
+                "no ball of radius {radius} m rolls along the edge touching both faces: \
+                 their offsets, where its centre would run, do not cross ({margin}){}",
+                ended(door.map(|door| BlendDecision::BallRoom.recourse(margin.arm(), door)))
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
@@ -2191,26 +2279,17 @@ impl BlendError {
                     Breach::Scaffolding => {
                         format!("{at} is construction scaffolding a finished body does not hold")
                     }
-                    Breach::Degenerate => {
-                        format!("{at}'s stored carrier is degenerate under the run's band")
-                    }
                 };
                 write!(f, "{detail} — {what}, so the body is not intact there. ")?;
                 match breach {
                     Breach::Scaffolding => {
-                        write!(f, "Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE)
+                        write!(f, "Recourse: {}", topo::SCAFFOLDING_RECOURSE)
                     }
                     _ => write!(f, "There is no way through"),
                 }
             }
-            Self::ScaffoldingOperand { .. } => {
-                write!(f, "the body {}", topo::Unfinished::SCAFFOLDING_REFUSAL)
-            }
-            Self::InsideOutOperand { .. } => {
-                write!(f, "the body {}", topo::Unfinished::INSIDE_OUT_REFUSAL)
-            }
-            Self::UnjoinedOperand { .. } => {
-                write!(f, "the body {}", topo::Unfinished::UNJOINED_REFUSAL)
+            Self::NotFinished { findings } => {
+                write!(f, "the blended body is not a finished body: {findings}")
             }
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
@@ -2287,7 +2366,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 21] = [
+pub const ALL_RECOURSES: [(&str, &str); 24] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2295,6 +2374,9 @@ pub const ALL_RECOURSES: [(&str, &str); 21] = [
     ("clearance", FILLET3_CLEARANCE_RECOURSE),
     ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
     ("wedge", FILLET3_WEDGE_RECOURSE),
+    ("knife", FILLET3_KNIFE_RECOURSE),
+    ("ball-room", FILLET3_BALL_ROOM_RECOURSE),
+    ("knife-end", FILLET3_KNIFE_END_RECOURSE),
     ("spine", FILLET3_SPINE_RECOURSE),
     ("chain", FILLET3_CHAIN_RECOURSE),
     ("convexity", FILLET3_CONVEXITY_RECOURSE),
@@ -2324,7 +2406,11 @@ mod recourse_tests {
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_INSIDE_RECOURSE,
         FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_WEDGE_RECOURSE,
+        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+    };
+    use super::{
+        FILLET3_BALL_ROOM_RECOURSE, FILLET3_KNIFE_END_RECOURSE, FILLET3_KNIFE_RECOURSE,
+        KnifeRefusal,
     };
 
     /// **A contact edge's must-carry escalation ends as the decision its
@@ -2391,14 +2477,11 @@ mod recourse_tests {
     /// `blend_recourse_followability::a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
     /// and
     /// `blend_recourse_followability::a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
-    /// execute both requests. `ScaffoldingOperand`, `InsideOutOperand`
-    /// and `UnjoinedOperand` route here too and end in `topo::Unfinished`'s
-    /// shared refusal, as `BodyNotIntact`'s scaffolding breach ends in
-    /// its recourse, whose advice
-    /// `pole_slit_window::a_slit_operand_refuses_at_both_blend_doors_at_a_dual`
-    /// and
+    /// execute both requests. `NotFinished` routes here too: each of its
+    /// findings ends in its family's recourse, as `BodyNotIntact`'s
+    /// scaffolding breach ends in its recourse, whose advice
     /// `blend_operand_gate::the_counterclockwise_wedge_blends_outward_at_both_doors`
-    /// follow. Reading this row as "no advice" is what made an
+    /// follows. Reading this row as "no advice" is what made an
     /// inventory keyed on the constants miss them.
     ///
     /// **What the match enforces, and what it does not.** The match is
@@ -2434,7 +2517,15 @@ mod recourse_tests {
                 })
             }
             BlendError::FaceClearance { .. } => Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE),
-            BlendError::KnifeEdge { .. } => Recourse::Exactly(FILLET3_WEDGE_RECOURSE),
+            BlendError::KnifeEdge {
+                refusal: KnifeRefusal::NeverOpens,
+                ..
+            } => Recourse::Exactly(FILLET3_KNIFE_END_RECOURSE),
+            BlendError::KnifeEdge {
+                refusal: KnifeRefusal::NoRoom { .. },
+                ..
+            } => Recourse::Exactly(FILLET3_KNIFE_RECOURSE),
+            BlendError::BallDoesNotFit { .. } => Recourse::Exactly(FILLET3_BALL_ROOM_RECOURSE),
             BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
             BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
             BlendError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),
@@ -2452,9 +2543,7 @@ mod recourse_tests {
             BlendError::RepeatedEdge { .. } => Recourse::None,
             BlendError::NonpositiveSize { .. } => Recourse::None,
             BlendError::BodyNotIntact { .. } => Recourse::None,
-            BlendError::ScaffoldingOperand { .. } => Recourse::None,
-            BlendError::InsideOutOperand { .. } => Recourse::None,
-            BlendError::UnjoinedOperand { .. } => Recourse::None,
+            BlendError::NotFinished { .. } => Recourse::None,
             // The surgery's own invariant (row 4, announced).
             BlendError::SurgeryInvariant { .. } => Recourse::None,
             BlendError::Certify { .. } => Recourse::None,
@@ -2527,7 +2616,18 @@ mod recourse_tests {
             },
             BlendError::KnifeEdge {
                 edge: EdgeKey::default(),
-                margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
+                margin: decided("fillet3_knife_end", 0.0, Sign::Zero),
+                refusal: KnifeRefusal::NeverOpens,
+            },
+            BlendError::KnifeEdge {
+                edge: EdgeKey::default(),
+                margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
+                refusal: KnifeRefusal::NoRoom { radius: 1.2 },
+            },
+            BlendError::BallDoesNotFit {
+                edge: EdgeKey::default(),
+                margin: decided("fillet3_ball_room", -0.2, Sign::Negative),
+                radius: 0.6,
             },
             BlendError::SpineIrregular {
                 margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),
@@ -2602,14 +2702,13 @@ mod recourse_tests {
                 breach: Breach::Scaffolding,
                 detail: "a rim edge carries no certified carrier",
             },
-            BlendError::BodyNotIntact {
-                at: EntityId::Face(FaceKey::default()),
-                breach: Breach::Degenerate,
-                detail: "a face's stored surface, which the face box reads",
+            BlendError::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::NegativeVolume {
+                        solid: topo::entity::SolidKey::default(),
+                    },
+                ]),
             },
-            BlendError::ScaffoldingOperand { errors: Vec::new() },
-            BlendError::InsideOutOperand { errors: Vec::new() },
-            BlendError::UnjoinedOperand { errors: Vec::new() },
             BlendError::SurgeryInvariant {
                 at: EntityId::Face(FaceKey::default()),
                 detail: "an invariant this carve's own earlier steps establish",
@@ -2713,7 +2812,7 @@ mod recourse_tests {
             .render(geom_brep::recourse::Reading::Build)
         };
         let none = "There is no way through".to_owned();
-        let finish = format!("Recourse: {}", topo::Unfinished::SCAFFOLDING_RECOURSE);
+        let finish = format!("Recourse: {}", topo::SCAFFOLDING_RECOURSE);
         for (breach, cause, way) in [
             (Breach::Unresolved, format!("{at} did not resolve"), &none),
             (
@@ -2730,11 +2829,6 @@ mod recourse_tests {
                 Breach::Scaffolding,
                 format!("{at} is construction scaffolding a finished body does not hold"),
                 &finish,
-            ),
-            (
-                Breach::Degenerate,
-                format!("{at}'s stored carrier is degenerate under the run's band"),
-                &none,
             ),
         ] {
             assert_eq!(

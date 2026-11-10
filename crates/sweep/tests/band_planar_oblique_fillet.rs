@@ -235,7 +235,7 @@ fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
     let operand = finished("the filleted parallelogram", out.body, tol());
     let apart = finished(
         "a brick apart",
-        brick((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
+        brick::<f64>((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol()),
         tol(),
     );
     for (op, result, want) in [
@@ -270,12 +270,9 @@ fn edge_at(body: &Body<Interval>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
     query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
+            let (v0, v1) = body.edge_vertices(e).unwrap();
             let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            let (s, t) = (
-                p(body.get_half_edge(he).unwrap().start),
-                p(body.half_edge_end(he).unwrap()),
-            );
+            let (s, t) = (p(v0), p(v1));
             (near(&s, a) && near(&t, b)) || (near(&s, b) && near(&t, a))
         })
         .expect("an edge between the two points")

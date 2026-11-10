@@ -92,8 +92,8 @@ use pncad::analysis::{
     AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
-    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
-    ValuePayload, VarId, apply, evaluate,
+    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId, VarId,
+    apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -141,9 +141,10 @@ struct Sample {
 
 /// The body a node evaluated to.
 fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("a hole extrude evaluates to a body, got {other:?}"),
+    let payload = &ev.value(id).expect("the node evaluated").payload;
+    match payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("a hole extrude evaluates to a body, got {payload:?}"),
     }
 }
 
@@ -153,8 +154,8 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
 /// built rather than what the document asked for.
 fn hole_circle(body: &Body<f64>) -> (f64, f64, f64) {
     let mut found = None;
-    for (_, face) in body.faces() {
-        if let Some(Surface::Cylinder { origin, radius, .. }) = body.get_surface(face.surface) {
+    for (fk, _) in body.faces() {
+        if let Some(Surface::Cylinder { origin, radius, .. }) = body.face_surface(fk) {
             let seen = (origin.x, origin.y, *radius);
             if let Some(prev) = found {
                 assert_eq!(

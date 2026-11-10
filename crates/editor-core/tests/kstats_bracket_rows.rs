@@ -25,9 +25,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, EvalScalar, Evaluation,
-    Formula, Frame, FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram,
-    RecipeNodeId, VarName, evaluate,
+    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
+    FreeValue, FreeVar, LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
+    VarName, evaluate,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
@@ -295,9 +295,9 @@ fn the_assembly_decides_nothing_outside_its_instances_brackets() {
 }
 
 /// The one-solid part's Profile log at `T`.
-fn profile_log<T: EvalScalar>() -> Vec<Verdict> {
+fn profile_log<T: editor_core::test_support::AnyEvaluate>() -> Vec<Verdict> {
     let part_doc = part("kstats-order-part", 0.0, 1.0);
-    let ev = evaluate::<T>(
+    let ev = editor_core::test_support::evaluate_any::<T>(
         &part_doc,
         None,
         &CancelToken::new(),
@@ -360,7 +360,7 @@ fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
 /// validates what IT elaborated — a guided second decision sequence,
 /// not the precompute's again — and at the nominal it decides what the
 /// `f64` log holds in its place, verdict for verdict.
-fn the_lane_log_opens_with_the_pre_pass<T: EvalScalar>() {
+fn the_lane_log_opens_with_the_pre_pass<T: editor_core::test_support::AnyEvaluate>() {
     let at_f64 = profile_log::<f64>();
     let at_lane = profile_log::<T>();
     assert_eq!(
@@ -417,13 +417,19 @@ fn the_profile_nodes_log_at_interval_opens_with_the_pre_pass() {
 /// identity itself (dropped frame == reused log's opening) is asserted
 /// at the hit site, which this row drives at both scalars and the row
 /// after it reddens.
-fn a_memo_hit_drops_its_frame<T: EvalScalar>(log: usize) {
+fn a_memo_hit_drops_its_frame<T: editor_core::test_support::AnyEvaluate>(log: usize) {
     let part_doc = part("kstats-hit-part", 0.0, 1.0);
     let profile = profile_node(&part_doc);
     let opts = EvalOptions::default();
-    let first = evaluate::<T>(&part_doc, None, &CancelToken::new(), &opts, Tol::witness());
+    let first = editor_core::test_support::evaluate_any::<T>(
+        &part_doc,
+        None,
+        &CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
     let outer = Bracket::open();
-    let again = evaluate::<T>(
+    let again = editor_core::test_support::evaluate_any::<T>(
         &part_doc,
         Some(&first),
         &CancelToken::new(),

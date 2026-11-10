@@ -42,3 +42,26 @@ to build then is the section reduction: a spiric edge on
 faces with no new root lane, the minor angle of each root is the edge
 parameter exactly, and cylinder, cone and torus faces refuse typed
 until their sections have torus lanes.
+
+## Evidence: a minted spiric edge whose near touch nothing reads (2026-11-04)
+
+Added by SPLICE's `splice/spiric-on-cap-plane` lane. A spiric edge now
+reaches the boolean without a spiric operand: the join mints one as a
+section chord (torus wall ∩ a plane cap). The tilted rod's β 0.7 union
+in `crates/sweep/tests/germ_tilted_rod.rs` mints one, and the slit
+pass's rider reading asks it against the rod's cylinder wall.
+
+`slit::spiric_on_quadric` reads such a spiric `Off` a sphere, cylinder
+or cone by degree. It does so only where a point of the span's interior
+reads definitely off. A span in band at every sample stays unread. A
+shorter stretch of the span within the band of the wall, between points
+read off, is a near touch. No reading takes that: `curve_face::route`'s
+`(Spiric, Plane | Cylinder | Cone | Sphere | Torus)` is
+`Door::Spiric`, unbuilt.
+
+The section reduction above is that reading. A spiric's touch with `S`
+is a touch of `Π ∩ S` with `T`. For a sphere face that is
+`circle_torus_roots`, and the cylinder and cone faces wait for their
+sections' torus lanes as this row says. The minted chord is the
+producer this row waits on, for the riders' reading at least; the
+pierce lanes are another matter.

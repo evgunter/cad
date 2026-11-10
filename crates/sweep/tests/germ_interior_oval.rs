@@ -69,6 +69,7 @@ fn bracket_xz(pts: &[(f64, f64)], half_y: f64) -> Body<f64> {
     )
     .expect("the bracket extrudes")
     .body
+    .into_body()
 }
 
 fn half_donut() -> AtRestBody<f64> {
@@ -113,7 +114,8 @@ fn dome() -> AtRestBody<f64> {
     let vp = validated(vec![lp]);
     let mut up = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .expect("the dome revolves")
-        .body;
+        .body
+        .into_body();
     up.merge_coplanar_faces(Tol::witness())
         .expect("the split base disc merges");
     finished("the dome", up, Tol::witness())
@@ -140,6 +142,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     )
     .expect("the box extrudes")
     .body
+    .into_body()
 }
 
 /// The cap direction: azimuth 90° off the dome's seam, latitude 30°.
@@ -746,9 +749,9 @@ fn nurbs_bump() -> Body<f64> {
     let patch = geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 16]).unwrap();
     let top = body
         .faces()
-        .find(|(_, fd)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(fd.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if origin.z.abs() < 1e-12 && normal.z.abs() > 0.5
             )
@@ -800,12 +803,7 @@ fn nurbs_clamp() -> AtRestBody<f64> {
 /// The bump face's pair verdicts: `(A kind, B kind, verdict)` for every
 /// in-scope pair with a NURBS face.
 fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
-    let kind = |x: &Body<f64>, f| {
-        let fd = x.get_face(f).expect("a reported face resolves");
-        x.get_surface(fd.surface)
-            .expect("its surface resolves")
-            .kind()
-    };
+    let kind = |x: &Body<f64>, f| x.face_surface(f).expect("its surface resolves").kind();
     topo::test_support::section_report(topo::BooleanOp::Union, a, b, Tol::witness())
         .expect("the reduction runs")
         .into_iter()
@@ -820,7 +818,7 @@ fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
 /// event marks it; the bar's crossings through the block's walls are the
 /// only events. The section certificate examines the bump × plate pair:
 /// the plane cuts the bump's control net, so the guard reads the
-/// section whole (C3's `PlaneSection::all`), which lists the oval as one
+/// section whole (C3's `ImplicitSection::all`), which lists the oval as one
 /// closed loop with its witness. The pair has no event, so the witness
 /// decides it, and the bump face's region does not place it (its
 /// pcurves are the stranded top's, below): the pair refuses undecided,
@@ -847,7 +845,7 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
         vec!["Plane × Nurbs: Err(Undecided)".to_string()],
         "the same with the operands swapped"
     );
-    let errors = topo::AtRestBody::validate(a, Tol::witness())
+    let errors = topo::finish(a, Tol::witness())
         .expect_err("the stranded bump block is not a finished body");
     assert_eq!(
         errors
@@ -873,7 +871,7 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
 /// below it (the inner four by `0.2` at the least, at `x = −2/3`), while
 /// the underside's box reaches down to `z = 1.5` into the bump face's.
 /// Every wedge edge stands at `x = ±3` or `y = ±3`, so the pair meets no
-/// crossing, and the walk's narrow phase (`boolean::separating`) parts
+/// crossing, and the walk's narrow phase (`separating`) parts
 /// it along the underside's own normal before the certificate is asked.
 /// Red against the walk reading the box overlap alone, which hands the
 /// pair to the certificate's W0 (whose own row is `section_cert_rows`'

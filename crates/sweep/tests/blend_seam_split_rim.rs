@@ -58,7 +58,7 @@ use geom::Surface;
 use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
-use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
+use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
     assert_full_revolve_rim, assert_naming_totality, revolved_about_y, rim_arcs_at,
@@ -217,10 +217,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn band_torus(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, f64) {
-    match body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-    {
+    match body.face_surface(face).unwrap() {
         &Surface::Torus {
             center,
             major_radius,
@@ -441,7 +438,7 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();
-        body = out.body;
+        body = out.body.into_body();
     }
     assert_eq!(bands, 3, "one band per rim");
     validate_geometric(&body, tol())
@@ -485,8 +482,10 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     let top_n = Vec3::new(0.0, 1.0, 0.0);
     let shoulder = Point3::new(SHOULDER.0, SHOULDER.1, 0.0);
     let sheet_at = |p: Point3<f64>| Meridian {
-        origin,
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        axis: geom::Line {
+            origin,
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        },
         rim: p,
     };
     let sphere = |side: SurfaceSide| SupportTrace::Round {
@@ -547,7 +546,14 @@ fn the_lanterns_arms_fold_both_sense_bits() {
             (Outer, Inner),
         ] {
             let (sa, sb) = (sigma(side_a), sigma(side_b));
-            let c = sheet_center(sheet.rim, sheet.sheet_normal(), ta(side_a), tb(side_b), r);
+            let c = sheet_center(
+                sheet.rim,
+                sheet.sheet_normal(),
+                ta(side_a),
+                tb(side_b),
+                r,
+                Branch::Rim,
+            );
             if !feasible(sa, sb) {
                 assert!(
                     !(c.x.is_finite() && c.y.is_finite() && c.z.is_finite()),

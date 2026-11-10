@@ -93,7 +93,7 @@ fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
 /// anyway.
 #[test]
 fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let mut req = edges.clone();
     req.push(edges[0]);

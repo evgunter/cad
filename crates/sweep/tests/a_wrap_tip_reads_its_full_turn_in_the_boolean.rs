@@ -154,7 +154,11 @@ fn tipped() -> [Solid; 2] {
 /// regions, `share` the part of `solid` the box holds.
 fn cuts(solid: &Solid, what: &str, (x, z): ((f64, f64), (f64, f64)), share: f64) {
     let y = (-2.0, 2.0);
-    let tool = finished("a box", topo::test_support::brick(x, y, z, tol()), tol());
+    let tool = finished(
+        "a box",
+        topo::test_support::brick::<f64>(x, y, z, tol()),
+        tol(),
+    );
     let size = (x.1 - x.0) * (y.1 - y.0) * (z.1 - z.0);
     let inside = share * solid.volume;
     let (r, b) = (solid.region, move || cuboid(x, y, z));
@@ -210,7 +214,7 @@ fn a_tipped_body_less_a_half_space_through_the_tip() {
             let what = format!("{} less {what}", s.what);
             let tool = finished(
                 "a box",
-                topo::test_support::brick(x, (-2.0, 2.0), z, tol()),
+                topo::test_support::brick::<f64>(x, (-2.0, 2.0), z, tol()),
                 tol(),
             );
             let b = (x, z);
@@ -294,7 +298,7 @@ fn the_tipped_cones_apex_splits_and_cuts_through_the_boolean() {
     }
     let half = finished(
         "a box",
-        topo::test_support::brick((0.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol()),
+        topo::test_support::brick::<f64>((0.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol()),
         tol(),
     );
     holds(

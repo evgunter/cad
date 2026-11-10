@@ -31,7 +31,7 @@ fn boss() -> Body<f64> {
 
 #[test]
 fn the_boss_union_lands_end_to_end() {
-    let a = finished("the plate", plate(), Tol::witness());
+    let a = finished("the plate", plate::<f64>(), Tol::witness());
     let b = finished("the boss", boss(), Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("the first transverse curved boolean");
     let body = &out.body().expect("a seamed result").body;
@@ -140,7 +140,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     // currency a mate's Rest resolves to).
     let top_face = body
         .faces()
-        .find_map(|(k, f)| match body.get_surface(f.surface) {
+        .find_map(|(k, _)| match body.face_surface(k) {
             Some(geom::Surface::Plane { origin, normal, .. })
                 if (origin.z - 1.0).abs() < 1e-9 && normal.z > 0.5 =>
             {
@@ -209,6 +209,7 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// **R1 probe (claim 1), FIXED by the union pass (F1): a conformal
@@ -228,9 +229,9 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
         .map(r1_cradle)
         .find(|b| {
             topo::validate_geometric(b, Tol::witness()).is_ok()
-                && b.faces().any(|(_, f)| {
+                && b.faces().any(|(fk, _)| {
                     matches!(
-                        b.get_surface(f.surface),
+                        b.face_surface(fk),
                         Some(geom::Surface::Cylinder { origin, radius, .. })
                             if (origin.x - 2.0).abs() < 1e-9
                                 && (origin.y - 2.0).abs() < 1e-9
@@ -255,7 +256,7 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     );
     let cyl_faces = |b: &Body<f64>| -> Vec<topo::FaceKey> {
         b.faces()
-            .filter_map(|(k, f)| match b.get_surface(f.surface) {
+            .filter_map(|(k, _)| match b.face_surface(k) {
                 Some(geom::Surface::Cylinder { origin, radius, .. })
                     if (origin.x - 2.0).abs() < 1e-9
                         && (origin.y - 2.0).abs() < 1e-9
@@ -364,7 +365,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         Ok(()),
         "plate is tier-3"
     );
-    let mut body = plate.clone();
+    let mut body = plate.clone().into_body();
     topo::graft_disjoint(&mut body, &ball).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());
@@ -455,7 +456,7 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         Ok(()),
         "ball tier-3"
     );
-    let mut body = pac.clone();
+    let mut body = pac.clone().into_body();
     topo::graft_disjoint(&mut body, &ball).unwrap();
     let verdict =
         topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), Tol::witness());

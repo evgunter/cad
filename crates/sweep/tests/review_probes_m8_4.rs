@@ -41,6 +41,7 @@ fn offset_square_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
+        .into_body()
 }
 
 fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {

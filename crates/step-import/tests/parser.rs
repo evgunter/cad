@@ -183,7 +183,7 @@ fn prefixed_unit_scales_instead_of_refusing() {
                 "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
-                    body.body().clone(),
+                    body.clone().into_body(),
                     Tol::witness(),
                 ),
                 Tol::witness(),
@@ -227,7 +227,11 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
         };
         topo::test_support::pinned_volume(
             "the measured body",
-            &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
+            &topo::test_support::finished(
+                "the measured body",
+                body.clone().into_body(),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
         .volume

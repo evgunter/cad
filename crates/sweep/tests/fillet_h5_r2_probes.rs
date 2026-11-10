@@ -35,7 +35,7 @@ use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_full_revolve_rim, bowl, lantern, revolved_about_y, rim_arcs_at};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite, MevSite};
-use topo::{AtRestBody, Body, EdgeKey, FaceKey, ValidationError, validate_geometric};
+use topo::{Body, EdgeKey, FaceKey, ValidationError, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -58,17 +58,15 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
-    matches!(
-        body.get_surface(body.get_face(f).unwrap().surface).unwrap(),
-        Surface::Plane { .. }
-    )
+    matches!(body.face_surface(f).unwrap(), Surface::Plane { .. })
 }
 
 /// What the at-rest gate says of a body that does not finish.
 fn unfinished(body: &Body<f64>) -> Vec<ValidationError> {
-    AtRestBody::validate(body.clone(), tol())
+    topo::finish(body.clone(), tol())
         .map(drop)
         .expect_err("a body carrying scaffolding does not finish")
+        .into_findings()
 }
 
 fn census(b: &Body<f64>) -> (i64, i64, i64) {
@@ -298,7 +296,7 @@ fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
             "the disc stays ring-free"
         );
 
-        let verdict = AtRestBody::validate(body, tol());
+        let verdict = topo::finish(body, tol());
         if mirrored {
             let errors = verdict
                 .map(drop)
@@ -405,12 +403,10 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
         let (wall, _) = faces_of(&body, wraps);
         let wall = body.get_face(wall).unwrap().surface;
         let dying = body.get_edge(dies).unwrap().he_plus;
+        let (v0, v1) = body.edge_vertices(dies).unwrap();
         // The killed meridian's two ends are left between two arcs of
         // one rim circle each: joinable vertices (tier 3's check 11).
-        let mut ends = [
-            body.get_half_edge(dying).unwrap().start,
-            body.half_edge_end(dying).unwrap(),
-        ];
+        let mut ends = [v0, v1];
         ends.sort();
         let joinable = || {
             ends.iter()
@@ -420,7 +416,9 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
         let mut slit = body.clone();
         slit.kef(dying).expect("the meridian kills");
         assert_eq!(
-            AtRestBody::validate(slit, tol()).map(drop),
+            topo::finish(slit, tol())
+                .map(drop)
+                .map_err(topo::NotFinished::into_findings),
             Err(
                 std::iter::once(ValidationError::DescriptionNotAdjacent { edge: wraps })
                     .chain(joinable())
@@ -468,7 +466,9 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
         // (tier 3's check 11) and no blend door takes it: the join would
         // take each rim back into one closed edge first.
         assert_eq!(
-            AtRestBody::validate(body, tol()).map(drop),
+            topo::finish(body, tol())
+                .map(drop)
+                .map_err(topo::NotFinished::into_findings),
             Err(joinable().collect()),
             "repair = {repair}, order = {order}: the merged wall's rims are each two arcs"
         );
@@ -518,7 +518,8 @@ fn compose_two_rims(
             let arcs = rim_arcs_at(&body, rr, ry);
             body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
                 .map_err(|e| format!("{what}: rim ({rr}, {ry}) refused alone: {:?}", e.error))?
-                .body;
+                .body
+                .into_body();
         }
         validate_geometric(&body, tol())
             .map_err(|e| format!("{what}: sequential result not tier-3 valid: {e:?}"))?;

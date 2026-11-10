@@ -92,7 +92,13 @@ fn survives_certificate_exceeded_unreachable_over_body_sweep() {
         .unwrap()
         .body
     };
-    for body in [ball(), cone(), donut(), extreme_torus, flat_cone] {
+    for body in [
+        ball(),
+        cone(),
+        donut(),
+        extreme_torus.into_body(),
+        flat_cone.into_body(),
+    ] {
         for delta in [3.0, 0.7, 0.09, 0.013] {
             match tessellate(&body, delta, Tol::witness()) {
                 Ok(_) => {}

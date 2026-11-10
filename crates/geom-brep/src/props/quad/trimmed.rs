@@ -3,6 +3,7 @@
 //! pads, and the chord polygon's exact and composite rules.
 
 use geom_core::Bounds;
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
@@ -513,7 +514,7 @@ fn piece_monotone<T: Decide>(
     // at least this much — and `rate` is a certified LOWER bound, so
     // under-stating it can only fail to certify, never certify a
     // sliver.
-    super::run::classify_len::<T>(
+    super::run::classify_len_as::<T>(
         "props_trim_piece_monotone",
         Margin::metered(span, InfSpeed::new(rate)),
         band,
@@ -583,9 +584,9 @@ fn trim_cells<T: Decide>(
             let n = last.len() - 1;
             last[n] = hull2(last[n], c.b);
         }
-        let mut stack: Vec<(Vec<RPt2>, usize)> =
-            blocks.into_iter().rev().map(|b| (b, 0usize)).collect();
-        while let Some((block, depth)) = stack.pop() {
+        let mut reads = Budget::implied_by_depth(blocks.len(), MONOTONE_BISECTIONS as u32);
+        let roots = blocks.into_iter().map(|b| (b, 0usize));
+        let walked = bisect_within(roots, &mut reads, |(block, depth)| {
             let a = vertex(block[0]);
             let b = vertex(block[block.len() - 1]);
             // An ESCALATION propagates, as it does from every other
@@ -599,7 +600,11 @@ fn trim_cells<T: Decide>(
             // (a curvature artefact, not a fold), and each half's
             // differences are new numbers rather than the same ones
             // scaled.
-            match piece_monotone::<T>(&block, a, b, su, sv, band)? {
+            let monotone = match piece_monotone::<T>(&block, a, b, su, sv, band) {
+                Ok(sign) => sign,
+                Err(e) => return Step::Stop(e),
+            };
+            match monotone {
                 Sign::Positive => {}
                 // NO ROW PINS THIS LADDER, and the reason is worth
                 // knowing: the round has ALREADY split the image into
@@ -614,12 +619,10 @@ fn trim_cells<T: Decide>(
                 // exactly the case that has no other recourse.
                 Sign::Zero | Sign::Negative if depth < MONOTONE_BISECTIONS => {
                     let (l, r) = bezier_bisect(&block);
-                    stack.push((r, depth + 1));
-                    stack.push((l, depth + 1));
-                    continue;
+                    return Step::Halve([(l, depth + 1), (r, depth + 1)]);
                 }
                 Sign::Zero | Sign::Negative => {
-                    return Err(PropsError::QuadratureUnsupported {
+                    return Step::Stop(PropsError::QuadratureUnsupported {
                         what: TRIM_NOT_MONOTONE,
                     });
                 }
@@ -634,18 +637,17 @@ fn trim_cells<T: Decide>(
                 var: polygon_variation(&block),
                 slack: vertex_slack(block[0]).max(vertex_slack(block[block.len() - 1])),
             });
+            Step::Settled
+        });
+        match walked {
+            Ok(None) => {}
+            Ok(Some(e)) => return Err(e),
+            Err(Exhausted) => {
+                unreachable!("a block's refinement spends its depth before its reads")
+            }
         }
     }
     Ok(out)
-}
-
-/// The distinct breakpoints of a knot vector, ascending — the cell
-/// boundaries of every rule below.
-fn breakpoints(kv: &KnotVector) -> Vec<f64> {
-    let mut b: Vec<f64> = kv.knots().to_vec();
-    b.sort_by(f64::total_cmp);
-    b.dedup();
-    b
 }
 
 /// The `[lo, hi]` cell of a breakpoint list containing `t` (clamped to
@@ -788,7 +790,7 @@ impl Chord {
     /// EVERY knot and crossing cut is mandatory, and nothing may drop
     /// one: a dropped cut leaves a piece straddling a knot by the width
     /// of whatever guard dropped it, with no term paying for it. That is
-    /// the invariant [`knot_aligned_cuts`] states in capitals for its own
+    /// the invariant [`knot_aligned_cuts`](super::cells::knot_aligned_cuts) states in capitals for its own
     /// mandatory set; this list applies none of that function's SLIVER
     /// guard. A hairline piece is the safe outcome, and a piece of zero
     /// width is removed by the dedup.
@@ -866,10 +868,10 @@ impl Column {
             below: vbreaks
                 .windows(2)
                 .filter(|b| b[1] > b[0] && b[1] <= vk)
-                .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
+                .map(|b| (b[0], b[1], geom::mid_param(b[0], b[1])))
                 .collect(),
             vk,
-            mid_v: vk.midpoint(vk1),
+            mid_v: geom::mid_param(vk, vk1),
         }
     }
 }
@@ -1096,8 +1098,8 @@ fn chord_polygon_flux(
         sliver: 0.0,
         removable: 0.0,
     };
-    let ubreaks = breakpoints(kv_u);
-    let vbreaks = breakpoints(kv_v);
+    let ubreaks: Vec<f64> = kv_u.breakpoints().collect();
+    let vbreaks: Vec<f64> = kv_v.breakpoints().collect();
     let mut total = Interval::zero();
     let mut sliver = 0.0f64;
     let mut removable = 0.0f64;
@@ -1160,7 +1162,7 @@ fn exact_piece(
     q: f64,
 ) -> Interval {
     let mu = wu.len() - 1;
-    let mid_u = p.midpoint(q);
+    let mid_u = geom::mid_param(p, q);
     let column = Column::under(vbreaks, cell_of(vbreaks, mid(chord.ell(pt(mid_u)))));
     let scale_u = pt(q) - pt(p);
     let mut acc = Interval::zero();
@@ -1210,7 +1212,7 @@ fn composite_piece(
     let (pi, qi) = (pt(p), pt(q));
     let h = qi - pi;
     let band = Interval::hull(chord.ell(pi), chord.ell(qi));
-    let m = p.midpoint(q);
+    let m = geom::mid_param(p, q);
     let in_gap = gaps.iter().any(|&(g0, g1)| p >= g0 && q <= g1);
     let located = (p < m && m < q && !in_gap)
         .then(|| {
@@ -1226,7 +1228,7 @@ fn composite_piece(
         return Some(Piece::Column(h.hi() * ((band - v0) * f).mag()));
     };
     let column = Column::under(vbreaks, cell);
-    let mi = (pi + qi) * pt(0.5);
+    let mi = geom::mid_param(pi, qi);
     let cu = Collapse::AtSpan { mid: m, t: &mi };
     let value = h * column_integral(wv, &column, chord.ell(mi), &|cv| flux_at(s, su, sv, cu, cv));
     // `φ''` over the piece, every term read on the located cells'
@@ -1320,8 +1322,8 @@ fn chord_polygon_area(
     kv_v: &KnotVector,
     cells: &[TrimCell],
 ) -> Interval {
-    let ku = breakpoints(kv_u);
-    let kvb = breakpoints(kv_v);
+    let ku: Vec<f64> = kv_u.breakpoints().collect();
+    let kvb: Vec<f64> = kv_v.breakpoints().collect();
     let v0 = kvb[0];
     let mut total = Interval::zero();
     for c in cells {
@@ -1346,7 +1348,7 @@ fn chord_polygon_area(
                 return Interval::refused();
             };
             let hu = q - p;
-            let um = p.midpoint(q);
+            let um = geom::mid_param(p, q);
             let top = ell(um);
             let Some(column) = ParamRange::spanning(v0, top) else {
                 return Interval::refused();
@@ -1365,7 +1367,7 @@ fn chord_polygon_area(
                     return Interval::refused();
                 };
                 let hv = c1 - c0;
-                let vm = c0.midpoint(c1);
+                let vm = geom::mid_param(c0, c1);
                 let (cell_g, cell_gu, cell_gv) = area_cell(
                     su,
                     sv,

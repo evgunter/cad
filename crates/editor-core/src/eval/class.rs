@@ -89,12 +89,20 @@ pub enum NodeErrorClass {
     ParamBox,
     /// [`NodeErrorKind::Seed`].
     Seed,
+    /// [`NodeErrorKind::RecordRefused`].
+    RecordRefused,
+    /// [`NodeErrorKind::RecordMispaired`].
+    RecordMispaired,
     /// [`NodeErrorKind::WrongOperand`].
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
     EmptyOperand,
-    /// [`NodeErrorKind::UnfinishedOperand`].
-    UnfinishedOperand,
+    /// [`NodeErrorKind::EmptyMember`].
+    EmptyMember,
+    /// [`NodeErrorKind::NotFinished`].
+    NotFinished,
+    /// [`NodeErrorKind::UnfinishedLeaf`].
+    UnfinishedLeaf,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
     /// [`NodeErrorKind::MemberOutOfRange`].
@@ -242,9 +250,13 @@ impl NodeErrorKind {
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
+            Self::RecordRefused => C::RecordRefused,
+            Self::RecordMispaired(_) => C::RecordMispaired,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
-            Self::UnfinishedOperand { .. } => C::UnfinishedOperand,
+            Self::EmptyMember { .. } => C::EmptyMember,
+            Self::NotFinished { .. } => C::NotFinished,
+            Self::UnfinishedLeaf { .. } => C::UnfinishedLeaf,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::MemberOutOfRange { .. } => C::MemberOutOfRange,
             Self::MemberRefused { .. } => C::MemberRefused,
@@ -384,9 +396,13 @@ mod tests {
         ToleranceConflict,
         ParamBox,
         Seed,
+        RecordRefused,
+        RecordMispaired,
         WrongOperand,
         EmptyOperand,
-        UnfinishedOperand,
+        EmptyMember,
+        NotFinished,
+        UnfinishedLeaf,
         EmptyHalf,
         MemberOutOfRange,
         MemberRefused,
@@ -457,6 +473,7 @@ mod tests {
         Indeterminate {
             margin: MarginDiag::value(3.0e-10),
             band: band(),
+            // UNDECIDED-NAME: the in-band cause diag() hands each class row to render
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         }
@@ -590,17 +607,35 @@ mod tests {
                     var: crate::SpokenVar::new(crate::VarId::new(0, 1), None),
                 },
             },
+            C::RecordRefused => K::RecordRefused,
+            C::RecordMispaired => K::RecordMispaired(crate::RecordMispairing::Document {
+                expected: crate::ident::DocumentId(1),
+                found: crate::ident::DocumentId(2),
+            }),
             C::WrongOperand => K::WrongOperand {
                 input: n(3),
                 expected: "body",
                 found: "profile",
             },
             C::EmptyOperand => K::EmptyOperand { input: n(3) },
-            C::UnfinishedOperand => K::UnfinishedOperand {
+            C::EmptyMember => K::EmptyMember {
                 input: n(3),
-                errors: vec![topo::ValidationError::ScaffoldAtRest {
-                    edge: topo::EdgeKey::default(),
-                }],
+                at: vec![(crate::VarId::new(2, 0), 1)],
+            },
+            C::NotFinished => K::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::ScaffoldAtRest {
+                        edge: topo::EdgeKey::default(),
+                    },
+                ]),
+            },
+            C::UnfinishedLeaf => K::UnfinishedLeaf {
+                input: n(3),
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::ScaffoldAtRest {
+                        edge: topo::EdgeKey::default(),
+                    },
+                ]),
             },
             C::EmptyHalf => K::EmptyHalf {
                 input: n(3),
@@ -647,10 +682,7 @@ mod tests {
             C::MissingSlot => K::MissingSlot {
                 slot: SlotId::Distance,
             },
-            C::Escalated => K::Escalated {
-                predicate: "side_of_plane",
-                source: diag(),
-            },
+            C::Escalated => K::Escalated { source: diag() },
             C::PoseRead => K::PoseRead {
                 pose: crate::VarKind::Axis,
                 fault: crate::pose::PoseReadFault::NoAxis {

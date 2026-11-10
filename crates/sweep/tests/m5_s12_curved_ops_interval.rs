@@ -69,6 +69,7 @@ mod certified {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn encloses(vol: Interval, analytic: f64, what: &str) {
@@ -104,13 +105,13 @@ mod certified {
                 "determinism"
             );
             for (k, f) in body.faces() {
-                let curved = !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. }));
+                let curved = !matches!(body.face_surface(k), Some(Surface::Plane { .. }));
                 let now = rev.get_face(k).unwrap().sense;
                 assert_eq!(now, if curved { !f.sense } else { f.sense });
                 if curved {
                     assert_eq!(
-                        format!("{:?}", rev.get_surface(f.surface).unwrap()),
-                        format!("{:?}", body.get_surface(f.surface).unwrap()),
+                        format!("{:?}", rev.face_surface(k).unwrap()),
+                        format!("{:?}", body.face_surface(k).unwrap()),
                         "a chart must not widen under revert"
                     );
                 }
@@ -123,7 +124,11 @@ mod certified {
     #[test]
     fn interval_curved_subtract_and_intersect_decide_definitely() {
         let a = finished("the plate", plate(), Tol::witness());
-        let b = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+        let b = finished(
+            "the boss",
+            m5_boss::<geom_core::Interval>(3, 0.3, 1.0),
+            Tol::witness(),
+        );
         let cut =
             topo::subtract(&a, &b, Tol::witness()).expect("curved subtract decides at Interval");
         let cut = &cut.body().expect("a body").body;
@@ -208,7 +213,7 @@ mod certified {
         );
         let reversed = out
             .faces()
-            .filter(|(_, f)| !matches!(out.get_surface(f.surface), Some(Surface::Plane { .. })))
+            .filter(|(fk, _)| !matches!(out.face_surface(*fk), Some(Surface::Plane { .. })))
             .filter(|(_, f)| !f.sense)
             .count();
         assert!(
@@ -301,7 +306,11 @@ mod certified {
             }
             // The cylinder class is unaffected by the arc-chain width
             // and still decides at this scalar.
-            let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+            let boss = finished(
+                "the boss",
+                m5_boss::<geom_core::Interval>(3, 0.3, 1.0),
+                Tol::witness(),
+            );
             assert!(topo::subtract(&plate, &boss, Tol::witness()).is_ok());
             return;
         }
@@ -335,7 +344,11 @@ mod certified {
         );
         // And the cylinder class still decides at this scalar (S13
         // opens a class, it does not trade one away).
-        let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+        let boss = finished(
+            "the boss",
+            m5_boss::<geom_core::Interval>(3, 0.3, 1.0),
+            Tol::witness(),
+        );
         assert!(topo::subtract(&plate, &boss, Tol::witness()).is_ok());
     }
 }

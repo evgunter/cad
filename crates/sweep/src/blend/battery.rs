@@ -41,8 +41,8 @@ use geom_core::{Band, Bounds, Decide, Lever, Margin, MarginDiag, Point3, Real, S
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
 use super::arms::{
-    BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, line_meet, plane_plane_blend,
-    plane_sphere_blend,
+    BlendArm, Branch, EdgeBlend, Meridian, Ruling, SupportTrace, chamfer_strip, inward_unit,
+    line_meet, offset_room, plane_plane_blend, plane_sphere_blend, plane_sphere_room,
 };
 use super::build::fan_at;
 use super::open::end_face::CycleReading;
@@ -51,8 +51,8 @@ use super::surgery::{
     strip_ring, unbuilt_geometry, unresolved, unwalked,
 };
 use super::{
-    BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
-    classify_positive, classify_reported,
+    BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, KnifeRefusal,
+    classify, classify_positive, classify_reported,
 };
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
@@ -233,14 +233,15 @@ impl Convexity {
     }
 }
 
-/// **The conditional negation every `R ∓ r` selector spells**: `x`
+/// **The conditional negation every `R ∓ r` selector and every foot
+/// direction `±n` spells**: `x`
 /// with the ball on the support's inner side, `−x` on its outer side —
 /// exact in every backend. The sheet arms spell it on the side
 /// [`Convexity::ball_side`] derives from the chain's verdict, and
 /// [`Convexity::signed`] is it on a support whose chart normal is the
 /// outward one, so the one home is beside the side's provenance rather
 /// than inside either consumer.
-pub(super) fn sided<T: Real>(side: SurfaceSide, x: T) -> T {
+pub(super) fn sided<X: core::ops::Neg<Output = X>>(side: SurfaceSide, x: X) -> X {
     match side {
         SurfaceSide::Inner => x,
         SurfaceSide::Outer => -x,
@@ -286,7 +287,10 @@ pub struct Link<T: Real> {
     pub blend: EdgeBlend<T>,
     /// The link's convexity verdict.
     pub convexity: Convexity,
-    /// The dihedral margin that verdict was decided from, kept whole.
+    /// The margin that verdict was decided from, kept whole: the
+    /// dihedral's (`fillet3_convexity_sign`) on a link whose wedge is
+    /// definite, and on a knife link, whose dihedral decided Zero, the
+    /// end its convexity came from (`fillet3_knife_end`, [`knife_end`]).
     /// The chain's sign-consistency check refuses on a link whose
     /// verdict disagrees with the chain's, and the number that refusal
     /// owes its reader is THIS one — the reading the classifier
@@ -516,7 +520,7 @@ enum EndVerdict<T: Real> {
 /// both consumers read it as geometry (a dot, a mean).
 pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
-    let s = body.get_surface(f.surface)?;
+    let s = body.face_surface(face)?;
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
@@ -617,10 +621,10 @@ pub fn radius_headroom<T: Decide + Bounds>(
             "a link's support face, for the curvature headroom predicate",
         ));
     };
-    let Some(s) = body.get_surface(f.surface) else {
+    let Some(s) = body.face_surface(face) else {
         return Err(unresolved(
             EntityId::Face(face),
-            "a support face's stored surface, for the curvature headroom predicate",
+            "a link's support face, for the curvature headroom predicate",
         ));
     };
     let arm = geom_brep::min_radius_of_curvature_toward(s, p, convexity.ball_side(f.sense));
@@ -701,6 +705,10 @@ pub enum LinkWedge {
     /// both supports touches them along the edge itself, so the blend
     /// of this edge is the edge, and the verb leaves it as it is.
     Smooth,
+    /// Wedge 0 or 2π ([`geom_brep::EdgeWedge::Knife`]): a cusp or slit,
+    /// whose side is the jet's question ([`knife_end`]), not the
+    /// dihedral's.
+    Knife,
 }
 
 /// **`fillet3_convexity_sign`** — the dihedral's material wedge at
@@ -713,8 +721,8 @@ pub enum LinkWedge {
 ///
 /// `Positive` is convex, `Negative` concave. A decided `Zero` is read
 /// for its material side: aligned normals are the smooth seam
-/// ([`LinkWedge::Smooth`]), opposed ones a cusp or slit, refused as
-/// [`BlendError::KnifeEdge`]. C8 requires the sign to be CONSTANT
+/// ([`LinkWedge::Smooth`]), opposed ones a cusp or slit
+/// ([`LinkWedge::Knife`]), whose side [`knife_end`] reads next. C8 requires the sign to be CONSTANT
 /// along the chain — a dihedral flipping mid-chain has no
 /// constant-radius rolling-ball blend at all — so the caller escalates
 /// on a flip rather than blending each run silently.
@@ -731,7 +739,6 @@ pub enum LinkWedge {
 ///
 /// # Errors
 ///
-/// [`BlendError::KnifeEdge`] on a cusp or slit;
 /// [`BlendError::Escalated`] in band or on poison, of the arm, the sign
 /// or the material side.
 pub fn wedge_at<T: Decide + Bounds>(
@@ -776,14 +783,191 @@ pub fn wedge_at<T: Decide + Bounds>(
             reading(Sign::Negative),
         )),
         geom_brep::EdgeWedge::Smooth => Ok((LinkWedge::Smooth, reading(Sign::Zero))),
-        // A cusp or slit: the material sides face each other across
-        // the tangent plane. Its ball rests away from the edge, where the
-        // supports open to 2r, a construction the blend does not make
-        // (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
-        geom_brep::EdgeWedge::Knife => Err(BlendError::KnifeEdge {
+        geom_brep::EdgeWedge::Knife => Ok((LinkWedge::Knife, reading(Sign::Zero))),
+    }
+}
+
+/// **`fillet3_knife_end`** — which end of the wedge range a cusp or
+/// slit is, and so which side its ball rests on.
+///
+/// Margin: the jet's relative transverse curvature signed into the
+/// plus face's OUTWARD frame ([`geom_brep::material_kappa_rel`], the
+/// one reading the tier-3 fold decides the end with), levered as a
+/// sagitta at the link's wedge arm: METERS, the gap the two supports
+/// open over that arm. `Positive` is a cusp (wedge 0): the material is
+/// the crescent between the supports, and the ball rests in it, the
+/// side a convex edge's ball takes ([`Convexity::Convex`]). `Negative`
+/// is a slit (wedge 2π): the crescent is the void, and the ball rests
+/// there, as a concave edge's does ([`Convexity::Concave`]).
+///
+/// **One lever with tier 3.** `arm` is the link's wedge arm,
+/// [`geom_brep::folded_lever_arm`] of the same two surfaces over the
+/// same [`topo::wedge_reach`] that tier 3's station arm folds when it
+/// reads this end (`geom_brep::edge_wedge`'s `MaterialReads`); only the
+/// point differs, the link's mid sample here. A tier-3 knife's end is
+/// one end along the whole edge (stations that disagree are `Mixed`,
+/// refused), and tier 3 decided it definite at each of its stations,
+/// so the two reads cannot disagree in sign; a mid reading inside the
+/// band escalates rather than disagreeing.
+///
+/// A definite `Zero` is two supports that never open, no ball fitting
+/// between them at any radius ([`KnifeRefusal::NeverOpens`]). **No
+/// valid body reaches it**: opposed tangent faces whose jets osculate
+/// are a lamina, which tier 3 refuses, so an at-rest operand's knife
+/// always reads a definite end; the arm is the refusal such a reading
+/// owes, not a configuration the verbs meet.
+///
+/// `s_plus` and `sense_plus` are the face on the edge's `he_plus`
+/// side, `tau` that half-edge's direction, as the tier-3 walk reads
+/// them.
+///
+/// # Errors
+///
+/// [`BlendError::KnifeEdge`] on a definite `Zero`;
+/// [`BlendError::Escalated`] in band or on poison.
+#[allow(clippy::too_many_arguments)]
+pub fn knife_end<T: Decide + Bounds>(
+    s_plus: &Surface<T>,
+    sense_plus: bool,
+    s_minus: &Surface<T>,
+    p: Point3<T>,
+    tau: Vec3<T>,
+    arm: geom_core::Lever<T>,
+    edge: EdgeKey,
+    band: Band,
+) -> Result<(Convexity, ClassifiedMargin), BlendError> {
+    let jet = geom_brep::tangent_jet(s_plus, s_minus, p, tau);
+    let signed = geom_brep::material_kappa_rel(jet.kappa_rel, sense_plus);
+    let margin = Margin::sagitta(signed, arm.length());
+    let decision = BlendDecision::KnifeEnd;
+    let sign = classify(BlendSite::Link { edge }, decision, margin, band)?;
+    let reading = classified(decision, margin.value(), band, sign);
+    match sign {
+        Sign::Positive => Ok((Convexity::Convex, reading)),
+        Sign::Negative => Ok((Convexity::Concave, reading)),
+        Sign::Zero => Err(BlendError::KnifeEdge {
             edge,
-            margin: reading(Sign::Zero),
+            margin: reading,
+            refusal: KnifeRefusal::NeverOpens,
         }),
+    }
+}
+
+/// **`fillet3_knife_room` / `fillet3_ball_room`** — does the ball of
+/// this radius exist at this link? The margin is the offset traces'
+/// room in METERS ([`super::arms::offset_room`] in a sheet,
+/// [`super::arms::plane_sphere_room`] on the plane–sphere arm),
+/// positive exactly where they cross, so where the ball's centre is a
+/// point and not a root of a negative number.
+///
+/// **One question, two refusals.** Both branches ask whether the
+/// offsets cross, on one margin; what differs is the user's situation,
+/// so the decision keeps two names and the refusal two shapes. At a
+/// knife the faces are tangent along the edge and the ball rests in
+/// the crescent they open into: `fillet3_knife_room` refuses
+/// [`BlendError::KnifeEdge`] beside that variant's other refusal (faces
+/// that never open), and its recourse names the crescent. At a rim the
+/// faces meet at an angle and a small enough ball always rolls in the
+/// wedge: `fillet3_ball_room` refuses [`BlendError::BallDoesNotFit`].
+/// The names stay apart because a predicate name is a K-corpus bucket.
+///
+/// Two straight traces carry no margin (`room` is `None`): at a rim
+/// they cross at every radius, so the ball exists and nothing is
+/// decided; at a knife they are one line and never open, which reads
+/// as a room of exactly zero.
+///
+/// # Errors
+///
+/// [`BlendError::KnifeEdge`] at a knife and
+/// [`BlendError::BallDoesNotFit`] at a rim, on a definite
+/// `Zero`/`Negative`; [`BlendError::Escalated`] in band or on poison.
+fn room_at<T: Decide + Bounds>(
+    edge: EdgeKey,
+    branch: &Branch<T>,
+    room: Option<T>,
+    radius: T,
+    band: Band,
+) -> Result<BallRoom, BlendError> {
+    let (decision, room) = match (branch, room) {
+        (Branch::Rim, None) => return Ok(BallRoom(())),
+        (Branch::Rim, Some(room)) => (BlendDecision::BallRoom, room),
+        (Branch::Knife(_), room) => (BlendDecision::KnifeRoom, room.unwrap_or_else(T::zero)),
+    };
+    match classify(BlendSite::Link { edge }, decision, Margin::of(room), band)? {
+        Sign::Positive => Ok(BallRoom(())),
+        sign => {
+            let margin = classified(decision, room, band, sign);
+            let radius = radius.lo();
+            Err(match branch {
+                Branch::Knife(_) => BlendError::KnifeEdge {
+                    edge,
+                    margin,
+                    refusal: KnifeRefusal::NoRoom { radius },
+                },
+                Branch::Rim => BlendError::BallDoesNotFit {
+                    edge,
+                    margin,
+                    radius,
+                },
+            })
+        }
+    }
+}
+
+/// **The verdict that a link's ball exists at its radius**, minted by
+/// [`room_at`] alone. The arms that root the offsets' crossing — the
+/// plane–sphere arm and the sheet reduction — are reached from the
+/// battery only through its methods, so a resolution that skips the
+/// decision has no token to call them with, and does not compile. The
+/// arms themselves stay total arithmetic, public, and callable bare.
+struct BallRoom(());
+
+impl BallRoom {
+    /// [`plane_sphere_blend`], on a ball decided to exist.
+    #[allow(clippy::too_many_arguments)]
+    fn plane_sphere<T: Real>(
+        self,
+        origin: Point3<T>,
+        n: Vec3<T>,
+        plane_u_ref: Vec3<T>,
+        sphere_c: Point3<T>,
+        sphere_r: T,
+        radius: T,
+        sphere_convex: bool,
+        convexity: Convexity,
+    ) -> EdgeBlend<T> {
+        plane_sphere_blend(
+            origin,
+            n,
+            plane_u_ref,
+            sphere_c,
+            sphere_r,
+            radius,
+            sphere_convex,
+            convexity,
+        )
+    }
+
+    /// [`Meridian::blend`], on a ball decided to exist.
+    fn meridian<T: Real>(
+        self,
+        sheet: &Meridian<T>,
+        traces: (SupportTrace<T>, SupportTrace<T>),
+        radius: T,
+        branch: Branch<T>,
+    ) -> EdgeBlend<T> {
+        sheet.blend(traces.0, traces.1, radius, branch)
+    }
+
+    /// [`Ruling::blend`], on a ball decided to exist.
+    fn ruling<T: Real>(
+        self,
+        sheet: &Ruling<T>,
+        traces: (SupportTrace<T>, SupportTrace<T>),
+        radius: T,
+        branch: Branch<T>,
+    ) -> EdgeBlend<T> {
+        sheet.blend(traces.0, traces.1, radius, branch)
     }
 }
 
@@ -1070,8 +1254,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let sides = topo::readback::edge_sides(body, edge).map_err(|_| broken())?;
     let he_plus = sides.plus.half_edge;
     let (face_a, face_b) = sides.faces();
-    let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
-    let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
+    let (start, end) = body.edge_vertices(edge).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge)?;
     // The edge's own extent levers what is read ALONG the edge: the
     // chain's G1 at a shared vertex ([`Link::arm_len`]) and a ruled
@@ -1079,14 +1262,8 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
-    let sa = body
-        .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
-        .ok_or_else(broken)?
-        .clone();
-    let sb = body
-        .get_surface(body.get_face(face_b).ok_or_else(broken)?.surface)
-        .ok_or_else(broken)?
-        .clone();
+    let sa = body.face_surface(face_a).ok_or_else(broken)?.clone();
+    let sb = body.face_surface(face_b).ok_or_else(broken)?.clone();
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
     // The convexity is the wedge between the edge's two faces, levered
@@ -1110,13 +1287,36 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let outward_a = geom_brep::implicit_outward_normal(&sa, senses.0, p);
     let outward_b = geom_brep::implicit_outward_normal(&sb, senses.1, p);
     let (n_a, n_b) = (outward_a.vec(), outward_b.vec());
-    let (convexity, convexity_margin) =
+    let (convexity, convexity_margin, branch) =
         match wedge_at(outward_a, outward_b, tau, wedge_arm, edge, band)? {
-            (LinkWedge::Blend(convexity), margin) => (convexity, margin),
+            (LinkWedge::Blend(convexity), margin) => (convexity, margin, Branch::Rim),
             (LinkWedge::Smooth, margin) => return Ok(Resolved::Smooth(edge, margin)),
+            // The chamfer's one arm is plane–plane, and a knife's
+            // supports are not two planes on any valid body (two planes
+            // tangent along a line are coplanar, a lamina tier 3
+            // refuses), so a knife reaches the chamfer's one refusal for
+            // a pair its arm does not cover, as any curved pair does.
+            (LinkWedge::Knife, _) if matches!(kind, BlendKind::Chamfer) => {
+                return Err(BlendError::ChamferArmUnsupported {
+                    edge,
+                    supports: CHAMFER_SUPPORTS,
+                });
+            }
+            // A cusp or slit: its side is the jet's, and its ball's
+            // crossing is the one on the side both faces leave the edge
+            // by, the `he_plus` face's inward unit (`arms::Branch`). The
+            // link records the end's reading as its convexity margin:
+            // that is the decision its convexity came from.
+            (LinkWedge::Knife, _) => {
+                let (convexity, margin) =
+                    knife_end(&sa, senses.0, &sb, p, tau, wedge_arm, edge, band)?;
+                let toward = inward_unit(n_a, tau.normalize());
+                (convexity, margin, Branch::Knife(toward))
+            }
         };
     let (arm, blend, axis) = classify_arm(
-        &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, edge, kind, band,
+        &sa, n_a, &sb, n_b, senses, &carrier, p, tau, extent, radius, convexity, branch, edge,
+        kind, band,
     )?;
     let support_axis = axis.map(|(relation, margin)| {
         row(
@@ -1160,6 +1360,10 @@ fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
 pub(super) const ARM_ROSTER: &str = "non-(plane–plane / plane–sphere / sphere–cone / sphere–sphere / cone–plane / \
      cone–cone / cylinder–cone / cylinder–sphere / cylinder–plane / cylinder–plane(∥) / \
      cylinder–cylinder)";
+
+/// What the chamfer's one refusal for an uncovered pair names: its one
+/// arm is plane–plane.
+const CHAMFER_SUPPORTS: &str = "non-(plane–plane)";
 
 /// The roster as data, for the arm-coverage row that keeps it honest.
 #[must_use]
@@ -1270,6 +1474,7 @@ fn classify_arm<T: Decide + Bounds>(
     extent: Lever<T>,
     radius: T,
     convexity: Convexity,
+    branch: Branch<T>,
     edge: EdgeKey,
     kind: BlendKind,
     band: Band,
@@ -1283,10 +1488,28 @@ fn classify_arm<T: Decide + Bounds>(
             )),
             _ => Err(BlendError::ChamferArmUnsupported {
                 edge,
-                supports: "non-(plane–plane)",
+                supports: CHAMFER_SUPPORTS,
             }),
         };
     }
+    // A knife's ball is read in a sheet, whichever its supports: two
+    // planes or a plane and a sphere meet at no knife on a valid body
+    // (coplanar faces are a lamina, a sphere touches a plane at a
+    // point), and if one were asked the sheet reduction traces a plane
+    // all the same, so `fillet3_knife_room` refuses it there, where
+    // every other knife's room is decided ([`super::arms::offset_room`]).
+    if let Branch::Knife(_) = branch {
+        return curved_arm(
+            sa, sb, senses, convexity, branch, carrier, p, extent, radius, edge, band,
+        )
+        .map(|(arm, blend, axis)| (arm, blend, Some(axis)));
+    }
+    // The plane–sphere rows' ball exists where the offset plane meets
+    // the offset sphere, decided before the arm reads `√s²`.
+    let ball_room = |origin, n, center, r, sense| {
+        let room = plane_sphere_room(origin, n, center, r, radius, sense, convexity);
+        room_at(edge, &branch, Some(room), radius, band)
+    };
     match (sa, sb) {
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
             BlendArm::PlanePlaneCylinder,
@@ -1298,27 +1521,31 @@ fn classify_arm<T: Decide + Bounds>(
             Surface::Sphere {
                 center, radius: r, ..
             },
-        ) => Ok((
-            BlendArm::PlaneSphereTorus,
-            plane_sphere_blend(
-                *origin,
-                n_a,
-                plane_u(sa),
-                *center,
-                *r,
-                radius,
-                senses.1,
-                convexity,
-            ),
-            None,
-        )),
+        ) => {
+            let room = ball_room(*origin, n_a, *center, *r, senses.1)?;
+            Ok((
+                BlendArm::PlaneSphereTorus,
+                room.plane_sphere(
+                    *origin,
+                    n_a,
+                    plane_u(sa),
+                    *center,
+                    *r,
+                    radius,
+                    senses.1,
+                    convexity,
+                ),
+                None,
+            ))
+        }
         (
             Surface::Sphere {
                 center, radius: r, ..
             },
             Surface::Plane { origin, .. },
         ) => {
-            let mut b = plane_sphere_blend(
+            let room = ball_room(*origin, n_b, *center, *r, senses.0)?;
+            let mut b = room.plane_sphere(
                 *origin,
                 n_b,
                 plane_u(sb),
@@ -1332,7 +1559,7 @@ fn classify_arm<T: Decide + Bounds>(
             Ok((BlendArm::PlaneSphereTorus, b, None))
         }
         _ => curved_arm(
-            sa, sb, senses, convexity, carrier, p, extent, radius, edge, band,
+            sa, sb, senses, convexity, branch, carrier, p, extent, radius, edge, band,
         )
         .map(|(arm, blend, axis)| (arm, blend, Some(axis))),
     }
@@ -1416,6 +1643,7 @@ fn curved_arm<T: Decide + Bounds>(
     sb: &Surface<T>,
     senses: (bool, bool),
     convexity: Convexity,
+    branch: Branch<T>,
     carrier: &Curve3<T>,
     p: Point3<T>,
     extent: Lever<T>,
@@ -1423,21 +1651,22 @@ fn curved_arm<T: Decide + Bounds>(
     edge: EdgeKey,
     band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, SupportAxis), BlendError> {
+    // The ball exists only where the offset traces cross
+    // (`fillet3_knife_room` at a knife, away from the rim;
+    // `fillet3_ball_room` at a rim), decided once the pair is known to be
+    // coaxial or co-ruled and before any centre is read, and before the
+    // arm table is asked: a knife on a pair the table does not cover
+    // (two planes) has no room, and says so there.
+    let room = |ta, tb| room_at(edge, &branch, offset_room(p, ta, tb, radius), radius, band);
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
-        Curve3::Circle(geom::Circle {
-            frame:
-                geom::Frame {
-                    origin: center,
-                    axis,
-                    ..
-                },
-            ..
-        }) => {
-            let arm = coaxial_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let arm = coaxial_arm(sa, sb);
+            if arm.is_none() && matches!(branch, Branch::Rim) {
+                return Err(unsupported(ARM_ROSTER));
+            }
             let sheet = Meridian {
-                origin: center,
-                axis,
+                axis: frame.axis_line(),
                 rim: p,
             };
             let (Some((ta, da)), Some((tb, db))) = (
@@ -1448,10 +1677,15 @@ fn curved_arm<T: Decide + Bounds>(
             };
             let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
             let axis = (topo::Relation::Coaxial, margin);
-            Ok((arm, sheet.blend(ta, tb, radius), axis))
+            let room = room(ta, tb)?;
+            let arm = arm.ok_or_else(|| unsupported(ARM_ROSTER))?;
+            Ok((arm, room.meridian(&sheet, (ta, tb), radius, branch), axis))
         }
         Curve3::Line(geom::Line { dir, .. }) => {
-            let arm = ruling_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
+            let arm = ruling_arm(sa, sb);
+            if arm.is_none() && matches!(branch, Branch::Rim) {
+                return Err(unsupported(ARM_ROSTER));
+            }
             let sheet = Ruling {
                 tau: dir.normalize(),
                 rim: p,
@@ -1465,7 +1699,9 @@ fn curved_arm<T: Decide + Bounds>(
             };
             let margin = support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
             let axis = (topo::Relation::CoRuled, margin);
-            Ok((arm, sheet.blend(ta, tb, radius), axis))
+            let room = room(ta, tb)?;
+            let arm = arm.ok_or_else(|| unsupported(ARM_ROSTER))?;
+            Ok((arm, room.ruling(&sheet, (ta, tb), radius, branch), axis))
         }
         _ => Err(unsupported(ARM_ROSTER)),
     }
@@ -2322,7 +2558,7 @@ fn turn_at<T: Decide + Bounds>(
     let requested = [l1.edge, l2.edge];
     let (foot, run_out) = match turn_verdict(vertex, gap, chords, band)? {
         TurnVerdict::Mitre(margin) => (
-            feet[0] + (feet[1] - feet[0]) * T::from_f64(0.5),
+            feet[0].mid(feet[1]),
             TurnRunOut::Mitre(row(
                 requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
                 topo::Relation::CommonFoot,
@@ -2464,14 +2700,9 @@ pub(crate) fn turn_reading<T: Decide>(
     let p = point_at(body, vertex)?;
     // Each edge's unit direction out of the vertex.
     let out = |e: EdgeKey| {
-        let far = body.get_edge(e).and_then(|d| {
-            let start = body.get_half_edge(d.he_plus)?.start;
-            if start == vertex {
-                body.half_edge_end(d.he_plus)
-            } else {
-                Some(start)
-            }
-        });
+        let far = body
+            .edge_vertices(e)
+            .map(|(start, end)| if start == vertex { end } else { start });
         far.and_then(|v| body.get_vertex(v))
             .and_then(|v| body.get_point(v.point))
             .map(|q| (*q - p).normalize())
@@ -2488,7 +2719,7 @@ pub(crate) fn turn_reading<T: Decide>(
     };
     let others = [other(l1), other(l2)];
     let trimline = |l: &Link<T>, f: FaceKey| match l.trim_on(f) {
-        Some((Curve3::Line(geom::Line { origin, dir }), _)) => Ok((*origin, *dir)),
+        Some((Curve3::Line(line), _)) => Ok(*line),
         _ => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
             "a turning band's trimline is not a line",
@@ -2497,11 +2728,20 @@ pub(crate) fn turn_reading<T: Decide>(
     // Each band's trimline on its face of the third edge, crossed with
     // that edge's line; and the two on the shared face, crossed.
     let foot_of = |l: &Link<T>, f: FaceKey| {
-        trimline(l, f).map(|(o, d)| line_meet(o, d, p, along, d.cross(along)))
+        trimline(l, f).map(|t| {
+            line_meet(
+                t,
+                geom::Line {
+                    origin: p,
+                    dir: along,
+                },
+                t.dir.cross(along),
+            )
+        })
     };
     let (y1, y2) = (foot_of(l1, others[0])?, foot_of(l2, others[1])?);
-    let ((o1, d1), (o2, d2)) = (trimline(l1, shared)?, trimline(l2, shared)?);
-    let crossing = line_meet(o1, d1, o2, d2, d1.cross(d2));
+    let (t1, t2) = (trimline(l1, shared)?, trimline(l2, shared)?);
+    let crossing = line_meet(t1, t2, t1.dir.cross(t2.dir));
     // The plane the mitre lies in, for the far band `k`: a chamfer's
     // is that band's plane; a fillet's is one for both, through the
     // axes' crossing, normal to `e₁ − e₂`.
@@ -2519,7 +2759,17 @@ pub(crate) fn turn_reading<T: Decide>(
                 ..
             },
         ) => Ok((
-            line_meet(*c1, *a1, *c2, *a2, a1.cross(*a2)),
+            line_meet(
+                geom::Line {
+                    origin: *c1,
+                    dir: *a1,
+                },
+                geom::Line {
+                    origin: *c2,
+                    dir: *a2,
+                },
+                a1.cross(*a2),
+            ),
             dirs[0] - dirs[1],
         )),
         _ => Err(unbuilt_geometry(
@@ -2532,9 +2782,9 @@ pub(crate) fn turn_reading<T: Decide>(
     let feet = [y1, y2];
     let end = |k: usize| -> Result<Point3<T>, BlendError> {
         let j = 1 - k;
-        let (o, d) = trimline(links[j], others[j])?;
+        let t = trimline(links[j], others[j])?;
         let (at, n) = mitre_plane(k)?;
-        Ok(o + d * ((at - o).dot(n) / d.dot(n)))
+        Ok(t.origin + t.dir * ((at - t.origin).dot(n) / t.dir.dot(n)))
     };
     let ends = [end(0)?, end(1)?];
     Ok(TurnReading {
@@ -2761,9 +3011,7 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) =
-            body.get_face(cap).and_then(|f| body.get_surface(f.surface))
-        else {
+        let Some(Surface::Plane { normal, .. }) = body.face_surface(cap) else {
             return Err(super::surgery::unbuilt_run_out(
                 EntityId::Vertex(vertex),
                 END_FACE_CURVED,
@@ -2823,9 +3071,7 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) =
-            body.get_face(end).and_then(|f| body.get_surface(f.surface))
-        else {
+        let Some(Surface::Plane { normal, .. }) = body.face_surface(end) else {
             return Err(super::surgery::unbuilt_run_out(
                 EntityId::Vertex(vertex),
                 END_FACE_CURVED,
@@ -3089,17 +3335,22 @@ fn consumption_sweep<T: Decide + Bounds>(
         touches_any(body, &members(a), &members(b))
     };
     for face in faces {
-        let fa = body.get_face(face).ok_or_else(|| {
+        let fa = body.face(face).ok_or_else(|| {
             unresolved(
                 EntityId::Face(face),
                 "a support face, for its boundary pairs",
             )
         })?;
         let mut boundary: Vec<ScreenedEdge<T>> = Vec::new();
-        for lp in core::iter::once(fa.outer).chain(fa.rings.iter().copied()) {
+        for (lp, _, _) in fa.loops() {
             boundary.extend(screened_loop(body, lp)?);
         }
-        let decided = strip_decided(body, chains, face, &fa.rings, band)?;
+        let rings: Vec<topo::LoopKey> = fa
+            .loops()
+            .filter(|(_, _, role)| !role.is_outer())
+            .map(|(lk, _, _)| lk)
+            .collect();
+        let decided = strip_decided(body, chains, face, &rings, band)?;
         for i in 0..boundary.len() {
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].2);
@@ -3176,7 +3427,7 @@ fn consumption_sweep<T: Decide + Bounds>(
                         CORNER_SUPPORT_NOT_PLANAR,
                     ));
                 };
-                let gap = (foot - o).cross(d).norm() / d.norm();
+                let gap = geom::Line { origin: o, dir: d }.distance(foot);
                 face_clearance(face, gap, T::zero(), look(*e, face), false, band)?;
             }
         }
@@ -3303,15 +3554,9 @@ fn touches_any<T: Decide>(
     ys: &[EdgeKey],
 ) -> Result<bool, BlendError> {
     let ends = |e: EdgeKey| -> Result<[VertexKey; 2], BlendError> {
-        let he = body
-            .get_edge(e)
-            .ok_or_else(|| unresolved(EntityId::Edge(e), "a boundary edge, for its ends"))?
-            .he_plus;
-        body.get_half_edge(he)
-            .map(|h| h.start)
-            .zip(body.half_edge_end(he))
+        body.edge_vertices(e)
             .map(|(s, t)| [s, t])
-            .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a boundary edge's ends"))
+            .ok_or_else(|| unresolved(EntityId::Edge(e), "a boundary edge's ends"))
     };
     for x in xs {
         let ex = ends(*x)?;
