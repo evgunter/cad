@@ -2,11 +2,12 @@
 id: a-rigid-map-admitted-on-the-metre-band-mints-frames-check-1-refuses
 kind: issue
 title: transform_rigid admits a map whose columns are off unit by up to ~eps, dimensionless and unlevered; the mapped cylinders of radius > ~1 m then refuse at check 1, at a door that does not name the map
-status: dispatched
+status: review
 opened: 2026-09-25
 priority: P1
 cost: M
 refs: [3238]
+pr: 6717
 branch: onehome/rigid-motion
 ---
 
