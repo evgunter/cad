@@ -569,8 +569,7 @@ fn torus_forms(major: Interval, minor: Interval, level: Interval) -> [Interval; 
 /// the tube angle past their periodic parts: what one whole turn of the
 /// level adds to each, over `2π` (module docs, the torus).
 fn torus_slopes(major: Interval, minor: Interval) -> [Interval; 2] {
-    let kg = major * minor;
-    [pt(1.5) * kg * minor, kg]
+    [pt(1.5) * major * minor.sqr(), major * minor]
 }
 
 /// The torus's area `4π²Rr` and its flux about its centre under the

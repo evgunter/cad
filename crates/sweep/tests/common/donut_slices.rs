@@ -4,9 +4,10 @@
 //! measure the interval sets' own (the annulus the donut cuts and the
 //! band or disc the rod cuts), so nothing of the kernel's reading enters
 //! it and no body's volume is formed from another's. Coordinates are the
-//! donut's: `z` its axis. Each integral runs under `x = m + h·sin θ` on the
-//! pieces between its square-root edges, which reads those edges as
-//! smooth, by the 7–15 panel halved to `1e-13`.
+//! donut's: `z` its axis. Each line integral is cut wherever its measure
+//! has a corner (the circles' and the rod's edges, and where they cross),
+//! and each piece runs under `x = m + h·sin θ`, which reads a square-root
+//! edge at its ends as smooth, by the 7–15 panel halved to `1e-13`.
 
 use crate::common::quadrature::gk15;
 use core::f64::consts::FRAC_PI_2;
@@ -104,12 +105,37 @@ impl Rod {
         }
     }
 
-    /// Where the rod's `y`-set has an edge across a slice.
-    fn x_cuts(self) -> [f64; 2] {
+    /// Where a line's `y`-measure has a corner across the slice at `z`
+    /// whose annulus has radii `a` and `b`: the rod's `y`-set's own edges,
+    /// and where its boundary crosses either circle.
+    fn x_cuts(self, z: f64, (a, b): (f64, f64)) -> Vec<f64> {
+        let mut cuts = Vec::new();
         match self {
-            Self::AlongZ { at, rc } => [at.0 - rc, at.0 + rc],
-            Self::AlongX { x, .. } => [x.0, x.1],
+            Self::AlongZ { at: (x0, y0), rc } => {
+                cuts.extend([x0 - rc, x0 + rc]);
+                let d = x0.hypot(y0);
+                for rho in [a, b] {
+                    if d > 0.0 && (rho - rc).abs() < d && d < rho + rc {
+                        let l = (rho * rho - rc * rc + d * d) / (2.0 * d);
+                        let h = root(rho * rho - l * l);
+                        cuts.extend([(l * x0 - h * y0) / d, (l * x0 + h * y0) / d]);
+                    }
+                }
+            }
+            Self::AlongX { x, at, rc } => {
+                cuts.extend([x.0, x.1]);
+                let h = root(rc * rc - (z - at.1).powi(2));
+                for y in [at.0 - h, at.0 + h] {
+                    for rho in [a, b] {
+                        if y.abs() < rho {
+                            let c = root(rho * rho - y * y);
+                            cuts.extend([-c, c]);
+                        }
+                    }
+                }
+            }
         }
+        cuts
     }
 
     /// The rod's extent along `z`, and where its slices change shape.
@@ -156,10 +182,14 @@ fn slice(z: f64, op: Op, rod: Rod) -> f64 {
             Op::Subtract => length(p.clone()) - length(overlap(&p, &q)),
         }
     };
-    let mut cuts = rod.x_cuts().to_vec();
+    let mut cuts = Vec::new();
     if w > 0.0 {
+        cuts = rod.x_cuts(z, (a, b));
         cuts.extend([-b, -a, a, b]);
+    } else {
+        cuts.extend(rod.x_cuts(z, (0.0, 0.0)));
     }
+
     integral(&measure, cuts)
 }
 
@@ -208,4 +238,32 @@ fn the_donut_slicing_oracle_reads_the_closed_forms() {
         assert!((union - donut - alone).abs() < 1e-10, "{rod:?}: {union}");
         assert!(volume(Op::Intersect, rod).abs() < 1e-12, "{rod:?}");
     }
+}
+
+/// **The oracle agrees with a second reading where the rod's disc lies
+/// within the tube's shadow**: there every vertical line through the disc
+/// meets the donut in one interval of length `2·√(r² − (s − R)²)`, `s` its
+/// distance from the axis, smooth over the disc, so the meet is that
+/// length integrated over the disc in polar coordinates about its centre
+/// (the 7–15 panel in the radius, the periodic trapezoid rule in the
+/// angle, exact to rounding for a smooth periodic integrand).
+#[test]
+fn the_slicing_oracle_agrees_with_the_disc_reading_off_the_axis_line() {
+    let (x0, y0, rc) = (1.9_f64, 0.5_f64, 0.2_f64);
+    let n = 256_u32;
+    let length = |x: f64, y: f64| 2.0 * root(SMALL * SMALL - (x.hypot(y) - BIG).powi(2));
+    let disc: f64 = (0..n)
+        .map(|k| {
+            let phi = core::f64::consts::TAU * f64::from(k) / f64::from(n);
+            let along = |rho: f64| rho * length(x0 + rho * phi.cos(), y0 + rho * phi.sin());
+            adapt(&along, 0.0, rc, 1e-15, 0)
+        })
+        .sum::<f64>()
+        * core::f64::consts::TAU
+        / f64::from(n);
+    let sliced = volume(Op::Intersect, Rod::AlongZ { at: (x0, y0), rc });
+    assert!(
+        (sliced - disc).abs() < 1e-12,
+        "sliced {sliced} vs the disc's {disc}"
+    );
 }

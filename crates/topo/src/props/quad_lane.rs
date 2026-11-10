@@ -613,6 +613,15 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
         }
     };
     let lift = |p: Point3<T>| Point3::new(iv(p.x), iv(p.y), iv(p.z));
+    let lifted_edge = |e: &LoopEdge<T>| LoopEdge {
+        carrier: e.carrier.map_scalar(iv),
+        carrier_id: e.carrier_id,
+        t0: iv(e.t0),
+        t1: iv(e.t1),
+        forward: e.forward,
+        start: e.start,
+        end: e.end,
+    };
     // The chart term `o·A⃗`: each closed-form edge's vector area about the
     // chart's own origin at the caller's scalar, and each rational or
     // spiric carrier's through its rule, read per round.
@@ -631,7 +640,13 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                         lift(*origin),
                     )?);
                 }
-                Curve3::Spiric { .. } => spirics.push(spiric_carrier(e, lift(*origin))?),
+                Curve3::Spiric { .. } => {
+                    spirics.push(spiric_edge_q(&lifted_edge(e), lift(*origin)).ok_or(
+                        PropsError::QuadratureUnsupported {
+                            what: "a spiric carrier that is no spiric",
+                        },
+                    )?)
+                }
                 _ => va = va + loop_vector_area(core::slice::from_ref(e), *origin)?,
             }
         }
@@ -668,15 +683,8 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             };
             let (t0, t1) = cache.params();
             let env = iv(cache.certificate().envelope);
-            let carrier_length = length_bound(&LoopEdge {
-                carrier: le.carrier.map_scalar(iv),
-                carrier_id: le.carrier_id,
-                t0: iv(le.t0),
-                t1: iv(le.t1),
-                forward: le.forward,
-                start: le.start,
-                end: le.end,
-            })?;
+            let le = lifted_edge(le);
+            let carrier_length = length_bound(&le)?;
             ribbon = ribbon + Interval::point(env.mag()) * Interval::point(carrier_length);
             // The lane reads a harmonic image channel by channel, and a
             // projected one through its carrier in the chart's frame. A
@@ -712,7 +720,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             } = image
             {
                 edges.push(quad::EdgeTermQ::Spiric(spiric_wall_edge(
-                    le,
+                    &le,
                     chart,
                     (iv(*major), iv(*minor)),
                     (iv(*v0), iv(*sense), *torus),
@@ -824,30 +832,6 @@ fn spiric_edge_q(
     })
 }
 
-/// A spiric carrier of a torus wall at the lane scalar, about `origin`
-/// (the torus centre): the chart term's vector-area reading.
-fn spiric_carrier<T: Decide + Bounds + CertifiedEnclosure>(
-    e: &LoopEdge<T>,
-    origin: Point3<Interval>,
-) -> Result<spiric::SpiricEdgeQ, PropsError> {
-    spiric_edge_q(&lift_edge(e), origin).ok_or(PropsError::QuadratureUnsupported {
-        what: "a spiric carrier that is no spiric",
-    })
-}
-
-/// A loop edge crossed into certification arithmetic.
-fn lift_edge<T: Decide + Bounds + CertifiedEnclosure>(e: &LoopEdge<T>) -> LoopEdge<Interval> {
-    LoopEdge {
-        carrier: e.carrier.map_scalar(Interval::from_certified),
-        carrier_id: e.carrier_id,
-        t0: Interval::from_certified(e.t0),
-        t1: Interval::from_certified(e.t1),
-        forward: e.forward,
-        start: e.start,
-        end: e.end,
-    }
-}
-
 /// **A spiric edge of a torus wall as the rotational lane reads it**
 /// ([`quad::SpiricWallQ`]): its carrier about the torus centre `origin`,
 /// its exact `SpiricImage::Wall` (`v0`, its sense `σ` and which torus it
@@ -856,8 +840,8 @@ fn lift_edge<T: Decide + Bounds + CertifiedEnclosure>(e: &LoopEdge<T>) -> LoopEd
 /// the arm's terms read one `R` and one `r`; an image on the carrier's
 /// mirror torus through the cutting plane refuses typed until the arm
 /// reads it (`the-spiric-wall-quadrature-lane-reads-only-the-own-torus`).
-fn spiric_wall_edge<T: Decide + Bounds + CertifiedEnclosure>(
-    le: &LoopEdge<T>,
+fn spiric_wall_edge(
+    le: &LoopEdge<Interval>,
     chart: quad::RotationalChartQ,
     (image_major, image_minor): (Interval, Interval),
     (v0, sense, torus): (Interval, Interval, WallTorus),
@@ -871,7 +855,7 @@ fn spiric_wall_edge<T: Decide + Bounds + CertifiedEnclosure>(
             "a spiric wall image on a chart other than a torus",
         ));
     };
-    let edge = spiric_edge_q(&lift_edge(le), origin)
+    let edge = spiric_edge_q(le, origin)
         .ok_or_else(|| unsupported("a spiric wall image on an edge whose carrier is no spiric"))?;
     // The same stored datum: one bracket, end for end.
     let same = |a: Interval, b: Interval| {

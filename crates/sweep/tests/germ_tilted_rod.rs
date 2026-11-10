@@ -366,13 +366,14 @@ const STEEP_TILT: f64 = 0.7;
 /// **The steeper tilt's union stops by identity** at both spins: its cap
 /// chord, a spiric in the rod's cap plane, reads off the rod's wall by
 /// degree (`topo::boolean::slit`'s spiric × quadric arm), so the slit
-/// pass reads no rider there, and the union goes on to the result
-/// gate's volume on the half donut's torus wall, face `3v1` of the
-/// result.
-const STEEP_UNION_STOP: &str = "Some(ResultInvalid { errors: [VolumeUncomputable { \
-     solid: SolidKey(1v1), source: Face { face: FaceKey(3v1), source: \
-     QuadratureUnsupported { what: \"a torus wall edge beside a spiric whose lifted image is \
-     neither a spiric wall image nor a harmonic rim or meridian\" } } }] })";
+/// pass reads no rider there; the union passes the result gate, the half
+/// donut's torus wall, spiric and chords alike, measured through the
+/// rotational lane, and stops at the crossings path's interior-loop
+/// guard on the torus wall × the rod's wall, whose section certificate
+/// refuses the pair.
+const STEEP_UNION_STOP: &str = "Some(CurvedPairUnsupported { op: Some(Union), site: \
+     InteriorLoopGuard, operand: A, face: FaceKey(3v1), kind: Torus, other_face: FaceKey(4v1), \
+     other_kind: Cylinder })";
 
 /// **The other spins, and the steeper tilts, refuse typed** before any
 /// body is built, on every op, each at its pinned door
