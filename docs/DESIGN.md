@@ -1309,7 +1309,10 @@ as separate pieces. They differ only in what they do where two
 operands' material meets: `∪` and `∩` glue there and merge an overlap,
 `−` removes, and `⊔` records a touch and reports an overlap as an
 interference finding ([assertions]). `−` and `∩` distribute over `⊔`,
-so `(p ⊔ q) − t` cuts both and keeps two pieces. `∪` does not absorb
+so `(p ⊔ q) − t` cuts both and keeps two pieces. A cut reads its tool
+as material: `t − (p ⊔ q)` is `t − (p ∪ q)`, the pieces fused where the
+`⊔` recorded their meetings, on those records' own decisions, since
+nothing a cut keeps holds any of its tool's own meetings. `∪` does not absorb
 `⊔`: a meeting inside an operand is never changed by an operator above
 it ([coincidence.booleans]), so `(bolt ⊔ plate) ∪ bead` fuses the bead
 to each part and leaves the bolt–plate meeting a record.
