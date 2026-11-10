@@ -1136,7 +1136,7 @@ fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
 /// or its refusal's predicate (`Some("another refusal")` for a refusal
 /// that names none), so two frames agree where they refuse alike.
 #[cfg(test)]
-pub(crate) fn refusal_class(
+pub(in crate::boolean) fn refusal_class(
     r: Result<Option<bool>, RegionRefusal>,
 ) -> Result<Option<bool>, Option<&'static str>> {
     r.map_err(|e| match e {
