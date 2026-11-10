@@ -6524,20 +6524,28 @@ mod tests {
                 param_end,
             }
         }
-        fn certify<T: Decide + geom_core::CertifiedBounds>(
-            spec: EdgeCurveSpec<T>,
-            p1: Point3<T>,
-        ) -> Result<EdgeCurve<T>, CertifyError> {
-            EdgeCurve::certify(
-                spec,
-                Point3::new(T::zero(), T::zero(), T::zero()),
-                p1,
-                |_| None,
-                geom_core::test_support::fixture_lever(T::one()),
-                band(),
-                NurbsLane::certified(),
-            )
+        // One certifying door per scalar, each at its own concrete type.
+        macro_rules! certify_at {
+            ($name:ident: $t:ty) => {
+                fn $name(
+                    spec: EdgeCurveSpec<$t>,
+                    p1: Point3<$t>,
+                ) -> Result<EdgeCurve<$t>, CertifyError> {
+                    let zero = <$t as geom_core::Real>::zero();
+                    EdgeCurve::certify(
+                        spec,
+                        Point3::new(zero, zero, zero),
+                        p1,
+                        |_| None,
+                        geom_core::test_support::fixture_lever(<$t as geom_core::Real>::one()),
+                        band(),
+                        NurbsLane::certified(),
+                    )
+                }
+            };
         }
+        certify_at!(certify: f64);
+        certify_at!(certify_interval: Interval);
         let zero_refusal = |err: &CertifyError| {
             matches!(
                 err,
@@ -6554,11 +6562,11 @@ mod tests {
         let iv = Interval::from_f64;
         let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
         let flat = Vec3::new(iv(0.0), iv(0.0), iv(0.0));
-        let err = certify(along(flat, iv(1.0)), origin).unwrap_err();
+        let err = certify_interval(along(flat, iv(1.0)), origin).unwrap_err();
         assert!(zero_refusal(&err), "[0, 0]: {err:?}");
         let wide = Interval::from_bounds(-2e-8, 2e-8);
         let straddling = Vec3::new(wide, iv(0.0), iv(0.0));
-        let err = certify(along(straddling, iv(1.0)), origin).unwrap_err();
+        let err = certify_interval(along(straddling, iv(1.0)), origin).unwrap_err();
         assert!(
             matches!(
                 err,
