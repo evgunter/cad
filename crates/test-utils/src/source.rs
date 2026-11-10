@@ -2443,7 +2443,61 @@ pub fn held_spellings(
             }
         }
         if closed_table {
-            out.extend(variant_arms(&bare, &code));
+            for body in closed_table_bodies(&bare) {
+                out.extend(variant_arms(&bare[body.clone()], &code[body]));
+            }
+        }
+    }
+    out
+}
+
+/// The fn names whose body is a closed type's name table: a variant's
+/// row, its straddle and its floor.
+const TABLE_FNS: [&str; 5] = ["name", "predicate", "straddle", "floor", "row"];
+
+/// **The bodies a closed type spells its names in**, in a blanked view:
+/// each `fn name/predicate/straddle/floor/row` body, and each braced
+/// macro invocation (`gates! { … }`, the gate table's) — the only places
+/// a `Variant => "lit"` arm is a decided name rather than a label.
+fn closed_table_bodies(bare: &str) -> Vec<std::ops::Range<usize>> {
+    let mut out = Vec::new();
+    for name in TABLE_FNS {
+        let needle = format!("fn {name}(");
+        let mut at = 0usize;
+        while let Some(hit) = bare[at..].find(&needle) {
+            let start = at + hit;
+            at = start + needle.len();
+            if !boundary_before(bare, start) {
+                continue;
+            }
+            let Some(open) = bare[at..].find('{').map(|i| at + i) else {
+                continue;
+            };
+            if bare[at..open].contains(';') {
+                continue; // a trait's declaration, no body
+            }
+            if let Some(close) = balanced_end(bare, open) {
+                out.push(open..close);
+            }
+        }
+    }
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find('!') {
+        let bang = at + hit;
+        at = bang + 1;
+        let head = bare[..bang].trim_end();
+        let ident_start = head
+            .rfind(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .map_or(0, |i| i + 1);
+        let ident = &head[ident_start..];
+        if ident.is_empty() || ident == "macro_rules" {
+            continue;
+        }
+        let open = skip_ws(bare, at);
+        if bare[open..].starts_with('{')
+            && let Some(close) = balanced_end(bare, open)
+        {
+            out.push(open..close);
         }
     }
     out
@@ -3240,8 +3294,10 @@ mod tests {
     }
 
     /// **A hold is a decide-shaped spelling alone**: a `const` of a
-    /// name, and for a closed table a `Variant => "lit"` arm — never a
-    /// reference, an argument or prose.
+    /// name, and for a closed table a `Variant => "lit"` arm of its name
+    /// table (a `fn name`-shaped body, or a braced macro invocation) —
+    /// never a label arm elsewhere (`Low => "low"`), a reference, an
+    /// argument or prose.
     #[test]
     fn a_listed_crate_holds_a_name_only_where_it_is_spelled_as_decided() {
         let dir = std::env::temp_dir().join(format!("tu-held-{}", std::process::id()));
@@ -3254,8 +3310,10 @@ mod tests {
              fn f() {\n\
                  shape(\"circle\");\n\
                  assert_eq!(d.predicate, Some(\"self_held\"));\n\
-                 match g { Gate::Overlap => \"arm_row\", _ => \"fallback\" }\n\
-             }\n",
+                 match g { Level::Low => \"low\", _ => \"fallback\" }\n\
+             }\n\
+             impl Gate { fn name(self) -> &'static str { match self { Gate::Overlap => \"arm_row\" } } }\n\
+             gates! { Gated => \"macro_row\", Sized(1), \"its prose\"; }\n",
         )
         .expect("write");
         let roster = super::held_spellings(&dir, false);
@@ -3267,7 +3325,7 @@ mod tests {
         );
         assert_eq!(
             table.into_iter().collect::<Vec<_>>(),
-            ["arm_row", "const_row", "pair_a", "pair_b"]
+            ["arm_row", "const_row", "macro_row", "pair_a", "pair_b"]
         );
     }
 

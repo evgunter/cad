@@ -65,11 +65,6 @@ enum Missing {
 /// spells is held by its entry.
 const KNOWN_MISSING: &[(&str, Missing, &str)] = &[
     (
-        "editor-core",
-        Missing::Roster,
-        "work/onecopy/editor-core-runs-no-predicate-name-roster.md",
-    ),
-    (
         "profile",
         Missing::ClosedTable,
         "work/onecopy/the-census-reads-no-closed-type-name-table.md",

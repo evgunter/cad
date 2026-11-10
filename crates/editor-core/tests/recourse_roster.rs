@@ -34,6 +34,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("AT_REST_QUIET_CENTRED"),
     NameCarrier::Const("AT_REST_QUIET_CONTACT_BOUND"),
     NameCarrier::Const("AXES_PARALLEL"),
+    NameCarrier::Const("EVAL_DIRECTION_NORM"),
     NameCarrier::Const("GAP_AXIS_PARALLEL_TO_PLANE"),
     NameCarrier::Const("GAP_ROUND_LARGER"),
     NameCarrier::Const("GAP_ROUND_SIDE"),
