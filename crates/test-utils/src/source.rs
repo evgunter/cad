@@ -642,6 +642,39 @@ pub fn item_body(blanked: &str, from: usize) -> ItemBody {
     }
 }
 
+/// **Every `fn` item with a body in a blanked view**: its name and its
+/// body's extent ([`item_body`]'s `Body`, both braces included), in
+/// order of appearance. A head is a `fn` keyword at a word boundary
+/// followed by a name, so a function-pointer type (`fn(u8)`) is no
+/// head. A declaration (a trait's default-less method) has no body and
+/// is skipped.
+///
+/// # Errors
+///
+/// `Err` naming the item where a head has no terminator or its `{`
+/// never closes ([`ItemBody::Unterminated`]): a walk that skipped one
+/// would lose every needle in what follows, with no count moving.
+pub fn fn_items(blanked: &str) -> Result<Vec<(String, std::ops::Range<usize>)>, String> {
+    let mut out = Vec::new();
+    for (at, _) in blanked.match_indices("fn ") {
+        if !boundary_before(blanked, at) {
+            continue;
+        }
+        let name = ident(blanked, skip_ws(blanked, at + 3));
+        if name.is_empty() {
+            continue;
+        }
+        match item_body(blanked, at) {
+            ItemBody::Body(body) => out.push((name.to_string(), body)),
+            ItemBody::Declaration(_) => {}
+            ItemBody::Unterminated => {
+                return Err(format!("`fn {name}` at byte {at} has no terminated body"));
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// The span an outer attribute starting at `attr_at` (its `#`) governs:
 /// from the attribute, through any attributes stacked after it, to the
 /// end of the thing they are attached to. `None` on unbalanced text.
@@ -3433,6 +3466,24 @@ mod tests {
             marked.into_iter().collect::<Vec<_>>(),
             [("suite_probe".to_string(), "sub/a.rs:4".to_string())]
         );
+    }
+
+    /// **`fn_items` walks every item with a body through `item_body`**: a
+    /// bracketed `;` in a signature ends nothing, a declaration and a
+    /// function-pointer type are no items, and an unclosed body is an
+    /// error.
+    #[test]
+    fn fn_items_names_each_body_and_refuses_an_unclosed_one() {
+        let text = "fn a() -> [u8; 2] { [0; 2] }\n\
+                    trait T { fn b(&self); fn c(&self) {} }\n\
+                    type F = fn(u8);\n";
+        let names: Vec<String> = super::fn_items(text)
+            .expect("well-formed")
+            .into_iter()
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(names, ["a", "c"]);
+        assert!(super::fn_items("fn d() { {").is_err());
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the

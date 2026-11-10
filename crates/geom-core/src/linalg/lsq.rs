@@ -90,48 +90,58 @@ pub enum LsqError {
     Empty,
 }
 
-impl core::fmt::Display for LsqError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
+impl crate::spline::Fact for LsqError {
+    fn fact(&self) -> impl core::fmt::Display + '_ {
+        core::fmt::from_fn(move |f| match self {
             LsqError::LsqDegenerate { pivot_index, pivot } => write!(
                 f,
                 "lsq: degenerate system (pivot {pivot_index} = {} under the fixed elimination \
-                 order). Recourse: supply rows that determine the unknowns — a zero pivot \
-                 means two of them do not, and a non-finite one means a value upstream is not \
-                 a number",
+                 order)",
                 Readable(*pivot)
             ),
-            LsqError::RowLengthMismatch { row, len, expected } => write!(
-                f,
-                "lsq: row {row} has length {len}, expected {expected}. Recourse: supply rows \
-                 of one length"
-            ),
+            LsqError::RowLengthMismatch { row, len, expected } => {
+                write!(f, "lsq: row {row} has length {len}, expected {expected}")
+            }
             LsqError::RhsShapeMismatch {
                 rhs_rows,
                 matrix_rows,
-            } => write!(
-                f,
-                "lsq: rhs has {rhs_rows} rows, matrix has {matrix_rows}. Recourse: supply one \
-                 right-hand-side row per matrix row, all of one width"
-            ),
-            LsqError::Underdetermined { rows, cols } => write!(
-                f,
-                "lsq: underdetermined ({rows} rows < {cols} cols). Recourse: supply at least \
-                 as many rows as columns — this solve has no unique minimizer below that, and \
-                 reordering for a pivot is not offered (D9)"
-            ),
+            } => write!(f, "lsq: rhs has {rhs_rows} rows, matrix has {matrix_rows}"),
+            LsqError::Underdetermined { rows, cols } => {
+                write!(f, "lsq: underdetermined ({rows} rows < {cols} cols)")
+            }
             LsqError::BandShape { row } => write!(
                 f,
                 "lsq: row {row}'s band window does not fit the banded LU (it starts left of \
-                 the previous row's, runs past the last column, or has no row). Recourse: \
-                 supply one window per row, each starting no earlier than the one before and \
+                 the previous row's, runs past the last column, or has no row)"
+            ),
+            LsqError::Empty => f.write_str("lsq: empty system"),
+        })
+    }
+}
+
+impl core::fmt::Display for LsqError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::spline::Fact as _;
+        let recourse = match self {
+            LsqError::LsqDegenerate { .. } => {
+                "supply rows that determine the unknowns — a zero pivot means two of them do \
+                 not, and a non-finite one means a value upstream is not a number"
+            }
+            LsqError::RowLengthMismatch { .. } => "supply rows of one length",
+            LsqError::RhsShapeMismatch { .. } => {
+                "supply one right-hand-side row per matrix row, all of one width"
+            }
+            LsqError::Underdetermined { .. } => {
+                "supply at least as many rows as columns — this solve has no unique minimizer \
+                 below that, and reordering for a pivot is not offered (D9)"
+            }
+            LsqError::BandShape { .. } => {
+                "supply one window per row, each starting no earlier than the one before and \
                  ending inside the matrix"
-            ),
-            LsqError::Empty => f.write_str(
-                "lsq: empty system. Recourse: supply a matrix with at least one row of \
-                 nonzero length",
-            ),
-        }
+            }
+            LsqError::Empty => "supply a matrix with at least one row of nonzero length",
+        };
+        write!(f, "{}. Recourse: {recourse}", self.fact())
     }
 }
 

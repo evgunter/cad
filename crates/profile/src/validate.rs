@@ -353,6 +353,48 @@ impl fmt::Display for FilletLeg {
     }
 }
 
+/// Which legs of a fillet corner a trim overruns: one of them or both,
+/// never neither, so an overrun that names no leg is unwritable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OverrunLegs {
+    /// Only this leg's anchor is eaten.
+    One(FilletLeg),
+    /// Both legs' anchors are eaten.
+    Both,
+}
+
+impl OverrunLegs {
+    /// The overrun of a corner whose `[incoming, outgoing]` legs are
+    /// overrun as given, or `None` where neither is.
+    #[must_use]
+    pub const fn of(incoming: bool, outgoing: bool) -> Option<Self> {
+        match (incoming, outgoing) {
+            (true, true) => Some(Self::Both),
+            (true, false) => Some(Self::One(FilletLeg::Incoming)),
+            (false, true) => Some(Self::One(FilletLeg::Outgoing)),
+            (false, false) => None,
+        }
+    }
+
+    /// Whether `leg` is overrun.
+    #[must_use]
+    pub fn contains(self, leg: FilletLeg) -> bool {
+        match self {
+            Self::One(one) => one == leg,
+            Self::Both => true,
+        }
+    }
+
+    /// The overrun legs' `[incoming, outgoing]` indices, in that order.
+    pub fn indices(self) -> impl Iterator<Item = usize> {
+        [FilletLeg::Incoming, FilletLeg::Outgoing]
+            .into_iter()
+            .enumerate()
+            .filter(move |(_, leg)| self.contains(*leg))
+            .map(|(k, _)| k)
+    }
+}
+
 /// What kind of carrier a fillet leg runs on, with the diagnostic
 /// margin metered in that carrier's own currency (M5 S2): a straight
 /// leg's setback and length are linear distances; a circular leg's are

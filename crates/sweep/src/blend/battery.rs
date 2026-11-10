@@ -2621,7 +2621,7 @@ pub(crate) fn turn_reading<T: Decide>(
     };
     let others = [other(l1), other(l2)];
     let trimline = |l: &Link<T>, f: FaceKey| match l.trim_on(f) {
-        Some((Curve3::Line(geom::Line { origin, dir }), _)) => Ok((*origin, *dir)),
+        Some((Curve3::Line(line), _)) => Ok(*line),
         _ => Err(unbuilt_geometry(
             EntityId::Edge(l.edge),
             "a turning band's trimline is not a line",
@@ -2630,11 +2630,20 @@ pub(crate) fn turn_reading<T: Decide>(
     // Each band's trimline on its face of the third edge, crossed with
     // that edge's line; and the two on the shared face, crossed.
     let foot_of = |l: &Link<T>, f: FaceKey| {
-        trimline(l, f).map(|(o, d)| line_meet(o, d, p, along, d.cross(along)))
+        trimline(l, f).map(|t| {
+            line_meet(
+                t,
+                geom::Line {
+                    origin: p,
+                    dir: along,
+                },
+                t.dir.cross(along),
+            )
+        })
     };
     let (y1, y2) = (foot_of(l1, others[0])?, foot_of(l2, others[1])?);
-    let ((o1, d1), (o2, d2)) = (trimline(l1, shared)?, trimline(l2, shared)?);
-    let crossing = line_meet(o1, d1, o2, d2, d1.cross(d2));
+    let (t1, t2) = (trimline(l1, shared)?, trimline(l2, shared)?);
+    let crossing = line_meet(t1, t2, t1.dir.cross(t2.dir));
     // The plane the mitre lies in, for the far band `k`: a chamfer's
     // is that band's plane; a fillet's is one for both, through the
     // axes' crossing, normal to `e₁ − e₂`.
@@ -2652,7 +2661,17 @@ pub(crate) fn turn_reading<T: Decide>(
                 ..
             },
         ) => Ok((
-            line_meet(*c1, *a1, *c2, *a2, a1.cross(*a2)),
+            line_meet(
+                geom::Line {
+                    origin: *c1,
+                    dir: *a1,
+                },
+                geom::Line {
+                    origin: *c2,
+                    dir: *a2,
+                },
+                a1.cross(*a2),
+            ),
             dirs[0] - dirs[1],
         )),
         _ => Err(unbuilt_geometry(
@@ -2665,9 +2684,9 @@ pub(crate) fn turn_reading<T: Decide>(
     let feet = [y1, y2];
     let end = |k: usize| -> Result<Point3<T>, BlendError> {
         let j = 1 - k;
-        let (o, d) = trimline(links[j], others[j])?;
+        let t = trimline(links[j], others[j])?;
         let (at, n) = mitre_plane(k)?;
-        Ok(o + d * ((at - o).dot(n) / d.dot(n)))
+        Ok(t.origin + t.dir * ((at - t.origin).dot(n) / t.dir.dot(n)))
     };
     let ends = [end(0)?, end(1)?];
     Ok(TurnReading {

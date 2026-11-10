@@ -82,6 +82,11 @@
 //! `axis × d̂`) and its signed turn chord between two rulings;
 //! `geom/src/surfaces.rs`'s `meridian_side`, a revolved circle's
 //! `sgn R`, decided clear of zero at rest;
+//! `geom/src/chart_point.rs`'s `Surface::foot` on a cone, the nappe of
+//! `p`'s side of the apex plane by the sign bit of `axis · (p − apex)`
+//! (undecided: within the apex plane's band its reader, the region
+//! doors' `QueryFoot`, takes the chart's foot instead, and no measured
+//! document reaches the site);
 //! `geom-brep/src/pair_section/cylinders.rs`'s pinch node, on the side
 //! the fatter wall's axis stands, signed by `gap·(r₁ − r₂)`, both
 //! clear of zero wherever the pose is the pinch (the radii decided
