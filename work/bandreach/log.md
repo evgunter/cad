@@ -18,3 +18,4 @@ the model A/B is suspended, so nothing draws from it. Nothing
 dispatched. 18.5 points against 30.
 - 2026-11-02 — **Seam (BOXES):** filed `blend-sheet-clip-picks-its-coaxial-arm-on-a-bracket` on this slate, found by BOXES' extent-home fork. (BOXES orchestrator)
 - 2026-11-09 — **Seam (BOXES):** `blend-sheet-clip-picks-its-coaxial-arm-on-a-bracket` closed by BOXES `cover-app-readers` (PR 6588): `sheet_clip` reads topo's face cover, with no per-kind arm. (BOXES cover-app-readers lane)
+- 2026-11-10 — `dome-clearance-screen-escalates-an-invalid-margin` closed (PR 6779): a rim whose ball has no room refuses `BallDoesNotFit` under `fillet3_ball_room` at link resolution, on the plane–sphere arm and the sheet's rim branch (the lentil was a second instance). Filed `the-lantern-shoulder-witnesses-the-spine-recourse-the-followability-suite-says-has-none` (P3). (bandreach-dome lane)

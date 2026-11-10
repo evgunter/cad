@@ -8,6 +8,7 @@ priority: P0
 cost: H
 closed: 2026-11-10
 branch: bandreach/dome-invalid-margin
+pr: 6779
 ---
 
 
