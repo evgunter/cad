@@ -2,10 +2,11 @@
 id: a-witnesses-gap-from-its-spans-last-end-is-metered-at-its-pointwise-speed
 kind: issue
 title: pair_section's within_span meters a witness's gap from its span's last end at the carrier's speed at the witness, which bounds no arc over [t, hi]
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: E
+closed: 2026-11-10
 ---
 
 
@@ -40,3 +41,13 @@ can be stated on the chord.
 
 `scripts/gates/span-end-gap-sites.tsv` holds the site as class `witness`,
 and its header points here.
+
+## Done
+
+`within_span` reads its gap to the last end through `Span::end_gap`, metered over the gap:
+- inside, at the inf (`GapMeter::Clear`), so a decided side is sound;
+- the past-by-twice-the-zero check, at the sup (`GapMeter::Within`), so "nearer than that" is sound.
+
+The pointwise speed is gone. `curve_pair::span_rows::a_gap_from_a_spans_end_is_metered_over_the_gap` pins the door on a thin ellipse against a quadrature of `|C′|`: the pointwise meter over-reads the arc on one side of a vertex and under-reads it on the other.
+
+**Measured:** a probe decided main's margin beside the door's at every call, over the ci sets at both ε (1399 `within_span` readings and about 860 graze readings each). Not one decision moved.
