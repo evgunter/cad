@@ -286,14 +286,11 @@ impl<T: Real> Vector<T> for Swing<T> {
 /// sign of its discriminant along a line, are read.
 #[derive(Clone, Copy)]
 pub(super) enum Quadric<T: Real> {
-    /// The wall about the axis through `o` along the unit `d`.
-    Cylinder { o: Point3<T>, d: Vec3<T>, r: T },
-    /// The double cone at `apex` about the unit `a`, `sc = (sin α, cos α)`.
-    Cone {
-        apex: Point3<T>,
-        a: Vec3<T>,
-        sc: (T, T),
-    },
+    /// The wall of radius `r` about `axis`, its direction unit.
+    Cylinder { axis: geom::Line<T>, r: T },
+    /// The double cone about `axis` from its apex, its direction unit,
+    /// `sc = (sin α, cos α)`.
+    Cone { axis: geom::Line<T>, sc: (T, T) },
 }
 
 /// The pad a ceiling formed in a few correctly rounded operations is
@@ -304,8 +301,14 @@ impl<T: Real> Quadric<T> {
     /// `P`.
     fn at(&self) -> Point3<T> {
         match *self {
-            Self::Cylinder { o, .. } => o,
-            Self::Cone { apex, .. } => apex,
+            Self::Cylinder {
+                axis: geom::Line { origin: o, .. },
+                ..
+            } => o,
+            Self::Cone {
+                axis: geom::Line { origin: apex, .. },
+                ..
+            } => apex,
         }
     }
 
@@ -314,13 +317,21 @@ impl<T: Real> Quadric<T> {
     fn coefficients<V: Vector<T>>(&self, u: &V, v: &V) -> [V::S; 3] {
         let exact = Rounded::exact;
         let (alpha, beta, n, gamma) = match *self {
-            Self::Cylinder { d, r, .. } => (
+            Self::Cylinder {
+                axis: geom::Line { dir: d, .. },
+                r,
+                ..
+            } => (
                 exact(T::one()),
                 exact(T::zero() - T::one()),
                 d,
                 exact(T::zero()) - exact(r).square(),
             ),
-            Self::Cone { a, sc, .. } => (
+            Self::Cone {
+                axis: geom::Line { dir: a, .. },
+                sc,
+                ..
+            } => (
                 exact(T::zero()) - exact(sc.1).square(),
                 exact(T::one()),
                 a,
@@ -351,21 +362,32 @@ impl<T: Real> Quadric<T> {
         T: Decide,
     {
         match *self {
-            Self::Cylinder { d, r, .. } => {
+            Self::Cylinder {
+                axis: geom::Line { dir: d, .. },
+                r,
+                ..
+            } => {
                 let m = running::cross(w, running::exact_vec(d));
                 let reach = running::dot(u, m);
                 let reach = Rounded {
                     value: reach.value.abs(),
                     ..reach
                 };
-                let across = running::dot(m, m).sqrt().divisor()?;
+                let across = running::dot(m, m)
+                    .sqrt()
+                    .divisor("ruling_clearance_across")?;
                 Some(Rounded::exact(r) - reach.quotient(across))
             }
             Self::Cone { .. } => {
                 let along = running::dot(u, w);
                 let perp = [0, 1, 2].map(|i| u[i] - w[i] * along);
                 let apart = running::dot(perp, perp).sqrt();
-                Some(e.quotient((apart * Rounded::exact(T::from_f64(16.0))).divisor()?))
+                Some(
+                    e.quotient(
+                        (apart * Rounded::exact(T::from_f64(16.0)))
+                            .divisor("ruling_clearance_across")?,
+                    ),
+                )
             }
         }
     }
@@ -377,14 +399,20 @@ impl<T: Real> Quadric<T> {
     /// rounds as `|x − P|` does, where the form rounds as its square.
     fn level(&self, x: Point3<T>, w: Vec3<T>) -> (T, T) {
         match *self {
-            Self::Cylinder { o, d, r } => {
+            Self::Cylinder {
+                axis: geom::Line { origin: o, dir: d },
+                r,
+            } => {
                 let m = (x - o).cross(d);
                 let rho = m.norm();
                 (rho - r, m.dot(w.cross(d)) / rho)
             }
             Self::Cone {
-                apex,
-                a,
+                axis:
+                    geom::Line {
+                        origin: apex,
+                        dir: a,
+                    },
                 sc: (s, c),
             } => {
                 let y = x - apex;
@@ -955,8 +983,10 @@ mod tests {
             lever: 10.0,
         };
         let partner = Quadric::Cylinder {
-            o: Point3::new(3.0, 0.0, 0.0),
-            d: Vec3::new(s, 0.0, c),
+            axis: geom::Line {
+                origin: Point3::new(3.0, 0.0, 0.0),
+                dir: Vec3::new(s, 0.0, c),
+            },
             r: 1.0,
         };
         assert_eq!(

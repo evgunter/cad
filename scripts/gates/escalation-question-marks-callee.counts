@@ -91,16 +91,16 @@ crates/topo/src/boolean/section_cert/ruling.rs 1
 # sectors: partner_cuts (2): every cut inside a sector is applied, and a
 # cut in band stays in band of the bound it is near through every later
 # split: NOT A SEARCH; rays_within (1), any ray not within answers "no":
-# HAND-ROLLED; closed_reach (2), which face holds the reach: WHICH;
-# crescent (3): HAND-ROLLED.
-crates/topo/src/boolean/sectors.rs 8
+# HAND-ROLLED; closed_reach (2), which face holds the reach: WHICH.
+# (crescent climbs its bound pairs.)
+crates/topo/src/boolean/sectors.rs 5
 # slit: slot_from_far_end, which slot: WHICH.
 crates/topo/src/boolean/slit.rs 1
 # vtxfac: germ_order, a sort: NOT A SEARCH.
 crates/topo/src/boolean/vtxfac.rs 1
-# census: span_clear's two reads (anything meeting answers "not clear"):
-# HAND-ROLLED.
-crates/topo/src/census.rs 2
+# census: span_clear's three reads, a lone vertex's and a side's end and
+# interior (anything meeting answers "not clear"): HAND-ROLLED.
+crates/topo/src/census.rs 3
 # chart_region: polygon_relation, the first decisive vertex answers:
 # HAND-ROLLED.
 crates/topo/src/chart_region.rs 1
@@ -109,9 +109,6 @@ crates/topo/src/pcurves.rs 1
 # ray_walk: on_boundary, any segment holding the point answers:
 # HAND-ROLLED.
 crates/topo/src/ray_walk.rs 1
-# ring_path: path_parity's five reads, every piece's crossing: NOT A
-# SEARCH.
-crates/topo/src/ring_path.rs 5
 # shell: band_seam (any side not winding once answers "no") and
 # wraps_its_period (any start winding once answers "yes"): HAND-ROLLED.
 crates/topo/src/shell.rs 2

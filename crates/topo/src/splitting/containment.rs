@@ -349,6 +349,15 @@ pub enum PointInLoopError {
         /// The loop.
         r#loop: LoopKey,
     },
+    /// The loop is a lone vertex, which bounds no region to place a point
+    /// in. Tier 1 admits it; tier 2 refuses it at rest
+    /// ([`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)).
+    /// Its standing is the crate's one lone-loop standing
+    /// (`live::LONE_LOOP_REFUSAL`).
+    LoneLoop {
+        /// The loop.
+        r#loop: LoopKey,
+    },
     /// The walk could not decide: a ray definitely met an edge it could
     /// not cross, and no ray settled.
     Uncrossable(Uncrossable),
@@ -360,8 +369,8 @@ pub enum PointInLoopError {
 impl PointInLoopError {
     /// What this refusal is to a ladder over several points
     /// ([`geom_brep::ladder::Refusal`]): an escalation by its margin, a
-    /// schedule no ray settled in band, an edge no ray crosses a limit,
-    /// and a loop that does not walk or a point off its plane a refusal
+    /// schedule no ray settled in band, an edge no ray crosses or a
+    /// lone-vertex loop a limit, and a loop that does not walk or a point off its plane a refusal
     /// of the whole query ([`geom_brep::ladder::Aborts`]).
     ///
     /// # Errors
@@ -373,6 +382,7 @@ impl PointInLoopError {
             Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
             Self::RayExhausted { .. } => Ok(Refusal::InBand),
             Self::Uncrossable(_) => Ok(Refusal::Limit),
+            Self::LoneLoop { .. } => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::CorruptLoop { .. } | Self::OffPlane(_) => Err(Aborts),
         }
     }
@@ -520,6 +530,11 @@ impl PointInLoopError {
                 "{subject} cannot be read: {self}. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
+            Self::LoneLoop { .. } => write!(
+                f,
+                "{subject} cannot be read: {self}. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
             Self::OffPlane(o) => write!(f, "{subject} cannot be read: {o}. Recourse: {recourse}"),
         }
     }
@@ -553,6 +568,9 @@ impl PointInLoopError {
             ),
             Self::CorruptLoop { r#loop } => {
                 write!(f, "loop {loop:?} is not walkable")
+            }
+            Self::LoneLoop { r#loop } => {
+                write!(f, "loop {loop:?} is a lone vertex, which bounds no region")
             }
             Self::Uncrossable(u) => write!(
                 f,
@@ -644,8 +662,9 @@ fn loop_points<T: Decide>(
 ) -> Result<Vec<Point3<T>>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let loop_data = body.get_loop(r#loop).ok_or_else(corrupt)?;
-    let LoopBoundary::Cycle { first } = loop_data.boundary else {
-        return Err(corrupt()); // an empty loop bounds no region
+    let first = match loop_data.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
     };
     let mut points = Vec::new();
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
@@ -1309,6 +1328,7 @@ fn step_cover<T: Decide>(
 ///
 /// # Errors
 ///
+/// [`PointInLoopError::LoneLoop`] for a lone-vertex loop;
 /// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
 /// conic wound past a period, or a whole-turn SCAFFOLD conic;
 /// [`PointInLoopError::Escalated`] for an ellipse's span the band cannot
@@ -1321,8 +1341,9 @@ pub(crate) fn carrier_loop<T: Decide>(
 ) -> Result<CarrierLoop<T>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let record = body.get_loop(r#loop).ok_or_else(corrupt)?;
-    let LoopBoundary::Cycle { first } = record.boundary else {
-        return Err(corrupt());
+    let first = match record.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
     };
     let face = body.get_face(record.face).ok_or_else(corrupt)?.surface;
     let steps = cycle_steps(body, first);
@@ -1409,15 +1430,19 @@ pub(crate) fn carrier_loop<T: Decide>(
 
 /// **A lower bound on the distance from `q` to the arc `span` of
 /// `carrier`**, read on the carrier with no decision, and the reading
-/// that gave it ([`ArcFloor`]): a line's own segment; a circle's or an
-/// ellipse's own arc (`ring_path::Conic::distance_floor`, the arc of
-/// the circle over the same span less the conic's distance from it);
+/// that gave it ([`ArcFloor`]): a line's own segment
+/// ([`geom::Line::distance_within`]); a circle's or an ellipse's own arc
+/// (`ring_path::ConicArc::distance_floor`, the arc of the circle over the
+/// same span, [`geom::Curve3::distance_within`], less the conic's
+/// distance from it);
 /// any other carrier's cover over the span (its nearest distance,
 /// [`geom::cover::Cover::distance_range`]), and its arc's pieces past it
 /// ([`ArcPieces`]). A conic carries its whole annulus's floor beside its
-/// arc's. `None` for a carrier with no cover over the span. The one home of the question "is this edge
-/// clear of that point by more than a radius", which the clearance
-/// cell door and the boolean's touch gate both ask.
+/// arc's. `None` for a carrier with no cover over the span. The one home,
+/// over every carrier, of the question "is this edge clear of that point
+/// by more than a radius", which the clearance cell door and the
+/// boolean's touch gate both ask; its line and circle readings are
+/// geom's closed form.
 pub(crate) fn arc_distance_floor<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
@@ -1425,7 +1450,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
         geom::Curve3::Line(line) => {
-            ArcFloor::Segment((q - line.foot_within(q, (t0.min(t1), t0.max(t1)))).norm())
+            ArcFloor::Segment(line.distance_within(q, (t0.min(t1), t0.max(t1))))
         }
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
@@ -1791,8 +1816,9 @@ fn certify_plane<T: Decide>(
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Plane);
     let off_plane = |cause| PointInLoopError::OffPlane(OffPlane { r#loop, cause });
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
-        return Err(corrupt());
+    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
     };
     let steps = cycle_steps(body, first);
     let origin = steps.first().ok_or_else(corrupt)?.point;
@@ -3286,5 +3312,33 @@ mod arc_ball_rows {
                 "the arc's point at {t} lies {gap} out, past {radius}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod lone_loop_rows {
+    use geom_core::Tol;
+
+    use super::PointInLoopError;
+    use crate::entity::LoopBoundary;
+
+    /// **A lone-vertex loop is refused under its own name**, not as a
+    /// loop that does not walk. Red where it read
+    /// [`PointInLoopError::CorruptLoop`].
+    #[test]
+    fn a_lone_loop_is_no_polygon() {
+        let (body, _, lone) = crate::test_support_fixtures::box_with_a_lone_ring(Tol::witness());
+        let ring = body
+            .loops
+            .iter()
+            .find(|(_, l)| l.boundary == LoopBoundary::Empty { vertex: lone })
+            .map(|(k, _)| k)
+            .expect("the ring");
+        assert_eq!(
+            super::loop_points(&body, ring).err(),
+            Some(PointInLoopError::LoneLoop { r#loop: ring }),
+            "the ring's points"
+        );
     }
 }

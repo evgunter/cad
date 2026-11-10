@@ -331,6 +331,15 @@ impl From<PieceWalkRefusal> for CarrierRefusal {
     }
 }
 
+/// A carrier kind whose foot is its nearest point, found in closed form
+/// ([`Curve3::closed_form`]).
+enum ClosedForm<'c, T: Real> {
+    /// A line.
+    Line(&'c crate::Line<T>),
+    /// A circle.
+    Circle(&'c crate::Circle<T>),
+}
+
 /// What a [`Curve3::point_walk`] visit makes of a piece.
 pub enum PieceStep<R> {
     /// Nothing more to read in it.
@@ -364,9 +373,8 @@ impl<T: Decide> Curve3<T> {
     /// distance from an interval of a line or a circle is closed-form
     /// ([`Self::distance_within`]); the walk is for what that does not
     /// answer, a kind with no closed form or a question other than the
-    /// distance. What a
-    /// reading settles is `visit`'s: [`Self::clear_of`] is one, and
-    /// `geom_brep`'s window of a span near a member's ball is another.
+    /// distance. What a reading settles is `visit`'s, and every caller of
+    /// the walk is such a reading ([`Self::clear_of`] among them).
     ///
     /// # Errors
     ///
@@ -397,11 +405,20 @@ impl<T: Decide> Curve3<T> {
     /// **Whether a point's foot on the carrier is its nearest point of
     /// the whole carrier** (module docs): on a line and a circle, where
     /// it is found in closed form. The one list of those kinds, matched
-    /// exhaustively so a new kind decides here.
+    /// exhaustively so a new kind decides here ([`Self::closed_form`]).
     fn foot_is_nearest(&self) -> bool {
+        self.closed_form().is_some()
+    }
+
+    /// **The kinds whose foot is their nearest point, found in closed
+    /// form** (a line, a circle): the one list [`Self::foot_is_nearest`]
+    /// and [`Self::distance_within`] read, matched exhaustively so a new
+    /// kind decides here.
+    fn closed_form(&self) -> Option<ClosedForm<'_, T>> {
         match self {
-            Self::Line(_) | Self::Circle(_) => true,
-            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => false,
+            Self::Line(line) => Some(ClosedForm::Line(line)),
+            Self::Circle(circle) => Some(ClosedForm::Circle(circle)),
+            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
         }
     }
 
@@ -554,45 +571,46 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// **`q`'s distance from the interval `(t0, t1)` of the carrier**, in
-    /// closed form where there is one: a line's span read through
-    /// [`crate::Line::foot_within`], and a circle's arc. `None` on every
-    /// other kind, whose reading of a point against an interval is the
-    /// piece walk ([`Self::point_walk`]).
+    /// closed form on the kinds that have one ([`Self::closed_form`]): a
+    /// line's span ([`crate::Line::distance_within`]), and a circle's arc.
+    /// `None` on every other kind, whose reading of a point against an
+    /// interval is the piece walk ([`Self::point_walk`]).
     ///
-    /// On a circle, the distance to the circle's point at an angle grows
-    /// with the angle's distance from `q`'s azimuth, so the arc's nearest
-    /// point is at `q`'s azimuth, read about the arc's middle, held to the
-    /// span by `max`/`min`: `q`'s foot on the whole circle where it falls
-    /// in the arc, and the end on `q`'s side otherwise. At `f64` that is
-    /// the reading; the azimuth a turn either side of it holds to the
-    /// ends, which are no nearer, so the `min` over the three changes
-    /// nothing past rounding.
+    /// On a circle, the arc's nearest point to `q` is `q`'s foot on the
+    /// whole circle where that foot lies in the arc, and the nearer end
+    /// otherwise; the foot's distance is the whole circle's
+    /// [`Self::clearance`]. The foot lies in the arc where the angle
+    /// between `q`'s offset in the circle's plane, `v`, and the radius to
+    /// the arc's middle, `m`, is at most half the span, held to half a
+    /// turn: `|v|·|m|·cos(half) − v·m ≤ 0`. That test reads no azimuth and
+    /// takes no foot, so it asks nothing ([`select_le_zero`] is no
+    /// decision); a cosine has no cut, so no angle is named a turn away;
+    /// and on the axis, where `v` is zero, it reads the clearance, which is
+    /// every point's distance there. An arc of a turn or more is all
+    /// inside.
     ///
-    /// At `Interval` the azimuth ([`crate::azimuth::Azimuth::near`]) encloses each
-    /// direction of a box by one name of its angle, the box's names
-    /// renamed by one whole number of turns, so where the box's
-    /// directions reach the antipode of the arc's middle some of them are
-    /// named a turn from their copy about the middle: the box astride the
-    /// antipode, and a box near the axis, whose directions span much of a
-    /// turn. Each point's copy about the middle lies in the azimuth's
-    /// enclosure or a turn either side of it, so the least of the three
-    /// held distances is a lower bound on every point's. The whole
-    /// circle's [`Self::clearance`] is one too, and is taken by `max`: at
-    /// `f64` it moves nothing past rounding, and it keeps a wide box's low
-    /// end off the arc's ends. No comparison is taken. An arc of a turn or
-    /// more is all inside.
+    /// At `Interval`, a box decided inside reads the clearance, each of its
+    /// points' distance, and one decided outside reads the nearer end,
+    /// each point's nearest; where the test straddles, the reading hulls
+    /// both, its low end the lower. So the reading encloses the distance
+    /// of every point of a box, and no comparison is taken.
+    ///
+    /// [`select_le_zero`]: geom_core::Real::select_le_zero
     pub fn distance_within(&self, q: Point3<T>, (t0, t1): (T, T)) -> Option<T> {
-        match self {
-            Self::Line(line) => Some((q - line.foot_within(q, (t0.min(t1), t0.max(t1)))).norm()),
-            Self::Circle(_) => {
-                let (lo, hi) = (t0.min(t1), t0.max(t1));
-                let at = self.param_near(q, crate::mid_param(lo, hi))?;
-                let held = |s: T| (q - self.eval(s.max(lo).min(hi))).norm();
-                let named = held(at).min(held(at - T::tau())).min(held(at + T::tau()));
-                Some(named.max(self.clearance(q)?))
+        let (lo, hi) = (t0.min(t1), t0.max(t1));
+        Some(match self.closed_form()? {
+            ClosedForm::Line(line) => line.distance_within(q, (lo, hi)),
+            ClosedForm::Circle(c) => {
+                let (o, axis) = (c.frame.origin, c.frame.axis);
+                let w = q - o;
+                let v = w - axis * w.dot(axis);
+                let m = self.eval(crate::mid_param(lo, hi)) - o;
+                let half = ((hi - lo) * T::from_f64(0.5)).min(T::pi());
+                let outside = v.norm() * m.norm() * half.cos() - v.dot(m);
+                let ends = (q - self.eval(lo)).norm().min((q - self.eval(hi)).norm());
+                outside.select_le_zero(self.clearance(q)?, ends)
             }
-            Self::Ellipse(_) | Self::Spiric { .. } | Self::Nurbs(_) => None,
-        }
+        })
     }
 
     /// The parameter range a whole-carrier walk covers: a spline's

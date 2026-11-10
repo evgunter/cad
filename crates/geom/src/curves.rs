@@ -811,10 +811,20 @@ impl<T: Real> Line<T> {
     }
 
     /// **`p`'s foot on the span `(t0, t1)`**: the line's point at
-    /// [`Self::param_within`].
+    /// [`Self::param_within`]. `p`'s distance from the span is
+    /// [`Self::distance_within`].
     #[must_use]
     pub fn foot_within(&self, p: Point3<T>, span: (T, T)) -> Point3<T> {
         self.at(self.param_within(p, span))
+    }
+
+    /// **`p`'s distance from the span `(t0, t1)`**, `t0 ≤ t1`: its
+    /// distance from its [foot on the span](Self::foot_within). A segment
+    /// from `a` to `b` is the span `(0, 1)` of `Line { origin: a, dir: b −
+    /// a }`.
+    #[must_use]
+    pub fn distance_within(&self, p: Point3<T>, span: (T, T)) -> T {
+        (p - self.foot_within(p, span)).norm()
     }
 
     /// **`p`'s foot on the ray from `t0`**, the points `t ≥ t0`:
@@ -910,6 +920,53 @@ impl<T: Real> Line<T> {
     #[must_use]
     pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
         p - (p - self.origin).project_onto(self.dir)
+    }
+}
+
+/// **A half-line**: [`Ray::line`] read forward from its origin, the point
+/// `origin + dir·t` at advance `t > 0` ahead and at `t < 0` behind. An
+/// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
+/// a length only where the caller's `dir` is unit, which nothing here
+/// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+/// The forward reading has one home, [`Ray::ahead`], decided under the
+/// reader's own row.
+#[derive(Clone, Copy, Debug)]
+pub struct Ray<T: Real> {
+    /// The line the ray runs along, from its origin.
+    pub line: Line<T>,
+}
+
+impl<T: Real> Ray<T> {
+    /// The ray from `origin` along `dir`, any nonzero `dir`: its advance
+    /// is in units of `|dir|` (the type's doc).
+    #[must_use]
+    pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
+        Self {
+            line: Line { origin, dir },
+        }
+    }
+}
+
+impl<T: Decide> Ray<T> {
+    /// **Whether advance `at` lies ahead of the ray's origin**, decided
+    /// under the reader's own `site`: `Positive` ahead, `Negative` behind,
+    /// `Zero` at the origin. Each reader keeps its own policy for `Zero`
+    /// and for an undecided reading.
+    ///
+    /// `at` is a parameter on this ray's own line (`origin + dir·at`), and
+    /// the margin decided is `at` itself, in units of `|dir|` (the type's
+    /// doc). The method takes the parameter, not a point, because every
+    /// reader holds only a parameter computed on [`Ray::line`]: a root
+    /// against a carrier (`line_*_roots`), or the closest-approach span of
+    /// an edge's passage. No point is minted before the forward test. The ray does not re-derive `at`; a
+    /// reader that passes a parameter of another line decides nothing
+    /// about this ray.
+    ///
+    /// # Errors
+    ///
+    /// [`Indeterminate`] where `at` is in band.
+    pub fn ahead(&self, at: T, site: &'static str, band: Band) -> Result<Sign, Indeterminate> {
+        geom_core::k_stats::decide(site, Margin::of(at), band)
     }
 }
 
