@@ -859,7 +859,7 @@ impl<T: Decide> ConicArc<T> {
     /// circle or an ellipse.
     ///
     /// **The span is read for "not over"**, through the turn rule
-    /// ([`Period::turn`]): exact on a circle, between the smaller
+    /// ([`geom_core::period::Period::turn`]): exact on a circle, between the smaller
     /// semi-axis and the speed over the turn's defect on an ellipse.
     ///
     /// - **Wound past a period** — no edge at all — where the rule reads
@@ -905,10 +905,10 @@ impl<T: Decide> ConicArc<T> {
         rows: ConicRows,
         band: Band,
     ) -> Result<Option<Self>, ConicArcError> {
-        let Some(conic) = carrier.conic() else {
+        // A conic arc, read in its carrier's own period.
+        let (Some(_), Some(one_turn)) = (carrier.conic(), carrier.period()) else {
             return Ok(None);
         };
-        let one_turn = conic.period();
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
         };
