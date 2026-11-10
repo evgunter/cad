@@ -296,6 +296,7 @@ use geom_brep::EdgeCurveSpec;
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::k_stats::decide;
+use geom_core::ladder::{FreeOf, Uncarried, Undecided, argmin_decided};
 use geom_core::{
     Arc2, Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, SpanLocate,
     SupSpeed, Tol, Vec3,
@@ -1643,7 +1644,10 @@ fn solve_corner<T: Decide>(
             let delta = cos_d.acos();
             // The two roots are `separation` apart and that length has
             // just been decided positive, so which of them the offset
-            // keeps IS determined — and it is decided, not compared.
+            // keeps IS determined — and it is decided, not compared. Not
+            // the decided argmin (`scripts/gates/argmin-folds.tsv`, pair):
+            // two candidates read by one comparison, whose tie and whose
+            // undecided reading are each this site's own refusal.
             let mut p = {
                 let (s, cph) = (base + delta).sin_cos();
                 frame.place(rho, h, e_old * cph + w * s)
@@ -2043,19 +2047,20 @@ fn nearest<T: Decide>(
     let far = |r: (T, T)| Vec3::new(r.0 - rho, r.1 - h, T::zero()).norm();
     // Both callers hand over a line pair's one root or a line–circle
     // pair's two, whose transversality they certified first.
-    let Some(&first) = roots.first() else {
-        unreachable!("a certified-transversal profile pair has a root")
+    // The decided argmin, free of nothing: two roots no root is decided
+    // nearer than are a tie, whatever order they come in.
+    let cmp = |a: &(T, T), b: &(T, T)| {
+        decide("offset_axial_branch", Margin::of(far(*a) - far(*b)), band).map_err(Undecided::of)
     };
-    let mut best = first;
-    for &r in &roots[1..] {
-        match decide("offset_axial_branch", Margin::of(far(r) - far(best)), band) {
-            Ok(Sign::Negative) => best = r,
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => return Ok(None),
-            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-        }
+    match argmin_decided(roots.iter().copied(), cmp, FreeOf::Nothing) {
+        Ok(Some(root)) => Ok(Some(root)),
+        Ok(None) => unreachable!("a certified-transversal profile pair has a root"),
+        Err(unpicked) => match unpicked.carried() {
+            Ok(source) => Err(ReplaceFaceError::Escalated { source }),
+            Err(Uncarried::Tied(_)) => Ok(None),
+            Err(Uncarried::Cyclic) => unreachable!("one distance's difference ranks in no cycle"),
+        },
     }
-    Ok(Some(best))
 }
 
 /// The branch a small offset keeps on a profile pair whose

@@ -895,6 +895,9 @@ fn subdivision<T: Decide>(
                 )
             };
             let (lo, hi) = close(l, r);
+            // Re-read once, not a minimum (`scripts/gates/argmin-folds.tsv`,
+            // recompute): the root off its line is closed again on the
+            // moved piece, and no two candidates are compared.
             let mut root = nearer((lo, hi));
             if !on(root) {
                 // Moved by the turn it is reported at, which is `2π` only to

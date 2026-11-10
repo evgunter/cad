@@ -7027,6 +7027,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
         let toward = |d: Vec3<T>| axis.cross(d);
+        // Re-read once, not a minimum (`scripts/gates/argmin-folds.tsv`,
+        // recompute): a foot on the axis takes the circle's own point
+        // instead, and no two candidates are compared.
         let mut k = toward(cut.foot - cut.center);
         if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
             k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
@@ -7276,28 +7279,17 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
-        let mut below: Option<&Hit<T>> = None;
-        let mut over: Option<&Hit<T>> = None;
-        for hit in &hits {
+        // Two hits naming one vertex are one point of the boundary: each
+        // arc meeting the meridian there ends at that vertex, decided
+        // `Zero` from it, so the first stands for the others (and a tie
+        // between them is no tie of the order).
+        let mut at_vertex = BTreeSet::new();
+        hits.retain(|h| h.vertex.is_none_or(|v| at_vertex.insert(v)));
+        let (mut belows, mut overs): (Vec<usize>, Vec<usize>) = (Vec::new(), Vec::new());
+        for (k, hit) in hits.iter().enumerate() {
             match (above(hit.s, s1)?, above(hit.s, s2)?) {
-                (Sign::Negative, _) => {
-                    let nearer = match below {
-                        None => true,
-                        Some(b) => above(hit.s, b.s)? == Sign::Positive,
-                    };
-                    if nearer {
-                        below = Some(hit);
-                    }
-                }
-                (_, Sign::Positive) => {
-                    let nearer = match over {
-                        None => true,
-                        Some(o) => above(o.s, hit.s)? == Sign::Positive,
-                    };
-                    if nearer {
-                        over = Some(hit);
-                    }
-                }
+                (Sign::Negative, _) => belows.push(k),
+                (_, Sign::Positive) => overs.push(k),
                 _ => {
                     return Err(refuse(
                         "the sphere face's boundary meets the cut's meridian inside the section \
@@ -7306,6 +7298,47 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 }
             }
         }
+        // The boundary hit nearest the section circle on each side, through
+        // the decided argmin, free of nothing: two hits at one latitude
+        // (one point the face's boundary passes twice) are no nearer either
+        // way, and neither is chosen in their order.
+        let order = |x: &Hit<T>, y: &Hit<T>| {
+            decide(
+                "bool_sphere_cut_order",
+                Margin::of((x.s.1 * y.s.0 - x.s.0 * y.s.1) / r),
+                band,
+            )
+            .map_err(|diag| geom_core::ladder::Undecided::of(diag).map(|diag| Box::new(esc(diag))))
+        };
+        let nearest = |set: Vec<usize>, below: bool| {
+            let cmp = |&a: &usize, &b: &usize| {
+                if below {
+                    order(&hits[b], &hits[a])
+                } else {
+                    order(&hits[a], &hits[b])
+                }
+            };
+            geom_core::ladder::argmin_decided(set, cmp, geom_core::ladder::FreeOf::Nothing).map_err(
+                |unpicked| {
+                    *unpicked.refusal(
+                        || {
+                            Box::new(refuse(
+                                "the cut's meridian meets the sphere face's boundary at two \
+                                 points of one latitude, so which one the cut runs to is not \
+                                 determined",
+                            ))
+                        },
+                        // One latitude against another along the
+                        // half-meridian, which ranks in no cycle.
+                        || unreachable!("cut-in: the boundary hits' latitudes rank in no cycle"),
+                    )
+                },
+            )
+        };
+        let (below, over) = (
+            nearest(belows, true)?.map(|k| &hits[k]),
+            nearest(overs, false)?.map(|k| &hits[k]),
+        );
         let (Some(below), Some(over)) = (below, over) else {
             return Err(refuse(
                 "the cut's meridian leaves the sphere face through no boundary",

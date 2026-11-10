@@ -385,7 +385,7 @@
 
 use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
-use geom_core::ladder::{Answering, Climb, Rung, climb};
+use geom_core::ladder::{Answering, Climb, FreeOf, Rung, Undecided, argmin_decided, climb};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Real,
     Sign, Tol,
@@ -5373,22 +5373,28 @@ impl<T: Decide> MovedWall<T> {
             }
         }
         // Ordered by decided comparisons, a selection rather than a
-        // `sort_by`: two crossings the band cannot order are a tie and
-        // keep their walk order, which moves an end by less than the band.
+        // `sort_by`: each pass takes the least of what is left through the
+        // decided argmin, free of ties and in-band readings
+        // ([`FreeOf::Band`]). Two crossings the band cannot order keep
+        // their walk order, which moves an end by less than the band; a
+        // poisoned reading stops the count ([`Undecided::of`]).
         for i in 0..crossings.len() {
-            let mut least = i;
-            for j in i + 1..crossings.len() {
-                if matches!(
-                    decide(
-                        "shell_moved_wall_order",
-                        Margin::of(crossings[least] - crossings[j]),
-                        band
-                    ),
-                    Ok(Sign::Positive)
-                ) {
-                    least = j;
-                }
-            }
+            let cmp = |&a: &usize, &b: &usize| {
+                decide(
+                    "shell_moved_wall_order",
+                    Margin::of(crossings[a] - crossings[b]),
+                    band,
+                )
+                .map_err(Undecided::of)
+            };
+            let least = argmin_decided(i..crossings.len(), cmp, FreeOf::Band)
+                .map_err(|unpicked| {
+                    unpicked.refusal(
+                        || unreachable!("free of ties and in-band readings, an argmin picks"),
+                        || unreachable!("one height's difference ranks in no cycle"),
+                    )
+                })?
+                .unwrap_or_else(|| unreachable!("a pass over a non-empty rest has a candidate"));
             crossings.swap(i, least);
         }
         // Parity over closed loops: every vertex has one side, so each

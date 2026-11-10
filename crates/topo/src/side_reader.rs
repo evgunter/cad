@@ -74,6 +74,19 @@ pub struct SetAside {
     pub why: SetAsideWhy,
 }
 
+/// Which in-band mark set a ray aside: a corner, a wedge, or a crossing
+/// the passage could not order (the point-in-solid door's marks, read
+/// into [`SetAsideWhy`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MarkKind {
+    /// [`SetAsideWhy::Corner`].
+    Corner,
+    /// [`SetAsideWhy::Wedge`].
+    Wedge,
+    /// [`SetAsideWhy::Order`].
+    Order,
+}
+
 /// Why an aimed ray read nothing ([`SetAside`]).
 ///
 /// **NOT carried to the façade's curated list, and that is a
@@ -110,6 +123,15 @@ pub enum SetAsideWhy {
         /// The ray's distance from the nearer edge met in band.
         gap: Indeterminate,
     },
+    /// It met a face at an edge where the passage's two crossings could
+    /// not be ordered at this tolerance, and reads nothing there: an
+    /// unordered crossing, never a pair.
+    Order {
+        /// The two faces of the edge.
+        faces: [FaceKey; 2],
+        /// The in-band reading of which crossing is nearer.
+        gap: Indeterminate,
+    },
     /// A crossing it could not place: in band of a face's boundary, or
     /// of a face it met tangentially.
     Crossing(PointInSolidError),
@@ -118,6 +140,32 @@ pub enum SetAsideWhy {
     /// A face it could not read, or a broken one: a limit, no tolerance
     /// moves.
     Limit(PointInSolidError),
+}
+
+impl SetAsideWhy {
+    /// **The set-aside a mark of `kind` reads**, at `faces` with its
+    /// margin `gap`: the one map from a mark's kind to its reason, which
+    /// [`Self::mark`] inverts.
+    pub(crate) const fn marked(kind: MarkKind, faces: [FaceKey; 2], gap: Indeterminate) -> Self {
+        match kind {
+            MarkKind::Corner => Self::Corner { faces, gap },
+            MarkKind::Wedge => Self::Wedge { faces, gap },
+            MarkKind::Order => Self::Order { faces, gap },
+        }
+    }
+
+    /// **The mark that set the ray aside**, if a mark in band did: its
+    /// kind, its two faces and its margin. The one list of the reasons a
+    /// mark gives, which every reader asking "was this ray set aside at a
+    /// mark" reads, so a kind added to [`MarkKind`] reaches each of them.
+    pub(crate) const fn mark(&self) -> Option<(MarkKind, [FaceKey; 2], Indeterminate)> {
+        match *self {
+            Self::Corner { faces, gap } => Some((MarkKind::Corner, faces, gap)),
+            Self::Wedge { faces, gap } => Some((MarkKind::Wedge, faces, gap)),
+            Self::Order { faces, gap } => Some((MarkKind::Order, faces, gap)),
+            Self::Crossing(_) | Self::Graze | Self::Limit(_) => None,
+        }
+    }
 }
 
 /// What [`side_at_infinity`] could not read.
@@ -204,6 +252,14 @@ impl core::fmt::Display for UnreadRays<'_> {
                     f,
                     ", it passed in band of two edges of {}, narrower than the band there \
                      (one of them shared with {}): {}",
+                    EntityId::Face(faces[0]),
+                    EntityId::Face(faces[1]),
+                    gap.payload()
+                )?,
+                SetAsideWhy::Order { faces, gap } => write!(
+                    f,
+                    ", it met the edge between {} and {} where its two crossings could not be \
+                     ordered: {}",
                     EntityId::Face(faces[0]),
                     EntityId::Face(faces[1]),
                     gap.payload()
@@ -743,12 +799,8 @@ fn aimed_ray<T: Decide>(
                 })
             },
             |hits| {
-                RayHit::unread(hits, |wedge, faces, gap| {
-                    Unread::Mark(if wedge {
-                        SetAsideWhy::Wedge { faces, gap }
-                    } else {
-                        SetAsideWhy::Corner { faces, gap }
-                    })
+                RayHit::unread(hits, |kind, faces, gap| {
+                    Unread::Mark(SetAsideWhy::marked(kind, faces, gap))
                 })
             },
         ) {
@@ -1217,6 +1269,60 @@ mod pre_filter_tests {
         assert!(
             read.len() == 1 && read[0].starts_with("Ok(Unread { aimed: 2,"),
             "both faces are aimed at and no aim at a sheet reads a side: {read:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod mark_kind_rows {
+    use super::*;
+
+    const KINDS: [MarkKind; 3] = [MarkKind::Corner, MarkKind::Wedge, MarkKind::Order];
+
+    fn gap() -> Indeterminate {
+        Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-10),
+            band: Band::new(1e-9, 1e-8).unwrap_or_else(|_| unreachable!("a valid band")),
+            predicate: Some("ray_order"),
+            terminal_sliver: false,
+        }
+    }
+
+    /// **Every mark's kind reads back off its set-aside, and nothing
+    /// else reads as a mark**: [`SetAsideWhy::mark`] inverts
+    /// [`SetAsideWhy::marked`] kind by kind, so a reader asking whether a
+    /// ray was set aside at a mark (the shell classifier, the
+    /// point-in-solid evidence) meets every kind. Red if a kind is left
+    /// out of either.
+    #[test]
+    fn every_marks_kind_reads_back_off_its_set_aside() {
+        let faces = [FaceKey::default(); 2];
+        for kind in KINDS {
+            let why = SetAsideWhy::marked(kind, faces, gap());
+            assert_eq!(why.mark().map(|(k, _, _)| k), Some(kind), "{why:?}");
+        }
+        assert!(SetAsideWhy::Graze.mark().is_none(), "a graze is no mark");
+    }
+
+    /// **An unordered crossing says so, with its margin**: the set-aside
+    /// [`SetAsideWhy::Order`] names the edge's two faces, that its
+    /// crossings could not be ordered, and the reading's payload.
+    #[test]
+    fn an_unordered_crossing_says_so_with_its_margin() {
+        let set_aside = [SetAside {
+            aimed: FaceKey::default(),
+            aim: None,
+            why: SetAsideWhy::marked(MarkKind::Order, [FaceKey::default(); 2], gap()),
+        }];
+        let text = UnreadRays {
+            aimed: 1,
+            set_aside: &set_aside,
+        }
+        .to_string();
+        assert!(
+            text.contains("where its two crossings could not be ordered")
+                && text.contains(&gap().payload().to_string()),
+            "{text}"
         );
     }
 }

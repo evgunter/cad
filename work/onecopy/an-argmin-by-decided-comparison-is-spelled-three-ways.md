@@ -231,3 +231,7 @@ the mutual test does not.
   all mutual, citing the theorem above.
 - Otherwise, refuse a tie between pairs with a named cause, and pin it
   with the counterexample row.
+
+**The folds left outside the door** are registered in `scripts/gates/argmin-folds.tsv`, each with its class and its proof at the site (`onecopy/argmin-one-home`). The gate reds a new fold, and a stale row. One class, `lex-total` (`profile::validate::lex_min_index`), is a minimum under a strict total order on what the fold reads, where n − 1 reads find the door's answer. **When a second site has that premise, it ports into a strict-total-order mode of the door, not a second register row.**
+
+**A cycle is proved away at each site, not typed.** Every caller of the door reads `Unpicked::Cyclic` as `unreachable!` with its site's proof that its comparison, one scalar's difference or a lexicographic order of such, ranks in no cycle. The stronger form would make that proof structural: a scalar-key door, whose comparison is one difference by type and whose result type has no `Cyclic`. It is not built.

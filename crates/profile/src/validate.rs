@@ -2200,6 +2200,21 @@ fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>) -> Result<bool, Escalation> {
 
 /// The index of a chain's lexicographically minimal vertex — the
 /// containment representative point.
+///
+/// **Not the decided argmin** (`scripts/gates/argmin-folds.tsv`,
+/// lex-total): the order is strict and total on what this fold reads, so
+/// the fold's n − 1 reads find the minimum the door's every-pair read
+/// would. Its band is `prove`'s hairline (the exact-order band, module
+/// docs), not the tolerance band: a tie there is two coordinates at most
+/// a minimum subnormal apart. Validation's simplicity pass runs first
+/// and refuses two vertices of one loop that close (a contact), so no
+/// two vertices tie in both x and y; every undecided read
+/// escalates (`?`); and a strict total order's minimum is unique and the
+/// same in every order of the vertices. What can depend on the vertices'
+/// order is *which* undecided read refuses, since the fold reads n − 1
+/// pairs and not all of them; no answer rests on that. The door would
+/// read about n²/2 pairs, and abort on an undecided pair between two
+/// vertices both beaten, a validation the kernel passes today.
 fn lex_min_index<T: Decide>(
     vertices: &[Point2<T>],
     loop_index: usize,

@@ -1102,6 +1102,56 @@ pub enum Undecided<E> {
     Aborts(E),
 }
 
+/// **What a minimum not picked leaves once no reading is carried**
+/// ([`Unpicked::carried`]): exact ties, or a cycle.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Uncarried<C> {
+    /// Candidates decided equally near, none in band of another: every
+    /// one of them, in candidate order.
+    Tied(Vec<C>),
+    /// The comparison ranks in a cycle ([`Unpicked::Cyclic`]).
+    Cyclic,
+}
+
+impl<C, E> Unpicked<C, E> {
+    /// **The reading a minimum not picked carries**: the first in-band
+    /// reading among the candidates in contention, or the abort, as the
+    /// caller's comparison stated it. Neither, the exact ties or the
+    /// cycle ([`Uncarried`]). The one spelling of that sub-arm, for a
+    /// caller whose tie answers otherwise (a `None`, a verdict of its
+    /// own).
+    ///
+    /// # Errors
+    ///
+    /// [`Uncarried`] where no reading is carried.
+    pub fn carried(self) -> Result<E, Uncarried<C>> {
+        match self {
+            Self::Contested {
+                in_band: Some(e), ..
+            }
+            | Self::Aborted(e) => Ok(e),
+            Self::Contested {
+                members,
+                in_band: None,
+            } => Err(Uncarried::Tied(members)),
+            Self::Cyclic => Err(Uncarried::Cyclic),
+        }
+    }
+
+    /// **The one refusal a caller makes of a minimum not picked**, where
+    /// its tie is a refusal of the same kind as its readings': the
+    /// reading carried ([`Self::carried`]); an exact tie `tied`, the
+    /// caller's own cause; a cycle `cyclic`, the caller's fault. A caller
+    /// whose tie answers otherwise reads [`Self::carried`].
+    pub fn refusal(self, tied: impl FnOnce() -> E, cyclic: impl FnOnce() -> E) -> E {
+        match self.carried() {
+            Ok(e) => e,
+            Err(Uncarried::Tied(_)) => tied(),
+            Err(Uncarried::Cyclic) => cyclic(),
+        }
+    }
+}
+
 impl Undecided<Indeterminate> {
     /// **The one classifier of an undecided reading for
     /// [`argmin_decided`]**: in band ([`in_band`]) is kept, and a later
@@ -1161,6 +1211,11 @@ pub enum Unpicked<C, E> {
     /// Every candidate is decided farther than some other: the
     /// comparison ranks in a cycle, which no distance does. A kernel
     /// fault in the caller's `cmp` (row 4), never a minimum of none.
+    ///
+    /// **The contract**: a caller whose `cmp` is one scalar's difference,
+    /// or a lexicographic order of such, proves at its site that it ranks
+    /// in no cycle, and reads this arm as `unreachable!` with that proof.
+    /// That is the one way every caller reads it.
     Cyclic,
 }
 

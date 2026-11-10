@@ -79,7 +79,7 @@
 //! [`rest::by_round`] refuse it).
 
 use geom_core::ladder::{
-    Aborts, Answering, Climb, FreeOf, Refusal, Rung, Undecided, Unpicked, argmin_decided, climb,
+    Aborts, Answering, Climb, FreeOf, Refusal, Rung, Undecided, argmin_decided, climb,
 };
 
 use crate::validate::EdgeTangentUnread;
@@ -1333,23 +1333,16 @@ pub(crate) fn face_piece<T: Decide>(
                     Greater => Sign::Positive,
                 })
             };
-            match argmin_decided(passes, cmp, FreeOf::Ties) {
-                Ok(best) => best.map(|b| b.1),
-                Err(
-                    Unpicked::Contested {
-                        in_band: Some(why), ..
-                    }
-                    | Unpicked::Aborted(why),
-                ) => {
-                    return Err(why);
-                }
-                Err(Unpicked::Contested { in_band: None, .. }) => {
-                    unreachable!("free of ties, an argmin with no in-band pair picks")
-                }
-                // The turn, then the side within one turn's half-plane:
-                // a total order, which ranks in no cycle.
-                Err(Unpicked::Cyclic) => unreachable!("the turn order ranks in no cycle"),
-            }
+            argmin_decided(passes, cmp, FreeOf::Ties)
+                .map_err(|unpicked| {
+                    unpicked.refusal(
+                        || unreachable!("free of ties, an argmin with no in-band pair picks"),
+                        // The turn, then the side within one turn's
+                        // half-plane: a total order, which ranks in no cycle.
+                        || unreachable!("the turn order ranks in no cycle"),
+                    )
+                })?
+                .map(|b| b.1)
         }
         PieceAt::Inside => None,
     };
