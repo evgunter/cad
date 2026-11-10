@@ -2770,9 +2770,12 @@ impl<T: Decide> CarriedComponent<T> {
     /// lies within twice the zero of the witness's, so a site is excluded
     /// only where its witness stands past the span's end by the band's
     /// escalation and that twice the zero more
-    /// (`section_site_in_span_past`, the overshoot metered at the sup over
-    /// the gap, so "nearer than that" is sound), whatever the band's ratio of the
-    /// two. That holds because a conic component is a closed form, which
+    /// (`section_site_in_span_past`, the overshoot metered at the inf over
+    /// the gap, so "farther than that" is sound), whatever the band's ratio
+    /// of the two. The desync, a witness past the end by less than that
+    /// reach, is read at the sup (`section_site_in_span_past_near`), so
+    /// "nearer than that" is sound; where the two meters disagree the
+    /// site escalates on both bounds. That holds because a conic component is a closed form, which
     /// carries no pad: a pad widens the witness's reach by twice itself,
     /// and only a fitted component has one, on a spline carrier, which
     /// returns above. A conic component with a pad is a desync.
@@ -2787,28 +2790,48 @@ impl<T: Decide> CarriedComponent<T> {
         }
         let t = geom_core::period::Period::new(T::tau()).at_or_above(t, self.span.0);
         use crate::curve_pair::{GapMeter, Span, SpanEnd};
-        use geom_core::NonzeroSign;
-        use geom_core::k_stats::decide_nonzero;
+        use geom_core::k_stats::{decide_nonzero, decide_nonzero_reported, straddle};
+        use geom_core::{Decided, NonzeroSign, Sign};
         // The gap to the last end, metered over the gap itself
-        // (`Span::end_gap`): inside at the inf, so a decided side of it is
-        // sound, and the overshoot past it at the sup, so "nearer than
-        // twice the zero" is sound too.
+        // (`Span::end_gap`). Each acted-on side is read under the meter
+        // that makes it sound: inside, and past by more than twice the
+        // zero, at the inf (`Clear`); nearer than twice the zero, the
+        // desync, at the sup (`Within`).
         let span = Span::new(&self.carrier, self.span);
         let inside = span.end_gap(t, SpanEnd::Stop, GapMeter::Clear);
         match decide_nonzero(SITE_IN_SPAN, inside, band) {
-            Ok(NonzeroSign::Positive) => Ok(Some(t)),
-            Ok(NonzeroSign::Negative) => {
-                let reach = T::from_computed(2.0 * band.zero());
-                let overshoot = span.end_gap(t, SpanEnd::Stop, GapMeter::Within);
-                match decide_nonzero(SITE_PAST_SPAN, Margin::of(overshoot.value() + reach), band) {
-                    Ok(NonzeroSign::Negative) => Ok(None),
-                    Ok(NonzeroSign::Positive) => Err(SiteRefusal::Desync(
-                        "a witness read past the span reads inside it nearer by twice the zero",
-                    )),
-                    Err(diag) => Err(SiteRefusal::Escalated(diag)),
-                }
-            }
-            Err(diag) => Err(SiteRefusal::Escalated(diag)),
+            Ok(NonzeroSign::Positive) => return Ok(Some(t)),
+            Ok(NonzeroSign::Negative) => {}
+            Err(diag) => return Err(SiteRefusal::Escalated(diag)),
+        }
+        let reach = T::from_computed(2.0 * band.zero());
+        let past = |meter| Margin::of(span.end_gap(t, SpanEnd::Stop, meter).value() + reach);
+        let decided = |(sign, margin): (NonzeroSign, _)| Decided {
+            sign: match sign {
+                NonzeroSign::Positive => Sign::Positive,
+                NonzeroSign::Negative => Sign::Negative,
+            },
+            margin,
+        };
+        let far = decide_nonzero_reported(SITE_PAST_SPAN, past(GapMeter::Clear), band)
+            .map_err(SiteRefusal::Escalated)?;
+        if far.0 == NonzeroSign::Negative {
+            return Ok(None);
+        }
+        let near = decide_nonzero_reported(SITE_PAST_SPAN_NEAR, past(GapMeter::Within), band)
+            .map_err(SiteRefusal::Escalated)?;
+        match near.0 {
+            NonzeroSign::Positive => Err(SiteRefusal::Desync(
+                "a witness read past the span reads inside it nearer by twice the zero",
+            )),
+            // Past by more than the reach at the sup, nearer at the inf:
+            // the carrier's speed over the gap leaves the site undecided.
+            NonzeroSign::Negative => Err(SiteRefusal::Escalated(straddle(
+                SITE_PAST_SPAN_STRADDLE,
+                decided(near),
+                decided(far),
+                band,
+            ))),
         }
     }
 
@@ -2992,8 +3015,17 @@ const SITE_AT_NODE: &str = "section_site_at_node";
 const SITE_IN_SPAN: &str = "section_site_in_span";
 
 /// The site's witness past the span's end by more than the zero's
-/// reach from it ([`CarriedComponent::within_span`]'s docs).
+/// reach from it, its gap metered at the inf over the gap
+/// ([`CarriedComponent::within_span`]'s docs).
 const SITE_PAST_SPAN: &str = "section_site_in_span_past";
+
+/// The site's witness past the span's end by less than the zero's reach,
+/// a desync, its gap metered at the sup over the gap.
+const SITE_PAST_SPAN_NEAR: &str = "section_site_in_span_past_near";
+
+/// The witness past by more than the reach at the sup and by less at the
+/// inf: the two bounds of one undecided overshoot.
+const SITE_PAST_SPAN_STRADDLE: &str = "section_site_in_span_past_straddle";
 
 /// **The node `p` stands at**, among `nodes`, the first test of every
 /// reading of a site (C5): `p`'s distance from each node against the

@@ -121,7 +121,9 @@ pub enum SpanEnd {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GapMeter {
     /// The inf over the gap: a decided `Positive` or `Negative` is sound,
-    /// its `Zero` is not "at the end".
+    /// its `Zero` is not "at the end": it reaches up to the band times the
+    /// ratio of the sup to the inf over the gap's window, which is the
+    /// window's ratio, not the whole carrier's.
     Clear,
     /// The sup over the gap: a decided `Zero` is within the band of the
     /// end, in arc and in chord.
@@ -338,8 +340,8 @@ impl<'a, T: Decide> Span<'a, T> {
     /// to name:
     /// - [`GapMeter::Clear`] meters at the inf: it under-reads the arc, so
     ///   a decided `Positive` ("clear inside") or `Negative` ("clear past")
-    ///   is sound, and its `Zero` reaches up to the sup-to-inf ratio of the
-    ///   band in arc, so no reader may take it as "at the end".
+    ///   is sound, and its `Zero` reaches up to the band times the window's
+    ///   sup-to-inf ratio in arc, so no reader may take it as "at the end".
     /// - [`GapMeter::Within`] meters at the sup: it over-reads the arc, so
     ///   a decided `Zero` is within the band in arc, and so in chord, of the
     ///   end.

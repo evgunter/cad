@@ -105,8 +105,8 @@ const DEFECT_ROUNDING: f64 = 1.0 / (1u64 << 46) as f64;
 /// and [`turn_defect_speed_lo`] read over a turn's defect and a span's
 /// end gap reads over the gap (`geom_brep::curve_pair::Span::end_gap`).
 ///
-/// On a conic the larger semi-axis bounds `|C″|`, so how fast `|C′|`
-/// moves: the speed at `m`, less or plus it times `reach`, held within
+/// On a conic [`accel_hi`] (the larger semi-axis) bounds `|C″|`, so how
+/// fast `|C′|` moves: the speed at `m`, less or plus it times `reach`, held within
 /// the carrier's smaller and larger semi-axis. Never more than the speed
 /// anywhere in the window below, never less above, at `f64` as at
 /// `Interval`, and tight as the window shrinks. On a spiric the sup is
@@ -121,10 +121,11 @@ pub fn window_speed<T: SpanLocate>(
     m: T,
     reach: T,
 ) -> (InfSpeed<T>, SupSpeed<T>) {
-    match Kind::of(carrier) {
+    let kind = Kind::of(carrier);
+    match kind {
         Kind::Conic(c) => (
-            InfSpeed::new((c.speed_at(m) - c.speed_hi() * reach).max(c.speed_lo())),
-            SupSpeed::new((c.speed_at(m) + c.speed_hi() * reach).min(c.speed_hi())),
+            InfSpeed::new((c.speed_at(m) - kind.accel_hi() * reach).max(c.speed_lo())),
+            SupSpeed::new((c.speed_at(m) + kind.accel_hi() * reach).min(c.speed_hi())),
         ),
         Kind::Spiric {
             major,
