@@ -73,7 +73,9 @@ fn session_reading(body: &Body<Sym<f64>>, threads: usize) -> String {
             with_session(budget(), || {
                 match topo::validate_geometric_certificate(body, tol) {
                     Ok(cert) => cert
-                        .measure(topo::test_support::pinned_resolution(tol))
+                        .measure(crate::common::unit_resolution(crate::common::box_unit(
+                            2.0e11,
+                        )))
                         .map_or(true, |m| m.stop != topo::Stop::Met),
                     Err(_) => true,
                 }
@@ -102,7 +104,9 @@ fn session_reading(body: &Body<Sym<f64>>, threads: usize) -> String {
 /// with faces behind it still unresumed.
 #[test]
 fn the_session_receipt_does_not_move_with_the_thread_count() {
-    let eps = Tol::witness().get().eps;
+    // The coarse loft reaches `2·1e11` units; the names keep `eps` for
+    // the unit (`common::box_unit`), ε but at 1e-6.
+    let eps = crate::common::box_unit(2.0e11);
     for (label, body) in [
         ("sym_arc_loft_1e9eps", sym_arc_loft(1.0e9 * eps)),
         ("sym_arc_loft_1e11eps", sym_arc_loft(1.0e11 * eps)),

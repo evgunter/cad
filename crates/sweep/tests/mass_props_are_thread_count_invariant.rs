@@ -129,23 +129,18 @@ fn roster() -> Vec<(String, Body<f64>, topo::Settle<f64>)> {
     out
 }
 
-/// **The roster's unit**: ε, or less where the strip at `1e12` units,
-/// reaching `1e12` (its half width and its height), would pass the 1 km
-/// session box (`[tolerance.units]`): at ε = 1e-6 the unit is `1e-9`,
-/// and the bodies there are the 1e-9 row's. The bodies are measured at
-/// [`resolution`], `1024` units, so a scaled body's size against its
-/// resolution is the same at every ε row; the fixed bodies are measured
-/// at the pinned `1024·ε`. The names keep `eps` for the unit.
+/// **The roster's unit** ([`crate::common::box_unit`]): ε, or less
+/// where the strip at `1e12` units, reaching `1e12` (its half width and
+/// its height), would pass the session box: at ε = 1e-6 the unit is
+/// `1e-9`, and the bodies there are the 1e-9 row's. The scaled bodies are
+/// measured at `1024` units, the fixed ones at the pinned `1024·ε`. The
+/// names keep `eps` for the unit.
 fn unit() -> f64 {
-    Tol::witness()
-        .get()
-        .eps
-        .min(geom_core::tolerance::SESSION_BOX_EXTENT / 1.0e12)
+    crate::common::box_unit(1.0e12)
 }
 
-/// The pinned `1024·ε`, in [`unit`]s.
 fn resolution<T: geom_core::Real>() -> topo::Settle<T> {
-    topo::test_support::resolution(1024.0 * unit())
+    crate::common::unit_resolution(unit())
 }
 
 /// One body's line: the reading (bits, or the typed refusal — which is

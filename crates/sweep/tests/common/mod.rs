@@ -957,3 +957,20 @@ pub fn brick_door(
         tol,
     )
 }
+
+/// **The length a fixture scaled with ε is built in**: ε, or less where
+/// a fixture reaching `reach` of them would pass the 1 km session box
+/// (`[tolerance.units]`), so it reaches the box's extent at most. A row
+/// measures such a fixture at [`unit_resolution`], so its size against
+/// its resolution is the same at every ε row.
+pub fn box_unit(reach: f64) -> f64 {
+    Tol::witness()
+        .get()
+        .eps
+        .min(geom_core::tolerance::SESSION_BOX_EXTENT / reach)
+}
+
+/// The pinned `1024·ε`, in [`box_unit`]s.
+pub fn unit_resolution<T: geom_core::Real>(unit: f64) -> topo::Settle<T> {
+    topo::test_support::resolution(1024.0 * unit)
+}

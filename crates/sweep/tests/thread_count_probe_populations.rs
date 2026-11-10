@@ -31,9 +31,10 @@ use sweep::loft_body;
 use topo::Body;
 
 /// The arc loft at the recording scalar, scaled with ε as its f64
-/// twins in both origin suites are.
+/// twins in both origin suites are, in the session box's unit
+/// (`common::box_unit`; it reaches `√2·1e9` of them).
 fn probe_arc_loft() -> Body<Probe> {
-    let eps = Tol::witness().get().eps;
+    let eps = crate::common::box_unit(core::f64::consts::SQRT_2 * 1.0e9);
     loft_body::<Probe>(
         &sweep::test_support::lift_sections::<Probe>(&[
             arc_section(1.0e9 * eps),
@@ -87,7 +88,9 @@ fn the_mass_props_sample_population_is_identical_at_one_and_four_threads() {
         let _ = topo::mass_properties(
             &body,
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            crate::common::unit_resolution(crate::common::box_unit(
+                core::f64::consts::SQRT_2 * 1.0e9,
+            )),
         );
     });
 }
