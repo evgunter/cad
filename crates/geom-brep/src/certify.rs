@@ -6505,7 +6505,7 @@ mod tests {
     ///
     /// At the interval scalar the guard reads the same door: an exact
     /// `[0, 0]` direction refuses as the point's zero does, and a direction
-    /// whose enclosure straddles zero by more than the band is not decided,
+    /// whose enclosure straddles zero past the band's escalation is not decided,
     /// so the metred span escalates rather than certifying.
     #[test]
     fn a_lines_span_is_forward_in_metres_where_its_dir_is_zero() {
@@ -6564,7 +6564,10 @@ mod tests {
         let flat = Vec3::new(iv(0.0), iv(0.0), iv(0.0));
         let err = certify_interval(along(flat, iv(1.0)), origin).unwrap_err();
         assert!(zero_refusal(&err), "[0, 0]: {err:?}");
-        let wide = Interval::from_bounds(-2e-8, 2e-8);
+        // A straddle past the escalation of the band in force, so its
+        // metred span reads neither zero nor positive at every ε.
+        let reach = 2.0 * band().escalate();
+        let wide = Interval::from_bounds(-reach, reach);
         let straddling = Vec3::new(wide, iv(0.0), iv(0.0));
         let err = certify_interval(along(straddling, iv(1.0)), origin).unwrap_err();
         assert!(
