@@ -101,9 +101,7 @@ pub(crate) fn endpoint_params(
                     })
                 }
             };
-            let Some(turn) = carrier.period() else {
-                unreachable!("a circle or an ellipse has a period")
-            };
+            let turn = conic.period();
             let t0 = turn.at_or_above(angle(p_start)?, 0.0);
             if self_loop {
                 return Ok((t0, t0 + turn.length()));

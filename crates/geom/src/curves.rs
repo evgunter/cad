@@ -960,19 +960,18 @@ impl<T: Real> Curve3<T> {
         }
     }
 
-    /// **The carrier's period, where its parameter repeats**: a circle,
-    /// an ellipse and a spiric oval repeat every turn, so a parameter
-    /// names its point modulo `τ`; a line and a spline do not (`None`).
-    /// The one answer to a carrier's period, matched exhaustively so a
-    /// new kind decides here: every reader that renames a parameter by
-    /// whole periods, or reads it on its copy a period away
-    /// ([`Period::span_margins`]), asks the carrier this.
+    /// **The carrier's period, where its parameter repeats**: a conic's
+    /// ([`Conic::period`]) and a spiric oval's ([`spiric_period`]), each
+    /// kind's own statement; a line and a spline do not repeat (`None`).
+    /// Matched exhaustively over the kinds. A renaming by whole periods,
+    /// or a reading on a copy a period away ([`Period::span_margins`]),
+    /// reads it.
     #[must_use]
     pub fn period(&self) -> Option<Period<T>> {
         match self {
-            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
-                Some(Period::new(T::tau()))
-            }
+            Curve3::Circle(c) => Some(c.period()),
+            Curve3::Ellipse(e) => Some(e.period()),
+            Curve3::Spiric { .. } => Some(spiric_period()),
             Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
     }
@@ -1473,6 +1472,13 @@ impl<T: Real> Curve3<T> {
     }
 }
 
+/// **A spiric oval's period**, one turn: its parameter is the torus's
+/// minor angle ([`Curve3::Spiric`]), so a parameter names its point
+/// modulo `τ`.
+pub fn spiric_period<T: Real>() -> Period<T> {
+    Period::new(T::tau())
+}
+
 /// The range of a spiric's `f = √(ρ² − offset²)` over one period, as
 /// `(f_min, f_max)` at `ρ = R ∓ r` — `f` is monotone in `ρ` and
 /// `ρ ∈ [R − r, R + r]`. The plain roots of [`spiric_radicands`], read
@@ -1837,6 +1843,45 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **Each kind's period, pinned**: a circle, an ellipse and a spiric
+    /// oval repeat every turn, at `τ` exactly; a line and a spline do not.
+    /// The bits are `τ`'s, so a renaming by whole periods reads the same
+    /// expression at every kind that has one.
+    #[test]
+    fn each_kind_states_its_period() {
+        let frame = Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let periodic = [
+            Curve3::Circle(Circle::new(frame, 1.5)),
+            Curve3::Ellipse(Ellipse::new(frame, 2.0, 1.0)),
+            Curve3::Spiric {
+                center: frame.origin,
+                axis: frame.axis,
+                u_ref: frame.u_ref,
+                major_radius: 3.0,
+                minor_radius: 1.0,
+                offset: 0.5,
+            },
+        ];
+        for c in &periodic {
+            let p = c.period().unwrap_or_else(|| panic!("{c:?} repeats"));
+            assert_eq!(p.length().to_bits(), TAU.to_bits(), "{c:?}");
+        }
+        let open = [
+            Curve3::Line(Line {
+                origin: frame.origin,
+                dir: frame.axis,
+            }),
+            Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
+        ];
+        for c in &open {
+            assert!(c.period().is_none(), "{c:?} does not repeat");
+        }
+    }
 
     /// **Two lines' closest approach**: skew lines meet their common
     /// perpendicular at the parameters the closed form reads, whatever the

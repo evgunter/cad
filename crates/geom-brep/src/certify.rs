@@ -3971,9 +3971,10 @@ fn decide_turn<T: Decide>(
             let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {
                 unreachable!("check 2: `speed_floor` answers every periodic carrier")
             };
-            let Some(one_turn) = periodic.period() else {
-                unreachable!("check 2: a circle, an ellipse and a spiric have a period")
-            };
+            // Each kind's own period: a conic's, or the spiric's.
+            let one_turn = periodic
+                .conic()
+                .map_or_else(geom::spiric_period, |conic| conic.period());
             // Forward at the floor, or, short of it, by the chord between
             // the span's end points with its sense at the sup speed: a
             // short span at an ellipse's fast vertex reads its arc at up
