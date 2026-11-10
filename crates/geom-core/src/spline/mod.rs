@@ -49,6 +49,7 @@
 pub mod algebra;
 pub mod basis;
 pub mod blossom;
+pub mod built;
 pub mod compose;
 pub mod derivative;
 pub mod hull;
@@ -65,6 +66,7 @@ pub mod weights;
 
 pub use algebra::{CurvePlan, KnotAlgebraError, RemovalStep, RingRefinement};
 pub use blossom::{BlossomError, SpanRow, diagonal_in_span, restrict_segment};
+pub use built::{Built, Fact};
 pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };

@@ -224,7 +224,7 @@ fn chamfer_feet<T: Decide + Bounds>(
                 let l = o.link();
                 let (trim, _) = l.trim_on(face)?;
                 match trim.as_line() {
-                    Some(geom::Line { origin, dir }) => Some(Ok((origin, dir))),
+                    Some(line) => Some(Ok(line)),
                     None => Some(Err(unbuilt_geometry(
                         EntityId::Edge(l.edge),
                         "a chamfer strip's trimline is not a line",
@@ -237,13 +237,12 @@ fn chamfer_feet<T: Decide + Bounds>(
                 "a corner's support does not carry two requested edges",
             ));
         };
-        let (o1, d1) = first?;
-        let (o2, d2) = second?;
+        let (a, b) = (first?, second?);
         // Both trimlines lie in this support, so their cross product
         // is the support's own normal up to a nonzero scale — and
         // `line_meet`'s ratio is invariant under that scale, so no
         // second reading of the face's stored plane is needed.
-        feet[slot] = line_meet(o1, d1, o2, d2, d1.cross(d2));
+        feet[slot] = line_meet(a, b, a.dir.cross(b.dir));
     }
     Ok(feet)
 }

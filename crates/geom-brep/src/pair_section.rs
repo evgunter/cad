@@ -2346,7 +2346,9 @@ fn seat_at(
             let ends = [net.eval(lo), net.eval(hi)];
             return match at_the_start(net.eval(at), ends, band) {
                 Ok(true) => Ok(component.clone()),
-                Ok(false) => Err(CarryError::Refused(CarryRefusal::Seat(e))),
+                Ok(false) => Err(CarryError::Refused(CarryRefusal::Seat(
+                    geom_core::spline::Built::new(e),
+                ))),
                 Err(diag) => Err(CarryError::Escalated(diag)),
             };
         }
@@ -2485,7 +2487,7 @@ pub enum CarryRefusal {
     Unwalked(geom::PieceWalkRefusal),
     /// A closed fitted component could not be opened at its first site
     /// ([`PairSection::seat`]): the knot edit refused.
-    Seat(geom_core::spline::KnotAlgebraError),
+    Seat(geom_core::spline::Built<geom_core::spline::KnotAlgebraError>),
 }
 
 impl CarryRefusal {
@@ -2540,12 +2542,9 @@ impl CarryRefusal {
                  {why}. {}",
                 why.recourse()
             ),
-            // The seat is a knot edit at a parameter the kernel chose
-            // strictly inside the carrier, so its refusal is the kernel's.
             Self::Seat(e) => write!(
                 f,
-                "the section's closed loop could not be opened at its first site: {}. {defect}",
-                e.fact()
+                "the section's closed loop could not be opened at its first site: {e}. {defect}"
             ),
         }
     }

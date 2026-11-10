@@ -70,6 +70,7 @@
 //! exhaustion. [`walk`]'s exhaustion argument receives nothing to
 //! relabel.
 
+pub(crate) use crate::rows::{ParityRows, SegmentRows};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{
     Band, Decide, Indeterminate, MOVE_RECOURSE, Margin, Point2, Point3, Sign, Vec2, Vec3,
@@ -537,56 +538,6 @@ impl<T: Decide> RaySpace<T> for Point2<T> {
     }
 }
 
-/// The four K rows one consumer meters its walk through. Distinct
-/// names per consumer are the point: see the module docs.
-///
-/// **These name literals are the greppable K roster entry for the
-/// walk.** A name passed as a parameter is invisible to a grep for a
-/// literal at the funnel site, so this type is named explicitly in
-/// `K-REPORT.md`'s inventory method. It is one of several such
-/// carriers, not the only one — the restated method there enumerates
-/// the classes and their measured residue. A new `ParityRows` value is
-/// a roster change and belongs in that document.
-pub(crate) struct ParityRows {
-    /// A segment's own length — the degeneracy gate. Zero ⇒ the
-    /// segment is null scaffolding and the point distance is measured
-    /// exactly (the foot division below would poison on it, `w·e/0`);
-    /// a certified-short-but-nonzero segment is a genuine sliver and
-    /// escalates like any in-band comparison.
-    pub segment: &'static str,
-    /// The distance from `q` to a closed segment — perpendicular at
-    /// an interior foot, endpoint otherwise. Zero ⇒ on the boundary.
-    pub boundary: &'static str,
-    /// A vertex's signed offset from the ray line. Zero ⇒ grazing ⇒
-    /// next ray.
-    pub side: &'static str,
-    /// A straddling segment's crossing advance along the ray. Zero
-    /// would be a crossing at `q` itself, contradicting the boundary
-    /// pre-pass ⇒ next ray.
-    pub advance: &'static str,
-}
-
-/// The two of a [`ParityRows`] that [`on_segment`] reads, for a caller
-/// that reads a segment's boundary and casts no ray through it, so
-/// mints no `side` or `advance`. A new value is a roster change, as a
-/// [`ParityRows`] value is.
-pub(crate) struct SegmentRows {
-    /// As [`ParityRows::segment`].
-    pub segment: &'static str,
-    /// As [`ParityRows::boundary`].
-    pub boundary: &'static str,
-}
-
-impl ParityRows {
-    /// The two rows of a segment's boundary reading.
-    pub(crate) const fn segment_rows(&self) -> SegmentRows {
-        SegmentRows {
-            segment: self.segment,
-            boundary: self.boundary,
-        }
-    }
-}
-
 /// The boundary pre-pass: is `q` within the band of any closed
 /// segment of the cycle `verts`?
 ///
@@ -612,12 +563,17 @@ where
     P: RaySpace<T>,
 {
     let n = verts.len();
-    for i in 0..n {
-        if on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band)? {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    // Any segment holding `q` puts it on the boundary, whatever an
+    // earlier segment read ([`climb`], [`Answering::Any`]): a segment read
+    // in band is kept, refusing only where no segment holds `q`.
+    climb(Answering::Any, 0..n, |i| {
+        Rung::of_reading(
+            on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band)
+                .map(|on| on.then_some(())),
+        )
+    })
+    .into_reading()
+    .map(|on| on.is_some())
 }
 
 /// Is `q` within the band of the closed segment `[a, b]`? One step of
@@ -663,13 +619,13 @@ where
     // door (`Margin::norm2`/`norm3`); a span's is its line's home
     // (`segment_distance`), a length upstream geometry states in metres,
     // which `Margin::of` admits. The two are the same norm, bit for bit.
-    let gap = match decide(rows.segment, P::length_margin(b.disp(a)), band)? {
+    let gap = match decide(rows.segment(), P::length_margin(b.disp(a)), band)? {
         Sign::Zero => P::length_margin(q.disp(a)),
         _ => Margin::of(P::segment_distance(a, b, q)),
     };
     // Zero ⇒ on boundary; Positive (Negative unreachable for a
     // distance) ⇒ strictly off this segment.
-    let decided = geom_core::k_stats::decide_reported(rows.boundary, gap, band)?;
+    let decided = geom_core::k_stats::decide_reported(rows.boundary(), gap, band)?;
     Ok((decided.sign == Sign::Zero).then_some(decided.margin))
 }
 
@@ -735,7 +691,7 @@ where
         xs.push(P::dot(w, d));
         let y = P::dot(w, side_axis);
         ys.push(y);
-        match decide(rows.side, Margin::of(y), band)? {
+        match decide(rows.side(), Margin::of(y), band)? {
             Sign::Zero => return Ok(None), // vertex on the ray line
             s => sides.push(s),
         }
@@ -749,7 +705,7 @@ where
         }
         // Straddling: the crossing's advance along the ray.
         let advance = Margin::over_lever(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
-        match decide(rows.advance, advance, band)? {
+        match decide(rows.advance(), advance, band)? {
             Sign::Positive => crossings += 1,
             Sign::Negative => {}
             // A crossing at q itself contradicts the boundary
@@ -765,12 +721,7 @@ where
 mod tests {
     use super::*;
 
-    const ROWS: ParityRows = ParityRows {
-        segment: "test_ray_walk_segment",
-        boundary: "test_ray_walk_boundary",
-        side: "test_ray_walk_side",
-        advance: "test_ray_walk_advance",
-    };
+    const ROWS: ParityRows = crate::rows::TEST_RAY_WALK;
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
@@ -847,6 +798,28 @@ mod tests {
             Point2::new(1.0, 1.0),
             Point2::new(0.0, 1.0),
         ]
+    }
+
+    /// **A segment holding the point answers past a segment read in
+    /// band** ([`on_boundary`] climbs the segments under `Any`, QML T4): a
+    /// box `5e-9` tall, the point on its bottom edge, so its top edge
+    /// (read first) is in band of it, its left edge decidedly off, and its
+    /// bottom edge holds it. The first-refusal loop refused at the top.
+    #[test]
+    fn a_segment_holding_the_point_answers_past_one_in_band() {
+        let h = 5e-9;
+        let poly = [
+            Point2::new(1.0, h),
+            Point2::new(0.0, h),
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+        ];
+        let q = Point2::new(0.5, 0.0);
+        assert!(
+            on_segment(poly[0], poly[1], q, &ROWS.segment_rows(), band()).is_err(),
+            "the top edge reads the point in band"
+        );
+        assert_eq!(on_boundary(&poly, q, &ROWS, band()), Ok(true));
     }
 
     #[test]
