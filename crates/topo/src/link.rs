@@ -1282,25 +1282,8 @@ pub(crate) fn face_piece<T: Decide>(
         })
     };
     // The order of two points' turns about `p`, keeping why a turn's
-    // side read nothing: the decided argmin below classifies it
-    // ([`Undecided::of`]), so a poisoned reading stops it rather than
-    // being superseded by a candidate that closes the question.
-    let order_kept = |a: (Turn, Point3<T>),
-                      b: (Turn, Point3<T>)|
-     -> Result<core::cmp::Ordering, Undecided<TouchUnread>> {
-        if a.0 != b.0 {
-            return Ok(a.0.cmp(&b.0));
-        }
-        if matches!(a.0, Turn::Ahead | Turn::Back) {
-            return Ok(Equal);
-        }
-        Ok(match wedge_settle(p, m, a.1, b.1, rd) {
-            Ok(Sign::Positive) => Less,
-            Ok(Sign::Negative) => Greater,
-            Ok(Sign::Zero) => Equal,
-            Err(why) => return Err(turn_unread(why)),
-        })
-    };
+    // side read nothing ([`turn_order`]).
+    let order_kept = |a: (Turn, Point3<T>), b: (Turn, Point3<T>)| turn_order(p, m, rd, a, b);
     // The same order, as the sort and the sector's ends read it.
     let order = |a: (Turn, Point3<T>), b: (Turn, Point3<T>)| {
         order_kept(a, b).map_err(|why| match why {
@@ -1505,21 +1488,50 @@ fn wedge_side<T: Decide>(
     wedge_settle(p, m, r, x, rd).ok()
 }
 
+/// **The order of two points' turns about `p`** in [`face_piece`] (the
+/// turn first, then the side within one turn's half-plane), keeping why a
+/// side read nothing: the piece-end fold's decided argmin classifies it
+/// ([`turn_unread`]), so a poisoned reading stops it rather than being
+/// superseded by a candidate that closes the question.
+fn turn_order<T: Decide>(
+    p: Point3<T>,
+    m: Vec3<T>,
+    rd: Reading<T>,
+    a: (Turn, Point3<T>),
+    b: (Turn, Point3<T>),
+) -> Result<core::cmp::Ordering, Undecided<TouchUnread>> {
+    use core::cmp::Ordering::{Equal, Greater, Less};
+    if a.0 != b.0 {
+        return Ok(a.0.cmp(&b.0));
+    }
+    if matches!(a.0, Turn::Ahead | Turn::Back) {
+        return Ok(Equal);
+    }
+    Ok(match wedge_settle(p, m, a.1, b.1, rd) {
+        Ok(Sign::Positive) => Less,
+        Ok(Sign::Negative) => Greater,
+        Ok(Sign::Zero) => Equal,
+        Err(why) => return Err(turn_unread(why)),
+    })
+}
+
 /// **A turn's side that read nothing, as the decided argmin keeps it**
 /// ([`face_piece`]'s piece-end fold): a distance in band is classified
 /// by its escalation ([`Undecided::of`]), so a poisoned margin or an
 /// enclosure straddling the band's edge stops the argmin rather than
-/// being superseded; the other in-band arms (row 1(b), as each variant
-/// states) are kept, and a contradiction aborts. Each refuses as the
+/// being superseded. Every other standing is the one
+/// [`Unsettled::refusal`] states, read there rather than restated: kept
+/// where it is a refusal, stopping where it aborts. Each refuses as the
 /// piece's in-band refusal.
 fn turn_unread<T>(why: Unsettled<T>) -> Undecided<TouchUnread> {
-    match why {
-        Unsettled::InBand(diag) => Undecided::of(diag).map(|_| TouchUnread::PieceInBand),
-        Unsettled::Zero(..) | Unsettled::Slack | Unsettled::Unplaced => {
-            Undecided::InBand(TouchUnread::PieceInBand)
-        }
-        Unsettled::Contradicted => Undecided::Aborts(TouchUnread::PieceInBand),
-    }
+    let kept = match why.refusal() {
+        Ok(Refusal::Margin(diag)) => Undecided::of(diag).map(|_| ()),
+        // Band-dependent: a tighter band may part it.
+        Ok(Refusal::InBand | Refusal::Unsettled) => Undecided::InBand(()),
+        // A limit no tolerance moves, or an abort, stops the argmin.
+        Ok(Refusal::Limit) | Err(Aborts) => Undecided::Aborts(()),
+    };
+    kept.map(|()| TouchUnread::PieceInBand)
 }
 
 /// [`wedge_side`], keeping why it read nothing ([`metric::settle_as`]).
@@ -6763,6 +6775,38 @@ mod turn_unread_rows {
             turn_unread::<f64>(Unsettled::Contradicted),
             Undecided::Aborts(TouchUnread::PieceInBand),
             "a contradiction aborts"
+        );
+    }
+    /// **[`face_piece`]'s turn order keeps a poisoned side as an abort**
+    /// ([`turn_order`], which the piece-end fold's argmin reads): two
+    /// points at one turn whose side reads a poisoned margin (a NaN
+    /// coordinate) stop the argmin, and two decided apart order. Red where
+    /// the order maps a side that read nothing straight to in band, which
+    /// would let a candidate decided nearer supersede the poison.
+    #[test]
+    fn the_piece_end_order_stops_on_a_poisoned_side() {
+        use super::{Reading, Turn, turn_order};
+        use core::cmp::Ordering;
+        use geom_core::{Point3, Vec3};
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let rd = Reading {
+            band,
+            slack: None,
+            own: false,
+        };
+        let (p, m) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let left = |x: f64, y: f64| (Turn::Left, Point3::new(x, y, 0.0));
+        assert_eq!(
+            turn_order(p, m, rd, left(1.0, 1.0), left(f64::NAN, 1.0)),
+            Err(Undecided::Aborts(TouchUnread::PieceInBand)),
+            "a poisoned side aborts"
+        );
+        assert!(
+            matches!(
+                turn_order(p, m, rd, left(1.0, 1.0), left(-1.0, 1.0)),
+                Ok(Ordering::Less | Ordering::Greater)
+            ),
+            "two sides decided apart order"
         );
     }
 }
