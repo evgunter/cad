@@ -170,23 +170,21 @@ its index the selection's own `Count` slots, and the member's own names,
 so D10's per-copy `gap(c[k].r, c[(k + 1) mod N].l)` is a selection of
 `c` beside a selection of `c[(k + 1) mod N]`. A selection whose indices
 are exactly the family's own index chain is the plain read: `xs[k]` is
-stored as `xs`. A selection reads one body: its body is a body seat,
-where a family read plainly is read one member at a time, its reader
-evaluated per member, so nothing reads the family whole there, whatever
-names the selection holds; a name of the family's table is no member's
-own. A member is reached by an indexed read, never through the family's
-table, and the index is never stored twice. At a mate side, each index
-is a written count or absent, since the mate's member walk reads the
-member from the document, never from an evaluated value: a site names a
-member's entity as the family's table does, `Member { (i, …), of }` at
-the family, and the side reading it is `xs[i]` at those counts by the
-member's own name `of`, its head read back the same way. A member is not
-a named alias:
+stored as `xs`. A selection reads one body: its body is a body seat. A
+member is reached by an indexed read, never through the family's table,
+and the index is never stored twice. At a mate side, each index is a
+written count or absent, since the mate's member walk reads the member
+from the document, never from an evaluated value: a side reads `xs[i]`
+at written counts by the member's own name; the mate's member walk
+derives its head from the side (`head_of`), the family's spelling of
+that entity, never authored. A member is not a named alias:
 two readers wanting one member share the family and a named `Count`. A
 name is scoped by the variable that holds its body (N1), so a split half's names do not spell the half: its variable says it,
 and a selection of `split.above` states its body once. A body seat
-reading a whole family, a profile or a split as a whole refuses by kind at
-the door (`SlotVarKind`).
+reading a profile refuses by kind at the door (`SlotVarKind`), and a
+split read as a whole names no one output (`AmbiguousOutput`). A family
+read plainly at a body seat is read one member at a time, so no body
+seat reads a family whole.
 
 *Built: the indexed read at every body seat, rank one, FORK-DM4 unit 1
 (PR 4527); a selection's body read, PR 6555. Every family a node defines is one flat list, so `xs[i, j]`
