@@ -423,19 +423,39 @@ pub(super) fn singular_at<T: Decide>(
         .map(|sign| sign != Sign::Positive)
 }
 
+/// What `e`'s carrier holds at its end `w` ([`crease_at`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Crease {
+    /// The end's parameter is decided equal to one of the carrier's
+    /// creases.
+    Decided,
+    /// Decided apart from every crease, or the carrier is no spline.
+    No,
+    /// Undecided against a crease: an enclosure of the parameter
+    /// straddles it, so a crease may stand there.
+    Undecided,
+}
+
 /// Whether `e`'s carrier holds a crease run at its end `w`: a spline
 /// carrier whose parameter there is one point and is its own clamped
 /// end, or an interior knot of multiplicity at least its degree. A
 /// carrier run on through `w` would carry a knot of that multiplicity,
 /// so `w` is the vertex the knot structure puts there, not one a join
-/// takes back (module docs). Structural: the parameter's exact equality
-/// with one of the carrier's own knots, no margin.
-fn crease_at<T: Decide>(body: &Body<T>, e: EdgeKey, d: &crate::entity::Edge, w: VertexKey) -> bool {
+/// takes back (module docs). The parameter's exact equality with one of
+/// the carrier's own knots, read as a proof's inequality
+/// ([`geom_core::k_stats::prove`], the least band): a zero difference is
+/// [`Crease::Decided`], an enclosure straddling it [`Crease::Undecided`].
+fn crease_at<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    d: &crate::entity::Edge,
+    w: VertexKey,
+) -> Crease {
     let Some(c) = body.edge_curve_linked(e, d).certified() else {
-        return false;
+        return Crease::No;
     };
     let geom::Curve3::Nurbs(n) = c.carrier() else {
-        return false;
+        return Crease::No;
     };
     let (t0, t1) = c.params();
     let starts_at_w = body.get_half_edge(d.he_plus).map(|h| h.start) == Some(w);
@@ -443,13 +463,17 @@ fn crease_at<T: Decide>(body: &Body<T>, e: EdgeKey, d: &crate::entity::Edge, w: 
     let knots = n.knot_values();
     let (a, b) = knots.domain();
     // Equal as an exact comparison reads it: the least band, where only
-    // a zero difference is Zero and an enclosure straddling it is no
-    // answer, so no crease.
-    [a, b].into_iter().chain(knots.crease_values()).any(|k| {
-        (t - k)
-            .sign_within(Band::least())
-            .is_ok_and(|d| d.sign == Sign::Zero)
-    })
+    // a zero difference is Zero and only an enclosure straddling it is
+    // undecided.
+    let mut read = Crease::No;
+    for k in [a, b].into_iter().chain(knots.crease_values()) {
+        match geom_core::k_stats::prove("edge_join_crease_at", Margin::of(t - k)) {
+            Ok(Sign::Zero) => return Crease::Decided,
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Err(_) => read = Crease::Undecided,
+        }
+    }
+    read
 }
 
 /// `w`'s join, if `w` is joinable (module docs). The half-edges in
@@ -490,14 +514,22 @@ fn joinable<T: Decide>(
     };
     // The joined edge runs on the kept carrier through `w`, so `kept`
     // is an edge whose carrier has no crease there; where both have
-    // one, `w` is the vertex the knot structure puts there.
+    // one, `w` is the vertex the knot structure puts there. **An
+    // undecided knot stops the join; only a decided crease picks the
+    // kept edge.** Not joining leaves `w` a vertex on a smooth edge,
+    // which is valid topology whatever the truth: so an edge that may
+    // crease is never run on through `w` (Ev's PR 5913 ruling, module
+    // docs), and is never chosen as the edge that is not kept either,
+    // which would join on the other carrier on a reading that did not
+    // decide.
     let (h1, h2, e1, e2) = match (
         crease_at(body, e1, link(e1, *h1), w),
         crease_at(body, e2, link(e2, *h2), w),
     ) {
-        (true, true) => return Ok(None),
-        (false, true) => (h2, h1, e2, e1),
-        _ => (h1, h2, e1, e2),
+        (Crease::Undecided, _) | (_, Crease::Undecided) => return Ok(None),
+        (Crease::Decided, Crease::Decided) => return Ok(None),
+        (Crease::No, Crease::Decided) => (h2, h1, e2, e1),
+        (Crease::Decided | Crease::No, Crease::No) => (h1, h2, e1, e2),
     };
     let (d1, d2) = (link(e1, *h1), link(e2, *h2));
     let (s1, s2) = (edge_sides_of(body, e1, d1), edge_sides_of(body, e2, d2));
