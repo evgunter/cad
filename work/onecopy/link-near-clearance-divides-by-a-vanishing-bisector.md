@@ -2,10 +2,12 @@
 id: link-near-clearance-divides-by-a-vanishing-bisector
 kind: issue
 title: link's Near clearance reads along a bisector that vanishes where the two ends are near-antipodal, a [simple.conditioned] defect to re-pose
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: M
+closed: 2026-11-10
+pr: 6703
 ---
 
 
