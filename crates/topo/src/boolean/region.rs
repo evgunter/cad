@@ -138,8 +138,8 @@ pub(crate) fn circle_edge_hit<T: Decide>(
         ConicHit::On(_) | ConicHit::End => Ok(true),
         ConicHit::Off | ConicHit::Carrier => Ok(false),
         ConicHit::Unsettled => Err(RegionRefusal::RayExhausted { outer }),
-        // A conic its certification should have refused: a corrupt face
-        // (`RegionRefusal::WoundPastPeriod`'s image), not a reading.
+        // A conic its certification should have refused (no speed bound):
+        // a corrupt face, `WoundPastPeriod`'s image, not a reading.
         ConicHit::Uncertified => Err(RegionRefusal::WoundPastPeriod),
     }
 }
