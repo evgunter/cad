@@ -193,3 +193,11 @@
   - The P1 unit stays open until its remaining cost centres move; it is the PCERT row that holds them.
   - **Review tier: single FULL**, set at dispatch. One cloud reviewer (`spiricarm/review-6805-brief`).
   - The lane reported a red nightly row (`germ_tilted_rod::the_steeper_tilts_union_stops_by_identity`, ONEHOME's `NotFinished` shape). It is already filed as `tint/main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape`.
+- 2026-11-10 — **The horn cusp is up as PR 6806** (head `0c3420d4cb`, CI green).
+  - **Phase 0** traced limb 2 before building. No reading built on `|f|` reaches the band beside a tangency, so a part is read at its own height instead: ρ_s(z) = R − √(r² − z²), in a cancellation-free form, giving `Meters::at_height`.
+  - **No fork:** no ratified clause governs it.
+  - **On a sheet,** `certified` now takes the least of `over`, `at_height` and `apex_root`.
+  - **A sheet's `v` is read about zero.** This fixes `a-wide-apples-tube-angle-passes-the-latitude-windows-cut`, whose done-when is now met.
+  - **The mesh walk** names a cusp reached from below at −π.
+  - **Mutants:** all red except the R > 0 guard, which the lane proved equivalent. The reviewers are asked to run that mutant over every row of the subject.
+  - **Dual dispatched** as two cloud sessions (`spiricarm/review-6806-brief`, sha256 `71709f98…`).
