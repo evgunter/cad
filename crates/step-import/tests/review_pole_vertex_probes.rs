@@ -125,7 +125,7 @@ fn outcome(name: &str, text: &str) -> Result<(f64, usize), String> {
         .iter()
         .filter(|n| matches!(n.kind, NormalizationKind::ChartSingularityVertex { .. }))
         .count();
-    let b = body.body();
+    let b = &*body;
     assert_eq!(topo::validate_geometric(b, tol), Ok(()), "{name}: tier 3");
     let volume = topo::test_support::pinned_volume(
         "the measured body",
@@ -137,8 +137,8 @@ fn outcome(name: &str, text: &str) -> Result<(f64, usize), String> {
     // vertex with two edges at it; one lying in a face's closure with
     // no vertex is the defect the pass exists to remove.
     let points: Vec<_> = b.vertex_points().collect();
-    for (_, f) in b.faces() {
-        let s: Vec<Point3<f64>> = match *b.get_surface(f.surface).unwrap() {
+    for (fk, _) in b.faces() {
+        let s: Vec<Point3<f64>> = match *b.face_surface(fk).unwrap() {
             Surface::Sphere {
                 center,
                 radius,
@@ -462,7 +462,7 @@ fn a_meridian_landing_beside_a_rim_vertex() {
         );
         match import_step(&text, &ImportOptions::default(), tol) {
             Ok(StepImport::Solid { body, .. }) => {
-                let b = body.body();
+                let b = &*body;
                 let pts: std::collections::BTreeMap<_, _> = b.vertex_points().collect();
                 let shortest = b
                     .edges()

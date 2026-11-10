@@ -50,6 +50,7 @@ fn skewed(nu: f64, loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     )
     .expect("extrude")
     .body
+    .into_body()
 }
 
 /// PROBE A — the disclaimed diagonal corner, made SYSTEMATIC rather

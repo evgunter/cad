@@ -532,11 +532,7 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
                     "the walk stays on the radius scan's arcs: {walked:?} of {arcs:?}"
                 );
                 let last = *walked.last().unwrap();
-                let e = half.get_edge(last).unwrap();
-                let ends = [
-                    half.get_half_edge(e.he_plus).unwrap().start,
-                    half.half_edge_end(e.he_plus).unwrap(),
-                ];
+                let ends = <[_; 2]>::from(half.edge_vertices(last).unwrap());
                 assert!(ends.contains(&at), "the walk stops at an end of {last:?}");
             }
             other => panic!("an open arc is not one rim, got {other:?}"),

@@ -291,9 +291,9 @@ fn tipped_generator(alpha: f64, theta: f64, toward: Vec3<f64>) -> (Curve3<f64>, 
 }
 
 /// At `α = ½`, the generator turned by `θ = √(ε/20)` in the tangent
-/// plane ends `cos α·θ²/(4·sin α) < ε/40` off the cone and misses the
-/// apex by `sin θ`, past `2·K·ε` at every committed ε: on the cone, not
-/// a generator. Turned as far toward the normal, it ends `sin θ` off.
+/// plane ends `cos α·θ²/(4·sin α) < ε/40` off the cone and leaves the
+/// line through the apex and its far end by about `sin θ/2`, past `K·ε`
+/// at every committed ε: on the cone, not a generator. Turned as far toward the normal, it ends `sin θ` off.
 /// The line through both nappes at the generators' radius has its ends
 /// on the cone and is `sin α·cos α` off it where it crosses the apex's
 /// plane.
@@ -314,7 +314,7 @@ fn a_cone_line_tipped_in_the_tangent_plane_is_on_it_and_not_a_generator() {
     parses_to(
         &cone,
         &cone_wall(alpha, tipped_generator(alpha, theta, tangent)),
-        &not_iso("props_meridian_apex"),
+        &not_iso("props_meridian_generator"),
         "turned tangentially",
     );
     for toward in [normal, -normal] {

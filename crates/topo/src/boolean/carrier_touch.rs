@@ -56,14 +56,15 @@
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use super::BooleanError;
-use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment};
 use super::{BooleanDecision, reduce};
 use crate::body::Body;
+use crate::boxes;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
 use geom_core::bisect::Step;
+use geom_core::ladder::{Answering, Climb, Rung, climb};
 
 /// The most clusters a span may localize into: the most meetings a span
 /// of a line or a conic has with these carriers. A conic against a
@@ -98,18 +99,28 @@ pub(super) fn off_face<T: Decide + Bounds>(
         return Ok(false);
     };
     let half = T::from_f64(0.5);
-    for (a, b) in clusters {
+    // Every cluster off the face, an identity: any cluster not certified
+    // off answers `false`, whatever an earlier cluster read ([`climb`],
+    // [`Answering::Any`]). A cluster in band is kept by its standing
+    // ([`BooleanError::refusal`]), refusing only where every other is off.
+    let not_off = climb(Answering::Any, clusters, |(a, b)| {
         let m = carrier.eval((a + b) * half);
         let Some((dist, foot, _)) = distance(surface, m) else {
-            return Ok(false);
+            return Rung::Answers(Ok(()));
         };
         let radius =
             geom_core::bisect::reach(speed, (a, b)) + dist.abs() + T::from_f64(band.escalate());
-        if !ball_off_face(y, face, foot, radius, rho, band)? {
-            return Ok(false);
-        }
+        Rung::holds(
+            ball_off_face(y, face, foot, radius, rho, band).map(|off| !off),
+            (),
+            BooleanError::refusal,
+        )
+    });
+    match not_off {
+        Climb::Answered { answer, .. } => answer.map(|()| false),
+        Climb::Passed => Ok(true),
+        Climb::Undecided(e) => Err(e),
     }
-    Ok(true)
 }
 
 /// A carrier's reach, ρ in the module docs.
@@ -154,16 +165,15 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
     // The point's height along `axis` from `origin`, and its offset
     // across it.
     let split = |origin: Point3<T>, axis: Vec3<T>| {
-        let a = axis / axis.norm();
-        let w = q - origin;
-        let h = w.dot(a);
-        (a * h, w - a * h)
+        let a = axis.normalize();
+        let (h, off) = geom::Line { origin, dir: a }.param_and_offset(q);
+        (a * h, off)
     };
     match *surface {
         geom::Surface::Sphere { center, radius, .. } => {
             let w = q - center;
-            let n = w.norm();
-            Some((n - radius, center + w * (radius / n), w / n))
+            let (w_hat, n) = w.direction_and_length();
+            Some((n - radius, center + w * (radius / n), w_hat))
         }
         geom::Surface::Cylinder {
             origin,
@@ -172,11 +182,11 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
             ..
         } => {
             let (along, across) = split(origin, axis);
-            let rho = across.norm();
+            let (across_hat, rho) = across.direction_and_length();
             Some((
                 rho - radius,
                 origin + along + across * (radius / rho),
-                across / rho,
+                across_hat,
             ))
         }
         geom::Surface::Torus {
@@ -189,11 +199,11 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
             let (_, across) = split(center, axis);
             let core = center + across * (major_radius / across.norm());
             let v = q - core;
-            let d = v.norm();
-            Some((d - minor_radius, core + v * (minor_radius / d), v / d))
+            let (v_hat, d) = v.direction_and_length();
+            Some((d - minor_radius, core + v * (minor_radius / d), v_hat))
         }
         geom::Surface::Plane { origin, normal, .. } => {
-            let n = normal / normal.norm();
+            let n = normal.normalize();
             let d = (q - origin).dot(n);
             Some((d, q - n * d, n))
         }
@@ -313,24 +323,27 @@ fn ball_off_face<T: Decide + Bounds>(
     {
         return Ok(false);
     }
-    let f = crate::live::proven(&y.faces, face, EntityId::Face);
-    for member in y.face_boundary_linked(face, f) {
+    let f = y.proven_face(face);
+    // Every boundary member clear of the ball, an identity: any member not
+    // clear answers `false`, whatever an earlier member read ([`climb`],
+    // [`Answering::Any`]); a member in band is kept by its standing.
+    let not_clear = climb(Answering::Any, f.boundary(), |member| {
         let clear_of_ball = match member {
-            BoundaryMember::Isolated { point, .. } => clear((point - foot).norm(), radius, band),
-            BoundaryMember::Edge { ek, .. } => edge_clear_of_ball(y, ek, foot, radius, band)?,
+            BoundaryMember::Isolated { point, .. } => {
+                Ok(clear((point - foot).norm(), radius, band))
+            }
+            BoundaryMember::Edge { ek, .. } => edge_clear_of_ball(y, ek, foot, radius, band),
         };
-        if !clear_of_ball {
-            return Ok(false);
-        }
+        Rung::holds(clear_of_ball.map(|c| !c), (), BooleanError::refusal)
+    });
+    match not_clear {
+        Climb::Answered { answer, .. } => return answer.map(|()| false),
+        Climb::Undecided(e) => return Err(e),
+        Climb::Passed => {}
     }
-    let placed = match *y.face_surface_linked(face, f) {
-        geom::Surface::Plane { normal, .. } => {
-            super::contain::contfp_decided(y, face, normal, foot, band)
-                .map(|(at, _)| CurvedPlacement::Trim(Some(at)))
-        }
-        _ => super::contain::curved_face_placement(y, face, foot, band),
-    };
-    match placed {
+    // OffCarrier → not clear (the foot is on the carrier by construction).
+    let foot = crate::held::Held::constructed(foot, "the foot of the ball on the face's carrier");
+    match super::contain::placement_on_carrier(y, face, foot, band).map(|(at, _, _)| at) {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
         Ok(_)
         | Err(

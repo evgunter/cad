@@ -2048,9 +2048,7 @@ enum Carrier {
 /// the body so the forward contract (increasing parameter runs
 /// `he_plus`) holds whichever way the fixture wound it.
 fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> EdgeCurveSpec<f64> {
-    let he = body.get_edge(edge).unwrap().he_plus;
-    let start_v = body.get_half_edge(he).unwrap().start;
-    let end_v = body.half_edge_end(he).unwrap();
+    let (start_v, end_v) = body.edge_vertices(edge).unwrap();
     let p0 = *body
         .get_point(body.get_vertex(start_v).unwrap().point)
         .unwrap();
@@ -2211,14 +2209,13 @@ fn a_transverse_corner_beside_a_legal_cusp_still_refuses_its_conventional_form()
     // cut — a definite corner — re-stored as a line at rest in the flat
     // face's chart.
     let corner = p.ev[1];
-    let he = p.body.get_edge(corner).unwrap().he_plus;
+    let (v0, v1) = p.body.edge_vertices(corner).unwrap();
     let at = |v| {
         *p.body
             .get_point(p.body.get_vertex(v).unwrap().point)
             .unwrap()
     };
-    let start = at(p.body.get_half_edge(he).unwrap().start);
-    let end = at(p.body.half_edge_end(he).unwrap());
+    let (start, end) = (at(v0), at(v1));
     let flat_chart = p.body.get_face(p.face_side[1]).unwrap().surface;
     let spec = EdgeCurveSpec::line_between(start, end).at_rest_in_chart(flat_chart, false);
     p.body.set_edge_curve(corner, spec, tol).unwrap();
@@ -2340,7 +2337,10 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
 /// a sign or a pairing (`.convexity(`, `"dihedral_sign"`, `.pairing(`,
 /// `pairing_as(`, `classify_material_pairing_as(`), a station minted by
 /// hand, a `"tangent_second_order"` decide or a material read inlined
-/// back into either file's production code reds here. The
+/// back into either file's production code reds here. The link's
+/// reading one order down (`link/second_order.rs`) reads another picture
+/// (a cone's cut at a tied ray, not a dihedral along an edge): it calls
+/// no fold or walk and spells none of these. The
 /// `#[cfg(test)]` modules are blanked first: a row there asserting a
 /// predicate name is not a second spelling.
 #[test]
@@ -2421,6 +2421,17 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
             ("edge_wedge_over(", 1),
             ("WedgeWalk::around_circle(", 1),
             ("WedgeWalk::along_edge(", 0),
+        ],
+        &[reads.as_slice(), material.as_slice()].concat(),
+    );
+    // The link's reading one order down reads another picture: no fold,
+    // no walk, and none of the readers' names.
+    scan(
+        "src/link/second_order.rs",
+        &[
+            ("edge_wedge_over(", 0),
+            ("second_order_walk(", 0),
+            ("WedgeWalk::", 0),
         ],
         &[reads.as_slice(), material.as_slice()].concat(),
     );
@@ -2770,7 +2781,7 @@ fn wedge_reading_table() {
         let text = finding.render(geom_brep::recourse::Reading::AtRest);
         match ending {
             Some(defect) => assert!(text.ends_with(defect), "{text}"),
-            None => assert!(text.contains("Recourse: move the geometry"), "{text}"),
+            None => assert!(text.contains(geom_core::MOVE_RECOURSE), "{text}"),
         }
     }
 }
@@ -2919,8 +2930,8 @@ fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64
     let mut lo = Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
     let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
     for &face in &body.get_shell(shell).expect("a live shell").faces {
-        let f = body.get_face(face).expect("a live face");
-        for (_, l, _) in body.face_loops_linked(face, f) {
+        let f = body.proven_face(face);
+        for (_, l, _) in f.loops() {
             let crate::entity::LoopBoundary::Cycle { first } = l.boundary else {
                 panic!("a cube's loops are cycles")
             };
@@ -3693,12 +3704,9 @@ pub(crate) fn half_disc(
         geom::Curve3::circle(center, u_ref.cross(Vec3::unit_y()), r, u_ref)
     };
     let segment = |body: &Body<f64>, edge| {
-        let he = body.get_edge(edge).unwrap().he_plus;
+        let (v0, v1) = body.edge_vertices(edge).unwrap();
         let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        let (p0, p1) = (
-            at(body.get_half_edge(he).unwrap().start),
-            at(body.half_edge_end(he).unwrap()),
-        );
+        let (p0, p1) = (at(v0), at(v1));
         geom::Curve3::line(p0, (p1 - p0) / p0.distance(p1))
     };
     for e in [p.et[0], p.eb[0], p.et[1], p.eb[1], p.ev[0], p.ev[1]] {
@@ -3708,25 +3716,13 @@ pub(crate) fn half_disc(
         } else {
             segment(&p.body, e)
         };
-        let he = p.body.get_edge(e).unwrap().he_plus;
-        let p0 = *p
-            .body
-            .get_point(
-                p.body
-                    .get_vertex(p.body.get_half_edge(he).unwrap().start)
-                    .unwrap()
-                    .point,
-            )
-            .unwrap();
-        let p1 = *p
-            .body
-            .get_point(
-                p.body
-                    .get_vertex(p.body.half_edge_end(he).unwrap())
-                    .unwrap()
-                    .point,
-            )
-            .unwrap();
+        let (v0, v1) = p.body.edge_vertices(e).unwrap();
+        let at = |v| {
+            *p.body
+                .get_point(p.body.get_vertex(v).unwrap().point)
+                .unwrap()
+        };
+        let (p0, p1) = (at(v0), at(v1));
         let t1 = if is_arc {
             std::f64::consts::PI
         } else {
@@ -3914,7 +3910,8 @@ mod line_conic_review {
 }
 
 /// **A curved walk's sign is read off its exact volume too.** A 1 mm
-/// half-disc 1 µm thick, 5 km from the world origin (exact volume
+/// half-disc 1 µm thick, 900 m from the world origin, inside the session
+/// box (exact volume
 /// `π·(1e-3)²·1e-6/2`): upright it passes check 7 and reads `Outer`,
 /// inside out it is refused `NegativeVolume` and reads `Void`, whether
 /// its carriers are anchored at the body or far along themselves. Taken
@@ -3944,7 +3941,7 @@ fn a_far_thin_curved_body_is_read_by_its_exact_volume() {
 
 fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     use crate::ShellRole::{Outer, Void};
-    let d = 5e3;
+    let d = 9e2;
     let upright = half_disc(1e-3, 1e-6, (0.6 * d, 0.48 * d, 0.64 * d), far, tol);
     let exact = std::f64::consts::PI * 1e-6 * 1e-6 / 2.0;
     // The far-anchored disc's `f64` sum is the filed measurement

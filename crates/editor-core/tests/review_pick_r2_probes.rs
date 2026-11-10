@@ -40,6 +40,7 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     )
     .expect("a disc extrudes")
     .body
+    .into_body()
 }
 
 fn triangles(mesh: &mesh::Mesh) -> Vec<[Point3<f64>; 3]> {

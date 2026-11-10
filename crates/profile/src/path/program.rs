@@ -708,6 +708,20 @@ macro_rules! transition_table {
                     ], )*
                 }
             }
+
+            /// Whether this verb is a **complete-loop program form** —
+            /// a `free` row, the whole loop in one step — rather than a
+            /// chain step, read off the same row kinds `apply` is
+            /// expanded from.
+            #[must_use]
+            pub fn is_loop_form(self) -> bool {
+                match self {
+                    $( Verb::$name => {
+                        let free: &[&str] = &[$( stringify!($fname) ),*];
+                        !free.is_empty()
+                    } )*
+                }
+            }
         }
 
         /// **Which arc-spec forms `verb` takes at `state`**: one
@@ -1128,9 +1142,8 @@ transition_table! {
     verb Line(T) = "line" bind (len) rows {
         row {
             /// A straight leg of length `len` along the bound departure,
-            /// terminating at a directed point. After a fillet this extends
-            /// the arrival side's one leg past its anchor (no collinear
-            /// neighbor is minted — §4 item 4's by-construction exemption).
+            /// terminating at a directed point. After a fillet it is emitted
+            /// from the fillet arc's end, so the arrival anchor lies inside it.
             ///
             /// A tangent straight continuation of a straight leg
             /// (`.tangent().line(len)` after a line) IS the same carrier, and
@@ -2274,6 +2287,159 @@ pub enum TipState {
     Closed,
 }
 
+impl TipState {
+    /// **The verbs this state takes**, in declaration order: every
+    /// verb with a row at this state — [`Verb::states`] read the other
+    /// way, so the set is the one the replay driver has arms for.
+    pub fn verbs(self) -> impl Iterator<Item = Verb> {
+        Verb::ALL
+            .iter()
+            .copied()
+            .filter(move |verb| verb.states().contains(&self))
+    }
+
+    /// **The sentence for `verb` refused at this state** — or, with
+    /// `None`, for a program that ends here — said in `vocabulary`.
+    #[must_use]
+    pub fn refused(self, verb: Option<Verb>, vocabulary: Vocabulary) -> Refused {
+        Refused {
+            state: self,
+            verb,
+            vocabulary,
+        }
+    }
+}
+
+/// Which steps a lattice refusal's reader can write, so its recourse
+/// offers only those.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Vocabulary {
+    /// A [`Step`] program: every verb the table declares, the
+    /// complete-loop forms among them.
+    Program,
+    /// A chain's steps: the complete-loop forms ([`Verb::is_loop_form`])
+    /// are loops of their own, not steps a chain can take.
+    Chain,
+}
+
+/// **The one sentence for a step order the lattice refuses** — the
+/// [`ReplayErrorKind::Transition`] pair as a clause, with its recourse
+/// ([`Self::recourse`]). Every door that reports the pair renders this,
+/// and adds only where it was (step and loop indices) and what class
+/// of fault it is.
+///
+/// The pair is a COORDINATE in the transition table — the row a reader
+/// looks up next — so both halves render through `Debug`: the variant
+/// spelling is the lookup key, and a prose paraphrase would not find
+/// it. Each is introduced by the noun it is ("verb", "tip state") so
+/// the identifier reads as a value in the sentence and not as a dump
+/// that leaked into one.
+#[derive(Clone, Copy, Debug)]
+pub struct Refused {
+    state: TipState,
+    verb: Option<Verb>,
+    vocabulary: Vocabulary,
+}
+
+impl Refused {
+    /// What the state takes instead, as the refusal's recourse.
+    #[must_use]
+    pub fn recourse(self) -> Takes {
+        Takes(self)
+    }
+}
+
+impl core::fmt::Display for Refused {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let state = self.state;
+        match self.verb {
+            Some(verb) => write!(
+                f,
+                "the {verb:?} verb is not a legal continuation of tip state {state:?}"
+            ),
+            None => write!(
+                f,
+                "the program ends at tip state {state:?} without closing the loop"
+            ),
+        }
+    }
+}
+
+/// [`Refused::recourse`]: what the refused state takes, in the
+/// transition table's identifiers.
+///
+/// A verb the state HAS a row for was refused on its arc spec, so the
+/// clause names the arc-spec modes that row admits ([`arc_specs_at`]),
+/// each with its target forms; otherwise it names the verbs the state
+/// takes in the refusal's [`Vocabulary`], and a closed loop takes none.
+#[derive(Clone, Copy, Debug)]
+pub struct Takes(Refused);
+
+impl core::fmt::Display for Takes {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fn list<I: Iterator<Item = String>>(
+            f: &mut core::fmt::Formatter<'_>,
+            items: I,
+        ) -> core::fmt::Result {
+            let items: Vec<String> = items.collect();
+            for (i, item) in items.iter().enumerate() {
+                let sep = match (i, items.len() - i) {
+                    (0, _) => "",
+                    (_, 1) => " or ",
+                    _ => ", ",
+                };
+                write!(f, "{sep}{item}")?;
+            }
+            Ok(())
+        }
+        let Refused {
+            state,
+            verb,
+            vocabulary,
+            ..
+        } = self.0;
+        let specs = verb.map_or(&[][..], |verb| arc_specs_at(verb, state));
+        if let (Some(verb), false) = (verb, specs.is_empty()) {
+            write!(f, "write the {verb:?} step's arc spec as ")?;
+            for (slot, forms) in specs.iter().enumerate() {
+                if slot > 0 {
+                    f.write_str(", then ")?;
+                }
+                let mut modes: Vec<ArcMode> = Vec::new();
+                for &(mode, _) in forms.forms() {
+                    if !modes.contains(&mode) {
+                        modes.push(mode);
+                    }
+                }
+                list(
+                    f,
+                    modes.into_iter().map(|mode| {
+                        let targets: Vec<String> = forms
+                            .targets(mode)
+                            .map(|target| format!("{target:?}"))
+                            .collect();
+                        if targets.is_empty() {
+                            format!("{mode:?}")
+                        } else {
+                            format!("{mode:?}({})", targets.join("/"))
+                        }
+                    }),
+                )?;
+            }
+            return Ok(());
+        }
+        let mut takes = state
+            .verbs()
+            .filter(|verb| !(vocabulary == Vocabulary::Chain && verb.is_loop_form()))
+            .peekable();
+        if takes.peek().is_none() {
+            return f.write_str("end the program at the step that closed the loop");
+        }
+        f.write_str("continue with ")?;
+        list(f, takes.map(|verb| format!("{verb:?}")))
+    }
+}
+
 /// Why a replay refused, and at which step.
 ///
 /// The `step` index is into the program slice; for a program that ENDS
@@ -2326,43 +2492,30 @@ impl<T: Real> ReplayError<T> {
     }
 }
 
-// The one home of the (state, verb) rendering rule FOR THE COORDINATE
-// SENTENCE, which `editor-core`'s `ProgramFault::Lattice` repeats for
-// the fault this refusal raises there. This refusal is the
-// corrupt-or-hand-edited-file class, so the pair it reports is a
-// COORDINATE in the transition table — the row a reader looks up next
-// — and both halves render through `Debug`: the variant spelling is
-// the lookup key and a prose paraphrase would not find it, which is
-// the identifiers-as-location case. Each is introduced by the noun it
-// is ("verb", "tip") so the identifier reads as a value in the
-// sentence and not as a dump that leaked into one. Scalars and typed
-// payloads elsewhere in this module render as words; these do not.
+// The lattice arms are [`Refused`]'s sentence, framed by this
+// refusal's class: no authoring surface produces a `Step` program off
+// the lattice, so it is the corrupt-or-hand-edited-file class.
 //
-// A sentence about the STEP A PERSON WROTE is the other case and takes
-// the other rendering: `Verb`'s own `Display` gives the authoring
-// spelling, which is a lookup key too (it is the method name the row
-// declares), so naming the verb that way costs the reader nothing and
-// says it in the vocabulary they authored in. The sketch preview's
-// refusal is that case.
+// A sentence about the STEP A PERSON WROTE in the typed surface's
+// vocabulary is the other case and takes the other rendering: `Verb`'s
+// own `Display` gives the authoring spelling (the method name the row
+// declares). The sketch preview's refusal is that case.
 impl<T: Real> core::fmt::Display for ReplayError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
-            ReplayErrorKind::Transition {
-                state,
-                verb: Some(verb),
-            } => write!(
-                f,
-                "step {}: the {verb:?} verb is not a legal continuation of tip state \
-                 {state:?} (lattice violation — no authoring surface can produce this \
-                 program)",
-                self.step
-            ),
-            ReplayErrorKind::Transition { state, verb: None } => write!(
-                f,
-                "step {}: the program ends at tip state {state:?} without closing the \
-                 loop (lattice violation — a chain must end at Start)",
-                self.step
-            ),
+            ReplayErrorKind::Transition { state, verb } => {
+                let refused = state.refused(*verb, Vocabulary::Program);
+                let class = match verb {
+                    Some(_) => "no authoring surface can produce this program",
+                    None => "a chain must end at Start",
+                };
+                write!(
+                    f,
+                    "step {}: {refused} (lattice violation — {class}). {}",
+                    self.step,
+                    geom_core::Recourse(refused.recourse())
+                )
+            }
             ReplayErrorKind::Path(source) => {
                 write!(f, "step {}: {source}", self.step)
             }
@@ -2901,14 +3054,14 @@ pub fn replay_recording<T: ArcCarrierScalar>(
 type Replaying<T> = Result<ConstructedLoop<T>, ReplayError<T>>;
 
 /// **[`replay`], drawing its construction**: the replay's own result,
-/// and each fused fillet step's construction as the replay reached it
-/// ([`FusedConstruction`]) — the refused step's included, carrying the
-/// sides its fit was handed. Recording the construction changes
+/// and each fillet step's construction as far as the replay reached it
+/// ([`FilletConstruction`]) — a refused step's included, carrying what
+/// was bound before it refused. Recording the construction changes
 /// nothing about what is computed.
 pub fn replay_drawn<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> (Replaying<T>, Vec<FusedConstruction<T>>) {
+) -> (Replaying<T>, Vec<FilletConstruction<T>>) {
     let drawing = Drawing::default();
     let replayed = drive(steps, tol, Guide::drawing(drawing.clone())).map(|closed| closed.loop_);
     (replayed, drawing.take())
@@ -3102,7 +3255,7 @@ pub fn pen<T: ArcCarrierScalar>(
     })
 }
 
-/// **A side one fused fillet step fillets between**, whole, as its fit
+/// **A side one fillet step fillets between**, whole, as its fit
 /// was handed it: the carrier and the on-path point that anchors it.
 #[derive(Clone, Copy, Debug)]
 pub enum Carrier<T: Real> {
@@ -3145,31 +3298,82 @@ impl<T: Real> Carrier<T> {
     }
 }
 
-/// **What one fused fillet step constructs** (`fillet_arc`,
-/// `arc_fillet`, `arc_fillet_arc`): the two sides its fit was handed
-/// and the fillet circle it found, recorded where the replay hands the
-/// fit its sides — at the step itself, or at the later step that
-/// completes its arrival.
-#[derive(Clone, Copy, Debug)]
-pub struct FusedConstruction<T: Real> {
-    /// The fused step, in program order.
+/// **What one fillet step constructs** — every fillet verb's, the bare
+/// `fillet(r)` included: the sides its fit was handed, each recorded
+/// when it is bound, and the fit's answer once it has one. The record
+/// is filed against the fillet step, which may differ from the step a
+/// refusal names: an arrival a later binder fixes is recorded, and
+/// refused, at that binder.
+#[derive(Clone, Debug)]
+pub struct FilletConstruction<T: Real> {
+    /// The fillet step, in program order.
     pub step: usize,
-    /// The fillet radius the fit was handed.
+    /// The fillet radius the step authored.
     pub radius: T,
-    /// The incoming side.
+    /// The incoming side, recorded when the step opens it.
     pub incoming: Carrier<T>,
-    /// The arrival side.
-    pub arrival: Carrier<T>,
-    /// The fillet circle, anchored at its incoming tangent point and
-    /// travelled the corner's turn — `None` where the fit refused.
-    pub fillet: Option<Carrier<T>>,
+    /// The arrival side, recorded when its binder fixes it — `None`
+    /// where the replay stopped before one did.
+    pub arrival: Option<Carrier<T>>,
+    /// The fit's answer — `None` where the fit has not run, or refused
+    /// with no candidate circle to show.
+    pub fit: Option<FilletFit<T>>,
 }
 
-/// Where a drawing pass records each arc fillet's construction. Shared
-/// with the chain's guide, so what a refused step was handed outlives
-/// the core its refusal drops.
+/// What a fillet's fit answered.
 #[derive(Clone, Debug)]
-pub(crate) struct Drawing<T: Real>(std::sync::Arc<std::sync::Mutex<Vec<FusedConstruction<T>>>>);
+pub enum FilletFit<T: Real> {
+    /// The fillet circle it found, anchored at its incoming tangent
+    /// point and travelled the corner's turn.
+    Fillet(Carrier<T>),
+    /// An anchor-fit refusal: at each corner that refused on the
+    /// anchor fit, the candidate circle its refusal reports, whose trim
+    /// overruns a leg.
+    Overrun(Vec<Overrun<T>>),
+}
+
+/// The candidate circle an anchor-fit refusal reports at one corner
+/// ([`crate::CornerReason::AnchorOutsideTrimmedExtent`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Overrun<T: Real> {
+    /// The corner it rounds (the refusal's [`crate::CornerRefusal::at`]).
+    pub corner: Point2<T>,
+    /// The circle, anchored at its incoming tangent point and travelled
+    /// the corner's turn.
+    pub circle: Carrier<T>,
+    /// Its `[incoming, outgoing]` tangent points, at least one of them
+    /// past its leg's anchor.
+    pub tangents: [Point2<T>; 2],
+}
+
+impl<T: Real> Overrun<T> {
+    /// The candidate about `centre` touching its legs at `tangents`,
+    /// rounding `corner` in `sense`.
+    pub(crate) fn new(
+        corner: Point2<T>,
+        centre: Point2<T>,
+        radius: T,
+        tangents: [Point2<T>; 2],
+        sense: ArcSweep,
+    ) -> Self {
+        Self {
+            corner,
+            circle: Carrier::Circle {
+                centre,
+                radius,
+                anchor: tangents[0],
+                winding: sense,
+            },
+            tangents,
+        }
+    }
+}
+
+/// Where a drawing pass records each fillet step's construction.
+/// Shared with the chain's guide, so what a refused step was handed
+/// outlives the core its refusal drops.
+#[derive(Clone, Debug)]
+pub(crate) struct Drawing<T: Real>(std::sync::Arc<std::sync::Mutex<Vec<FilletConstruction<T>>>>);
 
 impl<T: Real> Default for Drawing<T> {
     fn default() -> Self {
@@ -3178,48 +3382,69 @@ impl<T: Real> Default for Drawing<T> {
 }
 
 impl<T: Real> Drawing<T> {
-    fn with<R>(&self, f: impl FnOnce(&mut Vec<FusedConstruction<T>>) -> R) -> R {
-        // Held only across a push, which cannot leave the list torn.
+    fn with<R>(&self, f: impl FnOnce(&mut Vec<FilletConstruction<T>>) -> R) -> R {
+        // Held only across a push or a field write, which cannot leave
+        // the list torn.
         f(&mut self
             .0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner))
     }
 
-    /// The sides one fit is about to be handed.
-    pub(crate) fn sides(
+    /// The fillet step `step` opened its incoming side.
+    pub(crate) fn opened(
         &self,
         step: usize,
         radius: T,
         incoming: super::arc_fillet::FilletSide<T>,
-        arrival: super::arc_fillet::FilletSide<T>,
     ) {
         self.with(|drawn| {
-            drawn.push(FusedConstruction {
+            drawn.push(FilletConstruction {
                 step,
                 radius,
                 incoming: Carrier::of(incoming),
-                arrival: Carrier::of(arrival),
-                fillet: None,
+                arrival: None,
+                fit: None,
             });
         });
     }
 
-    /// The fillet the last fit handed its sides found.
-    pub(crate) fn fillet(&self, trims: &super::arc_fillet::ArcFilletTrims<T>) {
-        self.with(|drawn| {
-            if let Some(last) = drawn.last_mut() {
-                last.fillet = Some(Carrier::Circle {
-                    centre: trims.arc.center,
-                    radius: trims.arc.radius,
-                    anchor: trims.t1,
-                    winding: trims.sense,
-                });
-            }
+    /// A binder fixed the arrival side of the fillet `step` opened.
+    pub(crate) fn arrival(&self, step: usize, arrival: super::arc_fillet::FilletSide<T>) {
+        self.on(step, |built| built.arrival = Some(Carrier::of(arrival)));
+    }
+
+    /// The fit of the fillet `step` opened answered.
+    pub(crate) fn fit(&self, step: usize, fit: FilletFit<T>) {
+        self.on(step, |built| built.fit = Some(fit));
+    }
+
+    /// The fit of the fillet `step` opened refused on the anchor fit,
+    /// reporting these candidates.
+    pub(crate) fn overran(&self, step: usize, overruns: Vec<Overrun<T>>) {
+        self.on(step, |built| built.fit = Some(FilletFit::Overrun(overruns)));
+    }
+
+    /// Writes into the record of the fillet `step` opened. Only one
+    /// fillet is open at a time, so it is the last one filed.
+    ///
+    /// # Panics
+    ///
+    /// Where the last record filed is not `step`'s, or none is: a
+    /// binder or fit writing to a fillet that did not open, which only
+    /// a defect in the lattice's recording reaches, never an authoring.
+    fn on(&self, step: usize, f: impl FnOnce(&mut FilletConstruction<T>)) {
+        self.with(|drawn| match drawn.last_mut() {
+            Some(built) if built.step == step => f(built),
+            last => unreachable!(
+                "kernel defect: fillet step {step} wrote its construction, but the open \
+                 record is {:?}",
+                last.map(|built| built.step)
+            ),
         });
     }
 
-    fn take(&self) -> Vec<FusedConstruction<T>> {
+    fn take(&self) -> Vec<FilletConstruction<T>> {
         self.with(core::mem::take)
     }
 }

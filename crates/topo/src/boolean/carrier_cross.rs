@@ -53,7 +53,7 @@
 //! `crates/sweep/tests`.
 
 use geom_brep::curve_face::{self, Boundary, BoundaryRefusal, OnBoundary};
-use geom_brep::curve_pair::{Hit, Span};
+use geom_brep::curve_pair::{Hit, MeetKind, Span};
 use geom_core::{Band, Decide, Point3};
 
 use super::contain::FaceContainment;
@@ -87,7 +87,7 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
     /// docs).
     Unread,
     /// The edge and a boundary curve read in the band's gap where they
-    /// can meet ([`BoundaryRefusal::Touch`]): the caller places the
+    /// can meet ([`MeetKind::Touch`]): the caller places the
     /// escalation where its frontier door stands.
     Touch(geom_core::Indeterminate),
 }
@@ -135,7 +135,9 @@ pub(super) fn boundary_crossing<T: Decide>(
         })) => {
             return Ok(BoundaryCrossing::Clear);
         }
-        Some(Err(BoundaryRefusal::Touch(diag))) => return Ok(BoundaryCrossing::Touch(diag)),
+        Some(Err(BoundaryRefusal::Met(MeetKind::Touch(diag)))) => {
+            return Ok(BoundaryCrossing::Touch(diag));
+        }
         Some(Err(refusal)) => {
             return boundary_refusal(refusal, (y_is.other(), face, edge), on_carrier)
                 .map(|()| BoundaryCrossing::Unread);
@@ -311,16 +313,14 @@ pub(super) fn face_boundary<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
 ) -> Result<Option<FaceBoundary<'_, T>>, BooleanError> {
-    let face_data = y
-        .get_face(face)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "boundary pass: face lost",
-        })?;
+    let face_data = y.face(face).ok_or(BooleanError::ClassificationInvariant {
+        what: "boundary pass: face lost",
+    })?;
     let mut boundary = FaceBoundary {
         edges: Vec::new(),
         lone: Vec::new(),
     };
-    for member in y.face_boundary_linked(face, face_data) {
+    for member in face_data.boundary() {
         match member {
             BoundaryMember::Isolated { vertex, point } => boundary.lone.push((vertex, point)),
             BoundaryMember::Edge { he, half, ek, edge } => {
@@ -355,7 +355,7 @@ pub(super) fn boundary_refusal(
 ) -> Result<(), BooleanError> {
     match refusal {
         BoundaryRefusal::Escalated(diag) => Err(escalated(diag)),
-        BoundaryRefusal::Meeting(diag) | BoundaryRefusal::Touch(diag) => {
+        BoundaryRefusal::Met(MeetKind::Escalated(diag) | MeetKind::Touch(diag)) => {
             Err(BooleanError::CurvedPierceEscalated {
                 operand,
                 face,
@@ -364,8 +364,10 @@ pub(super) fn boundary_refusal(
                 diag,
             })
         }
-        BoundaryRefusal::Unread(_) => Ok(()),
-        BoundaryRefusal::Fault { what } => Err(BooleanError::ClassificationInvariant { what }),
+        BoundaryRefusal::Met(MeetKind::Unread(_)) => Ok(()),
+        BoundaryRefusal::Met(MeetKind::Fault { what }) => {
+            Err(BooleanError::ClassificationInvariant { what })
+        }
     }
 }
 

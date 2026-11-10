@@ -55,6 +55,33 @@
 //! side. On a chart closed in a channel, the query's copies a period
 //! apart are each read in the chart's cover: in where one is in, out
 //! where every one is out.
+//!
+//! # Rounding
+//!
+//! The chart's cells and the trim's pieces are cut by blends
+//! `x + (y − x)·t` (Boehm's insertions, through the kernel's plans, and
+//! de Casteljau), and the trim is read in `f64` at every scalar. A box
+//! of rounded points can exclude a point the exact box holds, so every
+//! box that decides is widened by a first-order bound on its points'
+//! rounding: each homogeneous point carries one per channel, set where
+//! it is made and carried through every blend ([`blend`]), and is off by
+//! at most `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|` out of homogeneous
+//! form ([`point_rounding`]). The net is held about the middle of the
+//! chart's control box, so the cut is in the patch's own size. A cell's
+//! floor is less the root sum of its worst per channel and
+//! [`geom_core::rounding_charge`] of twice the reach of its points, the
+//! moved point and the centre; a weight not shown positive, or a bound that is not finite,
+//! leaves it the poison. A piece's box is wider by its worst per channel
+//! (no box where one is not finite), a piece taken out of an enclosure by
+//! the enclosure's half-width as well, and a run's ends by the image's
+//! reach over its span's brackets. So the reading stays one-way: a point
+//! is off the carrier, and a query clear of the trim, only past the band
+//! and the charge. It is a rounding estimate, the `f64` lane's contract,
+//! as [`geom_core::running`]'s is; at an enclosure scalar the cells'
+//! arithmetic holds the exact points already and charges nothing.
+//! `geom_brep`'s spline incidence test cuts its cells the same way
+//! (`work/splice/the-spline-chart-cell-walk-is-written-twice.md`); its
+//! floor adds a slab.
 
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -63,7 +90,10 @@ use std::sync::Arc;
 use geom::{NurbsCurve2, NurbsSurface, Surface};
 use geom_brep::Pcurve;
 use geom_core::spline::Knots;
-use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign};
+use geom_core::{
+    Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, UNIT_ROUNDOFF, Vec3,
+    rounding_charge,
+};
 
 use super::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::body::Body;
@@ -75,11 +105,11 @@ use crate::validate::decide;
 
 /// A cell's control hull, or a foot candidate, against the point: how
 /// far the point lies off the spline face's carrier.
-pub(crate) const CARRIER: &str = "bool_spline_region_carrier";
+pub(crate) const SPLINE_REGION_CARRIER: &str = "bool_spline_region_carrier";
 /// A chart window's inf-side lever arm, gated as a length.
-pub(crate) const ARM: &str = "bool_spline_region_arm";
+pub(crate) const SPLINE_REGION_ARM: &str = "bool_spline_region_arm";
 /// A query's clearance from the face's trim along the chart.
-pub(crate) const TRIM: &str = "bool_spline_region_trim";
+pub(crate) const SPLINE_REGION_TRIM: &str = "bool_spline_region_trim";
 
 /// How many times a kept cell is quartered at most, a backstop behind
 /// the band's own floor ([`Patch::extent`]).
@@ -112,8 +142,8 @@ pub(super) fn spline_face_placement<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    let Some(chart) = body.face_surface_linked(face, face_data).spline_chart() else {
+    let view = body.proven_face(face);
+    let Some(chart) = view.surface().spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
     Ok(match read(body, face, chart, q, band) {
@@ -124,7 +154,8 @@ pub(super) fn spline_face_placement<T: Decide>(
         Reading::Unsettled(Some(diag)) => {
             // The carrier rows are the carrier decision's; the trim's and
             // the arm's have no decision of the door's to name.
-            let decision = (diag.predicate == Some(CARRIER)).then_some(ContainDecision::Carrier);
+            let decision =
+                (diag.predicate == Some(SPLINE_REGION_CARRIER)).then_some(ContainDecision::Carrier);
             return Err(ContainError::Escalated {
                 decision,
                 escalation: Escalation::Margin,
@@ -154,8 +185,8 @@ pub(super) fn spline_chart_placement<T: Decide>(
     (u, v): (f64, f64),
     band: Band,
 ) -> Result<Option<FaceContainment>, ContainError> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    let linked = body.face_surface_linked(face, face_data);
+    let view = body.proven_face(face);
+    let linked = view.surface();
     let Some(chart) = linked.spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
@@ -240,11 +271,8 @@ pub(crate) fn read_capped<T: Decide>(
     band: Band,
     caps: Caps,
 ) -> Reading {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    if body
-        .face_surface_linked(face, face_data)
-        .is_placeholder_chart()
-    {
+    let view = body.proven_face(face);
+    if view.surface().is_placeholder_chart() {
         return Reading::Unsettled(None);
     }
     let Some(cells) = bezier_cells(chart) else {
@@ -253,6 +281,23 @@ pub(crate) fn read_capped<T: Decide>(
     let Some(trim) = Trim::of(body, face, chart, &cells, caps, band) else {
         return Reading::Unsettled(None);
     };
+    carrier_walk(chart, &cells, q, band, caps, |rect| {
+        trim.place(&cells, rect, band)
+    })
+}
+
+/// **The carrier walk of [`read_capped`]** over the chart's `cells`,
+/// each kept cell and foot placed in the trim by `place`: the reading,
+/// every way it ends. [`read_capped`] reads exactly this with its
+/// [`Trim::place`]; a row may hand it another placement.
+fn carrier_walk<T: Decide>(
+    chart: &NurbsSurface<T>,
+    cells: &[Patch<T>],
+    q: Point3<T>,
+    band: Band,
+    caps: Caps,
+    place: impl Fn(Rect) -> Place,
+) -> Reading {
     // Breadth first, so the shallowest foot is found before any cell
     // beside it is walked to the floor.
     let mut queue: VecDeque<(Patch<T>, Option<bool>, usize)> =
@@ -261,7 +306,7 @@ pub(crate) fn read_capped<T: Decide>(
     let mut visits = 0usize;
     let mut pending: Option<Indeterminate> = None;
     while let Some((cell, known, depth)) = queue.pop_front() {
-        match decide(CARRIER, Margin::of(cell.hull_gap(q)), band) {
+        match decide(SPLINE_REGION_CARRIER, Margin::of(cell.floor(q)), band) {
             Ok(Sign::Positive) => continue,
             Ok(_) => {}
             Err(diag) => keep(&mut pending, Some(diag)),
@@ -279,7 +324,7 @@ pub(crate) fn read_capped<T: Decide>(
             if !placeable {
                 return None;
             }
-            match trim.place(&cells, cell.rect, band) {
+            match place(cell.rect) {
                 Place::In => Some(true),
                 Place::Out => Some(false),
                 Place::Near(diag) => {
@@ -294,18 +339,17 @@ pub(crate) fn read_capped<T: Decide>(
         }
         let (cu, cv) = cell.rect.centre();
         let at = chart.eval(T::from_computed(cu), T::from_computed(cv));
-        match decide(CARRIER, Margin::of((at - q).norm()), band) {
+        match decide(SPLINE_REGION_CARRIER, Margin::of((at - q).norm()), band) {
             Ok(Sign::Zero) => {
                 foot = true;
-                let placed =
-                    inside.or_else(|| match trim.place(&cells, Rect::point(cu, cv), band) {
-                        Place::In => Some(true),
-                        Place::Out => None,
-                        Place::Near(diag) => {
-                            keep(&mut pending, diag);
-                            None
-                        }
-                    });
+                let placed = inside.or_else(|| match place(Rect::point(cu, cv)) {
+                    Place::In => Some(true),
+                    Place::Out => None,
+                    Place::Near(diag) => {
+                        keep(&mut pending, diag);
+                        None
+                    }
+                });
                 if placed == Some(true) {
                     return Reading::In((cu, cv));
                 }
@@ -348,7 +392,7 @@ impl Rect {
     }
 
     fn centre(self) -> (f64, f64) {
-        (mid(self.u), mid(self.v))
+        (geom::bracket_mid(self.u), geom::bracket_mid(self.v))
     }
 
     fn size(self) -> (f64, f64) {
@@ -370,57 +414,103 @@ impl Rect {
     }
 }
 
-fn mid((a, b): (f64, f64)) -> f64 {
-    a + (b - a) * 0.5
-}
-
 /// The gap between two closed intervals, zero where they meet.
 fn gap((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> f64 {
     (b0 - a1).max(a0 - b1).max(0.0)
 }
 
 /// **One Bézier cell of a chart**: its parameter rectangle and its
-/// control net in homogeneous form, row-major in `u`.
+/// control net in homogeneous form about `centre`, row-major in `u`,
+/// each point with its rounding bound (*Rounding*, module docs).
 #[derive(Clone, Debug)]
-struct Patch<T> {
+struct Patch<T: geom_core::Real> {
     rect: Rect,
     pu: usize,
     pv: usize,
-    net: Vec<[T; 4]>,
+    net: Vec<Control<T, 4>>,
+    /// The middle of the chart's control box, the origin the net is held
+    /// about.
+    centre: Vec3<T>,
 }
 
 impl<T: Decide> Patch<T> {
-    fn at(&self, i: usize, j: usize) -> [T; 4] {
+    fn at(&self, i: usize, j: usize) -> Control<T, 4> {
         self.net[i * (self.pv + 1) + j]
     }
 
-    /// The control points, out of homogeneous form.
+    /// The control points about the centre, out of homogeneous form.
     fn points(&self) -> impl Iterator<Item = Point3<T>> + '_ {
         self.net
             .iter()
-            .map(|h| Point3::new(h[0] / h[3], h[1] / h[3], h[2] / h[3]))
+            .map(|(h, _)| Point3::new(h[0] / h[3], h[1] / h[3], h[2] / h[3]))
     }
 
-    /// A lower bound on the distance from `q` to the cell: its distance
-    /// to the control net's box, which holds the cell (the convex-hull
-    /// property, every weight positive).
-    fn hull_gap(&self, q: Point3<T>) -> T {
+    /// **A lower bound on the distance from `q` to the cell**: its
+    /// distance to the control net's box, which holds the cell (the
+    /// convex-hull property, every weight positive), less at `f64` the
+    /// cut's rounding and the read's (*Rounding*, module docs).
+    fn floor(&self, q: Point3<T>) -> T {
+        let poison = T::from_f64(f64::NAN);
+        // A weight not shown positive leaves the hull unproven.
+        if !self.net.iter().all(|(h, _)| h[3].structure_positive()) {
+            return poison;
+        }
+        let moved = q - self.centre;
         let mut points = self.points();
         let Some(first) = points.next() else {
-            return T::from_f64(f64::NAN);
+            return poison;
         };
         let (mut lo, mut hi) = (first, first);
+        let mut reach = (first - Point3::origin()).norm();
         for p in points {
             lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
             hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+            reach = reach.max((p - Point3::origin()).norm());
         }
         let axis = |lo: T, hi: T, x: T| (lo - x).max(x - hi).max(T::zero());
         let (gx, gy, gz) = (
-            axis(lo.x, hi.x, q.x),
-            axis(lo.y, hi.y, q.y),
-            axis(lo.z, hi.z, q.z),
+            axis(lo.x, hi.x, moved.x),
+            axis(lo.y, hi.y, moved.y),
+            axis(lo.z, hi.z, moved.z),
         );
-        (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt()
+        let gap = (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt();
+        if !tracks::<T>() || mutant("spline-region-charge-dropped") {
+            return gap;
+        }
+        // The worst per channel, folded so a NaN bound stays NaN.
+        let mut worst = [0.0f64; 3];
+        for control in &self.net {
+            let e = point_rounding(control);
+            for c in 0..3 {
+                if e[c].is_nan() || e[c] > worst[c] {
+                    worst[c] = e[c];
+                }
+            }
+        }
+        let cut = worst.iter().map(|e| e.powi(2)).sum::<f64>().sqrt();
+        if !cut.is_finite() {
+            return poison;
+        }
+        let cut = if mutant("spline-region-cut-dropped") {
+            0.0
+        } else {
+            cut
+        };
+        // The read's own rounding, as `geom_brep`'s spline incidence
+        // charges it: twice the reach of the points, the moved point and
+        // the centre. No fixture makes this term decide alone: near the
+        // box the move and the differences are exact or round by `u` of
+        // coordinates the cut's charge already bounds by `u·|P_c|` at
+        // least; nor the cut's alone, which this covers wherever `q`
+        // meets a box face.
+        let read = if mutant("spline-region-read-dropped") {
+            T::zero()
+        } else {
+            rounding_charge(
+                T::from_f64(2.0) * (reach + (moved - Point3::origin()).norm() + self.centre.norm()),
+            )
+        };
+        (gap - T::from_computed(cut) - read).max(T::zero())
     }
 
     /// The diagonal of the control net's box, read on its value channel:
@@ -449,8 +539,12 @@ impl<T: Decide> Patch<T> {
         let mut left = self.clone();
         let mut right = self.clone();
         let st = T::from_computed(s);
+        // The exact half is a halving's: its product rounds nothing.
+        #[allow(clippy::float_cmp)]
+        let ratio = s != 0.5;
+        let track = tracks::<T>();
         for k in 0..=m {
-            let mut row: Vec<[T; 4]> = (0..=n)
+            let mut row: Vec<Control<T, 4>> = (0..=n)
                 .map(|i| {
                     if along_u {
                         self.at(i, k)
@@ -465,8 +559,7 @@ impl<T: Decide> Patch<T> {
                 lo.push(row[0]);
                 hi.push(row[n - level]);
                 for i in 0..n - level {
-                    let (a, b) = (row[i], row[i + 1]);
-                    row[i] = core::array::from_fn(|c| a[c] + (b[c] - a[c]) * st);
+                    row[i] = blend(row[i], row[i + 1], st, ratio, track);
                 }
             }
             hi.reverse();
@@ -518,7 +611,9 @@ impl<T: Decide> Patch<T> {
         cell
     }
 
-    /// The cell as a surface of its own, on its own parameter rectangle.
+    /// The cell as a surface of its own, on its own parameter rectangle,
+    /// held about the centre: a translate of the chart's cell, so its
+    /// speeds are the chart's.
     fn surface(&self) -> Option<Surface<T>> {
         let knots = |(a, b): (f64, f64), p: usize| {
             let ends = NonZeroUsize::new(p + 1)?;
@@ -532,12 +627,264 @@ impl<T: Decide> Patch<T> {
             knots(self.rect.u, self.pu)?,
             knots(self.rect.v, self.pv)?,
             self.points().collect(),
-            self.net.iter().map(|h| h[3]).collect(),
+            self.net.iter().map(|(h, _)| h[3]).collect(),
         )
         .ok()?;
         Some(Surface::Nurbs(Arc::new(surface)))
     }
 }
+
+/// A homogeneous control point and, at `f64`, a first-order bound on
+/// each channel's accumulated rounding (*Rounding*, module docs); the
+/// weight is the last channel.
+type Control<T, const N: usize> = ([T; N], [f64; N]);
+
+/// Whether the scalar's arithmetic rounds uncharged, so a cut carries
+/// rounding bounds: `f64`, not an enclosure.
+fn tracks<T: Decide>() -> bool {
+    T::WITNESS == geom_core::Witness::Inexact
+}
+
+/// **One blend `x + (y − x)·t`** of two homogeneous control points, each
+/// channel by [`geom_core::spline::SpanLocate::homogeneous_step`], with its rounding bound
+/// when `track`ed: the inputs' bounds blended as the values are, plus
+/// `u·|y − x|·t` for the difference, `u·|result|` for the sum, and, at a
+/// ratio that is not the exact half (`ratio`), `u·|y − x|·t` more for the
+/// product and `|y − x|·δt` for `t`'s own rounding (three units of it).
+fn blend<T: Decide, const N: usize>(
+    x: Control<T, N>,
+    y: Control<T, N>,
+    t: T,
+    ratio: bool,
+    track: bool,
+) -> Control<T, N> {
+    let h: [T; N] = core::array::from_fn(|c| T::homogeneous_step(x.0[c], y.0[c], t));
+    if !track {
+        return (h, [0.0; N]);
+    }
+    let tf = middle(t);
+    let (dt, roundings) = if ratio && !mutant("spline-region-ratio-uncharged") {
+        (3.0 * UNIT_ROUNDOFF * tf.abs(), 2.0)
+    } else {
+        (0.0, 1.0)
+    };
+    let e = core::array::from_fn(|c| {
+        let span = (middle(y.0[c]) - middle(x.0[c])).abs();
+        (1.0 - tf) * x.1[c]
+            + tf * y.1[c]
+            + UNIT_ROUNDOFF * (roundings * span * tf.abs() + middle(h[c]).abs())
+            + span * dt
+    });
+    (h, e)
+}
+
+/// One control point's rounding out of homogeneous form, per coordinate:
+/// `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|`, infinite where the weight's
+/// bound reaches the weight; the weight's own channel reads zero. A
+/// first-order bound: measured against double-double cuts, the worst
+/// drift is within 5% of it (`spline_region_rows`). At an enclosure scalar
+/// the bounds carried are zero, and no floor reads this.
+fn point_rounding<T: Decide, const N: usize>((h, e): &Control<T, N>) -> [f64; N] {
+    let w = middle(h[N - 1]);
+    let lead = w - e[N - 1];
+    if lead.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
+        return [f64::INFINITY; N];
+    }
+    let scale = if mutant("spline-region-bound-halved") {
+        0.5
+    } else {
+        1.0
+    };
+    core::array::from_fn(|c| {
+        if c == N - 1 {
+            return 0.0;
+        }
+        let p = (middle(h[c]) / w).abs();
+        scale * ((e[c] + p * e[N - 1]) / lead + UNIT_ROUNDOFF * p)
+    })
+}
+
+/// The middle of a value's bracket, the value an `f64` rounding bound is
+/// read at; NaN for the poison.
+fn middle<T: Decide>(x: T) -> f64 {
+    x.structure_bracket().map_or(f64::NAN, geom::bracket_mid)
+}
+
+/// **A homogeneous row refined along `knots`** by inserting `add`,
+/// through the kernel's insertion plans
+/// ([`geom_core::spline::plan_inputs::refine_plan`]) applied in the
+/// scalar ([`geom_core::spline::CurvePlan::apply_homogeneous`]), each
+/// step a [`blend`], so an enclosure holds the exact refined row and the
+/// `f64` bound follows the arithmetic. Insertion keeps the knots' breaks.
+/// `None` where a knot has no value or a plan refuses.
+fn refined<T: Decide, const N: usize>(
+    knots: &Knots<T>,
+    row: Vec<Control<T, N>>,
+    add: &[f64],
+) -> Option<Vec<Control<T, N>>> {
+    if add.is_empty() {
+        return Some(row);
+    }
+    let track = tracks::<T>();
+    let runs: Vec<(T, usize)> = knots.runs().collect();
+    // Every knot an insertion meets is a held break or one of `add`.
+    let held = |v: f64| {
+        runs.iter()
+            .find(|(value, _)| value.value_channel() == v)
+            .map_or_else(|| T::from_computed(v), |(value, _)| *value)
+    };
+    let unit = geom_core::spline::Weights::new(vec![T::one(); row.len()]).ok()?;
+    let plans = geom_core::spline::plan_inputs::refine_plan(knots, &unit, add).ok()?;
+    let mut values: Vec<T> = knots.values().to_vec();
+    let poison: Control<T, N> = ([T::from_f64(f64::NAN); N], [f64::NAN; N]);
+    let mut row = row;
+    for plan in &plans {
+        let pairs: Vec<(Control<T, N>, T)> = row.iter().map(|c| (*c, c.0[N - 1])).collect();
+        row = plan
+            .apply_homogeneous(
+                &values,
+                &pairs,
+                ((poison, poison.0[N - 1]), &held),
+                |x, y, t| blend(x, y, t, true, track),
+            )
+            .into_iter()
+            .map(|(c, _)| c)
+            .collect();
+        values = plan.knots().knots().iter().map(|&v| held(v)).collect();
+    }
+    (row.iter().all(|(h, _)| !h[N - 1].is_poison())).then_some(row)
+}
+
+/// **The chart's Bézier cells**, ascending in `u` then `v`; `None` where
+/// the decomposition does not run. Each is the chart's own net, moved
+/// about the middle of its control box and refined to full multiplicity
+/// at every break ([`refined`]: along `v`, one row per `u` index, then
+/// along `u`, one row per refined `v` index), held at the door's scalar:
+/// `geom_brep::patch_bound::patch_cells` reads an `f64` chart and
+/// `PatchSpans::decompose` one interval channel, and this door is
+/// generic over [`Decide`]. `geom_brep`'s spline incidence test cuts the
+/// same way with the same charge
+/// (`work/splice/the-spline-chart-cell-walk-is-written-twice.md`).
+fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
+    let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
+    let (pu, pv) = (ku.degree(), kv.degree());
+    let (nu, nv) = chart.control_counts();
+    if pu == 0 || pv == 0 || nu == 0 || nv == 0 {
+        return None;
+    }
+    let track = tracks::<T>();
+    let (control, weights) = (chart.control(), chart.weights());
+    let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+    for p in control {
+        for (k, x) in [p.x, p.y, p.z].into_iter().enumerate() {
+            lo[k] = lo[k].min(middle(x));
+            hi[k] = hi[k].max(middle(x));
+        }
+    }
+    let centre = Vec3::new(
+        T::from_computed(geom::bracket_mid((lo[0], hi[0]))),
+        T::from_computed(geom::bracket_mid((lo[1], hi[1]))),
+        T::from_computed(geom::bracket_mid((lo[2], hi[2]))),
+    );
+    // Moved and out to homogeneous form: the difference and the product
+    // round each coordinate by `u` of it.
+    let homogeneous = |k: usize| -> Control<T, 4> {
+        let (p, w) = (control[k] - centre, weights[k]);
+        let h = [p.x * w, p.y * w, p.z * w, w];
+        let e = core::array::from_fn(|c| {
+            if track && c < 3 {
+                2.0 * UNIT_ROUNDOFF * middle(h[c]).abs()
+            } else {
+                0.0
+            }
+        });
+        (h, e)
+    };
+    let rows: Vec<Vec<Control<T, 4>>> = (0..nu)
+        .map(|i| {
+            refined(
+                kv,
+                (0..nv).map(|j| homogeneous(i * nv + j)).collect(),
+                &bezier_insertions(kv)?,
+            )
+        })
+        .collect::<Option<_>>()?;
+    let nv = rows.first()?.len();
+    let add_u = bezier_insertions(ku)?;
+    let columns: Vec<Vec<Control<T, 4>>> = (0..nv)
+        .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect(), &add_u))
+        .collect::<Option<_>>()?;
+    let nu = columns.first()?.len();
+    // The hull needs every weight shown positive: a net cut through
+    // weights not shown so (an enclosure reaching zero) is not read.
+    if !columns
+        .iter()
+        .flatten()
+        .all(|(h, _)| h[3].structure_positive())
+    {
+        return None;
+    }
+    let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
+    let (cu, cv) = (bu.len() - 1, bv.len() - 1);
+    if nu != cu * pu + 1 || nv != cv * pv + 1 {
+        return None;
+    }
+    let mut cells = Vec::with_capacity(cu * cv);
+    for i in 0..cu {
+        for j in 0..cv {
+            let mut net = Vec::with_capacity((pu + 1) * (pv + 1));
+            for a in 0..=pu {
+                for b in 0..=pv {
+                    net.push(columns[j * pv + b][i * pu + a]);
+                }
+            }
+            cells.push(Patch {
+                rect: Rect {
+                    u: (bu[i], bu[i + 1]),
+                    v: (bv[j], bv[j + 1]),
+                },
+                pu,
+                pv,
+                net,
+                centre,
+            });
+        }
+    }
+    Some(cells)
+}
+
+/// Whether the mutant `site` is named at compile time
+/// (`SPLICE_SPLINE_REGION_MUTANT`, `option_env!` because
+/// `scripts/gates/no-ambient-env.sh` forbids a runtime read): the
+/// charges read wrong one at a time, each refused by a row in
+/// `spline_region_rows`.
+fn mutant(site: &str) -> bool {
+    #[cfg(test)]
+    {
+        debug_assert!(MUTANTS.contains(&site), "an unlisted mutant site: {site}");
+        option_env!("SPLICE_SPLINE_REGION_MUTANT") == Some(site)
+    }
+    #[cfg(not(test))]
+    {
+        let _ = site;
+        false
+    }
+}
+
+/// Every site [`mutant`] answers for.
+#[cfg(test)]
+const MUTANTS: [&str; 10] = [
+    "spline-region-charge-dropped",
+    "spline-region-cut-dropped",
+    "spline-region-read-dropped",
+    "spline-region-ratio-uncharged",
+    "spline-region-bound-halved",
+    "spline-region-trim-uncharged",
+    "spline-region-u-unwidened",
+    "spline-region-halfwidth-dropped",
+    "spline-region-shift-untracked",
+    "spline-region-iso-end-uncharged",
+];
 
 /// The interior knots of `knots` to insert so each reaches multiplicity
 /// `p`, the breaks of a Bézier decomposition; `None` past `p` or at a
@@ -556,140 +903,71 @@ fn bezier_insertions<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
     Some(add)
 }
 
-/// The break values of `knots`, one per run.
-fn breaks<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
-    let out: Vec<f64> = knots.runs().map(|(v, _)| v.value_channel()).collect();
-    out.iter().all(|x| x.is_finite()).then_some(out)
-}
-
-/// The rows of a net refined by `add` along their own direction, each
-/// row a curve on `knots`: the refined rows and their knots.
-type Rows<T> = Vec<Vec<(Point3<T>, T)>>;
-
-fn refine_rows<T: Decide>(
-    knots: &Knots<T>,
-    rows: Rows<T>,
-    add: &[f64],
-) -> Option<(Rows<T>, Knots<T>)> {
-    let mut out = Vec::with_capacity(rows.len());
-    let mut refined_knots = None;
-    for row in rows {
-        let (control, weights): (Vec<_>, Vec<_>) = row.into_iter().unzip();
-        let curve = geom::NurbsCurve3::new(knots.clone(), control, weights).ok()?;
-        let curve = curve.refine_knots(add).ok()?;
-        out.push(
-            curve
-                .control()
-                .iter()
-                .copied()
-                .zip(curve.weights().iter().copied())
-                .collect(),
-        );
-        refined_knots.get_or_insert_with(|| curve.knot_values().clone());
-    }
-    Some((out, refined_knots?))
-}
-
-/// **The chart's Bézier cells**, ascending in `u` then `v`; `None` where
-/// the decomposition does not run. Each is the chart's own net refined
-/// to full multiplicity at every break (each row and column a
-/// [`geom::NurbsCurve3::refine_knots`]), held at the door's scalar:
-/// `geom_brep::patch_bound::patch_cells` reads an `f64` chart and
-/// `PatchSpans::decompose` one interval channel, and this door is
-/// generic over [`Decide`].
-fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
-    let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
-    let (pu, pv) = (ku.degree(), kv.degree());
-    let (nu, nv) = chart.control_counts();
-    if pu == 0 || pv == 0 || nu == 0 || nv == 0 {
-        return None;
-    }
-    let (control, weights) = (chart.control(), chart.weights());
-    // Along `v` first, one row per `u` index; then along `u`, one row
-    // per refined `v` index.
-    let rows: Rows<T> = (0..nu)
-        .map(|i| {
-            (0..nv)
-                .map(|j| (control[i * nv + j], weights[i * nv + j]))
-                .collect()
-        })
-        .collect();
-    let (rows, kv) = refine_rows(kv, rows, &bezier_insertions(kv)?)?;
-    let nv = rows.first()?.len();
-    let columns: Rows<T> = (0..nv)
-        .map(|j| rows.iter().map(|r| r[j]).collect())
-        .collect();
-    let (columns, ku) = refine_rows(ku, columns, &bezier_insertions(ku)?)?;
-    let nu = columns.first()?.len();
-    let (bu, bv) = (breaks(&ku)?, breaks(&kv)?);
-    let (cu, cv) = (bu.len() - 1, bv.len() - 1);
-    if nu != cu * pu + 1 || nv != cv * pv + 1 {
-        return None;
-    }
-    let mut cells = Vec::with_capacity(cu * cv);
-    for i in 0..cu {
-        for j in 0..cv {
-            let mut net = Vec::with_capacity((pu + 1) * (pv + 1));
-            for a in 0..=pu {
-                for b in 0..=pv {
-                    let (p, w) = columns[j * pv + b][i * pu + a];
-                    net.push([p.x * w, p.y * w, p.z * w, w]);
-                }
-            }
-            cells.push(Patch {
-                rect: Rect {
-                    u: (bu[i], bu[i + 1]),
-                    v: (bv[j], bv[j + 1]),
-                },
-                pu,
-                pv,
-                net,
-            });
-        }
-    }
-    Some(cells)
-}
-
 /// **One piece of the trim's chain**: a rational Bézier curve in the
-/// chart, its control points in homogeneous form.
+/// chart, its control points in homogeneous form, each with its rounding
+/// bound (*Rounding*, module docs).
 #[derive(Clone, Debug)]
 struct Piece {
-    net: Vec<[f64; 3]>,
+    net: Vec<Control<f64, 3>>,
 }
 
 impl Piece {
-    fn segment(a: [f64; 2], b: [f64; 2]) -> Self {
-        Self {
-            net: vec![[a[0], a[1], 1.0], [b[0], b[1], 1.0]],
-        }
+    fn segment(a: Control<f64, 3>, b: Control<f64, 3>) -> Self {
+        Self { net: vec![a, b] }
     }
 
-    fn point(h: [f64; 3]) -> [f64; 2] {
+    /// The chart point `p`, each coordinate off by at most `e`.
+    fn vertex(p: [f64; 2], e: [f64; 2]) -> Control<f64, 3> {
+        ([p[0], p[1], 1.0], [e[0], e[1], 0.0])
+    }
+
+    fn point((h, _): Control<f64, 3>) -> [f64; 2] {
         [h[0] / h[2], h[1] / h[2]]
     }
 
-    fn ends(&self) -> ([f64; 2], [f64; 2]) {
-        (
-            Self::point(self.net[0]),
-            Self::point(self.net[self.net.len() - 1]),
-        )
+    fn first(&self) -> Control<f64, 3> {
+        self.net[0]
     }
 
-    /// The control points' box, which holds the piece; `None` for a
-    /// point with no value.
+    fn last(&self) -> Control<f64, 3> {
+        self.net[self.net.len() - 1]
+    }
+
+    fn ends(&self) -> ([f64; 2], [f64; 2]) {
+        (Self::point(self.first()), Self::point(self.last()))
+    }
+
+    /// The control points' box, which holds the piece, widened on each
+    /// side by the worst rounding of a point; `None` for a point with no
+    /// value.
     fn bbox(&self) -> Option<Rect> {
         let mut r = Rect::point(f64::INFINITY, f64::INFINITY);
         r.u.1 = f64::NEG_INFINITY;
         r.v.1 = f64::NEG_INFINITY;
-        for h in &self.net {
-            let [x, y] = Self::point(*h);
+        let mut worst = [0.0f64; 2];
+        for control in &self.net {
+            let [x, y] = Self::point(*control);
             if !x.is_finite() || !y.is_finite() {
                 return None;
             }
             r.u = (r.u.0.min(x), r.u.1.max(x));
             r.v = (r.v.0.min(y), r.v.1.max(y));
+            let e = point_rounding(control);
+            if !e.iter().all(|x| x.is_finite()) {
+                return None;
+            }
+            worst = [worst[0].max(e[0]), worst[1].max(e[1])];
         }
-        Some(r)
+        if mutant("spline-region-trim-uncharged") {
+            return Some(r);
+        }
+        if mutant("spline-region-u-unwidened") {
+            worst[0] = 0.0;
+        }
+        Some(Rect {
+            u: (r.u.0 - worst[0], r.u.1 + worst[0]),
+            v: (r.v.0 - worst[1], r.v.1 + worst[1]),
+        })
     }
 
     /// The two halves of the piece's parameter, by de Casteljau.
@@ -701,8 +979,7 @@ impl Piece {
             lo.push(row[0]);
             hi.push(row[n - level]);
             for i in 0..n - level {
-                let (a, b) = (row[i], row[i + 1]);
-                row[i] = core::array::from_fn(|c| (a[c] + b[c]) * 0.5);
+                row[i] = blend(row[i], row[i + 1], 0.5, false, true);
             }
         }
         hi.reverse();
@@ -714,12 +991,27 @@ impl Piece {
         self
     }
 
+    /// The piece moved by `(du, dv)`: `h_c + d_c·w`, a product and a sum.
     fn shifted(&self, du: f64, dv: f64) -> Self {
+        let step = |x: f64, ex: f64, d: f64, w: f64, ew: f64| {
+            let r = x + d * w;
+            if mutant("spline-region-shift-untracked") {
+                return (r, ex);
+            }
+            (
+                r,
+                ex + d.abs() * ew + UNIT_ROUNDOFF * ((d * w).abs() + r.abs()),
+            )
+        };
         Self {
             net: self
                 .net
                 .iter()
-                .map(|h| [h[0] + du * h[2], h[1] + dv * h[2], h[2]])
+                .map(|&(h, e)| {
+                    let (x, ex) = step(h[0], e[0], du, h[2], e[2]);
+                    let (y, ey) = step(h[1], e[1], dv, h[2], e[2]);
+                    ([x, y, h[2]], [ex, ey, e[2]])
+                })
                 .collect(),
         }
     }
@@ -762,8 +1054,8 @@ impl Trim {
         caps: Caps,
         band: Band,
     ) -> Option<Self> {
-        let face_data = proven(&body.faces, face, EntityId::Face);
-        let surface = body.face_surface_linked(face, face_data);
+        let view = body.proven_face(face);
+        let surface = view.surface();
         // The lift moves a row by the periods the chart STATES
         // ([`crate::pcurves::loop_lift`]), and a copy of a query is read a
         // period apart only on a channel the chart is DECIDED closed in.
@@ -795,8 +1087,15 @@ impl Trim {
             u: (u0.value_channel(), u1.value_channel()),
             v: (v0.value_channel(), v1.value_channel()),
         };
+        // The chart coordinates' magnitude an image's evaluation rounds
+        // at: the domain's, and a period past it.
+        let scale = [domain.u.0, domain.u.1, domain.v.0, domain.v.1]
+            .into_iter()
+            .chain(periods.iter().flatten().copied())
+            .map(f64::abs)
+            .fold(0.0, f64::max);
         let mut chains = Vec::new();
-        for (lk, _, _) in body.face_loops_linked(face, face_data) {
+        for (lk, _, _) in view.loops() {
             let lift = crate::pcurves::loop_lift_past_placeholders(body, lk).ok()?;
             if lift.is_empty() {
                 return None;
@@ -817,14 +1116,14 @@ impl Trim {
                     return None;
                 }
                 let (t0, t1) = row.row.params();
-                let mut run = image_pieces(&row.pcurve, t0, t1)?;
+                let mut run = image_pieces(&row.pcurve, t0, t1, scale)?;
                 if !walks_forward(body, row.half_edge) {
                     run = run.into_iter().rev().map(Piece::reversed).collect();
                 }
-                close_gap(&mut chain, run.first()?.ends().0);
+                close_gap(&mut chain, run.first()?.first());
                 chain.extend(run);
             }
-            let start = chain.first()?.ends().0;
+            let start = chain.first()?.first();
             close_gap(&mut chain, start);
             chains.push(chain);
         }
@@ -1014,7 +1313,7 @@ impl Trim {
                 continue;
             }
             match decide(
-                TRIM,
+                SPLINE_REGION_TRIM,
                 Margin::metered(T::from_computed(room.max(0.0)), arm),
                 band,
             ) {
@@ -1095,7 +1394,11 @@ impl Trim {
             let mut diag = None;
             let mut clear = false;
             for (g, arm) in [(gu, au), (gv, av)] {
-                match decide(TRIM, Margin::metered(T::from_computed(g), arm), band) {
+                match decide(
+                    SPLINE_REGION_TRIM,
+                    Margin::metered(T::from_computed(g), arm),
+                    band,
+                ) {
                     Ok(Sign::Positive) => clear = true,
                     Ok(_) => {}
                     Err(d) => diag = diag.or(Some(d)),
@@ -1125,11 +1428,14 @@ impl Trim {
 }
 
 /// Close the chain's gap to `to`: a segment from its last end, where
-/// that end is not `to` itself.
-fn close_gap(chain: &mut Vec<Piece>, to: [f64; 2]) {
+/// that end is not `to` itself in homogeneous form, so the computed chain
+/// is continuous (a query clear of every widened box reads the parity of
+/// the exact chain, *Rounding*).
+fn close_gap(chain: &mut Vec<Piece>, to: Control<f64, 3>) {
     if let Some(last) = chain.last() {
-        let from = last.ends().1;
-        if from != to {
+        let from = last.last();
+        #[allow(clippy::float_cmp)] // one control point, read twice
+        if from.0 != to.0 {
             chain.push(Piece::segment(from, to));
         }
     }
@@ -1145,19 +1451,55 @@ fn walks_forward<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> bool {
 /// iso line or an iso arc is the segment between its two ends (its image
 /// is that segment, whatever its parameterization), a fitted or general
 /// image its Bézier pieces over the span. `None` for any other kind, or
-/// where the decomposition does not run.
-fn image_pieces<T: Decide>(pcurve: &Pcurve<T>, t0: T, t1: T) -> Option<Vec<Piece>> {
-    let value = |p: geom_core::Point2<T>| [p.x.value_channel(), p.y.value_channel()];
+/// where the decomposition does not run. An end is held at its
+/// bracket's middle, off by the bracket's half-width and, at `f64`, by a
+/// short chain's rounding at `scale` past it (`p0 + d·g`).
+fn image_pieces<T: Decide>(pcurve: &Pcurve<T>, t0: T, t1: T, scale: f64) -> Option<Vec<Piece>> {
+    let end = |p: geom_core::Point2<T>| {
+        let [(x, ex), (y, ey)] = [p.x, p.y].map(|c| {
+            let m = middle(c);
+            let mut e = half_width(c);
+            if tracks::<T>() && !mutant("spline-region-iso-end-uncharged") {
+                e += rounding_charge(m.abs() + scale);
+            }
+            (m, e)
+        });
+        Piece::vertex([x, y], [ex, ey])
+    };
     match pcurve {
         Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => Some(vec![Piece::segment(
-            value(pcurve.eval(t0)),
-            value(pcurve.eval(t1)),
+            end(pcurve.eval(t0)),
+            end(pcurve.eval(t1)),
         )]),
         Pcurve::Fitted(image) | Pcurve::General(image) => {
-            bezier_pieces(image, t0.value_channel(), t1.value_channel())
+            let mut run = bezier_pieces(image, t0.value_channel(), t1.value_channel())?;
+            if !tracks::<T>() {
+                // The span's ends are brackets, cut at their value: each
+                // end of the run is also off by the image's reach over its
+                // bracket, its enclosure's middle and half-width.
+                let reach = |(h, e): &mut Control<f64, 3>, at: geom_core::Point2<T>| {
+                    for (c, x) in [at.x, at.y].into_iter().enumerate() {
+                        let off = (middle(x) - h[c] / h[2]).abs() + half_width(x);
+                        e[c] += h[2].abs() * off;
+                    }
+                };
+                reach(run.first_mut()?.net.first_mut()?, image.eval(t0));
+                reach(run.last_mut()?.net.last_mut()?, image.eval(t1));
+            }
+            Some(run)
         }
         _ => None,
     }
+}
+
+/// Half the width of a value's bracket: how far its middle can lie from
+/// the value it stands for; NaN for the poison.
+fn half_width<T: Decide>(x: T) -> f64 {
+    if mutant("spline-region-halfwidth-dropped") {
+        return 0.0;
+    }
+    x.structure_bracket()
+        .map_or(f64::NAN, |(lo, hi)| (hi - lo) * 0.5)
 }
 
 /// The Bézier pieces of `image` over `[a, b]`, ascending.
@@ -1189,12 +1531,39 @@ fn bezier_pieces<T: Decide>(image: &NurbsCurve2<T>, a: f64, b: f64) -> Option<Ve
         }
         add.extend(core::iter::repeat_n(x, p - m));
     }
-    let refined = image.refine_knots(&add).ok()?;
-    let bk = breaks(refined.knot_values())?;
-    let (control, weights) = (refined.control(), refined.weights());
+    // Insertion keeps every break and adds `a` and `b`.
+    let mut bk: Vec<f64> = runs.iter().map(|&(v, _)| v).chain([a, b]).collect();
+    bk.sort_by(f64::total_cmp);
+    bk.dedup();
+    let track = tracks::<T>();
+    let row = image
+        .control()
+        .iter()
+        .zip(image.weights())
+        .map(|(c, &w)| {
+            let h = [c.x * w, c.y * w, w];
+            let e = core::array::from_fn(|k| {
+                if track && k < 2 {
+                    UNIT_ROUNDOFF * middle(h[k]).abs()
+                } else {
+                    0.0
+                }
+            });
+            (h, e)
+        })
+        .collect();
+    let control = refined(image.knot_values(), row, &add)?;
     if control.len() != (bk.len() - 1) * p + 1 {
         return None;
     }
+    // Out of the scalar: each channel's bracket middle, off by its
+    // half-width as well.
+    let out_of_scalar = |(h, e): Control<T, 3>| -> Control<f64, 3> {
+        (
+            h.map(middle),
+            core::array::from_fn(|k| e[k] + half_width(h[k])),
+        )
+    };
     let mut out = Vec::new();
     for k in 0..bk.len() - 1 {
         if bk[k] < a || bk[k + 1] > b {
@@ -1202,10 +1571,7 @@ fn bezier_pieces<T: Decide>(image: &NurbsCurve2<T>, a: f64, b: f64) -> Option<Ve
         }
         out.push(Piece {
             net: (k * p..=k * p + p)
-                .map(|i| {
-                    let (c, w) = (control[i], weights[i].value_channel());
-                    [c.x.value_channel() * w, c.y.value_channel() * w, w]
-                })
+                .map(|i| out_of_scalar(control[i]))
                 .collect(),
         });
     }
@@ -1229,12 +1595,11 @@ fn window_arms<T: Decide>(
         let surface = cell.restricted(part).surface().ok_or(None)?;
         let floor = |x: T| x.structure_bracket().map_or(f64::NAN, |(lo, _)| lo);
         let (au, av) =
-            crate::chart_region::spline_chart_arms(&surface, ARM, floor, band).map_err(|gate| {
-                match gate {
+            crate::chart_region::spline_chart_arms(&surface, SPLINE_REGION_ARM, floor, band)
+                .map_err(|gate| match gate {
                     crate::chart_region::ArmGate::Unbounded => None,
                     crate::chart_region::ArmGate::Escalated(diag) => Some(diag),
-                }
-            })?;
+                })?;
         let (au, av) = (au.get(), av.get());
         least = Some(least.map_or((au, av), |(lu, lv)| (lu.min(au), lv.min(av))));
     }

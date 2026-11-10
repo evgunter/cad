@@ -2,10 +2,13 @@
 id: face-to-surface-walks-outside-topo-predate-body-face-surface
 kind: issue
 title: Crates outside topo walk a face to its surface by hand, and mesh and sweep keep private twins
-status: open
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: M
+closed: 2026-11-06
+pr: 6552
+branch: onecopy/topo-handles
 ---
 
 Found by the sweep of `boolean-walks-face-to-surface-inline-at-two-dozen-sites`,

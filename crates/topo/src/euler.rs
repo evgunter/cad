@@ -766,8 +766,9 @@ fn require_chord_adjacent<T: Real>(
 /// The lever of an edge at rest whose faces' join reads in band or mixed
 /// along it ([`EulerOpError::RestJoinUndecided`],
 /// [`EulerOpError::RestJoinMixed`]).
-pub(crate) const REST_JOIN_LEVER: &str =
-    "move the geometry so the faces meet clearly smoothly or clearly at a corner along the edge";
+pub(crate) const REST_JOIN_LEVER: &str = geom_core::move_lever!(
+    "so the faces meet clearly smoothly or clearly at a corner along the edge"
+);
 
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
@@ -1159,9 +1160,9 @@ pub enum EulerOpError {
         curve: CurveKey,
     },
     /// [`Body::split_edge`](crate::construction::Construct::split_edge)'s parameter is **definitely not interior**
-    /// to the edge's certified interval: one of the two sub-spans
-    /// `t − t₀` / `t₁ − t` classified non-positive (metered in meters,
-    /// like the certification span gate). Splitting at an endpoint (or
+    /// to the edge's certified interval: the span's reading of it
+    /// (`geom_brep::curve_pair::Span::place_param_read`) puts it at an end,
+    /// by its chord, or past one. Splitting at an endpoint (or
     /// outside the interval) is refused — the split point must be a
     /// genuinely interior locus point.
     SplitParamNotInterior {
@@ -1890,7 +1891,7 @@ pub(crate) fn every_euler_op_error_once()
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("split_edge_param_interior"),
+                predicate: Some("curve_pair_span_end_chord"),
                 terminal_sliver: false,
             },
         },
@@ -1960,14 +1961,16 @@ pub(crate) fn every_euler_op_error_once()
             // Read in band at a pose: the geometry's lever. A definite miss
             // names the kernel's defect, the one exception
             // `no_refusal_names_a_defect` pins.
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "the circle sits at the apex's height",
-                margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
-                    5e-10,
-                ))),
-            },
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Cone,
+                    geom::CurveKind::Circle,
+                    "the circle sits at the apex's height",
+                    Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                        5e-10,
+                    ))),
+                ),
+            ),
         },
         EulerOpError::PcurveMint {
             face: fc,
@@ -2383,33 +2386,28 @@ impl<T: Decide> Body<T> {
     /// malformed body, loops whose keys or cycles do not resolve are
     /// skipped too (total, never panics), so `None` means "not found or
     /// not reachable".
+    ///
+    /// It reads the explicitly unchecked walk
+    /// ([`Body::unchecked_face_boundary`]) on purpose: no Euler operator
+    /// calls it, only tests and hand construction, whose bodies no door
+    /// has certified yet, so an unwalkable loop is an honest "not here"
+    /// rather than a kernel bug.
     pub fn find_half_edge(
         &self,
         face: FaceKey,
         from: VertexKey,
         to: VertexKey,
     ) -> Option<HalfEdgeKey> {
-        let face_data = self.get_face(face)?;
-        for loop_key in face_data.loop_keys() {
-            let Some(loop_data) = self.get_loop(loop_key) else {
-                continue;
-            };
-            let LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue;
-            };
-            let Some(cycle) = self.loop_cycle(first) else {
-                continue;
-            };
-            for he in cycle {
-                let Some(he_data) = self.get_half_edge(he) else {
-                    continue;
-                };
-                if he_data.start == from && self.half_edge_end(he) == Some(to) {
-                    return Some(he);
-                }
-            }
-        }
-        None
+        self.unchecked_face_boundary(self.get_face(face)?)
+            .filter_map(|read| match read {
+                Ok(crate::live::UncheckedLoop::Cycle(cycle)) => Some(cycle),
+                Ok(crate::live::UncheckedLoop::Lone(_)) | Err(_) => None,
+            })
+            .flatten()
+            .find(|&he| {
+                self.get_half_edge(he).is_some_and(|h| h.start == from)
+                    && self.half_edge_end(he) == Some(to)
+            })
     }
 
     // ------------------------------------------------------------------
@@ -3229,21 +3227,6 @@ impl<T: Decide> Body<T> {
             .iter()
             .find(|&(he, data)| data.start == v && !skip.contains_key(he))
             .map(|(he, _)| he)
-    }
-
-    /// The first loop in arena order, other than `besides`, that is
-    /// `Empty` at `v`: the scan behind a kill's proof that the loop it
-    /// empties at `v` is the only one there
-    /// ([`Body::require_kill_anchors`]) and that no loop it keeps holds a
-    /// vertex it removes ([`Body::require_vertex_unnamed`]). It reads the
-    /// whole loop arena.
-    pub(crate) fn empty_at_besides(&self, v: VertexKey, besides: &[LoopKey]) -> Option<LoopKey> {
-        self.loops
-            .iter()
-            .find(|&(l, data)| {
-                data.boundary == LoopBoundary::Empty { vertex: v } && !besides.contains(&l)
-            })
-            .map(|(l, _)| l)
     }
 
     /// Proves the anchor writes of a kill that removes the half-edges
@@ -4194,8 +4177,8 @@ impl<T: Decide> Body<T> {
                 continue;
             }
             seen.push(face);
-            let face_data = proven(&self.faces, face, EntityId::Face);
-            let surface = self.face_surface_linked(face, face_data);
+            let view = self.proven_face(face);
+            let surface = view.surface();
             if let Some(from) = crate::pcurves::site_rows_from(self, face, surface) {
                 minted.push((face, from));
             }
@@ -4252,9 +4235,10 @@ impl<T: Decide> Body<T> {
         rewired: &[(LoopKey, Vec<SiteHalf>)],
         killed: Option<LoopKey>,
     ) -> SiteFace<T> {
-        let face_data = proven(&self.faces, face, EntityId::Face);
-        let surface = self.face_surface_linked(face, face_data).clone();
-        let loops = face_data
+        let view = self.proven_face(face);
+        let surface = view.surface().clone();
+        let loops = view
+            .record()
             .loop_keys()
             .filter(|&lk| Some(lk) != killed)
             .map(|lk| match rewired.iter().find(|(k, _)| *k == lk) {
@@ -4302,9 +4286,9 @@ impl<T: Decide> Body<T> {
         moved: bool,
         halves: Vec<SiteHalf>,
     ) -> Result<SiteFace<T>, EulerOpError> {
-        let from_data = proven(&self.faces, from, EntityId::Face);
+        let from_data = self.proven_face(from);
         let chart = match surface {
-            FaceSurface::Inherit => self.face_surface_linked(from, from_data).clone(),
+            FaceSurface::Inherit => from_data.surface().clone(),
             FaceSurface::Shared { key, .. } => self
                 .get_surface(*key)
                 .cloned()
@@ -4504,6 +4488,21 @@ impl<T: Decide> Body<T> {
 /// The plan-phase reads that need no scalar decision, so serve every
 /// scalar backend.
 impl<T: Real> Body<T> {
+    /// The first loop in arena order, other than `besides`, that is
+    /// `Empty` at `v`: the scan behind a kill's proof that the loop it
+    /// empties at `v` is the only one there
+    /// ([`Body::require_kill_anchors`]) and that no loop it keeps holds a
+    /// vertex it removes ([`Body::require_vertex_unnamed`]). It reads the
+    /// whole loop arena.
+    pub(crate) fn empty_at_besides(&self, v: VertexKey, besides: &[LoopKey]) -> Option<LoopKey> {
+        self.loops
+            .iter()
+            .find(|&(l, data)| {
+                data.boundary == LoopBoundary::Empty { vertex: v } && !besides.contains(&l)
+            })
+            .map(|(l, _)| l)
+    }
+
     /// Resolves a half-edge, copying out its fields, its miss answered
     /// as `from` says ([`KeySource`]).
     ///
@@ -5384,13 +5383,9 @@ mod tests {
             circle.he_minus
         };
         body.kev_ungated(kill).unwrap();
-        let e = body.get_edge(nul.edge).unwrap();
-        let (hp, hm) = (e.he_plus, e.he_minus);
-        assert_eq!(
-            body.get_half_edge(hp).unwrap().start,
-            body.get_half_edge(hm).unwrap().start,
-            "the null edge is a self-loop"
-        );
+        let hp = body.get_edge(nul.edge).unwrap().he_plus;
+        let (s, t) = body.edge_vertices(nul.edge).unwrap();
+        assert_eq!(s, t, "the null edge is a self-loop");
         let strut = body
             .mev_line(
                 MevSite::Fan { he1: hp, he2: hp },
@@ -5768,7 +5763,12 @@ mod tests {
         let plane_face = [created.he_plus, created.he_minus]
             .into_iter()
             .map(|he| body.face_of_half_edge(he).unwrap())
-            .find(|&f| matches!(body.face_surface(f), Some(geom::Surface::Plane { .. })))
+            .find(|&f| {
+                matches!(
+                    body.face(f).map(|f| f.surface()),
+                    Some(geom::Surface::Plane { .. })
+                )
+            })
             .unwrap();
         // Both checks run before the pcurve pass (check 8). The pillow
         // reads its rowless spline face as unminted, an image derivable
@@ -6084,8 +6084,7 @@ mod tests {
             Some(vec![seg.he_plus, circ.he_plus, seg.he_minus])
         );
         let w = seg.vertex;
-        assert_eq!(body.get_half_edge(circ.he_plus).unwrap().start, w);
-        assert_eq!(body.half_edge_end(circ.he_plus), Some(w));
+        assert_eq!(body.edge_vertices(circ.edge), Some((w, w)));
         // New face shares the old face's surface (M1 geometry policy).
         assert_eq!(body.get_face(circ.face).unwrap().surface, seed.surface);
         // Chords never touches emanating.
@@ -6326,10 +6325,9 @@ mod tests {
         // The new edge joins start(he1) = v3 to start(he2) = v2, plus
         // half in the old loop.
         assert_eq!(
-            t.body.get_half_edge(split.he_plus).unwrap().start,
-            island.v3
+            t.body.edge_vertices(split.edge),
+            Some((island.v3, island.v2))
         );
-        assert_eq!(t.body.half_edge_end(split.he_plus), Some(island.v2));
         // Shared surface with face A (the split face), same shell.
         assert_eq!(
             t.body.get_face(split.face).unwrap().surface,
@@ -7090,12 +7088,14 @@ mod tests {
         let split = EulerOpError::PcurveSplit {
             edge: EdgeKey::default(),
             half_edge: HalfEdgeKey::default(),
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Spiric,
-                why: "the spiric lies on neither its own torus nor that torus's mirror",
-                margin: None,
-            },
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Torus,
+                    geom::CurveKind::Spiric,
+                    "the spiric lies on neither its own torus nor that torus's mirror",
+                    None,
+                ),
+            ),
         };
         assert!(
             split

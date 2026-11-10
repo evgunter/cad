@@ -314,9 +314,9 @@ fn offsetting_the_mitred_wall_refuses_typed() {
     // `A`'s wall, every face that wears its surface.
     let walls: Vec<_> = body
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Cylinder { axis, .. }) if axis.z.abs() > 0.9
             )
         })

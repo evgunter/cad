@@ -602,11 +602,7 @@ fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
         .filter_map(|(name, entry)| match entry {
             Entry::Unique(r) => match r.key {
                 EntityKey::Edge(e) => {
-                    let he = body.get_edge(e).unwrap().he_plus;
-                    let (s, t) = (
-                        body.get_half_edge(he).unwrap().start,
-                        body.half_edge_end(he).unwrap(),
-                    );
+                    let (s, t) = body.edge_vertices(e).unwrap();
                     ((height(s) - height(t)).abs() < 1e-12).then(|| name.clone())
                 }
                 _ => None,
@@ -640,11 +636,8 @@ fn a_blends_turn_is_quieted_by_no_gap_and_never_refuses() {
                 panic!("an edge: {ent:?}")
             };
             let body = ev.read_body(*input, ent.body).unwrap().unwrap().body();
-            let he = body.get_edge(e).unwrap().he_plus;
-            [
-                body.get_half_edge(he).unwrap().start,
-                body.half_edge_end(he).unwrap(),
-            ]
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            [v0, v1]
         };
         let [a, b] = [ends(&r.cells[0]), ends(&r.cells[1])];
         a.iter().any(|v| b.contains(v))

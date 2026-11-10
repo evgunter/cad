@@ -2,11 +2,10 @@
 id: torus-box-window-does-not-bound-a-clockwise-face
 kind: issue
 title: The torus box window is orientation-blind: it bounds the patch a loop encloses, not the face, so it does not bound a clockwise-wound face's region
-status: parked
+status: open
 opened: 2026-10-18
 priority: P3
 cost: M
-blocked_on: [cover-topo-faces]
 ---
 
 
@@ -50,3 +49,9 @@ and `census::torus_chart_window` alone: the split gate's
 `census::face_reach_in`. The window is now boxed by its closed form
 (`boxes::ring_window_extent`) rather than sampled, which encloses the
 rectangle exactly and so is as blind to the side as before.
+
+## Since `cover-topo-faces` (2026-11-08)
+
+Unchanged in substance. The window walk is `topo::cover`'s
+(`TorusChartWindow`, `torus_chart_window`), read by the face cover's
+torus arm, and is as blind to the side as before.

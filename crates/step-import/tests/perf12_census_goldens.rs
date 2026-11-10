@@ -1,6 +1,6 @@
 //! **The import census golden**: every STEP fixture the import door
-//! puts through the tier-3′ census (`gate3` →
-//! `topo::validate_pseudomanifold_certificate`) — the
+//! puts through the tier-3′ census (`gate3`: `topo::finish`, then
+//! `topo::AtRestPolicy::census_at_rest`) — the
 //! step-export solids and the FreeCAD set, `twobody_importexport` and
 //! `compound_two` among them the multi-solid rows — with the import's
 //! outcome serialized and compared byte-exact against a committed
@@ -53,7 +53,7 @@ fn row(label: &str, text: &str, options: &ImportOptions, out: &mut String) {
             coincidences,
             ..
         }) => {
-            let (solids, shells, faces, edges, vertices) = arena_census(body.body());
+            let (solids, shells, faces, edges, vertices) = arena_census(&body);
             out.push_str(&format!(
                 "import: Ok(Solid) solids={solids} shells={shells} faces={faces} edges={edges} vertices={vertices}\n"
             ));

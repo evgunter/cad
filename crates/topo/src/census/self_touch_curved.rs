@@ -6,9 +6,10 @@
 //! held at the post's corner, inside its bottom arc, or inside its wall,
 //! near the origin and a kilometre off it. The corner's edges point off
 //! the post (a rest), into it or across it (a crossing), along the
-//! wall's ruling (a line the wall keeps), or along an arc's or the
-//! wall's circle's tangent (a tangency only a second-order reading can
-//! part, refused).
+//! wall's ruling (a line the wall keeps), along an arc's tangent (a
+//! tangency the bends part one order down, [`crate::link::FaceSector::tangent`]'s
+//! second-order reading: off the post or under it a rest, into it
+//! refused), or along the wall's circle's tangent (refused).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
@@ -155,6 +156,10 @@ fn rows_hold(at: Seat) {
     let ruling = [[0.0, 0.0, 0.3], [0.3, -0.1, 0.1], [0.3, 0.15, -0.1]];
     let ruling_into = [[0.0, 0.0, 0.3], [0.3, -0.1, 0.1], [-0.3, 0.15, 0.1]];
     let circle = [[0.0, 0.3, 0.0], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
+    // Along the arc's tangent, the other two edges into the post, or
+    // inward under its bottom.
+    let circle_into = [[0.0, 0.3, 0.0], [-0.3, -0.1, 0.15], [-0.2, 0.05, 0.3]];
+    let circle_under = [[0.0, 0.3, 0.0], [-0.3, -0.1, -0.1], [-0.2, 0.05, -0.3]];
     let corner_into = [[-0.3, 0.1, 0.15], [-0.1, 0.3, 0.1], [-0.2, 0.05, 0.3]];
     let under = [[0.0, 0.0, -0.3], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
     // Along the circle, off the wall by three of the band's zero (in
@@ -164,19 +169,23 @@ fn rows_hold(at: Seat) {
     let rest = |v: &SelfTouch| matches!(v, SelfTouch::Read(TouchVerdict::Rest(_)));
     let in_band = |v: &SelfTouch| *v == SelfTouch::Read(TouchVerdict::Unread(TouchUnread::InBand));
     let crossing = |v: &SelfTouch| *v == SelfTouch::Read(Crossing);
-    let tangency = |v: &SelfTouch| *v == SelfTouch::SecondOrder(TouchUnread::Unreadable);
+    let tangency =
+        |v: &SelfTouch| *v == SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable));
     type Reads = fn(&SelfTouch) -> bool;
     let rows: Vec<(&str, [[f64; 3]; 3], Reads)> = match at {
         Seat::Corner => vec![
             ("off", off, rest),
             ("into", corner_into, crossing),
             ("straddling", straddle, crossing),
-            ("along the arc", circle, tangency),
+            ("along the arc", circle, rest),
+            ("along the arc, into", circle_into, tangency),
         ],
         Seat::Arc => vec![
             ("off", off, rest),
             ("into", into, crossing),
-            ("along the arc", circle, tangency),
+            ("along the arc", circle, rest),
+            ("along the arc, into", circle_into, tangency),
+            ("along the arc, under the post", circle_under, rest),
             ("down the wall's plane, under the post", under, rest),
             (
                 "down the wall's plane in band of it, under the post",
@@ -208,7 +217,7 @@ fn rows_hold(at: Seat) {
         for &(what, edges, reads) in &rows {
             let (body, corner, ties) = seat(c, at, edges);
             let (planar, verdict) = read(&body, corner, &ties);
-            if planar != TouchUnread::Unreadable || !reads(&verdict) {
+            if planar != TouchUnread::Curved(CurvedUnread::Unreadable) || !reads(&verdict) {
                 bad.push(format!(
                     "{at:?}, {what}, {far} off: planar {planar:?}, {verdict:?}"
                 ));
@@ -222,8 +231,9 @@ fn rows_hold(at: Seat) {
 /// corner**: the corner of its wall, its chord's plane and its bottom,
 /// whose arc leaves the vertex along its tangent. Off the post it rests,
 /// into it or straddling it it crosses; an edge along the arc's tangent
-/// leaves the arc only to second order and refuses. Red where a curved
-/// face's normal or an arc's departure reads the other way.
+/// parts from the arc one order down, the arc bending into the post: off
+/// the post it rests, into it it refuses. Red where a curved face's
+/// normal or an arc's departure or bend reads the other way.
 #[test]
 fn a_corner_on_its_own_curved_posts_corner_reads_its_tangent_corner() {
     rows_hold(Seat::Corner);
@@ -232,8 +242,9 @@ fn a_corner_on_its_own_curved_posts_corner_reads_its_tangent_corner() {
 /// **A corner inside a curved post's arc reads the arc's two faces as
 /// half-planes**: the wall's and the bottom's, along the arc's tangent
 /// there. Off the post it rests, into it it crosses; an edge along the
-/// arc's tangent refuses. Red where the arc's direction at the point
-/// reads the other way.
+/// arc's tangent rests off the post or under it, and refuses into it.
+/// Red where the arc's direction or bend at the point reads the other
+/// way.
 #[test]
 fn a_corner_inside_its_own_curved_posts_arc_reads_its_two_half_planes() {
     rows_hold(Seat::Arc);
@@ -272,7 +283,7 @@ fn an_edge_leaves_its_vertex_along_its_tangent_there() {
     let mut arcs = 0;
     for (he, half) in &body.half_edges {
         let (from, to) = (at(half.start), at(body.half_edge_end(he).unwrap()));
-        let (d, line) = departure(&body, half.start, he).unwrap();
+        let (d, line, _) = departure(&body, half.start, he).unwrap();
         let d = d.normalize();
         if line {
             assert!(
@@ -411,8 +422,456 @@ fn a_cusp_corner_is_left_to_second_order() {
     let (planar, verdict) = read(&body, corner, &ties);
     assert_eq!(
         planar,
-        TouchUnread::Unreadable,
+        TouchUnread::Curved(CurvedUnread::Unreadable),
         "a planar face's curved edge held at its corner"
     );
-    assert_eq!(verdict, SelfTouch::SecondOrder(TouchUnread::Unreadable));
+    assert_eq!(
+        verdict,
+        SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable))
+    );
+}
+
+/// **An elliptic edge's direction at a touch reads at its certified
+/// parameter, and where it does not read it refuses as itself**
+/// ([`half_edge_tangent`]): on an oblique wall's rim, one closed ellipse,
+/// at `f64` and at `Interval`. A point on the rim reads the tangent there,
+/// turned to each half. A point off it, which the span does not certify
+/// on its interior, is [`TouchUnread::EdgeTangent`], never
+/// [`crate::CurvedUnread::Unreadable`]: no second-order reading parts it, so it
+/// must not reach [`SelfTouch::SecondOrder`].
+#[test]
+fn an_elliptic_edges_direction_reads_at_its_certified_parameter_or_refuses_as_itself() {
+    fn rows<T: Decide + crate::props::AtRestPolicy + core::fmt::Debug>(
+        scalar: &str,
+        upper: fn(T) -> f64,
+    ) {
+        let (body, _, _) = crate::test_support_fixtures::oblique_rim_wall_in::<T>(0.4);
+        let (e, edge) = body.edges.iter().next().expect("the rim");
+        let rim = body
+            .curves
+            .get(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .expect("the rim's certified curve")
+            .carrier()
+            .clone();
+        let t = T::from_f64(1.0);
+        let on = rim.eval(t);
+        let want = rim.deriv(t).normalize();
+        for (he, sign) in [(edge.he_plus, T::one()), (edge.he_minus, -T::one())] {
+            let (d, line, _) = half_edge_tangent(&body, he, on, band())
+                .unwrap_or_else(|why| panic!("{scalar}: on the rim, {why:?}"));
+            assert!(!line, "{scalar}: the rim is no line");
+            let gap = upper((d - want * sign).norm());
+            assert!(
+                gap < 1e-9,
+                "{scalar}: the tangent at t = 1 on {e:?}, off by {gap:e}"
+            );
+        }
+        let off = on + Vec3::new(T::zero(), T::zero(), T::from_f64(0.1));
+        let refused = half_edge_tangent(&body, edge.he_plus, off, band());
+        assert!(
+            matches!(refused, Err(TouchUnread::OffInterior)),
+            "{scalar}: a point the span does not certify refuses as itself, got {refused:?}"
+        );
+    }
+    rows::<f64>("f64", |x| x);
+    rows::<geom_core::Interval>("Interval", geom_core::Bounds::hi);
+}
+
+/// The arc of the circle about `center` of unit axis `axis` and radius
+/// `radius` that edge `e` runs along, the short way from its `he_plus`
+/// start to its end.
+fn arc_on(
+    body: &Body<f64>,
+    e: EdgeKey,
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    radius: f64,
+) -> geom_brep::EdgeCurveSpec<f64> {
+    let he = body.edges[e].he_plus;
+    let at = |v: VertexKey| body.points[body.vertices[v].point];
+    let (p0, p1) = (
+        at(body.half_edges[he].start),
+        at(body.half_edge_end(he).unwrap()),
+    );
+    let u = (p0 - center) / radius;
+    let turn = |axis: Vec3<f64>| {
+        let w = axis.cross(u);
+        (p1 - center).dot(w).atan2((p1 - center).dot(u))
+    };
+    let axis = if turn(axis) < 0.0 { -axis } else { axis };
+    geom_brep::EdgeCurveSpec::arc_of_circle(
+        geom::Curve3::circle(center, axis, radius, u),
+        0.0,
+        turn(axis),
+    )
+    .unwrap()
+}
+
+/// **A thorn of its solid's own**, its tip at `c`: the material outside
+/// the sphere about `c + (0, A, B)` through `c`, with `y` and `z` above
+/// `c`'s and `x` short of a unit past it. Three faces leave the tip
+/// along `+x`, each a horn: the plane `z` (outward `−z`) between the
+/// line along `x` and the sphere's circle in it, the plane `y` (outward
+/// `−y`) between the line and the circle in that, and the sphere
+/// (outward toward its centre) between the two circles. One order
+/// down along `+x` they are the triangle of the line at `0` and the
+/// circles at `(0, 1/A, 0)` and `(0, 0, 1/B)`. A parallelepiped's
+/// corner, spanned by `edges`, is grafted on at the tip into the
+/// thorn's solid. Returns the body, the corner, and the tie that holds
+/// it at the tip.
+fn thorn_and_corner(c: Point3<f64>, edges: [Vec3<f64>; 3]) -> (Body<f64>, VertexKey, Ties) {
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+    const A: f64 = 2.0;
+    const B: f64 = 3.0;
+    let tol = Tol::witness();
+    let x = Vec3::unit_x();
+    let (tip, base) = (c, c + x);
+    let side_y = c + Vec3::new(1.0, A - (A * A - 1.0).sqrt(), 0.0);
+    let side_z = c + Vec3::new(1.0, 0.0, B - (B * B - 1.0).sqrt());
+    let mut body = Body::<f64>::new();
+    // A tetrahedron by Euler's operators, every edge a chord, then its
+    // curved edges and its faces put on their carriers.
+    let seed = body.mvfs(tip, true).unwrap();
+    let ab = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            base,
+            tol,
+        )
+        .unwrap();
+    let bc = body
+        .mev_line(
+            MevSite::Fan {
+                he1: ab.he_minus,
+                he2: ab.he_minus,
+            },
+            side_y,
+            tol,
+        )
+        .unwrap();
+    let tri = body
+        .mef_chord(
+            MefSite::Chords {
+                he1: bc.he_minus,
+                he2: ab.he_plus,
+            },
+            tol,
+        )
+        .unwrap();
+    let s = body
+        .mev_line(
+            MevSite::Fan {
+                he1: ab.he_plus,
+                he2: ab.he_plus,
+            },
+            side_z,
+            tol,
+        )
+        .unwrap();
+    let f_abd = body
+        .mef_chord(
+            MefSite::Chords {
+                he1: s.he_minus,
+                he2: bc.he_plus,
+            },
+            tol,
+        )
+        .unwrap();
+    body.mef_chord(
+        MefSite::Chords {
+            he1: tri.he_plus,
+            he2: f_abd.he_plus,
+        },
+        tol,
+    )
+    .unwrap();
+    let centre = c + Vec3::new(0.0, A, B);
+    let radius = (A * A + B * B).sqrt();
+    let at = |body: &Body<f64>, v: VertexKey| body.points[body.vertices[v].point];
+    let near = |q: Point3<f64>, r: Point3<f64>| (q - r).norm() < 1e-9;
+    let ends = |body: &Body<f64>, e: EdgeKey| {
+        let he = body.edges[e].he_plus;
+        [
+            at(body, body.half_edges[he].start),
+            at(body, body.half_edge_end(he).unwrap()),
+        ]
+    };
+    let edge_of = |body: &Body<f64>, p: Point3<f64>, q: Point3<f64>| {
+        body.edges
+            .keys()
+            .find(|&e| {
+                let [a, b] = ends(body, e);
+                (near(a, p) && near(b, q)) || (near(a, q) && near(b, p))
+            })
+            .unwrap()
+    };
+    for (p, q, centre, axis, radius) in [
+        (tip, side_y, c + Vec3::new(0.0, A, 0.0), Vec3::unit_z(), A),
+        (tip, side_z, c + Vec3::new(0.0, 0.0, B), Vec3::unit_y(), B),
+        (
+            side_y,
+            side_z,
+            c + Vec3::new(1.0, A, B),
+            x,
+            (A * A + B * B - 1.0).sqrt(),
+        ),
+    ] {
+        let e = edge_of(&body, p, q);
+        let spec = arc_on(&body, e, centre, axis, radius);
+        body.set_edge_curve(e, spec, tol).unwrap();
+    }
+    let plane = |origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>| geom::Surface::Plane {
+        origin,
+        normal,
+        u_ref,
+    };
+    let faces: Vec<FaceKey> = body.faces().map(|(f, _)| f).collect();
+    for f in faces {
+        let held: Vec<Point3<f64>> = body
+            .proven_face(f)
+            .cycles()
+            .flat_map(|(_, cycle)| cycle)
+            .map(|he| at(&body, body.half_edges[he].start))
+            .collect();
+        let has = |q: Point3<f64>| held.iter().any(|&r| near(q, r));
+        let (surface, sense) = match (has(tip), has(base), has(side_y), has(side_z)) {
+            (true, true, true, false) => (plane(c, -Vec3::unit_z(), x), true),
+            (true, true, false, true) => (plane(c, -Vec3::unit_y(), x), true),
+            (false, true, true, true) => (plane(base, x, Vec3::unit_y()), true),
+            (true, false, true, true) => (
+                geom::Surface::Sphere {
+                    center: centre,
+                    radius,
+                    axis: x,
+                    u_ref: Vec3::unit_y(),
+                },
+                false,
+            ),
+            other => panic!("a face of the tetrahedron: {other:?}"),
+        };
+        body.set_face_surface(f, FaceSurface::New { surface, sense })
+            .unwrap();
+    }
+    let thorn_tip = body
+        .vertices
+        .keys()
+        .find(|&v| near(at(&body, v), tip))
+        .unwrap();
+    let [mut a, mut b, e] = edges;
+    if a.cross(b).dot(e) < 0.0 {
+        std::mem::swap(&mut a, &mut b);
+    }
+    let part = mapped_cube::<f64>(move |u, v, w| tip + a * u + b * v + e * w, tol);
+    let before: BTreeSet<VertexKey> = body.vertices.keys().collect();
+    let keep = census_entity_solid(&body, EntityId::Vertex(thorn_tip)).unwrap();
+    let gone = crate::instance::graft_disjoint(&mut body, &part).unwrap();
+    for sh in body.solids.remove(gone).unwrap().shells {
+        body.shells[sh].solid = keep;
+        body.solids[keep].shells.push(sh);
+    }
+    body.solid_provenance.remove(gone);
+    let corner = body
+        .vertices
+        .keys()
+        .find(|&v| !before.contains(&v) && near(at(&body, v), tip))
+        .unwrap();
+    let ties = Ties {
+        vv: vec![(corner, thorn_tip), (thorn_tip, corner)],
+        ..Ties::default()
+    };
+    (body, corner, ties)
+}
+
+/// **A thorn of the solid's own, its three faces horns at its tip,
+/// reads whole one order down**: a parallelepiped's corner grafted on
+/// at the tip, away from the thorn's ray, rests; one round the ray, its
+/// material holding the thorn, refuses. Near the origin and a kilometre
+/// off it. Red where a horn reads as the whole turn, a thorn's side
+/// reads the other way, or the cone round it is not read.
+#[test]
+fn a_thorn_of_its_own_reads_its_horns_one_order_down() {
+    let away = [
+        Vec3::new(-0.3, 0.1, 0.1),
+        Vec3::new(-0.1, -0.3, 0.1),
+        Vec3::new(-0.1, 0.1, -0.3),
+    ];
+    let round = [
+        Vec3::new(0.3, 0.3, -0.1),
+        Vec3::new(0.3, -0.1, 0.3),
+        Vec3::new(0.3, -0.2, -0.2),
+    ];
+    for far in [0.0, 1e3] {
+        let c = Point3::new(0.3 + far, 0.2 - 2.0 * far, 0.5 * far);
+        let (body, corner, ties) = thorn_and_corner(c, away);
+        let (planar, verdict) = read(&body, corner, &ties);
+        assert_eq!(
+            planar,
+            TouchUnread::Curved(CurvedUnread::Unreadable),
+            "{far} off: a sphere face"
+        );
+        assert!(
+            matches!(verdict, SelfTouch::Read(TouchVerdict::Rest(_))),
+            "{far} off, the corner away: {verdict:?}"
+        );
+        let (body, corner, ties) = thorn_and_corner(c, round);
+        let (_, verdict) = read(&body, corner, &ties);
+        assert_eq!(
+            verdict,
+            SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            "{far} off, the corner round the thorn"
+        );
+    }
+}
+
+/// **A solid touching itself at a lone vertex of its curved wall
+/// refuses as a lone loop**: the post's wall holds a one-vertex ring at
+/// the wall seat, and the parallelepiped's corner rests on it, tied
+/// vertex to vertex. The wall is curved, so the planar reading aborts
+/// and the tangent cones read the wall at its corner there: the lone
+/// vertex, which has no tangent sector ([`TouchUnread::LoneLoop`]). Red
+/// where the lone loop read as an unwalkable one ([`TouchUnread::Corrupt`]).
+#[test]
+fn a_self_touch_at_a_lone_vertex_of_a_curved_wall_refuses_as_a_lone_loop() {
+    use crate::euler::MevSite;
+    let tol = Tol::witness();
+    let c = Point3::new(0.3, 0.2, 0.0);
+    let off = [[0.3, 0.1, -0.05], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
+    let (mut body, corner, _) = seat(c, Seat::Wall, off);
+    let p = c + Vec3::new(THETA.cos(), THETA.sin(), 0.0) * R + Vec3::unit_z() * UP;
+    let wall = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the wall");
+    let he = body.proven_face(wall).half_edges()[0];
+    let strut = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, p, tol)
+        .expect("a strut into the wall");
+    let lone = strut.vertex;
+    let ring = body
+        .kemr(strut.he_plus, strut.he_minus)
+        .expect("the strut killed into a ring")
+        .ring;
+    assert_eq!(
+        body.get_loop(ring).expect("the ring").boundary,
+        crate::entity::LoopBoundary::Empty { vertex: lone },
+        "the wall holds a one-vertex ring at the seat"
+    );
+    let ties = Ties {
+        vv: vec![(corner, lone), (lone, corner)],
+        ..Ties::default()
+    };
+    let (planar, verdict) = read(&body, corner, &ties);
+    assert_eq!(
+        planar,
+        TouchUnread::Curved(CurvedUnread::Unreadable),
+        "the curved wall aborts the planar reading"
+    );
+    assert_eq!(
+        verdict,
+        SelfTouch::Read(TouchVerdict::Unread(TouchUnread::LoneLoop)),
+        "the tangent cones refuse the wall's lone vertex as a lone loop"
+    );
+}
+
+/// The unit cube whose top face is carried on a degree-1 chart creased at
+/// the knot `u = ½` and whose `y = 0` top edge is split there
+/// ([`crate::sector_face::tests::split_at_half`]), and a parallelepiped
+/// `u·a + v·b + w·c` cornered at the split vertex `(½, 0, 1)`, its shell
+/// moved into the cube's solid and its corner on the vertex's point key.
+fn crease_corner_and(edges: [Vec3<f64>; 3]) -> (Body<f64>, VertexKey) {
+    let tol = Tol::witness();
+    let chart =
+        crate::sector_face::tests::planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]);
+    let (mut body, _, mid) = crate::sector_face::tests::split_at_half(chart);
+    let p = body.points[body.vertices[mid].point];
+    let [mut a, mut b, c] = edges;
+    if a.cross(b).dot(c) < 0.0 {
+        std::mem::swap(&mut a, &mut b);
+    }
+    let part = mapped_cube::<f64>(move |u, v, w| p + a * u + b * v + c * w, tol);
+    let before: BTreeSet<VertexKey> = body.vertices.keys().collect();
+    let keep = census_entity_solid(&body, EntityId::Vertex(mid)).unwrap();
+    let gone = crate::instance::graft_disjoint(&mut body, &part).unwrap();
+    for sh in body.solids.remove(gone).unwrap().shells {
+        body.shells[sh].solid = keep;
+        body.solids[keep].shells.push(sh);
+    }
+    body.solid_provenance.remove(gone);
+    let corner = body
+        .vertices
+        .keys()
+        .find(|&v| !before.contains(&v) && (body.points[body.vertices[v].point] - p).norm() < 1e-12)
+        .expect("the parallelepiped's corner on the split vertex");
+    let (old, key) = (body.vertices[corner].point, body.vertices[mid].point);
+    body.vertices[corner].point = key;
+    body.points.remove(old);
+    (body, corner)
+}
+
+/// **A solid touching itself at a spline crease corner is read**
+/// (`work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`):
+/// the top face's corner at the split vertex lies on the chart's crease,
+/// and reads the normal on its sector's side
+/// ([`geom_brep::chart_normal_beside`]) where it once refused and the
+/// point went to second order, skipped. A parallelepiped reaching into
+/// the cube from the vertex crosses it, through the whole census; one
+/// turned up and away from it rests. Red where the crease corner leaves
+/// the point unread.
+#[test]
+fn a_solid_touching_itself_at_a_spline_crease_corner_is_read() {
+    let into = [
+        Vec3::new(0.1, 0.3, -0.3),
+        Vec3::new(-0.1, 0.3, -0.3),
+        Vec3::new(0.0, 0.2, -0.5),
+    ];
+    let away = [
+        Vec3::new(0.1, -0.3, 0.3),
+        Vec3::new(-0.1, -0.3, 0.3),
+        Vec3::new(0.0, -0.2, 0.5),
+    ];
+    for (edges, crosses) in [(into, true), (away, false)] {
+        let (body, corner) = crease_corner_and(edges);
+        let geo = snapshot(&body);
+        let ties = Ties::default();
+        let keys = touch_keys(&geo, &ties, &[corner]).expect("the corner's keys");
+        let s = census_entity_solid(&body, EntityId::Vertex(corner)).unwrap();
+        let verdict = self_touch_verdict(&body, &geo, &ties, s, &keys, geo.vmap[&corner], band());
+        let found: Vec<_> =
+            census_and_certify(&body, &Default::default(), band(), Tol::witness(), None)
+                .into_iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        ValidationError::BoundaryCrossesItself { .. }
+                            | ValidationError::BoundaryCrossesItselfUndecided { .. }
+                    )
+                })
+                .collect();
+        if crosses {
+            assert_eq!(
+                verdict,
+                SelfTouch::Read(TouchVerdict::Crossing),
+                "reaching in"
+            );
+            assert!(
+                matches!(&found[..], [ValidationError::BoundaryCrossesItself { .. }]),
+                "reaching in: {found:?}"
+            );
+        } else {
+            assert!(
+                matches!(verdict, SelfTouch::Read(TouchVerdict::Rest(_))),
+                "turned away: {verdict:?}"
+            );
+            assert!(found.is_empty(), "turned away: {found:?}");
+        }
+    }
 }

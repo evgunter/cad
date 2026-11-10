@@ -2,10 +2,12 @@
 id: the-ruling-question-is-read-in-two-units
 kind: issue
 title: Whether a line on a cylinder is a ruling is read in two places in two units: props meters its tilt over the edge, the mint reads its radial speed per unit parameter
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+pr: 6504
+closed: 2026-11-04
 ---
 
 
@@ -45,3 +47,23 @@ form): the mint reads it from the span it is given (`Placement`'s
 (`own_interval`, `[0, 1]` for a line) then needs the span made explicit
 at the callers that hold none (`chart_pcurve`, `chart_iso_family`).
 Each needs a row with a short and a long edge on one tilt, red today.
+
+
+## Closed
+
+PR 6504. `pcurve_cache::ruling_miss` is the one home: a line's greatest
+distance, over the edge's span, from its chart's ruling, in metres. The
+ruling is anchored where the closed form places its image: on a
+cylinder, the ruling through the line's origin; on a cone, the
+generator the arm names.
+
+Readers:
+- the mint's cylinder and cone arms;
+- props' `props_meridian_axial` and `props_meridian_generator`, with
+  the line anchored at its span's start (the cone's two predicates,
+  which read `‖dir‖`, fold into the one reading);
+- topo's `solid_contain::wall_crosses_by_turn`.
+
+`chart_iso_family` takes the edge's span. Rows are
+`pcurve_cache::ruling_reading_rows` and `props::curved::ruling_scale_rows`,
+red under the `ruling-per-parameter` and `ruling-unplaced` mutants.

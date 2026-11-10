@@ -2,7 +2,7 @@
 //! vertices** (review of PR 3770): the cylinder stands across the
 //! bar's y = 1 wall, its caps coplanar with the bar's, so the rim
 //! vertex's pierce run holds the whole orbit. Before
-//! `classify_vertex_on_face` recorded that run as the strut `mev_null`
+//! `mint_pierce` recorded that run as the strut `mev_null`
 //! builds, the union refused `JoinDesync`. Oracle: the half-disc
 //! outside the bar, `π r² / 2`.
 
@@ -15,9 +15,9 @@ use topo::{BooleanResult, intersect, mass_properties, subtract, union};
 #[test]
 fn a_cylinder_cap_over_a_merged_rim_vertex_answers_every_op() {
     let tol = Tol::witness();
-    let c = topo::test_support::brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
+    let c = topo::test_support::brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
     let c = finished("brick C", c, tol);
-    let d = topo::test_support::brick((1.2, 2.2), (0.0, 1.0), (0.0, 1.0), tol);
+    let d = topo::test_support::brick::<f64>((1.2, 2.2), (0.0, 1.0), (0.0, 1.0), tol);
     let d = finished("brick D", d, tol);
     let BooleanResult::Body(bar) = union(&c, &d, tol).unwrap() else {
         panic!("the bar is not empty");

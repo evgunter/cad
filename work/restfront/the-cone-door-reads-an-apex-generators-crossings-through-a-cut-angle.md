@@ -55,3 +55,11 @@ off-apex escalations above as rows, and an apex whose every aimed
 generator reads at a cut. Filed by RESTCURVE's pole-door lane.
 
 - 2026-11-02 — moved from RESTCURVE to RESTFRONT by `git mv` when RESTCURVE merged into RESTFRONT, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RESTCURVE had fallen far under it).
+
+## Since PR 6491 (2026-11-06, ONECOPY)
+
+Both reads this row names are gone from the cone door:
+- `Conic::angle` went with `Legs::landings`;
+- the first-harmonic root door is no longer read there, and `bool_ruled_region_span` is retired.
+
+A generator's crossing with a conic edge is now the conic read across the generator's plane through the plane door (`span_plane_meet`). Its phase is the lane's (`plane_crossing_phase_frame`, the hand two-formula choice of `work/onecopy/harmonic-phases-pick-their-cut-side-by-hand.md`), and its roots are renamed onto the span by `Period::near`, which has no cut hull. The "Owed" reads (`first_harmonic_root_directions`, `region::span_at_nearer_end`) no longer exist. What is left to pin is the 156 off-apex Interval escalations, re-measured on the plane route.

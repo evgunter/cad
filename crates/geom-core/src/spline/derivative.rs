@@ -2008,11 +2008,11 @@ mod tests {
     /// **The halving's scale is the exact power-of-two door.** A line
     /// whose outputs land between the smallest normal and the interval
     /// backend's 2Prod floor (`2^-960`) halves EXACTLY through
-    /// [`Real::scale_pow2`] — each output the sum times `2⁻ʳ`, unpadded
-    /// — where a general product against the point `2⁻ʳ` would pad every
-    /// one a step outward. So a scale that went back to the general
-    /// product reds here; nothing else does, since above the floor the
-    /// two agree to the bit.
+    /// [`Real::scale_pow2`] — each output the sum times `2⁻ʳ`, unpadded,
+    /// as the backend's product by a point power of two is at every
+    /// normal magnitude. A scale that padded there (the four-corner fold
+    /// cannot certify a product under the floor) reds here; nothing else
+    /// does, since above the floor the two agree to the bit.
     #[test]
     fn the_halving_scales_through_the_exact_door() {
         let tiny = f64::MIN_POSITIVE * 1024.0;

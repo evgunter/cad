@@ -768,13 +768,10 @@ fn kemr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
 
 fn mekr_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
     let mut out = Vec::new();
-    for (fk, face) in body.faces() {
-        let loops: Vec<LoopKey> = body
-            .face_loops_linked(fk, face)
-            .map(|(lk, ..)| lk)
-            .collect();
+    for face in body.face_views() {
+        let loops: Vec<LoopKey> = face.loops().map(|(lk, ..)| lk).collect();
         for &target in &loops {
-            for &ring in &face.rings {
+            for &ring in &face.record().rings {
                 if target == ring {
                     continue;
                 }
@@ -942,8 +939,8 @@ fn shell_component_faces(body: &Body<f64>, shell: ShellKey) -> Vec<Vec<FaceKey>>
         label.insert(seed, count);
         let mut pending = vec![seed];
         while let Some(face_key) = pending.pop() {
-            let face = body.get_face(face_key).expect("face resolves");
-            for (_, loop_data, _) in body.face_loops_linked(face_key, face) {
+            let face = body.proven_face(face_key);
+            for (_, loop_data, _) in face.loops() {
                 let LoopBoundary::Cycle { first } = loop_data.boundary else {
                     continue; // empty loop: glues only its vertex
                 };
@@ -1085,9 +1082,7 @@ const SPLIT_FRACTION: f64 = geom_core::GOLDEN_SECTION;
 /// a `line_between` guess would not be.
 fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
     let edge_data = body.get_edge(edge)?;
-    let hp = edge_data.he_plus;
-    let start = body.get_half_edge(hp)?.start;
-    let end = body.half_edge_end(hp)?;
+    let (start, end) = body.edge_vertices(edge)?;
     let p0 = *body.get_point(body.get_vertex(start)?.point)?;
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
     let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
@@ -1360,11 +1355,7 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
     let Some(edge_data) = body.get_edge(edge) else {
         return false;
     };
-    let hp = edge_data.he_plus;
-    let (Some(start), Some(end)) = (
-        body.get_half_edge(hp).map(|h| h.start),
-        body.half_edge_end(hp),
-    ) else {
+    let Some((start, end)) = body.edge_vertices(edge) else {
         return false;
     };
     let (Some(p0), Some(p1)) = (
@@ -1854,15 +1845,15 @@ fn first_cycle_ring(body: &Body<f64>) -> Option<LoopKey> {
 /// A mekr site absorbing the first empty ring into a sibling loop of
 /// its face.
 fn first_empty_ring_site(body: &Body<f64>) -> Option<MekrSite> {
-    for (fk, face) in body.faces() {
-        for &ring in &face.rings {
+    for face in body.face_views() {
+        for &ring in &face.record().rings {
             let LoopBoundary::Empty { vertex: w } =
                 body.get_loop(ring).expect("loop resolves").boundary
             else {
                 continue;
             };
             // Prefer a cycle target (outer first, then other rings).
-            for (target, target_data, _) in body.face_loops_linked(fk, face) {
+            for (target, target_data, _) in face.loops() {
                 if target == ring {
                     continue;
                 }

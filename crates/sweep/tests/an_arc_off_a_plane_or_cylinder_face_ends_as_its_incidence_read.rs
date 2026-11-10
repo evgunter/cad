@@ -2,7 +2,7 @@
 //! as the mint's incidence read, never as the residual's meter** (D3,
 //! D4 ¶1 (iv)). The plane and cylinder mints read incidence before they
 //! image, as the sphere, cone and torus mints do, so a definite miss is
-//! `CarrierOffChart` under `ChartIncidence`: the kernel's defect at a
+//! read off (`IncidenceRead::Off`) under `ChartIncidence`: the kernel's defect at a
 //! build, the stored culprit at rest and the damaged file at the import
 //! door, whatever the file's coincidence distance (no ε_in is offered).
 //! `ChartResidual` is left metering the image's own fidelity.
@@ -23,7 +23,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::recourse::Reading;
-use geom_brep::{CertCheck, CertifyError, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_brep::{CertCheck, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Bounds, Decide, FileCoincidence, Interval, Point2, Point3, Tol, Vec3};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
@@ -173,11 +173,8 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
         };
         assert!(
             matches!(
-                refusal,
-                CertifyError::CarrierOffChart {
-                    margin: Some(geom_brep::OffMargin::Past(_)),
-                    ..
-                }
+                refusal.incidence_read(),
+                Some(geom_brep::IncidenceRead::Off(Some(_)))
             ),
             "{lane}, {what}: {refusal:?}"
         );

@@ -15,11 +15,27 @@
 
 use core::f64::consts::PI;
 
-use crate::common::differential::outcome;
+use crate::common::crossed_cylinders::{self as crossed, Cylinder, Op};
+use crate::common::differential::{judged_at_resolution, outcome};
 use crate::conic_edge_curved_face::{DRUM_RADIUS, TILT, drum_lower};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::finished;
 use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
+
+/// **A regression guard, not a soundness claim**: four times the widest
+/// volume half-width the turned pose's six runs measured at ε `1e-9`
+/// (`2.26e-6`, PR 6478), under the resolution's sound ceiling
+/// (`1.61e-5` there, [`judged_at_resolution`]). Read at that ε only.
+const TURNED_PAD_GUARD: f64 = 9.1e-6;
+
+/// **The turned pose's stopped-short ceiling, a regression guard**: four
+/// times the widest volume half-width its six runs measured at ε `1e-12`
+/// (`4.02e-8`; every run stops at the work wall there, short of the
+/// pinned resolution,
+/// `work/quadtail/chorded-walls-reach-the-work-wall-short-of-the-pinned-resolution-at-1e-12.md`).
+/// The resolution's ceiling (`1.6e-8` at 1e-12) does not bound a
+/// measurement that stopped short; this does ([`judged_at_resolution`]).
+const TURNED_WALL_GUARD: f64 = 1.7e-7;
 
 /// A vertical rod of radius `r` about `(x, y)` over `z ∈ [z0, z1]`.
 fn rod(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> AtRestBody<f64> {
@@ -302,7 +318,7 @@ fn the_rim_crossing_rods_build_in_every_op() {
     let tol = Tol::witness();
     let far = finished(
         "a brick far away",
-        sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        sweep::test_support::brick::<f64>((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
         tol,
     );
     for pose in rim_poses() {
@@ -480,7 +496,7 @@ fn cut_and_tipped(
     let tol = Tol::witness();
     let cutter = finished(
         "the cutter",
-        sweep::test_support::brick((x - 1.0, x + 1.0), (y - 1.0, y + 1.0), (z0, z1), tol),
+        sweep::test_support::brick::<f64>((x - 1.0, x + 1.0), (y - 1.0, y + 1.0), (z0, z1), tol),
         tol,
     );
     let cut = topo::intersect(&rod(r, (x, y), (-far, far)), &cutter, tol).expect("the cut rod");
@@ -499,23 +515,27 @@ fn cut_and_tipped(
 
 /// **The rulings are read at the germ sites, wherever a wall's origin is
 /// stored.** Pose 0's rod cut from a long one, so its wall's origin is
-/// stored up to 1e5 m off its faces, and tipped a fifth of the zero band:
-/// every op builds SOUND at the closed-form volume, in both orders.
+/// stored up to 1 km off its faces, the session box's own extent
+/// (`[tolerance.units]`), and tipped a fifth of the zero band: every op
+/// builds SOUND at the closed-form volume, in both orders. A long rod
+/// past the box is refused at its extrude
+/// ([`a_long_rod_past_the_session_box_is_refused_by_it`]).
 ///
 /// A pose runs only inside D4 ¶4's size range at the run's ε: the long
 /// rod reaches `|z| = far`, where f64 spaces coordinates
 /// `ulp(far) ≈ far·2⁻⁵²`, so a residual between two points evaluated
-/// there can read a whole ulp of rounding. Past `far ≈ 2⁵²·ε` no stored
-/// datum certifies within ε. At `far = 1e5` and ε = 1e-12,
-/// `carrier_matches_mapped_source` reads one ulp at `|z| ≈ 6.2e4` on the
-/// long rod's strut and escalates.
+/// there can read a whole ulp of rounding, and past `far ≈ 2⁵²·zero` no
+/// stored datum certifies within the zero band. At 1 km that ceiling is
+/// `2.2e-13` m, above the least ε a run admits
+/// (`geom_core::tolerance::EPS_MIN`, ≈ 2.0e-13 at K = 10), so at an
+/// admitted ε below it the 1 km pose stands down.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     const R: f64 = 0.5;
     let zero = geom_core::Band::linear(Tol::witness()).unwrap().zero();
     let (r, c, span) = (0.2, (0.5, 0.0), (-0.5, 0.5));
     let (area, _) = lens((0.0, 0.0), R, c, r);
-    let poses: Vec<Pose> = [2.0, 1000.0, 1.0e5]
+    let poses: Vec<Pose> = [2.0, geom_core::tolerance::SESSION_BOX_EXTENT]
         .into_iter()
         .filter(|&far| {
             let in_range = far * f64::EPSILON <= zero;
@@ -546,6 +566,36 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     );
     let bad = unsound(&poses);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// **A long rod past the session box is refused by it**: the rod
+/// [`a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`]
+/// cuts from, a metre longer at each end than the box's 1 km reach.
+#[test]
+fn a_long_rod_past_the_session_box_is_refused_by_it() {
+    let tol = Tol::witness();
+    let far = geom_core::tolerance::SESSION_BOX_EXTENT + 1.0;
+    let profile = profile::Profile::new(
+        profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, -far)),
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.3, 0.0), 1.0),
+            (Point2::new(0.7, 0.0), 1.0),
+        ])],
+    )
+    .validate(tol)
+    .expect("the rod's disc is a valid profile");
+    crate::common::refused_by_the_session_box(
+        &format!("the rod over z ∈ [−{far}, {far}]"),
+        far,
+        sweep::extrude(
+            &profile,
+            sweep::Extrusion::Distance {
+                depth: 2.0 * far,
+                side: sweep::ExtrudeSide::Along,
+            },
+            tol,
+        ),
+    );
 }
 
 /// The lever of an in-band reading of a cylinder pair's axes.
@@ -593,9 +643,12 @@ fn seams_on_the_walls(axis: Vec3<f64>, theta: f64) -> Pose {
 /// SOUND, as at `0.5·zero / 3.2`. Turned clearly apart, a fifth of a radian, every op
 /// ends at a frontier at the witness band (elsewhere an escalation may
 /// come first, which the row admits): about `x` the join
-/// carries the skew walls' marched section and the result gate refuses
-/// the body, whose spline-chorded walls have no volume lane
-/// (`ResultInvalid`), and about `y` an edge pierces a curved face the
+/// carries the skew walls' marched section and every op builds SOUND
+/// against the crossed cylinders' sliced volume
+/// (`common::crossed_cylinders`), its spline-chorded walls measured by
+/// the rotational lane (off the witness band UNMET where the measurement
+/// stops at the work wall, every run at 1e-12, under
+/// [`TURNED_WALL_GUARD`]), and about `y` an edge pierces a curved face the
 /// Boolean cannot yet read (`CurvedPierceUnsupported`).
 #[test]
 fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
@@ -612,10 +665,10 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
     // pose about `y` the corners' overlap: each row there escalates or
     // meets its frontier, and never builds or desyncs.
     let witness = (zero - 1e-9).abs() < 1e-12;
-    for (axis, frontier) in axes.into_iter().zip([
-        BooleanErrorKind::ResultInvalid,
-        BooleanErrorKind::CurvedPierceUnsupported,
-    ]) {
+    for (axis, frontier) in axes
+        .into_iter()
+        .zip([None, Some(BooleanErrorKind::CurvedPierceUnsupported)])
+    {
         let tipped = seams_on_the_walls(axis, 2.15 * zero / 3.2);
         for (op, r, _) in tipped.runs() {
             let axes_angle = matches!(
@@ -635,15 +688,60 @@ fn seams_lying_on_the_walls_read_the_axes_across_the_region() {
             );
         }
         let turned = seams_on_the_walls(axis, 0.2);
+        let (ca, cb) = (
+            Cylinder::upright(0.0, 0.0, 1.0, (-1.0, 1.0)),
+            Cylinder::upright(1.0, 1.0, 1.0, (-0.5, 0.5)).under(Affine3::rotation_about_axis(
+                Point3::new(1.0, 1.0, 0.0),
+                axis,
+                0.2,
+            )),
+        );
         for (op, r, _) in turned.runs() {
-            assert!(
-                matches!(&r, Err(e) if e.kind() == frontier)
-                    || !witness && matches!(&r, Err(BooleanError::Escalated { .. })),
-                "{} | {op}: want {frontier:?}, got {:?}",
-                turned.label,
-                r.map(|_| "a body")
-                    .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
-            );
+            let escalated = !witness && matches!(&r, Err(BooleanError::Escalated { .. }));
+            match frontier {
+                Some(frontier) => assert!(
+                    matches!(&r, Err(e) if e.kind() == frontier) || escalated,
+                    "{} | {op}: want {frontier:?}, got {:?}",
+                    turned.label,
+                    r.map(|_| "a body")
+                        .map_err(|e| e.render(geom_brep::recourse::Reading::Build))
+                ),
+                None => {
+                    let want = match op {
+                        "U ab" | "U ba" => crossed::volume(ca, cb, Op::Union),
+                        "I ab" | "I ba" => crossed::volume(ca, cb, Op::Intersect),
+                        "S ab" => crossed::volume(ca, cb, Op::Subtract),
+                        _ => crossed::volume(cb, ca, Op::Subtract),
+                    };
+                    // The two rods' area together, `6π + 4π`: their chorded
+                    // walls accept a round that only just meets the
+                    // resolution ([`judged_at_resolution`]).
+                    let line = if escalated {
+                        String::from("escalated")
+                    } else {
+                        let read =
+                            judged_at_resolution(r, Some(want), tol, 10.0 * PI, TURNED_WALL_GUARD);
+                        assert!(
+                            tol.eps() != 1e-9 || read.pad.is_none_or(|pad| pad <= TURNED_PAD_GUARD),
+                            "{} | {op}: the half-width {:?} past the regression guard",
+                            turned.label,
+                            read.pad
+                        );
+                        read.line
+                    };
+                    // Off the witness band the chorded walls may reach the
+                    // work wall short of the pinned resolution (at 1e-12,
+                    // all six runs), as an escalation may come first: the
+                    // enclosure still holds the closed form, under
+                    // `TURNED_WALL_GUARD`.
+                    let unmet = !witness && line.starts_with("OK UNMET");
+                    assert!(
+                        escalated || unmet || line.starts_with("OK SOUND"),
+                        "{} | {op}: {line}",
+                        turned.label
+                    );
+                }
+            }
         }
     }
 }

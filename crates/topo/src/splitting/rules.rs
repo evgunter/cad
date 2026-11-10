@@ -43,9 +43,9 @@
 //!
 //! After rule (a), a remaining ON entry is an edge in the plane whose
 //! flanking sectors are not coplanar; its cyclic neighbour entries are
-//! never ON. (A `WideBisector` duplicate whose bisector lies exactly in
-//! the plane also arrives here as On, as the book stores duplicates
-//! indistinguishably in the same array.) The entry goes where the
+//! never ON. (A divider the star cut a corner at arrives here as On only
+//! where its descended side rides the plane, and goes with its corner's
+//! bounds.) The entry goes where the
 //! material at the edge goes, and two facts decide that: the side `S`
 //! of its two neighbours, which are directions into the two flanking
 //! faces, and the edge's wedge (`edge_wedge`): whether the two faces
@@ -162,17 +162,17 @@
 
 use geom_brep::{EntersMaterial, NormalAlignment, ParallelSense, WallBend, enters_material};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Sign};
 
-use super::neighborhood::{chord, sector_face};
 use super::{
-    KnifeEdge, KnifeEdgeSite, PlaneSide, SectorEntry, SectorEntryKind, SectorReading, SplitPlane,
-    SplitReduceError, TangencyReadings,
+    KnifeEdge, KnifeEdgeSite, PlaneSide, SectorReading, SplitPlane, SplitReduceError,
+    TangencyReadings,
 };
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, Proven, proven};
-use crate::sector_face::{ConeApex, VertexFace};
+use crate::sector_face::{ConeApex, SectorCarrier};
+use crate::star::{Bound, Star, StarFace};
 use crate::validate::decide;
 
 /// Rule (a): reclassify both bounding entries of every
@@ -196,21 +196,23 @@ use crate::validate::decide;
 pub(super) fn apply_rule_a<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
-    vertex: VertexKey,
-    entries: &mut [SectorEntry],
-    rays: &[Vec3<T>],
+    star: &Star<T>,
+    classes: &mut [PlaneSide],
     band: Band,
 ) -> Result<Vec<WallReading<T>>, SplitReduceError> {
-    let n = entries.len();
+    let vertex = star.vertex;
+    let n = classes.len();
     let mut readings = Vec::with_capacity(n);
     // The edges lying in the plane, as classified before this rule
     // rewrites any entry: where a knife edge's contact runs.
-    let in_plane: Vec<bool> = entries
+    let in_plane: Vec<bool> = classes
         .iter()
-        .map(|e| e.class == PlaneSide::On && e.kind == SectorEntryKind::Edge)
+        .zip(&star.bounds)
+        .map(|(&c, b)| c == PlaneSide::On && b.real)
         .collect();
     for k in 0..n {
-        let (face, at_vertex, is_plane) = sector_face(body, vertex, entries[k].he, band)?;
+        let sector = &star.sectors[k];
+        let (face, is_plane) = (sector.face, sector.carrier == SectorCarrier::Plane);
         let refuse = |reading| SplitReduceError::SliverSector {
             vertex,
             face,
@@ -242,15 +244,15 @@ pub(super) fn apply_rule_a<T: Decide>(
             [k, (k + 1) % n]
                 .into_iter()
                 .filter(|&j| in_plane[j])
-                .map(|j| proven(&body.half_edges, entries[j].he, EntityId::HalfEdge).edge)
+                .map(|j| proven(&body.half_edges, star.bounds[j].he, EntityId::HalfEdge).edge)
                 .find(|&e| straight(body, e))
                 .map_or(KnifeEdgeSite::Vertex(vertex), KnifeEdgeSite::Edge)
         };
-        let n_face = match at_vertex {
-            VertexFace::Tangent(n_face) | VertexFace::NearAxis(n_face) => n_face,
-            VertexFace::Apex(apex) => {
-                let reading = apex_reading(plane, &apex, [rays[k], rays[(k + 1) % n]], band)
-                    .map_err(sliver)?;
+        let n_face = match sector.at {
+            StarFace::Tangent(n_face) => n_face,
+            StarFace::Apex(apex) => {
+                let bounds = [&star.bounds[k], star.start(k)];
+                let reading = apex_reading(plane, &apex, bounds, band).map_err(sliver)?;
                 if let WallReading::Grazed(_) = reading
                     && !apex.material_inside()
                 {
@@ -295,7 +297,7 @@ pub(super) fn apply_rule_a<T: Decide>(
                     // refusal (the surfaces under-determine the
                     // contact — never guess); in-band escalates (F6:
                     // an osculating pair is a sliver at this ε).
-                    let surface = body.proven_face_surface(face);
+                    let surface = body.proven_face(face).surface();
                     let p_base = body.resolve_vertex_point(vertex, Proven);
                     let kappa = geom_brep::implicit_max_normal_curvature(surface, p_base);
                     // Ledger row F11: the sagitta is metered at the
@@ -363,22 +365,22 @@ pub(super) fn apply_rule_a<T: Decide>(
         // parallel ([`Parallel::material_side`]).
         let (class, _) = parallel.material_side().map_err(sliver)?;
         readings.push(WallReading::InPlane);
-        entries[k].class = class;
-        entries[(k + 1) % n].class = class;
+        classes[k] = class;
+        classes[(k + 1) % n] = class;
     }
     Ok(readings)
 }
 
-/// Rule (a) at a cone's apex, for the sub-sector between the entry rays
-/// `bounds`: an edge's chord, or an extremal ruling the walk subdivided
-/// at (`neighborhood::wide_entries`, the apex lane's own). A cone is
-/// never coplanar with the plane, and the apex has no tangent plane: the
-/// plane grazes the face along a ruling where the face's side is
-/// extremal, and every such ruling is an entry's ray. At an extremal
-/// ruling `g` the plane's normal has no component round the axis, so the
-/// sine between it and the outward normal along `g` is `|n·ĝ|`, the
-/// quantity the walk read the entry's side by, levered at the same reach
-/// (the ray's length). So the sub-sector is grazed where the outward
+/// Rule (a) at a cone's apex, for the sub-sector between the star's
+/// `bounds`: an edge, or a ruling the star cut the corner at (its halving
+/// or quarters, or an extremal ruling of the plane, `Star::refine`). A
+/// cone is never coplanar with the plane, and the apex has no tangent
+/// plane: the plane grazes the face along a ruling where the face's side
+/// is extremal, and every such ruling is a bound. At an extremal ruling
+/// `g` the plane's normal has no component round the axis, so the sine
+/// between it and the outward normal along `g` is `|n·ĝ|`, the quantity
+/// the split read the bound's side by, levered at the same reach (the
+/// bound's). So the sub-sector is grazed where the outward
 /// normal along either bounding ray is parallel to the plane's at that
 /// ray's reach (`split_sector_coplanar`) — where the walk read that
 /// entry On — and otherwise clear. The two are not one predicate: the
@@ -392,15 +394,15 @@ pub(super) fn apply_rule_a<T: Decide>(
 fn apex_reading<T: Decide>(
     plane: &SplitPlane<T>,
     apex: &ConeApex<T>,
-    bounds: [Vec3<T>; 2],
+    bounds: [&Bound<T>; 2],
     band: Band,
 ) -> Result<WallReading<T>, Indeterminate> {
-    let [first, second] = bounds.map(|ray| {
+    let [first, second] = bounds.map(|bound| {
         geom_brep::normal_alignment(
             "split_sector_coplanar",
             plane.normal.get(),
-            apex.normal_along(ray),
-            crate::boolean::sectors::departure_arm_lever(ray),
+            apex.normal_along(bound.dir),
+            bound.reach.lever(),
             band,
         )
     });
@@ -441,7 +443,7 @@ impl<T: Decide> ParallelFace<T> {
     ///
     /// Exactly one of the two vectors carries an orientation (S10), and
     /// the types say which. The face's normal is its outward normal,
-    /// minted from chart × sense in `neighborhood::sector_face`, so the
+    /// minted from chart × sense in `crate::sector_face::resolve`, so the
     /// verdict inverts on a reversed face. The split plane's normal
     /// DEFINES the Above/Below convention and carries no sense to thread,
     /// so it travels as a bare vector in the `dir` slot.
@@ -472,45 +474,51 @@ fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
 /// (a)'s per-entry report of what it read of each face.
 pub(super) fn apply_rule_b<T: Decide>(
     body: &Body<T>,
-    vertex: VertexKey,
-    entries: &mut [SectorEntry],
+    star: &Star<T>,
+    (classes, unresolved): (&mut [PlaneSide], &[bool]),
     readings: &[WallReading<T>],
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let n = entries.len();
+    let vertex = star.vertex;
+    let n = classes.len();
     for k in 0..n {
-        if entries[k].class == PlaneSide::On && entries[(k + 1) % n].class == PlaneSide::On {
+        if classes[k] == PlaneSide::On && classes[(k + 1) % n] == PlaneSide::On {
             return Err(SplitReduceError::ConsecutiveOnSectors { vertex });
         }
     }
     for k in 0..n {
-        if entries[k].class != PlaneSide::On {
+        if classes[k] != PlaneSide::On {
             continue;
         }
         let k_prev = (k + n - 1) % n;
-        let prev = entries[k_prev];
-        let next = entries[(k + 1) % n].class;
-        entries[k].class = match (prev.class, next) {
+        let (prev, next) = (classes[k_prev], classes[(k + 1) % n]);
+        classes[k] = match (prev, next) {
             (side @ (PlaneSide::Below | PlaneSide::Above), next) if next == side => {
-                // A duplicate stands inside one face's sector, with no
-                // edge to read: its own sub-sector's wall reading decides,
-                // as both faces' walls do at a smooth edge.
-                match entries[k].kind {
-                    SectorEntryKind::WideBisector => {
-                        wall_graze(body, vertex, &[(entries[k].he, readings[k])], side)?
+                if star.bounds[k].real {
+                    match edge_wedge(body, star, k, band)? {
+                        Some(true) => side,
+                        Some(false) => side.opposite(),
+                        None => wall_graze(
+                            body,
+                            vertex,
+                            &[
+                                (star.bounds[k_prev].he, readings[k_prev]),
+                                (star.bounds[k].he, readings[k]),
+                            ],
+                            side,
+                        )?,
                     }
-                    SectorEntryKind::Edge => {
-                        match edge_wedge(body, vertex, prev.he, entries[k].he, band)? {
-                            Some(true) => side,
-                            Some(false) => side.opposite(),
-                            None => wall_graze(
-                                body,
-                                vertex,
-                                &[(prev.he, readings[k_prev]), (entries[k].he, readings[k])],
-                                side,
-                            )?,
-                        }
-                    }
+                } else if unresolved[k] {
+                    // A divider whose descent read nothing past its tie
+                    // has no second-order side: its wall decides, as for a
+                    // smooth edge, and refuses where it disagrees.
+                    wall_graze(body, vertex, &[(star.bounds[k].he, readings[k])], side)?
+                } else {
+                    // A divider still On after its descent rides the
+                    // plane: its face lies on `S` at both of its
+                    // sub-sectors' far bounds and in the plane along it at
+                    // most, so no material across from `S` reaches it.
+                    side
                 }
             }
             _ => PlaneSide::Below,
@@ -519,11 +527,10 @@ pub(super) fn apply_rule_b<T: Decide>(
     Ok(())
 }
 
-/// The wedge of the edge of orbit half-edge `he` at `vertex`: `None`
-/// where its two faces are tangent-continuous
-/// ([`geom_brep::DihedralClass::Smooth`]), else whether the material
-/// wedge is under 180°. `prev` is the orbit half-edge before `he`,
-/// whose CW-after sector is `he`'s own face.
+/// The wedge of the edge that is bound `k` of `star`: `None` where its
+/// two faces are tangent-continuous ([`geom_brep::DihedralClass::Smooth`]),
+/// else whether the material wedge is under 180°. The sector before the
+/// bound is its own face's, the sector after it its mate's.
 ///
 /// Smooth or not is the dihedral classifier's own question, read
 /// through [`geom_brep::classify_dihedral`] with the edge's extent, as
@@ -533,35 +540,33 @@ pub(super) fn apply_rule_b<T: Decide>(
 /// direction into the mate's face, across the edge, against the own
 /// face's outward normal, metered over the same folded lever arm.
 /// Where either face is a cone at its apex, both are read along the
-/// edge's ray ([`VertexFace::normal_along`]).
+/// edge's ray ([`StarFace::normal_along`]).
 fn edge_wedge<T: Decide>(
     body: &Body<T>,
-    vertex: VertexKey,
-    prev: HalfEdgeKey,
-    he: HalfEdgeKey,
+    star: &Star<T>,
+    k: usize,
     band: Band,
 ) -> Result<Option<bool>, SplitReduceError> {
-    let (own_face, own_at, _) = sector_face(body, vertex, prev, band)?;
-    let (mate_face, mate_at, _) = sector_face(body, vertex, he, band)?;
+    let vertex = star.vertex;
+    let n = star.bounds.len();
+    let (own, mate) = (&star.sectors[(k + n - 1) % n], &star.sectors[k]);
+    let (own_face, own_at, mate_face, mate_at) = (own.face, own.at, mate.face, mate.at);
     let sliver = |diag| SplitReduceError::SliverSector {
         vertex,
         face: mate_face,
         reading: SectorReading::Escalated(diag),
     };
-    let sector_surface = |f| body.proven_face_surface(f);
+    let sector_surface = |f| body.proven_face(f).surface();
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
-    let (_, along, _) = chord(body, vertex, he)?;
-    let extent = crate::boolean::sectors::departure_arm_lever(along);
+    let along = star.bounds[k].ray();
+    let extent = star.bounds[k].reach.lever();
     // Both faces are read along the edge's ray: at the vertex where each
     // has a tangent plane, and out along the ray where either is a cone at
     // its apex, whose normal is constant along the ruling the ray lies on
     // and undefined at the apex itself.
     let p = body.resolve_vertex_point(vertex, Proven);
     let p = match (own_at, mate_at) {
-        (
-            VertexFace::Tangent(_) | VertexFace::NearAxis(_),
-            VertexFace::Tangent(_) | VertexFace::NearAxis(_),
-        ) => p,
+        (StarFace::Tangent(_), StarFace::Tangent(_)) => p,
         _ => p + along,
     };
     let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));
@@ -721,7 +726,7 @@ pub(crate) fn face_reach_from<T: Decide>(
     at: Point3<T>,
 ) -> Result<Lever<T>, UnboundedFace> {
     let over_span = matches!(
-        body.proven_face_surface(face),
+        body.proven_face(face).surface(),
         geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. }
     );
     boundary_lever(body, face, at, |curve| {
@@ -783,18 +788,17 @@ pub(crate) fn face_axial_range<T: Decide>(
 
 /// **How far along a cone's axis a face reaches**: bounds `(lo, hi)` on
 /// `(x − apex)·axis` over `face`, read off its boundary as
-/// [`face_axial_range`] reads it, each edge over the span it holds.
+/// [`face_axial_range`] reads it, each edge over the span it holds, so
+/// a working body's null scaffolding is read as its chord.
 ///
 /// A face on the cone itself can hold the apex inside its boundary (a
 /// tip bounded by its rim alone), where its range is not its
 /// boundary's: the axis coordinate peaks on a smooth surface only at
 /// the boundary, and the apex is not smooth. So a face on a cone keeps
-/// its boundary's range only where every loop's azimuth window is
-/// decided narrower than three quarters of a turn: a boundary loop that
-/// encloses the apex winds a whole turn about the axis. Anywhere else
-/// (a wider window, an unread one, a refusal reading it) the range is
-/// widened to hold the apex. A face on any other surface keeps its
-/// boundary's range: on a plane the coordinate is linear.
+/// its boundary's range only where the face cover's apex rule
+/// (`cover::cone_may_hold_apex`: every loop closes in the chart) says
+/// it holds no apex; anywhere else the range is widened to hold it. A
+/// face on any other surface keeps its boundary's range.
 ///
 /// # Errors
 ///
@@ -830,27 +834,14 @@ pub(crate) fn cone_axial_window<T: Decide>(
             ),
             Real::max,
         )?;
-    let own @ geom::Surface::Cone { .. } = body.proven_face_surface(face) else {
+    let own @ geom::Surface::Cone { .. } = body.proven_face(face).surface() else {
         return Ok((lo, hi));
     };
-    let widened = (lo.min(T::zero()), hi.max(T::zero()));
-    let quarters = T::from_f64(1.5 * core::f64::consts::PI);
-    // Every loop, not the outer alone: a file's designated outer bound
-    // can be a hole, and the loop enclosing the apex then a ring.
-    let wide = match crate::chart_window::face_loop_azimuth_windows(body, own, face, band) {
-        Ok(windows) => windows
-            .into_iter()
-            .try_fold(T::zero() - quarters, |wide, w| {
-                w.map(|(from, to)| wide.max(to - from - quarters))
-            }),
-        Err(_) => None,
-    };
-    Ok(wide.map_or(widened, |wide| {
-        (
-            wide.select_le_zero(lo, widened.0),
-            wide.select_le_zero(hi, widened.1),
-        )
-    }))
+    if crate::cover::cone_may_hold_apex(body, face, own, band) {
+        Ok((lo.min(T::zero()), hi.max(T::zero())))
+    } else {
+        Ok((lo, hi))
+    }
 }
 
 /// **A face as the plane×cone arm's reach** ([`geom_brep::Reach::Face`]),
@@ -931,14 +922,13 @@ fn boundary_fold<T: Decide, R: Copy>(
     ),
     max: impl Fn(R, R) -> R,
 ) -> Result<R, UnboundedFace> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
+    let view = body.proven_face(face);
     let mut extent = floor;
-    let outer = face_data.outer;
-    for (loop_key, members, _) in body.face_boundary_by_loop(face, face_data) {
+    for (_, members, role) in view.boundary_by_loop() {
         for member in members {
             let p = match member {
                 // An unbounded face has no finite lever arm.
-                BoundaryMember::Isolated { vertex: lone, .. } if loop_key == outer => {
+                BoundaryMember::Isolated { vertex: lone, .. } if role.is_outer() => {
                     return Err(UnboundedFace { face, vertex: lone });
                 }
                 BoundaryMember::Isolated { point, .. } => point,
@@ -1107,17 +1097,6 @@ mod tests {
         }
     }
 
-    fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
-        classes
-            .iter()
-            .map(|&class| SectorEntry {
-                he: HalfEdgeKey::default(),
-                kind: SectorEntryKind::Edge,
-                class,
-            })
-            .collect()
-    }
-
     use PlaneSide::{Above as A, Below as B, On as O};
 
     /// One rule (b) row: a right prism over `profile` (x–y corners,
@@ -1183,18 +1162,25 @@ mod tests {
         let (base, far) = (at(0.0), at(1.0));
         let band = Band::linear(tol).unwrap();
         let (sides, _) = crate::vertex_sides(&operand, &plane, tol).unwrap();
-        let entries =
-            super::super::classify_neighborhood(&fx.body, &plane, &sides, base, band).unwrap();
-        let n = entries.len();
-        let k = entries
+        let tips = crate::sector_shape::SlitTips::of(&fx.body);
+        let hood =
+            super::super::neighborhood::classify(&fx.body, &plane, &sides, base, &tips, band)
+                .unwrap();
+        let n = hood.classes.len();
+        let k = hood
+            .star
+            .bounds
             .iter()
-            .position(|e| {
-                e.kind == SectorEntryKind::Edge && fx.body.half_edge_end(e.he) == Some(far)
-            })
+            .position(|b| b.real && fx.body.half_edge_end(b.he) == Some(far))
             .expect("the in-plane edge is in the orbit");
-        let (prev, next) = (entries[(k + n - 1) % n], entries[(k + 1) % n]);
-        let convex = edge_wedge(&fx.body, base, prev.he, entries[k].he, band).unwrap();
-        (prev.class, next.class, convex, entries[k].class)
+        let convex = edge_wedge(&fx.body, &hood.star, k, band).unwrap();
+        let classes = &hood.classes;
+        (
+            classes[(k + n - 1) % n],
+            classes[(k + 1) % n],
+            convex,
+            classes[k],
+        )
     }
 
     /// The derived rule (b) table (module docs), one fixture per row,
@@ -1269,15 +1255,68 @@ mod tests {
         }
     }
 
+    /// **A divider whose descent read nothing past its tie goes by its
+    /// wall; one that rides the plane goes with its corner.** On the
+    /// oblique rim's straight wall corner, with the divider On between two
+    /// bounds Above and the wall read clear of a tilted plane, rule (b)
+    /// sends the riding divider Above, with its bounds, and the unresolved
+    /// one by its wall's reading (`wall_graze`), Below: the second order
+    /// it lacks is not supplied by convention.
+    #[test]
+    fn an_unresolved_divider_goes_by_its_wall() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, wall, vertex) =
+            crate::test_support_fixtures::oblique_rim_wall_from::<f64>(0.3, 1.0);
+        let star = Star::walk(
+            &body,
+            vertex,
+            &crate::sector_shape::SlitTips::default(),
+            band,
+        )
+        .unwrap();
+        let k = (0..star.bounds.len())
+            .find(|&k| !star.bounds[k].real && star.sectors[k].face == wall)
+            .expect("the wall's straight corner holds a divider");
+        let StarFace::Tangent(n_wall) = star.sectors[k].at else {
+            panic!("the wall has a tangent plane at the rim")
+        };
+        let plane = corner_plane((1.0, 2.0, 3.0));
+        let readings: Vec<_> = (0..star.bounds.len())
+            .map(|_| reading(&plane, n_wall, 1.0, band))
+            .collect();
+        assert!(
+            matches!(readings[k], WallReading::Clear(_)),
+            "the wall reads clear"
+        );
+        let read = |unresolved: bool| {
+            let mut classes = vec![PlaneSide::Above; star.bounds.len()];
+            classes[k] = PlaneSide::On;
+            let mut ties = vec![false; star.bounds.len()];
+            ties[k] = unresolved;
+            apply_rule_b(&body, &star, (&mut classes, &ties), &readings, band).unwrap();
+            classes[k]
+        };
+        assert_eq!(
+            read(false),
+            PlaneSide::Above,
+            "a riding divider goes with its bounds"
+        );
+        assert_eq!(
+            read(true),
+            PlaneSide::Below,
+            "an unresolved one goes by its wall"
+        );
+    }
+
     /// Consecutive ON entries are the loud invariant failure, never a
     /// silent walk-on.
     #[test]
     fn consecutive_on_refuses() {
-        let mut e = entries(&[O, O, B]);
-        let body = Body::<f64>::new();
+        let mut e = [O, O, B];
+        let (body, star) = corner_star();
         let band = Band::linear(Tol::witness()).unwrap();
         let readings = vec![WallReading::<f64>::InPlane; e.len()];
-        let err = apply_rule_b(&body, VertexKey::default(), &mut e, &readings, band).unwrap_err();
+        let err = apply_rule_b(&body, &star, (&mut e, &[false; 3]), &readings, band).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
 
@@ -1368,7 +1407,10 @@ mod tests {
         let vertex = body
             .vertices()
             .map(|(k, _)| k)
-            .find(|&v| (body.resolve_vertex_point(v, Proven) - Point3::origin()).norm() == 0.0)
+            .find(|&v| {
+                body.resolve_vertex_point(v, Proven)
+                    .equals_exactly(Point3::origin())
+            })
             .expect("the cube has a corner at the origin");
         let orbit = body.vertex_orbit_linked(vertex);
         (body, vertex, orbit)
@@ -1383,15 +1425,17 @@ mod tests {
         )
     }
 
-    fn on_entries(orbit: &[HalfEdgeKey]) -> Vec<SectorEntry> {
-        orbit
-            .iter()
-            .map(|&he| SectorEntry {
-                he,
-                kind: SectorEntryKind::Edge,
-                class: PlaneSide::On,
-            })
-            .collect()
+    /// The cube corner's star: three convex sectors, no dividers.
+    fn corner_star() -> (Body<f64>, Star<f64>) {
+        let (body, vertex, _) = cube_corner();
+        let star = Star::walk(
+            &body,
+            vertex,
+            &crate::sector_shape::SlitTips::default(),
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap();
+        (body, star)
     }
 
     /// The orbit half-edge whose sector's face has outward normal `n`,
@@ -1405,12 +1449,18 @@ mod tests {
         orbit
             .iter()
             .find_map(|&he| {
-                let (_, n_face, _) =
-                    sector_face(body, vertex, he, Band::linear(Tol::witness()).unwrap()).unwrap();
+                let n_face = crate::sector_face::resolve(
+                    body,
+                    vertex,
+                    he,
+                    Band::linear(Tol::witness()).unwrap(),
+                )
+                .unwrap()
+                .at_vertex;
                 let crate::sector_face::VertexFace::Tangent(n_face) = n_face else {
                     panic!("a cube corner has a tangent plane on every face")
                 };
-                ((n_face.vec() - n).norm() == 0.0).then_some((he, n_face))
+                (n_face.vec().equals_exactly(n)).then_some((he, n_face))
             })
             .expect("a face at the corner has that normal")
     }
@@ -1456,14 +1506,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "decided zero (margin 1.414")]
     fn a_face_extent_decided_zero_panics() {
-        let (body, vertex, orbit) = cube_corner();
+        let (body, star) = corner_star();
         let band = Band::new(2.0, 4.0).unwrap();
         let _ = apply_rule_a(
             &body,
             &corner_plane((0.0, 0.0, 1.0)),
-            vertex,
-            &mut on_entries(&orbit),
-            &[],
+            &star,
+            &mut [PlaneSide::On; 3],
             band,
         );
     }
@@ -1525,16 +1574,15 @@ mod tests {
     /// nonzero gate, keeping the margin, at every diagonal normal.
     #[test]
     fn a_plane_face_too_short_to_read_its_sense_escalates_its_zero() {
-        let (body, vertex, orbit) = cube_corner();
+        let (body, star) = corner_star();
         let band = Band::new(1.1, 1.3).unwrap();
         for n in DIAGONALS {
             let label = format!("normal {n:?}");
             match apply_rule_a(
                 &body,
                 &corner_plane(n),
-                vertex,
-                &mut on_entries(&orbit),
-                &[],
+                &star,
+                &mut [PlaneSide::On; 3],
                 band,
             ) {
                 Err(e) => too_short_to_read(&label, &e),

@@ -1557,14 +1557,18 @@ pub trait Construct<T: geom_core::Real> {
     /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — `mev`'s
     /// vector (an edge split IS a mev, applied mid-edge).
     ///
-    /// **Interiority is trilean** (Q1): the two sub-spans `t − t₀` and
-    /// `t₁ − t` are metered into meters exactly like the certification
-    /// span gate (`·radius` for circle carriers) and each must classify
-    /// **definitely positive** through the
-    /// `split_edge_param_interior` predicate — at/outside an endpoint
-    /// refuses ([`EulerOpError::SplitParamNotInterior`]), in-band
+    /// **Interiority is trilean** (Q1): the edge's span reads the
+    /// parameter (`geom_brep::curve_pair::Span::place_param_read`): the
+    /// split point within the band of an end's point, by their chord, is
+    /// that end; otherwise its side of each end, metered at the carrier's
+    /// greatest speed, decides. Only a point inside splits — at/outside an
+    /// endpoint refuses ([`EulerOpError::SplitParamNotInterior`]), in-band
     /// escalates ([`EulerOpError::SplitParamEscalated`]; a poisoned
-    /// margin, e.g. an unmeterable carrier, escalates the same way).
+    /// chord or a poisoned sup speed escalates the same way). The speed
+    /// FLOOR is not read here: a carrier whose speed collapses (a spline
+    /// that stops, whose `speed_lower_bound` is not positive) passes on
+    /// its chord and is refused by its children's certification, check 2's
+    /// `nurbs_span_meter` ([`EulerOpError::Certification`]).
     ///
     /// **Surgery** (derived from the interior-left rule, replacing the
     /// book's `lmev(e->he1, e->he2->nxt, p)`): with parent halves
@@ -1918,7 +1922,7 @@ pub trait Construct<T: geom_core::Real> {
     /// sides swapped, and it takes their answer: a swap onto the same
     /// chart carries every row untouched, and a swap onto a different
     /// one drops the rows of the face's loops, proven whole in the plan
-    /// ([`Body::face_cycles`]), deriving nothing. A caller that wants the face's rows on its new chart
+    /// ([`Body::half_edges_proven_whole`]), deriving nothing. A caller that wants the face's rows on its new chart
     /// runs [`crate::pcurves::mint_pcurves`]. Leaving them was silent
     /// wherever the new surface does not mint — tier 3's pcurve pass
     /// skips such a face — so what the drop removes is a wrong row no

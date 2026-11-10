@@ -2,11 +2,13 @@
 id: check-9-reads-an-internal-tangencys-trims-at-the-radical-foot
 kind: issue
 title: check 9's arm 5 reads both arcs' trims at the radical foot of a decided internal tangency, which near-concentric carriers put about g·r/d off both circles, so arcs a centimetre clear of each other can read Meet
-status: open
+status: closed
 opened: 2026-10-14
 priority: P3
 cost: E
 refs: [decided-tangent-point-is-the-radical-foot]
+closed: 2026-11-09
+pr: 6687
 ---
 
 
@@ -59,3 +61,18 @@ of centres, `|g|/2` off each, rather than at the foot. Arm 5 already
 asks the chord ends at a tangency, so a chord deeper than the band,
 which the pair pass reads as two crossings (`carrier_circles_chord`),
 is read here too, and the foot is the one candidate that needs moving.
+
+## Closed by `onecopy/needle-basin` (PR 6687)
+
+`arc_trim` and `arc_trim_margin` are gone. Check 9's `window` arc arm
+now reads `curve_pair::Span::place` (`crates/topo/src/validate.rs`
+`window`), which reads a point at its foot on the circle, its radial
+projection, so the foot's offset `g·r/d` off the circle moves nothing:
+an end is read by the foot's chord to it, and a side by the foot's
+parameter. The row's four measured cases are pinned at the window
+(`an_arc_window_reads_an_off_circle_point_at_its_foot`): an arc ending
+0.01 rad short of the tangency reads the point 0.029 inside (apex 2.5
+rad away) and 0.029 outside (apex 0.3 rad away) OUT, where the
+chordal-defect reading had them in at +0.0063 and +0.0116. An arc holding
+the tangency reads both in. Arm 5's candidates are unchanged, so the
+foot is still asked, but nothing reads its radius any more.

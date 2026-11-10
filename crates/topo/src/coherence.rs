@@ -145,7 +145,7 @@ use geom_core::{Point3, Tol};
 
 use crate::body::Body;
 use crate::chart::Chart;
-use crate::chart_iso::{TravKind, classify_kind, unwrap_near};
+use crate::chart_iso::{TravKind, classify_kind};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 /// Which of the three conditions a [`CoherenceFinding`] reports, and
@@ -264,6 +264,13 @@ pub enum Unexaminable {
         /// print.
         at: StructureRead,
     },
+    /// The loop is a lone vertex: no edge, so no coordinate to compare.
+    /// Tier 1 admits it; tier 2 refuses it at rest
+    /// ([`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)).
+    LoneLoop {
+        /// The loop.
+        r#loop: LoopKey,
+    },
     /// An edge of the loop carries construction scaffolding rather
     /// than a certified curve, so it states no coordinate to compare.
     NullScaffoldEdge {
@@ -291,8 +298,6 @@ pub enum Unexaminable {
 pub enum StructureRead {
     /// The loop key does not resolve.
     Loop,
-    /// The loop carries no cycle — construction scaffolding at rest.
-    EmptyLoop,
     /// The half-edge cycle from the loop's first half-edge is broken.
     Cycle,
     /// A half-edge key in the cycle does not resolve.
@@ -345,18 +350,10 @@ pub struct CoherenceReport {
 }
 
 /// The unsigned distance between two values of a PERIODIC chart
-/// coordinate, through the walk's OWN branch selection
-/// ([`unwrap_near`]): `a`'s nearest representative to `b`, minus `b`.
-/// The answer never exceeds half a period.
-///
-/// This is the same reduction the consuming walk performs before it
-/// discards one of the two values — literally the same function, so a
-/// change to how the walk picks a branch changes what this measures —
-/// read here as a measurement rather than as a selection: on a full
-/// turn of skew the two statements agree, and a report that called
-/// that a π gap would be reporting the reduction and not the data.
+/// coordinate, round the turn ([`geom::separation`]): never more than
+/// half a period, whichever copy of `a` the walk's rename takes.
 fn wrapped(a: f64, b: f64) -> f64 {
-    (unwrap_near(a, b) - b).abs()
+    geom::separation(a, b)
 }
 
 /// **The band, and its only spelling in this crate.** Is a chart
@@ -415,8 +412,9 @@ fn traversals(body: &Body<f64>, chart: &Chart, lk: LoopKey) -> Result<Vec<Trav>,
             .copied()
     };
     let lp = body.get_loop(lk).ok_or(corrupt(StructureRead::Loop))?;
-    let LoopBoundary::Cycle { first } = lp.boundary else {
-        return Err(corrupt(StructureRead::EmptyLoop));
+    let first = match lp.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex: _ } => return Err(Unexaminable::LoneLoop { r#loop: lk }),
     };
     let cycle: Vec<HalfEdgeKey> = body
         .loop_cycle(first)
@@ -549,7 +547,7 @@ fn loop_findings(
             let o = &travs[opens[k]];
             match (&o.kind, &t.kind) {
                 (TravKind::Rim { v_raw: opened }, TravKind::Rim { v_raw: own }) => {
-                    let gap = if chart.v_periodic() {
+                    let gap = if chart.v_domain_wraps() {
                         wrapped(*own, *opened)
                     } else {
                         (own - opened).abs()

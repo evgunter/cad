@@ -117,7 +117,7 @@ pub(super) fn composite_round_cost(
 /// ```
 ///
 /// (the `S_u·(S_u×S_uv)`-shaped triples vanish identically). Cells
-/// are cut ON the interior knots ([`knot_aligned_cuts`](super::cells::knot_aligned_cuts)), so each one
+/// are cut ON the interior knots ([`knot_aligned_cuts`]), so each one
 /// lies inside a single smooth piece and the Taylor remainder is the
 /// whole error there. The area rides the
 /// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad on
@@ -168,7 +168,7 @@ pub fn nurbs_patch_face<T: Decide>(
 /// its floor ([`LaneStop::Floor`]), and a window can neither start
 /// after it nor ask it for a tighter enclosure.
 ///
-/// `pub` for the same reason [`cylinder_cut_face_rounds`](super::cylinder::cylinder_cut_face_rounds) is: its
+/// `pub` for the same reason [`rotational_cut_face_rounds`](super::rotational::rotational_cut_face_rounds) is: its
 /// consumer is `topo`'s `props::quad_lane`, across the crate
 /// boundary.
 ///

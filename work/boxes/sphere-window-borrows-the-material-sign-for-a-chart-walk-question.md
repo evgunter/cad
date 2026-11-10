@@ -2,11 +2,10 @@
 id: sphere-window-borrows-the-material-sign-for-a-chart-walk-question
 kind: issue
 title: boxes::sphere_window borrows boundary_material_sign == Encoded(sense) to mean 'the face lies in its boundary's rectangle', a chart-walk question the material sign does not answer
-status: parked
+status: open
 opened: 2026-10-10
 priority: P4
 cost: E
-blocked_on: [cover-topo-faces]
 ---
 
 
@@ -35,3 +34,9 @@ once the sense agrees. A face whose loop doubles back on a strut answers
 so they now stand on a seamed zone (`strut_cap(.., zone: true, ..)`),
 and `a_caps_strut_does_not_bound_its_latitude_window` pins the
 strut cap's fallback to the ball.
+
+## Since `cover-topo-faces` (2026-11-08)
+
+Unchanged in substance. The window is `topo::cover`'s `sphere_window`,
+one constraint of the face cover's sphere arm, and still reads
+`boundary_material_sign == Encoded(sense)`.

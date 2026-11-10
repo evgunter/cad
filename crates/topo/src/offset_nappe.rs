@@ -48,12 +48,12 @@
 //! ([`ReplaceFaceError::NappeStraddles`]), never guessed.
 
 use geom::Surface;
-use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_brep::ladder::{Answering, Climb, Disagree, Rung, climb, climb_agreeing};
+use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 
 use crate::body::Body;
-use crate::entity::{EntityId, Face, FaceKey};
-use crate::live::{BoundaryMember, proven};
+use crate::entity::{EntityId, FaceKey};
+use crate::live::{BoundaryMember, FaceView};
 use crate::replace_face::ReplaceFaceError;
 
 pub use geom_brep::Nappe;
@@ -133,16 +133,37 @@ pub(crate) fn face_nappe_reading<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Nappe, NappeRefusal<T>> {
-    let data = body.get_face(face).ok_or(NappeRefusal::Stale)?;
-    let Surface::Cone { apex, axis, .. } = body.face_surface_linked(face, data) else {
+    let view = body.face(face).ok_or(NappeRefusal::Stale)?;
+    let (Surface::Cone { .. }, Some(axis)) = (view.surface(), view.surface().axis_line()) else {
         return Ok(Nappe::Opening);
     };
-    let (station_min, station_max) = corner_stations(body, face, data, *apex, *axis);
-    let lo =
-        decide("offset_nappe", Margin::of(station_min), band).map_err(NappeRefusal::Escalated)?;
-    let hi =
-        decide("offset_nappe", Margin::of(station_max), band).map_err(NappeRefusal::Escalated)?;
-    match (lo, hi) {
+    let (station_min, station_max) = corner_stations(body, view, axis);
+    // The lowest station decided above the apex puts every corner above
+    // it, and the highest decided below puts every corner below: either
+    // answers alone, whatever the other read (`station_min ≤
+    // station_max`; [`climb`], [`Answering::Any`]). Only where neither
+    // does are both read together.
+    let mut signs = [Sign::Zero; 2];
+    let extremes = [
+        (station_min, Sign::Positive, Nappe::Opening),
+        (station_max, Sign::Negative, Nappe::Mirror),
+    ];
+    let alone = climb(
+        Answering::Any,
+        extremes.into_iter().enumerate(),
+        |(at, (station, alone, nappe))| {
+            Rung::decide("offset_nappe", Margin::of(station), band, |d| {
+                signs[at] = d.sign;
+                (d.sign == alone).then_some(nappe)
+            })
+        },
+    );
+    match alone {
+        Climb::Answered { answer, .. } => return Ok(answer),
+        Climb::Undecided(cause) => return Err(NappeRefusal::Escalated(cause)),
+        Climb::Passed => {}
+    }
+    match (signs[0], signs[1]) {
         (Sign::Zero | Sign::Positive, Sign::Positive) => Ok(Nappe::Opening),
         (Sign::Negative, Sign::Negative | Sign::Zero) => Ok(Nappe::Mirror),
         _ => Err(NappeRefusal::Straddles {
@@ -176,32 +197,45 @@ pub fn group_nappe<T: Decide>(
     faces: &[FaceKey],
     band: Band,
 ) -> Result<Nappe, ReplaceFaceError<T>> {
-    let mut agreed: Option<Nappe> = None;
-    for &face in faces {
-        let here = face_nappe(body, face, band)?;
-        match agreed {
-            None => agreed = Some(here),
-            Some(first) if first == here => {}
-            Some(_) => {
-                // `face_nappe` resolved this face and answered `Mirror`
-                // or `Opening` against another member's other answer,
-                // and only a cone has two.
-                let data = proven(&body.faces, face, EntityId::Face);
-                let Surface::Cone { apex, axis, .. } = body.face_surface_linked(face, data) else {
-                    unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
-                };
-                let (station_min, station_max) = corner_stations(body, face, data, *apex, *axis);
-                return Err(ReplaceFaceError::NappeStraddles {
-                    face,
-                    station_min,
-                    station_max,
-                    what: "faces of one cone that do not all lie on the same side of its apex, \
-                           so one offset cannot move them all the same way",
-                });
-            }
+    // Every face's nappe, read as one ladder that checks its answers
+    // agree ([`climb_agreeing`]): a face read in band is kept, and
+    // refuses only where no other face decides; one that does not resolve
+    // or straddles the apex stops the read.
+    let climbed = climb_agreeing(
+        faces,
+        |&face| match face_nappe(body, face, band) {
+            Ok(here) => Rung::Answers(Ok((face, here))),
+            Err(e) => Rung::refused(e, ReplaceFaceError::refusal, Err),
+        },
+        |a, b| matches!((a, b), (Ok((_, x)), Ok((_, y))) if x == y),
+    );
+    match climbed {
+        Ok(Climb::Answered { answer, .. }) => answer.map(|(_, nappe)| nappe),
+        Ok(Climb::Undecided(e)) => Err(e),
+        Ok(Climb::Passed) => Err(ReplaceFaceError::EmptyGroup),
+        // `face_nappe` resolved this face and answered `Mirror` or
+        // `Opening` against another member's other answer, and only a
+        // cone has two.
+        Err(Disagree { other, .. }) => {
+            let face = match other {
+                Ok((face, _)) => face,
+                Err(e) => return Err(e),
+            };
+            let view = body.proven_face(face);
+            let (Surface::Cone { .. }, Some(axis)) = (view.surface(), view.surface().axis_line())
+            else {
+                unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
+            };
+            let (station_min, station_max) = corner_stations(body, view, axis);
+            Err(ReplaceFaceError::NappeStraddles {
+                face,
+                station_min,
+                station_max,
+                what: "faces of one cone that do not all lie on the same side of its apex, \
+                       so one offset cannot move them all the same way",
+            })
         }
     }
-    agreed.ok_or(ReplaceFaceError::EmptyGroup)
 }
 
 /// `face`'s extreme corner stations `(min, max)` on the cone
@@ -222,14 +256,16 @@ pub fn group_nappe<T: Decide>(
 #[track_caller]
 fn corner_stations<T: Decide>(
     body: &Body<T>,
-    face: FaceKey,
-    data: &Face,
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    data: FaceView<'_, T>,
+    axis: geom::Line<T>,
 ) -> (T, T) {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let station = |p: Point3<T>| (p - apex).dot(axis);
-    let stations: Vec<T> = body
-        .face_boundary_linked(face, data)
+    let stations: Vec<T> = data
+        .boundary()
         .map(|member| {
             station(match member {
                 BoundaryMember::Isolated { point, .. } => point,
@@ -240,7 +276,10 @@ fn corner_stations<T: Decide>(
         })
         .collect();
     let Some(&first) = stations.first() else {
-        unreachable!("{face:?}'s outer loop holds a vertex or a cycle, so it has a corner")
+        unreachable!(
+            "{:?}'s outer loop holds a vertex or a cycle, so it has a corner",
+            data.key()
+        )
     };
     stations
         .iter()
@@ -255,24 +294,24 @@ mod torn_hop_rows {
     use super::*;
     use crate::live::OPERATORS_KEEP_LINKS;
     use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
-    use geom_core::Tol;
+    use geom_core::{Tol, Vec3};
 
     #[test]
     fn the_corner_stations_panic_on_a_torn_ring_link() {
         let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
-        let (face, data) = body.faces().next().map(|(k, d)| (k, d.clone())).unwrap();
-        let (apex, axis) = (Point3::new(0.0, 0.0, -1.0), Vec3::unit_z());
-        let (lo, hi) = corner_stations(&body, face, &data, apex, axis);
+        let face = body.faces().next().unwrap().0;
+        let axis = geom::Line {
+            origin: Point3::new(0.0, 0.0, -1.0),
+            dir: Vec3::unit_z(),
+        };
+        let (lo, hi) = corner_stations(&body, body.proven_face(face), axis);
         assert!(lo <= hi, "ordered stations");
         let named = crate::review_d18::tear_ring(&mut body, face);
         assert_torn_op_panics(
             "corner_stations",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| {
-                let data = b.get_face(face).unwrap().clone();
-                corner_stations(b, face, &data, apex, axis)
-            },
+            |b| corner_stations(b, b.proven_face(face), axis),
         );
     }
 }

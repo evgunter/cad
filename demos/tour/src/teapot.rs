@@ -280,8 +280,7 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{
     Axis3, Bodies, CancelToken, Coord, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, ValuePayload, apply,
-    evaluate,
+    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -296,7 +295,7 @@ use pncad::select::{
     face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{Body, BooleanError, FaceKey, Operand};
+use pncad::topo::{Body, BooleanError};
 
 use crate::{SceneBody, TourStop, View};
 
@@ -1110,8 +1109,8 @@ pub fn spout_belly_carriers(
     let carriers = |id, keep: fn(&Surface<f64>) -> bool| {
         let body = body_at(ev, id, tol);
         let mut keys = Vec::new();
-        for (_, face) in body.faces() {
-            if !keys.contains(&face.surface) && body.get_surface(face.surface).is_some_and(keep) {
+        for (fk, face) in body.faces() {
+            if !keys.contains(&face.surface) && body.face_surface(fk).is_some_and(keep) {
                 keys.push(face.surface);
             }
         }
@@ -1130,9 +1129,9 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
     let value = ev
         .value(id)
         .unwrap_or_else(|| panic!("node {id:?} evaluated to a body, got {}", describe(ev, id)));
-    match &value.payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("expected a body, got {other:?}"),
+    match value.payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("expected a body, got {:?}", value.payload),
     }
 }
 
@@ -1368,7 +1367,7 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
     let rule = gauss_legendre(order);
     let planes: Vec<(Point3<f64>, Vec3<f64>)> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
             _ => None,
         })
@@ -1391,8 +1390,8 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
         b
     };
     let (mut flux, mut area) = (0.0, 0.0);
-    for (_, f) in body.faces() {
-        let n = match body.get_surface(f.surface) {
+    for (fk, f) in body.faces() {
+        let n = match body.face_surface(fk) {
             Some(Surface::Plane { .. }) => continue,
             Some(Surface::Nurbs(n)) => n,
             other => panic!("a quadrature over planes and NURBS, got {other:?}"),
@@ -1516,13 +1515,9 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     asked
         .into_iter()
         .map(|(what, node)| {
-            let census = ev.value(node).and_then(|v| match &v.payload {
-                ValuePayload::Body(b) => Some((
-                    b.body().vertices().count(),
-                    b.body().edges().count(),
-                    b.body().faces().count(),
-                )),
-                _ => None,
+            let census = ev.value(node).and_then(|v| {
+                let b = v.payload.one_body().flatten()?.body();
+                Some((b.vertices().count(), b.edges().count(), b.faces().count()))
             });
             (what, describe(&ev, node), census)
         })
@@ -1551,7 +1546,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // so the request reaches the vessel's sphere face meeting the
     // handle's torus. The section value carries that pair's loops, the
     // segment lays them, and the union builds; its result's volume is not
-    // computed (a conic trim on the sphere's chart has no quadrature yet),
+    // computed (a trimmed sphere face has no volume lane on its chart yet),
     // so the result is invalid.
     crate::walls::wall(
         "teapot",
@@ -1562,15 +1557,15 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::ResultInvalid { errors } if matches!(
-                    errors.as_slice(),
+                BooleanError::ResultInvalid { findings } if matches!(
+                    findings.as_slice(),
                     [pncad::topo::ValidationError::VolumeUncomputable {
                         source: pncad::topo::MassPropsError::Face {
                             source: pncad::geom_brep::PropsError::QuadratureUnsupported { what },
                             ..
                         },
                         ..
-                    }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+                    }] if what.starts_with("a trimmed face with no volume lane on its chart")
                 )
             )
         },
@@ -1598,8 +1593,6 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // point off their trims, and the join then has no frame for the
     // section of the belly's sphere and the spout's outer wall
     // (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
-    // At ε = 1e-6 the meridian stops one wall earlier, where its interior
-    // walk against one of the spout's bore walls floors.
     //
     // The predicate resolves the two faces the refusal names and pins
     // them by geometry ([`wall3_pinned`]), not by the keys' values: an
@@ -1611,7 +1604,7 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         join_outcome(ev, r.spout_union),
         |e| {
             let tol = Tol::witness();
-            wall3_pinned(e, &body_at(ev, r.spout, tol), &body_at(ev, r.pot, tol), tol)
+            wall3_pinned(e, &body_at(ev, r.spout, tol), &body_at(ev, r.pot, tol))
         },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
          walls 2 and 3, re-state the montage caption (which currently says four solids), \
@@ -1624,68 +1617,21 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
 /// its chart's `(1, 1)`, on the symmetry plane `z = 0`: measured off the
 /// loft, which interpolates its stations.
 const SPOUT_OUTER_TIP: [f64; 3] = [-0.081_711_418_8, 0.153_348_328_1, 0.0];
-/// The far corner of the bore wall beside it, measured the same way.
-const SPOUT_BORE_TIP: [f64; 3] = [-0.084_611_661_5, 0.152_934_007_7, 0.0];
 
-/// **Wall 3's pinned refusal.** At ε = 1e-6 the belly's quarter
-/// meridian, from the mouth's junction `(−R_NECK, Y_MOUTH)` to the
-/// foot's `(−R_FOOT, Y_FOOT)`, is read against the spout's bore wall
-/// whose chart runs from the root section, `SPOUT_BORE · SPOUT_R0` below
-/// [`SPOUT_ROOT`], to [`SPOUT_BORE_TIP`], and the interior walk floors
-/// there
-/// (`work/splice/teapot-wall-3-at-1e-6-floors-the-meridian-against-a-spout-wall`).
-/// At the other rows the join finds no frame for the germ pair of the
-/// belly's sphere (centre `Y_BELLY_C` on the axis, radius `R_BELLY`), the
-/// A face, against the spout's outer wall, from `SPOUT_R0` above the
-/// root to [`SPOUT_OUTER_TIP`], the B face
+/// **Wall 3's pinned refusal**, at every ε: the join finds no frame for
+/// the germ pair of the belly's sphere (centre `Y_BELLY_C` on the axis,
+/// radius `R_BELLY`), the A face, against the spout's outer wall, from
+/// `SPOUT_R0` above the root to [`SPOUT_OUTER_TIP`], the B face
 /// (`work/sectarms/a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`).
-/// Every face and edge is resolved in the operand's own body and matched
-/// by its geometry.
+/// Every face is resolved in the operand's own body and matched by its
+/// geometry.
 ///
 /// The match is absolute, at a nanometre: the corners are the authored
 /// stations and the loft's own evaluation of them, not readings of the
 /// run's band, so they do not move with ε, and the faces they tell
 /// apart stand millimetres apart.
-pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>, tol: Tol) -> bool {
+pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>) -> bool {
     let near = |p: Point3<f64>, q: [f64; 3]| (p - Point3::new(q[0], q[1], q[2])).norm() < 1e-9;
-    let root = |dz: f64| [SPOUT_ROOT.x, SPOUT_ROOT.y, dz];
-    let wall = |face: FaceKey, root: [f64; 3], far: [f64; 3]| {
-        spout
-            .get_face(face)
-            .and_then(|f| spout.get_surface(f.surface))
-            .is_some_and(|s| match s {
-                Surface::Nurbs(n) => {
-                    let (u0, u1) = n.knot_values_u().domain();
-                    let (v0, v1) = n.knot_values_v().domain();
-                    near(n.eval(u0, v0), root) && near(n.eval(u1, v1), far)
-                }
-                _ => false,
-            })
-    };
-    if (tol.eps() / 1.0e-6 - 1.0).abs() < 1.0e-3 {
-        let BooleanError::SplineCrossingUnsettled {
-            operand: Operand::A,
-            edge,
-            face,
-            face_of: Operand::B,
-            why: pncad::geom_brep::roots::Unsettled::Floor,
-        } = e
-        else {
-            return false;
-        };
-        let the_meridian = pot.get_edge(*edge).is_some_and(|d| {
-            let ends = [d.he_plus, d.he_minus].map(|h| pot.half_edge_start_point(h));
-            let circle = matches!(
-                pot.get_curve_geom(d.curve),
-                Some(pncad::topo::CurveGeom::Certified(c))
-                    if matches!(c.carrier(), Curve3::Circle(_))
-            );
-            circle
-                && matches!(ends, [Some(p), Some(q)]
-                    if near(p, [-R_NECK, Y_MOUTH, 0.0]) && near(q, [-R_FOOT, Y_FOOT, 0.0]))
-        });
-        return the_meridian && wall(*face, root(-SPOUT_BORE * SPOUT_R0), SPOUT_BORE_TIP);
-    }
     let BooleanError::GermFrameUnsupported {
         a_face: belly,
         a_kind: SurfaceKind::Sphere,
@@ -1695,14 +1641,20 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>, tol: T
     else {
         return false;
     };
-    let the_belly = pot
-        .get_face(*belly)
-        .and_then(|f| pot.get_surface(f.surface))
-        .is_some_and(|s| {
-            matches!(s, Surface::Sphere { center, radius, .. }
+    let the_belly = pot.face_surface(*belly).is_some_and(|s| {
+        matches!(s, Surface::Sphere { center, radius, .. }
                 if near(*center, [0.0, Y_BELLY_C, 0.0]) && (radius - R_BELLY).abs() < 1e-12)
-        });
-    the_belly && wall(*face, root(SPOUT_R0), SPOUT_OUTER_TIP)
+    });
+    let the_outer_wall = spout.face_surface(*face).is_some_and(|s| match s {
+        Surface::Nurbs(n) => {
+            let (u0, u1) = n.knot_values_u().domain();
+            let (v0, v1) = n.knot_values_v().domain();
+            near(n.eval(u0, v0), [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_R0])
+                && near(n.eval(u1, v1), SPOUT_OUTER_TIP)
+        }
+        _ => false,
+    });
+    the_belly && the_outer_wall
 }
 
 /// The scene's recipe, built and evaluated. Both the render walk and
@@ -1778,8 +1730,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .count();
     let on_mouth_plane = bellied
         .faces()
-        .filter(|(_, f)| {
-            matches!(bellied.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(bellied.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - Y_MOUTH).abs() < 1e-12)
         })
         .count();
@@ -1803,7 +1755,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // all. The count that stored `+y` goes in the note, measured.
     let planes: Vec<(f64, f64)> = bellied
         .faces()
-        .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
+        .filter_map(|(fk, f)| match bellied.face_surface(fk) {
             Some(Surface::Plane { origin, normal, .. }) => {
                 let outward = pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense);
                 Some((origin.y, outward.vec().y))
@@ -1814,8 +1766,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let stored_plus = planes.len()
         - bellied
             .faces()
-            .filter(|(_, f)| {
-                matches!(bellied.get_surface(f.surface),
+            .filter(|(fk, _)| {
+                matches!(bellied.face_surface(*fk),
                     Some(Surface::Plane { normal, .. }) if normal.y < 0.0)
             })
             .count();
@@ -1851,7 +1803,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     let reach = bellied
         .faces()
-        .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match bellied.face_surface(fk) {
             Some(Surface::Cylinder { radius, .. }) => Some(*radius - WALL),
             _ => None,
         })
@@ -2039,13 +1991,13 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // arm is free to mint them in any order.
     let lid_band = |y: f64| -> (f64, f64) {
         let mut hit = None;
-        for (_, f) in rolled.faces() {
+        for (fk, f) in rolled.faces() {
             let Some(Surface::Torus {
                 major_radius,
                 minor_radius,
                 center,
                 ..
-            }) = rolled.get_surface(f.surface)
+            }) = rolled.face_surface(fk)
             else {
                 continue;
             };

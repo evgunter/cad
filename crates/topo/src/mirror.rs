@@ -51,10 +51,10 @@
 //! through it as through a copy. Its volume is the source's, which the
 //! tier-3 `+V` invariant checks: without step 2 it is negative. Like
 //! every door it owes a finished body and, like
-//! [`crate::transform_rigid`], it does not gate its own result: a reader
-//! that takes finished bodies gates what it reads
-//! ([`crate::AtRestPolicy::gate_at_rest_kept`]), and the tests gate every
-//! image they build.
+//! [`crate::transform_rigid`], it does not gate its own result: the
+//! placement door that calls it finishes what it ships
+//! ([`crate::AtRestPolicy::finish`]), and the tests finish every image
+//! they build.
 //!
 //! # The audit's residuals (P3)
 //!
@@ -158,7 +158,7 @@ mod tests {
             Reflection::across(Point3::new(0.1, -0.2, 0.3), Vec3::new(1.0, 2.0, 3.0), tol).unwrap();
         let image = mirror_body(&body, &reflection, tol).expect("an offset face mirrors");
         let m = reflection.to_affine();
-        let surface = |b: &Body<f64>| b.face_surface(face).unwrap().clone();
+        let surface = |b: &Body<f64>| b.proven_face(face).surface().clone();
         let (source, mapped) = (surface(&body), surface(&image));
         let (Surface::Approx(a), Surface::Approx(b)) = (&source, &mapped) else {
             panic!("the image's face is an offset surface: {mapped:?}");

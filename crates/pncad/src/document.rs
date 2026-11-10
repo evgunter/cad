@@ -333,9 +333,14 @@ pub use editor_core::DocParamField;
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
-    Framed, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, evaluate,
+    Framed, Held, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeStanding, NodeValue, PoseValue, ReadIn, SplitSide, Stop, Stopped, ValuePayload, evaluate,
 };
+// A dual evaluates bound to its build of record (DUAL-DESIGN DL3):
+// `evaluate_recorded` takes the base-scalar evaluation and refuses every
+// node it refused; `evaluate` is the door of a scalar that is its own
+// record (`OwnRecord`), and a dual is `BoundToRecord`.
+pub use editor_core::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
 // pick reads one of.
@@ -387,7 +392,7 @@ pub use editor_core::ContentBits;
 // copies whose pair the census decided.
 pub use editor_core::{
     AssembleGather, AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    SourceFinding, assemble_gathers, product, product_recorded,
+    assemble_gathers, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:

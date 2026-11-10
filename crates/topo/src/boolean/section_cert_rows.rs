@@ -403,7 +403,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         for (c, k) in parts.iter().zip(carried.components()) {
             let w = c.witness.expect("a marched loop's witness");
             assert!(
-                (w - k.witness).norm() == 0.0,
+                w.equals_exactly(k.witness),
                 "{what}: the witness is the carrier's middle"
             );
             assert_eq!(
@@ -1544,7 +1544,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
 #[test]
 fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
     let (band_body, band_face) = seamless_band(-1.0, 1.0);
-    let surface = band_body.face_surface(band_face).unwrap().clone();
+    let surface = band_body.proven_face(band_face).surface().clone();
     let read = crate::pcurves::loop_windings(&band_body, band_face, &surface, band())
         .expect("the seamless band's loops read");
     assert!(
@@ -1759,7 +1759,7 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
     );
     // The sheet's seed face is the band's key in its own arena.
     assert!(wall_body.get_face(band_face).is_some(), "the keys coincide");
-    let surface = |b: &Body<f64>, f| b.face_surface(f).unwrap().clone();
+    let surface = |b: &Body<f64>, f| b.proven_face(f).surface().clone();
     let mut cache = ops::ChartCache::default();
     assert!(matches!(
         cache.describes(
@@ -1883,12 +1883,39 @@ fn at_most_one_loop_meets_the_singular_set() {
     }
 }
 
-/// **A witness placed OFF a face's carrier is no verdict, never `Out`.**
-/// Every witness is built on both carriers, so a definite off-carrier
-/// answer contradicts its construction; reading it as `Out` would clear
-/// a component by W3 on a point that is not on the component at all.
+/// **A witness placed OFF a curved face's carrier is the section's
+/// defect, never `Out`.** Every witness is built on both carriers to
+/// within the band, so a definite off-carrier answer contradicts its
+/// construction; reading it as `Out` would clear a component by W3 on a
+/// point that is not on the component at all. A debug build stops at the
+/// held point's own check; a release build answers the invariant, which
+/// `ops::witness_rows` pins in every build.
 #[test]
-fn an_off_carrier_witness_places_nowhere() {
+#[cfg_attr(debug_assertions, should_panic(expected = "(read in band) reads"))]
+fn an_off_carrier_witness_is_a_defect() {
+    let wall = half_wall();
+    let got = ops::place_witness(&wall.0, wall.1, p(0.0, 1.5, 0.0), band());
+    assert!(
+        matches!(
+            got,
+            Err(crate::BooleanError::ClassificationInvariant { .. })
+        ),
+        "release: 0.5 off the unit wall is the section's defect: {got:?}"
+    );
+}
+
+/// **A witness on a wall's carrier, outside its window, is `Out`.**
+#[test]
+fn an_on_carrier_witness_outside_the_window_is_out() {
+    let wall = half_wall();
+    assert_eq!(
+        ops::place_witness(&wall.0, wall.1, p(0.0, -1.0, 0.0), band()).expect("no defect"),
+        Some(FaceContainment::Out)
+    );
+}
+
+/// The unit cylinder's half-wall `u ∈ (0, π)`, `z ∈ (−1, 1)`.
+fn half_wall() -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
     let wall = cyl_wall_sheet(
         &mut body,
@@ -1898,16 +1925,7 @@ fn an_off_carrier_witness_places_nowhere() {
         Tol::witness(),
     );
     crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
-    assert_eq!(
-        ops::place_witness(&body, wall, p(0.0, 1.5, 0.0), band()),
-        None,
-        "0.5 off the unit wall"
-    );
-    // On the carrier and outside the half-wall's window: a real `Out`.
-    assert_eq!(
-        ops::place_witness(&body, wall, p(0.0, -1.0, 0.0), band()),
-        Some(FaceContainment::Out)
-    );
+    (body, wall)
 }
 
 /// **A lone-vertex ring on operand B's face refuses too.** The wall is
@@ -2111,7 +2129,9 @@ fn a_bow_tie_through_the_apex_twice_lifts_to_one_sheet() {
         .into_iter()
         .filter(|&he| {
             let v = body.get_half_edge(he).unwrap().start;
-            (crate::readback::vertex_point(&body, v).unwrap() - p(0.0, 0.0, 0.0)).norm() == 0.0
+            crate::readback::vertex_point(&body, v)
+                .unwrap()
+                .equals_exactly(p(0.0, 0.0, 0.0))
         })
         .count();
     assert_eq!(
@@ -2686,14 +2706,9 @@ fn a_gap_in_the_torus_boundary_refuses() {
     let mut bad = Vec::new();
     for (i, &he) in cycle.iter().enumerate() {
         let mut gapped = body.clone();
-        let edge = gapped
-            .get_edge(gapped.get_half_edge(he).unwrap().edge)
-            .unwrap();
-        let (curve, he_plus, he_minus) = (edge.curve, edge.he_plus, edge.he_minus);
-        let ends = (
-            gapped.get_half_edge(he_plus).unwrap().start,
-            gapped.get_half_edge(he_minus).unwrap().start,
-        );
+        let key = gapped.get_half_edge(he).unwrap().edge;
+        let curve = gapped.get_edge(key).unwrap().curve;
+        let ends = gapped.edge_vertices(key).unwrap();
         gapped.curves[curve] = CurveGeom::NullScaffold(NullEdge {
             below_end: ends.0,
             above_end: ends.1,

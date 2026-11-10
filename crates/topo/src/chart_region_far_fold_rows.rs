@@ -2,7 +2,7 @@
 //! from every member: each image is placed over its own edge's span in
 //! the chart's principal window (C4), so whichever half-edge the walk
 //! starts on, the polygon is the twin's, and
-//! [`super::cylinder_pair_overlap`]'s fold ([`super::period_fold`])
+//! [`super::cylinder_pair_overlap`]'s fold ([`super::period_fold_as`])
 //! decides no far gap.
 
 use geom_core::{Band, Tol};
@@ -30,7 +30,7 @@ fn a_face_walked_from_a_far_stated_arc_reads_in_the_window_and_folds_onto_its_tw
         for &start in &members {
             let mut body: Body<f64> = built.clone();
             body.get_loop_mut(outer).unwrap().boundary = LoopBoundary::Cycle { first: start };
-            let surface = body.face_surface(face).unwrap().clone();
+            let surface = body.proven_face(face).surface().clone();
             let uv = super::extract_face_uv(&body, face, &surface, super::ChartRead::Minted, band)
                 .unwrap();
             let window = (

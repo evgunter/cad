@@ -45,3 +45,5 @@ not this pin's, but nothing measured it beforehand. Un-pinning owes a
 re-measure of what ran past the old stop.
 
 Moved from `work/issues/` to `work/cpair/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+**Measured gone (2026-11-06, `onecopy/main-reds-k-and-m10`).** Bisected first-parent at 1e-9: PR 5781 (`4e0ef4858b`) took the 62 pairs to 32; PR 6349 (`096817df51`, `onehome/conic-frame`) made `curve_foot_branch`'s margins scale, and the pin passed; since PR 6482 the predicate is no longer recorded (retired into the F31 angle reads). The ray-wall row is re-pinned on `work/onecopy/the-ray-wall-twins-read-the-angle-predicates-off-scale.md` and `work/flush/ray-wall-twins-fire-different-predicates-at-1e-6.md`.

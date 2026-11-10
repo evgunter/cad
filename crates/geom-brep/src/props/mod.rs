@@ -132,6 +132,7 @@ pub mod quad;
 pub mod rational_rim;
 pub mod spiric;
 pub(crate) mod taylor;
+mod trig;
 
 use geom::Curve3;
 use geom_core::spline::SpanLocate;
@@ -139,6 +140,7 @@ use geom_core::{Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, Sized
 
 use crate::recourse::{RefusedArm, RefusedSide, SizedDecision, Unsized};
 
+pub use bracket::exact_point;
 pub use curved::{
     ClosedSurface, MaterialSign, SeamCover, SeamLoops, boundary_material_sign,
     boundary_material_sign_holding, boundary_material_sign_loops, closed_surface,
@@ -301,6 +303,8 @@ pub enum PropsError {
     /// routes it to by carrier kind; this lane's refusal is what a walk
     /// holding no quadrature lane reads. The variant carries no `what`,
     /// so the frontier is named here and at each raising site.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
     /// a stored-data consistency residual of an inventory premise is
@@ -319,6 +323,8 @@ pub enum PropsError {
     /// `what` is a structural sentence no margin decided. Either way
     /// this `Decide`-generic lane does not read a margin back as
     /// `f64`.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
@@ -343,18 +349,24 @@ pub enum PropsError {
     ///
     /// **Name-only**, like [`Self::NotIsoRectangle`] and for the same
     /// reason.
+    ///
+    /// Standing ([`Self::refusal`]): row 4, a kernel or stored-data fault: aborts.
     OffSurface {
         /// Which incidence failed (static description).
         what: &'static str,
     },
     /// A cone face's `v` range definitely spans both nappes — not a
     /// face any M2 construction produces.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     NappeSpanning,
     /// A sphere face (`curved::sphere_face`) fails a premise of its
     /// Gauss–Bonnet closed form: an edge not a circle on the sphere,
     /// a loop that does not close, a cusp, or a degenerate area.
     /// Name-only, as [`Self::NotIsoRectangle`]: `what` is the deciding
     /// predicate's name.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     SphereLoop {
         /// Which premise failed (the predicate's name).
         what: &'static str,
@@ -364,6 +376,8 @@ pub enum PropsError {
     /// through the apex, that meets itself at a vertex, or a ring that
     /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
     /// the deciding predicate's name.
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     ConeLoop {
         /// Which premise failed (the predicate's name).
         what: &'static str,
@@ -374,6 +388,8 @@ pub enum PropsError {
     /// loop's — the face's side (`props_cone_area_side`) is not the
     /// outer loop's — so the face's area would come out
     /// negative. Holes that overlap each other or leave the region.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     HolesExceedFace,
     /// A one-loop sphere face's sense bit contradicts the side its
     /// boundary encodes (`curved::sphere_loop_side`), so its radial
@@ -383,15 +399,21 @@ pub enum PropsError {
     /// inverted, or the face holds in its interior the one chart pole
     /// off its loop, which import must normalise into a vertex of the
     /// face.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SenseContradicted,
     /// A sphere face WITH HOLES whose sense bit contradicts the side
     /// its boundary encodes — the side of its loops with positive
     /// area, which no chart pole enters — so the bit is inverted.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SenseInverted,
     /// **A sphere seam region's faces overlap**: under their sense bits,
     /// its members claim the region `times` times over (`times ≥ 2`,
     /// [`sphere_region_cover`]). Tier 3's check 6 refuses the same region
     /// (`ValidationError::SeamRegionOvercovered`).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SeamRegionOvercovered {
         /// How many times over the members claim the region.
         times: usize,
@@ -400,6 +422,8 @@ pub enum PropsError {
     /// of a half-sphere threshold, or below its floor of no cover
     /// ([`SeamCover::Unresolved`]). Tier 3's check 6 refuses the same
     /// (`ValidationError::SeamRegionCoverUnresolved`).
+    ///
+    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
     SeamRegionCoverUnresolved,
     /// **Two faces of one sphere meet with their material on one side of
     /// their seam**: their sense bits disagree across a shared edge, a
@@ -407,6 +431,8 @@ pub enum PropsError {
     /// (`ValidationError::LaminaWedge`), read here off the seam region
     /// ([`SeamCover::MixedSense`]), since the measurement door runs no
     /// check 4.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     SeamRegionSensesDisagree,
     /// **A hole is wound the same way as its face** (`props_ring_winding`):
     /// a ring's signed area has the sign of the face's whole, where a
@@ -415,6 +441,8 @@ pub enum PropsError {
     /// wrong, whichever lane reads it: the closed forms', the cylinder
     /// quadrature's and the spiric lane's one decision
     /// (`curved::require_holes_wound_against`).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     RingWoundWithFace,
     /// **A loop does not close on its periodic chart**
     /// (`props_chart_junction_open`): at one junction the edge after
@@ -423,6 +451,8 @@ pub enum PropsError {
     /// off. Stored data that is wrong: consecutive edges of a loop meet
     /// at their shared vertex. Every lane on a cylinder or torus chart
     /// decides it the one way (`closure::require_junction_closed`).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     ChartLoopOpen,
     /// **A face's loops wind its periodic chart as no face's boundary
     /// does**: with every junction decided closed, one loop winds the
@@ -432,6 +462,8 @@ pub enum PropsError {
     /// simple closed curves that bound it. A band's two rims, once each
     /// and opposite ways, are not this; a lane whose closed form cannot
     /// fold such a band refuses it as its inventory.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     LoopsWindChart,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
@@ -467,6 +499,8 @@ pub enum PropsError {
     /// `scripts/gates/bounds-allowlist.sh` exists to keep off
     /// `props/curved.rs`; one payload does not earn that seam. Every
     /// arm of this enum is name-only, as [`Self::NotIsoRectangle`] is.
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     NotOneChartBranch {
         /// Which boundary edge, as its index in the loop slice the
         /// caller handed in — the same order `topo::props::loop_edges`
@@ -498,9 +532,13 @@ pub enum PropsError {
     /// dwarfs the area, e.g. the extreme-weight rational patches in
     /// [`quad`]'s envelope table — lands here too: a false negative
     /// (a capability gap, recorded as such), never a wrong answer.
+    ///
+    /// Standing ([`Self::refusal`]): row 1(a), an invalid input: aborts.
     DegenerateFace,
     /// A structural classification landed in the ambiguity band or was
     /// poisoned (D4 ¶3: escalate, never guess).
+    ///
+    /// Standing ([`Self::refusal`]): row 1(b), a precision limit: kept by its margin.
     Escalated {
         /// The escalation, with its predicate name attached.
         cause: Indeterminate,
@@ -520,6 +558,8 @@ pub enum PropsError {
     /// structural fact AND the real blocker (exact structural doors —
     /// no in-band twin exists, stated so the omission of the
     /// two-tolerance shape reads as a decision).
+    ///
+    /// Standing ([`Self::refusal`]): row 2, valid input the kernel has not built: a limit.
     QuadratureUnsupported {
         /// Which structural expectation failed, with its blocker.
         what: &'static str,
@@ -607,6 +647,44 @@ impl PropsCheck {
             Self::Exact => Unsized::Defect.recourse(arm, reading),
             Self::Inventory => crate::recourse::not_yet(arm, reading),
             Self::Extent => FACE_EXTENT.recourse(arm, reading),
+        }
+    }
+}
+
+impl PropsError {
+    /// **This refusal's standing** ([`crate::ladder::Refusal`]), each
+    /// variant's `[failure.taxonomy]` row as its doc states it:
+    /// [`Escalated`](Self::Escalated), row 1(b), is kept by its margin;
+    /// the unbuilt lanes, row 2, are limits; an invalid input (1(a)), a
+    /// stored-data fault (4) and a payload that mixes classes abort.
+    /// Exhaustive with no catch-all arm, so an added variant states its
+    /// standing here before it compiles.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for an invalid input, a stored-data
+    /// fault and a payload that mixes classes.
+    pub(crate) const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self {
+            Self::Escalated { cause, .. } => Ok(crate::ladder::Refusal::Margin(*cause)),
+            Self::Unimplemented
+            | Self::NotOneChartBranch { .. }
+            | Self::QuadratureUnsupported { .. } => Ok(crate::ladder::Refusal::Limit),
+            Self::NappeSpanning
+            | Self::HolesExceedFace
+            | Self::SenseContradicted
+            | Self::SenseInverted
+            | Self::SeamRegionOvercovered { .. }
+            | Self::SeamRegionSensesDisagree
+            | Self::RingWoundWithFace
+            | Self::ChartLoopOpen
+            | Self::LoopsWindChart
+            | Self::DegenerateFace
+            | Self::OffSurface { .. }
+            | Self::NotIsoRectangle { .. }
+            | Self::SphereLoop { .. }
+            | Self::ConeLoop { .. }
+            | Self::SeamRegionCoverUnresolved => Err(crate::ladder::Aborts),
         }
     }
 }
@@ -1034,5 +1112,19 @@ mod tests {
                 "{words} words, over the budget: {msg}"
             );
         }
+    }
+}
+
+/// **`PropsError`'s standing by row** ([`PropsError::refusal`]): a lane
+/// not built (row 2) is a limit, and an invalid input (row 1(a)) aborts.
+#[cfg(test)]
+mod refusal_rows {
+    use super::PropsError;
+    use crate::ladder::{Aborts, Refusal};
+
+    #[test]
+    fn an_unbuilt_lane_is_a_limit_and_invalid_input_aborts() {
+        assert_eq!(PropsError::Unimplemented.refusal(), Ok(Refusal::Limit));
+        assert_eq!(PropsError::HolesExceedFace.refusal(), Err(Aborts));
     }
 }

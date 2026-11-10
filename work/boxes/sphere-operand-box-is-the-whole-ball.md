@@ -2,12 +2,11 @@
 id: sphere-operand-box-is-the-whole-ball
 kind: issue
 title: A sphere face's operand box is the whole ball - the same per-kind box class the cone, cylinder and torus arms have left
-status: parked
+status: open
 opened: 2026-09-06
 refs: [1907]
 priority: P1
 cost: H
-blocked_on: [cover-topo-faces]
 ---
 
 
@@ -81,3 +80,12 @@ outside any box):
 `classify::gate_face_reach` is gone: the split gate reads `census::face_reach_in` for every face. (BOXES orchestrator)
 
 **Re-cited (onedoor/carrier-and-window, 2026-11-03).** `chord_join::face_azimuth_window` is now `topo::chart_window::face_azimuth_window`.
+
+## Since `cover-topo-faces` (2026-11-08)
+
+The sphere arm of `topo::cover::face_cover` is the ball met with the
+chart rectangle or latitude zone (`sphere_window`) and, along an aim the
+census backstop reads, the pole-side cut (the former census-only
+`held_reach_in`). What still stands is this row's three shapes: a reflex
+loop, a rim `1e-4` off a pole, and a strut stopping short of its pole
+keep the ball.

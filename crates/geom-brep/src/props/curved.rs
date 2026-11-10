@@ -37,7 +37,9 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
-use crate::pcurve_cache::{BranchMiss, Period};
+use crate::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
+use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
+use geom_core::NonzeroSign;
 
 /// The flux and area of a curved face from its **outer** loop:
 /// [`curved_face_loops`] over that one loop. `band` is the run's
@@ -228,14 +230,14 @@ pub fn boundary_material_sign_holding<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        }
-        | Surface::Spindle {
+        } => torus_material_sign(center, axis, major_radius, minor_radius, loops, band),
+        Surface::Spindle {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        } => torus_material_sign(center, axis, major_radius, minor_radius, loops, band),
+        } => sheet_material_sign(center, axis, major_radius, minor_radius, loops, band),
         // As `curved_face_loops`: no closed form for a spline or for an
         // offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
@@ -490,9 +492,8 @@ pub fn require_iso_rectangle<T: Decide>(
 ///   this arm decides nothing rather than deciding `Ok` at a band.
 /// * **cone — the apex.** A generator's stored span may contain the
 ///   apex; `props_cone_apex` is the signed distance from the apex's
-///   line parameter to the nearer span end, which IS metres (a line's
-///   `t` is arc length on a unit `dir`, the same dimensional argument
-///   `props_meridian_generator` makes). Rims are coaxial circles,
+///   line parameter to the nearer span end, metered at the line's
+///   speed. Rims are coaxial circles,
 ///   immune as the cylinder's are.
 /// * **sphere — the poles.** Decided on
 ///   [`sphere_meridian_pole_margins`]. Rims are not measured against
@@ -559,7 +560,7 @@ pub fn require_one_chart_branch<T: Decide>(
         Surface::Cylinder { .. } => Ok(()),
         Surface::Cone { apex, .. } => {
             for (i, e) in outer.iter().enumerate() {
-                let Some(geom::Line { origin, dir }) = e.carrier.as_line() else {
+                let Some(line @ geom::Line { dir, .. }) = e.carrier.as_line() else {
                     continue;
                 };
                 // GENERATORS only, by the parse's own generator margin
@@ -570,25 +571,27 @@ pub fn require_one_chart_branch<T: Decide>(
                 // the arm read EVERY `Line` carrier as a generator and
                 // answered `NotOneChartBranch` on a line the shape
                 // door refuses.
-                if classify(
+                if classify_as(
                     "props_meridian_apex",
-                    Margin::norm3((apex - e.p0()).cross(dir)),
+                    cone_generator_miss(apex, dir, e),
                     band,
                     PropsCheck::Exact,
                 )? != Sign::Zero
                 {
                     continue;
                 }
-                // The apex's own parameter on the generator's line
-                // (`dir` unit — `props_meridian_generator` certifies
-                // the direction and the parse mints it so — hence `t`
-                // is metres); the margin is its signed distance to the
-                // nearer span end, positive exactly when the apex is
-                // interior to the span.
-                let t_apex = (apex - origin).dot(dir);
+                // The apex's own parameter on the generator's line; the
+                // margin is its signed distance to the nearer span end,
+                // metered at the line's speed, positive exactly when the
+                // apex is interior to the span.
+                let t_apex = line.param(apex);
                 let m = (t_apex - e.t0).min(e.t1 - t_apex);
                 if matches!(
-                    decide("props_cone_apex", Margin::of(m), band),
+                    decide(
+                        "props_cone_apex",
+                        Margin::metered(m, InfSpeed::new(dir.norm())),
+                        band
+                    ),
                     Ok(Sign::Positive)
                 ) {
                     return Err(PropsError::NotOneChartBranch {
@@ -622,7 +625,7 @@ pub fn require_one_chart_branch<T: Decide>(
                 };
                 // Meridians only (see the fn docs): the parse's own
                 // rim/meridian split, on the parse's own margin.
-                if classify(
+                if classify_as(
                     "props_circle_axis_class",
                     Margin::levered(
                         n_c.dot(axis),
@@ -704,7 +707,7 @@ fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Resu
 struct TorusParse<T: Real> {
     rims: Vec<Rim<T>>,
     anchor: TorusMeridian<T>,
-    orient: Sign,
+    orient: NonzeroSign,
 }
 
 fn torus_parse<T: Decide>(
@@ -755,20 +758,9 @@ fn torus_rims_at_extremes<T: Decide>(
 // Shared helpers
 // ---------------------------------------------------------------------
 
-/// ±1 as a scalar from a **definite** sign (`Zero` maps to 0 — callers
-/// only reach this with definite outcomes).
-fn t_sign<T: Real>(s: Sign) -> T {
-    match s {
-        Sign::Positive => T::one(),
-        Sign::Negative => -T::one(),
-        Sign::Zero => T::zero(),
-    }
-}
-
 /// The rim's discrete `u`-traversal direction: a definite circle
 /// axis class, reversed when the loop traverses the edge backward.
-/// Definite in ⇒ definite out (`flip` fixes only `Zero`).
-fn rim_dir(s: Sign, forward: bool) -> Sign {
+fn rim_dir(s: NonzeroSign, forward: bool) -> NonzeroSign {
     if forward { s } else { s.flip() }
 }
 
@@ -785,7 +777,7 @@ fn rim_dir(s: Sign, forward: bool) -> Sign {
 /// because it is about the REFUSAL and not the decision — and because
 /// `tools/k-lint`'s `predicate_roster` reads a mint's margin as the
 /// funnel call's second argument, deliberately by spelling.
-fn classify<T: Decide>(
+fn classify_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -835,7 +827,7 @@ fn require_zero<T: Decide>(
     band: Band,
     premise: Premise,
 ) -> Result<(), PropsError> {
-    match classify(name, margin, band, premise.check())? {
+    match classify_as(name, margin, band, premise.check())? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(premise.refusal(name)),
     }
@@ -843,7 +835,7 @@ fn require_zero<T: Decide>(
 
 /// Require a definitely-positive extent (degenerate ⇒ typed error).
 fn require_extent<T: Decide>(margin: Margin<T>, band: Band) -> Result<(), PropsError> {
-    match classify("props_face_extent", margin, band, PropsCheck::Extent)? {
+    match classify_as("props_face_extent", margin, band, PropsCheck::Extent)? {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(PropsError::DegenerateFace),
     }
@@ -929,7 +921,7 @@ struct Rim<T: Real> {
     /// `T` copy beside it fed a `Margin` over two values that are ±1
     /// by construction, which is a discrete comparison wearing a
     /// tolerance's costume.
-    d_u_sign: Sign,
+    d_u_sign: NonzeroSign,
     /// Carrier parameter span `t1 − t0` (angle-true; `Δu`), decided
     /// within certification's per-edge bound ([`Rim::decided`]).
     dt: Extent<T>,
@@ -947,7 +939,7 @@ impl<T: Decide> Rim<T> {
     /// full-period rim sits AT it and is admitted.
     fn decided(
         e: &LoopEdge<T>,
-        d_u_sign: Sign,
+        d_u_sign: NonzeroSign,
         level: RimLevel<T>,
         r_c: T,
         band: Band,
@@ -1035,7 +1027,7 @@ impl<T: Real> RimArms<T> {
 ///
 /// The NEARER extreme is what is decided (`props_rim_level`), so a rim
 /// sitting exactly on one extreme is not made to escalate by the other.
-fn level_coincides<T: Decide>(
+fn level_coincides_as<T: Decide>(
     level: RimLevel<T>,
     (lo, hi): (RimLevel<T>, RimLevel<T>),
     arms: RimArms<T>,
@@ -1050,14 +1042,14 @@ fn level_coincides<T: Decide>(
         RimLevel::Length(_) => Margin::of(gap),
         RimLevel::Unit(..) => Margin::levered(gap, arms.level),
     };
-    Ok(classify(name, margin, band, PropsCheck::Inventory)? == Sign::Zero)
+    Ok(classify_as(name, margin, band, PropsCheck::Inventory)? == Sign::Zero)
 }
 
 /// How far apart two rim levels are, **in the level's own units**:
 /// meters for [`RimLevel::Length`] (already a point deviation) and the
 /// dimensionless direction CHORD for [`RimLevel::Unit`] (a point
 /// deviation once levered). `None` for a mixed pair, which
-/// [`level_coincides`] turns into a refusal.
+/// [`level_coincides_as`] turns into a refusal.
 fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
     match (a, b) {
         (RimLevel::Length(la), RimLevel::Length(lb)) => Some((la - lb).abs()),
@@ -1080,12 +1072,11 @@ fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
 /// decide and no verdict to spend.
 ///
 /// The state is kernel-bug-only (one surface builds every rim of a
-/// face AND both its ends), and this file answers that class two other
-/// ways — [`torus_meridian_orient`]'s `unreachable!` and
-/// [`unreachable_zero`]'s poison return. Neither is adopted here:
-/// choosing between them is the file-wide census
-/// `props-curved-carries-two-readings-of-d9-unreachable-vs-poison`
-/// asks for, and a decision taken at one site would pre-empt it.
+/// face AND both its ends), and this file answers that class elsewhere
+/// with `unreachable!`. That is not adopted here: the ruling belongs to
+/// the file-wide census
+/// `props-curved-carries-two-readings-of-d9-unreachable-vs-poison`, and
+/// a decision taken at one site would pre-empt it.
 fn mixed_levels(name: &'static str) -> PropsError {
     PropsError::NotIsoRectangle { what: name }
 }
@@ -1139,7 +1130,7 @@ fn mixed_levels(name: &'static str) -> PropsError {
 /// `ends` are the two extreme levels in the SAME representation the
 /// rims carry ([`RimLevel`]) — the torus's from its anchor meridian's
 /// stored span, the linearly-leveled kinds' from `min_max`. Every
-/// decision below is [`level_coincides`], including the fail
+/// decision below is [`level_coincides_as`], including the fail
 /// direction.
 ///
 /// **The margin is not always exactly zero.** On the ordinary
@@ -1162,7 +1153,7 @@ fn require_rims_at_extremes<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     for rim in rims {
-        if !level_coincides(rim.level, ends, arms, band)? {
+        if !level_coincides_as(rim.level, ends, arms, band)? {
             return Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level",
             });
@@ -1251,9 +1242,9 @@ fn rim_side<T: Decide>(
         RimLevel::Length(v) => Margin::of(lo + hi - v - v),
         RimLevel::Unit(s, _) => Margin::levered(lo + hi - s - s, arms.level),
     };
-    match classify("props_rim_side", margin, band, PropsCheck::Inventory)? {
-        Sign::Positive => Ok(rim.d_u_sign),
-        Sign::Negative => Ok(rim.d_u_sign.flip()),
+    match classify_as("props_rim_side", margin, band, PropsCheck::Inventory)? {
+        Sign::Positive => Ok(rim.d_u_sign.into()),
+        Sign::Negative => Ok(rim.d_u_sign.flip().into()),
         Sign::Zero => Err(PropsError::DegenerateFace),
     }
 }
@@ -1277,22 +1268,28 @@ fn unanimous_rim_side<T: Decide>(
     band: Band,
 ) -> Result<Option<Sign>, PropsError> {
     require_rims_at_extremes(&b.rims, b.ends((lo, hi)), b.arms, band)?;
-    let mut answer: Option<Sign> = None;
-    for rim in &b.rims {
-        let s = rim_side(rim, lo, hi, b.arms, band)?;
-        match answer {
-            // Equality is symmetric, so "every rim agrees with some
-            // rim" is one statement about the SET and does not depend
-            // on which rim the walk hands over first.
-            Some(a) if a != s => {
-                return Err(PropsError::NotIsoRectangle {
-                    what: "props_rim_side",
-                });
-            }
-            _ => answer = Some(s),
-        }
+    // Every rim's side, read as one ladder that checks its answers agree
+    // ([`climb_agreeing`]). Agreement is symmetric, so "every rim agrees
+    // with some rim" is one statement about the SET and does not depend
+    // on which rim the walk hands over first. A rim read in band is
+    // kept, and refuses only where no other rim decides; a degenerate
+    // face stops the read.
+    let climbed = climb_agreeing(
+        &b.rims,
+        |rim| match rim_side(rim, lo, hi, b.arms, band) {
+            Ok(s) => Rung::Answers(Ok(s)),
+            Err(e) => Rung::refused(e, PropsError::refusal, Err),
+        },
+        |a, b| matches!((a, b), (Ok(x), Ok(y)) if x == y),
+    );
+    match climbed {
+        Ok(Climb::Answered { answer, .. }) => answer.map(Some),
+        Ok(Climb::Passed) => Ok(None),
+        Ok(Climb::Undecided(e)) => Err(e),
+        Err(_) => Err(PropsError::NotIsoRectangle {
+            what: "props_rim_side",
+        }),
     }
-    Ok(answer)
 }
 
 // ---------------------------------------------------------------------
@@ -1395,7 +1392,7 @@ fn cylinder_chart<T: Decide>(
                     what: "a cylinder rim carried a non-length level",
                 });
             };
-            rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt.get()));
+            rims.push((v, rim.d_u_sign.unit::<T>() * rim.dt.get()));
         }
         levels.extend(b.levels);
         spans.push((first_rim, length - length_before));
@@ -1408,7 +1405,7 @@ fn cylinder_chart<T: Decide>(
             what: "curved face without a rim (non-sphere)",
         });
     }
-    let anchor = lo + (hi - lo) * T::from_f64(0.5);
+    let anchor = geom::bracket_mid((lo, hi));
     // One loop's anchored chart area and boundary length.
     let loop_chart = |rims: &[(T, T)], lines: T| {
         rims.iter().fold((T::zero(), lines), |(a, l), &(v, du)| {
@@ -1576,9 +1573,9 @@ fn cylinder_holes<T: Decide>(
 /// area, silently ([`PropsError::RingWoundWithFace`]); a whole or a
 /// hole of no width is a degenerate face.
 ///
-/// The cylinder quadrature and the spiric lane read their rings
+/// The rotational lane and the spiric lane read their rings
 /// through this same decision at the interval scalar
-/// (`quad::cylinder_cut_face_rounds`,
+/// (`quad::rotational_cut_face_rounds`,
 /// `spiric::require_rings_wound_against`), where an enclosure that
 /// straddles the band escalates rather than takes a side.
 ///
@@ -1623,7 +1620,7 @@ fn mean_width_side<T: Decide>(
     (area, length): (T, T),
     band: Band,
 ) -> Result<Sign, PropsError> {
-    classify(
+    classify_as(
         name,
         Margin::over_lever(area * T::from_f64(2.0), length),
         band,
@@ -1720,14 +1717,39 @@ pub fn curved_face_holding<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        }
-        | Surface::Spindle {
+        } => torus_face(
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            loops,
+            Tube::Ring,
+            band,
+        ),
+        // Its passes through an apex are read with the face on the side
+        // its bit says ([`ApexSide`]).
+        Surface::Spindle {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        } => torus_face(center, axis, major_radius, minor_radius, loops, band),
+        } => {
+            let side = if sense {
+                ApexSide::Left
+            } else {
+                ApexSide::Right
+            };
+            torus_face(
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                loops,
+                Tube::Sheet(side),
+                band,
+            )
+        }
         // The volume/area inventory is closed-form per analytic kind;
         // a spline has no entry and neither does an offset description
         // over one. `Approx` refuses here rather than answer as its
@@ -1836,14 +1858,11 @@ fn cylinder_boundary<T: Decide>(
     let mut levels: Vec<T> = Vec::new();
     for e in edges {
         match e.carrier {
-            Curve3::Line(geom::Line { dir, .. }) => {
+            Curve3::Line(ref line) => {
                 // Incidence at the true distance from the cylinder over
                 // the span: the ends' radial residuals, and how far the
                 // segment sags inside between them ([`radial_sag`]).
-                let radial = |p: Point3<T>| {
-                    let w = p - origin;
-                    w - axis * w.dot(axis)
-                };
+                let radial = |p: Point3<T>| geom::Line { origin, dir: axis }.offset(p);
                 let (q0, q1) = (radial(e.p0()), radial(e.p1()));
                 let (f0, f1) = (q0.norm() - radius, q1.norm() - radius);
                 require_zero(
@@ -1852,13 +1871,17 @@ fn cylinder_boundary<T: Decide>(
                     band,
                     Premise::OnSurface,
                 )?;
-                // Whether the on-surface line is a ruling: its deviation
-                // from the ruling through its start, which a line tipped
-                // in the tangent plane leaves to first order while it
-                // leaves the cylinder to second.
+                // Whether the on-surface line is a ruling, the mint's own
+                // reading anchored at the span's start: a line tipped in
+                // the tangent plane leaves the ruling through its start to
+                // first order while it leaves the cylinder to second.
+                let start = geom::Line {
+                    origin: e.p0(),
+                    dir: line.dir,
+                };
                 require_zero(
                     "props_meridian_axial",
-                    Margin::metered(e.t1 - e.t0, InfSpeed::new(dir.cross(axis).norm())),
+                    ruling_miss(&start, (T::zero(), e.t1 - e.t0), Ruling::Axis(axis)),
                     band,
                     Premise::Inventory,
                 )?;
@@ -1874,7 +1897,7 @@ fn cylinder_boundary<T: Decide>(
                     },
                 radius: r_c,
             }) => {
-                let s = classify(
+                let s = classify_as(
                     "props_circle_axis_class",
                     Margin::levered(
                         n_c.dot(axis),
@@ -1883,11 +1906,11 @@ fn cylinder_boundary<T: Decide>(
                     band,
                     PropsCheck::Inventory,
                 )?;
-                if s == Sign::Zero {
+                let Some(s) = s.nonzero() else {
                     return Err(PropsError::NotIsoRectangle {
                         what: "cylinder boundary circle is not a rim",
                     });
-                }
+                };
                 require_zero(
                     "props_rim_fit",
                     Margin::of(r_c - radius),
@@ -1909,7 +1932,7 @@ fn cylinder_boundary<T: Decide>(
                 let w = center - origin;
                 require_zero(
                     "props_cylinder_circle_off_axis",
-                    Margin::norm3(w - axis * w.dot(axis)),
+                    Margin::norm3(geom::Line { origin, dir: axis }.offset(center)),
                     band,
                     Premise::OnSurface,
                 )?;
@@ -2073,15 +2096,15 @@ fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsE
         cause,
         check: PropsCheck::Inventory,
     };
-    let net = "props_cone_apex_loop_net";
-    let (_, extent) = Extent::decide_signed(net, total, InfSpeed::new(arm), band).map_err(
+    const NET: &str = "props_cone_apex_loop_net";
+    let (_, extent) = Extent::decide_signed(NET, total, InfSpeed::new(arm), band).map_err(
         |cause: geom_core::Indeterminate| match cause.margin.rejected_sign() {
-            Some(Sign::Zero) => PropsError::ConeLoop { what: net },
+            Some(Sign::Zero) => PropsError::ConeLoop { what: NET },
             _ => escalated(cause),
         },
     )?;
     let sweep = "props_cone_apex_loop_sweep";
-    match Period::new(T::tau()).not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
+    match Period::angle().not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
         Ok(true) => Ok(()),
         Ok(false) => Err(PropsError::ConeLoop { what: sweep }),
         Err(undecided) => Err(escalated(undecided.diag)),
@@ -2235,8 +2258,8 @@ fn cone_loops<T: Decide>(
     }
     let (lo, hi) = min_max(&ends)?;
     let nappe = match (
-        classify("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
-        classify("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
+        classify_as("props_cone_nappe", Margin::of(lo), band, PropsCheck::Exact)?,
+        classify_as("props_cone_nappe", Margin::of(hi), band, PropsCheck::Exact)?,
     ) {
         (Sign::Negative, Sign::Positive) => return Err(PropsError::NappeSpanning),
         (_, Sign::Positive) => T::one(),
@@ -2317,19 +2340,19 @@ fn require_cone_circle<T: Decide>(
     n_c: Vec3<T>,
     r_c: T,
     band: Band,
-) -> Result<Sign, PropsError> {
+) -> Result<NonzeroSign, PropsError> {
     let rim = crate::ExtentBall::of_circle(center, r_c).lever();
-    let s = classify(
+    let s = classify_as(
         "props_circle_axis_class",
         Margin::levered(n_c.dot(axis), rim),
         band,
         PropsCheck::Inventory,
     )?;
-    if s == Sign::Zero {
+    let Some(s) = s.nonzero() else {
         return Err(PropsError::OffSurface {
             what: "props_circle_axis_class",
         });
-    }
+    };
     let w = center - apex;
     require_zero(
         "props_rim_fit",
@@ -2458,7 +2481,7 @@ fn require_cone_ellipse<T: Decide>(
         };
         middle = middle + T::one();
     }
-    if classify(
+    if classify_as(
         "props_cone_ellipse_nappe",
         Margin::of(h_low),
         band,
@@ -2491,16 +2514,11 @@ fn require_cone_ellipse<T: Decide>(
 /// ([`radial_sag`]). The ends and the crossing are exact.
 ///
 /// Then whether the on-surface line is a generator, the inventory's
-/// question: at the generator angle to the axis
-/// (`props_meridian_generator`) and through the apex
-/// (`props_meridian_apex`, the apex's distance from the line, `dir`
-/// unit). A line through the apex at angle `β` to the axis is off the
-/// cone by `s·sin(β − α)` at distance `s` from the apex, and
-/// `sin(β − α)` is the cone's residual at the unit direction
-/// ([`cone_offset`] of `|dir × axis|` and `|dir·axis|`), so the angle is
-/// levered by the edge's reach from the apex, the farther of its ends.
-/// A line tipped in the tangent plane misses the apex to first order and
-/// leaves the cone to second.
+/// question (`props_meridian_generator`, [`cone_generator_miss`]): how far
+/// it leaves the line through the apex and its farther end. A line on the
+/// cone through the apex is a generator, and a line tipped in the tangent
+/// plane misses the apex to first order while it leaves the cone to
+/// second.
 fn require_cone_generator<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -2511,8 +2529,11 @@ fn require_cone_generator<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
     let (q0, q1) = (radial(e.p0()), radial(e.p1()));
     let (h0, h1) = ((e.p0() - apex).dot(axis), (e.p1() - apex).dot(axis));
@@ -2538,24 +2559,38 @@ fn require_cone_generator<T: Decide>(
     )?;
     require_zero(
         "props_meridian_generator",
-        Margin::levered(
-            cone_offset(dir.cross(axis).norm(), dir.dot(axis).abs(), sin_a, cos_a),
-            crate::Reach::Span {
-                carrier: e.carrier.clone(),
-                t0: e.t0,
-                t1: e.t1,
-            }
-            .lever_from(apex),
-        ),
-        band,
-        Premise::Inventory,
-    )?;
-    require_zero(
-        "props_meridian_apex",
-        Margin::norm3((apex - e.p0()).cross(dir)),
+        cone_generator_miss(apex, dir, e),
         band,
         Premise::Inventory,
     )
+}
+
+/// **How far a cone edge leaves the generator through its farther end**,
+/// the one ruling reading ([`ruling_miss`]) against the line from the
+/// apex through whichever end of the span is farther from it (the
+/// well-conditioned one: a span end near the apex names its generator's
+/// direction poorly). Zero on a line through the apex; with the edge on
+/// the cone, Zero on a generator alone. The end is chosen by
+/// [`Real::select_le_zero`], decided nowhere: either choice is a sound
+/// reading, and an unread candidate's NaN (an end at the apex) is not
+/// read.
+fn cone_generator_miss<T: Decide>(apex: Point3<T>, dir: Vec3<T>, e: &LoopEdge<T>) -> Margin<T> {
+    // The far end lies on the line through the apex and itself, so the
+    // reading is the near end's distance: read at the stored point, a
+    // span of none, with no `dir·Δt` rounding to re-derive the far end.
+    let through = |near: Point3<T>, far: Vec3<T>| {
+        ruling_miss(
+            &geom::Line { origin: near, dir },
+            (T::zero(), T::zero()),
+            Ruling::Generator {
+                apex,
+                g: far.normalize(),
+            },
+        )
+        .value()
+    };
+    let (q0, q1) = (e.p0() - apex, e.p1() - apex);
+    Margin::of((q1.norm() - q0.norm()).select_le_zero(through(e.p1(), q0), through(e.p0(), q1)))
 }
 
 /// **How far a segment sags inside the chord of its ends' radii**, with
@@ -2629,10 +2664,7 @@ fn require_cone_conic_spans<T: Decide>(
                 let Some(floor) = geom::carrier_speed::speed_floor(ellipse) else {
                     unreachable!("`speed_floor` answers an ellipse")
                 };
-                let rows = TurnRows::bounded(
-                    "props_cone_ellipse_span_winding",
-                    "props_cone_ellipse_span_winding_straddle",
-                );
+                let rows = crate::rows::PROPS_CONE_ELLIPSE_SPAN_WINDING.rows();
                 require_span_within_period(
                     (e.t0, e.t1),
                     floor,
@@ -2755,7 +2787,7 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
                 continue;
             }
             let ((p, a), (q, b)) = (w.vertices[i], w.vertices[j]);
-            if classify(
+            if classify_as(
                 "props_cone_loop_vertex",
                 Margin::of((p - q).norm()),
                 band,
@@ -2767,9 +2799,12 @@ fn require_cone_loop_vertices_distinct<T: Decide>(
             let (Some(a), Some(b)) = (a, b) else {
                 return Err(refuse());
             };
-            let r = p - apex;
-            let rho = (r - axis * r.dot(axis)).norm();
-            if classify(
+            let rho = geom::Line {
+                origin: apex,
+                dir: axis,
+            }
+            .distance(p);
+            if classify_as(
                 "props_cone_loop_vertex_sheet",
                 Margin::metered((a - b).abs() - T::pi(), InfSpeed::new(rho)),
                 band,
@@ -2794,8 +2829,11 @@ fn cone_joints<T: Decide>(
     edges: &[LoopEdge<T>],
 ) -> Vec<Joint<T, 1>> {
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
     edges
         .iter()
@@ -2911,11 +2949,14 @@ fn cone_loop_winding<T: Decide>(
 ) -> Result<ConeWinding<T>, PropsError> {
     let refuse = |what| Err(PropsError::ConeLoop { what });
     let radial = |p: Point3<T>| {
-        let w = p - apex;
-        w - axis * w.dot(axis)
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        }
+        .offset(p)
     };
-    let off = |name, rho: T| {
-        classify(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
+    let off_as = |name, rho: T| {
+        classify_as(name, Margin::of(rho), band, PropsCheck::Inventory).map(|s| s == Sign::Positive)
     };
     let mut arm = T::zero();
     let mut through_apex = false;
@@ -2929,15 +2970,15 @@ fn cone_loop_winding<T: Decide>(
         let rho = a.norm().min(b.norm());
         match at_apex {
             AtApex::Refuse => {
-                if !off("props_cone_ring_off_apex", rho)? {
+                if !off_as("props_cone_ring_off_apex", rho)? {
                     return refuse("props_cone_ring_off_apex");
                 }
             }
             AtApex::AlongGenerator => {
                 let line = !e.carrier.is_curved();
                 match (
-                    off("props_cone_loop_off_apex", a.norm())?,
-                    off("props_cone_loop_off_apex", b.norm())?,
+                    off_as("props_cone_loop_off_apex", a.norm())?,
+                    off_as("props_cone_loop_off_apex", b.norm())?,
                 ) {
                     (true, true) => {}
                     (false, true) if line => (a, a_apex) = (b, true),
@@ -2948,17 +2989,18 @@ fn cone_loop_winding<T: Decide>(
         }
         through_apex = through_apex || a_apex || b_apex;
         arm = arm.max(a.norm()).max(b.norm());
-        let sense = |n: Vec3<T>, rho: T| match classify(
-            "props_cone_arc_sense",
-            Margin::levered(n.dot(axis), Lever::curvature_radius(rho)),
-            band,
-            PropsCheck::Inventory,
-        )? {
-            Sign::Positive => Ok(T::one()),
-            Sign::Negative => Ok(-T::one()),
-            Sign::Zero => Err(PropsError::ConeLoop {
+        let sense = |n: Vec3<T>, rho: T| -> Result<T, PropsError> {
+            classify_as(
+                "props_cone_arc_sense",
+                Margin::levered(n.dot(axis), Lever::curvature_radius(rho)),
+                band,
+                PropsCheck::Inventory,
+            )?
+            .nonzero()
+            .map(NonzeroSign::unit)
+            .ok_or(PropsError::ConeLoop {
                 what: "props_cone_arc_sense",
-            }),
+            })
         };
         let mut lever = rho;
         let mut own_turn = T::zero();
@@ -2992,7 +3034,7 @@ fn cone_loop_winding<T: Decide>(
                 for (x, y) in [(a, m1), (m1, m2), (m2, b)] {
                     let principal = turn_about(axis, x, y);
                     thirds = thirds
-                        + match classify(
+                        + match classify_as(
                             "props_cone_arc_turn",
                             Margin::metered(principal * sense, InfSpeed::new(rho)),
                             band,
@@ -3179,7 +3221,7 @@ fn cone_apex_level<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let (lo, hi) = min_max(&b.levels)?;
-    if classify(
+    if classify_as(
         "props_rim_only_extent",
         Margin::of(hi - lo),
         band,
@@ -3234,7 +3276,7 @@ fn require_rim_only_closed<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let name = "props_rim_only_closed";
-    match Period::new(T::tau()).whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
+    match Period::angle().whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
         Ok(true) => {}
         Ok(false) => return Err(Premise::Inventory.refusal(name)),
         Err(undecided) => {
@@ -3261,7 +3303,7 @@ fn require_rim_only_closed<T: Decide>(
 
 /// The traversal direction EVERY rim of a boundary shares, or `None`
 /// where the set is empty or divided.
-fn unanimous_rim_dir<T: Real>(rims: &[Rim<T>]) -> Option<Sign> {
+fn unanimous_rim_dir<T: Real>(rims: &[Rim<T>]) -> Option<NonzeroSign> {
     let (first, rest) = rims.split_first()?;
     rest.iter()
         .all(|r| r.d_u_sign == first.d_u_sign)
@@ -3372,7 +3414,7 @@ fn sphere_face<T: Decide>(
     // The face lies left of its loops under the OUTWARD normal, which
     // is the chart normal's left exactly when the bit is set.
     let region = solid_angle(center, outer, sense);
-    require_solid_angle(
+    require_solid_angle_as(
         "props_sphere_loop_area",
         region.min(solid_angle(center, outer, !sense)),
         radius,
@@ -3381,7 +3423,7 @@ fn sphere_face<T: Decide>(
     let mut solid = region;
     for ring in rings {
         let hole = solid_angle(center, ring, !sense);
-        require_solid_angle("props_sphere_hole_area", hole, radius, band)?;
+        require_solid_angle_as("props_sphere_hole_area", hole, radius, band)?;
         solid = solid - hole;
     }
     let area = radius.powi(2) * solid;
@@ -3568,13 +3610,13 @@ fn triangle_solid_angle<T: Real>(q: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
 /// Require a solid angle (sr) to be definitely positive, levered by the
 /// sphere radius; a refusal is [`PropsError::SphereLoop`] named by the
 /// predicate.
-fn require_solid_angle<T: Decide>(
+fn require_solid_angle_as<T: Decide>(
     name: &'static str,
     angle: T,
     radius: T,
     band: Band,
 ) -> Result<(), PropsError> {
-    match classify(
+    match classify_as(
         name,
         Margin::levered(angle, Lever::curvature_radius(radius)),
         band,
@@ -3729,7 +3771,7 @@ fn sphere_loop<T: Decide>(
         };
         let tangent = |p: Point3<T>| {
             let d = n_c.cross(p - c_c);
-            let d = d / d.norm();
+            let d = d.normalize();
             if e.forward { d } else { -d }
         };
         arcs.push(SphereArc {
@@ -3777,7 +3819,7 @@ fn require_on_loop<T: Decide>(
     margin: Margin<T>,
     band: Band,
 ) -> Result<(), PropsError> {
-    match classify(name, margin, band, PropsCheck::Inventory)? {
+    match classify_as(name, margin, band, PropsCheck::Inventory)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(PropsError::SphereLoop { what: name }),
     }
@@ -3823,7 +3865,7 @@ fn require_cusp_free<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<(), PropsError> {
-    match classify(
+    match classify_as(
         "props_sphere_loop_cusp",
         Margin::levered((depart + arrive).norm(), Lever::curvature_radius(radius)),
         band,
@@ -3890,7 +3932,7 @@ fn side_of_sphere_loops<T: Decide>(
         [one] => pole_free_side(center, radius, axis, one, held, band),
         [_, _, ..] => {
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
-                if classify(
+                if classify_as(
                     "props_sphere_face_area",
                     Margin::levered(
                         claimed_area(center, gauss, left),
@@ -3979,11 +4021,13 @@ fn agreed_side<T: Decide>(
     axis: Vec3<T>,
     read: impl Fn(Vec3<T>) -> Result<Option<Sign>, PropsError>,
 ) -> Result<MaterialSign, PropsError> {
-    let up = axis / axis.norm();
+    let up = axis.normalize();
     let mut reading: Option<Sign> = None;
     // The sphere's singular points, from their one home, as directions.
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
-    for (_, pole) in crate::chart_singularity::sphere_poles(origin, up, T::one()) {
+    for (_, pole) in
+        crate::chart_singularity::sphere_poles(geom::Line { origin, dir: up }, T::one())
+    {
         let pole = pole - origin;
         let side = match read(pole) {
             Ok(side) => side,
@@ -4092,12 +4136,29 @@ pub fn sphere_region_material_sign<T: Decide>(
     };
     agreed_side(axis, |pole| {
         let p = center + pole * radius;
-        for arc in region.members.iter().flat_map(|m| &m.arcs) {
-            if pole_against_arc(arc, p, band)?.1 {
-                return Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip));
+        // A pole on any member's arc ([`climb`], [`Answering::Any`]: a
+        // theorem, the boundary holds that pole whichever arc it lies on),
+        // so an arc read in band is kept and refuses only where no other
+        // arc holds the pole.
+        let held = climb(
+            Answering::Any,
+            region.members.iter().flat_map(|m| &m.arcs),
+            |arc| {
+                Rung::holds(
+                    pole_against_arc(arc, p, band).map(|(_, on)| on),
+                    (),
+                    PropsError::refusal,
+                )
+            },
+        );
+        match held {
+            Climb::Answered { answer, .. } => {
+                answer?;
+                Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip))
             }
+            Climb::Passed => Ok(None),
+            Climb::Undecided(e) => Err(e),
         }
-        Ok(None)
     })
 }
 
@@ -4219,7 +4280,7 @@ pub fn sphere_region_cover<T: Decide>(
         census = census + claimed_area(region.center, loops, *sense);
     }
     // Above the threshold `c` spheres, below it, or in its band.
-    let above = |c: f64| match classify(
+    let above = |c: f64| match classify_as(
         "props_sphere_region_cover",
         Margin::levered(
             census - T::from_computed(c) * sphere,
@@ -4259,14 +4320,14 @@ fn pole_against_arc<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<(Sign, bool), PropsError> {
-    let plane = classify(
+    let plane = classify_as(
         "props_sphere_pole_plane",
         Margin::of(arc.axis.dot(p - arc.centre)),
         band,
         PropsCheck::Inventory,
     )?;
     let on = plane == Sign::Zero
-        && classify(
+        && classify_as(
             "props_sphere_pole_on_arc",
             arc_point_margin(arc, p),
             band,
@@ -4317,18 +4378,29 @@ fn pole_side<T: Decide>(
 ) -> Result<Option<Sign>, PropsError> {
     let p = center + pole * radius;
     let mut circulations = Vec::with_capacity(lp.arcs.len());
-    for arc in &lp.arcs {
-        let (plane, on) = pole_against_arc(arc, p, band)?;
-        if on {
-            return Ok(None);
-        }
-        circulations.push(Some(circulation(arc, plane)));
+    // The pole on any arc leaves its side unread ([`climb`],
+    // [`Answering::Any`]: a theorem, whichever arc holds it), so an arc
+    // read in band is kept and refuses only where no other arc holds the
+    // pole; every arc off it adds its circulation.
+    let on_an_arc = climb(Answering::Any, &lp.arcs, |arc| {
+        let on = pole_against_arc(arc, p, band).map(|(plane, on)| {
+            if !on {
+                circulations.push(Some(circulation(arc, plane)));
+            }
+            on
+        });
+        Rung::holds(on, (), PropsError::refusal)
+    });
+    match on_an_arc {
+        Climb::Answered { answer, .. } => return answer.map(|()| None),
+        Climb::Undecided(e) => return Err(e),
+        Climb::Passed => {}
     }
     let Some(turning) = pole_turning(center, pole, lp, &circulations, band)? else {
         unreachable!("every circulation is read, so the turning is")
     };
     Ok(
-        match classify(
+        match classify_as(
             "props_sphere_pole_winding",
             Margin::levered(turning, Lever::curvature_radius(radius)),
             band,
@@ -4380,7 +4452,7 @@ fn pole_turning<T: Decide>(
 ) -> Result<Option<T>, PropsError> {
     let unit = |x: Point3<T>| {
         let w = x - center;
-        w / w.norm()
+        w.normalize()
     };
     let half = T::from_f64(0.5);
     let image = |x: Point3<T>| {
@@ -4535,7 +4607,7 @@ pub(crate) fn sphere_pole_left<T: Decide>(
 /// circle (`props_sphere_pole_arc_full`, the turn rule's whole turn).
 fn pole_arc_full<T: Decide>(extent: Extent<T>, radius: T, band: Band) -> Result<bool, PropsError> {
     let rows = TurnRows::exact("props_sphere_pole_arc_full");
-    Period::new(T::tau())
+    Period::angle()
         .whole_turn(rows, extent, Exact::new(radius), band)
         .map_err(|undecided| PropsError::Escalated {
             cause: undecided.diag,
@@ -4669,13 +4741,13 @@ fn require_span_within_period<T: Decide, R: TurnRate<T>>(
         NotForward::Zero(_) | NotForward::Reversed(_) => refuse(forward),
     })?;
     let (rate, rows) = rate(extent);
-    if Period::new(T::tau())
+    if Period::angle()
         .not_over(rows, extent, rate, band)
         .map_err(|undecided| escalated(undecided.diag))?
     {
         Ok(extent)
     } else {
-        Err(refuse(rows.turn))
+        Err(refuse(rows.turn()))
     }
 }
 
@@ -4850,9 +4922,12 @@ fn sphere_boundary<T: Decide>(
     // A point's latitude, its sine and cosine each off its own offset
     // from the centre: along the axis, and out from it.
     let latitude = |p: Point3<T>| {
-        let w = p - center;
-        let h = w.dot(axis);
-        (h / radius, (w - axis * h).norm() / radius)
+        let (h, rho) = geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .height_and_distance(p);
+        (h / radius, rho / radius)
     };
     for e in edges {
         let Curve3::Circle(geom::Circle {
@@ -4874,7 +4949,7 @@ fn sphere_boundary<T: Decide>(
                 },
             });
         };
-        let s = classify(
+        let s = classify_as(
             "props_circle_axis_class",
             Margin::levered(
                 n_c.dot(axis),
@@ -4883,8 +4958,8 @@ fn sphere_boundary<T: Decide>(
             band,
             PropsCheck::Inventory,
         )?;
-        match s {
-            Sign::Positive | Sign::Negative => {
+        match s.nonzero() {
+            Some(s) => {
                 let w = c_c - center;
                 require_zero(
                     "props_rim_fit",
@@ -4916,7 +4991,7 @@ fn sphere_boundary<T: Decide>(
                 levels.push(sin_v);
                 cosines.push(cos_v);
             }
-            Sign::Zero => {
+            None => {
                 // Meridian great circle: centered at the sphere center
                 // with the sphere's radius.
                 require_zero(
@@ -4985,29 +5060,30 @@ fn torus_ends<T: Real>(
     axis: Vec3<T>,
     major: T,
     minor: T,
-    orient: Sign,
+    orient: NonzeroSign,
 ) -> (T, T, T, T) {
     // Anchor latitude from the meridian's t0 endpoint.
-    let wa = m0.anchor - center;
-    let ha = wa.dot(axis);
-    let rho_a = (wa - axis * ha).norm();
+    let (ha, rho_a) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(m0.anchor);
     let (sin_a, cos_a) = (ha / minor, (rho_a - major) / minor);
     // Rotate the anchor latitude by the signed span where needed.
     let (sd, cd) = m0.dt.sin_cos();
     match orient {
         // orient Negative ⇒ dv/dt = +1: anchor is v0.
-        Sign::Negative => {
+        NonzeroSign::Negative => {
             let s1 = sin_a * cd + cos_a * sd;
             let c1 = cos_a * cd - sin_a * sd;
             (sin_a, cos_a, s1, c1)
         }
         // orient Positive ⇒ dv/dt = −1: anchor is v1.
-        Sign::Positive => {
+        NonzeroSign::Positive => {
             let s0 = sin_a * cd - cos_a * sd;
             let c0 = cos_a * cd + sin_a * sd;
             (s0, c0, sin_a, cos_a)
         }
-        Sign::Zero => unreachable_zero(),
     }
 }
 
@@ -5040,6 +5116,26 @@ struct TorusPiece<'a, T: Real> {
     edge: &'a LoopEdge<T>,
     step: TorusStep<T>,
     sign: T,
+    /// A meridian's direction up the tube (`v` rising along the
+    /// traversal); `None` on a rim.
+    rising: Option<bool>,
+    /// The sheet's apex the loop passes at this piece's end, if it
+    /// does ([`sheet_apex_jumps`]).
+    apex_after: Option<ApexJump<T>>,
+    /// Whether the loop passes an apex at this piece's start.
+    apex_before: bool,
+}
+
+/// A loop's pass through a sheet's apex: the azimuth `Δu` its chart
+/// image runs along the apex's level between the meridian it arrives on
+/// and the one it leaves on, the apex level's sine and cosine, and the
+/// radius the turn between the two meridians is read at.
+#[derive(Clone, Copy)]
+struct ApexJump<T> {
+    du: T,
+    sin_v: T,
+    cos_v: T,
+    lever: T,
 }
 
 /// The loop's steps with the pieces of one split edge rejoined: loop-
@@ -5054,7 +5150,11 @@ struct TorusPiece<'a, T: Real> {
 fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec<TorusStep<T>> {
     let joins = |a: &TorusPiece<'_, T>, b: &TorusPiece<'_, T>| {
         let (ea, eb) = (a.edge, b.edge);
-        let same = ea.forward == eb.forward
+        // Never across an apex: there the two meridians are different
+        // circles on a sheet, so `same` fails on its carriers too, and
+        // this reads the structure rather than leaning on that.
+        let same = a.apex_after.is_none()
+            && ea.forward == eb.forward
             && matches!((ea.carrier_id, eb.carrier_id), (Some(x), Some(y)) if x == y)
             && matches!(
                 (&a.step, &b.step),
@@ -5075,22 +5175,38 @@ fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec
             Ok(Sign::Zero)
         )
     };
+    // A loop's pass through an apex runs along the apex's level in the
+    // chart: a rim of no length, read after the piece that reaches it.
+    let apex = |jump: Option<ApexJump<T>>| {
+        jump.map(|j| TorusStep::Rim {
+            sin_v: j.sin_v,
+            cos_v: j.cos_v,
+            du: j.du,
+            rho: T::zero(),
+        })
+    };
     let runs = match loop_runs(pieces, joins) {
         Ok(runs) => runs,
-        Err(pieces) => return pieces.into_iter().map(|p| p.step).collect(),
+        Err(pieces) => {
+            return pieces
+                .into_iter()
+                .flat_map(|p| core::iter::once(p.step).chain(apex(p.apex_after)))
+                .collect();
+        }
     };
     runs.into_iter()
-        .map(|run| {
+        .flat_map(|run| {
             let (first, last) = (&run[0], &run[run.len() - 1]);
+            let after = apex(last.apex_after);
             if run.len() == 1 {
-                return first.step;
+                return core::iter::once(first.step).chain(after);
             }
             let span = if first.edge.forward {
                 last.edge.t1 - first.edge.t0
             } else {
                 first.edge.t1 - last.edge.t0
             };
-            match first.step {
+            let step = match first.step {
                 TorusStep::Rim {
                     sin_v, cos_v, rho, ..
                 } => TorusStep::Rim {
@@ -5102,7 +5218,8 @@ fn fold_torus_pieces<T: Decide>(pieces: Vec<TorusPiece<'_, T>>, minor: T) -> Vec
                 TorusStep::Meridian { .. } => TorusStep::Meridian {
                     dv: first.sign * span,
                 },
-            }
+            };
+            core::iter::once(step).chain(after)
         })
         .collect()
 }
@@ -5131,16 +5248,13 @@ fn loop_runs<I>(mut items: Vec<I>, joins: impl Fn(&I, &I) -> bool) -> Result<Vec
     Ok(runs)
 }
 
-/// `atan2(y, x)` with its branch cut kept away from the arguments:
-/// the principal branch for `x ≥ 0`, the `[0, 2π)` branch for `x < 0`,
-/// so an interval enclosure never straddles the cut. Any branch serves
+/// The tube angle of `(cos v, sin v)`, within half a turn of `0` and
+/// read clear of `atan2`'s cut ([`geom::Azimuth::near`]), so an interval
+/// enclosure stays narrow. It depends on the rim alone. Any branch serves
 /// [`torus_chart`]: a lift moved by whole periods shifts `F` and `G`
 /// by constants, which a loop with `Σ Δu = 0` sums to nothing.
-fn torus_angle<T: Decide>(sin_v: T, cos_v: T, band: Band) -> T {
-    match decide("props_torus_lift_branch", Margin::of(cos_v), band) {
-        Ok(Sign::Negative) => (T::zero() - sin_v).atan2(T::zero() - cos_v) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => sin_v.atan2(cos_v),
-    }
+fn torus_angle<T: Decide>(sin_v: T, cos_v: T) -> T {
+    geom::Azimuth::of(sin_v, cos_v).near(T::zero())
 }
 
 /// **The one home of a torus face's chart Green form.**
@@ -5177,6 +5291,7 @@ fn torus_chart<T: Decide>(
     major: T,
     minor: T,
     loops: &[&[LoopEdge<T>]],
+    tube: Tube,
     band: Band,
 ) -> Result<TorusChart<T>, PropsError> {
     let (big, r) = (major, minor);
@@ -5201,21 +5316,21 @@ fn torus_chart<T: Decide>(
         let mut pieces: Vec<TorusPiece<T>> = Vec::with_capacity(edges.len());
         let classified = torus_classify(center, axis, major, minor, edges, band)?;
         for (edge, e) in classified.into_iter().zip(edges.iter()) {
-            let (step, sign) = match edge {
+            let step = match edge {
                 TorusEdge::Rim(rim) => {
                     let RimLevel::Unit(sin_v, cos_v) = rim.level else {
                         return Err(PropsError::NotIsoRectangle {
                             what: "a torus rim carried a non-angle level",
                         });
                     };
-                    let sign = t_sign::<T>(rim.d_u_sign);
+                    let sign = rim.d_u_sign.unit::<T>();
                     let step = TorusStep::Rim {
                         sin_v,
                         cos_v,
                         du: sign * rim.dt.get(),
                         rho: big + r * cos_v,
                     };
-                    (step, sign)
+                    (step, sign, None)
                 }
                 TorusEdge::Arc(arc) => {
                     let orient = torus_meridian_orient(
@@ -5226,7 +5341,7 @@ fn torus_chart<T: Decide>(
                         minor,
                         band,
                     )?;
-                    let sign = t_sign::<T>(orient.flip())
+                    let sign = orient.flip().unit::<T>()
                         * if arc.edge.forward {
                             T::one()
                         } else {
@@ -5235,14 +5350,22 @@ fn torus_chart<T: Decide>(
                     let step = TorusStep::Meridian {
                         dv: sign * (arc.edge.t1 - arc.edge.t0),
                     };
-                    (step, sign)
+                    // `dv/dt = −orient` along the stored span.
+                    let rising = (orient == NonzeroSign::Negative) == arc.edge.forward;
+                    (step, sign, Some(rising))
                 }
             };
             pieces.push(TorusPiece {
                 edge: e,
-                step,
-                sign,
+                step: step.0,
+                sign: step.1,
+                rising: step.2,
+                apex_after: None,
+                apex_before: false,
             });
+        }
+        if let Tube::Sheet(side) = tube {
+            sheet_apex_jumps(center, axis, major, minor, &mut pieces, side, band)?;
         }
         chart_loops.push(torus_chart_loop(
             center, axis, major, minor, edges, &pieces, band,
@@ -5287,10 +5410,10 @@ fn torus_chart<T: Decide>(
                     du,
                     rho,
                 } => {
-                    let angle = torus_angle(sin_v, cos_v, band);
+                    let angle = torus_angle(sin_v, cos_v);
                     // The running `v` picks the branch, not the level.
                     let at = running.unwrap_or(angle);
-                    let (turns, v) = torus_lift(at, angle, minor, band)?;
+                    let (turns, v) = torus_lift_as(at, angle, minor, band)?;
                     running = Some(v);
                     length = length + rho * du.abs();
                     rims.push((angle, turns, du));
@@ -5304,7 +5427,7 @@ fn torus_chart<T: Decide>(
         let base = rims.iter().map(|&(_, turns, _)| turns).min().unwrap_or(0);
         let lifted: Vec<(T, T)> = rims
             .iter()
-            .map(|&(angle, turns, du)| (angle + Period::new(T::tau()).times(turns - base), du))
+            .map(|&(angle, turns, du)| (angle + Period::angle().times(turns - base), du))
             .collect();
         let (lo, hi) = min_max(&lifted.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
         let anchor = lo + (hi - lo) * half;
@@ -5341,9 +5464,9 @@ fn torus_chart<T: Decide>(
 /// before the lift is read, so `at − angle` is a whole number of turns
 /// to within `≈ Kε/minor`, half a turn clear of either mark, and the
 /// marks decide; a gap on a mark is no rim's.
-fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, T), PropsError> {
+fn torus_lift_as<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, T), PropsError> {
     let name = "props_torus_lift_turns";
-    let period = Period::new(T::tau());
+    let period = Period::angle();
     period
         .decide(
             name,
@@ -5378,9 +5501,13 @@ fn torus_chart_loop<T: Decide>(
 ) -> Result<ChartLoop<T, 2>, PropsError> {
     // A point's place on the tube: its distance out from the core
     // circle and its height, the tube angle's cosine and sine arms.
+    let core_axis = geom::Line {
+        origin: Point3::origin(),
+        dir: axis,
+    };
     let tube = |w: Vec3<T>| {
-        let h = w.dot(axis);
-        ((w - axis * h).norm() - major, h)
+        let (h, rho) = core_axis.height_and_distance(Point3::origin() + w);
+        (rho - major, h)
     };
     // The tube angle's arms from `a` to `b`: their dot and cross.
     let tube_arms = |a: Vec3<T>, b: Vec3<T>| {
@@ -5437,8 +5564,24 @@ fn torus_chart_loop<T: Decide>(
             }
             TorusStep::Meridian { dv } => {
                 let near = |w: Vec3<T>| (w - axis * w.dot(axis)).norm();
+                // An end at a sheet's apex has no azimuth: the turn is
+                // read to the meridian's middle instead, the point the
+                // apex's jump reads its half-plane at.
+                let (ua, ub) = (
+                    if p.apex_before {
+                        meridian_middle(p.edge) - center
+                    } else {
+                        wa
+                    },
+                    if p.apex_after.is_some() {
+                        meridian_middle(p.edge) - center
+                    } else {
+                        wb
+                    },
+                );
+                let azimuth = turn_arms(axis, ua, ub);
                 [
-                    EdgeTurn::new(short(azimuth), azimuth, near(wa).min(near(wb))),
+                    EdgeTurn::new(short(azimuth), azimuth, near(ua).min(near(ub))),
                     EdgeTurn::new(
                         dv + about_core(centre - center, b - centre, wb)
                             - about_core(centre - center, a - centre, wa),
@@ -5449,19 +5592,43 @@ fn torus_chart_loop<T: Decide>(
             }
         })
     });
-    let edges_turns = turns.collect::<Result<Vec<_>, PropsError>>()?;
+    let mut edges_turns = turns.collect::<Result<Vec<_>, PropsError>>()?;
+    // A pass through a sheet's apex turns the loop's azimuth by its jump
+    // between the two meridians. The jump is exact, so it misses nothing
+    // and no lever weighs a miss.
+    edges_turns.extend(pieces.iter().filter_map(|p| p.apex_after).map(|j| {
+        [
+            EdgeTurn::exact(j.du, T::zero()),
+            EdgeTurn::exact(T::zero(), T::zero()),
+        ]
+    }));
     let joints = edges
         .iter()
         .zip(edges.iter().cycle().skip(1))
-        .map(|(e, next)| {
-            let a = e.traversal_ends().1 - center;
-            let b = next.traversal_ends().0 - center;
-            Joint {
-                turn: [
-                    (turn_about(axis, a, b), (b - axis * b.dot(axis)).norm()),
-                    (short(tube_arms(a, b)), minor),
-                ],
-                flat: T::zero(),
+        .zip(pieces)
+        .map(|((e, next), piece)| {
+            let (pa, pb) = (e.traversal_ends().1, next.traversal_ends().0);
+            let (a, b) = (pa - center, pb - center);
+            let tube = (short(tube_arms(a, b)), minor);
+            match piece.apex_after {
+                // The apex junction has no azimuth gap to read. The loop's
+                // turns about the axis need a positive meter there (one at
+                // zero reads every football's loop open); any positive
+                // one decides their whole number, and this is the radius
+                // the jump's turn was read at. Its gap in space is the
+                // tube turn's: a point on the sheet at the apex's tube
+                // angle is the apex.
+                Some(jump) => Joint {
+                    turn: [(T::zero(), jump.lever), tube],
+                    flat: T::zero(),
+                },
+                None => Joint {
+                    turn: [
+                        (turn_about(axis, a, b), (b - axis * b.dot(axis)).norm()),
+                        tube,
+                    ],
+                    flat: T::zero(),
+                },
             }
         })
         .collect();
@@ -5480,9 +5647,10 @@ fn torus_face<T: Decide>(
     major: T,
     minor: T,
     loops: &[&[LoopEdge<T>]],
+    tube: Tube,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let chart = torus_chart(center, axis, major, minor, loops, band)?;
+    let chart = torus_chart(center, axis, major, minor, loops, tube, band)?;
     let mut va = Vec3::new(T::zero(), T::zero(), T::zero());
     for edges in loops {
         va = va + loop_vector_area(edges, center)?;
@@ -5503,8 +5671,158 @@ fn torus_material_sign<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    let chart = torus_chart(center, axis, major, minor, loops, band)?;
+    let chart = torus_chart(center, axis, major, minor, loops, Tube::Ring, band)?;
     chart_area_side(chart.area, chart.length, band)
+}
+
+/// The material side a spindle sheet face's loops encode. Off its
+/// apexes both readings below are the torus's ([`torus_material_sign`])
+/// and agree. Where a loop passes an apex, the chart image's run along
+/// the apex's level is either way round the axis between the two
+/// meridians, so the loops are read with the face on each side
+/// ([`ApexSide`]), and the region is the reading that closes as a
+/// boundary:
+/// - one reading closes and the other's loops wind the chart as no
+///   boundary does ([`PropsError::LoopsWindChart`], the needle's band,
+///   whose rim fixes its region): that reading's side;
+/// - both close (a face between two meridians from apex to apex, which
+///   parts the closed sheet in two, as a lune parts a sphere): no side;
+/// - any other refusal of either reading, an escalation in the band
+///   among them, is the face's: what the other reading says is no
+///   answer while this one is unread. No row reaches it: it needs a
+///   face whose two readings both close and one of whose regions is in
+///   the band of nothing (a lune between two meridians a hair apart),
+///   and no door builds a lune of a sheet yet (the part-way revolve
+///   refuses, `work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
+fn sheet_material_sign<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    loops: &[&[LoopEdge<T>]],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let read = |side| {
+        torus_chart(center, axis, major, minor, loops, Tube::Sheet(side), band)
+            .and_then(|chart| chart_area_side(chart.area, chart.length, band))
+    };
+    let winds = |e: &PropsError| matches!(e, PropsError::LoopsWindChart);
+    match (read(ApexSide::Left), read(ApexSide::Right)) {
+        (Ok(left), Ok(right)) => Ok(if left == right {
+            left
+        } else {
+            MaterialSign::Unencoded
+        }),
+        (Ok(side), Err(e)) | (Err(e), Ok(side)) if winds(&e) => Ok(side),
+        (Err(e), Err(other)) if winds(&e) => Err(other),
+        (Err(e), _) | (_, Err(e)) => Err(e),
+    }
+}
+
+/// A meridian's middle point, where its half-plane is read beside an
+/// apex: off the axis, as its ends at an apex are not.
+fn meridian_middle<T: Decide>(e: &LoopEdge<T>) -> Point3<T> {
+    e.carrier.eval(geom::mid_param(e.t0, e.t1))
+}
+
+/// Which revolved circle a face's chart Green form reads
+/// ([`torus_chart`]): the ring torus, whose loops pass no apex, or a
+/// spindle sheet, whose passes through an apex are read with the face
+/// on the side given.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tube {
+    Ring,
+    Sheet(ApexSide),
+}
+
+/// Which side of its loops a spindle sheet face lies on in its chart,
+/// the side its passes through an apex are read with
+/// ([`sheet_apex_jumps`]): left of them under the chart normal (the
+/// sense bit set), or right.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ApexSide {
+    Left,
+    Right,
+}
+
+/// **A loop's passes through a sheet's apexes** ([`ApexJump`]). A
+/// junction between two meridians at a point decided on the axis
+/// (`props_sheet_apex_junction`) is an apex: there the chart image
+/// leaves the arriving meridian's azimuth for the departing one's along
+/// the apex's level, `v = ±v*`, which a rim of no length stands for.
+/// Which way round is the face's side: with the face left of the loop,
+/// the image runs against `u` at the upper apex (arriving up the tube)
+/// and with it at the lower, and the other way with the face right of
+/// it. Its size is the turn between the two meridians' half-planes,
+/// read at each meridian's middle point, taken the way the side says
+/// and so in `(0, 2π)`; a turn in the band of zero, two meridians on one
+/// half-plane, refuses (`props_sheet_apex_turn`), the face pinched to
+/// nothing there.
+fn sheet_apex_jumps<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    pieces: &mut [TorusPiece<'_, T>],
+    side: ApexSide,
+    band: Band,
+) -> Result<(), PropsError> {
+    let apex = geom::sheet_apex(major, minor);
+    let radial = |p: Point3<T>| {
+        geom::Line {
+            origin: center,
+            dir: axis,
+        }
+        .offset(p)
+    };
+    let n = pieces.len();
+    for j in 0..n {
+        let next = (j + 1) % n;
+        let (Some(rising), Some(_)) = (pieces[j].rising, pieces[next].rising) else {
+            continue;
+        };
+        let (into, out) = (pieces[j].edge, pieces[next].edge);
+        let at = radial(into.traversal_ends().1).norm();
+        if classify_as(
+            "props_sheet_apex_junction",
+            Margin::of(at),
+            band,
+            PropsCheck::Inventory,
+        )? != Sign::Zero
+        {
+            continue;
+        }
+        let (d_in, d_out) = (radial(meridian_middle(into)), radial(meridian_middle(out)));
+        let lever = d_in.norm().min(d_out.norm());
+        let turn = turn_about(axis, d_in, d_out);
+        let positive = match classify_as(
+            "props_sheet_apex_turn",
+            Margin::metered(turn, InfSpeed::new(lever)),
+            band,
+            PropsCheck::Inventory,
+        )? {
+            Sign::Positive => true,
+            Sign::Negative => false,
+            Sign::Zero => return Err(PropsError::DegenerateFace),
+        };
+        // With `u` at the upper apex arriving up, against it at the
+        // lower; the other way for a face on the right.
+        let with_u = rising != (side == ApexSide::Left);
+        let du = match (with_u, positive) {
+            (true, true) | (false, false) => turn,
+            (true, false) => turn + T::tau(),
+            (false, true) => turn - T::tau(),
+        };
+        let sin_v = apex.height / minor;
+        pieces[next].apex_before = true;
+        pieces[j].apex_after = Some(ApexJump {
+            du,
+            sin_v: if rising { sin_v } else { -sin_v },
+            cos_v: -major / minor,
+            lever,
+        });
+    }
+    Ok(())
 }
 
 /// A torus minor-circle boundary meridian (iso-`u`) as the parse
@@ -5600,7 +5918,7 @@ fn torus_classify<'a, T: Decide>(
                 },
             });
         };
-        let s = classify(
+        let s = classify_as(
             "props_circle_axis_class",
             Margin::levered(
                 n_c.dot(axis),
@@ -5609,8 +5927,8 @@ fn torus_classify<'a, T: Decide>(
             band,
             PropsCheck::Inventory,
         )?;
-        match s {
-            Sign::Positive | Sign::Negative => {
+        match s.nonzero() {
+            Some(s) => {
                 let h = (c_c - center).dot(axis);
                 let sin_v = h / minor;
                 let cos_v = (r_c - major) / minor;
@@ -5640,10 +5958,15 @@ fn torus_classify<'a, T: Decide>(
                     band,
                 )?));
             }
-            Sign::Zero => {
+            None => {
+                // The axis is not yet decided nonzero here (the orient
+                // that follows the classification decides it), so it is
+                // read unit by convention, not through `geom::Line`,
+                // whose readings divide by its length.
                 let w = c_c - center;
                 let h = w.dot(axis);
-                let rho = (w - axis * h).norm();
+                let off = w - axis * h;
+                let rho = off.norm();
                 require_zero(
                     "props_meridian_fit",
                     Margin::of(
@@ -5663,7 +5986,7 @@ fn torus_classify<'a, T: Decide>(
                 // tube-center distance (lever arm ρ ≈ R, meters).
                 require_zero(
                     "props_meridian_plane",
-                    Margin::of(n_c.dot(w - axis * h)),
+                    Margin::of(n_c.dot(off)),
                     band,
                     Premise::Inventory,
                 )?;
@@ -5804,7 +6127,7 @@ fn fold_chain<T: Decide>(
         for pair in chain.windows(2) {
             let (a, b) = (pair[0].edge, pair[1].edge);
             let gap = if forward { b.t0 - a.t1 } else { a.t0 - b.t1 };
-            if classify(
+            if classify_as(
                 "props_meridian_pieces_meet",
                 Margin::metered(gap, InfSpeed::new(minor)),
                 exact,
@@ -5862,7 +6185,7 @@ fn torus_meridian_orient<T: Decide>(
     major: T,
     minor: T,
     band: Band,
-) -> Result<Sign, PropsError> {
+) -> Result<NonzeroSign, PropsError> {
     // The axis is a pure number, levered by the anchor meridian's reach
     // from the torus centre, where the frame it aims is consumed.
     let reach = crate::ExtentBall::of_circle(c_c, minor).lever_from(center);
@@ -5893,7 +6216,7 @@ fn torus_meridian_orient<T: Decide>(
         )
     })?;
     let tau = frame.v().get();
-    let orient = classify(
+    let orient = classify_as(
         "props_meridian_orient",
         Margin::levered(
             // Read against `sgn R·ρ̂` (`geom::meridian_side`, decided at
@@ -5904,12 +6227,9 @@ fn torus_meridian_orient<T: Decide>(
         band,
         PropsCheck::Inventory,
     )?;
-    if orient == Sign::Zero {
-        return Err(PropsError::NotIsoRectangle {
-            what: "torus meridian orientation degenerate",
-        });
-    }
-    Ok(orient)
+    orient.nonzero().ok_or(PropsError::NotIsoRectangle {
+        what: "torus meridian orientation degenerate",
+    })
 }
 
 /// A torus frame leg's refusal under [`PropsError::NotIsoRectangle`]'s
@@ -5934,13 +6254,6 @@ fn torus_frame_refused(
     }
 }
 
-/// Documented-unreachable arm (the caller matched a definite sign);
-/// returns poison values rather than panicking (D9).
-fn unreachable_zero<T: Real>() -> (T, T, T, T) {
-    let nan = T::from_f64(f64::NAN);
-    (nan, nan, nan, nan)
-}
-
 // ADVERSARIAL REVIEW PROBE (authored on branch review/rim-dim,
 // adopted by merge — authorship kept).
 #[cfg(test)]
@@ -5955,7 +6268,7 @@ mod rim_level_review_probe {
     fn mixed_kind_levels_refuse_typed() {
         let band = Band::linear(Tol::witness()).expect("band");
         let unit = RimLevel::Unit(0.5, 0.5);
-        let got = level_coincides(
+        let got = level_coincides_as(
             RimLevel::Length(1.0_f64),
             (unit, unit),
             RimArms::uniform(1.0),
@@ -5966,7 +6279,7 @@ mod rim_level_review_probe {
 
     /// **One rule, so one fail direction** (#714's review asked for the
     /// two to point the same way; S81 gave them one home). Both call
-    /// sites of [`level_coincides`] refuse a mixed representation, and
+    /// sites of [`level_coincides_as`] refuse a mixed representation, and
     /// the predicate's own entry is pinned here in both orders:
     /// whatever the poisoned classify does, a mixed-representation face
     /// never measures and never groups.
@@ -5974,7 +6287,7 @@ mod rim_level_review_probe {
     fn mixed_representation_rim_and_ends_never_measure() {
         let band = Band::linear(Tol::witness()).expect("band");
         let rim = Rim {
-            d_u_sign: Sign::Positive,
+            d_u_sign: NonzeroSign::Positive,
             dt: Extent::between(0.0, 1.0),
             level: RimLevel::Unit(0.5, 0.5),
         };
@@ -6023,7 +6336,7 @@ mod rim_level_review_probe {
         // Each component 0.8·zero (inside), chord 1.13·zero (outside).
         let d = band.zero() * 0.8;
         let rim = Rim {
-            d_u_sign: Sign::Positive,
+            d_u_sign: NonzeroSign::Positive,
             dt: Extent::between(0.0, 1.0),
             level: RimLevel::Unit(d, d),
         };
@@ -6048,7 +6361,7 @@ mod rim_level_review_probe {
         let band = Band::linear(Tol::witness()).expect("band");
         let d = band.zero() * 0.1;
         assert!(
-            level_coincides(
+            level_coincides_as(
                 RimLevel::Unit(0.0, 0.0),
                 (RimLevel::Unit(d, d), RimLevel::Unit(d, d)),
                 RimArms::uniform(1.0_f64),
@@ -6061,7 +6374,7 @@ mod rim_level_review_probe {
 }
 
 /// **A torus rim's lift is its whole turns as a theorem over a box**
-/// ([`torus_lift`]): at `Sym<Interval>`, a running angle `k` turns from
+/// ([`torus_lift_as`]): at `Sym<Interval>`, a running angle `k` turns from
 /// the rim's, both polynomials in a parameter over `[0.2, 0.4]` that are
 /// not constants (`a = p² + p + k·τ`, `b = p·(p + 1)`, whose value
 /// channels' difference is `≈ 0.64` rad wide with the dependency lost),
@@ -6092,7 +6405,7 @@ mod torus_lift_rows {
                 );
                 let a = p * p + p + Sym::from_f64(f64::from(k)) * Sym::tau();
                 let b = p * (p + Sym::<Interval>::one());
-                let (turns, level) = torus_lift(a, b, Sym::from_f64(0.5), band)
+                let (turns, level) = torus_lift_as(a, b, Sym::from_f64(0.5), band)
                     .unwrap_or_else(|e| panic!("k = {k}: {e:?}"));
                 assert_eq!(turns, k, "k = {k}: the lift's whole turns");
                 decide(
@@ -6331,3 +6644,158 @@ mod apex_start_rows;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod turn_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod ruling_scale_rows {
+    //! Props' ruling readings are the line's, not its parametrisation's:
+    //! a line read with its `dir` scaled and its span scaled back answers
+    //! alike, on the cone (`props_meridian_generator`) and the cylinder
+    //! (`props_meridian_axial`).
+    use super::*;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A cone generator, and the same shifted `s` along the rim's tangent
+    /// so it stands `zero/2` off the cone (`s²·cos α/2ρ`) and misses the
+    /// apex by about `s/2`, far past the band; each read with `dir` unit
+    /// and scaled `1e-3` and `1e3`: the generator passes and the shifted
+    /// line refuses `props_meridian_generator`, at every scale. Before
+    /// the reading took the home, a shifted line read with `dir` scaled
+    /// `1e-3` passed.
+    #[test]
+    fn a_cone_generator_reads_alike_at_every_scale() {
+        let apex = Point3::new(0.0, 0.0, 0.0);
+        let axis = Vec3::unit_z();
+        let (sin_a, cos_a) = 0.5f64.sin_cos();
+        let g = Vec3::new(sin_a, 0.0, cos_a);
+        let shift = (band().zero() * sin_a / cos_a / cos_a).sqrt();
+        for (shift, generator) in [(0.0, true), (shift, false)] {
+            for k in [1.0, 1e-3, 1e3] {
+                let carrier = Curve3::line(apex + g + Vec3::new(0.0, shift, 0.0), g * k);
+                let e = LoopEdge::hand_built(carrier, 0.0, 1.0 / k, true, 0, 1);
+                let read = require_cone_generator(apex, axis, sin_a, cos_a, g * k, &e, band());
+                match (generator, &read) {
+                    (true, Ok(())) => {}
+                    (
+                        false,
+                        Err(PropsError::NotIsoRectangle {
+                            what: "props_meridian_generator",
+                        }),
+                    ) => {}
+                    _ => panic!("shift {shift:e}, dir ×{k:e}: {read:?}"),
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod pole_climb_rows {
+    use super::*;
+
+    /// An arc of the unit sphere's circle on `axis` through `centre`,
+    /// from `start` over `extent` rad, forward; its traversal ends are
+    /// not read by the pole's climb, and are set to its start.
+    fn arc(
+        centre: Point3<f64>,
+        axis: Vec3<f64>,
+        start: Point3<f64>,
+        extent: f64,
+    ) -> SphereArc<f64> {
+        let radius = (start - centre).norm();
+        let tangent = axis.cross(start - centre).normalize();
+        SphereArc {
+            centre,
+            axis,
+            radius,
+            start,
+            extent: Extent::between(0.0, extent),
+            forward: true,
+            from: start,
+            depart: tangent,
+            at: start,
+            arrive: tangent,
+        }
+    }
+
+    fn sphere_loop(arcs: Vec<SphereArc<f64>>) -> SphereLoop<f64> {
+        SphereLoop {
+            arcs,
+            curvature: 0.0,
+            corners: 0.0,
+            vector_area: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    /// The north pole `(0, 0, 1)` against two arcs: a small circle whose
+    /// plane is `3e-9` below it (read first: in band), then the great
+    /// circle in the `xz` plane from `(−1, 0, 0)` over half a turn,
+    /// through the pole (on it).
+    fn in_band_then_through_the_pole() -> SphereLoop<f64> {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let c = 1.0 - 3e-9;
+        let r = (1.0 - c * c).sqrt();
+        sphere_loop(vec![
+            arc(Point3::new(0.0, 0.0, c), z, Point3::new(r, 0.0, c), 1.0),
+            arc(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Point3::new(-1.0, 0.0, 0.0),
+                core::f64::consts::PI,
+            ),
+        ])
+    }
+
+    /// **An arc holding the pole answers past an arc in band**
+    /// ([`pole_side`]'s climb, `Any`): the pole is on the loop, so its
+    /// side is unread (`None`). The arc in band alone refuses; a
+    /// first-refusal loop refused with its escalation.
+    #[test]
+    fn an_arc_holding_the_pole_answers_past_an_arc_in_band() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let lp = in_band_then_through_the_pole();
+        assert_eq!(pole_side(o, 1.0, z, &lp, band), Ok(None));
+        let alone = sphere_loop(vec![in_band_then_through_the_pole().arcs.remove(0)]);
+        assert!(
+            matches!(
+                pole_side(o, 1.0, z, &alone, band),
+                Err(PropsError::Escalated { .. })
+            ),
+            "the arc in band alone refuses"
+        );
+    }
+
+    /// **A member arc holding the pole answers past one in band**
+    /// ([`sphere_region_material_sign`]'s climb, `Any`). The members'
+    /// arcs are [`in_band_then_through_the_pole`]'s, so the north pole is
+    /// read, and the boundary is the equator, read forward, which puts
+    /// the pole on one definite side: the region's side is encoded. A
+    /// first-refusal loop escalated at the arc in band, which reads as
+    /// no pole read (`agreed_side`), and the south pole is on no member's
+    /// arc, so the side was `Unencoded`.
+    #[test]
+    fn a_member_arc_holding_the_pole_answers_past_one_in_band() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let equator = sphere_loop(vec![arc(
+            o,
+            z,
+            Point3::new(1.0, 0.0, 0.0),
+            core::f64::consts::TAU,
+        )]);
+        let region = SeamLoops {
+            center: o,
+            radius: 1.0,
+            axis: z,
+            boundary: vec![equator],
+            members: vec![in_band_then_through_the_pole()],
+        };
+        let got = sphere_region_material_sign(&region, band);
+        assert!(matches!(got, Ok(MaterialSign::Encoded(_))), "{got:?}");
+    }
+}

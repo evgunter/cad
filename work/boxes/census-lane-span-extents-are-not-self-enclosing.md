@@ -2,11 +2,11 @@
 id: census-lane-span-extents-are-not-self-enclosing
 kind: issue
 title: The census lane's Span extents do not enclose their locus at f64 by themselves; their soundness rests on what each reader compares them against, which nothing guards
-status: parked
+status: closed
 opened: 2026-10-18
+closed: 2026-11-08
 priority: P3
 cost: M
-blocked_on: [cover-topo-faces]
 ---
 
 Found by the review of PR 5308 (`restread/one-edge-box-map`, MINOR 2).
@@ -61,3 +61,15 @@ claim then needs no reader roster.
 ## Since PR 6336 (BOXES, 2026-11-02)
 
 The sampled torus window this row cites is gone. The census lane's closed-form torus window (`ring_window_extent`) adds no rounding slack, where `sphere_reach` adds `SPHERE_REACH_ULPS` around the same `torus_rect_extent` call. PR 6336's review measured a worst escape of 1.4e-15 relative to R + r over 20k random cases: one more instance of this row's class. (BOXES orchestrator)
+
+## Closed (`cover-topo-faces`, 2026-11-08)
+
+Superseded. `[simple.conditioned]` (Ev, PR 6329 and PR 6383) rules that
+at `f64` nothing charges rounding and that the `Interval` lane is what
+encloses; the census lane's `Span` extents are deleted, and the census
+reads the face's and edge's covers, which `geom::cover`'s tests hold at
+both scalars. The sphere reach's `SPHERE_REACH_ULPS` charge is deleted
+with them; its formula was already posed without cancellation (the
+zone's share is a norm of components), which
+`boxes::sphere_rect_rows::a_zones_support_near_a_box_row_is_within_rounding_of_the_exact_one`
+measures.

@@ -98,7 +98,7 @@ fn vessel_cavity() -> topo::Body<f64> {
             }
         })
         .collect();
-    let mut cavity = quarter.clone();
+    let mut cavity = quarter.clone().into_body();
     topo::offset_charts_together(
         &mut cavity,
         &moves,
@@ -213,14 +213,14 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     }
     assert_eq!(adopted, rims, "every rim's spline read");
     assert!(
-        native.faces().all(
-            |(_, f)| native.get_surface(f.surface).is_some_and(|s| matches!(
+        native
+            .faces()
+            .all(|(fk, _)| native.face_surface(fk).is_some_and(|s| matches!(
                 s,
                 geom::Surface::Plane { .. }
                     | geom::Surface::Cylinder { .. }
                     | geom::Surface::Torus { .. }
-            ))
-        ),
+            ))),
         "the cavity's walls are planes, cylinders and tori"
     );
 
@@ -238,7 +238,7 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
                     ..
                 },
                 ..
-            }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+            }] if what.starts_with("a trimmed face with no volume lane on its chart")
         ),
         "the spline's Intersection reading adopts, and check 7 meets a torus wall trimmed by a \
          spline, got {errors:?}"

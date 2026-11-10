@@ -92,7 +92,7 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
 /// and all it does with the answer is push the ops it names.
 ///
 /// `hidden` is whether this row's body's toggle is off
-/// ([`crate::display::DisplayView::body_on`]), the one the View pane
+/// ([`crate::display::Toggles::body_on`]), the one the View pane
 /// lists too, so an instance an operation reads reads as off and its
 /// check shows it. Only an instance row draws the toggle here (the
 /// View pane holds one for every body and space): a hidden body stays IN this tree (that is
@@ -211,7 +211,7 @@ pub(crate) struct RowClicks {
     /// [`TreeRow::constraints`].
     pub(crate) remove: Option<MateRef>,
     /// Whether the placement's `edit` button was clicked: the placement
-    /// editor's Edit door on the row's node.
+    /// editor on the row's node.
     pub(crate) edit: bool,
     /// Whether the pointer is over the row's label: a clearance row's
     /// witness is drawn while it is ([`crate::marks::witness`]).

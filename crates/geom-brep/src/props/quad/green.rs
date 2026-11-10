@@ -1,5 +1,5 @@
 //! **The B-spline Green integral** ([`bspline_green_integral`]): the
-//! cylinder lane's boundary rule ([`super::cylinder`]'s module docs: the
+//! rotational lane's harmonic rule ([`super::rotational`]'s module docs: the
 //! midpoint with its Taylor remainder) on B-spline pcurve channels.
 //!
 //! Channel hulls and derivative hulls come from the control-coefficient

@@ -1,4 +1,4 @@
-//! **A vertex piercing a spline face** ([`super::classify_vertex_on_face`]):
+//! **A vertex piercing a spline face** ([`super::read_vertex_on_face`]):
 //! the pierced face's outward normal is its chart's at the chart point
 //! the sweep placed the pierce at, in the face's sense
 //! ([`crate::face_normal::spline_outward_normal_at`]).
@@ -95,7 +95,7 @@ fn classify(
     (pierced, face): (&Body<f64>, FaceKey),
     chart: Option<(f64, f64)>,
 ) -> Result<Vec<SideCode>, BooleanError> {
-    super::classify_vertex_on_face(
+    super::read_vertex_on_face(
         piercing,
         pierced,
         Operand::A,
@@ -111,7 +111,9 @@ fn classify(
         chart,
         &crate::sector_shape::SlitTips::default(),
         band(),
+        None,
     )
+    .and_then(|read| super::mint_pierce(piercing, read))
     .map(|out| out.classes.into_iter().map(|(_, c)| c).collect())
 }
 
@@ -315,8 +317,8 @@ fn domed_cube() -> (Body<f64>, FaceKey) {
 /// Every row `face` stores, image and joint element by half-edge, in
 /// loop and cycle order, as text: the byte-level record a door leaves.
 fn rows_of(body: &Body<f64>, face: FaceKey) -> Vec<String> {
-    let data = body.get_face(face).unwrap();
-    body.face_loops_linked(face, data)
+    let view = body.proven_face(face);
+    view.loops()
         .filter_map(|(_, l, _)| match l.boundary {
             crate::entity::LoopBoundary::Cycle { first } => Some(first),
             crate::entity::LoopBoundary::Empty { .. } => None,
@@ -342,7 +344,7 @@ fn ring_at(mut body: Body<f64>, face: FaceKey, p: Point3<f64>, what: &str) -> Bo
         .get_point(body.get_vertex(vertex).unwrap().point)
         .unwrap();
     assert!(
-        [at.x, at.y, at.z] == [p.x, p.y, p.z],
+        at.equals_exactly(p),
         "{what}: the ring vertex sits at {at:?}, not {p:?}"
     );
     body

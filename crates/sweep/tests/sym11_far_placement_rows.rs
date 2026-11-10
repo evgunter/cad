@@ -210,6 +210,17 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///   it (the enclosure straddles the band where the point does not),
 ///   and it builds the triangle everywhere, including the cells where
 ///   both point lanes refuse it.
+/// - **Every placement here but the origin is past the session box**
+///   (D4 ¶4 bounds each coordinate: `(d, d, d)` has every coordinate `d`, past 1 km from `d = 1e6`). In
+///   the bare lane a body that builds there is refused at its
+///   operation's finished-body gate as `OutsideSessionBox`; a refusal
+///   its construction makes first (a certification check) still answers
+///   as before, since the box decides only what would otherwise have
+///   built. The `Sym` lanes build a replay leaf (`AtRestPolicy::leaf`),
+///   whose finished-body gate, the box with it, runs where the leaf is
+///   taken, which no row here does. The mechanism this file measures,
+///   rounding past the band on an exact form, is what the box and the
+///   run's admission rule rule out together at a shipped run.
 /// - **The certified lane builds the stadium** wherever the point lanes
 ///   do, its extrude's closing pcurve mint included: the arc walls'
 ///   rows are certified over the `r` box by their closed-form envelope,
@@ -221,16 +232,16 @@ const TABLE: [[Cell; 4]; 3] = [
     // lane refuses the stadium at the furthest.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "built", "built"], 0) },
+        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
+        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
+        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["EndpointEnd", "built", "built"], 0) },
     ],
     // ε = 1e-9 (the shipped default): the mechanism reaches the point
     // lanes at 1e9, and at 3.7e7 the tier rescues two of the three
     // bodies the bare lift refuses.
     [
         Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["built", "built", "built"], 0) },
-        Cell { bare: lane(["built", "built", "built"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "built", "built"], 0) },
+        Cell { bare: lane(["OutsideSessionBox", "OutsideSessionBox", "OutsideSessionBox"], 0), inexact: lane(["built", "built", "built"], 0), exact: lane(["MappedSource", "built", "built"], 0) },
         Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["built", "built", "Rung3Escalated(HullValue)"], 0), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
         Cell { bare: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 0), inexact: lane(["SurfaceResidual", "SurfaceResidual", "MappedSource"], 3), exact: lane(["EndpointStart", "EndpointEnd", "built"], 0) },
     ],
@@ -273,6 +284,7 @@ fn outcome(r: &Result<usize, String>) -> String {
     };
     match r {
         Ok(_) => "built".to_owned(),
+        Err(e) if e.contains("OutsideSessionBox") => "OutsideSessionBox".to_owned(),
         Err(e) => e
             .split("check: ")
             .nth(1)

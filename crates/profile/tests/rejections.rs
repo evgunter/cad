@@ -133,7 +133,7 @@ fn near_coincident_vertices_escalate() {
         (0.0, 1.0, 0.0),
     ])]);
     match err(&p) {
-        ProfileError::Escalated { site, source } => {
+        ProfileError::Escalated { site, source, .. } => {
             assert_eq!(site, EscalationSite::Segment(sref(0, 1)));
             assert_eq!(source.predicate, Some("vertex_separation"));
         }
@@ -152,7 +152,7 @@ fn sliver_arc_bulge_escalates() {
         (0.0, 1.0, 0.0),
     ])]);
     match err(&p) {
-        ProfileError::Escalated { site, source } => {
+        ProfileError::Escalated { site, source, .. } => {
             assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
             assert_eq!(source.predicate, Some("segment_straightness"));
         }
@@ -500,7 +500,7 @@ fn straight_joint_at_start(last: f64) -> profile::Profile<f64> {
 #[test]
 fn a_run_end_in_band_of_a_carrier_past_its_segment_is_no_contact() {
     match validate_both(&straight_joint_at_start(0.9)) {
-        Err(ProfileError::Escalated { site, source }) => {
+        Err(ProfileError::Escalated { site, source, .. }) => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 5), sref(0, 0)));
             assert_eq!(source.predicate, Some("chord_side"));
         }
@@ -588,7 +588,7 @@ fn a_loop_returning_to_a_vertex_along_a_straight_continuation_touches() {
 #[test]
 fn an_adjacent_pair_through_a_joint_straight_within_the_band_escalates_only_at_its_joint() {
     match validate_both(&straight_joint_at_start(1.8)) {
-        Err(ProfileError::Escalated { site, source }) => {
+        Err(ProfileError::Escalated { site, source, .. }) => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 5), sref(0, 0)));
             assert_eq!(source.predicate, Some("chord_side"));
         }
@@ -634,7 +634,7 @@ fn an_adjacent_pair_with_an_in_band_side_escalates_at_its_joint() {
         ("the short leg first", short_first, (0, 1)),
     ] {
         match validate_both(&p) {
-            Err(ProfileError::Escalated { site, source }) => {
+            Err(ProfileError::Escalated { site, source, .. }) => {
                 assert_eq!(
                     site,
                     EscalationSite::SegmentPair(sref(0, joint.0), sref(0, joint.1)),
@@ -671,7 +671,7 @@ fn a_pair_sharing_no_vertex_still_escalates_on_an_in_band_side() {
         ]),
     ]);
     match err(&p) {
-        ProfileError::Escalated { site, source } => {
+        ProfileError::Escalated { site, source, .. } => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
             assert_eq!(source.predicate, Some("chord_side"));
         }
@@ -728,7 +728,7 @@ fn an_in_band_line_circle_clearance_escalates_only_where_the_arc_holds_the_graze
         ])])
     };
     match err(&with_arc(-sagging)) {
-        ProfileError::Escalated { site, source } => {
+        ProfileError::Escalated { site, source, .. } => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 3)));
             assert_eq!(source.predicate, Some("carrier_line_circle"));
         }
@@ -824,7 +824,7 @@ fn one_arc_away_from_an_in_band_external_tangency_is_no_contact() {
 #[test]
 fn arcs_facing_an_in_band_external_tangency_escalate() {
     match err(&half_discs_outside(in_band(), true)) {
-        ProfileError::Escalated { site, source } => {
+        ProfileError::Escalated { site, source, .. } => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(1, 0), sref(2, 1)));
             assert_eq!(source.predicate, Some("carrier_circles_external"));
         }
@@ -1124,7 +1124,9 @@ fn outside_hole(circle: (Point2<f64>, f64), hi: f64, lo: f64) -> profile::Profil
 /// escalation's margin.
 fn validate_both(p: &profile::Profile<f64>) -> Result<(), ProfileError> {
     let verdict = |read: &Result<(), ProfileError>| match read {
-        Err(ProfileError::Escalated { site, source }) => format!("{site:?} {:?}", source.predicate),
+        Err(ProfileError::Escalated { site, source, .. }) => {
+            format!("{site:?} {:?}", source.predicate)
+        }
         other => format!("{other:?}"),
     };
     let at_f64 = p.validate(tol()).map(|_| ());
@@ -1212,7 +1214,7 @@ fn near_concentric_arcs_read_their_tangency_on_each_carrier() {
         let label = format!("d = {d}ε, g = {g}ε, arc {from}+{sweep} against {hi}..{lo}");
         match (validate_both(&p), want) {
             (Err(got), Ok(want)) => assert_eq!(got, want, "{label}"),
-            (Err(ProfileError::Escalated { site, source }), Err(predicate)) => {
+            (Err(ProfileError::Escalated { site, source, .. }), Err(predicate)) => {
                 assert_eq!(site, EscalationSite::SegmentPair(pair.0, pair.1), "{label}");
                 assert_eq!(source.predicate, Some(predicate), "{label}");
             }
@@ -1334,7 +1336,7 @@ fn a_compound_joint_escalates_only_where_its_readings_disagree() {
         match (validate_both(&p), want) {
             (Ok(()), None) => {}
             (Err(got), Some(Ok(want))) => assert_eq!(got, want, "{label}"),
-            (Err(ProfileError::Escalated { site, source }), Some(Err(predicate))) => {
+            (Err(ProfileError::Escalated { site, source, .. }), Some(Err(predicate))) => {
                 assert_eq!(site, EscalationSite::SegmentPair(pair.0, pair.1), "{label}");
                 assert_eq!(source.predicate, Some(predicate), "{label}");
             }
@@ -1380,7 +1382,7 @@ fn a_tangent_cusps_far_end_draws_its_line() {
         match (validate_both(&p), want) {
             (Ok(()), Ok(())) => {}
             (Err(got), Err(Ok(want))) => assert_eq!(got, want, "{label}"),
-            (Err(ProfileError::Escalated { site, source }), Err(Err(predicate))) => {
+            (Err(ProfileError::Escalated { site, source, .. }), Err(Err(predicate))) => {
                 assert_eq!(
                     site,
                     EscalationSite::SegmentPair(sref(0, 0), sref(0, 2)),
@@ -1577,7 +1579,7 @@ fn a_cusp_whose_crossing_one_arc_reads_in_band_escalates() {
         (out(-0.34), Segment::Line),
     ])]);
     match validate_both(&p) {
-        Err(ProfileError::Escalated { site, source }) => {
+        Err(ProfileError::Escalated { site, source, .. }) => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 1)));
             assert_eq!(source.predicate, Some("carrier_circles_chord"));
         }
@@ -1588,7 +1590,7 @@ fn a_cusp_whose_crossing_one_arc_reads_in_band_escalates() {
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {
-        ProfileError::Escalated { site, source } => {
+        ProfileError::Escalated { site, source, .. } => {
             assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
             assert_eq!(source.predicate, Some("carrier_circles_internal"));
             match source.margin.diagnostic_f64_for_error_text() {
@@ -1631,7 +1633,7 @@ fn almost_near_full_arc_escalates_on_diameter_clearance() {
     let (s, c) = delta.sin_cos();
     let p = profile(vec![chain(&[(c, s, bulge), (c, -s, 0.0)])]);
     match err(&p) {
-        ProfileError::Escalated { site, source } => {
+        ProfileError::Escalated { site, source, .. } => {
             assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
             assert_eq!(source.predicate, Some("arc_diameter_clearance"));
         }
@@ -1662,7 +1664,7 @@ fn nan_bulge_poisons_to_a_typed_error() {
         (1.0, 1.0, 0.0),
     ])]);
     match err(&p) {
-        ProfileError::Escalated { site, source } => {
+        ProfileError::Escalated { site, source, .. } => {
             assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
             assert_eq!(source.margin, MarginDiag::INVALID);
             assert_eq!(source.predicate, Some("arc_sweep_length"));
@@ -1810,7 +1812,7 @@ fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
         )
         .expect_err("a radius inside the band of the carrier radius cannot be classified");
     match &err {
-        PathError::Escalated { source } => assert_eq!(
+        PathError::Escalated { source, .. } => assert_eq!(
             source.predicate,
             Some("fillet_enclosing_carrier"),
             "the escalation must name the gate that could not be classified"

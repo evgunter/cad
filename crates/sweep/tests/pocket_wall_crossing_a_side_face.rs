@@ -116,6 +116,7 @@ fn cutter(pose: &Pose) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The block `[−1, 1]² × [0, 1]`.
@@ -139,6 +140,7 @@ fn block() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The block's cross-section, counter-clockwise.

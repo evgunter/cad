@@ -32,6 +32,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -50,23 +51,34 @@ fn g<E>(r: Result<topo::BooleanResult<f64>, E>) -> Option<AB> {
     r.ok().and_then(|r| r.body().map(|b| b.body.clone()))
 }
 
+/// The result gate's volume on a sphere face: a trim the chart table has
+/// no lane for, or a ring, which the sphere reads only where circles
+/// bound it. The refused face's own surface is read
+/// (`topo::boolean::refused_face_kind`), so the stop names the
+/// sphere only where the gate refused a sphere face: every face that
+/// refuses here is one (a chorded cylinder face measures through the
+/// rotational lane), so the one stop reads alike in every face order,
+/// and a refusal on another chart's face reads as that chart's.
+const SPHERE_FACE: &str = "VolumeUncomputable on a sphere face";
+
 /// Where a boolean stops: `body`, or its refusal by variant and the
 /// door that raised it.
-fn stop<E: core::fmt::Debug>(r: &Result<topo::BooleanResult<f64>, E>) -> String {
-    let e = match r {
+fn stop(r: &Result<topo::BooleanResult<f64>, topo::BooleanError>) -> String {
+    let (e, kind) = match r {
         Ok(r) if r.body().is_some() => return "body".into(),
         Ok(_) => return "no body".into(),
-        Err(e) => format!("{e:?}"),
+        Err(e) => (format!("{e:?}"), topo::boolean::refused_face_kind(e)),
     };
     let quadrature = e.contains("VolumeUncomputable") && e.contains("QuadratureUnsupported");
     if e.starts_with("CurvedBooleanUnsupported") {
         "CurvedBooleanUnsupported at the join's lane dispatch".into()
-    } else if e.contains("VolumeUncomputable") && e.contains("RingOnCurvedFace") {
-        "VolumeUncomputable: RingOnCurvedFace".into()
-    } else if quadrature && e.contains("no harmonic form") {
-        "VolumeUncomputable: QuadratureUnsupported, a projected image on an analytic chart".into()
-    } else if quadrature && e.contains("conic trim") {
-        "VolumeUncomputable: QuadratureUnsupported, a conic trim on the sphere's chart".into()
+    } else if (e.contains("VolumeUncomputable") && e.contains("RingOnCurvedFace"))
+        || (quadrature && e.contains("a trimmed face with no volume lane on its chart"))
+    {
+        match kind {
+            Some(geom::SurfaceKind::Sphere) => SPHERE_FACE.into(),
+            other => format!("VolumeUncomputable on a {other:?} face"),
+        }
     } else {
         e.chars().take(160).collect()
     }
@@ -80,45 +92,41 @@ fn stop<E: core::fmt::Debug>(r: &Result<topo::BooleanResult<f64>, E>) -> String 
 /// carried lane chords closed-form components (SECTARMS stage 3b-i);
 /// they stopped at the join's lane dispatch before.
 fn pinned(part: Part) -> Stops {
-    const PROJECTED: &str =
-        "VolumeUncomputable: QuadratureUnsupported, a projected image on an analytic chart";
-    const CONIC: &str =
-        "VolumeUncomputable: QuadratureUnsupported, a conic trim on the sphere's chart";
-    const RING: &str = "VolumeUncomputable: RingOnCurvedFace";
+    const SPHERE: &str = SPHERE_FACE;
     const BODY: &str = "body";
     let table: &[(&str, &str)] = match part {
         Part::Rest => &[],
         Part::Rod => &[
-            ("unit u rod", PROJECTED),
-            ("unit i rod", CONIC),
-            ("unit a-b rod", PROJECTED),
-            ("unit b-a rod", PROJECTED),
+            ("unit u rod", SPHERE),
+            ("unit i rod", SPHERE),
+            ("unit a-b rod", SPHERE),
+            ("unit b-a rod", SPHERE),
             ("tilt u rod", BODY),
             ("tilt i rod", BODY),
             ("tilt a-b rod", BODY),
             ("tilt b-a rod", BODY),
         ],
         Part::UnitTurnedRod => &[
-            ("unit u rodx", RING),
-            ("unit i rodx", PROJECTED),
-            ("unit a-b rodx", RING),
-            ("unit b-a rodx", PROJECTED),
+            ("unit u rodx", SPHERE),
+            ("unit i rodx", SPHERE),
+            ("unit a-b rodx", SPHERE),
+            ("unit b-a rodx", SPHERE),
         ],
         Part::TiltTurnedRod => &[
-            ("tilt u rodx", RING),
-            ("tilt i rodx", PROJECTED),
-            ("tilt a-b rodx", RING),
-            ("tilt b-a rodx", PROJECTED),
+            ("tilt u rodx", SPHERE),
+            ("tilt i rodx", SPHERE),
+            ("tilt a-b rodx", SPHERE),
+            ("tilt b-a rodx", SPHERE),
         ],
         Part::Stub => &[
-            ("unit u stub", CONIC),
-            ("unit i stub", PROJECTED),
-            ("unit a-b stub", CONIC),
-            ("unit b-a stub", CONIC),
-            ("tilt u stub", PROJECTED),
-            ("tilt i stub", CONIC),
-            ("tilt a-b stub", PROJECTED),
-            ("tilt b-a stub", CONIC),
+            ("unit u stub", SPHERE),
+            ("unit i stub", SPHERE),
+            ("unit a-b stub", SPHERE),
+            ("unit b-a stub", SPHERE),
+            ("tilt u stub", SPHERE),
+            ("tilt i stub", SPHERE),
+            ("tilt a-b stub", SPHERE),
+            ("tilt b-a stub", SPHERE),
         ],
     };
     table
@@ -168,16 +176,16 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
         }
     };
     let mut stops = Vec::new();
+    // Each stop is read right after its boolean, while the refused
+    // face's record is its own (`topo::boolean::refused_face_kind`).
     let bool3 = |a: &AB, b: &AB| -> Vec<(&'static str, String, Option<AB>)> {
-        [
-            ("u", topo::boolean::union(a, b, tol)),
-            ("i", topo::boolean::intersect(a, b, tol)),
-            ("a-b", topo::boolean::subtract(a, b, tol)),
-            ("b-a", topo::boolean::subtract(b, a, tol)),
+        let read = |op, r| (op, stop(&r), g(r));
+        vec![
+            read("u", topo::boolean::union(a, b, tol)),
+            read("i", topo::boolean::intersect(a, b, tol)),
+            read("a-b", topo::boolean::subtract(a, b, tol)),
+            read("b-a", topo::boolean::subtract(b, a, tol)),
         ]
-        .into_iter()
-        .map(|(op, r)| (op, stop(&r), g(r)))
-        .collect()
     };
     let rest = part == Part::Rest;
     if rest {
@@ -244,16 +252,32 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
         ball_poled(0.5, v(5.0, 0.0, 0.0), v(0.0, 0.0, 1.0), tol),
         tol,
     );
-    let bigbrick = finished("k", brick((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol), tol);
-    let halfbrick = finished("k", brick((-2.0, 2.0), (-2.0, 2.0), (0.2, 2.0), tol), tol);
-    let tallbar = finished("k", brick((-0.3, 0.3), (-0.2, 0.2), (-2.0, 2.0), tol), tol);
+    let bigbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        tol,
+    );
+    let halfbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.2, 2.0), tol),
+        tol,
+    );
+    let tallbar = finished(
+        "k",
+        brick::<f64>((-0.3, 0.3), (-0.2, 0.2), (-2.0, 2.0), tol),
+        tol,
+    );
     let rod = at_rest(&cyl(0.1, 0.0, 0.3, -2.0, 2.0), tol);
     let rodx = at_rest(
         &turned(&cyl(0.0, 0.1, 0.25, -2.0, 2.0), v(1.0, 0.0, 0.0), 0.7),
         tol,
     );
     let stub = at_rest(&cyl(0.5, 0.2, 0.4, 0.3, 2.0), tol);
-    let eqbrick = finished("k", brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol), tol);
+    let eqbrick = finished(
+        "k",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0), tol),
+        tol,
+    );
     for (an, a) in [("unit", &unit), ("tilt", &tilt)] {
         for (bn, b) in [
             ("small_in", &small_in),
@@ -336,7 +360,7 @@ fn corpus(part: Part) -> (Vec<(String, AB)>, Stops) {
 
 fn sphere_faces(body: &Body<f64>) -> Vec<(FaceKey, topo::SurfaceKey)> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.surface))
         .collect()
 }
@@ -528,7 +552,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
         let c = b.with_entity_removed_for_tests(id).unwrap();
         // The typed door is not reached: no removal finishes.
         assert!(
-            topo::AtRestBody::validate(c.clone(), tol).is_err(),
+            topo::finish(c.clone(), tol).is_err(),
             "{id:?}: the body with it removed finishes"
         );
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -596,7 +620,7 @@ fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wro
     for (shell, s) in hollow.shells() {
         let fl = flipped(&hollow, &s.faces);
         assert!(
-            topo::AtRestBody::validate(fl.clone(), tol).is_err(),
+            topo::finish(fl.clone(), tol).is_err(),
             "{shell:?} flipped does not finish"
         );
         // Raw door: the subject is a flipped shell tier 3 refuses, and what the door reads of it.

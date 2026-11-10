@@ -34,6 +34,13 @@ them apart only by matching the text:
   one_segment_loop, encl_curved_loft_shell, shell_general_door}.rs`,
   `topo/tests/a_whole_spiric_oval_bounds_its_mirror_torus.rs`).
 
+2026-11-04 (PR 6478): the sphere arm's sentence quoted above is now "a
+trimmed face with no volume lane on its chart …" (the rotational lane's
+chart table holds the cylinder, so a projected cylinder image no longer
+refuses there). The rows that pin it on the sphere, the torus and the
+tilted rod's torus wall read the refused face's surface kind as data
+(`topo::test_support::refused_face_kind`) beside the sentence.
+
 ## Done when
 
 The refusal carries what tells its raise sites apart as data: the image

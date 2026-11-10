@@ -54,6 +54,22 @@ impl<T: Real> Frame<T> {
         Self::new(motion.origin(), motion.w().get(), motion.u().get())
     }
 
+    /// **The unit radial direction at azimuth `u`**, `u_ref·cos u +
+    /// v_ref·sin u`: the azimuthal frame's own reading
+    /// ([`crate::azimuth`]'s `Radial`), for a caller outside the crate.
+    #[must_use]
+    pub fn radial(&self, u: T) -> Vec3<T> {
+        crate::azimuth::frame(self, u).radial.0
+    }
+
+    /// **The radial direction's derivative in the azimuth**, `u_ref·(−sin
+    /// u) + v_ref·cos u`: the azimuthal frame's `Tangential`, beside
+    /// [`Self::radial`].
+    #[must_use]
+    pub fn tangential(&self, u: T) -> Vec3<T> {
+        crate::azimuth::frame(self, u).tangential.0
+    }
+
     /// `axis × u_ref`, the second axis.
     #[must_use]
     pub fn v_ref(&self) -> Vec3<T> {
@@ -67,10 +83,21 @@ impl<T: Real> Frame<T> {
         (w.dot(self.u_ref), w.dot(self.v_ref()))
     }
 
-    /// `p`'s height above the frame's plane: `(p − origin)·axis`.
+    /// **`p`'s direction about the axis**: [`Self::in_plane`] read as an
+    /// angle from `u_ref` toward `v_ref` ([`crate::Azimuth`]), the one
+    /// in-frame angle read of a point. A point on the axis has no
+    /// direction ([`crate::Azimuth::near`] says what it reads).
+    #[must_use]
+    pub fn azimuth(&self, p: Point3<T>) -> crate::Azimuth<T> {
+        let (x, y) = self.in_plane(p);
+        crate::Azimuth::of(y, x)
+    }
+
+    /// `p`'s height above the frame's plane: `(p − origin)·axis`, the
+    /// [`plane_offset`] of the plane through `origin` normal to `axis`.
     #[must_use]
     pub fn height(&self, p: Point3<T>) -> T {
-        (p - self.origin).dot(self.axis)
+        plane_offset(self.origin, self.axis, p)
     }
 
     /// **`p`'s local coordinates** `(x, y, h)`: [`Self::in_plane`] and
@@ -150,15 +177,46 @@ impl<T: Real> Frame<T> {
     /// the stored `u_ref`, taken as `a × (u_ref × a)` over the unit `a`.
     #[must_use]
     pub fn square(&self) -> SquareFrame<T> {
-        let axis = self.axis / self.axis.norm();
+        let axis = self.axis.normalize();
         let across = axis.cross(self.u_ref.cross(axis));
-        let len = across.norm();
+        let ((u_ref, len), (_, u_len)) = (
+            across.direction_and_length(),
+            self.u_ref.direction_and_length(),
+        );
         SquareFrame {
             axis,
-            u_ref: across / len,
-            width: len / self.u_ref.norm(),
+            u_ref,
+            width: len / u_len,
         }
     }
+}
+
+/// **A point's signed offset from a plane, in metres**: `q` against the
+/// plane through `origin` with unit normal `normal`, `(q − origin)·normal`,
+/// positive on the normal's side. A point needs no lever: its distance is
+/// what a margin measures. The one spelling of the formula;
+/// [`Frame::height`] reads it on a frame's plane. A plane with no seam has
+/// no type of its own here (a [`Frame`] carries a seam): whether it gets
+/// one is the placement decision's kind-struct stage, so a holder of a
+/// bare `(origin, normal)` reads this.
+#[must_use]
+pub fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point3<T>) -> T {
+    (q - origin).dot(normal)
+}
+
+/// [`plane_offset`] with a first-order bound on its own rounding, its
+/// inputs exact ([`geom_core::running`]): the value is bit-identical to
+/// [`plane_offset`]'s, so a door that decides on one charges the other.
+#[must_use]
+pub fn plane_offset_rounded<T: Real>(
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    q: Point3<T>,
+) -> geom_core::running::Rounded<T> {
+    use geom_core::running::{self, Rounded};
+    let d = [(q.x, origin.x), (q.y, origin.y), (q.z, origin.z)]
+        .map(|(a, b)| Rounded::exact(a) - Rounded::exact(b));
+    running::dot(d, running::exact_vec(normal))
 }
 
 #[cfg(test)]

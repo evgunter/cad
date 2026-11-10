@@ -131,7 +131,7 @@
 //! `ε₁ = F′(θ_a)`. Each reading is its own row:
 //!
 //! - **the apex on the carrier** (`bool_conic_cone_apex`), read at the
-//!   anomaly of the apex's own in-plane coordinates (`Conic::angle_of`):
+//!   anomaly of the apex's own in-plane coordinates (`Conic::azimuth`):
 //!   on a circle the carrier's nearest point to the apex's projection,
 //!   on an ellipse in general not, so the distance read is at least the
 //!   carrier's. Conservative both ways: a carrier read clear of the apex
@@ -176,9 +176,8 @@ use geom_brep::curve_face::circle_roots::{
     CircleRoots, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots, first_harmonic_roots,
 };
 use geom_brep::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame,
 };
-use geom_brep::quartic::QuarticRows;
 use geom_brep::roots::{OnCarrier, Roots, Unsettled};
 use geom_core::rounding_charge;
 
@@ -201,36 +200,10 @@ mod shallow_sweep;
 const SECOND_HARMONIC: &str = "bool_conic_quadric_second_harmonic";
 
 /// The first-harmonic arm's rows.
-const FIRST_ROWS: FirstHarmonicRows = FirstHarmonicRows {
-    noise: "bool_conic_quadric_first_noise",
-    coaxial: "bool_conic_quadric_first_constant",
-    extreme: "bool_conic_quadric_first_extreme",
-    root_slack: "bool_conic_quadric_first_root_slack",
-};
-
-/// The ladder's noise meter's row (module docs, "Two arms").
-const LADDER_NOISE: &str = "bool_conic_quadric_ladder_noise";
+const FIRST_ROWS: FirstHarmonicRows = geom_brep::rows::CONIC_QUADRIC_FIRST;
 
 /// The ladder's rows.
-const LADDER_ROWS: HalfAngleRows = HalfAngleRows {
-    pole: "bool_conic_quadric_pole",
-    conditioning: "bool_conic_quadric_pole_conditioning",
-    noise: LADDER_NOISE,
-    quartic: QuarticRows {
-        disc: "bool_conic_quadric_disc",
-        shape: "bool_conic_quadric_shape",
-        depth: "bool_conic_quadric_depth",
-        odd: "bool_conic_quadric_odd",
-        split: "bool_conic_quadric_split",
-        split_lead: "bool_conic_quadric_split_lead",
-    },
-    verify: SubdivisionRows {
-        clear: "bool_conic_quadric_sub_clear",
-        monotone: "bool_conic_quadric_sub_monotone",
-        side: "bool_conic_quadric_sub_side",
-        width: "bool_conic_quadric_sub_width",
-    },
-};
+const LADDER_ROWS: HalfAngleRows = geom_brep::rows::CONIC_QUADRIC_LADDER;
 
 /// The certified crossings of the `carrier` circle or ellipse with
 /// `surface`, a sphere, a cylinder wall or a cone, reported within `π`
@@ -359,7 +332,7 @@ fn quadric_ladder<T: Decide>(
             radius,
             ..
         } => (
-            geom_brep::conic_cylinder_harmonics(conic, origin, axis, radius),
+            geom_brep::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
             BooleanDecision::ArcCylinderRoots,
             (origin, Some(axis), radius),
         ),
@@ -425,8 +398,8 @@ fn ladder_frame<T: Decide>(
             f_per_metre: floor,
             f_per_metre_hi: T::one(),
             residual_reach: None,
-            jet: None,
         },
+        jet: None,
         speed_lo: conic.speed_lo(),
         lever: T::from_f64(2.0) * conic.speed_lo(),
     }
@@ -449,7 +422,14 @@ fn cone_roots<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, BooleanError> {
-    let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
+    let h = geom_brep::conic_cone_harmonics(
+        conic,
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        },
+        half_angle,
+    );
     let noise = rounding_charge(h.terms) / h.per;
     if let ThroughTheApex::Read(found) =
         through_the_apex(conic, (apex, axis, half_angle), &h, noise, (t0, t1), band)
@@ -467,13 +447,24 @@ fn cone_roots<T: Decide>(
             let reach = (first.lo.abs().max(first.hi.abs()) + first.lo_noise) / h.floor;
             return Ok(match decide(CONE_ON_SURFACE, Margin::of(reach), band) {
                 Ok(Sign::Zero) => Ok(Roots::On(OnCarrier)),
-                Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(Unsettled::Meter),
+                Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(Unsettled::Meter {
+                    row: CONE_ON_SURFACE,
+                }),
             });
         }
         found
     } else {
-        let placed =
-            |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
+        let placed = |theta: T| {
+            geom_brep::conic_cone_residual(
+                conic,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle,
+                theta,
+            )
+        };
         let meter = RootSlack {
             row: CONE_ROOT_SLACK,
             residual: &placed,
@@ -528,14 +519,12 @@ fn through_the_apex<T: Decide>(
 ) -> ThroughTheApex<T> {
     use ThroughTheApex::{Clear, Read};
     let two = T::from_f64(2.0);
-    let mid = (t0 + t1) / two;
-    let near_mid = |theta: T| geom_brep::half_angle::near_midpoint(mid, theta);
-    // A parameter difference as a turn in `(−π, π]`, the same rule.
-    let wrap = |x: T| geom_brep::half_angle::near_midpoint(T::zero(), x);
+    let mid = geom::mid_param(t0, t1);
+    let near_mid = |theta: T| geom::conic_period().near(theta, mid);
     // Past every bound: a reading no bound holds refuses.
     let unbounded = T::from_f64(f64::INFINITY);
     // The apex's parameter on the conic, its projection's off the plane.
-    let theta_a = near_mid(conic.angle_of(apex));
+    let theta_a = conic.azimuth(apex).near(mid);
     let off_apex = conic.point_at(theta_a) - apex;
     match decide(CONE_APEX, Margin::norm3(off_apex), band) {
         Ok(Sign::Positive) => return Clear,
@@ -597,7 +586,17 @@ fn through_the_apex<T: Decide>(
     // whole-bracket slope bound in place of their window's). A shallow
     // crossing reads neither, and refuses as the tangency it is near.
     let width = T::from_f64(64.0) * T::from_f64(band.escalate()) / conic.speed_lo();
-    let residual = |theta: T| geom_brep::conic_cone_residual(conic, apex, axis, half_angle, theta);
+    let residual = |theta: T| {
+        geom_brep::conic_cone_residual(
+            conic,
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+            theta,
+        )
+    };
     let f = |theta: T| {
         let (s, c) = theta.sin_cos();
         let (s2, c2) = (two * theta).sin_cos();
@@ -627,7 +626,7 @@ fn through_the_apex<T: Decide>(
     let mut found = [theta_a; 4];
     for (slot, phi) in [beta + spin, beta - spin].into_iter().enumerate() {
         let theta = near_mid(theta_a + phi);
-        let off = wrap(theta - theta_a).abs() - width - spread_phi;
+        let off = geom::separation(theta, theta_a) - width - spread_phi;
         match decide(
             CONE_DEFLATED_CLEAR,
             Margin::of(off * conic.speed_lo()),
@@ -647,10 +646,14 @@ fn through_the_apex<T: Decide>(
         );
         match decide(CONE_ROOT_SLACK, Margin::of(slack), band) {
             Ok(Sign::Zero) => found[2 + slot] = theta,
-            Ok(Sign::Positive | Sign::Negative) | Err(_) => return Read(Err(Unsettled::Meter)),
+            Ok(Sign::Positive | Sign::Negative) | Err(_) => {
+                return Read(Err(Unsettled::Meter {
+                    row: CONE_ROOT_SLACK,
+                }));
+            }
         }
     }
-    let apart = wrap(found[2] - found[3]).abs() - two * width;
+    let apart = geom::separation(found[2], found[3]) - two * width;
     match decide(
         CONE_DEFLATED_CLEAR,
         Margin::of(apart * conic.speed_lo()),

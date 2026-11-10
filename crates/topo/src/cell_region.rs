@@ -57,7 +57,7 @@ use crate::validate::decide;
 /// `Positive` clears.
 ///
 /// A vertex's point.
-const VERTEX: &str = "cell_region_vertex_gap";
+const CELL_REGION_VERTEX: &str = "cell_region_vertex_gap";
 /// A line edge's segment.
 const SEGMENT: &str = "cell_region_segment_gap";
 /// A circular or elliptic edge's arc floor.
@@ -65,7 +65,7 @@ const CONIC: &str = "cell_region_conic_gap";
 /// The ball holding a spiric or spline edge's arc.
 const BALL: &str = "cell_region_ball_gap";
 /// A carrier's singular set: a cone's apex, a torus's axis.
-const SINGULAR: &str = "cell_region_singular_gap";
+const CELL_REGION_SINGULAR: &str = "cell_region_singular_gap";
 
 /// What [`cell_region`] says about one cell of a face's carrier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,7 +94,7 @@ pub fn cell_region<T: Decide + CertifiedBounds>(
     v: (f64, f64),
     band: Band,
 ) -> CellRegion {
-    let Some(stored) = body.face_surface(face) else {
+    let Some(stored) = body.face(face).map(|f| f.surface()) else {
         return CellRegion::Undecided;
     };
     cell_region_lifted(
@@ -141,14 +141,14 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         <Interval as geom_core::Real>::from_computed(mv),
     );
     let reach = (surface.eval(span(u), span(v)) - station).norm();
-    let clear = |row: &'static str, distance: Interval| {
+    let clear_as = |row: &'static str, distance: Interval| {
         matches!(
             decide(row, Margin::of(distance - reach), band),
             Ok(Sign::Positive)
         )
     };
-    if !(clear_of_singular(surface, station, &clear)
-        && clear_of_boundary(boundary, station, &clear))
+    if !(clear_of_singular(surface, station, &clear_as)
+        && clear_of_boundary_as(boundary, station, &clear_as))
     {
         return CellRegion::Undecided;
     }
@@ -173,7 +173,7 @@ pub fn station_region<T: Decide + CertifiedBounds>(
     (u, v): (f64, f64),
     band: Band,
 ) -> Option<FaceContainment> {
-    let surface = body.face_surface(face)?;
+    let surface = body.face(face)?.surface();
     let station = surface.eval(T::from_computed(u), T::from_computed(v));
     place(body, face, surface, station, band)
 }
@@ -185,6 +185,8 @@ fn place<T: Decide>(
     station: Point3<T>,
     band: Band,
 ) -> Option<FaceContainment> {
+    crate::held::Held::constructed(station, "a station of the face's own stored chart")
+        .check(surface, band);
     match *surface {
         Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
         _ => curved_face_containment(body, face, station, band)
@@ -220,7 +222,7 @@ impl Ball {
         self.reach
     }
 
-    fn clear(self, row: &'static str, distance: Interval, band: Band) -> bool {
+    fn clear_as(self, row: &'static str, distance: Interval, band: Band) -> bool {
         matches!(
             decide(row, Margin::of(distance - self.reach), band),
             Ok(Sign::Positive)
@@ -229,11 +231,11 @@ impl Ball {
 
     /// Is the point decided clear of the ball?
     pub(crate) fn clear_of_point(self, p: Point3<Interval>, band: Band) -> bool {
-        self.clear(VERTEX, (p - self.centre).norm(), band)
+        self.clear_as(CELL_REGION_VERTEX, (p - self.centre).norm(), band)
     }
 
     /// Is the arc of `carrier` over `params` decided clear of the ball?
-    pub(crate) fn clear_of_arc(
+    pub(crate) fn clear_of_arc_as(
         self,
         carrier: &geom::Curve3<Interval>,
         params: (Interval, Interval),
@@ -245,7 +247,7 @@ impl Ball {
                 ArcFloor::Conic { .. } => CONIC,
                 ArcFloor::Ball { .. } => BALL,
             };
-            floor.clears(|d| self.clear(row, d, band))
+            floor.clears(|d| self.clear_as(row, d, band))
         })
     }
 }
@@ -257,21 +259,23 @@ impl Ball {
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
-    clear: &dyn Fn(&'static str, Interval) -> bool,
+    clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     match *surface {
-        Surface::Cone { apex, .. } => clear(SINGULAR, (station - apex).norm()),
+        Surface::Cone { apex, .. } => clear_as(CELL_REGION_SINGULAR, (station - apex).norm()),
         Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
-            let n = axis / axis.norm();
-            let w = station - center;
-            clear(SINGULAR, (w - n * w.dot(n)).norm())
+            let axis_line = geom::Line {
+                origin: center,
+                dir: axis,
+            };
+            clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
         }
         _ => true,
     }
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:
-/// what [`clear_of_boundary`] decides, in the order it decides it.
+/// what [`clear_of_boundary_as`] decides, in the order it decides it.
 #[derive(Debug, Clone)]
 pub(crate) enum BoundaryStop {
     /// A vertex's point.
@@ -287,18 +291,18 @@ pub(crate) enum BoundaryStop {
 /// read. A sweep lifts a face's boundary once and asks it of every
 /// cell; the lift reads no bracket and decides nothing. A face that does
 /// not resolve is unreadable; past it every hop is a link
-/// ([`Body::face_boundary_linked`]).
+/// ([`crate::live::FaceView::boundary`]).
 pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Vec<BoundaryStop> {
     let mut stops = Vec::new();
-    let Some(f) = body.get_face(face) else {
+    let Some(f) = body.face(face) else {
         stops.push(BoundaryStop::Unreadable);
         return stops;
     };
     let on_face = |he| body.face_of_linked(he) == face;
-    for member in body.face_boundary_linked(face, f) {
+    for member in f.boundary() {
         stops.push(BoundaryStop::Vertex(
             body.member_point(&member).map(Interval::from_certified),
         ));
@@ -324,20 +328,20 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
 
 /// Is every stop of a face's lifted boundary decided clear of the
 /// ball? The first stop that is not ends the walk.
-fn clear_of_boundary(
+fn clear_of_boundary_as(
     stops: &[BoundaryStop],
     station: Point3<Interval>,
-    clear: &dyn Fn(&'static str, Interval) -> bool,
+    clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     stops.iter().all(|stop| match stop {
-        BoundaryStop::Vertex(p) => clear(VERTEX, (*p - station).norm()),
+        BoundaryStop::Vertex(p) => clear_as(CELL_REGION_VERTEX, (*p - station).norm()),
         BoundaryStop::Arc(arc) => arc_distance_floor(&arc.0, arc.1, station).is_some_and(|floor| {
             let row = match floor {
                 ArcFloor::Segment(_) => SEGMENT,
                 ArcFloor::Conic { .. } => CONIC,
                 ArcFloor::Ball { .. } => BALL,
             };
-            floor.clears(|d| clear(row, d))
+            floor.clears(|d| clear_as(row, d))
         }),
         BoundaryStop::Unreadable => false,
     })

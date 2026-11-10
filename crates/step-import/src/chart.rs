@@ -282,9 +282,7 @@ pub(crate) fn infer_outer(
 /// then too coarse to tell a wrap from a jump — an honest refusal, not
 /// a guessed branch).
 fn unwrap(prev: f64, next: f64) -> Result<f64, OuternessRefusal> {
-    let tau = core::f64::consts::TAU;
-    let k = ((prev - next) / tau).round();
-    let lifted = next + k * tau;
+    let lifted = geom_core::period::Period::<f64>::angle().near(next, prev);
     if (lifted - prev).abs() > core::f64::consts::FRAC_PI_2 {
         return Err(OuternessRefusal::SeamDependent);
     }
@@ -326,13 +324,14 @@ fn boundary_distance(poly: &[Point2<f64>], p: Point2<f64>) -> f64 {
         let a = poly[i];
         let b = poly[(i + 1) % poly.len()];
         let ab = b - a;
-        let len2 = ab.dot(ab);
-        let t = if len2 > 0.0 {
-            ((p - a).dot(ab) / len2).clamp(0.0, 1.0)
+        // An edge of no length is its one point: `Line2` needs a
+        // nonzero direction.
+        let gap = if ab.norm_squared() > 0.0 {
+            geom_core::Line2 { origin: a, dir: ab }.distance_within(p, (0.0, 1.0))
         } else {
-            0.0
+            (p - a).norm()
         };
-        best = best.min((p - (a + ab * t)).norm());
+        best = best.min(gap);
     }
     best
 }
