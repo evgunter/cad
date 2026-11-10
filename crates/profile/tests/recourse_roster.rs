@@ -11,7 +11,9 @@
 //! The reader is `test_utils::source::predicate_census`. **What it
 //! cannot read it reports**: a spelling it does not know is
 //! `unreadable`, a name-bearing argument that is not a plain literal is
-//! `indirect`, and `include!`/`#[path]` come back in `unwalked`.
+//! `indirect`, and `include!`/`#[path]` come back in `unwalked`; the
+//! checks every roster makes of those are
+//! `test_utils::source::roster_violations`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -84,8 +86,9 @@ fn no_funnel_call_in_src_takes_a_literal_name() {
         !census.indirect.is_empty(),
         "the reader found no funnel calls it should have"
     );
-    assert!(census.unreadable.is_empty(), "{:?}", census.unreadable);
-    assert!(census.unwalked.is_empty(), "{:?}", census.unwalked);
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let violations = test_utils::source::roster_violations(&src, &census, &[], None);
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 /// **Every row is a gate some production site raises, and names one

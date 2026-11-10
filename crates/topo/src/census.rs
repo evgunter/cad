@@ -486,9 +486,12 @@ struct FaceGeo<T: Real> {
     /// face is the planar polygon its vertices bound, so it lies in
     /// their convex hull.
     polygon: bool,
-    /// Every loop a cycle walked and every half-edge resolved: a face
-    /// tier 1 passed is, unless a loop of it is a lone vertex.
-    walked: bool,
+    /// `Ok` where every loop is a cycle walked and every half-edge
+    /// resolved, as on a face tier 1 passed with no lone-vertex loop;
+    /// else what a reader of the walked polygon refuses with:
+    /// [`TouchUnread::Corrupt`] for a loop that does not walk, or else
+    /// [`TouchUnread::LoneLoop`].
+    walked: Result<(), TouchUnread>,
 }
 
 /// The census snapshot: the exact planar geometry the vertex-granular
@@ -1497,7 +1500,7 @@ fn distance<T: Decide>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Mar
         EntityId::Vertex(v) => Some(Margin::norm3(u - *geo.vmap.get(&v)?)),
         EntityId::Edge(e) => {
             let e = line_edge(geo, e)?.span();
-            Some(Margin::norm3(u - e.line().foot_within(u, e.at)))
+            Some(Margin::of(e.line().distance_within(u, e.at)))
         }
         EntityId::Face(f) => {
             let f = planar_face(geo, f)?;
@@ -1842,7 +1845,8 @@ enum Unread {
     Escalated(Indeterminate),
     /// The reading is not built: a face meeting the point more than
     /// once (a pinch, whose corners pair up across passes), a spline's
-    /// departure, an edge the face does not hold.
+    /// departure, an edge the face does not hold, a lone-vertex loop at
+    /// the point.
     Unbuilt,
 }
 
@@ -1904,8 +1908,18 @@ fn face_cone<T: Decide>(
         FaceContainment::OnVertex(v) => {
             let face = body.get_face(f).ok_or(Unread::Unbuilt)?;
             let mut corners = Vec::new();
-            for cycle in body.unchecked_face_cycles(face) {
-                let cycle = cycle.map_err(|_| Unread::Unbuilt)?;
+            for read in body.unchecked_face_boundary(face) {
+                let cycle = match read.map_err(|_| Unread::Unbuilt)? {
+                    crate::live::UncheckedLoop::Cycle(cycle) => cycle,
+                    // No corner of the face; at the vertex read, no cone
+                    // this builds.
+                    crate::live::UncheckedLoop::Lone(lone) => {
+                        if geo.same_point(lone, v) {
+                            return Err(Unread::Unbuilt);
+                        }
+                        continue;
+                    }
+                };
                 let n = cycle.len();
                 for (i, &he) in cycle.iter().enumerate() {
                     let start = body.half_edges.get(he).ok_or(Unread::Unbuilt)?.start;
@@ -2757,23 +2771,23 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         let mut boundary = BTreeSet::new();
         let mut loops = Vec::new();
         let mut polygon = true;
-        let mut walked = true;
+        let mut walked = Ok(());
         // A loop this cannot walk contributes no boundary vertex, and
         // the face is no polygon the touch analysis reads.
         for read in body.unchecked_face_boundary(face) {
             let cycle = match read {
                 Ok(crate::live::UncheckedLoop::Cycle(cycle)) => cycle,
                 // A lone vertex bounds the face, but is no ring of the
-                // polygon readings, which keep their unwalked refusal.
+                // polygon readings, which refuse it as one.
                 Ok(crate::live::UncheckedLoop::Lone(vertex)) => {
                     boundary.insert(vertex);
                     polygon = false;
-                    walked = false;
+                    walked = walked.and(Err(TouchUnread::LoneLoop));
                     continue;
                 }
                 Err(_) => {
                     polygon = false;
-                    walked = false;
+                    walked = Err(TouchUnread::Corrupt);
                     continue;
                 }
             };
@@ -2785,7 +2799,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
                     polygon &= edge_is_line(body, he_data.edge);
                 } else {
                     polygon = false;
-                    walked = false;
+                    walked = Err(TouchUnread::Corrupt);
                 }
             }
             loops.push(ring);
@@ -3920,9 +3934,9 @@ fn pierce_span<T: Decide>(
     let [c0, c1] = [e.p0, e.p1].map(|p| residual_charge(f, p));
     let lever = r0 - r1;
     let (size, slack) = (lever.abs(), c0 + c1);
-    let decide = magnitude_door("pm_census_ef_pierce_lever", band);
+    let door = magnitude_door("pm_census_ef_pierce_lever", band);
     let bounds = [(size - slack).max(T::zero()), size + slack];
-    match enclosure_reading(bounds, "pm_census_ef_pierce_lever_straddle", band, decide) {
+    match enclosure_reading(bounds, "pm_census_ef_pierce_lever_straddle", band, door) {
         Ok(Enclosed::Above) => {}
         Ok(Enclosed::AtMost(_)) => return None,
         Err(cause) => {
@@ -4003,8 +4017,8 @@ fn pierce_inside<T: Decide>(
     let length = (q_hi - q_lo).norm();
     let short = || {
         let half = [T::zero(), length * T::from_f64(0.5)];
-        let decide = magnitude_door("pm_census_ef_pierce_span", band);
-        enclosure_reading(half, "pm_census_ef_pierce_span_straddle", band, decide)
+        let door = magnitude_door("pm_census_ef_pierce_span", band);
+        enclosure_reading(half, "pm_census_ef_pierce_span_straddle", band, door)
             .map(|read| matches!(read, Enclosed::AtMost(_)))
     };
     let on = |at| matches!(at, OnEdge(_) | OnVertex(_));
@@ -4028,13 +4042,13 @@ fn pierce_inside<T: Decide>(
         errors.push(ValidationError::CensusEscalated { cause });
         return None;
     }
-    let decide = magnitude_door("pm_census_ef_pierce_place", band);
+    let door = magnitude_door("pm_census_ef_pierce_place", band);
     let reach = length + T::from_f64(band.zero());
     if let Err(cause) = enclosure_reading(
         [T::zero(), reach],
         "pm_census_ef_pierce_straddle",
         band,
-        decide,
+        door,
     ) {
         errors.push(ValidationError::CensusEscalated { cause });
     }
@@ -4118,9 +4132,9 @@ fn span_clear<T: Decide>(
         return Some(false);
     };
     let reach = span_reach(e, [lo, hi], lever, band);
-    let decide = magnitude_door("pm_census_ef_pierce_height", within);
+    let door = magnitude_door("pm_census_ef_pierce_height", within);
     let straddle = "pm_census_ef_pierce_height_straddle";
-    match enclosure_reading([T::zero(), reach], straddle, within, decide) {
+    match enclosure_reading([T::zero(), reach], straddle, within, door) {
         Ok(Enclosed::AtMost(_)) => {}
         Ok(Enclosed::Above) => return Some(false),
         Err(cause) => {
@@ -4137,9 +4151,21 @@ fn span_clear<T: Decide>(
     let Some(face) = body.get_face(f.key) else {
         return Some(false);
     };
-    for cycle in body.unchecked_face_cycles(face) {
-        let Ok(cycle) = cycle else {
-            return Some(false);
+    for read in body.unchecked_face_boundary(face) {
+        let cycle = match read {
+            Ok(crate::live::UncheckedLoop::Cycle(cycle)) => cycle,
+            // A lone vertex is a point of the boundary, read as a side's
+            // end is: on `S`'s interior, `S` does not clear.
+            Ok(crate::live::UncheckedLoop::Lone(vertex)) => {
+                let Some(&p) = geo.vmap.get(&vertex) else {
+                    return Some(false);
+                };
+                if on_edge_interior_reading(p, &s, band, errors)?.is_some() {
+                    return Some(false);
+                }
+                continue;
+            }
+            Err(_) => return Some(false),
         };
         for he in cycle {
             let ends = body
@@ -5598,16 +5624,16 @@ enum Enclosed {
 }
 
 /// The one reading of a quantity known only to lie in `[lo, hi]`, each
-/// bound decided by `decide`: [`Enclosed`], else the escalation of a
+/// bound decided by `door`: [`Enclosed`], else the escalation of a
 /// bound that did not decide, or the bounds' straddle of the band under
 /// `straddle`, the site's own row.
 fn enclosure_reading<T: Decide>(
     [lo, hi]: [T; 2],
     straddle: &'static str,
     band: Band,
-    decide: impl Fn(T) -> Result<geom_core::Decided, Indeterminate>,
+    door: impl Fn(T) -> Result<geom_core::Decided, Indeterminate>,
 ) -> Result<Enclosed, Indeterminate> {
-    match (decide(lo), decide(hi)) {
+    match (door(lo), door(hi)) {
         (Ok(b), _) if b.sign == Sign::Positive => Ok(Enclosed::Above),
         (_, Ok(a)) if a.sign != Sign::Positive => Ok(Enclosed::AtMost(a.margin)),
         (Ok(b), Ok(a)) => Err(geom_core::k_stats::straddle(straddle, b, a, band)),
@@ -5639,8 +5665,8 @@ fn magnitude_door<T: Decide>(
 /// span: `Ok(true)` above `Kε`; `Ok(false)` at most `ε`, so the closest
 /// point lies at an end or past it ([`enclosure_reading`]).
 fn span_reading<T: Decide>(reach: [T; 2], band: Band) -> Result<bool, Indeterminate> {
-    let decide = |m| geom_core::k_stats::decide_reported("pm_census_ee_span", Margin::of(m), band);
-    enclosure_reading(reach, "pm_census_ee_span_straddle", band, decide)
+    let door = |m| geom_core::k_stats::decide_reported("pm_census_ee_span", Margin::of(m), band);
+    enclosure_reading(reach, "pm_census_ee_span_straddle", band, door)
         .map(|read| matches!(read, Enclosed::Above))
 }
 
@@ -5650,8 +5676,8 @@ fn span_reading<T: Decide>(reach: [T; 2], band: Band) -> Result<bool, Indetermin
 /// (`lo` a `max` from zero, `hi` the least `|e·n|/s` plus its charge), the magnitude
 /// door's precondition.
 fn gap_reading<T: Decide>(gap: [T; 2], band: Band) -> Result<Option<MarginDiag>, Indeterminate> {
-    let decide = magnitude_door("pm_census_ee_gap", band);
-    enclosure_reading(gap, "pm_census_ee_gap_straddle", band, decide).map(|read| match read {
+    let door = magnitude_door("pm_census_ee_gap", band);
+    enclosure_reading(gap, "pm_census_ee_gap_straddle", band, door).map(|read| match read {
         Enclosed::Above => None,
         Enclosed::AtMost(margin) => Some(margin),
     })
@@ -6939,8 +6965,12 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
             surface: f.record().surface,
             kind: f.surface().kind(),
             edges: body
-                .unchecked_face_cycles(f.record())
-                .filter_map(Result::ok)
+                .unchecked_face_boundary(f.record())
+                .filter_map(|read| match read {
+                    Ok(crate::live::UncheckedLoop::Cycle(cycle)) => Some(cycle),
+                    // A lone loop has no edge; a torn one names none read.
+                    Ok(crate::live::UncheckedLoop::Lone(_)) | Err(_) => None,
+                })
                 .flatten()
                 .filter_map(|he| body.half_edges.get(he).map(|h| h.edge))
                 .collect(),
@@ -7284,6 +7314,10 @@ pub(crate) enum Undecided {
     FaceKindUnsupported,
     /// Arm 2: an instance whose topology the door could not walk.
     CorruptInstance,
+    /// Arm 2: an instance with a lone-vertex loop where the reading
+    /// takes none ([`TouchUnread::LoneLoop`],
+    /// [`PointInLoopError::LoneLoop`](crate::splitting::PointInLoopError::LoneLoop)).
+    LoneLoop,
     /// Arm 2: a flat face of an instance the door could not read in
     /// its own plane.
     OffPlane,
@@ -7421,6 +7455,11 @@ impl Undecided {
                 "one part's topology could not be walked. ",
                 geom_core::kernel_or_file_defect_ending!()
             ),
+            Self::LoneLoop => concat!(
+                "one part has a face with a loop that is a lone vertex, which the check does \
+                 not read. ",
+                geom_core::kernel_or_file_defect_ending!()
+            ),
             Self::OffPlane => concat!(
                 "the check could not read a flat face of one in that face's own plane. ",
                 geom_core::kernel_or_file_defect_ending!()
@@ -7450,6 +7489,7 @@ impl Undecided {
             E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::Loop(L::CorruptLoop { .. }) => {
                 Self::CorruptInstance
             }
+            E::Loop(L::LoneLoop { .. }) => Self::LoneLoop,
             E::Loop(L::OffPlane(_)) => Self::OffPlane,
             E::InsideOut => unreachable!(
                 "the census reads its instances' own selections, never one read as given, \
@@ -7787,14 +7827,16 @@ impl TouchUnread {
             | Self::OffInterior
             | Self::NormalFault => Undecided::Touch(self),
             Self::Corrupt => Undecided::CorruptInstance,
+            Self::LoneLoop => Undecided::LoneLoop,
         }
     }
 
     /// **The backstop's sentence for a touch left unread**, as a
     /// [`Undecided::Touch`] finding renders it: the touch, why it was
     /// not read, and the recourse, each reason's own. A reason the
-    /// backstop never waits on as a touch, a corrupt body
-    /// ([`Self::undecided`]), renders as [`Undecided::CorruptInstance`].
+    /// backstop never waits on as a touch, a corrupt body or a lone-vertex
+    /// loop ([`Self::undecided`]), renders as that reason's
+    /// [`Undecided::CorruptInstance`] or [`Undecided::LoneLoop`].
     fn backstop_sentence(self) -> &'static str {
         match self {
             Self::InBand => concat!(
@@ -7854,6 +7896,7 @@ impl TouchUnread {
                 geom_core::kernel_defect_ending!()
             ),
             Self::Corrupt => Undecided::CorruptInstance.what(),
+            Self::LoneLoop => Undecided::LoneLoop.what(),
         }
     }
 
@@ -7932,6 +7975,11 @@ impl TouchUnread {
             ),
             Self::Corrupt => concat!(
                 "the part's topology there could not be walked. ",
+                geom_core::kernel_or_file_defect_ending!()
+            ),
+            Self::LoneLoop => concat!(
+                "a face of the part there has a loop that is a lone vertex, which the check \
+                 does not read. ",
                 geom_core::kernel_or_file_defect_ending!()
             ),
         }
@@ -8540,14 +8588,12 @@ impl<T: Decide> FaceSector<T> {
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
         // A face that does not resolve, or a loop that does not walk, is
-        // a defect (tier 1 admits none); a face that resolves off a plane
-        // is curved.
+        // a defect (tier 1 admits none); a lone-vertex loop is no ring of
+        // the polygon; a face that resolves off a plane is curved.
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
-        if !fg.walked {
-            return Err(TouchUnread::Corrupt);
-        }
+        fg.walked?;
         // A planar face at rest has an outward normal: none is a defect.
         let outward = crate::face_normal::face_outward_normal(body, f)
             .ok_or(TouchUnread::Corrupt)?
@@ -8806,7 +8852,8 @@ impl<T: Decide> Link<T> {
 /// is held at (a horn where a cusp corner is one,
 /// [`crate::link::FaceSector::tangent`]), then one per pass along
 /// an edge it is held inside whose ends are no such corner, and where
-/// neither holds it, its whole tangent plane.
+/// neither holds it, its whole tangent plane. A lone-vertex loop at a
+/// corner held is [`TouchUnread::LoneLoop`].
 fn tangent_sectors<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -8822,9 +8869,21 @@ fn tangent_sectors<T: Decide>(
         .cloned()
         .ok_or(TouchUnread::Corrupt)?;
     let corner = |v: VertexKey| holds.contains(&Held::Corner(v));
+    // A lone-vertex loop has no sector to give but at a corner held.
+    let mut cycles = Vec::new();
+    for read in body.unchecked_face_boundary(face) {
+        match read.map_err(|_| TouchUnread::Corrupt)? {
+            crate::live::UncheckedLoop::Cycle(cycle) => cycles.push(cycle),
+            crate::live::UncheckedLoop::Lone(lone) => {
+                if corner(lone) {
+                    return Err(TouchUnread::LoneLoop);
+                }
+            }
+        }
+    }
     let mut out = Vec::new();
-    for cycle in body.unchecked_face_cycles(face) {
-        for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+    for cycle in &cycles {
+        for &he in cycle {
             let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
             if !corner(half.start) {
                 continue;
@@ -8869,8 +8928,8 @@ fn tangent_sectors<T: Decide>(
             .map_err(|_| TouchUnread::Unreadable)
     };
     let held_edge = |e: EdgeKey| holds.contains(&Held::Edge(e));
-    for cycle in body.unchecked_face_cycles(face) {
-        for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+    for cycle in &cycles {
+        for &he in cycle {
             let half = body.get_half_edge(he).ok_or(TouchUnread::Corrupt)?;
             let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
             if !held_edge(half.edge) || corner(half.start) || corner(end) {
@@ -9094,8 +9153,18 @@ impl<T: Decide> Link<T> {
             // for a cone's seam through its apex (a loop `[e, circle, e⁻¹]`):
             // there the lever stays under `ρ/2`, short of the apex.
             let mut clear: Option<T> = None;
-            for cycle in body.unchecked_face_cycles(face.record()) {
-                for other in cycle.map_err(|_| TouchUnread::Corrupt)? {
+            for read in body.unchecked_face_boundary(face.record()) {
+                let cycle = match read.map_err(|_| TouchUnread::Corrupt)? {
+                    crate::live::UncheckedLoop::Cycle(cycle) => cycle,
+                    // A lone vertex is a point of the boundary the
+                    // clearance meets none of.
+                    crate::live::UncheckedLoop::Lone(vertex) => {
+                        let c = (crate::link::position(body, vertex)? - p).norm();
+                        clear = Some(clear.map_or(c, |r| r.min(c)));
+                        continue;
+                    }
+                };
+                for other in cycle {
                     let half = body.get_half_edge(other).ok_or(TouchUnread::Corrupt)?;
                     if half.edge != e {
                         let c = crate::link::clearance(body, other, p)?;
@@ -9157,9 +9226,16 @@ fn round_face<T: Decide>(
         return Ok(None);
     };
     let mut reach = round.radius() * T::from_f64(2.0);
-    for cycle in body.unchecked_face_cycles(face.record()) {
-        for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
-            reach = reach.min(crate::link::clearance(body, he, p)?);
+    for read in body.unchecked_face_boundary(face.record()) {
+        match read.map_err(|_| TouchUnread::Corrupt)? {
+            crate::live::UncheckedLoop::Cycle(cycle) => {
+                for he in cycle {
+                    reach = reach.min(crate::link::clearance(body, he, p)?);
+                }
+            }
+            crate::live::UncheckedLoop::Lone(vertex) => {
+                reach = reach.min((crate::link::position(body, vertex)? - p).norm());
+            }
         }
     }
     Ok(Some((round, reach)))
@@ -9501,14 +9577,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         let Some(face) = body.get_face(f) else {
             return out;
         };
-        for cycle in body.unchecked_face_cycles(face).filter_map(Result::ok) {
-            for he in cycle {
-                if let Some(hd) = body.half_edges.get(he)
-                    && let Some(v) = body.vertices.get(hd.start)
-                    && let Some(p) = body.points.get(v.point)
-                {
-                    out.push(*p);
-                }
+        for v in body.unchecked_face_vertices(face) {
+            if let Some(p) = body.vertices.get(v).and_then(|v| body.points.get(v.point)) {
+                out.push(*p);
             }
         }
         out
@@ -9525,8 +9596,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         let Some(face) = body.get_face(f) else {
             return false;
         };
-        for cycle in body.unchecked_face_cycles(face) {
-            let Ok(cycle) = cycle else {
+        for read in body.unchecked_face_boundary(face) {
+            // A lone vertex is no ring of the polygon the exact sweeps
+            // read, as snapshot does not admit it.
+            let Ok(crate::live::UncheckedLoop::Cycle(cycle)) = read else {
                 return false;
             };
             for he in cycle {
@@ -9560,6 +9633,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         /// Planar AND bounded entirely by line edges, so the exact
         /// sweeps hold this face's whole boundary.
         line_bounded: bool,
+        /// Planar and holding a lone-vertex loop, which the exact
+        /// sweeps read no ring of: the reason a pair of planar faces
+        /// leaves them.
+        lone: bool,
     }
     let mut reaches: Vec<ProximityFace<T>> = Vec::new();
     let planar_keys: Vec<FaceKey> = geo.faces.iter().map(|f| f.key).collect();
@@ -9628,6 +9705,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             verts,
             planar,
             line_bounded: planar && line_bounded(f),
+            lone: planar
+                && body.get_face(f).is_some_and(|face| {
+                    body.unchecked_face_boundary(face)
+                        .any(|read| matches!(read, Ok(crate::live::UncheckedLoop::Lone(_))))
+                }),
         });
     }
     // The vf-record deferral for the curved × planar arm (F5): a
@@ -9792,10 +9874,15 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         && b.planar
                         && in_plane::apart_in_plane(body, a.face, b.face, &proposed, band))
                 {
+                    let why = if a.planar && b.planar && (a.lone || b.lone) {
+                        Undecided::LoneLoop
+                    } else {
+                        Undecided::CurvedWithinReach
+                    };
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
                         b: EntityId::Face(b.face),
-                        what: Undecided::CurvedWithinReach.what(),
+                        what: why.what(),
                         reason: Undecidable::MayOverlap,
                     });
                 }
@@ -12161,14 +12248,22 @@ pub fn census_uncleared_solids<T: Real>(
     }
 }
 
-/// **The solid a cell of `body` belongs to**: a face's, or an edge's or
-/// a vertex's through a half-edge of it; `None` for a lone vertex.
+/// **The solid a cell of `body` belongs to**: a face's, an edge's or a
+/// vertex's through a half-edge of it, and a lone vertex's through the
+/// face its one loop bounds; `None` where that read misses.
 #[must_use]
 pub fn census_cell_solid<T: Real>(body: &Body<T>, cell: crate::Cell) -> Option<crate::SolidKey> {
     let he = match cell {
         crate::Cell::Face(f) => return body.solid_of_face(f),
         crate::Cell::Edge(e) => body.get_edge(e)?.he_plus,
-        crate::Cell::Vertex(v) => body.get_vertex(v)?.emanating?,
+        crate::Cell::Vertex(v) => match body.get_vertex(v)?.emanating {
+            Some(he) => he,
+            // A lone vertex: the solid of the face its one loop bounds.
+            None => {
+                let lone = body.empty_at_besides(v, &[])?;
+                return body.solid_of_face(body.get_loop(lone)?.face);
+            }
+        },
     };
     body.solid_of_face(body.face_of_half_edge(he)?)
 }
@@ -13150,13 +13245,8 @@ mod tests {
             .faces()
             .find(|&(f, _)| {
                 let face = body.get_face(f).unwrap();
-                body.unchecked_face_cycles(face)
-                    .filter_map(Result::ok)
-                    .flatten()
-                    .all(|he| {
-                        let v = body.half_edges.get(he).unwrap().start;
-                        body.points[body.vertices[v].point].x.abs() < 1e-12
-                    })
+                body.unchecked_face_vertices(face)
+                    .all(|v| body.points[body.vertices[v].point].x.abs() < 1e-12)
             })
             .map(|(f, _)| f)
             .unwrap();
@@ -22130,6 +22220,54 @@ mod lone_vertex_rows {
 
     use crate::test_support_fixtures::box_with_a_lone_ring;
 
+    /// **A part touching a lone vertex is refused under the lone loop's
+    /// name, not as corruption or a curved face**: a cube stood on its
+    /// corner at the lone vertex of a box's one-vertex ring, read through
+    /// the whole census. Every undecided pair names the lone loop. Red
+    /// where the lone vertex's solid did not resolve
+    /// ([`super::census_cell_solid`]), which read "one part's topology
+    /// could not be walked", and where the planar face pair read "a
+    /// curved face of one is within reach".
+    #[test]
+    fn a_part_touching_a_lone_vertex_is_refused_as_a_lone_loop() {
+        let tol = Tol::witness();
+        let (mut body, _, _) = box_with_a_lone_ring(tol);
+        let band = geom_core::Band::linear(tol).unwrap();
+        let axis = geom_core::UnitVec3::new(
+            geom_core::Vec3::new(1.0, -1.0, 0.0) * core::f64::consts::FRAC_1_SQRT_2,
+            "a tipping axis",
+            band,
+        )
+        .unwrap();
+        let tip = geom_core::RigidMotion::rotation_then_translation(
+            axis,
+            (1.0f64 / 3.0f64.sqrt()).acos(),
+            geom_core::Vec3::new(0.5, 0.5, 1.0),
+        )
+        .unwrap();
+        let cube = crate::transform_rigid(
+            &crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+            &tip,
+            tol,
+        )
+        .unwrap();
+        crate::graft_disjoint_all_keyed(&mut body, &cube).unwrap();
+        let errors =
+            super::census_and_certify(&body, &crate::ContactRecords::default(), band, tol, None);
+        let lone = super::Undecided::LoneLoop.what();
+        let undecided: Vec<&str> = errors
+            .iter()
+            .filter_map(|e| match e {
+                crate::ValidationError::CensusUndecidable { what, .. } => Some(*what),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !undecided.is_empty() && undecided.iter().all(|&what| what == lone),
+            "every undecided pair names the lone loop: {errors:#?}"
+        );
+    }
+
     /// **A face's boundary holds its lone vertex**: the snapshot's
     /// planar face, its `vertex_faces` incidence and [`super::face_vertices`]
     /// each name the vertex of a one-vertex ring on a box's top face. Red
@@ -22152,6 +22290,61 @@ mod lone_vertex_rows {
         assert!(
             super::face_vertices(&body, top).contains(&lone),
             "face_vertices holds it"
+        );
+    }
+
+    /// **A lone-vertex loop is skipped away from the point and refused at
+    /// it**, under its own name: on a box's top face with a one-vertex
+    /// ring, a square corner reads its cone and its tangent sector, and
+    /// the ring's vertex reads [`super::TouchUnread::LoneLoop`] (and no
+    /// cone); the polygon reading of the face is refused the same way.
+    /// Red where the ring read as an unwalkable loop.
+    ///
+    /// Called directly: no production path reaches the at-point arms.
+    /// `gather` mints no `Held::Corner` for a lone vertex, and `contfp`
+    /// refuses a face with a lone loop (`ContainError::EmptyLoop`) before
+    /// any `OnVertex` reaches [`super::face_cone`]. The whole census on
+    /// such a body is
+    /// [`a_part_touching_a_lone_vertex_is_refused_as_a_lone_loop`]'s row.
+    #[test]
+    fn a_lone_loop_is_skipped_off_the_point_and_refused_at_it() {
+        use super::FaceContainment::OnVertex;
+        use super::{Held, TouchUnread, Unread};
+        let (body, top, lone) = box_with_a_lone_ring(Tol::witness());
+        let band = geom_core::Band::linear(Tol::witness()).expect("a band");
+        let geo = super::snapshot(&body);
+        let at = |v| geo.vmap.get(&v).copied().expect("a vertex of the snapshot");
+        let corner = body
+            .unchecked_face_vertices(body.get_face(top).expect("the top face"))
+            .find(|&v| v != lone)
+            .expect("a square corner of the top face");
+        assert!(
+            super::face_cone(&body, &geo, top, OnVertex(corner), at(corner), band).is_ok(),
+            "a square corner's cone reads past the ring"
+        );
+        assert!(
+            matches!(
+                super::face_cone(&body, &geo, top, OnVertex(lone), at(lone), band),
+                Err(Unread::Unbuilt)
+            ),
+            "the ring's vertex builds no cone"
+        );
+        let sectors = |v, p| super::tangent_sectors(&body, &geo, top, p, &[Held::Corner(v)], band);
+        assert!(
+            sectors(corner, at(corner)).is_ok_and(|s| !s.is_empty()),
+            "a square corner's tangent sector reads past the ring"
+        );
+        assert_eq!(
+            sectors(lone, at(lone)).err(),
+            Some(TouchUnread::LoneLoop),
+            "the ring's vertex refuses as a lone loop"
+        );
+        assert_eq!(
+            super::planar_face(&geo, top)
+                .expect("the top face is planar")
+                .walked,
+            Err(TouchUnread::LoneLoop),
+            "the face's polygon reading refuses as a lone loop"
         );
     }
 }

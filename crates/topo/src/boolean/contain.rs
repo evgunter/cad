@@ -26,7 +26,7 @@ use crate::splitting::containment::{
     BoundaryRows, ConicRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
 };
 use crate::splitting::pieced_arc::ArcRows;
-use crate::splitting::{Escalation, LoopDecision, PointInLoopError, Uncrossable};
+use crate::splitting::{Escalation, LoopDecision, Uncrossable};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -243,10 +243,11 @@ pub enum ContainError {
     /// The face the caller passed does not resolve in this body.
     StaleFace(FaceKey),
     /// A loop of the face is a lone vertex: it bounds no region a
-    /// point could be placed against.
+    /// point could be placed against. Its standing is the crate's one
+    /// lone-loop standing (`live::LONE_LOOP_REFUSAL`).
     EmptyLoop(LoopKey),
     /// The in-plane walk refused a loop
-    /// ([`PointInLoopError::CorruptLoop`], carried).
+    /// ([`PointInLoopError::CorruptLoop`](crate::splitting::PointInLoopError::CorruptLoop), carried).
     LoopUnreadable(LoopKey),
     /// The walk could not read a loop at this point: an edge of it it
     /// could not cross stood in the way of every ray.
@@ -277,9 +278,8 @@ impl ContainError {
         match self {
             Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
             Self::RayExhausted => Ok(Refusal::InBand),
-            Self::EmptyLoop(_) | Self::LoopUnreadable(_) | Self::Uncrossable(_) => {
-                Ok(Refusal::Limit)
-            }
+            Self::EmptyLoop(_) => Ok(crate::live::LONE_LOOP_REFUSAL),
+            Self::LoopUnreadable(_) | Self::Uncrossable(_) => Ok(Refusal::Limit),
             Self::Curved(e) => e.refusal(),
             Self::StaleFace(_) | Self::ArcEndClearOfCorners(_) => Err(Aborts),
         }
@@ -347,29 +347,6 @@ impl core::fmt::Display for ArcEndGaps {
                 f,
                 "each end lies within ±{zero:e} of one corner, a parting this K cannot resolve"
             ),
-        }
-    }
-}
-
-impl From<PointInLoopError> for ContainError {
-    fn from(e: PointInLoopError) -> Self {
-        match e {
-            PointInLoopError::Escalated {
-                decision,
-                escalation,
-                diag,
-                ..
-            } => Self::Escalated {
-                decision: Some(decision.into()),
-                escalation,
-                diag,
-            },
-            PointInLoopError::RayExhausted { .. } => Self::RayExhausted,
-            PointInLoopError::CorruptLoop { r#loop } => Self::LoopUnreadable(r#loop),
-            PointInLoopError::Uncrossable(u) => Self::Uncrossable(u),
-            PointInLoopError::OffPlane(_) => {
-                unreachable!("contfp reads loops through carrier_loop, which certifies no plane")
-            }
         }
     }
 }
@@ -1442,7 +1419,7 @@ mod tests {
                 "{row}: the refusal renders its payload and the one ending"
             );
             if let Some(ContainDecision::Loop(decision)) = decision {
-                let walk = PointInLoopError::Escalated {
+                let walk = crate::splitting::PointInLoopError::Escalated {
                     r#loop: LoopKey::default(),
                     decision,
                     escalation,

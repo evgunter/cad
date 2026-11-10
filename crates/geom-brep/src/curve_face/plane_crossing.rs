@@ -4,7 +4,8 @@
 //! conic's are the roots of the plane's residual along it, read over the
 //! span; a spiric or a spline has no closed form here.
 
-use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
+use geom_core::NonzeroSign;
+use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 

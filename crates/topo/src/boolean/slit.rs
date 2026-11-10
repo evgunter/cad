@@ -2169,8 +2169,8 @@ fn coplanar_wall_inside<T: Decide>(
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?
     {
-        geom_core::k_stats::NonzeroSign::Negative => Ok(false),
-        geom_core::k_stats::NonzeroSign::Positive => Err(refused(EdgeInFaceGap::Tangent)),
+        geom_core::NonzeroSign::Negative => Ok(false),
+        geom_core::NonzeroSign::Positive => Err(refused(EdgeInFaceGap::Tangent)),
     }
 }
 
