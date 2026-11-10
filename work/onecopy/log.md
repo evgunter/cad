@@ -1533,3 +1533,4 @@
 - 04:25Z turn-place probe: span_readings hole real (box past the stop end read decided outside). Ruled (A): Period::span_margins as the one copy-rule door for Span::ends_place and span_readings, meters stay per site with reasons. 6708 gate green, in review.
 - 04:28Z PR 6715 roster-reach (088e736a; coverage row two-way ratchet, geom-brep roster, references resolved 67→0) → FULL review. Expect a textual conflict with 6709 on raw-sign-within.counts and its row. [ev] 6702 CI green after the renumber.
 - 04:33Z Merged 6708 doc-gate-clean (MERGE review; merged main → dd13c0f8: workspace rustdoc pass exit 0, check+gates clean). Style S2 (no selftest for --keep-going) left.
+- 04:38Z 6715 FULL: FIX (M1 tests/ unread; holds match any literal → only decide-shaped spellings; UNDECIDED-NAME needs its reverse ratchet; a production refusal and a hand-built Decided papered over → rows/homes; or-patterns) → roster lane before roster-rest.
