@@ -155,7 +155,8 @@ impl Arc {
     /// parameter's direction, one segment per third of a turn or less.
     fn net(self) -> NurbsCurve3<f64> {
         let (a, b) = self.phi;
-        let segments = ((b - a).abs() / (TAU / 3.0)).ceil().max(1.0);
+        #[allow(clippy::cast_precision_loss)]
+        let segments = ((b - a).abs() / (TAU / 3.0)).ceil().max(1.0).max(REV6805_MIN_SEGS.with(std::cell::Cell::get) as f64);
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let n = segments as usize;
         let half = (b - a) / (2.0 * segments);
@@ -315,7 +316,9 @@ fn sphere_face(
                 band,
                 Some(crate::FittedLane::<f64>::certified()),
             )
-            .unwrap()
+            .map_err(|_| PropsError::QuadratureUnsupported {
+                what: "rev6805: the fixture's image certifies no envelope",
+            })?
             .certificate()
             .envelope
                 + e.env.unwrap_or(0.0);
@@ -1112,4 +1115,77 @@ fn a_rim_standing_off_its_circle_is_paid_at_its_length() {
         ball.cap(FRAC_PI_2 - level - delta),
         about,
     );
+}
+
+thread_local! {
+    /// Review probe (PR 6805): the fewest segments an arc's net takes.
+    static REV6805_MIN_SEGS: std::cell::Cell<usize> = const { std::cell::Cell::new(1) };
+}
+
+/// Review probes for PR 6805: sphere chords of many spans (one piece a
+/// span at round 0), near and through a pole, at round 0 and to target.
+mod rev6805_probes {
+    use super::*;
+
+    fn at_round(ball: Ball, loops: &[Vec<SphereEdge>], about: Point3<f64>, name: Name, round: usize)
+        -> Result<FaceCutBounds, PropsError> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        sphere_face(ball, true, loops, about, name).and_then(|f| {
+            rotational_cut_face_rounds::<f64>(&f, band, RoundWindow::at(round), &mut to_target(1e6))
+        }).map(|r| r.bounds)
+    }
+
+    #[test]
+    fn rev6805_many_span_sphere_chords_hold_near_the_pole() {
+        let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+        let about = Point3::new(0.1, 0.5, -0.2);
+        let theta = 0.4;
+        let (mut held, mut refused) = (0, 0);
+        for segs in [1, 16, 24, 64] {
+            REV6805_MIN_SEGS.with(|c| c.set(segs));
+            for miss in [0.3, 0.02, 1e-3, 1e-5, 1e-7, -1e-5, -1e-3] {
+                let at = (0.7, FRAC_PI_2 - theta - miss);
+                for (inside, area) in [(true, ball.cap(theta)), (false, ball.sphere_area() - ball.cap(theta))] {
+                    let loops = [vec![tilted(ball, at, theta, inside)]];
+                    let (flux, area) = sphere_truth(ball, true, &loops, area, about);
+                    for name in [Name::Own, Name::Twin] {
+                        for round in 0..3 {
+                            let tag = format!("segs {segs} miss {miss} inside {inside} twin {} round {round}", name.twin());
+                            match at_round(ball, &loops, about, name, round) {
+                                Ok(got) => {
+                                    println!("{tag}: flux width {:.3e}", got.flux.width());
+                                    encloses(got.flux, flux, &format!("{tag}: flux"));
+                                    encloses(got.area, area, &format!("{tag}: area"));
+                                    held += 1;
+                                }
+                                Err(e) => { println!("{tag}: refused {e:?}"); refused += 1; }
+                            }
+                        }
+                    }
+                    let ok = holds_or_refuses(&format!("segs {segs} miss {miss} inside {inside} to target"), ball, true, &loops, if inside { ball.cap(theta) } else { ball.sphere_area() - ball.cap(theta) }, about);
+                    println!("segs {segs} miss {miss} inside {inside} to target: held {ok}");
+                }
+            }
+        }
+        REV6805_MIN_SEGS.with(|c| c.set(1));
+        println!("held {held}, refused {refused}");
+        assert!(held > 0);
+    }
+}
+
+/// Review probe (PR 6805), narrow: the exact disc circle missing the pole
+/// by `1e-3`, on a 16-span net (one piece a span at round 0). Main
+/// measures both faces to target; the head refuses at round 0 (a refused
+/// piece near the pole is a terminal non-finite enclosure, not a refine).
+#[test]
+fn rev6805_a_16_span_disc_by_the_pole_measures_as_on_main() {
+    let ball = Ball::tilted(Point3::new(0.4, -0.2, 0.3), 0.7);
+    let about = Point3::new(0.1, 0.5, -0.2);
+    let theta = 0.4;
+    let at = (0.7, FRAC_PI_2 - theta - 1e-3);
+    REV6805_MIN_SEGS.with(|c| c.set(16));
+    let disc = holds_or_refuses("disc", ball, true, &[vec![tilted(ball, at, theta, true)]], ball.cap(theta), about);
+    let rest = holds_or_refuses("rest", ball, true, &[vec![tilted(ball, at, theta, false)]], ball.sphere_area() - ball.cap(theta), about);
+    REV6805_MIN_SEGS.with(|c| c.set(1));
+    assert!(disc && rest, "disc held {disc}, its complement held {rest}");
 }

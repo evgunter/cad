@@ -419,3 +419,183 @@ fn projected_integrals_hold_high_precision_truths() {
         }
     }
 }
+
+/// Review probes for PR 6805 (`span_pieces`): containment at a coarse
+/// round 0, against truths independent of the lane.
+mod rev6805_probes {
+    use super::*;
+
+    /// One round of `face` exactly, taken whatever its width.
+    fn at_round(face: &RotationalFaceQ, round: usize) -> FaceCutBounds {
+        let band = Band::linear(Tol::witness()).unwrap();
+        rotational_cut_face_rounds::<f64>(face, band, RoundWindow::at(round), &mut to_target(1e6))
+            .unwrap_or_else(|e| panic!("round {round}: refused {e:?}"))
+            .bounds
+    }
+
+    /// The plane section on many spans, about a point OFF the chart (so
+    /// the chart term's rationals are read with a nonzero lever), at
+    /// rounds 0..3, against `r²·A + (o − about)·A⃗`, `A⃗` by Simpson on
+    /// the harmonic channels.
+    #[test]
+    fn rev6805_many_span_sections_hold_at_every_round_about_a_point_off_the_chart() {
+        let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+        let about = Point3::new(1.1, 0.5, -0.7);
+        let r = chart.r;
+        for &(label, (u0, u1), (c, k), v0) in &[
+            ("winding most of a turn", (-2.8, 2.8), (2.0, 0.9), 0.0),
+            ("across the seam", (-1.0, 0.8), (1.3, -0.5), 0.0),
+            ("past a quarter turn", (0.2, 2.9), (1.4, 0.7), -0.2),
+            ("steep and nearly a turn", (-3.1, 3.1), (0.0, 3.0), -3.0),
+        ] {
+            for segs in [16, 17, 23, 40, 64] {
+                let v_at = |u: f64| c + k * r * u.cos();
+                let top_harmonic = TrimEdgeQ {
+                    u: chan(0.0, 1.0),
+                    v: HarmChan {
+                        c0: pt(c),
+                        ca: pt(k * r),
+                        cb: Interval::zero(),
+                        cl: Interval::zero(),
+                    },
+                    t0: pt(u0),
+                    t1: pt(u1),
+                    forward: false,
+                    trig0: trig_at_limit(pt(u0)),
+                    trig1: Some(trig_at_limit(pt(u1))),
+                    env: Interval::zero(),
+                };
+                let edges = vec![
+                    Edge {
+                        harmonic: harmonic(chan(0.0, 1.0), chan(v0, 0.0), (u0, u1), true),
+                        swap: None,
+                    },
+                    Edge {
+                        harmonic: harmonic(chan(u1, 0.0), chan(0.0, 1.0), (v0, v_at(u1)), true),
+                        swap: None,
+                    },
+                    Edge {
+                        harmonic: top_harmonic,
+                        swap: Some(section_net(chart, (c, k), (u0, u1), segs)),
+                    },
+                    Edge {
+                        harmonic: harmonic(chan(u0, 0.0), chan(0.0, 1.0), (v0, v_at(u0)), false),
+                        swap: None,
+                    },
+                ];
+                let va = edges
+                    .iter()
+                    .fold(Vec3::zero(), |s, e| s + channel_vector_area(chart, &e.harmonic));
+                let a = (c - v0) * (u1 - u0) + k * r * (u1.sin() - u0.sin());
+                let flux = r * r * a + (chart.o - about).dot(va);
+                let (_, swapped) = face(chart, &[edges], va, about, Deck::AsMinted);
+                for round in 0..4 {
+                    let got = at_round(&swapped, round);
+                    let tag = format!("{label}, {segs} spans, round {round}");
+                    println!("{tag}: flux width {:.3e}", got.flux.width());
+                    encloses(got.flux, flux, &format!("{tag}: flux"));
+                    encloses(got.area, r * a.abs(), &format!("{tag}: area"));
+                }
+            }
+        }
+    }
+
+    /// The rule's integrals at ONE to three pieces a span, coarser than
+    /// any round reads, against the 40-digit truths.
+    #[allow(clippy::excessive_precision)]
+    #[test]
+    fn rev6805_one_piece_a_span_holds_the_high_precision_truths() {
+        let truths: [[f64; 3]; 3] = include!("framed_truths.in");
+        let radius = pt(0.8);
+        for ((label, knots, degree, control, w), truth) in chords().into_iter().zip(truths) {
+            let n = net(
+                knots,
+                degree,
+                control.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+                w,
+            );
+            let q = rational_edge_q_split(
+                &n.map_scalar(Interval::from_certified),
+                (pt(0.0), pt(1.0)),
+                true,
+                Point3::new(pt(0.0), pt(0.0), pt(0.0)),
+                &[0.37],
+            )
+            .unwrap();
+            let e = ProjectedEdgeQ {
+                carrier: FramedQ::Net(q),
+                v_off: pt(0.3),
+                v_sign: -1.0,
+                forward: true,
+                ends: [(pt(0.0), pt(0.0)); 2],
+                env: Interval::zero(),
+            };
+            for pieces in [1, 2, 3] {
+                let (got, _) = projected_integrals(&e, pieces, |at| {
+                    let [f, g] = cylinder_projected_forms(radius, &e, at, 0.25);
+                    let minus = -Interval::one();
+                    [f.mul(at.du).scale(minus), g.mul(at.du).scale(minus), at.du]
+                });
+                for k in 0..3 {
+                    println!("{label} @{pieces} [{k}]: width {:.3e}", got[k].width());
+                    encloses(got[k], truth[k], &format!("{label} @{pieces} [{k}]"));
+                }
+            }
+        }
+    }
+
+    /// A projected circle cut into many intervals, one of them most of
+    /// the arc (one piece over ~5.4 rad at round 0), and evenly into
+    /// many; and a line cut into many.
+    #[test]
+    fn rev6805_a_circle_and_line_of_many_cuts_hold_at_round_zero() {
+        let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+        let (us, vs) = ((-2.8, 2.8), (0.2, 1.1));
+        let uneven: Vec<f64> = (0..=16)
+            .map(|i| us.0 + 0.2 * f64::from(i) / 16.0)
+            .chain([us.1])
+            .collect();
+        let even: Vec<f64> = (0..=40)
+            .map(|i| us.0 + (us.1 - us.0) * f64::from(i) / 40.0)
+            .collect();
+        let (flux, area, _) = rectangle_truth(chart, us, vs, chart.o, 1.0);
+        for (label, cuts) in [("uneven", uneven), ("even", even)] {
+            let circle = rim_circle(
+                chart,
+                vs.0,
+                (0.0, 1.0),
+                cuts,
+                true,
+                [(us.0, vs.0), (us.1, vs.0)],
+            );
+            let mut loops: Vec<EdgeTermQ> = rectangle(chart, us, vs, &[])
+                .into_iter()
+                .map(|e| EdgeTermQ::Harmonic(e.harmonic))
+                .collect();
+            loops[0] = circle;
+            let face = RotationalFaceQ {
+                chart: RotationalChartQ::Cylinder { radius: pt(chart.r) },
+                chart_term: ChartTermQ {
+                    closed: Interval::zero(),
+                    lever: [Interval::zero(); 3],
+                    rationals: Vec::new(),
+                    ribbon: 0.0,
+                },
+                loops: vec![loops],
+            };
+            for round in 0..3 {
+                let band = Band::linear(Tol::witness()).unwrap();
+                match rotational_cut_face_rounds::<f64>(&face, band, RoundWindow::at(round), &mut to_target(1e6)) {
+                    Ok(got) => {
+                        let got = got.bounds;
+                        println!("circle {label} round {round}: flux width {:.3e}", got.flux.width());
+                        encloses(got.flux, flux, &format!("circle {label} r{round}: flux"));
+                        encloses(got.area, area, &format!("circle {label} r{round}: area"));
+                    }
+                    Err(e) => println!("circle {label} round {round}: REFUSED {e:?}"),
+                }
+            }
+            framed_holds(chart, us, vs, 0, face.loops[0][0].clone(), &format!("circle {label} to target"));
+        }
+    }
+}
