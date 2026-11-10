@@ -21,7 +21,7 @@ call `geom_core::k_stats` directly:
 - `transform.rs`'s `decide` and `split.rs`'s `decide_reported` bypass
   wrappers that already exist.
 - `decide_flagged` and `decide_invariant` are called directly in
-  `transform.rs`, `boolean/ops.rs` and `boolean/solid_contain.rs`.
+  `transform.rs`, `boolean/ops.rs` and `solid_contain.rs`.
   `validate.rs` has no wrapper for either.
 
 The full list is in #3686's PR body, under "Crate-funnel bypasses in

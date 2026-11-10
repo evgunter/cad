@@ -38,11 +38,11 @@ As of this filing, outside test modules (52 sites):
 
 - `crates/topo/src/ring_path.rs`, lines 166, 175, 183, 287, 299, 419, 973 and 1184
 - `crates/topo/src/census/depth_gap.rs`, lines 359, 360, 389, 416, 436, 456, 463 and 494
-- `crates/topo/src/boolean/torus_region.rs`, lines 262, 323, 593 and 947
+- `crates/topo/src/torus_region.rs`, lines 262, 323, 593 and 947
 - `crates/topo/src/boolean/fate.rs`, lines 266 and 1110
-- `crates/topo/src/boolean/rim_wedge.rs`, line 811
-- `crates/topo/src/boolean/sphere_region.rs`, lines 163, 173, 175, 274 and 341
-- `crates/topo/src/boolean/solid_contain.rs`, lines 2529, 2826 and 4412
+- `crates/topo/src/rim_wedge.rs`, line 811
+- `crates/topo/src/sphere_region.rs`, lines 163, 173, 175, 274 and 341
+- `crates/topo/src/solid_contain.rs`, lines 2529, 2826 and 4412
 - `crates/topo/src/boolean/node.rs`, line 108 (the `unit` closure)
 - `crates/topo/src/boolean/carrier_touch.rs`, lines 134 and 348
 - `crates/topo/src/boolean/section_cert.rs`, line 470
@@ -102,7 +102,7 @@ bounded (`Real::is_bounded`) and not underflowed
   traced.
 - `topo` `boolean::section_cert::search_kit`,
   `ring_path::cone_islands` and
-  `boolean::solid_contain::r1_generic_poses`: `v / n` after a local
+  `solid_contain::r1_generic_poses`: `v / n` after a local
   `n = v.norm()`.
 
 ## Ownership

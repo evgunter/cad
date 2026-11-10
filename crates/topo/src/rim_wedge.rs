@@ -315,7 +315,7 @@ impl From<Indeterminate> for RimUnread {
 /// `entity`'s convention), so at a locus point the direction a face
 /// leaves along is `n × t`, with `t` its boundary's direction there.
 /// For two faces whose outward normals are ALIGNED along the locus,
-/// which the caller has verified (the rim routing, [`super::route_rim`];
+/// which the caller has verified (the rim routing, the boolean's `route_rim`;
 /// a line is read only by the unit rows here, since a line tangency
 /// routes no junction), those departures
 /// are opposite exactly when the two boundaries run the locus in

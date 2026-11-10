@@ -10,7 +10,7 @@ cost: M
 
 
 
-Filed by `splice/spline-region-charge`, from its sweep for the class "an f64 cut of a control net (knot insertion, de Casteljau, a window restriction, out of homogeneous form) whose box, hull or offsets decide, with no charge for the cut's rounding". That PR charges the spline face placement's two instances (`topo/src/boolean/spline_region.rs`: the carrier floor and the trim's pieces), where a point on a sheet `1e5` out read off its carrier and a query on a trim curve was given a side at the 1e-12 row. **This row was read, not reproduced.** Confidence: medium. The `f64` entry was seen in tests and through generic
+Filed by `splice/spline-region-charge`, from its sweep for the class "an f64 cut of a control net (knot insertion, de Casteljau, a window restriction, out of homogeneous form) whose box, hull or offsets decide, with no charge for the cut's rounding". That PR charges the spline face placement's two instances (`topo/src/spline_region.rs`: the carrier floor and the trim's pieces), where a point on a sheet `1e5` out read off its carrier and a query on a trim curve was given a side at the 1e-12 row. **This row was read, not reproduced.** Confidence: medium. The `f64` entry was seen in tests and through generic
 signatures, and no production caller at `f64` was traced.
 
 ## What
@@ -29,5 +29,5 @@ enclosure only "at an enclosure scalar", and `f64` implements
 
 Either refuse `analytic_rung3` at an inexact scalar, or widen the lifted
 net by the restriction's rounding (a per-point bound, as
-`topo/src/boolean/spline_region.rs`'s `point_rounding` carries). First trace
+`topo/src/spline_region.rs`'s `point_rounding` carries). First trace
 whether any production path reaches it at `f64`.

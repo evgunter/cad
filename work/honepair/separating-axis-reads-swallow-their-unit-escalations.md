@@ -22,7 +22,7 @@ When the band leaves the length in band, the decision records an
 escalation on the open `k_stats` frame, and the read then answers
 `None` and the caller tries the other axes. The repo's convention for a
 read whose undecided outcome is overruled is `k_stats::detached` plus
-`splice_superseded` (`boolean/rim_wedge.rs`, `boolean/carrier_eq.rs`,
+`splice_superseded` (`rim_wedge.rs`, `boolean/carrier_eq.rs`,
 `boolean/contact_verify.rs`; PR 5140 does the same in `boxes.rs`
 `face_box_rule`).
 

@@ -10,13 +10,13 @@ cost: M
 
 ## What
 
-`topo::boolean::surface_group`'s `coaxial_margins`
-(`crates/topo/src/boolean/surface_group.rs:71`) returns the rim's tilt
+`topo::surface_group`'s `coaxial_margins`
+(`crates/topo/src/surface_group.rs:71`) returns the rim's tilt
 levered at its radius and its centre's off-axis distance as two
 margins, and every reader decides them one at a time and serves a rim
 when both are Zero: `WrapRims::holds` (`bool_wrap_rim`,
 `surface_group.rs:96`), `is_wall_rim` (`bool_wall_iso_rim`, with a
-radius row, `boolean/solid_contain.rs:1472`) and the sphere latitude
+radius row, `solid_contain.rs:1472`) and the sphere latitude
 rim (`bool_sphere_iso_rim`, `solid_contain.rs:3251`).
 
 Found by the sweep of the TANG unit that closed

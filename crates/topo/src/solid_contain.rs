@@ -139,7 +139,7 @@
 //!   the chart) is singular and no outward normal exists: the crossing
 //!   is offered sideless, and grazes where it counts.
 //! - **`bool_ruled_region_*`**: whether a cylinder or cone hit lies in
-//!   the face, its region read from its edges ([`super::ruled_region`]).
+//!   the face, its region read from its edges ([`crate::ruled_region`]).
 //! - **`bool_ray_cone_incidence`**: `d·n̂` at a cone hit, levered by the
 //!   local radius — the cone's analogue of the plane arm's `denom`.
 //! - **`bool_ray_torus_disc`**: the ray×torus QUARTIC's discriminant,
@@ -158,10 +158,10 @@
 //! - **`bool_ray_torus_incidence`**: `d·n̂` at a torus hit, levered by
 //!   the tube radius.
 //! - A torus face outside a closed group is read from its boundary
-//!   edges by [`super::torus_region`], under its own rows
+//!   edges by [`crate::torus_region`], under its own rows
 //!   (`bool_torus_region_*`, `bool_torus_frame_radius`).
 //! - A cylinder or cone face is read from its boundary edges by
-//!   [`super::ruled_region`], under its own rows (`bool_ruled_region_*`),
+//!   [`crate::ruled_region`], under its own rows (`bool_ruled_region_*`),
 //!   except a cylinder face held by the turn of its loops
 //!   ([`wall_crosses_by_turn`], under `_winding`).
 //!   One whose region cannot be read refuses only within a ball holding
@@ -300,10 +300,10 @@ pub enum PointInSolidError {
     /// `point_in_solid` is ray-parity against each face of the body
     /// being classified against, so it needs a ray×surface crossing
     /// count per kind: `Plane` (its in-face walk), `Cylinder` and `Cone`
-    /// (a face's region, [`super::ruled_region`]), `Sphere` (a closed
+    /// (a face's region, [`crate::ruled_region`]), `Sphere` (a closed
     /// group, or a trimmed face whose every edge is a certified circle
-    /// arc, [`super::sphere_region`]) and `Torus` (a closed group, or a
-    /// face's region, [`super::torus_region`]) have one; `Nurbs` and
+    /// arc, [`crate::sphere_region`]) and `Torus` (a closed group, or a
+    /// face's region, [`crate::torus_region`]) have one; `Nurbs` and
     /// `Approx` do not.
     ///
     /// **Why the kind still matters here.** The operand gate is
@@ -346,7 +346,7 @@ pub enum PointInSolidError {
     /// boundary edge that is not a circle arc.
     ///
     /// A trimmed sphere face is read from its boundary arcs
-    /// ([`super::sphere_region`]): every crossing of a great circle with
+    /// ([`crate::sphere_region`]): every crossing of a great circle with
     /// a circle arc is the root of a first harmonic. An edge on any other
     /// carrier — a spline, or the quartic a torus, a cylinder or a cone
     /// whose axis misses the sphere's centre leaves on it — has no such
@@ -356,7 +356,7 @@ pub enum PointInSolidError {
         face: FaceKey,
     },
     /// A `Cone` face whose region cannot be read
-    /// ([`super::ruled_region::ruled_face_region`]'s `None`): a boundary
+    /// ([`crate::ruled_region::ruled_face_region`]'s `None`): a boundary
     /// edge that is not a line, a circle or an ellipse — a spline, or the
     /// parabola or hyperbola a plane parallel to a generator leaves — or
     /// one with no certified carrier between two points.
@@ -375,7 +375,7 @@ pub enum PointInSolidError {
     /// two points.
     ///
     /// A torus face is read from its boundary edges
-    /// ([`super::torus_region`]): every edge a torus carries at rest (a
+    /// ([`crate::torus_region`]): every edge a torus carries at rest (a
     /// parallel, a meridian, a Villarceau circle, a spiric oval's arc)
     /// lies in a plane, and every crossing of a path with it is the root
     /// of a first harmonic. An edge in no plane has no such crossing here.
@@ -406,7 +406,7 @@ pub enum PointInSolidError {
     },
     /// A ray's hit on a `Cylinder` wall face could land inside it, and
     /// the face's region cannot be read
-    /// ([`super::ruled_region::ruled_face_region`]'s `None`): a boundary
+    /// ([`crate::ruled_region::ruled_face_region`]'s `None`): a boundary
     /// edge that is not a line, a circle or an ellipse, or one with no
     /// certified carrier between two points.
     ///
@@ -749,7 +749,7 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
     Plane(Point3<T>, Vec3<T>),
     /// A cylinder wall face: the ray/wall quadratic's roots, each tested
     /// against the face's own region, read from its boundary edges
-    /// ([`super::ruled_region`]). Per face, like [`FaceGeo::SpherePatch`].
+    /// ([`crate::ruled_region`]). Per face, like [`FaceGeo::SpherePatch`].
     Cylinder {
         /// The wall's axis line.
         axis: geom::Line<T>,
@@ -789,7 +789,7 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
     },
     /// A cone face: the ray/double-cone quadratic's roots, each tested
     /// against the face's own region, read from its boundary edges
-    /// ([`super::ruled_region`]), which places a root on the mirror nappe
+    /// ([`crate::ruled_region`]), which places a root on the mirror nappe
     /// outside it. Per face, like [`FaceGeo::SpherePatch`].
     Cone {
         /// The axis line from the apex, where the surface has no tangent
@@ -806,7 +806,7 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
     /// A TRIMMED sphere face: the same ray/sphere quadratic as
     /// [`FaceGeo::Sphere`], with each root tested against the face's own
     /// region, read from its boundary arcs
-    /// ([`super::sphere_region`]). Unlike the closed group this arm IS
+    /// ([`crate::sphere_region`]). Unlike the closed group this arm IS
     /// per face: a trimmed face carries its own region, so two faces of
     /// one sphere surface contribute different crossings and no
     /// representative stands in for the rest.
@@ -844,7 +844,7 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
     },
     /// A torus face outside a closed group: the same ray/torus quartic as
     /// [`FaceGeo::Torus`], with each root tested against the face's own
-    /// region, read from its boundary edges ([`super::torus_region`]).
+    /// region, read from its boundary edges ([`crate::torus_region`]).
     /// Like [`FaceGeo::SpherePatch`] this arm is per face.
     TorusPatch {
         /// The axis of revolution through the torus centre, its direction
@@ -860,7 +860,7 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         sense: bool,
     },
     /// A cone face whose region this door cannot read
-    /// ([`super::ruled_region::ruled_face_region`]'s `None`: an edge that
+    /// ([`crate::ruled_region::ruled_face_region`]'s `None`: an edge that
     /// is not a line, a circle or an ellipse). A query refuses only where
     /// that region could matter: `q` on the double cone within the
     /// face's apex ball, or a ray that may meet the cone ahead within it
@@ -903,7 +903,7 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
 /// the question of the GROUP rather than the face is what lets the
 /// whole-sphere class through without inventing a per-face chart trim.
 ///
-/// The scan is [`super::surface_group`]'s, with nothing exempt: it reads
+/// The scan is [`crate::surface_group`]'s, with nothing exempt: it reads
 /// arena keys and mate adjacency only, never a margin, so it has no
 /// in-band twin and does not move with ε. Rings on a sphere face make
 /// the answer `None` (a ringed sphere face is a trimmed one), and so
@@ -1193,13 +1193,13 @@ fn boundary_point<T: Decide>(
 
 /// **A torus face's closed group**: its representative when every edge
 /// of the group's boundary is shared by two faces of the same torus
-/// surface ([`super::surface_group`] with nothing exempt), so the union
+/// surface ([`crate::surface_group`] with nothing exempt), so the union
 /// has no boundary against the rest of the body and covers the whole
 /// (compact, connected) torus. Such a group has no boundary to read a
 /// region from, and its members must not each fold the same root: the
 /// arms act for the representative alone. This is the shape a full
 /// revolve of a closed profile mints. `None` for every other face, whose
-/// region its own boundary states ([`super::torus_region`]).
+/// region its own boundary states ([`crate::torus_region`]).
 ///
 /// # Errors
 ///
@@ -1277,7 +1277,7 @@ pub(crate) fn trim_window_short<T: Decide>(
 /// sphere arm of the face boxes bounds a face by
 /// (`boxes::sphere_window`). Point containment does not read it: a
 /// trimmed sphere face's region is read from its boundary arcs
-/// ([`super::sphere_region`]).
+/// ([`crate::sphere_region`]).
 ///
 /// # The class
 ///
@@ -1749,7 +1749,7 @@ fn latitude_extremes<T: Decide>(
 /// where `p` could land in it.
 ///
 /// **Not the census's read, on purpose.** A vertex-on-face record and a
-/// boolean's carry place a point through [`super::face_placement`],
+/// boolean's carry place a point through [`crate::contain::face_placement`],
 /// which decides the point on the plane first and walks the face's
 /// boundary before its interior, escalating a point in the band of a
 /// vertex. This test is the ray walk's: `p` is a ray's hit on the face's

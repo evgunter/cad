@@ -33,7 +33,7 @@ Orchestrator, 2026-11-09: **option A**.
   doubles every entry point (`climb_evidence`, `climb_agreeing`).
 - **C (rejected):** a text gate over `Answering::Any` sites. The parent row
   already shows such a grep misses a mode passed through a variable
-  (`boolean::rim_wedge::rims`).
+  (`rim_wedge::rims`).
 
 ## Sequencing
 

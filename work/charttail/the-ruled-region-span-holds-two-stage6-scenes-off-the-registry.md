@@ -27,7 +27,7 @@ because their unions are green at `f64` and escalate at `Interval` on
 likely shared cause is the open CHARTTAIL row
 `main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`
 (the same predicate, a whole-turn enclosure at `Interval`, since PR 5664
-added `boolean/ruled_region.rs`); not measured here.
+added `ruled_region.rs`); not measured here.
 
 **Done when** both unions evaluate at `Interval`, the two pins flip, and
 the two scenes move into `corpus::documents()`.

@@ -32,9 +32,17 @@ Found by step 2 of
   declared under an engine and outside it, so `engine-leaves` reads it as
   ambiguous. Its `ambiguous landings` line cites this row.
 
+- **`kind_word`**, a surface kind as a refusal sentence spells it, moved
+  to `contain.rs` with the component (PR 6775) only because one member
+  (`solid_contain`) reads it. Most of its readers are the Boolean's
+  (`boolean/mod.rs` reads it back through a private `use`), so `contain`
+  is a home of convenience: a vocabulary module for a refusal's words
+  is the right one, once there is one.
+
 ## The fix
 
 Move `is_conventional_vertex` to the crate root, beside the vertex
 readings that take a body. Rename one of the two `landings`, for what
 each reads (the record's cell landings, the path's boundary landings), so
-neither is a namesake. Both lines in the counts file fall with it.
+neither is a namesake. Both lines in the counts file fall with it. Give
+`kind_word` a home with the other refusal words.

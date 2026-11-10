@@ -39,7 +39,7 @@ mean. Each one needs its miss probability at `CAD_FUZZ_EFFORT=1` measured
 - `crates/sweep/tests/review_d8_consumer_differential.rs`, `the_ring_bezier_decomposition_still_breaks_where_the_structure_says`: `checked >= 20`.
 - `crates/sweep/tests/review_d8_consumer_differential.rs`, `make_compatible_still_lands_every_section_on_the_union_vector`: `groups >= 5`.
 - `crates/sweep/tests/review_verbs_rim_lever_probes.rs`, `lever_is_bounded_by_arc_length_and_never_collapses_on_a_closed_rim`: `checked > 0`.
-- `crates/topo/src/boolean/solid_contain.rs`, `a_wall_and_its_clockwise_twin_read_complementary_sides`: `read > 0`.
+- `crates/topo/src/solid_contain.rs`, `a_wall_and_its_clockwise_twin_read_complementary_sides`: `read > 0`.
 - `crates/topo/src/validate/gap_rows.rs`, `a_gap_read_apart_is_a_real_gap_on_points_far_from_the_origin`: `fired > 100`.
 - `crates/viewer/tests/review_gui0_r1.rs`, `the_camera_contract_survives_random_operation_walks`: `refusals > walks / 4`.
 - `crates/viewer/tests/review_gui2_r2.rs`, `cursors_across_the_pane_never_disagree_with_the_id_map`: `hits >= witness.len()`.

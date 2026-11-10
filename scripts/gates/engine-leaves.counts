@@ -53,7 +53,7 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             153  boolean/mod.rs
+crate-visible             152  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              29  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
@@ -83,16 +83,14 @@ crate-visible               3  splitting/spline_arc.rs
 
 names-boolean               2  attach.rs
 names-boolean               3  bound_side.rs
-names-boolean               3  cell_region.rs
-names-boolean             324  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
+names-boolean             314  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
-names-boolean               4  census/in_plane.rs
+names-boolean               1  census/in_plane.rs
 names-boolean               1  census/pierce_fuzz.rs
 names-boolean               1  census/point.rs
 names-boolean              40  census/self_touch.rs
 names-boolean               3  cert_m3r1_probes.rs
 names-boolean              16  chord_join.rs
-names-boolean               2  chord_join/island_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean              14  coincidence.rs
 names-boolean              10  construction.rs
 names-boolean               3  contact.rs
@@ -109,7 +107,7 @@ names-boolean               1  offset_axial.rs
 names-boolean               1  offset_derive.rs
 names-boolean               1  offset_general.rs
 names-boolean               1  offset_together.rs
-names-boolean               4  one_region.rs
+names-boolean               1  one_region.rs
 names-boolean              12  props.rs
 names-boolean              10  replace_face.rs
 names-boolean              13  review_d18.rs
@@ -124,7 +122,7 @@ names-boolean              28  test_support_holdings.rs
 names-boolean               7  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
 names-boolean              33  tier3_tests.rs
-names-boolean              23  validate.rs
+names-boolean              21  validate.rs
 
 names-splitting            10  cell_region.rs
 names-splitting            53  census.rs

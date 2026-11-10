@@ -31,7 +31,7 @@ Each of these spells its ending at one door inside itself, and a refusal's paylo
 - `crates/topo/src/validate.rs:3898`, `:3629`, `:3721`, `:4275`: `classify_pcurve`, `classify_offset_fit`, `classify_mass_props`, `classify_census_cause`, at rest.
 - `crates/topo/src/validate.rs:3094`: the at-rest constants `DEFECT`, and `TOLERANCE` beside it.
 - `crates/topo/src/merge_faces.rs:801`: `undescribed_ending`, at a build.
-- `crates/topo/src/boolean/contain.rs:173`: `ContainDecision::lever_ending`, at a build.
+- `crates/topo/src/contain.rs:173`: `ContainDecision::lever_ending`, at a build.
 - `crates/topo/src/shell.rs:798`, `:837` and others: `KERNEL_DEFECT_ENDING` written into `ShellError` / `AsShelled` arms, a build's culprit.
 - `crates/profile/src/{path,validate,structure}.rs`: the `Display`s of `PathError::Escalated`, `ProfileError::Escalated` and `StructureRefusalKind::Indeterminate` write the gate's ending at a build, `gate.kind().end(source)` and `source.lever_ending(..)` (`profile::Ending::end` calls `Indeterminate::ending`/`lever_ending`, both fixed to the build). `profile` depends on `geom-core` alone, so it has no `ReadAt` to take. Before ROUND's `the-path-doors-escalation-carries-its-gate`, the same endings were written through `validate::EscalationEnding` and `geom_core::lever_recourse`. That lane first named the accessor `Gate::ending()`, and this gate flagged the `.ending(` call. It is now `Gate::kind()`, which the gate does not read, and the composition is the one `profile` already had: a build's ending in the payload. (ROUND, 2026-11-06.)
 

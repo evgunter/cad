@@ -1,8 +1,8 @@
 //! **A trimmed sphere face's region, read from its boundary arcs** — the
 //! one reading both point doors take of a sphere face that is not closed
 //! on its own surface: the ray lane's hit test and boundary pre-pass
-//! ([`super::solid_contain`]) and the pierce arm's landing test
-//! ([`super::contain::curved_face_containment`]).
+//! ([`crate::solid_contain`]) and the pierce arm's landing test
+//! ([`crate::contain::curved_face_containment`]).
 //!
 //! # Method: the closest crossing along a great circle
 //!
@@ -906,7 +906,7 @@ mod tests {
             "the zone's region"
         );
         let (mut nulled, nulled_face) = sheet();
-        super::region::with_null_edge(&mut nulled, nulled_face);
+        crate::region::with_null_edge(&mut nulled, nulled_face);
         assert!(
             sphere_face_region(&nulled, nulled_face).unwrap().is_none(),
             "a null edge refuses"

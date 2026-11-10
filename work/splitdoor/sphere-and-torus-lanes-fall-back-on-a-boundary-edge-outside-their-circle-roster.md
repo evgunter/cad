@@ -17,18 +17,18 @@ fallback silently, or never reaches the lane.
 
 ## The sites
 
-- `crates/topo/src/boolean/solid_contain.rs` `sphere_chart_trim`: a
+- `crates/topo/src/solid_contain.rs` `sphere_chart_trim`: a
   boundary edge that is not a circle (`let geom::Curve3::Circle … else
   { return Ok(None) }`) takes the face out of the sphere-chart class;
   the caller's typed refusal stands.
-- `crates/topo/src/boolean/surface_group.rs` `unmated_boundary`: an
+- `crates/topo/src/surface_group.rs` `unmated_boundary`: an
   unmated edge that is not a circle reads `Ok(None)`. Whether that
   reaches the closed-group reading's own `Ok(None)` ("definitely NOT
   closed", per its doc) is not read here.
-- `crates/topo/src/boolean/torus_region.rs`: `torus_face_region` admits
+- `crates/topo/src/torus_region.rs`: `torus_face_region` admits
   boundary kinds `[Circle, Spiric]` only, and `circle_roots` reads a
   circle edge's crossings with a meridian leg's plane.
-- `crates/topo/src/boolean/sphere_region.rs`: `sphere_face_region`
+- `crates/topo/src/sphere_region.rs`: `sphere_face_region`
   admits circles only (`unreachable!("sphere_face_region admits circles
   only")` at each read past it).
 - `crates/topo/src/boolean/ops.rs` `sphere_pair_cut` / `pair_seam`:

@@ -74,7 +74,7 @@ its own.
 ## Frame holders found by the axis sweep (2026-11-09, `onecopy/line-placement`)
 
 The axis-line sweep found these holders. Each carries a full placement (a point, an axis and a seam), not just a line, so they were left for this stage's `Frame` rather than split into a `Line` plus a loose seam:
-- `topo`: `boolean/ruled_region.rs` `Ruled`, `boolean/torus_region.rs` `TorusFaceRegion`, `chord_join.rs` `WallChart`, `boolean/section_cert.rs` `Cone`, `ring_path.rs` `Oval`;
+- `topo`: `ruled_region.rs` `Ruled`, `torus_region.rs` `TorusFaceRegion`, `chord_join.rs` `WallChart`, `boolean/section_cert.rs` `Cone`, `ring_path.rs` `Oval`;
 - `geom-brep`: `pair_section/torus_arms.rs` `SphereMeridian`, `curve_face/circle_torus.rs` `roots_of`, `tangent.rs` `circle_span_bounds`;
 - `sweep`: `test_support.rs` `tube_frame`.
 
@@ -106,14 +106,14 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `sweep/src/revolve/surfaces.rs`: `revolved_strut_spec`
 - `sweep/src/revolve/turn.rs`: `sweep_turn`
 - `topo/src/boolean/conic_quadric/mod.rs`: `cone_roots` ×2, `quadric_ladder`, `through_the_apex`
-- `topo/src/boolean/contain.rs`: `curved_interior_placement` ×2
+- `topo/src/contain.rs`: `curved_interior_placement` ×2
 - `topo/src/boolean/join.rs`: `pt_germ_frame` ×2, `region_halves` ×5
 - `topo/src/boolean/ops.rs`: `pinched_at_cone_apex`
 - `topo/src/boolean/reduce.rs`: `conic_clearance`, `line_wall_roots_of` ×3, `requeue` ×6
 - `topo/src/boolean/section_cert.rs`: `cone_cylinder`, `cone_pair` ×3, `torus_pair`
 - `topo/src/boolean/section_cert/ruling.rs`: (closure), `assemble`
-- `topo/src/boolean/solid_contain.rs`: `face_geo_arms` ×4, `root_outward`, `sphere_chart_trim` ×2, `unread_refusal` ×9
-- `topo/src/boolean/surface_group.rs`: `wrap_rims`
+- `topo/src/solid_contain.rs`: `face_geo_arms` ×4, `root_outward`, `sphere_chart_trim` ×2, `unread_refusal` ×9
+- `topo/src/surface_group.rs`: `wrap_rims`
 - `topo/src/census/depth_gap.rs`: `across` (its `carrier_depth` ×2 left with main's BOXES redesign, which reads a carrier's site through `geom::cover`'s `Cover::about`)
 - `topo/src/face_normal.rs`: `face_outward_normal_at` ×2, `face_outward_normal_at_foot`
 - `topo/src/link.rs`: `Round::of` (the cylinder's axis, for `Round::cylinder`; `onecopy/line-holders`)

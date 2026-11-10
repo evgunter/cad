@@ -17,7 +17,7 @@ part to name). The unit made `geom::Circle { frame: Frame, radius }`
 the one circle and deleted the conic copies its row listed; these four
 carry the circle's fields and were outside that list:
 
-- `topo::boolean::rim_wedge::Rim` (`crates/topo/src/boolean/rim_wedge.rs`):
+- `topo::rim_wedge::Rim` (`crates/topo/src/rim_wedge.rs`):
   `{ center, axis, radius, u_ref }`, exactly `geom::Circle`'s fields, with
   its own angle reading (`locus_param`, `atan2` on the in-plane
   components, `Conic::angle_of`'s). About 87 uses.
@@ -29,7 +29,7 @@ carry the circle's fields and were outside that list:
   piece `{ centre, axis, radius, u_ref, span }` with its own `v_ref`,
   point and `param` (`on_span_branch` of its `atan2`); a `geom::Circle`
   and a span.
-- `topo::boolean::contain::LoopCircle` (`crates/topo/src/boolean/contain.rs`):
+- `topo::contain::LoopCircle` (`crates/topo/src/contain.rs`):
   `{ center, axis, radius }`, no seam; the reading of a loop's circle,
   perhaps legitimately its own (check 9 reads only the centre and the
   radius).

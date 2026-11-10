@@ -340,16 +340,16 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::boolean::{
-    ContactKind, ContactRecords, ContainError, FaceContainment, SolidContainment, contfp,
-};
+use crate::boolean::{ContactKind, ContactRecords};
 use crate::boxes::{edge_box, face_box, sweep_pad};
 use crate::chart_region::{ChartRegionError, RegionLane};
+use crate::contain::{ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::face_normal::NormalAbort;
 use crate::geometry::PointKey;
 use crate::live::proven;
 use crate::null::CurveGeom;
+use crate::solid_contain::SolidContainment;
 use crate::sweep_trace::SweepPairs;
 
 use crate::link::{
@@ -10956,7 +10956,7 @@ pub(crate) fn face_holds<T: Decide>(
     on_plane: &'static str,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    use crate::boolean::{CurvedPlacement, PlacementError};
+    use crate::contain::{CurvedPlacement, PlacementError};
     match crate::contain::face_placement(body, face, q, band, on_plane) {
         Ok(CurvedPlacement::OffCarrier) => Some(Some(FaceContainment::Out)),
         Ok(CurvedPlacement::Trim(at)) => Some(at),

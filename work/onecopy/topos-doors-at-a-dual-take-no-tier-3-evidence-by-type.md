@@ -15,7 +15,7 @@ Filed by `onecopy/dual-tier3` (`a-tier-3-premise-a-dual-operand-skips`), on the 
 **What that unit settled.** A dual evaluation now takes its build of record by type: `editor_core::evaluate_recorded` is a dual's one door, and it refuses every node the record refused (`NodeErrorKind::RecordRefused`). `evaluate` is bounded on `OwnRecord`, which no dual meets. So every dual operand the evaluation service hands topo is the same bits a certifying finish validated, and topo's readers that lean on a tier-3 premise cite one anchor: `topo::Replay`'s "A tier-3 premise at a dual".
 
 **What it left.** topo's own public doors at a dual take `Replay<Dual<_>>`, tier 2 alone, and nothing in the type says tier 3 ever read the body: the Boolean, the split, the blend operands and the shell. A caller of topo at a dual directly, with no record, can hand them a horn torus, an edge off its carrier or a ring with `R ≤ r`. There, the premise sites read wrong rather than refuse:
-- `boolean/torus_region.rs` and `boolean/ruled_region.rs` take an edge as a plane section unchecked;
+- `torus_region.rs` and `ruled_region.rs` take an edge as a plane section unchecked;
 - `solid_contain.rs` assumes the group's sense agreement and `R > r`;
 - `contain.rs` assumes a vertex is on its face's carrier;
 - `validate::corner_normal` folds a convention refusal into `ConeCornerUnread`.

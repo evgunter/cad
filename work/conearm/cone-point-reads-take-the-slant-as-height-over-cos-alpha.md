@@ -23,7 +23,7 @@ The point reads still spelled the second way, by name (lines as of
 
 - `crates/topo/src/chart.rs` `Chart::v_of` (`:200`, `:267`) and the
   generic `v_of` (`:370`);
-- `crates/topo/src/boolean/solid_contain.rs` the cone arm's slant window
+- `crates/topo/src/solid_contain.rs` the cone arm's slant window
   `cone_slant_window` (`:2166`) and the cone point test (`:2883`);
 - `crates/topo/src/replace_face.rs` the cone `v` windows (`:1088`,
   `:2230`, `:2250`, `:2264`);
