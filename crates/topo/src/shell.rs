@@ -3789,8 +3789,13 @@ mod cavity_torus_endings {
                 );
             }
             let said = cavity_refusal_said(&refusal);
+            let EngineRefusal::TorusNotRing { refusal: torus, .. } = &refusal else {
+                unreachable!("`wall` returns a torus refusal")
+            };
             assert!(
-                !said.contains("meets itself") && !said.contains("whether a wall"),
+                said.contains(torus.said("a torus's", None).as_str())
+                    && !said.contains("meets itself")
+                    && !said.contains("whether a wall"),
                 "{what}: said in the half's own words: {said}"
             );
         }

@@ -182,12 +182,14 @@ fn a_one_face_refusal_names_its_side() {
         "a free-form face, which no carrier kind makes injective second=FaceKey(null)",
         "the payload names the side"
     );
-    // A torus off its ring convention, built as the engine builds it:
-    // the convention read at `Interval` under the self-intersection
-    // engine's own rows (`topo::injective::by_kind`), so the margin is the
-    // enclosure the user reads. Decided outside the convention, it is said
-    // in the half's own words, never as a carrier that meets itself; in
-    // band, it is the half's escalation, never the definite miss.
+    // A torus off its ring convention, its refusal built by hand the way
+    // `topo::injective::by_kind` builds it: the convention read at
+    // `Interval` under `RingReader::SelfIntersection`'s rows, so the margin
+    // prints as an enclosure. That `by_kind` reads those rows is pinned on
+    // topo's side (`injective::by_kind_rows`), so this copy has a check at
+    // the other end. Decided outside the convention, it is said in the
+    // half's own words, never as a carrier that meets itself; in band, it
+    // is the half's escalation, never the definite miss.
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let torus = |major: f64, minor: f64| {
         let p = |x: f64| geom_core::Interval::from_bounds(x, x);

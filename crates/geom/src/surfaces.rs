@@ -519,7 +519,12 @@ pub fn ring_torus<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    ring_half(RingSites::CONVENTION.ring, major_radius, minor_radius, band)
+    ring_half(
+        RingReader::Convention.sites().ring,
+        major_radius,
+        minor_radius,
+        band,
+    )
 }
 
 /// The ring half's one spelling, `R − r` as a length, under `name`.
@@ -550,7 +555,7 @@ pub fn torus_tube<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    tube_half(RingSites::CONVENTION.tube, minor_radius, band)
+    tube_half(RingReader::Convention.sites().tube, minor_radius, band)
 }
 
 /// The tube half's one spelling, `r` as a length, under `name`.
@@ -615,10 +620,6 @@ pub struct RingSites {
 }
 
 impl RingSites {
-    /// The convention's own rows ([`torus_tube`], [`ring_torus`]): its
-    /// reader's ([`RingReader::Convention`]).
-    pub const CONVENTION: Self = RingReader::Convention.sites();
-
     /// The rows for the tube half (`r`) and the ring half (`R − r`).
     /// Private to this module: a reader names its rows at
     /// [`RingReader::sites`], and no code mints a bundle elsewhere, this
@@ -749,13 +750,18 @@ impl NotARing {
 
 impl<T: geom_core::Decide> RingTorus<T> {
     /// **Decides radii `(major_radius, minor_radius)` a ring** under the
-    /// convention's own rows ([`RingSites::CONVENTION`]).
+    /// convention's own rows ([`RingReader::Convention`]).
     ///
     /// # Errors
     ///
     /// As [`RingTorus::of_at`].
     pub fn of(major_radius: T, minor_radius: T, band: Band) -> Result<Self, NotARing> {
-        Self::of_at(major_radius, minor_radius, RingSites::CONVENTION, band)
+        Self::of_at(
+            major_radius,
+            minor_radius,
+            RingReader::Convention.sites(),
+            band,
+        )
     }
 
     /// **Decides radii `(major_radius, minor_radius)` a ring under a

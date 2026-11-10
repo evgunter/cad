@@ -4885,12 +4885,15 @@ mod by_kind_rows {
             }
             other => panic!("{major}: a torus not decided a ring: {other:?}"),
         };
+        let in_band = verdict(1.0 + 0.5 * (band.zero() + band.escalate()));
         assert!(
             matches!(
-                verdict(1.0 + 0.5 * (band.zero() + band.escalate())),
-                TorusVerdict::Undecided(_)
+                in_band,
+                TorusVerdict::Undecided(geom_core::Indeterminate { predicate, .. })
+                    if predicate == Some(geom::RingReader::SelfIntersection.sites().ring())
             ),
-            "a ring half in band escalates as its own margin"
+            "a ring half in band escalates as its own margin, under the engine's own row: \
+             {in_band:?}"
         );
         assert!(
             matches!(verdict(0.5), TorusVerdict::Refused(_)),

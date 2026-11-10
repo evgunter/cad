@@ -476,9 +476,6 @@ pub struct SpiricRegimeSites {
 }
 
 impl SpiricRegimeSites {
-    /// [`Curve3::spiric`]'s own rows: its reader's ([`SpiricReader::Mint`]).
-    pub const MINT: Self = SpiricReader::Mint.sites();
-
     /// The rows for the offset off zero (`off_axis`) and the two-oval
     /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
     /// Private to this module: a reader names its rows at
@@ -1374,7 +1371,7 @@ impl<T: Decide> Curve3<T> {
     ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
     /// - the regime, [`spiric_regime`] at no swing under
-    ///   [`SpiricRegimeSites::MINT`]: two ovals required;
+    ///   [`SpiricReader::Mint`]: two ovals required;
     ///   through the axis ⇒ [`SpiricInvalid::ThroughAxis`] (one kind per
     ///   configuration, most exact first: that oval is a `Circle`); at
     ///   or past the inner equator ⇒ [`SpiricInvalid::NotTwoOvals`].
@@ -1412,7 +1409,7 @@ impl<T: Decide> Curve3<T> {
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         let ring = crate::RingTorus::decided(major_radius, minor_radius);
-        match spiric_regime(ring, offset, T::zero(), SpiricRegimeSites::MINT, band) {
+        match spiric_regime(ring, offset, T::zero(), SpiricReader::Mint.sites(), band) {
             Ok(SpiricRegime::TwoOvals) => {}
             Ok(SpiricRegime::ThroughAxis) => return Err(SpiricInvalid::ThroughAxis),
             Ok(SpiricRegime::PastInnerEquator) => return Err(SpiricInvalid::NotTwoOvals),

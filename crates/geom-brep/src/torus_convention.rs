@@ -96,8 +96,9 @@ impl TorusConvention {
 
 /// **A torus refused at one half of its ring convention**, in band or
 /// decided: the half and its verdict, carried from the door that decides
-/// it to the one that renders it, whose `Display` ends in the half's one
-/// lever ([`TorusConvention::sized`]) read at a build.
+/// it to the one that renders it. Its `Display` is the payload alone, the
+/// half's clause or undecided read ([`Self::said`]); read at a door it
+/// ends in the half's one lever ([`Self::recourse`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TorusRefusal {
     /// The half that refused.
@@ -163,7 +164,7 @@ impl TorusRefusal {
         minor: T,
         band: Band,
     ) -> Result<geom::RingTorus<T>, Self> {
-        Self::require_at(major, minor, geom::RingSites::CONVENTION, band)
+        Self::require_at(major, minor, geom::RingReader::Convention.sites(), band)
     }
 
     /// [`Self::require`] under a reader's own funnel rows `sites`
