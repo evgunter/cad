@@ -443,7 +443,7 @@ fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
         "{what}: the enclosure is a claim: ±{}",
         wa + wb
     );
-    out.body
+    Body::clone(&out.body)
 }
 
 /// [`plate_row`] at `f64`, with membership near the rims.

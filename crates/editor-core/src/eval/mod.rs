@@ -45,7 +45,7 @@ pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
-pub use framed::Framed;
+pub use framed::{Framed, Held, ReadIn};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::DirectionRefusal;
 
@@ -73,7 +73,7 @@ use geom_core::Tol;
 /// per-node result map, with the run's epoch, the id of the document
 /// it is OF, its outcome, and the D4-acceptance recompute counters.
 #[derive(Debug)]
-pub struct Evaluation<T: Decide> {
+pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// This evaluation's identity token (spec D5) — the caller's
     /// stale-result discrimination hook.
     pub epoch: Epoch,
@@ -105,6 +105,9 @@ pub struct Evaluation<T: Decide> {
     /// The tolerance every predicate of this run decided at
     /// ([`Self::tolerance`]); crate-private for the same reason.
     pub(crate) tolerance: geom_core::Tolerance,
+    /// The options this run's value bits read beyond the document and
+    /// the tolerance ([`RunLane`]): what a dual bound to it compares.
+    pub(crate) lane: RunLane,
     /// **The run refused before building anything** ([`Self::refused_whole`]):
     /// every node carries one refusal the run raised up front — a
     /// tolerance conflict, a parameter box or a seed its scalar cannot
@@ -178,7 +181,7 @@ pub struct Evaluation<T: Decide> {
     resolver: Option<std::panic::AssertUnwindSafe<Arc<dyn crate::part::PartResolver>>>,
 }
 
-impl<T: Decide> Evaluation<T> {
+impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
     /// **Which version of the document this run read**: its content pin,
     /// when the run was asked for one ([`EvalOptions::pin`]), or the
     /// document's refusal to canonicalize; `None` for a run that was not
@@ -411,7 +414,7 @@ impl<T: Decide> Evaluation<T> {
     /// **A scalar variable's value in this run** (D10): at this run's
     /// scalar, each measured value under it the one its measure computed
     /// here, every other input the lane environment's
-    /// ([`measure::Observed`]). A variable no measure is under is that
+    /// ([`measure::observe`]). A variable no measure is under is that
     /// environment's reading of it.
     ///
     /// # Errors
@@ -667,7 +670,7 @@ impl core::error::Error for NodeStanding {}
 /// input read and the appearance pass. `absent` answers an id the map
 /// has no entry for, because only the caller knows whether that id is
 /// in the run's order.
-pub(crate) fn usable_in<T: Decide>(
+pub(crate) fn usable_in<T: topo::AtRestPolicy + Decide>(
     nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     node: RecipeNodeId,
     absent: impl FnOnce() -> NodeStanding,
@@ -717,7 +720,7 @@ pub enum EvalOutcome {
 
 /// One node's outcome (F2 verbatim, spec D2).
 #[derive(Debug)]
-pub enum NodeResult<T: Decide> {
+pub enum NodeResult<T: topo::AtRestPolicy + Decide> {
     /// The node evaluated to a value.
     Ok(NodeValue<T>),
     /// The node itself failed — the typed root cause.
@@ -733,7 +736,7 @@ pub enum NodeResult<T: Decide> {
     },
 }
 
-impl<T: Decide> NodeResult<T> {
+impl<T: topo::AtRestPolicy + Decide> NodeResult<T> {
     /// The successful value, if this result is `Ok`.
     pub fn value(&self) -> Option<&NodeValue<T>> {
         match self {
@@ -822,7 +825,7 @@ impl OutputNames {
 /// A successful node value (spec D2): the op-appropriate payload plus
 /// the reserved witness slot and the node's content key.
 #[derive(Debug, Clone)]
-pub struct NodeValue<T: Decide> {
+pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// What the node's op produced.
     pub payload: ValuePayload<T>,
     /// **The names each output carries** (NAMES N1, the scope), by
@@ -905,7 +908,7 @@ pub struct NodeValue<T: Decide> {
     pub naming_key: NamingKey,
 }
 
-impl<T: Decide> NodeValue<T> {
+impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     /// **The names output `port` carries**: the one indexer of
     /// [`NodeValue::outputs`], private to the evaluator. Everything
     /// outside it reads a table by the variable that holds its body
@@ -923,7 +926,7 @@ impl<T: Decide> NodeValue<T> {
     }
 }
 
-impl<T: Decide> NodeValue<T> {
+impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     /// **A value read for one pose and never kept**: an op's output with
     /// no log, no key and no space, which a placement's fold reads its
     /// own copy before placement through and drops.
@@ -988,6 +991,30 @@ impl NodeValue<f64> {
 }
 
 #[cfg(any(test, feature = "test-support"))]
+impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
+    /// **A refusal planted in this run's build of a part**: `node` of the
+    /// part `part` names refused, as a tier-3 refusal inside the part at
+    /// this scalar would leave it, so a dual bound to this run refuses it
+    /// inside that part ([`evaluate_recorded`]). `false` where the run
+    /// carries no row for the part at `tol`'s ε.
+    pub fn plant_part_refusal(
+        &mut self,
+        part: crate::DocRef,
+        tol: Tol,
+        node: RecipeNodeId,
+    ) -> bool {
+        self.parts.plant_refusal((part, tol.eps().to_bits()), node)
+    }
+
+    /// **This run, holding no build of the part `part` names**, as a run
+    /// that never entered it: a dual bound to it refuses every instance of
+    /// that part before the part is entered. `false` where it held none.
+    pub fn forget_part(&mut self, part: crate::DocRef, tol: Tol) -> bool {
+        self.parts.forget((part, tol.eps().to_bits()))
+    }
+}
+
+#[cfg(any(test, feature = "test-support"))]
 impl Evaluation<f64> {
     /// A completed evaluation of `document` at `tol`, holding `nodes` in
     /// `order`, each node's one output read through the variable
@@ -1008,6 +1035,7 @@ impl Evaluation<f64> {
             document,
             pin: None,
             tolerance: tolerance_of(tol),
+            lane: RunLane::default(),
             whole_refusal: false,
             prior_refused: None,
             recomputed: order.len(),
@@ -1052,7 +1080,7 @@ pub struct WitnessSlot {}
 /// "`Vec<Body<T>>`-shaped output (op-appropriate)", made typed per op
 /// family; spec D3 fixes each node's semantics).
 #[derive(Debug, Clone)]
-pub enum ValuePayload<T: Decide> {
+pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
     /// its naming anchor, and the radius expression each
@@ -1061,7 +1089,7 @@ pub enum ValuePayload<T: Decide> {
     /// A single body: every one-body op (extrude, revolve, the tubes,
     /// loft, sweep, blends, shell, union, assemble, instantiate) and a
     /// `Place` of one body — a placement over one shape has that shape's
-    /// shape, so a placement of a family read whole is
+    /// shape, so a placement of a family of bodies is
     /// [`Self::Instances`].
     Body(Framed<T>),
     /// A boolean's result: a body with its contact records, or the
@@ -1074,20 +1102,23 @@ pub enum ValuePayload<T: Decide> {
         /// Material on the opposite side.
         below: SplitSide<T>,
     },
-    /// **A family's members AS DATA** (D10 `[repetition]`): one body
-    /// per value of the family's indices, outermost index first, the
-    /// value a family's output holds read whole.
+    /// **A family of bodies** (D10 `[repetition]`): one place per value
+    /// of the family's indices, outermost index first, each the
+    /// member's body, `None` at a member that is a boolean's empty
+    /// result. The family's one output names each body at its member's
+    /// place, and names nothing at an empty one.
     ///
     /// **Who takes it, and who refuses.** A reader of the same index
-    /// reads one member, never this value. A reader that reads the
-    /// family whole takes it at a member seat (a union's, an
-    /// intersect's or an assemble's), an indexed read takes one member
-    /// out of it by its tuple, and the product gather takes every
-    /// member in order. Any other body seat that meets it whole takes
-    /// ONE body and refuses it typed (`WrongOperand`): a boolean of N
-    /// bodies is N booleans or one union of them, and the recipe does
-    /// not guess which (D3).
-    Instances(Vec<Framed<T>>),
+    /// reads one member, never this value. A member seat (a union's,
+    /// an intersect's or an assemble's) takes every member, and refuses
+    /// an empty one [`NodeErrorKind::EmptyMember`]; an indexed read
+    /// takes one member out of it by its tuple, the empty value at an
+    /// empty member; the product gather takes every body at its place.
+    /// Any other body seat that meets it whole takes ONE body and
+    /// refuses it typed (`WrongOperand`): a boolean of N bodies is N
+    /// booleans or one union of them, and the recipe does not guess
+    /// which.
+    Instances(Vec<Option<Framed<T>>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
     /// body-denoting — the product gather skips it exactly as it skips
@@ -1104,8 +1135,10 @@ pub enum ValuePayload<T: Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
-    /// **A family of anything but bodies** (D10 `[repetition]`): its
-    /// members are the value's ([`NodeValue::members`]).
+    /// **A family of anything but bodies** (D10 `[repetition]`):
+    /// profiles, measures, splits, assertions, a family of families. Its
+    /// members are the value's ([`NodeValue::members`]); it has no
+    /// output.
     Family,
 }
 
@@ -1227,16 +1260,28 @@ pub(crate) mod phrase {
         concat!(family_word!(body), " or ", family_word!(instances));
 }
 
-impl<T: Decide> ValuePayload<T> {
+impl<T: topo::AtRestPolicy + Decide> ValuePayload<T> {
+    /// **This value as one body**: its body (a `Body` value or a
+    /// boolean's non-empty result), `Some(None)` for a boolean's empty
+    /// result, `None` for a value that is no body. The one rule for
+    /// "is this one body" every reader of one body asks.
+    #[must_use]
+    pub fn one_body(&self) -> Option<Option<&Framed<T>>> {
+        match self {
+            Self::Body(body) | Self::Boolean(BooleanValue::Body { body, .. }) => Some(Some(body)),
+            Self::Boolean(BooleanValue::Empty) => Some(None),
+            _ => None,
+        }
+    }
+
     /// **The body at output `index`**: a one-body value's at 0, a
     /// split's half at its port ([`crate::SplitHalf::output_body`]), a
-    /// family's member at its place. The one answer to "which body does
-    /// a read of this output hold".
+    /// family's member at its place.
     ///
     /// # Errors
     ///
     /// [`crate::InterrogateError::NoSuchBody`] for an index the value
-    /// has no body at (an empty half among them),
+    /// has no body at (an empty half or an empty member among them),
     /// [`crate::InterrogateError::NoBodies`] for a value that holds none.
     pub fn output_body(&self, index: u32) -> Result<&Framed<T>, crate::InterrogateError> {
         crate::names::interrogate::output_body(self, index)
@@ -1260,7 +1305,7 @@ impl<T: Decide> ValuePayload<T> {
 
 /// A boolean node's typed result (F8: ∅ is a value, not an error).
 #[derive(Debug, Clone)]
-pub enum BooleanValue<T: Decide> {
+pub enum BooleanValue<T: topo::AtRestPolicy + Decide> {
     /// The regularized result is empty — typed success.
     Empty,
     /// A real result body.
@@ -1282,7 +1327,7 @@ pub enum BooleanValue<T: Decide> {
 /// piece of a copy ([`crate::VarDef::Pick`]) without the copy being
 /// cut apart.
 #[derive(Debug, Clone)]
-pub struct Pieces<T: Decide> {
+pub struct Pieces<T: topo::AtRestPolicy + Decide> {
     /// The node whose names key them: each piece's names are spelled in
     /// the holder's table under this node, keyed by the piece's read
     /// ([`crate::names::RoleSeg::From`]).
@@ -1293,7 +1338,7 @@ pub struct Pieces<T: Decide> {
 
 /// **One piece of a body** ([`Pieces`]).
 #[derive(Debug, Clone)]
-pub struct Piece<T: Decide> {
+pub struct Piece<T: topo::AtRestPolicy + Decide> {
     /// The variable the `⊔` read it through.
     pub read: crate::VarId,
     /// Its bodies in the holder's space: one, or until patterns are
@@ -1310,7 +1355,7 @@ pub struct Piece<T: Decide> {
     pub carry: Carry<T>,
 }
 
-impl<T: Decide> Pieces<T> {
+impl<T: topo::AtRestPolicy + Decide> Pieces<T> {
     /// The one piece read through `read`; `None` where no piece is, and
     /// where two are (a `⊔` reading one body twice), which a read
     /// cannot tell apart.
@@ -1325,7 +1370,7 @@ impl<T: Decide> Pieces<T> {
 /// One side of a split's output (both parts are the node's output,
 /// role-tagged — spec D3).
 #[derive(Debug, Clone)]
-pub enum SplitSide<T: Decide> {
+pub enum SplitSide<T: topo::AtRestPolicy + Decide> {
     /// No material on this side.
     Empty,
     /// This side's material as an independent body.
@@ -1605,6 +1650,23 @@ pub enum NodeErrorKind {
         /// The door's refusal, unaltered.
         source: crate::analysis::SeedError,
     },
+    /// **The build of record built no value at this node** (DUAL-DESIGN
+    /// DL3): a dual evaluation is bound to the base-scalar evaluation of
+    /// record ([`evaluate_recorded`]), which ran the certified gates a
+    /// dual does not, and a node that evaluation did not build is refused
+    /// here before it runs. That is a node it refused, whose cause is the
+    /// record's own refusal at the same node, kept there unaltered (kernel
+    /// errors are not copied, spec D2); a node a record that did not
+    /// complete never reached; or an instance of a part the record holds
+    /// no build of. So no reading a dual reaches leans on a gate the
+    /// record did not pass: tier 3's premises hold at a dual because only
+    /// what the record finished is evaluated there, inside its parts as
+    /// at the top.
+    RecordRefused,
+    /// **The build of record is not a build of this run's input**
+    /// ([`RecordMispairing`]): refused on EVERY node, before any node
+    /// runs, so no node is bound to a record that is not its own.
+    RecordMispaired(RecordMispairing),
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -1617,25 +1679,43 @@ pub enum NodeErrorKind {
         found: &'static str,
     },
     /// A body operand evaluated to the typed empty value — the kernel
-    /// ops take real bodies only (v1; ∅-absorbing semantics would be
-    /// invented behavior, spec D3's "wire, don't invent").
+    /// ops take real bodies only: ∅ is a typed result
+    /// (`docs/DESIGN.md` `[topology.conventions]`), and an op that
+    /// absorbed it would answer where it declined (`[loud-failure]`).
     EmptyOperand {
         /// The empty input node.
         input: RecipeNodeId,
     },
-    /// A body operand is not a finished body: the at-rest gate
-    /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
-    /// body its input node built, so a door that takes finished bodies
-    /// (the Boolean, the split, the shell, the blends) cannot take it.
-    /// Every door owes a finished body (`docs/DESIGN.md`, tier 3), and
-    /// not every door gates its own result (the blends do not), so the
-    /// defect is the input's door, not anything an author set on either
-    /// node.
-    UnfinishedOperand {
-        /// The operand node.
+    /// **A family read whole holds a member that is the typed empty
+    /// value** (D10 `[repetition]`): a seat that takes the family's
+    /// bodies refuses it as [`Self::EmptyOperand`] refuses one empty
+    /// operand, naming the member.
+    EmptyMember {
+        /// The family's node.
         input: RecipeNodeId,
-        /// The validator's findings, each naming its entity.
-        errors: Vec<topo::ValidationError>,
+        /// Each index the family reaches, at the empty member's value.
+        at: Vec<(crate::VarId, i64)>,
+    },
+    /// The body this operation produced is not a finished body: an
+    /// operation that maps or assembles a body itself (a placement's
+    /// read into a frame, a mirror, a graft of pieces) finishes it at its
+    /// own end ([`topo::AtRestPolicy::finish`]). Every finding, each read
+    /// through its family.
+    NotFinished {
+        /// The finish's findings.
+        findings: topo::NotFinished,
+    },
+    /// **An operand that does not finish where this operation takes a
+    /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
+    /// tier 2 alone at the box scalars), or a body read into this
+    /// operation's frame through a placement's map, construction state
+    /// ([`super::ReadIn::Mapped`]); the operation that takes it runs
+    /// tier 3 on it ([`super::ReadIn::taken`]).
+    UnfinishedLeaf {
+        /// The operand's node: the node whose value this operation took.
+        input: RecipeNodeId,
+        /// The finish's findings.
+        findings: topo::NotFinished,
     },
     /// A read of a split's port found its half holding no
     /// material — the tool plane missed the target on that side. Its
@@ -1755,18 +1835,16 @@ pub enum NodeErrorKind {
     },
     /// A decided predicate escalated (in-band indeterminacy).
     Escalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered: the decision's name is the one
+        /// its funnel recorded ([`Indeterminate::predicate`]).
         source: Indeterminate,
     },
     /// **A measurement's parallelism read escalated** (D10's Measure
     /// ground): the measure door's own sentence, which [`Self::Escalated`]'s
     /// does not speak for. Its class is [`NodeErrorClass::Escalated`].
     MeasureEscalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A placement frame's rotation axis escalated** (D10's placement
@@ -1774,9 +1852,8 @@ pub enum NodeErrorKind {
     /// [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
     PlacementAxisEscalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A pose's direction escalated** (D10's pose ground): a pose's
@@ -1785,9 +1862,8 @@ pub enum NodeErrorKind {
     /// which [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
     PoseDirectionEscalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A pose read off geometry found none of its kind** (D10): a
@@ -2005,6 +2081,15 @@ pub enum NodeErrorKind {
         /// The bound's.
         bound: crate::expr::Dimension,
     },
+}
+
+impl NodeErrorKind {
+    /// **A taker's refusal** ([`ReadIn::taken`], [`Held::finished`]):
+    /// `input`'s body does not finish where a node takes it. A node's
+    /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
+    pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
+        move |findings| Self::UnfinishedLeaf { input, findings }
+    }
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -2225,6 +2310,16 @@ impl crate::spoken::Say for NodeErrorKind {
             ),
             Self::ParamBox { source } => write!(f, "{source}"),
             Self::Seed { source } => write!(f, "{source}"),
+            Self::RecordRefused => f.write_str(
+                "the build of record built no value at this node; where it refused the node, \
+                 its refusal is the record's own, at the same node. Recourse: answer the \
+                 record's refusal there",
+            ),
+            Self::RecordMispaired(mispairing) => write!(
+                f,
+                "{mispairing}. Recourse: hand the base-scalar evaluation of this document, \
+                 built over this run's options with no seed, as its build of record"
+            ),
             Self::WrongOperand {
                 input,
                 expected,
@@ -2239,15 +2334,34 @@ impl crate::spoken::Say for NodeErrorKind {
                 "{} is the empty value — the body ops take real bodies",
                 by.node_as(*input, "input")
             ),
-            Self::UnfinishedOperand { input, errors } => write!(
-                f,
-                "{} shipped a body that does not finish: {}",
-                by.node_as(*input, "input"),
-                // The operand's findings are the at-rest gate's.
-                errors.first().map_or_else(
-                    || "no finding".to_string(),
-                    |e| e.render(geom_brep::recourse::Reading::AtRest)
+            Self::EmptyMember { input, at } => {
+                let at: Vec<String> = at
+                    .iter()
+                    .map(|&(index, value)| format!("{} = {value}", by.read(index)))
+                    .collect();
+                write!(
+                    f,
+                    "the member of {} at {} is the empty value — the body ops take real \
+                     bodies. {}",
+                    by.node_as(*input, "input"),
+                    at.join(", "),
+                    crate::sentence::Recourse(
+                        "read the members that are bodies by index, or change the member's \
+                         operands so it keeps material"
+                    )
                 )
+            }
+            // The findings are the at-rest gate's.
+            Self::NotFinished { findings } => write!(
+                f,
+                "the body this operation produced is not a finished body: {}",
+                findings.render(geom_brep::recourse::Reading::AtRest)
+            ),
+            Self::UnfinishedLeaf { input, findings } => write!(
+                f,
+                "{} does not finish where this operation takes it: {}",
+                by.node_as(*input, "input"),
+                findings.render(geom_brep::recourse::Reading::AtRest)
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
@@ -2340,14 +2454,14 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UnderflowedDirection { role } => write!(
                 f,
                 "the {role} underflowed to zero length, though it still names a \
-                 direction. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 direction. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::NonFiniteDirection { role } => write!(
                 f,
                 "the {role} has no finite length (a component overflows the norm or is \
-                 not a number). Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 not a number). {}",
+                geom_core::RANGE_ENDING
             ),
             Self::Band(e) => write!(
                 f,
@@ -2361,20 +2475,22 @@ impl crate::spoken::Say for NodeErrorKind {
                     geom_core::KERNEL_DEFECT_ENDING
                 )
             }
-            Self::Escalated { predicate, source } => {
+            Self::Escalated { source } => {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(
                     f,
                     "{}",
-                    source.undecided(what, crate::decision::ending(predicate, source))
+                    source.undecided(
+                        crate::decision::subject(source),
+                        crate::decision::ending(source.predicate, source)
+                    )
                 )
             }
-            Self::MeasureEscalated { predicate, source }
-            | Self::PlacementAxisEscalated { predicate, source }
-            | Self::PoseDirectionEscalated { predicate, source } => {
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+            Self::MeasureEscalated { source }
+            | Self::PlacementAxisEscalated { source }
+            | Self::PoseDirectionEscalated { source } => {
+                let what = crate::decision::subject(source);
                 write!(f, "{what} is too close to call: {source}")
             }
             Self::PoseRead { pose, fault } => write!(
@@ -3282,6 +3398,10 @@ impl ComputingTwist {
         };
         Self {
             axis,
+            // An exact `fmod` into `[0, τ)` of any magnitude, read only as
+            // a turn's angle: `Period::at_or_above` would name the same
+            // copy, but reads NaN past `i32::MAX` turns, which an advanced
+            // angle may reach.
             angle: (self.angle + k * (s2 - 1.0)).rem_euclid(std::f64::consts::TAU),
             by: [
                 self.by[0] + (k * s3 * s5).cos(),
@@ -3370,7 +3490,7 @@ pub trait ProfileLane: profile_lane::Sealed {
         _nominal: &crate::expr::VarEnv<f64>,
     ) -> Option<&'r BTreeMap<RecipeNodeId, NodeResult<f64>>>
     where
-        Self: Decide,
+        Self: Decide + topo::AtRestPolicy,
     {
         None
     }
@@ -3448,7 +3568,7 @@ impl<T: geom_core::Real> ProfileLane for geom_core::Dual<T> where geom_core::Dua
 /// evaluation's profile values and verdict logs against it. A part the
 /// document instantiates is evaluated with the skip.
 #[cfg(any(test, feature = "test-support"))]
-pub fn evaluate_running_pass_two<T: EvalScalar>(
+pub fn evaluate_running_pass_two<T: OwnRecord>(
     doc: &Doc<ProfileProgram>,
     opts: &EvalOptions,
     tol: Tol,
@@ -3458,6 +3578,7 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
         None,
         &CancelToken::new(),
         opts,
+        None,
         None,
         PassTwo::Run,
         tol,
@@ -3475,7 +3596,7 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
 impl crate::mate::SolveScalar for geom_core::Interval {
     fn quoted(self) -> f64 {
         use geom_core::Bounds;
-        0.5 * self.lo() + 0.5 * self.hi()
+        geom::mid_param(self.lo(), self.hi())
     }
 
     fn upper(self) -> f64 {
@@ -3670,7 +3791,7 @@ pub fn solve_document_at<T>(
     tol: Tol,
 ) -> crate::mate::SolvedPoses<T>
 where
-    T: crate::mate::SolveScalar + EvalScalar,
+    T: crate::mate::SolveScalar + OwnRecord,
 {
     let evaluation = evaluate::<T>(doc, None, cancel, opts, tol);
     crate::mate::SolvedPoses::of(doc, &evaluation)
@@ -3723,6 +3844,326 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
     wire::pose::read_pose(doc, &ev.nodes, read, &ev.env, tol)
 }
 
+/// **Why an evaluation is not a dual run's build of record**
+/// ([`NodeErrorKind::RecordMispaired`]): the first input the record
+/// read otherwise than the run, checked in this order by
+/// [`evaluate_recorded`]. A record is a build of the run's input when
+/// it is of the same document, at the same version (its content pin),
+/// at the same tolerance and over the same options, the seed aside,
+/// and built something.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecordMispairing {
+    /// The record is of another document (DI3, the pairing predicate).
+    Document {
+        /// The document evaluated.
+        expected: crate::ident::DocumentId,
+        /// The document the record is of.
+        found: crate::ident::DocumentId,
+    },
+    /// The record refused before building anything
+    /// ([`Evaluation::refused_whole`]).
+    NotABuild,
+    /// The record carries no content pin ([`EvalOptions::pin`]), or one of
+    /// the record and the document refused to canonicalize, so which
+    /// version the record read is not known.
+    Unpinned,
+    /// The record read another version of the document.
+    Revision,
+    /// The record decided at another tolerance.
+    Tolerance,
+    /// The record was built over other options: another parameter box,
+    /// symbols, a seed, or another computing frame.
+    Options,
+    /// The document instantiates a part, and the record crossed the
+    /// document seam over no resolver where the run has one, or over one
+    /// where the run has none: the parts it built are not the run's.
+    Resolver,
+}
+
+impl core::fmt::Display for RecordMispairing {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            // The ids stay on the payload: the sentence names the mismatch.
+            Self::Document { .. } => {
+                f.write_str("the build of record is of another document than the one evaluated")
+            }
+            Self::NotABuild => f.write_str("the build of record refused before building anything"),
+            Self::Unpinned => f.write_str(
+                "the build of record carries no content pin to say which version of the \
+                 document it read",
+            ),
+            Self::Revision => {
+                f.write_str("the build of record read another version of the document")
+            }
+            Self::Tolerance => f.write_str("the build of record decided at another tolerance"),
+            Self::Options => f.write_str(
+                "the build of record was built over other options (a parameter box, symbols, \
+                 a seed or a computing frame)",
+            ),
+            Self::Resolver => f.write_str(
+                "the build of record crossed the document seam over no resolver where this \
+                 run has one, or over one where it has none",
+            ),
+        }
+    }
+}
+
+/// **The options a run's value bits read beyond the document and the
+/// tolerance**: its parameter box, its symbols, its seed and its second
+/// computing frame, the frame by bits. What [`evaluate_recorded`] holds
+/// a record to: the dual run's own, with no seed.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct RunLane {
+    param_box: Option<Arc<crate::analysis::ParamBox>>,
+    symbols: bool,
+    seed: Option<crate::VarId>,
+    twist: Option<[u64; 7]>,
+}
+
+impl RunLane {
+    fn of(opts: &EvalOptions) -> Self {
+        Self {
+            param_box: opts.param_box.clone(),
+            symbols: opts.symbols,
+            seed: opts.seed,
+            twist: opts.computing_twist.map(|t| {
+                let [a0, a1, a2] = t.axis;
+                let [b0, b1, b2] = t.by;
+                [a0, a1, a2, t.angle, b0, b1, b2].map(f64::to_bits)
+            }),
+        }
+    }
+}
+
+impl EvalOptions {
+    /// **The options of the build of record a dual run at `self` is
+    /// bound to** ([`evaluate_recorded`]): the same run with no seed, its
+    /// content pin recorded. The one spelling of that record's options,
+    /// for every caller that builds one.
+    #[must_use]
+    pub fn of_record(&self) -> Self {
+        Self {
+            seed: None,
+            pin: true,
+            ..self.clone()
+        }
+    }
+}
+
+/// **A scalar whose evaluation is its own build of record**: one with
+/// certification rights, whose finished body is [`topo::AtRestBody`]
+/// ([`topo::AtRestPolicy::Finished`]), so its bodies passed tier 3
+/// ([`topo::AtRestPolicy::finish`]). Every reading such an evaluation
+/// reaches may lean on tier 3's premises, because the body it reads was
+/// finished at this scalar. Derived from `Finished` alone, so the
+/// scalar's own policy is the one list of who certifies.
+pub trait OwnRecord: EvalScalar {}
+
+impl<T> OwnRecord for T where T: EvalScalar + topo::AtRestPolicy<Finished = topo::AtRestBody<T>> {}
+
+/// **A scalar bound to a build of record** (DUAL-DESIGN DL3): a dual,
+/// whose finished body is tier 2 alone ([`topo::Replay`]), so the tier-3
+/// premise every reading downstream leans on holds only through the
+/// base-scalar evaluation of record, which validated the same bits.
+/// It evaluates only through [`evaluate_recorded`], which takes that
+/// record and refuses every node the record refused
+/// ([`NodeErrorKind::RecordRefused`]): this is the one place a dual
+/// operand's tier-3 premise is asserted, so topo's readings that state
+/// "tier 3 refuses it first" hold at a dual too
+/// ([`topo::Replay`]'s "A tier-3 premise at a dual").
+pub trait BoundToRecord: EvalScalar {
+    /// The base scalar whose evaluation is this one's build of record.
+    type Record: OwnRecord;
+}
+
+/// The one scalar whose finished body is [`topo::Replay`]: bounded on
+/// that `Finished`, so a scalar is bound to a record exactly where its
+/// own policy withholds tier 3, and never also its own record.
+impl<B> BoundToRecord for geom_core::Dual<B>
+where
+    geom_core::Dual<B>:
+        EvalScalar + topo::AtRestPolicy<Finished = topo::Replay<geom_core::Dual<B>>>,
+    B: OwnRecord,
+{
+    type Record = B;
+}
+
+/// **A dual evaluation, bound to its build of record** (DUAL-DESIGN
+/// DL3): [`evaluate`]'s run at a [`BoundToRecord`] scalar, where every node
+/// `record` built no value at is refused before it runs
+/// ([`NodeErrorKind::RecordRefused`]), so no node evaluates on a body
+/// the record's gates refused. Inside a part the same holds: each part
+/// is entered bound to the record's own build of it, and an instance of
+/// a part the record holds no build of is refused before its part is
+/// entered.
+///
+/// `record` is a build of this run's input: the base-scalar evaluation
+/// of the same document, at the same version (its content pin, so it
+/// was run with [`EvalOptions::pin`]), at the same tolerance, over the
+/// same options with no seed ([`EvalOptions::of_record`]), that built
+/// something. A record that is not refuses every node
+/// ([`NodeErrorKind::RecordMispaired`], naming the first input it read
+/// otherwise). A record that did not complete built nothing at the
+/// nodes it never reached, so those are refused too.
+pub fn evaluate_recorded<T>(
+    doc: &Doc<ProfileProgram>,
+    prior: Option<&Evaluation<T>>,
+    record: &Evaluation<T::Record>,
+    cancel: &CancelToken,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Evaluation<T>
+where
+    T: BoundToRecord,
+{
+    let binding = RecordBinding::of(doc, record, opts, tol);
+    let mut ev = evaluate_at_descent(
+        doc,
+        prior,
+        cancel,
+        opts,
+        None,
+        Some(binding.as_ref()),
+        PassTwo::SkippedAtF64,
+        tol,
+    );
+    if opts.pin {
+        ev.pin = Some(crate::persist::content_pin(doc, tol));
+    }
+    ev
+}
+
+/// **Whether `record` is a build of the input a dual run of `doc` at
+/// `opts` reads** ([`evaluate_recorded`]'s pairing, the one spelling of
+/// it): `stackup`'s driver asks before it builds a pass, so a handed
+/// record is refused in its own binding's words.
+pub(crate) fn record_pairing<B: topo::AtRestPolicy + Decide>(
+    doc: &Doc<ProfileProgram>,
+    record: &Evaluation<B>,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<(), RecordMispairing> {
+    RecordBinding::of(doc, record, opts, tol).map(|_| ())
+}
+
+/// **What a dual evaluation reads of its build of record**: the nodes
+/// it built no value at, and its build of each part, which the run's
+/// part store binds each part's own run to.
+pub(crate) struct RecordBinding {
+    refused: std::collections::BTreeSet<RecipeNodeId>,
+    parts: Arc<parts::PartRecords>,
+}
+
+impl RecordBinding {
+    /// `record`, bound for a dual run of `doc` at `opts`, or the first
+    /// input it read otherwise ([`RecordMispairing`]).
+    fn of<B: topo::AtRestPolicy + Decide>(
+        doc: &Doc<ProfileProgram>,
+        record: &Evaluation<B>,
+        opts: &EvalOptions,
+        tol: Tol,
+    ) -> Result<Self, RecordMispairing> {
+        if let Some(m) = crate::ident::mispaired(doc.id(), record.document) {
+            return Err(RecordMispairing::Document {
+                expected: m.expected,
+                found: m.found,
+            });
+        }
+        if record.whole_refusal {
+            return Err(RecordMispairing::NotABuild);
+        }
+        match (&record.pin, crate::persist::content_pin(doc, tol)) {
+            (Some(Ok(theirs)), Ok(ours)) if *theirs == ours => {}
+            (Some(Ok(_)), Ok(_)) => return Err(RecordMispairing::Revision),
+            _ => return Err(RecordMispairing::Unpinned),
+        }
+        let ours = tolerance_of(tol);
+        if (record.tolerance.eps.to_bits(), record.tolerance.k.to_bits())
+            != (ours.eps.to_bits(), ours.k.to_bits())
+        {
+            return Err(RecordMispairing::Tolerance);
+        }
+        if record.lane
+            != RunLane::of(&EvalOptions {
+                seed: None,
+                ..opts.clone()
+            })
+        {
+            return Err(RecordMispairing::Options);
+        }
+        let instantiates = doc
+            .ids()
+            .into_iter()
+            .any(|id| parts::instantiated(doc, id).is_some());
+        if instantiates && record.resolver.is_some() != opts.resolver.is_some() {
+            return Err(RecordMispairing::Resolver);
+        }
+        let parts = Arc::new(record.parts.records());
+        let failed = record
+            .nodes
+            .iter()
+            .filter(|(_, r)| matches!(r, NodeResult::Failed(_)))
+            .map(|(&id, _)| id);
+        // A record that did not complete built nothing past its prefix.
+        let unreached = record
+            .order
+            .iter()
+            .filter(|_| record.outcome != EvalOutcome::Completed)
+            .filter(|id| !record.nodes.contains_key(id))
+            .copied();
+        let refused = failed
+            .chain(unreached)
+            .chain(Self::partless(doc, &parts, tol.eps().to_bits()))
+            .collect();
+        Ok(Self { refused, parts })
+    }
+
+    /// `doc`'s run inside a part, bound to `tree`, the build of record's
+    /// run of the same document ([`parts::Refusals`]): one pin and one ε,
+    /// so its pairing is the row's key.
+    pub(crate) fn of_part(
+        doc: &Doc<ProfileProgram>,
+        tree: &parts::Refusals,
+        eps_bits: u64,
+    ) -> Self {
+        let refused = tree
+            .nodes
+            .iter()
+            .copied()
+            .chain(Self::partless(doc, &tree.parts, eps_bits))
+            .collect();
+        Self {
+            refused,
+            parts: Arc::clone(&tree.parts),
+        }
+    }
+
+    /// The instances of `doc` whose part the record holds no build of:
+    /// refused before the part is entered.
+    fn partless<'a>(
+        doc: &'a Doc<ProfileProgram>,
+        parts: &'a parts::PartRecords,
+        eps_bits: u64,
+    ) -> impl Iterator<Item = RecipeNodeId> + 'a {
+        doc.ids().into_iter().filter(move |&id| {
+            parts::instantiated(doc, id)
+                .is_some_and(|part| !matches!(parts.get(&(part, eps_bits)), Some(Ok(_))))
+        })
+    }
+
+    /// The step of a node the record built no value at.
+    fn refusal<T: topo::AtRestPolicy + Decide>(&self, id: RecipeNodeId) -> Option<NodeStep<T>> {
+        self.refused.contains(&id).then(|| NodeStep {
+            result: NodeResult::Failed(NodeError {
+                node: id,
+                kind: NodeErrorKind::RecordRefused,
+                escalations: Arc::default(),
+            }),
+            reused: false,
+        })
+    }
+}
+
 /// Evaluates the document (spec D2–D6): a TOTAL function — every
 /// failure is a per-node typed result, never a top-level error or a
 /// panic.
@@ -3742,6 +4183,10 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
 /// result. A `parallel` request runs as the serial
 /// walk, and is checked between nodes, while a symbolic session or
 /// shape report is installed ([`EvalOptions::parallel`]).
+///
+/// A scalar that is not its own build of record, a dual, evaluates
+/// through [`evaluate_recorded`] instead (DUAL-DESIGN DL3): `T` is
+/// bounded on [`OwnRecord`], so no dual evaluation is record-free.
 pub fn evaluate<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
@@ -3750,9 +4195,18 @@ pub fn evaluate<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: EvalScalar,
+    T: OwnRecord,
 {
-    let mut ev = evaluate_at_descent(doc, prior, cancel, opts, None, PassTwo::SkippedAtF64, tol);
+    let mut ev = evaluate_at_descent(
+        doc,
+        prior,
+        cancel,
+        opts,
+        None,
+        None,
+        PassTwo::SkippedAtF64,
+        tol,
+    );
     if opts.pin {
         ev.pin = Some(crate::persist::content_pin(doc, tol));
     }
@@ -3778,11 +4232,15 @@ pub(crate) enum PassTwo {
 /// [`parts`] on why it runs bottom-up). No prior: a referenced document
 /// is resolved fresh, and the memo that keeps THAT from costing
 /// anything is the top's part rows, carried from its prior.
+///
+/// `record` binds the run to the build of record's run of the same
+/// document, where the descent is a dual's ([`RecordBinding::of_part`]).
 pub(crate) fn evaluate_nested<T>(
     doc: &Doc<ProfileProgram>,
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: parts::Reached<T>,
+    record: Option<&RecordBinding>,
     pin: &crate::ident::ContentPin,
     tol: Tol,
 ) -> Evaluation<T>
@@ -3795,6 +4253,7 @@ where
         cancel,
         opts,
         Some((reached, pin)),
+        record.map(Ok),
         PassTwo::SkippedAtF64,
         tol,
     )
@@ -3814,6 +4273,7 @@ fn evaluate_at_descent<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: Option<(parts::Reached<T>, &crate::ident::ContentPin)>,
+    record: Option<Result<&RecordBinding, &RecordMispairing>>,
     pass_two: PassTwo,
     tol: Tol,
 ) -> Evaluation<T>
@@ -3867,6 +4327,18 @@ where
             Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source, tol),
         },
     };
+    // The build of record's pairing, once the run's own up-front doors
+    // have passed: a dual bound to a record that is not a build of this
+    // run's input is bound to nothing of it.
+    let record = match record {
+        None => None,
+        Some(Ok(binding)) => Some(binding),
+        Some(Err(mispairing)) => {
+            return refuse_every_node(doc, sched, opts, prior_refused, tol, || {
+                NodeErrorKind::RecordMispaired(mispairing.clone())
+            });
+        }
+    };
     // The NOMINAL environment, built beside the lane one and carried
     // with it as `wire::LaneEnv::nominal` — what it is and who reads
     // it is stated there; why the key owes it, at `tag::slot`.
@@ -3903,6 +4375,7 @@ where
                 cancel,
                 &nominal_opts,
                 None,
+                None,
                 PassTwo::SkippedAtF64,
                 tol,
             )
@@ -3930,6 +4403,7 @@ where
                     None,
                     cancel,
                     &midpoint_opts,
+                    None,
                     None,
                     PassTwo::SkippedAtF64,
                     tol,
@@ -3973,6 +4447,7 @@ where
             .with_symbols(opts.symbols)
             .with_twist(opts.computing_twist)
             .with_costs(prior.map(|p| &p.parts))
+            .with_record(record.map(|r| Arc::clone(&r.parts)))
     });
     let admitted = admission.admit(|id, remaining| {
         let parted = match (parts::instantiated(doc, id), &mut store) {
@@ -4076,7 +4551,10 @@ where
             // Each node runs under a K-funnel frame of its own; its
             // bracket in `eval_node` nests inside that frame.
             let results = geom_core::k_stats::map_detached(level, |&id| {
-                eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
+                match record.and_then(|r| r.refusal(id)) {
+                    Some(refused) => Ok(refused),
+                    None => eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol),
+                }
             });
             for (&id, (step, recording)) in level.iter().zip(results) {
                 recordings.insert(id, recording);
@@ -4103,8 +4581,11 @@ where
             if !admission.admits(id) {
                 break;
             }
-            let Ok(step) = eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
-            else {
+            let step = match record.and_then(|r| r.refusal(id)) {
+                Some(refused) => Ok(refused),
+                None => eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol),
+            };
+            let Ok(step) = step else {
                 outcome = EvalOutcome::Canceled;
                 break;
             };
@@ -4146,6 +4627,7 @@ where
         document: doc.id(),
         pin: None,
         tolerance: tolerance_of(tol),
+        lane: RunLane::of(opts),
         whole_refusal: false,
         prior_refused,
         order,
@@ -4288,7 +4770,7 @@ fn refuse_tolerance_conflict<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
     let process_eps = tol.eps();
@@ -4314,7 +4796,7 @@ fn refuse_param_box<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::ParamBox {
@@ -4337,7 +4819,7 @@ fn refuse_seed<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::Seed {
@@ -4358,7 +4840,7 @@ fn refuse_every_node<T>(
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let mut order = sched.order;
     order.extend(sched.unschedulable.iter().copied());
@@ -4381,6 +4863,7 @@ where
         document: doc.id(),
         pin: None,
         tolerance: tolerance_of(tol),
+        lane: RunLane::of(opts),
         whole_refusal: true,
         prior_refused,
         order,
@@ -4440,7 +4923,7 @@ fn tolerance_of(tol: Tol) -> geom_core::Tolerance {
 /// every node of `order` — which covers every live node — answers its
 /// name table or its standing through [`usable_in`], so a node the
 /// order does not hold is one the document does not have.
-fn resolve_appearance<T: Decide>(
+fn resolve_appearance<T: topo::AtRestPolicy + Decide>(
     doc: &Doc<ProfileProgram>,
     order: &[RecipeNodeId],
     nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
@@ -4531,13 +5014,13 @@ where
 /// The names' `OWN_BODIES` invariant over a step's value: a body's
 /// tables seat rows at body 0 alone, a family's below its count.
 #[cfg(debug_assertions)]
-fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
+fn own_bodies<T: topo::AtRestPolicy + Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
     let Some(value) = step.result.value() else {
         return;
     };
-    let count = match &value.payload {
-        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. }) => 1,
-        ValuePayload::Instances(bodies) => bodies.len(),
+    let count = match (&value.payload, value.payload.one_body()) {
+        (_, Some(Some(_))) => 1,
+        (ValuePayload::Instances(bodies), _) => bodies.len(),
         _ => return,
     };
     for names in value.outputs.iter() {
@@ -4552,12 +5035,16 @@ fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
 #[derive(Debug)]
 pub(crate) struct Canceled;
 
-struct NodeStep<T: Decide> {
+struct NodeStep<T: topo::AtRestPolicy + Decide> {
     result: NodeResult<T>,
     reused: bool,
 }
 
-fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut usize) {
+fn bookkeep<T: topo::AtRestPolicy + Decide>(
+    step: &NodeStep<T>,
+    recomputed: &mut usize,
+    reused: &mut usize,
+) {
     match &step.result {
         NodeResult::Ok(_) | NodeResult::Failed(_) => {
             if step.reused {
@@ -7779,5 +8266,99 @@ mod name_feed_tests {
             assert_eq!(key(&a), key(&again), "one name, one key");
             assert_ne!(key(&a), key(&b), "a difference at the bottom moves the key");
         });
+    }
+}
+
+/// **The scalar-generic test doors** ([`crate::test_support`] re-exports
+/// them): here because they name [`EvalScalar`], which the evaluation
+/// service's seam confines to this file and `parts.rs`.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod testing {
+    use crate::test_support::evaluate_bound;
+
+    /// **A scalar a test evaluates at, whichever door its runs take**: a
+    /// scalar that is its own build of record through
+    /// [`crate::evaluate`], a dual through [`evaluate_bound`]. What a test
+    /// helper generic over its scalar is bounded on, since the two doors
+    /// take different arguments and a dual has no record-free one.
+    pub trait AnyEvaluate: crate::EvalScalar {
+        /// This scalar's evaluation of `doc`, through its own door.
+        fn evaluate_here(
+            doc: &crate::Doc<crate::ProfileProgram>,
+            prior: Option<&crate::Evaluation<Self>>,
+            cancel: &crate::CancelToken,
+            opts: &crate::EvalOptions,
+            tol: geom_core::Tol,
+        ) -> crate::Evaluation<Self>;
+    }
+
+    // The scalars `topo::AtRestPolicy` is implemented for, each once:
+    // the own-record ones through `evaluate`, the dual through
+    // `evaluate_bound`. Not two blanket impls over `OwnRecord` and
+    // `BoundToRecord`: coherence does not read the two `Finished` types
+    // apart (rust-lang/rust#20400), so it takes them as overlapping. A
+    // scalar missing from this list is a compile error at the first
+    // helper that evaluates at it, not a run at the wrong door.
+    macro_rules! own_record_evaluates {
+        ($($t:ty),* $(,)?) => {$(
+            impl AnyEvaluate for $t {
+                fn evaluate_here(
+                    doc: &crate::Doc<crate::ProfileProgram>,
+                    prior: Option<&crate::Evaluation<Self>>,
+                    cancel: &crate::CancelToken,
+                    opts: &crate::EvalOptions,
+                    tol: geom_core::Tol,
+                ) -> crate::Evaluation<Self> {
+                    crate::evaluate(doc, prior, cancel, opts, tol)
+                }
+            }
+        )*};
+    }
+
+    own_record_evaluates!(f64, geom_core::Interval);
+    #[cfg(feature = "probe")]
+    own_record_evaluates!(geom_core::Probe);
+
+    impl<B> AnyEvaluate for geom_core::Sym<B>
+    where
+        geom_core::Sym<B>: crate::eval::OwnRecord,
+    {
+        fn evaluate_here(
+            doc: &crate::Doc<crate::ProfileProgram>,
+            prior: Option<&crate::Evaluation<Self>>,
+            cancel: &crate::CancelToken,
+            opts: &crate::EvalOptions,
+            tol: geom_core::Tol,
+        ) -> crate::Evaluation<Self> {
+            crate::evaluate(doc, prior, cancel, opts, tol)
+        }
+    }
+
+    impl<B> AnyEvaluate for geom_core::Dual<B>
+    where
+        geom_core::Dual<B>: crate::eval::BoundToRecord,
+    {
+        fn evaluate_here(
+            doc: &crate::Doc<crate::ProfileProgram>,
+            prior: Option<&crate::Evaluation<Self>>,
+            cancel: &crate::CancelToken,
+            opts: &crate::EvalOptions,
+            tol: geom_core::Tol,
+        ) -> crate::Evaluation<Self> {
+            evaluate_bound(doc, prior, cancel, opts, tol)
+        }
+    }
+
+    /// [`AnyEvaluate::evaluate_here`] at `T`: the generic test helper's
+    /// call.
+    pub fn evaluate_any<T: AnyEvaluate>(
+        doc: &crate::Doc<crate::ProfileProgram>,
+        prior: Option<&crate::Evaluation<T>>,
+        cancel: &crate::CancelToken,
+        opts: &crate::EvalOptions,
+        tol: geom_core::Tol,
+    ) -> crate::Evaluation<T> {
+        T::evaluate_here(doc, prior, cancel, opts, tol)
     }
 }

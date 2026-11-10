@@ -1,26 +1,21 @@
 //! **What the anchor-fit refusal's number promises the author, measured
 //! over the whole of grid A.**
 //!
-//! The nearest-fit rule picks the reported candidate and leg by the
-//! least overrun `setback − extent`, and the sentence that carries the
-//! number ends in "reduce the radius or move the anchor". A reader can
-//! take the number for the radius reduction that would make the corner
-//! fit; it is the overrun in the SETBACK metric, and the recourse is
-//! un-metered on purpose. These rows execute that reading at every
-//! anchor-fit entry grid A produces, rather than at one fixture, and
-//! pin what following it actually does:
+//! The nearest-fit rule picks the reported candidate, and its worse
+//! leg's overrun `setback − extent` (`common::worse_leg`) is the number
+//! a reader could take for the radius reduction that makes the corner
+//! fit. It is the overrun in the SETBACK metric, the anchor lever's
+//! metre and not the radius lever's, which is why the refusal states
+//! the radius lever by `radius_at_anchor` instead
+//! (`fillet_radius_at_anchor` pins that one). These rows execute the
+//! misreading at every anchor-fit entry grid A produces, rather than at
+//! one fixture, and pin what following it actually does:
 //!
-//! - the reported leg always really overran — `setback > available` on
+//! - the worse leg always really overran — `setback > available` on
 //!   every entry, which is what makes the rendered sentence true;
 //! - the number is never the reduction that would make the corner fit.
 //!   At most entries it is too SMALL: reducing the radius by exactly it
 //!   leaves the same corner refusing with the same reason.
-//!
-//! The census is the mechanical guard of the "not a radius amount"
-//! sentence at the site: it moves the day the pick moves, in either
-//! direction, and it says which way the number errs. The residue that
-//! owns a metered form is
-//! `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -42,6 +37,8 @@ fn same_point(a: Point2<f64>, b: Point2<f64>) -> bool {
 /// row is what goes red if a future pick reads the other leg.
 #[test]
 fn every_anchor_fit_report_names_a_leg_whose_setback_outruns_its_extent() {
+    let (inside_in, inside_out, _) = crate::common::grid_a_overruns_inside_the_band();
+    let inside = inside_in + inside_out;
     let mut entries = 0_usize;
     grid_a(|n, _, _, out| {
         let Err(err) = out else { return };
@@ -53,7 +50,7 @@ fn every_anchor_fit_report_names_a_leg_whose_setback_outruns_its_extent() {
             );
         }
     });
-    assert_eq!(entries, 3_185, "grid A's anchor-fit entries");
+    assert_eq!(entries, 3_185 - inside, "grid A's anchor-fit entries");
 }
 
 /// **The reported deficit is not the reduction that makes the corner
@@ -86,18 +83,16 @@ fn following_the_reported_deficit_can_leave_the_same_corner_refusing() {
         "the same corner still refuses on the anchor fit: {err:?}"
     );
     // Where the anchor fit is first satisfied: a reduction twenty-one
-    // times the reported one. The fit gates classify on the exact band,
-    // so this bound does not move with ε; what can move is a gate
-    // DOWNSTREAM of the fillet — at `CAD_TOLERANCE_EPS=1e-6` the closing
-    // junction's side classification is in-band on this loop and the
-    // build escalates there instead of finishing, and the arc leg's
-    // 5e-6 m remnant past the fillet is stored as its chord, whose joint
-    // with the fillet the door may read in band. Either way the corner
-    // no longer refuses on the anchor fit.
+    // times the reported one. At `CAD_TOLERANCE_EPS=1e-6` the arc leg's
+    // 5e-6 m remnant past the fillet is a run inside the run's linear
+    // band, and the leg fit escalates rather than building it; either way
+    // the corner no longer refuses on the anchor fit.
     match arc_arc(CASE_120, R_120 - 0.0482) {
         Ok(_) => {}
         Err(e) => assert!(
-            past_the_corner(&e).is_some(),
+            past_the_corner(&e).is_some()
+                || matches!(&e, profile::PathError::Escalated { source, .. }
+                    if source.predicate == Some("fillet_leg_fit")),
             "a reduction of 0.0482 satisfies the anchor fit, got {e:?}"
         ),
     }
@@ -124,6 +119,8 @@ fn following_the_reported_deficit_can_leave_the_same_corner_refusing() {
 /// rule moves them.
 #[test]
 fn the_grid_a_recourse_census_says_which_way_the_reported_deficit_errs() {
+    let (inside_in, inside_out, _) = crate::common::grid_a_overruns_inside_the_band();
+    let inside = inside_in + inside_out;
     let (mut not_a_request, mut still_refusing, mut builds, mut other) = (0, 0, 0, 0);
     let mut past: Vec<&'static str> = Vec::new();
     grid_a(|_, case, r, out| {
@@ -157,7 +154,7 @@ fn the_grid_a_recourse_census_says_which_way_the_reported_deficit_errs() {
     }
     assert_eq!(
         (not_a_request, still_refusing, builds + past.len(), other),
-        (469, 2_111, 605, 0),
+        (469, 2_111 - inside, 605, 0),
         "the recourse census over grid A"
     );
 }

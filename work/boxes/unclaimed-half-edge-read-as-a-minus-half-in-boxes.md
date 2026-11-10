@@ -2,11 +2,11 @@
 id: unclaimed-half-edge-read-as-a-minus-half-in-boxes
 kind: issue
 title: a half-edge its own edge does not claim is read as that edge's minus half: 1 site(s) on this ground
-status: parked
+status: closed
 opened: 2026-09-30
+closed: 2026-11-08
 priority: P3
 cost: E
-blocked_on: [cover-topo-faces]
 ---
 
 Filed by TOPO's fix pass on PR 3532 (the review's MINOR-3), which
@@ -82,3 +82,9 @@ self-pair checks, and `merge_faces.rs`' `#[cfg(test)]` tear hooks.
 | band | `unclaimed-half-edge-read-as-a-minus-half-in-band` | `crates/sweep/src/blend/surgery.rs`, the rim arc mate, ~:3651 | mate |
 | no owner | `unclaimed-half-edge-read-as-a-minus-half-unowned` | `crates/topo/src/props.rs`, the curved-face edge record, ~:1825 | direction |
 | no owner | `unclaimed-half-edge-read-as-a-minus-half-unowned` | `crates/topo/src/pcurves.rs`, `is_plus`, ~:1199 | direction |
+
+## Closed (`cover-topo-faces`, 2026-11-08)
+
+The face pcurve steps (`topo::cover::face_window_steps`) read the
+direction through `Edge::claim` and panic naming the face and the
+half-edge on `None`.

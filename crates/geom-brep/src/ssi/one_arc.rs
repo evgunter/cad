@@ -81,6 +81,7 @@ use super::enclose::{
 };
 use super::exhaust::UvRect;
 use super::section::{SectionReader, sign};
+use geom_core::bisect::{Budget, Step, bisect_within};
 
 /// The deepest a walk cuts one edge or face piece.
 pub(crate) const EXIT_DEPTH: u32 = 40;
@@ -99,8 +100,12 @@ pub(crate) const EXIT_CUT: f64 = 0.5 - 1.0 / 128.0;
 /// never under two ulps of the edge's coordinate.
 pub(crate) const EXIT_STRIP: f64 = 1.0 / 1_073_741_824.0;
 
-/// The most pieces one box's walk examines.
-pub(crate) const EXIT_PIECES: u32 = 4096;
+/// **The pieces one box's one-arc proof may read**, across all of its
+/// edge or face walks, in either lane (ℝ³ here, ℝ⁴ in [`super::four`]):
+/// one wall they share. It is not [`geom_core::bisect::PIECE_BUDGET`],
+/// which bounds one walk; the two share a size by choice, not by
+/// derivation.
+pub(crate) const EXIT_PIECES: Budget = Budget::new(4096);
 
 /// Why a chain was not proved one arc.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -194,18 +199,13 @@ fn edge_runs<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     partner: impl Into<ChartPhi<'p>>,
     (along_u, c, (a, b)): (bool, f64, (f64, f64)),
-    pieces: &mut u32,
+    pieces: &mut Budget,
 ) -> Option<Vec<Run>> {
     let partner = partner.into();
     let piece = |s: f64, t: f64| if along_u { (s, t, c, c) } else { (c, c, s, t) };
     let sign_at = |s: f64| sign(phi_over(boxes, partner, piece(s, s)));
     let mut out = Vec::new();
-    let mut stack = vec![(a, b, 0u32)];
-    while let Some((s, t, depth)) = stack.pop() {
-        *pieces += 1;
-        if *pieces > EXIT_PIECES {
-            return None;
-        }
+    let walked = bisect_within([(a, b, 0u32)], pieces, |(s, t, depth)| {
         // The derivative over a strip across the edge: of positive width,
         // since a net is cut only to a rectangle that has one and a strip
         // of none would read the whole span cell's, and thin beside the
@@ -221,24 +221,26 @@ fn edge_runs<'p, T: CertifiedBounds>(
         let slope = partner.partial(boxes, UvWindow::new(r0, r1, r2, r3), along_u);
         // `[m − h, m + h]` holds `[s, t]`: `h` is the larger half,
         // rounded up.
-        let m = 0.5 * (s + t);
+        let m = geom::mid_param(s, t);
         let h = (m - s).max(t - m).next_up();
         let mean = phi_over(boxes, partner, piece(m, m)) + slope * Interval::from_bounds(-h, h);
         if let Some(s) = sign(mean).or_else(|| sign(phi_over(boxes, partner, piece(s, t)))) {
             out.push(Run::Constant(s));
-            continue;
+            return Step::Settled;
         }
         if sign(slope).is_some() {
             out.push(Run::Monotone(sign_at(s), sign_at(t)));
-            continue;
+            return Step::Settled;
         }
         if depth >= EXIT_DEPTH {
-            return None;
+            return Step::Stop(());
         }
         let cut = s + EXIT_CUT * (t - s);
-        // Popped low half first, so `out` runs in the edge's order.
-        stack.push((cut, t, depth + 1));
-        stack.push((s, cut, depth + 1));
+        // The low half first, so `out` runs in the edge's order.
+        Step::Halve([(s, cut, depth + 1), (cut, t, depth + 1)])
+    });
+    if !matches!(walked, Ok(None)) {
+        return None;
     }
     Some(out)
 }
@@ -262,7 +264,7 @@ pub(crate) fn boundary_zeros<'p, T: CertifiedBounds>(
 ) -> Option<u32> {
     let partner = partner.into();
     let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
-    let mut pieces = 0u32;
+    let mut pieces = EXIT_PIECES;
     // Counter-clockwise: the top and left edges are walked backwards.
     let mut runs = Vec::new();
     for (edge, back) in [
@@ -398,10 +400,9 @@ fn on_side(r: UvRect, domain: UvRect, side: ChartSide) -> bool {
 /// The reader of `φ` along each side of the wall's domain, in [`SIDES`]
 /// order: the boundary pass's row of the net for that side
 /// ([`super::boundary::side_row`]), its control points enclosed
-/// ([`SectionReader`]); against a curved partner the row's composite with
-/// its form, read only where every control point is an exact `f64`.
-/// `None` where the row or its Bernstein form is refused, and that side
-/// holds no piece.
+/// ([`SectionReader::implicit_enclosed`]): the row's composite with the
+/// partner's form, the boundary pass's arithmetic. `None` where the
+/// composite is refused, and that side holds no piece.
 fn side_readers<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     partner: impl Into<ChartPhi<'p>>,
@@ -409,25 +410,11 @@ fn side_readers<'p, T: CertifiedBounds>(
     let partner = partner.into();
     SIDES.map(|side| {
         let (knots, row, weights) = super::boundary::side_row_parts(boxes.surface(), side);
-        match partner {
-            ChartPhi::Plane(n, p0) => {
-                let control: Vec<[Interval; 3]> = row
-                    .iter()
-                    .map(|c| [c.x, c.y, c.z].map(Interval::from_certified))
-                    .collect();
-                SectionReader::of(&knots, &control, &weights, (p0, n))
-            }
-            ChartPhi::Curved(curved) => {
-                let points = row
-                    .iter()
-                    .map(|c| {
-                        super::certify::exact3([c.x, c.y, c.z]).map(geom_core::Point3::from_array)
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                let curve = geom::NurbsCurve3::new(knots, points, weights).ok()?;
-                SectionReader::implicit(&curve, curved)
-            }
-        }
+        let control: Vec<[Interval; 3]> = row
+            .iter()
+            .map(|c| [c.x, c.y, c.z].map(Interval::from_certified))
+            .collect();
+        SectionReader::implicit_enclosed(&knots, &control, &weights, partner.0)
     })
 }
 
@@ -827,7 +814,10 @@ pub(crate) fn one_arc<'p, T: CertifiedBounds>(
         let Some(p) = pcurve_at(pcurve, t) else {
             return (f64::NAN, f64::NAN);
         };
-        (0.5 * (p.x.lo() + p.x.hi()), 0.5 * (p.y.lo() + p.y.hi()))
+        (
+            geom::mid_param(p.x.lo(), p.x.hi()),
+            geom::mid_param(p.y.lo(), p.y.hi()),
+        )
     };
     let clipped = windows
         .iter()
@@ -941,7 +931,7 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
     r: Box3,
 ) -> Option<Vec<Box3>> {
     let mut roots = Vec::new();
-    let mut pieces = 0u32;
+    let mut pieces = EXIT_PIECES;
     for k in 0..3 {
         for c in [side(r, k).lo(), side(r, k).hi()] {
             face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut pieces)?;
@@ -966,41 +956,41 @@ fn face_walk<T: CertifiedBounds>(
     s2: &Surface<T>,
     (x, k): (Box3, usize),
     roots: &mut Vec<Box3>,
-    pieces: &mut u32,
+    pieces: &mut Budget,
 ) -> Option<()> {
     let (i, j) = ((k + 1) % 3, (k + 2) % 3);
-    let mut stack = vec![(x, 0u32)];
-    while let Some((x, depth)) = stack.pop() {
-        *pieces += 1;
-        if *pieces > EXIT_PIECES {
-            return None;
-        }
+    let walked = bisect_within([(x, 0u32)], pieces, |(x, depth)| {
         if sign(implicit_enclosure(s1, x)).is_some() || sign(implicit_enclosure(s2, x)).is_some() {
-            continue;
+            return Step::Settled;
         }
         match krawczyk(s1, s2, x, (i, j)) {
             Some(Krawczyk::One(root)) => {
                 roots.push(root);
-                continue;
+                return Step::Settled;
             }
-            Some(Krawczyk::None) => continue,
+            Some(Krawczyk::None) => return Step::Settled,
             None => {}
         }
         if depth >= EXIT_DEPTH {
-            return None;
+            return Step::Stop(());
         }
         let span = |a: usize| side(x, a).hi() - side(x, a).lo();
         let a = if span(i) >= span(j) { i } else { j };
         let s = side(x, a);
         let cut = s.lo() + EXIT_CUT * (s.hi() - s.lo());
-        stack.push((
-            with_side(x, a, Interval::from_bounds(cut, s.hi())),
-            depth + 1,
-        ));
-        stack.push((
-            with_side(x, a, Interval::from_bounds(s.lo(), cut)),
-            depth + 1,
-        ));
+        Step::Halve([
+            (
+                with_side(x, a, Interval::from_bounds(s.lo(), cut)),
+                depth + 1,
+            ),
+            (
+                with_side(x, a, Interval::from_bounds(cut, s.hi())),
+                depth + 1,
+            ),
+        ])
+    });
+    if !matches!(walked, Ok(None)) {
+        return None;
     }
     Some(())
 }
@@ -1029,7 +1019,10 @@ fn krawczyk<T: CertifiedBounds>(
     (i, j): (usize, usize),
 ) -> Option<Krawczyk> {
     let (xi, xj) = (side(x, i), side(x, j));
-    let (mi, mj) = (0.5 * (xi.lo() + xi.hi()), 0.5 * (xj.lo() + xj.hi()));
+    let (mi, mj) = (
+        geom::mid_param(xi.lo(), xi.hi()),
+        geom::mid_param(xj.lo(), xj.hi()),
+    );
     let m = with_side(with_side(x, i, pt(mi)), j, pt(mj));
     let (f1, f2) = (implicit_enclosure(s1, m), implicit_enclosure(s2, m));
     let (g1, g2) = (
@@ -1037,7 +1030,7 @@ fn krawczyk<T: CertifiedBounds>(
         implicit_gradient_enclosure(s2, x),
     );
     let jac = [[g1[i], g1[j]], [g2[i], g2[j]]];
-    let mid = |v: Interval| 0.5 * (v.lo() + v.hi());
+    let mid = |v: Interval| geom::mid_param(v.lo(), v.hi());
     let (a, b, c, d) = (
         mid(jac[0][0]),
         mid(jac[0][1]),
@@ -1095,13 +1088,14 @@ fn r3_reaches_end<T: CertifiedBounds>(
     {
         return Err(Shortfall::Undecided);
     }
-    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+    let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
     let c = mid(side(at, k));
     if !(side(r, k).lo() <= c && c <= side(r, k).hi()) {
         return Err(Shortfall::Undecided);
     }
     let mut roots = Vec::new();
-    let sliced = face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut 0);
+    let mut pieces = EXIT_PIECES;
+    let sliced = face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut pieces);
     if !roots.is_empty() {
         return Ok(());
     }
@@ -1244,11 +1238,14 @@ mod tests {
     }
 
     /// The plane `z = 0`, crossed into certification arithmetic.
-    fn ground() -> ([Interval; 3], [Interval; 3]) {
-        (
-            [0.0, 0.0, 1.0].map(Interval::from_certified),
-            [0.0, 0.0, 0.0].map(Interval::from_certified),
-        )
+    /// The plane `z = 0`, by its form.
+    fn ground() -> super::super::residual::ImplicitForm {
+        super::super::residual::ImplicitForm::of(&geom::Surface::Plane {
+            origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+            normal: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+        })
+        .expect("a plane has a form")
     }
 
     fn rect(u: (f64, f64), v: (f64, f64)) -> UvRect {
@@ -1361,11 +1358,11 @@ mod tests {
         let (wall, u0) = fold();
         let boxes = NurbsBoxes::new(&wall);
         let whole = rect((0.0, 1.0), (0.0, 1.0));
-        assert_eq!(boundary_zeros(&boxes, ground(), whole), Some(4));
+        assert_eq!(boundary_zeros(&boxes, &ground(), whole), Some(4));
         let pc = across(u0, 1);
         let found = one_arc(
             &boxes,
-            ground(),
+            &ground(),
             (whole, band()),
             &pc,
             &windows(&pc, (3.0, 8.0)),
@@ -1389,7 +1386,7 @@ mod tests {
         for (w, _) in &ws {
             let r = super::meet(w.rect, whole).unwrap();
             assert_eq!(
-                boundary_zeros(&boxes, ground(), r),
+                boundary_zeros(&boxes, &ground(), r),
                 Some(2),
                 "FIXTURE: window {r:?} holds one arc's two ends"
             );
@@ -1397,7 +1394,7 @@ mod tests {
         assert_eq!(
             one_arc(
                 &boxes,
-                ground(),
+                &ground(),
                 (whole, band()),
                 &pc,
                 &ws,
@@ -1417,12 +1414,12 @@ mod tests {
         let wall = biq([0.5, 0.0, -0.5], [0.0, 0.5, 1.0]);
         let boxes = NurbsBoxes::new(&wall);
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.0, 0.5), (0.0, 0.5))),
+            boundary_zeros(&boxes, &ground(), rect((0.0, 0.5), (0.0, 0.5))),
             None
         );
         // The control: the same line crossing a box's sides is two.
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.25, 0.75), (0.0, 0.5))),
+            boundary_zeros(&boxes, &ground(), rect((0.25, 0.75), (0.0, 0.5))),
             Some(2)
         );
     }
@@ -1440,16 +1437,17 @@ mod tests {
         let wall = biq([0.25, -0.25, 0.25], [-0.25, 0.25, 0.75]);
         let boxes = NurbsBoxes::new(&wall);
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.25, 1.0))),
+            boundary_zeros(&boxes, &ground(), rect((0.0, 1.0), (0.25, 1.0))),
             None
         );
         // The touched edge itself refuses, rather than walking past it.
+        let mut pieces = super::EXIT_PIECES;
         assert!(
-            edge_runs(&boxes, ground(), (true, 0.25, (0.0, 1.0)), &mut 0).is_none(),
+            edge_runs(&boxes, &ground(), (true, 0.25, (0.0, 1.0)), &mut pieces).is_none(),
             "the touched edge resolved"
         );
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.125, 1.0))),
+            boundary_zeros(&boxes, &ground(), rect((0.0, 1.0), (0.125, 1.0))),
             Some(2),
             "the control: the edge below cuts the parabola twice"
         );
@@ -1719,7 +1717,7 @@ mod tests {
         let wall = kinked([0.05 - delta, -delta, 0.05 - delta], [0.2, -0.3, -0.8]);
         let boxes = NurbsBoxes::new(&wall);
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.2, 1.0))),
+            boundary_zeros(&boxes, &ground(), rect((0.0, 1.0), (0.2, 1.0))),
             None
         );
     }
@@ -1733,12 +1731,12 @@ mod tests {
         let wall = kinked([0.05, 0.0, 0.05], [-0.12, 0.28, -0.32]);
         let boxes = NurbsBoxes::new(&wall);
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.1, 1.0))),
+            boundary_zeros(&boxes, &ground(), rect((0.0, 1.0), (0.1, 1.0))),
             Some(4),
             "the control: the edge below cuts the V twice, the arc twice"
         );
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.2, 1.0))),
+            boundary_zeros(&boxes, &ground(), rect((0.0, 1.0), (0.2, 1.0))),
             None
         );
     }
@@ -1801,18 +1799,18 @@ mod tests {
         for (k, m, pn) in [(10.0, 64, (0.6e-9, 0.2e-9)), (100.0, 256, (0.9e-9, 0.5e-9))] {
             let wall = loose_wall(k, m, pn);
             let boxes = NurbsBoxes::new(&wall);
-            let readers = super::side_readers(&boxes, ground());
+            let readers = super::side_readers(&boxes, &ground());
             let side = super::SIDES[0];
             assert_eq!((side.fixed, side.end), (ChartAxis::U, super::ChartEnd::Low));
             let reader = super::reader_of(&readers, side).unwrap();
             for r in [rect((0.0, 0.01), (0.25, 0.5)), rect((0.0, 0.2), whole.v)] {
                 assert_eq!(
-                    super::read_stretch(&boxes, ground().0, reader, (side, r), band().zero()),
+                    super::read_stretch(&boxes, &ground(), reader, (side, r), band().zero()),
                     super::Reading::Clear,
                     "k {k}, m {m}: the stretch {r:?}"
                 );
                 assert_eq!(
-                    super::side_piece(&boxes, ground(), (whole, &readers), r, band()),
+                    super::side_piece(&boxes, &ground(), (whole, &readers), r, band()),
                     None,
                     "k {k}, m {m}: the window {r:?}"
                 );
@@ -1847,12 +1845,12 @@ mod tests {
         ] {
             let wall = loose_wall(k, 64, (0.6e-9, 0.2e-9));
             let boxes = NurbsBoxes::new(&wall);
-            let readers = super::side_readers(&boxes, ground());
+            let readers = super::side_readers(&boxes, &ground());
             let reader = super::reader_of(&readers, side).unwrap();
             for (halvings, want) in rows {
                 let got = super::super::boundary::stretch_within(
                     &boxes,
-                    ground().0,
+                    &ground(),
                     reader,
                     (side, r),
                     (band().zero(), halvings),
@@ -1920,7 +1918,7 @@ mod tests {
         for (w, _) in &ws {
             let r = super::meet(w.rect, whole).unwrap();
             assert_eq!(
-                boundary_zeros(&boxes, ground(), r),
+                boundary_zeros(&boxes, &ground(), r),
                 None,
                 "FIXTURE: window {r:?}'s boundary walk resolves no count"
             );
@@ -1928,7 +1926,7 @@ mod tests {
         assert_eq!(
             one_arc(
                 &boxes,
-                ground(),
+                &ground(),
                 (whole, coarse()),
                 &pc,
                 &ws,
@@ -1955,22 +1953,22 @@ mod tests {
             .iter()
             .map(|(w, _)| super::meet(w.rect, whole).unwrap())
             .collect();
-        let readers = super::side_readers(&boxes, ground());
+        let readers = super::side_readers(&boxes, &ground());
         if h[3] < 0.0 {
             assert_eq!(
-                super::piece(&boxes, ground(), (whole, &readers), r[0], coarse()),
+                super::piece(&boxes, &ground(), (whole, &readers), r[0], coarse()),
                 Ok(super::Piece::Side(super::SIDES[0])),
                 "FIXTURE: the lower window is the side's"
             );
             assert_eq!(
-                super::piece(&boxes, ground(), (whole, &readers), r[1], coarse()),
+                super::piece(&boxes, &ground(), (whole, &readers), r[1], coarse()),
                 Ok(super::Piece::Crossing),
                 "FIXTURE: the upper window is a crossing window"
             );
         }
         one_arc(
             &boxes,
-            ground(),
+            &ground(),
             (whole, coarse()),
             &pc,
             &ws,
@@ -2005,7 +2003,7 @@ mod tests {
         let wall = knotted(1.0, [5e-4; 5]);
         let boxes = NurbsBoxes::new(&wall);
         let whole = rect((0.0, 1.0), (0.0, 1.0));
-        let readers = super::side_readers(&boxes, ground());
+        let readers = super::side_readers(&boxes, &ground());
         let (u_low, v_low) = (super::SIDES[0], super::SIDES[2]);
         assert_eq!((u_low.fixed, v_low.fixed), (ChartAxis::U, ChartAxis::V));
         let overlap = rect((0.0, 0.1), (0.4, 0.6));
@@ -2013,7 +2011,7 @@ mod tests {
         let link = |a, b| {
             super::link(
                 &boxes,
-                ground(),
+                &ground(),
                 (whole, &readers, 1e-3),
                 (a, b),
                 overlap,
@@ -2032,7 +2030,7 @@ mod tests {
         let end = |q: (f64, f64)| {
             super::reaches_end(
                 &boxes,
-                ground(),
+                &ground(),
                 (&readers, 1e-3),
                 (side, overlap),
                 q,
@@ -2054,11 +2052,11 @@ mod tests {
         );
         let flush = knotted(1.0, [0.0; 5]);
         let fb = NurbsBoxes::new(&flush);
-        let fr = super::side_readers(&fb, ground());
+        let fr = super::side_readers(&fb, &ground());
         assert_eq!(
             super::link(
                 &fb,
-                ground(),
+                &ground(),
                 (whole, &fr, 1e-3),
                 (side, side),
                 overlap,
@@ -2070,7 +2068,7 @@ mod tests {
         assert_eq!(
             super::reaches_end(
                 &fb,
-                ground(),
+                &ground(),
                 (&fr, 1e-3),
                 (side, overlap),
                 (0.05, 0.5),
@@ -2090,7 +2088,7 @@ mod tests {
         assert_eq!(
             super::reaches_end(
                 &fb,
-                ground(),
+                &ground(),
                 (&fr, 1e-3),
                 (side, overlap),
                 (0.0, 0.7),
@@ -2127,14 +2125,14 @@ mod tests {
             let ws = spans(&pc, &pts, 0.25);
             let r = super::meet(ws[0].0.rect, whole).unwrap();
             assert_eq!(
-                boundary_zeros(&boxes, ground(), r),
+                boundary_zeros(&boxes, &ground(), r),
                 Some(2),
                 "FIXTURE: the window holds one arc"
             );
             assert_eq!(
                 one_arc(
                     &boxes,
-                    ground(),
+                    &ground(),
                     (whole, band()),
                     &pc,
                     &ws,
@@ -2151,7 +2149,7 @@ mod tests {
         assert_eq!(
             one_arc(
                 &boxes,
-                ground(),
+                &ground(),
                 (whole, band()),
                 &pc,
                 &ws,
@@ -2213,23 +2211,23 @@ mod tests {
         let ws = spans(&pc, &pts, 0.2);
         let r = super::meet(ws[0].0.rect, whole).unwrap();
         let side = super::SIDES[0];
-        let readers = super::side_readers(&boxes, ground());
+        let readers = super::side_readers(&boxes, &ground());
         let reader = readers[0].as_ref().unwrap();
         assert!(
             matches!(
-                super::read_stretch(&boxes, ground().0, reader, (side, r), coarse().zero()),
+                super::read_stretch(&boxes, &ground(), reader, (side, r), coarse().zero()),
                 super::Reading::Within(_)
             ),
             "FIXTURE: the side lies within the band of the plane, no piece of it clear"
         );
         assert_eq!(
-            super::side_piece(&boxes, ground(), (whole, &readers), r, coarse()),
+            super::side_piece(&boxes, &ground(), (whole, &readers), r, coarse()),
             None
         );
         assert!(
             one_arc(
                 &boxes,
-                ground(),
+                &ground(),
                 (whole, coarse()),
                 &pc,
                 &ws,

@@ -44,7 +44,7 @@ pub(crate) fn section(verb: Verb, r: f64) -> f64 {
 }
 
 /// `verb` at size `r` on `edges`, at any scalar.
-fn blend<T: Decide + Bounds + AtRestPolicy>(
+fn blend<T: Decide + Bounds + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     verb: Verb,
     body: &topo::AtRestBody<T>,
     edges: &[EdgeKey],
@@ -80,7 +80,10 @@ fn round<T: Real>(x: f64, y: f64, a: f64) -> ProfileLoop<T> {
 
 /// The square block at scale `k` with the profile `hole` (in unit
 /// coordinates, scaled by `k`) through it along `z`.
-fn square<T: Decide + AtRestPolicy>(k: f64, hole: ProfileLoop<T>) -> topo::AtRestBody<T> {
+fn square<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    k: f64,
+    hole: ProfileLoop<T>,
+) -> topo::AtRestBody<T> {
     let outline = poly::<T>(&[(0.0, 0.0), (k, 0.0), (k, k), (0.0, k)]);
     finished(
         "square",
@@ -106,14 +109,13 @@ fn crease<T: Real + Bounds>(body: &Body<T>, k: f64) -> EdgeKey {
     query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
             let p = |v| {
                 *body
                     .get_point(body.get_vertex(v).expect("v").point)
                     .expect("p")
             };
-            at(p(body.get_half_edge(he).expect("a half").start))
-                && at(p(body.half_edge_end(he).expect("an end")))
+            at(p(v0)) && at(p(v1))
         })
         .expect("the block's edge at (k, k)")
 }
@@ -131,9 +133,11 @@ fn faces_where<T: Real + Bounds>(
         Point3::new(mid(p.x), mid(p.y), mid(p.z))
     };
     body.faces()
-        .filter(|(_, f)| {
-            core::iter::once(f.outer)
-                .chain(f.rings.iter().copied())
+        .filter(|(fk, _)| {
+            body.face(*fk)
+                .expect("a live face")
+                .loops()
+                .map(|(lk, _, _)| lk)
                 .all(|lp| match body.get_loop(lp).expect("a loop").boundary {
                     topo::LoopBoundary::Empty { vertex } => sel(at(vertex)),
                     topo::LoopBoundary::Cycle { first } => body
@@ -343,12 +347,7 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
 /// The faces of `body` on no plane: a bore's walls.
 fn curved_walls<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            !matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -731,7 +730,10 @@ fn a_hole_whose_mouth_lies_inside_a_concave_sliver_refuses_as_a_bound() {
 /// `e = (cos θ, sin θ)`, with the profile `hole` through it, extruded
 /// `1` along `z`: the edge at `V` is a convex plane–plane crease of
 /// interior angle `θ`.
-fn dihedral<T: Decide + AtRestPolicy>(theta: f64, hole: ProfileLoop<T>) -> topo::AtRestBody<T> {
+fn dihedral<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>>>(
+    theta: f64,
+    hole: ProfileLoop<T>,
+) -> topo::AtRestBody<T> {
     let (c, s) = (theta.cos(), theta.sin());
     let outline = poly::<T>(&[(0.0, 0.0), (1.0, 0.0), (1.0 + c, s), (c, s)]);
     finished(
@@ -752,14 +754,13 @@ fn crease_at_v<T: Real + Bounds>(body: &Body<T>) -> EdgeKey {
     query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
             let p = |v| {
                 *body
                     .get_point(body.get_vertex(v).expect("v").point)
                     .expect("p")
             };
-            at(p(body.get_half_edge(he).expect("a half").start))
-                && at(p(body.half_edge_end(he).expect("an end")))
+            at(p(v0)) && at(p(v1))
         })
         .expect("the crease at V")
 }

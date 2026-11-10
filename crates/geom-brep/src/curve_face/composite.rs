@@ -58,6 +58,7 @@ use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_comp
 use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
 use crate::half_angle::SPLITS;
+use crate::ladder::{Answering, Rung, climb};
 use crate::pcurve_cache::projected::Meters;
 use crate::roots::{Unsettled, touch_or_tangency};
 
@@ -291,9 +292,9 @@ fn composite_rows<T: Real>(
     // axis, which the radial terms read; the stored twin is orthonormal
     // only to its rounding.
     let [u_ref, _, axis] = frame.map(vector);
-    let e2 = axis / axis.norm();
+    let e2 = axis.normalize();
     let radial = u_ref - e2 * u_ref.dot(e2);
-    let e0 = radial / radial.norm();
+    let e0 = radial.normalize();
     let e = [e0, e2.cross(e0), e2];
     if !e
         .iter()
@@ -454,6 +455,10 @@ fn end_value(piece: &Piece, at_start: bool) -> Interval {
 
 /// The sign every value of `values` holds, by its enclosure alone: `None`
 /// where one holds zero, does not certify, or there is none.
+///
+/// A fold over enclosures, not an agreeing ladder
+/// (`geom_core::ladder::climb_agreeing`): no value is a band decision,
+/// so none is kept in band to answer past, and the sign needs every one.
 fn one_signed(values: impl Iterator<Item = Interval>) -> Option<Sign> {
     let mut sign = None;
     for v in values {
@@ -588,27 +593,29 @@ fn cut(
     if piece.b - piece.a <= floor {
         return Err(Unsettled::Floor.into());
     }
-    // The first share read in the band's gap, which a piece that reads in
-    // band at every share refuses on.
-    let mut gap = None;
-    let Some((c, s)) = SPLITS.iter().find_map(|&k| {
+    // The ladder over the shares ([`climb`]): the first share definitely
+    // past the band answers, and which one answers is where the piece is
+    // cut (`Answering::First`). A piece within the band at every share
+    // runs along the surface here, or crosses it twice within the band:
+    // it refuses on the kept share, ranked ([`crate::ladder::Evidence`]),
+    // and is a tangency where every share read zero.
+    let cut_at = climb(Answering::First, SPLITS, |k| {
         let c = piece.a + (piece.b - piece.a) * k;
         let s = share(&piece, c);
         if !(piece.a < c && c < piece.b) {
-            return None;
+            return Rung::Passes;
         }
         match read(value_at(&piece, s)) {
-            Reading::Past(_) => Some((c, s)),
-            Reading::Near(Some(diag)) => {
-                gap.get_or_insert(diag);
-                None
-            }
-            Reading::Near(None) => None,
+            Reading::Past(_) => Rung::Answers((c, s)),
+            Reading::Near(Some(diag)) => Rung::kept(diag),
+            Reading::Near(None) => Rung::Passes,
         }
-    }) else {
-        // Within the band at every share: the carrier runs along the
-        // surface here, or crosses it twice within the band.
-        return Err(touch_or_tangency(gap, CompositeRefusal::Escalated));
+    })
+    .into_reading();
+    let (c, s) = match cut_at {
+        Ok(Some(at)) => at,
+        Ok(None) => return Err(touch_or_tangency(None, CompositeRefusal::Escalated)),
+        Err(diag) => return Err(touch_or_tangency(Some(diag), CompositeRefusal::Escalated)),
     };
     let (num_l, num_r) = split_row(&piece.num, s);
     let (den_l, den_r) = split_row(&piece.den, s);
@@ -640,7 +647,7 @@ fn bisect_row(
 ) -> Result<f64, CompositeRefusal> {
     let (mut lo, mut hi) = (piece.a, piece.b);
     for _ in 0..BISECTIONS {
-        let c = lo + (hi - lo) * 0.5;
+        let c = geom::bracket_mid((lo, hi));
         if !(lo < c && c < hi) {
             break;
         }
@@ -657,7 +664,7 @@ fn bisect_row(
             hi = c;
         }
     }
-    Ok(lo + (hi - lo) * 0.5)
+    Ok(geom::bracket_mid((lo, hi)))
 }
 
 /// The crossing of a knot's stretch: `before` ends at the knot within
@@ -688,7 +695,7 @@ fn settle<T: Decide>(
     meetings: Vec<Meeting>,
     residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
 ) -> Result<Vec<T>, CompositeRefusal> {
-    let apart =
+    let apart_as =
         |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
             Ok(Sign::Zero) => Ok(false),
             Ok(_) => Ok(true),
@@ -704,7 +711,7 @@ fn settle<T: Decide>(
         let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
         let p = net.eval(T::from_computed(t));
         for &crease in &creases {
-            if !apart("spline_composite_root_at_crease", p, crease)? {
+            if !apart_as("spline_composite_root_at_crease", p, crease)? {
                 return Err(Unsettled::Crease.into());
             }
         }
@@ -714,17 +721,20 @@ fn settle<T: Decide>(
         // Definitely off at the located crossing: the residual's step
         // between two adjacent scalars is past the band.
         if residual(t)? != Sign::Zero {
-            return Err(Unsettled::Meter.into());
+            return Err(Unsettled::Meter {
+                row: "spline_composite_root_on",
+            }
+            .into());
         }
         let mut at_end = false;
         for end in ends {
-            at_end |= !apart("spline_composite_root_at_end", p, end)?;
+            at_end |= !apart_as("spline_composite_root_at_end", p, end)?;
         }
         if at_end {
             continue;
         }
         if let Some(&(_, before)) = roots.last()
-            && !apart("spline_composite_roots_apart", p, before)?
+            && !apart_as("spline_composite_roots_apart", p, before)?
         {
             return Err(Unsettled::Tangency.into());
         }

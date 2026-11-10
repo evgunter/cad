@@ -119,7 +119,8 @@ fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
             .unwrap_or_else(|e| {
                 panic!("the ({rim_r}, {rim_y}) rim fillets sequentially, got {e:?}")
             })
-            .body;
+            .body
+            .into_body();
     }
     validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("sequential tier 3, got {e:?}"));
     volume(&body)
@@ -509,11 +510,8 @@ fn every_band_crossing_names_the_seam_its_foot_split() {
 fn foot_touches_its_seams_remnant(out: &Filleted<f64>) {
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
     let ends = |e: EdgeKey| -> [topo::VertexKey; 2] {
-        let he = out.body.get_edge(e).expect("a remnant survives").he_plus;
-        [
-            out.body.get_half_edge(he).expect("its half").start,
-            out.body.half_edge_end(he).expect("its end"),
-        ]
+        let (s, t) = out.body.edge_vertices(e).expect("a remnant survives");
+        [s, t]
     };
     assert!(!rec.meridian_splits.is_empty());
     for (foot, seam, _) in &rec.meridian_splits {

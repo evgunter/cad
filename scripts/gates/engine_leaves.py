@@ -8,9 +8,11 @@ under it, BY NAME, however the name reached scope (a hub's re-export,
 `use super::X`, a glob, the root's own `pub use`) — the crate-wide
 qualifiers declared inside an engine, and the constructs it refuses.
 
-    engine_leaves.py BASELINE CARGO_TOML
+    engine_leaves.py BASELINE CARGO_TOML [--base BASE_BASELINE] [--lines FILE]
 
 Prints `ROSE kind file: was -> now (the file's counted sites: L…)`,
+`RAISED kind file: base -> pin` and `RAISED ambiguous NAME` against
+`--base` (`raised`), or `CITED …` for a rise its line's row admits,
 `FELL kind file: was -> now`, `AMBIGUOUS-NEW name: …`, `AMBIGUOUS-GONE
 name`, `MALFORMED …`, then `TOTAL n`; `REFUSED …` on stderr when it
 cannot read its subject. The gate decides from them.
@@ -43,7 +45,8 @@ any length, for a type. `$crate`, `topo` (this crate's own name) and a
 such name, so the exclusion is read rather than silent.
 
 WHAT AN OCCURRENCE IS. A token of the name, not after `.` (a method or
-field), not qualified by an external crate, and not resolving to an
+field), not qualified by an external crate, not an associated type's
+binding (`Item` in `Iterator<Item = X>`), and not resolving to an
 external crate's import. Under a capitalised head (`H::name`) it counts
 unless H is `Self`, a type parameter, a std type, a type declared
 outside the engines or imported from elsewhere, or an engine name
@@ -90,6 +93,7 @@ SRC = 'crates/topo/src/'
 #                                   module, or to this crate (refused_bindings)
 KINDS = ('names-boolean', 'names-splitting', 'boolean-names-splitting',
          'splitting-names-boolean', 'crate-visible', 'refused-binding')
+READER_KINDS = ('names-boolean', 'names-splitting')
 ITEM_KW = {'fn', 'struct', 'enum', 'trait', 'type', 'const', 'static'}
 QUALIFIERS = {'const', 'async', 'unsafe', 'extern', 'default'}
 TOKEN = re.compile(r'[A-Za-z_][A-Za-z0-9_]*|\d[\w.]*|::|\S')
@@ -551,6 +555,10 @@ def names_engine(f, e, eng):
         if pre is None or (pre and pre[0] in ext):
             continue
         nxt = toks[i + 1][0] if i + 1 < len(toks) else ''
+        prev = toks[i - 1][0] if i >= 1 else ''
+        bound_to = toks[i + 2][0] if i + 2 < len(toks) else ''
+        if not pre and prev in ('<', ',') and nxt == '=' and bound_to not in ('=', '>'):
+            continue                        # an associated type's binding
         if t == e:
             before = toks[i - len(pre) * 2 - 1][0] if i - len(pre) * 2 >= 1 else ''
             if before in ('mod', 'in') or not (pre or nxt == '::'):
@@ -585,14 +593,16 @@ def names_engine(f, e, eng):
 
 
 def baseline(path):
-    allowed, ambiguous, bad = {}, set(), []
+    allowed, ambiguous, bad, notes = {}, set(), [], {}
     with open(path, encoding='utf-8') as fh:
         for n, line in enumerate(fh, 1):
-            cols = line.split('#', 1)[0].split()
+            data, _, note = line.partition('#')
+            cols = data.split()
             if not cols:
                 continue
             if cols[0] == 'ambiguous' and len(cols) == 2:
                 ambiguous.add(cols[1])
+                notes[('ambiguous', cols[1])] = note
                 continue
             ok = len(cols) == 3 and cols[0] in KINDS and cols[1].isdigit() and int(cols[1]) > 0
             if not ok or (cols[0], cols[2]) in allowed:
@@ -601,15 +611,50 @@ def baseline(path):
                            f'kinds: {" ".join(KINDS)}')
                 continue
             allowed[(cols[0], cols[2])] = int(cols[1])
-    return allowed, ambiguous, bad
+            notes[(cols[0], cols[2])] = note
+    return allowed, ambiguous, bad, notes
+
+
+def raised(allowed, ambiguous, notes, base_path):
+    """`RAISED …` for each pin above the base's pin of its kind and file
+    (absent there: 0), or `CITED …` for the one rise admitted: a reader's
+    pin (`names-*`) on a line whose note cites the `work/` row that retires
+    the site (`GATE_ROW_CITATION_ERE`, lib.sh);
+    `pin-cites-an-open-row.sh` holds that row open. Every other kind
+    admits no new site.
+
+    An `ambiguous NAME` line absent from the base is a rise too: every
+    bare use of NAME leaves the count once it is listed, so it is
+    `RAISED ambiguous NAME` unless its note cites the row that retires
+    the namesake (`CITED ambiguous NAME`)."""
+    citation = re.compile(os.environ['GATE_ROW_CITATION_ERE'])
+    base, base_ambiguous, base_bad, _ = baseline(base_path)
+    out = [f'MALFORMED (base) {line[len("MALFORMED "):]}' for line in base_bad]
+    for name in sorted(ambiguous - base_ambiguous):
+        cited = citation.search(notes[('ambiguous', name)])
+        out.append(f'CITED ambiguous {name} ({cited.group()})' if cited else f'RAISED ambiguous {name}')
+    for key, pin in sorted(allowed.items()):
+        was = base.get(key, 0)
+        if pin <= was:
+            continue
+        cited = citation.search(notes[key])
+        if key[0] in READER_KINDS and cited:
+            out.append(f'CITED {key[0]} {key[1]}: {was} -> {pin} ({cited.group()})')
+        else:
+            out.append(f'RAISED {key[0]} {key[1]}: {was} -> {pin}')
+    return out
 
 
 def main():
     args = sys.argv[1:]
-    lines_for = None
+    lines_for = base_for = None
     if '--lines' in args:
         k = args.index('--lines')
         lines_for = args[k + 1]
+        del args[k:k + 2]
+    if '--base' in args:
+        k = args.index('--base')
+        base_for = args[k + 1]
         del args[k:k + 2]
     base_path, cargo = args[0], args[1]
     ext = externs(cargo)
@@ -622,9 +667,12 @@ def main():
         raise SystemExit(f'REFUSED no {SRC}lib.rs or no engine file among the records: the census read nothing')
     files = {r: File(r, tokenize(lines)) for r, lines in recs.items()}
     sites, ambiguous = census(files, ext)
-    allowed, listed, bad = baseline(base_path)
+    allowed, listed, bad, notes = baseline(base_path)
     for line in bad:
         print(line)
+    if base_for is not None:
+        for line in raised(allowed, listed, notes, base_for):
+            print(line)
     for key in sorted(set(sites) | set(allowed)):
         now, was = len(sites.get(key, [])), allowed.get(key, 0)
         if now > was:

@@ -172,7 +172,16 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
                 continue;
             }
             let d = d.normalize();
-            let got = line_torus_roots(o, d, center, axis, big_r, r, band());
+            let got = line_torus_roots(
+                geom::Line { origin: o, dir: d },
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
+                big_r,
+                r,
+                band(),
+            );
             let Ok(QuarticRoots::Certified(found)) = got else {
                 continue;
             };
@@ -185,7 +194,15 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
                 let p = o + d * t;
                 let on_tube = decide(
                     "bool_curved_contain_carrier",
-                    Margin::of(torus_elevation(center, axis, big_r, r, p)),
+                    Margin::of(torus_elevation(
+                        geom::Line {
+                            origin: center,
+                            dir: axis,
+                        },
+                        big_r,
+                        r,
+                        p,
+                    )),
                     band(),
                 );
                 let placed = curved_face_placement(&body, face, p, band());

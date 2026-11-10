@@ -167,6 +167,8 @@ mod pair_section;
 mod pcurve_frame_premise_rows;
 #[path = "plane_cone_arc.rs"]
 mod plane_cone_arc;
+#[path = "plane_nurbs_readings.rs"]
+mod plane_nurbs_readings;
 #[path = "pn_apex_pair_over_a_span.rs"]
 mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]
@@ -246,6 +248,8 @@ mod periodic_chart_closure;
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
 mod r2_cert3_e2e;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_4553_pxn_probes.rs"]
 mod review_4553_pxn_probes;
 #[path = "review_6092_delta_probes.rs"]

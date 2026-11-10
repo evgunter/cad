@@ -35,11 +35,12 @@ fn loft() -> Body<f64> {
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
         .body
+        .into_body()
 }
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Nurbs(p)) if !p.is_placeholder()))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Nurbs(p)) if !p.is_placeholder()))
         .map(|(k, _)| k)
         .expect("a loft has described NURBS walls")
 }
@@ -84,10 +85,7 @@ fn masqueraded(
 ) -> (Body<f64>, FaceKey, NurbsSurface<f64>) {
     let mut body = loft();
     let wall = nurbs_wall(&body);
-    let Some(Surface::Nurbs(payload)) = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .cloned()
-    else {
+    let Some(Surface::Nurbs(payload)) = body.face_surface(wall).cloned() else {
         unreachable!()
     };
     let masq = corrupt(&payload, f);
@@ -232,7 +230,7 @@ fn n2r2_class2_tessellate() {
 #[test]
 fn n2r2_class1_step_export() {
     let (body, _, _) = masqueraded(poison_x);
-    let body = match topo::AtRestBody::validate(body, tol()) {
+    let body = match topo::finish(body, tol()) {
         Ok(body) => body,
         Err(e) => {
             eprintln!("[class 1 x-poison] at-rest gate -> Err: {e:?}");
@@ -286,7 +284,7 @@ fn n2r2_class10_replace_face_offset() {
 /// CARTESIAN_POINT coordinate, re-import.
 #[test]
 fn n2r2_class12_step_import_overflow_real() {
-    let body = topo::AtRestBody::validate(loft(), tol()).expect("the loft is at rest");
+    let body = topo::finish(loft(), tol()).expect("the loft is at rest");
     let doc = step_export::step_string(&body, &step_export::StepOptions::default(), tol()).unwrap();
     // Find a CARTESIAN_POINT line and replace its first coordinate:
     // `#n = CARTESIAN_POINT('', (x, y, z));`

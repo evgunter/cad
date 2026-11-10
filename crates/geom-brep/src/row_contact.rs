@@ -70,7 +70,8 @@ pub fn analytic_shared_row<T: Decide>(
     band: Band,
 ) -> Option<crate::CurveSelector<T>> {
     let image = |wall: &Surface<T>| {
-        crate::pcurve_cache::chart_pcurve_over(carrier, t0, t1, wall, band).ok()
+        let pcurve = crate::pcurve_cache::chart_pcurve_over(carrier, t0, t1, wall, band).ok()?;
+        Some(crate::ChartImage::Image { pcurve, t0, t1 })
     };
     let [(ka, wa), (kb, wb)] = walls;
     let (ia, ib) = (image(wa)?, image(wb)?);
@@ -79,7 +80,7 @@ pub fn analytic_shared_row<T: Decide>(
     if rows != Some([WallRow::Analytic, WallRow::Analytic]) {
         return None;
     }
-    let row = crate::SharedRow::new(pair, (ka, ia), (kb, ib))?;
+    let row = crate::SharedRow::new(pair, (ka, ia.into_pcurve()), (kb, ib.into_pcurve()))?;
     Some(crate::CurveSelector::Structural(
         crate::Structural::SharedRow(row),
     ))

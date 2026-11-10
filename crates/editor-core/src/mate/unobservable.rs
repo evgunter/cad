@@ -25,7 +25,7 @@ use geom_core::predicate::Band;
 use super::MateRef;
 use super::PoseSymmetry;
 use super::coset::{Arm, directions_parallel, on_the_line, slides_along, turn_line};
-use crate::eval::{Evaluation, NodeResult, ValuePayload};
+use crate::eval::{Evaluation, NodeResult};
 use crate::node::RecipeNodeId;
 use crate::pose::{PoseDef, PoseValue};
 use crate::var::VarDef;
@@ -185,10 +185,10 @@ fn spin_moves_nothing(
         }
         _ => return false,
     };
-    let bodies: Vec<&crate::eval::Framed<f64>> = match &value.payload {
-        ValuePayload::Body(b) => vec![b],
-        _ => return false,
+    let Some(Some(body)) = value.payload.one_body() else {
+        return false;
     };
+    let bodies = [body];
     // Each body's reach in its space, from the space's origin. A body
     // whose space's origin its frame cannot place leaves the arm
     // unknown: the turn is not shown unobservable, rather than measured
@@ -199,7 +199,7 @@ fn spin_moves_nothing(
         let Ok(origin) = b.space_origin() else {
             return false;
         };
-        let Ok(r) = super::part_reach_from(b.body(), origin) else {
+        let Ok(r) = super::part_reach_from(b.body(), origin, band) else {
             continue;
         };
         reach = Some(reach.map_or(r, |h: f64| h.max(r)));

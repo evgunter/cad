@@ -51,10 +51,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
-    matches!(
-        body.get_surface(body.get_face(f).unwrap().surface).unwrap(),
-        Surface::Plane { .. }
-    )
+    matches!(body.face_surface(f).unwrap(), Surface::Plane { .. })
 }
 
 fn plane_host(body: &Body<f64>, arcs: &[EdgeKey]) -> FaceKey {
@@ -241,7 +238,8 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
                 tol(),
             )
             .unwrap_or_else(|e| panic!("the ({rr}, {ry}) rim carves alone, got {e:?}"))
-            .body;
+            .body
+            .into_body();
         }
         let seq = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),

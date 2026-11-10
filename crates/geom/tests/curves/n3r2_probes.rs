@@ -4,7 +4,7 @@
 //! CERT-N3 R2 blinded-review probes — probe branch only.
 //!
 //! An INDEPENDENT adversarial corpus for the exact conic box adopted by
-//! `topo::boolean::boxes::edge_box` (row S235): the box must be a
+//! `topo::boxes::edge_box` (row S235): the box must be a
 //! superset of the arc's locus at every scalar the boolean reads it at.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

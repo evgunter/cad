@@ -115,8 +115,10 @@ fn fixed_winding_aliased_full_period_refused() {
             MappedSource::RevolvedPoint {
                 point: Point2::new(2.0, 2.0),
                 place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-                axis_origin: center,
-                axis_dir: Vec3::unit_z(),
+                axis: geom::Line {
+                    origin: center,
+                    dir: Vec3::unit_z(),
+                },
                 angle: TAU,
             },
         )),
@@ -1072,8 +1074,10 @@ mod interval_lane {
                 MappedSource::RevolvedPoint {
                     point: Point2::new(Interval::from_f64(2.0), Interval::from_f64(2.0)),
                     place: Affine3::translation(v3(0.0, 0.0, 3.0)),
-                    axis_origin: center,
-                    axis_dir: v3(0.0, 0.0, 1.0),
+                    axis: geom::Line {
+                        origin: center,
+                        dir: v3(0.0, 0.0, 1.0),
+                    },
                     angle: Interval::from_f64(core::f64::consts::TAU),
                 },
             )),

@@ -62,6 +62,7 @@ fn cylinder(r: f64, z0: f64, h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The ellipse point at azimuth `deg` in the sketch plane's own (u, v).
@@ -125,6 +126,7 @@ fn prism_turned(
     extrude(&profile, Extrusion::Distance { depth: h, side }, tol())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The prism's corners, as [`prism_turned`] builds it: the quad in the
@@ -414,6 +416,7 @@ fn plate(x: (f64, f64), t: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The rod: a disc of radius `R` (its two vertices at sketch angle
@@ -448,6 +451,7 @@ fn rod(theta: f64, phi: f64, t: f64, len: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The rod ∩ plate volume: slices are ellipses (semi-axes `R/cos θ`
@@ -560,7 +564,7 @@ fn u_plate(c: f64, w: f64, t: f64) -> (Body<f64>, Vec<(f64, f64)>) {
     )
     .unwrap()
     .body;
-    (body, poly)
+    (body.into_body(), poly)
 }
 
 #[test]

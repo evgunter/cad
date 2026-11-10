@@ -45,6 +45,7 @@ fn extruded_loops(loops: Vec<profile::ProfileLoop<f64>>) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn plane(o: (f64, f64), n: (f64, f64)) -> SplitPlane<f64> {
@@ -198,9 +199,7 @@ fn refuses_the_knife_edge(
         matches!(e, SplitError::Reduce(_)),
         "{label}: read in the reduction, not later: {e:?}"
     );
-    let named = body
-        .get_face(knife.wall)
-        .and_then(|f| body.get_surface(f.surface));
+    let named = body.face_surface(knife.wall);
     assert_eq!(
         named.map(geom::Surface::kind),
         Some(wall),
@@ -209,11 +208,8 @@ fn refuses_the_knife_edge(
     match knife.at {
         KnifeEdgeSite::Edge(edge) => {
             assert_eq!(contact, Contact::Edge, "{label}: read along {edge:?}");
-            let he = body.get_edge(edge).expect("an operand edge").he_plus;
-            let ends = [
-                body.get_half_edge(he).unwrap().start,
-                body.half_edge_end(he).unwrap(),
-            ];
+            let (v0, v1) = body.edge_vertices(edge).expect("an operand edge");
+            let ends = [v0, v1];
             for v in ends {
                 let q = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
                 assert!(
@@ -575,6 +571,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The plane tangent to the cone `ρ = r0 + slope·y` along its ruling at
@@ -944,7 +941,7 @@ fn a_concave_wall_beside_a_convex_one_refuses_its_knife_edge() {
         refuses_the_knife_edge(&label, &body, &p, SurfaceKind::Cylinder, Contact::Edge);
         let e = split(&operand, &p, Tol::witness()).unwrap_err();
         let wall = e.knife_edge().unwrap().wall;
-        let centre = match body.get_surface(body.get_face(wall).unwrap().surface) {
+        let centre = match body.face_surface(wall) {
             Some(geom::Surface::Cylinder { origin, .. }) => (origin.x, origin.y),
             other => panic!("{label}: {other:?}"),
         };

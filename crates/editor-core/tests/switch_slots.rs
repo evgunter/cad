@@ -190,11 +190,19 @@ fn program_slots_refuse_wrong_dimensions() {
         },
         Tol::witness(),
     ) {
-        Err(EditError::SlotDimensionMismatch {
-            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
-            found: Dimension::Angle,
-            ..
-        }) => {}
+        Err(
+            e @ EditError::SlotDimensionMismatch {
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
+                found: Dimension::Angle,
+                ..
+            },
+        ) => {
+            let said = e.to_string();
+            assert!(
+                said.contains("write it from length literals and parameters declared length"),
+                "the recourse names the dimension as a bare noun, not with its article: {said}"
+            );
+        }
         other => panic!("wrong dimension must refuse, got {other:?}"),
     }
 }

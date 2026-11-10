@@ -609,16 +609,54 @@ impl MassMeasurement {
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
-    pub(crate) inner: Arc<topo::Body<f64>>,
+    pub(crate) inner: HostBody,
     contacts: Arc<topo::ContactRecords>,
 }
 
+/// **The body a host handle reads**: construction state a door minted,
+/// or an evaluated value's body shared as the evaluation holds it (no
+/// copy). Read as a body either way.
+#[derive(Clone)]
+pub(crate) enum HostBody {
+    /// Construction state.
+    Plain(Arc<topo::Body<f64>>),
+    /// An evaluated value's body, shared.
+    Held(pncad::document::Held<f64>),
+}
+
+impl core::ops::Deref for HostBody {
+    type Target = topo::Body<f64>;
+
+    fn deref(&self) -> &topo::Body<f64> {
+        match self {
+            Self::Plain(body) => body,
+            Self::Held(body) => body,
+        }
+    }
+}
+
+impl From<Arc<topo::Body<f64>>> for HostBody {
+    fn from(body: Arc<topo::Body<f64>>) -> Self {
+        Self::Plain(body)
+    }
+}
+
 impl Body {
+    /// **An evaluated value's body as the host holds it**: shared, not
+    /// copied, where it is read as it is held; a body the read-out
+    /// mapped into its space is construction state.
+    pub(crate) fn host(body: pncad::document::ReadIn<f64>) -> HostBody {
+        match body {
+            pncad::document::ReadIn::Held(held) => HostBody::Held(held),
+            pncad::document::ReadIn::Mapped(body) => HostBody::Plain(body),
+        }
+    }
+
     /// A body with no contact records — every door but those that have
     /// records to carry (an evaluated value, an import).
-    pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
+    pub(crate) fn plain(inner: impl Into<HostBody>) -> Self {
         Self {
-            inner,
+            inner: inner.into(),
             contacts: Arc::new(topo::ContactRecords::default()),
         }
     }
@@ -626,10 +664,13 @@ impl Body {
     /// A body with the contact records its producer carries, each citing
     /// the decision that backs it.
     pub(crate) fn recorded(
-        inner: Arc<topo::Body<f64>>,
+        inner: impl Into<HostBody>,
         contacts: Arc<topo::ContactRecords>,
     ) -> Self {
-        Self { inner, contacts }
+        Self {
+            inner: inner.into(),
+            contacts,
+        }
     }
 }
 
@@ -1165,11 +1206,10 @@ impl Value {
     /// keeping every key.
     fn recorded_body(&self, py: Python<'_>, body: &d::Framed<f64>) -> PyResult<Body> {
         let body = pncad::export::body_in_space(body, Tol::witness())
+            .map(Body::host)
             .map_err(|err| compose_err(py, self.node, &err))?;
-        Ok(match &self.payload {
-            d::ValuePayload::Body(_) | d::ValuePayload::Boolean(d::BooleanValue::Body { .. }) => {
-                Body::recorded(body, Arc::clone(&self.contacts))
-            }
+        Ok(match self.payload.one_body() {
+            Some(Some(_)) => Body::recorded(body, Arc::clone(&self.contacts)),
             _ => Body::plain(body),
         })
     }
@@ -1200,39 +1240,37 @@ impl Value {
     /// among them) and a non-empty `Boolean`; raises for every other
     /// kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
-        match &self.payload {
-            d::ValuePayload::Body(body) => self.recorded_body(py, body),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
-                self.recorded_body(py, body)
-            }
-            d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
+        match self.payload.one_body() {
+            Some(Some(body)) => self.recorded_body(py, body),
+            Some(None) => Err(eval_err(
                 py,
                 "the Boolean produced an empty result",
                 EvalReason::EmptyBoolean,
                 self.node,
             )),
-            other => Err(eval_err(
+            None => Err(eval_err(
                 py,
-                format!("a `{}` value is not a body", other.kind_name()),
+                format!("a `{}` value is not a body", self.payload.kind_name()),
                 EvalReason::WrongKind,
                 self.node,
             )),
         }
     }
 
-    /// Every body this value denotes: one for `Body`/`Boolean`, the
-    /// whole list for `Instances`, both sides for a
-    /// `Split`.
+    /// Every body this value denotes: one for `Body`/`Boolean`, each
+    /// member's for `Instances`, each side's for a `Split`. An empty
+    /// boolean, an empty member and an empty side denote none.
     fn bodies(&self, py: Python<'_>) -> PyResult<Vec<Body>> {
         let wrap = |body: &d::Framed<f64>| self.recorded_body(py, body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
         };
+        if let Some(body) = self.payload.one_body() {
+            return body.map(wrap).into_iter().collect();
+        }
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(vec![wrap(body)?]),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => Ok(vec![wrap(body)?]),
-            d::ValuePayload::Instances(bodies) => bodies.iter().map(wrap).collect(),
+            d::ValuePayload::Instances(bodies) => bodies.iter().flatten().map(wrap).collect(),
             d::ValuePayload::Split { above, below } => {
                 [side(above), side(below)].into_iter().flatten().collect()
             }
@@ -1244,7 +1282,7 @@ impl Value {
     fn split(&self, py: Python<'_>) -> PyResult<(Option<Body>, Option<Body>)> {
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => pncad::export::body_in_space(body, Tol::witness())
-                .map(|body| Some(Body::plain(body)))
+                .map(|body| Some(Body::plain(Body::host(body))))
                 .map_err(|err| compose_err(py, self.node, &err)),
             d::SplitSide::Empty => Ok(None),
         };
@@ -1997,9 +2035,10 @@ impl Evaluation {
     /// for "which body does this node denote", shared with Rust).
     ///
     /// Accepts a `body` or non-empty `boolean` value; everything else
-    /// raises a typed `ExportError`. The body is gated at rest first,
-    /// so one the gate refuses raises `ExportError` tagged
-    /// `body_invalid` rather than reaching the writer.
+    /// raises a typed `ExportError`. The body is finished already (a
+    /// value holds a finished body), so the door gates nothing of its
+    /// own; one whose frame cannot be composed into its space raises
+    /// `ExportError` tagged `compose_refused`.
     ///
     /// Every `StepOptions` field is a keyword here, and each defaults
     /// to `None` meaning the Rust default — so the door narrows
@@ -2057,7 +2096,11 @@ impl Evaluation {
 /// whose body the kernel would not compose into its space
 /// ([`pncad::export::body_in_space`]): the same arm `export_step` raises
 /// for the same refusal, `node` the value's.
-pub(crate) fn compose_err(py: Python<'_>, node: NodeId, err: &topo::TransformError) -> PyErr {
+pub(crate) fn compose_err(
+    py: Python<'_>,
+    node: NodeId,
+    err: &pncad::export::ComposeError,
+) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
@@ -2121,11 +2164,7 @@ fn export_err(
         // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
-        E::EmptyBoolean { .. }
-        | E::BodyInvalid { .. }
-        | E::Compose(_)
-        | E::Step(_)
-        | E::Product(_) => {}
+        E::EmptyBoolean { .. } | E::Compose(_) | E::Step(_) | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
@@ -2417,10 +2456,10 @@ pub(crate) struct ImportReport {
     /// rest, checked before it was handed out.
     #[pyo3(get)]
     body: Body,
-    /// The body held with the at-rest gate's own certificate of it
-    /// (`topo::CertifiedBody`): what `measure` measures through. `body`
+    /// The finished body, holding the at-rest gate's own certificate of
+    /// it (`topo::AtRestBody`): what `measure` measures through. `body`
     /// is its body, handed out as a handle like any other.
-    certified: topo::CertifiedBody,
+    certified: topo::AtRestBody<f64>,
     /// The import's input tolerance in metres: the file's declared
     /// uncertainty, which is a separate quantity from the kernel's ε.
     #[pyo3(get)]
@@ -2536,7 +2575,7 @@ pub(crate) fn import_step(
             // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::recorded(Arc::new(body.body().clone()), Arc::new(contacts)),
+            body: Body::recorded(Arc::new(topo::Body::clone(&body)), Arc::new(contacts)),
             certified: body,
             eps_in,
             normalizations: normalizations
@@ -2939,7 +2978,7 @@ impl Coincidence {
     /// `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
     /// `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`,
     /// `split_on`, `battery_turn`, `battery_joint`, `battery_support_axis`,
-    /// `profile_junction`, `vertex_fusion` or `census_at_rest`.
+    /// `profile_junction`, `vertex_fusion`, `iso_join` or `census_at_rest`.
     #[getter]
     fn site(&self) -> &'static str {
         self.site

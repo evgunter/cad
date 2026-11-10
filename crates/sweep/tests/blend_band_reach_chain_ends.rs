@@ -44,10 +44,7 @@ fn band() -> Band {
 
 /// The plane of `face` as its unit normal and its offset along it.
 fn plane_of(body: &Body<f64>, face: FaceKey) -> ([f64; 3], f64) {
-    let s = body
-        .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .expect("the face's surface");
+    let s = body.face_surface(face).expect("the face's surface");
     let Surface::Plane { origin, normal, .. } = s else {
         panic!("a plane face, got {s:?}");
     };
@@ -254,9 +251,9 @@ fn trapezoid_edges<T: Bounds>(body: &Body<T>, w: f64) -> Vec<EdgeKey> {
     let back = |q: [f64; 3]| top(q) && (q[1] - w).abs() < 1e-9;
     let mut out: Vec<EdgeKey> = body
         .edges()
-        .filter_map(|(k, e)| {
-            let a = mid(body.get_half_edge(e.he_plus)?.start);
-            let b = mid(body.half_edge_end(e.he_plus)?);
+        .filter_map(|(k, _)| {
+            let (start, end) = body.edge_vertices(k)?;
+            let (a, b) = (mid(start), mid(end));
             (top(a) && top(b) && !(back(a) && back(b))).then_some(k)
         })
         .collect();

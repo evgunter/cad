@@ -228,9 +228,10 @@ struct Sample {
 
 /// The body a node evaluated to.
 fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
-    match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => crate::world::in_its_space(b, tol),
-        other => panic!("a placed link evaluates to a body, got {other:?}"),
+    let payload = &ev.value(id).expect("the node evaluated").payload;
+    match payload.one_body() {
+        Some(Some(b)) => crate::world::in_its_space(b, tol),
+        _ => panic!("a placed link evaluates to a body, got {payload:?}"),
     }
 }
 
@@ -240,8 +241,8 @@ fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId, tol: Tol) -> Body<f64> {
 /// vertex, projected to the sketch plane.
 fn bar_outline(body: &Body<f64>) -> Vec<(f64, f64)> {
     let mut cap: Option<(f64, Vec<(f64, f64)>)> = None;
-    for (_, face) in body.faces() {
-        let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(face.surface) else {
+    for (fk, face) in body.faces() {
+        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
             continue;
         };
         // The caps' normal is `+z` or `-z` and every side's lies in the

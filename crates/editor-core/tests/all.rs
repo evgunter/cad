@@ -61,6 +61,8 @@ mod wire;
 
 #[path = "a_blend_refusal_names_its_edge.rs"]
 mod a_blend_refusal_names_its_edge;
+#[path = "a_dual_is_bound_to_its_build_of_record.rs"]
+mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
 #[path = "aligned_overlap_quiets.rs"]
@@ -223,16 +225,22 @@ mod eval6_placers_over_instances;
 mod eval6_placers_over_instances_interval;
 #[path = "eval9_nominal_in_the_key.rs"]
 mod eval9_nominal_in_the_key;
+#[path = "every_predicate_name_is_minted_once.rs"]
+mod every_predicate_name_is_minted_once;
 #[path = "f64_lane_validates_once.rs"]
 mod f64_lane_validates_once;
 #[path = "face_face_touch_carry.rs"]
 mod face_face_touch_carry;
+#[path = "fillet_step_walk.rs"]
+mod fillet_step_walk;
 #[path = "fix_loop_polygon_expr.rs"]
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "g_family_of_booleans.rs"]
+mod g_family_of_booleans;
 #[path = "g_family_review_rows.rs"]
 mod g_family_review_rows;
 #[path = "g_index_families.rs"]
@@ -247,6 +255,8 @@ mod gap_reads_vertex_and_edge_cells;
 mod placement_values_direction;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "refactor_pose_definitions.rs"]
 mod refactor_pose_definitions;
 #[path = "refusal_concision.rs"]
@@ -375,6 +385,8 @@ mod on_verdict_rows;
 mod onb_seam_class_interval;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
+#[path = "onehome_switch_parity_interval.rs"]
+mod onehome_switch_parity_interval;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;
 
@@ -580,8 +592,8 @@ mod pierce_ring_engraving;
 mod pirad_wire;
 #[path = "place_mate_frame_offset.rs"]
 mod place_mate_frame_offset;
-#[path = "product_gate_attribution.rs"]
-mod product_gate_attribution;
+#[path = "product_finishes_once.rs"]
+mod product_finishes_once;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 

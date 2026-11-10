@@ -14,11 +14,7 @@ use topo::{Body, EdgeKey, FaceKey, ValidationError, validate_geometric};
 fn faces_where(body: &Body<f64>, pick: impl Fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
     query::all_faces(body)
         .into_iter()
-        .filter(|&f| {
-            body.get_face(f)
-                .and_then(|fd| body.get_surface(fd.surface))
-                .is_some_and(&pick)
-        })
+        .filter(|&f| body.face_surface(f).is_some_and(&pick))
         .collect()
 }
 

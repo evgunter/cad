@@ -55,6 +55,11 @@ pub struct TracedFace<T: geom_core::Real> {
     pub surface: Result<geom::Surface<T>, geom::SurfaceKind>,
     /// The face's orientation sense.
     pub sense: bool,
+    /// The region the face can occupy, in its body's coordinates
+    /// ([`topo::face_cover`]), or why it has none: the extent a piece's
+    /// decisions about the face are levered over, which a step reading
+    /// none refuses.
+    pub cover: topo::FaceCovered<T>,
     /// The sketch's coordinates into the body's.
     pub sketch_to_body: RigidMotion<T>,
     /// The body's coordinates into the sketch's.
@@ -141,6 +146,9 @@ pub enum TraceStepFault {
     /// ([`TraceFault`]): no closed form, a grazing crossing, a sign in
     /// the sliver band.
     Carrier(TraceFault),
+    /// The face has no cover to lever the piece's decisions over
+    /// ([`topo::FaceUncovered`]).
+    Uncovered(topo::FaceUncovered),
 }
 
 impl core::fmt::Display for TraceRefusal {
@@ -226,9 +234,19 @@ impl core::fmt::Display for TraceStepFault {
             TraceStepFault::Carrier(fault @ TraceFault::Escalated(_)) => {
                 return write!(f, "{fault}");
             }
+            // The convention's refusal, in its own words, ended in its
+            // half's lever.
+            TraceStepFault::Carrier(TraceFault::Torus(refusal)) => {
+                f.write_str(&refusal.said("the face's", None))?;
+                refusal.convention.sized().lever
+            }
             TraceStepFault::Carrier(fault) => {
                 write!(f, "{fault}")?;
                 "turn the piece so it crosses the face, or move the frame"
+            }
+            TraceStepFault::Uncovered(why) => {
+                write!(f, "the face's region cannot be bounded: {why}")?;
+                "rebuild the face from finite, certified geometry"
             }
         };
         write!(f, ". {}", Recourse(recourse))
@@ -455,12 +473,16 @@ fn plane_in_body<T: Decide>(face: &TracedFace<T>) -> (Point3<T>, Vec3<T>) {
 }
 
 /// A length the size of what a piece from `from` runs through: the lever
-/// its decisions about `face` are read over.
-fn reach_of<T: Decide>(face: &TracedFace<T>, surface: &geom::Surface<T>, from: Point3<T>) -> T {
-    // A carrier with no closed form refused before any piece runs
-    // through it (`traced`).
-    let (anchor, size) = kernel::carrier_extent(surface).unwrap_or((from, T::zero()));
-    (anchor - from).norm() + size + (from - plane_in_body(face).0).norm()
+/// its decisions about `face` are read over. The farthest the face's
+/// cover stands from `from`, and the frame's origin's offset from it.
+///
+/// # Errors
+///
+/// The face's refusal, where it has no cover.
+fn reach_of<T: Decide>(face: &TracedFace<T>, from: Point3<T>) -> Result<T, topo::FaceUncovered> {
+    let cover = face.cover.as_ref().map_err(Clone::clone)?;
+    let (_, far) = cover.distance_range(&geom::cover::Site::Point(from));
+    Ok(far + (from - plane_in_body(face).0).norm())
 }
 
 /// The face's carrier, where it has a closed form.
@@ -530,9 +552,8 @@ fn ray_to<T: Decide>(
     let crossings = kernel::ray_crossings(
         surface,
         face.sense,
-        origin,
-        dir,
-        reach_of(face, surface, origin),
+        &geom::Ray::new(origin, dir),
+        reach_of(face, origin).map_err(TraceStepFault::Uncovered)?,
         band,
     )
     .map_err(carrier_fault)?;
@@ -551,7 +572,7 @@ fn arc_to<T: Decide>(
 ) -> Result<(Point2<T>, Vec3<T>), TraceStepFault> {
     let surface = traced(face, band)?;
     let radial = pen - centre;
-    let radius = radial.norm();
+    let (radial_hat, radius) = radial.direction_and_length();
     let up = match winding {
         ArcSweep::Ccw => T::one(),
         ArcSweep::Cw => T::zero() - T::one(),
@@ -561,7 +582,7 @@ fn arc_to<T: Decide>(
         map.transform_point(lift(centre)),
         map.transform_vec(Vec3::new(T::zero(), T::zero(), up)),
         radius,
-        map.transform_vec(lift_vec(radial / radius)),
+        map.transform_vec(lift_vec(radial_hat)),
     );
     let crossings =
         kernel::circle_crossings(surface, face.sense, circle, band).map_err(carrier_fault)?;
@@ -621,9 +642,10 @@ pub struct TraceMarks {
 /// # Errors
 ///
 /// [`TraceStepFault::NoTrace`] where the frame's plane misses the
-/// carrier, and [`TraceStepFault::Carrier`] for a carrier with no
-/// closed form or a miss the band cannot call: the refusals a step
-/// reading this trace would carry before any piece runs.
+/// carrier, [`TraceStepFault::Carrier`] for a carrier with no closed
+/// form or a miss the band cannot call, and
+/// [`TraceStepFault::Uncovered`] for a face with no cover: the refusals
+/// a step reading this trace would carry before any piece runs.
 pub fn trace_marks(
     face: &TracedFace<f64>,
     centre: Point2<f64>,
@@ -651,10 +673,14 @@ pub fn trace_marks(
         ] {
             let origin = face.sketch_to_body.transform_point(lift(from));
             let dir = face.sketch_to_body.transform_vec(lift_vec(heading));
-            let reach = reach_of(face, surface, origin);
-            let Ok(crossings) =
-                kernel::ray_crossings(surface, face.sense, origin, dir, reach, band)
-            else {
+            let reach = reach_of(face, origin).map_err(TraceStepFault::Uncovered)?;
+            let Ok(crossings) = kernel::ray_crossings(
+                surface,
+                face.sense,
+                &geom::Ray::new(origin, dir),
+                reach,
+                band,
+            ) else {
                 out.refused += 1;
                 continue;
             };
@@ -663,7 +689,7 @@ pub fn trace_marks(
                 let with = tangent(face, hit.outward, TraceSense::With);
                 out.marks.push(TraceMark {
                     at: Point2::new(at.x, at.y),
-                    tangent: with / with.norm(),
+                    tangent: with.normalize(),
                 });
             }
         }
@@ -724,6 +750,8 @@ pub enum TracedFrameFault {
     Escalated(geom_core::Indeterminate),
     /// The probe did not lower in the document.
     Lower(Box<crate::EditError>),
+    /// The traced face has no cover to lever the squareness over.
+    Uncovered(topo::FaceUncovered),
 }
 
 impl core::fmt::Display for TracedFrameFault {
@@ -754,6 +782,10 @@ impl core::fmt::Display for TracedFrameFault {
             }
             Self::Escalated(diag) => return write!(f, "a squareness in the sliver band ({diag})"),
             Self::Lower(e) => return write!(f, "{e}"),
+            Self::Uncovered(why) => {
+                write!(f, "the traced face's region cannot be bounded: {why}")?;
+                "rebuild the traced face from finite, certified geometry"
+            }
         };
         write!(f, ". {}", Recourse(recourse))
     }
@@ -882,19 +914,18 @@ fn square(
         Err(carrier) => return Err(TracedFrameFault::NotAPlane { carrier }),
     };
     let (at, z) = plane_in_body(picked);
-    // The traced carrier's reach about the frame's origin: a cylinder's
-    // radius, a cone's distance to its apex.
-    let reach = axial.surface.as_ref().map_or(0.0, |s| {
-        let at = axial.sketch_to_body.transform_point(Point3::origin());
-        reach_of(axial, s, at)
-    });
+    // The traced face's reach about the frame's origin.
+    let reach = reach_of(
+        axial,
+        axial.sketch_to_body.transform_point(Point3::origin()),
+    )
+    .map_err(TracedFrameFault::Uncovered)?;
     let decide = |margin| {
         geom_core::k_stats::decide(TRACED_FRAME_SQUARE, margin, band)
             .map_err(TracedFrameFault::Escalated)
     };
-    // Unsourced lever: the traced carrier's anchor and size (`carrier_extent`: none for a
-    // plane or a cone, the radius for an unbounded cylinder) plus the frame plane's offset,
-    // not a ball enclosing a consumed region.
+    // Unsourced lever: the traced face's farthest from the frame's origin plus the frame
+    // plane's offset, a scene size rather than a ball enclosing a consumed region.
     let tilt = decide(Margin::levered(
         normal.cross(z).norm(),
         geom_core::Lever::unsourced(reach),

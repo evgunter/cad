@@ -99,7 +99,7 @@ fn spine_doc(build: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
 fn stored_minor_bits(body: &Body<f64>) -> Vec<u64> {
     let mut bits: Vec<u64> = body
         .faces()
-        .filter_map(|(_, face)| match body.get_surface(face.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(minor_radius.to_bits()),
             _ => None,
         })
