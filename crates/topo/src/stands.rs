@@ -48,7 +48,7 @@
 //! rather than the point, and propagates. The first decisive witness
 //! decides. When none does, the [`Tally`] says how many read on a surface
 //! and how many in band, and keeps the refusals ranked as one point's
-//! rays are ([`geom_brep::ladder::Evidence`]), limit first; the caller
+//! rays are ([`geom_core::ladder::Evidence`]), limit first; the caller
 //! decides what that means.
 //!
 //! A block inside another, flush on four walls, reaches the third rung:
@@ -68,7 +68,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, ShellKey, VertexKey
 use crate::face_normal::face_plane;
 use crate::live::{Proven, proven};
 use crate::props::{QuadLane, ShellRole};
-use geom_brep::ladder::{Answering, Climb, Disagree, Rung, climb_evidence};
+use geom_core::ladder::{Answering, Climb, Disagree, Ranked, Rung, climb_evidence};
 
 /// What one witness read against the probed surfaces, `K` the refusal a
 /// probe keeps (the point-in-solid walk's).
@@ -129,9 +129,9 @@ pub(crate) struct Tally {
     /// Witnesses that read [`Witness::InBand`].
     pub(crate) in_band: usize,
     /// What the refused witnesses kept, ranked as one point's rays are
-    /// ([`geom_brep::ladder::Evidence`]): a limit before an in-band
+    /// ([`geom_core::ladder::Evidence`]): a limit before an in-band
     /// reading.
-    pub(crate) kept: geom_brep::ladder::Evidence<PointInSolidError>,
+    pub(crate) kept: geom_core::ladder::Evidence<PointInSolidError>,
 }
 
 /// The ladder's own refusals, which each caller types as its own
@@ -316,7 +316,7 @@ pub(crate) enum Agreed<S> {
 /// **The witness ladder read at every witness** (module docs), for a
 /// question whose no-crossing premise is the thing checked: the
 /// complex's witnesses are those [`ladder`] reads, and every one is
-/// probed ([`geom_brep::ladder::climb_agreeing`]). Where every decisive
+/// probed ([`geom_core::ladder::climb_agreeing`]). Where every decisive
 /// witness reads one side by `agree`, that side; where two differ, the
 /// complex crosses a probed surface ([`Agreed::Disagree`]). Its verdict
 /// does not depend on the order the witnesses are read in.
@@ -349,7 +349,7 @@ pub(crate) fn ladder_agreeing<T: Decide, S, E: From<LadderRefusal>>(
         by_rung[cell.rung()].push(cell);
     }
     for rung in by_rung {
-        let climbed = geom_brep::ladder::climb_agreeing(
+        let climbed = geom_core::ladder::climb_agreeing(
             rung,
             |cell| witness_rung(witness(cell), &mut probe, (&mut 0, &mut 0)),
             |a, b| match (a, b) {
@@ -735,19 +735,39 @@ fn insides_at<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Witness<Vec<bool>>, PointInSolidError> {
     let mut inside = vec![false; reads.len()];
-    for (t, other) in reads.iter().enumerate() {
-        if t == i || !may_enclose(t) {
-            continue;
+    // On any shell probed, the witness says nothing about nesting,
+    // whatever another shell read ([`climb_evidence`],
+    // [`Answering::Any`]: a theorem). A shell read in band or at a limit
+    // is kept, and the witness is that reading only where it lies on no
+    // shell; a refusal about more than the point aborts.
+    let probed = reads
+        .iter()
+        .enumerate()
+        .filter(|&(t, _)| t != i && may_enclose(t));
+    let on = climb_evidence(Answering::Any, probed, |(t, other)| {
+        match Witness::of(point_in_solid_faces(body, &other.sel, q, band, tol)) {
+            Ok(Witness::Side(side)) => {
+                inside[t] = match side {
+                    Strict::In => other.role == ShellRole::Outer,
+                    Strict::Out => other.role == ShellRole::Void,
+                };
+                Rung::Passes
+            }
+            Ok(Witness::On) => Rung::Answers(Ok(())),
+            Ok(Witness::Blocked(e)) => Rung::Blocked(e),
+            Ok(Witness::InBand(e)) => Rung::InBand(e),
+            Err(e) => Rung::Aborts(Err(e)),
         }
-        inside[t] = match Witness::of(point_in_solid_faces(body, &other.sel, q, band, tol))? {
-            Witness::Side(Strict::In) => other.role == ShellRole::Outer,
-            Witness::Side(Strict::Out) => other.role == ShellRole::Void,
-            Witness::On => return Ok(Witness::On),
-            Witness::Blocked(e) => return Ok(Witness::Blocked(e)),
-            Witness::InBand(e) => return Ok(Witness::InBand(e)),
-        };
+    });
+    match on {
+        Ok((_, on)) => on.map(|()| Witness::On),
+        Err(kept) => Ok(match kept.ranked() {
+            Ranked::Neither => Witness::Side(inside),
+            Ranked::Blocked(e) => Witness::Blocked(e),
+            Ranked::InBand(e) => Witness::InBand(e),
+            Ranked::Unsettled(_) => unreachable!("no shell's rung is unsettled"),
+        }),
     }
-    Ok(Witness::Side(inside))
 }
 
 #[cfg(test)]
