@@ -122,15 +122,19 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         // The result's rims are new edges, so the transverse seam's
         // shared-row test reads each wall's arc-rim image from its
         // derivation, whose lane choice already certified it: the test
-        // takes that certificate, and the rim is certified once.
+        // takes that certificate, and the rim is certified once. Counted
+        // as the iso-boundary checks' `Zero`s, the on-row verdicts that
+        // test saves (78 when it certifies the rim again), so a change to
+        // the union's other checks does not move it.
         assert_eq!(
             read.recorded()
                 .verdicts
                 .iter()
                 .filter(|v| v.predicate == "pcurve_iso_boundary")
+                .filter(|v| v.sign == geom_core::Sign::Zero)
                 .count(),
-            71,
-            "{what}: each arc rim's iso-boundary checks are read once"
+            62,
+            "{what}: each arc rim's on-row checks are read once"
         );
         let err = err.expect_err(what);
         assert!(

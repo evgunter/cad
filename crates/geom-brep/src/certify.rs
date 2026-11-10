@@ -3471,9 +3471,14 @@ impl<T: Decide> IntersectionDraft<T> {
 /// reads each wall by it, and so does the boolean's interior-loop guard
 /// when it hands a rim two spline faces share to their section's reading.
 ///
-/// A [`ChartImage::Certified`] image is one whose certificate on this
-/// wall, over this carrier and interval, at this band, its derivation
-/// already read: it is not certified again.
+/// A [`ChartImage::Certified`] image whose certificate is over exactly
+/// `span` (the same scalars, [`geom_core::bit_identity::eq_bits`]) is
+/// one its derivation already certified on this wall over this carrier
+/// at this band, and is not certified again. Over any other interval it
+/// is certified here like an uncertified image: a certificate minted
+/// for another span does not pass by agreeing with the image alone.
+/// The identity only chooses between the two sound paths; a false "no"
+/// costs the certify.
 pub fn side_row_certifies<T: Decide>(
     wall: &Surface<T>,
     image: &crate::ChartImage<T>,
@@ -3483,9 +3488,9 @@ pub fn side_row_certifies<T: Decide>(
     wall.spline_chart()
         .is_some_and(|chart| crate::description::on_domain_side(chart, image.pcurve()))
         && match image {
-            crate::ChartImage::Certified(_) => true,
-            crate::ChartImage::Image { pcurve, .. } => crate::pcurve_cache::PcurveCache::certify(
-                pcurve.clone(),
+            crate::ChartImage::Certified(cache) if same_span(cache.params(), (t0, t1)) => true,
+            other => crate::pcurve_cache::PcurveCache::certify(
+                other.pcurve().clone(),
                 t0,
                 t1,
                 carrier,
@@ -3494,6 +3499,14 @@ pub fn side_row_certifies<T: Decide>(
             )
             .is_ok(),
         }
+}
+
+/// Whether two carrier intervals are the same scalars, end for end
+/// ([`geom_core::bit_identity::eq_bits`]): an identity that picks the
+/// certificate over a certify, never a geometric verdict.
+fn same_span<T: Decide>((a0, a1): (T, T), (b0, b1): (T, T)) -> bool {
+    use geom_core::bit_identity::eq_bits;
+    eq_bits(&a0, &b0) == Some(true) && eq_bits(&a1, &b1) == Some(true)
 }
 
 /// An [`IntersectionDraft`]'s `Intersection`, by whose carrier it is
