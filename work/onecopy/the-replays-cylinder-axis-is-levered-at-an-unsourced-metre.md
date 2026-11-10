@@ -7,7 +7,7 @@ opened: 2026-11-10
 priority: P3
 cost: M
 closed: 2026-11-10
-refs: [6773]
+refs: [6773, the-replays-cylinder-offset-and-radii-are-a-second-spelling-of-the-kernels-data]
 ---
 
 
