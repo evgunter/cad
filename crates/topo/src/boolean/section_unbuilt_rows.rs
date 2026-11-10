@@ -105,6 +105,7 @@ fn every_carry_error_arm_ends_on_its_own_recourse() {
     let diag = geom_core::Indeterminate {
         margin: geom_core::MarginDiag::value(5e-9),
         band: geom_core::Band::new(1e-9, 1e-8).expect("a well-formed band"),
+        // UNDECIDED-NAME: the cause every CarryError arm's recourse is read for
         predicate: Some("ssi_tube_graph"),
         terminal_sliver: false,
     };

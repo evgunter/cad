@@ -690,6 +690,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         escalation_is_readable(&Indeterminate {
             margin: MarginDiag::enclosure(-1e-9, 1e-9),
             band,
+            // UNDECIDED-NAME: an enclosure cause built to read its escalation sentence
             predicate: Some("face_orientation"),
             terminal_sliver: false,
         }),

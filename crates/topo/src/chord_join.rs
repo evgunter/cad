@@ -2149,13 +2149,12 @@ fn arc_leaving<T: Decide>(
     };
     let tangent = conic.tangent(conic.param(p1));
     let along = leave.dir.dot(tangent) / tangent.norm();
+    const CHORD_LEAVE_GERM: &str = "chord_arc_leave_germ";
+    const CHORD_LEAVE_SECTION: &str = "chord_arc_leave_section";
     let (name, margin) = match leave.datum {
-        Datum::Germ => (
-            "chord_arc_leave_germ",
-            Margin::levered(along, conic.lever()),
-        ),
+        Datum::Germ => (CHORD_LEAVE_GERM, Margin::levered(along, conic.lever())),
         Datum::Section => (
-            "chord_arc_leave_section",
+            CHORD_LEAVE_SECTION,
             Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),
         ),
     };

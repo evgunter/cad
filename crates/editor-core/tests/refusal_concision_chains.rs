@@ -569,6 +569,7 @@ mod payloads {
         Indeterminate {
             margin: MarginDiag::value(3.0e-10),
             band: band(),
+            // UNDECIDED-NAME: the leaf cause every chain here wraps
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         }
