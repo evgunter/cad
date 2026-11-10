@@ -1486,3 +1486,4 @@
 - 01:32Z merged 6700 (census-sort narrowed, text-only) at 4a474089. 6696 lane reports ready at c77de79f; queued behind 6703 mergecheck (main moved since).
 - 01:33Z argmin lane: first_pair non-free lane has 761 exact ties (504 reds). Ruled opt 1: declare Ties with a proof at the call (narrow to mutual pairs if that is all it covers), attribute the 18 in-band, report residual moves before opening.
 - 01:40Z disk too small for local full check (bus error at link); switched to merge-main+push, hosted gate on merged head. 6703 at 9afe36ca, 6696 at 915fdc75, gates watched.
+- 01:45Z 6686 fix pass in (155921e); main merged → f2cb78b5, gating. Dispatched: topo-roster lane → onecopy/roster-reach (identity-and-fixture-names + three-raw-sign-within); census lane → onecopy/main-reds-pad-and-aims (both main-red rows).
