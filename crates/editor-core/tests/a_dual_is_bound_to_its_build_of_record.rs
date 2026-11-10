@@ -1,16 +1,18 @@
 //! **A dual evaluates only bound to its build of record** (DUAL-DESIGN
 //! DL3). The tier-3 premise a dual operand carries no evidence of is
 //! asserted here, at the evaluation service: `evaluate_recorded` refuses
-//! every node its record refused, before the node runs, so no topo
-//! reading a dual reaches leans on a gate the record failed
-//! (`topo::Replay`'s "A tier-3 premise at a dual").
+//! every node its record built no value at, before the node runs, so no
+//! topo reading a dual reaches leans on a gate the record failed
+//! (`topo::Replay`'s "A tier-3 premise at a dual"). The same binding
+//! inside a part is pinned beside the part fixtures, in
+//! `asm2a_instantiate`.
 
 #![allow(clippy::panic, clippy::expect_used)]
 
 use crate::corpus;
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, NodeError, NodeErrorKind, NodeResult, evaluate,
-    evaluate_recorded,
+    CancelToken, EvalOptions, EvalOutcome, Evaluation, NodeError, NodeErrorKind, NodeResult,
+    RecordMispairing, evaluate, evaluate_recorded,
 };
 use geom_core::{Dual64, Tol};
 
@@ -19,7 +21,7 @@ fn nominal(doc: &editor_core::ProfileDoc) -> Evaluation<f64> {
         doc,
         None,
         &CancelToken::new(),
-        &EvalOptions::default(),
+        &EvalOptions::default().of_record(),
         Tol::witness(),
     )
 }
@@ -130,10 +132,87 @@ fn a_record_of_another_document_refuses_every_node() {
         assert!(
             matches!(
                 r,
-                NodeResult::Failed(NodeError { kind: NodeErrorKind::RecordMispaired(m), .. })
-                    if m.expected == a.id() && m.found == b.id()
+                NodeResult::Failed(NodeError {
+                    kind: NodeErrorKind::RecordMispaired(RecordMispairing::Document(m)),
+                    ..
+                }) if m.expected == a.id() && m.found == b.id()
             ),
             "node {id:?}: {r:?}"
         );
     }
+}
+
+/// Every node of `bound` refused as `RecordMispaired(why)`.
+fn every_node_mispaired(bound: &Evaluation<Dual64>, why: &RecordMispairing) {
+    assert!(!bound.nodes.is_empty(), "the document has nodes");
+    for (id, r) in &bound.nodes {
+        assert!(
+            matches!(
+                r,
+                NodeResult::Failed(NodeError { kind: NodeErrorKind::RecordMispaired(m), .. })
+                    if m == why
+            ),
+            "node {id:?}: {r:?}, expected {why:?}"
+        );
+    }
+}
+
+/// **A record of this document that is not a build of this run's input
+/// binds nothing**: one that carries no pin, so whose version is not
+/// known, and one built over other options, each refuses every node,
+/// naming what it read otherwise. The document id alone does not make a
+/// record this run's.
+#[test]
+fn a_record_of_this_document_but_another_build_refuses_every_node() {
+    let (doc, _) = a_chain();
+    let unpinned = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    every_node_mispaired(&dual(&doc, &unpinned), &RecordMispairing::Unpinned);
+    let symbolic = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            symbols: true,
+            ..EvalOptions::default().of_record()
+        },
+        Tol::witness(),
+    );
+    if symbolic.refused_whole() {
+        every_node_mispaired(&dual(&doc, &symbolic), &RecordMispairing::NotABuild);
+    } else {
+        every_node_mispaired(&dual(&doc, &symbolic), &RecordMispairing::Options);
+    }
+}
+
+/// **A record that did not complete built nothing past its prefix**: a
+/// node it never reached is refused at the dual, as one it refused is.
+#[test]
+fn a_node_a_canceled_record_never_reached_is_refused_at_the_dual() {
+    let (doc, first) = a_chain();
+    let mut record = nominal(&doc);
+    let last = *record.order.last().expect("the chain has nodes");
+    assert_ne!(last, first, "the chain has two nodes");
+    record.nodes.remove(&last);
+    record.outcome = EvalOutcome::Canceled;
+    let bound = dual(&doc, &record);
+    assert!(
+        matches!(
+            bound.nodes[&last],
+            NodeResult::Failed(NodeError { kind: NodeErrorKind::RecordRefused, node, .. })
+                if node == last
+        ),
+        "the node the record never reached: {:?}",
+        bound.nodes[&last]
+    );
+    assert!(
+        matches!(bound.nodes[&first], NodeResult::Ok(_)),
+        "the node the record built is the dual's own: {:?}",
+        bound.nodes[&first]
+    );
 }

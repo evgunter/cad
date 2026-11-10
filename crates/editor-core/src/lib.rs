@@ -149,7 +149,7 @@ pub use eval::{
     PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, ReadIn, SplitSide, Stop,
     Stopped, ValuePayload, evaluate, traced_faces,
 };
-pub use eval::{BoundToRecord, OwnRecord, evaluate_recorded};
+pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged};
 pub use spoken::{

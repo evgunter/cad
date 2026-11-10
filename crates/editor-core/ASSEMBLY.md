@@ -91,7 +91,9 @@ The doors that refuse:
   build of record, which DUAL-DESIGN DL3 binds by revision as well.
 - `eval::evaluate_recorded` (`NodeErrorKind::RecordMispaired`, on every
   node, before any runs): a dual evaluation's build of record, whose
-  refused nodes it refuses (DUAL-DESIGN DL3).
+  refused nodes it refuses (DUAL-DESIGN DL3). It binds by more than the
+  document, as stackup's binding does: the record's pin, tolerance and
+  options too (`RecordMispairing`).
 
 The memo reads the stamp too, and since `evaluate` returns no `Result`
 it refuses by dropping: a prior of another document is dropped whole

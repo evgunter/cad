@@ -1670,12 +1670,7 @@ fn overconstrained_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
     // bundle the record refused is refused at the dual by that refusal,
     // and the record's own refusal there is the overconstraint.
     if matches!(error.kind, editor_core::NodeErrorKind::RecordRefused) {
-        let nominal = EvalOptions {
-            seed: None,
-            param_box: None,
-            ..s.opts.clone()
-        };
-        let record = run_at::<f64>(&s.doc, &nominal, None);
+        let record = run_at::<f64>(&s.doc, &s.opts.of_record(), None);
         return overconstrained_or_escalates(&record, s, kind, &format!("{what}, its record"));
     }
     assert!(
@@ -1846,24 +1841,31 @@ fn structure<T: editor_core::EvalScalar>(
 }
 
 /// A dual lane's structure read against its `f64` build of record
-/// (DUAL-DESIGN DL3): a placement the record refused is refused at the
-/// dual as `RecordRefused`, which reads as the record's own failure
-/// there; every other entry is the dual's own.
+/// (DUAL-DESIGN DL3), class by class. A placement the record refused
+/// (failed, not poisoned) is refused at the dual as `RecordRefused`,
+/// and only such a one: each reads as the record's own failure there.
+/// A placement poisoned at the record is poisoned at the dual, through
+/// the refused one, and every other entry is the dual's own.
 fn bound_structure(
     doc: &ProfileDoc,
     dual: &Evaluation<Dual64>,
     record: &[(RecipeNodeId, String)],
 ) -> Vec<(RecipeNodeId, String)> {
+    const BOUND: &str = "failed: RecordRefused";
+    let refused_at_record =
+        |theirs: &str| theirs.starts_with("failed: ") && theirs != "failed: Poisoned";
     structure(doc, dual)
         .into_iter()
         .zip(record)
         .map(|((id, said), (rid, theirs))| {
             assert_eq!(id, *rid, "one placement order in both lanes");
-            if said == "failed: RecordRefused" {
-                assert!(
-                    theirs.starts_with("failed: "),
-                    "a placement refused by its record failed there: {theirs}"
-                );
+            assert_eq!(
+                said == BOUND,
+                refused_at_record(theirs),
+                "placement {id:?}: the dual says {said}, its record {theirs}: the dual is \
+                 refused by its record exactly where the record refused it"
+            );
+            if said == BOUND {
                 (id, theirs.clone())
             } else {
                 (id, said)

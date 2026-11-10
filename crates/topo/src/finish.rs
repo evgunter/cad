@@ -68,8 +68,8 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 /// passed tier 3. At a dual the finished body is this replay, tier 2
 /// alone (DUAL-DESIGN DL3), and the premise is held one level up: a dual
 /// evaluates only bound to its build of record (`editor_core`'s
-/// `evaluate_recorded`), which refuses every node that record refused.
-/// So an operand a dual's Boolean, split, blend or shell reads through the
+/// `evaluate_recorded`), which refuses every node that record built no
+/// value at, inside each part as at the top. So an operand a dual's Boolean, split, blend or shell reads through the
 /// evaluation service is the same bits a certifying finish validated, and
 /// the readers that cite this section need no check of their own. A
 /// caller of this crate's doors at a dual directly holds that contract

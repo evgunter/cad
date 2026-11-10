@@ -7028,7 +7028,13 @@ mod the_hollowed_box_through_the_facade {
     fn the_box_refuses_typed_at_a_dual_and_there_alone() {
         let (doc, cup) = open_box();
         // A dual evaluates bound to the build of record (DUAL-DESIGN DL3).
-        let record: Evaluation<f64> = run!(f64, &doc);
+        let record: Evaluation<f64> = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default().of_record(),
+            Tol::witness(),
+        );
         let ev: Evaluation<pncad::geom_core::Dual64> = pncad::document::evaluate_recorded(
             &doc,
             None,

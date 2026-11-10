@@ -1477,8 +1477,8 @@ pub fn row_quietable(
 }
 
 /// **A dual evaluation bound to a build of record built here**: the
-/// base-scalar evaluation of `doc` at `opts` with no seed and no box
-/// (the nominal build, as `stackup`'s driver builds its record), then
+/// base-scalar evaluation of `doc` at [`crate::EvalOptions::of_record`],
+/// as `stackup`'s driver builds its record, then
 /// [`crate::eval::evaluate_recorded`] over it. The door a test that
 /// evaluates at a dual reads, so every dual run in the tests is bound
 /// to a record as a production one is (DUAL-DESIGN DL3).
@@ -1489,12 +1489,7 @@ pub fn evaluate_bound<T: crate::eval::BoundToRecord>(
     opts: &crate::EvalOptions,
     tol: geom_core::Tol,
 ) -> crate::Evaluation<T> {
-    let nominal = crate::EvalOptions {
-        seed: None,
-        param_box: None,
-        ..opts.clone()
-    };
-    let record = crate::evaluate::<T::Record>(doc, None, cancel, &nominal, tol);
+    let record = crate::evaluate::<T::Record>(doc, None, cancel, &opts.of_record(), tol);
     crate::eval::evaluate_recorded(doc, prior, &record, cancel, opts, tol)
 }
 

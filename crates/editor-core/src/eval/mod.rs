@@ -105,6 +105,9 @@ pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// The tolerance every predicate of this run decided at
     /// ([`Self::tolerance`]); crate-private for the same reason.
     pub(crate) tolerance: geom_core::Tolerance,
+    /// The options this run's value bits read beyond the document and
+    /// the tolerance ([`RunLane`]): what a dual bound to it compares.
+    pub(crate) lane: RunLane,
     /// **The run refused before building anything** ([`Self::refused_whole`]):
     /// every node carries one refusal the run raised up front — a
     /// tolerance conflict, a parameter box or a seed its scalar cannot
@@ -988,6 +991,30 @@ impl NodeValue<f64> {
 }
 
 #[cfg(any(test, feature = "test-support"))]
+impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
+    /// **A refusal planted in this run's build of a part**: `node` of the
+    /// part `part` names refused, as a tier-3 refusal inside the part at
+    /// this scalar would leave it, so a dual bound to this run refuses it
+    /// inside that part ([`evaluate_recorded`]). `false` where the run
+    /// carries no row for the part at `tol`'s ε.
+    pub fn plant_part_refusal(
+        &mut self,
+        part: crate::DocRef,
+        tol: Tol,
+        node: RecipeNodeId,
+    ) -> bool {
+        self.parts.plant_refusal((part, tol.eps().to_bits()), node)
+    }
+
+    /// **This run, holding no build of the part `part` names**, as a run
+    /// that never entered it: a dual bound to it refuses every instance of
+    /// that part before the part is entered. `false` where it held none.
+    pub fn forget_part(&mut self, part: crate::DocRef, tol: Tol) -> bool {
+        self.parts.forget((part, tol.eps().to_bits()))
+    }
+}
+
+#[cfg(any(test, feature = "test-support"))]
 impl Evaluation<f64> {
     /// A completed evaluation of `document` at `tol`, holding `nodes` in
     /// `order`, each node's one output read through the variable
@@ -1008,6 +1035,7 @@ impl Evaluation<f64> {
             document,
             pin: None,
             tolerance: tolerance_of(tol),
+            lane: RunLane::default(),
             whole_refusal: false,
             prior_refused: None,
             recomputed: order.len(),
@@ -1622,20 +1650,23 @@ pub enum NodeErrorKind {
         /// The door's refusal, unaltered.
         source: crate::analysis::SeedError,
     },
-    /// **The build of record refused this node** (DUAL-DESIGN DL3): a
-    /// dual evaluation is bound to the base-scalar evaluation of record
-    /// ([`evaluate_recorded`]), which ran the certified gates a dual does
-    /// not, and a node that evaluation refused is refused here before it
-    /// runs. Its cause is the record's own refusal at the same node, kept
-    /// there unaltered (kernel errors are not copied, spec D2). So no
-    /// reading a dual reaches leans on a gate the record failed: tier 3's
-    /// premises hold at a dual because only what the record finished is
-    /// evaluated there.
+    /// **The build of record built no value at this node** (DUAL-DESIGN
+    /// DL3): a dual evaluation is bound to the base-scalar evaluation of
+    /// record ([`evaluate_recorded`]), which ran the certified gates a
+    /// dual does not, and a node that evaluation did not build is refused
+    /// here before it runs. That is a node it refused, whose cause is the
+    /// record's own refusal at the same node, kept there unaltered (kernel
+    /// errors are not copied, spec D2); a node a record that did not
+    /// complete never reached; or an instance of a part the record holds
+    /// no build of. So no reading a dual reaches leans on a gate the
+    /// record did not pass: tier 3's premises hold at a dual because only
+    /// what the record finished is evaluated there, inside its parts as
+    /// at the top.
     RecordRefused,
-    /// **The build of record is of another document** (DI3, the pairing
-    /// predicate): refused on EVERY node, before any node runs, so no
-    /// node is bound to a record that is not its own.
-    RecordMispaired(Mispaired),
+    /// **The build of record is not a build of this run's input**
+    /// ([`RecordMispairing`]): refused on EVERY node, before any node
+    /// runs, so no node is bound to a record that is not its own.
+    RecordMispaired(RecordMispairing),
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -2280,14 +2311,14 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::ParamBox { source } => write!(f, "{source}"),
             Self::Seed { source } => write!(f, "{source}"),
             Self::RecordRefused => f.write_str(
-                "the build of record refused this node; its refusal is the record's own, at \
-                 the same node. Recourse: answer the record's refusal there",
+                "the build of record built no value at this node; where it refused the node, \
+                 its refusal is the record's own, at the same node. Recourse: answer the \
+                 record's refusal there",
             ),
-            Self::RecordMispaired(Mispaired { expected, found }) => write!(
+            Self::RecordMispaired(mispairing) => write!(
                 f,
-                "the build of record is of document {found:?}, not of {expected:?}, the \
-                 document evaluated. Recourse: hand the evaluation of this document as its \
-                 build of record"
+                "{mispairing}. Recourse: hand the base-scalar evaluation of this document, \
+                 built over this run's options with no seed, as its build of record"
             ),
             Self::WrongOperand {
                 input,
@@ -3813,18 +3844,118 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
     wire::pose::read_pose(doc, &ev.nodes, read, &ev.env, tol)
 }
 
+/// **Why an evaluation is not a dual run's build of record**
+/// ([`NodeErrorKind::RecordMispaired`]): the first input the record
+/// read otherwise than the run, checked in this order by
+/// [`evaluate_recorded`]. A record is a build of the run's input when
+/// it is of the same document, at the same version (its content pin),
+/// at the same tolerance and over the same options, the seed aside,
+/// and built something.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecordMispairing {
+    /// The record is of another document (DI3, the pairing predicate).
+    Document(Mispaired),
+    /// The record refused before building anything
+    /// ([`Evaluation::refused_whole`]).
+    NotABuild,
+    /// The record carries no content pin ([`EvalOptions::pin`]), or one of
+    /// the record and the document refused to canonicalize, so which
+    /// version the record read is not known.
+    Unpinned,
+    /// The record read another version of the document.
+    Revision,
+    /// The record decided at another tolerance.
+    Tolerance,
+    /// The record was built over other options: another parameter box,
+    /// symbols, a seed, or another computing frame.
+    Options,
+    /// The document instantiates a part, and the record crossed the
+    /// document seam over no resolver where the run has one, or over one
+    /// where the run has none: the parts it built are not the run's.
+    Resolver,
+}
+
+impl core::fmt::Display for RecordMispairing {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Document(Mispaired { expected, found }) => write!(
+                f,
+                "the build of record is of document {found:?}, not of {expected:?}, the \
+                 document evaluated"
+            ),
+            Self::NotABuild => f.write_str("the build of record refused before building anything"),
+            Self::Unpinned => f.write_str(
+                "the build of record carries no content pin to say which version of the \
+                 document it read",
+            ),
+            Self::Revision => {
+                f.write_str("the build of record read another version of the document")
+            }
+            Self::Tolerance => f.write_str("the build of record decided at another tolerance"),
+            Self::Options => f.write_str(
+                "the build of record was built over other options (a parameter box, symbols, \
+                 a seed or a computing frame)",
+            ),
+            Self::Resolver => f.write_str(
+                "the build of record crossed the document seam over no resolver where this \
+                 run has one, or over one where it has none",
+            ),
+        }
+    }
+}
+
+/// **The options a run's value bits read beyond the document and the
+/// tolerance**: its parameter box, its symbols, its seed and its second
+/// computing frame, the frame by bits. What [`evaluate_recorded`] holds
+/// a record to: the dual run's own, with no seed.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct RunLane {
+    param_box: Option<Arc<crate::analysis::ParamBox>>,
+    symbols: bool,
+    seed: Option<crate::VarId>,
+    twist: Option<[u64; 7]>,
+}
+
+impl RunLane {
+    fn of(opts: &EvalOptions) -> Self {
+        Self {
+            param_box: opts.param_box.clone(),
+            symbols: opts.symbols,
+            seed: opts.seed,
+            twist: opts.computing_twist.map(|t| {
+                let [a0, a1, a2] = t.axis;
+                let [b0, b1, b2] = t.by;
+                [a0, a1, a2, t.angle, b0, b1, b2].map(f64::to_bits)
+            }),
+        }
+    }
+}
+
+impl EvalOptions {
+    /// **The options of the build of record a dual run at `self` is
+    /// bound to** ([`evaluate_recorded`]): the same run with no seed, its
+    /// content pin recorded. The one spelling of that record's options,
+    /// for every caller that builds one.
+    #[must_use]
+    pub fn of_record(&self) -> Self {
+        Self {
+            seed: None,
+            pin: true,
+            ..self.clone()
+        }
+    }
+}
+
 /// **A scalar whose evaluation is its own build of record**: one with
-/// certification rights (`f64`, `Probe`, `Interval`, `Sym`), whose
-/// finished bodies passed tier 3 ([`topo::AtRestPolicy::finish`]). Every
-/// reading such an evaluation reaches may lean on tier 3's premises,
-/// because the body it reads was finished at this scalar.
+/// certification rights, whose finished body is [`topo::AtRestBody`]
+/// ([`topo::AtRestPolicy::Finished`]), so its bodies passed tier 3
+/// ([`topo::AtRestPolicy::finish`]). Every reading such an evaluation
+/// reaches may lean on tier 3's premises, because the body it reads was
+/// finished at this scalar. Derived from `Finished` alone, so the
+/// scalar's own policy is the one list of who certifies.
 pub trait OwnRecord: EvalScalar {}
 
-impl OwnRecord for f64 {}
-#[cfg(feature = "probe")]
-impl OwnRecord for geom_core::Probe {}
-impl OwnRecord for geom_core::Interval {}
-impl<B> OwnRecord for geom_core::Sym<B> where geom_core::Sym<B>: EvalScalar {}
+impl<T> OwnRecord for T where T: EvalScalar + topo::AtRestPolicy<Finished = topo::AtRestBody<T>> {}
 
 /// **A scalar bound to a build of record** (DUAL-DESIGN DL3): a dual,
 /// whose finished body is tier 2 alone ([`topo::Replay`]), so the tier-3
@@ -3841,9 +3972,13 @@ pub trait BoundToRecord: EvalScalar {
     type Record: OwnRecord;
 }
 
+/// The one scalar whose finished body is [`topo::Replay`]: bounded on
+/// that `Finished`, so a scalar is bound to a record exactly where its
+/// own policy withholds tier 3, and never also its own record.
 impl<B> BoundToRecord for geom_core::Dual<B>
 where
-    geom_core::Dual<B>: EvalScalar,
+    geom_core::Dual<B>:
+        EvalScalar + topo::AtRestPolicy<Finished = topo::Replay<geom_core::Dual<B>>>,
     B: OwnRecord,
 {
     type Record = B;
@@ -3851,13 +3986,21 @@ where
 
 /// **A dual evaluation, bound to its build of record** (DUAL-DESIGN
 /// DL3): [`evaluate`]'s run at a [`BoundToRecord`] scalar, where every node
-/// `record` refused is refused before it runs
+/// `record` built no value at is refused before it runs
 /// ([`NodeErrorKind::RecordRefused`]), so no node evaluates on a body
-/// the record's gates refused. `record` is the base-scalar evaluation
-/// of the same document; one of another document refuses every node
-/// ([`NodeErrorKind::RecordMispaired`]). The full build identity (the
-/// content pin, the parameter bits, the tolerance) is the report's to
-/// bind (`stackup`'s `BuildIdentity`), as DL3 places it.
+/// the record's gates refused. Inside a part the same holds: each part
+/// is entered bound to the record's own build of it, and an instance of
+/// a part the record holds no build of is refused before its part is
+/// entered.
+///
+/// `record` is a build of this run's input: the base-scalar evaluation
+/// of the same document, at the same version (its content pin, so it
+/// was run with [`EvalOptions::pin`]), at the same tolerance, over the
+/// same options with no seed ([`EvalOptions::of_record`]), that built
+/// something. A record that is not refuses every node
+/// ([`NodeErrorKind::RecordMispaired`], naming the first input it read
+/// otherwise). A record that did not complete built nothing at the
+/// nodes it never reached, so those are refused too.
 pub fn evaluate_recorded<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
@@ -3869,14 +4012,14 @@ pub fn evaluate_recorded<T>(
 where
     T: BoundToRecord,
 {
-    let binding = RecordBinding::of(record);
+    let binding = RecordBinding::of(doc, record, opts, tol);
     let mut ev = evaluate_at_descent(
         doc,
         prior,
         cancel,
         opts,
         None,
-        Some(&binding),
+        Some(binding.as_ref()),
         PassTwo::SkippedAtF64,
         tol,
     );
@@ -3886,27 +4029,122 @@ where
     ev
 }
 
-/// **What a dual evaluation reads of its build of record**: the
-/// document it is of, and the nodes it refused.
+/// **Whether `record` is a build of the input a dual run of `doc` at
+/// `opts` reads** ([`evaluate_recorded`]'s pairing, the one spelling of
+/// it): `stackup`'s driver asks before it builds a pass, so a handed
+/// record is refused in its own binding's words.
+pub(crate) fn record_pairing<B: topo::AtRestPolicy + Decide>(
+    doc: &Doc<ProfileProgram>,
+    record: &Evaluation<B>,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<(), RecordMispairing> {
+    RecordBinding::of(doc, record, opts, tol).map(|_| ())
+}
+
+/// **What a dual evaluation reads of its build of record**: the nodes
+/// it built no value at, and its build of each part, which the run's
+/// part store binds each part's own run to.
 pub(crate) struct RecordBinding {
-    document: crate::ident::DocumentId,
     refused: std::collections::BTreeSet<RecipeNodeId>,
+    parts: Arc<parts::PartRecords>,
 }
 
 impl RecordBinding {
-    fn of<B: topo::AtRestPolicy + Decide>(record: &Evaluation<B>) -> Self {
+    /// `record`, bound for a dual run of `doc` at `opts`, or the first
+    /// input it read otherwise ([`RecordMispairing`]).
+    fn of<B: topo::AtRestPolicy + Decide>(
+        doc: &Doc<ProfileProgram>,
+        record: &Evaluation<B>,
+        opts: &EvalOptions,
+        tol: Tol,
+    ) -> Result<Self, RecordMispairing> {
+        if let Some(m) = crate::ident::mispaired(doc.id(), record.document) {
+            return Err(RecordMispairing::Document(m));
+        }
+        if record.whole_refusal {
+            return Err(RecordMispairing::NotABuild);
+        }
+        match (&record.pin, crate::persist::content_pin(doc, tol)) {
+            (Some(Ok(theirs)), Ok(ours)) if *theirs == ours => {}
+            (Some(Ok(_)), Ok(_)) => return Err(RecordMispairing::Revision),
+            _ => return Err(RecordMispairing::Unpinned),
+        }
+        let ours = tolerance_of(tol);
+        if (record.tolerance.eps.to_bits(), record.tolerance.k.to_bits())
+            != (ours.eps.to_bits(), ours.k.to_bits())
+        {
+            return Err(RecordMispairing::Tolerance);
+        }
+        if record.lane
+            != RunLane::of(&EvalOptions {
+                seed: None,
+                ..opts.clone()
+            })
+        {
+            return Err(RecordMispairing::Options);
+        }
+        let instantiates = doc
+            .ids()
+            .into_iter()
+            .any(|id| parts::instantiated(doc, id).is_some());
+        if instantiates && record.resolver.is_some() != opts.resolver.is_some() {
+            return Err(RecordMispairing::Resolver);
+        }
+        let parts = Arc::new(record.parts.records());
+        let failed = record
+            .nodes
+            .iter()
+            .filter(|(_, r)| matches!(r, NodeResult::Failed(_)))
+            .map(|(&id, _)| id);
+        // A record that did not complete built nothing past its prefix.
+        let unreached = record
+            .order
+            .iter()
+            .filter(|_| record.outcome != EvalOutcome::Completed)
+            .filter(|id| !record.nodes.contains_key(id))
+            .copied();
+        let refused = failed
+            .chain(unreached)
+            .chain(Self::partless(doc, &parts, tol.eps().to_bits()))
+            .collect();
+        Ok(Self { refused, parts })
+    }
+
+    /// `doc`'s run inside a part, bound to `tree`, the build of record's
+    /// run of the same document ([`parts::Refusals`]): one pin and one ε,
+    /// so its pairing is the row's key.
+    pub(crate) fn of_part(
+        doc: &Doc<ProfileProgram>,
+        tree: &parts::Refusals,
+        eps_bits: u64,
+    ) -> Self {
+        let refused = tree
+            .nodes
+            .iter()
+            .copied()
+            .chain(Self::partless(doc, &tree.parts, eps_bits))
+            .collect();
         Self {
-            document: record.document,
-            refused: record
-                .nodes
-                .iter()
-                .filter(|(_, r)| matches!(r, NodeResult::Failed(_)))
-                .map(|(&id, _)| id)
-                .collect(),
+            refused,
+            parts: Arc::clone(&tree.parts),
         }
     }
 
-    /// The step of a node the record refused.
+    /// The instances of `doc` whose part the record holds no build of:
+    /// refused before the part is entered.
+    fn partless<'a>(
+        doc: &'a Doc<ProfileProgram>,
+        parts: &'a parts::PartRecords,
+        eps_bits: u64,
+    ) -> impl Iterator<Item = RecipeNodeId> + 'a {
+        doc.ids().into_iter().filter(move |&id| {
+            parts::instantiated(doc, id)
+                .is_some_and(|part| !matches!(parts.get(&(part, eps_bits)), Some(Ok(_))))
+        })
+    }
+
+    /// The step of a node the record built no value at.
     fn refusal<T: topo::AtRestPolicy + Decide>(&self, id: RecipeNodeId) -> Option<NodeStep<T>> {
         self.refused.contains(&id).then(|| NodeStep {
             result: NodeResult::Failed(NodeError {
@@ -3987,11 +4225,15 @@ pub(crate) enum PassTwo {
 /// [`parts`] on why it runs bottom-up). No prior: a referenced document
 /// is resolved fresh, and the memo that keeps THAT from costing
 /// anything is the top's part rows, carried from its prior.
+///
+/// `record` binds the run to the build of record's run of the same
+/// document, where the descent is a dual's ([`RecordBinding::of_part`]).
 pub(crate) fn evaluate_nested<T>(
     doc: &Doc<ProfileProgram>,
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: parts::Reached<T>,
+    record: Option<&RecordBinding>,
     pin: &crate::ident::ContentPin,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4004,7 +4246,7 @@ where
         cancel,
         opts,
         Some((reached, pin)),
-        None,
+        record.map(Ok),
         PassTwo::SkippedAtF64,
         tol,
     )
@@ -4024,7 +4266,7 @@ fn evaluate_at_descent<T>(
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: Option<(parts::Reached<T>, &crate::ident::ContentPin)>,
-    record: Option<&RecordBinding>,
+    record: Option<Result<&RecordBinding, &RecordMispairing>>,
     pass_two: PassTwo,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4044,13 +4286,6 @@ where
             None => (prior, None),
         };
     let sched = schedule::schedule(doc);
-    // The record's pairing (DI3): a dual bound to another document's
-    // record is bound to nothing of this one.
-    if let Some(mispaired) = record.and_then(|r| crate::ident::mispaired(doc.id(), r.document)) {
-        return refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
-            NodeErrorKind::RecordMispaired(mispaired)
-        });
-    }
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
@@ -4084,6 +4319,18 @@ where
             Ok(env) => env,
             Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source, tol),
         },
+    };
+    // The build of record's pairing, once the run's own up-front doors
+    // have passed: a dual bound to a record that is not a build of this
+    // run's input is bound to nothing of it.
+    let record = match record {
+        None => None,
+        Some(Ok(binding)) => Some(binding),
+        Some(Err(mispairing)) => {
+            return refuse_every_node(doc, sched, opts, prior_refused, tol, || {
+                NodeErrorKind::RecordMispaired(mispairing.clone())
+            });
+        }
     };
     // The NOMINAL environment, built beside the lane one and carried
     // with it as `wire::LaneEnv::nominal` — what it is and who reads
@@ -4193,6 +4440,7 @@ where
             .with_symbols(opts.symbols)
             .with_twist(opts.computing_twist)
             .with_costs(prior.map(|p| &p.parts))
+            .with_record(record.map(|r| Arc::clone(&r.parts)))
     });
     let admitted = admission.admit(|id, remaining| {
         let parted = match (parts::instantiated(doc, id), &mut store) {
@@ -4372,6 +4620,7 @@ where
         document: doc.id(),
         pin: None,
         tolerance: tolerance_of(tol),
+        lane: RunLane::of(opts),
         whole_refusal: false,
         prior_refused,
         order,
@@ -4607,6 +4856,7 @@ where
         document: doc.id(),
         pin: None,
         tolerance: tolerance_of(tol),
+        lane: RunLane::of(opts),
         whole_refusal: true,
         prior_refused,
         order,
@@ -8033,6 +8283,13 @@ pub mod testing {
         ) -> crate::Evaluation<Self>;
     }
 
+    // The scalars `topo::AtRestPolicy` is implemented for, each once:
+    // the own-record ones through `evaluate`, the dual through
+    // `evaluate_bound`. Not two blanket impls over `OwnRecord` and
+    // `BoundToRecord`: coherence does not read the two `Finished` types
+    // apart (rust-lang/rust#20400), so it takes them as overlapping. A
+    // scalar missing from this list is a compile error at the first
+    // helper that evaluates at it, not a run at the wrong door.
     macro_rules! own_record_evaluates {
         ($($t:ty),* $(,)?) => {$(
             impl AnyEvaluate for $t {
