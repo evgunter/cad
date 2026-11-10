@@ -192,15 +192,36 @@ impl TorusRefusal {
     }
 }
 
+impl TorusRefusal {
+    /// The refused arm the verdict carries: the undecided margin, or the
+    /// decided one's arm.
+    #[must_use]
+    pub fn arm(&self) -> RefusedArm<'_> {
+        match &self.verdict {
+            TorusVerdict::Undecided(diag) => RefusedArm::Undecided(diag),
+            TorusVerdict::Refused(verdict) => verdict.arm(),
+        }
+    }
+
+    /// **The refusal's one ending at the door `at` reads it**: its half's
+    /// sized decision on its arm ([`TorusConvention::sized`]), in band or
+    /// decided alike. A holder that ends a torus refusal in its own words
+    /// reads its ending here.
+    #[must_use]
+    pub fn recourse(&self, at: impl Into<crate::recourse::ReadAt>) -> String {
+        self.convention.sized().recourse(self.arm(), at)
+    }
+}
+
 /// `at` ends the refusal by its convention's sized decision at the door
-/// that reads it; `None` writes the payload alone, as `Display` does.
+/// that reads it ([`TorusRefusal::recourse`]); `None` writes the payload
+/// alone, as `Display` does.
 impl TorusRefusal {
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         at: Option<crate::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        let sized = self.convention.sized();
         match (&self.verdict, at) {
             (TorusVerdict::Undecided(diag), at) => write!(
                 f,
@@ -208,13 +229,13 @@ impl TorusRefusal {
                 crate::recourse::undecided_at(
                     diag,
                     self.convention.subject(),
-                    at.map(|at| sized.recourse(RefusedArm::Undecided(diag), at)),
+                    at.map(|at| self.recourse(at)),
                 )
             ),
             (TorusVerdict::Refused(verdict), at) => {
                 f.write_str(&self.convention.refused("a torus's", *verdict))?;
                 match at {
-                    Some(at) => write!(f, ". {}", sized.recourse(verdict.arm(), at)),
+                    Some(at) => write!(f, ". {}", self.recourse(at)),
                     None => Ok(()),
                 }
             }

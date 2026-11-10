@@ -476,16 +476,14 @@ pub struct SpiricRegimeSites {
 }
 
 impl SpiricRegimeSites {
-    /// [`Curve3::spiric`]'s own rows.
-    pub const MINT: Self = Self::new(
-        "spiric_off_axis",
-        "spiric_two_ovals",
-        "spiric_two_ovals_floor",
-    );
+    /// [`Curve3::spiric`]'s own rows: its reader's ([`SpiricReader::Mint`]).
+    pub const MINT: Self = SpiricReader::Mint.sites();
 
     /// The rows for the offset off zero (`off_axis`) and the two-oval
     /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
-    /// Private: a reader names its rows at [`SpiricReader::sites`].
+    /// Private to this module: a reader names its rows at
+    /// [`SpiricReader::sites`], and no code mints a bundle elsewhere, this
+    /// crate's included.
     ///
     /// # Panics
     ///
@@ -544,7 +542,11 @@ impl SpiricReader {
     #[must_use]
     pub const fn sites(self) -> SpiricRegimeSites {
         match self {
-            Self::Mint => SpiricRegimeSites::MINT,
+            Self::Mint => SpiricRegimeSites::new(
+                "spiric_off_axis",
+                "spiric_two_ovals",
+                "spiric_two_ovals_floor",
+            ),
             Self::BooleanRider => SpiricRegimeSites::new(
                 "bool_rider_spiric_off_axis",
                 "bool_rider_spiric_regime",
