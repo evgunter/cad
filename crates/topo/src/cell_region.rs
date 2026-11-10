@@ -23,8 +23,9 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::curved_face_containment`] on a curved carrier), says
-//!    which.
+//!    [`crate::boolean::curved_face_placement`] on a curved carrier),
+//!    says which; a station the curved door reads off its own carrier
+//!    is the kernel's defect, and panics.
 //!
 //! Anything else is [`CellRegion::Undecided`]: an edge not decided
 //! clear (in the band, poisoned, or genuinely crossing), a station the
@@ -45,7 +46,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::boolean::{FaceContainment, contfp, curved_face_containment};
+use crate::boolean::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
@@ -164,9 +165,15 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::curved_face_containment`] on a curved carrier. `None` for
-/// a face that does not resolve, a door that refuses, and
-/// a curved door's unread remainder.
+/// [`crate::boolean::curved_face_placement`] on a curved carrier. `None`
+/// for a face that does not resolve, a door that refuses, and a curved
+/// door's unread remainder.
+///
+/// # Panics
+///
+/// Where the curved door reads the station definitely off the face's
+/// carrier: the station is a point of the face's own chart, so that is
+/// the kernel's defect.
 pub fn station_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -189,9 +196,17 @@ fn place<T: Decide>(
         .check(surface, band);
     match *surface {
         Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
-        _ => curved_face_containment(body, face, station, band)
-            .ok()
-            .flatten(),
+        _ => match curved_face_placement(body, face, station, band).ok()? {
+            CurvedPlacement::Trim(at) => at,
+            // The station is the face's own chart's (`constructed`), so a
+            // curved door's off-carrier reading is the kernel's defect,
+            // as at every held door, never a reading of `Out`.
+            CurvedPlacement::OffCarrier => unreachable!(
+                "cell region: face {face:?}: a station of the face's own stored chart reads \
+                 definitely off its carrier. {}",
+                geom_core::kernel_defect_ending!()
+            ),
+        },
     }
 }
 

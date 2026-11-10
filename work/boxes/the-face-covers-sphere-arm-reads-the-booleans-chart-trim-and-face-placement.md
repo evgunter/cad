@@ -94,3 +94,15 @@ whose placement move retires these names.
 the moved `placement_on_carrier`, with the census mapping its
 `OffCarrier` to `census_fault`. Census `contain`'s `contfp` site and
 `placed`'s two `crate::boolean` lines go with it.
+
+## A third: `cell_region.rs` `place` (2026-11-10)
+
+`cell_region.rs` `place` holds a station of the face's own stored chart
+(`Held::constructed`) and placed a curved one through
+`curved_face_containment`, which reads `OffCarrier` as `Out`. It now
+reads `curved_face_placement`, and a curved `OffCarrier` panics as the
+kernel's defect, so every held door has one policy. That raised
+`cell_region.rs`'s `names-boolean` pin from 11 to 14
+(`curved_face_placement` and `CurvedPlacement`'s two arms, where it
+named `curved_face_containment`), cited here. When containment moves to
+the root, `place` reads the moved door, and the line drops.
