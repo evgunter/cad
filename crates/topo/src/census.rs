@@ -7406,6 +7406,14 @@ impl Undecided {
         matches!(self, Self::Touch(_))
     }
 
+    /// Whether this is a touch whose reading aborts: a refusal of the
+    /// whole query by the touch's own standing ([`TouchUnread::refusal`]),
+    /// which ends `blocks`' reading of the pair at once, as the ladder's
+    /// abort ends a climb.
+    fn aborts(self) -> bool {
+        matches!(self, Self::Touch(t) if t.refusal().is_err())
+    }
+
     /// The reason and its recourse, as the finding renders them.
     ///
     /// "Until their bounding boxes no longer overlap" is the distance
@@ -8123,6 +8131,114 @@ enum Blocked<T: Real> {
     Crossing(TouchSite, Point3<T>),
     /// Undecided, for the reason named.
     Undecided(Undecided),
+}
+
+/// One reading [`blocked`] ranks: a touch read as a crossing at the point
+/// carried, or a reason the pair stays undecided.
+enum Scan<T: Real> {
+    Crossing(TouchSite, Point3<T>),
+    Undecided(Undecided),
+}
+
+/// **What blocks a solid pair, from its readings in scan order**: the
+/// first crossing decides the pair whatever else stands. A touch whose
+/// reading aborts ([`Undecided::aborts`]) ends the reading at once and is
+/// reported as itself, whatever a later reading would be, so no decided
+/// touch hides it. Failing both, the first other reason refuses ahead of
+/// the first touch the analysis could not decide. Reads `scans` only up
+/// to the reading that decides.
+fn blocked<T: Real>(scans: impl IntoIterator<Item = Scan<T>>) -> Option<Blocked<T>> {
+    let (mut other, mut undecided_touch) = (None, None);
+    for scan in scans {
+        match scan {
+            Scan::Crossing(site, at) => return Some(Blocked::Crossing(site, at)),
+            Scan::Undecided(why) if why.aborts() => return Some(Blocked::Undecided(why)),
+            Scan::Undecided(why) if why.is_undecided_touch() => {
+                undecided_touch = undecided_touch.or(Some(why));
+            }
+            Scan::Undecided(why) => other = other.or(Some(why)),
+        }
+    }
+    other.or(undecided_touch).map(Blocked::Undecided)
+}
+
+#[cfg(test)]
+mod blocked_rows {
+    use super::{Blocked, CurvedUnread, Scan, TouchSite, TouchUnread, Undecided, blocked};
+    use crate::entity::VertexKey;
+    use geom_core::Point3;
+
+    const ABORT: Undecided = Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable));
+    const WAITS: Undecided = Undecided::Touch(TouchUnread::InBand);
+
+    /// What [`blocked`] read, without the crossing's site and point.
+    #[derive(Debug, PartialEq)]
+    enum Read {
+        Crossing,
+        Undecided(Undecided),
+        Clear,
+    }
+
+    fn crossing() -> Scan<f64> {
+        Scan::Crossing(
+            TouchSite::VertexVertex(VertexKey::default(), VertexKey::default()),
+            Point3::new(0.0, 0.0, 0.0),
+        )
+    }
+
+    fn reads(scans: Vec<Scan<f64>>) -> Read {
+        match blocked(scans) {
+            Some(Blocked::Crossing(..)) => Read::Crossing,
+            Some(Blocked::Undecided(why)) => Read::Undecided(why),
+            Some(Blocked::Stands) => unreachable!("blocked never reads a standing finding"),
+            None => Read::Clear,
+        }
+    }
+
+    /// **A touch whose reading aborts is reported at once**, ahead of a
+    /// decided crossing scanned after it and of any other reason: the
+    /// ladder's one meaning of an abort. A touch that does not abort
+    /// still waits behind any other reason, and a crossing scanned first
+    /// still decides.
+    #[test]
+    fn an_aborting_touch_is_reported_ahead_of_a_later_crossing() {
+        assert!(
+            ABORT.aborts() && !WAITS.aborts(),
+            "the two touches' standings"
+        );
+        assert_eq!(
+            reads(vec![Scan::Undecided(ABORT), crossing()]),
+            Read::Undecided(ABORT),
+            "an abort scanned before a decided crossing"
+        );
+        assert_eq!(
+            reads(vec![
+                Scan::Undecided(Undecided::Unexamined),
+                Scan::Undecided(ABORT)
+            ]),
+            Read::Undecided(ABORT),
+            "an abort after another reason"
+        );
+        assert_eq!(
+            reads(vec![crossing(), Scan::Undecided(ABORT)]),
+            Read::Crossing,
+            "a crossing scanned first"
+        );
+        assert_eq!(
+            reads(vec![
+                Scan::Undecided(WAITS),
+                Scan::Undecided(Undecided::Unexamined)
+            ]),
+            Read::Undecided(Undecided::Unexamined),
+            "a touch that does not abort waits behind another reason"
+        );
+        assert_eq!(
+            reads(vec![Scan::Undecided(WAITS)]),
+            Read::Undecided(WAITS),
+            "a lone undecided touch"
+        );
+        assert_eq!(reads(vec![]), Read::Clear, "nothing read");
+    }
 }
 
 impl TouchVerdict {
@@ -10259,18 +10375,16 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         }
         let owns = |id: EntityId| solid_of_entity(id).is_some_and(|s| s == sa || s == sb);
         let between = |x: EntityId, y: EntityId| straddles(sa, sb, x, y);
-        // A touch read as a crossing decides the pair whatever else
-        // stands; failing one, any other reason refuses ahead of a touch
-        // the analysis could not decide.
-        let mut other = None;
-        let mut undecided_touch = None;
-        for e in standing_errors {
+        // The pair's findings, in order, then its recorded and shared
+        // sites, read lazily: [`blocked`] stops at the first crossing or
+        // abort, so no later touch is read.
+        let findings = standing_errors.iter().filter_map(|e| {
             let what = match Named::of(e) {
                 Named::Nothing => Some(Undecided::Unexamined),
                 Named::One(id) => owns(id).then_some(Undecided::Unexamined),
                 Named::Two(x, y, said) if between(x, y) => match said {
                     Said::Touch(site) => match touch(site) {
-                        Some(Unrest::Crossing(at)) => return Some(Blocked::Crossing(site, at)),
+                        Some(Unrest::Crossing(at)) => return Some(Scan::Crossing(site, at)),
                         Some(Unrest::Undecided(why)) => Some(why),
                         None => None,
                     },
@@ -10301,14 +10415,8 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 }
                 Named::Two(..) => None,
             };
-            match what {
-                Some(why) if why.is_undecided_touch() => {
-                    undecided_touch = undecided_touch.or(what);
-                }
-                Some(_) => other = other.or(what),
-                None => {}
-            }
-        }
+            what.map(Scan::Undecided)
+        });
         // Declared touches leave no finding and are confirmed for their
         // coincidence only, never for their side: the same analysis runs
         // over the records that name this pair, and over every point the
@@ -10323,16 +10431,12 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 Recorded::FacePair => None,
             })
             .chain(shared(sa, sb).into_iter().map(|site| (site, true)));
-        for (site, strict) in sites {
-            match touch(site) {
-                Some(Unrest::Crossing(at)) => return Some(Blocked::Crossing(site, at)),
-                Some(Unrest::Undecided(why)) if strict => {
-                    undecided_touch = undecided_touch.or(Some(why));
-                }
-                _ => {}
-            }
-        }
-        other.or(undecided_touch).map(Blocked::Undecided)
+        let at_sites = sites.filter_map(|(site, strict)| match touch(site) {
+            Some(Unrest::Crossing(at)) => Some(Scan::Crossing(site, at)),
+            Some(Unrest::Undecided(why)) if strict => Some(Scan::Undecided(why)),
+            _ => None,
+        });
+        blocked(findings.chain(at_sites))
     };
     // ---- The material test of one ordering: every vertex of `inner`
     // against `outer`'s material.

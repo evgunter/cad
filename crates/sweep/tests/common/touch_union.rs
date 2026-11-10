@@ -45,10 +45,17 @@ const CURVED_WITHIN_REACH: &str = "a curved face of one is within reach of the o
 /// finding left unchecked (`census::Undecided::Unexamined`).
 const UNEXAMINED: &str = "another finding left their boundaries unchecked";
 
+/// The instance arm's reason for a pair touching where a curved face or
+/// edge makes the touch unreadable (`TouchUnread::Curved`): an abort, so
+/// the backstop reports it at once, ahead of the `Unexamined` the pair's
+/// other findings would leave.
+const CURVED_TOUCH: &str = "they touch at a curved face or edge";
+
 /// Whether every finding in `errs` is the frontier the RESTREAD row
 /// holds open, and nothing else: the backstop's `CurvedWithinReach` on
 /// two faces of `body`'s two different solids, and the instance arm's
-/// `Unexamined` on those two solids, which only follows the first.
+/// finding on those two solids, which only follows the first: its
+/// `Unexamined`, or the curved touch its scan met first, which aborts.
 pub fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]) -> bool {
     let solid = |f| body.solid_of_face(f);
     let reach = |e: &ValidationError| {
@@ -64,7 +71,7 @@ pub fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]
                 && solid(*a) != solid(*b)
         )
     };
-    let unexamined = |e: &ValidationError| {
+    let solid_pair = |e: &ValidationError| {
         matches!(
             e,
             ValidationError::CensusUndecidable {
@@ -72,10 +79,10 @@ pub fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]
                 b: EntityId::Solid(b),
                 what,
                 ..
-            } if what.starts_with(UNEXAMINED) && a != b
+            } if (what.starts_with(UNEXAMINED) || what.starts_with(CURVED_TOUCH)) && a != b
         )
     };
-    errs.iter().all(|e| reach(e) || unexamined(e)) && (errs.is_empty() || errs.iter().any(reach))
+    errs.iter().all(|e| reach(e) || solid_pair(e)) && (errs.is_empty() || errs.iter().any(reach))
 }
 
 /// Asserts every op on `a`, `b`, in both operand orders, answers as a
