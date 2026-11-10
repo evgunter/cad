@@ -332,7 +332,7 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// in its own enclosing function, or that binding stops being
 /// `QUAD_TARGET_LEN_FACTOR * eps` (rule (4)'s premise, not just its
 /// key); if a mint acquires such a margin and is neither rostered nor
-/// excused there by name; or if any `classify_len` in those files drops
+/// excused there by name; or if any `classify_len_as` in those files drops
 /// out of the parse.
 ///
 /// **What no test here can see** is a predicate the kernel adds to this

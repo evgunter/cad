@@ -2039,7 +2039,7 @@ pub(super) fn runs_into<T: Decide>(
         (s.end, s.end_reach, s.end_edge()),
     ] {
         let lever = exact_lever(along.lever(), Some(reach.lever()));
-        if !(is_edge && parallel_same(dir, bound, lever, BOUNDS_PARALLEL, band)?) {
+        if !(is_edge && parallel_same_as(dir, bound, lever, BOUNDS_PARALLEL, band)?) {
             continue;
         }
         let (Some((k, l)), Some((kb, lb))) = (bound_bend(reach), bound_bend(along)) else {
@@ -2066,7 +2066,7 @@ pub(super) fn runs_into<T: Decide>(
 /// so a margin is a length whatever the directions' norms. The caller's
 /// `reading` names the parallelism margin and the coincidence an in-band
 /// reading refuses as.
-pub(super) fn parallel_same<T: Decide>(
+pub(super) fn parallel_same_as<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: Lever<T>,
@@ -2171,7 +2171,7 @@ fn first_order_overlap<T: Decide>(
     }
     let along = |(u, ru): (Vec3<T>, BoundSupport<T>), (v, rv): (Vec3<T>, BoundSupport<T>)| {
         let lever = exact_lever(rv.lever(), Some(ru.lever()));
-        parallel_same(u, v, lever, BOUNDS_PARALLEL, band)
+        parallel_same_as(u, v, lever, BOUNDS_PARALLEL, band)
     };
     let (a_start, a_end) = ((a.start, a.start_reach), (a.end, a.end_reach));
     let (b_start, b_end) = ((b.start, b.start_reach), (b.end, b.end_reach));
@@ -2250,7 +2250,7 @@ fn crescent<T: Decide>(
         if !matches!(ra, BoundSupport::Conic { .. }) && !matches!(rb, BoundSupport::Conic { .. }) {
             return Ok(false);
         }
-        if !parallel_same(da, db, arm, BOUNDS_PARALLEL, band)? {
+        if !parallel_same_as(da, db, arm, BOUNDS_PARALLEL, band)? {
             return Ok(false);
         }
         let d = da.normalize();
@@ -2266,7 +2266,7 @@ fn crescent<T: Decide>(
         }
         let l = la.min(lb);
         if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
-            && !parallel_same(da, db, l, BOUNDS_PARALLEL, band)?
+            && !parallel_same_as(da, db, l, BOUNDS_PARALLEL, band)?
         {
             return Ok(false);
         }
@@ -2327,7 +2327,7 @@ fn coincident_run<T: Decide>(
         .vv
         .iter()
         .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
-        && parallel_same(
+        && parallel_same_as(
             a.dir,
             b.dir,
             exact_lever(b.reach, Some(a.reach)),
@@ -2992,7 +2992,7 @@ mod tests {
             let (u, v) = apart(sin);
             for norm in [1e-3, 1.0, 1e3] {
                 assert_eq!(
-                    parallel_same(
+                    parallel_same_as(
                         u * norm,
                         v * norm,
                         geom_core::test_support::fixture_lever(1.0),
@@ -3011,7 +3011,7 @@ mod tests {
         for norm in [1e-3, 1.0, 1e3] {
             for (w, want) in [(v, true), (-v, false)] {
                 assert_eq!(
-                    parallel_same(
+                    parallel_same_as(
                         u * norm,
                         w * norm,
                         geom_core::test_support::fixture_lever(2.0 * e),
@@ -3032,7 +3032,7 @@ mod tests {
                 Coincide::EdgeOnEdge,
             ),
         ] {
-            let err = parallel_same(
+            let err = parallel_same_as(
                 u * 1e3,
                 v * 1e3,
                 geom_core::test_support::fixture_lever(1.0),
@@ -3071,7 +3071,7 @@ mod tests {
             (Vec3::zero(), Vec3::zero()),
             (Vec3::new(f64::NAN, 0.0, 0.0), u),
         ] {
-            let got = parallel_same(
+            let got = parallel_same_as(
                 p,
                 q,
                 geom_core::test_support::fixture_lever(1.0),
@@ -3084,7 +3084,7 @@ mod tests {
         // direction: normalize prescales it.
         let tiny = Vec3::new(1e-300, 0.0, 0.0);
         assert!(
-            parallel_same(
+            parallel_same_as(
                 tiny,
                 u,
                 geom_core::test_support::fixture_lever(1.0),
@@ -3094,7 +3094,7 @@ mod tests {
             .unwrap()
         );
         assert!(
-            !parallel_same(
+            !parallel_same_as(
                 -tiny,
                 u,
                 geom_core::test_support::fixture_lever(1.0),

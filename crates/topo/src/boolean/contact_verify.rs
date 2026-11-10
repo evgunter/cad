@@ -492,7 +492,7 @@ fn tangent_pass<T: Decide>(
                 PairSide::Second => CONTACT_TANGENT_ON_2,
             };
             let (read, log) = geom_core::k_stats::detached(|| {
-                on_surface((on, side), r, bounds.residual_sag, band)
+                on_surface_as((on, side), r, bounds.residual_sag, band)
             });
             match read {
                 Err(Unsettled::Sag(reading)) => {
@@ -736,7 +736,7 @@ fn span_touch<T: Decide>(
     }
 }
 
-/// The names the witness is decided on each surface under ([`on_surface`]).
+/// The names the witness is decided on each surface under ([`on_surface_as`]).
 const CONTACT_TANGENT_ON_1: &str = "contact_tangent_on_1";
 const CONTACT_TANGENT_ON_2: &str = "contact_tangent_on_2";
 
@@ -761,7 +761,7 @@ const CONTACT_TANGENT_ON_2: &str = "contact_tangent_on_2";
 ///
 /// MUST-VERIFY-DEFINITE (C4): "the witness within ε of each surface".
 /// An in-band residual escalates.
-fn on_surface<T: Decide>(
+fn on_surface_as<T: Decide>(
     (on, side): (&'static str, PairSide),
     r: T,
     sag: T,
@@ -959,7 +959,7 @@ mod tests {
             ),
         ] {
             let off = TangentRow::Off(PairSide::Second);
-            let got = match on_surface(("probe_on", PairSide::Second), r, sag, b) {
+            let got = match on_surface_as(("probe_on", PairSide::Second), r, sag, b) {
                 Ok(()) => Want::On,
                 Err(Unsettled::InBand(diag)) => {
                     assert_eq!(

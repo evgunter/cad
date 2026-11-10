@@ -345,7 +345,7 @@ cases! {
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
-        super::super::sectors::parallel_same(
+        super::super::sectors::parallel_same_as(
             Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), geom_core::test_support::fixture_lever(1.0),
             super::RAY_COLLINEAR, band()
         ).map(|_| ());
@@ -2306,7 +2306,7 @@ fn every_site_names_the_decision_it_raises() {
                 function = name;
             }
             // A site that passes a parallelism reading raises its
-            // coincidence: `sectors::parallel_same` names none of its own.
+            // coincidence: `sectors::parallel_same_as` names none of its own.
             if !line.trim_start().starts_with("use ") {
                 for (name, reading) in PARALLEL_READINGS {
                     let passed = line

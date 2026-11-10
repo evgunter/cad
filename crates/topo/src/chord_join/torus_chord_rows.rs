@@ -311,7 +311,8 @@ fn a_chord_on_an_oval_is_an_arc_on_its_own_parameter() {
                     datum: Datum::Germ,
                 };
                 let what = format!("{name}, {v1} → {v2}, along {along}");
-                let ccw = arc_leaving(FaceKey::default(), band(), &curve, &d, p1, leave).unwrap();
+                let ccw =
+                    arc_leaving_as(FaceKey::default(), band(), &curve, &d, p1, leave).unwrap();
                 assert_eq!(
                     ccw,
                     along > 0.0,
