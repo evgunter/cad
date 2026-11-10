@@ -201,3 +201,8 @@
   - **The mesh walk** names a cusp reached from below at −π.
   - **Mutants:** all red except the R > 0 guard, which the lane proved equivalent. The reviewers are asked to run that mutant over every row of the subject.
   - **Dual dispatched** as two cloud sessions (`spiricarm/review-6806-brief`, sha256 `71709f98…`).
+- 2026-11-10 — **PR 6805's single FULL review: NOT-MERGEABLE-AS-IS** (1 MAJOR / 3 MINOR / 4 NOTE).
+  - **MAJOR (executed):** `span_pieces` reads one piece a span whatever the span's extent. A long or near-pole span refuses its reciprocal, the round's flux goes non-finite, and `accept` ends the call. Faces main measures now refuse: a 17-cut rim with a 5.4 rad cut, and a 16-span disc 1e-3 from a pole. The PR body had said "costs work, not soundness".
+  - **Also:** the schedule now depends on how a boundary is cut into edges, against the spirit of [tolerance.measure], DR-400's ruling for the rectangle lanes. The cost and chart-term halves are unwitnessed (three mutants survive); one cost row is circular.
+  - **Fix pass sent:** a schedule read from each span's geometry, which answers the MAJOR and the [tolerance.measure] concern together. Plus a decision, argued in the PR body, on whether a non-finite round should refine rather than end.
+  - **Class (logged at adjudication):** a speed change swept only for cost misses the refusal class: a coarser piece can refuse where a finer one read. The PCERT cost row's suggested spread meets the same class.
