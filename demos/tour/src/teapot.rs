@@ -1553,9 +1553,9 @@ pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // so the request reaches the vessel's sphere face meeting the
     // handle's torus. The section value carries that pair's loops, the
     // segment lays them, and the union builds; its chorded sphere face
-    // measures, but the handle's chorded torus face has no volume lane on
-    // its chart yet, so the result is invalid. The face is read as the
-    // torus by its kind in the suite (`wall_2_refuses_on_the_handles_torus_face`).
+    // and the handle's chorded torus face measure through the rotational
+    // lane. The face is read by its kind in the suite
+    // (`wall_2_refuses_on_the_handles_torus_face`).
     crate::walls::wall(
         "teapot",
         2,
