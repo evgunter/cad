@@ -514,7 +514,7 @@ fn piece_monotone<T: Decide>(
     // at least this much — and `rate` is a certified LOWER bound, so
     // under-stating it can only fail to certify, never certify a
     // sliver.
-    super::run::classify_len::<T>(
+    super::run::classify_len_as::<T>(
         "props_trim_piece_monotone",
         Margin::metered(span, InfSpeed::new(rate)),
         band,

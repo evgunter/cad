@@ -26,10 +26,10 @@ rung:crates/topo/src/boolean/insert.rs:held_cut 4
 rung:crates/topo/src/boolean/rim_wedge.rs:at 1
 # crescent's pair of bounds. The opening (`bool_sector_crescent`) reads
 # none of the reads before it, and decided off `Positive` it answers
-# `false` alone. So the first `parallel_same`, the across reading and
+# `false` alone. So the first `parallel_same_as`, the across reading and
 # `coincident_run` each refuse ahead of it: SEARCH (the first
-# `parallel_same` also ahead of the across reading). The second
-# `parallel_same`, read only under `coincident_run`: PREMISE.
+# `parallel_same_as` also ahead of the across reading). The second
+# `parallel_same_as`, read only under `coincident_run`: PREMISE.
 rung:crates/topo/src/boolean/sectors.rs:crescent 5
 # path_parity's piece against an arc: `plane_roots` refuses ahead of
 # `misses_in_plane`, whose coplanar-apart arm holds whatever the planes:
