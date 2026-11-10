@@ -548,12 +548,8 @@ fn overrun_arc(source: &Body<f64>, edges: [EdgeKey; 2], out: &Blended<f64>, what
         .into_iter()
         .find(|e| {
             *e != arc && !rec.arcs.iter().any(|(a, _, _)| a == e) && {
-                let he = body.get_edge(*e).expect("an edge").he_plus;
-                let other = if body.get_half_edge(he).expect("a half").start == foot {
-                    body.half_edge_end(he).expect("an end")
-                } else {
-                    body.get_half_edge(he).expect("a half").start
-                };
+                let (s, t) = body.edge_vertices(*e).expect("an edge");
+                let other = if s == foot { t } else { s };
                 let d = unit(sub(point_at(body, other), p_k));
                 dot(d, cone_of_turn(source, edges).l).abs() > 1.0 - 1e-9
             }

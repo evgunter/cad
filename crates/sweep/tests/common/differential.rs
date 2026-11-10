@@ -473,12 +473,8 @@ fn judge(
 /// zero-length open edges).
 pub fn seams(body: &Body<f64>) -> (usize, usize, usize) {
     let (mut same_key, mut coplanar, mut zero) = (0, 0, 0);
-    for (_, e) in body.edges() {
-        let ends = (
-            body.get_half_edge(e.he_plus).map(|h| h.start),
-            body.half_edge_end(e.he_plus),
-        );
-        if let (Some(a), Some(b)) = ends
+    for (k, e) in body.edges() {
+        if let Some((a, b)) = body.edge_vertices(k)
             && a != b
         {
             let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();

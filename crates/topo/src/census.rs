@@ -14796,12 +14796,8 @@ mod tests {
         }
         let edges: Vec<EdgeKey> = p.body.edges().map(|(k, _)| k).collect();
         for e in edges {
-            let he = p.body.get_edge(e).expect("an edge").he_plus;
-            let p0 = point_of(
-                &p.body,
-                p.body.get_half_edge(he).expect("a half-edge").start,
-            );
-            let p1 = point_of(&p.body, p.body.half_edge_end(he).expect("an end"));
+            let (v0, v1) = p.body.edge_vertices(e).expect("an edge");
+            let (p0, p1) = (point_of(&p.body, v0), point_of(&p.body, v1));
             p.body
                 .set_edge_curve(e, EdgeCurveSpec::line_between(p0, p1), tol)
                 .expect("a line between the edge's vertices");

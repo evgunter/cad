@@ -73,7 +73,7 @@
 pub(crate) use crate::rows::{ParityRows, SegmentRows};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{
-    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec2, Vec3,
+    Band, Decide, Indeterminate, MOVE_RECOURSE, Margin, Point2, Point3, Sign, Vec2, Vec3,
 };
 
 use crate::validate::decide;
@@ -203,8 +203,8 @@ impl core::fmt::Display for NoRaySettled {
             f,
             "the point is off its boundary, but no test ray from it settled where it \
              lies: each grazed the boundary, at a vertex, along an edge or at a \
-             tangency, or could not be cast or read from the point. Recourse: \
-             {COINCIDENCE_RECOURSE}"
+             tangency, or could not be cast or read from the point. \
+             {MOVE_RECOURSE}"
         )
     }
 }

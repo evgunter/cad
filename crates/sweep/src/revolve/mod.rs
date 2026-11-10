@@ -880,8 +880,8 @@ impl RevolveError {
             Self::DegenerateAxis => write!(
                 f,
                 "the revolve axis direction has no definite length (zero or a sliver). \
-                 Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::AxisEscalated { source } => write!(
                 f,
@@ -895,8 +895,8 @@ impl RevolveError {
             Self::DegenerateAngle => write!(
                 f,
                 "the revolve angle is zero at tolerance (measured at the profile's widest \
-                 radius). Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 radius). {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::FullRangeAngle => f.write_str(
                 "the partial revolve angle reaches a full turn at tolerance; an exactly \
@@ -1043,15 +1043,15 @@ impl RevolveError {
                 mixed: Some(stations),
             } => write!(
                 f,
-                "along the join {edge:?}, {stations}. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "along the join {edge:?}, {stations}. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::SmoothJoinRefuted { edge, mixed: None } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness but \
                  definitely a corner at every certification station, so the construction \
-                 refuses rather than choose a description for it. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 refuses rather than choose a description for it. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::PinnedRunStation {
                 loop_index,

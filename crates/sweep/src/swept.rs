@@ -79,6 +79,11 @@ pub(crate) struct Placing<T: Real> {
 /// ([`Affine3::rotate_point_about_unit_axis`], W1's spelling), and the
 /// same rotation minted anchored at the axis point, which turns a
 /// placement.
+///
+/// It holds the axis as a decided unit direction ([`UnitVec3`]) beside its
+/// point, not as a [`geom::Line`]: the rotation reads a unit axis, and a
+/// `Line` reads any nonzero direction, so the unit is minted once where
+/// the turn is built and carried here as the value the rotation takes.
 #[derive(Clone, Copy, Debug)]
 struct Turn<T: Real> {
     origin: Point3<T>,

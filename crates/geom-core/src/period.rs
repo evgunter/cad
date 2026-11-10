@@ -391,6 +391,39 @@ impl<T: Decide> Period<T> {
         self.in_window(t, a, Closed::Lower)
     }
 
+    /// **The raw run from `from` to `to`**, forward round the turn, in
+    /// `[0, length]`: `to`'s copy [`Period::near`] `from`, lifted a period
+    /// where it lies behind `from`, less `from`. A `to` equal to `from`
+    /// runs nothing, never a whole turn: a caller whose two ends may name
+    /// one point and mean a whole turn says so itself. A `to` a hair
+    /// behind `from` runs a hair short of a whole turn, which may round to
+    /// `length` itself, never to nothing ([`Period::at_or_above`]'s point
+    /// fold onto `from` is the window's, not the run's). **A tie** (the
+    /// copy's side of `from` decided zero or undecided): a point on
+    /// `from` runs nothing; an enclosure astride `from` runs the hull of
+    /// both readings, nothing and a whole turn, so it encloses every run
+    /// of its points. A run is a raw
+    /// extent, read against a period only by the turn rule
+    /// ([`Period::turn`]); a sketch's own forward turn is
+    /// `profile::sugar::swept`, which folds a turn's fraction instead.
+    #[must_use]
+    pub fn run_from(self, from: T, to: T) -> T {
+        use crate::k_stats::{Pick, choose};
+        let n = self.near(to, from);
+        let (ahead, behind) = (n - from, n + self.length - from);
+        match choose("period_run_behind", Margin::of(n - from), "F31") {
+            Pick::Positive => ahead,
+            Pick::Negative => behind,
+            // A point on `from` runs nothing. An enclosure astride it holds
+            // runs of nothing and of nearly a whole turn at once, so its
+            // run is the hull of both readings, held to `[0, length]`,
+            // where every run lies: the whole span, as the fold into
+            // `[0, τ)` gave.
+            Pick::Tie if ahead.point_value().is_some() => ahead,
+            Pick::Tie => ahead.enclosure_hull(behind).max(T::zero()).min(self.length),
+        }
+    }
+
     /// The copy of `t` in the window of one period from `a`, closed at
     /// `closed`: `t`'s copy near `a`, lifted a period where it lies on
     /// the side of `a` the window excludes. A copy an ulp or so under `a`
@@ -593,6 +626,63 @@ impl<T: Decide> Extent<T> {
                 margin,
             }) => Err(NotForward::Reversed(margin)),
             Err(cause) => Err(NotForward::Undecided(cause)),
+        }
+    }
+
+    /// **A span forward by its arc's lower bounds**: [`Extent::forward`]
+    /// at the `inf` rate, or, where that reads short of positive, the
+    /// chord between the span's end points past the band (`chord_name`)
+    /// with the span's sense positive at the `sup` rate (`sense_name`).
+    /// Both readings bound the arc from below (`Δt·inf ≤ arc`, `|chord| ≤
+    /// arc`), so either past the band certifies the span is not
+    /// degenerate. The chord alone carries no sense; the sup reading
+    /// does, and is positive wherever the arc is past the band and the
+    /// span runs forward (`Δt·sup ≥ arc ≥ |chord|`). On a carrier whose
+    /// speed varies (an ellipse's fast vertex), the floor under-reads a
+    /// short span by up to `sup/inf`, which the chord does not. A span
+    /// whose chord is past the band and whose sense reads negative is
+    /// [`NotForward::Reversed`], as at the floor: it is no point, it runs
+    /// backwards.
+    ///
+    /// # Errors
+    ///
+    /// [`Extent::forward`]'s, where neither reading settles it.
+    pub fn forward_by_arc(
+        (name, chord_name, sense_name): (&'static str, &'static str, &'static str),
+        t0: T,
+        t1: T,
+        (inf, sup): (InfSpeed<T>, SupSpeed<T>),
+        chord: crate::Vec3<T>,
+        band: Band,
+    ) -> Result<Self, NotForward> {
+        let short = match Self::forward(name, t0, t1, inf, band) {
+            Ok(extent) => return Ok(extent),
+            Err(NotForward::Reversed(margin)) => return Err(NotForward::Reversed(margin)),
+            Err(short) => short,
+        };
+        let apart = matches!(
+            decide_reported(chord_name, Margin::norm3(chord), band),
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            })
+        );
+        if !apart {
+            return Err(short);
+        }
+        // Apart past the band, so the span is no point: its sense at the
+        // sup speed says which way it runs. Backwards it is `Reversed`,
+        // as `forward` reads a span definitely backwards at the floor.
+        match decide_reported(sense_name, Margin::metered_sup(t1 - t0, sup), band) {
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            }) => Ok(Self(t1 - t0)),
+            Ok(Decided {
+                sign: Sign::Negative,
+                margin,
+            }) => Err(NotForward::Reversed(margin)),
+            _ => Err(short),
         }
     }
 
@@ -1083,6 +1173,118 @@ mod period_rows {
             "at_or_above: an enclosure under a holds its lifted copy, {r:?}"
         );
         assert!(width(r) < 1e-11, "at_or_above: as narrow as t, {r:?}");
+    }
+
+    /// **`run_from` runs `[0, P]` from its start**: nothing to the start
+    /// itself, a whole turn less the gap to a point just behind it, and a
+    /// point ahead by itself, a turn or more away included.
+    #[test]
+    fn run_from_runs_from_its_start() {
+        let tau = f64::tau();
+        let period = Period::new(tau);
+        let a = 0.89_f64;
+        assert_eq!(
+            period.run_from(a, a).to_bits(),
+            0.0_f64.to_bits(),
+            "to the start itself"
+        );
+        let behind = period.run_from(a, a - 0.25);
+        assert!((behind - (tau - 0.25)).abs() < 1e-15, "behind: {behind}");
+        assert_eq!(
+            period.run_from(a, a + 1.5),
+            (a + 1.5) - a,
+            "ahead, a copy of itself"
+        );
+        let far = period.run_from(a, a + 1.5 + 3.0 * tau);
+        assert!((far - 1.5).abs() < 1e-14, "three turns ahead: {far}");
+        // A hair behind the start runs a hair short of a whole turn, never
+        // nothing (the window's point fold onto `from` is not the run's).
+        for from in [4.0_f64, 1.0, 3.0, 5.5, 0.89] {
+            let r = period.run_from(from, from.next_down());
+            assert!(
+                (r - tau).abs() < 1e-14,
+                "{from} → an ulp behind: a whole turn short of an ulp, {r}"
+            );
+        }
+        for (from, to) in [(0.3, 5.9), (5.9, 0.3), (-2.0, 2.0), (3.0, -40.0)] {
+            let r = period.run_from(from, to);
+            assert!((0.0..tau).contains(&r), "{from} → {to}: {r}");
+            assert!(
+                (r - (to - from).reduce_periodic(tau)).abs() < 1e-13,
+                "{from} → {to}: the forward fold's value, {r}"
+            );
+        }
+    }
+
+    /// **`forward_by_arc` reads the chord where the floor under-reads.**
+    /// Rates 1 and 1000 m per unit (a 1000 × 1 ellipse's): a span of
+    /// `5·10⁻¹¹` reads `5·10⁻¹¹` m at the floor, in the zero, but its
+    /// chord of `5·10⁻⁸` m is past the band, so it is forward. The same
+    /// span run backwards is reversed, and a span whose chord is in the
+    /// zero too is a point.
+    #[test]
+    fn forward_by_arc_reads_the_chord_where_the_floor_under_reads() {
+        use super::{Extent, NotForward};
+        use crate::{InfSpeed, SupSpeed};
+        let band = band();
+        let rates = (InfSpeed::new(1.0_f64), SupSpeed::new(1000.0));
+        let rows = ("t_forward", "t_chord", "t_sense");
+        let chord = |x: f64| crate::Vec3::new(x, 0.0, 0.0);
+        let dt = 5e-11;
+        assert!(matches!(
+            Extent::forward("t_forward", 0.0, dt, rates.0, band),
+            Err(NotForward::Zero(_))
+        ));
+        let extent = Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-8), band)
+            .expect("forward by its chord");
+        assert_eq!(extent.get(), dt);
+        assert!(
+            matches!(
+                Extent::forward_by_arc(rows, dt, 0.0, rates, chord(-5e-8), band),
+                Err(NotForward::Reversed(_))
+            ),
+            "run backwards, apart past the band: reversed, not a point"
+        );
+        assert!(
+            matches!(
+                Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-10), band),
+                Err(NotForward::Zero(_))
+            ),
+            "a chord in the zero"
+        );
+    }
+
+    /// **`run_from` at `Interval` encloses every run of its points.** A `to`
+    /// astride `from` holds points just ahead of it (runs near nothing)
+    /// and just behind it (runs near a whole turn): its run is the hull,
+    /// `[0, τ]` up to rounding. A `to` a whole turn on, as an enclosure of
+    /// `from + τ`, is astride `from`'s copy the same way.
+    #[test]
+    fn run_from_at_an_enclosure_astride_the_start_holds_both_runs() {
+        use crate::Bounds;
+        let period = Period::new(Interval::tau());
+        let from = Interval::from_f64(1.0);
+        let tau = f64::tau();
+        for (what, to) in [
+            ("a whole turn on", from + Interval::tau()),
+            ("a box about the start", Interval::from_bounds(0.999, 1.001)),
+        ] {
+            let r = period.run_from(from, to);
+            assert!(
+                r.lo() <= 1e-12 && r.hi() >= tau - 1e-3,
+                "{what}: the run encloses both nothing and nearly a whole turn, {r:?}"
+            );
+            assert!(
+                r.lo() >= -1e-12 && r.hi() <= tau + 1e-12,
+                "{what}: within [0, τ], {r:?}"
+            );
+        }
+        let point = period.run_from(from, from);
+        assert_eq!(
+            (point.lo(), point.hi()),
+            (0.0, 0.0),
+            "a point on the start runs nothing"
+        );
     }
 
     /// **A `t` that has no copy reads NaN**, rather than answering.
