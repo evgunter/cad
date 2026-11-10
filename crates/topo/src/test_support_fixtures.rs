@@ -69,7 +69,7 @@
 #![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use crate::{Body, FaceKey, HalfEdgeKey, LoopBoundary};
+use crate::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary};
 
 use crate::construction::{
     FaceSurface, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
@@ -140,6 +140,81 @@ pub struct CubeOps<T: Real> {
     /// pair — so a reordering that preserved the lengths would move
     /// them onto other faces silently.
     pub mefs: [MefCreated; 5],
+}
+
+/// **A cone cap**: the face on the cone of half-angle `alpha` about
+/// `+z` from the origin bounded by its one circle at height `z`, two
+/// half-circle edges with no seam, so it holds the apex inside and none
+/// of its boundary reaches it.
+///
+/// # Panics
+///
+/// Where the fixture's own construction refuses (a kernel bug).
+pub fn cone_cap(alpha: f64, z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use geom_brep::CurveSelector;
+    let cone = || Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle: alpha,
+        u_ref: Vec3::unit_x(),
+    };
+    let r = z * alpha.tan();
+    let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(on(0.0), true).unwrap();
+    let plane = body.add_surface(Surface::Plane {
+        origin: Point3::new(0.0, 0.0, z),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    });
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::Shared {
+            key: plane,
+            sense: true,
+        },
+    )
+    .unwrap();
+    let carrier = body.add_surface(cone());
+    let half = |u0: f64| EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(carrier, plane),
+            selector: CurveSelector::Witness(on(u0 + FRAC_PI_2)),
+        },
+        carrier: Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x()),
+        param_start: u0,
+        param_end: u0 + PI,
+    };
+    let e = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            on(PI),
+            half(0.0),
+            tol,
+        )
+        .unwrap();
+    let face = body
+        .lifting_rechart_refusals_for_tests(|body| {
+            body.mef(
+                MefSite::Chords {
+                    he1: e.he_minus,
+                    he2: e.he_plus,
+                },
+                half(PI),
+                FaceSurface::Shared {
+                    key: carrier,
+                    sense: true,
+                },
+                tol,
+            )
+        })
+        .unwrap()
+        .face;
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    (body, face)
 }
 
 /// The chord-line spec between two points, with the extrude-flavored
@@ -745,13 +820,12 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
     tol: Tol,
 ) {
     let band = Band::linear(tol).unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in edges {
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    for edge_key in edges {
         let (s1, s2) = crate::readback::edge_sides(body, edge_key)
             .unwrap()
             .surfaces();
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = crate::query::edge_ends(body, edge_key);
         let p0 = *body
             .get_point(body.get_vertex(start).unwrap().point)
             .unwrap();
@@ -786,13 +860,12 @@ pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRes
     tol: Tol,
 ) -> (Body<T>, Vec<crate::ValidationError>) {
     let mut body = body.clone();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in &edges {
+    let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    for edge_key in &edges {
         let (s1, s2) = crate::readback::edge_sides(&body, *edge_key)
             .unwrap()
             .surfaces();
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = crate::query::edge_ends(&body, *edge_key);
         let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         let mut spec = EdgeCurveSpec::line_between(point(start), point(end));
         spec.description = EdgeDescriptionSpec::OnPair {
@@ -803,7 +876,7 @@ pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRes
     }
     let want = edges
         .into_iter()
-        .map(|(edge, _)| crate::ValidationError::TransverseNotIntrinsic { edge })
+        .map(|edge| crate::ValidationError::TransverseNotIntrinsic { edge })
         .collect();
     (body, want)
 }
@@ -847,6 +920,35 @@ pub fn wedge_on_a_block_top(
         ),
     )
 }
+
+/// **A tool cornered on a block's corner, its face near the block's top**
+/// (SECTOR's `a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`):
+/// the block `[0, 20]² × [−20, 0]`, and a parallelepiped cornered at the
+/// origin with edges `a = (10, 1, ·)`, `b = (−1e-3, −2e-4, ·)` and
+/// `c = (1e-4, 1e-4, −1e-3)`, its `w = 0` face (spanned by `a` and `b`)
+/// on the plane `z = θ·(x cos ψ + y sin ψ)`. The short edges make the
+/// vertex pair's arm 1 mm; `ψ = 0` is the generic pose, and
+/// [`HINGED_ALONG_B`] puts the two faces' crossing line along `b`.
+/// Returns `(block, tool)`.
+pub fn tool_on_a_block_corner(theta: f64, psi: f64, tol: Tol) -> (Body<f64>, Body<f64>) {
+    let rise = |x: f64, y: f64| Vec3::new(x, y, theta * (x * psi.cos() + y * psi.sin()));
+    let (a, b, c) = (
+        rise(10.0, 1.0),
+        rise(-1e-3, -2e-4),
+        Vec3::new(1e-4, 1e-4, -1e-3),
+    );
+    (
+        brick((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        mapped_cube(
+            move |u, v, w| Point3::new(0.0, 0.0, 0.0) + a * u + b * v + c * w,
+            tol,
+        ),
+    )
+}
+
+/// The `ψ` of [`tool_on_a_block_corner`] whose tilt leaves the short edge
+/// `b` in the block's top plane: the two faces cross along it.
+pub const HINGED_ALONG_B: f64 = -1.373_400_766_945_016;
 
 /// The one planar face of `body` whose outward normal leans along
 /// `facing` in `z` (`+1` up, `−1` down).
@@ -1300,8 +1402,7 @@ impl CylFrame {
     /// point's axial component and carries that subtraction's rounding
     /// into a direction the chart already names exactly.
     pub fn radial(&self, u: f64) -> Vec3<f64> {
-        let w = self.axis.cross(self.u_ref);
-        self.u_ref * u.cos() + w * u.sin()
+        geom::Frame::new(self.origin, self.axis, self.u_ref).radial(u)
     }
 
     /// The chart map `S(u, v) = origin + radial(u)·radius + axis·v`.
@@ -1860,6 +1961,17 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
 pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPolicy>(
     phi: f64,
 ) -> (Body<T>, FaceKey, crate::VertexKey) {
+    oblique_rim_wall_from(phi, 0.0)
+}
+
+/// [`oblique_rim_wall_in`] with the rim's vertex at parameter `t0` of its
+/// ellipse: off `t0 = 0` and `π` the rim leaves the vertex across the
+/// wall's rulings, not square to them.
+#[cfg(test)]
+pub(crate) fn oblique_rim_wall_from<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    phi: f64,
+    t0: f64,
+) -> (Body<T>, FaceKey, crate::VertexKey) {
     let tol = Tol::witness();
     let f = T::from_f64;
     let (s, c) = phi.sin_cos();
@@ -1874,7 +1986,7 @@ pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPol
         one,
     ));
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(carrier.eval(zero), true).unwrap();
+    let seed = body.mvfs(carrier.eval(f(t0)), true).unwrap();
     body.set_face_surface(
         seed.face,
         FaceSurface::New {
@@ -1902,11 +2014,11 @@ pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPol
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                selector: geom_brep::CurveSelector::Witness(carrier.eval(f(0.5) * tau)),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(f(t0) + f(0.5) * tau)),
             },
             carrier,
-            param_start: zero,
-            param_end: tau,
+            param_start: f(t0),
+            param_end: f(t0) + tau,
         },
         FaceSurface::Inherit,
         tol,
@@ -2045,6 +2157,54 @@ pub fn trv(x: f64) -> geom_core::Interval {
         "a refused crossing keeps its endpoints: {refused:?}"
     );
     refused
+}
+
+/// **A unit box whose top face holds a lone vertex**: a strut grown from
+/// a top corner to `(0.5, 0.5, 1)` and killed into an empty ring, so the
+/// face bounds its square and a ring that is one vertex. Tier-1 valid.
+/// Returns the body, the top face and the lone vertex.
+///
+/// # Panics
+///
+/// Where the construction or the validation it asserts fails.
+#[must_use]
+#[allow(clippy::expect_used)]
+pub fn box_with_a_lone_ring(tol: Tol) -> (Body<f64>, FaceKey, crate::VertexKey) {
+    use crate::euler::MevSite;
+    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let top = body
+        .face_views()
+        .find(|f| {
+            matches!(*f.surface(), Surface::Plane { normal, .. } if normal.z.abs() > 0.5)
+                && f.boundary().map(|m| m.vertex()).all(|v| {
+                    body.get_vertex(v)
+                        .and_then(|v| body.get_point(v.point))
+                        .is_some_and(|p| (p.z - 1.0).abs() < 1e-12)
+                })
+        })
+        .expect("the box's top face")
+        .key();
+    let he = body.proven_face(top).half_edges()[0];
+    let strut = body
+        .mev_line(
+            MevSite::Fan { he1: he, he2: he },
+            Point3::new(0.5, 0.5, 1.0),
+            tol,
+        )
+        .expect("a strut into the top face");
+    let ring = body
+        .kemr(strut.he_plus, strut.he_minus)
+        .expect("the strut killed into a ring")
+        .ring;
+    assert_eq!(
+        body.get_loop(ring).expect("the ring").boundary,
+        LoopBoundary::Empty {
+            vertex: strut.vertex
+        },
+        "the killed strut strands its far vertex as an empty ring"
+    );
+    assert_eq!(crate::validate(&body), Ok(()), "the body is tier-1 valid");
+    (body, top, strut.vertex)
 }
 
 #[cfg(test)]

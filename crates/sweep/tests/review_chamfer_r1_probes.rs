@@ -68,6 +68,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .expect("the prism extrudes")
     .body
+    .into_body()
 }
 
 /// **The material oracle**: on a CONVEX body, every face's sensed
@@ -86,7 +87,7 @@ fn assert_every_face_outward(body: &Body<f64>) {
     );
     for (fk, _) in body.faces() {
         let f = body.get_face(fk).expect("a face");
-        let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
             panic!("face {fk:?}: every face of these fixtures is a plane");
         };
         let outward = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
@@ -123,9 +124,8 @@ fn assert_chamfer_shape(body: &Body<f64>, census: (usize, usize, usize)) {
         "Euler–Poincaré: one closed shell, no rings, genus 0"
     );
     for (k, _) in body.faces() {
-        let fd = body.get_face(k).expect("a face");
         assert!(
-            matches!(body.get_surface(fd.surface), Some(Surface::Plane { .. })),
+            matches!(body.face_surface(k), Some(Surface::Plane { .. })),
             "face {k:?} is not a plane"
         );
     }
@@ -555,15 +555,15 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
 
 /// **C5 where the PR's fixture did not stand**: the L-bracket's
 /// all-CONVEX-edges request (the concave inner edge deliberately left
-/// out) still refuses, and this row pins WHAT it refuses with. The two
-/// requested cap edges flanking the omitted inner edge meet at its end
-/// vertices as two-link junctions; chain G1 reads a definite turn there
-/// and breaks the chain, and the corner predicate refuses each such
-/// vertex for its configuration: two convex edges and the omitted
-/// concave one are not one convexity, so it is `MixedConvexity` before
-/// it is a turn.
+/// out) carves. The two requested cap edges flanking the omitted inner
+/// edge meet at its end vertices as two-link junctions; chain G1 reads
+/// a definite turn there, and the two edges that round alike meet in
+/// the mitre, a join over the cap's reflex sector. The chamfer removes
+/// `d²/2` along the 21 m of convex edge, less `(2/3)d³` at each of the
+/// ten convex box corners, plus the `d³/3` wedge each of the two joins
+/// takes.
 #[test]
-fn the_brackets_best_convex_request_still_refuses_typed() {
+fn the_brackets_every_convex_edge_carves_mitring_over_the_reflex_corners() {
     let bracket = prism(
         &[
             (0.0, 0.0),
@@ -577,16 +577,14 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
     );
     // Every edge except the concave one over the reflex corner (1,1).
     let concave = |k: EdgeKey| {
-        let e = bracket.get_edge(k).unwrap();
-        let h = bracket.get_half_edge(e.he_plus).unwrap();
-        let end = bracket.half_edge_end(e.he_plus).unwrap();
+        let (start, end) = bracket.edge_vertices(k).unwrap();
         let at = |v| {
             let p = bracket
                 .get_point(bracket.get_vertex(v).unwrap().point)
                 .unwrap();
             (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12
         };
-        at(h.start) && at(end)
+        at(start) && at(end)
     };
     let edges: Vec<EdgeKey> = bracket
         .edges()
@@ -598,21 +596,25 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
         query::all_edges(&bracket).len() - 1,
         "one edge out"
     );
-    let err = chamfer_edges(
+    let d: f64 = 0.05;
+    let out = chamfer_edges(
         &sweep::test_support::at_rest(&bracket, Tol::witness()),
         &edges,
-        0.05,
+        d,
         Tol::witness(),
     )
-    .expect_err("a corner with an unrequested edge cannot be patched");
+    .unwrap_or_else(|e| panic!("every convex edge carves, got {:?}", e.error));
+    assert_eq!(
+        topo::validate_geometric(&out.body, Tol::witness()),
+        Ok(()),
+        "the chamfered bracket, tier 3"
+    );
+    let removed = crate::band_planar_cut_off::volume(&bracket)
+        - crate::band_planar_cut_off::volume(&out.body);
+    let want = d * d / 2.0 * 21.0 - 10.0 * crate::band_planar_cut_off::Verb::Chamfer.corner_at(d)
+        + 2.0 * d.powi(3) / 3.0;
     assert!(
-        matches!(
-            err.error,
-            BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::MixedConvexity { convex: 2 },
-                ..
-            }
-        ),
-        "the omitted edge's ends are mixed-convexity vertices: {err:?}"
+        (removed - want).abs() < 1e-12,
+        "the bracket loses {removed}, the closed form {want}"
     );
 }

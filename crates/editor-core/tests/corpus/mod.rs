@@ -38,7 +38,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
     BooleanValue, CancelToken, DocEdit, EvalOptions, Evaluation, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
+    ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload, apply,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -441,8 +441,8 @@ pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<Recip
 }
 
 /// Evaluates a document at scalar `T` with default options.
-pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
-    evaluate::<T>(
+pub fn eval<T: editor_core::test_support::AnyEvaluate>(doc: &ProfileDoc) -> Evaluation<T> {
+    editor_core::test_support::evaluate_any::<T>(
         doc,
         None,
         &CancelToken::new(),
@@ -452,7 +452,7 @@ pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
 }
 
 /// The per-node failure report of an evaluation (empty when green).
-pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
+pub fn failures<T: topo::AtRestPolicy + Decide>(ev: &Evaluation<T>) -> Vec<String> {
     ev.nodes
         .iter()
         .filter_map(|(id, r)| match r {

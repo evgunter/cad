@@ -135,8 +135,7 @@ fn body_posture(row: &str, out: &(MassMeasurement<f64>, Option<f64>)) -> EpsPost
 fn offgrid_interior_v_knots(row: &str, lofted: &sweep::Lofted<f64>) -> usize {
     let body = &lofted.body;
     let interior_of = |face: topo::FaceKey| -> Vec<f64> {
-        let face = body.get_face(face).expect("a wall face");
-        let Some(geom::Surface::Nurbs(net)) = body.get_surface(face.surface) else {
+        let Some(geom::Surface::Nurbs(net)) = body.face_surface(face) else {
             panic!("{row}: a loft wall is a spline")
         };
         let knots = net.knot_values_v();

@@ -69,3 +69,7 @@ builds at ε 1e-9 too. Every run that builds is held to the rows'
 checks (tier 3′, volume, corners).
 
 Moved from GERMCERT to GERM on 2026-11-02, by `git mv`, when GERMCERT merged into GERM: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so GERM, GERMCERT, ROOTS and APEX came in under one budget.
+
+## `bool_sector_coplanar` retired (SEAL PR 6693, 2026-11-10)
+
+SEAL's `a-corner-reads-only-its-own-sectors` deletes `bool_sector_coplanar`. A flat sector of a pair the glue door did not glue refuses on its steeper bound's tie (`Coincide::CornerBound`). The turned 12ε rows that refused on it would now refuse there or on `bool_sector_within`, and the pin's expected arm says so (`shell_role_reader.rs` `channel_rows`). On that head the turned 12ε union meets FLUSH's main red first (`Containment` at `bool_contact_vertex`), so which of the two it reaches is not observed.

@@ -56,6 +56,7 @@ fn body_of(plane: SketchPlane<f64>, shape: &Shape, h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Signed area of a bulge loop: the chord polygon plus each arc's
@@ -211,14 +212,14 @@ fn block() -> Body<f64> {
 fn far_brick() -> AtRestBody<f64> {
     sweep::test_support::finished(
         "the far brick",
-        sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+        sweep::test_support::brick::<f64>((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
         tol(),
     )
 }
 
 /// `body` as a boolean operand, or the at-rest gate's findings.
 fn as_operand(body: Body<f64>) -> Result<AtRestBody<f64>, String> {
-    AtRestBody::validate(body, tol()).map_err(|e| format!("not a finished body: {e:?}"))
+    topo::finish(body, tol()).map_err(|e| format!("not a finished body: {e:?}"))
 }
 
 /// The six ops over `a` and `b`; an operand the at-rest gate refuses is

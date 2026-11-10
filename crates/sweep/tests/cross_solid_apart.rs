@@ -131,18 +131,8 @@ fn a_rod_crossing_its_bore_refuses_its_caps() {
         Vec3::new(0.0, 0.5, 0.0),
     );
     let errs = census(&pair).expect_err("the rod crosses the bore");
-    let plane = |f| {
-        matches!(
-            pair.get_face(f).and_then(|d| pair.get_surface(d.surface)),
-            Some(geom::Surface::Plane { .. })
-        )
-    };
-    let cylinder = |f| {
-        matches!(
-            pair.get_face(f).and_then(|d| pair.get_surface(d.surface)),
-            Some(geom::Surface::Cylinder { .. })
-        )
-    };
+    let plane = |f| matches!(pair.face_surface(f), Some(geom::Surface::Plane { .. }));
+    let cylinder = |f| matches!(pair.face_surface(f), Some(geom::Surface::Cylinder { .. }));
     let cap_on_wall = errs.iter().any(|e| match e {
         ValidationError::CensusUndecidable {
             a: EntityId::Face(a),
@@ -216,10 +206,10 @@ fn a_rod_crossed_by_a_thinner_rod_refuses() {
 
 /// **Far from the origin, a flush rod still refuses** at every ε
 /// row: the rod-in-bore pair of `a_rod_touching_its_bore_still_refuses`
-/// moved 1e3 and 1e4 along each axis.
+/// moved 1e2 and 5e2 along each axis, inside the session box.
 #[test]
 fn a_flush_rod_far_from_the_origin_still_refuses() {
-    for far in [1.0e3, 1.0e4] {
+    for far in [1.0e2, 5.0e2] {
         let pair = nested(
             revolved(0.6, 1.0, 2.0),
             &revolved(0.0, 0.6, 1.0),
@@ -325,7 +315,7 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
     use geom_core::{Affine3, Mat3, Point3};
     let block = finished(
         "the block",
-        sweep::test_support::brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
+        sweep::test_support::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol()),
         tol(),
     );
     let upright =
@@ -360,7 +350,7 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
     let errs = census(&pair).expect_err("the rod crosses the rim");
     let top = |f| {
         matches!(
-            pair.get_face(f).and_then(|d| pair.get_surface(d.surface)),
+            pair.face_surface(f),
             Some(geom::Surface::Plane { origin, normal, .. })
                 if (origin.z - 1.0).abs() < 1e-9 && normal.x == 0.0 && normal.y == 0.0
         )
@@ -472,7 +462,7 @@ fn a_bar_through_a_ball_leaves_two_lumps_the_census_parts() {
     );
     let bar = finished(
         "the bar",
-        sweep::test_support::brick((-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4), tol()),
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4), tol()),
         tol(),
     );
     let Ok(topo::BooleanResult::Body(lumps)) = topo::subtract(&bar, &ball, tol()) else {
@@ -517,7 +507,7 @@ fn a_trimmed_sphere_face_holding_its_pole_clears_only_past_it() {
     use geom_core::{Affine3, Point3};
     let knife = finished(
         "the slab",
-        sweep::test_support::brick((-2.0, 2.0), (0.1, 2.0), (-2.0, 2.0), tol()),
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (0.1, 2.0), (-2.0, 2.0), tol()),
         tol(),
     );
     for spin in [1.0, core::f64::consts::FRAC_PI_2] {
@@ -576,7 +566,7 @@ fn prism(shape: &[((f64, f64), f64)], phi: f64, by: (f64, f64), z0: f64, h: f64)
         depth: h,
         side: sweep::ExtrudeSide::Along,
     };
-    sweep::extrude(&p, along, tol()).unwrap().body
+    sweep::extrude(&p, along, tol()).unwrap().body.into_body()
 }
 
 /// **A sliver off a block's corner parts along its own flat until it
@@ -628,7 +618,7 @@ fn a_sliver_off_a_blocks_corner_parts_along_its_flat_until_it_touches() {
 fn a_lens_through_a_blocks_corner_leaves_two_pieces_the_census_parts() {
     let block = finished(
         "the block",
-        sweep::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        sweep::test_support::brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     );
     let lens = [((0.0, -0.4), 0.3), ((0.0, 0.4), 0.3)];
@@ -676,6 +666,52 @@ fn two_parallel_rods_part_along_the_line_of_centres_until_they_touch() {
     for gap in [0.0, -1e-3] {
         let pair = beside(gap);
         let errs = census(&pair).expect_err("the walls meet");
+        assert!(
+            refuses_curved_within_reach(&pair, &errs),
+            "gap {gap}: {errs:?}"
+        );
+    }
+}
+
+/// **A frustum and a rod part along the line between their axes until
+/// they touch.** The frustum of radius 0.5 at `y = 0` narrowing to 0.4 at
+/// `y = 1` about `y`, and the rod of radius 0.05 beside it as in
+/// `two_parallel_rods_part_along_the_line_of_centres_until_they_touch`,
+/// its axis `0.55 + gap` off the frustum's: the two are nearest at the
+/// frustum's wider rim, `gap` apart. A cone's face lies at no level
+/// about its axis, but its cover is measured about it
+/// ([`geom::cover::Cover::about`]), so the line between the axes is
+/// proposed and parts them; at gap 0 they meet, and inside it they
+/// cross: both refuse. Red where a cone face's cover proposes no axis
+/// (its arm reads its boundary's hull alone, or the frustum drops its
+/// axis).
+#[test]
+fn a_frustum_and_a_rod_part_along_the_line_of_centres_until_they_touch() {
+    let beside = |gap: f64| {
+        let s = (0.55 + gap) * core::f64::consts::FRAC_1_SQRT_2;
+        let mut out = sweep::test_support::revolved_about_y(
+            vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(0.5, 0.0), 0.0),
+                (Point2::new(0.4, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ],
+            sweep::Revolution::Full,
+            tol(),
+        );
+        let pin = topo::transform_rigid(
+            &revolved(0.0, 0.05, 1.0),
+            &RigidMotion::translation(Vec3::new(s, 0.0, s)).unwrap(),
+            tol(),
+        )
+        .unwrap();
+        topo::graft_disjoint(&mut out, &pin).expect("grafts");
+        finished("the frustum beside the rod", out, tol())
+    };
+    assert_eq!(census(&beside(5e-4)), Ok(()), "the frustum 5e-4 clear");
+    for gap in [0.0, -1e-3] {
+        let pair = beside(gap);
+        let errs = census(&pair).expect_err("the frustum meets the rod");
         assert!(
             refuses_curved_within_reach(&pair, &errs),
             "gap {gap}: {errs:?}"
@@ -812,18 +848,13 @@ fn refusals_on(
     on_plate: fn(Vec3<f64>) -> bool,
     on_block: fn(Vec3<f64>) -> bool,
 ) -> usize {
-    let normal = |f| match body.get_face(f).and_then(|d| body.get_surface(d.surface)) {
+    let normal = |f| match body.face_surface(f) {
         Some(geom::Surface::Plane { normal, .. }) => Some(*normal),
         _ => None,
     };
     let plate = body
         .faces()
-        .find(|(_, d)| {
-            matches!(
-                body.get_surface(d.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .and_then(|(f, _)| body.solid_of_face(f))
         .expect("the plate has a rounded wall");
     errs.iter()

@@ -268,7 +268,7 @@ pub fn side_placement(doc: &ProfileDoc, side: &editor_core::Operand) -> Option<R
     let editor_core::Operand::Select { body, .. } = side else {
         return None;
     };
-    let at = match body.as_ref() {
+    let at = match &body.read {
         editor_core::Operand::Node(at) | editor_core::Operand::Output { node: at, .. } => *at,
         editor_core::Operand::Var(var) => doc.operation_of(*var)?,
         editor_core::Operand::Name(name) => doc.operation_of(doc.var_named(name.as_str())?)?,
@@ -321,7 +321,7 @@ pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeN
         let editor_core::Operand::Select { body, .. } = select else {
             continue;
         };
-        let read = match body.as_ref() {
+        let read = match &body.read {
             editor_core::Operand::Node(at) | editor_core::Operand::Output { node: at, .. } => {
                 Some(*at)
             }
@@ -776,6 +776,22 @@ pub fn head(name: impl Sited) -> editor_core::SitedFace {
     name.sited()
 }
 
+/// **A side read in one member of the family `family` defines**,
+/// `family[member]`, by the member's own name `of` (REFERENCES DM3): the
+/// native member read a side states.
+pub fn member_head(family: RecipeNodeId, member: &[u32], of: impl Sited) -> editor_core::SitedFace {
+    editor_core::SitedFace::in_member(family, member.to_vec(), face(of.name()))
+}
+
+/// **`name` read in one member of `family`**, `family[member]`, of any
+/// entity kind: the one-name selection of that member.
+pub fn read_member(family: RecipeNodeId, member: &[u32], of: impl Sited) -> editor_core::Operand {
+    editor_core::Operand::select(
+        editor_core::BodyRead::member(family, member),
+        vec![of.name()],
+    )
+}
+
 /// The same side read at `at` rather than at its mint.
 pub fn head_at(at: RecipeNodeId, name: impl Into<StableName>) -> editor_core::SitedFace {
     editor_core::SitedFace::new(at, face(name))
@@ -883,6 +899,43 @@ impl Sited for (RecipeNodeId, StableName) {
     }
 }
 
+/// **A name read in one member of a family** (REFERENCES DM3): the
+/// family, the member's index values keyed by their indices, and the
+/// member's own name. A side states it natively, `family[i]` by the own
+/// name ([`Sited::sited`]); a readback of the family's table names it as
+/// the table does, under the `Member` qualifier ([`Sited::name`]).
+#[derive(Debug, Clone)]
+pub struct InMember {
+    /// The family's operation.
+    pub family: RecipeNodeId,
+    /// The member's index values, outermost first.
+    pub at: editor_core::MemberAt,
+    /// The member's own name.
+    pub of: StableName,
+}
+
+impl Sited for InMember {
+    fn site(&self) -> RecipeNodeId {
+        self.family
+    }
+    fn name(self) -> StableName {
+        in_member(self.family, self.at, self.of)
+    }
+    fn sited(self) -> editor_core::SitedFace {
+        let member: Vec<u32> = self.at.iter().map(|&(_, value)| value).collect();
+        editor_core::SitedFace::in_member(self.family, member, face(self.of))
+    }
+}
+
+/// [`InMember`] of a one-index family: member `i` of `index`.
+pub fn copy_site(family: RecipeNodeId, index: VarId, i: u32, of: impl Sited) -> InMember {
+    InMember {
+        family,
+        at: vec![(index, i)],
+        of: of.name(),
+    }
+}
+
 impl Sited for resolver::PartName {
     fn site(&self) -> RecipeNodeId {
         self.at
@@ -928,7 +981,7 @@ pub fn authored_head(side: &editor_core::Operand) -> editor_core::SitedFace {
     let editor_core::Operand::Select { body, names } = side else {
         panic!("an authored side is a selection, got {side:?}")
     };
-    let editor_core::Operand::Node(at) = **body else {
+    let editor_core::Operand::Node(at) = body.read else {
         panic!("an authored side is read at a node, got {body:?}")
     };
     let [name] = names.as_slice() else {
@@ -1341,7 +1394,7 @@ pub fn band() -> geom_core::Band {
 /// imports them from here beside the rest of its authoring doors.
 // Not every suite that mounts the fixture reads each one.
 #[allow(unused_imports)]
-pub use editor_core::test_support::{ang, axes_at, len, len2, scl};
+pub use editor_core::test_support::{ang, axes_at, every_body, len, len2, scl};
 
 /// [`editor_core::test_support::in_world`] at the witness tolerance,
 /// the copy in the product ([`assemble_world_copies`]).
@@ -1678,7 +1731,7 @@ pub fn read_var(doc: &ProfileDoc, var: editor_core::VarId) -> Formula {
 
 /// **`var`'s value in `ev`** ([`editor_core::Evaluation::reading`]):
 /// `None` when it has none at this scalar or refuses.
-pub fn reading<T: geom_core::Decide>(
+pub fn reading<T: topo::AtRestPolicy + geom_core::Decide>(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<T>,
     var: editor_core::VarId,
@@ -3109,7 +3162,7 @@ pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
 /// for it (a split, whose halves are two): the row names its read.
 /// A node the document no longer holds has no read left, and reads in
 /// a variable no document defines.
-pub fn at_mint<T: geom_core::Decide>(
+pub fn at_mint<T: topo::AtRestPolicy + geom_core::Decide>(
     ctx: editor_core::RunCtx<'_, T>,
     name: &StableName,
 ) -> editor_core::VarId {
@@ -3134,7 +3187,7 @@ pub fn at_mint<T: geom_core::Decide>(
 /// # Panics
 ///
 /// If the door refuses the read: [`at_mint`] names a body output.
-pub fn resolve_at_mint<T: geom_core::Decide>(
+pub fn resolve_at_mint<T: topo::AtRestPolicy + geom_core::Decide>(
     ctx: editor_core::RunCtx<'_, T>,
     name: &StableName,
 ) -> editor_core::Resolution {
@@ -3151,7 +3204,10 @@ pub fn resolve_at_mint<T: geom_core::Decide>(
 /// # Panics
 ///
 /// [`resolve_at_mint`]'s.
-pub fn resolve_with_prior_at_mint<T: geom_core::Decide, U: geom_core::Decide>(
+pub fn resolve_with_prior_at_mint<
+    T: topo::AtRestPolicy + geom_core::Decide,
+    U: topo::AtRestPolicy + geom_core::Decide,
+>(
     new: editor_core::RunCtx<'_, T>,
     prior: editor_core::RunCtx<'_, U>,
     name: &StableName,
@@ -3228,7 +3284,10 @@ pub fn half(ev: &Evaluation<f64>, split: RecipeNodeId, half: editor_core::SplitH
 /// **Every name table `id`'s outputs carry**, in port order (NAMES N1:
 /// one per output variable, a split's two halves two) — empty for a
 /// node with no value.
-pub fn tables<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Vec<&NameTable> {
+pub fn tables<T: topo::AtRestPolicy + geom_core::Decide>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) -> Vec<&NameTable> {
     ev.named_outputs(id)
         .into_iter()
         .filter_map(|var| ev.table(var))
@@ -3302,10 +3361,8 @@ pub fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
 
 /// An edge's two end vertices.
 pub fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
-    let edge = body.get_edge(e).expect("a live edge");
-    let h = body.get_half_edge(edge.he_plus).expect("a live half-edge");
-    let far = body.half_edge_end(edge.he_plus).expect("a forward half");
-    [h.start, far]
+    let (start, far) = body.edge_vertices(e).expect("a live edge");
+    [start, far]
 }
 
 /// Every vertex on `f`'s boundary — the face's own EXTENT, read out of
@@ -3313,9 +3370,8 @@ pub fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
 /// An empty ring contributes its lone vertex: a pole is a vertex of
 /// the extent that bounds none of the face's edges.
 pub fn face_vertices(body: &Body<f64>, f: FaceKey) -> HashSet<VertexKey> {
-    let face = body.get_face(f).expect("a live face");
     let mut out = HashSet::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (lk, _, _) in body.face(f).expect("a live face").loops() {
         match body.get_loop(lk).expect("a live loop").boundary {
             LoopBoundary::Empty { vertex } => {
                 out.insert(vertex);
@@ -3334,9 +3390,8 @@ pub fn face_vertices(body: &Body<f64>, f: FaceKey) -> HashSet<VertexKey> {
 /// same walk. An empty ring bounds no edge, so it contributes nothing
 /// here.
 pub fn face_edges(body: &Body<f64>, f: FaceKey) -> HashSet<EdgeKey> {
-    let face = body.get_face(f).expect("a live face");
     let mut out = HashSet::new();
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (lk, _, _) in body.face(f).expect("a live face").loops() {
         if let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a live loop").boundary {
             for he in body.loop_cycle(first).expect("a closed cycle") {
                 out.insert(body.get_half_edge(he).expect("a live half-edge").edge);
@@ -3623,7 +3678,9 @@ pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f
 /// through its descent wrappers ([`is_merged_face`]), so a merged
 /// face carried through untouched booleans before being merged again
 /// is nesting exactly as a bare one is.
-pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluation<T>) {
+pub fn assert_no_nested_merged<T: topo::AtRestPolicy + geom_core::Decide>(
+    ev: &editor_core::Evaluation<T>,
+) {
     for id in ev.nodes.keys() {
         for (name, _) in tables(ev, *id).into_iter().flat_map(NameTable::iter) {
             let nested = merged_sets(name)
@@ -3843,7 +3900,7 @@ pub fn body_selecting(doc: &ProfileDoc, name: &StableName) -> Option<editor_core
         .values()
         .filter_map(|var| var.def().select())
         .filter(|select| select.names.contains(name))
-        .map(|select| select.body)
+        .map(|select| select.body.read)
         .collect();
     let [one] = bodies.as_slice() else {
         panic!("one selection names {name:?}, not {bodies:?}");

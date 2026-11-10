@@ -40,7 +40,7 @@ use geom_core::Decide;
 use topo::readback::{self, Pose, ReadbackError};
 use topo::{Body, CurveKind};
 
-use crate::eval::{BooleanValue, Evaluation, NodeStanding, SplitSide, ValuePayload};
+use crate::eval::{Evaluation, NodeStanding, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 
@@ -230,7 +230,7 @@ impl From<ReadbackError> for InterrogateError {
 /// # Errors
 ///
 /// The node's standing ([`InterrogateError::Standing`]) and [`InterrogateError::NoSuchName`].
-pub fn denotation<T: Decide>(
+pub fn denotation<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -260,7 +260,7 @@ pub fn denotation<T: Decide>(
 /// FACES, and the wrapped [`ReadbackError`]. The kind is asked first,
 /// so a non-face name is refused `WrongKind` whether or not it is
 /// tied ([`key_in`]).
-pub fn face_frame<T: Decide>(
+pub fn face_frame<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -282,7 +282,7 @@ pub fn face_frame<T: Decide>(
 ///
 /// As [`face_frame`]: the node's standing, `NoSuchName`, `WrongKind` for
 /// a non-face name, `Ambiguous`, and the wrapped [`ReadbackError`].
-pub fn face_carrier_kind<T: Decide>(
+pub fn face_carrier_kind<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -297,7 +297,7 @@ pub fn face_carrier_kind<T: Decide>(
 /// # Errors
 ///
 /// As [`face_frame`], with `WrongKind` for a non-edge name.
-pub fn edge_frame<T: Decide>(
+pub fn edge_frame<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -322,7 +322,7 @@ pub fn edge_frame<T: Decide>(
 ///
 /// As [`face_frame`]: the node's standing, `NoSuchName`, `WrongKind` for
 /// a non-edge name, `Ambiguous`, and the wrapped [`ReadbackError`].
-pub fn edge_carrier_kind<T: Decide>(
+pub fn edge_carrier_kind<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -336,7 +336,7 @@ pub fn edge_carrier_kind<T: Decide>(
 /// # Errors
 ///
 /// As [`face_frame`], with `WrongKind` for a non-vertex name.
-pub fn vertex_position<T: Decide>(
+pub fn vertex_position<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     name: &StableName,
@@ -401,7 +401,7 @@ pub(crate) fn entity_point<T: Decide>(
 /// The node's standing, then `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
 /// through [`key_in`], which asks them in that order, then the output
 /// body, and the wrapped [`ReadbackError`] the kernel door refuses with.
-fn read<T: Decide, K: Denoted, R: InItsSpace<T>>(
+fn read<T: topo::AtRestPolicy + Decide, K: Denoted, R: InItsSpace<T>>(
     ev: &Evaluation<T>,
     at: crate::At,
     name: &StableName,
@@ -464,7 +464,7 @@ impl<T: geom_core::Real> InItsSpace<T> for CurveKind {
 /// The node's standing; [`InterrogateError::SeveralOutputs`] for a node
 /// named alone whose outputs carry names apart; `NoSuchName` for a read
 /// no output of the evaluated document defines.
-pub(crate) fn table_at<T: Decide>(
+pub(crate) fn table_at<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
 ) -> Result<(crate::VarId, &super::NameTable), InterrogateError> {
@@ -479,6 +479,85 @@ pub(crate) fn table_at<T: Decide>(
         .ok_or(InterrogateError::SeveralOutputs { node })?;
     let table = ev.table(var).ok_or(InterrogateError::NoSuchName)?;
     Ok((var, table))
+}
+
+/// **One member of the family `at` names, at the index values
+/// `member`** (REFERENCES DM3, `xs[i]`): the family's variable, the
+/// member's place among the family's bodies, and the member's own
+/// table, whose names are the member's — the names a read of the
+/// member answers. `None` where `at` names no family, or no member
+/// stands at `member`.
+pub fn member_table<'e, T: topo::AtRestPolicy + Decide>(
+    ev: &'e Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+) -> Option<(crate::VarId, u32, &'e super::NameTable)> {
+    let (var, place, own) = member_value(ev, at, member)?;
+    Some((var, place, own.output(0)?.table()))
+}
+
+/// **The value of one member of the family `at` names, at the index
+/// values `member`**: the family's variable, the member's place among
+/// its bodies, and the member's value — its body, its own table, its
+/// motion. The one lookup of a member read (`xs[i]`); `None` where `at`
+/// names no family, or no member stands at `member`.
+pub(crate) fn member_value<'e, T: topo::AtRestPolicy + Decide>(
+    ev: &'e Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+) -> Option<(crate::VarId, u32, &'e crate::eval::NodeValue<T>)> {
+    let (var, _) = table_at(ev, at).ok()?;
+    let value = ev.usable(ev.read_port(var)?.0).ok()?;
+    let members = value.members.as_ref()?;
+    let place = members.position(member)?;
+    Some((var, u32::try_from(place).ok()?, &members.members[place].1))
+}
+
+/// **The member of the family `at` names that an entity of its table
+/// is in, and the member's own name for it**: the entity `name` names
+/// in the family's table, found by its key in the own table of the
+/// member at its place ([`member_table`]). What a read of one member
+/// selects it by: the member's index values, `xs[i]`, and that name.
+/// `None` where `at` names no family, or `name` no one entity of it.
+pub fn member_entity<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+    name: &StableName,
+) -> Option<(Vec<u32>, StableName)> {
+    let (var, table) = table_at(ev, at).ok()?;
+    let Some(Entry::Unique(ent)) = table.lookup(name) else {
+        return None;
+    };
+    let value = ev.usable(ev.read_port(var)?.0).ok()?;
+    let (values, own) = value.members.as_ref()?.members.get(ent.body as usize)?;
+    let own = own.output(0)?.table().name_of(&crate::names::EntityRef {
+        body: 0,
+        key: ent.key,
+    })?;
+    Some((values.clone(), own.clone()))
+}
+
+/// **The family's name for the entity a member's own name names**:
+/// [`member_entity`]'s inverse, the entity `own` names in the own table
+/// of the member at `member` ([`member_table`]), found by its key at the
+/// member's place in the family's table. `None` where no member stands
+/// there, or `own` names no one entity of it.
+pub fn family_entity<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+    own: &StableName,
+) -> Option<StableName> {
+    let (var, place, table) = member_table(ev, at, member)?;
+    let Some(Entry::Unique(ent)) = table.lookup(own) else {
+        return None;
+    };
+    ev.table(var)?
+        .name_of(&crate::names::EntityRef {
+            body: place,
+            key: ent.key,
+        })
+        .cloned()
 }
 
 /// **What a name table answers a read door, where it answers no key**
@@ -642,28 +721,22 @@ fn kind_mismatch(wanted: EntityKind, found: EntityKind) -> InterrogateError {
 /// The node's output body at `index` — the same body ordering the
 /// naming emission used (single-body ops: 0; a split's halves by
 /// [`SplitHalf::output_body`]; a family's members by member index).
-pub(crate) fn output_body<T: Decide>(
+pub(crate) fn output_body<T: topo::AtRestPolicy + Decide>(
     payload: &ValuePayload<T>,
     index: u32,
 ) -> Result<&crate::eval::Framed<T>, InterrogateError> {
     let missing = || InterrogateError::NoSuchBody { index };
     let none = |payload| Err(InterrogateError::NoBodies { payload });
+    match payload.one_body() {
+        Some(Some(body)) if index == 0 => return Ok(body),
+        Some(Some(_)) => return Err(missing()),
+        Some(None) => return none("empty boolean"),
+        None => {}
+    }
     match payload {
-        ValuePayload::Body(b) => {
-            if index == 0 {
-                Ok(b)
-            } else {
-                Err(missing())
-            }
+        ValuePayload::Body(_) | ValuePayload::Boolean(_) => {
+            unreachable!("`one_body` answers every one-body value")
         }
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            if index == 0 {
-                Ok(body)
-            } else {
-                Err(missing())
-            }
-        }
-        ValuePayload::Boolean(BooleanValue::Empty) => none("empty boolean"),
         // The half that owns `index` by `SplitHalf::output_body` (the
         // one definition of that mapping), if either does.
         ValuePayload::Split { above, below } => {
@@ -677,7 +750,12 @@ pub(crate) fn output_body<T: Decide>(
                 SplitSide::Empty => Err(missing()),
             }
         }
-        ValuePayload::Instances(v) => v.get(index as usize).ok_or_else(missing),
+        // An empty member holds no body at its place, as an empty half
+        // holds none at its port.
+        ValuePayload::Instances(v) => v
+            .get(index as usize)
+            .and_then(Option::as_ref)
+            .ok_or_else(missing),
         // The families that denote no body at all. A mate denotes
         // none, and interrogating one for geometry is the same category
         // error as interrogating a declaration — as is interrogating a

@@ -125,8 +125,7 @@ fn cached_half_edge_on(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -
     for hek in keys {
         let he = body.get_half_edge(hek).unwrap();
         let lp = body.get_loop(he.parent_loop).unwrap();
-        let face = body.get_face(lp.face).unwrap();
-        if want(body.get_surface(face.surface).unwrap()) {
+        if want(body.face_surface(lp.face).unwrap()) {
             return hek;
         }
     }

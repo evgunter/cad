@@ -2,10 +2,12 @@
 id: carrier-speed-is-re-spelled-with-a-default-arm-in-import
 kind: issue
 title: A carrier's speed is re-spelled per kind beside carrier_speed, one copy with a default arm
-status: open
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: E
+closed: 2026-11-06
+pr: 6576
 ---
 
 Found by the sweep of the `onehome/geom-readings` lane, against main `44577259fb`.

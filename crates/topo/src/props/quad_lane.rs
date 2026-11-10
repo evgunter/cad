@@ -38,7 +38,7 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
     if !x.is_certified() {
         return (f64::NAN, f64::NAN);
     }
-    ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
+    (geom::mid_param(x.lo(), x.hi()), (x.hi() - x.lo()) * 0.5)
 }
 
 /// **The carrier of a harmonic image, as the cylinder lane reads it**: a
@@ -1335,16 +1335,29 @@ type SegmentSlack = ((f64, f64), (f64, f64));
 /// images, per chart axis, from what it is computed from: an `IsoLine`
 /// is `p₀ + l·t`, two roundings of those terms; an `IsoArc` is
 /// `p₀ + d·g` with `g ∈ [0, 1]` read through the arc's tangent identity,
-/// which rounds `g` itself by a few ulps of one. NaN for any other kind,
+/// which rounds `g` itself by a few ulps of one, and through each
+/// sub-arc's Möbius change where its row's end weights differ
+/// (`ends`), which scales that rounding near the sub-arc's ends by up to
+/// `max(λ, 1/λ)` and adds its own division's. NaN for any other kind,
 /// which joins nothing. `m` reads a scalar's magnitude, upward.
 fn end_slack<T: Decide>(image: &Pcurve<T>, t: T, m: impl Fn(T) -> f64) -> (f64, f64) {
     let ulps = |x: f64| 4.0 * f64::EPSILON * x;
     match image {
         Pcurve::IsoLine { p0, pl } => (ulps(m(p0.x) + m(pl.x * t)), ulps(m(p0.y) + m(pl.y * t))),
-        Pcurve::IsoArc { p0, pd, .. } => (
-            ulps(m(p0.x) + m(pd.x)) + 4.0 * ulps(m(pd.x)),
-            ulps(m(p0.y) + m(pd.y)) + 4.0 * ulps(m(pd.y)),
-        ),
+        Pcurve::IsoArc { p0, pd, ends, .. } => {
+            let skew = ends
+                .windows(2)
+                .map(|e| {
+                    let lambda = geom_brep::iso_arc_skew(e[0], e[1]);
+                    m(lambda).max(m(T::one() / lambda))
+                })
+                .fold(1.0_f64, f64::max);
+            let g = 4.0 * (skew + 1.0);
+            (
+                ulps(m(p0.x) + m(pd.x)) + g * ulps(m(pd.x)),
+                ulps(m(p0.y) + m(pd.y)) + g * ulps(m(pd.y)),
+            )
+        }
         _ => (f64::NAN, f64::NAN),
     }
 }

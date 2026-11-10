@@ -119,11 +119,12 @@
 //! the zip kept between two walls is a reflex edge of the result, and
 //! stays.
 
+use geom_brep::variety::{Piece, Variety};
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
+use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, Span, SpanEnd, meet};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 
 use super::contain::ContainError;
 use super::ops::{DoorInBand, PieceRead, piece_reading};
@@ -160,6 +161,17 @@ pub enum EdgeInFaceGap {
     /// midpoint (a spline or approximating face, which this reading does
     /// not read, among them), to read the side by.
     NoNormal,
+    /// The face the edge lies in, or one of the edge's own faces, is a
+    /// torus decided outside the ring convention, whose normal there
+    /// refuses as an invalid input
+    /// ([`crate::face_normal::NormalAbort::InvalidInput`], DESIGN
+    /// `[failure.taxonomy]` row 1(a)): a shape the kernel's model never
+    /// represents, carried whole. Its standing is the convention's own
+    /// ([`geom_brep::TorusRefusal::refusal`]), and it ends on the
+    /// convention's lever. The operand that carried it in is not in scope
+    /// here, so the gap names it rather than
+    /// [`crate::BooleanError::DegenerateTorus`].
+    DegenerateTorus(geom_brep::TorusRefusal),
     /// One of the edge's faces is tangent to the face along the line,
     /// so each of the two edges would bound a cusp, a wedge of no angle
     /// (D1's doubled cusp), whose reading on a line of coincident edges
@@ -181,10 +193,10 @@ pub enum EdgeInFaceGap {
     /// reading goes: whether the chart holds the edge's carrier is not
     /// read.
     SplineFace,
-    /// The edge's carrier, a spline or a spiric, or a conic on a fat
-    /// torus, is not certified off the face's surface over its whole
-    /// length, and nothing reads it on: whether it lies in the face along
-    /// some piece is not read ([`carrier_on_surface`]).
+    /// The edge's carrier, a spline or a spiric, or any carrier against a
+    /// torus not decided a ring, is not certified off the face's surface
+    /// over its whole length, and nothing reads it on: whether it lies in
+    /// the face along some piece is not read ([`carrier_on_surface`]).
     CarrierUnread,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
@@ -257,6 +269,15 @@ impl EdgeInFaceGap {
         matches!(self, Self::Crossed | Self::TwinIncident | Self::Redivided)
     }
 
+    /// The torus convention's refusal the gap carries, whose standing and
+    /// lever are its own; `None` for a parting gap.
+    pub const fn torus(&self) -> Option<geom_brep::TorusRefusal> {
+        match self {
+            Self::DegenerateTorus(refusal) => Some(*refusal),
+            _ => None,
+        }
+    }
+
     /// The words a refusal says it in: after "where" for a construction
     /// gap, after "and" for a defect.
     pub(super) const fn words(&self) -> &'static str {
@@ -266,6 +287,8 @@ impl EdgeInFaceGap {
                  the edge's own faces none at the midpoint (a spline face among them), to read \
                  the side by"
             }
+            // Rendered by its own refusal ([`Self::torus`]), never by words.
+            Self::DegenerateTorus(_) => "the face, or one of the edge's own faces, is a torus",
             Self::Shared => {
                 "an end of the edge lies on the face's boundary more than once, or the edge's \
                  faces go into the material of two faces it lies in, wholly in one of them"
@@ -1146,8 +1169,8 @@ fn holding<T: Decide>(
 /// [`super::fate`]'s ring rehoming reads too): a limit ahead of a piece
 /// read in band, and a refusal of the whole query (a corrupt face, two
 /// readings of an arc's end that contradict) aborts. A curved region
-/// that gives no verdict is a limit. An escalation is ranked by its
-/// margin; any other refusal is a limit.
+/// that gives no verdict is a limit. A refusal of the read itself is
+/// what the Boolean states it ([`BooleanError::refusal`]).
 fn piece_rung(
     reading: Result<PieceRead, BooleanError>,
     unread: impl FnOnce(Option<ContainError>) -> BooleanError,
@@ -1155,12 +1178,11 @@ fn piece_rung(
     match reading {
         Ok(PieceRead::In) => Rung::Answers(Ok(())),
         Ok(PieceRead::NotIn) => Rung::Passes,
-        Ok(PieceRead::Unread(Some(why))) => why
-            .refusal()
-            .rung(unread(Some(why)), |refused| Rung::Aborts(Err(refused))),
+        Ok(PieceRead::Unread(Some(why))) => {
+            geom_brep::ladder::rung_or_abort(why.refusal(), unread(Some(why)), Err)
+        }
         Ok(PieceRead::Unread(None)) => Rung::Blocked(unread(None)),
-        Err(read @ BooleanError::Escalated { diag, .. }) => Rung::kept(diag).map_kept(|_| read),
-        Err(read) => Rung::Blocked(read),
+        Err(read) => Rung::refused(read, BooleanError::refusal, Err),
     }
 }
 
@@ -1210,6 +1232,10 @@ pub(super) const RIDER_ON_PLANE: &str = "bool_rider_on_plane";
 /// under.
 pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
+/// The rows [`carrier_on_surface`] decides a torus face a ring under, its
+/// tube and then its ring ([`geom_brep::variety::Variety::of`]).
+const RIDER_RING_TORUS: geom::RingSites = geom::RingReader::BooleanRider.sites();
+
 /// The site [`carrier_on_surface`] decides a spiric's plane against a
 /// plane face's under: their tilt over the spiric's reach, then the
 /// spiric's plane's height.
@@ -1257,14 +1283,14 @@ pub(super) enum Placed {
 /// unread. A line on a plane is read at both its ends, and on a cylinder
 /// or cone by [`crate::census::line_on_quadric_carrier`]
 /// (`bool_line_face_carrier_offset`); no line lies along a piece of a
-/// sphere or a ring torus. A conic in a plane is read by its own plane's
+/// sphere or of any torus, a quartic, which meets a line in four points
+/// at most. A conic in a plane is read by its own plane's
 /// offset from it (`bool_conic_face_plane_offset`), and on a sphere,
 /// cylinder, cone or torus at points equispaced over its carrier's whole
 /// turn from `t0`, five and nine ([`Samples`], [`even_points`]). A line
 /// or a conic lies on such a surface along a piece exactly where its
-/// whole carrier does (the surface's equation along it is a polynomial,
-/// or a trigonometric one, zero on an interval only where zero
-/// everywhere), so the edge's own span does not matter: each point's
+/// whole carrier does (the identity certificate, [`geom_brep::variety`]),
+/// so the edge's own span does not matter: each point's
 /// offset is decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]),
 /// every point before the answer, and one definitely off reads it off.
 ///
@@ -1274,10 +1300,14 @@ pub(super) enum Placed {
 /// part of its length only, so no point of it read off says it lies there
 /// along no piece: it reads off only where it is certified off over its
 /// whole length ([`clears_plane`], a plane's). A spiric lies along no
-/// piece of a sphere, a cylinder or a cone by degree, and reads off one
-/// where a point of its span reads off it ([`spiric_on_quadric`]). A
-/// spiric on a torus, and a spline not certified off, is unread
-/// ([`EdgeInFaceGap::CarrierUnread`]); nothing reads it on. A spline face
+/// piece of a sphere, a cylinder or a cone by degree, and on a ring torus
+/// lies along a piece only where along all of it; either way it reads off
+/// where a point of its span reads off ([`spiric_on_curved`]). A spline
+/// not certified off, and any carrier against a torus not decided a ring,
+/// is unread ([`EdgeInFaceGap::CarrierUnread`]); nothing reads a spiric
+/// on. Every point read off is read through the one certificate
+/// ([`geom_brep::variety`]), which holds the carrier kinds it is sound for;
+/// the sample schedules are this reader's. A spline face
 /// is unread for every carrier ([`EdgeInFaceGap::SplineFace`]): its chart
 /// is not read here.
 ///
@@ -1293,7 +1323,9 @@ pub(super) enum Placed {
 /// over the nine samples ([`LEBESGUE_NINE`]). That bound is decided after
 /// the samples read zero: zero reads the conic on the torus, beyond the
 /// band leaves it unread (the samples cannot certify a fat torus's conic),
-/// in band escalates; D3's torus is a ring, `R > r`. On a cone
+/// in band escalates. The bound is a ring's (`R > r`), so a torus decided
+/// not a ring is unread before the samples are read, and one whose ring
+/// is in band escalates ([`geom_brep::variety::Variety::of`]). On a cone
 /// the offset is not a polynomial along a conic and the samples are not
 /// bounded between
 /// (`work/parting/a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between.md`).
@@ -1386,29 +1418,20 @@ fn conic_or_line_on<T: Decide>(
             RIDER_ON_CURVED,
             Coincide::EdgeOnCurvedFace,
         ),
-        // No line lies along any piece of a sphere or a ring torus: a
-        // degree argument, as for a spiric on a quadric below.
+        // No line lies along any piece of a sphere or of any torus (a
+        // quartic meets a line in four points at most): a degree argument,
+        // as for a spiric on a quadric below, so no ring is asked.
         (geom::Curve3::Line(_), geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }) => {
             return Ok(Placed::Off);
         }
         (
-            &geom::Curve3::Spiric {
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            },
+            &geom::Curve3::Spiric { offset, .. },
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. },
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Torus { .. },
         ) => {
-            return spiric_on_quadric(
-                carrier,
-                (t0, t1),
-                (major_radius, minor_radius, offset),
-                surface,
-                band,
-            );
+            return spiric_on_curved(carrier, (t0, t1), offset, surface, band);
         }
         // A spiric lies in its own plane, so against a plane it reads as a
         // conic does: in it where the two planes are one, and otherwise
@@ -1424,7 +1447,7 @@ fn conic_or_line_on<T: Decide>(
             },
             &geom::Surface::Plane { origin, normal, .. },
         ) => {
-            let (n, u) = (normal / normal.norm(), u_ref / u_ref.norm());
+            let (n, u) = (normal.normalize(), u_ref.normalize());
             let refused = |diag| {
                 BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
             };
@@ -1455,12 +1478,18 @@ fn conic_or_line_on<T: Decide>(
         }
         _ => return Ok(Placed::Unread(EdgeInFaceGap::SplineFace)),
     };
+    // The certificate holds only on a carrier whose residual is its whole
+    // variety: a torus decided not a ring is unread, its between-sample
+    // bound being a ring's, and one whose ring is in band escalates.
+    let refused = |diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag);
+    let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band).map_err(refused)? else {
+        return Ok(Placed::Unread(EdgeInFaceGap::CarrierUnread));
+    };
     let points = match samples {
         Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
         Samples::Even(n) => even_points(carrier, t0, n),
     };
-    let refused = |diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag);
-    if !crate::census::points_on_surface(surface, &points, site, band).map_err(refused)? {
+    if variety.read_piece(&points, site, band).map_err(refused)? == Piece::Off {
         return Ok(Placed::Off);
     }
     match *surface {
@@ -1470,8 +1499,16 @@ fn conic_or_line_on<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => torus_between(&points, (center, axis), (major_radius, minor_radius), band)
-            .map_err(refused),
+        } => torus_between(
+            &points,
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            (major_radius, minor_radius),
+            band,
+        )
+        .map_err(refused),
         _ => Ok(Placed::On),
     }
 }
@@ -1507,14 +1544,20 @@ fn clears_plane<T: Decide>(
     }
 }
 
-/// The site [`spiric_on_quadric`] decides a spiric's offset off zero, and
-/// short of `R − r`, under.
-const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
+/// The rows [`spiric_on_curved`] reads a spiric's regime under
+/// ([`geom::spiric_regime`]): its offset off zero, and short of `R − r`.
+const RIDER_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::BooleanRider.sites();
 
 /// **Where spiric `carrier`, over `(t0, t1)`, lies against sphere,
-/// cylinder or cone `surface`**: off it along every piece wherever its
-/// section is in the two-oval regime and a point of the span's interior
-/// reads definitely off; otherwise unread. Never on.
+/// cylinder, cone or ring torus `surface`**: off it along every piece
+/// wherever its section is in the two-oval regime and a point of the
+/// span's interior reads definitely off; otherwise unread. Never on.
+///
+/// **On a ring torus** the certificate is the identity one
+/// ([`geom_brep::variety`], its spiric form), not a degree bound. A torus
+/// decided not a ring is unread, and one whose ring is in band escalates. A
+/// spiric on its own torus decides on at every sample, which certifies
+/// nothing between them, so it stays unread.
 ///
 /// **The degree certificate.** For `d` the offset, the section is an
 /// irreducible quartic wherever `d ≠ 0`. In its plane, with `x` along `m`,
@@ -1527,15 +1570,15 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 /// are those of `Re G = Im G = 0`, four at most, while the oval has
 /// infinitely many.
 ///
-/// The arm admits only the two-oval regime, `0 < |d| < R − r`, decided
-/// here ([`RIDER_SPIRIC_REGIME`]) as [`geom::Curve3::spiric`] decides it
-/// at the mint. The argument needs only `d ≠ 0`, so the `R − r` bound is
+/// The arm admits only the two-oval regime, `0 < |d| < R − r`, read
+/// from [`geom::spiric_regime`] ([`RIDER_SPIRIC_REGIME`]), the predicate
+/// [`geom::Curve3::spiric`] mints under. The argument needs only `d ≠ 0`, so the `R − r` bound is
 /// conservative rather than required. It is kept because the carrier is
 /// defined only there: from `R − r` on its radicand goes negative, which
 /// is poison. Offset zero (two circles), the offsets from `R − r` on, and
 /// any offset decided in the zero band of either end read unread.
 ///
-/// None of the three surfaces holds a plane, so each meets the spiric's
+/// None of the three quadrics holds a plane, so each meets the spiric's
 /// plane in a curve of degree two at most:
 /// - a sphere in a circle, a point or nothing;
 /// - a cylinder in an ellipse (a circle where the plane is square to the
@@ -1564,32 +1607,38 @@ const RIDER_SPIRIC_REGIME: &str = "bool_rider_spiric_regime";
 ///
 /// [`BooleanError::Escalated`] where the regime, or a sample with none
 /// off, is in the band's gap, as the conic arms beside it escalate.
-fn spiric_on_quadric<T: Decide>(
+fn spiric_on_curved<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    (big, small, offset): (T, T, T),
+    offset: T,
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
     let unread = Placed::Unread(EdgeInFaceGap::CarrierUnread);
     let refused =
         |diag| BooleanError::coincidence(Coincide::EdgeOnCurvedFace, DeclarationRead::Moot, diag);
-    let decided =
-        |m: T| crate::validate::decide(RIDER_SPIRIC_REGIME, Margin::of(m), band).map_err(refused);
-    if decided(offset)? == Sign::Zero || decided(big - small - offset.abs())? != Sign::Positive {
+    let Some(ring) = carrier.spiric_torus() else {
+        return Ok(unread);
+    };
+    if geom::spiric_regime(ring, offset, T::zero(), RIDER_SPIRIC_REGIME, band).map_err(refused)?
+        != geom::SpiricRegime::TwoOvals
+    {
         return Ok(unread);
     }
+    let Some(variety) = Variety::of(surface, RIDER_RING_TORUS, band).map_err(refused)? else {
+        return Ok(unread);
+    };
     let points: Vec<_> = [T::from_f64(0.25), T::from_f64(0.5), T::from_f64(0.75)]
         .into_iter()
         .map(|f| carrier.eval(t0 + (t1 - t0) * f))
         .collect();
     Ok(
-        if crate::census::points_on_surface(surface, &points, RIDER_ON_CURVED, band)
+        match variety
+            .read_piece(&points, RIDER_ON_CURVED, band)
             .map_err(refused)?
         {
-            unread
-        } else {
-            Placed::Off
+            Piece::Off => Placed::Off,
+            Piece::Sampled => unread,
         },
     )
 }
@@ -1603,19 +1652,17 @@ fn even_points<T: Decide>(carrier: &geom::Curve3<T>, t0: T, n: u32) -> Vec<Point
 }
 
 /// [`carrier_on_surface`]'s bound between a conic's nine samples on the
-/// torus about `center` along unit `axis`, radii `(R, r)`, decided
+/// torus about the unit `axis` line, radii `(R, r)`, decided
 /// where every sample read on it.
 fn torus_between<T: Decide>(
     points: &[Point3<T>],
-    (center, axis): (Point3<T>, Vec3<T>),
+    axis: geom::Line<T>,
     (big, small): (T, T),
     band: Band,
 ) -> Result<Placed, geom_core::Indeterminate> {
     let mut worst = T::zero();
     for &p in points {
-        let w = p - center;
-        let h = w.dot(axis);
-        let rho = (w - axis * h).norm();
+        let (h, rho) = axis.height_and_distance(p);
         // The torus's equation over `2r`, the offset times `G`.
         let product = ((rho - big).powi(2) + h.powi(2) - small.powi(2))
             * ((rho + big).powi(2) + h.powi(2) - small.powi(2));
@@ -1661,7 +1708,7 @@ mod torus_rows {
 
     #[test]
     fn a_torus_conic_reads_on_it_and_a_near_miss_does_not() {
-        let (body, face) = crate::boolean::boxes::tests::torus_wall(
+        let (body, face) = crate::boxes::tests::torus_wall(
             Point3::origin(),
             Vec3::unit_z(),
             Vec3::unit_x(),
@@ -1902,10 +1949,7 @@ fn walls_inside<T: Decide>(
         .ok_or_else(desync)?;
     let (t0, t1) = curve.params();
     let mid = curve.mid_point();
-    let tangent = curve
-        .carrier()
-        .deriv((t0 + t1) * T::from_f64(0.5))
-        .normalize();
+    let tangent = curve.carrier().deriv(geom::mid_param(t0, t1)).normalize();
     let normal = |read: Result<
         Option<geom_brep::OutwardNormal<T>>,
         crate::face_normal::NormalAtError,
@@ -1918,7 +1962,17 @@ fn walls_inside<T: Decide>(
                 diag,
             })
         }
-        Err(_) => Err(refused(EdgeInFaceGap::NoNormal)),
+        // A normal kept as its refusal states it is this reading's limit;
+        // an abort is answered by its own row.
+        Err(why) => Err(match why.standing() {
+            Ok(_) => refused(EdgeInFaceGap::NoNormal),
+            Err(abort) => match abort.torus() {
+                Some(torus) => refused(EdgeInFaceGap::DegenerateTorus(torus)),
+                None => BooleanError::ClassificationInvariant {
+                    what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+                },
+            },
+        }),
     };
     // A face the point door reads no normal on (a spline or an
     // approximating face, `Ok(None)`) is an input this reading does not
@@ -2032,12 +2086,23 @@ fn walls_inside<T: Decide>(
 /// **A spline face `f`'s outward normal at the in-trim foot its placement
 /// reads `p` at** ([`super::spline_region::spline_face_placement`],
 /// [`crate::face_normal::spline_outward_normal_at`]): `None` where `p`
-/// reads at no in-trim foot, or the chart has no one normal there.
+/// reads at no in-trim foot, or where the placement or the normal
+/// refuses as a refusal that keeps its query ([`ContainError::refusal`],
+/// [`crate::face_normal::NormalAtError::refusal`]): the chart has no one
+/// normal there.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where the placement, or `p` on the chart
-/// at its foot, is in band.
+/// at its foot, is in band; [`BooleanError::ClassificationInvariant`]
+/// where either refuses the whole query (two of the door's definite
+/// readings disagree, or `p` reads off the chart at the foot it was
+/// placed at).
+///
+/// # Panics
+///
+/// Where the door answers that `f`, read out of `body`, does not
+/// resolve ([`super::contain::driver_face_stale`]).
 fn spline_floor<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -2065,7 +2130,15 @@ fn spline_floor<T: Decide>(
                 diag,
             });
         }
-        Err(_) => return Ok(None),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(why) => {
+            return match why.refusal() {
+                Ok(_) => Ok(None),
+                Err(geom_brep::ladder::Aborts) => Err(BooleanError::ClassificationInvariant {
+                    what: "a spline floor's placement of an edge's midpoint refuses the whole query",
+                }),
+            };
+        }
     };
     match crate::face_normal::spline_outward_normal_at(body, f, uv, p, band) {
         Ok(n) => Ok(Some(n.vec())),
@@ -2075,7 +2148,17 @@ fn spline_floor<T: Decide>(
                 diag,
             })
         }
-        Err(_) => Ok(None),
+        Err(SplineNormalError::StaleFace) => super::contain::driver_face_stale(f),
+        // The chart was read as a spline above, so the point door's arm
+        // and the placeholder's are a chart with no one normal here.
+        Err(SplineNormalError::NotSpline | SplineNormalError::PlaceholderChart) => Ok(None),
+        Err(SplineNormalError::At(why)) => match why.refusal() {
+            Ok(_) => Ok(None),
+            Err(geom_brep::ladder::Aborts) => Err(BooleanError::ClassificationInvariant {
+                what: "a spline floor reads an edge's midpoint off its chart at the foot its \
+                       placement read",
+            }),
+        },
     }
 }
 
@@ -2106,8 +2189,8 @@ fn coplanar_wall_inside<T: Decide>(
     )
     .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))?
     {
-        geom_core::k_stats::NonzeroSign::Negative => Ok(false),
-        geom_core::k_stats::NonzeroSign::Positive => Err(refused(EdgeInFaceGap::Tangent)),
+        geom_core::NonzeroSign::Negative => Ok(false),
+        geom_core::NonzeroSign::Positive => Err(refused(EdgeInFaceGap::Tangent)),
     }
 }
 
@@ -2126,7 +2209,7 @@ fn bend_across<T: Decide>(
     let toward = match *surface {
         geom::Surface::Plane { .. } => return Some(geom_core::Vec3::zero()),
         geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } => {
-            surface.frame()?.axis_line().foot(p) - p
+            surface.axis_line()?.foot(p) - p
         }
         _ => return None,
     };
@@ -2755,14 +2838,12 @@ fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
 /// face's loops: `unread` where the reader's walk or root finder does
 /// not settle it.
 fn meet_refused(fault: MeetFault, unread: BooleanError) -> BooleanError {
-    match fault {
-        MeetFault::Escalated(diag) | MeetFault::Touch(diag) => crossing_escalated(diag),
-        MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => unread,
-        MeetFault::Desync | MeetFault::Contradiction { .. } => {
-            BooleanError::ClassificationInvariant {
-                what: "the meeting reader contradicted itself on two edges' carriers",
-            }
-        }
+    match fault.kind() {
+        MeetKind::Escalated(diag) | MeetKind::Touch(diag) => crossing_escalated(diag),
+        MeetKind::Unread(_) => unread,
+        MeetKind::Fault { .. } => BooleanError::ClassificationInvariant {
+            what: "the meeting reader contradicted itself on two edges' carriers",
+        },
     }
 }
 
@@ -3377,12 +3458,15 @@ mod spline_rider {
     }
 }
 
-/// **A spiric reads off a sphere, a cylinder or a cone by degree**
-/// ([`spiric_on_quadric`]), only in the two-oval regime and only where a
-/// point of its span reads off, and stays unread on a torus.
+/// **A spiric reads off a sphere, a cylinder or a cone by degree, and a
+/// ring torus by identity** ([`spiric_on_curved`]), only in the two-oval
+/// regime and only where a point of its span reads off. On its own torus,
+/// or on a torus not decided a ring, it stays unread. **A conic against
+/// a torus is read by the same identity certificate**
+/// ([`geom_brep::variety::Variety`]), gated on the ring alike.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod spiric_quadric_rows {
+mod curved_carrier_rows {
     use super::{EdgeInFaceGap, Placed, conic_or_line_on};
     use geom_core::{Band, Margin, Point3, Sign, Tol, Vec3};
 
@@ -3391,6 +3475,29 @@ mod spiric_quadric_rows {
     }
 
     const UNREAD: Placed = Placed::Unread(EdgeInFaceGap::CarrierUnread);
+
+    /// A torus of minor radius `0.3` whose `R − r` is midway between the
+    /// band's zero and its escalation: neither decided a ring nor not.
+    fn ring_in_band(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> geom::Surface<f64> {
+        let b = band();
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius: 0.3 + 0.5 * (b.zero() + b.escalate()),
+            minor_radius: 0.3,
+            u_ref,
+        }
+    }
+
+    /// Whether `read` is the ring decision's escalation
+    /// ([`super::RIDER_RING_TORUS`]), not some other refusal.
+    fn escalates_on_the_ring(read: Result<Placed, super::BooleanError>) -> bool {
+        matches!(
+            read,
+            Err(super::BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some(super::RIDER_RING_TORUS.ring())
+        )
+    }
 
     /// The spiric about the `z` axis, `R = 2`, `r = 1`, in the plane
     /// `x = d`.
@@ -3503,28 +3610,15 @@ mod spiric_quadric_rows {
         }
     }
 
-    /// **Out of the two-oval regime, or on a torus, a spiric stays
-    /// unread against the surface.** On its own torus it lies on the
-    /// surface, which no arm reads, so it is never off there. At offset
-    /// zero its plane cuts the torus in two circles. At an offset in band
+    /// **Out of the two-oval regime a spiric stays unread against the
+    /// surface** (on its own torus is its own row). At offset zero its
+    /// plane cuts the torus in two circles. At an offset in band
     /// of zero, or from `R − r` on, the section is not the irreducible
     /// quartic the degree bound needs. Each case is against the
     /// cylinder about the spiric's `v = 0` point. Red on any of them
     /// read off.
     #[test]
-    fn a_spiric_out_of_regime_or_on_a_torus_stays_unread() {
-        let own = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            major_radius: 2.0,
-            minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
-        assert_eq!(
-            conic_or_line_on(&spiric(0.5), (-0.5, 0.5), &own, band()).unwrap(),
-            UNREAD,
-            "on its own torus"
-        );
+    fn a_spiric_out_of_regime_stays_unread() {
         let eps = Tol::witness().eps();
         for (what, offset) in [
             ("offset zero", 0.0),
@@ -3545,6 +3639,116 @@ mod spiric_quadric_rows {
                 "{what}"
             );
         }
+    }
+
+    /// **The mint, the plane × torus section and the rider read one
+    /// regime** ([`geom::spiric_regime`]), each under its own rows. At
+    /// offsets of a plane through the torus about `z` (`R = 2`, `r = 1`)
+    /// clear of the regime's boundary, or within a zero band of it, the
+    /// mint builds the oval exactly where the section serves two ovals
+    /// and the rider reads the oval off a ball about its `v = 0` point;
+    /// the section agrees again with its plane tilted off the axis by a
+    /// tenth of a zero band, read as the swing beside the margin. Where
+    /// the margin sits in the escalation sliver, each escalates, the mint
+    /// and the section on their own far row. Red on a reader whose
+    /// boundary sits inside the others' (a mint or rider admitting what
+    /// the section refuses). A section looser than the mint would still
+    /// pass here, since it mints through the mint: its own outer boundary
+    /// is pinned in `geom_brep`'s `intersect_table`
+    /// (`plane_torus_tilted_and_offset_route_to_rung_3`) and
+    /// `axis_rows_read_as_one_sum`
+    /// (`plane_torus_axis_in_plane_reads_each_row_as_it_moves`).
+    #[test]
+    fn the_mint_the_section_and_the_rider_read_one_regime() {
+        let eps = Tol::witness().eps();
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let mint = |offset: f64| {
+            geom::Curve3::spiric(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                2.0,
+                1.0,
+                offset,
+                band(),
+            )
+        };
+        let lever = geom_brep::ExtentBall::of_torus(Point3::origin(), 2.0, 1.0).lever();
+        let section = |offset: f64, tilt: f64| {
+            let plane = geom::Surface::Plane {
+                origin: Point3::new(offset, 0.0, 0.0),
+                normal: Vec3::new(tilt.cos(), 0.0, tilt.sin()),
+                u_ref: Vec3::unit_y(),
+            };
+            geom_brep::plane_torus_section(&plane, &torus, lever, band())
+        };
+        let rider = |offset: f64, on_carrier: bool| {
+            let s = spiric(offset);
+            // Out of the regime the carrier has no points to centre on.
+            let center = if on_carrier {
+                s.eval(0.0)
+            } else {
+                Point3::origin()
+            };
+            let ball = geom::Surface::Sphere {
+                center,
+                radius: 0.3,
+                u_ref: Vec3::unit_x(),
+                axis: Vec3::unit_z(),
+            };
+            conic_or_line_on(&s, (-0.5, 0.5), &ball, band())
+        };
+        // A tenth of a zero band at the torus's reach, `R + r = 3`.
+        let tilt = 0.1 * band().zero() / 3.0;
+        for offset in [
+            0.0,
+            eps * 1e-3,
+            0.5,
+            -0.5,
+            1.0 - 1e-3,
+            1.0,
+            1.0 - eps * 1e-3,
+            1.5,
+        ] {
+            let two = mint(offset).is_ok();
+            for tilt in [0.0, tilt] {
+                let got = section(offset, tilt);
+                assert_eq!(
+                    matches!(got, Ok(geom_brep::PlaneTorusSection::SpiricOvals { .. })),
+                    two,
+                    "offset {offset:e}, tilt {tilt:e}: the section against the mint ({got:?})"
+                );
+            }
+            let read = rider(offset, two).unwrap();
+            assert_eq!(
+                read == Placed::Off,
+                two,
+                "offset {offset:e}: the rider against the mint ({read:?})"
+            );
+        }
+        let sliver = 1.0 - 0.5 * (band().zero() + band().escalate());
+        assert!(
+            matches!(mint(sliver), Err(geom::SpiricInvalid::Escalated(d))
+                if d.predicate == Some("spiric_two_ovals")),
+            "in the sliver the mint escalates on its own row: {:?}",
+            mint(sliver)
+        );
+        assert!(
+            matches!(section(sliver, 0.0), Err(geom_brep::SectionError::Escalated(d))
+                if d.predicate == Some("pt_spiric_two_ovals")),
+            "in the sliver the section escalates on its own row: {:?}",
+            section(sliver, 0.0)
+        );
+        assert!(
+            rider(sliver, false).is_err(),
+            "in the sliver the rider escalates"
+        );
     }
 
     /// **A spiric hugging a cylinder within the band over its whole span
@@ -3648,10 +3852,12 @@ mod spiric_quadric_rows {
         );
     }
 
-    /// **A spiric crossing a torus other than its own stays unread**: the
-    /// arm admits quadrics only. Red where the arm admits a torus.
+    /// **A spiric crossing a ring torus other than its own reads off**: the
+    /// torus's equation along the spiric is real-analytic, so a sample
+    /// decided off its variety reads the span off along every piece
+    /// ([`geom_brep::variety`]). Red where the arm leaves a torus unread.
     #[test]
-    fn a_spiric_crossing_another_torus_stays_unread() {
+    fn a_spiric_crossing_another_ring_torus_reads_off() {
         let s = spiric(0.5);
         let other = geom::Surface::Torus {
             center: s.eval(0.0),
@@ -3669,8 +3875,177 @@ mod spiric_quadric_rows {
         );
         assert_eq!(
             conic_or_line_on(&s, (-0.5, 0.5), &other, band()).unwrap(),
+            Placed::Off,
+            "a spiric against another ring torus"
+        );
+    }
+
+    /// **A spiric on its own torus stays unread**: every sample decides on
+    /// it, which certifies nothing between them, and nothing reads a
+    /// spiric on. Red where an all-on reading reads on or off.
+    #[test]
+    fn a_spiric_on_its_own_torus_stays_unread() {
+        let s = spiric(0.5);
+        let own = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        for f in [0.25_f64, 0.5, 0.75] {
+            assert_eq!(
+                read(&own, s.eval(-0.5 + f)),
+                Ok(Sign::Zero),
+                "the sample at {f} is on its own torus"
+            );
+        }
+        assert_eq!(
+            conic_or_line_on(&s, (-0.5, 0.5), &own, band()).unwrap(),
             UNREAD,
-            "a spiric against another torus"
+            "a spiric on its own torus"
+        );
+    }
+
+    /// **A spiric against a torus not decided a ring stays unread, and one
+    /// whose ring is in band escalates**: the identity certificate holds
+    /// only on a ring ([`geom_brep::variety::Variety::of`]). A sample off a
+    /// torus with `R < r` still reads unread. Red where the gate in
+    /// [`super::spiric_on_curved`] is removed.
+    #[test]
+    fn a_spiric_against_a_torus_not_a_ring_is_unread_or_escalates() {
+        let s = spiric(0.5);
+        let at = |major_radius: f64| geom::Surface::Torus {
+            center: s.eval(0.0),
+            axis: Vec3::unit_x(),
+            major_radius,
+            minor_radius: 0.3,
+            u_ref: Vec3::unit_y(),
+        };
+        let spindle = at(0.1);
+        assert!(
+            matches!(
+                read(&spindle, s.eval(0.25)),
+                Ok(Sign::Positive | Sign::Negative)
+            ),
+            "a sample is off the torus"
+        );
+        assert_eq!(
+            conic_or_line_on(&s, (-0.5, 0.5), &spindle, band()).unwrap(),
+            UNREAD,
+            "a spiric against a torus with R < r"
+        );
+        let in_band = ring_in_band(s.eval(0.0), Vec3::unit_x(), Vec3::unit_y());
+        assert!(
+            escalates_on_the_ring(conic_or_line_on(&s, (-0.5, 0.5), &in_band, band())),
+            "a torus whose ring is in band escalates on the ring decision"
+        );
+    }
+
+    /// **A conic against a torus whose ring is in band escalates**, at the
+    /// conic site's ring gate in [`super::conic_or_line_on`]
+    /// ([`geom_brep::variety::Variety::of`]), as the spiric site's does:
+    /// the identity certificate holds only on a ring, and an `R − r` in
+    /// band is not read as no ring. The same circle against a ring torus
+    /// it misses reads off. Red where the conic site swallows the ring's
+    /// escalation (`.ok().flatten()`), which then reads the torus unread.
+    #[test]
+    fn a_conic_against_a_torus_whose_ring_is_in_band_escalates() {
+        let b = band();
+        let ring = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 0.3,
+            u_ref: Vec3::unit_x(),
+        };
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 5.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
+        let span = (0.0, core::f64::consts::TAU);
+        assert_eq!(
+            conic_or_line_on(&circle, span, &ring, b).unwrap(),
+            Placed::Off,
+            "a circle far above a ring torus reads off"
+        );
+        let in_band = ring_in_band(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        assert!(
+            escalates_on_the_ring(conic_or_line_on(&circle, span, &in_band, b)),
+            "a torus whose ring is in band escalates on the ring decision"
+        );
+    }
+
+    /// **A spindle's meridian circle is unread, where it once read off**: the
+    /// circle lies on the spindle-proportioned torus's quartic (`R < r`), but
+    /// its half across the axis is on the sheet the residual does not read,
+    /// so a sample there decides off. The ring gate reads it unread. Red
+    /// where a torus not decided a ring is read.
+    #[test]
+    fn a_spindles_meridian_circle_is_unread_not_off() {
+        let (big, small) = (0.5, 1.0);
+        let spindle = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: big,
+            minor_radius: small,
+            u_ref: Vec3::unit_x(),
+        };
+        let meridian = geom::Curve3::circle(
+            Point3::new(big, 0.0, 0.0),
+            Vec3::unit_y(),
+            small,
+            Vec3::unit_x(),
+        );
+        let samples: Vec<_> = (0..9)
+            .map(|k| meridian.eval(core::f64::consts::TAU * f64::from(k) / 9.0))
+            .collect();
+        assert!(
+            samples
+                .iter()
+                .any(|&p| matches!(read(&spindle, p), Ok(Sign::Positive | Sign::Negative))),
+            "a sample on the other sheet reads off the residual"
+        );
+        assert_eq!(
+            conic_or_line_on(&meridian, (0.0, core::f64::consts::TAU), &spindle, band()).unwrap(),
+            UNREAD,
+            "a meridian circle of a torus with R < r"
+        );
+    }
+
+    /// **A conic against a torus not decided a ring is unread**: the
+    /// certificate holds only on a ring ([`geom_brep::variety::Variety::of`]),
+    /// and the bound between a conic's samples is a ring's. A circle on a
+    /// spindle-proportioned torus (`R < r`), off it at every sample, still
+    /// reads unread. Red where the arm reads it.
+    #[test]
+    fn a_conic_against_a_torus_not_a_ring_is_unread() {
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 5.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
+        let spindle = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 0.5,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        assert!(
+            matches!(
+                read(&spindle, circle.eval(0.0)),
+                Ok(Sign::Positive | Sign::Negative)
+            ),
+            "a sample is off the torus"
+        );
+        assert_eq!(
+            conic_or_line_on(&circle, (0.0, core::f64::consts::TAU), &spindle, band()).unwrap(),
+            UNREAD,
+            "a conic against a torus with R < r"
         );
     }
 
@@ -3783,6 +4158,7 @@ mod piece_rung_rows {
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                // UNDECIDED-NAME: the piece's cause an unread piece refuses ahead of
                 predicate: Some("test_piece"),
                 terminal_sliver: false,
             },

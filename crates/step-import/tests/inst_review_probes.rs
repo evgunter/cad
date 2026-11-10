@@ -94,8 +94,7 @@ fn solid_clouds(body: &topo::Body<f64>) -> Vec<Vec<[f64; 3]>> {
             let mut pts = Vec::new();
             for shell in &solid.shells {
                 for &face in &body.get_shell(*shell).expect("shell").faces {
-                    let f = body.get_face(face).expect("face");
-                    for lk in std::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                    for (lk, _, _) in body.face(face).expect("face").loops() {
                         let topo::LoopBoundary::Cycle { first } =
                             body.get_loop(lk).expect("loop").boundary
                         else {

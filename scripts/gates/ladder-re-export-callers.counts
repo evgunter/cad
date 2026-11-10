@@ -1,0 +1,14 @@
+# Raw `geom_brep::ladder` spellings outside geom-brep's library (code,
+# test modules, `tests/`, doc links and prose alike), per crate
+# (scripts/gates/ladder-re-export-callers.sh). A ratchet: lower a count
+# as spellings move to `geom_core::ladder`; at none, delete the
+# re-export with this file and its gate
+# (work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md).
+# geom-brep: its integration tests (`crates/geom-brep/tests/`), which
+# see the crate from outside.
+crates/geom-brep 1
+crates/sweep 2
+# topo 141 -> 133: QML T5 and T6 move stands.rs and census.rs to geom_core::ladder.
+# topo 133 -> 130: climb_differing's ports move vtxfac.rs and rim_wedge.rs to geom_core::ladder.
+# topo 130 -> 129: topo's recourse roster's header stopped spelling the path (ONECOPY).
+crates/topo 129

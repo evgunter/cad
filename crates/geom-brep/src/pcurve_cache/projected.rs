@@ -151,6 +151,7 @@
 use std::sync::Arc;
 
 use geom::{ChartAngle, ChartChannels, Curve3, NurbsCurve3, Quarter, Surface};
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::period::{Bounded, Exact, Extent, Period, TurnRows, TurnUndecided};
 use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
@@ -520,7 +521,7 @@ fn rotate_box<T: Real>(q: Quarter, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
 pub(crate) fn span_stretches(kv: &KnotVector, range: ParamRange) -> Option<Vec<ParamRange>> {
     let (a, b) = (range.start(), range.end());
     let mut breaks = vec![a];
-    breaks.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| k > a && k < b));
+    breaks.extend(kv.breakpoints().filter(|&k| k > a && k < b));
     breaks.push(b);
     breaks
         .windows(2)
@@ -1026,12 +1027,12 @@ fn piece_sector<T: Decide>(
         return Ok(None);
     }
     let b = image.frame_box(k, t0, t1);
-    if !positive("pcurve_projected_sector", b.x.0, band)? {
+    if !positive_as("pcurve_projected_sector", b.x.0, band)? {
         return Ok(Some(SectorChannel::Azimuth));
     }
     if let ProjectedChart::Torus { major } = image.chart {
         let (tx, _) = image.tube_box(k, &b, major);
-        if !positive("pcurve_projected_sector", tx.0, band)? {
+        if !positive_as("pcurve_projected_sector", tx.0, band)? {
             return Ok(Some(SectorChannel::Tube));
         }
     }
@@ -1045,7 +1046,7 @@ fn piece_sector<T: Decide>(
 /// ([`piece_sector`]).
 fn choose_quarters<T: Decide>(image: &mut ProjectedImage<T>, k: usize, t0: T, t1: T, band: Band) {
     let clear = |x: T| {
-        geom_core::k_stats::detached(|| positive("pcurve_projected_sector", x, band))
+        geom_core::k_stats::detached(|| positive_as("pcurve_projected_sector", x, band))
             .0
             .unwrap_or(false)
     };
@@ -1105,7 +1106,7 @@ fn chart_of<T: Decide>(
         || match framed {
             FramedCarrier::Net(net) => {
                 let (d0, d1) = net.knot_values().domain();
-                net.eval(T::from_f64(0.5) * (d0 + d1)).z
+                net.eval(geom::mid_param(d0, d1)).z
             }
             FramedCarrier::Circle { origin, span, .. }
             | FramedCarrier::Line { origin, span, .. } => {
@@ -1244,11 +1245,10 @@ pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bo
 
 /// The period gate's row, and the straddle of a bounded channel's two
 /// readings.
-const PERIOD_ROWS: TurnRows<&str> =
-    TurnRows::bounded("pcurve_azimuth_period", "pcurve_azimuth_period_straddle");
+const PERIOD_ROWS: TurnRows<&str> = crate::rows::PCURVE_AZIMUTH_PERIOD.rows();
 
 /// The period gate's row at an exact channel.
-const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn);
+const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn());
 
 /// Check 2's disposition of one channel's "not over": a sweep over a
 /// turn refuses as `exceeded`, an undecided one escalates under `check`.
@@ -1261,7 +1261,7 @@ fn period_gate(
         Ok(true) => Ok(()),
         Ok(false) => Err(exceeded),
         Err(undecided) => Err(PcurveCertifyError::Escalated {
-            check,
+            check: super::general(check),
             sample: 0,
             cause: undecided.diag,
         }),
@@ -1348,11 +1348,7 @@ pub(crate) fn project<T: Decide>(
     // The top-level pieces: a net's knot spans (a piece's hull is one
     // span's Bézier restriction), a circle's or a line's one interval.
     let tops: Vec<f64> = match &image.carrier {
-        FramedCarrier::Net(net) => net
-            .knots_f64_interim()
-            .knot_runs()
-            .map(|(k, _)| k)
-            .collect(),
+        FramedCarrier::Net(net) => net.knots_f64_interim().breakpoints().collect(),
         FramedCarrier::Circle { .. } | FramedCarrier::Line { .. } => vec![0.0, 1.0],
     };
     if matches!(image.chart, ProjectedChart::Plane) {
@@ -1374,7 +1370,6 @@ pub(crate) fn project<T: Decide>(
             &mut image,
             (w[0], w[1]),
             edge,
-            0,
             band,
             &mut breaks,
             &mut azimuth,
@@ -1402,7 +1397,7 @@ pub(crate) fn project<T: Decide>(
     let deck = |along, angle: T| {
         Ok::<_, PcurveCertifyError>(match place.turns(along, angle, band)? {
             0 => T::zero(),
-            k => super::Period::new(T::tau()).times(-k),
+            k => super::Period::angle().times(-k),
         })
     };
     image.u_off = deck(super::Along::Azimuth, at.x)?;
@@ -1427,7 +1422,7 @@ fn outside<T: Decide>((a, b): (T, T), edge: Option<(T, T)>, band: Band) -> bool 
         return false;
     };
     let clear = |x: T| {
-        geom_core::k_stats::detached(|| positive("pcurve_projected_outside", x, band))
+        geom_core::k_stats::detached(|| positive_as("pcurve_projected_outside", x, band))
             .0
             .unwrap_or(false)
     };
@@ -1435,52 +1430,56 @@ fn outside<T: Decide>((a, b): (T, T), edge: Option<(T, T)>, band: Band) -> bool 
 }
 
 /// Halves `[a, b]` (on the piece parameter) until its piece holds its
-/// sector, appending the pieces in order. A piece wholly outside the
-/// edge interval `edge` is appended as found.
+/// sector, appending the pieces in order ([`geom_core::bisect`], earlier
+/// half first). A piece wholly outside the edge interval `edge` is
+/// appended as found.
 #[allow(clippy::too_many_arguments)]
 fn refine<T: Decide>(
     image: &mut ProjectedImage<T>,
     (a, b): (f64, f64),
     edge: Option<(T, T)>,
-    depth: u32,
     band: Band,
     breaks: &mut Vec<f64>,
     azimuth: &mut Vec<i32>,
     tube: &mut Vec<i32>,
 ) -> Result<(), Refine> {
-    image.breaks = breaks_vector(&[a, b]);
-    image.azimuth = vec![Quarter(0)];
-    image.tube = if matches!(image.chart, ProjectedChart::Torus { .. }) {
-        vec![Quarter(0)]
-    } else {
-        Vec::new()
-    };
-    let (ta, tb) = image.carrier.piece_span(a, b);
-    choose_quarters(image, 0, ta, tb, band);
-    let verdict = if outside((ta, tb), edge, band) {
-        Ok(None)
-    } else {
-        piece_sector(image, 0, ta, tb, band)
-    };
-    match verdict {
-        Ok(None) => {
-            breaks.push(b);
-            azimuth.push(image.azimuth[0].0);
-            if let Some(&phi) = image.tube.first() {
-                tube.push(phi.0);
+    let mut reads = Budget::implied_by_depth(1, MAX_REFINE);
+    let walked = bisect_within([(a, b, 0u32)], &mut reads, |(a, b, depth)| {
+        image.breaks = breaks_vector(&[a, b]);
+        image.azimuth = vec![Quarter(0)];
+        image.tube = if matches!(image.chart, ProjectedChart::Torus { .. }) {
+            vec![Quarter(0)]
+        } else {
+            Vec::new()
+        };
+        let (ta, tb) = image.carrier.piece_span(a, b);
+        choose_quarters(image, 0, ta, tb, band);
+        let verdict = if outside((ta, tb), edge, band) {
+            Ok(None)
+        } else {
+            piece_sector(image, 0, ta, tb, band)
+        };
+        match verdict {
+            Ok(None) => {
+                breaks.push(b);
+                azimuth.push(image.azimuth[0].0);
+                if let Some(&phi) = image.tube.first() {
+                    tube.push(phi.0);
+                }
+                Step::Settled
             }
-            Ok(())
+            Ok(Some(channel)) if depth >= MAX_REFINE => Step::Stop(Refine::Refused(channel)),
+            Err(cause) if depth >= MAX_REFINE => Step::Stop(Refine::Escalated(cause)),
+            _ => {
+                let m = geom::mid_param(a, b);
+                Step::Halve([(a, m, depth + 1), (m, b, depth + 1)])
+            }
         }
-        failed if depth >= MAX_REFINE => Err(match failed {
-            Ok(Some(channel)) => Refine::Refused(channel),
-            Err(cause) => Refine::Escalated(cause),
-            Ok(None) => unreachable!("matched above"),
-        }),
-        _ => {
-            let m = 0.5 * (a + b);
-            refine(image, (a, m), edge, depth + 1, band, breaks, azimuth, tube)?;
-            refine(image, (m, b), edge, depth + 1, band, breaks, azimuth, tube)
-        }
+    });
+    match walked {
+        Ok(None) => Ok(()),
+        Ok(Some(refused)) => Err(refused),
+        Err(Exhausted) => unreachable!("a sector refinement spends its depth before its reads"),
     }
 }
 
@@ -1577,14 +1576,14 @@ pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T), T
 /// The one decision every condition of this module reads: whether
 /// `value` decides positive. Not positive (zero or negative) is
 /// `Ok(false)`; the band's undecided answer escalates.
-fn positive<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Indeterminate> {
+fn positive_as<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Indeterminate> {
     Ok(decide(name, Margin::of(value), band)? == Sign::Positive)
 }
 
-/// [`positive`] as a check-4 verdict: `value` when it decides positive,
+/// [`positive_as`] as a check-4 verdict: `value` when it decides positive,
 /// `refused` when it does not, an escalation at `check` (its sample the
 /// piece or span `at`) when the band cannot tell.
-fn require_positive<T: Decide>(
+fn require_positive_as<T: Decide>(
     name: &'static str,
     value: T,
     band: Band,
@@ -1592,11 +1591,11 @@ fn require_positive<T: Decide>(
     at: usize,
     refused: PcurveCertifyError,
 ) -> Result<T, PcurveCertifyError> {
-    match positive(name, value, band) {
+    match positive_as(name, value, band) {
         Ok(true) => Ok(value),
         Ok(false) => Err(refused),
         Err(cause) => Err(PcurveCertifyError::Escalated {
-            check,
+            check: super::general(check),
             sample: u32::try_from(at).unwrap_or(u32::MAX),
             cause,
         }),
@@ -1611,7 +1610,7 @@ fn holds<T: Decide>(
     piece: usize,
     channel: SectorChannel,
 ) -> Result<(), PcurveCertifyError> {
-    require_positive(
+    require_positive_as(
         "pcurve_projected_sector",
         value,
         band,
@@ -1651,7 +1650,7 @@ fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
 }
 
 /// The distance of an angle from the nearest point of `shift + pℤ`, `p`
-/// the channel's own period ([`super::angle_periods`]).
+/// the channel's own period ([`Surface::angle_periods`](geom::Surface::angle_periods)).
 ///
 /// Sound at every scalar on its own terms: a lattice distance is
 /// continuous in the angle and the same on either branch at a tie, so
@@ -2024,7 +2023,7 @@ pub(super) fn net_incidence<T: Decide>(
         let f = T::from_computed(span.f_sup);
         let disp = meters
             .over(f, (rho, T::from_computed(span.rho_hi)), span.z, |lever| {
-                require_positive(
+                require_positive_as(
                     "pcurve_projected_lever",
                     lever,
                     band,
@@ -2365,7 +2364,7 @@ fn met_floors<T: Decide>(
             None => (rho, b.z, k),
             Some((r, (lo, hi), at)) => {
                 let lower = geom_core::k_stats::detached(|| {
-                    positive("pcurve_projected_floor_pick", r - rho, band)
+                    positive_as("pcurve_projected_floor_pick", r - rho, band)
                 })
                 .0
                 .unwrap_or(false);
@@ -2407,7 +2406,7 @@ fn closed_form_meters<T: Decide>(
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
     meters.over_at(f, (rho, rho), axial, (0.0, 0.0), |lever| {
-        require_positive(
+        require_positive_as(
             "pcurve_projected_lever",
             lever,
             band,
@@ -2464,8 +2463,8 @@ fn line_off_cone_sup<T: Decide>(
         let floor = rho * cos + axial * sin;
         geom_core::k_stats::detached(|| {
             Ok::<bool, Indeterminate>(
-                !positive("pcurve_projected_lever_ceiling", ceiling, band)?
-                    || positive(
+                !positive_as("pcurve_projected_lever_ceiling", ceiling, band)?
+                    || positive_as(
                         "pcurve_projected_lever_spread_ratio",
                         (ceiling - floor * T::from_f64(LEVER_SPREAD)) / ceiling,
                         band,
@@ -2478,30 +2477,38 @@ fn line_off_cone_sup<T: Decide>(
     let cuts = u32::try_from(INCIDENCE_CUTS).unwrap_or(u32::MAX);
     let cut = |k: u32| T::from_f64(f64::from(k) / f64::from(cuts));
     let at = |s: T| q0 + (q1 - q0) * s;
-    let mut parts: Vec<(T, T, u32)> = (0..cuts).rev().map(|k| (cut(k), cut(k + 1), 0)).collect();
+    let parts = (0..cuts).map(|k| (cut(k), cut(k + 1), 0u32));
     let mut sup = T::zero();
-    while let Some((sa, sb, depth)) = parts.pop() {
+    let mut reads = Budget::implied_by_depth(cuts as usize, LEVER_DEPTH);
+    let walked = bisect_within(parts, &mut reads, |(sa, sb, depth)| {
         let (qa, qb) = (at(sa), at(sb));
         let (lo, ceiling) = floors(qa, qb);
         if spread(lo, ceiling) {
             if depth == LEVER_DEPTH {
-                return Err(sector_refused(piece_of(sa, sb), SectorChannel::Lever));
+                return Step::Stop(sector_refused(piece_of(sa, sb), SectorChannel::Lever));
             }
-            let mid = sa + (sb - sa) * T::from_f64(0.5);
-            parts.push((mid, sb, depth + 1));
-            parts.push((sa, mid, depth + 1));
-            continue;
+            let mid = geom::bracket_mid((sa, sb));
+            return Step::Halve([(sa, mid, depth + 1), (mid, sb, depth + 1)]);
         }
-        let part = closed_form_meters(
+        match closed_form_meters(
             meters,
             line_off_cone_form(qa, qb, sin, cos),
             lo,
             piece_of(sa, sb),
             band,
-        )?;
-        sup = sup.max(part);
+        ) {
+            Ok(part) => {
+                sup = sup.max(part);
+                Step::Settled
+            }
+            Err(e) => Step::Stop(e),
+        }
+    });
+    match walked {
+        Ok(None) => Ok(sup),
+        Ok(Some(e)) => Err(e),
+        Err(Exhausted) => unreachable!("a lever walk spends its depth before its reads"),
     }
-    Ok(sup)
 }
 
 /// The spread of the cone's lever over a part past which
@@ -2575,7 +2582,7 @@ pub(super) fn projected_envelope<T: Decide>(
         super::frame_defect(surface, boxed.v_reach()),
     );
     let reach = |x: T| {
-        require_positive(
+        require_positive_as(
             "pcurve_projected_reach",
             x,
             band,
@@ -2633,8 +2640,13 @@ pub(super) fn projected_envelope<T: Decide>(
             // the axis). Every point of the segment between the stored
             // circle and its twin is within `d` of either.
             let (rho_box, z, floor_at) = met_floors(image, &met, (t0, t1), band)?;
-            let rho_twin =
-                (rho_box - d).max(crate::implicit::conic_axis_distance_floor(conic, o, e[2]));
+            let rho_twin = (rho_box - d).max(crate::implicit::conic_axis_distance_floor(
+                conic,
+                geom::Line {
+                    origin: o,
+                    dir: e[2],
+                },
+            ));
             let rho_floor = (rho_twin - d).max(T::zero());
             let Some(form_sup) = crate::implicit::conic_form_sup(&twin, conic) else {
                 return Err(refuse("the circle's chart has no form along a conic"));
@@ -2793,7 +2805,7 @@ pub(super) fn projected_envelope<T: Decide>(
     };
     // The chart's angle channels and their periods, from their one home;
     // the plane was answered above, so the first channel is an angle.
-    let Some((Some(period_u), period_v)) = super::angle_periods(surface) else {
+    let Some((Some(period_u), period_v)) = surface.angle_periods() else {
         unreachable!("a curved analytic chart's first channel is an angle")
     };
     let (shift, sign) = if twin_deck {
@@ -2917,7 +2929,7 @@ pub(super) fn run_projected_checks<T: Decide>(
                 let kv = net.knots_f64_interim();
                 for k in 0..pieces {
                     let (a, z) = (b[k + 1], b[k + 2]);
-                    let Some(span) = kv.span_at(0.5 * (a + z)) else {
+                    let Some(span) = kv.span_at(geom::mid_param(a, z)) else {
                         return Err(refuse("a piece of the image has a NaN break"));
                     };
                     let j = span.index();
@@ -2973,7 +2985,7 @@ pub(super) fn run_projected_checks<T: Decide>(
         // the sup arm).
         let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed)?;
         let swept = image.sweep_box(t0, t1);
-        let one_turn = Period::new(T::tau());
+        let one_turn = Period::angle();
         let azimuth = Extent::between(swept.u_min, swept.u_max);
         let not_over = match *surface {
             Surface::Cylinder { radius, .. } => {

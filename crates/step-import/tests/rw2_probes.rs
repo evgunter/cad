@@ -56,7 +56,7 @@ fn half_circle_section(s: f64) -> sweep::Section {
     ])]
 }
 
-fn native_arc_loft() -> topo::Body<f64> {
+fn native_arc_loft() -> topo::AtRestBody<f64> {
     loft_body::<f64>(
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
         &stacked(&[0.0, 1.0, 2.0], 1.0),
@@ -116,8 +116,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
             let spans = breaks.control_count() - 1;
             let he = body.get_half_edge(hek).unwrap();
             let lp = body.get_loop(he.parent_loop).unwrap();
-            let face = body.get_face(lp.face).unwrap();
-            let surface = body.get_surface(face.surface).unwrap();
+            let surface = body.face_surface(lp.face).unwrap();
             let edge = body.get_edge(he.edge).unwrap();
             let curve = body
                 .get_curve_geom(edge.curve)
@@ -261,6 +260,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         t0: 0.0,
         angle: theta,
         breaks,
+        ends: Box::default(),
     };
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let cache = PcurveCache::certify(pcurve, 0.0, theta, &carrier, &surface, band)
@@ -306,6 +306,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
         t0: 0.0,
         angle: theta,
         breaks: breaks2,
+        ends: Box::default(),
     };
     let refusal = PcurveCache::certify(pcurve2, 0.0, theta, &carrier, &surface2, band)
         .expect_err("a wrong interior weight must refuse");

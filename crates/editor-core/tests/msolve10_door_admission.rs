@@ -560,12 +560,7 @@ fn corpus() -> Vec<Row> {
             ids[1],
             fixture::rest(
                 cap(ids[1], body, CapEnd::Start),
-                fixture::head(fixture::in_copy(
-                    pattern,
-                    k,
-                    2,
-                    in_part(ids[0], body, CapEnd::End),
-                )),
+                fixture::member_head(pattern, &[2], in_part(ids[0], body, CapEnd::End)),
             ),
         );
         let doc = fixture::recount(doc, k, editor_core::Formula::count(2));

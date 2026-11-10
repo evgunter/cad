@@ -18,26 +18,13 @@
 //!    occurrence structure, counted from the text, is what the resolver
 //!    walks (3 component representations, 7 relationships, each naming
 //!    one of them);
-//! 3. **the placement layer is now BEHIND the geometry** — dm1's
-//!    remaining refusal is reachable only once every instance's frame
-//!    was read and applied. Since #327 (stage-1 CURVE recognition)
-//!    that refusal has moved AGAIN, and into the D7 ladder: the
-//!    file's rational-quadratic rim carriers are recognized as circles
-//!    and promoted, every instance's frame is read and applied, and
-//!    the first thing that refuses is the ladder itself, on edge
-//!    `#389` — a two-point degree-1 polyline offered ZERO candidates
-//!    (`work/exch/step-import-degree-one-line-promotion.md`).
-//!
-//!    It refused at the SHARED AT-REST GATE until tier 3's check 7
-//!    began certifying a SIGN. That gate was chasing a PRECISION: the
-//!    rational cylinder wall's enclosure was inside a factor of two of
-//!    the ambient `1024·ε` target when the round cap that preceded the
-//!    work wall ran out, and at a coarse band landed just under it and
-//!    escalated.
-//!    Neither is a statement about the body's orientation, which is
-//!    what check 7 reads, and dm1's enclosure excludes zero at round 0
-//!    at every band. This probe pins where the frontier actually is,
-//!    so a claim that it moved has to be executable too.
+//! 3. **the placement layer is BEHIND the geometry** — dm1's refusal
+//!    is reachable only once every instance's frame was read and
+//!    applied: every component adopts and mints its pcurves (the
+//!    l-bracket witness below imports alone), and what refuses is the
+//!    assembled body's at-rest gate, on the touches between instances.
+//!    This probe pins where the frontier actually is, so a claim that
+//!    it moved has to be executable too.
 //!
 //! Per-instance placement CORRECTNESS (each frame on its own component
 //! and no other) is pinned where a file that IMPORTS can carry it:
@@ -54,9 +41,9 @@
 //! entity-naming check moved into the `TierInvalid` arm below), and
 //! `review_probes_m7_3`'s V6 first-refusal-site probe is retired — it
 //! asserted a strict subset of this row. `tier_gate.rs` still sweeps
-//! the file at three ε_in values and pins all three cells' message
-//! fragments there; they are one fragment now, the arc-rim mint's
-//! (`MapResidual` — the frontier past the `#389` gap #388 retired).
+//! the file at three ambient bands and pins all three cells' message
+//! fragments there; they are one fragment now, the aggregate gate's
+//! unrecorded contact between instances.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
@@ -92,9 +79,8 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
     assert_eq!(breps, 3, "three component representations, seven instances");
 
     // (1) and (3): the disposition — ONE cell at every ambient band
-    // since check 7 stopped selecting a frontier by precision. The
-    // at-rest arm below is kept for the claim inside it, not because a
-    // band reaches it.
+    // since check 7 stopped selecting a frontier by precision: the
+    // at-rest arm below.
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Err(StepImportError::Structure { id, what }) => {
             panic!("the assembly layer must not refuse dm1 any more: #{id} {what}")
@@ -118,33 +104,37 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
                 attempts.len()
             )
         }
-        // **The frontier past the retired gap: the pcurve MINT on the
-        // l-bracket wall's ARC rim** (wall `#382` states its circle as
-        // four rational spans with unnormalized end weights, split at
-        // its C⁰ knots into one-span sub-patches, against three-arc
-        // rational rim circles: the arc-rim pick holds no row at its
-        // probe; the l-bracket witness below pins the same frontier on
-        // the pruned text). Reached only because check 7
-        // certifies a SIGN (the at-rest gate admits every component's
-        // enclosure at round 0) AND `#389` adopts (#388): the two
-        // former frontiers each stood in front of this one.
+        // **The arc rims mint** (a tripwire, not a cell): wall `#382`
+        // states its circle as four rational spans at end weights 1 and
+        // 2, split at its C⁰ knots into one-span sub-patches, and each
+        // sub-patch's row holds its quarter of the rim through the
+        // image's Möbius parameter; the l-bracket witness below imports.
         Err(StepImportError::Pcurves { source, .. }) => {
-            let shown = source.render(geom_brep::recourse::Reading::Build);
-            assert!(
-                shown.contains("not an arc rim of this chart"),
-                "the frontier past the retired gap is the arc-rim pick: {shown}"
-            );
+            panic!(
+                "the l-bracket's arc rims mint on their rows: {}",
+                source.render(geom_brep::recourse::Reading::Build)
+            )
         }
+        // **The frontier: the aggregate gate, on the instances' touches.**
+        // The bolts and nuts sit on the bracket, so vertices of two
+        // instances share a position, and the assembled body's at-rest
+        // gate finds those contacts unrecorded. The gate reads the
+        // whole assembly, so it names no one `MANIFOLD_SOLID_BREP`
+        // (`work/importgate/dm1s-touching-instances-refuse-at-the-aggregate-gate-unrecorded.md`).
         Err(StepImportError::TierInvalid { solid, errors }) => {
-            // Adopted from `wild::wild_refusals_are_typed_and_name_their_class`,
-            // which no longer imports this file. INVARIANT: every
-            // typed refusal points at something in the file a reader
-            // can go and look at — the gate's verdict names the
-            // `MANIFOLD_SOLID_BREP` it was asked about, and carries at
-            // least one kernel verdict inside naming what it is about.
             assert!(
-                solid.is_some_and(|id| id > 0) && !errors.is_empty(),
-                "the refusal must name an entity: solid {solid:?}, verdicts {errors:?}"
+                solid.is_none() && !errors.is_empty(),
+                "dm1's frontier is the aggregate gate: solid {solid:?}, verdicts {errors:?}"
+            );
+            assert!(
+                errors.iter().any(|v| matches!(
+                    v,
+                    topo::ValidationError::UnrecordedContact {
+                        contact: topo::CensusContact::VertexVertex { .. },
+                        ..
+                    }
+                )),
+                "the aggregate gate reads two instances' shared vertex as unrecorded: {errors:?}"
             );
             let shown = StepImportError::TierInvalid { solid, errors }.render();
             assert!(
@@ -306,28 +296,53 @@ fn l_bracket_only(text: &str) -> String {
 /// slit carrier promotes to `Curve3::Line`, and — its control order
 /// being REVERSED against its wall's boundary column, the one such
 /// reversal in the file — it adopts through the column candidate run
-/// backwards. Wall `#382` states its circle as four rational spans with
-/// unnormalized end weights (1 and 2), which the import splits at its
-/// C⁰ knots into one-span sub-patches; no row holds the arc rim, which
-/// mints its `General` image. The first refusal is now the shared
-/// gate's volume: that rational wall reaches the trimmed quadrature
-/// lane, which reads polynomial charts only. At the merge base this same pruned text refused
-/// `Adoption { id: 389, attempts: [] }` — the gap this pins retired.
+/// backwards. Wall `#382` states its circle as four rational spans at
+/// end weights 1 and 2, which the import splits at its C⁰ knots into
+/// one-span sub-patches; each sub-patch's row holds its quarter of the
+/// rim, and the component imports whole, its certified volume holding
+/// its mesh's. At the merge base of #388
+/// this same pruned text refused `Adoption { id: 389, attempts: [] }`.
 #[test]
 fn the_l_bracket_alone_adopts_its_reversed_slit() {
     let text = l_bracket_only(&dm1());
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
+        Ok(step_import::StepImport::Solid { body, .. }) => {
+            let b: &topo::Body<f64> = &body;
+            assert_eq!(
+                (
+                    b.solids().count(),
+                    b.shells().count(),
+                    b.faces().count(),
+                    b.edges().count(),
+                    b.vertices().count()
+                ),
+                (1, 1, 10, 21, 14),
+                "the l-bracket's census (solids, shells, faces, edges, vertices), its \
+                 cylinder wall split into four sub-patches"
+            );
+            // The certified volume against an independent one, the
+            // mesh's: its chords stand off the faces by at most δ, so the
+            // two volumes part by at most δ times the area.
+            let tol = Tol::witness();
+            let e = body
+                .measure(topo::test_support::pinned_resolution::<f64>(tol))
+                .expect("the l-bracket measures")
+                .enclosure;
+            let delta = 1e-5;
+            let m = mesh::tessellate(b, delta, tol).expect("the l-bracket meshes");
+            mesh::validate::check_mesh(&m).expect("the l-bracket's mesh is closed");
+            let v = mesh::validate::signed_volume(&m);
+            let (lo, hi) = (e.volume - e.volume_pad, e.volume + e.volume_pad);
+            let off = delta * (e.surface_area + e.area_pad);
+            assert!(
+                v >= lo - off && v <= hi + off,
+                "the l-bracket's volume [{lo}, {hi}] is its mesh's {v} within δ·A = {off}"
+            );
+        }
         Err(StepImportError::Adoption { id, attempts, .. }) => panic!(
             "the polyline gap must stay retired: edge #{id} refused with {} candidate(s)",
             attempts.len()
         ),
-        Err(StepImportError::TierInvalid { errors, .. }) => {
-            let shown = format!("{errors:?}");
-            assert!(
-                shown.contains("a RATIONAL chart reached the trimmed lane"),
-                "the successor frontier is the trimmed lane's rational chart: {shown}"
-            );
-        }
-        other => panic!("the l-bracket's frontier moved — re-measure: {other:?}"),
+        other => panic!("the l-bracket imports whole — re-measure: {other:?}"),
     }
 }

@@ -21,6 +21,7 @@ pub mod appearance;
 pub mod checks;
 pub mod clearance;
 pub mod coincide;
+pub mod continuation;
 mod decision;
 pub mod diff;
 pub mod distribution;
@@ -143,11 +144,12 @@ pub use eval::measure::ObservedRefusal;
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel, Carry,
     ComputingTwist, ContentBits, ContentKey, DEFAULT_MEMBER_BUDGET, DirectionRefusal, Epoch,
-    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError,
-    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault,
-    Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, SplitSide, Stop, Stopped, ValuePayload,
-    evaluate, traced_faces,
+    EvalCounters, EvalOptions, EvalOutcome, EvalScalar, Evaluation, Framed, Held, NamingKey,
+    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces, ReadIn, SplitSide, Stop,
+    Stopped, ValuePayload, evaluate, traced_faces,
 };
+pub use eval::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged};
 pub use spoken::{
@@ -192,7 +194,8 @@ pub use names::{
     SegTag, SelectRefusal, Selector, Sense, ShortTie, Side, SplitHalf, StableName, SurfaceKindSet,
     TagPat, UnionNameShape, WayShape, all_bodies, all_edges, all_faces, all_vertices, attribute,
     band, band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame,
-    face_carrier_kind, face_frame, leaf_role, meridian_vertex, role_leaf, select, select_where,
+    face_carrier_kind, face_frame, family_entity, leaf_role, member_entity, member_table,
+    meridian_vertex, one_body, role_leaf, select, select_member, select_where, select_where_member,
     vertex_position,
 };
 pub use node::{
@@ -214,8 +217,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    AssembleGather, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
-    assemble_gathers, product, product_named, product_recorded,
+    AssembleGather, Product, ProductError, ProductErrorKind, ProductRefusal, assemble_gathers,
+    product, product_named, product_recorded,
 };
 pub use program::{
     DrawnOn, LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData,

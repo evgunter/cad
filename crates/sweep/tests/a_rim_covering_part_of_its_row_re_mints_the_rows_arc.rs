@@ -43,6 +43,7 @@ fn arc_prism(bulge: f64) -> Body<f64> {
     sweep::loft_body::<f64>(&[profile(), profile()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body
+        .into_body()
 }
 
 /// The three-sub-arc fixture.
@@ -73,7 +74,7 @@ fn params(body: &Body<f64>, edge: EdgeKey) -> (f64, f64) {
 
 /// The body's volume through the at-rest door.
 fn volume(body: &Body<f64>) -> Result<f64, topo::Stop> {
-    let at = topo::AtRestBody::validate(body.clone(), tol()).expect("the body is at rest");
+    let at = topo::finish(body.clone(), tol()).expect("the body is at rest");
     let measured = topo::mass_properties(&at, tol(), topo::test_support::pinned_resolution(tol()))
         .unwrap_or_else(|e| panic!("the body measures: {e:?}"));
     match measured.stop {
@@ -103,6 +104,7 @@ fn arc_row(image: &Pcurve<f64>) -> test_utils::arc_row::ArcRow {
         t0,
         angle,
         breaks,
+        ..
     } = image
     else {
         panic!("an IsoArc row: {image:?}")
@@ -274,7 +276,7 @@ fn a_rim_against_the_charts_u_re_mints_its_pieces() {
     let mut body = arc_prism(1.0);
     let (_, edge, wall, _) = bottom_rim(&body);
     let face = body.get_face(wall).unwrap();
-    let Some(Surface::Nurbs(net)) = body.get_surface(face.surface).cloned() else {
+    let Some(Surface::Nurbs(net)) = body.face_surface(wall).cloned() else {
         panic!("the arc wall is a spline chart")
     };
     // Lifts RechartUnvouched and RechartStrandsDescriptions: the wall

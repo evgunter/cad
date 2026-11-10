@@ -33,12 +33,47 @@
 //! host-language read-out that never re-enters a document.
 
 use editor_core::{
-    BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say,
-    Speaker, ValuePayload,
+    Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say, Speaker,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
-use topo::{AtRestBody, Body};
+use topo::AtRestBody;
+
+/// **Why a body could not be written as it stands in its space's
+/// coordinates**: the kernel refused the rigid map of its frame
+/// ([`body_in_space`]), or the mapped body, which the writer takes as a
+/// finished body ([`editor_core::ReadIn::taken`]), does not finish.
+#[derive(Debug)]
+pub enum ComposeError {
+    /// The kernel refused the rigid map ([`editor_core::in_space`]).
+    Transform(topo::TransformError),
+    /// The mapped body did not finish ([`topo::AtRestPolicy::finish`]).
+    NotFinished(topo::NotFinished),
+}
+
+impl ComposeError {
+    /// This refusal's text, its nested refusal ended at the door `at`
+    /// where it is `Some`; `None` writes the payload alone.
+    fn write(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        at: Option<geom_brep::recourse::ReadAt>,
+    ) -> core::fmt::Result {
+        use geom_brep::recourse::read_at;
+        match self {
+            Self::Transform(e) => write!(f, "{}", read_at(e, at)),
+            Self::NotFinished(findings) => write!(
+                f,
+                "the mapped body is not a finished body: {}",
+                read_at(findings, at)
+            ),
+        }
+    }
+}
+
+geom_brep::ended_by_write!(ComposeError);
+
+impl core::error::Error for ComposeError {}
 
 /// Why [`step_for_node`] refused. Fail-loud and typed, D2-style; the
 /// standing carries the ids to ask the caller's own [`Evaluation`] for
@@ -55,7 +90,7 @@ pub enum ExportError {
         /// The node whose value was refused.
         node: RecipeNodeId,
         /// The value's kind, from the kernel's own
-        /// [`ValuePayload::kind_name`].
+        /// [`editor_core::ValuePayload::kind_name`].
         kind: &'static str,
     },
     /// The node's Boolean produced an empty result — nothing to
@@ -64,19 +99,9 @@ pub enum ExportError {
         /// The node whose Boolean came up empty.
         node: RecipeNodeId,
     },
-    /// The node's body fails the at-rest gate
-    /// ([`topo::AtRestBody::validate`]), so it is not a finished body
-    /// and the writer is not handed it.
-    BodyInvalid {
-        /// The node whose body was refused.
-        node: RecipeNodeId,
-        /// The gate's findings, verbatim.
-        errors: Vec<topo::ValidationError>,
-    },
-    /// The body could not be composed into its space's coordinates: the
-    /// kernel refused the rigid map of its frame
-    /// ([`editor_core::in_space`]).
-    Compose(topo::TransformError),
+    /// The body could not be composed into its space's coordinates
+    /// ([`body_in_space`]).
+    Compose(ComposeError),
     /// The body was denoted but the STEP writer refused it.
     Step(StepExportError),
     /// The whole-document door's gather refused: an empty world
@@ -103,17 +128,6 @@ impl Say for ExportError {
                     by.node(*node)
                 )
             }
-            ExportError::BodyInvalid { node, errors } => write!(
-                f,
-                "export: {}'s body is not at rest ({} finding(s), first: {})",
-                by.node(*node),
-                errors.len(),
-                // The export reads a body at rest.
-                errors.first().map_or_else(
-                    || "none".to_owned(),
-                    |e| e.render(geom_brep::recourse::Reading::AtRest)
-                )
-            ),
             // The composition is a map the export runs: a build.
             ExportError::Compose(e) => write!(
                 f,
@@ -160,10 +174,12 @@ impl core::error::Error for ExportError {}
 ///
 /// # Errors
 ///
-/// Every arm of [`ExportError`]: the evaluation-side refusals above, or
-/// [`ExportError::BodyInvalid`] for a body the at-rest gate refuses, or
-/// [`ExportError::Step`] carrying the writer's own refusal. A body is
-/// written in its space's coordinates, as it stands there.
+/// Every arm of [`ExportError`]: the evaluation-side refusals above,
+/// [`ExportError::Compose`] for a body that could not be read into its
+/// space, or [`ExportError::Step`] carrying the writer's own refusal. A
+/// body is written in its space's coordinates, as it stands there; it
+/// is finished already (a value holds the scalar's finished body), so
+/// the door gates nothing of its own.
 pub fn step_for_node(
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
@@ -171,28 +187,28 @@ pub fn step_for_node(
     tol: Tol,
 ) -> Result<String, ExportError> {
     let value = evaluation.usable(node).map_err(ExportError::Standing)?;
-    let body = match &value.payload {
-        ValuePayload::Body(body) => body,
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        ValuePayload::Boolean(BooleanValue::Empty) => {
-            return Err(ExportError::EmptyBoolean { node });
-        }
-        other => {
+    let body = match value.payload.one_body() {
+        Some(Some(body)) => body,
+        Some(None) => return Err(ExportError::EmptyBoolean { node }),
+        None => {
             return Err(ExportError::NotABody {
                 node,
-                kind: other.kind_name(),
+                kind: value.payload.kind_name(),
             });
         }
     };
-    let body = body_in_space(body, tol).map_err(ExportError::Compose)?;
-    let body = AtRestBody::validate(Body::clone(&body), tol)
-        .map_err(|errors| ExportError::BodyInvalid { node, errors })?;
+    let body = body_in_space(body, tol)
+        .map_err(ExportError::Compose)?
+        .taken(tol)
+        .map_err(|findings| ExportError::Compose(ComposeError::NotFinished(findings)))?;
     step_string(&body, options, tol).map_err(ExportError::Step)
 }
 
 /// **A body value as it stands in its space**, the façade's read-out
-/// door: the body composed through [`editor_core::in_space`], shared
-/// as it is where it is in its space's coordinates already.
+/// door: the body composed through [`editor_core::in_space`], read as
+/// construction state ([`editor_core::ReadIn::Mapped`]) that a writer
+/// needing a finished body finishes ([`editor_core::ReadIn::taken`]);
+/// shared as it is where it is in its space's coordinates already.
 ///
 /// A read-out is an export in D10 `[placement.world]`'s sense: what it
 /// answers (a host-language body, its points and measures) has no way
@@ -201,15 +217,17 @@ pub fn step_for_node(
 ///
 /// # Errors
 ///
-/// [`topo::TransformError`] when the kernel refuses the frame's rigid
+/// [`ComposeError::Transform`] when the kernel refuses the frame's rigid
 /// map.
 pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
     body: &editor_core::Framed<T>,
     tol: Tol,
-) -> Result<std::sync::Arc<Body<T>>, topo::TransformError> {
+) -> Result<editor_core::ReadIn<T>, ComposeError> {
     match editor_core::in_space(body) {
-        None => Ok(std::sync::Arc::clone(body.shared())),
-        Some(map) => topo::transform_rigid(body.body(), &map, tol).map(std::sync::Arc::new),
+        None => Ok(editor_core::ReadIn::Held(body.holding().clone())),
+        Some(map) => topo::transform_rigid(body.body(), &map, tol)
+            .map(|mapped| editor_core::ReadIn::Mapped(std::sync::Arc::new(mapped)))
+            .map_err(ComposeError::Transform),
     }
 }
 
@@ -223,25 +241,28 @@ pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
 /// # Errors
 ///
 /// [`ProductError::Frame`] naming the operation `doc`'s product slot
-/// reads, when the kernel refuses the frame's rigid map: the one place
-/// a composed product's refusal is built.
+/// reads, when the kernel refuses the frame's rigid map, or
+/// [`ProductError::ProductInvalid`] when the mapped aggregate does not
+/// finish: the one place a composed product's refusal is built.
 pub fn product_body_in_space<'p>(
     product: &'p editor_core::Product<f64>,
     doc: &ProfileDoc,
     tol: Tol,
-) -> Result<std::borrow::Cow<'p, Body<f64>>, ProductError> {
+) -> Result<std::borrow::Cow<'p, AtRestBody<f64>>, ProductError> {
     let Some(map) = editor_core::in_space(product) else {
         return Ok(std::borrow::Cow::Borrowed(&product.body));
     };
-    topo::transform_rigid(&product.body, &map, tol)
-        .map(std::borrow::Cow::Owned)
-        .map_err(|error| ProductError::Frame {
+    let mapped =
+        topo::transform_rigid(&product.body, &map, tol).map_err(|error| ProductError::Frame {
             node: doc
                 .product()
                 .and_then(|var| doc.operation_of(var))
                 .unwrap_or_else(|| unreachable!("a gathered product reads an operation")),
             kind: Box::new(editor_core::NodeErrorKind::Transform(error)),
-        })
+        })?;
+    topo::finish(mapped, tol)
+        .map(std::borrow::Cow::Owned)
+        .map_err(|findings| ProductError::ProductInvalid { findings })
 }
 
 /// **A pick index's mesh as it stands in its space**, the read-out a
@@ -291,15 +312,6 @@ pub fn export_document_step(
         editor_core::product_recorded(doc, evaluation, tol).map_err(ExportError::Product)?;
     // The product is in the frame its gather computed in; it is written
     // in the world's coordinates.
-    match product_body_in_space(&product, doc, tol).map_err(ExportError::Product)? {
-        std::borrow::Cow::Borrowed(_) => {
-            step_string(&product.body, options, tol).map_err(ExportError::Step)
-        }
-        std::borrow::Cow::Owned(body) => {
-            let body = AtRestBody::validate(body, tol).map_err(|errors| {
-                ExportError::Product(editor_core::ProductError::ProductInvalid { errors })
-            })?;
-            step_string(&body, options, tol).map_err(ExportError::Step)
-        }
-    }
+    let body = product_body_in_space(&product, doc, tol).map_err(ExportError::Product)?;
+    step_string(&body, options, tol).map_err(ExportError::Step)
 }

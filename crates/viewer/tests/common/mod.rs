@@ -824,7 +824,10 @@ pub fn drawn_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     drawn_copies(doc)
         .into_iter()
-        .map(|placement| viewer::world::seat_of(doc, placement))
+        .map(|placement| {
+            viewer::world::copy_source(doc, placement, 0)
+                .map_or(placement, |source| source.operation)
+        })
         .collect()
 }
 
@@ -837,16 +840,26 @@ pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 ///
 /// # Panics
 ///
-/// Unless exactly one placement places `body`.
+/// Unless exactly one world placement places `body`.
 pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
     // An instance is a placement: its copies are drawn on it.
     if matches!(doc.node(body), Some(Node::InstantiatePart { .. })) {
         return body;
     }
-    let [copy] = viewer::world::placements_of(doc, body)[..] else {
-        panic!("{body:?} is placed once")
+    let [copy] = world_placements(doc, body)[..] else {
+        panic!("{body:?} is placed into the world once")
     };
     copy
+}
+
+/// **The placements of `body` into the world**, in document order: the
+/// copies of it ([`viewer::world::placements_of`]) whose copy stands
+/// there ([`viewer::world::world_copy`]).
+pub fn world_placements(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> Vec<RecipeNodeId> {
+    viewer::world::placements_of(doc, body)
+        .into_iter()
+        .filter(|&copy| viewer::world::world_copy(doc, copy).is_some())
+        .collect()
 }
 
 /// **`body`'s one world copy, placed by hand where nothing copies it**:
@@ -859,7 +872,7 @@ pub fn world_copy(
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    match viewer::world::placements_of(doc, body)[..] {
+    match world_placements(doc, body)[..] {
         [] if !matches!(doc.node(body), Some(Node::InstantiatePart { .. })) => {
             inserted(doc, world_place(pncad::document::Operand::Node(body)), tol)
         }
@@ -896,7 +909,7 @@ pub fn world_copy_in(
     session.pump();
     let doc = session.committed_doc();
     let placed = matches!(doc.node(body), Some(Node::InstantiatePart { .. }))
-        || !viewer::world::placements_of(doc, body).is_empty();
+        || !world_placements(doc, body).is_empty();
     if !placed {
         let outcome = session.perform(SessionOp::AddToProduct {
             node: body,
@@ -939,7 +952,7 @@ pub fn world_copy_by_hand_in(
 ///
 /// Where several placements copy `node`: the row has to say which.
 pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
-    match viewer::world::placements_of(doc, node)[..] {
+    match world_placements(doc, node)[..] {
         [] => node,
         [copy] => copy,
         _ => panic!("{node:?} is copied more than once: say which copy"),
@@ -1018,7 +1031,7 @@ pub fn recount_op(session: &DocSession, family: RecipeNodeId, count: i64) -> Ses
     }
 }
 
-/// **The placement editor's Apply for `tool`**, its active row chosen as
+/// **The placement editor's bundle for `tool`**, its active row chosen as
 /// `choice` says, derived against `session`'s landed pair.
 ///
 /// # Panics
@@ -1035,16 +1048,22 @@ pub fn proposed(
         .proposal(doc, ev, session.tol())
 }
 
-/// **The Transform tool, as a person drives it**: the placement editor
-/// opened on `node` by the tool's door
-/// ([`viewer::matetool::MateTool::moving`]), each of `values` typed on
-/// its value row, and its Apply — the Create door's `Place` on a body
-/// nothing places, the Edit door's `SetBundle` on a copy. Pumps first:
-/// the editor derives its Apply against the landed pair.
+/// **The Transform tool, through the doors a person's clicks take**:
+/// the placement editor opened on `node` by the tool's door
+/// ([`viewer::matetool::MateTool::moving`]) — on a body picked as
+/// itself, its Place performed and the editor opened on the placement
+/// it made — each of `values` typed on its value row as one change (the
+/// fields a person commits before the picture answers are offered
+/// together), and that change offered to the session's door as the
+/// panel offers it ([`viewer::matetool::MateTool::offer`],
+/// `DocSession::bundle_door`): the `SetBundle` it answers, not yet
+/// performed. Pumps first: the editor derives its bundle against the
+/// landed pair.
 ///
 /// # Panics
 ///
-/// Where the door does not open or the draft proposes no Apply.
+/// Where the door does not open, the Place refuses, or the door
+/// refuses the change.
 pub fn transformed(
     session: &mut DocSession,
     node: RecipeNodeId,
@@ -1055,6 +1074,8 @@ pub fn transformed(
 
 /// [`transformed`] of the output `body` of `node` a viewport pick hit —
 /// a split's half.
+// The door answers the session's own `Refusal`, whatever its width.
+#[allow(clippy::result_large_err)]
 pub fn transformed_at(
     session: &mut DocSession,
     node: RecipeNodeId,
@@ -1063,15 +1084,31 @@ pub fn transformed_at(
 ) -> SessionOp {
     session.pump();
     let tol = session.tol();
-    let (doc, ev) = session.landed_pair().expect("landed");
+    let (doc, _) = session.landed_pair().expect("landed");
     let mut tool = viewer::matetool::MateTool::moving(doc, node, body)
         .unwrap_or_else(|event| panic!("the Transform tool opens on {node:?}: {event}"));
+    if let Some(place) = tool.take_place() {
+        let placement = placed_by(session, place);
+        tool.placed(session.committed_doc(), placement);
+    }
+    let (doc, ev) = session.landed_pair().expect("landed");
     for (coord, by) in values {
         tool.type_value(coord.clone(), by.clone());
     }
-    tool.proposal(doc, ev, tol)
-        .unwrap_or_else(|error| panic!("the draft proposes an Apply: {error}"))
-        .op()
+    let mut refused = None;
+    let op = tool.offer(doc, ev, tol, |op| {
+        let verdict = session.bundle_door(op);
+        if let Err(refusal) = &verdict {
+            refused = Some(refusal.to_string());
+        }
+        verdict
+    });
+    op.unwrap_or_else(|| {
+        panic!(
+            "the door takes the change: {}",
+            refused.unwrap_or_else(|| format!("{:?}", tool.pending()))
+        )
+    })
 }
 
 /// **The three slides the Transform tool types**, each zero the constant
@@ -1085,15 +1122,47 @@ pub fn slides(by: [f64; 3]) -> Vec<(pncad::document::Coord<pncad::document::Oper
 }
 
 /// **`node` moved by the Transform tool to the slides `by`**, its other values
-/// as the door loads them, and the placement it wrote: the new copy a
-/// Create inserts, or the copy an Edit rewrote.
+/// as the door loads them, and the placement it wrote: the copy a Place
+/// made of a body, or the copy whose placement it edited.
 pub fn moved_to(session: &mut DocSession, node: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
     let op = transformed(session, node, &slides(by));
-    let edited = match &op {
-        SessionOp::SetBundle { placement, .. } => Some(*placement),
-        _ => None,
+    let SessionOp::SetBundle { placement, .. } = &op else {
+        panic!("the editor writes a bundle: {op:?}")
     };
+    let placement = *placement;
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    edited.unwrap_or_else(|| outcome.made.expect("the Create door made a copy"))
+    placement
+}
+
+/// **Place `body` and open the placement editor on what it made**, as a
+/// pick on the body as itself does: the Place performed and pumped, and
+/// the editor on the placement, no mate row. Answers the editor and the
+/// placement.
+///
+/// # Panics
+///
+/// Where the Place refuses.
+pub fn place_and_edit(
+    session: &mut DocSession,
+    body: pncad::document::Operand,
+) -> (viewer::matetool::MateTool, RecipeNodeId) {
+    let placement = placed_by(session, SessionOp::Place { body });
+    let mut tool = viewer::matetool::MateTool::new();
+    tool.placed(session.committed_doc(), placement);
+    (tool, placement)
+}
+
+/// **`op`, a `SessionOp::Place`, performed and pumped**: the placement
+/// it made.
+///
+/// # Panics
+///
+/// Where the Place refuses.
+pub fn placed_by(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+    assert!(matches!(op, SessionOp::Place { .. }), "a Place: {op:?}");
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    outcome.made.expect("a Place makes its placement")
 }

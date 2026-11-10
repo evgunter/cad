@@ -40,6 +40,7 @@ fn tube_donut() -> Body<f64> {
     )
     .expect("the tube-door donut builds")
     .body
+    .into_body()
 }
 
 /// The revolve-door donut of the same torus (the corpus `donut()`
@@ -59,6 +60,7 @@ fn revolve_donut() -> Body<f64> {
     revolve::<f64>(&vp, axis, Revolution::Full, Tol::witness())
         .expect("the revolve donut builds")
         .body
+        .into_body()
 }
 
 fn census(body: &Body<f64>) -> (usize, usize, usize, usize) {
@@ -98,14 +100,14 @@ fn tube_donut_matches_the_revolve_donut() {
 fn tube_minor_radius_is_stored_bit_exact() {
     let tube = tube_donut();
     let mut tori = 0usize;
-    for (_, face) in tube.faces() {
+    for (fk, _) in tube.faces() {
         let Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             u_ref,
-        } = tube.get_surface(face.surface).expect("surface resolves")
+        } = tube.face_surface(fk).expect("surface resolves")
         else {
             continue;
         };
@@ -137,7 +139,7 @@ fn tube_minor_radius_is_stored_bit_exact() {
     let rev = revolve_donut();
     let rev_minor = rev
         .faces()
-        .find_map(|(_, f)| match rev.get_surface(f.surface) {
+        .find_map(|(fk, _)| match rev.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })

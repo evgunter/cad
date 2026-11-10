@@ -40,6 +40,17 @@ pub enum PinRefusal {
         /// The node.
         node: RecipeNodeId,
     },
+    /// A member read's index is an expression: a frame is read at
+    /// counts written in the document (a count literal, or a free
+    /// count), never at a value an evaluation gives.
+    UnwrittenIndex,
+    /// The family has no member at the index values read (`xs[i]`).
+    NoMember {
+        /// The family's node.
+        node: RecipeNodeId,
+        /// The index values.
+        member: Vec<u32>,
+    },
 }
 
 impl core::fmt::Display for PinRefusal {
@@ -57,6 +68,14 @@ impl core::fmt::Display for PinRefusal {
                 "{node} has no line edge between the corners named and no vertex at the \
                  third, so no frame is read off it there; read a frame off corners it has"
             ),
+            Self::UnwrittenIndex => f.write_str(
+                "the member is read at an index written as an expression, and a frame is \
+                 read at counts the document holds; write the index as a count or a free \
+                 count",
+            ),
+            Self::NoMember { node, member } => {
+                write!(f, "{node} has no member at {member:?}")
+            }
         }
     }
 }
@@ -102,6 +121,33 @@ pub(crate) fn read_of(
     evaluation: &Evaluation<f64>,
     body: &Operand,
 ) -> Result<ReadBody, PinRefusal> {
+    read_in(doc, evaluation, body, None)
+}
+
+/// [`read_of`] of one member of a family, `xs[i]` at counts the
+/// document holds (REFERENCES DM3): that member's body, in its own
+/// names, and its motion. A plain read is [`read_of`]'s. An index
+/// written as an expression refuses `UnwrittenIndex`; a member the
+/// family does not have, `NoMember`.
+pub(crate) fn read_of_member(
+    doc: &crate::ProfileDoc,
+    evaluation: &Evaluation<f64>,
+    body: &crate::BodyRead<crate::Formula>,
+) -> Result<ReadBody, PinRefusal> {
+    if !body.is_indexed() {
+        return read_of(doc, evaluation, &body.read);
+    }
+    let member = body.written_member(doc).ok_or(PinRefusal::UnwrittenIndex)?;
+    read_in(doc, evaluation, &body.read, Some(&member))
+}
+
+/// [`read_of`] of `body`, or of its member at `member`.
+fn read_in(
+    doc: &crate::ProfileDoc,
+    evaluation: &Evaluation<f64>,
+    body: &Operand,
+    member: Option<&[u32]>,
+) -> Result<ReadBody, PinRefusal> {
     let node = match body {
         Operand::Output { node, .. } | Operand::Node(node) => *node,
         Operand::Var(var) => doc.operation_of(*var).ok_or(PinRefusal::NoNode)?,
@@ -110,17 +156,30 @@ pub(crate) fn read_of(
     let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
-    // A family is read through its first member, in that member's own
-    // names: what a reader evaluated once per member reads at each
-    // (D10 `[repetition]`).
-    if let Some(members) = &value.members {
-        let (_, first) = members
-            .members
-            .first()
+    if let Some(member) = member {
+        let (_, _, own) =
+            crate::names::interrogate::member_value(evaluation, crate::At::Node(node), member)
+                .ok_or_else(|| PinRefusal::NoMember {
+                    node,
+                    member: member.to_vec(),
+                })?;
+        let solid = own
+            .payload
+            .one_body()
+            .flatten()
             .ok_or(PinRefusal::NotABody { node })?;
-        let (ValuePayload::Body(solid)
-        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: solid, .. })) =
-            &first.payload
+        let table = own.output(0).ok_or(PinRefusal::NotABody { node })?.table();
+        return Ok((node, solid.clone(), table.clone(), own.motion));
+    }
+    // A family is read through its first member that is a body, in that
+    // member's own names: the names a reader evaluated once per member
+    // reads at each (D10 `[repetition]`), which any member spells. An
+    // empty member is refused where that reader is evaluated at it.
+    if let Some(members) = &value.members {
+        let Some((first, solid)) = members
+            .members
+            .iter()
+            .find_map(|(_, member)| Some((member, member.payload.one_body()??)))
         else {
             return Err(PinRefusal::NotABody { node });
         };
@@ -138,14 +197,12 @@ pub(crate) fn read_of(
         },
         _ => 0,
     };
-    let solid = match &value.payload {
-        ValuePayload::Body(b)
-        | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: b, .. }) => b.clone(),
-        ValuePayload::Instances(bodies) => bodies
-            .first()
-            .cloned()
-            .ok_or(PinRefusal::NotABody { node })?,
-        ValuePayload::Split { above, below } => {
+    let solid = match (value.payload.one_body(), &value.payload) {
+        (Some(body), _) => body.cloned().ok_or(PinRefusal::NotABody { node })?,
+        (None, ValuePayload::Instances(_)) => {
+            unreachable!("family {node:?} keeps no members")
+        }
+        (None, ValuePayload::Split { above, below }) => {
             let half = crate::names::SplitHalf::of_output_body(u32::from(port))
                 .ok_or(PinRefusal::NotABody { node })?;
             let side = if half == crate::names::SplitHalf::Above {
@@ -213,7 +270,7 @@ pub fn corner_frame_in(
             .find(|(v, _)| {
                 topo::readback::vertex_point(solid, *v)
                     .map(|q| framed.point_in_space(q))
-                    .is_ok_and(|q| [q.x, q.y, q.z] == [p.x, p.y, p.z])
+                    .is_ok_and(|q| q.equals_exactly(p))
             })
             .map(|(v, _)| v)
     };
@@ -225,12 +282,9 @@ pub fn corner_frame_in(
         .edges()
         .find(|(e, _)| {
             topo::readback::edge_carrier_ref(solid, *e).is_ok_and(|c| !c.is_curved())
-                && solid.get_edge(*e).is_some_and(|edge| {
-                    let start = solid.get_half_edge(edge.he_plus).map(|h| h.start);
-                    let end = solid.half_edge_end(edge.he_plus);
-                    matches!((start, end), (Some(a), Some(b))
-                        if (a == from && b == to) || (a == to && b == from))
-                })
+                && solid
+                    .edge_vertices(*e)
+                    .is_some_and(|(a, b)| (a == from && b == to) || (a == to && b == from))
         })
         .map(|(e, _)| e)
         .ok_or_else(no_frame)?;

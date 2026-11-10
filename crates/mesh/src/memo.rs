@@ -743,13 +743,13 @@ impl FaceInputs {
         tol: Tol,
     ) -> Result<Self, TessellateError> {
         let face = body
-            .get_face(fk)
+            .face(fk)
             .ok_or(TessellateError::MissingEntity { what: "face" })?;
-        let mut loops = Vec::with_capacity(1 + face.rings.len());
+        let mut loops = Vec::new();
         // Split-lineage roots relabeled by first occurrence over the
         // whole face, the way the chord ids are.
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lk, _, _) in face.loops() {
             let walk = loop_half_edges(body, lk, fk)?;
             // Each half-edge's image as the loop's lift places it — what
             // the trimmed lane walks (`topo::Body::loop_lift`); none for
@@ -810,7 +810,7 @@ impl FaceInputs {
             eps: ambient.eps,
             k: ambient.k,
             surface: surface.clone(),
-            sense: face.sense,
+            sense: face.sense(),
             loops,
         })
     }
@@ -1140,6 +1140,7 @@ impl KeyWriter {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => {
                 self.u8(4);
                 self.p2(*p0);
@@ -1147,6 +1148,10 @@ impl KeyWriter {
                 self.f64(*t0);
                 self.f64(*angle);
                 self.knots(breaks);
+                self.len(ends.len());
+                for &e in ends {
+                    self.f64(e);
+                }
             }
             Pcurve::Spiric {
                 major,

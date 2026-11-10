@@ -15,9 +15,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanValue, Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand,
-    ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, ValuePayload, VarId,
-    VarName,
+    Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
+    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, VarId, VarName,
 };
 use std::path::{Path, PathBuf};
 
@@ -91,8 +90,9 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
 
 /// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
 /// node named alone, and for a port the kind of the variable it names
-/// (a split's half is a body) — the gate every body seat's commit asks
-/// of the read it holds.
+/// (a split's half is a body), a family being, as [`admits`] reads it,
+/// a variable evaluated once per member or a `Bodies` one — the gate
+/// every body seat's commit asks of the read it holds.
 pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
     use pncad::document::{SlotKind, VarKind};
     let var = match read {
@@ -104,8 +104,14 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Pick { .. } => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
+    let repeats = |var: pncad::document::VarId| {
+        doc.var_reach(var)
+            .chain()
+            .is_some_and(|chain| !chain.is_empty())
+    };
     let kind = match wanted {
         NodeKindWanted::Body => VarKind::Body,
+        NodeKindWanted::Instances if var.is_some_and(repeats) => return true,
         NodeKindWanted::Instances => VarKind::Bodies,
         NodeKindWanted::Profile => return false,
     };
@@ -304,9 +310,17 @@ pub enum Refusal {
         /// The read, as the session op held it.
         read: Box<Operand>,
     },
-    /// A duplicate could not be placed — its input's landed value is
-    /// not one body with a width ([`combine::DuplicateFault`]).
-    Duplicate(combine::DuplicateFault),
+    /// Entities picked on a drawn family are read in no one member of
+    /// it: a selection reads one body (REFERENCES DM3), and the picks lie
+    /// in two members, or in none the landed evaluation finds.
+    PickedMember {
+        /// The family, as the document held it at the refusal.
+        node: SpokenNode,
+    },
+    /// The step that clears a body could not be measured — its input's
+    /// landed value is not one body with a width
+    /// ([`combine::StepClearFault`]).
+    StepClear(combine::StepClearFault),
     /// A gesture's frame could not be made: one of its numbers is not
     /// of its dimension or does not evaluate, its direction is none, or
     /// the body it reads the frame off offers no geometry to read
@@ -415,27 +429,34 @@ pub enum Refusal {
         /// The profile node, as the document held it at the refusal.
         node: SpokenNode,
     },
-    /// The placement editor's draft was loaded from a bundle the
-    /// placement no longer holds: it is not written over the one it
-    /// holds.
+    /// A bundle was drafted over one the placement no longer holds (an
+    /// undo, a redo, an edit from elsewhere): it is not written over the
+    /// one it holds.
     BundleStale {
         /// The placement, as the document held it at the refusal.
         node: SpokenNode,
     },
-    /// The placement editor's Create door was asked to place a body a
-    /// placement already copies: a placed body moves by that copy's
-    /// Edit door, and is never placed a second time by the door.
-    BodyPlaced {
-        /// The body, as the document held it at the refusal.
-        body: SpokenNode,
-        /// The copy whose Edit door moves it.
-        copy: SpokenNode,
-    },
-    /// The placement editor's Create door was asked to place a copy (a
-    /// placement or an instance): a copy moves by its own Edit door.
-    CreateOnACopy {
+    /// Place was asked of a copy (a placement or an instance): a copy is
+    /// edited by its own placement.
+    PlaceOnACopy {
         /// The copy, as the document held it at the refusal.
         copy: SpokenNode,
+    },
+    /// A re-point of a body's placements asked of a body nothing places
+    /// ([`super::SessionOp::RepointPlacements`]).
+    NothingPlaced {
+        /// The body, as the document held it at the refusal.
+        body: SpokenVar,
+    },
+    /// **A delete that cannot splice** (DM6,
+    /// `editor_core::continuation::SpliceFault`): one member of a family
+    /// would land where no edit writes one.
+    Unspliced {
+        /// The reader that would be handed the member, or the deleted
+        /// node, as the document held it at the refusal.
+        node: SpokenNode,
+        /// Which.
+        fault: editor_core::continuation::SpliceFault,
     },
     /// The tree's `remove` asked of a value: a freedom is always set,
     /// and its only edit is its number.
@@ -445,9 +466,9 @@ pub enum Refusal {
     },
     /// The placement editor could not derive a bundle from its draft.
     Draft(Box<crate::matetool::MateToolError>),
-    /// The placement editor's Apply would place a copy that does not
+    /// The placement editor's bundle would place a copy that does not
     /// stand: its placement's fault, or `None` where what it reads does
-    /// not evaluate. It is withheld, and the draft stays open.
+    /// not evaluate. It is not written, and the editor holds the draft.
     PlacementFails {
         /// The fault the placement would evaluate to.
         fault: Option<Box<pncad::document::MateFault>>,
@@ -492,13 +513,17 @@ impl Refusal {
                 node: again(node),
                 wanted,
             },
+            Self::PickedMember { node } => Self::PickedMember { node: again(node) },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
             Self::BundleStale { node } => Self::BundleStale { node: again(node) },
-            Self::BodyPlaced { body, copy } => Self::BodyPlaced {
-                body: again(body),
-                copy: again(copy),
+            Self::PlaceOnACopy { copy } => Self::PlaceOnACopy { copy: again(copy) },
+            Self::NothingPlaced { body } => Self::NothingPlaced {
+                body: body.respoken(doc),
             },
-            Self::CreateOnACopy { copy } => Self::CreateOnACopy { copy: again(copy) },
+            Self::Unspliced { node, fault } => Self::Unspliced {
+                node: again(node),
+                fault,
+            },
             Self::ValueNotRemoved { node } => Self::ValueNotRemoved { node: again(node) },
             Self::Draft(error) => Self::Draft(Box::new(error.respoken(doc))),
             Self::PlacementFails { fault } => Self::PlacementFails { fault },
@@ -514,7 +539,6 @@ impl Refusal {
             Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
             Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
             Self::OfferIsNamed(var) => Self::OfferIsNamed(var.respoken(doc)),
-            Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
             Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
             Self::Edit(error) => Self::Edit(Box::new(error.respoken(doc))),
@@ -531,6 +555,7 @@ impl Refusal {
                 current,
                 notation,
             },
+            Self::StepClear(fault) => Self::StepClear(fault.respoken(doc)),
             unspoken @ (Self::NoSuchVariable(_)
             | Self::NotABodyRead { .. }
             | Self::EmptyName
@@ -565,8 +590,9 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::PickedMember { .. }
             | Self::NotABodyRead { .. }
-            | Self::Duplicate(_)
+            | Self::StepClear(_)
             | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -582,8 +608,9 @@ impl Refusal {
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
-            | Self::BodyPlaced { .. }
-            | Self::CreateOnACopy { .. }
+            | Self::PlaceOnACopy { .. }
+            | Self::NothingPlaced { .. }
+            | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -618,8 +645,9 @@ impl Refusal {
             | Self::OfferIsNamed(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::PickedMember { .. }
             | Self::NotABodyRead { .. }
-            | Self::Duplicate(_)
+            | Self::StepClear(_)
             | Self::Frame(_)
             | Self::Edit(_)
             | Self::Dimension(_)
@@ -630,8 +658,9 @@ impl Refusal {
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
             | Self::BundleStale { .. }
-            | Self::BodyPlaced { .. }
-            | Self::CreateOnACopy { .. }
+            | Self::PlaceOnACopy { .. }
+            | Self::NothingPlaced { .. }
+            | Self::Unspliced { .. }
             | Self::ValueNotRemoved { .. }
             | Self::Draft(_)
             | Self::PlacementFails { .. }
@@ -921,6 +950,11 @@ impl Refusal {
             Self::WrongNodeKind { node, wanted } => {
                 write!(f, "{node} is not {} in this document", wanted.name())
             }
+            Self::PickedMember { node } => write!(
+                f,
+                "{node} is a family, and a selection reads one body: pick on one drawn member \
+                 of it, once the document has landed"
+            ),
             Self::NotABodyRead { read } => match &**read {
                 Operand::Name(name) => write!(f, "no variable is named {name} in this document"),
                 _ => f.write_str(
@@ -932,7 +966,7 @@ impl Refusal {
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
-            Self::Duplicate(fault) => {
+            Self::StepClear(fault) => {
                 write!(f, "{}", pncad::geom_brep::recourse::read_at(fault, at))
             }
             Self::Frame(fault) => write!(f, "{fault}"),
@@ -961,16 +995,40 @@ impl Refusal {
                 "{node}'s bundle changed since the editor loaded it; the editor's draft was not \
                  written — the editor now shows the bundle as it is"
             ),
-            Self::BodyPlaced { body, copy } => write!(
+            Self::PlaceOnACopy { copy } => write!(
                 f,
-                "{body} is placed by {copy}; move it by {copy}'s placement (the placement \
-                 editor's Edit door), not by a second copy"
+                "{copy} is a copy; move it by its own placement in the placement editor, not \
+                 by a copy of it"
             ),
-            Self::CreateOnACopy { copy } => write!(
-                f,
-                "{copy} is a copy; move it by its own placement (the placement editor's Edit \
-                 door), not by a copy of it"
-            ),
+            Self::Unspliced { node, fault } => match fault {
+                editor_core::continuation::SpliceFault::MemberAtSeat { .. } => write!(
+                    f,
+                    "deleting this would hand {node} one member of a family at a seat that \
+                     reads a whole body, which no edit can write; delete or re-point {node} \
+                     first"
+                ),
+                editor_core::continuation::SpliceFault::MemberAtProduct => write!(
+                    f,
+                    "deleting {node} would hand the product one member of a family, and the \
+                     product reads a whole body; set the product first"
+                ),
+                editor_core::continuation::SpliceFault::MemberOfAMember { .. } => write!(
+                    f,
+                    "deleting this would hand a reader of one member of {node} a member of a \
+                     member, which no read spells; delete that reader first"
+                ),
+                editor_core::continuation::SpliceFault::ContinuationCycle { .. } => write!(
+                    f,
+                    "the delete's continuations came back to {node}, which an acyclic recipe \
+                     cannot do; nothing was deleted"
+                ),
+            },
+            Self::NothingPlaced { body } => {
+                write!(
+                    f,
+                    "nothing places {body}, so there is no placement to re-point"
+                )
+            }
             Self::ValueNotRemoved { node } => write!(
                 f,
                 "a value of {node} sets a freedom its mates leave, and a freedom is always set; \
@@ -1113,37 +1171,6 @@ impl core::fmt::Display for GestureFrameFault {
 }
 
 impl core::error::Error for GestureFrameFault {}
-
-/// **The one body an evaluated value IS, if it is one** — the
-/// evaluator's single-body operand door (`eval::wire::read_body`)
-/// asked of a value the viewer is holding.
-///
-/// The same two shapes that door takes: a `Body` payload, or a
-/// boolean's non-empty result. Everything else — a split's two sides,
-/// a pattern's or a placer's instances, a profile — is a
-/// value it refuses `WrongOperand`.
-///
-/// **Not [`crate::combine::denotes_body`]**, which answers the
-/// narrower question a body SEAT asks, off the node vocabulary alone,
-/// before any value exists. A seat that has an evaluation in hand can
-/// ask the door's own question instead of a predicate that tracks it.
-///
-/// Its reader is the duplicate door (`crate::combine::duplicate_step`),
-/// which measures the body it hands back.
-pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&pncad::document::Framed<f64>> {
-    match payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            Some(body)
-        }
-        ValuePayload::Boolean(BooleanValue::Empty)
-        | ValuePayload::Profile(_)
-        | ValuePayload::Split { .. }
-        | ValuePayload::Instances(_)
-        | ValuePayload::Family
-        | ValuePayload::Measure { .. }
-        | ValuePayload::Assertion(_) => None,
-    }
-}
 
 #[cfg(test)]
 mod version_offer {

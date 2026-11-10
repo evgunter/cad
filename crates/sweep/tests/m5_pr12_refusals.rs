@@ -3,9 +3,9 @@
 //! predicate (§1's D4 ¶1 addendum obligation, on every arm including
 //! the definite ones).
 //!
-//! `UnsupportedCorner` has zero constructor surface: neither
-//! `RunOutPolicy` variant is ever taken, both are only NAMED, and the
-//! rows below are what keeps that vocabulary from being decorative.
+//! `UnsupportedCorner` has zero constructor surface: the run-out policy
+//! it carries is only NAMED, and the rows below are what keeps that
+//! vocabulary from being decorative.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -54,7 +54,7 @@ fn keys(body: &Body<f64>) -> (FaceKey, VertexKey, EdgeKey) {
 
 // ---------------------------------------------------------------------
 // §3 — every `CornerConfig` tag `corner_config` itself can reach, and
-// both `RunOutPolicy` names. The one tag that is NOT reachable here is
+// the run-out policy each names. The one tag that is NOT reachable here is
 // `SeamVertex`: it is recognized from the vertex's own structure before
 // any valence is read as a corner configuration, so it is pinned
 // through the front door instead (`verbs_arms3`).
@@ -102,11 +102,10 @@ fn corner_tag_dependent_normals_refuses_definitely() {
     }
 }
 
-/// Mixed convexity names the FEATHER policy: a corner patch cannot
-/// help a vertex where the ball must change sides, but a radius that
-/// decays to zero before the vertex can.
+/// Mixed convexity names no run-out policy: its own rule, the odd band
+/// cut off and the other two carried through, is none of them.
 #[test]
-fn corner_tag_mixed_convexity_names_feather() {
+fn corner_tag_mixed_convexity_names_no_policy() {
     let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let normals = [
@@ -121,7 +120,7 @@ fn corner_tag_mixed_convexity_names_feather() {
             ..
         }) => {
             assert_eq!(convex, 1);
-            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
+            assert_eq!(policy, None);
         }
         other => panic!("expected a mixed-convexity refusal, got {other:?}"),
     }
@@ -153,7 +152,7 @@ fn corner_config_admits_either_uniform_trihedron() {
                 corner: CornerConfig::MixedConvexity { convex: got },
                 ..
             }) => assert_eq!(got, convex),
-            other => panic!("a mixed trihedron is out of scope for every band, got {other:?}"),
+            other => panic!("a mixed trihedron has no corner patch, got {other:?}"),
         }
     }
 }
@@ -194,8 +193,7 @@ fn a_same_surface_smooth_split_is_a_smooth_seam_left_as_it_is() {
             [e.he_plus, e.he_minus].iter().all(|he| {
                 body.get_half_edge(*he)
                     .and_then(|h| body.get_loop(h.parent_loop))
-                    .and_then(|l| body.get_face(l.face))
-                    .and_then(|f| body.get_surface(f.surface))
+                    .and_then(|l| body.face_surface(l.face))
                     .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
             })
         })
@@ -254,8 +252,7 @@ fn a_planar_chain_ending_at_a_curved_neighbour_refuses_its_curved_end_face() {
             [e.he_plus, e.he_minus].iter().all(|he| {
                 body.get_half_edge(*he)
                     .and_then(|h| body.get_loop(h.parent_loop))
-                    .and_then(|l| body.get_face(l.face))
-                    .and_then(|f| body.get_surface(f.surface))
+                    .and_then(|l| body.face_surface(l.face))
                     .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
             })
         })
@@ -291,9 +288,8 @@ fn spine_unsupported_names_the_canal_surface_unit() {
                 .iter()
                 .filter_map(|he| {
                     let h = body.get_half_edge(*he)?;
-                    let f = body.get_face(body.get_loop(h.parent_loop)?.face)?;
                     Some(matches!(
-                        body.get_surface(f.surface)?,
+                        body.face_surface(body.get_loop(h.parent_loop)?.face)?,
                         geom::Surface::Torus { .. }
                     ))
                 })
@@ -693,7 +689,8 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         tol(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     // The raised rim: every arc whose stored carrier circle is the
     // raised one. Its lever arm is that circle's own radius.
     let raised: Vec<(EdgeKey, f64)> = body
@@ -721,20 +718,14 @@ fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
         .find_map(|he| {
             let h = body.get_half_edge(he)?;
             let f = body.get_loop(h.parent_loop)?.face;
-            matches!(
-                body.get_surface(body.get_face(f)?.surface)?,
-                geom::Surface::Plane { .. }
-            )
-            .then_some(f)
+            matches!(body.face_surface(f)?, geom::Surface::Plane { .. }).then_some(f)
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {
         origin,
         normal,
         u_ref,
-    } = *body
-        .get_surface(body.get_face(cap).expect("the cap resolves").surface)
-        .expect("the cap's plane")
+    } = *body.face_surface(cap).expect("the cap's plane")
     else {
         panic!("the cap side is a plane")
     };

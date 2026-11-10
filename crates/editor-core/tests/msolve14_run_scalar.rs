@@ -40,7 +40,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
     Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices, evaluate,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices,
     vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -776,12 +776,18 @@ fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     }
 }
 
-fn run_at<T: editor_core::EvalScalar>(
+fn run_at<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     opts: &EvalOptions,
     prior: Option<&Evaluation<T>>,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, prior, &CancelToken::new(), opts, Tol::witness())
+    editor_core::test_support::evaluate_any::<T>(
+        doc,
+        prior,
+        &CancelToken::new(),
+        opts,
+        Tol::witness(),
+    )
 }
 
 /// **The corpus digest, per ε row**: every fault, space, solved pose
@@ -883,7 +889,7 @@ fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
 // ---- Reading a lane's answer, and the independent one ----
 
 /// Every vertex of `node`'s body, by name, at the lane's scalar.
-fn vertices<T: geom_core::Decide>(
+fn vertices<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
 ) -> Vec<(StableName, geom_core::Point3<T>)> {
@@ -1643,7 +1649,7 @@ fn a_box_on_a_tilted_standoff_widens_the_map_by_the_box_alone() {
 /// placement's own log. Answers whether it escalated.
 ///
 /// [`MateFault::Overconstrained`]: editor_core::MateFault::Overconstrained
-fn overconstrained_or_escalates<T: geom_core::Decide>(
+fn overconstrained_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     s: &Shaft,
     kind: geom_core::MarginKind,
@@ -1659,6 +1665,13 @@ fn overconstrained_or_escalates<T: geom_core::Decide>(
             "{what}: the escalation is on the placement's log"
         );
         return true;
+    }
+    // A dual lane is bound to its build of record (DUAL-DESIGN DL3): a
+    // bundle the record refused is refused at the dual by that refusal,
+    // and the record's own refusal there is the overconstraint.
+    if matches!(error.kind, editor_core::NodeErrorKind::RecordRefused) {
+        let record = run_at::<f64>(&s.doc, &s.opts.of_record(), None);
+        return overconstrained_or_escalates(&record, s, kind, &format!("{what}, its record"));
     }
     assert!(
         matches!(
@@ -1680,9 +1693,11 @@ fn overconstrained_or_escalates<T: geom_core::Decide>(
 /// **A shaft in two coaxial bores is overconstrained in every lane**
 /// ([`shaft`]): the bundle holds two bores, a rest and a third bore
 /// beside one another (past the door, as a doctored save leaves them),
-/// and the placement refuses it naming both bores — at `f64`, at
-/// `Dual64` seeded on `rise` and on `idle`, and at `Interval` over a
-/// box on `rise` a fraction of ε wide. The rule reads the families,
+/// and the placement refuses it naming both bores — at `f64` and at
+/// `Interval` over a box on `rise` a fraction of ε wide; at `Dual64`
+/// seeded on `rise` and on `idle` it is refused by that `f64` record
+/// (`NodeErrorKind::RecordRefused`), as every dual node the record
+/// refused is. The rule reads the families,
 /// so no lane measures anything to escalate on ([`INTERVAL_ESCALATIONS`]
 /// holds no shaft row).
 ///
@@ -1825,9 +1840,43 @@ fn structure<T: editor_core::EvalScalar>(
         .collect()
 }
 
+/// A dual lane's structure read against its `f64` build of record
+/// (DUAL-DESIGN DL3), class by class. A placement the record refused
+/// (failed, not poisoned) is refused at the dual as `RecordRefused`,
+/// and only such a one: each reads as the record's own failure there.
+/// A placement poisoned at the record is poisoned at the dual, through
+/// the refused one, and every other entry is the dual's own.
+fn bound_structure(
+    doc: &ProfileDoc,
+    dual: &Evaluation<Dual64>,
+    record: &[(RecipeNodeId, String)],
+) -> Vec<(RecipeNodeId, String)> {
+    const BOUND: &str = "failed: RecordRefused";
+    let refused_at_record =
+        |theirs: &str| theirs.starts_with("failed: ") && theirs != "failed: Poisoned";
+    structure(doc, dual)
+        .into_iter()
+        .zip(record)
+        .map(|((id, said), (rid, theirs))| {
+            assert_eq!(id, *rid, "one placement order in both lanes");
+            assert_eq!(
+                said == BOUND,
+                refused_at_record(theirs),
+                "placement {id:?}: the dual says {said}, its record {theirs}: the dual is \
+                 refused by its record exactly where the record refused it"
+            );
+            if said == BOUND {
+                (id, theirs.clone())
+            } else {
+                (id, said)
+            }
+        })
+        .collect()
+}
+
 /// A failed result's class: the error kind's variant, and for a mate
 /// fault the fault's — never its numbers, which are the lane's.
-fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
+fn fault_class<T: topo::AtRestPolicy + geom_core::Decide>(r: &NodeResult<T>) -> String {
     let variant = |debug: String| {
         debug
             .split(|c: char| !c.is_alphanumeric())
@@ -1861,7 +1910,7 @@ const INTERVAL_ESCALATIONS: [(f64, &str, &str); 0] = [];
 /// first escalation its own log carries (certifying the placed copy's
 /// edges, downstream of the solve). No mate fault carries one of its
 /// own.
-fn escalation<T: geom_core::Decide>(
+fn escalation<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Option<geom_core::predicate::Indeterminate> {
@@ -1949,7 +1998,11 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         let d = run_at::<Dual64>(&doc, &opts, None);
         let i = run_at::<Interval>(&doc, &opts, None);
         let want = structure(&doc, &f);
-        assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
+        assert_eq!(
+            bound_structure(&doc, &d, &want),
+            want,
+            "{label}: Dual64's structure"
+        );
         assert_interval_structure(&doc, &f, &i, label);
         // Every free continuous variable is a seed; a defined one takes
         // none (its derivative is its inputs').
@@ -1965,7 +2018,11 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
                 ..opts.clone()
             };
             let d = run_at::<Dual64>(&doc, &o, None);
-            assert_eq!(structure(&doc, &d), want, "{label}: seeded {seed:?}");
+            assert_eq!(
+                bound_structure(&doc, &d, &want),
+                want,
+                "{label}: seeded {seed:?}"
+            );
             for id in doc.ids() {
                 if !matches!(doc.node(id), Some(Node::InstantiatePart { .. }))
                     || f.node_error(id).is_some()

@@ -2,7 +2,7 @@
 # continue | break | {}`), counted per file (scripts/gates/escalation-discards.sh).
 # A search over readings that keeps nothing refuses, where none decides,
 # with a cause that is not the reading that stopped it: that is
-# `geom_brep::ladder::climb`'s job, which keeps and ranks what it passes
+# `geom_core::ladder::climb`'s job, which keeps and ranks what it passes
 # over. A new discard reds until it is registered here with why it is not
 # a search's kept reading; a count that falls reds until it is lowered.
 #
@@ -19,10 +19,6 @@ crates/geom-brep/src/ssi/boundary.rs 1
 # profile seg: a poisoned straightness reading falls through to the
 # carrier's checks after it, which read the same segment.
 crates/profile/src/seg.rs 1
-# join seam_germ_side: a region normal refused in band is dropped from the
-# chord read; filed as a hand-rolled search with its agreement check
-# (work/onecopy/door-searches-left-on-the-hand-rolled-ladder.md).
-crates/topo/src/boolean/join.rs 1
 # census: the detector's posture: a pair whose interiors do not decide is
 # neither overlap nor apart, and the census reports what decided.
 crates/topo/src/census.rs 1

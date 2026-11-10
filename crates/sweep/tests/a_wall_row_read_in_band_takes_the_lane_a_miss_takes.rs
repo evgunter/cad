@@ -20,7 +20,6 @@
 use crate::common::semicircle_wall::{
     arc_wall, band, derived, in_band, recharted, semicircle_prism, wall_half_edges,
 };
-use geom_brep::PcurveCertifyError;
 use geom_core::{Bounds, Vec3};
 use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, Pcurve, PcurveMintError};
 
@@ -159,17 +158,21 @@ fn a_rim_in_the_band_takes_its_general_image<T: AtRestPolicy + Bounds>() {
             );
             continue;
         }
+        let kinds = (
+            topo::readback::face_carrier_kind(&off, off.face_of_half_edge(h).unwrap()).unwrap(),
+            topo::readback::edge_carrier_kind(&off, off.get_half_edge(h).unwrap().edge).unwrap(),
+        );
+        assert_eq!(
+            kinds,
+            (geom::SurfaceKind::Nurbs, geom::CurveKind::Circle),
+            "{h:?}: the rim is a circle on the spline wall"
+        );
         assert!(
             matches!(
-                got,
-                Err(PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Nurbs,
-                        carrier: geom::CurveKind::Circle,
-                        ..
-                    },
-                    ..
-                })
+                &got,
+                Err(PcurveMintError::Certify { error, .. })
+                    if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
+                        && error.chart_carrier_kinds() == Some(kinds)
             ),
             "{h:?}: a rim its wall moved a millimetre from ends off the chart, at {}: {got:?}",
             T::NAME

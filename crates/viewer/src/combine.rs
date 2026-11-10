@@ -34,7 +34,6 @@ use pncad::topo::BooleanOp;
 use crate::seats::{
     FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
 };
-use crate::session::refuse::one_body;
 use crate::session::{
     BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternDirection, PatternRuleSpec,
     SessionOp, SplitPlane,
@@ -152,7 +151,7 @@ impl BooleanTool {
                 picks_line(members.iter().enumerate().map(|(i, (node, port))| {
                     (
                         format!("{} {}", Seat::Member.name(), i + 1),
-                        Some(pick_said(by, node, *port)),
+                        Some(pick_said(by, node, port)),
                     )
                 }))
             }
@@ -161,22 +160,24 @@ impl BooleanTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.pick_at(doc, node, None);
     }
 
     /// [`Self::pick`] of the output `body` a viewport pick hit: a
-    /// split's half is read by its port, and a split picked in the tree
-    /// waits for its half ([`Self::choose_half`]).
+    /// split's half is read by its port and a family's member by its
+    /// index values. A split picked in the tree waits for its half
+    /// ([`Self::choose_half`]); a family picked there is read whole
+    /// until one member is chosen ([`Self::choose_member`]).
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
         match &mut self.held {
-            // A pick on a copy is a pick of the body it places
+            // A pick is read as the drawn body it lands on
             // ([`crate::world::seat_read`]), as in the two seats.
             BooleanPicks::Members(members) => {
-                let (node, port) = crate::world::seat_read(doc, node, body);
-                let port = Port::of_pick(doc, node, port, Seat::Member.wants());
-                members.push((doc.spoken(node), port));
+                let read = crate::world::seat_read(doc, node, body);
+                let port = Port::at_seat(doc, node, read, body, Seat::Member);
+                members.push((doc.spoken(read.0), port));
             }
             BooleanPicks::Pair(seats) => seats.pick_at(doc, node, body),
         }
@@ -188,10 +189,43 @@ impl BooleanTool {
         match &mut self.held {
             BooleanPicks::Members(members) => {
                 if let Some((_, port)) = members.get_mut(i) {
-                    *port = port.chosen(half);
+                    *port = core::mem::replace(port, Port::ALONE).chosen(half);
                 }
             }
             BooleanPicks::Pair(seats) => seats.choose_half(i, half),
+        }
+    }
+
+    /// **The member pick `i` reads**, by its index values
+    /// ([`crate::world::members_of`]), where it reads a family nothing
+    /// copies, whole or one member: member `i` of a union or an
+    /// intersect, seat `i` of a subtraction. A no-op on any other pick.
+    pub fn choose_member(&mut self, i: usize, at: Vec<i64>) {
+        match &mut self.held {
+            BooleanPicks::Members(members) => {
+                if let Some((_, port)) = members.get_mut(i) {
+                    *port = core::mem::replace(port, Port::ALONE).chosen_member(at);
+                }
+            }
+            BooleanPicks::Pair(seats) => seats.choose_member(i, at),
+        }
+    }
+
+    /// The picks reading a family, whole or one member, in pick
+    /// order: each pick's index and the family — the picks whose
+    /// member a panel may choose.
+    pub fn family_picks(&self) -> Vec<(usize, RecipeNodeId)> {
+        match &self.held {
+            BooleanPicks::Members(members) => members
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, port))| port.reads_family())
+                .map(|(i, (node, _))| (i, node.id()))
+                .collect(),
+            BooleanPicks::Pair(seats) => (0..2)
+                .filter(|&i| seats.reads_family(i))
+                .filter_map(|i| Some((i, seats.held(i)?)))
+                .collect(),
         }
     }
 
@@ -202,7 +236,7 @@ impl BooleanTool {
             BooleanPicks::Members(members) => members
                 .iter()
                 .enumerate()
-                .filter(|(_, (_, port))| *port == Port::HalfPending)
+                .filter(|(_, (_, port))| port.awaits_half())
                 .map(|(i, _)| i)
                 .collect(),
             BooleanPicks::Pair(seats) => (0..2).filter(|&i| seats.awaits_half(i)).collect(),
@@ -257,20 +291,20 @@ impl BooleanTool {
     /// [`SeatError::Empty`] naming [`Seat::Member`] while a union or an
     /// intersect holds no member, and naming the first empty seat while
     /// a subtraction lacks one; [`SeatError::HalfUnchosen`] while a
-    /// pick holds a split whose half is not chosen. Node kinds refuse
-    /// at the session door.
+    /// pick holds a split whose half is not chosen. Node kinds refuse at
+    /// the session door.
     pub fn spec(&self) -> Result<BooleanSpec, SeatError> {
         match &self.held {
             BooleanPicks::Members(members) if members.is_empty() => {
                 Err(SeatError::Empty { seat: Seat::Member })
             }
             BooleanPicks::Members(members) => {
-                if members.iter().any(|(_, port)| *port == Port::HalfPending) {
+                if members.iter().any(|(_, port)| port.awaits_half()) {
                     return Err(SeatError::HalfUnchosen { seat: Seat::Member });
                 }
                 let members = members
                     .iter()
-                    .map(|(node, port)| port.read(node.id()))
+                    .map(|(node, port)| port.body_read(node.id()))
                     .collect();
                 Ok(if self.op == BooleanOp::Intersect {
                     BooleanSpec::Intersect(members)
@@ -279,8 +313,8 @@ impl BooleanTool {
                 })
             }
             BooleanPicks::Pair(seats) => Ok(BooleanSpec::Subtract {
-                from: seats.require_read(0)?,
-                tool: seats.require_read(1)?,
+                from: seats.require_body_read(0)?,
+                tool: seats.require_body_read(1)?,
             }),
         }
     }
@@ -506,7 +540,7 @@ impl SplitTool {
     }
 
     /// Feed one node pick: it REPLACES the target. A pick on a copy
-    /// seats the body it places.
+    /// seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.held.seats.pick(doc, node);
     }
@@ -794,8 +828,8 @@ impl ClearanceBoundChoice {
 ///
 /// **Held where it is drawn, not where it is built.** A requirement
 /// between two parts is about the parts as they stand, so a seat is
-/// never re-read on the body a copy places, which every other seated
-/// tool does ([`Seats::pick`]); the commit door reads a tree pick of a
+/// read where it is drawn, as every seated tool reads a pick
+/// ([`Seats::pick`]); the commit door also reads a tree pick of a
 /// construction on its world copy (`DocSession`'s `AddClearance` arm).
 ///
 /// That redirect is why the seat is not a [`Seats`]: for a construction
@@ -970,7 +1004,7 @@ impl ClearanceTool {
     /// as a seat says its node, a face as the chrome says a held pick.
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
-            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, Port::Alone)),
+            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
             Some(ClearancePick::Face(held)) => Some(Said(held, by).to_string()),
             None => None,
         };
@@ -1067,7 +1101,11 @@ impl core::fmt::Display for ClearanceEvent {
 ///
 /// Total: whether `face` names a face of `on`, and whether that face is
 /// planar, are the door's and the evaluation's to refuse.
-pub fn mirror_node(body: Operand, on: Operand, face: StableName) -> AuthoredNode {
+pub fn mirror_node(
+    body: Operand,
+    on: pncad::document::BodyRead<Formula>,
+    face: StableName,
+) -> AuthoredNode {
     Node::mirror(
         body,
         crate::matetool::plane_of(Operand::select(on, vec![face])),
@@ -1163,7 +1201,7 @@ pub struct PatternTool {
 pub const PATTERN_COUNT: i64 = 4;
 
 /// **The spacing a row inserts with**: `clears` metres, the step that
-/// clears the body ([`duplicate_step`]), rounded UP to one significant
+/// clears the body ([`step_clear_of`]), rounded UP to one significant
 /// figure in `unit` ([`crate::props::one_figure_length`]), so the copies
 /// still clear and the row's slide reads a round number in the unit the
 /// person works in (`60 mm` for a 51.8 mm step).
@@ -1256,7 +1294,7 @@ impl PatternTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -1395,7 +1433,7 @@ impl PartTool {
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// pick on a copy seats the copy.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -1436,150 +1474,42 @@ impl PartTool {
     }
 }
 
-/// **The duplicate tool**: one body pick, committing one
-/// [`SessionOp::Duplicate`].
-///
-/// One seat and no fields: the step after duplicating is to MOVE the
-/// copy away, so a form asking where the copy should go first would be
-/// the pattern form again under another name. Where the copy lands is
-/// [`duplicate_step`]'s rule — along [`STEP_DIRECTION`], clear of the
-/// original by at least [`DUPLICATE_GAP`] of its own width — and the
-/// step lands in the translation slots of the transform the gesture
-/// authors, editable in the property panel the moment the edit lands.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DuplicateTool {
-    seats: Seats,
-    /// The drawn copy the pick landed on, when it landed on one: the
-    /// copy the duplicate is placed beside.
-    beside: Option<RecipeNodeId>,
-}
-
-impl Default for DuplicateTool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl DuplicateTool {
-    /// A tool holding nothing.
-    pub const fn new() -> Self {
-        Self {
-            seats: Seats::one(Seat::DuplicateBody),
-            beside: None,
-        }
-    }
-
-    /// The seats, roles and picks together — what the panel's line is
-    /// composed from ([`crate::seats::seat_line`]).
-    pub fn seats(&self) -> &Seats {
-        &self.seats
-    }
-
-    /// The held body.
-    pub fn input(&self) -> Option<RecipeNodeId> {
-        self.seats.held(0)
-    }
-
-    /// Feed one node pick — a second pick REPLACES the first, this
-    /// tool having only the one seat. `doc` routes it, and does not
-    /// judge it.
-    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.pick_at(doc, node, None);
-    }
-
-    /// [`Self::pick`] of the output `body` a viewport pick hit. A pick
-    /// on a drawn copy also holds that copy, which the duplicate is
-    /// placed beside.
-    pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
-        self.seats.pick_at(doc, node, body);
-        self.beside = crate::world::placed_var(doc, node).map(|_| node);
-    }
-
-    /// The drawn copy the held pick landed on, if it landed on one.
-    pub fn beside(&self) -> Option<RecipeNodeId> {
-        self.beside
-    }
-
-    /// The half seat `i` reads, when it holds a split picked alone
-    /// ([`Seats::choose_half`]).
-    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        self.seats.choose_half(i, half);
-    }
-
-    /// Empty the seat.
-    pub fn clear(&mut self) {
-        self.seats.clear();
-        self.beside = None;
-    }
-
-    /// The survival step ([`crate::seats`]). The held copy survives
-    /// while it is still a drawn copy of the held body; otherwise the
-    /// duplicate is placed as a pick of the body places it
-    /// ([`SessionOp::Duplicate`]).
-    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        let events = self.seats.reconcile(doc);
-        let held = self.seats.read(0);
-        self.beside = self.beside.filter(|copy| {
-            held.as_ref()
-                .is_some_and(|read| crate::world::placements_of_read(doc, read).contains(copy))
-        });
-        events
-    }
-
-    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
-    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.seats.respeak(doc);
-    }
-
-    /// **The one committed edit**.
-    ///
-    /// # Errors
-    ///
-    /// [`SeatError::Empty`] until a body is picked.
-    pub fn op(&self) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::Duplicate {
-            input: self.seats.require_read(0)?,
-            beside: self.beside,
-        })
-    }
-}
-
-/// **The axis a stepped copy goes along by default**: the `x` of the
-/// space the body is in. A duplicate steps its copy along it, at its
-/// original copy's pose, so along that copy's own `x`; a pattern's row
-/// inserts along it, spaced by the same measure ([`duplicate_step`]),
-/// so the copies clear.
+/// **The axis a step clear goes along by default**: the `x` of the
+/// space the body is in. A pattern's row inserts along it, spaced by the
+/// step that clears the body ([`step_clear_of`]), so the copies clear,
+/// and an inserted part is drawn clear of what is drawn along it
+/// ([`crate::pickindex::clear_of_drawn`]).
 pub const STEP_ALONG: pncad::document::TargetAxis = pncad::document::TargetAxis::X;
 
 /// [`STEP_ALONG`] as components, unnormalized as every direction slot
-/// in this vocabulary is: what [`duplicate_step`] measures along.
+/// in this vocabulary is: what [`step_clear_of`] measures along.
 pub const STEP_DIRECTION: [f64; 3] = match STEP_ALONG {
     pncad::document::TargetAxis::X => [1.0, 0.0, 0.0],
     pncad::document::TargetAxis::Y => [0.0, 1.0, 0.0],
     pncad::document::TargetAxis::Z => [0.0, 0.0, 1.0],
 };
 
-/// **How much clear space a duplicate leaves AT LEAST**, as a fraction
-/// of the body's own width along [`STEP_DIRECTION`]: the copy's near
-/// side lands at least this far past the original's far side, and
-/// further for a body thin along the step ([`duplicate_step`] says
+/// **How much clear space a step clear leaves AT LEAST**, as a fraction
+/// of the stepped body's own width along [`STEP_DIRECTION`]: its near
+/// side lands at least this far past the far side of what it clears,
+/// and further for a body thin along the step ([`step_clear_of`] says
 /// why).
 ///
 /// A fraction rather than a length, so the gap scales with the part —
 /// a millimetre gap beside a metre-long beam is invisible, and beside
 /// a millimetre pin it is the whole view.
-pub const DUPLICATE_GAP: f64 = 0.25;
+pub const STEP_GAP: f64 = 0.25;
 
 /// The measuring tessellation's chord, as a fraction of the body's
 /// FLOOR-mesh extent (`crate::scene::SCALE_PROBE_DELTA`'s mesh).
 ///
 /// Fine enough that the conservative inflation it costs — twice the
-/// chord, on the width — stays well under [`DUPLICATE_GAP`] for a body
+/// chord, on the width — stays well under [`STEP_GAP`] for a body
 /// about as wide along the step as it is across; coarse enough that
 /// measuring a body is one cheap tessellation rather than a picture's
 /// worth. For a body thin along the step the inflation is NOT small
-/// against the width, and the copy lands further off than the gap
-/// alone would put it ([`duplicate_step`]).
+/// against the width, and the step is longer than the gap alone would
+/// make it ([`step_clear_of`]).
 ///
 /// Public for [`crate::scene::SCALE_PROBE_DELTA`]'s reason: a row that
 /// asserts a landed step against a body's closed form has to run the
@@ -1587,14 +1517,14 @@ pub const DUPLICATE_GAP: f64 = 0.25;
 /// without the build noticing.
 pub const MEASURE_CHORD: f64 = 1.0 / 64.0;
 
-/// **Why a duplicate could not be placed** — every way the landed body
-/// can fail to be one thing with a width.
+/// **Why the step that clears a body could not be measured** — every
+/// way the landed body can fail to be one thing with a width.
 #[derive(Debug)]
-pub enum DuplicateFault {
+pub enum StepClearFault {
     /// Nothing has landed, so there is no body to measure yet.
     NotLanded,
     /// The picture on screen answers an OLDER document than the one
-    /// the duplicate would be committed to — an edit has not landed
+    /// the step would be committed to — an edit has not landed
     /// yet ([`crate::session::DocSession::busy`]). The landed value of
     /// an edited node is its value BEFORE the edit, so a step measured
     /// off it could be the old width, and after a document replacement
@@ -1615,9 +1545,7 @@ pub enum DuplicateFault {
         /// ([`held_by`]).
         held: HeldNodes,
     },
-    /// The input's VALUE is several bodies, and a duplicate copies one:
-    /// a transform of them would be several bodies again, which no
-    /// world placement reads.
+    /// The input's VALUE is several bodies, and a step clears one.
     ///
     /// The body seat refuses a read of several bodies by its kind, so
     /// this is the value's own answer behind it: the door asks the
@@ -1646,17 +1574,9 @@ pub enum DuplicateFault {
         /// The node picked, as the landed document held it.
         input: SpokenNode,
     },
-    /// The copy the duplicate is to stand beside is not a drawn copy
-    /// of the body duplicated.
-    NotACopy {
-        /// The copy named, as the landed document held it.
-        copy: SpokenNode,
-        /// The body duplicated, as the landed document held it.
-        input: SpokenNode,
-    },
 }
 
-impl DuplicateFault {
+impl StepClearFault {
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
@@ -1678,8 +1598,8 @@ impl DuplicateFault {
             ),
             Self::NotOneBody { input } => write!(
                 f,
-                "{input}'s value is several bodies; a duplicate copies ONE — project the one \
-                 you mean first"
+                "{input}'s value is several bodies; a step clears ONE — project the one you \
+                 mean first"
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
@@ -1694,28 +1614,24 @@ impl DuplicateFault {
             Self::NoExtent { input } => {
                 write!(f, "{input}'s body has no width to step a copy by")
             }
-            Self::NotACopy { copy, input } => write!(
-                f,
-                "{copy} is not a drawn copy of {input}, so there is no copy to place the \
-                 duplicate beside"
-            ),
         }
     }
 }
 
-pncad::geom_brep::ended_by_write!(DuplicateFault);
+pncad::geom_brep::ended_by_write!(StepClearFault);
 
-impl core::error::Error for DuplicateFault {}
+impl core::error::Error for StepClearFault {}
 
-/// **Where a duplicate's copy lands**: the step, in metres along
-/// [`STEP_DIRECTION`], that puts the copy's near side AT LEAST
-/// [`DUPLICATE_GAP`] of the body's width past the original's far side —
-/// so the two never touch, whatever the body's size.
+/// **The step that clears a body**: in metres along [`STEP_DIRECTION`],
+/// the step that puts a copy's near side AT LEAST [`STEP_GAP`] of
+/// the body's width past the body's far side — so the two never touch,
+/// whatever the body's size. A pattern's row is spaced by it
+/// ([`row_spacing`]).
 ///
 /// **Read off `eval`, which the caller must hand in CURRENT** — an
-/// evaluation of the document the duplicate will be committed to. The
-/// session door refuses [`DuplicateFault::NotLanded`] and
-/// [`DuplicateFault::Stale`] before calling this; a stale evaluation
+/// evaluation of the document the step will be committed to. The
+/// session door refuses [`StepClearFault::NotLanded`] and
+/// [`StepClearFault::Stale`] before calling this; a stale evaluation
 /// would hand back an edited node's OLD value, and nothing here could
 /// tell.
 ///
@@ -1737,19 +1653,19 @@ impl core::error::Error for DuplicateFault {}
 /// [`MEASURE_CHORD`] of the body's floor-mesh DIAGONAL, which sets the
 /// scale before any width is known; for a body thin along
 /// [`STEP_DIRECTION`] the 2(δ + ε) margin can be several times the
-/// width, and the copy lands further away than a quarter-width. Never
-/// nearer.
+/// width, and the step is longer than a quarter-width past it. Never
+/// shorter.
 ///
 /// # Errors
 ///
-/// [`DuplicateFault::NoValue`], [`DuplicateFault::NotOneBody`],
-/// [`DuplicateFault::Unmeasured`], [`DuplicateFault::NoExtent`].
-pub fn duplicate_step(
+/// [`StepClearFault::NoValue`], [`StepClearFault::NotOneBody`],
+/// [`StepClearFault::Unmeasured`], [`StepClearFault::NoExtent`].
+pub fn step_clear_of(
     doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,
     input: &Operand,
     tol: Tol,
-) -> Result<f64, DuplicateFault> {
+) -> Result<f64, StepClearFault> {
     // The session door's kind gate ran first and refused a read naming
     // no output.
     let (node, port) = crate::world::read_output(doc, input)
@@ -1757,7 +1673,7 @@ pub fn duplicate_step(
     let value = eval.usable(node).map_err(|standing| {
         let standing = crate::tree::standing_as_drawn(standing, eval);
         let held = held_by(&standing, doc);
-        DuplicateFault::NoValue { standing, held }
+        StepClearFault::NoValue { standing, held }
     })?;
     let spoken = || doc.spoken(node);
     let body = match port {
@@ -1766,7 +1682,7 @@ pub fn duplicate_step(
             // A port the value holds no body at is a split's empty half.
             Err(_) => match (&value.payload, SplitHalf::of_output_body(u32::from(port))) {
                 (pncad::document::ValuePayload::Split { .. }, Some(half)) => {
-                    return Err(DuplicateFault::EmptyHalf {
+                    return Err(StepClearFault::EmptyHalf {
                         input: spoken(),
                         half,
                     });
@@ -1774,28 +1690,28 @@ pub fn duplicate_step(
                 _ => None,
             },
         },
-        None => one_body(&value.payload),
+        None => value.payload.one_body().flatten(),
     }
-    .ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
+    .ok_or_else(|| StepClearFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {
         pncad::mesh::tessellate(body.body(), chord, tol).map_err(|error| {
-            DuplicateFault::Unmeasured {
+            StepClearFault::Unmeasured {
                 input: spoken(),
                 error,
             }
         })
     };
     let (mesh, chord) = measured_at_scale(measured, |mesh| mesh.positions.clone())?
-        .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
+        .ok_or_else(|| StepClearFault::NoExtent { input: spoken() })?;
     // The step is stated in the body's space; the body is measured in
     // its own frame, along that heading read into it.
     let heading = body
         .heading_in_own(Vec3::from_array(STEP_DIRECTION))
-        .map_err(|_| DuplicateFault::NoExtent { input: spoken() })?
+        .map_err(|_| StepClearFault::NoExtent { input: spoken() })?
         .to_array();
     let width = width_along(&mesh.positions, heading)
         .filter(|w| w.is_finite() && *w > 0.0)
-        .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
+        .ok_or_else(|| StepClearFault::NoExtent { input: spoken() })?;
     Ok(clearance(width, width, chord, tol))
 }
 
@@ -1804,8 +1720,8 @@ pub fn duplicate_step(
 /// of the box around the probe's `points` — and `at` again at
 /// [`MEASURE_CHORD`] of that size is the measure, answered with the
 /// chord it was cut at. `Ok(None)` where the probe has no extent. The
-/// one measurement a duplicate's step ([`duplicate_step`]) and an
-/// inserted part's frame ([`crate::pickindex::clear_of_drawn`]) take.
+/// one measurement the step that clears a body ([`step_clear_of`]) and
+/// an inserted part's frame ([`crate::pickindex::clear_of_drawn`]) take.
 ///
 /// # Errors
 ///
@@ -1819,10 +1735,10 @@ pub fn measured_at_scale<M, E>(
         [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
             .map(|axis| width_along(&probe, axis).unwrap_or(0.0)),
     )
-    .norm();
-    if !(scale.is_finite() && scale > 0.0) {
+    .checked_nonzero_length();
+    let Ok(scale) = scale else {
         return Ok(None);
-    }
+    };
     let chord = scale * MEASURE_CHORD;
     Ok(Some((at(chord)?, chord)))
 }
@@ -1830,17 +1746,17 @@ pub fn measured_at_scale<M, E>(
 /// **How far to step a body whose near side is `span` behind the far
 /// side of what it must clear**, measured off meshes at `chord`: `span`
 /// widened by the meshes' sag on both sides, 2(δ + ε) — the true extent
-/// is at most the mesh's plus that ([`duplicate_step`] carries the
-/// argument) — then [`DUPLICATE_GAP`] of the stepped body's own `width`,
-/// widened the same way, on top. A duplicate clears its original
+/// is at most the mesh's plus that ([`step_clear_of`] carries the
+/// argument) — then [`STEP_GAP`] of the stepped body's own `width`,
+/// widened the same way, on top. A row's step clears its body
 /// (`span` = `width`); an inserted part clears everything drawn
 /// ([`crate::pickindex::clear_of_drawn`]).
 pub fn clearance(span: f64, width: f64, chord: f64, tol: Tol) -> f64 {
     let sag = 2.0 * (chord + tol.eps());
-    span + sag + (width + sag) * DUPLICATE_GAP
+    span + sag + (width + sag) * STEP_GAP
 }
 
-impl DuplicateFault {
+impl StepClearFault {
     /// This fault with its nodes spoken from `doc`, a later version of
     /// the document it was raised in
     /// ([`crate::session::Refusal::respoken`]).
@@ -1866,10 +1782,6 @@ impl DuplicateFault {
             Self::NoExtent { input } => Self::NoExtent {
                 input: again(input),
             },
-            Self::NotACopy { copy, input } => Self::NotACopy {
-                copy: again(copy),
-                input: again(input),
-            },
             unspoken @ (Self::NotLanded | Self::Stale) => unspoken,
         }
     }
@@ -1880,66 +1792,13 @@ impl DuplicateFault {
 /// zero direction.
 fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) -> Option<f64> {
     let direction = Vec3::from_array(direction);
-    let norm = direction.norm();
-    if !(norm.is_finite() && norm > 0.0) {
-        return None;
-    }
+    let norm = direction.checked_nonzero_length().ok()?;
     let mut along = points
         .iter()
         .map(|p| Vec3::new(p.x, p.y, p.z).dot(direction) / norm);
     let first = along.next()?;
     let (lo, hi) = along.fold((first, first), |(lo, hi), r| (lo.min(r), hi.max(r)));
     Some(hi - lo)
-}
-
-/// **The slides a duplicate's copy is moved by**: [`STEP_DIRECTION`]
-/// stepped by `step` metres ([`duplicate_step`]'s answer), on the
-/// original's own axes.
-///
-/// # Errors
-///
-/// [`pncad::document::DimensionError`] for a non-finite `step` — which
-/// [`duplicate_step`] never answers — and it is a `Result` because
-/// whether a number is authorable keeps ONE home, the expression door.
-pub fn duplicate_moves(
-    step: f64,
-) -> Result<Vec<(pncad::document::Coord, Formula)>, pncad::document::DimensionError> {
-    use pncad::document::{Coord, Dimension, TargetAxis as A};
-    [A::X, A::Y, A::Z]
-        .into_iter()
-        .zip(STEP_DIRECTION)
-        .filter(|&(_, d)| d != 0.0)
-        .map(|(axis, d)| {
-            Ok((
-                Coord::slide(axis),
-                Formula::literal(d * step, Dimension::Length)?,
-            ))
-        })
-        .collect()
-}
-
-/// **Where the drawn copy `copy` stands in its space**: its
-/// placement's motion as `eval` solved it, the identity for a copy the
-/// identity bundle places.
-///
-/// # Errors
-///
-/// [`DuplicateFault::NoValue`] for a copy `eval` holds no value for.
-pub fn copy_motion(
-    doc: &Doc<ProfileProgram>,
-    eval: &Evaluation<f64>,
-    copy: RecipeNodeId,
-) -> Result<pncad::document::Frame, DuplicateFault> {
-    let value = eval.usable(copy).map_err(|standing| {
-        let standing = crate::tree::standing_as_drawn(standing, eval);
-        let held = held_by(&standing, doc);
-        DuplicateFault::NoValue { standing, held }
-    })?;
-    Ok(value
-        .motion
-        .map_or(pncad::document::Frame::IDENTITY, |motion| {
-            pncad::document::Frame::from_affine(motion.to_affine())
-        }))
 }
 
 /// **One member of the family `of`, read alone** (D10 `[repetition]`):
@@ -1959,10 +1818,18 @@ pub fn part_node(
     let PartSelectSpec::Instance(index) = select;
     let target = doc.node_space(of)?;
     Some(Node::place(
-        pncad::document::BodyRead::indexed(of, vec![Formula::count(index)]),
+        member_read(of, &[index]),
         Operand::Var(target),
         pncad::document::stand().bundle(),
     ))
+}
+
+/// **One member of the family `read` reads**, at the index values
+/// `at`, each an exact `Count` literal (spec D3: an index is never a
+/// continuous expression) — the one lowering of a picked member, the
+/// part form's and a boolean seat's (`seats::Port::body_read`).
+pub fn member_read(read: impl Into<Operand>, at: &[i64]) -> pncad::document::BodyRead<Formula> {
+    pncad::document::BodyRead::indexed(read, at.iter().map(|&i| Formula::count(i)).collect())
 }
 
 /// **Whether a node, named alone, reads as a single body** — the

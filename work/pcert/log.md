@@ -1075,3 +1075,38 @@ E1c waits on the answer.
     - `a-join-onto-an-op-minted-edge-records-no-row` (P3);
     - `the-joins-in-band-class-reading-ends-two-ways` (P3).
   - Merged past main's two ε 1e-12 reds, both onecopy's and filed: the needle (PR 6492) and `section_end_poses` (PR 6482).
+- 2026-11-04 — **`a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence` merged** (PR 6527): a line's incidence is read, not sampled.
+  - `incident`'s line arm reads the chart's exact distance at the span ends and at every interior parameter where it can peak (`pcurve_cache::line_incidence`). That makes the read the supremum on all six analytic charts.
+  - Candidates come from monotone pieces. The span is cut at marks so that the read derivative is monotone on each piece, then each sign change is bisected (capped at 200):
+    - cone: `t*` and the apex-plane crossing `t_h`;
+    - torus and spindle, read on q²: `t*`, plus `t* ± τc` for R > 0, where `ρ(τc)³ = R·v²d²/|u|²`.
+  - The sphere reads its centre's foot. On a line along a torus axis the whole span is one piece, whose root is the foot. Placement precision is second order at smooth stationary points and first order at the kinks.
+  - Review tier: single FULL, soundness-led. NOT-MERGEABLE-AS-IS.
+    - M1 (executed, a regression against main): a line along a spindle's or torus's axis read On while 0.2 off. The quartic vanished identically and the centre's foot was never a candidate.
+    - Fix list DD rewrote the read as monotone pieces.
+    - One delta verifier: APPROVE. 10,483 lines against a 40-digit supremum, including exact and near-axis lines, horn tori and R≈r spindles, gave 0 misses. 2,280 pieces had 0 double roots.
+    - The final NIT pass was read by the orchestrator.
+  - Cost: at most 8 evaluations against 65. `read_incidence` is under main on every chart at both scalars, for example the cylinder at 5.6/47 ms against 103/506 ms.
+  - One moved fixture: `verbs_germarms2_interval` at 1e-12. Its in-band escalation is now `carrier_matches_mapped_source`, since the line reads inside the zero band at its ends and foot.
+  - Filed:
+    - `a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled` (P2);
+    - `a-lines-sup-on-a-chart-is-spelled-twice` (P3).
+- 2026-11-10 — **the E2 and E5 main reds merged** (PR 6528). Closes `main-red-the-arc-rim-pins-read-the-retired-refusal` and `main-red-a-near-node-cap-loses-its-volume-to-a-projected-ruling-image`.
+  - E5/dm1: the arc-rim pick missed a rim the row holds. dm1's sub-patch row (weights 1, 1, 2) is the circle exactly, through a Möbius reparametrization.
+    - `Pcurve::IsoArc` carries the row's held end weights (`ends`), and the map applies each sub-arc's Möbius change.
+    - The certificate compares the ends exactly in T and decides each span's normalized weight against cos(h/2).
+    - The mesher scales the UV rate by max(λ, 1/λ) (`iso_arc_rate`).
+    - The l-bracket imports. Full dm1 now refuses one door later, at the aggregate at-rest gate (filed on importgate).
+  - E5/loft: 18 Zeros was a repeated read. `Derivation` is now a struct, and it hands its certificate to pass 2 beside its image, so the count is back to 10.
+  - E2: green on main since PR 6478 (bisected), with no code change. Two consumers were added to the class row.
+  - m10_bulge_interval's radial_moving tally re-pinned [22,20] → [18,24]. That is 6504's standoff term, shown by a mutant.
+  - Review tier: single FULL. APPROVE-WITH-FIXES, 0 MAJOR: the rational IsoArc certificate held for λ² to 1e15 and to 1e-50 in mpmath. A separate delta review approved the m10 re-pin.
+  - Fix list EE (one home for the weight and λ spellings, typed certificate provenance, tighter rows) was read by the orchestrator.
+  - Paused 2026-11-04→10 at the weekly limit. Resumed with a main merge: an error type boxed for clippy, and a stale slow-set name dropped.
+  - Filed:
+    - `an-iso-arcs-envelope-omits-its-in-band-weight-margin` (P1: understates the miss about 1e8×; the meter fails past about 131°);
+    - `a-cylinder-lines-class-gate-re-decides-its-incidence-as-the-standoff` (P1: 6504's AB1 second read);
+    - sym `a-rigidly-copied-cylinder-walls-incidence-identity-has-no-sym-rule`;
+    - tess's crease-gap row widened (δ-dependent);
+    - evidence on `loft-builds-at-interval-and-refuses-a-rational-column-at-sym`;
+    - onecopy's axis-foot antipode row.

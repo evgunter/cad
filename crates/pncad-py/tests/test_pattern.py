@@ -29,6 +29,7 @@ from pncad import (
     RoleRead,
     SegPat,
     SegTag,
+    SelectRefusal,
     Selector,
     VarDecl,
     VarName,
@@ -125,6 +126,35 @@ class TestTheRowIsAFamily(unittest.TestCase):
         )
         self.assertEqual(len(ev.value(middle).bodies()), 1)
 
+    def test_a_family_with_an_empty_member_lists_its_bodies(self):
+        """`row[k] - row[1]`: member 1 cuts itself away. The family is
+        still a family of bodies, and `bodies()` is each present
+        member's body, the empty member's place denoting none."""
+        doc = Doc()
+        family = row_of(doc, box(doc))
+        cut = doc.insert(Node.subtract(family, family[1]))
+        ev = evaluate(doc)
+        value = ev.value(cut)
+        self.assertEqual(value.kind, "instances")
+        self.assertEqual(
+            [len(member.bodies()) for _, member in value.members()], [1, 0, 1]
+        )
+        bodies = value.bodies()
+        self.assertEqual(len(bodies), COUNT - 1)
+        for body in bodies:
+            self.assertEqual(pinned(body).volume, 2.0 * 2.0 * 1.0)
+
+    def test_a_family_every_member_of_which_is_empty_lists_no_body(self):
+        """`row[k] - row[k]`: every member cuts itself away. The family
+        is still a family of bodies, holding none."""
+        doc = Doc()
+        family = row_of(doc, box(doc))
+        cut = doc.insert(Node.subtract(family, family))
+        value = evaluate(doc).value(cut)
+        self.assertEqual(value.kind, "instances")
+        self.assertEqual(len(value.members()), COUNT)
+        self.assertEqual(value.bodies(), [])
+
     def test_each_member_weighs_what_the_row_says_it_weighs(self):
         doc = Doc()
         family = row_of(doc, box(doc))
@@ -176,21 +206,60 @@ class TestTheRowIsAFamily(unittest.TestCase):
         self.assertEqual(census(chain_ev, acc), census(row_ev, group))
 
     def test_every_member_is_one_member_segment_deep(self):
-        """Every member's faces sit under exactly ONE member segment,
-        whatever the count."""
+        """The family's table holds every member's faces, each distinct,
+        and one member read by index answers its own: the fin's six
+        faces, under no member segment."""
         doc = Doc()
-        row, _group = fins(doc)
+        fin = fin_only(doc)
+        row = row_of(doc, fin, count=5, pitch=FIN_PITCH)
         ev = evaluate(doc)
         names = ev.all_faces(row)
         # Six faces per fin, five fins, all distinct.
         self.assertEqual(len(names), 30)
         self.assertEqual(len(set(names)), 30)
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
         one_deep = Selector.of(NamePat.of_kind(EntityKind.Face).path([SegPat.tag(SegTag.Member)]))
-        self.assertEqual(sorted(ev.select(row, one_deep)), sorted(names))
-        two_deep = Selector.of(
-            NamePat.of_kind(EntityKind.Face).path([SegPat.tag(SegTag.Member), SegPat.any()])
-        )
-        self.assertEqual(ev.select(row, two_deep), [])
+        self.assertEqual(sorted(ev.select(row[3], faces)), sorted(ev.select(fin, faces)))
+        self.assertEqual(len(ev.select(row[3], faces)), 6)
+        self.assertEqual(ev.select(row[3], one_deep), [])
+
+
+class TestASelectionReadsOneBody(unittest.TestCase):
+    """A selection reads one body (REFERENCES DM3): the selectors read
+    one member of a family, `row[i]`, by its own names, and refuse the
+    family read whole, naming the read to write."""
+
+    def test_a_family_read_whole_refuses_at_the_selectors(self):
+        doc = Doc()
+        row = row_of(doc, box(doc))
+        ev = evaluate(doc)
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
+        for ask in (lambda: ev.select(row, faces), lambda: ev.select_where(row, faces, [])):
+            with self.assertRaises(SelectRefusal) as caught:
+                ask()
+            self.assertEqual(caught.exception.reason, "family")
+            self.assertIn("xs[i]", str(caught.exception))
+
+    def test_a_member_answers_its_own_names(self):
+        doc = Doc()
+        prototype = box(doc)
+        row = row_of(doc, prototype)
+        ev = evaluate(doc)
+        edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+        own = ev.select(prototype, edges)
+        self.assertEqual(ev.select(row[1], edges), own)
+        self.assertEqual(ev.select_where(row[1], edges, []), own)
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.select(row[COUNT], edges)
+        self.assertEqual(caught.exception.reason, "no_member")
+
+    def test_a_fillet_of_a_member_reads_that_member(self):
+        doc = Doc()
+        prototype = box(doc)
+        row = row_of(doc, prototype)
+        edges = evaluate(doc).select(row[1], Selector.of(NamePat.of_kind(EntityKind.Edge)))
+        blend = doc.insert(Node.fillet(row[1], Formula.length_in(0.05, m), edges[:1]))
+        self.assertLess(mass_of(evaluate(doc), blend).volume, mass_of(evaluate(doc), prototype).volume)
 
 
 class TestAMemberReadReadsAFamily(unittest.TestCase):

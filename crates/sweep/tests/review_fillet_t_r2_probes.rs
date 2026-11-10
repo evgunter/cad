@@ -34,7 +34,7 @@ fn tol() -> Tol {
 /// corner vertex those edges must come out strictly ascending.
 #[test]
 fn corner_arcs_are_minted_in_seeded_edge_order() {
-    let body = cube(1.0, tol());
+    let body = cube::<f64>(1.0, tol());
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &query::all_edges(&body),

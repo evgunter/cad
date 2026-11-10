@@ -40,12 +40,20 @@
 //! RETIRED panics: the arenas are slotmaps whose keys carry a version,
 //! so a retired key is never reissued, and the guard is kept for the
 //! reason `emit_blend` keeps its own — the property rests on another
-//! crate's container choice. A survivor face must additionally be an
-//! `outer` row: the record lists every non-designated source face
-//! there, so a face that is neither minted nor listed has no provenance
-//! and panics the same way. Anything that is neither a survivor nor a recorded
-//! mint is [`NamingError::MissingUpstream`], loudly; the final
-//! [`check_total`] closes the other direction.
+//! crate's container choice. It sees only a retired key that is IN the
+//! output; a retirement naming a key the construction minted with no
+//! row and killed is in neither arena walked here, nor is a retired key
+//! that a row mints and the result still carries, since the retired set
+//! is consulted only for a key no row mints. The check of both is
+//! `topo::shell_open`'s closing postcondition (`record_rooted`), which
+//! still holds the operand: a `debug_assertions` one, which the release
+//! profile keeps on (`Cargo.toml`). A survivor face
+//! must additionally be an `outer` row: the record lists every
+//! non-designated source face there, so a face that is neither minted
+//! nor listed has no provenance and panics the same way. Anything that
+//! is neither a survivor nor a recorded mint is
+//! [`NamingError::MissingUpstream`], loudly; the final [`check_total`]
+//! closes the other direction.
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!
@@ -423,7 +431,8 @@ mod tests {
             tol,
         )
         .unwrap()
-        .body;
+        .body
+        .into_body();
         let point =
             |b: &Body<f64>, v: VertexKey| b.vertex_points().find(|(k, _)| *k == v).unwrap().1;
         let arcs: Vec<EdgeKey> = body
@@ -469,8 +478,8 @@ mod tests {
         // wall is as many faces as there are chords plus one.
         let mut wall = vec![
             body.faces()
-                .find(|(_, f)| {
-                    body.get_surface(f.surface).map(geom::Surface::kind)
+                .find(|&(k, _)| {
+                    body.face_surface(k).map(geom::Surface::kind)
                         == Some(geom::SurfaceKind::Cylinder)
                 })
                 .unwrap()

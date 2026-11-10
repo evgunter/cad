@@ -275,6 +275,20 @@ pub enum SelectRefusal {
     /// restated here: two copies of one derivation are two things to
     /// keep true, and this one has already drifted apart from that one.
     Band(BandError),
+    /// The read is a family read whole: a selection reads one body, so
+    /// it is asked of one member, `xs[i]` (REFERENCES DM3).
+    Family {
+        /// The family's operation.
+        node: crate::RecipeNodeId,
+    },
+    /// The read holds no member at the index values asked: no family,
+    /// or values past its members.
+    NoMember {
+        /// The read's operation.
+        node: crate::RecipeNodeId,
+        /// The index values asked, outermost first.
+        member: Vec<u32>,
+    },
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -311,7 +325,7 @@ impl crate::spoken::Say for SelectRefusal {
                         name.kind.noun(),
                         by.name(name)
                     ),
-                    crate::decision::ending(predicate, source)
+                    crate::decision::ending(Some(predicate), source)
                 )
             ),
             Self::TiedDisagrees {
@@ -374,6 +388,18 @@ impl crate::spoken::Say for SelectRefusal {
                 "select: the ambiguity band itself could not be built from the ambient \
                  tolerance, so no comparison below it can be trusted: {error}"
             ),
+            Self::NoMember { node, member } => write!(
+                f,
+                "select: {} holds no member at {member:?}. {}",
+                by.node(*node),
+                crate::sentence::Recourse("read a member the family has, one value per index")
+            ),
+            Self::Family { node } => write!(
+                f,
+                "select: {} is a family, and a selection reads one body. {}",
+                by.node(*node),
+                crate::sentence::Recourse("select from one member of it, `xs[i]`")
+            ),
         }
     }
 }
@@ -425,7 +451,7 @@ impl From<BandError> for SelectRefusal {
 /// An atom with its recipe references already resolved against the
 /// evaluation: the reference read once and the value expression evaluated
 /// once, rather than per candidate.
-pub(crate) enum Prepared<T: Decide> {
+pub(crate) enum Prepared<T: topo::AtRestPolicy + Decide> {
     /// [`GeomPred::CurveKind`].
     Curve(CurveKindSet),
     /// [`GeomPred::SurfaceKind`].
@@ -457,9 +483,9 @@ pub(crate) enum Prepared<T: Decide> {
 /// [`SelectRefusal::NotALength`], [`SelectRefusal::BadValue`] — faults
 /// of the query's own references, so they surface before a single
 /// margin is taken.
-pub(crate) fn prepare<T: Decide>(
+pub(crate) fn prepare<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
-    var: crate::VarId,
+    (var, table): (crate::VarId, &super::NameTable),
     geom: &[GeomPred],
     params: &VarEnv<T>,
     tol: geom_core::Tol,
@@ -476,9 +502,7 @@ pub(crate) fn prepare<T: Decide>(
                 let unresolved = || SelectRefusal::FaceUnresolved {
                     face: Box::new(face.clone()),
                 };
-                let Some(super::table::Entry::Unique(at)) =
-                    ev.table(var).and_then(|t| t.lookup(face))
-                else {
+                let Some(super::table::Entry::Unique(at)) = table.lookup(face) else {
                     return Err(unresolved());
                 };
                 let EntityKey::Face(f) = at.key else {
@@ -525,7 +549,7 @@ pub(crate) fn prepare<T: Decide>(
 /// candidate's position. The EXACT atoms never error: a missing
 /// carrier, a wrong entity kind or an unreadable adjacency is an
 /// honest NO, which is what makes a purely-exact filter total.
-pub(crate) fn candidate_matches<T: Decide>(
+pub(crate) fn candidate_matches<T: topo::AtRestPolicy + Decide>(
     framed: &crate::eval::Framed<T>,
     key: EntityKey,
     atoms: &[Prepared<T>],
@@ -635,6 +659,8 @@ mod census {
             NotALength,
             BadValue,
             Band,
+            Family,
+            NoMember,
         ];
     }
 
@@ -690,6 +716,13 @@ mod census {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
+            SelectRefusal::Family {
+                node: RecipeNodeId::new(0, 7),
+            },
+            SelectRefusal::NoMember {
+                node: RecipeNodeId::new(0, 7),
+                member: vec![3],
+            },
         ];
         let read: Vec<String> = samples
             .iter()

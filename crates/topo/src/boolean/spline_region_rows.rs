@@ -252,7 +252,11 @@ fn a_point_of_a_spline_face_is_placed_in_or_out_by_its_trim() {
     let Err(crate::boolean::ContainError::Escalated { diag, .. }) = in_band else {
         panic!("a point in the band of the carrier escalates: {in_band:?}");
     };
-    assert_eq!(diag.predicate, Some(super::CARRIER), "{diag:?}");
+    assert_eq!(
+        diag.predicate,
+        Some(super::SPLINE_REGION_CARRIER),
+        "{diag:?}"
+    );
 }
 
 /// **A point on the trim's boundary within the band** is the boundary
@@ -281,7 +285,7 @@ fn a_point_within_the_band_of_the_trim_is_never_given_a_side() {
     for u in [0.75 - step, 0.75 + step] {
         let near = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
-            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_REGION_TRIM)),
             "a chart point within the band of the trim at u = {u}: {near:?}"
         );
     }
@@ -458,7 +462,12 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
             p.reverse();
         }
         (0..4)
-            .map(|k| super::Piece::segment(p[k], p[(k + 1) % 4]))
+            .map(|k| {
+                super::Piece::segment(
+                    super::Piece::vertex(p[k], [0.0; 2]),
+                    super::Piece::vertex(p[(k + 1) % 4], [0.0; 2]),
+                )
+            })
             .collect::<Vec<_>>()
     };
     let b = band();
@@ -698,7 +707,12 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     let cells = bezier_cells(&chart).unwrap();
     let p = [[0.25, 0.6], [0.75, 0.6], [0.75, 0.9], [0.25, 0.9]];
     let square = (0..4)
-        .map(|k| super::Piece::segment(p[k], p[(k + 1) % 4]))
+        .map(|k| {
+            super::Piece::segment(
+                super::Piece::vertex(p[k], [0.0; 2]),
+                super::Piece::vertex(p[(k + 1) % 4], [0.0; 2]),
+            )
+        })
         .collect();
     let unit = super::Rect {
         u: (0.0, 1.0),
@@ -707,7 +721,7 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ).unwrap();
     let near = trim.place(&cells, super::Rect::point(0.5, 0.35), b);
     assert!(
-        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_REGION_TRIM)),
         "the way out of the window is in the band: {near:?}"
     );
 }
@@ -1004,4 +1018,895 @@ fn a_placeholder_at_each_joint_across_a_closed_charts_seam_reads_as_the_bare_fac
             }
         }
     }
+}
+
+// ---- the f64 cut's charge ----
+
+/// The band of the tightest ε the kernel runs at (the `1e-12` row), where
+/// an `f64` cut's rounding is a band's size: the charge's rows read here
+/// whatever the run's ε, each fixture sized so its rounding passes this
+/// band's escalation.
+fn tight_band() -> Band {
+    Band::new(1e-12, 1e-11).unwrap()
+}
+
+fn lift(x: f64) -> geom_core::Interval {
+    <geom_core::Interval as geom_core::Real>::from_f64(x)
+}
+
+/// **A point on a far rational sheet is not read off its carrier**
+/// ([`super::carrier_walk`], the walk [`read_capped`] reads, every cell
+/// and foot placed in): a knotted rational chart `1.8e5` across, `4e4`
+/// out, weights three decades apart, whose `v = 0` row is the straight
+/// line `y = 3e4, z = 2e4`; the point is on that line, inside the row's
+/// span, so its distance from the chart is zero. Uncharged, the cut's
+/// rounding puts every cell's box past the band and the walk reads it
+/// off the carrier (`SPLICE_SPLINE_REGION_MUTANT=spline-region-charge-dropped`,
+/// and the uncentred, uncharged walk this one replaced).
+#[test]
+fn a_point_on_a_far_rational_sheet_is_not_read_off_its_carrier() {
+    let (s, o) = (177_827.941_003_892_28, [-2e4, 3e4, 2e4]);
+    let zs = [0.125, -0.25, -0.125, -0.25];
+    let mut control = Vec::new();
+    for (i, z) in zs.into_iter().enumerate() {
+        let x = i as f64 / 3.0 * s + o[0];
+        control.push(Point3::new(x, o[1], o[2]));
+        control.push(Point3::new(x, o[1] + s, o[2] + z * s));
+    }
+    let chart = NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        vec![
+            12.625, 0.0625, 0.140625, 0.03125, 2.265625, 0.015625, 0.328125, 0.625,
+        ],
+    )
+    .unwrap();
+    let q = Point3::new(o[0] + 0.59375 * s, o[1], o[2]);
+    let cells = bezier_cells(&chart).unwrap();
+    let reading = super::carrier_walk(&chart, &cells, q, tight_band(), Caps::READ, |_| Place::In);
+    assert!(
+        !matches!(reading, Reading::OffCarrier),
+        "a point on the sheet reads off its carrier: {reading:?}"
+    );
+}
+
+/// A double-double `hi + lo`: the cut's reference arithmetic, near
+/// enough exact that its own rounding is a few units of `u²`.
+#[derive(Clone, Copy, Debug)]
+struct Dd(f64, f64);
+
+impl Dd {
+    fn of(x: f64) -> Self {
+        Self(x, 0.0)
+    }
+
+    fn two_sum(a: f64, b: f64) -> Self {
+        let s = a + b;
+        let bb = s - a;
+        Self(s, (a - (s - bb)) + (b - bb))
+    }
+
+    fn add(self, o: Self) -> Self {
+        let s = Self::two_sum(self.0, o.0);
+        Self::two_sum(s.0, s.1 + self.1 + o.1)
+    }
+
+    fn sub(self, o: Self) -> Self {
+        self.add(Self(-o.0, -o.1))
+    }
+
+    fn mul(self, o: Self) -> Self {
+        let p = self.0 * o.0;
+        Self::two_sum(p, self.0.mul_add(o.0, -p) + self.0 * o.1 + self.1 * o.0)
+    }
+
+    fn div(self, o: Self) -> Self {
+        let q = self.0 / o.0;
+        let r = self.sub(o.mul(Self::of(q)));
+        Self::two_sum(q, r.0 / o.0)
+    }
+}
+
+/// A single-span net and its cut, beside the same net cut in
+/// double-double: the chart's net moved about the cell's centre into
+/// homogeneous form, as [`bezier_cells`] holds it.
+fn dd_net(chart: &NurbsSurface<f64>, centre: geom_core::Vec3<f64>) -> Vec<[Dd; 4]> {
+    chart
+        .control()
+        .iter()
+        .zip(chart.weights())
+        .map(|(p, &w)| {
+            let w = Dd::of(w);
+            let m = |x: f64, c: f64| Dd::of(x).sub(Dd::of(c)).mul(w);
+            [m(p.x, centre.x), m(p.y, centre.y), m(p.z, centre.z), w]
+        })
+        .collect()
+}
+
+/// `net` split at the fraction `s` along `u` (`along_u`) or `v`, the
+/// half kept by `left`, in double-double (the reference of
+/// [`super::Patch::split`]).
+fn dd_split(
+    net: &[[Dd; 4]],
+    (pu, pv): (usize, usize),
+    along_u: bool,
+    s: f64,
+    left: bool,
+) -> Vec<[Dd; 4]> {
+    let (n, m) = if along_u { (pu, pv) } else { (pv, pu) };
+    let at = |i: usize, k: usize| {
+        if along_u {
+            i * (pv + 1) + k
+        } else {
+            k * (pv + 1) + i
+        }
+    };
+    let t = Dd::of(s);
+    let mut out = net.to_vec();
+    for k in 0..=m {
+        let mut row: Vec<[Dd; 4]> = (0..=n).map(|i| net[at(i, k)]).collect();
+        let (mut lo, mut hi) = (Vec::new(), Vec::new());
+        for level in 0..=n {
+            lo.push(row[0]);
+            hi.push(row[n - level]);
+            for i in 0..n - level {
+                let (a, b) = (row[i], row[i + 1]);
+                row[i] = core::array::from_fn(|c| a[c].add(b[c].sub(a[c]).mul(t)));
+            }
+        }
+        hi.reverse();
+        for i in 0..=n {
+            out[at(i, k)] = if left { lo[i] } else { hi[i] };
+        }
+    }
+    out
+}
+
+/// The worst, over the cell's points and coordinates, of each point's
+/// drift from its double-double reference over its rounding bound
+/// ([`super::point_rounding`]).
+fn drift_over_bound(cell: &super::Patch<f64>, reference: &[[Dd; 4]]) -> f64 {
+    let mut worst = 0.0f64;
+    for (control, exact) in cell.net.iter().zip(reference) {
+        let bound = super::point_rounding(control);
+        for c in 0..3 {
+            let drift = Dd::of(control.0[c] / control.0[3])
+                .sub(exact[c].div(exact[3]))
+                .0
+                .abs();
+            worst = worst.max(drift / bound[c]);
+        }
+    }
+    worst
+}
+
+/// **The cut's rounding bound holds the cut's drift**: single-span
+/// rational patches of degree one to four, `1` to `1e6` across, placed
+/// up to `1e6` away, weights up to eight decades apart, each cut along a
+/// random path of six quarterings and one split at a random fraction
+/// (as [`super::Patch::restricted`] cuts), against the same cut in
+/// double-double. No point drifts past its bound. The insertion's bound
+/// is `geom_brep`'s spline incidence's, measured there against a
+/// knotted cut (`the_cut_rounding_bound_holds_a_knotted_cuts_drift`).
+#[test]
+fn the_cut_rounding_bound_holds_the_cut_drift() {
+    let mut rng = test_utils::fuzz::start("spline-region-cut-drift");
+    let mut worst = 0.0f64;
+    for _ in 0..test_utils::fuzz::scaled(1000) {
+        let (pu, pv) = (1 + rng.below(4), 1 + rng.below(4));
+        let k = |p: usize| {
+            KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).unwrap()
+        };
+        let (scale, off) = (
+            10f64.powf(rng.range(0.0, 6.0)),
+            10f64.powf(rng.range(0.0, 6.0)),
+        );
+        let control = (0..(pu + 1) * (pv + 1))
+            .map(|_| {
+                Point3::new(
+                    rng.range(-1.0, 1.0) * scale + off,
+                    rng.range(-1.0, 1.0) * scale - off,
+                    rng.range(-1.0, 1.0) * scale,
+                )
+            })
+            .collect();
+        let spread = rng.range(0.0, 4.0);
+        let weights = (0..(pu + 1) * (pv + 1))
+            .map(|_| 10f64.powf(rng.range(-spread, spread)))
+            .collect();
+        let chart = NurbsSurface::new(k(pu), k(pv), control, weights).unwrap();
+        let mut cell = bezier_cells(&chart).unwrap().remove(0);
+        let mut exact = dd_net(&chart, cell.centre);
+        worst = worst.max(drift_over_bound(&cell, &exact));
+        for step in 0..7 {
+            let (along_u, s, left) = if step == 3 {
+                (rng.below(2) == 0, rng.range(0.05, 0.95), rng.below(2) == 0)
+            } else {
+                (step % 2 == 0, 0.5, rng.below(2) == 0)
+            };
+            let (l, r) = cell.split(along_u, s);
+            cell = if left { l } else { r };
+            exact = dd_split(&exact, (pu, pv), along_u, s, left);
+            worst = worst.max(drift_over_bound(&cell, &exact));
+        }
+    }
+    eprintln!("[spline-region-cut-drift] worst drift / bound {worst}");
+    assert!(
+        worst <= 1.0,
+        "a cut point drifts {worst} times its rounding bound; {}",
+        test_utils::fuzz::replay()
+    );
+}
+
+/// **The cut's rounding bound is not loose by half**: one bilinear
+/// rational patch whose net, moved about its centre into homogeneous
+/// form and back, drifts more than half its bound in `x`. Halved
+/// (`SPLICE_SPLINE_REGION_MUTANT=spline-region-bound-halved`), the bound
+/// no longer holds it.
+#[test]
+fn the_cut_rounding_bound_comes_within_half_of_a_points_drift() {
+    let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let chart = NurbsSurface::new(
+        k(),
+        k(),
+        vec![
+            Point3::new(-238.77494180773263, -75.44209369912775, 24.927673166782743),
+            Point3::new(38.653231319340016, 402.1064266784137, 21.6381793477302),
+            Point3::new(469.3367931984738, 441.01805823091445, -45.592431086187766),
+            Point3::new(418.6754132603401, -77.29399775704272, -117.47042168432851),
+        ],
+        vec![
+            0.34391945461948203,
+            41.40593693073497,
+            27.63484388360674,
+            237.43592290619594,
+        ],
+    )
+    .unwrap();
+    let cell = bezier_cells(&chart).unwrap().remove(0);
+    let ratio = drift_over_bound(&cell, &dd_net(&chart, cell.centre));
+    assert!(
+        (0.5..=1.0).contains(&ratio),
+        "the drift is {ratio} of its bound, outside (½, 1]"
+    );
+}
+
+/// **A query on a far trim curve is given no side**, at `f64` and at
+/// `Interval` ([`Trim::place`]): the chart is flat, `1e3` across, its
+/// `v` domain `[999, 1001]` (each unit of `v` 500 m), and the trim's
+/// lower side is a rational quadratic image along `v = 1000` exactly
+/// (weights three decades apart), closed by segments. The query lies on
+/// that side. Uncharged, its pieces' boxes, cut in `f64` (and at
+/// `Interval` collapsed to their value channel), sit ulps of `1000` off
+/// the line, decided past the band once metered, and the query is read
+/// in (`SPLICE_SPLINE_REGION_MUTANT=spline-region-trim-uncharged`).
+#[test]
+fn a_query_on_a_far_trim_curve_is_given_no_side() {
+    use super::{Piece, bezier_pieces};
+    let (c, a) = (1e3, 1e3);
+    let chart = NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        KnotVector::clamped(vec![c - 1.0, c - 1.0, c + 1.0, c + 1.0], 1).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, a, 0.0),
+            Point3::new(a, 0.0, 0.0),
+            Point3::new(a, a, 0.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let image = geom::NurbsCurve2::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+        [0.2, 0.4, 0.6, 0.8]
+            .into_iter()
+            .map(|u| Point2::new(u, c))
+            .collect(),
+        vec![0.09375, 32.40625, 0.078125, 68.78125],
+    )
+    .unwrap();
+    let domain = super::Rect {
+        u: (0.0, 1.0),
+        v: (c - 1.0, c + 1.0),
+    };
+    let trim = |mut run: Vec<Piece>| {
+        let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+        run.push(Piece::segment(run.last().unwrap().last(), v(0.8, c + 0.5)));
+        run.push(Piece::segment(v(0.8, c + 0.5), v(0.2, c + 0.5)));
+        run.push(Piece::segment(v(0.2, c + 0.5), run[0].first()));
+        Trim::from_pieces(run, domain, [None, None], Caps::READ).unwrap()
+    };
+    let q = super::Rect::point(0.59375, c);
+    let at = trim(bezier_pieces(&image, 0.0, 1.0).unwrap()).place(
+        &bezier_cells(&chart).unwrap(),
+        q,
+        tight_band(),
+    );
+    assert!(matches!(at, Place::Near(_)), "f64: {at:?}");
+    let at = trim(bezier_pieces(&image.map_scalar(lift), 0.0, 1.0).unwrap()).place(
+        &bezier_cells(&chart.map_scalar(lift)).unwrap(),
+        q,
+        tight_band(),
+    );
+    assert!(matches!(at, Place::Near(_)), "Interval: {at:?}");
+}
+
+/// Knotted cuts against a double-double Boehm reference: the cells'
+/// insertions and the trim's pieces.
+mod knotted {
+    use super::super::{Piece, bezier_cells, bezier_pieces};
+    use super::Dd;
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Point2, Point3, Vec3};
+
+    fn knots(rng: &mut test_utils::fuzz::Rng, p: usize) -> KnotVector {
+        let mut interior: Vec<f64> = (0..rng.below(5)).map(|_| rng.range(0.05, 0.95)).collect();
+        interior.sort_by(f64::total_cmp);
+        let mut v = vec![0.0; p + 1];
+        for x in interior {
+            v.extend(core::iter::repeat_n(x, 1 + rng.below(p)));
+        }
+        v.extend(core::iter::repeat_n(1.0, p + 1));
+        KnotVector::clamped(v, p).unwrap()
+    }
+
+    /// Boehm's insertion in double-double, every interior knot (and each
+    /// of `extra`) raised to `p`.
+    fn dd_refine<const N: usize>(
+        knots: &[f64],
+        p: usize,
+        row: Vec<[Dd; N]>,
+        extra: &[f64],
+    ) -> Vec<[Dd; N]> {
+        let (mut knots, mut row) = (knots.to_vec(), row);
+        let (first, last) = (knots[0], knots[knots.len() - 1]);
+        let mut interior: Vec<f64> = knots
+            .iter()
+            .copied()
+            .chain(extra.iter().copied())
+            .filter(|&x| x != first && x != last)
+            .collect();
+        interior.sort_by(f64::total_cmp);
+        interior.dedup();
+        for x in interior {
+            while knots.iter().filter(|&&k| k == x).count() < p {
+                let s = knots.iter().filter(|&&k| k == x).count();
+                let k = knots.iter().rposition(|&u| u <= x).unwrap();
+                let mut out = Vec::with_capacity(row.len() + 1);
+                for i in 0..=row.len() {
+                    if i + p <= k {
+                        out.push(row[i]);
+                    } else if i + s > k {
+                        out.push(row[i - 1]);
+                    } else {
+                        let a = Dd::of(x)
+                            .sub(Dd::of(knots[i]))
+                            .div(Dd::of(knots[i + p]).sub(Dd::of(knots[i])));
+                        let (lo, hi) = (row[i - 1], row[i]);
+                        out.push(core::array::from_fn(|c| lo[c].add(hi[c].sub(lo[c]).mul(a))));
+                    }
+                }
+                knots.insert(k + 1, x);
+                row = out;
+            }
+        }
+        row
+    }
+
+    fn drift(x: f64, exact: Dd) -> f64 {
+        let d = Dd::of(x).sub(exact);
+        (d.0 + d.1).abs()
+    }
+
+    /// **The cut's rounding bound holds a knotted cut's drift**: knotted
+    /// rational charts, any interior multiplicity, weights up to eight
+    /// decades apart, placed up to `1e5` of their size away, each
+    /// Bézier cell [`bezier_cells`] cuts (then split at random
+    /// fractions) against Boehm's insertion in double-double.
+    #[test]
+    fn the_cut_rounding_bound_holds_a_knotted_cuts_drift() {
+        let rng = &mut test_utils::fuzz::start("spline-region-knotted-drift");
+        let mut worst = 0.0f64;
+        for case in 0..test_utils::fuzz::scaled(600) {
+            let (pu, pv) = (1 + rng.below(4), 1 + rng.below(4));
+            let (ku, kv) = (knots(rng, pu), knots(rng, pv));
+            let (nu, nv) = (ku.control_count(), kv.control_count());
+            let scale = 10f64.powf(rng.range(-2.0, 4.0));
+            let o = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ) * scale
+                * [0.0, 10.0, 1e3, 1e5][rng.below(4)];
+            let control: Vec<Point3<f64>> = (0..nu * nv)
+                .map(|_| {
+                    Point3::origin()
+                        + Vec3::new(
+                            rng.range(-1.0, 1.0),
+                            rng.range(-1.0, 1.0),
+                            rng.range(-1.0, 1.0),
+                        ) * scale
+                        + o
+                })
+                .collect();
+            let decades = [0.0, 2.0, 4.0, 8.0][rng.below(4)];
+            let weights: Vec<f64> = (0..nu * nv)
+                .map(|_| 10f64.powf(rng.range(-decades / 2.0, decades / 2.0)))
+                .collect();
+            let chart = NurbsSurface::new(ku, kv, control.clone(), weights.clone()).unwrap();
+            let cells = bezier_cells(&chart).unwrap();
+            let c = cells[0].centre;
+            let at = |k: usize| {
+                let w = Dd::of(weights[k]);
+                let m = |x: f64, c: f64| Dd::of(x).sub(Dd::of(c)).mul(w);
+                let p = control[k];
+                [m(p.x, c.x), m(p.y, c.y), m(p.z, c.z), w]
+            };
+            let (u, v) = (
+                chart.knot_values_u().values(),
+                chart.knot_values_v().values(),
+            );
+            let rows: Vec<Vec<[Dd; 4]>> = (0..nu)
+                .map(|i| dd_refine(v, pv, (0..nv).map(|j| at(i * nv + j)).collect(), &[]))
+                .collect();
+            let columns: Vec<Vec<[Dd; 4]>> = (0..rows[0].len())
+                .map(|j| dd_refine(u, pu, rows.iter().map(|r| r[j]).collect(), &[]))
+                .collect();
+            let (cu, cv) = ((columns[0].len() - 1) / pu, (columns.len() - 1) / pv);
+            assert_eq!(
+                cells.len(),
+                cu * cv,
+                "case {case}: the cells are the reference's"
+            );
+            for i in 0..cu {
+                for j in 0..cv {
+                    let mut exact = Vec::new();
+                    for a in 0..=pu {
+                        for b in 0..=pv {
+                            exact.push(columns[j * pv + b][i * pu + a]);
+                        }
+                    }
+                    let mut cell = cells[i * cv + j].clone();
+                    for step in 0..rng.below(6) {
+                        let (along_u, s, left) = (
+                            rng.below(2) == 0,
+                            if step % 2 == 0 {
+                                0.5
+                            } else {
+                                rng.range(0.05, 0.95)
+                            },
+                            rng.below(2) == 0,
+                        );
+                        let (l, r) = cell.split(along_u, s);
+                        cell = if left { l } else { r };
+                        exact = super::dd_split(&exact, (pu, pv), along_u, s, left);
+                    }
+                    for (got, ex) in cell.net.iter().zip(&exact) {
+                        let bound = super::super::point_rounding(got);
+                        for k in 0..3 {
+                            let d = drift(got.0[k] / got.0[3], ex[k].div(ex[3]));
+                            worst = worst.max(d / bound[k]);
+                            assert!(
+                                d <= bound[k],
+                                "case {case}: drift {d:e} past bound {:e}; {}",
+                                bound[k],
+                                test_utils::fuzz::replay()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("[spline-region-knotted-drift] worst drift / bound {worst}");
+    }
+
+    /// **The trim's pieces hold their drift**: random rational knotted
+    /// image curves, far from the origin in the chart, cut by
+    /// [`bezier_pieces`] over a random `[a, b]` (inserting knots that
+    /// are not breaks), each piece then halved, against double-double.
+    #[test]
+    fn the_trim_pieces_rounding_bound_holds_their_drift() {
+        let rng = &mut test_utils::fuzz::start("spline-region-piece-drift");
+        let mut worst = 0.0f64;
+        for case in 0..test_utils::fuzz::scaled(1500) {
+            let p = 1 + rng.below(4);
+            let kv = knots(rng, p);
+            let n = kv.control_count();
+            let scale = 10f64.powf(rng.range(-3.0, 1.0));
+            let off = 10f64.powf(rng.range(0.0, 6.0)) * [1.0, -1.0][rng.below(2)];
+            let control: Vec<Point2<f64>> = (0..n)
+                .map(|_| {
+                    Point2::new(
+                        rng.range(-1.0, 1.0) * scale + off,
+                        rng.range(-1.0, 1.0) * scale - off,
+                    )
+                })
+                .collect();
+            let decades = [0.0, 2.0, 4.0, 8.0][rng.below(4)];
+            let weights: Vec<f64> = (0..n)
+                .map(|_| 10f64.powf(rng.range(-decades / 2.0, decades / 2.0)))
+                .collect();
+            let image =
+                geom::NurbsCurve2::new(kv.clone(), control.clone(), weights.clone()).unwrap();
+            let (mut a, mut b) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
+            if a > b {
+                core::mem::swap(&mut a, &mut b);
+            }
+            if rng.below(3) == 0 {
+                a = 0.0;
+            }
+            if rng.below(3) == 0 {
+                b = 1.0;
+            }
+            if b - a < 1e-3 {
+                continue;
+            }
+            let Some(pieces) = bezier_pieces(&image, a, b) else {
+                panic!("case {case}: no pieces");
+            };
+            let row: Vec<[Dd; 3]> = control
+                .iter()
+                .zip(&weights)
+                .map(|(c, &w)| {
+                    let w = Dd::of(w);
+                    [Dd::of(c.x).mul(w), Dd::of(c.y).mul(w), w]
+                })
+                .collect();
+            let exact = dd_refine(kv.knots(), p, row, &[a, b]);
+            // The pieces are the reference's cells between a and b.
+            let mut bk: Vec<f64> = kv.knots().iter().copied().chain([a, b]).collect();
+            bk.sort_by(f64::total_cmp);
+            bk.dedup();
+            let firsts: Vec<usize> = (0..bk.len() - 1)
+                .filter(|&k| bk[k] >= a && bk[k + 1] <= b)
+                .collect();
+            assert_eq!(firsts.len(), pieces.len(), "case {case}");
+            let check = |piece: &Piece, ex: &[[Dd; 3]], worst: &mut f64| {
+                for (got, e) in piece.net.iter().zip(ex) {
+                    let bound = super::super::point_rounding(got);
+                    for k in 0..2 {
+                        let d = drift(got.0[k] / got.0[2], e[k].div(e[2]));
+                        *worst = worst.max(d / bound[k]);
+                        assert!(
+                            d <= bound[k],
+                            "case {case}: piece drift {d:e} past bound {:e}; {}",
+                            bound[k],
+                            test_utils::fuzz::replay()
+                        );
+                    }
+                }
+            };
+            for (piece, &k) in pieces.iter().zip(&firsts) {
+                let mut ex: Vec<[Dd; 3]> = exact[k * p..=k * p + p].to_vec();
+                let mut piece = piece.clone();
+                check(&piece, &ex, &mut worst);
+                for _ in 0..rng.below(8) {
+                    let left = rng.below(2) == 0;
+                    let (l, r) = piece.halves();
+                    piece = if left { l } else { r };
+                    // de Casteljau at 1/2 in double-double.
+                    let mut rowd = ex.clone();
+                    let (mut lo, mut hi) = (Vec::new(), Vec::new());
+                    for level in 0..=p {
+                        lo.push(rowd[0]);
+                        hi.push(rowd[p - level]);
+                        for i in 0..p - level {
+                            let (x, y) = (rowd[i], rowd[i + 1]);
+                            rowd[i] =
+                                core::array::from_fn(|c| x[c].add(y[c].sub(x[c]).mul(Dd::of(0.5))));
+                        }
+                    }
+                    hi.reverse();
+                    ex = if left { lo } else { hi };
+                    check(&piece, &ex, &mut worst);
+                }
+            }
+        }
+        eprintln!("[spline-region-piece-drift] worst drift / bound {worst}");
+    }
+}
+
+/// **A query on a wide `Interval` trim image is given no side**: the far
+/// trim row's image at `Interval`, every control's `v` a bracket
+/// `[c − 4e-11, c + 4e-11]`, so the line `v = c + 3e-11` is one of the
+/// curves it stands for; a query on that line is within the band of the
+/// trim. The piece held at its brackets' middles is off by their
+/// half-width, and only that charge keeps the query near (the half-width
+/// dropped, the query reads in).
+#[test]
+fn a_query_on_a_wide_interval_trim_image_is_given_no_side() {
+    use super::{Piece, bezier_pieces};
+    let (c, a) = (1e3, 1e3);
+    let chart = NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        KnotVector::clamped(vec![c - 1.0, c - 1.0, c + 1.0, c + 1.0], 1).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, a, 0.0),
+            Point3::new(a, 0.0, 0.0),
+            Point3::new(a, a, 0.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let w = 4e-11;
+    let image = geom::NurbsCurve2::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+        [0.2, 0.4, 0.6, 0.8]
+            .into_iter()
+            .map(|u| Point2::new(u, c))
+            .collect(),
+        vec![0.09375, 32.40625, 0.078125, 68.78125],
+    )
+    .unwrap()
+    .map_scalar(|x| {
+        if (x - c).abs() < 1.0 {
+            geom_core::Interval::from_bounds(x - w, x + w)
+        } else {
+            lift(x)
+        }
+    });
+    let domain = super::Rect {
+        u: (0.0, 1.0),
+        v: (c - 1.0, c + 1.0),
+    };
+    let mut run = bezier_pieces(&image, 0.0, 1.0).unwrap();
+    let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+    run.push(Piece::segment(run.last().unwrap().last(), v(0.8, c + 0.5)));
+    run.push(Piece::segment(v(0.8, c + 0.5), v(0.2, c + 0.5)));
+    run.push(Piece::segment(v(0.2, c + 0.5), run[0].first()));
+    let trim = Trim::from_pieces(run, domain, [None, None], Caps::READ).unwrap();
+    let cells = bezier_cells(&chart.map_scalar(lift)).unwrap();
+    let mut sided = 0;
+    for k in 0..64 {
+        let u = 0.25 + 0.5 * (k as f64 + 0.5) / 64.0;
+        let q = super::Rect::point(u, c + 3e-11);
+        if !matches!(trim.place(&cells, q, tight_band()), Place::Near(_)) {
+            sided += 1;
+        }
+    }
+    assert_eq!(
+        sided, 0,
+        "{sided} of 64 queries on a member of the trim got a side"
+    );
+}
+
+/// **A piece whose rounding bound is NaN has no box**
+/// ([`super::Piece::bbox`]): a NaN bound refuses, and is not dropped by
+/// the per-channel fold to leave the box unwidened.
+#[test]
+fn a_piece_with_a_nan_bound_has_no_box() {
+    use super::Piece;
+    let piece = Piece {
+        net: vec![
+            ([0.0, 0.0, 1.0], [0.0, f64::NAN, 0.0]),
+            ([1.0, 1.0, 1.0], [0.0; 3]),
+        ],
+    };
+    let b = piece.bbox();
+    assert!(b.is_none(), "a NaN bound gives the box {b:?}");
+}
+
+/// **A cell whose rounding bound is NaN has no floor past zero**
+/// ([`super::Patch::floor`]): a NaN bound poisons the floor, and is not
+/// dropped by the per-channel fold to leave the floor at the box gap.
+#[test]
+fn a_cell_with_a_nan_bound_has_no_floor() {
+    let net = vec![
+        ([0.0, 0.0, 0.0, 1.0], [f64::NAN, 0.0, 0.0, 0.0]),
+        ([1.0, 0.0, 0.0, 1.0], [0.0; 4]),
+        ([0.0, 1.0, 0.0, 1.0], [0.0; 4]),
+        ([1.0, 1.0, 0.0, 1.0], [0.0; 4]),
+    ];
+    let cell = super::Patch {
+        rect: super::Rect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        },
+        pu: 1,
+        pv: 1,
+        net,
+        centre: Vec3::new(0.0, 0.0, 0.0),
+    };
+    let floor = cell.floor(Point3::new(0.5, 0.5, 1.0));
+    assert!(floor.is_nan(), "a NaN bound leaves the floor {floor}");
+}
+
+/// A unit square cell at `z = 0`, held about `centre`, each point
+/// carrying the rounding bound `e` on its `z` channel.
+fn square_cell(centre: Vec3<f64>, e: f64) -> super::Patch<f64> {
+    let net = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+        .map(|(x, y)| ([x, y, 0.0, 1.0], [0.0, 0.0, e, 0.0]))
+        .to_vec();
+    super::Patch {
+        rect: super::Rect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        },
+        pu: 1,
+        pv: 1,
+        net,
+        centre,
+    }
+}
+
+/// **A cell's floor is lowered by the rounding its points carry and by
+/// the read's** ([`super::Patch::floor`]), each term alone: no fixture
+/// makes either decide alone (each covers the other's drift wherever
+/// `q` meets a box face, the site argues), so the composition is
+/// pinned here, and the bounds themselves by the drift rows. A cell
+/// whose points carry `1e-6` in `z`, `2e-6` below it, about the origin,
+/// floors at about `1e-6`; the same cell carrying nothing, held `1e8`
+/// away with `q` `2e-6` below it in the cell's frame, floors at the gap
+/// less the read's `16u·(reach + |q − c| + 1e8)`.
+#[test]
+fn a_cells_floor_is_lowered_by_its_cut_and_its_read() {
+    let below = 2e-6;
+    let cut = square_cell(Vec3::new(0.0, 0.0, 0.0), 1e-6);
+    let floor = cut.floor(Point3::new(0.5, 0.5, -below));
+    assert!(
+        floor <= below - 1e-6 + 1e-12,
+        "the cut's bound is charged: floor {floor:e}"
+    );
+    let far = 1e8;
+    let read = square_cell(Vec3::new(far, 0.0, 0.0), 0.0);
+    let floor = read.floor(Point3::new(far + 0.5, 0.5, -below));
+    let charge = geom_core::rounding_charge(2.0 * (2f64.sqrt() + 0.5f64.hypot(0.5) + far));
+    assert!(
+        floor <= below - 0.9 * charge && charge > 0.0,
+        "the read is charged: floor {floor:e}, charge {charge:e}"
+    );
+}
+
+/// **A query on a far trim curve along `v` is given no side**, the
+/// transpose of [`a_query_on_a_far_trim_curve_is_given_no_side`]: the
+/// image lies along `u = 1000` exactly, so it is the box's widening in
+/// `u` that keeps the query near
+/// (`SPLICE_SPLINE_REGION_MUTANT=spline-region-u-unwidened`).
+#[test]
+fn a_query_on_a_far_trim_curve_along_v_is_given_no_side() {
+    use super::{Piece, bezier_pieces};
+    let (c, a) = (1e3, 1e3);
+    let chart = NurbsSurface::new(
+        KnotVector::clamped(vec![c - 1.0, c - 1.0, c + 1.0, c + 1.0], 1).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, a, 0.0),
+            Point3::new(a, 0.0, 0.0),
+            Point3::new(a, a, 0.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let image = geom::NurbsCurve2::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+        [0.2, 0.4, 0.6, 0.8]
+            .into_iter()
+            .map(|v| Point2::new(c, v))
+            .collect(),
+        vec![0.09375, 32.40625, 0.078125, 68.78125],
+    )
+    .unwrap();
+    let domain = super::Rect {
+        u: (c - 1.0, c + 1.0),
+        v: (0.0, 1.0),
+    };
+    let mut run = bezier_pieces(&image, 0.0, 1.0).unwrap();
+    let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+    run.push(Piece::segment(run.last().unwrap().last(), v(c - 0.5, 0.8)));
+    run.push(Piece::segment(v(c - 0.5, 0.8), v(c - 0.5, 0.2)));
+    run.push(Piece::segment(v(c - 0.5, 0.2), run[0].first()));
+    let trim = Trim::from_pieces(run, domain, [None, None], Caps::READ).unwrap();
+    let cells = bezier_cells(&chart).unwrap();
+    let sided = (0..64)
+        .filter(|k| {
+            let q = super::Rect::point(c, 0.25 + 0.5 * (f64::from(*k) + 0.5) / 64.0);
+            !matches!(trim.place(&cells, q, tight_band()), Place::Near(_))
+        })
+        .count();
+    assert_eq!(sided, 0, "{sided} of 64 queries on the trim got a side");
+}
+
+/// **A shifted piece's rounding bound holds its drift**
+/// ([`super::Piece::shifted`], a ring moved whole periods): rational
+/// control points up to `1e4` out in the chart, weights up to eight
+/// decades apart, moved by up to `1e4` in each channel, against the move
+/// in double-double. No point drifts past its bound
+/// (`SPLICE_SPLINE_REGION_MUTANT=spline-region-shift-untracked`: the move
+/// charged nothing, the drift passes the bound).
+#[test]
+fn a_shifted_pieces_rounding_bound_holds_its_drift() {
+    let mut rng = test_utils::fuzz::start("spline-region-shift-drift");
+    let mut worst = 0.0f64;
+    for _ in 0..test_utils::fuzz::scaled(4000) {
+        let w = 10f64.powf(rng.range(-4.0, 4.0));
+        let p = [rng.range(-1e4, 1e4), rng.range(-1e4, 1e4)];
+        let h = [p[0] * w, p[1] * w, w];
+        let piece = super::Piece {
+            net: vec![(h, [0.0; 3]), (h, [0.0; 3])],
+        };
+        let d = [rng.range(-1e4, 1e4), rng.range(-1e4, 1e4)];
+        let moved = piece.shifted(d[0], d[1]).net[0];
+        let bound = super::point_rounding(&moved);
+        for c in 0..2 {
+            let exact = Dd::of(h[c]).add(Dd::of(d[c]).mul(Dd::of(w))).div(Dd::of(w));
+            let drift = Dd::of(moved.0[c] / moved.0[2]).sub(exact).0.abs();
+            worst = worst.max(drift / bound[c]);
+        }
+    }
+    eprintln!("[spline-region-shift-drift] worst drift / bound {worst}");
+    assert!(
+        worst <= 1.0,
+        "a shifted point drifts {worst} times its bound; {}",
+        test_utils::fuzz::replay()
+    );
+}
+
+/// **An iso image's end holds its evaluation's rounding**
+/// ([`super::image_pieces`] on a [`Pcurve::IsoLine`]): lines `p0 + pl·t`
+/// with `p0` up to `1e4` out in the chart and `pl·t` of its size, each
+/// end against `p0 + pl·t` in double-double. No end drifts past its
+/// bound (`SPLICE_SPLINE_REGION_MUTANT=spline-region-iso-end-uncharged`:
+/// the end charged nothing, the drift passes the bound).
+#[test]
+fn an_iso_images_ends_hold_their_evaluations_rounding() {
+    let mut rng = test_utils::fuzz::start("spline-region-iso-end-drift");
+    let mut worst = 0.0f64;
+    for _ in 0..test_utils::fuzz::scaled(4000) {
+        let p0 = Point2::new(rng.range(-1e4, 1e4), rng.range(-1e4, 1e4));
+        let pl = Vec2::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+        let (t0, t1) = (rng.range(0.0, 1e4), rng.range(1e4, 2e4));
+        let line = Pcurve::IsoLine { p0, pl };
+        let scale = p0.x.abs().max(p0.y.abs());
+        let run = super::image_pieces(&line, t0, t1, scale).unwrap();
+        for (end, t) in [(run[0].first(), t0), (run[0].last(), t1)] {
+            let bound = super::point_rounding(&end);
+            for (c, (a, b)) in [(p0.x, pl.x), (p0.y, pl.y)].into_iter().enumerate() {
+                let exact = Dd::of(a).add(Dd::of(b).mul(Dd::of(t)));
+                let drift = Dd::of(end.0[c] / end.0[2]).sub(exact).0.abs();
+                worst = worst.max(drift / bound[c]);
+            }
+        }
+    }
+    eprintln!("[spline-region-iso-end-drift] worst drift / bound {worst}");
+    assert!(
+        worst <= 1.0,
+        "an iso end drifts {worst} times its bound; {}",
+        test_utils::fuzz::replay()
+    );
+}
+
+/// **A spline face's stations read on its own chart, never off its
+/// carrier** (`crate::cell_region`'s held door). The twisted bilinear
+/// patch `(u, v, u·v)`, a sheet over `[0.1, 0.9]²` of it: every station
+/// of an 11 × 11 grid over the whole chart is placed by the curved door,
+/// and none reads `OffCarrier`. A station is a point of the chart, and
+/// the spline arm reads it by its own search, which `Held::check` does
+/// not guard. `cell_region::station_region` answers `In` well inside the
+/// sheet and `Out` well outside it, and panics nowhere.
+#[test]
+fn a_spline_faces_stations_read_on_its_own_chart() {
+    let (body, face) = sheet(
+        &twisted(1.0),
+        &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
+    );
+    let surface = body.face(face).unwrap().surface().clone();
+    let n = 10;
+    for i in 0..=n {
+        for j in 0..=n {
+            let (u, v) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+            let at = curved_face_placement(&body, face, surface.eval(u, v), band());
+            assert!(
+                !matches!(at, Ok(CurvedPlacement::OffCarrier)),
+                "the station ({u}, {v}) reads off its own carrier: {at:?}"
+            );
+            let _ = crate::cell_region::station_region(&body, face, (u, v), band());
+        }
+    }
+    let region = |uv| crate::cell_region::station_region(&body, face, uv, band());
+    assert_eq!(region((0.5, 0.5)), Some(FaceContainment::In));
+    assert_eq!(region((0.02, 0.5)), Some(FaceContainment::Out));
 }

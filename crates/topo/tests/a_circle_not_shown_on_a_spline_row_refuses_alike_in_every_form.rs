@@ -213,16 +213,15 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
             T::NAME
         );
         // Bent past the band: the wall is off the rim, and the circle
-        // ends as the incidence read.
+        // ends as the incidence read, decided off. The rim and the wall
+        // are a circle and a spline: the "not yet" row below names them.
         let off = derived::<T>((OFF_PUSH, 0.0), form);
         assert!(
             matches!(
-                refused(&off),
-                Some(PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Nurbs,
-                    carrier: geom::CurveKind::Circle,
-                    ..
-                })
+                refused(&off)
+                    .as_ref()
+                    .and_then(geom_brep::IncidenceRead::of),
+                Some(geom_brep::IncidenceRead::Off(_))
             ),
             "{form:?}: a rim the wall is bent off ends off the chart, at {}: {off:?}",
             T::NAME

@@ -720,42 +720,70 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 fault,
             });
         }
-        let body = match snapshot.var(select.body) {
-            None if snapshot.mint.has_var(select.body) => return None,
-            None => SelectionBodyFault::Unminted { body: select.body },
+        // Each seat reading it, directly or through a pose, holds its
+        // body read to the edit door's rule beyond kind
+        // (`edit::selection_body_fault`).
+        // A pose read at a seat, named or written in place, reads the
+        // selections it reaches there (`edit::seat_selections`): a mate
+        // side's plane is its face's.
+        let seats: Vec<crate::OperandSlot> = snapshot
+            .nodes
+            .values()
+            .flat_map(|node| node.operand_rows())
+            .filter(|&(_, read)| crate::edit::seat_selections(snapshot, read).contains(&id))
+            .map(|(slot, _)| slot)
+            .collect();
+        if let Some(fault) = seats.iter().find_map(|&slot| {
+            crate::edit::selection_body_fault(snapshot, crate::SlotId::Operand(slot), &select.body)
+        }) {
+            return Some(SnapshotError::SelectionShape {
+                var: spoken(),
+                fault,
+            });
+        }
+        if let Some((k, found)) = select.body.at.iter().enumerate().find_map(|(k, &index)| {
+            let found = snapshot.var(index)?.kind();
+            (found != crate::VarKind::Count).then_some((k, found))
+        }) {
+            return Some(SnapshotError::SelectionBody {
+                var: spoken(),
+                fault: SelectionBodyFault::Index {
+                    k,
+                    index: Box::new(snapshot.spoken_var(select.body.at[k])),
+                    found,
+                },
+            });
+        }
+        let read = select.body.read;
+        let body = match snapshot.var(read) {
+            None if snapshot.mint.has_var(read) => return None,
+            None => SelectionBodyFault::Unminted { body: read },
             Some(held) => {
                 // Every seat reading the selection admits its body
                 // (the edit door's rule, `edit::selection_body_kind`):
-                // a `Bodies` only where mate sides alone read it. The
-                // body read observes; each seat reading the selection
-                // is asked of the copy in the operand walk.
+                // a `Bodies` only where mate sides alone read it, and
+                // a family for a member read. The body read observes;
+                // each seat reading the selection is asked of the copy
+                // in the operand walk.
                 let narrow = crate::SlotKind::Is(crate::VarKind::Body);
                 let instance = matches!(
-                    snapshot
-                        .operation_of(select.body)
-                        .and_then(|at| snapshot.node(at)),
+                    snapshot.operation_of(read).and_then(|at| snapshot.node(at)),
                     Some(crate::Node::InstantiatePart { .. })
                 );
-                let expected = if !instance
-                    && snapshot.nodes.values().any(|node| {
-                        node.operand_rows().into_iter().any(|(slot, read)| {
-                            read == id
-                                && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
-                                    == narrow
-                        })
-                    }) {
+                let expected = if select.body.is_indexed() {
+                    crate::SlotKind::Is(crate::VarKind::Bodies)
+                } else if !instance
+                    && seats.iter().any(|&slot| {
+                        crate::edit::selection_body_kind(crate::SlotId::Operand(slot)) == narrow
+                    })
+                {
                     narrow
                 } else {
                     crate::SlotKind::Placeable
                 };
-                match snapshot.read_fault(
-                    select.body,
-                    held,
-                    expected,
-                    crate::doc::Reader::Observes,
-                )? {
+                match snapshot.read_fault(read, held, expected, crate::doc::Reader::Observes)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
-                        body: Box::new(snapshot.spoken_var(select.body)),
+                        body: Box::new(snapshot.spoken_var(read)),
                         found,
                     },
                 }
@@ -1268,6 +1296,15 @@ pub enum SelectionBodyFault {
         /// Its kind.
         found: crate::VarKind,
     },
+    /// An index of a member read (`xs[i]`) that is no `Count`.
+    Index {
+        /// The index's place, outermost first.
+        k: usize,
+        /// The index variable.
+        index: Box<SpokenVar>,
+        /// Its kind.
+        found: crate::VarKind,
+    },
 }
 
 /// A structural invariant violation in a parsed snapshot (load door).
@@ -1476,6 +1513,9 @@ pub enum SnapshotError {
     EpsilonInvalid {
         /// The recorded value.
         value: f64,
+        /// The K it was asked at (`geom_core::tolerance::k_admitted`),
+        /// captured when refused.
+        k: f64,
     },
     /// A placement's constraint whose id the mint log does not hold
     /// as a constraint's, or that a second constraint of the document
@@ -1746,6 +1786,12 @@ impl core::fmt::Display for SnapshotError {
                         crate::sentence::article(&found.to_string())
                     )
                 }
+                SelectionBodyFault::Index { k, index, found } => write!(
+                    f,
+                    "{var} selects in a member at index {k}, {index}, which is {} {found}, not a \
+                     count",
+                    crate::sentence::article(&found.to_string())
+                ),
             },
             Self::ReadCycle { at } => write!(
                 f,
@@ -1873,10 +1919,10 @@ impl core::fmt::Display for SnapshotError {
             Self::ProductRead { read, fault } => {
                 write!(f, "the product slot reads {read}, and {fault}")
             }
-            Self::EpsilonInvalid { value } => write!(
+            Self::EpsilonInvalid { value, k } => write!(
                 f,
                 "the recorded ε {value:e} is not admissible: {}",
-                geom_core::tolerance::EpsFloor
+                geom_core::tolerance::EpsFloor { k: *k }
             ),
             Self::ConstraintNotMinted { node, constraint } => write!(
                 f,
@@ -1961,7 +2007,10 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // The recorded ε, by the same `doc::epsilon_admissible` the edit
     // door asks before it records one.
     if !crate::doc::epsilon_admissible(doc.epsilon) {
-        return Err(SnapshotError::EpsilonInvalid { value: doc.epsilon });
+        return Err(SnapshotError::EpsilonInvalid {
+            value: doc.epsilon,
+            k: geom_core::tolerance::k_admitted(doc.epsilon),
+        });
     }
     // Every id in the document is one the document has minted — replay
     // after load must never re-mint a referenced id.
@@ -2132,7 +2181,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             NameCarrier::Store { body, .. } => doc.reaches_instance(body),
             NameCarrier::Select { var, .. } => doc
                 .selection(var)
-                .is_some_and(|select| doc.reaches_instance(select.body)),
+                .is_some_and(|select| doc.reaches_instance(select.body.read)),
             NameCarrier::Payload { .. } => holds_instance,
         };
         let part = |n: &crate::names::StableName| doc.part_spelled(parted, n);
@@ -2298,14 +2347,9 @@ pub enum ProgramFault {
     },
 }
 
-// The prose the document layer renders for a program fault. The
-// lattice arm states the walk failure in the same words
-// [`crate::ProgramRefusal::Transition`] does — that refusal is what
-// the probe raised — and then names the tip state and the verb that
-// could not follow it, keeping their `Debug` spellings for the reason
-// `profile`'s `ReplayError` rendering states: the pair is the
-// transition table's coordinate. The typed variant remains the
-// machine contract.
+// The lattice arm is the sentence [`crate::ProgramRefusal::Transition`]
+// renders — that refusal is what the probe raised. The typed variant
+// remains the machine contract.
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2314,16 +2358,7 @@ impl core::fmt::Display for ProgramFault {
                 step,
                 state,
                 verb,
-            } => {
-                write!(
-                    f,
-                    "loop {loop_} step {step} is not a legal chain-lattice walk: "
-                )?;
-                match verb {
-                    Some(verb) => write!(f, "the {verb:?} verb at tip state {state:?}"),
-                    None => write!(f, "the chain is unclosed at tip state {state:?}"),
-                }
-            }
+            } => crate::program::write_lattice(f, *loop_, *step, *state, *verb),
         }
     }
 }
@@ -2705,7 +2740,10 @@ mod tests {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 at: Some(0),
             },
-            SnapshotError::EpsilonInvalid { value: 0.0 },
+            SnapshotError::EpsilonInvalid {
+                value: 0.0,
+                k: geom_core::tolerance::DEFAULT_K,
+            },
             SnapshotError::ConstraintNotMinted {
                 node: node(),
                 constraint: crate::node::ConstraintId(crate::MintId::new(2, 2)),
@@ -2811,7 +2849,7 @@ mod tests {
         let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
         doc.epsilon = 0.0;
         match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
+            Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value, .. })) => {
                 assert_eq!(value, 0.0);
             }
             other => panic!("non-positive ε must refuse at save, got {other:?}"),

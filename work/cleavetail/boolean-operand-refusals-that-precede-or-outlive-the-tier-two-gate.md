@@ -73,3 +73,5 @@ reads it first.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to CLEAVETAIL (`work/cleavetail/`) by `git mv`, id and body unchanged: the track opened for CLEAVE's P3 and P4 tail: refusal stories, guards that cannot go red, latent soundness and hygiene. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+Note, 2026-11-08 (PR 6584): `BooleanError::ScaffoldingOperand` and `reduce::gate_operand` are deleted, along with `validate::operand_scaffolding` and `topo::SCAFFOLDING_REFUSAL`. A Boolean operand is a finished body (`T::Finished`), whose finish runs tiers 1 and 2. Nothing in the reduce re-reads tier 2. The sphere re-cut's derived operands `debug_assert` tiers 1 and 2 instead (`boolean/ops.rs`, `through_the_join`). A citation of these symbols above names code that is gone.

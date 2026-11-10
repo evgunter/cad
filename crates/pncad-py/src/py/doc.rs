@@ -556,7 +556,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
         ),
         // `value` IS the document's recorded ε — the same concept the
         // conflict arm reports as `document` — so it crosses there.
-        E::ToleranceInvalid { value } => (
+        E::ToleranceInvalid { value, .. } => (
             none(),
             none(),
             none(),
@@ -904,6 +904,14 @@ impl AtArg {
             Self::Var(var) => pncad::select::At::Read(var.0),
         }
     }
+
+    /// The read as an operand.
+    pub(crate) fn read(self) -> d::Operand {
+        match self {
+            Self::Node(node) => d::Operand::Node(node.0),
+            Self::Var(var) => d::Operand::Var(var.0),
+        }
+    }
 }
 
 /// **One member of a family, read by index** (REFERENCES DM3, D10
@@ -916,7 +924,7 @@ impl AtArg {
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct IndexedRead {
-    read: OperandArg,
+    read: AtArg,
     at: Vec<d::Formula>,
 }
 
@@ -932,7 +940,7 @@ pub(crate) enum IndexArg {
 
 impl IndexedRead {
     /// `read` at `index`, each read as a count.
-    fn of(py: Python<'_>, read: OperandArg, index: &IndexArg) -> PyResult<Self> {
+    fn of(py: Python<'_>, read: AtArg, index: &IndexArg) -> PyResult<Self> {
         let at = match index {
             IndexArg::One(one) => vec![one.formula(py, d::Dimension::Count)?],
             IndexArg::Many(many) => many
@@ -948,35 +956,71 @@ impl IndexedRead {
 impl IndexedRead {
     fn __repr__(&self) -> String {
         let read = match &self.read {
-            OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
-            OperandArg::Var(var) => format!("Var({})", var.0.full()),
-            OperandArg::Pose(_) | OperandArg::Pick(_) => {
-                unreachable!(
-                    "an indexed read is `[]` on a node or a variable, never a pose or a pick"
-                )
-            }
+            AtArg::Node(node) => format!("NodeId({})", node.0.full()),
+            AtArg::Var(var) => format!("Var({})", var.0.full()),
         };
         let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
         format!("{read}[{}]", at.join(", "))
     }
 }
 
-/// **A read at a body seat as Python writes it**: an operand read
-/// plainly, or one member of a family (`op[i]`, [`IndexedRead`]).
-#[derive(FromPyObject, Clone)]
-pub(crate) enum BodyArg {
-    /// One member of a family.
-    Indexed(IndexedRead),
-    /// An operand, read plainly.
-    Read(OperandArg),
+impl IndexedRead {
+    /// **The member this read names, as a materializer reads it**: the
+    /// family's read and the member's index values, each a count `doc`
+    /// holds — a count literal or a free count, the rule a mate side's
+    /// index keeps. A materializer reads no index an expression would
+    /// have to evaluate.
+    pub(crate) fn member(&self, doc: &d::ProfileDoc) -> PyResult<(pncad::select::At, Vec<u32>)> {
+        let member = self.body().written_member(doc).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "a member read here is at counts the document holds (a count, or a free \
+                 count), not {}",
+                self.at
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        })?;
+        Ok((self.read.at(), member))
+    }
+
+    /// The family's read, a node or a variable.
+    pub(crate) fn family(&self) -> AtArg {
+        self.read
+    }
+
+    /// The authored read.
+    pub(crate) fn body(&self) -> d::BodyRead<d::Formula> {
+        d::BodyRead::indexed(self.read.read(), self.at.clone())
+    }
 }
+
+/// **A read, or one member of a family, as Python writes it**: `op[i]`
+/// ([`IndexedRead`]) or the read `R` plainly — an operand at a body
+/// seat ([`BodyArg`]), a node or a variable at a name door
+/// ([`SelectAt`]).
+#[derive(FromPyObject, Clone)]
+pub(crate) enum MemberOr<R> {
+    /// One member of a family.
+    Member(IndexedRead),
+    /// The read, plainly.
+    Plain(R),
+}
+
+/// What a body seat takes.
+pub(crate) type BodyArg = MemberOr<OperandArg>;
+
+/// What a name door reads in: one member of a family, or a node or a
+/// variable read as one body.
+pub(crate) type SelectAt = MemberOr<AtArg>;
 
 impl BodyArg {
     /// The authored read.
     pub(crate) fn read(self) -> d::BodyRead<d::Formula> {
         match self {
-            Self::Indexed(IndexedRead { read, at }) => d::BodyRead::indexed(read.read(), at),
-            Self::Read(read) => d::BodyRead::plain(read.read()),
+            Self::Member(read) => read.body(),
+            Self::Plain(read) => d::BodyRead::plain(read.read()),
         }
     }
 }
@@ -1016,7 +1060,7 @@ impl NodeId {
     /// One member of the family this node's output is, at `index`: one
     /// count per index of the family ([`IndexedRead`]).
     fn __getitem__(&self, py: Python<'_>, index: IndexArg) -> PyResult<IndexedRead> {
-        IndexedRead::of(py, OperandArg::Node(*self), &index)
+        IndexedRead::of(py, AtArg::Node(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -1724,7 +1768,7 @@ impl Doc {
     fn sketch_on_face(
         &mut self,
         py: Python<'_>,
-        body: OperandArg,
+        body: BodyArg,
         face: &str,
         outline: &Bound<'_, PyAny>,
         distance: super::expr::SlotArg,
@@ -2993,7 +3037,9 @@ impl Node {
     }
 
     /// Constant-radius rolling-ball blends on a SELECTION of
-    /// `target`'s edges.
+    /// `target`'s edges: a body, or one member of a family, `xs[i]`,
+    /// whose edges are named by the member's own names
+    /// (`Evaluation.select(xs[i], ...)`).
     ///
     /// `selection` is edge names as text: the strings
     /// `Evaluation.all_edges` answers with, or the ones a role-name
@@ -3029,7 +3075,7 @@ impl Node {
     #[staticmethod]
     fn fillet(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         radius: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -3073,7 +3119,7 @@ impl Node {
     #[staticmethod]
     fn chamfer(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         distance: super::expr::SlotArg,
         selection: Vec<String>,
     ) -> PyResult<Self> {
@@ -3128,7 +3174,7 @@ impl Node {
     #[staticmethod]
     fn shell(
         py: Python<'_>,
-        target: OperandArg,
+        target: BodyArg,
         thickness: super::expr::SlotArg,
         open: Vec<String>,
     ) -> PyResult<Self> {
@@ -3173,7 +3219,7 @@ impl Node {
     fn drawn_profile(
         py: Python<'_>,
         frame: OperandArg,
-        faces: Vec<(OperandArg, String)>,
+        faces: Vec<(BodyArg, String)>,
         outline: super::trace::Outline,
     ) -> PyResult<Self> {
         super::trace::drawn_profile(py, frame, faces, outline)
@@ -3606,8 +3652,8 @@ impl Node {
     #[staticmethod]
     #[pyo3(signature = (a, b, *, at_least=None, at_most=None, equal=None))]
     fn clearance(
-        a: (NodeId, String),
-        b: (NodeId, String),
+        a: (super::measure::CellAt, String),
+        b: (super::measure::CellAt, String),
         at_least: Option<&super::expr::Formula>,
         at_most: Option<&super::expr::Formula>,
         equal: Option<&super::expr::Formula>,
@@ -3723,7 +3769,7 @@ impl Var {
     /// One member of the family this variable holds, at `index`: one
     /// count per index of the family ([`IndexedRead`]).
     fn __getitem__(&self, py: Python<'_>, index: IndexArg) -> PyResult<IndexedRead> {
-        IndexedRead::of(py, OperandArg::Var(*self), &index)
+        IndexedRead::of(py, AtArg::Var(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {

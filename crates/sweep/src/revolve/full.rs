@@ -110,7 +110,7 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let outer = collapse_runs(&loops[0], &classes[0], 0, band)?;
     let runs = super::axis::analyze_contact(&outer.segs, &outer.cls, 0)?;
     let (mut out, pockets) = match runs[..] {
@@ -349,9 +349,9 @@ struct Grafted {
 /// profile's carried containment (`build_full`'s docs), records the
 /// cavity under `origin`, and re-keys the pocket's handles into the
 /// result body.
-fn insert_pocket<T: Decide>(
-    out: &mut Revolved<T>,
-    pocket: Revolved<T>,
+fn insert_pocket<T: Decide + topo::AtRestPolicy>(
+    out: &mut Revolved<T, Body<T>>,
+    pocket: Revolved<T, Body<T>>,
     origin: CavityOrigin,
 ) -> Result<Grafted, RevolveError> {
     let evidence = topo::VoidEvidence {
@@ -430,7 +430,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let (segs, cls) = (&col.segs[..], &col.cls);
     let place = frame.place;
     let n = segs.len();
@@ -468,7 +468,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
     // ---- Phase 2: the one-band sweep (the generic pinned-aware sweep
     // with nothing pinned; rotated copies at the original coordinates
     // and the original placement — full period is the identity). ----
-    let axis_c = turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.axis.get());
     let swept = sweep_loop(
         &mut body,
         loop_index,
@@ -601,6 +601,7 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
             pi_meridians: vec![None; nc],
             pi_rims: vec![None; nc],
         },
+        scalar: core::marker::PhantomData,
     })
 }
 
@@ -621,7 +622,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
     col: &Collapsed<T>,
     theta: T,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let seg = &col.segs[0];
     let q = frame.world(seg.a);
     let mut built = Body::<T>::new();
@@ -640,7 +641,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
             n_far: frame.n3,
         },
         theta,
-        turn_axis(Sign::Positive, frame.a3),
+        turn_axis(Sign::Positive, frame.axis.get()),
         // A transient disc, killed by the closure, like the lamina's.
         FaceSurface::New {
             surface: Surface::nurbs_placeholder(),
@@ -699,6 +700,7 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
             pi_meridians: vec![None; nc],
             pi_rims: vec![None; nc],
         },
+        scalar: core::marker::PhantomData,
     })
 }
 
@@ -764,12 +766,12 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<Revolved<T, Body<T>>, RevolveError> {
     let (segs, walls, verts) = (&wire.segs[..], &wire.walls[..], &wire.verts[..]);
     let place = frame.place;
     let k = segs.len();
     let half = theta * T::from_f64(0.5);
-    let far = crate::swept::Placing::turned(place, frame.o3, frame.axis, half)
+    let far = crate::swept::Placing::turned(place, frame.origin3, frame.axis, half)
         .map_err(RevolveError::Turn)?;
     let Some(n_pi) = far.turn_vec(frame.n3) else {
         unreachable!("a turned placing has a turn")
@@ -828,7 +830,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // copies). The runs are collapsed (`collapse_runs`), so no two
     // adjacent wire walls continue one carrier: each takes its own
     // surface.
-    let axis_c = turn_axis(Sign::Positive, frame.a3);
+    let axis_c = turn_axis(Sign::Positive, frame.axis.get());
     let mut struts: Vec<Option<topo::construction::MevCreated>> = vec![None];
     for i in 1..k {
         let m = body.mev(
@@ -951,8 +953,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
                     point: wire.points[i],
                     place,
-                    axis_origin: frame.o3,
-                    axis_dir: frame.a3,
+                    axis: frame.line3(),
                     angle: theta,
                 })
                 .restrict(T::from_f64(0.5), T::one()),
@@ -1126,6 +1127,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             pi_meridians: pi_mer,
             pi_rims,
         },
+        scalar: core::marker::PhantomData,
     })
 }
 

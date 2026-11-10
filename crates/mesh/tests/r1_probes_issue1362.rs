@@ -329,7 +329,7 @@ fn placed_ball(d: f64) -> Result<topo::Body<f64>, String> {
         sweep::Revolution::Full,
         geom_core::Tol::witness(),
     )
-    .map(|r| r.body)
+    .map(|r| r.body.into_body())
     .map_err(|e| format!("revolve: {e:?}"))
 }
 
@@ -408,7 +408,7 @@ fn placed_ball_r(d: f64, r: f64) -> Result<topo::Body<f64>, String> {
         sweep::Revolution::Full,
         geom_core::Tol::witness(),
     )
-    .map(|r| r.body)
+    .map(|r| r.body.into_body())
     .map_err(|e| format!("revolve: {e:?}"))
 }
 

@@ -310,25 +310,11 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     (HALFCAP_EPS7, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
     // The AMBIENT sweep only, at this file's own ε_in: three cells,
-    // all at the pcurve MINT on the l-bracket wall's ARC rim.
-    //
-    // They used to be the RATIONAL FLUX STALL at the two fine bands
-    // and the convergence predicate's ESCALATION at the coarse one —
-    // both the at-rest gate chasing a PRECISION, finished since
-    // Tier 3's check 7 reads a SIGN (this file's volume enclosure
-    // excludes zero at round 0 at every band) — and then the ladder's
-    // `#389` gap those had masked. That gap is RETIRED (#388):
-    // degree-1 carriers promote to `Curve3::Line` and the promoted
-    // slit holds its wall's boundary-column candidate in either
-    // traversal order (`r1_dm1_probe`'s tripwire and l-bracket
-    // witness). What every band meets now is the frontier past it:
-    // wall `#382` states its circle as four rational spans whose end
-    // weights are 1 and 2 (unnormalized), against three-arc rational
-    // rim circles. Since the import splits the wall at its C⁰ knots,
-    // each sub-patch is one such span, and the arc-rim pick finds no
-    // row holding the rim circle at its probe; before the split, the
-    // whole-chart arc-rim construction refused the same rim at its
-    // residual (`MapResidual`).
+    // all at the assembled body's at-rest gate. Every component adopts
+    // and mints its pcurves (wall `#382`'s sub-patch rows hold their
+    // arc rims at end weights 1 and 2, and the l-bracket imports alone,
+    // `r1_dm1_probe`), and the bolts and nuts sit on the bracket, so
+    // two instances share vertex positions the gate finds unrecorded.
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -339,9 +325,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // promoted). That measurement is now RECORDED here rather than
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
-    (DM1, 1e-9, "file", Refused(ARC_RIM_NOT_HELD)),
-    (DM1, 1e-6, "file", Refused(ARC_RIM_NOT_HELD)),
-    (DM1, 1e-12, "file", Refused(ARC_RIM_NOT_HELD)),
+    (DM1, 1e-9, "file", Refused(DM1_CONTACT_UNRECORDED)),
+    (DM1, 1e-6, "file", Refused(DM1_CONTACT_UNRECORDED)),
+    (DM1, 1e-12, "file", Refused(DM1_CONTACT_UNRECORDED)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). The near-pole feature is
@@ -453,13 +439,10 @@ const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). 
 // candidate in either traversal order —
 // `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
 // the component that carries `#389` and gets past every polyline edge.
-/// dm1's frontier at every band: the l-bracket wall's arc rim, which
-/// no row of its split one-span sub-patches holds, mints its `General`
-/// row, and the shared gate's volume then meets that rational wall at
-/// the trimmed quadrature lane, which reads polynomial charts only.
-/// Named specifically so a refusal that drifted to a different door
-/// cannot stand in.
-const ARC_RIM_NOT_HELD: &str = "a RATIONAL chart reached the trimmed lane";
+/// dm1's frontier at every band: the assembled body's at-rest gate,
+/// on a vertex two instances share. Named specifically so a refusal
+/// that drifted to a different door cannot stand in.
+const DM1_CONTACT_UNRECORDED: &str = "is an unrecorded contact";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
 const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
@@ -1025,7 +1008,7 @@ fn the_table_is_the_whole_corpus() {
 fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
     match got {
         Ok(StepImport::Solid { body, .. }) => assert_eq!(
-            topo::validate_geometric(body.body(), Tol::witness()),
+            topo::validate_geometric(&*body, Tol::witness()),
             Ok(()),
             "{who}: import shipped a body its own gate refuses"
         ),
@@ -1140,7 +1123,7 @@ fn every_corpus_import_passes_the_shared_gate() {
             match (import_step(&text, &options, Tol::witness()), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
-                        topo::validate_geometric(body.body(), Tol::witness()),
+                        topo::validate_geometric(&*body, Tol::witness()),
                         Ok(()),
                         "{who}: the SHIPPED body must be gate-clean — import handed out a \
                          body its own gate refuses, which can only mean the gate is no \
@@ -1148,11 +1131,11 @@ fn every_corpus_import_passes_the_shared_gate() {
                     );
                     assert_eq!(
                         (
-                            body.body().solids().count(),
-                            body.body().shells().count(),
-                            body.body().faces().count(),
-                            body.body().edges().count(),
-                            body.body().vertices().count()
+                            body.solids().count(),
+                            body.shells().count(),
+                            body.faces().count(),
+                            body.edges().count(),
+                            body.vertices().count()
                         ),
                         (s, sh, f, e, v),
                         "{who}: census (solids, shells, faces, edges, vertices) — a \
@@ -1269,9 +1252,11 @@ const WITHHELD: &str = "readings that withheld the offer";
 /// The reader touches the kernel's at-rest validators at exactly TWO
 /// places (the #260 ask: make skipping them structurally hard). The
 /// gate is asked about several subjects — each solid alone, then the
-/// assembled body — but always through `lib.rs`'s `gate` (per-solid,
-/// tier 3) and `gate3` (the aggregate, tier 3′), each of which maps the
-/// verdicts to a typed refusal and does nothing else. Import owns no
+/// assembled body — but always through `lib.rs`'s `gate` (the scalar's
+/// finish, tier 3, for each solid and for the assembled body) and
+/// `gate3`'s census over the finished assembled body (the rest of tier
+/// 3′), each of which maps the verdicts to a typed refusal and does
+/// nothing else. Import owns no
 /// validation logic of its own: no third entry, no kind predicate
 /// deciding who is asked, no verdict filter deciding which failures
 /// count. This counts the validator call sites in the crate's sources
@@ -1283,7 +1268,8 @@ const WITHHELD: &str = "readings that withheld the offer";
 ///
 /// COVERS the tier-3 and tier-3′ door FAMILIES by name — every
 /// spelling of `validate_geometric` and `validate_pseudomanifold`
-/// (structural, `_declared`, `_certificate`) — and `contact_marks`,
+/// (structural, `_declared`, `_certificate`), the scalar's finish and
+/// its census over a finished body — and `contact_marks`,
 /// which is not one of those doors but runs the SAME tier-3 battery
 /// over the same body, so a reader that grew a gate there would be
 /// growing exactly the second entry this row exists to refuse.
@@ -1321,10 +1307,16 @@ fn exactly_one_validation_call_site_in_the_reader() {
     // tier-3 battery over the same body (its own product is the marks
     // channel). A gate grown there would be a third entry wearing a
     // fourth name.
-    const DOORS: [&str; 3] = [
+    // `topo::finish` is the scalar's finish, the tier-3 door `gate`
+    // goes through: the same battery under the one constructor of a
+    // finished body. `census_at_rest` is tier 3′'s census over a
+    // finished body, the rest of `validate_pseudomanifold`.
+    const DOORS: [&str; 5] = [
         "validate_geometric",
         "validate_pseudomanifold",
         "contact_marks",
+        "topo::finish(",
+        "census_at_rest",
     ];
     for path in test_utils::source::rust_sources(&src) {
         let text = std::fs::read_to_string(&path).unwrap();
@@ -1334,15 +1326,14 @@ fn exactly_one_validation_call_site_in_the_reader() {
             }
         }
     }
-    // Two doors since M9-2, still zero opinions: the per-solid
-    // tier-3 door (`gate`) and the aggregate tier-3′ door (`gate3`,
-    // which consumes the import-side declaration channel). Anything
+    // Two doors, still zero opinions: the finish (`gate`) and the
+    // aggregate's census over the finished body (`gate3`). Anything
     // beyond these two is validation logic growing in the reader.
     assert_eq!(
         sites.len(),
         2,
         "the reader must call the kernel's at-rest validators at exactly the two named \
-         doors — per-solid tier 3 (`gate`) and aggregate tier 3′ (`gate3`). Every \
+         doors — the finish (`gate`) and the aggregate's census (`gate3`). Every \
          spelling of both door families is counted, and so is `contact_marks`, which \
          runs the same battery; what is NOT counted is a battery hand-composed out of \
          non-gate parts (see this row's docs): {sites:?}"

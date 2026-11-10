@@ -9,18 +9,20 @@
 //! operation it reads as a member replaced by that member
 //! ([`overlay`]). A seat that reads a family whole — a member seat of
 //! a `union`, `intersect` or `assemble`, or an indexed read
-//! ([`crate::repetition::takes_whole`]) — and a selection naming its
-//! members read the family the member stands for
-//! ([`super::NodeValue::whole`]), so one operation may read a family
-//! plainly at one seat and whole at another. A member that refuses
+//! ([`crate::repetition::takes_whole`]), a selection's among them —
+//! reads the family the member stands for ([`super::NodeValue::whole`]),
+//! so one operation may read a family plainly at one seat and whole at
+//! another. A member that refuses
 //! refuses the family, naming the member.
 //!
-//! A family of bodies holds its members' bodies as an `Instances`
-//! payload, one per member in index order, named `Member { at, of }`
-//! over each member's own names ([`crate::names::name_family`]); any
-//! other family's payload is [`ValuePayload::Family`]. Either keeps each
-//! member's whole value ([`Members`]), which is what a reader of one
-//! member reads, and what the memo serves a member from.
+//! A family of bodies is its members' bodies as an `Instances`
+//! payload, one place per member in index order, `None` at a member
+//! that is a boolean's empty result; it is named `Member { at, of }`
+//! over each member's own names, each body at its member's place
+//! ([`crate::names::name_family`]). A family of anything else is
+//! [`ValuePayload::Family`], with no output. Each keeps each member's
+//! whole value ([`Members`]), which is what a reader of one member
+//! reads, and what the memo serves a member from.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -40,7 +42,7 @@ use crate::var::VarId;
 
 /// **A family's members**, in index order, outermost index first.
 #[derive(Debug, Clone)]
-pub struct Members<T: Decide> {
+pub struct Members<T: topo::AtRestPolicy + Decide> {
     /// The indices the family reaches, outermost first.
     pub over: Arc<[VarId]>,
     /// Each member: its index values, one per index of `over`, and its
@@ -49,7 +51,7 @@ pub struct Members<T: Decide> {
     pub members: Vec<(Vec<u32>, NodeValue<T>)>,
 }
 
-impl<T: Decide> Members<T> {
+impl<T: topo::AtRestPolicy + Decide> Members<T> {
     /// The member at `at`, the values of `over` in order.
     #[must_use]
     pub fn at(&self, at: &[u32]) -> Option<&NodeValue<T>> {
@@ -67,8 +69,9 @@ impl<T: Decide> Members<T> {
         self.at(&at?)
     }
 
-    /// Each member's position in the family's flat body list, with its
-    /// index values: the order an `Instances` payload holds them in.
+    /// **The place of the member at `at`**, its index values: its
+    /// position among the members, which is its body's place in the
+    /// family's names and in its `Instances` payload.
     pub(crate) fn position(&self, at: &[u32]) -> Option<usize> {
         self.members
             .binary_search_by(|(values, _)| values.as_slice().cmp(at))
@@ -248,7 +251,7 @@ pub(super) fn listing_steps(
 /// **`results` at one member**: each family a member of whose stands
 /// at `bound` replaced by that member, which keeps the family for the
 /// seats that read it whole ([`super::NodeValue::whole`]).
-fn overlay<T: Decide>(
+fn overlay<T: topo::AtRestPolicy + Decide>(
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     bound: &BTreeMap<VarId, u32>,
 ) -> BTreeMap<RecipeNodeId, NodeResult<T>> {
@@ -292,7 +295,7 @@ fn overlay<T: Decide>(
 /// is as large as its counts admit, so it yields to cancelation member
 /// by member as the walk does node by node.
 #[allow(clippy::too_many_arguments)] // eval_node's inputs, and the chain
-pub(super) fn eval_family<T: Decide>(
+pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
@@ -418,20 +421,17 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
 }
 
 /// **The family's value**: a family of bodies as their `Instances`,
-/// named member by member; any other as [`ValuePayload::Family`]. Its
-/// keys are its members', in order.
-fn family_value<T: Decide>(
+/// each body named at its member's place; any other as
+/// [`ValuePayload::Family`] with no output. Its keys are its members',
+/// in order.
+fn family_value<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     members: Members<T>,
 ) -> Result<NodeValue<T>, NodeErrorKind> {
-    let bodies: Option<Vec<super::Framed<T>>> = members
+    let bodies: Option<Vec<Option<&super::Framed<T>>>> = members
         .members
         .iter()
-        .map(|(_, value)| match &value.payload {
-            ValuePayload::Body(body)
-            | ValuePayload::Boolean(super::BooleanValue::Body { body, .. }) => Some(body.clone()),
-            _ => None,
-        })
+        .map(|(_, value)| value.payload.one_body())
         .collect();
     let mut content = KeyHasher::new();
     let mut naming = KeyHasher::new();
@@ -459,11 +459,14 @@ fn family_value<T: Decide>(
                     (members.member_at(values), table)
                 })
                 .collect();
-            let raw: Vec<&topo::Body<T>> = bodies.iter().map(super::Framed::body).collect();
+            let raw: Vec<Option<&topo::Body<T>>> = bodies
+                .iter()
+                .map(|body| body.map(super::Framed::body))
+                .collect();
             let table =
                 crate::names::name_family(id, &tables, &raw).map_err(NodeErrorKind::Naming)?;
             (
-                ValuePayload::Instances(bodies),
+                ValuePayload::Instances(bodies.into_iter().map(|body| body.cloned()).collect()),
                 Arc::from([super::OutputNames::new(table, Arc::default())]),
             )
         }

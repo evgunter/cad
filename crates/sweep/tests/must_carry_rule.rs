@@ -146,7 +146,7 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
         },
         Tol::witness(),
     )
-    .map(|e| e.body)
+    .map(|e| e.body.into_body())
 }
 
 /// The eight smooth struts of [`filleted_block`] — the count is the
@@ -178,6 +178,7 @@ fn tangent_strut_prism(free: f64) -> Body<f64> {
     )
     .expect("the tangent-strut prism extrudes")
     .body
+    .into_body()
 }
 
 /// [`tangent_strut_prism`]'s profile, or the profile door's refusal.
@@ -239,7 +240,7 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&profile, axis, Revolution::Full, Tol::witness()).map(|r| r.body)
+    revolve(&profile, axis, Revolution::Full, Tol::witness()).map(|r| r.body.into_body())
 }
 
 /// The one smooth latitude join of [`bored_ring`].
@@ -751,9 +752,7 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
                 .get_loop(body.get_half_edge(he).expect("a half-edge").parent_loop)
                 .expect("a loop")
                 .face;
-            body.get_surface(body.get_face(face).expect("a face").surface)
-                .expect("a surface")
-                .clone()
+            body.face_surface(face).expect("a surface").clone()
         };
         let mut checked = 0usize;
         for (k, e) in body.edges() {
@@ -932,7 +931,9 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
 /// and the certification door then re-asks the SAME question at the
 /// SAME stations for each stored `TangentIntersection` — that second
 /// half is the certificate's, unchanged by this unit, and it is what
-/// keeps the stored set and the certified set one set.
+/// keeps the stored set and the certified set one set. The door's
+/// finish then reads the stations twice more (tier 2's edge wedge and
+/// tier 3's recertification), measured apart by `finish_spend`.
 #[cfg(feature = "probe")]
 #[test]
 fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
@@ -975,8 +976,15 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
         SMOOTH_STRUTS,
         "the block's eight struts store the intrinsic tangency"
     );
+    let finish =
+        crate::contact_edge_must_carry::finish_spend(&body, "tangent_second_order", Tol::witness());
     assert_eq!(
-        metered,
+        finish,
+        2 * SMOOTH_STRUTS * interior,
+        "the door's finish reads each contact edge's stations twice more: tier 2's edge wedge and tier 3's recertification"
+    );
+    assert_eq!(
+        metered - finish,
         2 * SMOOTH_STRUTS * interior,
         "each strut spends {interior} stations in the rule and {interior} more in \
          the certificate that accepts what the rule decided"

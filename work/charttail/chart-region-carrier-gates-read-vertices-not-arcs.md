@@ -45,4 +45,4 @@ reads (`shell::carrier_box`).
 `cyl_axis_sense` at `hyp = √(reach² + r_max²)`, `reach` read from the
 boundary vertices' axial coordinates only, so a curved edge bulging
 past its vertices leaves `hyp` short. Both sites are pinned unsourced
-(`work/onehome/unsourced-levers-await-a-source.md`).
+(`work/oneround/unsourced-levers-await-a-source.md`).

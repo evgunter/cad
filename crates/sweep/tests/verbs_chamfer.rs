@@ -13,7 +13,7 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::arms::chamfer_strip;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendError, CornerConfig};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
@@ -45,7 +45,7 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 /// watertight mesh.
 #[test]
 fn the_chamfered_cube() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
         &query::all_edges(&body),
@@ -81,12 +81,8 @@ fn the_chamfered_cube() {
 
     // Every face is a plane — the whole claim of the analytic case.
     for (k, _) in out_body.faces() {
-        let fd = out_body.get_face(k).expect("a face");
         assert!(
-            matches!(
-                out_body.get_surface(fd.surface),
-                Some(Surface::Plane { .. })
-            ),
+            matches!(out_body.face_surface(k), Some(Surface::Plane { .. })),
             "a chamfered cube carries planes only; face {k:?} does not"
         );
     }
@@ -115,7 +111,7 @@ fn the_chamfered_cube() {
 /// edge and corner vertex accounted for as retired.
 #[test]
 fn the_chamfer_records_every_birth_and_death() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let source_edges = query::all_edges(&body);
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -181,7 +177,8 @@ fn the_chamfer_records_every_birth_and_death() {
 /// something either form promises.
 #[test]
 fn fillet_and_chamfer_agree_on_a_right_corner() {
-    let body = sweep::test_support::finished("body", cube(L, Tol::witness()), Tol::witness());
+    let body =
+        sweep::test_support::finished("body", cube::<f64>(L, Tol::witness()), Tol::witness());
     let edges = query::all_edges(&body);
     let filleted = fillet_edges(&body, &edges, D, Tol::witness()).expect("fillets");
     let chamfered = chamfer_edges(&body, &edges, D, Tol::witness()).expect("chamfers");
@@ -226,7 +223,7 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
 /// plane section: a chord, the strip a prism of section `d²/2`.
 #[test]
 fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -281,22 +278,57 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
 /// **A CONCAVE plane–plane edge gets a decided, correct verdict.**
 ///
 /// An L-bracket's inner edge is concave and its two terminations are
-/// trivalent vertices with two convex edges and one concave one — a
-/// mixed-convexity corner, which is the OQ6 configuration tag for it,
-/// and the policy that would handle it is the feathered run-out (a
-/// corner patch cannot help where the band changes sides). v1 refuses;
-/// the refusal names the configuration rather than a generic failure.
+/// trivalent vertices whose other two edges are convex — a
+/// mixed-convexity corner, whose odd edge the inner one is. Requested
+/// alone it is cut off at both end faces, filling `d²/2` along its
+/// length 1; requested with a convex edge of that corner it refuses
+/// with the corner's configuration tag, naming no run-out policy.
 #[test]
-fn an_l_brackets_inner_edge_refuses_on_its_corner_configuration() {
+fn an_l_brackets_inner_edge_is_cut_off_and_refuses_with_a_convex_neighbour() {
+    let tol = Tol::witness();
     let bracket = l_bracket();
     let inner = concave_edge(&bracket);
-    let err = chamfer_edges(
-        &sweep::test_support::at_rest(&bracket, Tol::witness()),
-        &[inner],
-        D,
-        Tol::witness(),
-    )
-    .expect_err("v1 does not chamfer a concave edge");
+    let at_rest = sweep::test_support::at_rest(&bracket, tol);
+    let volume = |b: &topo::AtRestBody<f64>| {
+        topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+            .expect("closed-form props")
+            .enclosure
+            .volume
+    };
+    let out = chamfer_edges(&at_rest, &[inner], D, tol).expect("the inner edge alone chamfers");
+    let out_body = topo::test_support::finished("out_body", out.body, tol);
+    assert_eq!(
+        topo::validate_geometric(&out_body, tol),
+        Ok(()),
+        "the chamfered bracket is tier-3 valid"
+    );
+    let added = volume(&out_body) - volume(&at_rest);
+    assert!(
+        (added - D * D / 2.0).abs() < 1e-12,
+        "the concave chamfer fills d²/2 along its length: {added}"
+    );
+
+    let top = query::all_edges(&bracket)
+        .into_iter()
+        .find(|&k| {
+            let he = bracket.get_edge(k).expect("an edge").he_plus;
+            let pt = |v| {
+                *bracket
+                    .get_point(bracket.get_vertex(v).expect("a vertex").point)
+                    .expect("a point")
+            };
+            let ps = [
+                pt(bracket.get_half_edge(he).expect("a half").start),
+                pt(bracket.half_edge_end(he).expect("an end")),
+            ];
+            let at = |p: Point3<f64>, x: f64| {
+                (p.x - x).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12 && (p.z - 1.0).abs() < 1e-12
+            };
+            (at(ps[0], 1.0) && at(ps[1], 2.0)) || (at(ps[0], 2.0) && at(ps[1], 1.0))
+        })
+        .expect("the top edge from the reflex corner");
+    let err = chamfer_edges(&at_rest, &[inner, top], D, tol)
+        .expect_err("the odd edge with another of its corner refuses");
     match err.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },
@@ -304,7 +336,7 @@ fn an_l_brackets_inner_edge_refuses_on_its_corner_configuration() {
             ..
         } => {
             assert_eq!(convex, 2, "two of the three incident edges are convex");
-            assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
+            assert_eq!(policy, None);
         }
         other => panic!("expected a mixed-convexity corner refusal, got {other:?}"),
     }
@@ -366,6 +398,7 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     )
     .expect("a circular prism")
     .body
+    .into_body()
 }
 
 /// An L-bracket: the six-vertex L profile extruded by 1 m. Its one
@@ -397,6 +430,7 @@ fn l_bracket() -> Body<f64> {
     )
     .expect("the bracket extrudes")
     .body
+    .into_body()
 }
 
 /// The bracket's one concave edge: the vertical wall–wall edge over the
@@ -406,13 +440,7 @@ fn concave_edge(body: &Body<f64>) -> EdgeKey {
     let at = |p: Point3<f64>| (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12;
     body.edges()
         .find(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
+            let Some((start, end)) = body.edge_vertices(*k) else {
                 return false;
             };
             let pt = |v| {
@@ -420,7 +448,7 @@ fn concave_edge(body: &Body<f64>) -> EdgeKey {
                     .and_then(|x| body.get_point(x.point))
                     .copied()
             };
-            match (pt(h.start), pt(end)) {
+            match (pt(start), pt(end)) {
                 (Some(a), Some(b)) => at(a) && at(b),
                 _ => false,
             }

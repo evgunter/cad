@@ -23,7 +23,7 @@ fn plane_y(c: f64) -> SplitPlane<f64> {
     )
 }
 
-fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
+fn body_of<T: topo::AtRestPolicy>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
 }
 
@@ -38,11 +38,8 @@ fn audit_geometry(body: &Body<f64>) {
     for (_, e) in body.edges() {
         assert!(body.get_curve_geom(e.curve).is_some(), "dangling curve key");
     }
-    for (_, f) in body.faces() {
-        assert!(
-            body.get_surface(f.surface).is_some(),
-            "dangling surface key"
-        );
+    for (fk, _) in body.faces() {
+        assert!(body.face_surface(fk).is_some(), "dangling surface key");
     }
     let mut live_p: Vec<_> = body.vertices().map(|(_, v)| v.point).collect();
     live_p.sort();

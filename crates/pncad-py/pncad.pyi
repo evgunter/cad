@@ -651,7 +651,10 @@ class SelectRefusal(PncadError):
     `frame_refused` (a candidate's body could not be read into the
     frame of the plane it is measured from), `not_a_plane`,
     `face_unresolved`, `not_a_length`, `bad_value`,
-    `band`, `read_not_an_output` (`Evaluation.resolve` asked in a read
+    `band`, `family` (`select` or `select_where` asked of a family
+    read whole: a selection reads one body, so ask one member,
+    `xs[i]`), `no_member` (`xs[i]` at values the read holds no member
+    at), `read_not_an_output` (`Evaluation.resolve` asked in a read
     that is no body output, so no table to ask), or `node_not_held`
     (`Evaluation.resolve` at a node handle the document no longer
     holds, for a name it did not mint). The other attributes are the
@@ -744,7 +747,11 @@ class InlineError(PncadError):
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
     """`unplaceable_part`: `node` is the instance whose part has no
-    product: its slot reads nothing, or a body that is gone."""
+    product: its slot reads nothing, or a body that is gone.
+    `selection_spans_members`: `node` reads a selection of the
+    instance's copy whose entities lie in two members of the family the
+    copy was built from; spliced, the family is no one body to select
+    them in."""
 
 class FlattenError(PncadError):
     """The `flatten` refactoring refused: `not_a_placement`,
@@ -752,7 +759,9 @@ class FlattenError(PncadError):
     `not_a_new_space` (the source is not in one `Doc.new_space()`),
     `space_shared` (`by` another placement reading out of the space),
     `read_uncarried` (`by` a read of the copy naming no one shape it
-    copies), `both_named` (`name` the copy's, `param` the shape's),
+    copies), `selection_spans_members` (`by` a read of the copy whose
+    entities lie in two members of the family a `⊔` member of it is),
+    `both_named` (`name` the copy's, `param` the shape's),
     `unknown_node`, or `flatten_edit`."""
 
     variant: str
@@ -2044,7 +2053,7 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
-_MeasureRef: TypeAlias = tuple[NodeId, str] | PoseDef | Var
+_MeasureRef: TypeAlias = tuple[NodeId | IndexedRead, str] | PoseDef | Var
 
 class MeasurePrimitive:
     """Which closed-form measurement a measure computes, and of which
@@ -2055,7 +2064,8 @@ class MeasurePrimitive:
     a measure but a requirement, `Node.clearance`.
 
     Each reference is a `(node, name)` pair: the entity's stable name
-    and the node its carrier is READ AT. A text that is not a name
+    and the node its carrier is READ AT; or `(xs[i], name)`, one member
+    of a family by the member's own name. A text that is not a name
     raises ValueError here.
     """
 
@@ -2071,7 +2081,9 @@ class MeasurePrimitive:
         at `evaluate` (`measure_unsupported`), naming the pair."""
 
     @staticmethod
-    def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
+    def angle(
+        a: tuple[NodeId | IndexedRead, str], b: tuple[NodeId | IndexedRead, str]
+    ) -> MeasurePrimitive:
         """The angle between two referenced entities — an angle. Each
         reference names a face or an edge (another kind refuses
         `slot_var_kind` at insert)."""
@@ -2229,7 +2241,7 @@ class Node:
         `DocEdit.set_loft_sections` writes them whole with their
         stations."""
     @staticmethod
-    def chamfer(target: _Operand, distance: _LengthArg, selection: list[str]) -> Node:
+    def chamfer(target: _BodyArg, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -2243,7 +2255,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: _Operand, thickness: _LengthArg, open: list[str]) -> Node:
+    def shell(target: _BodyArg, thickness: _LengthArg, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -2262,8 +2274,10 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: _Operand, radius: _LengthArg, selection: list[str]) -> Node:
-        """Constant-radius blends on named edges of `target`.
+    def fillet(target: _BodyArg, radius: _LengthArg, selection: list[str]) -> Node:
+        """Constant-radius blends on named edges of `target`: a body, or
+        one member of a family, `xs[i]`, named by that member's own
+        names (`Evaluation.select(xs[i], ...)`).
 
         `selection` is edge names as TEXT — the strings
         `Evaluation.all_edges` answers with, or the ones a role-name
@@ -2289,7 +2303,7 @@ class Node:
 
     @staticmethod
     def drawn_profile(
-        frame: _Operand, faces: list[tuple[_Operand, str]], outline: Chain | list[Chain]
+        frame: _Operand, faces: list[tuple[_BodyArg, str]], outline: Chain | list[Chain]
     ) -> Node:
         """A profile drawn on `frame`, tracing `faces`: its chain (a
         `Chain`, or a list of them, outer first) reads the trace of each
@@ -2569,8 +2583,8 @@ class Node:
 
     @staticmethod
     def clearance(
-        a: tuple[NodeId, str],
-        b: tuple[NodeId, str],
+        a: tuple[NodeId | IndexedRead, str],
+        b: tuple[NodeId | IndexedRead, str],
         *,
         at_least: Optional[Formula] = None,
         at_most: Optional[Formula] = None,
@@ -2664,16 +2678,17 @@ class PoseDef:
     component of a direction."""
 
     @staticmethod
-    def plane(at: _Operand, face: str) -> PoseDef:
+    def plane(at: _BodyArg, face: str) -> PoseDef:
         """A face read as a plane: its carrier's plane, with the face's
-        outward normal. A curved face refuses `pose_read` at
-        `evaluate`."""
+        outward normal. `at` may be one member of a family, `xs[i]`,
+        read by the member's own name. A curved face refuses
+        `pose_read` at `evaluate`."""
     @staticmethod
-    def axis(at: _Operand, name: str) -> PoseDef:
+    def axis(at: _BodyArg, name: str) -> PoseDef:
         """A cylinder's, a cone's or a torus's axis, a straight edge's
         line, or a circular edge's axis."""
     @staticmethod
-    def point(at: _Operand, name: str) -> PoseDef:
+    def point(at: _BodyArg, name: str) -> PoseDef:
         """A sphere's, a torus's or a circle's centre, a cone's apex, or
         a vertex's point."""
     @staticmethod
@@ -4112,7 +4127,7 @@ class Doc:
 
     def sketch_on_face(
         self,
-        body: _Operand,
+        body: _BodyArg,
         face: str,
         outline: ClosedLoop | list[ClosedLoop],
         distance: _LengthArg,
@@ -4127,7 +4142,10 @@ class Doc:
         looking out along the outward normal, its origin over the face
         body's own, turned `spin` about the normal; zero when `None`),
         and `body` and the copy fused. `face` is opaque name text from
-        `Evaluation.all_faces` / `select`. `orient=` is the mate's
+        `Evaluation.all_faces` / `select`; on one member of a family,
+        `body` is `xs[i]` and `face` the member's own name
+        (`Evaluation.select(xs[i], ...)`), and the copy fuses with the
+        whole family. `orient=` is the mate's
         `Orientation`; when `None`, the one nearest where the copy
         stands, the profile's `z` along the face's outward normal. One
         putting `z` opposite the normal is written backwards
@@ -5595,24 +5613,34 @@ class Evaluation:
     def all_faces(self, node: NodeId | Var) -> list[str]: ...
     def all_vertices(self, node: NodeId | Var) -> list[str]: ...
     def all_bodies(self, node: NodeId | Var) -> list[str]: ...
-    def select(self, node: NodeId | Var, selector: Selector) -> list[str]:
+    def select(self, node: NodeId | Var | IndexedRead, selector: Selector) -> list[str]:
         """Every name of `node`'s output matching `selector`'s
         role-path shape, as of THIS evaluation — a materializer with
         `all_edges`' exact contract (canonical order, the caller
         stores it, frozen thereafter), answering in the same opaque
-        alphabet `Node.fillet` reads. Infallible: empty when nothing
-        matches."""
+        alphabet `Node.fillet` reads. Empty when nothing matches.
+
+        A selection reads one body. One member of a family is read as
+        `xs[i]`, each index a count the document holds (a count, or a
+        free count), and answers
+        that member's own names, the ones a selection of `xs[i]`
+        holds; no member at those counts raises `SelectRefusal`
+        (`reason="no_member"`). A family
+        read whole raises `SelectRefusal` (`reason="family"`): select
+        from `xs[i]`."""
 
     def select_where(
         self,
-        node: NodeId | Var,
+        node: NodeId | Var | IndexedRead,
         selector: Selector,
         geom: list[GeomPred],
     ) -> list[str]:
         """`select`, then filter the survivors by GEOMETRY: each is
         resolved to its entity in THIS evaluation and tested against
         the CONJUNCTION `geom`. An empty `geom` is exactly `select`;
-        run twice and concatenate for a union.
+        run twice and concatenate for a union. It reads `node` as
+        `select` does: one member `xs[i]` by its own names, and a
+        family read whole refuses.
 
         Raises `SelectRefusal`, typed, where the Rust door refuses:
         exact atoms are total, but a decided atom's in-band margin, a
@@ -5621,8 +5649,8 @@ class Evaluation:
         anything."""
     def traced_frame(
         self,
-        plane: tuple[_Operand, str],
-        traced: tuple[_Operand, str],
+        plane: tuple[_BodyArg, str],
+        traced: tuple[_BodyArg, str],
     ) -> PoseDef:
         """The frame a sketch tracing a face stands on: `Through` the
         traced face's own axis and a vertex of the plane face `plane`,
@@ -5637,11 +5665,13 @@ class Evaluation:
         or has no vertex off the axis.
         """
         ...
-    def face_frame(self, node: NodeId | Var, name: str) -> Pose:
+    def face_frame(self, node: NodeId | Var | IndexedRead, name: str) -> Pose:
         """Where the named face SITS — its carrier's frame, as of THIS
         evaluation. The forward twin of the materializers: they hand
         out names, this asks one where it is, and `name` is one of
-        their opaque texts handed back unread.
+        their opaque texts handed back unread. One member of a family,
+        `xs[i]` at counts the document holds, is asked by the member's
+        own name, as `select(xs[i], ...)` answers it.
 
         The answer is the CARRIER's frame copied out of stored
         geometry — a definitional re-read, no measurement and no pad —
@@ -5686,8 +5716,9 @@ class Evaluation:
         Raises `ReadbackError` as `face_frame` does, with
         `wrong_kind` for an edge or vertex name."""
 
-    def denotation(self, node: NodeId | Var, name: str) -> Denotation:
-        """How this name resolves — uniquely, or as a tie. The
+    def denotation(self, node: NodeId | Var | IndexedRead, name: str) -> Denotation:
+        """How this name resolves — uniquely, or as a tie, in `node` or
+        one member of a family, `xs[i]`, by its own name. The
         referencing question, answered without exposing what it
         resolves to, and the door to ask BEFORE a frame: a frame door
         for the name's OWN kind refuses a tie rather than picking a
@@ -5827,9 +5858,10 @@ class Evaluation:
         reads the run's ambient tolerance, which is the ε the body was
         built under. An explicit one that is not finite and strictly
         positive is an `ExportError`; the rule is the writer's and is
-        quoted from it, not restated. The body is gated at rest first,
-        so one the gate refuses raises `ExportError` tagged
-        `body_invalid` rather than reaching the writer."""
+        quoted from it, not restated. The body is finished already (a
+        value holds a finished body), so the door gates nothing of its
+        own; one whose frame cannot be composed into its space raises
+        `ExportError` tagged `compose_refused`."""
 
 def evaluate(
     doc: Doc,
@@ -6444,8 +6476,7 @@ class AtRestEvidence:
         `malformed` (the gathered body fails a check of its own
         structure or geometry), `inside_arrival` (a touch or overlap
         inside one arrival that nothing backs), `not_gathered` (a `⊔`
-        the product does not read whose operands did not gather),
-        `not_run` (this evaluation's scalar runs no census at rest) or
+        the product does not read whose operands did not gather) or
         `carried` (a part's own, with its route)."""
 
     @property
@@ -6453,7 +6484,7 @@ class AtRestEvidence:
         """The validator finding's word on `no_lane`, `malformed` and
         `inside_arrival` (`ValidationError`'s vocabulary), the gather
         refusal's on `not_gathered` (`ProductError`'s); `None` on
-        `not_run` and `carried`."""
+        `carried`."""
 
     @property
     def carried(self) -> Optional[CarriedAtRestFinding]:
@@ -6570,7 +6601,7 @@ class InterferenceFinding:
 
     @property
     def unlocalized(self) -> Optional[str]:
-        """Why the overlap has no site — `refused`, `invalid`,
+        """Why the overlap has no site — `refused`,
         `empty`, `unnamed`, `containment` or `lane` — or `None`. An unlocalized overlap is
         loud and nothing quiets it."""
 

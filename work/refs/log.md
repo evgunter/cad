@@ -103,3 +103,191 @@
   - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
+- 2026-11-06 — **Sitting picked up (`active`).** Two P0 rows on the slate, both moved here from the retired `work/issues/` bucket on 2026-11-03 with legacy `cost: D`. Read against the tree: `flush-invents-a-predicate-name-for-a-nameless-escalation`'s cited code is gone (no `names/flush.rs`, no `SelectRefusal::PairInBand` anywhere), but its class lives on (`eval/measure.rs`'s `unwrap_or(GAP_LINK)`, `topo` `section_cert.rs`'s `unwrap_or("pair_section")`); `emit-blend-cannot-observe-a-retirement-naming-a-minted-key`'s blend half already has its kernel home (`sweep::blend::surgery`'s epilogue checks every retirement names a source key), while `topo::shell` has no such postcondition. Both are E-sized and share one lane, unit branch `reads/retired-and-nameless`. Tier **single, STYLE**: a kernel debug postcondition plus refusal-payload honesty, readable and believable on reading. Both bands look high against the README's definitions (a guard that cannot go red is P3); they are being fixed rather than re-banded because the fix is cheaper than the argument.
+- 2026-11-06 — **Banded and priced the eight unbanded legacy rows** (orchestrator's read, against the README's definitions):
+  - P1 M `slot-forms-want-one-trait` — two implementations of one logic, owed again by every new slot-bearing type;
+  - P1 M `a-selects-body-takes-an-indexed-read` — verb breadth: a selection of a family member read by index has no spelling;
+  - P1 M `viewer-boolean-tool-cannot-pick-a-read` — GUI authoring breadth. The tool now holds `Operand`s and reads a split's half by its port (`combine.rs` `pick_at`), so part of the row may be done; the dispatch re-checks the indexed member first;
+  - P2 H `an-indexed-read-of-rank-two-has-no-family`; P2 M `set-expression-is-still-slot-addressed`;
+  - P3 E `python-cannot-re-point-an-indexed-reads-index`; P3 E +design `python-set-param-reaches-no-list-member` (two viable shapes in its body);
+  - P4 E `a-spelled-union-clones-the-results-per-member` (unmeasured perf).
+  - Priced the two unpriced P2 part-name rows M. Load is now 15/30. The three new P1s join this sitting's slate after the P0 pair, serially.
+- 2026-11-06 — **PR 6543 (the P0 pair) green at `b42816e736`; single STYLE review dispatched.** The brief's premise was corrected by the lane: the shell's `dead` record is in RESULT keys and names construction-minted cavity twins by design, so BLEND's "a retirement names a source key" is false for the shell; `record_rooted` checks "an operand key or the result half of some row" plus every row's source half, and two mutants trip it. The nameless-escalation class is fixed at its three publishers (`measure.rs` now carries `Option`, `section_cert.rs`, `clearance.rs`); its root — `Indeterminate::predicate` is optional, 35 `None` literals and ~62 raw `sign_within` calls — went to SCALAR as `an-escalation-may-carry-no-predicate-name-so-every-publisher-must-mark-one` (P3 M). **Class** (logged per the adjudication rule): a check true of one operation's record (BLEND: retirements are source keys) is false of a sibling's (SHELL: retirements may be result keys), so a guard copied across them must restate its predicate per record.
+- 2026-11-06 — **PR 6543 review: APPROVE-WITH-FIXES, no MAJOR; fix pass sent to the implementer.** Taken:
+  - `record_rooted`'s "or a row's result half" disjunct lets a live seam piece or twin pushed into `dead` pass, so the check gains "absent from the result";
+  - a permanent `#[should_panic]` row, since the "needs a hook" claim was false;
+  - the `edge_joins`/`ring` comments; the debug-assertions qualifier in the emitter docs;
+  - the measure payloads' `predicate` duplicates `source.predicate`, so it is deleted rather than made `Option`, with the sibling `*Escalated` payloads swept;
+  - one home for `"<unnamed>"`: the PR had minted a second topo home beside k_stats ×2 and profile;
+  - `Shelled::lineage` states operand-cell fates for twin keys from `dead`;
+  - the `clearance` meeting-pair `Sliver` bypassing `terminal_sliver` (checked and routed).
+
+  **Class (Q1, the fix that mints a copy):** a lane closing "an invented name" introduced a second marker home, which the brief's own trap warns of.
+- 2026-11-06 — **PR 6543 fix pass green (`1aecafc70f`); merging on the orchestrator's read of the delta.** Every finding was taken. The measure and naming escalation payloads lose their duplicate `predicate` (read from `source` through `decision::subject`/`ending`). `geom_core::UNNAMED_PREDICATE` is the marker's one home. `record_rooted` also checks that the result is absent. Blend and shell each have permanent `#[should_panic]` rows. `Shelled::lineage` states fates only for retirements no row mints. Filed: BIND `select-refusal-inband-copies-its-sources-predicate-name` (P4 E), CLEAR `the-meeting-pair-leaf-mints-a-sliver-without-the-terminal-rule` (P4 E). Both P0 rows closed (re-priced M and E).
+- 2026-11-06 — **PR 6543 merged (the P0 pair).** Next P1 dispatched: `a-selects-body-takes-an-indexed-read`, unit branch `reads/select-indexed`. Tier **single, FULL**: `Select.body` changes form and `Rebind`'s address with it, which is a correctness risk (a rebind reaching the wrong member) beyond what a read can believe. Order for the remaining P1s, serially: the viewer's boolean tool next (it may want this unit's indexed read), then `slot-forms-want-one-trait`.
+- 2026-11-06 — **`a-selects-body-takes-an-indexed-read` stopped at a fork before building** (no code). The fork: what a selection of `xs[i]` stores and means. DM3 reads as "a member keeps its family-wrapped names". DESIGN `[repetition]`'s per-copy `c[(k+1) mod N].l` needs the member's own names, read at whichever member the index picks. The tree already reads a bare-family selection by the names' form (`names_members`). The lane's premise corrections, true on any answer:
+  - `Rebind` matches names exactly, so the row's "reaches both members" hazard exists only if own names are stored;
+  - a selection's index must enter its content key (`pose.rs` `key_words`);
+  - `PoseDef` is the precedent for a definition holding its own slot variable.
+
+  `design: true` set. Fork `selects-indexed-member` went to two designers (draws on its analysis branch), given the problem only and pointed at the neighbouring indexed-read rows. If it is Ev's fork, an `[ev]` PR follows.
+- 2026-11-06 — **Fork `selects-indexed-member`: first reports in, agreeing on the core and split on details; reconciliation round 1 running.**
+  - **Both:** `Select.body` becomes `BodyRead`, with the selection's own `Count` index slots; the names are the member's own; the index is said once, in the read.
+  - **Split on four points:**
+    - the `Rebind` address (A: the family variable; B: a read, matched exactly);
+    - `Member`-named selections of a bare family at the door (A lowers them as sugar; B refuses them and changes Python's materializer);
+    - mate sides (A traced the structural member walk and offers 6a/6b; B did not trace it);
+    - DM3's wording.
+  - **B's probe:** today a per-`k` read of `xs` and `xs[k]` name members differently (`Member[i] › e` against `Member[i] › Member[i] › e`), so DM3's "one read, one name" fails at node seats too. That goes to the build or to its own row once the fork settles.
+  - **Filed from B's probe:** `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` (P1 M). A union of a per-`k` subtract family refuses `WrongOperand`.
+- 2026-11-06 — **Fork `selects-indexed-member` went to Ev as draft `[ev]` PR 6555 after three rounds** (fork row 253, recommendation half).
+  - **Agreed:**
+    - `Select { body: BodyRead, names }`, with the member's own names and the index said once, in the read;
+    - `xs[k]` on the family's own chain stored as `xs`;
+    - no `Member`-headed stored name;
+    - mate sides take a written count or no index;
+    - `Rebind` stays addressed by the variable, the read address deferred (its doc says "address", and a row for per-member-built families);
+    - DM3 reworded (the PR's diff, with the `work/intent` path drive-by).
+  - **Split, for Ev:** a `Member`-named bare-family selection at the door, rewritten or refused. The two crossed three times. Each designer's final line claims agreement, because each moved in the same round.
+  - **Process note:** three rounds of crossing with no meeting. The arguments stay live because the deciding fact is a judgement ("is a family-table name a legitimate authored spelling at a body seat"), not a checkable one.
+  - PR 6555 is subscribed. The build goes into it after Ev answers.
+  - Next REFS P1, serially: `viewer-boolean-tool-cannot-pick-a-read`. Its indexed-member half follows this fork, so its premise is checked first.
+- 2026-11-06 — **PR 6557 (family of boolean results) green at `3bf9231062`; single FULL review dispatched.**
+  - **Premise narrowed:** an all-body family of booleans already reads as `Instances`. Only a family with an EMPTY boolean member fell to `Family`, so every whole read and every indexed read refused, including `cut[0]` when only its sibling `cut[1]` was empty.
+  - **Fix:** behind one bridge (`member_body` / `member_bodies`), an empty member keeps its index and names nothing, and whole reads refuse `EmptyOperand`.
+  - **Not taken:** a single representation, `Instances(Vec<Option<Framed>>)`. The reviewer is asked whether the bridge is a final state or a copy.
+  - **Rows filed:** WIREREST, the product and interrogator readers (P2 M); REFS, a selection of a member of such a family (P2 E, on 6555's ground); PYDOOR, `Value.bodies()` (P3 E).
+  - **Tier:** FULL, because the empty-member semantics decide what a union means.
+- 2026-11-06 — **PR 6557 review: APPROVE-WITH-FIXES, no MAJOR; fix pass sent.**
+  - The empty-member test fails on the pre-fix tree, and an index-shift mutant goes red, though only through `apart`'s naming check. The `named` assertion gains positions.
+  - **Taken:**
+    - a REFS P1 H row for the two payloads of "a family of bodies", with the hit list;
+    - the eighth `Body | Boolean::Body` ladder copy routes the editor-core copies through `member_body`;
+    - one spelling of the empty value;
+    - `wire_assemble`'s double classification;
+    - `EmptyOperand` naming the member;
+    - six stale docs, and the D3 citation rot;
+    - the unguarded member index;
+    - an empty member at a subtract's `from` seat;
+    - the wirerest caller list (`Evaluation::read_body` → `output_body` has seven more callers);
+    - the pydoor row's fix and home.
+  - **Class (Q1, the fix that mints a copy, second time this sitting):** a helper announced as "the one rule" beside seven unrouted copies of its predicate.
+- 2026-11-06 — **PR 6557 fix pass green (`8a1251eafb`); merged on the orchestrator's read of the delta.** All ten findings were taken:
+  - **One ladder:** every editor-core copy routes through `member_body`, and the leftover one-body arms are `unreachable!`.
+  - **Empty values and refusals:** `OpOut::empty()` is the one spelling of an empty value. A new `NodeErrorKind::EmptyMember { input, at }` names the empty member; both demo matches have catch-alls.
+  - **Docs:** the stale docs and citations are fixed.
+  - **Tests:** the `named` assertion now pins positions.
+  - **Rows filed:** `a-family-of-bodies-has-two-payloads` (REFS P1 H, the unification) and `editor-core-cites-a-spec-d3-no-document-numbers` (REFS P4 C, about 40 sites). The Python row moved to BIND.
+  - `a-family-of-boolean-results-cannot-be-read-whole-or-by-index` is closed.
+- 2026-11-06 — **PR 6557 merged** (a family of boolean results reads whole and by index; `EmptyMember` names the empty member). Next REFS P1, serially: `a-family-of-bodies-has-two-payloads` (H), unit branch `reads/family-one-payload`. It follows on from the context just built, and it is the root of three of 6557's residue rows. The lane picks the one representation by final state and stops if a user-visible fork appears. Tier **single, FULL** (a public payload type and its readers across three crates). After it: `slot-forms-want-one-trait`. Then the viewer's boolean tool, whose indexed half waits on Ev's answer on 6555.
+- 2026-11-06 — **PR 6564 (one payload for a family of bodies) green at `2ef171edb2`; single FULL review dispatched.**
+  - **Chosen:** `Instances(Vec<Option<Framed>>)`, `None` at an empty member. `Family` now holds only non-bodies.
+  - **Rejected:** a third variant, which would be two spellings of one concept, and the bridge as the public door, because a reader matching `Instances` alone would still compile.
+  - **Bridge pieces deleted:** `member_bodies` and the viewer's `one_body` copy. `ValuePayload::one_body` is now the public rule.
+  - **Readers fixed:** `output_body`, `sources_of`, Python `bodies()` and `read_named_body`. `mate/corner.rs` `read_of` reads the first body member.
+  - **Rows:** the WIREREST and BIND residue rows were claimed and closed. The tree readout for an empty member is a CHROME row with three options (a user-visible choice, left open).
+  - **Not ours:** the lane saw main's nightly red on editor-core (`docm2_part_interval` a7, an interval boolean escalation, and others). That is GREEN's ground, and it is noted here for the hand-back.
+- 2026-11-06 — **PR 6564 review: APPROVE-WITH-FIXES, one MAJOR (sure, probe).** The product `gather` reads `carry.member(i)` by its position in the filtered source list. With empty members dropped, a later body took the empty member's census: a false `UnrecordedContact` and a lost contact record. This path is new in this PR. The one-line fix is `member(ix)`, with the probe pinned.
+  - Minors:
+    - `wire_place`'s whole-family arm can build a member-less `Instances` with a `None`, which panics on a whole read;
+    - `corner.rs` `read_of` has two name spellings;
+    - the all-empty family's new behaviour is unpinned;
+    - `name_copy`'s `one`;
+    - `one_body` overclaims: demos and `mate/unobservable` still match `Body(b)` alone.
+  - Fix pass sent.
+  - **Class:** a reader indexing by position in a list that may skip places, through a method (`Carry::member`) that a field sweep (`.members`) cannot match. A sweep's blind spot was named in the PR and still missed this shape.
+- 2026-11-06 — **PR 6564 fix pass green (`6f33e679e3`); merged on the orchestrator's read of the delta.** All the findings were taken:
+  - **The MAJOR:** `gather` now reads each body's carry at its place, and the pin goes red if the old indexing is restored. The `Carry::member` class sweep is clean.
+  - **Dead arms deleted** (`unreachable!`) rather than generalised: `wire_place`'s member-less whole-family arm and `place_each`, and `read_of`'s member-less arm. `family_value` is now the only builder of a family.
+  - **All-empty family:** it gathers as one empty boolean does, and is pinned in Rust and Python.
+  - **`one_body`:** every listed demo and `mate/unobservable` reader is routed through it.
+  - **`every_body`:** it now lives in `test_support`.
+  - `a-family-of-bodies-has-two-payloads` is closed, with the WIREREST and BIND residue rows.
+- 2026-11-06 — **PR 6564 merged** (one payload for a family of bodies). Next REFS P1, serially: `slot-forms-want-one-trait`, unit branch `reads/slot-forms-trait`. The row is a month old and the tree has moved, so the lane re-takes the census first and may report that the need is gone. Tier **single, STYLE**: a compiler-checked refactor with no behaviour change, where the risk is the abstraction's shape and not correctness.
+- 2026-11-06 — **PR 6569 (`slot-forms-want-one-trait`): the need is gone. The row is closed with the census, and three dead wrappers are deleted.** Re-authoring now writes `Formula::var(var, dim)`, with the dimension taken from the slot's address, so a `try_map_slots`-only trait cannot express it. Lowering mints into a document, and its one home is `edit::lower_value`. The slot walks come in three shapes (slots only, reads only, both). Nine slot-bearing types have landed since the row was filed, and none brought an `authored`/`stored` copy. The generic consumer already exists as `ProfilePayload`. **Tier re-set to the orchestrator's read:** the shipped diff is dead-code deletion plus one conversion delegating to its twin, and is CI-green. I accept the closure; the lane's premise correction is in the row.
+- 2026-11-06 — **PR 6569 merged.** Last dispatchable REFS P1: `viewer-boolean-tool-cannot-pick-a-read`, unit branch `reads/viewer-boolean-reads`. The boolean tool's operands are body seats, not selections, so the unit does not wait on 6555. The lane is fenced off selections and stops if it meets 6555's question. Part of the row was done after it was filed (`Operand`s, split halves by port), so the lane re-takes what is still missing first. Tier **single, STYLE**.
+- 2026-11-09 — **Ev asked on 6555 what the difference is between the two forms the door would rewrite between.** I answered on the PR:
+  - form 1 is the whole-family read with the copy index inside each name (`Member{(k,2), e}`), which is what the kernel's materializers and viewport picks hand back;
+  - form 2 is the indexed read `xs[2]` with the copy's own names, the only stored form.
+
+  The viewer lane hit the weekly usage limit mid-unit on 2026-11-06 and was resumed today.
+- 2026-11-09 — **PR 6593 (the viewer boolean tool reads what a pick reaches) green at `8be69fc4f0`; single STYLE review dispatched.**
+  - Split halves already worked; this PR adds an end-to-end test.
+  - **New:** a viewport pick on a pattern member authors `xs[i]` (`BodyRead<Formula>`). A tree pick reads the family whole, and a panel row can re-read it as one member. No editor-core change was needed.
+  - **Filed:** DOORS `a-combine-of-a-world-copied-familys-member-leaves-the-copy-drawing-it` (P2, design).
+- 2026-11-09 — **PR 6593 review: APPROVE-WITH-FIXES, with two probed regressions against main. Fix pass sent.**
+  - **First regression:** a split of a family lost its half choice, and the panel offered member rows that could only refuse.
+  - **Second regression:** a member picked through a world copy now authors a combine the world does not show. Main's whole-family read and takeover are kept for copied families until DOORS rules, and the DOORS row is re-banded P1.
+  - **Also taken:**
+    - a pattern standing in a copy space read as its source's copy;
+    - grid, port-carry and headless member-row tests;
+    - one "is a family" definition (the viewer's and the door's disagreed);
+    - `reads_member` made exhaustive and tied to the door;
+    - the README's 2417 divergence for non-boolean seats.
+  - **Class:** a new seat state (`Member`) checked before an existing one (`HalfUnchosen`), where a node can be both. Seat states compose, and the code assumed they were exclusive.
+- 2026-11-09 — **PR 6593 fix pass green (`b7d09be000`); merged on the orchestrator's read of the delta.**
+  - **Both regressions fixed:**
+    - `Port` is now an output part plus a members part, so a split of a family keeps its half choice in either order;
+    - a family read along a seen path (copy, `⊔` operand, product) is read whole and taken over, as on main.
+  - **Also done:** grid, carry and headless member-row tests; one "is a family" (the door's `admits`); one member lowering; `reads_member` made exhaustive and tied to the door; the old `Port::read` re-spellings routed through it.
+  - **Rows:** DOORS world-copy row re-banded P1; new DOORS P2 (split, mirror and pattern seats should read members, as README 2417 says); PLACING P2 (a pattern of a copy read as its source's copy, on PLACING's open `copy_spaces` ground); REFS P2 `a-split-of-a-family-has-no-halves-a-read-reaches` (evaluation refuses `split.above[1]`, refusal pinned).
+  - `viewer-boolean-tool-cannot-pick-a-read` is closed.
+  - **Process:** the 6564 fix-pass lane re-grew a 12 GB target after I had reclaimed it at review time; it was found at 2.3 GB free. Reclaim a lane's target at MERGE as well as at review.
+- 2026-11-09 — **PR 6593 merged. REFS has no dispatchable P0 or P1 left.** `a-selects-body-takes-an-indexed-read` is parked on `[ev]` PR 6555, where Ev's question is being answered. This orchestrator stays subscribed to 6555 and builds the unit into it once Ev rules, so REFS stays `active` for that one row. Meanwhile the sitting takes up SEAL (two open rows) serially, per Ev's instruction this session.
+- 2026-11-09 — **PR 6555 merged main again (`0b43587b69`). Its fork row is now 254**: main's PLACING fork took 253 on 2026-11-08. When Ev answers, the row's second commit goes on 254, and the PR body's "Fork row 253" line is corrected in the same in-place update. Ev has not yet answered on rewrite vs refuse.
+- 2026-11-09 — **Next REFS unit, queued behind SEAL's glue step 1 (one implementation lane at a time):** `the-reference-path-reads-every-node-from-mint-to-read` (P2, M). Ev ruled it on PR 4691, and the PR 4674 it waited on has landed.
+- 2026-11-09 — **The P2 unit queued above is withdrawn.** The sitting ends a track once its P0/P1 rows are done (orchestration model). SEAL's P1 rows still stand, so the sitting works those. `the-reference-path-reads-every-node-from-mint-to-read` stays `open` for a later sitting. REFS stays `active` only for `[ev]` PR 6555's row.
+- 2026-11-09 — **On PR 6555, Ev asked whether there should be two forms at all.**
+  - **Answer, on the PR:** no. Keep one form, form 2: a selection reads one body, and its names are that body's own.
+    - Form 1 survives only as `repetition::names_members`' special case, which reads the family whole. It predates indexed reads.
+    - `Member { (k, i), e }` stays as a name *inside* a body built from the whole family, such as a union's result.
+  - **Proposed:**
+    - the door refuses form 1 outright;
+    - the viewport pick authors `xs[i]` (as since PR 6593);
+    - Python `select` on a family read whole refuses;
+    - `names_members`, its `Reach` exception and the three whole-read branches are deleted;
+    - no converter helper.
+  - Waiting for Ev's confirmation before DM3 is written and the unit is built into the PR.
+- 2026-11-10 — **Ev ruled on PR 6555** (comment 6757433076): "if the thing you're suggesting is "form 1 is entirely deleted including all code to produce or consume it", then yes that sounds good".
+  - Confirmed on the PR, with the one sharpening "consumes" implies: no door check that inspects `Member`-headed names. A selection reads one body, so a selection of the family read whole refuses whatever its names. Producers (Python `select` on a family read whole, the viewport pick's family names) and consumers (`names_members`, its `Reach` exception, the three whole-read branches) are deleted. `Member` names inside a body built from the family stay.
+  - Written on the PR branch (`72135e738c`): DM3's sentence, and fork row 254's Ev, match and A/B columns (bytes 215, 249: Fable = A, Opus = B).
+  - The build goes into PR 6555 as one lane, dispatched once SEAL's step-4 rework lane hands back (serial, per Ev's opening message). It also pins `a-selection-of-a-member-of-a-family-with-an-empty-member-refuses` in its new form (`xs[i]` at an empty member refuses `EmptyOperand`).
+- 2026-11-10 — **Ev on PR 6555** (comment 6757577350): "a form-1 specific refusal should not be possible, it shouldn't type check". DM3's sentence now says the family read whole does not type-check at a selection's body seat (`SlotVarKind`), committed `0cb7996da8`; the build brief says the fix is deleting `names_members`' bypass of the existing kind check, with no name-inspecting check.
+- 2026-11-10 — **PR 6555's build dispatched** (one lane; SEAL's step-4 lane had handed back, its review runs beside it). Row `a-selects-body-takes-an-indexed-read` set `dispatched`, tier single FULL.
+- 2026-11-10 — **PR 6555 build in** (head `bc173fd185`; local gates green: nextest 4215, Python 955, clippy, lint). Hosted CI has not run: the PR is a draft and the lane's undraft was refused by the permission classifier. Left for Ev rather than retried from here.
+  - Departures to adjudicate:
+    1. No whole-family refusal exists or can: a plain family read at a body seat is per-member, so the form-1 shape is a per-member selection whose every member refuses `SelectResolve`. My DM3 sentence ("does not type-check, `SlotVarKind`") was an unchecked claim, and the lane rewrote it. That is my second unchecked-sentence finding this sitting.
+    2. A sited-name converter (`operand.rs` `selection_at`) turns `Member`-spelled names into `xs[i]`. This may be the converter the ruling deleted.
+    3. Rust `select` on a family whole is kept.
+  - The lane also says its first clone dropped mid-transfer and its follow-up checkout ran in `/home/user/cad`. It restored that checkout, which I confirmed clean on `seal/orchestrator`.
+  - **Review dispatched:** single FULL tier on the frozen head, with the claims aimed at those departures and the DM3 text. `refs-select-target` was reclaimed, along with the two stale step-3 targets.
+- 2026-11-10 — **Ev asked on PR 6555 whether anything more was needed** (comment 6762217500). Answered (6762223848): nothing now; `[ev]` taken off the title.
+  - Told Ev of my wrong "does not type-check" claim and what the code does instead.
+  - Named the sited-name converter as a likely fix-pass item.
+  - Asked Ev to mark the PR ready for review, since CI does not run on a draft.
+  - `[ev]` goes back with the question at the top if the review leaves one for Ev.
+- 2026-11-10 — **PR 6555 review adjudicated** (single FULL, head `bc173fd185`). The core build held. All findings upheld; fix pass sent.
+  - **The sited conversion (`selection_at` in `From<SitedFace>`/`From<SitedRef>`) is form 1 by another route:** name inspection that Ev ruled out. Sites get a native member read, and the conversion stays only for flatten/inline, which convert a different body's names. The viewer's mate `to`/`on` picks and the Python measure cells move off it.
+  - **Load skips `SideIndex`/`IndexRank` for selections read through a pose.** The reviewer's probe: a renamed index leaves `head_of` silently `None`.
+  - **DM3 corrections:** the `SlotVarKind` sentence is false for families, and the mate-side sentence writes the converter into DM3. Fork row 258's Ev cell overclaims.
+  - **The viewer's fallbacks author the form-1 shape.** They refuse in the tool instead.
+  - **Rows to file:** a document the door admits fails to save on a rank change; `traced_frame`'s `NotAFace`; `OtherBody`; continuation and the conservative sites.
+  - **Question for Ev, `[ev]` back on the title** with the question at the top of the body: the form-1 shape type-checks as a per-member selection and fails at evaluation like any unresolved name. The alternative (families kinded at body seats, `xs[k]` stored explicitly) reverses the one-stored-form rule. Recommended: accept.
+- 2026-11-10 — **PR 6555 fix pass in** (head `a23aadf022`; local gates green, including the tour build and viewer `--features app`). Changes:
+  - **Sited conversion:** deleted. `SitedFace` carries a native member, and flatten and inline keep a private unwinding of a different body's names.
+  - **Load:** load walks selections read through poses.
+  - **Viewer:** the fallbacks refuse with typed errors.
+  - **Python:** one `MemberOr` enum.
+  - **F9:** fixed in this PR.
+  - **Rows:** F3, F10 and F11, plus a sketch-on-member row, filed.
+
+  `written_count` now accepts a named free count, not only a literal, which fixes the reviewer's rename probe. DM3 still says "a written count", so that goes to the delta review: within Ev's read-from-the-document principle, and the exact sentence. **Delta review dispatched.** Lane target reclaimed.
+- 2026-11-10 — **PR 6555 delta review** (`bc173fd185..a23aadf022`). Every gate passed. It found one blocking item and four should-fix items, and I upheld all of them.
+  - **Blocking:** flatten's and inline's `unwound_selection` fallback still writes the form-1 shape. The probe was a fillet over two members' rim edges, then inline, then flatten. This falsified the premise of the `[ev]` question ("nothing produces it"). I corrected the question block on the PR at once.
+  - **A named pose escapes `SideIndex`/`IndexRank`** at the door and at load. The probe left `head_of` silently `None` and seated a side on an evaluated index.
+  - **`head_of` hands out a `SitedFace` that lowers to form 1.**
+  - **The viewer's refusal branches and F9 are unpinned:** their mutants survive.
+  - **Accepting a named free count at a side is within Ev's read-from-the-document principle.** The DM3 sentence was settled from the review.
+  - Second fix pass sent.
+- 2026-11-10 — `a-selects-body-takes-an-indexed-read` closed (PR 6555), after a full review, a delta review and two fix passes. Ev accepted the as-built state (comment 6774456192): the form-1 shape is admitted as a per-member selection and refuses at evaluation, and nothing produces or recognises it. Fork row 259's Ev cell records it. (REFS orchestrator)
+- 2026-11-10 — PR 6555 merged (`a5e6a785ff`). REFS has no open P0 or P1 row left. **Track handed back.** (REFS orchestrator)

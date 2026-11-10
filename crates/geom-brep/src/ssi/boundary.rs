@@ -1048,7 +1048,7 @@ impl<P: Partner> Pass<'_, P> {
 pub(crate) fn side_row(
     wall: &geom::NurbsSurface<f64>,
     side: ChartSide,
-) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::SplineError> {
+) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::Built<geom_core::spline::SplineError>> {
     let high = side.end == ChartEnd::High;
     match side.fixed {
         ChartAxis::U => boundary_iso_u(wall, high),
@@ -1289,7 +1289,7 @@ fn beyond_reach<T: CertifiedBounds>(
         (rise / run).next_up()
     };
     let (a, b) = along(side, r);
-    [a, 0.5 * (a + b), b].into_iter().any(|t| {
+    [a, geom::mid_param(a, b), b].into_iter().any(|t| {
         let least = super::enclose::zero_free_lower_bound(reader.over((t, t)));
         least / steepest > eps
     })
