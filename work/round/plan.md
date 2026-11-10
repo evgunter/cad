@@ -3,18 +3,15 @@
 The profile fillet family's doors and refusal sentences. Present state
 only; the story is in `log.md`.
 
-## Waiting on Ev
+## In flight
 
-- **The refused corner** — `refused-fused-step-reports-no-partial-geometry`
+- **The refused corner**: `refused-fused-step-reports-no-partial-geometry`
   and `anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`,
-  parked on `[ev]` PR 6547: complete the `replay_drawn` construction record
-  (`FilletConstruction`, recorded as each side is bound) and give the
-  anchor-fit refusal both legs' extents plus the closed-form
-  `radius_at_anchor`. The private `CornerLever` (PR 6556) is where the
-  valued `Recourse` grows. The closed form's measurement probes are on
-  `round/probes` (`crates/profile/tests/round_probe_anchor_radius.rs`).
-  The two P3 refusal-sentence rows below ride with this unit as
-  passengers: they touch the same sentences.
+  ruled on PR 6547 (Ev, 2026-11-10), one build unit on
+  `round/refused-corner` with a single FULL review. The contract is
+  `crates/profile/README.md` (`replay_drawn`, "One level down, the
+  candidate") and PATHS-DESIGN §3 *What a refused fillet hands back*.
+  The two cost-E P3 refusal-sentence rows ride with it.
 
 ## The tail (dispatchable, below the sitting's bands)
 

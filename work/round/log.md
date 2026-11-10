@@ -317,3 +317,18 @@ that unit, since it rewrites the same sentences. ROUND goes back
   renumbered past main's last;
 - refresh its PR body;
 - unpark the two rows.
+
+## 2026-11-10 — the refused corner ruled (PR 6547); picked back up (`active`)
+
+Ev, after two rounds of questions on the PR: "ok, these changes sound
+good then!" The answer carries both decisions with Ev's two wording
+changes:
+- the anchor lever states the target distance, not an increment;
+- the sentence drops the redundant current distance.
+
+The fork's log row is 255 (254 was taken on main) and carries the
+decision and the mapping. Both rows are unparked into one build unit,
+`round/refused-corner`, which gets a single FULL review: the payload
+and record changes reach the viewer and Python, and the closed-form
+radius has branch assignment to get right. The two P3 sentence rows
+ride with it.

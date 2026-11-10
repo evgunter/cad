@@ -2,13 +2,12 @@
 id: refused-fused-step-reports-no-partial-geometry
 kind: issue
 title: design: what a refused fused step (arc_fillet_arc and kin) hands back, so the path preview can draw the carriers it did bind
-status: parked
+status: dispatched
 opened: 2026-09-18
 priority: P1
 cost: M
-design: true
 pr: 6547
-blocked_on: [6547]
+branch: round/refused-corner
 ---
 
 **This is a DESIGN item, not a dispatchable unit.** Its question changes what the replay driver returns, and that is the interface the ratified PATHS lattice exposes. Settle it in an `[ev]` PR before anyone builds it.
