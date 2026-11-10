@@ -477,7 +477,7 @@ fn one_cylinder(
     else {
         return None;
     };
-    let zero = |name, m: geom_core::Margin<Lane>| {
+    let zero_as = |name, m: geom_core::Margin<Lane>| {
         geom_core::k_stats::decide_reported(name, m, band)
             .map_or(Err(deferred::Undischarged::Otherwise), |d| {
                 deferred::discharge_or_why(d.margin)
@@ -492,11 +492,11 @@ fn one_cylinder(
         if !stated {
             let (cross, off) = (da.cross(db), (ob - oa).cross(db));
             for s in [cross.x, cross.y, cross.z] {
-                zero(ONE_CYLINDER_AXIS, geom_core::Margin::levered(s, metre))
+                zero_as(ONE_CYLINDER_AXIS, geom_core::Margin::levered(s, metre))
                     .map_err(|why| (Component::Axis, why))?;
             }
             for r in [off.x, off.y, off.z] {
-                zero(ONE_CYLINDER, geom_core::Margin::of(r))
+                zero_as(ONE_CYLINDER, geom_core::Margin::of(r))
                     .map_err(|why| (Component::Axis, why))?;
             }
         }
@@ -507,10 +507,10 @@ fn one_cylinder(
                 return Err(radius(deferred::Undischarged::Otherwise));
             }
             for rim in rims {
-                zero(ONE_CYLINDER, geom_core::Margin::of(rim - *r)).map_err(radius)?;
+                zero_as(ONE_CYLINDER, geom_core::Margin::of(rim - *r)).map_err(radius)?;
             }
         }
-        zero(ONE_CYLINDER, geom_core::Margin::of(ra - rb)).map_err(radius)?;
+        zero_as(ONE_CYLINDER, geom_core::Margin::of(ra - rb)).map_err(radius)?;
         if (sa == sb) != (wanted == CarrierRelation::SameOriented) {
             return Err((Component::Sense, deferred::Undischarged::Otherwise));
         }

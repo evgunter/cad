@@ -336,7 +336,7 @@ fn a_sheet_inside_the_lens_refuses() {
             let at = format!("{what} at {p:?}");
             assert_eq!(
                 read(p, (0.0, 0.05), carrier, true, true),
-                TouchVerdict::Unread(TouchUnread::Unreadable),
+                TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
                 "{at}: the planar face inside the lens"
             );
             assert!(
@@ -369,7 +369,7 @@ fn an_edge_off_the_ruling_refuses() {
                         1.0,
                         [p - Z * 2.0, p + Z * 2.0 + off]
                     ),
-                    TouchVerdict::Unread(TouchUnread::Unreadable),
+                    TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
                     "{what} at {p:?}, the end {off:?} off"
                 );
             }
@@ -522,7 +522,7 @@ fn a_cones_apex_inside_the_edge_refuses() {
             };
             assert_eq!(
                 read(4.0),
-                TouchVerdict::Unread(TouchUnread::Unreadable),
+                TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
                 "at {p:?}, ends flipped {flip}: the edge through the apex"
             );
             assert!(
@@ -576,7 +576,7 @@ fn two_ruled_faces_of_one_edge_hold_each_other_out_of_their_lenses() {
         );
         assert_eq!(
             two_ruled(p, (FRAC_PI_3, FRAC_PI_3 + 0.05)),
-            TouchVerdict::Unread(TouchUnread::Unreadable),
+            TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
             "at {p:?}: one tangent inside the other's lens"
         );
     }
@@ -606,7 +606,7 @@ fn an_edge_tilted_in_the_tangent_plane_refuses() {
             assert!(
                 matches!(
                     FaceSector::chord(&ruled, p, v(0.0, 1.0, 0.0), band()),
-                    Err(TouchUnread::Unreadable)
+                    Err(TouchUnread::Curved(CurvedUnread::Unreadable))
                 ),
                 "{what} at {p:?}"
             );
