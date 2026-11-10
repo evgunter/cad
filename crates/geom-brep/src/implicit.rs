@@ -1506,9 +1506,9 @@ pub struct ConicTorusHarmonics<T> {
     /// the scale their rounding is charged against
     /// ([`rounding_charge`]): `(|S| + R² + r²)² + 4R²(|S| + |h|²)` read
     /// at the coefficients' magnitudes. `R² − r²` is charged at
-    /// `R² + r²`, the magnitudes it is built from: on a fat torus
-    /// (`r` near `R`) the difference cancels, and the rounding of `R²`
-    /// and `r²` it carries is not a rounding of the difference.
+    /// `R² + r²`: the rounding of `R²` and `r²` is relative to them, not
+    /// to their difference, which on a fat torus (`r` near `R`) is far
+    /// smaller.
     pub terms: T,
     /// A floor on `|F| / |res|`: `2r(R² − r²)`, `Q`'s least value on a
     /// ring torus.

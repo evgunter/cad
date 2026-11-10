@@ -1606,8 +1606,11 @@ fn torus_coefficients_within(
 /// `CAD_FUZZ_SEED=0xbb6048d2e37fd735`: a circle of radius 0.055 near the
 /// axis of a torus with `R` 605.5 and `r` 589.1. `R² − r²` (about 19613)
 /// cancels about 18 to 1, and `p₀ = |w|² + R² − r²` carries the rounding
-/// of `R²` and `r²` into `p₀²`: about 1.5 times what charging `p` at
-/// `|S + R² − r²|` allowed. Charged at `|S| + R² + r²`, it is within.
+/// of `R²` and `r²` into `p₀²`. Measured, the excess is between 1.1 and
+/// 1.5 times what charging `p` at `|S + R² − r²|` allowed; the analytic
+/// worst case for this draw, `2·p₀·δk` at `δk ≈ 1e-10`, is about 4e-6,
+/// 3.7 times that charge (1.07e-6). Charged at `|S| + R² + r²`, it is
+/// within.
 #[test]
 fn a_fat_toruss_coefficients_charge_its_radii_whole() {
     let carrier = Curve3::circle(
