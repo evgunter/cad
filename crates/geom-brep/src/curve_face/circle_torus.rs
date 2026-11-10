@@ -686,7 +686,7 @@ fn parallel_axes_roots<T: Decide>(
         // span's ends (or as the point it names), never as an identity
         // between two calls.
         for theta in [theta0 + spread, theta0 - spread] {
-            thetas[count] = geom_core::period::Period::new(T::tau()).near(theta, middle);
+            thetas[count] = geom_core::period::Period::angle().near(theta, middle);
             count += 1;
         }
     }

@@ -375,7 +375,7 @@ fn harmonic_roots<T: Decide>(
     let middle = geom::mid_param(t0, t1);
     let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(middle);
     let (a, b) = (phi - half_chord, phi + half_chord);
-    let turn = Period::new(T::tau());
+    let turn = Period::angle();
     Ok(Roots::all([turn.near(a, middle), turn.near(b, middle)]))
 }
 
