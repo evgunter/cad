@@ -122,6 +122,7 @@
 use geom::Conic;
 use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use geom_brep::{EdgeCurveSpec, Pcurve};
+use geom_core::ladder::{Aborts, Refusal};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -612,6 +613,69 @@ pub enum SplitJoinError {
         /// The band the departure was decided against.
         band: Band,
     },
+}
+
+impl SplitJoinError {
+    /// **What this refusal is to a ladder that reads it**, per cause.
+    ///
+    /// A ladder reads a join refusal in two places, both over the
+    /// Boolean's pierce germs ([`crate::BooleanError::refusal`]'s readers):
+    /// - through a pierce germ's branch (`boolean::join::germ_branch`),
+    ///   whose only join refusal is a site's spline component that could
+    ///   not be walked ([`Self::SectionUnwalked`], standing as the walk's
+    ///   refusal does);
+    /// - through the apex section's table refusal
+    ///   ([`ApexSectionReading::Refused`], `wall_section` on a cone): an
+    ///   open conic's chord, which the split does not carry
+    ///   ([`Self::OpenConicChord`], a limit: row 2); a face that does not
+    ///   resolve ([`Self::Corrupt`]) or a section the table meets only at
+    ///   the apex the walk read crossed ([`Self::SectionInvariant`]), each
+    ///   a kernel fault; and the table's own refusal ([`Self::Section`]),
+    ///   which mixes classes and is not split.
+    ///
+    /// # Errors
+    ///
+    /// [`Aborts`] for a kernel fault, for [`Self::Section`], and for every
+    /// cause no ladder reads, where the abort stands in for a class it
+    /// does not have: the first ladder that reads one states its standing
+    /// here.
+    pub(crate) const fn read_refusal(&self) -> Result<Refusal, Aborts> {
+        match self {
+            Self::SectionUnwalked(why) => Ok(why.refusal()),
+            Self::OpenConicChord { .. } => Ok(Refusal::Limit),
+            Self::OrderEscalated { .. }
+            | Self::Escalated { .. }
+            | Self::DegenerateSection { .. }
+            | Self::CurvedSlitTrace { .. }
+            | Self::RingHoming(_)
+            | Self::RingHomingAmbiguous { .. }
+            | Self::UnpairedLooseEnds { .. }
+            | Self::SingleSiteSectionLoop { .. }
+            | Self::SectionLoopMixed { .. }
+            | Self::SectionLoopUndecided { .. }
+            | Self::CutInvariant { .. }
+            | Self::Corrupt { .. }
+            | Self::LineageRow(_)
+            | Self::Band(_)
+            | Self::Euler(_)
+            | Self::SectionEndEscalated { .. }
+            | Self::SectionUnresolved { .. }
+            | Self::Section { .. }
+            | Self::ApexUnlifted { .. }
+            | Self::PoleEdgesCoincide { .. }
+            | Self::SectionInvariant { .. }
+            | Self::SectionUnarmed { .. }
+            | Self::RunImageNotYet { .. }
+            | Self::RunImageIncidence { .. }
+            | Self::RingIslandUnread { .. }
+            | Self::RunEdgeCarrierUnsupported { .. }
+            | Self::TangentChordEscalated { .. }
+            | Self::TangentChordBendEscalated { .. }
+            | Self::TangentChordRefuted { .. }
+            | Self::SectionCrossings { .. }
+            | Self::SectionDepartureGrazes { .. } => Err(Aborts),
+        }
+    }
 }
 
 impl From<EulerOpError> for SplitJoinError {

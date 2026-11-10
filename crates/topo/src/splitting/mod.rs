@@ -176,6 +176,24 @@ pub enum ApexSectionReading {
 }
 
 impl ApexSectionReading {
+    /// **What this reading is to a ladder** (the Boolean's vertex-on-face
+    /// climb reads it, [`crate::BooleanError::ApexSection`]): the table and
+    /// the walk disagreeing on one apex is a kernel fault, and the table's
+    /// own refusal stands as it does ([`SplitJoinError::read_refusal`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for a disagreement, and the table
+    /// refusal's own aborts.
+    pub(crate) fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        match self {
+            Self::Refused(section) => section.read_refusal(),
+            Self::ClosedOffApex | Self::NoRulingInside | Self::BothRulingsInside => {
+                Err(geom_core::ladder::Aborts)
+            }
+        }
+    }
+
     /// The disagreement in words, completing "a plane passes through the
     /// tip of a cone, and …": the one wording the split's and the
     /// Boolean's refusals both read.
