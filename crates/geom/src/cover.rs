@@ -268,21 +268,53 @@ impl<T: Real> Lattice for Covered<T> {
 #[derive(Clone, Debug)]
 pub struct Cover<T: Real>(Node<T>);
 
-/// The region's expression. A meet and a hull hold their operands in
-/// the order they were joined, at least two, and are read as the
-/// left-deep chain they were built as: `a.hull(b).hull(c)` is
-/// `Hull[a, b, c]`, read `(a ∪ b) ∪ c`, its readers folding the operands
-/// left to right. So a chain as long as the entities it joins (an
-/// operand's faces, a face's edges) is one node, not a tree that deep,
-/// and every walk over the expression, its clone and its drop among
-/// them, is as deep as the expression's nesting of kinds rather than its
-/// length.
+/// The region's expression. A meet and a hull are a [`Chain`] of their
+/// operands, read as the left-deep chain they were built as:
+/// `a.hull(b).hull(c)` is `Hull[a; b, c]`, read `(a ∪ b) ∪ c`, its
+/// readers folding the operands left to right. So a chain accumulated on
+/// the left, as every fold over covers accumulates (an operand's faces,
+/// a face's edges), is one node however long, and every walk over the
+/// expression, its clone and its drop among them, is as deep as the
+/// expression's nesting of kinds.
+///
+/// **A right operand of the chain's own kind stays one operand**:
+/// `a.hull(b.hull(c))` is `Hull[a; Hull[b; c]]`. The balls do not
+/// associate (`a ∪ (b ∪ c)`'s is not `(a ∪ b) ∪ c`'s; `cover::tests` pins
+/// it), so splicing it in would read another region bound. A fold that
+/// accumulates on the right is as deep as its length.
 #[derive(Clone, Debug)]
 enum Node<T: Real> {
     Piece(Piece<T>),
-    Meet(Vec<Node<T>>),
-    Hull(Vec<Node<T>>),
+    Meet(Chain<T>),
+    Hull(Chain<T>),
     Convex(Box<Node<T>>),
+}
+
+/// **A meet's or a hull's operands, in the order they were joined**: the
+/// first, and those joined after it, one or more where a combinator
+/// built it ([`Cover::meet`], [`Cover::hull`]).
+#[derive(Clone, Debug)]
+struct Chain<T: Real> {
+    first: Box<Node<T>>,
+    rest: Vec<Node<T>>,
+}
+
+impl<T: Real> Chain<T> {
+    fn of(first: Node<T>, second: Node<T>) -> Self {
+        Self {
+            first: Box::new(first),
+            rest: vec![second],
+        }
+    }
+
+    fn joined(mut self, next: Node<T>) -> Self {
+        self.rest.push(next);
+        self
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &Node<T>> {
+        core::iter::once(&*self.first).chain(&self.rest)
+    }
 }
 
 /// The closed set of shapes. A frame a piece holds is read as the
@@ -502,10 +534,24 @@ fn off_line<T: Real>(v: Vec3<T>, d: Vec3<T>) -> Vec3<T> {
 
 /// The box whose row `i` spans `±` the support along row `i`.
 fn rows_box<T: Real>(axes: &BoxAxes<T>, support: impl Fn(Vec3<T>) -> T) -> (Point3<T>, Point3<T>) {
+    box_of(box_dirs(axes).map(support))
+}
+
+/// **The six directions a box's supports are read along**: each row
+/// negated, then the row, row by row.
+fn box_dirs<T: Real>(axes: &BoxAxes<T>) -> [Vec3<T>; 6] {
     let [a, b, c] = axes.rows();
-    let span = |r: Vec3<T>| support_range(&support, r);
-    let ((xl, xh), (yl, yh), (zl, zh)) = (span(a), span(b), span(c));
-    (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
+    [-a, a, -b, b, -c, c]
+}
+
+/// **The box whose supports along [`box_dirs`] are `s`**: each row's
+/// range read as [`support_range`] reads it.
+fn box_of<T: Real>(s: [T; 6]) -> (Point3<T>, Point3<T>) {
+    let low = |x: T| T::zero() - x;
+    (
+        Point3::new(low(s[0]), low(s[2]), low(s[4])),
+        Point3::new(s[1], s[3], s[5]),
+    )
 }
 
 /// **A support's range along `dir`**: the least and greatest `x·dir`
@@ -817,11 +863,8 @@ impl<T: Real> Cover<T> {
     #[must_use]
     pub fn meet(self, other: Self) -> Self {
         Self(match self.0 {
-            Node::Meet(mut all) => {
-                all.push(other.0);
-                Node::Meet(all)
-            }
-            first => Node::Meet(vec![first, other.0]),
+            Node::Meet(chain) => Node::Meet(chain.joined(other.0)),
+            first => Node::Meet(Chain::of(first, other.0)),
         })
     }
 
@@ -829,11 +872,8 @@ impl<T: Real> Cover<T> {
     #[must_use]
     pub fn hull(self, other: Self) -> Self {
         Self(match self.0 {
-            Node::Hull(mut all) => {
-                all.push(other.0);
-                Node::Hull(all)
-            }
-            first => Node::Hull(vec![first, other.0]),
+            Node::Hull(chain) => Node::Hull(chain.joined(other.0)),
+            first => Node::Hull(Chain::of(first, other.0)),
         })
     }
 
@@ -982,20 +1022,19 @@ fn whole_poison(b: Aabb) -> Aabb {
 /// **A chain's reading, folded left to right**: `read` of each operand,
 /// joined by `join` in the order they were built, `((x0 ⋅ x1) ⋅ x2) ⋅ …`,
 /// the left-deep form's own order ([`Node`]).
-fn fold<N, R>(all: &[N], read: impl Fn(&N) -> R, join: impl Fn(R, R) -> R) -> R {
-    let mut acc = read(&all[0]);
-    for n in &all[1..] {
-        acc = join(acc, read(n));
-    }
-    acc
+fn fold<T: Real, R>(chain: &Chain<T>, read: impl Fn(&Node<T>) -> R, join: impl Fn(R, R) -> R) -> R {
+    chain
+        .rest
+        .iter()
+        .fold(read(&chain.first), |acc, n| join(acc, read(n)))
 }
 
 impl<T: Real> Node<T> {
     fn support(&self, e: Vec3<T>) -> T {
         match self {
             Node::Piece(p) => p.support(e),
-            Node::Meet(all) => fold(all, |n| n.support(e), T::min),
-            Node::Hull(all) => fold(all, |n| n.support(e), T::max),
+            Node::Meet(chain) => fold(chain, |n| n.support(e), T::min),
+            Node::Hull(chain) => fold(chain, |n| n.support(e), T::max),
             Node::Convex(inner) => inner.support(e),
         }
     }
@@ -1007,13 +1046,13 @@ impl<T: Real> Node<T> {
     fn distance_range(&self, site: &Site<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.distance_range(site),
-            Node::Meet(all) => fold(
-                all,
+            Node::Meet(chain) => fold(
+                chain,
                 |n| n.distance_range(site),
                 |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
             ),
-            Node::Hull(all) => fold(
-                all,
+            Node::Hull(chain) => fold(
+                chain,
                 |n| n.distance_range(site),
                 |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
             ),
@@ -1036,8 +1075,8 @@ impl<T: Real> Node<T> {
     fn about(&self, sites: &mut Vec<Around<T>>) {
         match self {
             Node::Piece(p) => sites.extend(p.about()),
-            Node::Meet(all) => {
-                for n in all {
+            Node::Meet(chain) => {
+                for n in chain.iter() {
                     n.about(sites);
                 }
             }
@@ -1054,18 +1093,19 @@ impl<T: Real> Node<T> {
             // Each prefix of the chain is the meet the left-deep form
             // held there, so its ball is read as that meet's: the smaller
             // of the prefix's and the next operand's, and of the ball
-            // about the prefix's box.
-            Node::Meet(all) => {
-                let mut ball = all[0].ball();
-                for k in 1..all.len() {
-                    let prefix = &all[..=k];
-                    let boxed =
-                        rows_box(&BoxAxes::World, |e| fold(prefix, |n| n.support(e), T::min));
-                    ball = smaller(smaller(ball, all[k].ball()), box_ball(boxed));
+            // about the prefix's box, whose supports are carried along
+            // the chain as the prefix's fold.
+            Node::Meet(chain) => {
+                let dirs = box_dirs(&BoxAxes::World);
+                let mut ball = chain.first.ball();
+                let mut supports = dirs.map(|e| chain.first.support(e));
+                for n in &chain.rest {
+                    supports = core::array::from_fn(|i| supports[i].min(n.support(dirs[i])));
+                    ball = smaller(smaller(ball, n.ball()), box_ball(box_of(supports)));
                 }
                 ball
             }
-            Node::Hull(all) => fold(all, Node::ball, |(c0, r0), (c1, r1)| {
+            Node::Hull(chain) => fold(chain, Node::ball, |(c0, r0), (c1, r1)| {
                 let c = c0.mid(c1);
                 let r = ((c - c0).norm() + r0).max((c - c1).norm() + r1);
                 (c, r)
@@ -1079,13 +1119,13 @@ impl<T: Real> Node<T> {
     fn circle_range(&self, core: &Core<T>) -> (T, T) {
         match self {
             Node::Piece(p) => p.circle_range(core),
-            Node::Meet(all) => fold(
-                all,
+            Node::Meet(chain) => fold(
+                chain,
                 |n| n.circle_range(core),
                 |(n0, f0), (n1, f1)| (n0.max(n1), f0.min(f1)),
             ),
-            Node::Hull(all) => fold(
-                all,
+            Node::Hull(chain) => fold(
+                chain,
                 |n| n.circle_range(core),
                 |(n0, f0), (n1, f1)| (n0.min(n1), f0.max(f1)),
             ),
