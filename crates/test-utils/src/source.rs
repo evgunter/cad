@@ -1954,14 +1954,14 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         // A group of names some of which are not literals
         // (`[OFFSET, "row_floor"]`): its literals are names, and the group
         // is an indirect site for the rest.
-        if arg_bare.starts_with('(') || arg_bare.starts_with('[') {
-            if let Some(close) = balanced_end(arg_bare, 0) {
-                out.extend(
-                    direct_literals(&arg[1..close])
-                        .into_iter()
-                        .map(|name| (SiteKind::Name, name)),
-                );
-            }
+        if (arg_bare.starts_with('(') || arg_bare.starts_with('['))
+            && let Some(close) = balanced_end(arg_bare, 0)
+        {
+            out.extend(
+                direct_literals(&arg[1..close])
+                    .into_iter()
+                    .map(|name| (SiteKind::Name, name)),
+            );
         }
         match first_literal(arg) {
             Some(name) => out.push((SiteKind::Name, name)),
@@ -2217,12 +2217,14 @@ pub fn spelled_literals(src: &std::path::Path) -> std::collections::BTreeSet<Str
         let (code_b, bare_b) = (code.as_bytes(), bare.as_bytes());
         let mut i = 0usize;
         while i < code_b.len() {
-            if code_b[i] == b'"' && bare_b[i] != b'"' && (i == 0 || code_b[i - 1] != b'\'') {
-                if let Some(lit) = first_literal(&code[i..]) {
-                    i += lit.len() + 2;
-                    out.insert(lit);
-                    continue;
-                }
+            if code_b[i] == b'"'
+                && bare_b[i] != b'"'
+                && (i == 0 || code_b[i - 1] != b'\'')
+                && let Some(lit) = first_literal(&code[i..])
+            {
+                i += lit.len() + 2;
+                out.insert(lit);
+                continue;
             }
             i += 1;
         }
