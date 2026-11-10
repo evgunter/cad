@@ -2,10 +2,12 @@
 id: a-turn-renamed-parameter-is-placed-against-a-span-at-four-sites
 kind: issue
 title: ring_path's span_readings places a parameter named about a span's middle against the span, where a box wider than a near-full arc's gap can be renamed a turn away (narrowed from four sites)
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-10
+pr: 6727
 ---
 
 
