@@ -3156,7 +3156,7 @@ fn reauthor<T: Decide>(
                     ),
                 })
             };
-            let turn = |name, theta: Option<T>, s: T, moved: Point3<T>| {
+            let turn_as = |name, theta: Option<T>, s: T, moved: Point3<T>| {
                 azimuth_turn(
                     name,
                     read(theta, moved).z,
@@ -3167,8 +3167,8 @@ fn reauthor<T: Decide>(
                 )
             };
             let start = range.start().map(|u| u * angle);
-            let start_turn = turn("offset_axial_reauthor_plane", start, T::zero(), p_start)?;
-            let end_turn = turn(
+            let start_turn = turn_as("offset_axial_reauthor_plane", start, T::zero(), p_start)?;
+            let end_turn = turn_as(
                 "offset_axial_reauthor_end",
                 Some(range.at(T::one()) * angle),
                 T::one(),

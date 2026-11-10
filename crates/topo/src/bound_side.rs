@@ -770,7 +770,7 @@ pub(crate) fn read<T: Decide>(
         face.reference.vec(),
         arm,
     );
-    match metric::settle_reported(CHARGE, charge, rd) {
+    match metric::settle_reported(PIERCE_SECTOR_SIDE_CURVED, charge, rd) {
         Ok(cleared) => match Refused::of(cleared, band) {
             None => Ok(FirstOrder::Off(side)),
             Some(refused) => Err(BoundSideFault::Charge(refused)),
@@ -790,7 +790,7 @@ pub(crate) fn read<T: Decide>(
 
 /// K name: the curvature charge, a bound's tangent ray's least
 /// separation from a curved face within its reach, in metres ([`read`]).
-const CHARGE: &str = "bool_pierce_sector_side_curved";
+const PIERCE_SECTOR_SIDE_CURVED: &str = "bool_pierce_sector_side_curved";
 
 /// [`read`], descended where first order ties ([`Tie::descend`]).
 #[cfg(test)]
@@ -1051,7 +1051,7 @@ impl<T: Decide> Tie<T> {
                 terminal_sliver: false,
             }));
         };
-        let decided = match metric::settle_reported(WITNESS, offset, rd) {
+        let decided = match metric::settle_reported(TANGENT_SECTOR_WITNESS, offset, rd) {
             Ok(decided) => decided,
             Err(Refusal::Slack(_) | Refusal::Moved { .. }) => {
                 return Ok(Descent::Unresolved(Unresolved::Slack));
@@ -1069,7 +1069,7 @@ impl<T: Decide> Tie<T> {
         match leading {
             Some(lead) if lead != side => {
                 Err(ReadFault::Witness(geom_core::k_stats::gate_rejection(
-                    WITNESS,
+                    TANGENT_SECTOR_WITNESS,
                     decided,
                     rd.band,
                     match lead {
@@ -1084,7 +1084,7 @@ impl<T: Decide> Tie<T> {
 }
 
 /// The witness's reading ([`Tie::witnessed`]).
-const WITNESS: &str = "tangent_sector_witness";
+const TANGENT_SECTOR_WITNESS: &str = "tangent_sector_witness";
 
 /// A tied edge with no point for its witness ([`ReadFault::Unwitnessed`]).
 const UNWITNESSED: &str = "tangent_sector_unwitnessed";
@@ -2084,7 +2084,7 @@ mod tests {
                     matches!(
                         descend_on(&cylinder, true, p, arc, b),
                         Err(ReadFault::Witness(Indeterminate {
-                            predicate: Some(WITNESS),
+                            predicate: Some(TANGENT_SECTOR_WITNESS),
                             ..
                         }))
                     ),

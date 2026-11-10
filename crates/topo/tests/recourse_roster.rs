@@ -63,7 +63,6 @@ const BOOLEAN: Door = Door {
         "seam_",
         "section_",
         "side_at_infinity_",
-        "trace_",
     ],
     error: std::any::type_name::<topo::BooleanError>,
 };
@@ -82,6 +81,12 @@ const POINT_IN_LOOP: Door = Door {
 const REPLACE_FACE: Door = Door {
     prefixes: &["offset_"],
     error: std::any::type_name::<topo::ReplaceFaceError<f64>>,
+};
+/// The ray trace's reads, typed on `TraceFault`; the trace's callers are
+/// the editor and the viewer, not the boolean.
+const TRACE: Door = Door {
+    prefixes: &["trace_"],
+    error: std::any::type_name::<topo::boolean::trace::TraceFault>,
 };
 const LINK: Door = Door {
     prefixes: &["link_"],
@@ -134,6 +139,7 @@ const DOORS: &[&Door] = &[
     &POINT_IN_LOOP,
     &REPLACE_FACE,
     &LINK,
+    &TRACE,
     &RECHART,
     &VALIDATION,
     &CLEARANCE,
@@ -171,7 +177,8 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("tangent_sector_order2", &BOOLEAN),
     ("tangent_sector_witness", &BOOLEAN),
     ("tangent_sector_osculation", &SPLIT),
-    ("finish_straddle", &SPLIT),
+    // The plane-cut section's straddle between its conic lane and its
+    // rulings' lane, which the split's chord join reads.
     ("pc_axis_plane_parallel_straddle", &SPLIT_JOIN),
     ("germ_apex", &SPLIT_JOIN),
     ("section_pin_within", &SPLIT_JOIN),
@@ -195,6 +202,8 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("fold", &UNIT_TEST),
     ("monotone", &UNIT_TEST),
     ("precision", &UNIT_TEST),
+    // `splitting::finish`'s `escalation_endings` rows.
+    ("finish_straddle", &UNIT_TEST),
     ("probe_oracle", &UNIT_TEST),
     ("rh_straddle", &UNIT_TEST),
     ("side", &UNIT_TEST),
@@ -230,13 +239,15 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("CYL_REACH"),
     NameCarrier::Const("PLANE_REACH"),
     // The region doors' order and crossing rows (`Region::SIDE`).
-    NameCarrier::Const("SIDE"),
+    NameCarrier::Const("SIDE_ROWS"),
     NameCarrier::Const("SPHERE_REACH"),
     NameCarrier::Const("APERTURE"),
     NameCarrier::Const("APEX"),
-    NameCarrier::Const("CHARGE"),
+    NameCarrier::Const("SELF_INTERSECTION_APEX"),
+    NameCarrier::Const("TORUS_REGION_CORNER"),
+    NameCarrier::Const("PIERCE_SECTOR_SIDE_CURVED"),
     NameCarrier::Const("CLEARANCE_SUPPORT_GAP"),
-    NameCarrier::Const("COLUMN"),
+    NameCarrier::Const("SELF_INTERSECTION_COLUMN"),
     NameCarrier::Const("COMPONENT"),
     NameCarrier::Const("CONES_SHARE_APEX"),
     NameCarrier::Const("CONE_APEX"),
@@ -246,13 +257,13 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("CONE_DEFLATED_SIDE"),
     NameCarrier::Const("CONE_ON_SURFACE"),
     NameCarrier::Const("CONE_ROOT_SLACK"),
-    NameCarrier::Const("CORNER"),
-    NameCarrier::Const("CORNER_DEPARTS"),
-    NameCarrier::Const("CORNER_VERTEX"),
+    NameCarrier::Const("SELF_INTERSECTION_CORNER"),
+    NameCarrier::Const("SELF_INTERSECTION_CORNER_DEPARTS"),
+    NameCarrier::Const("SELF_INTERSECTION_CORNER_VERTEX"),
     NameCarrier::Const("CROSS_ADVANCE"),
     NameCarrier::Const("CROSS_SIDE"),
-    NameCarrier::Const("CUSP"),
-    NameCarrier::Const("DEPARTURE"),
+    NameCarrier::Const("SELF_INTERSECTION_CUSP"),
+    NameCarrier::Const("SELF_INTERSECTION_DEPARTURE"),
     NameCarrier::Const("DEPTH_GAP"),
     NameCarrier::Const("EE_OVERLAP_CHARGED"),
     NameCarrier::Const("END_VERTEX"),
@@ -260,22 +271,24 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("FRAME_ARM"),
     NameCarrier::Const("FRAME_AXIS"),
     NameCarrier::Const("GAP_WITHIN_EPS"),
-    NameCarrier::Const("GRAPH"),
+    NameCarrier::Const("SELF_INTERSECTION_GRAPH"),
     NameCarrier::Const("LADDER_NOISE"),
     NameCarrier::Const("LINK_AHEAD"),
     NameCarrier::Const("LINK_BALL"),
     NameCarrier::Const("LINK_PIECE_MEET"),
     NameCarrier::Const("LINK_PIECE_REACH"),
+    NameCarrier::Const("LINK_ARC"),
+    NameCarrier::Const("LINK_ARC_REACH"),
     NameCarrier::Const("LINK_PLANE"),
     NameCarrier::Const("LINK_ROUND"),
     NameCarrier::Const("LINK_SECOND_ORDER"),
     NameCarrier::Const("LINK_TANGENT_FRAME"),
     NameCarrier::Const("LINK_TIE"),
     NameCarrier::Const("LINK_WEDGE"),
-    NameCarrier::Const("MONOTONE"),
-    NameCarrier::Const("NAPPE"),
+    NameCarrier::Const("SELF_INTERSECTION_MONOTONE"),
+    NameCarrier::Const("SELF_INTERSECTION_NAPPE"),
     NameCarrier::Const("NEAREST_FOOT"),
-    NameCarrier::Const("ON_SHARED"),
+    NameCarrier::Const("SELF_INTERSECTION_ON_SHARED"),
     NameCarrier::Const("PAIR_GAP"),
     NameCarrier::Const("PARTING_ORDER"),
     NameCarrier::Const("PAST_EVERY_REACH"),
@@ -298,9 +311,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTOR_APEX_TILT"),
     NameCarrier::Const("SECTOR_APEX_WINDOW"),
     NameCarrier::Const("SESSION_BOX_REACH"),
-    NameCarrier::Const("SINGULAR"),
-    NameCarrier::Const("SLIVER"),
-    NameCarrier::Const("SPAN"),
+    NameCarrier::Const("CELL_REGION_SINGULAR"),
+    NameCarrier::Const("SELF_INTERSECTION_SLIVER"),
+    NameCarrier::Const("SELF_INTERSECTION_SPAN"),
     NameCarrier::Const("SPAN_ORDER_CHARGED"),
     NameCarrier::Const("SPAN_ROUNDING"),
     NameCarrier::Const("SPHERE_SEAM"),
@@ -318,11 +331,11 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("TRACE_PLANE_DEPTH"),
     NameCarrier::Const("TRACE_PLANE_LEAD"),
     NameCarrier::Const("TRACE_PLANE_MISSES"),
-    NameCarrier::Const("VERTEX"),
+    NameCarrier::Const("CELL_REGION_VERTEX"),
     NameCarrier::Const("VERTEX_SECTION_CLEAR"),
     NameCarrier::Const("VERTEX_SECTION_SIDE"),
     NameCarrier::Const("WINDING_PREDICATE"),
-    NameCarrier::Const("WITNESS"),
+    NameCarrier::Const("TANGENT_SECTOR_WITNESS"),
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),
     NameCarrier::Call("ArcRows"),
@@ -373,13 +386,17 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("walk_schedule"),
     NameCarrier::Call("why_as"),
     NameCarrier::Call("zero_as"),
+    NameCarrier::Call("ends_as"),
+    NameCarrier::Call("turn_as"),
     NameCarrier::Call("zero_refused"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, whose callers are \
-                        read through a declared carrier";
-const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, \
-                         named by that argument here; its literal names are read";
+const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
+                        call a declared carrier; one entry stands for every such site in the \
+                        file, so a new forwarder under an undeclared token here is not seen";
+const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
+                         here by that first argument, so the file's sites that share it are one \
+                         entry; its literal names are read";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
 const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
 const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
@@ -387,13 +404,13 @@ const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinde
 const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names are spelled in its own \
                            match, which the census does not read";
 const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
-const SAME_NAMED: &str = "a function sharing a declared carrier's token that takes no name \
-                          (census.rs's point filter `bounded`, a test's `straddle`)";
+const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the declared \
+                          `ConicRows::bounded` carrier's token and takes no name";
 
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
-    ("boolean/carrier_eq.rs: &surface(ring", NOT_A_NAME),
+    ("boolean/carrier_eq.rs: &surface(ring)", NOT_A_NAME),
     (
         "boolean/carrier_eq.rs: read_identity#1(margins.iter().copied())",
         IDENTITY_DATA,
@@ -402,7 +419,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/cone_frame_rows.rs: x", NOT_A_NAME),
     ("boolean/contact_verify.rs: &first", NOT_A_NAME),
     ("boolean/contact_verify.rs: on", FORWARDS),
-    ("boolean/contact_verify.rs: row.predicate(", CLOSED_TYPE),
+    ("boolean/contact_verify.rs: row.predicate()", CLOSED_TYPE),
     ("boolean/contain.rs: on_plane", FORWARDS),
     ("boolean/join.rs: name", FORWARDS),
     ("boolean/ops.rs: &mut pending", NOT_A_NAME),
@@ -412,7 +429,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/reduce.rs: row", NOT_A_NAME),
     ("boolean/region.rs: cross", FORWARDS),
     ("boolean/region.rs: end.row", ROW_FIELD),
-    ("boolean/rim_wedge.rs: d", SAME_NAMED),
     ("boolean/rim_wedge.rs: name", FORWARDS),
     ("boolean/rim_wedge.rs: read_identity#1([)", IDENTITY),
     (
@@ -460,21 +476,27 @@ const INDIRECT: &[(&str, &str)] = &[
     ("census/curved.rs: name", FORWARDS),
     ("chart_region.rs: name", FORWARDS),
     ("chord_join.rs: name", FORWARDS),
-    ("clearance.rs: bound.predicate(", CLOSED_TYPE),
-    ("clearance.rs: self.as_bound(", CLOSED_TYPE),
+    ("clearance.rs: bound.predicate()", CLOSED_TYPE),
+    ("clearance.rs: self.as_bound().predicate()", CLOSED_TYPE),
     ("injective.rs: row", FORWARDS),
     ("link.rs: name", FORWARDS),
     ("offset_axial.rs: name", FORWARDS),
     ("offset_axial.rs: what", FORWARDS),
     ("offset_derive.rs: name", FORWARDS),
-    ("pcurves.rs: DescribedChart::of(&s", NOT_A_NAME),
-    ("pcurves.rs: DescribedChart::of(surface", NOT_A_NAME),
+    ("pcurves.rs: DescribedChart::of(&s).unwrap()", NOT_A_NAME),
+    (
+        "pcurves.rs: DescribedChart::of(surface).unwrap()",
+        NOT_A_NAME,
+    ),
     ("pcurves.rs: chart", NOT_A_NAME),
-    ("pcurves.rs: chart(&cone", NOT_A_NAME),
-    ("pcurves.rs: chart(&s", NOT_A_NAME),
-    ("pcurves.rs: chart(surface", NOT_A_NAME),
+    ("pcurves.rs: chart(&cone)", NOT_A_NAME),
+    ("pcurves.rs: chart(&s)", NOT_A_NAME),
+    ("pcurves.rs: chart(surface)", NOT_A_NAME),
     ("pcurves.rs: name", FORWARDS),
-    ("pcurves.rs: super::DescribedChart::of(s", NOT_A_NAME),
+    (
+        "pcurves.rs: super::DescribedChart::of(s).unwrap()",
+        NOT_A_NAME,
+    ),
     ("props.rs: &faces", NOT_A_NAME),
     ("props.rs: &items", NOT_A_NAME),
     ("props.rs: &open", NOT_A_NAME),
@@ -510,7 +532,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("splitting/spline_arc.rs: row", FORWARDS),
     ("test_support_samples.rs: predicate", FORWARDS),
     ("validate.rs: $name", FORWARDS),
-    ("validate.rs: (name", FORWARDS),
+    ("validate.rs: (name, names.straddle)", FORWARDS),
     ("validate.rs: name", FORWARDS),
     ("validate.rs: names", ROW_FIELD),
     ("validate.rs: names.0", ROW_FIELD),

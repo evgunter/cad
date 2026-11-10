@@ -57,7 +57,7 @@ use crate::validate::decide;
 /// `Positive` clears.
 ///
 /// A vertex's point.
-const VERTEX: &str = "cell_region_vertex_gap";
+const CELL_REGION_VERTEX: &str = "cell_region_vertex_gap";
 /// A line edge's segment.
 const SEGMENT: &str = "cell_region_segment_gap";
 /// A circular or elliptic edge's arc floor.
@@ -65,7 +65,7 @@ const CONIC: &str = "cell_region_conic_gap";
 /// The ball holding a spiric or spline edge's arc.
 const BALL: &str = "cell_region_ball_gap";
 /// A carrier's singular set: a cone's apex, a torus's axis.
-const SINGULAR: &str = "cell_region_singular_gap";
+const CELL_REGION_SINGULAR: &str = "cell_region_singular_gap";
 
 /// What [`cell_region`] says about one cell of a face's carrier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -231,7 +231,7 @@ impl Ball {
 
     /// Is the point decided clear of the ball?
     pub(crate) fn clear_of_point(self, p: Point3<Interval>, band: Band) -> bool {
-        self.clear_as(VERTEX, (p - self.centre).norm(), band)
+        self.clear_as(CELL_REGION_VERTEX, (p - self.centre).norm(), band)
     }
 
     /// Is the arc of `carrier` over `params` decided clear of the ball?
@@ -262,13 +262,13 @@ fn clear_of_singular(
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     match *surface {
-        Surface::Cone { apex, .. } => clear_as(SINGULAR, (station - apex).norm()),
+        Surface::Cone { apex, .. } => clear_as(CELL_REGION_SINGULAR, (station - apex).norm()),
         Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
             let axis_line = geom::Line {
                 origin: center,
                 dir: axis,
             };
-            clear_as(SINGULAR, axis_line.distance(station))
+            clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
         }
         _ => true,
     }
@@ -334,7 +334,7 @@ fn clear_of_boundary(
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     stops.iter().all(|stop| match stop {
-        BoundaryStop::Vertex(p) => clear_as(VERTEX, (*p - station).norm()),
+        BoundaryStop::Vertex(p) => clear_as(CELL_REGION_VERTEX, (*p - station).norm()),
         BoundaryStop::Arc(arc) => arc_distance_floor(&arc.0, arc.1, station).is_some_and(|floor| {
             let row = match floor {
                 ArcFloor::Segment(_) => SEGMENT,

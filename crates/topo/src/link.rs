@@ -1453,7 +1453,7 @@ impl ArcReach {
         w: Point3<T>,
         rd: Reading<T>,
     ) -> Result<bool, Unsettled<T>> {
-        let ends = |name, d: Distance<T>| match metric::settle_as(name, d, rd)? {
+        let ends_as = |name, d: Distance<T>| match metric::settle_as(name, d, rd)? {
             Sign::Positive => Ok(true),
             Sign::Negative => Ok(false),
             Sign::Zero => Err(Unsettled::Zero(name, d)),
@@ -1461,12 +1461,12 @@ impl ArcReach {
         match self {
             Self::Near => {
                 let half = ((q - p).normalize() + (w - p).normalize()).normalize();
-                Ok(ends(LINK_ARC, Distance::of(q, p, half))?
-                    && ends(LINK_ARC, Distance::of(w, p, half))?)
+                Ok(ends_as(LINK_ARC, Distance::of(q, p, half))?
+                    && ends_as(LINK_ARC, Distance::of(w, p, half))?)
             }
             Self::Out => {
                 let m = foot(p, (q, w));
-                ends(LINK_ARC_REACH, Distance::of(m, p, (m - p).normalize()))
+                ends_as(LINK_ARC_REACH, Distance::of(m, p, (m - p).normalize()))
             }
         }
     }

@@ -1646,7 +1646,7 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                             continue;
                         };
                         let literals = direct_literals(&code[open + 1..end]);
-                        let consts: Vec<String> = path_arguments(&bare[open + 1..end])
+                        let consts: Vec<String> = arguments(&bare[open + 1..end])
                             .into_iter()
                             .filter(|arg| names_a_const(arg, &declared))
                             .collect();
@@ -1662,19 +1662,14 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                         } else {
                             // A name handed on from elsewhere, named by the
                             // group's first argument as a `decide*` site is.
-                            let inner = &code[open + 1..end];
-                            let head = top_level_split(&bare[open + 1..end], ',')
-                                .into_iter()
-                                .next()
-                                .map_or(inner, |r| &inner[r]);
-                            out.indirect
-                                .insert(format!("{rel}: {}", one_line(head.trim())));
+                            let head = first_argument(&bare[open + 1..end], &code[open + 1..end]);
+                            out.indirect.insert(format!("{rel}: {head}"));
                         }
                     }
                 }
                 NameCarrier::Const(token) => {
                     for decl in const_decls(&bare, token) {
-                        match const_literal(&code[decl..]) {
+                        match const_literal(&bare[decl..], &code[decl..]) {
                             Some(names) => {
                                 if !names.is_empty() {
                                     found.insert(format!("Const({token})"));
@@ -1913,12 +1908,8 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         match first_literal(arg) {
             Some(name) => out.push((SiteKind::Name, name)),
             None => {
-                let expr: String = arg
-                    .chars()
-                    .take_while(|c| *c != ',' && *c != ')')
-                    .collect::<String>()
-                    .trim()
-                    .to_string();
+                let close = balanced_end(bare, open).unwrap_or(bare.len());
+                let expr = first_argument(&bare[open + 1..close], &code[open + 1..close]);
                 out.push((SiteKind::Indirect, expr));
             }
         }
@@ -1954,14 +1945,8 @@ fn identity_sites(bare: &str, code: &str) -> Vec<(String, Vec<String>)> {
             out.push(("… unclosed".to_string(), Vec::new()));
             continue;
         };
-        let inner = &bare[open + 1..close];
-        let first = top_level_split(inner, ',')
-            .into_iter()
-            .next()
-            .map_or(0..inner.len(), |r| r);
-        let head = &code[open + 1 + first.start..open + 1 + first.end];
         out.push((
-            one_line(head.trim().lines().next().unwrap_or("")),
+            first_argument(&bare[open + 1..close], &code[open + 1..close]),
             literals_within(&code[open + 1..close]),
         ));
     }
@@ -2015,6 +2000,26 @@ fn names_a_const(expr: &str, declared: &std::collections::BTreeSet<String>) -> b
         .iter()
         .all(|seg| !seg.is_empty() && seg.chars().all(|c| c.is_alphanumeric() || c == '_'))
         && segments.last().is_some_and(|last| declared.contains(*last))
+}
+
+/// The head of a call's first argument, as a site is named by it: the
+/// argument up to its first top-level comma, its first line, with the
+/// whitespace collapsed. `bare` is the call's inner text blanked and
+/// `code` the same bytes with literals kept.
+fn first_argument(bare: &str, code: &str) -> String {
+    let first = top_level_split(bare, ',')
+        .into_iter()
+        .next()
+        .map_or(0..bare.len(), |r| r);
+    one_line(code[first].trim().lines().next().unwrap_or(""))
+}
+
+/// The direct arguments of a bracket group, trimmed, in a blanked view.
+fn arguments(inner: &str) -> Vec<String> {
+    top_level_split(inner, ',')
+        .into_iter()
+        .map(|r| inner[r].trim().to_string())
+        .collect()
 }
 
 /// The names of a tuple of plain string literals at the head of `code`
@@ -2098,20 +2103,6 @@ fn direct_literals(inner: &str) -> Vec<String> {
     out
 }
 
-/// The direct arguments of a bracket group that are a bare path
-/// (`LINK_PLANE`, `super::CROSS_SIDE`, `name`), in a blanked view.
-fn path_arguments(inner: &str) -> Vec<String> {
-    top_level_split(inner, ',')
-        .into_iter()
-        .map(|r| inner[r].trim())
-        .filter(|arg| {
-            arg.split("::")
-                .all(|seg| !seg.is_empty() && seg.chars().all(|c| c.is_alphanumeric() || c == '_'))
-        })
-        .map(str::to_string)
-        .collect()
-}
-
 /// The names a `const NAME: &str = "…";` declaration whose head starts
 /// at the front of `text` holds — one, or each of a tuple of them
 /// (`const SIDE: (&str, &str) = ("row", "row_straddle");`).
@@ -2121,35 +2112,29 @@ fn path_arguments(inner: &str) -> Vec<String> {
 /// trait's declaration with no value, whose implementations carry the
 /// names. `None` where it is a `&str` or a tuple of them this reader
 /// cannot read.
-fn const_literal(text: &str) -> Option<Vec<String>> {
+fn const_literal(bare: &str, code: &str) -> Option<Vec<String>> {
     const STR: [&str; 2] = ["&str", "&'staticstr"];
-    let end = text.find(';')?;
-    let decl = &text[..end];
-    let Some((head, value)) = decl.split_once('=') else {
+    let end = code.find(';')?;
+    let Some(eq) = code[..end].find('=') else {
         return Some(Vec::new());
     };
-    let ty: String = head
+    let ty: String = code[..eq]
         .split_once(':')
         .map_or("", |(_, ty)| ty)
         .split_whitespace()
         .collect();
+    let value = code[eq + 1..end].trim_start();
+    let at = end - value.len();
     if STR.contains(&ty.as_str()) {
         return plain_string_literal(value).map(|name| vec![name.to_string()]);
     }
-    let parts = ty
+    let parts: Option<Vec<&str>> = ty
         .strip_prefix('(')
         .and_then(|t| t.strip_suffix(')'))
-        .map(|t| t.split(',').filter(|p| !p.is_empty()).collect::<Vec<_>>());
+        .map(|t| t.split(',').filter(|p| !p.is_empty()).collect());
     match parts {
         Some(parts) if !parts.is_empty() && parts.iter().all(|p| STR.contains(p)) => {
-            let inner = value.trim().strip_prefix('(')?.strip_suffix(')')?;
-            let names: Vec<String> = inner
-                .split(',')
-                .map(str::trim)
-                .filter(|item| !item.is_empty())
-                .map(|item| plain_string_literal(item).map(str::to_string))
-                .collect::<Option<_>>()?;
-            (names.len() == parts.len()).then_some(names)
+            literal_tuple(&bare[at..end], &code[at..end]).filter(|names| names.len() == parts.len())
         }
         _ => Some(Vec::new()),
     }
@@ -2514,7 +2499,7 @@ mod tests {
         let (bare, code) = (code_only(raw), code_and_literals(raw));
         let read: Vec<Option<Vec<String>>> = super::const_decls(&bare, "APEX")
             .into_iter()
-            .map(|at| super::const_literal(&code[at..]))
+            .map(|at| super::const_literal(&bare[at..], &code[at..]))
             .collect();
         let names = |n: &[&str]| Some(n.iter().map(|s| s.to_string()).collect::<Vec<_>>());
         assert_eq!(
@@ -2647,6 +2632,27 @@ mod tests {
         for (said, expect) in said.iter().zip(expect) {
             assert!(said.starts_with(expect), "{said} is not `{expect}…`");
         }
+    }
+
+    /// **A census over one file names its sites by that file's name**,
+    /// as a walk over a directory names them by their path under it.
+    #[test]
+    fn a_one_file_census_names_its_sites_by_the_file() {
+        let dir = std::env::temp_dir().join(format!("tu-onefile-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let file = dir.join("table.rs");
+        std::fs::write(
+            &file,
+            "const ROW: &str = \"row\";\nfn f() { decide(ROW, m); decide(name, m); }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&file, &[]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(census.consts.iter().collect::<Vec<_>>(), ["table.rs: ROW"]);
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            ["table.rs: name"]
+        );
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the
