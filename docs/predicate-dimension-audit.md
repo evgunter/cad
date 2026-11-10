@@ -1882,19 +1882,23 @@ Flagged, NOT fixed here (dispositions):
   or not; Zero discharges it, anything else keeps the row deferred
   (`deferred::discharge_or_why`). It was a raw `sign_within` until this
   unit, so its samples reached the K sink `<unnamed>`.
-  `replay_one_cylinder` takes the metre data through `Margin::of`: the
-  second axis's offset from the first, crossed with its unit direction
-  (`(ob − oa) × db`), and the radius differences (a rim's radius less its
-  cylinder's, and the two cylinders'). `replay_one_cylinder_axis` takes
-  the axes' tilt `|da × db|`, a sine of two unit directions,
-  **dimensionless**, through `Margin::levered` at the arm the kernel's
-  pair door levers the same datum at (`topo::boolean::carrier_pair_arm`:
-  the reach of the ball enclosing both faces from the foot of its centre
-  on the second axis, as `carrier_eq`'s `carrier_cyl_axis_parallel`).
+  Its tilt, offset and radius difference are the kernel's own data
+  (`topo::boolean::cylinder_pair_data`, one computation with `carrier_eq`'s
+  `cylinder_data`, over the pair's extent), decided under the replay's
+  names. `replay_one_cylinder` takes the metre data: the second axis's
+  distance from the first at the foot of the extent (`Margin::norm3`),
+  the radius difference, and each rim's radius less its cylinder's (the
+  replay's own reading). `replay_one_cylinder_axis` takes the axes' tilt
+  `|da × db|`, a sine of two unit directions, **dimensionless**, through
+  `Margin::levered` at the arm the kernel's pair door levers the same
+  datum at (the reach of the ball enclosing both faces from the foot of
+  its centre on the second axis, `topo::boolean::carrier_pair_arm`).
   Until `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
-  it read each component of the cross product apart at
-  `Lever::unsourced(1 m)`, the raw read's own scale. Every sine the door
-  read on the replay's corpus was exactly zero, so no decision moved.
+  the tilt was each component of the cross product at
+  `Lever::unsourced(1 m)`, and until
+  `work/onecopy/the-replays-cylinder-offset-and-radii-are-a-second-spelling-of-the-kernels-data.md`
+  the offset was each component of `(ob − oa) × db` at the axes' stated
+  origins.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
