@@ -921,6 +921,35 @@ pub fn wedge_on_a_block_top(
     )
 }
 
+/// **A tool cornered on a block's corner, its face near the block's top**
+/// (SECTOR's `a-vertex-pair-near-coincidence-refuses-where-its-long-edges-decide`):
+/// the block `[0, 20]² × [−20, 0]`, and a parallelepiped cornered at the
+/// origin with edges `a = (10, 1, ·)`, `b = (−1e-3, −2e-4, ·)` and
+/// `c = (1e-4, 1e-4, −1e-3)`, its `w = 0` face (spanned by `a` and `b`)
+/// on the plane `z = θ·(x cos ψ + y sin ψ)`. The short edges make the
+/// vertex pair's arm 1 mm; `ψ = 0` is the generic pose, and
+/// [`HINGED_ALONG_B`] puts the two faces' crossing line along `b`.
+/// Returns `(block, tool)`.
+pub fn tool_on_a_block_corner(theta: f64, psi: f64, tol: Tol) -> (Body<f64>, Body<f64>) {
+    let rise = |x: f64, y: f64| Vec3::new(x, y, theta * (x * psi.cos() + y * psi.sin()));
+    let (a, b, c) = (
+        rise(10.0, 1.0),
+        rise(-1e-3, -2e-4),
+        Vec3::new(1e-4, 1e-4, -1e-3),
+    );
+    (
+        brick((0.0, 20.0), (0.0, 20.0), (-20.0, 0.0), tol),
+        mapped_cube(
+            move |u, v, w| Point3::new(0.0, 0.0, 0.0) + a * u + b * v + c * w,
+            tol,
+        ),
+    )
+}
+
+/// The `ψ` of [`tool_on_a_block_corner`] whose tilt leaves the short edge
+/// `b` in the block's top plane: the two faces cross along it.
+pub const HINGED_ALONG_B: f64 = -1.373_400_766_945_016;
+
 /// The one planar face of `body` whose outward normal leans along
 /// `facing` in `z` (`+1` up, `−1` down).
 ///

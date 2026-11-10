@@ -69,6 +69,8 @@ mod a_block_resting_in_the_zero_band_unions;
 mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form.rs"]
 mod a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form;
+#[path = "a_corner_reads_only_its_own_sectors.rs"]
+mod a_corner_reads_only_its_own_sectors;
 #[path = "a_corrupted_row_is_never_read_as_its_carrier_off_the_face.rs"]
 mod a_corrupted_row_is_never_read_as_its_carrier_off_the_face;
 #[path = "a_decided_overlap_decides_its_pair.rs"]
