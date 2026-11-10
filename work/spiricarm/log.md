@@ -182,3 +182,14 @@
   - **Stage 2 is closed.** The P0 projected-boundary row closes with the volume lane in. Its operand half now stands at INSIDE's P0.
   - **Next:** stage 3, the torus chart, which closes `a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane` (P0) and teapot wall 2's stop.
 - 2026-11-10 — **PR 6509 merged.** The sphere chart is in, the P0 projected-boundary row closes, and the operand half stands at INSIDE's P0. **Dispatched stage 3**, `the-rotational-lane-reads-the-torus-chart` (H, dual). It opens with a decide on the torus's `∮v du` under C9, and if no algebraic route exists it is an Ev fork.
+- 2026-11-10 — **The cylinder-pair cost is up as PR 6805** (head `c2b6282453`, CI green).
+  - **Phase 0 split** (release, perf): march and carry ≈ 0.7 s; edge certification 5–6 s; island winding up to 2.8 s; result gate 4.7–5.9 s; volume read 4–5 s.
+  - **On our ground the volume lane dominated:** 600-span chords read at 16 pieces a span.
+  - **The fix:** `span_pieces` spreads a round's pieces over a carrier's spans. No bound changed. The gate went from about 5 s to about 2 s; volumes are identical to 12 digits.
+  - **Still 12–15 s per op**, on other programs' ground. Filed:
+    - `pcert/a-chorded-edges-certification-hulls-every-span-of-a-625-span-chord` (P1);
+    - `onehome/the-chord-joins-island-winding-crosses-every-span-of-a-chord` (P2);
+    - two SPIRICARM P3s.
+  - The P1 unit stays open until its remaining cost centres move; it is the PCERT row that holds them.
+  - **Review tier: single FULL**, set at dispatch. One cloud reviewer (`spiricarm/review-6805-brief`).
+  - The lane reported a red nightly row (`germ_tilted_rod::the_steeper_tilts_union_stops_by_identity`, ONEHOME's `NotFinished` shape). It is already filed as `tint/main-red-steeper-tilts-union-stops-by-identity-reads-the-wrong-refusal-shape`.
