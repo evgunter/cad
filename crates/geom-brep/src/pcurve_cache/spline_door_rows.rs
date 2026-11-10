@@ -472,3 +472,47 @@ fn kinds_are(
 ) -> bool {
     kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }
+
+// ---- review 6531 GG delta probes (not for merge) ----
+
+/// The row certified over `row` on the wall (the ruling on it), restated
+/// for the edge span `asked`: the ruling is on the patch for `z ∈ [0, 1]`
+/// and off it outside.
+fn gg_cover<T: Decide + geom_core::CertifiedBounds>(row: (f64, f64), asked: (T, T)) -> String {
+    let (c, b) = (T::from_f64, band());
+    let wall = ring::<T>();
+    let carrier = ruling::<T>(Place::On);
+    let stored = PcurveCache::certify(column(), c(row.0), c(row.1), &carrier, &wall, b).unwrap();
+    let re = stored
+        .recertify(&carrier, asked, &wall, b, Some(FittedLane::certified()))
+        .map(|_| ());
+    format!("{re:?}")
+}
+
+#[test]
+fn review_gg1_cover_edges() {
+    let f = |x: f64| x;
+    for (name, row, asked) in [
+        ("R1 overhang past 1", (0.0, 1.0), (0.0, 1.5)),
+        ("overhang before 0", (0.0, 1.0), (-0.5, 1.0)),
+        ("row inside, edge on", (0.25, 0.75), (0.0, 1.0)),
+        ("equal", (0.0, 1.0), (0.0, 1.0)),
+        ("abut: row [0,.5], edge [.5,1]", (0.0, 0.5), (0.5, 1.0)),
+        ("touch at end, edge off past", (0.0, 1.0), (1.0, 1.5)),
+        ("reversed edge span (1.5, 0)", (0.0, 1.0), (1.5, 0.0)),
+        ("reversed edge span (1, -0.5)", (0.0, 1.0), (1.0, -0.5)),
+        ("1 ulp overhang", (0.0, 1.0), (0.0, f(1.0f64.next_up()))),
+    ] {
+        eprintln!("GG1 f64 {name}: {}", gg_cover::<f64>(row, (asked.0, asked.1)));
+        eprintln!(
+            "GG1 Interval {name}: {}",
+            gg_cover::<Interval>(row, (<Interval as geom_core::Real>::from_f64(asked.0), <Interval as geom_core::Real>::from_f64(asked.1)))
+        );
+    }
+    // An Interval edge end straddling the row's end.
+    let straddle = Interval::from_bounds(0.999, 1.2);
+    eprintln!(
+        "GG1 Interval straddling end: {}",
+        gg_cover::<Interval>((0.0, 1.0), (<Interval as geom_core::Real>::from_f64(0.0), straddle))
+    );
+}
