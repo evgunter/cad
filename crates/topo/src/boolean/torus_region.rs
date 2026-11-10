@@ -264,14 +264,16 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// increasing) or back: the tube's circle at `p`'s tube angle, on
     /// the tube side `p` lies on ([`Section::TubeSide`]).
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::parallel(&self.charted, p.uv(), forward);
+        let curve =
+            SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
     fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::meridian(&self.charted, p.uv(), forward);
+        let curve =
+            SurfaceCurve::meridian(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -1190,6 +1192,55 @@ mod tests {
     #[test]
     fn a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
         let band = Band::new(1e-9, 1e-8).unwrap();
+        let regions = patch_on_frames();
+        let class = crate::boolean::region::refusal_class;
+        for (what, p) in patch_edge_queries(&[-5e-9, -1e-9, -5e-10, 5e-10, 1e-9, 5e-9]) {
+            let first = class(regions[0].contains(p, band));
+            for (k, region) in regions.iter().enumerate().skip(1) {
+                assert_eq!(class(region.contains(p, band)), first, "frame {k}: {what}");
+            }
+        }
+    }
+
+    /// **A torus face's circle legs start at the query's closed-form foot,
+    /// so the crossing's place along them reads no chart frame in their
+    /// start.** The patch of
+    /// [`a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`]
+    /// on its six frames, read at the band's escalation, `±1e-8` off each
+    /// edge at 60 stations (480 queries). A query counts where any frame
+    /// answers otherwise than the first. With the legs started at
+    /// `surface.eval(uv)`, the chart's round trip of the foot, 142 do;
+    /// started at the foot, 31. What is left is the frame a curve
+    /// carries in its section and plane
+    /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
+    #[test]
+    fn a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let regions = patch_on_frames();
+        let class = crate::boolean::region::refusal_class;
+        let by_frame = patch_edge_queries(&[-1e-8, 1e-8])
+            .into_iter()
+            .filter(|&(_, p)| {
+                let first = class(regions[0].contains(p, band));
+                regions
+                    .iter()
+                    .skip(1)
+                    .any(|r| class(r.contains(p, band)) != first)
+            })
+            .count();
+        assert_eq!(
+            by_frame, KEPT_TORUS,
+            "queries a frame answers at the escalation"
+        );
+    }
+
+    /// [`a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation`]'s
+    /// count.
+    const KEPT_TORUS: usize = 31;
+
+    /// The frame pins' patch, `0.4 < u < 2.9`, `−0.5 < v < 0.8`, on each of
+    /// [`geom::test_support::CHART_FRAMES`], its 3D edges fixed.
+    fn patch_on_frames() -> Vec<TorusFaceRegion<f64>> {
         let torus = geom::Surface::Torus {
             center: Point3::origin(),
             axis: Vec3::new(0.0, 0.0, 1.0),
@@ -1197,8 +1248,8 @@ mod tests {
             minor_radius: MINOR,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        let (us, vs) = ((0.4, 2.9), (-0.5, 0.8));
-        let regions: Vec<TorusFaceRegion<f64>> = geom::test_support::CHART_FRAMES
+        let (us, vs) = PATCH;
+        geom::test_support::CHART_FRAMES
             .iter()
             .map(|&(t, flip)| {
                 let torus = geom::test_support::reframed(&torus, t, flip);
@@ -1220,29 +1271,32 @@ mod tests {
                     ],
                 )
             })
-            .collect();
-        let class = crate::boolean::region::refusal_class;
+            .collect()
+    }
+
+    /// [`patch_on_frames`]'s `u` and `v` windows.
+    const PATCH: ((f64, f64), (f64, f64)) = ((0.4, 2.9), (-0.5, 0.8));
+
+    /// Queries `o` off each of the patch's four edges, for each offset in
+    /// `offsets`, at 60 stations along them, each named.
+    fn patch_edge_queries(offsets: &[f64]) -> Vec<(String, Point3<f64>)> {
+        let (us, vs) = PATCH;
+        let mut queries = Vec::new();
         for i in 0..60 {
             let t = f64::from(i) / 60.0 + 0.004;
             let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
             let rho = R + MINOR * v.cos();
-            for o in [-5e-9, -1e-9, -5e-10, 5e-10, 1e-9, 5e-9] {
+            for &o in offsets {
                 for (what, p) in [
                     ("parallel v0", at(u, vs.0 + o / MINOR)),
                     ("parallel v1", at(u, vs.1 + o / MINOR)),
                     ("meridian u0", at(us.0 + o / rho, v)),
                     ("meridian u1", at(us.1 + o / rho, v)),
                 ] {
-                    let first = class(regions[0].contains(p, band));
-                    for (k, region) in regions.iter().enumerate().skip(1) {
-                        assert_eq!(
-                            class(region.contains(p, band)),
-                            first,
-                            "frame {k}: {what} at station {t}, {o:e} off"
-                        );
-                    }
+                    queries.push((format!("{what} at station {t}, {o:e} off"), p));
                 }
             }
         }
+        queries
     }
 }

@@ -10,6 +10,11 @@
 # read one raw for four days before it did. A new raw site now has to be
 # registered here, beside why it is not a decision, or go through a door.
 #
+# A READ THAT DECIDES NOTHING SAYS SO WHERE IT IS: a `// NO-DECISION:
+# <why>` line directly above the `.sign_within(` line settles it, and it
+# is not counted. The why is the site's own, read beside the code it
+# argues for, and a marker with no why is not one.
+#
 # EXEMPT: geom-core's `predicate.rs` (the trait and its doors),
 # `k_stats.rs` (the funnel), and the scalar impls that delegate the trait
 # (`interval.rs`, `dual.rs`, `sym.rs`).
@@ -27,6 +32,24 @@ REGISTER=scripts/gates/raw-sign-within.counts
 CALL_RE='\.sign_within[[:space:]]*\('
 EXEMPT_RE='^crates/geom-core/src/(predicate|k_stats|interval|dual|sym)\.rs:'
 
+# The `FILE:LINE:TEXT` records whose line is not directly under a
+# `// NO-DECISION: <why>` line of its file.
+unmarked() {
+  local rec file line above
+  while IFS= read -r rec; do
+    file=${rec%%:*}
+    line=${rec#*:}
+    line=${line%%:*}
+    above=""
+    if [ "$line" -gt 1 ]; then
+      above=$(sed -n "$((line - 1))p" "$file")
+    fi
+    if ! printf '%s\n' "$above" | grep -qE '^[[:space:]]*// NO-DECISION: [^[:space:]]'; then
+      printf '%s\n' "$rec"
+    fi
+  done
+}
+
 gate() {
   gate_require_crate_sources
   gate_require_file "$REGISTER" "the raw sign_within register"
@@ -34,7 +57,7 @@ gate() {
   local view live want diff
   view=$(gate_rust_code --skip-cfg-test "${GATE_PRODUCTION_FILES[@]}")
   live=$(printf '%s\n' "$view" | gate_grep -E "$CALL_RE" | gate_grep -vE "$EXEMPT_RE" \
-    | gate_record_file | sort | uniq -c | awk '{ print $2, $1 }')
+    | unmarked | gate_record_file | sort | uniq -c | awk '{ print $2, $1 }')
   want=$(awk '!/^[[:space:]]*(#|$)/ { print $1, $2 }' "$REGISTER" | sort)
   diff=$(diff <(printf '%s\n' "$live" | sed '/^$/d' | sort) <(printf '%s\n' "$want" | sed '/^$/d') || true)
   if [ -n "$diff" ]; then
@@ -42,7 +65,7 @@ gate() {
     gate_error "raw sign_within sites differ from $REGISTER ('<' is the tree, '>' the register): read the sign through a named k_stats door (decide, check_unlogged with its audit row), or register the file with why its read is no decision"
     exit 1
   fi
-  gate_ok "every production sign_within outside the doors is registered"
+  gate_ok "every production sign_within outside the doors is registered or marked NO-DECISION"
 }
 
 gate_plant_clean() {
@@ -78,6 +101,24 @@ plant_in_a_test_module() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_marked() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(x: f64) -> bool {\n    // NO-DECISION: a listing choice, certified by nothing\n    x.sign_within(Band::least()).is_ok()\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_marked_without_a_why() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(x: f64) -> bool {\n    // NO-DECISION:\n    x.sign_within(Band::least()).is_ok()\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_marked_too_far_above() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(x: f64) -> bool {\n    // NO-DECISION: a listing choice\n    let y = x;\n    y.sign_within(Band::least()).is_ok()\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 plant_in_a_comment() {
   mkdir -p "$1/crates/planted/src"
   printf '// read it raw: x.sign_within(band)\npub fn f() {}\n' > "$1/crates/planted/src/lib.rs"
@@ -93,7 +134,10 @@ gate_selftest() {
   gate_selftest_passes "a read inside the k_stats funnel" plant_in_a_door
   gate_selftest_passes "a read inside a #[cfg(test)] module" plant_in_a_test_module
   gate_selftest_passes "a read named only in a comment" plant_in_a_comment
-  printf '%s selftest OK: passes a clean tree, a registered site, the funnel, a test module and a comment; fires on an unregistered site and a stale entry, and stays RED when grep cannot run\n' "$(gate_name)"
+  gate_selftest_passes "a read marked NO-DECISION with its why" plant_marked
+  gate_selftest_case "$want" plant_marked_without_a_why
+  gate_selftest_case "$want" plant_marked_too_far_above
+  printf '%s selftest OK: passes a clean tree, a registered site, a marked site, the funnel, a test module and a comment; fires on an unregistered site, a stale entry, a marker with no why and one not directly above, and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
