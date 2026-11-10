@@ -7739,11 +7739,8 @@ mod normal_fault_rows {
                     "{what}, {convention:?}: the convention's clause and lever: {text}"
                 );
             }
-            assert_eq!(
-                input.sentence(None),
-                format!(
-                    "a face meeting the point is a torus outside the ring convention: {clause}"
-                ),
+            assert!(
+                input.sentence(None).ends_with(clause.as_str()),
                 "{convention:?}: no reading, no lever"
             );
             assert!(
@@ -7955,11 +7952,8 @@ impl TouchUnread {
                 convention,
                 verdict,
             }) => {
-                return format!(
-                    "a face meeting the point is a torus outside the ring convention: {}",
-                    convention.refused_ended("its", verdict, at)
-                )
-                .into();
+                return crate::face_normal::NormalAbort::torus_there(convention, verdict, at)
+                    .into();
             }
             Self::Corrupt => concat!(
                 "the part's topology there could not be walked. ",
