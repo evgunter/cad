@@ -163,9 +163,12 @@ pub enum ApexSectionReading {
     /// The table reads the plane's section of the cone as a closed
     /// conic, standing off the apex.
     ClosedOffApex,
-    /// The table refused the pair; its refusal, which for a plane the
-    /// walk read through the apex is most often an open conic standing
-    /// off it ([`SplitJoinError::OpenConicChord`]).
+    /// The table reads the plane's section of the cone as an open conic
+    /// (a parabola or a hyperbola), standing off the apex: the walk read
+    /// the plane through it ([`SplitJoinError::OpenConicChord`] at the
+    /// table).
+    OpenOffApex,
+    /// The table refused the pair for a cause other than an open conic.
     Refused(Box<SplitJoinError>),
     /// The table's section rulings through the apex: none of them lies
     /// inside the sub-sector the walk read the plane crossing.
@@ -188,9 +191,10 @@ impl ApexSectionReading {
     pub fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
         match self {
             Self::Refused(section) => section.refusal(),
-            Self::ClosedOffApex | Self::NoRulingInside | Self::BothRulingsInside => {
-                Err(geom_core::ladder::Aborts)
-            }
+            Self::ClosedOffApex
+            | Self::OpenOffApex
+            | Self::NoRulingInside
+            | Self::BothRulingsInside => Err(geom_core::ladder::Aborts),
         }
     }
 
@@ -202,12 +206,10 @@ impl ApexSectionReading {
             Self::ClosedOffApex => {
                 "the section it cuts in the cone reads as a closed curve clear of the tip"
             }
-            Self::Refused(section) => match **section {
-                SplitJoinError::OpenConicChord { .. } => {
-                    "the section it cuts in the cone reads as an open curve clear of the tip"
-                }
-                _ => "the section it cuts in the cone does not read there",
-            },
+            Self::OpenOffApex => {
+                "the section it cuts in the cone reads as an open curve clear of the tip"
+            }
+            Self::Refused(_) => "the section it cuts in the cone does not read there",
             Self::NoRulingInside => {
                 "no line of the section it cuts in the cone leaves the tip where the plane \
                  crosses the cone there"
@@ -1345,6 +1347,7 @@ mod apex_section_standing_rows {
     fn an_apex_section_stands_by_its_reading() {
         for disagrees in [
             ApexSectionReading::ClosedOffApex,
+            ApexSectionReading::OpenOffApex,
             ApexSectionReading::NoRulingInside,
             ApexSectionReading::BothRulingsInside,
         ] {

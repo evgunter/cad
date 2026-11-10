@@ -624,7 +624,8 @@ impl SplitJoinError {
     ///
     /// **A cause that mixes classes stands as an abort**, since a ladder
     /// must never read past what may be a fault or an in-band coincidence:
-    /// [`Self::UnpairedLooseEnds`], [`Self::SectionLoopUndecided`],
+    /// [`Self::UnpairedLooseEnds`], [`Self::RingHomingAmbiguous`],
+    /// [`Self::SectionLoopUndecided`],
     /// [`Self::SectionInvariant`], [`Self::RunImageIncidence`] (its ending is
     /// rendered, not typed) and [`Self::Section`] (the table's refusal, which
     /// states no standing of its own:
@@ -652,7 +653,6 @@ impl SplitJoinError {
             // A tighter band may part each.
             Self::PoleEdgesCoincide { .. }
             | Self::SectionDepartureGrazes { .. }
-            | Self::RingHomingAmbiguous { .. }
             | Self::SectionCrossings {
                 case: ConicCrossingsCase::Grazing,
                 ..
@@ -666,7 +666,6 @@ impl SplitJoinError {
             | Self::RunEdgeCarrierUnsupported { .. }
             | Self::CurvedSlitTrace { .. }
             | Self::SingleSiteSectionLoop { .. }
-            | Self::DegenerateSection { .. }
             | Self::ApexUnlifted { .. } => Ok(Refusal::Limit),
             // A kernel fault, a corruption, two readings that disagree.
             Self::SectionLoopMixed { .. }
@@ -675,7 +674,11 @@ impl SplitJoinError {
             | Self::LineageRow(_)
             | Self::Band(_)
             | Self::Euler(_)
-            | Self::TangentChordRefuted { .. } => Err(Aborts),
+            | Self::TangentChordRefuted { .. }
+            // Its doc argues every pose the reduction admits reaches a
+            // slit trace or a refusal first, so reaching it is the
+            // reduction's fault.
+            | Self::DegenerateSection { .. } => Err(Aborts),
             // Mixed: a zero gap the band may part beside senses that
             // disagree with the geometry.
             Self::SectionCrossings {
@@ -683,6 +686,9 @@ impl SplitJoinError {
                 ..
             }
             | Self::UnpairedLooseEnds { .. }
+            // An ill-conditioned operand's ring, or a ray no band decides,
+            // beside the structural causes its doc lists.
+            | Self::RingHomingAmbiguous { .. }
             | Self::SectionLoopUndecided { .. }
             | Self::SectionInvariant { .. }
             | Self::RunImageIncidence { .. }
@@ -2793,6 +2799,11 @@ pub(crate) fn apex_section_ruling<T: Decide>(
         })) => vec![l],
         Err(SplitJoinError::Escalated { diag, .. }) => {
             return Err(ApexRulingFault::Escalated(diag));
+        }
+        // The table reads the plane missing the apex, open or closed: one
+        // disagreement with the walk, named here.
+        Err(SplitJoinError::OpenConicChord { .. }) => {
+            return Err(ApexRulingFault::Disagrees(ApexSectionReading::OpenOffApex));
         }
         Err(section) => {
             return Err(ApexRulingFault::Disagrees(ApexSectionReading::Refused(
