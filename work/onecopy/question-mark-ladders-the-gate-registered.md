@@ -73,8 +73,8 @@ measured yet.
 | ~~`replace_face::carried_alike`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `climb(Any)`, any sample past ε answers "not alike" (a theorem) | — |
 | ~~`shell::band_seam`, `wraps_its_period`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(Any)` over the two sides (an identity) and over the boundary cycles (a theorem); `winds_once` returns its one reading, `Indeterminate` | — |
 | `stands::face_interior_point` | **NOT A SEARCH** (`onecopy/refusal-standing`, QML T4): its `?`s carry only refusals of the whole query (`certified_in_face` reads every inconclusive refusal as `false` itself) | — |
-| `stands::witness_insides` | its own ranking of `Witness` (`On`, `Blocked`, `InBand`) | its witnesses' standing, then `climb` |
-| `boolean::insert::held_cut` (`nested` and the two `tied_held` reads) | any cut held answers; its owner only names `SharedVertexCrossings` (PR 6574's review) | `climb`, `Any` |
+| ~~`stands::witness_insides`~~ | **ported** (`onecopy/refusal-standing`, QML T5): `insides_at` climbs `Any` over the probed shells, a theorem (a witness on any shell says nothing); the kept reading is ranked by `Evidence`, a limit before an in-band one, where the loop returned the first | — |
+| ~~`boolean::insert::held_cut`~~ | **ported** (`onecopy/refusal-standing`, QML T5): `climb(Any)` over the cuts, each cut's reads premises inside its rung; any held cut answers, its owner only naming `SharedVertexCrossings` | — |
 
 ## The assignment-exit loops (outside the gate)
 
