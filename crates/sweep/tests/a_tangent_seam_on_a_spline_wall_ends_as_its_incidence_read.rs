@@ -192,9 +192,7 @@ fn a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read() {
         // The refusal names the face and edge it was read of: the line
         // on the spline wall the body holds.
         assert_eq!(
-            error(&got)
-                .as_ref()
-                .and_then(geom_brep::IncidenceRead::kinds_of),
+            error(&got).as_ref().and_then(|e| e.chart_carrier_kinds()),
             Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Line)),
             "the refusal names the seam's chart and carrier: {got:?}"
         );

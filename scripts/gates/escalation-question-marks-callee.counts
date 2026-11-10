@@ -77,12 +77,9 @@ crates/topo/src/boolean/rim_wedge.rs 6
 # section_cert ruling: roots walks sorted roots to the first past the
 # window: NOT A SEARCH.
 crates/topo/src/boolean/section_cert/ruling.rs 1
-# sectors: partner_cuts (2): every cut inside a sector is applied, and a
-# cut in band stays in band of the bound it is near through every later
-# split: NOT A SEARCH; rays_within (1), any ray not within answers "no":
-# closed_reach (2), which face holds the reach: WHICH. (crescent climbs
-# its bound pairs, rays_within its sectors.)
-crates/topo/src/boolean/sectors.rs 4
+# sectors: closed_reach (2), which face holds the reach: WHICH.
+# (crescent climbs its bound pairs, rays_within its sectors.)
+crates/topo/src/boolean/sectors.rs 2
 # slit: slot_from_far_end, which slot: WHICH.
 crates/topo/src/boolean/slit.rs 1
 # vtxfac: germ_order, a sort: NOT A SEARCH.
@@ -102,3 +99,7 @@ crates/topo/src/splitting/section_cones.rs 1
 # `false` itself, and the face walks' Desync aborts): NOT A SEARCH.
 # (insides_at, witness_insides' reading, climbs, Any: QML T5.)
 crates/topo/src/stands.rs 3
+# star: Star::refine, every datum's extremum inside a sector is cut, and
+# one in band stays in band of the bound it is near through every later
+# cut: NOT A SEARCH.
+crates/topo/src/star/walk.rs 1

@@ -1892,12 +1892,7 @@ fn face_cone<T: Decide>(
                     match curved::tangent_on_interior(body, e, q, band, &mut refused) {
                         Some(Some(along)) => along,
                         _ => {
-                            return Err(refused
-                                .into_iter()
-                                .find_map(|r| match r {
-                                    ValidationError::CensusEscalated { cause } => Some(cause),
-                                    _ => None,
-                                })
+                            return Err(first_escalation(&refused)
                                 .map_or(Unread::Unbuilt, Unread::Escalated));
                         }
                     }
@@ -4163,16 +4158,6 @@ fn span_clear<T: Decide>(
         return Some(false);
     };
     let reach = span_reach(e, [lo, hi], lever, band);
-    let door = magnitude_door("pm_census_ef_pierce_height", within);
-    let straddle = "pm_census_ef_pierce_height_straddle";
-    match enclosure_reading([T::zero(), reach], straddle, within, door) {
-        Ok(Enclosed::AtMost(_)) => {}
-        Ok(Enclosed::Above) => return Some(false),
-        Err(cause) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            return None;
-        }
-    }
     let s = Stretch {
         edge: e,
         at: (lo * e.len, hi * e.len),
@@ -4184,7 +4169,11 @@ fn span_clear<T: Decide>(
     };
     // The boundary's members, read as points and sides of `S`'s face: a
     // member whose entities do not resolve does not clear.
-    let mut members = Vec::new();
+    // The height gate is the first rung: past its bound the span is no
+    // stretch `S` can stand for, so it does not clear; in band it is kept,
+    // and a member meeting `S` still answers past it, since a meeting is
+    // one whatever the height.
+    let mut members = vec![Member::Height];
     for read in body.unchecked_face_boundary(face) {
         let cycle = match read {
             Ok(crate::live::UncheckedLoop::Cycle(cycle)) => cycle,
@@ -4230,18 +4219,39 @@ fn span_clear<T: Decide>(
     let met = climb(Answering::Any, members, |member| {
         let mut report = Vec::new();
         let read = match member {
+            Member::Height => {
+                let door = magnitude_door("pm_census_ef_pierce_height", within);
+                let straddle = "pm_census_ef_pierce_height_straddle";
+                match enclosure_reading([T::zero(), reach], straddle, within, door) {
+                    Ok(Enclosed::AtMost(_)) => Some(false),
+                    Ok(Enclosed::Above) => Some(true),
+                    Err(cause) => {
+                        report.push(ValidationError::CensusEscalated { cause });
+                        None
+                    }
+                }
+            }
             Member::Point(p) => {
                 on_edge_interior_reading(p, &s, band, &mut report).map(|on| on.is_some())
             }
             Member::Side(side) => interiors_meet(&s, &side, band, &mut report),
-            Member::Curve(he) => Some(crate::link::clearance(body, he, middle).map_or(
-                true,
-                |bound| {
+            // An edge whose bound does not read (a spline, an uncertified
+            // curve) clears nothing: a definite "not clear", as before the
+            // ladder, not a reading. A bound decided in band is kept.
+            Member::Curve(he) => match crate::link::clearance(body, he, middle) {
+                Err(_) => Some(true),
+                Ok(bound) => {
                     let gap = Margin::of(bound - half - reach);
                     let name = "pm_census_ef_pierce_curve_clear";
-                    geom_core::k_stats::decide(name, gap, band) != Ok(Sign::Positive)
-                },
-            )),
+                    match geom_core::k_stats::decide(name, gap, band) {
+                        Ok(sign) => Some(sign != Sign::Positive),
+                        Err(cause) => {
+                            report.push(ValidationError::CensusEscalated { cause });
+                            None
+                        }
+                    }
+                }
+            },
         };
         match read {
             Some(true) => Rung::Answers(()),
@@ -4259,8 +4269,20 @@ fn span_clear<T: Decide>(
     }
 }
 
+/// **A census report's escalation**: the first [`ValidationError::CensusEscalated`]
+/// a reader pushed, the cause its refusal is ranked and rendered by.
+fn first_escalation(report: &[ValidationError]) -> Option<Indeterminate> {
+    report.iter().find_map(|e| match e {
+        ValidationError::CensusEscalated { cause } => Some(*cause),
+        _ => None,
+    })
+}
+
 /// One member of a face's boundary as [`span_clear`] reads it against `S`.
 enum Member<T: Decide> {
+    /// The height gate: `S`'s height under its bound, the premise the
+    /// curved sides' clearance rests on.
+    Height,
     /// A point of the boundary: a lone vertex, or a side's end.
     Point(Point3<T>),
     /// A straight side.
@@ -4274,11 +4296,7 @@ enum Member<T: Decide> {
 /// so a poisoned margin is a limit and any other in band; a report with
 /// no escalation in it is in band.
 fn reported_rung<A>(report: Vec<ValidationError>) -> Rung<A, Vec<ValidationError>> {
-    let first = report.iter().find_map(|e| match e {
-        ValidationError::CensusEscalated { cause } => Some(*cause),
-        _ => None,
-    });
-    match first {
+    match first_escalation(&report) {
         Some(cause) => Refusal::Margin(cause).rung(report),
         None => Rung::InBand(report),
     }
@@ -9135,21 +9153,22 @@ fn foot_normal<T: Decide>(
 
 /// Where half-edge `he` leaves its start `v`, scaled to its reach,
 /// whether it is a line, and its curvature vector there (nothing on a
-/// line): the splitting lane's reading
-/// ([`crate::splitting::neighborhood::chord`]), a line's chord or a
-/// curve's tangent scaled to its extent.
+/// line): the star's reading of a bound ([`crate::star::departure`]), a
+/// line's chord or a curve's tangent scaled to its extent.
 fn departure<T: Decide>(
     body: &Body<T>,
     v: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
-    let (_, dir, bend) =
-        crate::splitting::neighborhood::chord(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
-    Ok((
-        dir,
-        bend.is_none(),
-        bend.map_or(Vec3::zero(), |b| b.curvature),
-    ))
+    let (dir, reach) = crate::star::departure(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
+    use crate::bound_side::BoundSupport;
+    Ok(match reach {
+        BoundSupport::Conic { bend, .. } => (dir, false, bend.curvature),
+        BoundSupport::Chord { .. } => (dir, true, Vec3::zero()),
+        BoundSupport::Extent(_) | BoundSupport::Bisector { .. } => {
+            unreachable!("an edge's departure stands on its chord or its curve, never a probe's")
+        }
+    })
 }
 
 /// **Half-edge `he`'s unit direction at `p`**, a point inside its edge,
