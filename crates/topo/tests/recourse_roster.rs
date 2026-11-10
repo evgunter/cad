@@ -385,7 +385,7 @@ const NOT_FIRST: &str = "a declared carrier's call whose name is not its first a
                          entry; its literal names are read";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
 const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name \
-     (`names.straddle()`, a `WedgeNames` row), read as that door's call with no first argument";
+     (`names.straddle()`, a `WedgeNames` row; `.turn()`, a `TurnRows` row), read as that door's call with no first argument";
 const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
 const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
                              `cone_data`, whose names are declared consts";
@@ -518,15 +518,16 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ray_walk.rs: rows.segment()", ROW_FIELD),
     ("ray_walk.rs: rows.side()", ROW_FIELD),
     ("ring_path.rs: name", FORWARDS),
+    ("rows.rs: ", ACCESSOR_LIKE_A_DOOR),
     ("rows.rs: segment: self.segment", ROW_FIELD),
     ("rows.rs: self.line", ROW_FIELD),
-    ("rows.rs: turn", FORWARDS),
+    ("splitting/containment.rs: ", ACCESSOR_LIKE_A_DOOR),
     ("splitting/containment.rs: arm_row", FORWARDS),
     (
         "splitting/containment.rs: read_identity#1(data.iter().map(|&(name, m, _)| (name, m)))",
         IDENTITY,
     ),
-    ("splitting/containment.rs: rows.rows().turn", ROW_FIELD),
+    ("splitting/containment.rs: rows.rows().turn()", ROW_FIELD),
     ("splitting/order.rs: name", FORWARDS),
     ("splitting/pieced_arc.rs: rows.clear()", ROW_FIELD),
     ("splitting/pieced_arc.rs: rows.end()", ROW_FIELD),
