@@ -72,8 +72,8 @@ does not rest on it). Ported, with no outcome moved over the `ci` sets:
 **The old gate is gone.** It asked for straight germs and `K > 2`. Those premises bounded the per-germ incumbent scan that `own_nearest` replaced, and the theorem reads no chord, travel or `K`. The incumbent fold (`nearer`, `nearer_or_scan`) is gone too.
 
 **Measured over the whole workspace `ci` set, both ε:**
-- about 31 000 `first_pair` calls read an exact tie, every one in an all-mutual round;
-- the 525 conic-tie processes (526 at default ε, 519 at `1e-12`) are all among them;
+- about 17 400 `first_pair` calls read an exact tie between two distinct pairs, every one in an all-mutual round: 14 231 straight and 3151 with a curved germ at default ε, 14 019 and 3138 at `1e-12`. (A first count, 31 000, held a mutual pair's two entries tied with each other; `first_pair` now reads one entry per pair.)
+- they fall in 1282 test processes at default ε (885 with a straight tie, 488 with a curved one) and 1271 at `1e-12` (880, 482);
 - no production round that is not all mutual meets a tie or an in-band reading. Only the counterexample's pin and the premises row do.
 
 **Not all mutual: a tie refuses, measured and unguarded on purpose.** The `ci` set holds no production round that is not all mutual and meets a tie or an in-band reading; that is a measurement, not a guarantee. No counter guards it, because the lane cannot go wrong silently: such a round's tie refuses, typed (`JoinPairsTied`), so a production reach shows as a refusal naming its cause, never as a matching chosen by scan order. A straight-germ argument that would free such a tie at `K > 2` was drafted against the old scan and is not carried: nothing measured needs it.
