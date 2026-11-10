@@ -1,15 +1,14 @@
 //! **A circle on a spline chart that no row holds ends alike in every
-//! description form, by the chart's incidence read.** Its exact image is
-//! the arc rim's row, picked at the probe and read by the row's
-//! certificate; both are a lane choice (D3), reached only behind the
-//! chart's incidence read (`geom_brep::read_edge_incidence`, the control
-//! hulls' lower bound). A circle the pick does not show, or whose row the
-//! certificate refuses or reads in band, takes the general lane unless
-//! that read shows it off the wall (`CarrierOffChart`): its `General`
-//! image, whose certificate reads the wall itself
-//! (`a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs` mints
-//! and certifies it). Each is the same whatever form its description
-//! takes.
+//! description form.** Its exact image is the arc rim's row, picked at
+//! the probe and read by the row's certificate; both are a lane choice
+//! (D3). A circle the pick does not show, or whose row the certificate
+//! refuses or reads in band, takes the general lane unless the chart's
+//! incidence read (`geom_brep::read_edge_incidence`, the control hulls'
+//! lower bound) shows it off the wall: its `General` image, whose
+//! certificate reads the wall itself. The mint ends a rim in band of the
+//! wall as that lane's gap, "not yet". Each is the same whatever form its
+//! description takes. Where the general image certifies, the mint's rows
+//! are `a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs`'s.
 //!
 //! The fixture is the unit cylinder sheet over `[0, TURN] × [0, 1]`
 //! (`topo::test_support::cyl_wall_sheet_keyed`), its rims the circles
@@ -19,7 +18,8 @@
 //! sub-arcs, its edges' descriptions left naming the same key. On the
 //! ring over `z ∈ [0, 1]` the `v = 0` row is the bottom rim; bending that
 //! row's second sub-arc leaves the pick's probe (the edge's ends and a
-//! quarter in) on it, and moves the wall off the rim by the bend. On the
+//! quarter in) on it, and moves the wall off the rim by the bend, the top
+//! rim's row left whole. On the
 //! ring lowered to `z ∈ [−½, ½]` the rim lies on the wall's middle,
 //! where no boundary row holds it.
 
@@ -52,9 +52,9 @@ fn in_band() -> f64 {
 }
 
 /// The unit cylinder `z ∈ [low, low + 1]` through `TURN` from `x̂`, in
-/// two rational quadratic sub-arcs, the second's middle control point
-/// pushed `push` off the axis: its `v = 0` row parts from the unit circle
-/// by `push / (1 + cos(TURN/4))` at that sub-arc's middle.
+/// two rational quadratic sub-arcs, the second's middle control point on
+/// the `v = 0` row pushed `push` off the axis: that row parts from the
+/// unit circle by `push / (1 + cos(TURN/4))` at that sub-arc's middle.
 fn ring(push: f64, low: f64) -> NurbsSurface<f64> {
     let m = 2;
     let h = TURN / 2.0;
@@ -69,8 +69,8 @@ fn ring(push: f64, low: f64) -> NurbsSurface<f64> {
         } else {
             (1.0, 1.0)
         };
-        let r = reach * if j == 3 { 1.0 + push } else { 1.0 };
-        for z in [low, low + 1.0] {
+        for (z, bend) in [(low, push), (low + 1.0, 0.0)] {
+            let r = reach * if j == 3 { 1.0 + bend } else { 1.0 };
             control.push(Point3::new(r * theta.cos(), r * theta.sin(), z));
             weights.push(w);
         }
@@ -157,6 +157,24 @@ fn derived<T: AtRestPolicy + geom_core::Bounds>(
 ) -> Result<Pcurve<T>, topo::PcurveMintError> {
     let (body, bottom) = sheet::<T>(ring, form);
     topo::pcurve_of(&body, bottom, band())
+}
+
+/// What the mint ends the wall's rows in on a ring bent by `push`, in
+/// `form`, the refusal asserted to be the bottom rim's.
+fn minted<T: AtRestPolicy + geom_core::Bounds>(
+    push: f64,
+    form: Form,
+) -> Result<(), PcurveCertifyError> {
+    let (mut body, bottom) = sheet::<T>((push, 0.0), form);
+    let wall = body.face_of_half_edge(bottom).unwrap();
+    match topo::mint_pcurves_of(&mut body, &[wall], tol()) {
+        Ok(_) => Ok(()),
+        Err(topo::PcurveMintError::Certify { half_edge, error }) => {
+            assert_eq!(half_edge, bottom, "{form:?}: only the bottom rim refuses: {error:?}");
+            Err(error)
+        }
+        Err(other) => panic!("{form:?}: the mint refuses the bottom rim's row: {other:?}"),
+    }
 }
 
 /// The row's certificate on a ring bent by `push`, the pick asserted to
@@ -252,6 +270,27 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
                 T::NAME
             );
         }
+        // Bent in band, the mint ends that image as its lane's gap.
+        let near = minted::<T>(in_band_push, form);
+        let not_yet = near.as_ref().is_err_and(|e| {
+            matches!(
+                e,
+                PcurveCertifyError::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Envelope,
+                    ..
+                } | PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::GeneralLane,
+                    ..
+                }
+            ) && e
+                .ending(geom_brep::recourse::Reading::Build)
+                .contains(geom_core::NOT_YET_ENDING)
+        });
+        assert!(
+            not_yet,
+            "{form:?}: the mint ends a rim in band of the wall \"not yet\", at {}: {near:?}",
+            T::NAME
+        );
     }
 }
 
@@ -259,11 +298,11 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
 const OFF_PUSH: f64 = 1e-3;
 
 #[test]
-fn a_rim_not_shown_refuses_alike_in_every_form_at_f64() {
+fn a_rim_no_row_holds_ends_alike_in_every_form_at_f64() {
     rim_image_on_the_ring::<f64>();
 }
 
 #[test]
-fn a_rim_not_shown_refuses_alike_in_every_form_at_interval() {
+fn a_rim_no_row_holds_ends_alike_in_every_form_at_interval() {
     rim_image_on_the_ring::<geom_core::Interval>();
 }

@@ -592,54 +592,94 @@ fn flat_wall() -> NurbsSurface<f64> {
 fn the_derived_route_certifies_a_line_and_a_bending_carrier<
     T: geom_core::Decide + geom_core::CertifiedBounds,
 >() {
-    let lane = FittedLane::<T>::certified();
-    let lift = |x: f64| T::from_f64(x);
-    let certified =
-        |name: &str, carrier: &Curve3<f64>, span: (f64, f64), wall: &NurbsSurface<f64>| {
-            let carrier = carrier.map_scalar(lift);
-            let wall = wall.map_scalar(lift);
-            let (t0, t1) = (lift(span.0), lift(span.1));
-            let image = lane
-                .general_image(&carrier, (t0, t1), &wall, band())
-                .unwrap_or_else(|e| panic!("{name}: the image derives at {}: {e:?}", T::NAME));
-            let got = PcurveCache::certify_general(
-                Arc::new(image),
-                t0,
-                t1,
-                &carrier,
-                &Surface::Nurbs(Arc::new(wall)),
-                band(),
-                Some(lane),
-            );
-            match got {
-                Ok(row) => assert!(
-                    matches!(row.pcurve(), Pcurve::General(_))
-                        && row.certificate().envelope.hi() <= band().zero(),
-                    "{name}: a General row within ε at {}: {:?}",
-                    T::NAME,
-                    row.certificate()
-                ),
-                // At `Interval` a degree-5 image is about 1e-12 m wide at a
-                // sample, which an ε of that size reads in band.
-                Err(PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::MapResidual,
-                    ..
-                }) if T::NAME == "interval" && band().zero() < 2e-12 => {}
-                Err(e) => panic!("{name}: the derived image certifies at {}: {e:?}", T::NAME),
-            }
-        };
     let r = core::f64::consts::FRAC_1_SQRT_2;
     let diagonal = Curve3::line(Point3::new(0.1, 0.2, 0.0), Vec3::new(r, r, 0.0));
-    certified("the diagonal", &diagonal, (0.0, 0.9), &flat_wall());
+    derived_route_certifies::<T>("the diagonal", &diagonal, (0.0, 0.9), &flat_wall());
     let quarter = fixture::quarter_cylinder_wall();
-    certified("the circle", &circle(0.5), (0.1, 1.4), &quarter);
-    certified("the ellipse", &ellipse(), (0.1, 1.4), &quarter);
-    certified(
+    derived_route_certifies::<T>("the circle", &circle(0.5), (0.1, 1.4), &quarter);
+    derived_route_certifies::<T>("the ellipse", &ellipse(), (0.1, 1.4), &quarter);
+    derived_route_certifies::<T>(
         "the circle across a knot line",
         &circle(0.0),
         (0.0, 1.2),
         &ring_wall(),
     );
+}
+
+/// `general_image` over `span` and then `certify_general`, which
+/// certifies within ε. At `Interval` a degree-5 image is about 1e-12 m
+/// wide at a sample, which an ε of that size reads in band.
+fn derived_route_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>(
+    name: &str,
+    carrier: &Curve3<f64>,
+    span: (f64, f64),
+    wall: &NurbsSurface<f64>,
+) {
+    let lane = FittedLane::<T>::certified();
+    let lift = |x: f64| T::from_f64(x);
+    let carrier = carrier.map_scalar(lift);
+    let wall = wall.map_scalar(lift);
+    let (t0, t1) = (lift(span.0), lift(span.1));
+    let image = lane
+        .general_image(&carrier, (t0, t1), &wall, band())
+        .unwrap_or_else(|e| panic!("{name}: the image derives at {}: {e:?}", T::NAME));
+    let got = PcurveCache::certify_general(
+        Arc::new(image),
+        t0,
+        t1,
+        &carrier,
+        &Surface::Nurbs(Arc::new(wall)),
+        band(),
+        Some(lane),
+    );
+    match got {
+        Ok(row) => assert!(
+            matches!(row.pcurve(), Pcurve::General(_))
+                && row.certificate().envelope.hi() <= band().zero(),
+            "{name}: a General row within ε at {}: {:?}",
+            T::NAME,
+            row.certificate()
+        ),
+        Err(PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::MapResidual,
+            ..
+        }) if T::NAME == "interval" && band().zero() < 2e-12 => {}
+        Err(e) => panic!("{name}: the derived image certifies at {}: {e:?}", T::NAME),
+    }
+}
+
+/// **A knot crossing anywhere along the rim**: the ring's circle over
+/// spans whose crossing of the `u = ½` knot line falls at a foot of the
+/// first rung's schedule, between two feet, a millionth to a thousandth
+/// of a step past one, and within a few feet of either end of the span.
+/// The crossing is a node of every rung wherever it falls, and the image
+/// certifies.
+fn a_knot_crossing_anywhere_certifies<T: geom_core::Decide + geom_core::CertifiedBounds>() {
+    let ring = ring_wall();
+    let mut spans = vec![
+        ("at a foot", (0.0, 1.2)),
+        ("between feet", (0.013, 1.2)),
+        ("between feet, short", (0.0, 1.19)),
+        ("between feet, both ends in", (0.05, 1.17)),
+        ("near the start", (0.57, 1.2)),
+        ("near the end", (0.0, 0.63)),
+    ];
+    for d in [3e-6, 3e-5, 3e-4, 3e-3] {
+        spans.push(("past a foot", (0.0, 0.6 / (0.5 + d / 32.0))));
+    }
+    for (name, span) in spans {
+        derived_route_certifies::<T>(&format!("{name} {span:?}"), &circle(0.0), span, &ring);
+    }
+}
+
+#[test]
+fn a_knot_crossing_anywhere_certifies_at_f64() {
+    a_knot_crossing_anywhere_certifies::<f64>();
+}
+
+#[test]
+fn a_knot_crossing_anywhere_certifies_at_interval() {
+    a_knot_crossing_anywhere_certifies::<geom_core::Interval>();
 }
 
 #[test]

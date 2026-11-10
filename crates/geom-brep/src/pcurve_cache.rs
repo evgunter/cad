@@ -3083,7 +3083,8 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         magnitude: None,
         ending,
     };
-    let image = if bends(carrier) {
+    let bending = bends(carrier);
+    let image = if bending {
         crate::edge_nurbs::curved_chart_image(schedule, wall, band)
     } else {
         crate::edge_nurbs::chart_image(schedule, wall, |_, _| Ok(()))
@@ -3109,7 +3110,17 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
             }),
             ending: FittedEnding::FootUnsettled,
         },
-        P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
+        // A bending carrier's image is its lane's own structure, so a fit
+        // that will not solve is the lane's gap; a line's or a spline's
+        // degree-1 fit through distinct feet always solves.
+        P::PcurveFit => certificate(
+            crate::edge_nurbs::PCURVE_FIT_REFUSAL,
+            if bending {
+                FittedEnding::NotYet
+            } else {
+                FittedEnding::Defect
+            },
+        ),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
         // The wall this door was handed, as the foot producer refuses it
         // (`chart_foot_lane`): one lever at both doors.

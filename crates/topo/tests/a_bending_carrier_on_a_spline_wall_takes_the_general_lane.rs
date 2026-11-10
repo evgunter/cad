@@ -355,3 +355,94 @@ fn a_stored_row_off_its_wall_keeps_its_term_at_f64() {
 fn a_stored_row_off_its_wall_keeps_its_term_at_interval() {
     a_stored_row_off_its_wall_keeps_its_term::<geom_core::Interval>();
 }
+
+/// A construction's STATED `General` row of a bending rim, wrong by
+/// `1e-4` m in `v` at one control point whose basis vanishes at every
+/// sample of check 3: the mint reads it off the description and derives
+/// nothing, so the hull's refusal is the row's own term, never the lane's
+/// gap.
+fn a_stated_wrong_general_row_keeps_its_term<T: AtRestPolicy + geom_core::Bounds>() {
+    for rim in [Rim::Circle, Rim::Ellipse] {
+        let (_, _, got) = minted::<T>(rim, 0.0);
+        let row = match got {
+            Ok(row) => row,
+            Err(error) => {
+                assert!(
+                    under_the_sample_width::<T>() && is_the_lanes_gap(&error),
+                    "{rim:?}: the mint stores a row, at {}: {error:?}",
+                    T::NAME
+                );
+                println!(
+                    "SKIPPED: {rim:?} at {} under its sample width mints no row to state",
+                    T::NAME
+                );
+                continue;
+            }
+        };
+        let Pcurve::General(image) = row.pcurve() else {
+            panic!("{rim:?}: a General row")
+        };
+        let (a, b) = image.domain();
+        let samples: Vec<T> = (0..9)
+            .map(|i| T::from_f64(a + (b - a) * f64::from(i) / 8.0))
+            .collect();
+        let bumped = |at: usize| {
+            let mut control = image.control().to_vec();
+            control[at].y = control[at].y + T::from_f64(1e-4);
+            geom::NurbsCurve2::new(
+                image.knot_values().clone(),
+                control,
+                image.weights().to_vec(),
+            )
+            .unwrap()
+        };
+        let n = image.control().len();
+        let at = (n / 3..n)
+            .find(|&at| {
+                let wrong = bumped(at);
+                samples.iter().all(|&t| {
+                    let (p, q) = (wrong.eval(t), image.eval(t));
+                    (p.y - q.y).hi().abs().max((p.y - q.y).lo().abs()) < 1e-11
+                })
+            })
+            .expect("a control point whose basis vanishes at every sample");
+        let (mut body, wall, bottom) = sheet::<T>(rim, 0.0);
+        let (edge, curve) = bottom_curve(&body, bottom);
+        let key = body.get_face(wall).unwrap().surface;
+        let (t0, t1) = curve.params();
+        let spec = EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart_image(
+                key,
+                Pcurve::General(Arc::new(bumped(at))),
+            ),
+            carrier: curve.carrier().clone(),
+            param_start: t0,
+            param_end: t1,
+        };
+        body.set_edge_curve(edge, spec, tol())
+            .expect("the rim restates as its chart image");
+        let got = topo::mint_pcurves_of(&mut body, &[wall], tol());
+        let Err(topo::PcurveMintError::Certify { half_edge, error }) = got else {
+            panic!(
+                "{rim:?}: the wrong stated row refuses, at {}: {got:?}",
+                T::NAME
+            )
+        };
+        assert_eq!(half_edge, bottom, "{rim:?}: the bottom rim's row refuses");
+        assert!(
+            !is_the_lanes_gap(&error),
+            "{rim:?}: a stated row keeps its own term, at {}: {error:?}",
+            T::NAME
+        );
+    }
+}
+
+#[test]
+fn a_stated_wrong_general_row_keeps_its_term_at_f64() {
+    a_stated_wrong_general_row_keeps_its_term::<f64>();
+}
+
+#[test]
+fn a_stated_wrong_general_row_keeps_its_term_at_interval() {
+    a_stated_wrong_general_row_keeps_its_term::<geom_core::Interval>();
+}
