@@ -483,8 +483,10 @@ fn one_cylinder(
                 deferred::discharge_or_why(d.margin)
             })
     };
-    // The axes' cross product is a sine of two unit directions, read
-    // against a band in metres at an unsourced metre of arm.
+    // Unsourced lever: one metre, what the raw read it replaced took the
+    // axes' cross product (a sine of two unit directions) against; the
+    // arm the band means is the-replays-cylinder-axis-is-levered-at-an-
+    // unsourced-metre (audit F40).
     let metre = geom_core::Lever::unsourced(<Lane as geom_core::Real>::one());
     let established = || {
         if !stated {
