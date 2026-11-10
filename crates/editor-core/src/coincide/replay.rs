@@ -434,6 +434,9 @@ fn carrier_verdict(
     }
 }
 
+/// The name [`one_cylinder`]'s components are each decided Zero under.
+const ONE_CYLINDER: &str = "replay_one_cylinder";
+
 /// **Two faces on cylinders, read as one axis, one radius and one
 /// sense**: the axis as stated where `stated`, else the two axes one
 /// line in the symbols; the radii's difference zero in the symbols (one
@@ -450,7 +453,6 @@ fn one_cylinder(
     band: Band,
     stated: bool,
 ) -> Option<Result<(), (Component, deferred::Undischarged)>> {
-    use geom_core::Decide;
     use topo::boolean::CarrierDesc::Cylinder;
     let (
         Some(Cylinder {
@@ -473,7 +475,7 @@ fn one_cylinder(
         return None;
     };
     let zero = |x: Lane| {
-        x.sign_within(band)
+        geom_core::k_stats::decide_reported(ONE_CYLINDER, geom_core::Margin::of(x), band)
             .map_or(Err(deferred::Undischarged::Otherwise), |d| {
                 deferred::discharge_or_why(d.margin)
             })

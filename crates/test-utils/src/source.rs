@@ -1544,6 +1544,16 @@ pub struct PredicateCensus {
     /// [`NameCarrier::Call`], no call or literal. A stale carrier reads
     /// as `Const(NAME)` or `Call(token)`.
     pub unfound: std::collections::BTreeSet<String>,
+    /// `(name, <file>:<line>)` per predicate name a site REFERS to
+    /// rather than decides: a plain literal in `predicate: Some("…")`,
+    /// `predicate == Some("…")` or `predicate, Some("…")` — a fixture
+    /// building a refusal, a test asserting the name one carried. A
+    /// roster holds each to a name some census decides
+    /// ([`unresolved_references`]), so a renamed predicate reds every
+    /// fixture still spelling the old one. A deliberate reference to a
+    /// name nothing decides says so on the line above it
+    /// (`// UNDECIDED-NAME: <why>`) and is not collected.
+    pub references: std::collections::BTreeSet<(String, String)>,
     /// `<file>: <text>` per `decide*` occurrence this reader cannot
     /// even find an argument list for — a spelling it does not know.
     pub unreadable: std::collections::BTreeSet<String>,
@@ -1629,6 +1639,18 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 SiteKind::Unreadable => {
                     out.unreadable.insert(format!("{rel}: {payload}"));
                 }
+            }
+        }
+        for (name, at) in referenced_names(&bare, &code) {
+            // `at` is inside its line, so `line` is that line's 1-based
+            // number and the line above is the one indexed two below it.
+            let line_no = line(text, at);
+            let above = line_no
+                .checked_sub(2)
+                .and_then(|l| text.lines().nth(l))
+                .unwrap_or("");
+            if !undecided_marker(above) {
+                out.references.insert((name, format!("{rel}:{line_no}")));
             }
         }
         for (ordinal, (head, literals)) in identity_sites(&bare, &code).into_iter().enumerate() {
@@ -1971,6 +1993,63 @@ fn literals_within(code: &str) -> Vec<String> {
     out
 }
 
+/// Every plain literal a `predicate` field or comparison names
+/// (`predicate: Some("…")`, `predicate == Some("…")`, `predicate,
+/// Some("…")`), with its offset, in a blanked view and the view keeping
+/// literals.
+fn referenced_names(bare: &str, code: &str) -> Vec<(String, usize)> {
+    const TOKEN: &str = "predicate";
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find(TOKEN) {
+        let start = at + hit;
+        at = start + TOKEN.len();
+        if !boundary_before(bare, start) || !boundary_after(bare, at) {
+            continue;
+        }
+        let rest = bare[at..].trim_start();
+        let Some(rest) = [":", "==", ","]
+            .iter()
+            .find_map(|sep| rest.strip_prefix(sep))
+            .map(str::trim_start)
+        else {
+            continue;
+        };
+        let Some(rest) = rest.strip_prefix("Some(") else {
+            continue;
+        };
+        let after = bare.len() - rest.len();
+        let held = code[after..].trim_start();
+        let lit = code.len() - held.len();
+        if let Some(name) = first_literal(held) {
+            out.push((name, lit));
+        }
+    }
+    out
+}
+
+/// Whether `line` is a `// UNDECIDED-NAME: <why>` marker.
+fn undecided_marker(line: &str) -> bool {
+    line.trim_start()
+        .strip_prefix("// UNDECIDED-NAME:")
+        .is_some_and(|why| !why.trim().is_empty())
+}
+
+/// The references in `census` that name no name in `decided`, as
+/// `<file>:<line>: <name>`.
+#[must_use]
+pub fn unresolved_references(
+    census: &PredicateCensus,
+    decided: &std::collections::BTreeSet<String>,
+) -> Vec<String> {
+    census
+        .references
+        .iter()
+        .filter(|(name, _)| !decided.contains(name))
+        .map(|(name, site)| format!("{site}: {name}"))
+        .collect()
+}
+
 /// The identifier of every `const NAME` declaration in a blanked view.
 fn const_names(bare: &str) -> Vec<String> {
     let mut out = Vec::new();
@@ -2022,13 +2101,14 @@ fn arguments(inner: &str) -> Vec<String> {
         .collect()
 }
 
-/// The names of a tuple of plain string literals at the head of `code`
-/// — a funnel deciding under a row and its straddle row
-/// (`decide_levered(("row", "row_straddle"), …)`) — or `None` where the
-/// head is not such a tuple. `bare` is the same text blanked, so its
-/// brackets are real.
+/// The names of a tuple or array of plain string literals at the head
+/// of `code` — a funnel deciding under a row and its straddle row
+/// (`decide_levered(("row", "row_straddle"), …)`,
+/// `decide_across_reported(["row", "row_floor"], …)`) — or `None` where
+/// the head is not one. `bare` is the same text blanked, so its brackets
+/// are real.
 fn literal_tuple(bare: &str, code: &str) -> Option<Vec<String>> {
-    if !bare.starts_with('(') {
+    if !bare.starts_with('(') && !bare.starts_with('[') {
         return None;
     }
     let close = balanced_end(bare, 0)?;
@@ -2114,7 +2194,17 @@ fn direct_literals(inner: &str) -> Vec<String> {
 /// cannot read.
 fn const_literal(bare: &str, code: &str) -> Option<Vec<String>> {
     const STR: [&str; 2] = ["&str", "&'staticstr"];
-    let end = code.find(';')?;
+    // The declaration's own `;`, at depth zero: `[&str; 2]` holds one.
+    let mut depth = 0usize;
+    let end = bare.char_indices().find_map(|(at, c)| {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            ';' if depth == 0 => return Some(at),
+            _ => {}
+        }
+        None
+    })?;
     let Some(eq) = code[..end].find('=') else {
         return Some(Vec::new());
     };
@@ -2132,9 +2222,19 @@ fn const_literal(bare: &str, code: &str) -> Option<Vec<String>> {
         .strip_prefix('(')
         .and_then(|t| t.strip_suffix(')'))
         .map(|t| t.split(',').filter(|p| !p.is_empty()).collect());
-    match parts {
-        Some(parts) if !parts.is_empty() && parts.iter().all(|p| STR.contains(p)) => {
+    // An array of them: `[&str; 2]`.
+    let array: Option<usize> = ty
+        .strip_prefix('[')
+        .and_then(|t| t.strip_suffix(']'))
+        .and_then(|t| t.split_once(';'))
+        .filter(|(elem, _)| STR.contains(elem))
+        .and_then(|(_, n)| n.parse().ok());
+    match (parts, array) {
+        (Some(parts), _) if !parts.is_empty() && parts.iter().all(|p| STR.contains(p)) => {
             literal_tuple(&bare[at..end], &code[at..end]).filter(|names| names.len() == parts.len())
+        }
+        (_, Some(n)) => {
+            literal_tuple(&bare[at..end], &code[at..end]).filter(|names| names.len() == n)
         }
         _ => Some(Vec::new()),
     }
@@ -2482,7 +2582,7 @@ mod tests {
     }
 
     /// **A `Const` carrier reads every `&str` declaration of its name,
-    /// or tuple of them, and only those**: a longer identifier is not
+    /// or tuple or array of them, and only those**: a longer identifier is not
     /// it, a same-named const of another type or a trait's valueless
     /// declaration is not a name, and a `&str` whose value is not a
     /// plain literal is unreadable.
@@ -2495,7 +2595,8 @@ mod tests {
                    trait R { const APEX: &'static str; }\n\
                    const APEX: &str = concat!(\"a\", \"b\");\n\
                    const APEX: (&str, &'static str) = (\"row\", \"row_straddle\");\n\
-                   const APEX: (&str, &str) = (\"row\", other);\n";
+                   const APEX: (&str, &str) = (\"row\", other);\n\
+                   const APEX: [&str; 2] = [\"gap\", \"gap_floor\"];\n";
         let (bare, code) = (code_only(raw), code_and_literals(raw));
         let read: Vec<Option<Vec<String>>> = super::const_decls(&bare, "APEX")
             .into_iter()
@@ -2512,6 +2613,7 @@ mod tests {
                 None,
                 names(&["row", "row_straddle"]),
                 None,
+                names(&["gap", "gap_floor"]),
             ],
             "{raw}"
         );
@@ -2523,6 +2625,7 @@ mod tests {
     #[test]
     fn a_funnels_literal_tuple_is_read_as_its_names() {
         let raw = "decide_levered((\"row\", \"row_straddle\"), x, band); \
+                   decide_across([\"gap\", \"gap_floor\"], x, band); \
                    decide_levered((\"lone\", s), x, band);";
         let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
         let named: Vec<&str> = sites
@@ -2530,7 +2633,7 @@ mod tests {
             .filter(|(kind, _)| matches!(kind, super::SiteKind::Name))
             .map(|(_, name)| name.as_str())
             .collect();
-        assert_eq!(named, ["row", "row_straddle"], "{raw}");
+        assert_eq!(named, ["row", "row_straddle", "gap", "gap_floor"], "{raw}");
         assert!(
             sites
                 .iter()
@@ -2652,6 +2755,38 @@ mod tests {
         assert_eq!(
             census.indirect.iter().collect::<Vec<_>>(),
             ["table.rs: name"]
+        );
+    }
+
+    /// **A literal a `predicate` field or comparison names is a
+    /// reference**, read beside the decided names; one under an
+    /// `UNDECIDED-NAME` marker with its why is not, and a name only
+    /// mentioned in prose or in an unrelated `Some("…")` is not.
+    #[test]
+    fn a_predicate_literal_is_a_reference_unless_marked() {
+        let dir = std::env::temp_dir().join(format!("tu-refs-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn f() {\n\
+                 let e = Indeterminate { predicate: Some(\"made\"), ..x };\n\
+                 assert_eq!(d.predicate, Some(\"asserted\"));\n\
+                 assert!(d.predicate == Some(\"compared\"));\n\
+                 // UNDECIDED-NAME: a name no door decides, by design\n\
+                 assert_eq!(d.predicate, Some(\"negative\"));\n\
+                 let other = Some(\"not_a_name\");\n\
+                 // predicate: Some(\"prose\")\n\
+             }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        let names: Vec<&str> = census.references.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["asserted", "compared", "made"], "{census:?}");
+        let decided: std::collections::BTreeSet<String> = ["made".to_string()].into();
+        assert_eq!(
+            super::unresolved_references(&census, &decided),
+            ["a.rs:3: asserted", "a.rs:4: compared"]
         );
     }
 
