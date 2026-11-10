@@ -1151,16 +1151,22 @@ fn holding<T: Decide>(
     let pieces = ends
         .windows(2)
         .map(|piece| carrier.eval(geom::mid_param(piece[0], piece[1])));
-    match climb(Answering::Any, pieces, |mid| {
-        piece_rung(
-            piece_reading(body, f, mid, band, DoorInBand::Containment),
-            unread,
-        )
-    }) {
+    let readings = pieces.map(|mid| piece_reading(body, f, mid, band, DoorInBand::Containment));
+    match pieces_hold(readings, unread) {
         Climb::Answered { answer, .. } => answer.map(|()| Some(divided)),
         Climb::Passed => Ok(None),
         Climb::Undecided(read) => unplaced(read),
     }
+}
+
+/// [`holding`]'s ladder over its pieces' readings, read lazily in piece
+/// order: the first piece `f` holds answers, past a piece kept ahead of it
+/// ([`Answering::Any`]: any piece in the face says the edge lies in it).
+fn pieces_hold(
+    readings: impl IntoIterator<Item = Result<PieceRead, BooleanError>>,
+    unread: impl Fn(Option<ContainError>) -> BooleanError,
+) -> Climb<Result<(), BooleanError>, BooleanError> {
+    climb(Answering::Any, readings, |r| piece_rung(r, &unread))
 }
 
 /// One piece's reading as a rung of [`holding`]'s ladder: `In` answers,
@@ -4136,14 +4142,15 @@ mod reverted_floor {
     }
 }
 
-/// [`holding`]'s ranking: where no piece lies in the face, a piece the
-/// door could not place refuses ahead of one read in band before it.
+/// [`holding`]'s ladder ([`super::pieces_hold`]): where no piece lies in
+/// the face, a piece the door could not place refuses ahead of one read in
+/// band before it; a piece in the face answers past one in band.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod piece_rung_rows {
-    use geom_brep::ladder::{Answering, Climb, climb};
+    use geom_core::ladder::Climb;
 
-    use super::{BooleanError, EdgeInFaceGap, PieceRead, piece_rung};
+    use super::{BooleanError, EdgeInFaceGap, PieceRead, pieces_hold};
     use crate::entity::{EdgeKey, FaceKey};
 
     #[test]
@@ -4163,14 +4170,13 @@ mod piece_rung_rows {
                 terminal_sliver: false,
             },
         };
-        let got = climb(
-            Answering::Any,
+        let got = pieces_hold(
             [
                 Err(in_band()),
                 Ok(PieceRead::NotIn),
                 Ok(PieceRead::Unread(None)),
             ],
-            |r| piece_rung(r, unread),
+            unread,
         );
         let Climb::Undecided(refusal) = got else {
             panic!("no piece in the face: {got:?}")
@@ -4185,9 +4191,7 @@ mod piece_rung_rows {
             ),
             "the unread piece: {refusal:?}"
         );
-        let got = climb(Answering::Any, [Err(in_band()), Ok(PieceRead::In)], |r| {
-            piece_rung(r, unread)
-        });
+        let got = pieces_hold([Err(in_band()), Ok(PieceRead::In)], unread);
         assert!(matches!(got, Climb::Answered { at: 1, .. }), "{got:?}");
     }
 }

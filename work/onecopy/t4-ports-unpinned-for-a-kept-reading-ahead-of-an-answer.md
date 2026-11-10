@@ -1,7 +1,7 @@
 ---
 id: t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 kind: issue
-title: 33 of 55 production ladders that answer past a kept rung have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
+title: 26 of 53 production ladders that answer past a kept rung have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
 status: open
 opened: 2026-11-10
 priority: P3
@@ -64,14 +64,11 @@ The 19 beyond the seven above (18 at filing, and `loop_circle` since), each with
 - `topo` `boolean::fate::rehome`: a ring whose first vertex reads in band of the run's loop, a later one decided.
 - `topo` `boolean::rim_wedge::rim_exists` and `departures` (the abut climb): rim ends, one pair in band ahead of one that abuts.
 - `topo` `boolean::sectors::crescent`: a sector pair whose first bound pair is in band, a later one opening a crescent.
-- `topo` `boolean::slit::holding`: an edge in a slit face whose first placement reads in band, a later one decided. `an_unread_piece_refuses_ahead_of_an_earlier_in_band_one` climbs the production rung (`piece_rung`) by hand, so it is one call away.
-- `topo` `census::{planar,arc}_interiors_meet`, `shared_run`, `shared_interior_witness`: two interiors whose first piece reads in band and a later one meets. `interiors_ranking`'s rows climb by hand.
-- `topo` `chord_join::ring_side`, `holds_outer`: a ring whose first vertex reads in band of the run. `an_unreadable_side_refuses_ahead_of_an_earlier_in_band_one` climbs the production rung (`vertex_side`) by hand.
+- `topo` `census::arc_interiors_meet`: two interiors whose first piece reads in band and a later one meets (its own `climb_evidence` over ordered steps). `a_lens_across_the_band_is_never_read_apart` reaches it but is not decided there (a site-restricted mutant leaves it green).
 - `topo` `link::place`: a link whose first piece reads in band ahead of a placing one. `a_degenerate_note_outranks_a_piece_in_band` reads `unread_or_rest`, not `place`.
-- `topo` `offset_nappe::face_nappe_reading`: a face whose first nappe reading is in band.
+- `topo` `offset_nappe::face_nappe_reading`: **no input reaches past a kept rung**, since `station_min ≤ station_max`: once the max is decided below the apex, the min is too. It stays registered until the register can name a reason in place of a pin.
 - `topo` `replace_face::carried_alike`: one side's transport escalating ahead of a side with no image.
 - `topo` `side_reader::cast_aims`: an aimed ray's `Pair` in band ahead of a ray that decides (the door row's cheapest-named case; no fixture builds the pair today).
-- `topo` `splitting::finish::shell_side`: a shell whose first witness reads in band.
 
 **The agreeing ladders** (fixtures sketched from each rung's reader, not yet built; `climb_agreeing`, registered since `climb_differing` joined the gate: an entry point that takes no `Answering` supersedes its kept rungs on every answer). A mutant run with only `climb_agreeing` and `climb_differing` mutated found a pin for `chord_join::IslandReading::read_paths` (`cone_ring_rows`' winding row) and none for these seven. Each needs one rung kept in band beside decided rungs that agree, with the agreement as the answer:
 - `geom-brep` `props::curved::unanimous_rim_side`: a band whose rims all decide one side but one, read in band.
@@ -81,6 +78,15 @@ The 19 beyond the seven above (18 at filing, and `loop_circle` since), each with
 - `topo` `loop_side::inside_at_every_vertex`: a loop whose vertices all place inside but one, read in band.
 - `topo` `offset_nappe::group_nappe`: a group of faces whose nappes agree but one, read in band.
 - `topo` `stands::ladder_agreeing`: a witness cell read in band beside agreeing cells.
+
+## Pinned in batch 1 (`onecopy/refusal-standing`, after PR 6774)
+
+Seven sites, each checked under `scripts/any-first-mutant.sh` (green plain, red mutated). The two found by a probe were also checked under a mutant restricted to their own call site (not committed): `#[track_caller]` on the entry points and an `AFM_ONLY=<file>:<line>:` filter, so the mutant fires only where the climb's caller is that line.
+- `chord_join::ring_side`: `sibling_escalation_rows::a_planar_ring_vertex_escalating_hands_re_homing_to_the_next`, red under its own site's mutant.
+- `splitting::finish::shell_side`: `whole_body_side_rows::an_in_band_edge_refuses_typed_only_where_no_edge_decides`, red under its own site's mutant.
+- `slit::holding`'s ladder is `pieces_hold` (its pieces' readings, lazily), pinned by `piece_rung_rows::an_unread_piece_refuses_ahead_of_an_earlier_in_band_one`, which now calls it.
+- `census::{shared_run, planar_interiors_meet, shared_interior_witness}` search through one ladder, `search_meeting`, pinned by `interiors_ranking::an_unbuilt_reading_outranks_an_undecided_one_in_either_order`, which now calls it.
+- `chord_join` `RimSide::holds_outer`'s ladder is `lone_ring_outer_side`, pinned by `side_ladder_rows::a_point_in_band_of_a_lone_rings_plane_hands_the_side_to_the_next`.
 
 ## Done when
 

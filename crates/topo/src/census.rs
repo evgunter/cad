@@ -11764,7 +11764,7 @@ fn shared_run<T: Decide>(
 ) -> Result<bool, InteriorsUnread> {
     let mut read = Vec::new();
     let pairs = ea.iter().flat_map(|&a| eb.iter().map(move |&b| (a, b)));
-    meeting_found(climb(Answering::Any, pairs, |(a, b)| {
+    search_meeting(pairs, |(a, b)| {
         let before = read.len();
         meeting_rung(
             match curved::interiors_meeting(body, a, b, band, &mut read) {
@@ -11773,7 +11773,7 @@ fn shared_run<T: Decide>(
                 None => Err(escalated_since(&read, before)),
             },
         )
-    }))
+    })
 }
 
 /// Why [`planar_interiors_meet`] read no verdict.
@@ -11833,6 +11833,18 @@ fn meeting_rung(
     Rung::holds(reading, true, |why| why.refusal())
 }
 
+/// **The search for a meeting**, the one ladder [`shared_run`],
+/// [`planar_interiors_meet`] and [`shared_interior_witness`] read their
+/// probes through: any probe that meets answers, past a probe kept ahead
+/// of it ([`climb`], [`Answering::Any`]: one meeting is a meeting), and
+/// what it read is [`meeting_found`]'s.
+fn search_meeting<I>(
+    probes: impl IntoIterator<Item = I>,
+    read: impl FnMut(I) -> Rung<Result<bool, InteriorsUnread>, InteriorsUnread>,
+) -> Result<bool, InteriorsUnread> {
+    meeting_found(climb(Answering::Any, probes, read))
+}
+
 /// What a search for a meeting read: its answer (a meeting, or a
 /// refusal it stopped on), `Ok(false)` where every reading passed, and
 /// the ranked kept refusal ([`Evidence`]) otherwise.
@@ -11883,7 +11895,7 @@ fn planar_interiors_meet<T: Decide>(
         geo.sides_of(fb.key)
             .map(move |eb| PlanarProbe::Sides(ea, eb))
     });
-    meeting_found(climb(Answering::Any, corners.chain(sides), |probe| {
+    search_meeting(corners.chain(sides), |probe| {
         meeting_rung(match probe {
             PlanarProbe::Corner(x, y, v) => {
                 let Some(&p) = geo.vmap.get(&v) else {
@@ -11905,7 +11917,7 @@ fn planar_interiors_meet<T: Decide>(
                 None => Err(InteriorsUnread::Undecided),
             },
         })
-    }))
+    })
 }
 
 /// **Whether two faces on one carrier, facing the same way, share
@@ -12002,7 +12014,7 @@ fn shared_interior_witness<T: Decide>(
             .flat_map(|&ea| edges_b.iter().map(move |&eb| WitnessProbe::Pair(ea, eb))),
     );
     // No witness found, and none kept, is no certificate either way.
-    let climbed = climb(Answering::Any, probes, |probe| {
+    let found = search_meeting(probes, |probe| {
         meeting_rung(match probe {
             WitnessProbe::At(x, at, y, q) => meets_at(body, geo, (x, at), y, q, band, &mut read),
             WitnessProbe::Pair(ea, eb) => {
@@ -12024,7 +12036,7 @@ fn shared_interior_witness<T: Decide>(
             }
         })
     });
-    match meeting_found(climbed) {
+    match found {
         Ok(true) => Ok(SharedInterior),
         Ok(false) => Err(InteriorsUnread::Unbuilt),
         Err(why) => Err(why),
@@ -22363,12 +22375,13 @@ mod link_faces_ranking {
 /// of one in band** ([`InteriorsUnread::refusal`], the ladder's
 /// [`Evidence`]): while a pair is unbuilt no tolerance certifies the
 /// interiors apart, so its refusal (`FLUSH_UNREAD`) is the one whose
-/// recourse frees the question. Fed the rungs directly, since no body a
-/// constructor builds keeps both kinds in one search; a fold that kept
-/// an undecided reading over a later unbuilt one reports `Undecided`.
+/// recourse frees the question. The rungs are fed to the search's ladder
+/// ([`search_meeting`]) directly, since no body a constructor builds keeps
+/// both kinds in one search; a fold that kept an undecided reading over a
+/// later unbuilt one reports `Undecided`. A meeting answers past both.
 #[cfg(test)]
 mod interiors_ranking {
-    use super::{Answering, InteriorsUnread, climb, meeting_found, meeting_rung};
+    use super::{InteriorsUnread, meeting_rung, search_meeting};
 
     #[test]
     fn an_unbuilt_reading_outranks_an_undecided_one_in_either_order() {
@@ -22378,22 +22391,21 @@ mod interiors_ranking {
             [Err(Unbuilt), Err(Undecided)],
         ] {
             assert_eq!(
-                meeting_found(climb(Answering::Any, order, meeting_rung)),
+                search_meeting(order, meeting_rung),
                 Err(Unbuilt),
                 "{order:?}: the limit is the refusal"
             );
         }
         assert_eq!(
-            meeting_found(climb(
-                Answering::Any,
+            search_meeting(
                 [Err(Undecided), Err(Unbuilt), Ok(false), Ok(true)],
                 meeting_rung
-            )),
+            ),
             Ok(true),
             "a later meeting answers past both"
         );
         assert_eq!(
-            meeting_found(climb(Answering::Any, [Ok(false), Ok(false)], meeting_rung)),
+            search_meeting([Ok(false), Ok(false)], meeting_rung),
             Ok(false),
             "every reading apart certifies apart"
         );
