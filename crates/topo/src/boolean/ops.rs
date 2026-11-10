@@ -6947,7 +6947,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             diag,
         };
         let r = cut.radius;
-        let sign = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
+        let sign_as = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
         let face = body.proven_face(cut.face);
         let sphere = face.record().surface;
         let &geom::Surface::Sphere { axis, .. } = face.surface() else {
@@ -6959,9 +6959,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // through a point of it where the circle is a rim of the chart.
         let toward = |d: Vec3<T>| axis.cross(d);
         let mut k = toward(cut.foot - cut.center);
-        if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+        if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
             k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
-            if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+            if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
                 return Err(refuse_at(
                     cut.face,
                     "the section circle has no meridian of the face's chart",
@@ -6988,7 +6988,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let latitude = |p: Point3<T>| (h.dot(p - cut.center), axis.dot(p - cut.center));
         // The circle's two crossings, both on the half-plane `h`.
         let across = cut.normal.cross(k);
-        if sign(
+        if sign_as(
             "bool_sphere_cut_section_meridian",
             Margin::of(across.norm()),
         )? == Sign::Zero
@@ -7001,7 +7001,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let e = across.normalize();
         let crossings = [cut.foot - e * cut.rho, cut.foot + e * cut.rho];
         for p in crossings {
-            if sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive {
+            if sign_as("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive
+            {
                 return Err(refuse_at(
                     cut.face,
                     "the section circle holds a pole of the face's chart",
@@ -7082,7 +7083,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // arc between them (both lie on the closed half-meridian, so the
         // angle between them is short of π).
         let above = |x: (T, T), y: (T, T)| {
-            sign(
+            sign_as(
                 "bool_sphere_cut_order",
                 Margin::of((x.1 * y.0 - x.0 * y.1) / r),
             )
@@ -7153,7 +7154,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                          face's: the piece's {edge:?}, the face's {curve:?}"
                     ),
                 };
-                let rising = sign(
+                let rising = sign_as(
                     "bool_sphere_cut_span",
                     Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
                 )? == Sign::Positive;
@@ -7166,7 +7167,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                             return Err(uncertified());
                         }
                     };
-                    let at_pole = sign(
+                    let at_pole = sign_as(
                         "bool_sphere_cut_pole",
                         Margin::of(axis.cross(p - cut.center).norm()),
                     )? == Sign::Zero;
@@ -7183,7 +7184,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         let end = proven(&body.half_edges, hd.next, EntityId::HalfEdge).start;
                         let at = |v| {
                             let q = body.resolve_vertex_point(v, crate::live::Proven);
-                            sign("bool_sphere_cut_vertex", Margin::of((q - p).norm()))
+                            sign_as("bool_sphere_cut_vertex", Margin::of((q - p).norm()))
                         };
                         match (at(start)?, at(end)?) {
                             (Sign::Zero, _) => Some(start),
@@ -7263,7 +7264,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let below_first = match (below_split, over_split) {
             (Some((e1, lo, rising, arm)), Some((e2, hi, _, _))) if e1 == e2 => {
                 let along = if rising { lo - hi } else { hi - lo };
-                sign(
+                sign_as(
                     "bool_sphere_cut_span",
                     Margin::metered(along, geom_core::InfSpeed::new(arm)),
                 )? == Sign::Positive
