@@ -247,7 +247,6 @@ impl Channel {
                 clears(w.dot(lift3(frame.u_ref))) || clears(w.dot(lift3(frame.v_ref())))
             }
             Self::Core(circle) => {
-                use geom_core::Real as _;
                 let (frame, big_r) = (circle.frame, circle.radius);
                 let w = w(frame.origin);
                 let a = lift3(frame.axis);
