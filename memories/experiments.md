@@ -30,14 +30,18 @@ Both leave `docs/` when the experiment concludes.
   What the Opus and Fable designers (and, on a drawn third of forks,
   a second Opus) recommended, and what Ev then decided; every
   design fork put to Ev is a row.
+- **Implementer model comparison** — `docs/IMPL-MODEL-PROTOCOL.md`
+  (**read it before dispatching an implementer**) and
+  `docs/IMPL-MODEL-LOG.md`. Opus vs Fable implementers on quality,
+  time and token cost; every unit sent to a single or dual review
+  draws its implementer's model, and is a row.
 
 **Suspended** (no need to read unless Ev reinstates it):
 
-- **Model A/B** (Opus vs Fable implementation), suspended 2026-09-23 —
-  `docs/MODEL-AB-LOG.md`, whose opening section holds the rules that
-  bound agents outside it. It predates the protocol/log split: its
-  protocol is the log's amendment history, so reinstating it starts by
-  writing `docs/MODEL-AB-PROTOCOL.md` from the entries in force.
+- **Model A/B** (Opus 5 vs Fable 5.x implementation), suspended
+  2026-09-23 and succeeded by the implementer model comparison
+  (2026-11-10) — `docs/MODEL-AB-LOG.md`, kept as the record of its
+  era; its rows are not pooled with the successor's.
 
 **What binds under any experiment:**
 
@@ -55,5 +59,9 @@ Both leave `docs/` when the experiment concludes.
 - **A change to one side's method is recorded, naming the side**, and
   a comparison whose sides ran under different methods is recorded
   but not counted.
+- **Every row names each agent's exact model version** ("Opus 5.5",
+  "Fable 5.2"), as the harness reports it, always — never the family
+  name alone, never inferred. A release is an era boundary that every
+  analysis must split on, and gets a dated note in each live log.
 - **Starting, changing or ending an experiment is Ev's call**; the log
   records it as a dated entry, and this memory's lists change with it.

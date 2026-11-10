@@ -118,6 +118,16 @@ under.
    `docs/DUAL-REVIEW-LOG.md`, which is generated and never
    hand-edited. No PR assigns a number, and a row already numbered is
    never renumbered.
+   **Every agent the row names carries its model's exact version,
+   always** — the implementer, the fix pass, each reviewer, the
+   blind coder and the orchestrator: "Opus 5.5", "Fable 5.2", never
+   the family name alone. Take it from what the harness reports for
+   that agent (a session's `get_session` gives
+   `external_metadata.last_served_model`; a subagent's from its
+   result or its definition), and where it cannot be known write
+   "unknown" with the dispatch date rather than inferring it. A model
+   release splits every analysis into eras, and only the version in
+   the row says which era a row is in.
 9. **Readout point.** Two kinds of readout (Ev, 2026-10-11, PR 4645):
    - a **short readout** at EVERY M-tier miss: an FYI to Ev naming
      the miss, with no options;
@@ -167,3 +177,9 @@ under.
   release; any future model change is an instrument seam recorded as a
   dated note here, and a readout spanning it reports the eras
   separately.
+- **Fable 5.2 era (2026-11-09).** The reviewers are unaffected (Opus
+  5.5 throughout), but from 2026-11-10 a reviewed unit's implementer
+  is drawn Opus 5.5 or Fable 5.2 by `docs/IMPL-MODEL-PROTOCOL.md`,
+  where every earlier unit was Opus-implemented. A readout reports
+  units by implementer model and version, and keeps Fable-implemented
+  units apart from the Opus-implemented record before them.

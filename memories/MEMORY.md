@@ -32,8 +32,8 @@ not what it says.
   build-slot locks, disk, liveness, death recovery, and the ways CI
   silently does not run
 - [Experiments](experiments.md) — the process experiments that are
-  live (dual Opus review concordance, design-fork review) or suspended
-  (model A/B), where
+  live (dual Opus review concordance, design-fork review, implementer
+  model comparison) or suspended (model A/B), where
   each one's normative log is, and what any experiment binds
 
 ## Testing, review, measurement

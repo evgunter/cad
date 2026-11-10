@@ -48,7 +48,8 @@ FREE_FILES = {"README.md", "STATUS.md"}       # unparsed, at the top of work/
 NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a program, unparsed
 LOG_EXEMPT = {"docs/MODEL-AB-LOG.md",        # the non-program logs in docs/
               "docs/DUAL-REVIEW-LOG.md",
-              "docs/DESIGN-FORK-LOG.md"}
+              "docs/DESIGN-FORK-LOG.md",
+              "docs/IMPL-MODEL-LOG.md"}
 LOG_EXEMPT_DUAL = "docs/DUAL-REVIEW-LOG.md"
 STALE_DAYS = 14
 

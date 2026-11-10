@@ -15,6 +15,17 @@ recorded under by commit hash, so `git show
 <hash>:docs/DUAL-REVIEW-PROTOCOL.md` reads that version. Ev's rulings
 on the readouts are in `docs/dual-review-log/rulings.md`.
 
+**Instrument note (Ev, in-chat, 2026-11-10): FABLE 5.2 RELEASE
+BOUNDARY.** Fable 5.2 released 2026-11-09. Every reviewer here is
+Opus 5.5, so the reviewing instrument does not cross the mark. What
+can is the reviewed population: from 2026-11-10 the implementer
+comparison (`docs/IMPL-MODEL-PROTOCOL.md`) draws a Fable 5.2 or Opus
+5.5 implementer for each reviewed unit, where every unit before it
+was Opus-implemented. An analysis of this log must keep rows whose
+implementer is Fable 5.2 SEPARATE from the Opus-implemented rows,
+report them apart, and say so; rows recorded from 2026-11-10 name
+every agent's model version (the protocol's rule 8).
+
 **This file is generated.** Each row is one file,
 `docs/dual-review-log/rows/PR-<n>.md`; its DR number is assigned on main
 in merge order, and the foot is computed from the rows' front matter

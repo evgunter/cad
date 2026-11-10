@@ -10,6 +10,14 @@ arm, claims an ordinal or records a row while it stands; every phase
 runs on Opus, and a unit that would have entered the protocol gets two
 independent Opus reviewers instead.
 
+**SUCCEEDED (Ev, in-chat, 2026-11-10)**: the implementer comparison
+resumes as a new experiment, `docs/IMPL-MODEL-PROTOCOL.md` and
+`docs/IMPL-MODEL-LOG.md`, under the protocol/log split and on the
+current models (Opus 5.5, Fable 5.2). This log records nothing new;
+it stays as the record of the Opus 5 / Fable 5.x era. Fable 5.2
+released 2026-11-09 — see the instrument note at the head of the
+amendments.
+
 ## What bound agents outside this log
 
 Moved here from the memory that used to carry it
@@ -371,6 +379,17 @@ amended:
      cross-model dual, R1/R2 assignment is still randomized per dual
      by a recorded byte, the stopping rule and the adjudication
      instrument are unchanged.
+
+- **Instrument note (Ev, in-chat, 2026-11-10): FABLE 5.2 RELEASE
+  BOUNDARY.** Fable 5.2 released 2026-11-09. No row has been recorded
+  here since the suspension (2026-09-23), so no row of this log is
+  near the mark: every fable row in it is Fable 5.0 or 5.1 (the 5.1
+  note below). Any analysis that pools this log's fable rows with
+  later data — in particular with `docs/IMPL-MODEL-LOG.md`, which
+  succeeds this log for the implementer comparison — must keep the
+  Fable 5.2 era SEPARATE and say so; this log's eras are not
+  comparable with it on the model axis (and the opus axis carries the
+  5 → 5.5 boundary of 2026-09-22 as well).
 
 - **PROTOCOL SUSPENDED (Ev, in-chat, 2026-09-23): EVERYTHING RUNS ON
   OPUS, and the units v7 would have triaged IN get a DUAL OPUS REVIEW
