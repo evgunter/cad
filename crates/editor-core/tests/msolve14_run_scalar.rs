@@ -1666,6 +1666,12 @@ fn overconstrained_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
         );
         return true;
     }
+    // A dual lane is bound to its build of record (DUAL-DESIGN DL3): a
+    // bundle the record refused is refused at the dual by that refusal,
+    // which the `f64` lane beside it asserts.
+    if matches!(error.kind, editor_core::NodeErrorKind::RecordRefused) {
+        return false;
+    }
     assert!(
         matches!(
             &error.kind,
@@ -1686,9 +1692,11 @@ fn overconstrained_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
 /// **A shaft in two coaxial bores is overconstrained in every lane**
 /// ([`shaft`]): the bundle holds two bores, a rest and a third bore
 /// beside one another (past the door, as a doctored save leaves them),
-/// and the placement refuses it naming both bores — at `f64`, at
-/// `Dual64` seeded on `rise` and on `idle`, and at `Interval` over a
-/// box on `rise` a fraction of ε wide. The rule reads the families,
+/// and the placement refuses it naming both bores — at `f64` and at
+/// `Interval` over a box on `rise` a fraction of ε wide; at `Dual64`
+/// seeded on `rise` and on `idle` it is refused by that `f64` record
+/// (`NodeErrorKind::RecordRefused`), as every dual node the record
+/// refused is. The rule reads the families,
 /// so no lane measures anything to escalate on ([`INTERVAL_ESCALATIONS`]
 /// holds no shaft row).
 ///
