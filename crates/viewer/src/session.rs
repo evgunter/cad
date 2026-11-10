@@ -5920,14 +5920,16 @@ pub(crate) fn picked_body(
 }
 
 /// **The body entities picked on `read`'s drawn bodies are selected in,
-/// and their names there** (REFERENCES DM3: a selection reads one body):
-/// `read` and the names as picked where `read` is one body; where it is
-/// a family, the one member every picked entity lies in, `xs[i]`, by the
-/// member's own names, each found by its entity in `ev`
-/// ([`pncad::select::member_entity`]). `None` where `read` is a family
-/// and there is no evaluation to find the member in, an entity lies in
-/// none, or the entities lie in two: no selection reads them, and the
-/// tool refuses rather than author one that names nothing.
+/// and their names there** (REFERENCES DM3: a selection reads one body).
+/// Where `read` is one body, `read` and the names as picked. Where it is
+/// a family, a name its own table holds (a pick on a drawn member) is
+/// read in the member that entity lies in, `xs[i]`, by the member's own
+/// name ([`pncad::select::member_entity`]), and a name it does not hold
+/// (a member's own, as the body a pattern copies names it) is read in
+/// every member, the plain read. `None` where no selection reads them:
+/// `read` is a family and there is no evaluation to look in, or the
+/// names lie in two members, or mix the two spellings — the tool
+/// refuses rather than author a selection that names nothing.
 pub(crate) fn picked_selection(
     doc: &Doc<ProfileProgram>,
     ev: Option<&Evaluation<f64>>,
@@ -5940,6 +5942,17 @@ pub(crate) fn picked_selection(
         return Some((pncad::document::BodyRead::plain(read), names));
     }
     let (ev, var) = (ev?, var?);
+    let table = ev.table(var)?;
+    let held = names
+        .iter()
+        .filter(|name| table.lookup(name).is_some())
+        .count();
+    if held == 0 {
+        return Some((pncad::document::BodyRead::plain(read), names));
+    }
+    if held != names.len() {
+        return None;
+    }
     let found: Vec<(Vec<u32>, StableName)> = names
         .iter()
         .map(|name| pncad::select::member_entity(ev, var, name))

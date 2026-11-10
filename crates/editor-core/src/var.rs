@@ -506,8 +506,10 @@ pub enum SelectionFault {
     OtherBody,
     /// A body read by index carrying other than one index per index
     /// of the family it reads: a node seat's indexed read's fault
-    /// ([`crate::node::InputFault::IndexRank`]), at a selection's body.
-    Input(crate::node::InputFault),
+    /// ([`crate::node::InputFault::IndexRank`]), at a selection's body,
+    /// boxed: its seat would otherwise size every error carrying a
+    /// selection fault.
+    Input(Box<crate::node::InputFault>),
     /// An index of a mate side's body read that is no written count:
     /// the mate's member walk reads the member from the document, never
     /// from an evaluated value.

@@ -342,10 +342,15 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
         .expect("the index crosses with its family");
     assert_eq!(
         a,
-        crate::fixture::member_head(
+        // The walk's head: the family's spelling of the member's face.
+        crate::fixture::head_at(
             new_pattern,
-            &[COPY],
-            in_part(new_leg, leg_body, CapEnd::End)
+            crate::fixture::in_copy(
+                new_pattern,
+                new_k,
+                COPY,
+                in_part(new_leg, leg_body, CapEnd::End)
+            )
         ),
         "ids remap through the recorded map; the member's value does not"
     );
@@ -395,13 +400,12 @@ fn an_underqualified_member_side_is_refused_at_the_door() {
         matches!(
             refused,
             Err(editor_core::EditError::SelectionShape {
-                fault: editor_core::SelectionFault::Input(editor_core::InputFault::IndexRank {
-                    found: 1,
-                    rank: 2,
-                    ..
-                }),
+                fault: editor_core::SelectionFault::Input(ref fault),
                 ..
-            })
+            }) if matches!(
+                **fault,
+                editor_core::InputFault::IndexRank { found: 1, rank: 2, .. }
+            )
         ),
         "an underqualified head refuses its read's rank at the door: {refused:?}"
     );

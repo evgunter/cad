@@ -155,13 +155,12 @@ fn copies(label: &str, copy: u32, tol: Tol) -> Copies {
     let (doc, pattern) =
         fixture::family_of(doc, legs, fixture::slides_along(k, [1.0, 0.0, 0.0], 0.05));
     let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
-    let named = fixture::in_copy(pattern, k, copy, in_part(legs, leg_body, CapEnd::End));
     let (doc, _) = viewer::test_support::mated(
         &doc,
         cap,
         fixture::rest(
             common::head(in_part(cap, top_body, CapEnd::Start)),
-            common::head_at(pattern, named),
+            fixture::member_head(pattern, &[copy], in_part(legs, leg_body, CapEnd::End)),
         ),
         Vec::new(),
         tol,

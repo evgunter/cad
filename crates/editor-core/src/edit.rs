@@ -1607,13 +1607,13 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
     };
     let rank = doc.var_reach(body.read).chain().map_or(0, <[VarId]>::len);
     if body.at.len() != rank {
-        return Some(crate::var::SelectionFault::Input(
+        return Some(crate::var::SelectionFault::Input(Box::new(
             crate::node::InputFault::IndexRank {
                 seat,
                 found: body.at.len(),
                 rank,
             },
-        ));
+        )));
     }
     if !matches!(seat, crate::OperandSlot::Side { .. }) {
         return None;

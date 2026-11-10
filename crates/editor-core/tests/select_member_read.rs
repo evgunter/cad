@@ -481,14 +481,13 @@ fn the_load_door_holds_a_side_read_through_a_pose() {
             editor_core::persist::save(&deeper, &[], Tol::witness()),
             Err(editor_core::PersistError::Snapshot(
                 SnapshotError::SelectionShape {
-                    fault: editor_core::SelectionFault::Input(editor_core::InputFault::IndexRank {
-                        found: 1,
-                        rank: 2,
-                        ..
-                    }),
+                    fault: editor_core::SelectionFault::Input(ref fault),
                     ..
                 }
-            ))
+            )) if matches!(
+                **fault,
+                editor_core::InputFault::IndexRank { found: 1, rank: 2, .. }
+            )
         ),
         "a side whose family gained an index refuses at the load door"
     );

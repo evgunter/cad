@@ -600,13 +600,12 @@ fn r1_an_underqualified_nested_read_refuses_and_a_family_of_a_placed_copy_places
         matches!(
             refused,
             Err(editor_core::EditError::SelectionShape {
-                fault: editor_core::SelectionFault::Input(editor_core::InputFault::IndexRank {
-                    found: 1,
-                    rank: 2,
-                    ..
-                }),
+                fault: editor_core::SelectionFault::Input(ref fault),
                 ..
-            })
+            }) if matches!(
+                **fault,
+                editor_core::InputFault::IndexRank { found: 1, rank: 2, .. }
+            )
         ),
         "a one-index read of a family of families refuses its rank: {refused:?}"
     );
