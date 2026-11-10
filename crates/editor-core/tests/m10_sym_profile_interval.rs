@@ -434,12 +434,19 @@ const PLATE_MAX_TERMS: usize = 38;
 /// at this scalar, so `Plain/Decision` loses those 14 calls (1203 →
 /// 1189) and the nine forms they built (55907 → 55898). No other line
 /// moves.
+///
+/// **Moved with ONEHOME's moved copy** (a move carries its verdict,
+/// `Held::moved`): the cut reads each hole into the plate's frame with
+/// its certificates and rows carried, so neither hole's rims are
+/// certified again there. Every walk loses that copy's share: `Plain`
+/// 1189 → 1015 decisions and 824 → 669 assertions, `Early` 412 → 308
+/// and 824 → 669, `Door` 557 → 402. The largest form holds at 38.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1189 forms 55898 frozen 66 digest 20fc0ebc7b7a86d1655eb11d10bcece9\n\
-     Plain/Assertion calls 824 forms 9114 frozen 193 digest dd673bfb67b01ff645a83264700b9100\n\
-     Early/Decision calls 412 forms 42505 frozen 0 digest 2694202f7b062a10a6e74f46b875d770\n\
-     Early/Assertion calls 824 forms 10519 frozen 0 digest 2348058666416ec4901cd72db6861631\n\
-     Door/Decision calls 557 forms 13458 frozen 0 digest def6998cc3dfb007c479d6625f9c680e";
+     Plain/Decision calls 1015 forms 42005 frozen 54 digest dd533786f8876610b7b70ba3ad9eec25\n\
+     Plain/Assertion calls 669 forms 6963 frozen 137 digest 76750018a7ae31c33d5760302449ba22\n\
+     Early/Decision calls 308 forms 28904 frozen 0 digest 3352b4ae55ef1b7fc0dd378dde163b3c\n\
+     Early/Assertion calls 669 forms 8611 frozen 0 digest d935f9e202f691ec539619dc4dd3ad5f\n\
+     Door/Decision calls 402 forms 9906 frozen 0 digest c5aa427c2105464b64a07aaf298f8339";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -611,11 +618,13 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
     let sets: [(&str, SymRules, Option<u64>); 4] = [
         // The two sets without the canonical root render the blocked
         // residuals of the certificate's reads; the shipped sets none.
+        // ONEHOME's moved copy (`Held::moved`): the holes are not
+        // re-certified in the plate's frame, so 94 -> 64 of them.
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(94),
+            Some(64),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -624,7 +633,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(94),
+            Some(64),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

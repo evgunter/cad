@@ -1092,6 +1092,13 @@ fn e2e_channel_slider_over_an_epsilon_box() {
 /// It refuses `NothingCertified` now, carrying the drive's own refused
 /// count, and the mass columns beside it price the whole box as
 /// uncertified.
+///
+/// **ONEHOME** (a move carries its verdict, `topo::LeafBody::moved`):
+/// the slider's placement over the box is its body moved, not re-derived,
+/// so the drive certifies the whole ±0.05 box in one leaf, and the fold
+/// over that leaf answers its own refusal (at the time of writing, the
+/// sweep's cell-pair budget). The zero-leaf arm stays: it is what a
+/// document none of whose leaves certify must read.
 #[test]
 fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
     let (doc, channel, slider) = channel_and_slider(0.05);
