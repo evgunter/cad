@@ -14,17 +14,17 @@ crates/geom-brep/src/props/curved.rs sphere_region_material_sign 1 pin a_member_
 crates/profile/src/seg.rs arc_arc 1 pin an_end_inside_answers_past_an_end_in_band
 crates/topo/src/boolean/carrier_touch.rs ball_off_face 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/carrier_touch.rs off_face 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/boolean/contain.rs loop_circle 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/contain.rs loop_circle 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/fate.rs rehome 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/insert.rs held_cut 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/overlap.rs any_corner_meets 1 pin a_corner_that_meets_answers_past_one_in_band
-crates/topo/src/boolean/region.rs on_boundary 1 pin an_edge_holding_the_point_answers_past_one_in_band
-crates/topo/src/boolean/rim_wedge.rs departures 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/boolean/rim_wedge.rs rim_exists 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/region.rs on_boundary 1 pin an_edge_holding_the_point_answers_past_one_in_band
+crates/topo/src/rim_wedge.rs departures 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/rim_wedge.rs rim_exists 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs crescent 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs rays_within 1 pin a_sector_not_holding_the_line_answers_past_one_in_band
 crates/topo/src/boolean/slit.rs holding 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/boolean/solid_contain.rs point_in_faces 1 pin a_face_holding_the_point_answers_past_a_face_in_band
+crates/topo/src/solid_contain.rs point_in_faces 1 pin a_face_holding_the_point_answers_past_a_face_in_band
 crates/topo/src/census.rs arc_interiors_meet 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/census.rs planar_interiors_meet 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/census.rs probe_vertices 1 pin an_abort_stops_the_probe_and_a_limit_outranks_in_band
@@ -64,7 +64,7 @@ crates/topo/src/stands.rs ladder 1 pin a_box_edge_resting_on_a_rim_answers_past_
 # The entry points that take no `Answering` (`climb_agreeing`,
 # `climb_differing`): every answer supersedes the kept rungs, so each call
 # is a site. Pins found by the mutant run with only those two mutated.
-crates/topo/src/boolean/rim_wedge.rs at 1 pin a_stretch_ridden_both_ways_reads_mixed
+crates/topo/src/rim_wedge.rs at 1 pin a_stretch_ridden_both_ways_reads_mixed
 crates/topo/src/boolean/vtxfac.rs partner_side 1 pin a_partners_side_of_a_face_is_read_off_its_bounds
 # read_paths: the agreeing ladder over the outer references, with a
 # reference whose paths read in band ahead of one that decides.
