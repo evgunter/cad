@@ -170,10 +170,10 @@ its index the selection's own `Count` slots, and the member's own names,
 so D10's per-copy `gap(c[k].r, c[(k + 1) mod N].l)` is a selection of
 `c` beside a selection of `c[(k + 1) mod N]`. A selection whose indices
 are exactly the family's own index chain is the plain read: `xs[k]` is
-stored as `xs`. A selection reads one body, and a family is read through
-an indexed read: a selection whose body is the family read whole refuses,
-whatever names it holds, so no selection names a member through the
-family's table and the index is never stored twice. At a
+stored as `xs`. A selection reads one body: its body is a body seat, so
+the family read whole does not type-check there (`SlotVarKind`, below),
+whatever names it holds. A member is reached by an indexed read, never
+through the family's table, and the index is never stored twice. At a
 mate side, each index is a written count or absent, since the mate's
 member walk reads the member from the document, never from an evaluated
 value. A member is not a named alias:
