@@ -7,7 +7,7 @@ opened: 2026-11-09
 priority: P3
 cost: M
 closed: 2026-11-10
-pr: 0
+pr: 6755
 ---
 
 Found closing `topo-has-no-predicate-name-roster`; narrowed by the forwarder renames (PR on branch `onecopy/topo-forwarders`).
