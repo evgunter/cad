@@ -31,14 +31,15 @@ use crate::common::oracles::{ball_volume, cap_volume};
 /// The donut of the torus doors at scale `l`: the circle of radius
 /// `0.5·l` about `(2l, 0)` in the xy-plane, revolved about y.
 fn donut(l: f64) -> Body<f64> {
-    sweep::test_support::revolved_about_y(
-        vec![
-            (Point2::new(2.0 * l, -0.5 * l), 1.0),
-            (Point2::new(2.0 * l, 0.5 * l), 1.0),
-        ],
-        Revolution::Full,
-        Tol::witness(),
-    )
+    sweep::test_support::revolved_about_y(donut_disc(l), Revolution::Full, Tol::witness())
+}
+
+/// The donut's meridian disc at scale `l`.
+fn donut_disc(l: f64) -> Vec<(Point2<f64>, f64)> {
+    vec![
+        (Point2::new(2.0 * l, -0.5 * l), 1.0),
+        (Point2::new(2.0 * l, 0.5 * l), 1.0),
+    ]
 }
 
 /// `2π²Rr²` at unit scale.
@@ -266,53 +267,55 @@ fn near_misses_answer_by_the_closed_form_distance() {
     }
 }
 
-/// **The off-face touches build at ×1e-3 and ×1e3**: the brick, the
+/// **The off-face touches build at ×1e-3 and ×250**: the brick, the
 /// ball and the rod, every length scaled with the donut's, against the
-/// closed form scaled by `l³`. Where ε is within 64 ulps of the donut's
-/// largest coordinate (`2.5·l`), its rounding-scale residuals reach the
-/// band and the donut is not a finished body: there it refuses typed,
-/// an escalation, and the pose is read as that refusal.
+/// closed form scaled by `l³`. ×250 is the largest round scale whose
+/// partners, reaching `3.5·l`, lie in the 1 km session box
+/// (`[tolerance.units]`); a donut past it is refused by the box
+/// ([`a_donut_past_the_session_box_is_refused_by_it`]). Where ε is within
+/// 64 ulps of the donut's largest coordinate (`2.5·l`; ×250 at
+/// ε = 1e-12), the rod refuses every op `FallbackExtentUnsupported`
+/// (`work/orbit/a-rod-touching-a-big-donut-off-its-face-stops-at-the-extent-scan-at-1e-12.md`),
+/// which the row pins.
 #[test]
 fn the_off_face_touches_build_at_every_scale() {
     let eps = Tol::witness().eps();
-    for l in [1e-3, 1e3] {
+    for l in [1e-3, 250.0] {
         let d = donut(l);
-        if eps < 64.0 * f64::EPSILON * 2.5 * l {
-            let refused = topo::validate_geometric(&d, Tol::witness())
-                .expect_err("a donut within 64 ulps of ε refuses");
-            assert!(
-                refused.iter().all(|e| matches!(
-                    e,
-                    topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::Face {
-                            source: geom_brep::PropsError::Escalated { .. },
-                            ..
-                        },
-                        ..
-                    }
-                )),
-                "donut ×{l:e} at ε {eps:e}: refused by escalation only, got {refused:?}"
-            );
-            test_utils::vacuity::stood_down(
-                &format!("donut ×{l:e} at ε {eps:e}"),
-                "the donut refuses as an operand, so its touches are not built",
-            );
-            continue;
-        }
+        let fine = eps < 64.0 * f64::EPSILON * 2.5 * l;
         for (label, (b, vb)) in [
             ("brick", plane_brick(false, 0.0, l)),
             ("ball", top_ball(false, 0.0, l)),
             ("rod", top_rod(false, 0.0, l)),
         ] {
-            assert_every_op(
-                &format!("donut ×{l:e}, {label}"),
-                &d,
-                &b,
-                (DONUT_VOLUME * l.powi(3), vb),
-                Pose::Apart,
-            );
+            let label = format!("donut ×{l:e}, {label}");
+            if fine && label.ends_with("rod") {
+                assert_every_op_refuses(&label, &d, &b, |e| {
+                    format!("{e:?}").contains("FallbackExtentUnsupported")
+                });
+                test_utils::vacuity::stood_down(
+                    &format!("{label} at ε {eps:e}"),
+                    "the rod's touch refuses at the extent scan, pinned",
+                );
+                continue;
+            }
+            assert_every_op(&label, &d, &b, (DONUT_VOLUME * l.powi(3), vb), Pose::Apart);
         }
     }
+}
+
+/// **A donut past the session box is refused by it**: at ×401 its outer
+/// equator reaches 1002.5 m.
+#[test]
+fn a_donut_past_the_session_box_is_refused_by_it() {
+    crate::common::refused_by_the_session_box(
+        "the donut ×401",
+        sweep::test_support::try_revolved_about_y_at(
+            donut_disc(401.0),
+            Revolution::Full,
+            Tol::witness(),
+        ),
+    );
 }
 
 /// **The off-face touches in a tilted frame**: the brick and the ball,
