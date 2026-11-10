@@ -1,0 +1,5 @@
+fork: a-row-2-refusal-takes-which-name (ONECOPY, boolean-standing-leftovers item 3)
+drawn: 2026-11-10T00:32:38Z, od -An -tu1 -N2 /dev/urandom
+bytes: 150 168 (arm: two; labels: even)
+mapping: A = Opus designer, B = Fable designer
+protocol: 7f7c233d86
