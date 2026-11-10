@@ -2,11 +2,12 @@
 id: main-red-four-sweep-slow-rows-refuse-outside-session-box
 kind: issue
 title: main red: four sweep slow-set rows refuse their fixtures' extrude with OutsideSessionBox, likely since 8a97c7fab5 (the session box's edge reach as a true lower bound)
-status: open
+status: dispatched
 opened: 2026-11-09
 priority: P0
 cost: M
 refs: [the-session-box-reach-misses-a-curved-faces-bulge]
+branch: onehome/session-box-fixtures
 ---
 
 
