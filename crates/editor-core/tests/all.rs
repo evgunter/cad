@@ -651,6 +651,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "select_member_read.rs"]
+mod select_member_read;
 #[path = "split_and_shell_carry_contacts.rs"]
 mod split_and_shell_carry_contacts;
 #[path = "split_carries_spaces.rs"]

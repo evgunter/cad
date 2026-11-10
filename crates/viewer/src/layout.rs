@@ -60,7 +60,6 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use pncad::document::{DocumentId, Frame, MintId, RecipeNodeId, VarId};
-use pncad::geom_core::Tol;
 
 use crate::display::Unrestored;
 use crate::prefs::{PrefsStore, StoreError};
@@ -275,7 +274,7 @@ impl Layout {
     ///
     /// Text that is not TOML or names no document, as the sentence
     /// [`LayoutFault::Unreadable`] carries.
-    pub fn parse(text: &str, tol: Tol) -> Result<(Self, Vec<Skipped>), String> {
+    pub fn parse(text: &str) -> Result<(Self, Vec<Skipped>), String> {
         let top: toml::Table = text
             .parse()
             .map_err(|error: toml::de::Error| error.message().to_owned())?;
@@ -301,7 +300,7 @@ impl Layout {
         };
         let mut read = Vec::new();
         for (index, entry) in raw.iter().enumerate() {
-            match saved_frame(entry, tol, index, &mut skipped) {
+            match saved_frame(entry, index, &mut skipped) {
                 Ok(saved) => read.push((index, saved)),
                 Err(why) => skipped.push(Skipped::Frame { index, why }),
             }
@@ -340,7 +339,6 @@ const FRAME_KEYS: [&str; 6] = [
 /// it does not know goes on `skipped` and the entry still reads.
 fn saved_frame(
     entry: &toml::Value,
-    tol: Tol,
     index: usize,
     skipped: &mut Vec<Skipped>,
 ) -> Result<SavedFrame, String> {
@@ -374,7 +372,7 @@ fn saved_frame(
     if space == VarId::WORLD {
         return Err("a frame on the world, which no gesture writes".into());
     }
-    if let Some(fault) = frame.admission_fault(tol) {
+    if let Some(fault) = frame.admission_fault() {
         return Err(format!("the frame {fault}"));
     }
     Ok(SavedFrame {
@@ -423,11 +421,11 @@ fn floats(value: &toml::Value, key: &str) -> Result<[f64; 3], String> {
 /// # Errors
 ///
 /// [`LayoutFault::Read`] and [`LayoutFault::Unreadable`].
-pub fn read(doc_path: &Path, tol: Tol) -> Result<Option<(Layout, Vec<Skipped>)>, LayoutFault> {
+pub fn read(doc_path: &Path) -> Result<Option<(Layout, Vec<Skipped>)>, LayoutFault> {
     let Some(text) = store(doc_path).load().map_err(LayoutFault::Read)? else {
         return Ok(None);
     };
-    Layout::parse(&text, tol)
+    Layout::parse(&text)
         .map(Some)
         .map_err(|message| LayoutFault::Unreadable {
             path: path_of(doc_path),

@@ -80,7 +80,7 @@ uniformly, with the residual sites documented.
 
 `transform_rigid`'s contract, name, seven-row K-ledger
 (`transform_rigid_det_plus_one` among them, asked at the
-`RigidMotion` witness's decided door), that door's typed `NotRigid`
+`RigidMotion` witness's `f64` door), that door's typed `NotRigid`
 refusal (`RigidMotionError::NotRigid`), and its sense-invariance proof (the M5 S10 audit — "there
 is no such branch to write here today") are all written around
 det = +1, and two suites pin the det = −1 refusal. Widening it
