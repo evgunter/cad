@@ -2245,7 +2245,7 @@ mod tests {
             .unwrap()
             .at_rest_in_chart(chart, false);
         body.set_edge_curve(planted.edge, spec, tol).unwrap();
-        let lp = carrier_loop(&body, planted.r#loop, WALK_ROWS.conic, band).unwrap();
+        let lp = carrier_loop(&body, planted.r#loop, WALK_ROWS.conic(), band).unwrap();
         let (normal, q) = (Vec3::new(0.0, 0.0, 1.0), Point3::new(1.05, 1.0, 1.0));
         let walk = |off: OffEdge| {
             carrier_walk(
