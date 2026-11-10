@@ -1456,8 +1456,11 @@ fn held_cut<T: Decide>(
     );
     let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
     // Any cut the run holds answers, whatever an earlier cut read
-    // ([`climb`], [`Answering::Any`]): the owner only names the
-    // `SharedVertexCrossings` refusal its caller raises. A cut read in
+    // ([`climb`], [`Answering::Any`]). The owner is a witness only
+    // (`Answering::Any`'s diagnostic payload): `reconcile_pass` reads
+    // whether a cut is held to choose the way round, and the owner only
+    // names the second partner of the `SharedVertexCrossings` refusal it
+    // raises where neither way mints. A cut read in
     // band is kept by its standing ([`BooleanError::refusal`]), refusing
     // only where no other cut is held. Each cut's reads are premises of
     // one another, so they stay inside its rung.
