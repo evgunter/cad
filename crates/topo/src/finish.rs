@@ -60,6 +60,21 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 /// **A body that passed tier 2 alone** ([`crate::validate_closed`]),
 /// and carries no verdict.
 ///
+/// # A tier-3 premise at a dual
+///
+/// A reader that states its premise as tier 3's ("tier 3 refuses it
+/// first", "tier 3 places each edge on its carriers", "the operand is a
+/// finished body") holds it at a certifying scalar, whose finished body
+/// passed tier 3. At a dual the finished body is this replay, tier 2
+/// alone (DUAL-DESIGN DL3), and the premise is held one level up: a dual
+/// evaluates only bound to its build of record (`editor_core`'s
+/// `evaluate_recorded`), which refuses every node that record built no
+/// value at, inside each part as at the top. So an operand a dual's Boolean, split, blend or shell reads through the
+/// evaluation service is the same bits a certifying finish validated, and
+/// the readers that cite this section need no check of their own. A
+/// caller of this crate's doors at a dual directly holds that contract
+/// itself (`work/onecopy/topos-doors-at-a-dual-take-no-tier-3-evidence-by-type.md`).
+///
 /// At a dual it is the finished body: the base-scalar evaluation it
 /// replays is the validation of record (DUAL-DESIGN DL3). At the box
 /// scalars (`Interval`, `Sym`) it is a sweep door's leaf, not a

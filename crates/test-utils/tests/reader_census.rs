@@ -140,6 +140,10 @@ const LEDGER: &[Entry] = &[
                              // needles, code view
     },
     Entry {
+        path: "crates/editor-core/tests/every_predicate_name_is_minted_once.rs",
+        disposition: Shared, // every crate's row registry and its turn-bundle door, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
         disposition: Shared, // polygon-close uniqueness census, code view
     },

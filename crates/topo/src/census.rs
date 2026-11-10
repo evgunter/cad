@@ -1823,13 +1823,7 @@ fn corners_meet<T: Decide>(
 }
 
 /// [`corners_meet`]'s predicate names.
-const OVERLAP_CORNER: crate::validate::WedgeNames = crate::validate::WedgeNames {
-    after_leaving: "pm_census_overlap_corner_after_leaving",
-    before_arriving: "pm_census_overlap_corner_before_arriving",
-    turn: "pm_census_overlap_corner_turn",
-    straight: "pm_census_overlap_corner_straight",
-    straddle: "pm_census_overlap_corner_straddle",
-};
+const OVERLAP_CORNER: crate::validate::WedgeNames = crate::rows::OVERLAP_CORNER;
 
 /// A face's material about a point of its closure, in the plane
 /// tangent to it there.
@@ -2741,26 +2735,16 @@ fn strictly_inside<T: Decide>(w: &Wedge<T>, v: Vec3<T>, band: Band) -> Result<bo
 /// [`strictly_inside`]'s predicate names: tier 3's pinch-corner
 /// reading, asked of a line's wedges under names of its own, so the K
 /// stream keeps the two questions apart.
-const LINE_WEDGE: crate::validate::WedgeNames = crate::validate::WedgeNames {
-    after_leaving: LINE_WEDGE_AFTER_LEAVING,
-    before_arriving: LINE_WEDGE_BEFORE_ARRIVING,
-    turn: LINE_WEDGE_TURN,
-    straight: LINE_WEDGE_STRAIGHT,
-    // Unreachable: `strictly_inside` hands only exact departures (every
-    // direction scaled to the wedge's own arm), so no sign here is read
-    // at two bounds and this row never records. It names the row only
-    // because every `WedgeNames` carries one.
-    straddle: "pm_census_wedge_straddle",
-};
+const LINE_WEDGE: crate::validate::WedgeNames = crate::rows::LINE_WEDGE;
 
 /// [`LINE_WEDGE`]'s first-bound sign.
-pub(crate) const LINE_WEDGE_AFTER_LEAVING: &str = "pm_census_wedge_after_leaving";
+pub(crate) const LINE_WEDGE_AFTER_LEAVING: &str = crate::rows::LINE_WEDGE.after_leaving();
 /// [`LINE_WEDGE`]'s second-bound sign.
-pub(crate) const LINE_WEDGE_BEFORE_ARRIVING: &str = "pm_census_wedge_before_arriving";
+pub(crate) const LINE_WEDGE_BEFORE_ARRIVING: &str = crate::rows::LINE_WEDGE.before_arriving();
 /// [`LINE_WEDGE`]'s turn.
-pub(crate) const LINE_WEDGE_TURN: &str = "pm_census_wedge_turn";
+pub(crate) const LINE_WEDGE_TURN: &str = crate::rows::LINE_WEDGE.turn();
 /// [`LINE_WEDGE`]'s straight-or-cusp sign.
-pub(crate) const LINE_WEDGE_STRAIGHT: &str = "pm_census_wedge_straight";
+pub(crate) const LINE_WEDGE_STRAIGHT: &str = crate::rows::LINE_WEDGE.straight();
 
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body
@@ -4724,11 +4708,7 @@ struct Cell<T: Real> {
 /// conic arc's span by [`crate::splitting::containment::carrier_loop`].
 /// The crossings themselves are the meeting reading's
 /// ([`edge_crossings`]).
-const EF_CROSS_CONIC: crate::splitting::containment::ConicRows =
-    crate::splitting::containment::ConicRows::bounded(
-        "pm_census_ef_cross_arc_span",
-        "pm_census_ef_cross_arc_straddle",
-    );
+const EF_CROSS_CONIC: crate::rows::ConicRows = crate::rows::EF_CROSS_CONIC;
 
 /// The cells of edge `e` lying in face `f`'s interior: the edge cut at
 /// every face vertex on its interior ([`on_edge_interior_reading`]) and
@@ -6966,54 +6946,10 @@ fn sweep_conformal_patches<T: Decide>(
                             });
                         }
                     }
-                    Some(Err(ChartRegionError::Escalated(cause))) => {
-                        errors.push(ValidationError::CensusEscalated { cause });
-                    }
-                    // Every other typed predicate refusal: the pair
-                    // was not certified, and WHICH refusal said so is
-                    // carried rather than replaced. They do not share
-                    // a cause — a stopped interior-witness
-                    // search, an absent pcurve cache and a non-planar
-                    // trim want three different repairs — so the one
-                    // thing this arm may not do is restate them as
-                    // the inventory refusal. Refused loudly, never
-                    // skipped silently.
-                    //
-                    // Spelled out rather than matched by wildcard,
-                    // because this arm is one half of the
-                    // `Escalated`/`Unsupported` discrimination
-                    // `editor_core::attribute` turns into `AtRest`
-                    // against `Uncertified`: a new `ChartRegionError`
-                    // arm must be classified here deliberately rather
-                    // than default into an unrefuted frontier.
-                    Some(Err(
-                        cause @ (ChartRegionError::ChartDivergence { .. }
-                        | ChartRegionError::NonPlanarTrim { .. }
-                        | ChartRegionError::TrimOffFace { .. }
-                        | ChartRegionError::MissingCache { .. }
-                        | ChartRegionError::ArmUnbounded { .. }
-                        | ChartRegionError::SeamBranch
-                        | ChartRegionError::PeriodFold
-                        | ChartRegionError::CarrierTilt
-                        | ChartRegionError::TouchingBoundary
-                        | ChartRegionError::DegenerateLoop { .. }
-                        | ChartRegionError::RayExhausted
-                        | ChartRegionError::EdgeScale
-                        | ChartRegionError::WitnessSegmentCapExceeded { .. }
-                        | ChartRegionError::WitnessCellCapExceeded { .. }
-                        | ChartRegionError::Corrupt),
-                    )) => {
-                        // The refusal is CARRIED, not replaced. The
-                        // refusals say different things with different
-                        // recourses — a stopped witness search is not
-                        // a thin overlap, and neither is an absent
-                        // pcurve cache — and flattening them here made
-                        // every one of them read as the inventory
-                        // statement at the census door.
-                        errors.push(ValidationError::CensusUnsupported {
-                            subject: CensusSubject::FacePair(fa, fb),
-                            cause: CensusUnsupportedCause::ChartRegion(cause),
-                        });
+                    // Classified by its standing, in one place
+                    // (`chart_region_finding`).
+                    Some(Err(cause)) => {
+                        errors.push(chart_region_finding(CensusSubject::FacePair(fa, fb), cause));
                     }
                 }
             }
@@ -12611,39 +12547,30 @@ fn confirm_patch<T: Decide>(
         }
         Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => {}
         Some(Ok(crate::chart_region::ChartOverlap::Empty)) => errors.push(stale),
-        Some(Err(ChartRegionError::Escalated(cause))) => {
-            errors.push(ValidationError::CensusEscalated { cause });
+        Some(Err(cause)) => {
+            errors.push(chart_region_finding(
+                CensusSubject::FacePair(face_a, face_b),
+                cause,
+            ));
         }
-        // As the sweep arm: every other typed refusal is carried
-        // whole rather than restated as the inventory refusal,
-        // and the list is exhaustive so a new `ChartRegionError`
-        // arm is a compile error here rather than a silent
-        // promotion to an unrefuted frontier.
-        Some(Err(
-            cause @ (ChartRegionError::ChartDivergence { .. }
-            | ChartRegionError::NonPlanarTrim { .. }
-            | ChartRegionError::TrimOffFace { .. }
-            | ChartRegionError::MissingCache { .. }
-            | ChartRegionError::ArmUnbounded { .. }
-            | ChartRegionError::SeamBranch
-            | ChartRegionError::PeriodFold
-            | ChartRegionError::CarrierTilt
-            | ChartRegionError::TouchingBoundary
-            | ChartRegionError::DegenerateLoop { .. }
-            | ChartRegionError::RayExhausted
-            | ChartRegionError::EdgeScale
-            | ChartRegionError::WitnessSegmentCapExceeded { .. }
-            | ChartRegionError::WitnessCellCapExceeded { .. }
-            | ChartRegionError::Corrupt),
-        )) => {
-            // Carried, as at the sweep arm and for the same
-            // reason: which refusal fired is the whole of
-            // what tells a reader which repair to make.
-            errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::FacePair(face_a, face_b),
-                cause: CensusUnsupportedCause::ChartRegion(cause),
-            });
+    }
+}
+
+/// **A chart-region refusal as a census finding about `subject`**, read
+/// by its standing ([`ChartRegionError::refusal`]), the one classification
+/// of a chart-region refusal: a metred margin escalates
+/// ([`ValidationError::CensusEscalated`]), and every other refusal is
+/// carried whole ([`ValidationError::CensusUnsupported`]), since which
+/// refusal fired is what tells a reader which repair to make.
+fn chart_region_finding(subject: CensusSubject, cause: ChartRegionError) -> ValidationError {
+    match cause.refusal() {
+        Ok(geom_core::ladder::Refusal::Margin(diag)) => {
+            ValidationError::CensusEscalated { cause: diag }
         }
+        Ok(_) | Err(_) => ValidationError::CensusUnsupported {
+            subject,
+            cause: CensusUnsupportedCause::ChartRegion(cause),
+        },
     }
 }
 
@@ -12666,6 +12593,29 @@ mod tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A chart-region refusal reaches the census by its standing**
+    /// ([`chart_region_finding`]): an escalation, whose margin was metred,
+    /// as [`ValidationError::CensusEscalated`] with that diagnostic, and an
+    /// in-band refusal, which carries none, as
+    /// [`ValidationError::CensusUnsupported`] with the refusal whole.
+    #[test]
+    fn a_chart_region_refusal_reaches_the_census_by_its_standing() {
+        let pair = CensusSubject::FacePair(FaceKey::default(), FaceKey::default());
+        let diag = geom_core::k_stats::decide("census_standing_row", Margin::of(5e-9), band())
+            .expect_err("a margin in the gap escalates");
+        match chart_region_finding(pair, ChartRegionError::Escalated(diag)) {
+            ValidationError::CensusEscalated { cause } => assert_eq!(cause, diag),
+            other => panic!("an escalation reads as escalated: {other:?}"),
+        }
+        match chart_region_finding(pair, ChartRegionError::TouchingBoundary) {
+            ValidationError::CensusUnsupported {
+                subject,
+                cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::TouchingBoundary),
+            } => assert_eq!(subject, pair),
+            other => panic!("an in-band refusal is carried whole with its pair: {other:?}"),
+        }
     }
 
     /// **A refused crossing of a census edge and a face boundary edge

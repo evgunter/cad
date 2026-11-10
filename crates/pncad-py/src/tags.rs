@@ -904,6 +904,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // recourse is "evaluate at a dual scalar, or drop the seed" (or
         // seed a free length, angle or scalar variable), not the box's.
         C::Seed => "seed",
+        C::RecordRefused => "record_refused",
+        C::RecordMispaired => "record_mispaired",
         C::WrongOperand => "wrong_operand",
         // A pick of one piece of a copy: a path naming no piece, and
         // a read at the piece's other shape.
@@ -1052,6 +1054,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ToleranceConflict { .. } => None,
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
+        NodeErrorKind::RecordRefused | NodeErrorKind::RecordMispaired(_) => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::NoSuchPiece { .. } => None,
         NodeErrorKind::PieceShape { .. } => None,

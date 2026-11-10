@@ -3190,12 +3190,7 @@ const SCHEDULE_2D: [Vec2<f64>; 16] = [
 /// Chart-space margins are metered separately from the 3-D loop's —
 /// the polygon is metred by the exact arms, but it is a different
 /// population — so the names stay distinct even though the walk is one.
-const ROWS: ParityRows = ParityRows {
-    segment: "chart_region_segment",
-    boundary: "chart_region_boundary",
-    side: "chart_region_side",
-    advance: "chart_region_advance",
-};
+const ROWS: ParityRows = crate::rows::CHART_REGION;
 
 /// Ray-parity containment of `q` in the (CCW, metred) `poly`.
 ///
