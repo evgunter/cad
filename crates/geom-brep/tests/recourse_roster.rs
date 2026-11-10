@@ -81,6 +81,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("old_rim_only_closed_as"),
     NameCarrier::Call("old_span_as"),
     NameCarrier::Call("pairing_reading_as"),
+    NameCarrier::Call("reaches_edge_as"),
     NameCarrier::Call("plane_cone_section"),
     NameCarrier::Call("require_positive_as"),
     NameCarrier::Call("require_solid_angle_as"),
@@ -212,7 +213,7 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
     (
-        "pair_section/torus_arms.rs: reaches_edge: [(name, m)]",
+        "pair_section/torus_arms.rs: reaches_edge_as: [(name, m)]",
         FORWARDS,
     ),
     (

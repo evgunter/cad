@@ -899,13 +899,13 @@ pub(super) fn square_cylinder_arm<T: Decide>(
     } = wall;
     let at = |y: T, z: T, t: T| c + across * y + a * z + d * t;
     let k = (e, z0, rc);
-    let top = reaches_edge(
+    let top = reaches_edge_as(
         "section_torus_square_wall_top",
         z0 + rc - r,
         (e, big_r),
         band,
     )?;
-    let bottom = reaches_edge(
+    let bottom = reaches_edge_as(
         "section_torus_square_wall_bottom",
         rc - z0 - r,
         (e, big_r),
@@ -976,7 +976,7 @@ fn square_folds<T: Decide>(
 /// torus there, a pinch; beyond it no line of the wall near that point
 /// meets the torus, and the section is the one of `K` held just short of
 /// the line, a pose the band admits.
-fn reaches_edge<T: Decide>(
+fn reaches_edge_as<T: Decide>(
     name: &'static str,
     m: T,
     (e, big_r): (T, T),
@@ -1094,7 +1094,7 @@ fn across_strip<T: Decide>(
     let [big_r, r] = ring;
     if top != bottom {
         let m = if top { r - (z0 - rc) } else { z0 + rc + r };
-        if !reaches_edge("section_torus_square_wall_meets", m, (e, big_r), band)? {
+        if !reaches_edge_as("section_torus_square_wall_meets", m, (e, big_r), band)? {
             return Ok(Vec::new());
         }
     }
