@@ -998,9 +998,27 @@ pub fn select<T: topo::AtRestPolicy + Decide>(
     sel: &Selector,
 ) -> Vec<StableName> {
     // No value, no names: this function's doc.
-    let Some(table) = ev.table_at(at) else {
-        return Vec::new();
-    };
+    ev.table_at(at).map_or_else(Vec::new, |table| matching(table, sel))
+}
+
+/// **The names one member of the family `at` names answers matching
+/// `sel`** (REFERENCES DM3, `xs[i]`): [`select`] over the member's own
+/// table ([`super::interrogate::member_table`]), so the names are the
+/// member's own, those a selection of `xs[i]` holds. Empty where `at`
+/// names no family or no member stands at `member`, as [`select`] is
+/// empty for a read with no value.
+pub fn select_member<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+    sel: &Selector,
+) -> Vec<StableName> {
+    super::interrogate::member_table(ev, at, member)
+        .map_or_else(Vec::new, |(_, _, table)| matching(table, sel))
+}
+
+/// The names of `table` matching `sel`, in canonical order.
+fn matching(table: &super::NameTable, sel: &Selector) -> Vec<StableName> {
     let mut out: Vec<StableName> = table
         .iter()
         .map(|(name, _)| name)
@@ -1010,6 +1028,26 @@ pub fn select<T: topo::AtRestPolicy + Decide>(
     out.sort();
     out.dedup();
     out
+}
+
+/// **Whether `at` reads a family whole** — what a selection never reads
+/// (REFERENCES DM3): [`SelectRefusal::Family`] for a read whose value
+/// is a family's, naming its operation.
+///
+/// # Errors
+///
+/// [`SelectRefusal::Family`].
+pub fn one_body<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+) -> Result<(), SelectRefusal> {
+    let Some(node) = ev.at_var(at).and_then(|var| ev.read_port(var)).map(|(node, _)| node) else {
+        return Ok(());
+    };
+    match ev.value(node).and_then(|value| value.members.as_ref()) {
+        Some(_) => Err(SelectRefusal::Family { node }),
+        None => Ok(()),
+    }
 }
 
 /// **The names of `node`'s output matching `sel` AND every atom of
@@ -1075,7 +1113,45 @@ pub fn select_where<T: topo::AtRestPolicy + Decide>(
     let Some(table) = ev.table(var) else {
         return Ok(Vec::new());
     };
-    let atoms = geompred::prepare(ev, var, geom, params, tol)?;
+    filtered(ev, (var, table), sel, geom, (params, tol))
+}
+
+/// **[`select_where`] over one member of the family `at` names**
+/// (REFERENCES DM3, `xs[i]`): the member's own names
+/// ([`select_member`]), each candidate read at the member's place in
+/// the family, and a distance measured from a face the member's own
+/// table names. Empty where no member stands at `member`.
+///
+/// # Errors
+///
+/// [`select_where`]'s.
+pub fn select_where_member<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+    sel: &Selector,
+    geom: &[GeomPred],
+    (params, tol): (&VarEnv<T>, Tol),
+) -> Result<Vec<StableName>, SelectRefusal> {
+    let Some((var, place, own)) = super::interrogate::member_table(ev, at, member) else {
+        return Ok(Vec::new());
+    };
+    // The member's own names, each at its body's place in the family.
+    let Ok(table) = own.reindex(|body| (body == 0).then_some(place)) else {
+        return Ok(Vec::new());
+    };
+    filtered(ev, (var, &table), sel, geom, (params, tol))
+}
+
+/// [`select_where`]'s filter over `table`, the names of `var`'s bodies.
+fn filtered<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    (var, table): (crate::VarId, &super::NameTable),
+    sel: &Selector,
+    geom: &[GeomPred],
+    (params, tol): (&VarEnv<T>, Tol),
+) -> Result<Vec<StableName>, SelectRefusal> {
+    let atoms = geompred::prepare(ev, (var, table), geom, params, tol)?;
     let band = Band::linear(tol)?;
     let mut out: Vec<StableName> = Vec::new();
     for (name, entry) in table.iter() {

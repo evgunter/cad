@@ -275,6 +275,12 @@ pub enum SelectRefusal {
     /// restated here: two copies of one derivation are two things to
     /// keep true, and this one has already drifted apart from that one.
     Band(BandError),
+    /// The read is a family read whole: a selection reads one body, so
+    /// it is asked of one member, `xs[i]` (REFERENCES DM3).
+    Family {
+        /// The family's operation.
+        node: crate::RecipeNodeId,
+    },
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -374,6 +380,12 @@ impl crate::spoken::Say for SelectRefusal {
                 "select: the ambiguity band itself could not be built from the ambient \
                  tolerance, so no comparison below it can be trusted: {error}"
             ),
+            Self::Family { node } => write!(
+                f,
+                "select: {} is a family, and a selection reads one body. {}",
+                by.node(*node),
+                crate::sentence::Recourse("select from one member of it, `xs[i]`")
+            ),
         }
     }
 }
@@ -459,7 +471,7 @@ pub(crate) enum Prepared<T: topo::AtRestPolicy + Decide> {
 /// margin is taken.
 pub(crate) fn prepare<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
-    var: crate::VarId,
+    (var, table): (crate::VarId, &super::NameTable),
     geom: &[GeomPred],
     params: &VarEnv<T>,
     tol: geom_core::Tol,
@@ -476,9 +488,7 @@ pub(crate) fn prepare<T: topo::AtRestPolicy + Decide>(
                 let unresolved = || SelectRefusal::FaceUnresolved {
                     face: Box::new(face.clone()),
                 };
-                let Some(super::table::Entry::Unique(at)) =
-                    ev.table(var).and_then(|t| t.lookup(face))
-                else {
+                let Some(super::table::Entry::Unique(at)) = table.lookup(face) else {
                     return Err(unresolved());
                 };
                 let EntityKey::Face(f) = at.key else {
@@ -635,6 +645,7 @@ mod census {
             NotALength,
             BadValue,
             Band,
+            Family,
         ];
     }
 
@@ -690,6 +701,9 @@ mod census {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
+            SelectRefusal::Family {
+                node: RecipeNodeId::new(0, 7),
+            },
         ];
         let read: Vec<String> = samples
             .iter()

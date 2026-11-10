@@ -7486,7 +7486,7 @@ mod pattern_presets_are_recognised_as_themselves {
     fn cap_axis(body: RecipeNodeId) -> Operand {
         Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
             of: Operand::Select {
-                body: Box::new(Operand::Node(body)),
+                body: Box::new(Operand::Node(body).into()),
                 names: vec![pncad::prelude::StableName {
                     kind: pncad::select::EntityKind::Face,
                     node: body,

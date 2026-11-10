@@ -481,6 +481,49 @@ pub(crate) fn table_at<T: topo::AtRestPolicy + Decide>(
     Ok((var, table))
 }
 
+/// **One member of the family `at` names, at the index values
+/// `member`** (REFERENCES DM3, `xs[i]`): the family's variable, the
+/// member's place among the family's bodies, and the member's own
+/// table, whose names are the member's — the names a read of the
+/// member answers. `None` where `at` names no family, or no member
+/// stands at `member`.
+pub fn member_table<'e, T: topo::AtRestPolicy + Decide>(
+    ev: &'e Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+) -> Option<(crate::VarId, u32, &'e super::NameTable)> {
+    let (var, _) = table_at(ev, at).ok()?;
+    let value = ev.usable(ev.read_port(var)?.0).ok()?;
+    let members = value.members.as_ref()?;
+    let place = members.position(member)?;
+    let own = members.members[place].1.output(0)?;
+    Some((var, u32::try_from(place).ok()?, own.table()))
+}
+
+/// **The member of the family `at` names that an entity of its table
+/// is in, and the member's own name for it**: the entity `name` names
+/// in the family's table, found by its key in the own table of the
+/// member at its place ([`member_table`]). What a read of one member
+/// selects it by: the member's index values, `xs[i]`, and that name.
+/// `None` where `at` names no family, or `name` no one entity of it.
+pub fn member_entity<T: topo::AtRestPolicy + Decide>(
+    ev: &Evaluation<T>,
+    at: impl Into<crate::At>,
+    name: &StableName,
+) -> Option<(Vec<u32>, StableName)> {
+    let (var, table) = table_at(ev, at).ok()?;
+    let Some(Entry::Unique(ent)) = table.lookup(name) else {
+        return None;
+    };
+    let value = ev.usable(ev.read_port(var)?.0).ok()?;
+    let (values, own) = value.members.as_ref()?.members.get(ent.body as usize)?;
+    let own = own.output(0)?.table().name_of(&crate::names::EntityRef {
+        body: 0,
+        key: ent.key,
+    })?;
+    Some((values.clone(), own.clone()))
+}
+
 /// **What a name table answers a read door, where it answers no key**
 /// — the table's rungs of [`read`]'s ladder, without the node's: the
 /// kind that differs between two readers is the one they each ask for,

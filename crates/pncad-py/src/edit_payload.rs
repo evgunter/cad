@@ -324,7 +324,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 F::Repeated { first, again } => (Some(*first), Some(*again), None),
                 F::NotCanonical { at } | F::Kind { at, .. } => (Some(*at), None, None),
                 F::Count { count, .. } => (None, None, Some(*count)),
-                F::NotASelection { .. } | F::Seat { .. } | F::OtherBody => (None, None, None),
+                F::SideIndex { k } => (Some(*k), None, None),
+                F::NotASelection { .. }
+                | F::Seat { .. }
+                | F::OtherBody
+                | F::IndexRank { .. } => (None, None, None),
             };
             let (found_kind, expected_kind) = match fault {
                 F::Kind {
@@ -335,7 +339,9 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 | F::NotCanonical { .. }
                 | F::Count { .. }
                 | F::NotASelection { .. }
-                | F::OtherBody => (None, None),
+                | F::OtherBody
+                | F::IndexRank { .. }
+                | F::SideIndex { .. } => (None, None),
             };
             EditPayload {
                 node: Some(node.id()),

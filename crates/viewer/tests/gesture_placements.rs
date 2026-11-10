@@ -689,7 +689,7 @@ fn delete_splices_by_continuation() {
         panic!("a chamfer")
     };
     let select = doc.selection(*selection).expect("a selection");
-    assert_eq!(Some(select.body), doc.output(first, 0), "on the copy");
+    assert_eq!(Some(select.body.read), doc.output(first, 0), "on the copy");
     assert_eq!(select.names, [edges[1].clone()], "by the copy's name");
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");

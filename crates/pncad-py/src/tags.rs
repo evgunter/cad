@@ -3481,5 +3481,7 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
         F::Kind { .. } => "name_kind",
         F::Repeated { .. } => "repeated",
         F::OtherBody => "other_body",
+        F::IndexRank { .. } => "index_rank",
+        F::SideIndex { .. } => "side_index",
     }
 }

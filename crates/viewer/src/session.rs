@@ -5472,9 +5472,12 @@ fn followed(
     moved: &std::collections::BTreeMap<StableName, StableName>,
 ) -> Operand {
     match read {
-        Operand::Select { body, names } if crate::world::read_var(doc, body) == Some(was) => {
+        Operand::Select { body, names } if crate::world::read_var(doc, &body.read) == Some(was) => {
             Operand::Select {
-                body: Box::new(Operand::Var(now)),
+                body: Box::new(pncad::document::BodyRead {
+                    read: Operand::Var(now),
+                    at: body.at.clone(),
+                }),
                 names: names
                     .iter()
                     .map(|name| moved.get(name).cloned().unwrap_or_else(|| name.clone()))
