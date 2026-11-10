@@ -9,6 +9,7 @@ use core::convert::Infallible;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::real::{Real, is_finite_length, is_underflowed_length, is_zero_length, pow2};
+use crate::spline::SpanLocate;
 
 /// A vector of the 2-D linear (tangent) space.
 #[derive(Clone, Copy, Debug)]
@@ -167,7 +168,7 @@ pub enum NoDirection {
     /// The length leaves the format ([`LengthOutOfFormat`]).
     OutOfFormat(LengthOutOfFormat),
     /// The vector may be the zero vector, as a structure decision (C6,
-    /// [`crate::structure_nonzero`]'s question asked of the length): at a
+    /// [`crate::structure_nonzero`] read of the length, its one home): at a
     /// point scalar every component is zero ([`is_zero_length`]); at the
     /// interval scalar the length's enclosure holds zero, so some vector
     /// it stands for has no direction, and a direction read from it
@@ -198,25 +199,20 @@ impl<T: Real, V: Prescale<T>> Checked<V, T> {
         unscaled(self.norm, self.power)
     }
 
-    fn nonzero(self) -> Result<Self, NoDirection> {
-        if self.zero {
+    /// The vector less one that may be zero: the zero vector, or (at the
+    /// interval scalar) a length whose enclosure holds zero, the C6
+    /// structure decision of [`crate::structure_nonzero`], read on the
+    /// prescaled norm, which no range flushes.
+    fn nonzero(self) -> Result<Self, NoDirection>
+    where
+        T: SpanLocate,
+    {
+        if self.zero || !crate::structure_nonzero(self.norm) {
             Err(NoDirection::Zero)
         } else {
             Ok(self)
         }
     }
-}
-
-/// **Whether the prescaled norm `n` may be zero**, as a structure
-/// decision (C6) read with the ring alone: `n · (1/n)` is bounded
-/// ([`Real::is_bounded`]) exactly where every value `n` stands for is
-/// nonzero. At a point scalar that is `n ≠ 0`; at `Interval` an enclosure
-/// whose lower end is above zero, an enclosure that holds zero having an
-/// unbounded reciprocal (unbounded, not poison, so
-/// [`is_finite_length`] would not see it). The prescale keeps `n` in
-/// range, so a tiny length's reciprocal does not overflow.
-fn may_be_zero<T: Real>(n: T) -> bool {
-    !(n * (T::one() / n)).is_bounded()
 }
 
 /// `v` through the one prescale, or the rule's refusal. Inside the
@@ -237,8 +233,38 @@ fn checked<T: Real, V: Prescale<T>>(v: V) -> Result<Checked<V, T>, LengthOutOfFo
             scaled,
             norm,
             power,
-            zero: is_zero_length(plain, witness) || may_be_zero(norm),
+            zero: is_zero_length(plain, witness),
         })
+    }
+}
+
+impl<T: SpanLocate> Vec2<T> {
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length)
+    /// that also refuses a vector that may be the zero vector: the door
+    /// for a site that needs a direction, so no caller restates the zero
+    /// question. At the interval scalar "may be" is the structure
+    /// decision ([`NoDirection::Zero`]): a length whose enclosure holds
+    /// zero is refused, never read into an unbounded direction.
+    ///
+    /// # Errors
+    ///
+    /// [`NoDirection::OutOfFormat`] as
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
+    /// [`NoDirection::Zero`] for a vector that may be the zero vector.
+    pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
+        let c = checked(self)?.nonzero()?;
+        Ok((c.direction(), c.length()))
+    }
+
+    /// The length half of [`checked_direction`](Self::checked_direction),
+    /// for a door that refuses a zero or out-of-format vector and reads
+    /// only its length.
+    ///
+    /// # Errors
+    ///
+    /// As [`checked_direction`](Self::checked_direction).
+    pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
+        Ok(checked(self)?.nonzero()?.length())
     }
 }
 
@@ -423,6 +449,34 @@ impl<T: Real> Vec2<T> {
         checked(self).map(|c| (c.direction(), c.length()))
     }
 
+    /// The length half of
+    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
+    /// for a door that refuses such a vector and reads only its length.
+    ///
+    /// # Errors
+    ///
+    /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
+    pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
+        checked(self).map(|c| c.length())
+    }
+
+    /// The componentwise minimum (bounding-box support). Inherits
+    /// [`Real::min`]'s lattice-not-control-flow contract: ties keep
+    /// `self`'s component, and **NaN propagates** per component — a
+    /// poisoned coordinate poisons the bound rather than being silently
+    /// dropped.
+    pub fn min(self, rhs: Self) -> Self {
+        Self::new(self.x.min(rhs.x), self.y.min(rhs.y))
+    }
+
+    /// The componentwise maximum. Same contract as [`Vec2::min`]: ties
+    /// keep `self`'s component, NaN propagates per component.
+    pub fn max(self, rhs: Self) -> Self {
+        Self::new(self.x.max(rhs.x), self.y.max(rhs.y))
+    }
+}
+
+impl<T: SpanLocate> Vec3<T> {
     /// [`checked_direction_and_length`](Self::checked_direction_and_length)
     /// that also refuses a vector that may be the zero vector: the door
     /// for a site that needs a direction, so no caller restates the zero
@@ -440,17 +494,6 @@ impl<T: Real> Vec2<T> {
         Ok((c.direction(), c.length()))
     }
 
-    /// The length half of
-    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
-    /// for a door that refuses such a vector and reads only its length.
-    ///
-    /// # Errors
-    ///
-    /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
-    pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
-        checked(self).map(|c| c.length())
-    }
-
     /// The length half of [`checked_direction`](Self::checked_direction),
     /// for a door that refuses a zero or out-of-format vector and reads
     /// only its length.
@@ -460,21 +503,6 @@ impl<T: Real> Vec2<T> {
     /// As [`checked_direction`](Self::checked_direction).
     pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
         Ok(checked(self)?.nonzero()?.length())
-    }
-
-    /// The componentwise minimum (bounding-box support). Inherits
-    /// [`Real::min`]'s lattice-not-control-flow contract: ties keep
-    /// `self`'s component, and **NaN propagates** per component — a
-    /// poisoned coordinate poisons the bound rather than being silently
-    /// dropped.
-    pub fn min(self, rhs: Self) -> Self {
-        Self::new(self.x.min(rhs.x), self.y.min(rhs.y))
-    }
-
-    /// The componentwise maximum. Same contract as [`Vec2::min`]: ties
-    /// keep `self`'s component, NaN propagates per component.
-    pub fn max(self, rhs: Self) -> Self {
-        Self::new(self.x.max(rhs.x), self.y.max(rhs.y))
     }
 }
 
@@ -693,23 +721,6 @@ impl<T: Real> Vec3<T> {
         checked(self).map(|c| (c.direction(), c.length()))
     }
 
-    /// [`checked_direction_and_length`](Self::checked_direction_and_length)
-    /// that also refuses a vector that may be the zero vector: the door
-    /// for a site that needs a direction, so no caller restates the zero
-    /// question. At the interval scalar "may be" is the structure
-    /// decision ([`NoDirection::Zero`]): a length whose enclosure holds
-    /// zero is refused, never read into an unbounded direction.
-    ///
-    /// # Errors
-    ///
-    /// [`NoDirection::OutOfFormat`] as
-    /// [`checked_direction_and_length`](Self::checked_direction_and_length),
-    /// [`NoDirection::Zero`] for a vector that may be the zero vector.
-    pub fn checked_direction(self) -> Result<(Self, T), NoDirection> {
-        let c = checked(self)?.nonzero()?;
-        Ok((c.direction(), c.length()))
-    }
-
     /// The length half of
     /// [`checked_direction_and_length`](Self::checked_direction_and_length),
     /// for a door that refuses such a vector and reads only its length.
@@ -719,17 +730,6 @@ impl<T: Real> Vec3<T> {
     /// As [`checked_direction_and_length`](Self::checked_direction_and_length).
     pub fn checked_length(self) -> Result<T, LengthOutOfFormat> {
         checked(self).map(|c| c.length())
-    }
-
-    /// The length half of [`checked_direction`](Self::checked_direction),
-    /// for a door that refuses a zero or out-of-format vector and reads
-    /// only its length.
-    ///
-    /// # Errors
-    ///
-    /// As [`checked_direction`](Self::checked_direction).
-    pub fn checked_nonzero_length(self) -> Result<T, NoDirection> {
-        Ok(checked(self)?.nonzero()?.length())
     }
 
     /// The componentwise minimum (bounding-box support). Inherits
