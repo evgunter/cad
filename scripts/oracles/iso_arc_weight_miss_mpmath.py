@@ -14,8 +14,9 @@ Two modes, at 50 digits:
   (e0, w·sqrt(e0·e1), e1), read through the map's Möbius change, against the
   circle at the same carrier parameter. It checks the closed form the bound
   rests on, the reviewer's middle-of-arc radial reading, and then searches
-  half-angles up to a half turn, end-weight ratios 1e-15..1e15 and weight
-  errors of both signs for a sub-arc whose sup exceeds the bound.
+  half-angles up to a half turn, end-weight ratios 1e-15..1e15 and weights
+  from 1e-8·c to c + 100, small errors of both signs among them, for a
+  sub-arc whose sup exceeds the bound.
 - `<dump>`: the JSON lines `geom_brep`'s `iso_arc_weight_search` writes under
   `CAD_ISO_ARC_DUMP` (one certified row each: its column's control points and
   held weights, the sub-arc angle, the radius, the certificate's envelope). Each
@@ -128,8 +129,13 @@ def derive():
     for i in range(400):
         a = mpf(rng.uniform(1e-4, 1.5707)) if i % 4 else mpf(rng.uniform(1.4, 1.5707))
         e0, e1 = mpf(10) ** rng.uniform(-15, 15), mpf(1)
-        d = mpf(rng.choice([-1, 1])) * mpf(10) ** rng.uniform(-15, -2)
-        d = max(d, -cos(a) / 2)
+        c, kind = cos(a), i % 3
+        if kind == 0:
+            d = mpf(rng.choice([-1, 1])) * mpf(10) ** rng.uniform(-15, -2) * c
+        elif kind == 1:
+            d = c * mpf(10) ** rng.uniform(-8, 0) - c
+        else:
+            d = mpf(10) ** rng.uniform(-3, 2)
         s_pt = sup(
             lambda s, a=a, e0=e0, e1=e1, d=d: unit_sub_arc_miss(a, e0, e1, d, s)[0],
             n=60,
@@ -139,12 +145,12 @@ def derive():
         if r < 1:
             bad += 1
             print(f"VIOLATION: a={a} e0={e0} d={d}: bound/sup {r}")
-    print(f"search, 400 sub-arcs: lowest bound/sup {mp.nstr(lowest, 8)}")
+    print(f"search, 400 sub-arcs: lowest bound/sup {mp.nstr(lowest, 15)}")
     return bad
 
 
 def dumped(path):
-    bad, rows, lowest = 0, 0, None
+    bad, rows, lowest, short = 0, 0, None, mpf(0)
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             row = json.loads(line)
@@ -164,18 +170,16 @@ def dumped(path):
                 worst = max(worst, sup(miss, k * h, (k + 1) * h, n=120))
             rows += 1
             # An f64 row's column is its control points rounded: the
-            # certificate meters that rounding through the band, so it is
-            # allowed here, scaled by the map's Möbius skew.
+            # certificate meters that rounding through the band, so a few
+            # units in the last place of the radius are allowed here (the
+            # largest shortfall measured is 2.5).
             allow = mpf(0)
             if row["scalar"] == "f64":
-                skew = max(
-                    max(
-                        sqrt(wt[2 * k] / wt[2 * k + 2]), sqrt(wt[2 * k + 2] / wt[2 * k])
-                    )
-                    for k in range(n)
-                )
-                allow = 16 * mpf(2) ** -52 * max(abs(x) for q in pts for x in q) * skew
-            if worst > allow:
+                allow = 4 * mpf(2) ** (mp.floor(mp.log(r, 2)) - 52)
+            if row["scalar"] == "f64":
+                ulp = allow / 4
+                short = max(short, (worst - env) / ulp)
+            elif worst > 0:
                 ratio = env / worst
                 lowest = ratio if lowest is None else min(lowest, ratio)
             if env < worst - allow:
@@ -185,7 +189,8 @@ def dumped(path):
                 )
     shown = "n/a" if lowest is None else mp.nstr(lowest, 6)
     print(
-        f"{rows} certified rows; lowest envelope/miss over a miss past rounding {shown}"
+        f"{rows} certified rows; Interval: lowest envelope/miss {shown}; "
+        f"f64: worst shortfall {mp.nstr(short, 3)} ulp of the radius"
     )
     return bad
 

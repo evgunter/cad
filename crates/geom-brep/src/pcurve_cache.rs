@@ -947,14 +947,12 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
     // was ever a different POINT, only a different rounding of the
     // same one.
     //
-    // **Scope, honestly**: that argument is ON-DOMAIN. For `t` outside
-    // `[t0, t0 + angle]` the map is a genuine extrapolation and `g` is
-    // legitimately outside `[0, 1]`; the clamp saturates it. Every
-    // caller evaluates on the trimmed interval (the schedule, the loop
-    // walk's entry/exit, `chart_box`), and `locate_spans`
-    // already saturated the span choice off-domain, so no caller sees
-    // a changed answer — but a future off-domain one would, and that
-    // is a property of this function, not an accident of its callers.
+    // **Off the arc** the map is a genuine extrapolation and `g` is
+    // legitimately outside `[0, 1]`; the clamp saturates it, so a `t`
+    // past an arc end reads that end's chart point. The arc-rim
+    // certificate admits an edge whose span runs past its arc inside
+    // the band, and pays the chord the clamp leaves there
+    // (`run_iso_arc_checks`, `slack_span`).
     acc.map(|g| g.max(T::zero()).min(T::one()))
         .unwrap_or_else(|| T::from_f64(f64::NAN))
 }
@@ -8068,12 +8066,24 @@ fn arc_rim_weight<T: SpanLocate>(
 ///
 /// within 13% of the sup at every `α` (`scripts/oracles/iso_arc_weight_miss_mpmath.py`).
 /// It grows as `1/c`: under the radius alone up to a sub-arc of about
-/// 129°, over it past that. A sub-arc of a half turn or
-/// more, `c ≤ 0`, has no positive-weight arc to compare, and costs
-/// an unbounded miss.
+/// 129°, over it past that. Where the scalar reads `c ≤ 0` there is no
+/// positive-weight arc to compare: the lever is the `f64` infinity,
+/// which at `f64` refuses the envelope and at `Interval` is no interval,
+/// so the envelope escalates (an Interval `c` straddling zero hulls in
+/// that same arm and escalates too). A computed `c` just above zero is
+/// charged through its finite lever: `h = π` in `f64` reads
+/// `c = 6·10⁻¹⁷`.
 fn arc_rim_weight_miss<T: Real>(radius: T, sin_half: T, cos_half: T, w: T) -> T {
     let one = T::one();
-    let lever = sin_half * (sin_half.powi(2) + T::from_f64(16.0 / 27.0) * cos_half.powi(2)).sqrt()
+    #[cfg(test)]
+    let tangent = if mutants::arc_rim_tangent_under() {
+        12.0 / 27.0
+    } else {
+        16.0 / 27.0
+    };
+    #[cfg(not(test))]
+    let tangent = 16.0 / 27.0;
+    let lever = sin_half * (sin_half.powi(2) + T::from_f64(tangent) * cos_half.powi(2)).sqrt()
         / (cos_half * (one + w.min(one)) * (one + cos_half.min(one)));
     radius * (w - cos_half).abs() * cos_half.select_le_zero(T::from_f64(f64::INFINITY), lever)
 }
@@ -8211,24 +8221,23 @@ fn run_iso_arc_checks<T: Decide>(
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
     // **The edge's span lies in the image's arc**, `at0 ≤ t0` and
-    // `t1 ≤ at0 + angle`, each decided in metres along the arc. The
+    // `t1 ≤ at0 + angle`, each decided in metres along the arc: the
     // envelope below bounds the miss over the image's own arc, where
-    // `Ĉ(g(t)) = C(t)`; off it the map clamps and the envelope holds
-    // nothing. A span inside the band of an arc end reads as on it, and
-    // pays its overshoot: the map clamps at the arc's end, so the miss
-    // there is the chord to it, at most `R·overshoot`.
+    // `Ĉ(g(t)) = C(t)`. A span inside the band of an arc end reads as on
+    // it, and pays its overshoot: the map clamps at the arc's end, so
+    // the miss there is the chord to it, at most the overshoot's arc
+    // length. The circle's rate is its radius exactly, so the one
+    // metre reading serves both the decision and the payment.
+    let rate = param_rate(carrier);
     let mut slack_span = T::zero();
     for room in [t0 - at0, at0 + angle - t1] {
-        slack_span = slack_span.max(*radius * escape(-room));
-        match decide(
-            "pcurve_iso_arc_span",
-            Margin::metered(room, param_rate(carrier)),
-            band,
-        )
-        .map_err(|cause| PcurveCertifyError::Escalated {
-            check: PcurveCheck::ParamSpan,
-            sample: 0,
-            cause,
+        slack_span = slack_span.max(rate.to_meters(escape(-room)));
+        match decide("pcurve_iso_arc_span", Margin::metered(room, rate), band).map_err(|cause| {
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::ParamSpan,
+                sample: 0,
+                cause,
+            }
         })? {
             Sign::Positive | Sign::Zero => {}
             Sign::Negative => {
@@ -8406,12 +8415,15 @@ fn run_iso_arc_checks<T: Decide>(
         cos_half,
         margin,
     } = arc_rim_weight(&b, angle, spans);
-    let margins: Vec<T> = if ends.is_empty() {
-        vec![margin]
+    // Each sub-arc's normalized weight `w` beside its margin `w − cos(h/2)`.
+    let weights: Vec<(T, T)> = if ends.is_empty() {
+        let w = arc_rim_ratio(&b).unwrap_or_else(|| T::from_f64(f64::NAN));
+        vec![(w, margin)]
     } else {
         (0..spans)
             .map(|k| {
-                arc_rim_normal_weight(held[2 * k], held[2 * k + 1], held[2 * k + 2]) - cos_half
+                let w = arc_rim_normal_weight(held[2 * k], held[2 * k + 1], held[2 * k + 2]);
+                (w, w - cos_half)
             })
             .collect()
     };
@@ -8419,19 +8431,14 @@ fn run_iso_arc_checks<T: Decide>(
     // it costs ([`arc_rim_weight_miss`]): `Ĉ` shares B's weights, so the
     // hull does not see a weight that is not `cos(h/2)`.
     let mut slack_weight = T::zero();
-    for &margin in &margins {
-        slack_weight = slack_weight.max(arc_rim_weight_miss(
-            *radius,
-            sin_half,
-            cos_half,
-            cos_half + margin,
-        ));
+    for &(w, _) in &weights {
+        slack_weight = slack_weight.max(arc_rim_weight_miss(*radius, sin_half, cos_half, w));
     }
     #[cfg(test)]
     if mutants::arc_rim_weight_unpaid() {
         slack_weight = T::zero();
     }
-    for margin in margins {
+    for (_, margin) in weights {
         match decide(
             "pcurve_iso_boundary",
             Margin::metered(margin, InfSpeed::new(*radius)),
@@ -8771,10 +8778,11 @@ fn traversed_column<T: Decide>(
             ),
             None => {
                 // Not a boundary: inside the domain it is a column
-                // the collapse bounds; outside it the collapse is a
-                // span's polynomial EXTENSION, which the chart does
-                // not have — metered through the same stretch the
-                // boundary decide used, refused typed.
+                // the collapse bounds; outside it the collapse is the
+                // end span's polynomial EXTENSION, which the evaluator
+                // reads too but which lies off the chart's domain —
+                // metered through the same stretch the boundary decide
+                // used, refused typed.
                 let outside = escape((cu0 - u_start).max(u_start - cu1));
                 match decide(
                     "pcurve_iso_domain",

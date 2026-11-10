@@ -11,7 +11,8 @@
 //! Built with `PCERT_RADIAL_PAIR_MUTANT` naming `arc-rim-weight-unpaid`
 //! (the payment dropped), every weight row here and the search go red;
 //! naming `arc-rim-span-unpaid` (an in-band overshoot past the arc left
-//! unpaid), the overshoot row does.
+//! unpaid), the overshoot row does; naming `arc-rim-tangent-under` (the
+//! lever's tangential term under-read), the short sub-arc row does.
 //!
 //! The rows' wall: a circle of radius `R` about the origin in `z = 0`,
 //! and a wall of `n` uniform rational-quadratic sub-arcs of angle `h` in
@@ -301,6 +302,35 @@ fn a_near_circle_second_span_pays_its_weight() {
     let row = ArcRow::half(R, [1.0, 1.0, 2.0, 1.0 + d, 1.0]);
     assert_holds::<f64>(&row, "half, second span off");
     assert_holds::<Interval>(&row, "half, second span off");
+}
+
+/// Short sub-arcs, where the weight's miss is mostly tangential: at 1°
+/// it is 88 times the radial miss at the middle, and the bound holds it
+/// within a few parts in 10⁵, so a lever that under-reads the
+/// tangential half (`arc-rim-tangent-under`, 0.87 of the sup) goes red.
+/// `δ` is half the band in metres, either side. The miss scales with the
+/// band and the sampled miss's rounding with the radius, so the radius
+/// is the one that makes the arc a thousand bands long: the span decides
+/// forward, and the rounding stays far under the miss.
+#[test]
+fn a_short_sub_arc_pays_its_tangential_miss() {
+    for deg in [1.0_f64, 3.0, 10.0] {
+        let h = deg.to_radians();
+        let r = 1e3 * zero() / h;
+        let c = (h / 2.0).cos();
+        for side in [1.0, -1.0] {
+            let d = side * zero() / (2.0 * r);
+            let row = ArcRow::uniform(r, h, &[1.0, 1.0], &[c + d]);
+            let label = format!("{deg}° sub-arc, δ {d:e}");
+            let env = assert_holds::<f64>(&row, &label);
+            assert!(
+                row.sampled_miss() > 100.0 * row.eval_rounding(),
+                "{label}: the row is off the circle past rounding"
+            );
+            assert!(env > 0.0, "{label}: the weight is paid");
+            assert_holds::<Interval>(&row, &label);
+        }
+    }
 }
 
 /// Sub-arcs past 129°, where the radius alone under-reads the miss: a
