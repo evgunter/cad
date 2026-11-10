@@ -52,6 +52,7 @@ fn revolved_tube() -> Body<f64> {
     revolve(&profile, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn cylinder_body() -> Body<f64> {
@@ -65,6 +66,7 @@ fn cylinder_body() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The corpus shape (i) cut: a tilted plane through a cylinder.
@@ -96,10 +98,10 @@ fn the_tilted_cut_mints_certified_caches_on_its_curved_faces() {
     let (above, below) = tilted_cut();
     for part in [&above, &below] {
         let mut cylinder_halves = 0usize;
-        for (_, face) in part.faces() {
-            let surface = part.get_surface(face.surface).unwrap();
+        for (fk, _) in part.faces() {
+            let surface = part.face_surface(fk).unwrap();
             let is_cylinder = matches!(surface, Surface::Cylinder { .. });
-            for lp in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            for (lp, _, _) in part.face(fk).expect("a live face").loops() {
                 let loop_data = part.get_loop(lp).unwrap();
                 let topo::LoopBoundary::Cycle { first } = loop_data.boundary else {
                     continue;
@@ -255,7 +257,8 @@ fn planar_bodies_carry_zero_stored_pcurves() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     assert_eq!(prism.pcurves().count(), 0);
     topo::mint_pcurves(&mut prism, Tol::witness()).unwrap();
     assert_eq!(prism.pcurves().count(), 0, "no speculative planar caches");
@@ -322,10 +325,7 @@ fn a_tampered_branch_is_refused_at_rest() {
     let surface = {
         let lp = above.get_half_edge(victim).unwrap().parent_loop;
         let face = above.get_loop(lp).unwrap().face;
-        above
-            .get_surface(above.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone()
+        above.face_surface(face).unwrap().clone()
     };
     let carrier = {
         let edge = above

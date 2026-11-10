@@ -100,7 +100,7 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
     let ev: Evaluation<f64> =
         evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
     let placement = *doc.placements().first().expect("the part places its body");
-    let body = viewer::world::seat_of(doc, placement);
+    let body = viewer::world::original_of(doc, placement);
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let found = pncad::select::select(&ev, body, &sel);
@@ -274,6 +274,33 @@ pub fn store_world_copy(bench: &Bench, body: RecipeNodeId, tol: Tol) -> RecipeNo
     let placement = insert_into(
         &mut doc,
         super::world_place(pncad::document::Operand::Node(body)),
+        tol,
+    );
+    std::fs::write(
+        &bench.asm_path,
+        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
+    )
+    .expect("the assembly writes");
+    placement
+}
+
+/// **A placement of `copy`'s copy in `copy`'s own space, by the identity
+/// bundle, written into the bench's stored assembly by hand**, answering
+/// the placement: a placement whose head is a `Place`, which no gesture
+/// writes over a copy.
+pub fn store_place_over(bench: &Bench, copy: RecipeNodeId, tol: Tol) -> RecipeNodeId {
+    let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
+    let mut doc = pncad::document::load(&text, tol)
+        .expect("the assembly loads")
+        .doc;
+    let space = doc.node_space(copy).expect("a copy stands in a space");
+    let placement = insert_into(
+        &mut doc,
+        Node::place(
+            pncad::document::BodyRead::plain(pncad::document::Operand::Node(copy)),
+            pncad::document::Operand::Var(space),
+            pncad::document::stand().bundle(),
+        ),
         tol,
     );
     std::fs::write(

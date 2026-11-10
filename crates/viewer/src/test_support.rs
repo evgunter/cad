@@ -21,9 +21,9 @@
 #![allow(clippy::panic)]
 
 use pncad::document::{
-    AuthoredNode, BooleanValue, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef,
-    DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, ValuePayload, VarName, apply, evaluate,
+    AuthoredNode, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef, DocumentId, EditError,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node, NodeErrorKind, PartFault,
+    ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 #[cfg(test)]
@@ -41,7 +41,7 @@ use crate::scene::DisplayTolerance;
 /// `editor_core::test_support`'s, over the same `Expr` the façade
 /// re-exports, so this crate reads the kernel's fixtures rather than a
 /// second spelling of them.
-pub use editor_core::test_support::{ang, len, len2, scl};
+pub use editor_core::test_support::{ang, every_body, len, len2, scl};
 
 /// A length literal that remembers it was WRITTEN in millimetres —
 /// `len` lowers canonically and carries no notation, which is what a
@@ -314,7 +314,7 @@ pub fn against_in(
 /// **`mate` added to `placement`'s bundle and `values` written over
 /// it**, as the mate tool's op writes them ([`DocEdit::AddConstraint`],
 /// which drops the values whose freedoms the mate fixes and writes `0`
-/// on each it leaves unset, then [`crate::session::valued`]), the
+/// on each it leaves unset, then [`valued`]), the
 /// placement re-targeted into the space the mate's `to` reads first.
 /// Answers the document and the mate's address.
 ///
@@ -468,9 +468,9 @@ pub const CLEARANCE_SIDE: f64 = 0.02;
 /// Their height.
 pub const CLEARANCE_HEIGHT: f64 = 0.01;
 /// The gap between their facing walls, along x.
-pub const CLEARANCE_GAP: f64 = 0.01;
+pub const STEP_GAP: f64 = 0.01;
 
-/// **Two blocks side by side, [`CLEARANCE_GAP`] apart along x**, each a
+/// **Two blocks side by side, [`STEP_GAP`] apart along x**, each a
 /// [`CLEARANCE_SIDE`] square extruded [`CLEARANCE_HEIGHT`], labelled
 /// `left` and `right`, and each placed into the world at the identity
 /// ([`placed`]) — two parts as they stand, the scene a clearance row
@@ -480,7 +480,7 @@ pub fn two_blocks_apart(tol: Tol) -> (Doc<ProfileProgram>, [RecipeNodeId; 2], [R
     let mut doc = Doc::empty_derived("two-blocks-apart", tol);
     let mut blocks = [RecipeNodeId::WORLD; 2];
     let mut copies = [RecipeNodeId::WORLD; 2];
-    for (i, (x, label)) in [(0.0, "left"), (CLEARANCE_SIDE + CLEARANCE_GAP, "right")]
+    for (i, (x, label)) in [(0.0, "left"), (CLEARANCE_SIDE + STEP_GAP, "right")]
         .into_iter()
         .enumerate()
     {
@@ -623,13 +623,13 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
     let value = eval
         .value(node)
         .unwrap_or_else(|| panic!("the node evaluated: {:?}", eval.node_error(node)));
-    let body = match &value.payload {
-        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        other => panic!("expected a body, got {other:?}"),
-    };
+    let body = value
+        .payload
+        .one_body()
+        .flatten()
+        .unwrap_or_else(|| panic!("expected a body, got {:?}", value.payload));
     pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(body.body().clone(), tol)
-            .expect("the measured body passes tier 3"),
+        &pncad::topo::finish(body.body().clone(), tol).expect("the measured body passes tier 3"),
         tol,
         pncad::topo::test_support::pinned_resolution(tol),
     )

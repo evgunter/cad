@@ -66,3 +66,15 @@ every op `CurvedPierceUnsupported` at `θ ≤ 10³·Kε`. The cause is
 `meet(rim, rim)` → `Unsettled(Meter)` → `Unread`. Before the reader,
 main built this door at 1e-9. Filed as
 `a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
+
+## 2026-11-04 — the Interval half is closed; the meters' decision is ONECOPY's
+
+`curve-pair-polish-at-interval-reads-the-iterates-width` is closed by
+PR 6516: the polish steps from a point, and the
+`band_planar_cut_off_interval` admission above is removed with it.
+What the polish's meters certify (basin, travel, convergence) is now
+Question 1 on ONECOPY's
+`meet-at-interval-refuses-on-its-basin-meter-and-reads-an-ends-distance-at-rounding`,
+with the designers. A decision there is a decision on this row's
+meter too, so read it before working the routes above.
+

@@ -19,8 +19,8 @@ use common::{brick, finished, line, prism_z};
 use geom_core::{Point3, Tol};
 use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanOp, LoopBoundary, ValidationError, boolean_reduce,
-    validate, validate_closed,
+    Body, BooleanError, BooleanOp, LoopBoundary, ValidationError, boolean_reduce, validate,
+    validate_closed,
 };
 
 fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
@@ -54,7 +54,7 @@ fn assert_refused_on_its_seams(b: &Body<f64>, seams: usize, what: &str) {
         .map(|(edge, _)| ValidationError::ScaffoldAtRest { edge })
         .collect();
     assert_eq!(want.len(), seams, "{what}: seam-edge census");
-    let errors = AtRestBody::validate(b.clone(), Tol::witness())
+    let errors = topo::finish(b.clone(), Tol::witness())
         .expect_err(&format!("{what}: a split body does not finish"));
     println!("{what} => {errors:?}");
     assert_eq!(
@@ -84,7 +84,7 @@ fn assert_refused_on_its_seams(b: &Body<f64>, seams: usize, what: &str) {
     let operand = finished(what, rested, tol);
     let a = finished(
         "the unit brick",
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
         tol,
     );
     for (door, err) in [

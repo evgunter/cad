@@ -192,9 +192,7 @@ fn plate(shape: Outline, z0: f64) -> AtRestBody<f64> {
 fn tangent_struts(b: &Body<f64>) -> Vec<(SurfaceKind, SurfaceKind)> {
     let kind = |he| {
         let f = b.face_of_half_edge(he).unwrap();
-        b.get_surface(b.get_face(f).unwrap().surface)
-            .unwrap()
-            .kind()
+        b.face_surface(f).unwrap().kind()
     };
     b.edges()
         .filter(|(_, e)| {

@@ -307,7 +307,7 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
     let text = l_bracket_only(&dm1());
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         Ok(step_import::StepImport::Solid { body, .. }) => {
-            let b = body.body();
+            let b: &topo::Body<f64> = &body;
             assert_eq!(
                 (
                     b.solids().count(),

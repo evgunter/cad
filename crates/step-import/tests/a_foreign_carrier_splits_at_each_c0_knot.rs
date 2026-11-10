@@ -54,7 +54,7 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
         else {
             panic!("{name} is a solid");
         };
-        let b = body.body();
+        let b = &*body;
         assert_eq!(
             (b.faces().count(), b.edges().count(), b.vertices().count()),
             (7, 15, 10),
@@ -65,8 +65,8 @@ fn a_creased_wall_and_its_creased_edges_import_split_at_the_knot() {
         // No cell carries a crease: every spline chart and carrier is
         // C¹ by its knot structure.
         let mut walls = 0;
-        for (_, face) in b.faces() {
-            if let Some(geom::Surface::Nurbs(s)) = b.get_surface(face.surface) {
+        for (fk, _) in b.faces() {
+            if let Some(geom::Surface::Nurbs(s)) = b.face_surface(fk) {
                 walls += 1;
                 assert!(
                     !creased(s.knot_values_u()) && !creased(s.knot_values_v()),
@@ -195,7 +195,7 @@ fn a_knot_vertex_nothing_else_meets_survives_the_closing_join() {
     else {
         panic!("seam_edge is a solid");
     };
-    let b = body.body();
+    let b = &*body;
     assert_eq!(
         (b.faces().count(), b.edges().count(), b.vertices().count()),
         (6, 13, 9),
@@ -238,7 +238,7 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
     else {
         panic!("the half cone is a solid");
     };
-    let b = body.body();
+    let b = &*body;
     assert_eq!(
         (b.faces().count(), b.edges().count(), b.vertices().count()),
         (5, 9, 6),
@@ -276,8 +276,8 @@ fn a_rational_wall_splits_where_its_rims_carry_no_knot() {
         2,
         "a vertex on each rim at the knot's meridian y = 0: {rim_points:?}"
     );
-    for (_, face) in b.faces() {
-        if let Some(geom::Surface::Nurbs(s)) = b.get_surface(face.surface) {
+    for (fk, _) in b.faces() {
+        if let Some(geom::Surface::Nurbs(s)) = b.face_surface(fk) {
             assert!(
                 !creased(s.knot_values_u()) && !creased(s.knot_values_v()),
                 "a wall chart still carries a C⁰ knot"

@@ -1008,7 +1008,7 @@ fn the_table_is_the_whole_corpus() {
 fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
     match got {
         Ok(StepImport::Solid { body, .. }) => assert_eq!(
-            topo::validate_geometric(body.body(), Tol::witness()),
+            topo::validate_geometric(&*body, Tol::witness()),
             Ok(()),
             "{who}: import shipped a body its own gate refuses"
         ),
@@ -1123,7 +1123,7 @@ fn every_corpus_import_passes_the_shared_gate() {
             match (import_step(&text, &options, Tol::witness()), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
-                        topo::validate_geometric(body.body(), Tol::witness()),
+                        topo::validate_geometric(&*body, Tol::witness()),
                         Ok(()),
                         "{who}: the SHIPPED body must be gate-clean — import handed out a \
                          body its own gate refuses, which can only mean the gate is no \
@@ -1131,11 +1131,11 @@ fn every_corpus_import_passes_the_shared_gate() {
                     );
                     assert_eq!(
                         (
-                            body.body().solids().count(),
-                            body.body().shells().count(),
-                            body.body().faces().count(),
-                            body.body().edges().count(),
-                            body.body().vertices().count()
+                            body.solids().count(),
+                            body.shells().count(),
+                            body.faces().count(),
+                            body.edges().count(),
+                            body.vertices().count()
                         ),
                         (s, sh, f, e, v),
                         "{who}: census (solids, shells, faces, edges, vertices) — a \
@@ -1252,9 +1252,11 @@ const WITHHELD: &str = "readings that withheld the offer";
 /// The reader touches the kernel's at-rest validators at exactly TWO
 /// places (the #260 ask: make skipping them structurally hard). The
 /// gate is asked about several subjects — each solid alone, then the
-/// assembled body — but always through `lib.rs`'s `gate` (per-solid,
-/// tier 3) and `gate3` (the aggregate, tier 3′), each of which maps the
-/// verdicts to a typed refusal and does nothing else. Import owns no
+/// assembled body — but always through `lib.rs`'s `gate` (the scalar's
+/// finish, tier 3, for each solid and for the assembled body) and
+/// `gate3`'s census over the finished assembled body (the rest of tier
+/// 3′), each of which maps the verdicts to a typed refusal and does
+/// nothing else. Import owns no
 /// validation logic of its own: no third entry, no kind predicate
 /// deciding who is asked, no verdict filter deciding which failures
 /// count. This counts the validator call sites in the crate's sources
@@ -1266,7 +1268,8 @@ const WITHHELD: &str = "readings that withheld the offer";
 ///
 /// COVERS the tier-3 and tier-3′ door FAMILIES by name — every
 /// spelling of `validate_geometric` and `validate_pseudomanifold`
-/// (structural, `_declared`, `_certificate`) — and `contact_marks`,
+/// (structural, `_declared`, `_certificate`), the scalar's finish and
+/// its census over a finished body — and `contact_marks`,
 /// which is not one of those doors but runs the SAME tier-3 battery
 /// over the same body, so a reader that grew a gate there would be
 /// growing exactly the second entry this row exists to refuse.
@@ -1304,10 +1307,16 @@ fn exactly_one_validation_call_site_in_the_reader() {
     // tier-3 battery over the same body (its own product is the marks
     // channel). A gate grown there would be a third entry wearing a
     // fourth name.
-    const DOORS: [&str; 3] = [
+    // `topo::finish` is the scalar's finish, the tier-3 door `gate`
+    // goes through: the same battery under the one constructor of a
+    // finished body. `census_at_rest` is tier 3′'s census over a
+    // finished body, the rest of `validate_pseudomanifold`.
+    const DOORS: [&str; 5] = [
         "validate_geometric",
         "validate_pseudomanifold",
         "contact_marks",
+        "topo::finish(",
+        "census_at_rest",
     ];
     for path in test_utils::source::rust_sources(&src) {
         let text = std::fs::read_to_string(&path).unwrap();
@@ -1317,15 +1326,14 @@ fn exactly_one_validation_call_site_in_the_reader() {
             }
         }
     }
-    // Two doors since M9-2, still zero opinions: the per-solid
-    // tier-3 door (`gate`) and the aggregate tier-3′ door (`gate3`,
-    // which consumes the import-side declaration channel). Anything
+    // Two doors, still zero opinions: the finish (`gate`) and the
+    // aggregate's census over the finished body (`gate3`). Anything
     // beyond these two is validation logic growing in the reader.
     assert_eq!(
         sites.len(),
         2,
         "the reader must call the kernel's at-rest validators at exactly the two named \
-         doors — per-solid tier 3 (`gate`) and aggregate tier 3′ (`gate3`). Every \
+         doors — the finish (`gate`) and the aggregate's census (`gate3`). Every \
          spelling of both door families is counted, and so is `contact_marks`, which \
          runs the same battery; what is NOT counted is a battery hand-composed out of \
          non-gate parts (see this row's docs): {sites:?}"

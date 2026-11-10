@@ -19,6 +19,10 @@
 #    same value and decides nothing, so it is not a coincidence
 #    decision (D10's clause governs whether cells coincide; reviewed
 #    on #5123);
+#  - geom-brep certify.rs — side_row_certifies' same_span: eq_bits of
+#    a chart-image certificate's interval against the one asked of it.
+#    It picks the certificate over certifying again, two sound paths,
+#    and decides nothing: a false "no" costs the certify (#6728);
 #  - eval/memo.rs — HASHES exact bits into content keys (spec D4
 #    "values AS BITS"): scalar plumbing, never a comparison;
 # The tripwire stays ARMED: any NEW file using the channel fails
@@ -42,6 +46,7 @@ NON_CONSUMER_HOMES=(
   crates/geom-core/src/interval.rs
   crates/editor-core/src/eval/memo.rs
   crates/geom-core/src/spline/blossom.rs
+  crates/geom-brep/src/certify.rs
 )
 
 gate() {

@@ -542,13 +542,21 @@ pub enum EngineRefusal {
         /// The vertex of the face's body the chart collapses to.
         vertex: VertexKey,
     },
-    /// A face on a torus not decided a ring (`R > r`): the carrier meets
-    /// itself, so the face is not injective by its kind.
+    /// A face on a torus not decided a ring (`R > r > 0`), so not
+    /// injective by its kind: a half of the convention decided outside it
+    /// (a tube not shown thicker than zero, or not shown thinner than its
+    /// ring), or one the band cannot decide, which escalates as its own
+    /// margin. The convention's one refusal carries which, and says it in
+    /// the half's own words ([`geom_brep::TorusRefusal`]).
     TorusNotRing {
         /// The face.
         face: FaceKey,
         /// The side it is on.
         side: Which,
+        /// The convention's half and its verdict, boxed: its undecided
+        /// verdict carries an [`geom_core::Indeterminate`], which would
+        /// make every engine refusal as large.
+        refusal: Box<geom_brep::TorusRefusal>,
     },
     /// A cell pair the interval pass classified as a definite violation
     /// of a lower bound, or as within an upper one, whose witness the
@@ -616,7 +624,7 @@ impl EngineRefusal {
             Self::CollapsedChart { face, side, vertex } => {
                 format!("{}={face:?} {vertex:?}", side.name())
             }
-            Self::TorusNotRing { face, side } => format!("{}={face:?}", side.name()),
+            Self::TorusNotRing { face, side, .. } => format!("{}={face:?}", side.name()),
             Self::EmptyScope { side } => side.name().to_owned(),
         }
     }
@@ -711,10 +719,13 @@ impl EngineRefusal {
                  near a touching pair, and the monotone certificate reads no collapsed chart",
                 side.of(sides)
             ),
-            Self::TorusNotRing { face, side } => write!(
+            Self::TorusNotRing {
+                face,
+                side,
+                refusal,
+            } => write!(
                 f,
-                "face {face:?} of {} lies on a torus not decided a ring (R > r), so its \
-                 carrier meets itself",
+                "face {face:?} of {} lies on a torus not decided a ring (R > r > 0): {refusal}",
                 side.of(sides)
             ),
         }
@@ -883,7 +894,7 @@ pub enum CellBudget {
 pub fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
     source
         .terminal_sliver
-        .then_some(source.predicate.unwrap_or("<unnamed>"))
+        .then(|| source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE))
 }
 
 /// The counting receipt of one clearance query.
@@ -1544,7 +1555,7 @@ impl Sweep {
                 // distance topology fixed at 0.
                 let sliver = |r: &Reading| match r {
                     Reading::Undecided(source) => Some(EngineRefusal::Sliver {
-                        predicate: source.predicate.unwrap_or(CLEARANCE_MARGIN),
+                        predicate: source.predicate.unwrap_or(geom_core::UNNAMED_PREDICATE),
                     }),
                     _ => None,
                 };
@@ -3268,7 +3279,7 @@ impl RegionMemo {
         }
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
-            Region::Trimmed => match w.body.passed_face(w.face).map(|f| f.surface()) {
+            Region::Trimmed => match w.body.face(w.face).map(|f| f.surface()) {
                 None => CellRegion::Undecided,
                 Some(stored) => {
                     // The carrier is the window's own lift, which
@@ -3386,7 +3397,7 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             side,
         })
     };
-    let Some(f) = body.passed_face(face) else {
+    let Some(f) = body.face(face) else {
         return unsupported("an unreadable face");
     };
     let stored = f.surface();
@@ -3398,8 +3409,10 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         Interval::from_bounds(bounds.min_y, bounds.max_y),
         Interval::from_bounds(bounds.min_z, bounds.max_z),
     );
+    // The box's range of a chart parameter that the carrier evaluates
+    // as `origin + dir·v`: `Line::param`, correct for any `dir`.
     let along = |origin: Point3<Interval>, dir: Vec3<Interval>| -> (f64, f64) {
-        let d = (extent - origin).dot(dir);
+        let d = geom::Line { origin, dir }.param(extent);
         (d.lo(), d.hi())
     };
     match stored {
@@ -3741,7 +3754,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     face: FaceKey,
 ) -> Option<(Aabb, Boundary)> {
     certified_lift(|lift: Lift<'_, T>| -> Option<(Aabb, Boundary)> {
-        let f = body.passed_face(face)?;
+        let f = body.face(face)?;
         let point = |p: &Point3<T>| p.map(|x| lift.of(x));
         let mut pts: Vec<Point3<Interval>> = Vec::new();
         let mut out = Boundary {
@@ -3811,8 +3824,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             // interval evaluation over it encloses the entire arc, which is
             // what makes a curved boundary bound its own face's window.
             pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
-            let ends = [e.he_plus, e.he_minus]
-                .map(|h| proven(&body.half_edges, h, EntityId::HalfEdge).start);
+            let ends = <[_; 2]>::from(crate::query::edge_ends(body, ek));
             let uses = hes
                 .iter()
                 .map(|he| {
@@ -4284,7 +4296,7 @@ fn support_separation(
     (x, a): (&Window<'_, impl Real>, Cell),
     (y, b): (&Window<'_, impl Real>, Cell),
 ) -> Option<Interval> {
-    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+    let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
     let normal = |s: &Surface<Interval>, c: Cell| {
         let (u, v) = centre(c.u, c.v);
         let n = s.point_normal(u, v);
@@ -4298,7 +4310,7 @@ fn support_separation(
     let (ha, hb) = (Hull::of(&x.surface, a), Hull::of(&y.surface, b));
     [normal(&x.surface, a), normal(&y.surface, b), centres]
         .into_iter()
-        .filter(|n| [n.x, n.y, n.z].iter().all(|c| c.is_finite()) && n.norm() > 0.0)
+        .filter(|n| n.checked_nonzero_length().is_ok())
         .filter_map(|n| {
             let n = n.map(Interval::from_f64);
             let (sa, sb) = (ha.support(n), hb.support(n));
@@ -4980,16 +4992,11 @@ mod receipt_rule {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod cone_window {
-    use core::f64::consts::{FRAC_PI_2, PI};
-
-    use geom::{Curve3, Surface};
-    use geom_brep::{CurveSelector, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
-    use geom_core::{Point3, Tol, Vec3};
+    use geom_core::Tol;
 
     use super::{Which, window_of};
     use crate::Body;
     use crate::entity::FaceKey;
-    use crate::euler::{FaceSurface, MefSite, MevSite};
 
     const ALPHA: f64 = 0.5;
 
@@ -4998,76 +5005,10 @@ mod cone_window {
         z / ALPHA.cos()
     }
 
-    /// The cone of half-angle [`ALPHA`] about `+z`, apex at the origin.
-    fn cone() -> Surface<f64> {
-        Surface::Cone {
-            apex: Point3::origin(),
-            axis: Vec3::unit_z(),
-            half_angle: ALPHA,
-            u_ref: Vec3::unit_x(),
-        }
-    }
-
-    /// **A cone cap**: the face on [`cone`] bounded by its one circle at
-    /// height `z`, two half-circle edges with no seam, so it holds the
-    /// apex inside and none of its boundary reaches it.
+    /// A cone cap at height `z` on the cone of half-angle [`ALPHA`]
+    /// (`test_support_fixtures::cone_cap`).
     fn cone_cap(z: f64) -> (Body<f64>, FaceKey) {
-        let r = z * ALPHA.tan();
-        let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(on(0.0), true).unwrap();
-        let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, z),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-        });
-        body.set_face_surface(
-            seed.face,
-            FaceSurface::Shared {
-                key: plane,
-                sense: true,
-            },
-        )
-        .unwrap();
-        let carrier = body.add_surface(cone());
-        let half = |u0: f64| EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                pair: SurfacePair::new(carrier, plane),
-                selector: CurveSelector::Witness(on(u0 + FRAC_PI_2)),
-            },
-            carrier: Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x()),
-            param_start: u0,
-            param_end: u0 + PI,
-        };
-        let e = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                on(PI),
-                half(0.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        let face = body
-            .lifting_rechart_refusals_for_tests(|body| {
-                body.mef(
-                    MefSite::Chords {
-                        he1: e.he_minus,
-                        he2: e.he_plus,
-                    },
-                    half(PI),
-                    FaceSurface::Shared {
-                        key: carrier,
-                        sense: true,
-                    },
-                    Tol::witness(),
-                )
-            })
-            .unwrap()
-            .face;
-        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        (body, face)
+        crate::test_support_fixtures::cone_cap(ALPHA, z, Tol::witness())
     }
 
     /// **A cone face's window ends where the face does, unless the face
@@ -5081,7 +5022,7 @@ mod cone_window {
     /// or if the wall's window ends anywhere but at its rims.
     #[test]
     fn a_cone_window_ends_at_the_face_unless_the_face_holds_the_apex() {
-        let (mut body, face) = crate::boolean::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
+        let (mut body, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let w = window_of(&body, face, Which::First).unwrap();
         assert!(

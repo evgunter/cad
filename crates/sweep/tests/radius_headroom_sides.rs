@@ -33,7 +33,7 @@ fn putting_ball(sense: bool, side: SurfaceSide) -> Convexity {
 /// The faces of `body` whose surface `pick` accepts.
 fn faces_where<T: Real>(body: &Body<T>, pick: impl Fn(&Surface<T>) -> bool) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| body.get_surface(f.surface).is_some_and(&pick))
+        .filter(|(fk, _)| body.face_surface(*fk).is_some_and(&pick))
         .map(|(k, _)| k)
         .collect()
 }

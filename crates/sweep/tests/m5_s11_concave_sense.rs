@@ -581,6 +581,7 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A rational body's volume, pinned across the ε schedule (the m8-3

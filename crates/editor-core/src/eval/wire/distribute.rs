@@ -2,10 +2,12 @@
 //! a `⊔` value is its pieces, so a boolean reading one acts on each
 //! piece and assembles what it made, `(p ⊔ q) − t = (p − t) ⊔ (q − t)`
 //! and `(p ⊔ q) ∩ t = (p ∩ t) ⊔ (q ∩ t)`. A meeting inside the `⊔` is
-//! its own decision and no boolean above it decides it again; this is
-//! also the kernel's own recourse for a cut through two pieces that
-//! touch (`topo::boolean`'s `VertexReadTwice`, "apply to each piece and
-//! combine").
+//! its own decision and no boolean above it decides it again. The
+//! kernel reads such a `⊔` whole too, where its pieces' seat is an area
+//! record (`topo::boolean`'s declared wall), so this is a second
+//! implementation of the rule, which
+//! `work/tally/the-editors-distribution-over-a-seat-retires-for-the-kernels-whole-body-boolean.md`
+//! retires.
 //!
 //! Each piece's result keeps that piece's records and is keyed by the
 //! piece's read, as the `⊔` keyed it ([`names::name_assemble`]); a
@@ -15,8 +17,9 @@
 //! node took it in by, so the coincidence door reads them where the
 //! operand stands.
 //!
-//! A `⊔` read as the TOOL of a cut is cut by whole
-//! (`work/seal/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`).
+//! A `⊔` read as the TOOL of a cut is cut by whole: the kernel refuses
+//! `ToolSeatCrossed` where the cut crosses the tool's seat
+//! (`work/seal/a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections.md`).
 
 use std::sync::Arc;
 
@@ -31,7 +34,7 @@ use crate::node::RecipeNodeId;
 /// **A boolean's operand, as a distribution reads it**: a body read
 /// through a seat, or one piece of one, with its names, records and
 /// pieces.
-pub(super) struct Operand<T: Decide> {
+pub(super) struct Operand<T: topo::AtRestPolicy + Decide> {
     /// The node it is read from (error context).
     pub node: RecipeNodeId,
     /// The read its entities are keyed by in what the boolean makes:
@@ -74,37 +77,31 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         })
     }
 
-    /// Its body, finished in its own frame: the gate every boolean
-    /// operand passes.
-    pub(super) fn finished(&self, tol: Tol) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-        self.gated(self.body.body().clone(), tol)
+    /// **Its body, taken** as a door that takes finished bodies takes it
+    /// ([`crate::eval::Held::finished`]), in its own frame.
+    pub(super) fn taken(&self, tol: Tol) -> Result<Arc<T::Finished>, NodeErrorKind> {
+        self.body
+            .holding()
+            .finished(tol)
+            .map_err(NodeErrorKind::unfinished(self.node))
     }
 
-    /// **Its body read into `into`'s frame, finished**: `own`, its
-    /// finished body in its own frame, where the two are one frame, so
-    /// an operand read twice is gated once.
-    pub(super) fn finished_in(
+    /// **Its body taken in `into`'s frame**: `own`, its body already
+    /// taken in its own frame ([`Self::taken`]), where the two are one
+    /// frame; else its body mapped at the placement's door
+    /// ([`crate::eval::Framed::read_in`]) and taken there.
+    pub(super) fn taken_in(
         &self,
         into: &crate::eval::Framed<T>,
-        own: &topo::AtRestBody<T>,
+        own: &Arc<T::Finished>,
         tol: Tol,
-    ) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-        if into
-            .relative(&self.body)
-            .map_err(NodeErrorKind::Motion)?
-            .is_none()
-        {
-            return Ok(own.clone());
+    ) -> Result<Arc<T::Finished>, NodeErrorKind> {
+        match into.read_in(&self.body, tol)? {
+            crate::eval::ReadIn::Held(_) => Ok(Arc::clone(own)),
+            mapped @ crate::eval::ReadIn::Mapped(_) => mapped
+                .taken(tol)
+                .map_err(NodeErrorKind::unfinished(self.node)),
         }
-        let read = into.read_in(&self.body, tol)?;
-        self.gated((*read).clone(), tol)
-    }
-
-    fn gated(&self, body: Body<T>, tol: Tol) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-        T::gate_at_rest_kept(body, tol).map_err(|errors| NodeErrorKind::UnfinishedOperand {
-            input: self.node,
-            errors,
-        })
     }
 
     /// Its names as the seat's table spells them: each holder's
@@ -210,12 +207,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     // first's ([`crate::eval::Framed::computing_among`]), each other read
     // into it.
     let mut computing: Option<crate::eval::Framed<T>> = crate::eval::Framed::computing_among(
-        outs.iter().filter_map(|(_, out)| match &out.payload {
-            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
-                Some(body)
-            }
-            _ => None,
-        }),
+        outs.iter()
+            .filter_map(|(_, out)| out.payload.one_body().flatten()),
     )
     .cloned();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
@@ -235,8 +228,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         };
         let first = computing.get_or_insert_with(|| body.clone());
         let read_in = first.read_in(&body, tol)?;
-        let keys = topo::graft_disjoint_all_keyed(&mut fused, read_in.as_ref())
-            .map_err(NodeErrorKind::Boolean)?;
+        let keys =
+            topo::graft_disjoint_all_keyed(&mut fused, &read_in).map_err(NodeErrorKind::Boolean)?;
         let base = coincidences.len();
         let inputs: Vec<u32> = out
             .carry
@@ -305,6 +298,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         _ => topo::BooleanResultKind::Assembly,
     };
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    let fused =
+        T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the

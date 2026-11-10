@@ -178,7 +178,7 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         panic!("{name}: expected a solid import, got a wireframe");
     };
 
-    let body = certified.body();
+    let body: &pncad::topo::Body<f64> = &certified;
     let counts = euler_counts(body);
     let genus = counts
         .genus()

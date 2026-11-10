@@ -71,11 +71,11 @@ Each site needs the D9 argument: a type change, a typed refusal, or `unreachable
 
 All three sites are row (c): `unreachable!` with its why. None is reachable from a legal input, so no witness exists to build red first. (a) was weighed and is not local: a "one body's table" type would have to travel through every emitter and pass-through that hands a `NameTable` on.
 
-**`name_family`, `e.body != 0`.** Can a member's own value be multi-body? No. `eval/members.rs` `family_value` calls `name_family` only when every member's payload is `ValuePayload::Body` or `Boolean(Body)`. A family of families takes the `ValuePayload::Family` arm and is never named here. Each member table is that one-body value's `output(0)`.
+**`name_family`, `e.body != 0`.** Can a member's own value be multi-body? No. `eval/members.rs` `family_value` calls `name_family` only when every member is one body or a boolean's empty result (`ValuePayload::one_body` answers `Some`), and an empty member names nothing. A family of families takes the `ValuePayload::Family` arm and is never named here. Each member table is that one-body value's `output(0)`.
 
 That table names only body 0, because a value's table names only the output bodies the value holds (`OWN_BODIES`):
 - every emitter mints a one-body output at 0 (`check_total(.., 0)` closes each);
-- a family's rows sit at the member's index (`name_family`, `name_copy` beside a placed family);
+- a family's rows sit at the member's index (`name_family`);
 - every pass-through hands a table on beside a value of the same count:
   - `name_copy` of one body;
   - `name_lone_member`;

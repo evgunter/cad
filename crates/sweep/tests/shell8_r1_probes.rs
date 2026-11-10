@@ -62,9 +62,8 @@ fn r1_axial_door_leaves_the_other_solid_deep_identical() {
 
 /// **The axial frame's EXTENT is the scope's.** `axial_frame` levers
 /// every alignment margin by the radial extent of the vertices it
-/// reads. If it read the BODY's, a box parked a million metres away
-/// would lever the vessel's own margins by `1e6` and the door would
-/// stop deciding. Scoped, the vessel shells at the same volume it does
+/// reads. If it read the BODY's, a box parked at the session box's edge
+/// would lever the vessel's own margins by `9e2`. Scoped, the vessel shells at the same volume it does
 /// alone — and that equality is the measurement.
 #[test]
 fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
@@ -76,23 +75,20 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     let far = topo::shell(
         &finished(
             "the operand",
-            beside(&vessel(r, h), &block(2.0, 3.0, 4.0, Tol::witness()), 1.0e6),
+            beside(&vessel(r, h), &block(2.0, 3.0, 4.0, Tol::witness()), 9.0e2),
             tol(),
         ),
         t,
         tol(),
     )
-    .expect("a box a million metres away does not reach the vessel")
+    .expect("a box 900 m away does not reach the vessel")
     .body;
-    // The box's own wall where it stands, the external oracle: a million
-    // metres out its stored coordinates are a ulp of 1.2e-10 apart, and
-    // the hollow box they bound holds 1.05e-9 m³ more than the closed
-    // form's, so the closed form is not the stored box's volume there.
-    // Its volume is read exactly off its own stored vertex points.
+    // The box's own wall where it stands, the external oracle: its
+    // volume is read exactly off its own stored vertex points.
     let far_box = stored_hollow_box_volume(
         &far.vertex_points()
             .map(|(_, p)| p)
-            .filter(|p| p.x > 1.0e3)
+            .filter(|p| p.x > 5.0e2)
             .collect::<Vec<_>>(),
     );
     let wall = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
@@ -362,9 +358,8 @@ fn r1_the_lift_door_is_the_designated_faces_solids() {
     let ceiling: Vec<FaceKey> = faces_of(&pair, ves)
         .into_iter()
         .filter(|&f| {
-            let d = pair.get_face(f).unwrap();
             matches!(
-                pair.get_surface(d.surface),
+                pair.face_surface(f),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.x.abs() < 1e-9 && normal.z.abs() < 1e-9
                         && (origin.y - (h - t1)).abs() < 1e-9
@@ -477,9 +472,8 @@ fn r1_e2e_two_parts_one_body() {
     let lid: Vec<FaceKey> = faces_of(&hollow, bx)
         .into_iter()
         .filter(|&f| {
-            let d = hollow.get_face(f).unwrap();
             matches!(
-                hollow.get_surface(d.surface),
+                hollow.face_surface(f),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
                         && (origin.z - 4.0).abs() < 1e-9
@@ -571,7 +565,7 @@ fn r1_naming_the_inner_wall_after_two_hollowings() {
     // the whole search a user must do to pick "the inner wall".
     let mut rows: Vec<String> = Vec::new();
     for (f, d) in twice.faces() {
-        if let Some(geom::Surface::Plane { origin, normal, .. }) = twice.get_surface(d.surface)
+        if let Some(geom::Surface::Plane { origin, normal, .. }) = twice.face_surface(f)
             && normal.x.abs() < 1e-9
             && normal.y.abs() < 1e-9
         {

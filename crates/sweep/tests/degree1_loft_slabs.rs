@@ -314,7 +314,7 @@ fn the_walls_struts_and_rings_are_one_per_slab() {
             assert_eq!(walls.len(), slabs, "{what}: segment {j}'s slabs");
             for &w in walls {
                 let face = body.get_face(w).unwrap();
-                let Some(Surface::Nurbs(net)) = body.get_surface(face.surface) else {
+                let Some(Surface::Nurbs(net)) = body.face_surface(w) else {
                     panic!("{what}: wall {w:?} is a spline")
                 };
                 assert_eq!(
@@ -421,7 +421,7 @@ fn a_higher_degree_loft_keeps_one_wall_per_segment() {
 fn the_output_stage_merge_keeps_every_slab_wall() {
     let zs = heights(4, "uniform");
     let lofted = loft(Shape::Square, &zs, |_| 1.0);
-    let mut merged = lofted.body.clone();
+    let mut merged = lofted.body.clone().into_body();
     let outcome = merged.merge_coplanar_faces(tol()).unwrap();
     assert!(
         outcome.groups.is_empty(),

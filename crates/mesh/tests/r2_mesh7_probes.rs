@@ -103,7 +103,7 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
                 body.split_edge(ek, t0 + f * (t1 - t0), tol).unwrap();
             }
             let got = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
-            let mp = match topo::AtRestBody::validate(body.clone(), tol) {
+            let mp = match topo::finish(body.clone(), tol) {
                 Ok(finished) => topo::mass_properties(
                     &finished,
                     tol,

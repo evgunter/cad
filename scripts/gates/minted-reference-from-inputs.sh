@@ -20,13 +20,16 @@
 #   geom-core/src/linalg/{vec,unit_vec}.rs  the definitions;
 #   step-import/src/recognize.rs  an imported plane's frame: the file's
 #                                 coordinates are the import's input;
-#   geom/src/cover.rs             `Frame::aimed`, a cover's box frame
+#   geom/src/cover.rs             `BoxAxes::aimed`, a cover's box frame
 #                                 read only as a support along its aim;
 #   geom-brep/src/curve_face/conic_oracle.rs  the conic rows' torus
 #                                 fixture, built only for tests (its
 #                                 `test-support` reach is `topo`'s rows);
-#   topo/src/boolean/boxes.rs     `BoxFrame::aimed`, a box frame read
-#                                 only as a support along its aim;
+#   topo/src/boxes.rs     its rows' fixtures and aimed frames,
+#                                 read only as supports along an aim;
+#   topo/src/cover.rs             a sphere zone's normal-plane frame,
+#                                 read only through the norm of a
+#                                 direction's components in it;
 #   topo/src/side_reader.rs       a ray's aim, which no output keeps;
 #   topo/src/boolean/section_cert.rs  a ruling chart and the section
 #                                 witnesses: no output keeps them, but a
@@ -53,7 +56,8 @@ BASIS_HOMES=(
   crates/step-import/src/recognize.rs
   crates/geom/src/cover.rs
   crates/geom-brep/src/curve_face/conic_oracle.rs
-  crates/topo/src/boolean/boxes.rs
+  crates/topo/src/boxes.rs
+  crates/topo/src/cover.rs
   crates/topo/src/side_reader.rs
   crates/topo/src/boolean/section_cert.rs
 )

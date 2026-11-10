@@ -71,9 +71,9 @@
 use core::ops::Neg;
 
 use crate::k_stats::decide;
-use crate::linalg::Vec3;
+use crate::linalg::{LengthOutOfFormat, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Lever, Margin, Sign};
-use crate::real::{Real, is_finite_length, is_underflowed_length};
+use crate::real::{Real, is_finite_length};
 use crate::spline::SpanLocate;
 
 /// **A direction that cannot be unnormalized.** The only spellings are
@@ -168,14 +168,14 @@ impl core::fmt::Display for UnitVec3Error {
             Self::NonFiniteLength => write!(
                 f,
                 "a direction vector's length is not a finite number (a component \
-                 overflows the norm or is not a number). Recourse: {}",
-                crate::predicate::RANGE_RECOURSE
+                 overflows the norm or is not a number). {}",
+                crate::predicate::RANGE_ENDING
             ),
             Self::UnderflowedLength => write!(
                 f,
                 "a direction vector's length underflowed to zero, though it still \
-                 names a direction. Recourse: {}",
-                crate::predicate::RANGE_RECOURSE
+                 names a direction. {}",
+                crate::predicate::RANGE_ENDING
             ),
             // A direction's length has no declaration object at any
             // door that mints this witness, so the payload renders
@@ -247,7 +247,7 @@ impl std::error::Error for LeveredUnitError {}
 ///    sound and simply refuses later, where a `f64` would answer a
 ///    definite wrong sign).
 /// 2. **Did that length UNDERFLOW to zero?** Asked through the same
-///    value channel ([`is_underflowed_length`]), against the largest
+///    value channel ([`is_underflowed_length`](crate::is_underflowed_length)), against the largest
 ///    absolute component as the nonzero witness. Components below
 ///    ~1e-162 square to zero, so the norm is exactly zero for a
 ///    vector that has a perfectly good direction — and the decision
@@ -306,6 +306,15 @@ pub fn decide_unit_direction<T: Decide>(
     decide_direction_by(v, site, band, Margin::norm3)
 }
 
+impl From<LengthOutOfFormat> for UnitVec3Error {
+    fn from(e: LengthOutOfFormat) -> Self {
+        match e {
+            LengthOutOfFormat::NonFinite => Self::NonFiniteLength,
+            LengthOutOfFormat::Underflowed => Self::UnderflowedLength,
+        }
+    }
+}
+
 /// The three questions of [`decide_unit_direction`], the third asked of
 /// `margin(v)`.
 fn decide_direction_by<T: Decide>(
@@ -314,21 +323,12 @@ fn decide_direction_by<T: Decide>(
     band: Band,
     margin: impl FnOnce(Vec3<T>) -> Margin<T>,
 ) -> Result<Vec3<T>, UnitVec3Error> {
-    // `margin` recomputes this same norm (`Vec3::norm` is
+    // `margin` recomputes the plain norm the rule read (`Vec3::norm` is
     // deterministic), so the gates and the margin read the one length;
     // it is spelled twice rather than reached into.
-    let len = v.norm();
-    if !is_finite_length(len) {
-        return Err(UnitVec3Error::NonFiniteLength);
-    }
-    // `norm_witness` is the largest |component|, which is the nonzero
-    // WITNESS the underflow question is asked against; the derivation
-    // and why the norm brackets it live on that door.
-    if is_underflowed_length(len, v.norm_witness()) {
-        return Err(UnitVec3Error::UnderflowedLength);
-    }
+    let (direction, _) = v.checked_direction_and_length()?;
     match decide(site, margin(v), band) {
-        Ok(Sign::Positive) => Ok(v.normalize()),
+        Ok(Sign::Positive) => Ok(direction),
         Ok(_) => Err(UnitVec3Error::Degenerate),
         Err(source) => Err(UnitVec3Error::Escalated(source)),
     }
@@ -524,6 +524,38 @@ impl<T: Real> Neg for UnitVec3<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// The rule at both ends and at zero: an overflowed or poisoned plain
+    /// norm, an underflowed one, an in-format one, and the zero vector,
+    /// whose length is the door's own question.
+    #[test]
+    fn a_length_leaves_the_format_at_either_end_and_not_at_zero() {
+        for (v, want) in [
+            (
+                Vec3::new(1e200, 1e200, 0.0),
+                Some(UnitVec3Error::NonFiniteLength),
+            ),
+            (
+                Vec3::new(f64::NAN, 1.0, 0.0),
+                Some(UnitVec3Error::NonFiniteLength),
+            ),
+            (
+                Vec3::new(1e-170, 0.0, 0.0),
+                Some(UnitVec3Error::UnderflowedLength),
+            ),
+            (Vec3::new(1e-150, 2e-150, 0.0), None),
+            (Vec3::new(3.0, 4.0, 12.0), None),
+            (Vec3::new(0.0, 0.0, 0.0), None),
+        ] {
+            assert_eq!(
+                v.checked_direction_and_length()
+                    .err()
+                    .map(UnitVec3Error::from),
+                want,
+                "{v:?}"
+            );
+        }
+    }
 
     fn bits3(v: Vec3<f64>) -> [u64; 3] {
         [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]

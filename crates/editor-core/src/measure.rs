@@ -35,7 +35,6 @@ use crate::node::SitedRef;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 #[serde(try_from = "MeasurePrimitiveWire<R>")]
 #[serde(bound(deserialize = "R: serde::Deserialize<'de>"))]
 pub enum MeasurePrimitive<R = SitedRef> {

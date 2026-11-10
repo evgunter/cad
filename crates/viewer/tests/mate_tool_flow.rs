@@ -13,7 +13,7 @@ use common::{ang, len};
 use pncad::document::{MateSide, RecipeNodeId, Said};
 use pncad::geom_core::Tol;
 use pncad::select::{RoleSeg, face_frame};
-use viewer::matetool::{MateSeat, MateTool, MateToolError, MateToolEvent, PlaceDoor, ValueFrom};
+use viewer::matetool::{MateSeat, MateTool, MateToolError, MateToolEvent, ValueFrom};
 use viewer::session::{DocSession, FaceSelection, PatternRuleSpec, SessionOp};
 
 #[test]
@@ -27,14 +27,15 @@ fn two_picks_one_choice_one_committed_edit() {
     // empty one.
     asm::unpin(&mut session, bench.post_b);
 
-    // The first pick, on post_b's copy, opens the Edit door on it and
+    // The first pick, on post_b's copy, opens the editor on it and
     // fills a fresh row's on seat; the second, elsewhere, its to seat.
     let mut tool = MateTool::new();
     assert!(tool.door().is_none(), "no pick, no door");
     assert!(tool.pick(session.doc(), post_top.clone()).is_none());
     assert!(
-        matches!(tool.door(), Some(PlaceDoor::Edit { placement, .. }) if *placement == bench.post_b),
-        "a pick on a copy opens its placement's Edit door"
+        tool.door()
+            .is_some_and(|door| door.placement == bench.post_b),
+        "a pick on a copy opens its placement"
     );
     assert!(tool.pick(session.doc(), shelf_bottom.clone()).is_none());
     let row = &tool.rows()[tool.active()];
@@ -56,7 +57,7 @@ fn two_picks_one_choice_one_committed_edit() {
     let proposal =
         common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     let (doc, _) = session.landed_pair().expect("landed");
-    assert_eq!(proposal.placement, Some(bench.post_b), "the on pick's copy");
+    assert_eq!(proposal.door.placement, bench.post_b, "the on pick's copy");
     for (coord, by) in asm::middle_seat_values() {
         assert!(
             proposal
@@ -276,7 +277,7 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     });
     session.pump();
     let (doc, eval) = session.landed_pair().expect("landed");
-    let events = tool.reconcile(doc, eval);
+    let events = tool.reconcile(session.committed_doc(), (doc, eval));
     // The lost pick's seat is empty, the other held, the drop typed
     // with its row, side and seat and the resolution verdict.
     assert_eq!(events.len(), 1);
@@ -319,14 +320,17 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     );
 
     // A reconcile against an unchanged pair is quiet.
-    assert!(tool.reconcile(doc, eval).is_empty());
+    assert!(
+        tool.reconcile(session.committed_doc(), (doc, eval))
+            .is_empty()
+    );
 
-    // The copy the Edit door is on goes too: the editor holds nothing,
+    // The copy the editor is on goes too: it holds nothing,
     // said.
     session.perform(SessionOp::DeleteNode { node: bench.post_b });
     session.pump();
     let (doc, eval) = session.landed_pair().expect("landed");
-    let events = tool.reconcile(doc, eval);
+    let events = tool.reconcile(session.committed_doc(), (doc, eval));
     assert!(
         matches!(
             &events[..],
@@ -447,8 +451,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     asm::unpin(&mut session, bench.shelf_i);
     let proposal = shelf_on(&session, &shelf_bottom, &copy_one);
     assert_eq!(
-        proposal.placement,
-        Some(bench.shelf_i),
+        proposal.door.placement, bench.shelf_i,
         "the mate places the shelf"
     );
 
@@ -498,19 +501,13 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
 fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let tol = Tol::witness();
     let bench = asm::bench("matepatternnon", tol);
+    // A placement between the instance and the pattern — a Place of
+    // the instance's copy, every value zero: the pattern's input is a
+    // `Place`, not an `InstantiatePart`, which is one of the heads
+    // `member_of` declines.
+    let moved = asm::store_place_over(&bench, bench.post_b, tol);
     let mut session = asm::open_bench(&bench, tol);
     session.pump();
-    // A placement between the instance and the pattern — a duplicate of
-    // the instance, stood back on it by the Transform tool's Edit door,
-    // every value zero: the pattern's input is the duplicate's `Place`,
-    // not an `InstantiatePart`, which is one of the heads `member_of`
-    // declines.
-    let duplicated = session.perform(SessionOp::Duplicate {
-        input: bench.post_b.into(),
-        beside: None,
-    });
-    assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
-    let moved = duplicated.made.expect("the duplicate's copy");
     assert!(
         matches!(
             session.committed_doc().node(moved),
@@ -518,15 +515,6 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
         ),
         "the pattern's head is a Place"
     );
-    let mut values = common::slides([0.0; 3]);
-    values.extend(
-        pncad::document::TargetAxis::ALL
-            .map(|axis| (pncad::document::Coord::Spin(Some(axis)), common::ang(0.0))),
-    );
-    let op = common::transformed(&mut session, moved, &values);
-    let stood = session.perform(op);
-    assert!(stood.refusal.is_none(), "{:?}", stood.refusal);
-    session.pump();
     let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
@@ -642,8 +630,8 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
 /// **The Transform tool reads a pick through a union by A11's member
 /// walk**, as the editor's first pick does: one rule decides which door
 /// a pick opens. A face of the union's own body, named as post_b's
-/// member face, opens the Edit door of the copy the walk reaches — not a
-/// Create door on the union.
+/// member face, opens the editor on the copy the walk reaches — not
+/// Place on the union.
 #[test]
 fn the_transform_tool_reaches_an_instance_through_a_unions_name() {
     let tol = Tol::witness();
@@ -702,11 +690,8 @@ fn the_transform_tool_reaches_an_instance_through_a_unions_name() {
         .unwrap_or_else(|event| panic!("a door opens: {event}"));
     std::fs::remove_dir_all(&bench.dir).expect("removable");
     assert!(
-        matches!(
-            editor.door(),
-            Some(viewer::matetool::PlaceDoor::Edit { placement, .. }) if *placement == walked
-        ),
-        "the Edit door of {walked:?}, which the walk reaches: {:?}",
+        editor.door().is_some_and(|door| door.placement == walked),
+        "the editor on {walked:?}, which the walk reaches: {:?}",
         editor.door()
     );
     assert!(

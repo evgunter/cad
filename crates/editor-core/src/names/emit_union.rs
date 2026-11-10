@@ -858,12 +858,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             let p = vertex_point(self.body, c);
             let mut at = Vec::with_capacity(2);
             for (i, q) in ends.iter().enumerate() {
-                let off = decide(ON_MEMBER_EDGE, Margin::of((p - *q).norm()), self.bnd).map_err(
-                    |source| NamingError::Escalated {
-                        predicate: ON_MEMBER_EDGE,
-                        source,
-                    },
-                )?;
+                let off = decide(ON_MEMBER_EDGE, Margin::of((p - *q).norm()), self.bnd)
+                    .map_err(|source| NamingError::Escalated { source })?;
                 if off == Sign::Zero {
                     at.push(i);
                 }
@@ -1291,10 +1287,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             let gap = Margin::of((at - p).norm());
             decide(ON_MEMBER_EDGE, gap, self.bnd)
                 .map(|off| off == Sign::Zero)
-                .map_err(|source| NamingError::Escalated {
-                    predicate: ON_MEMBER_EDGE,
-                    source,
-                })
+                .map_err(|source| NamingError::Escalated { source })
         };
         let mut sides: [Option<bool>; 2] = [None, None];
         let mut piece = BTreeSet::new();
@@ -1401,7 +1394,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// Whether member edge `of` runs the same way as member edge `like`:
     /// `Some(true)` for the same edge, and for an edge lying on `like`'s
     /// line, straight or curved, the way their directions agree
-    /// ([`EdgeCarrier::runs_with`]); `None` where `of` does not lie on
+    /// ([`EdgeCarrier::runs_with_as`]); `None` where `of` does not lie on
     /// that line.
     fn same_way(
         &self,
@@ -1413,7 +1406,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         let (of_body, of_edge) = member_edge(self.members, of.0, of.1.name())?;
         let (like_body, like_edge) = member_edge(self.members, like.0, like.1.name())?;
-        EdgeCarrier::of_edge(like_body, like_edge)?.runs_with(
+        EdgeCarrier::of_edge(like_body, like_edge)?.runs_with_as(
             &EdgeCarrier::of_edge(of_body, of_edge)?,
             ON_MEMBER_EDGE,
             self.bnd,
@@ -1649,12 +1642,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     continue;
                 }
                 let gap = Margin::of((vertex_point(m.body, w) - p).norm());
-                let at = decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| {
-                    NamingError::Escalated {
-                        predicate: ON_MEMBER_EDGE,
-                        source,
-                    }
-                })?;
+                let at = decide(ON_MEMBER_EDGE, gap, self.bnd)
+                    .map_err(|source| NamingError::Escalated { source })?;
                 if at != Sign::Zero {
                     continue;
                 }
@@ -4214,7 +4203,7 @@ mod tests {
             SelfMember {
                 union: RecipeNodeId::new(0, 9),
                 read: VarId::new(1, 7),
-                body: built.body,
+                body: built.body.into_body(),
                 table: (*table).clone(),
             }
         }

@@ -72,9 +72,8 @@ fn knife_at(what: &str, body: &Body<f64>, at: impl Fn(&Point3<f64>) -> bool) -> 
         .filter(|(_, m)| **m == ContactMark::Tangent)
         .map(|(e, _)| e)
         .filter(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            at(&point(body.get_half_edge(he).unwrap().start))
-                && at(&point(body.half_edge_end(he).unwrap()))
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            at(&point(v0)) && at(&point(v1))
         })
         .collect();
     let [edge] = found[..] else {
@@ -614,9 +613,8 @@ fn the_valley_fills_at_interval() {
         .filter(|(_, m)| **m == ContactMark::Tangent)
         .map(|(e, _)| e)
         .filter(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            on_axis(&point(body.get_half_edge(he).unwrap().start))
-                && on_axis(&point(body.half_edge_end(he).unwrap()))
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            on_axis(&point(v0)) && on_axis(&point(v1))
         })
         .collect();
     let [edge] = knives[..] else {
@@ -826,9 +824,7 @@ fn a_crescent_whose_arc_is_shorter_than_its_foot_refuses() {
         };
         assert_eq!(margin.predicate, "fillet3_face_clearance");
         assert_eq!(margin.sign, geom_core::Sign::Negative, "r = {r}");
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap();
+        let surface = body.face_surface(face).unwrap();
         if arc {
             assert!(
                 matches!(surface, geom::Surface::Cylinder { .. }),
@@ -938,9 +934,8 @@ fn two_tangent_tubes_unioned_are_two_solids_whose_kiss_edges_are_left_as_they_ar
         .edges()
         .map(|(e, _)| e)
         .filter(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            on_kiss(&point(body.get_half_edge(he).unwrap().start))
-                && on_kiss(&point(body.half_edge_end(he).unwrap()))
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            on_kiss(&point(v0)) && on_kiss(&point(v1))
         })
         .collect();
     assert_eq!(body.solids().count(), 2, "two solids");

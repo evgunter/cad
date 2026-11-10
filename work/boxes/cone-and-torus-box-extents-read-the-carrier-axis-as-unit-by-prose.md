@@ -2,11 +2,11 @@
 id: cone-and-torus-box-extents-read-the-carrier-axis-as-unit-by-prose
 kind: issue
 title: The cone and torus box extents read the carrier's axis (and the torus's u_ref) as unit by prose; the cylinder slab decides it at the read
-status: parked
+status: closed
 opened: 2026-10-02
+closed: 2026-11-08
 priority: P3
 cost: E
-blocked_on: [cover-topo-faces]
 ---
 
 ## Finding
@@ -43,3 +43,12 @@ jurisdiction; take it with that lane.
 ## Since PR 6336 (BOXES, 2026-11-02)
 
 The torus half of this row's window bullet is resolved: `torus_window_extent` is gone, and the torus window is the closed form `boxes::torus_rect_extent` over spans, which is exact whatever the lengths of `u_ref` and `axis × u_ref` (its doc). What stands is the cone's axis and the torus tube extent `torus_extent` reading the axis as unit. (BOXES orchestrator)
+
+## Closed (`cover-topo-faces`, 2026-11-08)
+
+The cone arm reads its axis as a decided unit direction
+(`bool_box_cone_axis`, `topo::cover::face_cover`) before the frustum
+reads its window. The torus's tube (`geom::cover::Cover::tube`) and chart
+patch read any frame: the tube's support bounds `R·ρ·e + r·(…)` with
+`ρ·e` reaching the norm of `e`'s components along `u_ref` and
+`axis × u_ref`, whatever their lengths.

@@ -21,10 +21,9 @@
 //!   not below the radius) at 469, and STILL REFUSES at 2 111 — the
 //!   reported number is the overrun in the setback metric, and the
 //!   radius reduction a corner needs ranges from 0.04× to 29× of it on
-//!   this grid — which is why the sites call the recourse un-metered
-//!   and why the residue
-//!   `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`
-//!   owns a metered form.
+//!   this grid — which is why the refusal meters the radius lever by
+//!   `radius_at_anchor`, not by this number
+//!   (`fillet_radius_at_anchor`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,17 +35,22 @@ use geom_core::k_stats;
 use profile::{FilletLeg, PathError, ProfileLoop};
 
 /// The corner's anchor fit is satisfied at this radius: the loop builds,
-/// or a read past the corner answers instead ([`past_the_corner`]). The
-/// fit gates classify on the exact band, so the corner's own verdict
-/// does not move with ε; a later read's can, and it is not the subject
-/// here.
+/// or a read past the corner answers instead ([`past_the_corner`]), or
+/// the run the radius leaves on a leg is within the run's linear band
+/// and the fit escalates — at `1e-6` some followed deficits leave a run
+/// of a few ε, which is neither a run nor none.
 fn anchor_fit_satisfied(res: &Result<ProfileLoop<f64>, PathError<f64>>, what: &str) {
     if let Err(e) = res {
         assert!(
-            past_the_corner(e).is_some(),
+            past_the_corner(e).is_some() || fit_in_band(e),
             "{what}: the anchor fit must be satisfied, got {e:?}"
         );
     }
+}
+
+/// Whether `e` is the leg fit escalating in band.
+fn fit_in_band(e: &PathError<f64>) -> bool {
+    matches!(e, PathError::Escalated { source, .. } if source.predicate == Some("fillet_leg_fit"))
 }
 
 // ------------------------------------------------------------ fixtures
@@ -202,6 +206,8 @@ fn line_arc_grid_side_census_under_the_leg_rule() {
 /// radius.
 #[test]
 fn the_recourse_census_on_grid_a() {
+    let (inside_in, inside_out, _) = crate::common::grid_a_overruns_inside_the_band();
+    let inside = inside_in + inside_out;
     let (mut builds, mut refuses, mut not_a_request) = (0_usize, 0_usize, 0_usize);
     let mut past: Vec<&'static str> = Vec::new();
     grid_a(|_, case, r, out| {
@@ -223,7 +229,7 @@ fn the_recourse_census_on_grid_a() {
     });
     assert_eq!(
         builds + past.len() + refuses + not_a_request,
-        3_185,
+        3_185 - inside,
         "grid A's anchor-fit entries"
     );
     println!("recourse census: builds {builds}, past the corner at this ε: {past:?}");
@@ -232,7 +238,7 @@ fn the_recourse_census_on_grid_a() {
     }
     assert_eq!(
         (builds + past.len(), refuses, not_a_request),
-        (605, 2_111, 469),
+        (605, 2_111 - inside, 469),
         "anchor fit satisfied / still refuses / not a request"
     );
 

@@ -12,7 +12,8 @@
 //! otherwise the middle of each piece of the span the point may rest on
 //! polished to the point's foot ([`Curve3::foot`]). A witness halfway to
 //! an unpolished piece middle lies within the band's gap of a joint, not
-//! at it.
+//! at it. An endless span ([`Span::endless`]) has no ends ([`Span::ends`]):
+//! none is read, and none anchors a witness.
 //!
 //! **The walk** is [`geom_core::bisect`]'s, over pairs of pieces. A piece
 //! reaches at most `ℓ` metres from its middle point, `ℓ` its half-span
@@ -32,16 +33,22 @@
 //! within the band. A pair that
 //! stops is polished toward the meeting by Gauss–Newton, each carrier's
 //! foot of the other's point is polished, and the point is read on both
-//! spans ([`Span::contact`]). Every piece the walk does not clear ends at
-//! such a pair, so no meeting is left unread; an escalated clearing keeps
-//! its piece. Every point read is read under the reader's stretch rule
+//! spans ([`Span::contact`]) with the window the pieces make: the pair's
+//! gap bound and reach (`pose`'s module docs, "The gap's lower bound"),
+//! every pair of the pieces within the pieces' reach and the polish's
+//! run of it, and the curvature at most the carriers' bounds. An Off at
+//! the polished pair prunes only where that bound says the pieces hold
+//! no meeting of the spans; where its premise is not proved
+//! (`curve_pair_walk_basin`) the window is undecided and the Off
+//! escalates. Every piece the walk does not clear ends at such a pair,
+//! so no meeting is left unread; an escalated clearing keeps its piece. Every point read is read under the reader's stretch rule
 //! (the parent module's docs). A walk past
 //! [`geom_core::bisect::PIECE_BUDGET`] refuses typed
 //! ([`Unsettled::Exhausted`]).
 
 use geom::{Curve3, PieceStep};
 use geom_core::bisect::{Step, bisect};
-use geom_core::k_stats::decide;
+use geom_core::k_stats::{Pick, choose, decide};
 use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::span::Span;
@@ -130,31 +137,36 @@ fn surely<T: Decide>(name: &'static str, margin: T, band: Band, sign: Sign) -> b
 /// along the carrier is dropped. A polished parameter is read, never
 /// trusted, so the bound can lose a meeting's foot but never invent one.
 ///
-/// The comparison is a decision, not a `<`, because an enclosure that
-/// straddles it is neither taken nor dropped by a `<`; the band is the
-/// least pair of positive `f64`s, so it reads the sign alone.
+/// A heuristic's choice ([`geom_core::k_stats::choose`], ledger row F35),
+/// not a `<`, because an enclosure that straddles it is neither taken nor
+/// dropped by a `<`. **At a tie the step is dropped**: sound for the
+/// reason above. A dropped step leaves the point unpolished, and the
+/// window read at it (module docs) prunes only where its premise is proved,
+/// so an unproved premise escalates the Off rather than losing a meeting.
 fn step_taken<T: Decide>(moved: T, slack: T) -> bool {
-    surely(
+    match choose(
         "curve_pair_walk_polish_step",
-        slack * T::from_f64(16.0) - moved,
-        Band::least(),
-        Sign::Positive,
-    )
+        Margin::of(slack * T::from_f64(16.0) - moved),
+        "F35",
+    ) {
+        Pick::Positive => true,
+        Pick::Negative | Pick::Tie => false,
+    }
 }
 
 /// Whether a piece of reach `reach` is small enough to stop at, decided on
 /// `row`: within the floor, or within the band where there is no finite
 /// floor.
 fn stops<T: Decide>(row: &'static str, reach: T, floor: Option<T>, band: Band) -> bool {
-    let within = |margin: T| {
+    let within_as = |margin: T| {
         matches!(
             decide(row, Margin::of(margin), band),
             Ok(Sign::Negative | Sign::Zero)
         )
     };
     match floor {
-        Some(f) if geom_core::is_finite_length(f) => within(reach - f),
-        Some(_) | None => within(reach),
+        Some(f) if geom_core::is_finite_length(f) => within_as(reach - f),
+        Some(_) | None => within_as(reach),
     }
 }
 
@@ -223,7 +235,7 @@ fn read_both<T: Decide>(
             match s.contact(q, t, band) {
                 Ok(Some(hit)) => return Ok(Some(hit)),
                 Ok(None) => {}
-                Err(refusal) => held = held.or(Some(refusal)),
+                Err(refusal) => held = held.or(Some(refusal.refused())),
             }
         }
         held.map_or(Ok(None), Err)
@@ -253,6 +265,34 @@ fn same<T: Decide>(s: T, t: T) -> bool {
     super::compare("curve_pair_walk_same_foot", s, t) == Some(Sign::Zero)
 }
 
+/// **The window of a polished piece pair** (`pose`'s module docs, "The
+/// gap's lower bound"): every pair of the pieces lies within `span`
+/// metres, along its carrier, of the polished parameter on it (its run
+/// to the piece's middle and the piece's own reach), and the carriers'
+/// curvature is at most their bounds over the whole carrier. Where the
+/// sine at the pair, less the turn over `span` twice, is not proved
+/// positive (`curve_pair_walk_basin`) the premise fails and the window
+/// is undecided.
+fn window<T: Decide>(
+    (ra, pa, s): (&Read<'_, '_, T>, Piece<T>, T),
+    (rb, pb, t): (&Read<'_, '_, T>, Piece<T>, T),
+    band: Band,
+) -> super::WindowBound<T> {
+    let run = |r: &Read<'_, '_, T>, p: Piece<T>, u: T| {
+        Margin::metered_sup(u - p.mid(), r.hi()).value().abs() + p.reach(r.hi())
+    };
+    let span = run(ra, pa, s).max(run(rb, pb, t));
+    let curvature = ra.curvature + rb.curvature;
+    super::polish::bound(
+        ("curve_pair_walk_basin", None),
+        ra.curve().ders1(s),
+        rb.curve().ders1(t),
+        curvature,
+        (T::from_f64(band.escalate()), span),
+    )
+    .unwrap_or_else(super::polish::undecided)
+}
+
 /// Whether the pieces `pa` of `a` and `pb` of `b` are definitely apart
 /// (module docs).
 fn pieces_apart<T: Decide>(
@@ -274,7 +314,7 @@ fn pieces_apart<T: Decide>(
     // separation rather than their offset along it.
     let across = |d: Vec3<T>| gap - d * (gap.dot(d) / d.dot(d));
     [gap, across(da), across(db)].into_iter().any(|n| {
-        let n = n / n.norm();
+        let n = n.normalize();
         clear(n.dot(gap).abs() - n.dot(da).abs() * ha - n.dot(db).abs() * hb - bend)
     })
 }
@@ -289,9 +329,8 @@ fn witnesses<T: Decide>(
 ) -> Result<Vec<Point3<T>>, geom_core::bisect::Exhausted> {
     let mut points = Vec::new();
     for (r, other) in [(ra, rb), (rb, ra)] {
-        let (o0, o1) = other.span.params();
         let mut ends = Vec::new();
-        for q in [other.curve().eval(o0), other.curve().eval(o1)] {
+        for (_, q) in other.span.ends() {
             ends.extend(polished_feet(r, q, band)?);
         }
         points.extend(
@@ -329,11 +368,9 @@ pub(super) fn meet<T: Decide>(
         found: found.points,
         shared: None,
     };
-    // Each span's ends against the other, first.
+    // Each span's ends against the other, first: none of an endless one.
     for (r, other, first) in [(&ra, &rb, true), (&rb, &ra, false)] {
-        let (t0, t1) = r.span.params();
-        for t in [t0, t1] {
-            let q = r.curve().eval(t);
+        for (t, q) in r.span.ends() {
             let Ok(feet) = polished_feet(other, q, band) else {
                 return Err(exhausted(found));
             };
@@ -373,7 +410,7 @@ pub(super) fn meet<T: Decide>(
                 let slack = (ra.curve().eval(ma) - rb.curve().eval(mb)).norm()
                     + pa.reach(ra.hi())
                     + pb.reach(rb.hi());
-                let (s, t, _) = super::polish::pair(
+                let (s, t) = super::polish::pair(
                     |s| ra.curve().ders1(s),
                     |t| rb.curve().ders1(t),
                     (ma, mb),
@@ -381,8 +418,13 @@ pub(super) fn meet<T: Decide>(
                 );
                 let t = rb.curve().foot(ra.curve().eval(s), t).seed();
                 let s = ra.curve().foot(rb.curve().eval(t), s).seed();
-                let q = ra.curve().eval(s);
-                found.offer(q, || read_both((a, &[s]), (b, &[t]), q, band), band);
+                let candidate = super::Candidate {
+                    point: ra.curve().eval(s),
+                    ta: s,
+                    tb: t,
+                    bound: Some(window((&ra, pa, s), (&rb, pb, t), band)),
+                };
+                found.read(a, b, candidate, band);
                 return Step::Settled;
             }
             if !stop_a && (stop_b || pa.depth <= pb.depth) {
@@ -406,8 +448,30 @@ mod tests {
     use geom_core::k_stats::decide;
     use geom_core::{Band, Margin, Point3, Sign, Vec3};
 
-    use super::{Read, witnesses};
+    use super::{Read, step_taken, witnesses};
     use crate::curve_pair::Span;
+
+    /// **F35's tie drops the step.** A step that moves its point exactly
+    /// `16·slack` is a decided zero against its bound at `f64`, and an
+    /// enclosure astride the bound is undecided: each is dropped, as a
+    /// step past the bound is, while one short of it is taken. None of
+    /// it reaches the verdict log. Red where the tie keeps the step.
+    #[test]
+    fn a_polish_step_at_its_bound_or_astride_it_is_dropped() {
+        use geom_core::Interval;
+        let bracket = geom_core::k_stats::Bracket::open();
+        assert!(step_taken(15.0_f64, 1.0));
+        assert!(!step_taken(16.0_f64, 1.0), "at the bound");
+        assert!(!step_taken(17.0_f64, 1.0));
+        let one = Interval::from_bounds(1.0, 1.0);
+        assert!(step_taken(Interval::from_bounds(15.0, 15.5), one));
+        assert!(
+            !step_taken(Interval::from_bounds(15.5, 16.5), one),
+            "astride the bound"
+        );
+        let recorded = bracket.finish();
+        assert!(recorded.verdicts.is_empty() && recorded.escalations.is_empty());
+    }
 
     /// **The walk's witnesses stand on polished feet.** A quadratic spline
     /// ending at the origin, which no closed form inverts, and a segment

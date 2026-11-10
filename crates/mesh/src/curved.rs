@@ -1281,7 +1281,7 @@ mod tests {
             if crate::trimmed::has_trim_carrier(body, fk).unwrap() {
                 continue;
             }
-            let Some(chart) = Chart::of(body.get_surface(face.surface).unwrap()) else {
+            let Some(chart) = Chart::of(body.face_surface(fk).unwrap()) else {
                 continue;
             };
             let walk =
@@ -1311,6 +1311,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     /// A partial-revolve sphere band — the pole-to-pole wedge whose
@@ -1329,6 +1330,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn cone_body() -> Body<f64> {
@@ -1345,6 +1347,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn washer() -> Body<f64> {
@@ -1362,6 +1365,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn donut() -> Body<f64> {
@@ -1377,6 +1381,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn wedge(theta: f64) -> Body<f64> {
@@ -1394,6 +1399,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     /// Axis-touching partial wedge (`tests/common::axis_wedge`): the
@@ -1415,6 +1421,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     /// The mirror-nappe diamond (`review_m2_pr6_walk_shapes.rs`'s
@@ -1435,6 +1442,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     fn rounded_prism() -> Body<f64> {
@@ -1461,6 +1469,7 @@ mod tests {
         )
         .unwrap()
         .body
+        .into_body()
     }
 
     /// The die pip (`sweep`'s `m5_s13_pips` shape): a 4 × 4 × 1 slab
@@ -2099,8 +2108,7 @@ mod tests {
             for (fk, poly, levers) in curved_walks(name, &body) {
                 let (_, _, v0, v1) = bbox(&poly);
                 let charted = body
-                    .get_face(fk)
-                    .and_then(|f| body.get_surface(f.surface))
+                    .face_surface(fk)
                     .and_then(Chart::of)
                     .is_some_and(|c| !c.poles().is_empty());
                 for (e, &(lu, _)) in poly.iter().zip(&levers).filter(|(e, _)| e.pole) {
@@ -2206,7 +2214,8 @@ mod tests {
             Tol::witness(),
         )
         .unwrap()
-        .body;
+        .body
+        .into_body();
         let ek = body.edges().map(|(k, _)| k).next().unwrap();
         let (t0, t1) = body
             .get_curve_geom(body.get_edge(ek).unwrap().curve)
@@ -2645,9 +2654,7 @@ mod tests {
             }),
             "two Rim-classified oblique arcs and nothing else"
         );
-        let surface = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap();
+        let surface = body.face_surface(face).unwrap();
         let outer = body.get_face(face).unwrap().outer;
         assert_eq!(
             require_iso_rectangle_face(

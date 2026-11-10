@@ -110,10 +110,7 @@ fn area(rounded_corners: f64) -> f64 {
 }
 
 fn is_cylinder(body: &Body<f64>, f: topo::FaceKey) -> bool {
-    matches!(
-        body.get_face(f).and_then(|x| body.get_surface(x.surface)),
-        Some(geom::Surface::Cylinder { .. })
-    )
+    matches!(body.face_surface(f), Some(geom::Surface::Cylinder { .. }))
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -397,12 +394,7 @@ fn a_tangent_beside_a_fillet_builds_every_op_in_either_order() {
                 let kinds: Vec<_> = r
                     .contacts
                     .face_face()
-                    .map(|(x, y)| {
-                        [x, y].map(|f| {
-                            let face = r.body.get_face(f).unwrap();
-                            r.body.get_surface(face.surface).unwrap().kind()
-                        })
-                    })
+                    .map(|(x, y)| [x, y].map(|f| r.body.face_surface(f).unwrap().kind()))
                     .collect();
                 assert!(
                     kinds == [[geom::SurfaceKind::Plane, geom::SurfaceKind::Cylinder]]
@@ -605,7 +597,7 @@ fn the_stack_is_a_legal_operand() {
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     finished(
         "the brick",
-        sweep::test_support::brick(x, y, z, tol()),
+        sweep::test_support::brick::<f64>(x, y, z, tol()),
         tol(),
     )
 }
@@ -705,9 +697,9 @@ type ContinuationRow = (
 /// The three ops, by name.
 type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 const OPS: [(&str, Op); 3] = [
-    ("union", topo::union::<f64>),
-    ("subtract", topo::subtract::<f64>),
-    ("intersect", topo::intersect::<f64>),
+    ("union", topo::union::<topo::AtRestBody<f64>>),
+    ("subtract", topo::subtract::<topo::AtRestBody<f64>>),
+    ("intersect", topo::intersect::<topo::AtRestBody<f64>>),
 ];
 
 /// **An overlapping continuation builds in every op.** C4: a

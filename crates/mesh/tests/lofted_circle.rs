@@ -18,10 +18,7 @@ use sweep::test_support::lofted_cylinder;
 fn walls<'m>(body: &topo::Body<f64>, mesh: &'m mesh::Mesh) -> Vec<&'m mesh::FacePatch> {
     mesh.patches
         .iter()
-        .filter(|p| {
-            let face = body.get_face(p.face).unwrap();
-            matches!(body.get_surface(face.surface), Some(Surface::Nurbs(_)))
-        })
+        .filter(|p| matches!(body.face_surface(p.face), Some(Surface::Nurbs(_))))
         .collect()
 }
 
@@ -133,6 +130,7 @@ fn lofted_round(r0: f64, r1: f64, arcs: usize) -> topo::Body<f64> {
     )
     .expect("the round lofts")
     .body
+    .into_body()
 }
 
 /// The review's twenty δ of `lofted-rational-walls-refuse-at-some-deltas`:
@@ -235,6 +233,7 @@ fn uneven_station_round(r: [f64; 5], e: f64) -> topo::Body<f64> {
     )
     .expect("the uneven-station round lofts")
     .body
+    .into_body()
 }
 
 /// **Bands are not column-aligned, and the outcome stays sound**
