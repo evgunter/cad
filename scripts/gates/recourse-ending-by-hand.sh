@@ -24,25 +24,34 @@
 #     path on the name;
 #   * `Recourse: {}` in a statement whose last argument is `X_RECOURSE`;
 #   * `Recourse(X_RECOURSE)`, the label type wrapped round the fragment.
-#   * the label and the fragment across a `;` (a `let` holding the
-#     format string, a helper that prefixes `Recourse: `);
-#   * `Recourse: {}` with `X_RECOURSE` as an argument other than the last;
 #   * the label and the move arm's WORDS as a literal: `Recourse: move
 #     the geometry` spelled by hand (across `\` continuations too) rather
 #     than through `MOVE_RECOURSE` or `move_recourse!("so …")`
-#     (`work/onecopy/move-the-geometry-is-spelled-as-a-literal-at-a-hundred-sites.md`).
-#     Test code is out, so a pin may spell the text it pins; the other
-#     subjects of a `Recourse: move …` (`the parts`, `the point`, …) are
-#     an operation's own levers and pass.
+#     (`work/onecopy/move-the-geometry-is-spelled-as-a-literal-at-a-hundred-sites.md`);
+#   * the move arm's words opening a literal as a lever, unlabelled:
+#     `"move the geometry so …"` (across `\` continuations too) rather
+#     than `geom_core::move_lever!("so …")`, for a slot a recourse label
+#     is put before (a `LeverOnly`'s or a `SizedDecision`'s `lever`).
+#   Test code is out of both, so a pin may spell the text it pins; the
+#   other subjects of a `Recourse: move …` (`the parts`, `the point`, …)
+#   are an operation's own levers and pass.
 #
 # BLIND SPOTS, each one a shape that passes:
+#   * the label and the fragment across a `;` (a `let` holding the
+#     format string, a helper that prefixes `Recourse: `);
+#   * `Recourse: {}` with `X_RECOURSE` as an argument other than the last;
 #   * a pair named neither `X_RECOURSE` / `X_ENDING` nor in
 #     `NAMED_PAIRS`;
-#   * the move arm's words without the label (`"move the geometry so …"`
-#     as a fragment of a sentence of the site's own), which is the
-#     fragment's own use where it composes mid-sentence;
-#   * the macro forms: `geom_core::move_recourse!("so …")` is the ending
-#     and passes, and so does a hand
+#   * the move arm's words opening a lever with a continuation other
+#     than `so` (`"move the geometry nearer the origin, …"`, `"… to a
+#     scale where …"`, `"move the geometry, or …"`), which
+#     `move_lever!`'s compile-time `so ` check does not take: four
+#     production levers today;
+#   * the move arm's words mid-literal, after words of the site's own
+#     (`"…, or move the geometry so the contact exists"`), which is the
+#     fragment composed into a sentence of the site's own;
+#   * the macro forms: `move_recourse!("so …")` and `move_lever!("so …")`
+#     pass, and so does a hand
 #     `concat!("Recourse: ", geom_core::coincidence_move_arm!(), …)`, which
 #     no shape reads (it names the arm's macro, not a fragment constant);
 #   * a fragment composed mid-sentence after words of the site's own
@@ -97,13 +106,15 @@ for path, lines in files.items():
 '
 
 # The words matcher: the line view on stdin, each file's lines rejoined,
-# and each `Recourse: move the geometry` spelled as a literal printed as
-# `path:line: text`. The words may break at a `\` continuation.
+# and each `Recourse: move the geometry`, or `"move the geometry so`
+# opening a literal, spelled by hand printed as `path:line: text`. The
+# words may break at a `\` continuation.
 # shellcheck disable=SC2016
 WORDS='
 import re, sys
 gap = r"(?:\s|\\)+"
-words = re.compile(r"Recourse:" + gap + "move" + gap + "the" + gap + "geometry")
+arm = "move" + gap + "the" + gap + "geometry"
+words = re.compile(r"Recourse:" + gap + arm + r"|\"" + arm + gap + r"so\b")
 files = {}
 for record in sys.stdin:
     path, line, text = record.rstrip("\n").split(":", 2)
@@ -122,7 +133,7 @@ for path, lines in files.items():
 gate() {
   gate_require_crate_sources
   gate_production_sources
-  local list alt hits pair frag ending named=""
+  local list alt hits view pair frag ending named=""
   list=$(stems)
   for pair in $NAMED_PAIRS; do
     frag=${pair%%:*} ending=${pair#*:}
@@ -139,21 +150,20 @@ gate() {
     return
   fi
   alt=$( { printf '%s\n' "$list" | sed '/^$/d; s/$/_RECOURSE/'; printf '%s\n' $named; } | paste -sd'|')
-  hits=$(gate_rust_code --skip-cfg-test --keep-literals "${GATE_PRODUCTION_FILES[@]}" \
-    | python3 -c "$MATCHER" "$alt")
+  view=$(gate_rust_code --skip-cfg-test --keep-literals "${GATE_PRODUCTION_FILES[@]}")
+  hits=$(printf '%s\n' "$view" | python3 -c "$MATCHER" "$alt")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "a recourse fragment labelled by hand beside its ending: write the X_ENDING constant (for COINCIDENCE_RECOURSE, MOVE_RECOURSE or move_recourse!(\"so …\"))"
     exit 1
   fi
-  hits=$(gate_rust_code --skip-cfg-test --keep-literals "${GATE_PRODUCTION_FILES[@]}" \
-    | python3 -c "$WORDS")
+  hits=$(printf '%s\n' "$view" | python3 -c "$WORDS")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "the move recourse spelled by hand: write MOVE_RECOURSE for the whole ending, or geom_core::move_recourse!(\"so …\") for a move named more closely (a format! site passes it as an argument)"
+    gate_error "the move recourse spelled by hand: write MOVE_RECOURSE for the whole ending, geom_core::move_recourse!(\"so …\") for a move named more closely (a format! site passes it as an argument), or geom_core::move_lever!(\"so …\") for that move as an unlabelled lever"
     exit 1
   fi
-  gate_ok "every recourse fragment with an ending is ended through it ($(printf '%s\n' "$list" | sed 's/$/_RECOURSE/' | paste -sd, -),$named), and the move recourse is never spelled by hand"
+  gate_ok "every recourse fragment with an ending is ended through it ($(printf '%s\n' "$list" | sed 's/$/_RECOURSE/' | paste -sd, -),$named), and the move recourse is never spelled by hand, labelled or as a lever"
 }
 
 plant_home() {
@@ -245,6 +255,20 @@ plant_move_other_subject() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_move_lever() {
+  plant_home "$1"
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub const L: Lever = Lever { lever: "move the \\\n     geometry so it parts" };\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_move_lever_mid_sentence() {
+  plant_home "$1"
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub const L: &str = "drop the declaration, or move the geometry so it parts";\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 gate_selftest() {
   local want="a recourse fragment labelled by hand beside its ending"
   gate_selftest_clean
@@ -260,7 +284,9 @@ gate_selftest() {
   gate_selftest_passes "a test pin spelling the move recourse, past a literal closing brace" \
     plant_move_words_in_a_test
   gate_selftest_passes "another subject of a move" plant_move_other_subject
-  printf '%s selftest OK: passes a clean fixture, the ending written whole and the fragment mid-sentence; fires on the fragment named after the label, passed as the last argument after `Recourse: {}`, and wrapped in Recourse(…), and on the named pair COINCIDENCE_RECOURSE after the label (its MOVE_RECOURSE passes), and on a named pair geom-core no longer defines; fires on the words of the move recourse spelled by hand across a continuation, and passes them in a test module whose literal holds a closing brace, and another subject of a move\n' "$(gate_name)"
+  gate_selftest_case "the move recourse spelled by hand" plant_move_lever
+  gate_selftest_passes "the move arm composed mid-sentence" plant_move_lever_mid_sentence
+  printf '%s selftest OK: passes a clean fixture, the ending written whole and the fragment mid-sentence; fires on the fragment named after the label, passed as the last argument after `Recourse: {}`, and wrapped in Recourse(…), and on the named pair COINCIDENCE_RECOURSE after the label (its MOVE_RECOURSE passes), and on a named pair geom-core no longer defines; fires on the words of the move recourse spelled by hand across a continuation, and passes them in a test module whose literal holds a closing brace, and another subject of a move; fires on the words of the move arm opening a lever across a continuation, and passes them mid-sentence\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

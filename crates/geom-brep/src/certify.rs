@@ -1429,7 +1429,7 @@ impl core::fmt::Display for StatedSpan {
 
 /// The lever of both transversality decisions: the sampled angle and
 /// the uniqueness tube's bound are moved by the same change.
-const CROSS_LEVER: &str = "move the geometry so the surfaces cross at a clearer angle";
+const CROSS_LEVER: &str = geom_core::move_lever!("so the surfaces cross at a clearer angle");
 
 impl<'a> Decision<'a, CertCheck> {
     /// The certification check this decision is a refused arm of, where
@@ -1513,8 +1513,10 @@ impl CertCheck {
             // refusal of it is the certificate's limit, which the lever
             // reaches, never a stored contradiction.
             Self::ParamSpanMeter => Ending::Sized(SizedDecision {
-                lever: "move the geometry so this spline edge runs steadily forward, never \
-                        stalling or turning back",
+                lever: geom_core::move_lever!(
+                    "so this spline edge runs steadily forward, never \
+                        stalling or turning back"
+                ),
                 size: length_noun!(),
                 passes: SizedPass::Positive,
                 side: RefusedSide::Lever,
@@ -1543,7 +1545,9 @@ impl CertCheck {
             Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentPlanes => Ending::Undefined(TANGENT_PLANES_RECOURSE),
             Self::TangentSecondOrder => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the faces curve apart more clearly where they touch",
+                lever: geom_core::move_lever!(
+                    "so the faces curve apart more clearly where they touch"
+                ),
                 size: curvature_noun!(),
                 passes: SizedPass::Positive,
                 side: RefusedSide::StoredContradiction,
@@ -1553,7 +1557,9 @@ impl CertCheck {
             // definite refusal of it is the certificate's limit, which
             // the lever reaches, never a stored contradiction.
             Self::TangentTube => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the faces curve apart more clearly where they touch",
+                lever: geom_core::move_lever!(
+                    "so the faces curve apart more clearly where they touch"
+                ),
                 size: curvature_noun!(),
                 passes: SizedPass::Positive,
                 side: RefusedSide::Lever,
@@ -1585,8 +1591,10 @@ impl CertCheck {
             // own degeneracy, and the stored face is what the lever
             // edits, so it ends in the lever at rest too.
             Self::PlaneNurbsChartSpeed => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the spline face varies along both of its \
-                        parameter directions",
+                lever: geom_core::move_lever!(
+                    "so the spline face varies along both of its \
+                        parameter directions"
+                ),
                 size: "degenerate face",
                 passes: SizedPass::Positive,
                 side: RefusedSide::Lever,

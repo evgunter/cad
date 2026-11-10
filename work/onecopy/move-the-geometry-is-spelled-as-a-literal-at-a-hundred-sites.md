@@ -80,3 +80,21 @@ AtRest and `Display`, 2,172 lines, `LaminaWedge` among them) is
 identical before and after. The four constants and
 `SeamArrivalOffDirection`'s rendering were each asserted equal to their
 old literal.
+
+**The lever form (6753 review).** About 25 production `&'static str`
+levers spelled the arm unlabelled, `"move the geometry so …"`, for a
+slot a recourse label is put before (`LeverOnly`, `SizedDecision`, a
+refusal's own lever constant): geom-brep `certify.rs` ×5, `dihedral.rs`,
+`edge_crossing.rs` ×2, `recourse.rs` ×4; profile `gate.rs`; topo
+`refusal_routes.rs` ×5, `euler.rs`, `props.rs`, `split.rs`,
+`splitting/containment.rs` ×2, `validate.rs` ×2. They now go through
+`geom_core::move_lever!("so …")`, which `move_recourse!("so …")` is
+defined over (the label and it), with the same compile-time `so `
+check. `contact.rs`'s two spellings share one condition literal
+(`contact_condition!`), through the two macros. The gate refuses the
+words opening a literal as a lever too. Four levers open the arm with
+another continuation ("nearer the origin", "to a scale", ", or"); the
+`so ` check does not take them, and the gate's header names them as a
+blind spot. The built libraries' strings that begin
+`move the geometry` are identical before and after (54 distinct
+`… so …` values).
