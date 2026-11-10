@@ -170,3 +170,4 @@
       - The horn-cusp row is under-banded (P2 → P1).
     - The fix pass was sent to the part-way lane, resumed.
   - **Class (logged at adjudication):** "a mutant declared equivalent without running every row of its subject" was wrong here. A row in another file caught it. An equivalence claim needs the whole subject's rows, not the PR's own set.
+- 2026-11-10 — **PR 6521's fix pass is taken** (head `3de36b3eb8`, CI green). The orchestrator read `apex_grading`, which is a cut schedule and decides nothing. MINOR-2 (the near-sphere lune) is fixed in the unit: limb 2 gains breaks graded toward an axis end, and the lune row went from 4.5 s to 0.7 s. M1–M8, S1, S17 and G are all red. The horn-cusp row now builds its needle at 1e-6, and the four-arc horn refuses its mesh; both are recorded on that row. The row is closed. **The nightly on main is red on unrelated jobs** (editor-core battery, viewer, k-lint, 2026-11-10); those are not this track's ground.
