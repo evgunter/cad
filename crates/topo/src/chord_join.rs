@@ -7392,9 +7392,8 @@ mod torn_hop_rows {
                     .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
             })
             .unwrap();
-        let (v0, v1) = body.edge_vertices(edge).unwrap();
-        let u1 = v0;
-        let u2 = v1;
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let (u1, u2) = body.edge_vertices(edge).unwrap();
         let spec = |b: &Body<f64>| {
             super::along_edge_spec(b, &JoinLane::AlongEdge, Some(edge), face, u1, u2)
                 .map(|s| s.is_some())

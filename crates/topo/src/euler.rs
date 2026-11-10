@@ -6085,8 +6085,7 @@ mod tests {
             Some(vec![seg.he_plus, circ.he_plus, seg.he_minus])
         );
         let w = seg.vertex;
-        assert_eq!(body.get_half_edge(circ.he_plus).unwrap().start, w);
-        assert_eq!(body.half_edge_end(circ.he_plus), Some(w));
+        assert_eq!(body.edge_vertices(circ.edge), Some((w, w)));
         // New face shares the old face's surface (M1 geometry policy).
         assert_eq!(body.get_face(circ.face).unwrap().surface, seed.surface);
         // Chords never touches emanating.
@@ -6327,10 +6326,9 @@ mod tests {
         // The new edge joins start(he1) = v3 to start(he2) = v2, plus
         // half in the old loop.
         assert_eq!(
-            t.body.get_half_edge(split.he_plus).unwrap().start,
-            island.v3
+            t.body.edge_vertices(split.edge),
+            Some((island.v3, island.v2))
         );
-        assert_eq!(t.body.half_edge_end(split.he_plus), Some(island.v2));
         // Shared surface with face A (the split face), same shell.
         assert_eq!(
             t.body.get_face(split.face).unwrap().surface,

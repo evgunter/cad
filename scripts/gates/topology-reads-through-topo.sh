@@ -37,6 +37,16 @@
 #     `get_half_edge(E.he_plus)….start … get_half_edge(E.he_minus)….start`
 #     (an array, a tuple or a comparison): an edge's two ends spelled
 #     inline, the last two off the twin.
+#  4. Across statements, by the shape rather than the name: a half-edge
+#     H that is an edge's `he_plus` (spelled `X.he_plus`,
+#     `X.plus.half_edge`, or a local `let H = ….he_plus;` within 30 lines
+#     above) read as `get_half_edge(H)….start` within 8 lines of
+#     `half_edge_end(H)`; and `get_half_edge(E.he_plus)….start` followed
+#     within 3 lines by `get_half_edge(E.he_minus)….start`. A half-edge's
+#     own start and end are not this shape unless it is an edge's
+#     `he_plus`: a loop walk's `he` reads its own ends. EXEMPT (`HALF_READS`):
+#     the Euler rows that assert each half-edge of a fresh edge on its
+#     own, which is their subject.
 #
 # KNOWN GAPS. The matcher reads text, not types. It cannot see:
 #  - a face record bound in one statement whose `.surface` key is
@@ -50,11 +60,9 @@
 #    `MalformedBody` refusal (ENCL's
 #    `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`);
 #  - the outer loop and the rings read in separate statements;
-#  - an edge's end read as `half_edge_end(e.he_plus)`, which is also a
-#    half-edge's own end. That holds even beside `get_half_edge(e.he_plus)
-#    .start` in one statement, the spelling `Body::edge_vertices` itself
-#    reads through its door. Those test sites are on the slate as the
-#    narrowed `an-edges-end-vertices-are-spelled-inline-beside-query-edge-ends`.
+#  - shape 4's half-edge bound other than by a `let` from `.he_plus` or
+#    `.plus.half_edge` within 30 lines (a parameter, a struct field, a
+#    closure argument), or its two reads further apart than 8 lines.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -71,6 +79,55 @@ SURFACE_AND_THEN='get_face\(.*\)\s*\.and_then\(\s*\|\s*(\w+)\s*\|.*get_surface\(
 ENDS_ARRAY='\[\s*(\w+(?:\.\w+)*)\.he_plus\s*,\s*\1\.he_minus\s*\]\s*\.map\(.*(\.start\b|half_edge_start_point)'
 ENDS_STARTS='start\(\s*(\w+(?:\.\w+)*)\.he_plus\s*\).*start\(\s*\1\.he_minus\s*\)'
 ENDS_HALVES='get_half_edge\(\s*(\w+(?:\.\w+)*)\.he_plus\s*\)[^;]*\.start\b[^;]*get_half_edge\(\s*\1\.he_minus\s*\)[^;]*\.start\b'
+
+# Shape 4 (header), over the line view on stdin (`FILE:LINE:CODE`); prints
+# one `FILE:LINE: …` record per site.
+EDGE_ENDS_SHAPE='
+import re, sys, collections
+HALF_READS = {
+    ("crates/topo/src/euler.rs", "lone_mev_grows_a_segment"),
+    ("crates/topo/src/review_m1_pr2/degenerates_and_sequences.rs", "fan_mev_across_a_circular_edge"),
+}
+lines = collections.defaultdict(list)
+for l in sys.stdin:
+    m = re.match(r"^(.*?\.rs):(\d+):(.*)$", l.rstrip("\n"))
+    if m:
+        lines[m.group(1)].append((int(m.group(2)), m.group(3)))
+H = r"([A-Za-z_][\w.]*)"
+start = re.compile(r"get_half_edge\(\s*&?" + H + r"\s*\)")
+end = re.compile(r"half_edge_end\(\s*&?" + H + r"\s*\)")
+bind = re.compile(r"\blet\s+(?:mut\s+)?(\w+)\s*=\s*[^;]*?(?:\.he_plus|\bplus\.half_edge)\s*;")
+twin = re.compile(r"get_half_edge\(\s*&?(\w+(?:\.\w+)*)\.he_plus\s*\)")
+fn = re.compile(r"\bfn\s+(\w+)")
+out = set()
+for f, ls in lines.items():
+    name = "-"
+    names = []
+    for _, t in ls:
+        m = fn.search(t)
+        if m:
+            name = m.group(1)
+        names.append(name)
+    for i, (n, t) in enumerate(ls):
+        if (f, names[i]) in HALF_READS:
+            continue
+        for m in end.finditer(t):
+            h = m.group(1)
+            plus = h.endswith(".he_plus") or h.endswith("plus.half_edge")
+            if not plus:
+                plus = any((b := bind.search(t0)) and b.group(1) == h for _, t0 in ls[max(0, i - 30):i + 1])
+            if plus and any(m2.group(1) == h and ".start" in t2[m2.end():m2.end() + 80]
+                            for _, t2 in ls[max(0, i - 8):i + 9] for m2 in start.finditer(t2)):
+                out.add(f"{f}:{n}: an edge end read through its he_plus beside its start: {t.strip()}")
+        for m in twin.finditer(t):
+            e = m.group(1)
+            if ".start" in t[m.end():m.end() + 80] and any(
+                    re.search(r"get_half_edge\(\s*&?" + re.escape(e) + r"\.he_minus\s*\)[^;]*\.start\b", t2)
+                    for _, t2 in ls[i + 1:i + 4]):
+                out.add(f"{f}:{n}: an edge end read off the twin across statements: {t.strip()}")
+for o in sorted(out):
+    print(o)
+'
 
 gate_files() {
   local roots=()
@@ -102,6 +159,16 @@ gate() {
     hits=$(printf '%s\n' "$view" | gate_grep -P "$needle" || true)
     all=$(printf '%s\n%s\n' "$all" "$hits")
   done
+  local lines_view shaped
+  if ! lines_view=$(gate_rust_code "${files[@]}"); then
+    gate_error "$(gate_name): the shared Rust reader could not build the line view — that is not a pass"
+    exit 1
+  fi
+  if ! shaped=$(printf '%s\n' "$lines_view" | python3 -c "$EDGE_ENDS_SHAPE"); then
+    gate_error "$(gate_name): the edge-ends shape reader failed — that is not a pass"
+    exit 1
+  fi
+  all=$(printf '%s\n%s\n' "$all" "$shaped")
   hits=$(printf '%s\n' "$all" | sed '/^$/d' | sort -u)
   if [ -n "$hits" ]; then
     echo "$hits"
@@ -168,6 +235,42 @@ plant_ends_in_topo() {
     > "$1/crates/topo/src/lineage.rs"
 }
 
+plant_ends_local() {
+  mkdir -p "$1/crates/planted/tests"
+  {
+    printf 'fn e(body: &B, k: K) -> [V; 2] {\n'
+    printf '    let he = body.get_edge(k).unwrap().he_plus;\n'
+    printf '    [\n'
+    printf '        body.get_half_edge(he).unwrap().start,\n'
+    printf '        body.half_edge_end(he).unwrap(),\n'
+    printf '    ]\n'
+    printf '}\n'
+  } > "$1/crates/planted/tests/a.rs"
+}
+
+plant_ends_split_twin() {
+  mkdir -p "$1/crates/planted/tests"
+  {
+    printf 'fn e(body: &B, e: &Edge) -> bool {\n'
+    printf '    let s1 = body.get_half_edge(e.he_plus).unwrap().start;\n'
+    printf '    let s2 = body.get_half_edge(e.he_minus).unwrap().start;\n'
+    printf '    s1 == s2\n'
+    printf '}\n'
+  } > "$1/crates/planted/tests/a.rs"
+}
+
+# A loop walk reading a half-edge's own two ends is not an edge's ends.
+plant_half_edge_own_ends() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'fn w(body: &B, he: H) -> (V, V) {\n'
+    printf '    let a = body.get_half_edge(he).unwrap().start;\n'
+    printf '    let b = body.half_edge_end(he).unwrap();\n'
+    printf '    (a, b)\n'
+    printf '}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
 # THE NEAR MISSES: the doors themselves, prose and string literals naming
 # the shapes, a surface key read off an edge's chart (not a face's), the
 # halves read for their faces, and a home spelling its own walk.
@@ -199,6 +302,9 @@ gate_selftest() {
   gate_selftest_case "$want" plant_ends_array
   gate_selftest_case "$want" plant_ends_in_topo
   gate_selftest_case "$want" plant_ends_halves
+  gate_selftest_case "$want" plant_ends_local
+  gate_selftest_case "$want" plant_ends_split_twin
+  gate_selftest_passes "a half-edge's own two ends in a loop walk" plant_half_edge_own_ends
   gate_selftest_passes "the doors, prose, string literals, a chart's surface key, the halves read for their faces, and the homes' own walks" plant_near_misses
   printf '%s selftest OK: passes a clean fixture and the near misses; fires on an inline loop walk (one line, and rustfmt-wrapped in a demo root), a nested and an and_then face-to-surface walk, an inline edge-ends array in a test root, a closure spelling inside topo and a rustfmt-wrapped twin-starts array; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
 }

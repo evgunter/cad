@@ -2048,9 +2048,7 @@ enum Carrier {
 /// the body so the forward contract (increasing parameter runs
 /// `he_plus`) holds whichever way the fixture wound it.
 fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> EdgeCurveSpec<f64> {
-    let he = body.get_edge(edge).unwrap().he_plus;
-    let start_v = body.get_half_edge(he).unwrap().start;
-    let end_v = body.half_edge_end(he).unwrap();
+    let (start_v, end_v) = body.edge_vertices(edge).unwrap();
     let p0 = *body
         .get_point(body.get_vertex(start_v).unwrap().point)
         .unwrap();
@@ -2211,14 +2209,13 @@ fn a_transverse_corner_beside_a_legal_cusp_still_refuses_its_conventional_form()
     // cut — a definite corner — re-stored as a line at rest in the flat
     // face's chart.
     let corner = p.ev[1];
-    let he = p.body.get_edge(corner).unwrap().he_plus;
+    let (v0, v1) = p.body.edge_vertices(corner).unwrap();
     let at = |v| {
         *p.body
             .get_point(p.body.get_vertex(v).unwrap().point)
             .unwrap()
     };
-    let start = at(p.body.get_half_edge(he).unwrap().start);
-    let end = at(p.body.half_edge_end(he).unwrap());
+    let (start, end) = (at(v0), at(v1));
     let flat_chart = p.body.get_face(p.face_side[1]).unwrap().surface;
     let spec = EdgeCurveSpec::line_between(start, end).at_rest_in_chart(flat_chart, false);
     p.body.set_edge_curve(corner, spec, tol).unwrap();
@@ -3707,12 +3704,9 @@ pub(crate) fn half_disc(
         geom::Curve3::circle(center, u_ref.cross(Vec3::unit_y()), r, u_ref)
     };
     let segment = |body: &Body<f64>, edge| {
-        let he = body.get_edge(edge).unwrap().he_plus;
+        let (v0, v1) = body.edge_vertices(edge).unwrap();
         let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        let (p0, p1) = (
-            at(body.get_half_edge(he).unwrap().start),
-            at(body.half_edge_end(he).unwrap()),
-        );
+        let (p0, p1) = (at(v0), at(v1));
         geom::Curve3::line(p0, (p1 - p0) / p0.distance(p1))
     };
     for e in [p.et[0], p.eb[0], p.et[1], p.eb[1], p.ev[0], p.ev[1]] {

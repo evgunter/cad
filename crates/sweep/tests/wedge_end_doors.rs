@@ -91,11 +91,8 @@ fn tangent_edges(body: &Body<f64>) -> Vec<(EdgeKey, [Point3<f64>; 2])> {
         .iter()
         .filter(|(_, m)| **m == ContactMark::Tangent)
         .map(|(e, _)| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            let ends = [
-                point(body.get_half_edge(he).unwrap().start),
-                point(body.half_edge_end(he).unwrap()),
-            ];
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            let ends = [point(v0), point(v1)];
             (e, ends)
         })
         .collect()
@@ -142,11 +139,8 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
         let KnifeEdgeSite::Edge(seam) = knife.at else {
             panic!("normal {normal}: read along the seam, got {:?}", knife.at);
         };
-        let he = body.get_edge(seam).unwrap().he_plus;
-        for v in [
-            body.get_half_edge(he).unwrap().start,
-            body.half_edge_end(he).unwrap(),
-        ] {
+        let (v0, v1) = body.edge_vertices(seam).unwrap();
+        for v in [v0, v1] {
             let q = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
             assert!(
                 (q.x - 1.0).abs() < 1e-12 && q.y.abs() < 1e-12,

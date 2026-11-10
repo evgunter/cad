@@ -336,11 +336,8 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
         azimuth(origin),
         azimuth(at)
     );
-    let he = moved.get_edge(join.kept).expect("the kept seam").he_plus;
-    let ends = (
-        point(&moved, moved.get_half_edge(he).expect("he").start),
-        point(&moved, moved.half_edge_end(he).expect("end")),
-    );
+    let (v0, v1) = moved.edge_vertices(join.kept).expect("the kept seam");
+    let ends = (point(&moved, v0), point(&moved, v1));
     assert!(c.eval(t0).distance(ends.0) <= 1e-13 && c.eval(t1).distance(ends.1) <= 1e-13);
     let span = (axial(ends.0).1 - axial(ends.1).1).abs();
     assert!(

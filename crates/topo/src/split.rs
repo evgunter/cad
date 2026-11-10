@@ -555,12 +555,8 @@ mod tests {
         let parent = body.get_edge(edge).unwrap();
         assert_eq!(body.half_edge_end(parent.he_plus), Some(created.vertex));
         assert_eq!(
-            body.get_half_edge(created.he_plus).unwrap().start,
-            created.vertex
-        );
-        assert_eq!(
-            body.half_edge_end(created.he_plus),
-            Some(cube.mevs[0].vertex)
+            body.edge_vertices(created.new_edge),
+            Some((created.vertex, cube.mevs[0].vertex))
         );
         // Provenance: typed SplitEdge birth records.
         assert_eq!(
