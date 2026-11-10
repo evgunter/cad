@@ -169,3 +169,13 @@
 - 2026-11-10 — **Fork `unglued-corner-ending`, round 2.**
   - **Seat B held** (245,623 tokens). Its probe levered `fan::meeting` at the farther span. The generic pose then ends `ClassificationInvariant` (the odd germ count) in all 6 runs, where today it refuses typed and builds at ε 9e-12. The hinged pose still refuses, because subdivision bisectors are levered at the arm, and operand order still matters. B accepted the corollary of A's `[tolerance.epsilon]` point: an unglued Zero never authorizes a coplanar lump.
   - **Seat A's round 2 was lost to a container restart** and was re-sent to the same lane. Under the latest-reports rule, it now also carries B's round 2.
+- 2026-11-10 — **Fork `unglued-corner-ending` converged in round 2, with no question for Ev.** Seat A withdrew its far-span re-lever after reproducing B's probe exactly. The agreed final state:
+  - carrier identity is the door's alone, and only a glued pair's record opens the coplanar branch;
+  - an unglued corner refuses on its own arm reading, `gate_rejection("bool_faces_parallel", Zero, band, Positive)`, under a new Positive-only `Coincide` row, offering "tighten below θ·arm/K" (executed: ε 9e-12 builds the generic pose in all six runs);
+  - FirstBounds and vtxfac refuse on the tie that made the side code On, carried and not re-read;
+  - DR-245's precedence collapses, and `door_refusal`, `Glue::in_band` and `InBandPair` retire if building without them holds;
+  - making the pose answer stays SECTOR's P3 row, with new evidence: a span lever gives the odd germ count, and the bisector is a second short lever.
+
+  No ratified text changes: README C4's sentence is agent text, and DR-245 is an agent review. So no `[ev]` PR, and no row in the fork log (population rule 1). The draw is on `analysis/design-fork/unglued-corner-ending`. The round transcripts are in the session scratchpad only.
+  - Not acted on: both seats would close FLUSHTAIL's looser-tolerance row under D4 `[tolerance.recourse]`. That clause's provenance is unchecked, and the row is another program's, so the lane adds evidence only.
+  - The rebuild and the review's carried fixes went to PR 6693's lane. It closes the parent and moves C24 into `the-indeterminate-seal`, which ends the wait cycle between the two.
