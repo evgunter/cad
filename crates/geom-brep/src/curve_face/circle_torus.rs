@@ -148,33 +148,14 @@ use super::circle_roots::{
     CircleRoots, DoorRefusal, constant_residual_roots, door_half_angle_roots, door_refusal,
 };
 use crate::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame, SubdivisionRows,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame,
 };
-use crate::quartic::QuarticRows;
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
-const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
-    pole: "circle_torus_pole",
-    conditioning: "circle_torus_pole_conditioning",
-    noise: "circle_torus_noise",
-    quartic: QuarticRows {
-        disc: "circle_torus_disc",
-        shape: "circle_torus_shape",
-        depth: "circle_torus_depth",
-        odd: "circle_torus_odd",
-        split: "circle_torus_split",
-        split_lead: "circle_torus_split_lead",
-    },
-    verify: SubdivisionRows {
-        clear: "circle_torus_sub_clear",
-        monotone: "circle_torus_sub_monotone",
-        side: "circle_torus_sub_side",
-        width: "circle_torus_sub_width",
-    },
-};
+const CIRCLE_TORUS_ROWS: HalfAngleRows = crate::rows::CIRCLE_TORUS;
 
 /// The general arm's root-slack row (module docs, "The root slack").
 const ROOT_SLACK: &str = "circle_torus_sub_root_slack";

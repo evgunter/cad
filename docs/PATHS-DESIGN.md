@@ -1126,6 +1126,9 @@ the M8 conditioning gate `FilletOffsetLeverTooShort`;
 `SeamRetrimsArcFirstSide` (a `.to(Start)` seam needs a straight
 side 1 — closing onto a carrier while keeping the entry vertex is
 `fillet_arc(r, Center { c, winding, p: Start })`);
+`CuspDoublesBackOverLeg` (a `.cusp()` left on a straight leg whose
+next segment leaves that vertex straight: it can only run back over
+the leg, so the close refuses it at the cusp point);
 `TangencyContradicted` from the verify layer as today. From §2a and the spec family:
 `NonpositiveCircleRadius`; `ZeroDirection`; `NonFiniteDirection` and
 `UnderflowedDirection` (a direction whose length the FORMAT lost, by

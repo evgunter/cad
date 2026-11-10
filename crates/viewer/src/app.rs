@@ -2567,7 +2567,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// preview that WAS taken and drew nothing, and which the form is
     /// entitled to say so about.
     pub(crate) profile_previews: &'a ProfileDoors<Option<Result<ProfilePreview, PreviewError>>>,
-    /// What each door's fused fillet steps construct, taken with its
+    /// What each door's fillet steps construct, taken with its
     /// preview ([`sketch::drawn`]) and drawn whether or not the preview
     /// is. `None` where no preview was taken.
     pub(crate) profile_constructions: &'a ProfileDoors<Option<sketch::Construction>>,

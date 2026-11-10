@@ -1886,6 +1886,17 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
 pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPolicy>(
     phi: f64,
 ) -> (Body<T>, FaceKey, crate::VertexKey) {
+    oblique_rim_wall_from(phi, 0.0)
+}
+
+/// [`oblique_rim_wall_in`] with the rim's vertex at parameter `t0` of its
+/// ellipse: off `t0 = 0` and `π` the rim leaves the vertex across the
+/// wall's rulings, not square to them.
+#[cfg(test)]
+pub(crate) fn oblique_rim_wall_from<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    phi: f64,
+    t0: f64,
+) -> (Body<T>, FaceKey, crate::VertexKey) {
     let tol = Tol::witness();
     let f = T::from_f64;
     let (s, c) = phi.sin_cos();
@@ -1900,7 +1911,7 @@ pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPol
         one,
     ));
     let mut body = Body::<T>::new();
-    let seed = body.mvfs(carrier.eval(zero), true).unwrap();
+    let seed = body.mvfs(carrier.eval(f(t0)), true).unwrap();
     body.set_face_surface(
         seed.face,
         FaceSurface::New {
@@ -1928,11 +1939,11 @@ pub(crate) fn oblique_rim_wall_in<T: geom_core::Decide + crate::props::AtRestPol
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                selector: geom_brep::CurveSelector::Witness(carrier.eval(f(0.5) * tau)),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(f(t0) + f(0.5) * tau)),
             },
             carrier,
-            param_start: zero,
-            param_end: tau,
+            param_start: f(t0),
+            param_end: f(t0) + tau,
         },
         FaceSurface::Inherit,
         tol,

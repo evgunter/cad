@@ -10,14 +10,14 @@ use crate::fixture;
 
 use editor_core::{
     Attr, AttrKind, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation, Node,
-    ProfileDoc, Rgba8, RoleSeg, StableName, evaluate,
+    ProfileDoc, Rgba8, RoleSeg, StableName,
 };
 use fixture::{insert, step};
 use geom_core::Interval;
 use geom_core::Tol;
 
-fn run<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
-    evaluate::<T>(
+fn run<T: editor_core::test_support::AnyEvaluate>(doc: &ProfileDoc) -> Evaluation<T> {
+    editor_core::test_support::evaluate_any::<T>(
         doc,
         None,
         &CancelToken::new(),

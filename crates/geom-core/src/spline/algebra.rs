@@ -55,6 +55,7 @@
 //! coefficients, where the combination is the plain two-point one
 //! ([`Certification::between`]) and no `λ` is needed.
 
+use super::Fact;
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use super::projective::{ProjectivePoint, ProjectiveScalar};
 use crate::interval::Interval;
@@ -143,12 +144,8 @@ pub enum KnotAlgebraError {
     },
 }
 
-impl KnotAlgebraError {
-    /// **What was refused, without the recourse**: the sentence a holder
-    /// renders when the knot request was the kernel's own, so the
-    /// recourse [`Display`](core::fmt::Display) adds — addressed to the
-    /// knot API's caller — is not the user's.
-    pub fn fact(&self) -> impl core::fmt::Display + '_ {
+impl Fact for KnotAlgebraError {
+    fn fact(&self) -> impl core::fmt::Display + '_ {
         core::fmt::from_fn(move |f| match self {
             KnotAlgebraError::Structure(e) => {
                 write!(f, "the knot edit refused its inputs: {}", e.fact())
@@ -202,7 +199,7 @@ impl core::fmt::Display for KnotAlgebraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let fact = self.fact();
         match self {
-            KnotAlgebraError::Structure(e) => write!(f, "the knot edit refused: {e}"),
+            KnotAlgebraError::Structure(e) => write!(f, "the knot edit refused its inputs: {e}"),
             KnotAlgebraError::ParameterOutsideDomain { .. } => write!(
                 f,
                 "{fact}. Recourse: ask for a finite parameter strictly between the clamped \
@@ -2499,12 +2496,6 @@ mod tests {
     /// (`every_spline_error_arm_names_a_recourse`, in `super::knots`);
     /// this arm renders that carrier whole and adds four words of its
     /// own, so the labelled repair the reader sees is the carrier's.
-    ///
-    /// The algebra is reached from the public fit door through
-    /// `geom::FitError::KnotAlgebra`, which renders this carrier whole,
-    /// and this row is what lets
-    /// `every_fit_error_arm_names_a_recourse` read that delegation
-    /// transitively.
     #[test]
     fn every_knot_algebra_error_arm_names_a_recourse() {
         const RECOURSE_WORDS: &[&str] = &["supply", "ask", "drop", "raise", "keep"];
@@ -2539,6 +2530,59 @@ mod tests {
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
                 "no recourse in: {msg}"
+            );
+        }
+    }
+
+    /// **Every arm's fact is its text's prefix and names no recourse**,
+    /// so a holder of [`super::Built`] renders the refusal's own words
+    /// with the caller's repair left out. Exhaustive by the compiler.
+    #[test]
+    fn every_knot_algebra_error_arm_states_its_fact_first() {
+        use super::super::Fact as _;
+        let arms = [
+            KnotAlgebraError::Structure(SplineError::ControlCountMismatch {
+                control: 3,
+                expected: 4,
+            }),
+            KnotAlgebraError::ParameterOutsideDomain { u: 1.5 },
+            KnotAlgebraError::MultiplicityOverflow {
+                u: 0.5,
+                have: 3,
+                budget: 3,
+            },
+            KnotAlgebraError::KnotNotPresent { u: 0.25 },
+            KnotAlgebraError::RemovalExceedsMultiplicity {
+                u: 0.5,
+                have: 1,
+                requested: 2,
+            },
+            KnotAlgebraError::ParameterUndecided {
+                u: 0.5,
+                run: 1,
+                margin: crate::MarginDiag::enclosure(-0.25, 0.5),
+            },
+            KnotAlgebraError::StandInPlan,
+            KnotAlgebraError::WeightCollapse { index: 2 },
+            KnotAlgebraError::UnboundedAtEnclosure { index: 1 },
+        ];
+        assert_eq!(arms.len(), 9, "an arm was added without a row here");
+        for e in &arms {
+            match e {
+                KnotAlgebraError::Structure(_)
+                | KnotAlgebraError::ParameterOutsideDomain { .. }
+                | KnotAlgebraError::MultiplicityOverflow { .. }
+                | KnotAlgebraError::KnotNotPresent { .. }
+                | KnotAlgebraError::RemovalExceedsMultiplicity { .. }
+                | KnotAlgebraError::ParameterUndecided { .. }
+                | KnotAlgebraError::StandInPlan
+                | KnotAlgebraError::WeightCollapse { .. }
+                | KnotAlgebraError::UnboundedAtEnclosure { .. } => {}
+            }
+            let (text, fact) = (e.to_string(), e.fact().to_string());
+            assert!(
+                !fact.contains("Recourse") && text.starts_with(&fact),
+                "{fact} | {text}"
             );
         }
     }

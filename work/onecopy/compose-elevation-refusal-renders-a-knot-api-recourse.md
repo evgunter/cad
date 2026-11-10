@@ -2,8 +2,10 @@
 id: compose-elevation-refusal-renders-a-knot-api-recourse
 kind: issue
 title: ComposeError::ElevationRefused renders KnotAlgebraError's caller-facing recourse for an elevation the kernel chose
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6684
 ---
 
 

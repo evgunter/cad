@@ -65,7 +65,7 @@ use crate::fixture::value_channel::{body_digest, value_digest};
 
 use corpus::{CorpusDoc, cone, documents, eval, failures};
 use editor_core::eval::KeyHasher;
-use editor_core::{CancelToken, ContentKey, EvalOptions, EvalOutcome, evaluate, product_recorded};
+use editor_core::{CancelToken, ContentKey, EvalOptions, EvalOutcome, product_recorded};
 use geom_core::{Dual64, Tol};
 
 /// The gather-door witnesses (module docs): they gather at `Dual64`
@@ -251,7 +251,7 @@ fn at_rest_census_verdicts_match_f64_at_interval() {
 fn same_seed_replay_at_dual64_reuses_everything() {
     for doc in documents() {
         let prior = eval::<Dual64>(&doc.doc);
-        let replay = evaluate::<Dual64>(
+        let replay = editor_core::test_support::evaluate_bound::<Dual64>(
             &doc.doc,
             Some(&prior),
             &CancelToken::new(),
@@ -276,7 +276,7 @@ fn a_bumped_parameter_at_dual64_recomputes_exactly_its_cone() {
     for doc in documents() {
         let prior = eval::<Dual64>(&doc.doc);
         let bumped = doc.bumped();
-        let after = evaluate::<Dual64>(
+        let after = editor_core::test_support::evaluate_bound::<Dual64>(
             &bumped,
             Some(&prior),
             &CancelToken::new(),
