@@ -181,3 +181,4 @@
   - The row is `docs/dual-review-log/rows/PR-6509.md` (a fair pair, with R2's reading shortfall noted).
   - **Stage 2 is closed.** The P0 projected-boundary row closes with the volume lane in. Its operand half now stands at INSIDE's P0.
   - **Next:** stage 3, the torus chart, which closes `a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane` (P0) and teapot wall 2's stop.
+- 2026-11-10 — **PR 6509 merged.** The sphere chart is in, the P0 projected-boundary row closes, and the operand half stands at INSIDE's P0. **Dispatched stage 3**, `the-rotational-lane-reads-the-torus-chart` (H, dual). It opens with a decide on the torus's `∮v du` under C9, and if no algebraic route exists it is an Ev fork.
