@@ -1621,7 +1621,7 @@ fn pair_holds_point<T: Decide>(
 ) -> bool {
     for f in [fa, fb] {
         let residual = geom::plane_offset(f.origin, f.normal, q);
-        if signed_is_zero(
+        if signed_is_zero_as(
             "pm_census_confined_carrier",
             Margin::of(residual),
             band,
@@ -1670,7 +1670,7 @@ fn pair_holds_edges<T: Decide>(
         for e in [ea, eb] {
             for p in [e.p0, e.p1] {
                 let residual = geom::plane_offset(f.origin, f.normal, p);
-                if signed_is_zero(
+                if signed_is_zero_as(
                     "pm_census_confined_carrier",
                     Margin::of(residual),
                     band,
@@ -2955,7 +2955,7 @@ pub(crate) const CONFORMAL_REGION_WITNESS: &str = "their shared region";
 /// Every caller's gap is nonnegative by construction (a norm, an `abs`
 /// over a norm, a norm levered by a chord length), the magnitude door's
 /// precondition.
-fn gap_is_zero<T: Decide>(
+fn gap_is_zero_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -2964,7 +2964,7 @@ fn gap_is_zero<T: Decide>(
     gap_zero_reading(name, margin, band, errors).map(|zero| zero.is_some())
 }
 
-/// [`gap_is_zero`], keeping the Zero's reading: `Some(Some(margin))`
+/// [`gap_is_zero_as`], keeping the Zero's reading: `Some(Some(margin))`
 /// zero, `Some(None)` definitely positive, `None` escalated (pushed).
 fn gap_zero_reading<T: Decide>(
     name: &'static str,
@@ -3290,7 +3290,7 @@ fn on_edge_interior_reading<T: Decide>(
 
 /// A signed residual as a trilean on-verdict: `Some(true)` on,
 /// `Some(false)` definitely off, `None` escalated (pushed).
-fn signed_is_zero<T: Decide>(
+fn signed_is_zero_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -3299,7 +3299,7 @@ fn signed_is_zero<T: Decide>(
     signed_zero_reading(name, margin, band, errors).map(|zero| zero.is_some())
 }
 
-/// [`signed_is_zero`], keeping the Zero's reading, as
+/// [`signed_is_zero_as`], keeping the Zero's reading, as
 /// [`gap_zero_reading`] does.
 fn signed_zero_reading<T: Decide>(
     name: &'static str,
@@ -3525,12 +3525,12 @@ fn edge_vertex_at<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<VertexKey> {
-    match signed_is_zero("pm_census_bound_end", Margin::of(s), band, errors) {
+    match signed_is_zero_as("pm_census_bound_end", Margin::of(s), band, errors) {
         Some(true) => return Some(e.v0),
         Some(false) => {}
         None => return None,
     }
-    match signed_is_zero("pm_census_bound_end", Margin::of(e.len - s), band, errors) {
+    match signed_is_zero_as("pm_census_bound_end", Margin::of(e.len - s), band, errors) {
         Some(true) => Some(e.v1),
         _ => None,
     }
@@ -3559,7 +3559,7 @@ fn any_boundary_vertex_at<T: Decide>(
         let Some(&pw) = geo.vmap.get(&w) else {
             continue;
         };
-        if gap_is_zero(
+        if gap_is_zero_as(
             "pm_census_bound_vertex",
             Margin::norm3(pw - q),
             band,
@@ -4023,7 +4023,7 @@ fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
 ///   - `L/2` at most ε ([`enclosure_reading`] of `[0, L/2]` through the
 ///     magnitude door, `pm_census_ef_pierce_span`): every point of `S`
 ///     lies within ε of an end, so no boundary point does;
-///   - else [`span_clear`].
+///   - else [`span_clear_as`].
 ///
 ///   Otherwise the crossing may lie within `L` of the boundary, refused
 ///   below.
@@ -4067,7 +4067,7 @@ fn pierce_inside<T: Decide>(
         (In, In) | (Out, Out) => {
             let half = short();
             if matches!(half, Ok(true))
-                || span_clear(body, geo, e, f, [lo, hi], lever, band, errors)?
+                || span_clear_as(body, geo, e, f, [lo, hi], lever, band, errors)?
             {
                 return (at_lo == In).then(|| e.p0 + chord * geom::mid_param(lo, hi));
             }
@@ -4158,7 +4158,7 @@ fn pierce_inside<T: Decide>(
 /// licenses there needs the curve to approach `S` near head-on, where
 /// the end's own containment reading refuses.
 #[allow(clippy::too_many_arguments)] // the clearance's whole state
-fn span_clear<T: Decide>(
+fn span_clear_as<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     e: &EdgeGeo<T>,
@@ -4296,7 +4296,7 @@ fn first_escalation(report: &[ValidationError]) -> Option<Indeterminate> {
     })
 }
 
-/// One member of a face's boundary as [`span_clear`] reads it against `S`.
+/// One member of a face's boundary as [`span_clear_as`] reads it against `S`.
 enum Member<T: Decide> {
     /// The height gate: `S`'s height under its bound, the premise the
     /// curved sides' clearance rests on.
@@ -4320,7 +4320,7 @@ fn reported_rung<A>(report: Vec<ValidationError>) -> Rung<A, Vec<ValidationError
     }
 }
 
-/// [`span_clear`]'s reach `g·(1 + σ)`, `g = ℓ·(hi − lo) + 2c + ε`, charged
+/// [`span_clear_as`]'s reach `g·(1 + σ)`, `g = ℓ·(hi − lo) + 2c + ε`, charged
 /// its rounding. `c` is the rounding charge of `e.p0 + chord·t` against
 /// `e.p0 + dir·(t·len)` over `[lo, hi]`, a few `u` of the point's
 /// coordinates and of `t·len`.
@@ -5346,7 +5346,7 @@ fn parallel_reading<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
     let (a, b) = (a.span(), b.span());
-    gap_is_zero(
+    gap_is_zero_as(
         "pm_census_ee_parallel",
         Margin::levered(
             a.dir.cross(b.dir).norm(),
@@ -7359,6 +7359,14 @@ pub(crate) enum Undecided {
     /// Arm 2: a touch the local analysis could not decide, for its
     /// reason, carried whole ([`TouchUnread::backstop_sentence`]).
     Touch(TouchUnread),
+    /// Arm 2: a curved touch a finding stands for and no analysis here
+    /// reads: a conformal patch or tangent line the curved arm found
+    /// ([`Said::CurvedTouch`]), or a face pair's record not confirmed
+    /// ([`Said::FacePair`]). Not a failed reading but a stand-in for one,
+    /// so it waits like an undecided touch: a decided crossing at
+    /// another site of the pair rescues it. It renders as the curved
+    /// reading's own reason ([`CurvedUnread::Unreadable`]).
+    CurvedTouch,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -7435,7 +7443,7 @@ impl Undecided {
     /// Whether this is a touch the local analysis could not decide —
     /// a reason that waits in `blocks` for a decided one.
     fn is_undecided_touch(self) -> bool {
-        matches!(self, Self::Touch(_))
+        matches!(self, Self::Touch(_) | Self::CurvedTouch)
     }
 
     /// The reason and its recourse, as the finding renders them.
@@ -7484,6 +7492,7 @@ impl Undecided {
                  decided until that is resolved. Recourse: resolve that finding first"
             }
             Self::Touch(why) => why.backstop_sentence(),
+            Self::CurvedTouch => TouchUnread::Curved(CurvedUnread::Unreadable).backstop_sentence(),
             Self::AllOn => concat!(
                 "every corner of one lies on the other's boundary, so the corners cannot \
                  place it. There is no way through yet for a designed resting fit; \
@@ -7887,6 +7896,24 @@ fn at_rest_fault(why: &crate::face_normal::NormalAtError) -> bool {
 }
 
 impl TouchUnread {
+    /// What arm 2 reads of a touch left unread: its reason, aborting by
+    /// the cause's own standing ([`Self::refusal`]), read here before
+    /// [`Self::undecided`] names it.
+    fn unrest<T: Real>(self) -> Unrest<T> {
+        match self.refusal() {
+            Ok(_) => Unrest::Undecided(self.undecided()),
+            Err(Aborts) => Unrest::Aborts(self.undecided()),
+        }
+    }
+
+    /// [`Self::unrest`] as [`blocked`] ranks it.
+    fn scan<T: Real>(self) -> Scan<T> {
+        match self.refusal() {
+            Ok(_) => Scan::Undecided(self.undecided()),
+            Err(Aborts) => Scan::Aborts(self.undecided()),
+        }
+    }
+
     /// The cross-solid backstop's reason for a touch left unread.
     fn undecided(self) -> Undecided {
         match self {
@@ -8127,6 +8154,12 @@ enum Unrest<T: Real> {
     Crossing(Point3<T>),
     /// No side read, for the reason named.
     Undecided(Undecided),
+    /// No side read, for the reason named, whose own standing aborts
+    /// ([`TouchUnread::refusal`], or a crossing read with no point, a
+    /// kernel defect): read before the reason is named, since naming
+    /// maps a cause onto a reason that does not carry it
+    /// ([`TouchUnread::undecided`]: `Corrupt` is `CorruptInstance`).
+    Aborts(Undecided),
 }
 
 /// Why arm 2's reading of a pair's findings and records does not clear
@@ -8144,6 +8177,261 @@ enum Blocked<T: Real> {
     Undecided(Undecided),
 }
 
+/// One reading [`blocked`] ranks: a touch read as a crossing at the point
+/// carried, a reason whose standing aborts ([`Unrest::Aborts`]), or a
+/// reason the pair stays undecided.
+enum Scan<T: Real> {
+    Crossing(TouchSite, Point3<T>),
+    Aborts(Undecided),
+    Undecided(Undecided),
+}
+
+/// **What blocks a solid pair, from its readings in scan order**: the
+/// first crossing or abort, whichever is scanned first, ends the
+/// reading. A crossing decides the pair; an abort ([`Scan::Aborts`]) is
+/// reported as itself, whatever a later reading would be, so no decided
+/// touch hides it. Failing both, the first other reason refuses ahead of
+/// the first touch the analysis could not decide, which waits. Reads
+/// `scans` only up to the reading that ends it.
+fn blocked<T: Real>(scans: impl IntoIterator<Item = Scan<T>>) -> Option<Blocked<T>> {
+    let (mut other, mut undecided_touch) = (None, None);
+    for scan in scans {
+        match scan {
+            Scan::Crossing(site, at) => return Some(Blocked::Crossing(site, at)),
+            Scan::Aborts(why) => return Some(Blocked::Undecided(why)),
+            Scan::Undecided(why) if why.is_undecided_touch() => {
+                undecided_touch = undecided_touch.or(Some(why));
+            }
+            Scan::Undecided(why) => other = other.or(Some(why)),
+        }
+    }
+    other.or(undecided_touch).map(Blocked::Undecided)
+}
+
+/// **What a standing finding between a solid pair's two solids scans
+/// as** in [`blocked`]: a touch read at its site (`touch`), a stand-in
+/// for a curved reading ([`Undecided::CurvedTouch`], a face pair's only
+/// where it is not `confirmed`), or the reason its kind leaves.
+fn between_scan<T: Real>(
+    said: Said,
+    touch: impl Fn(TouchSite) -> Option<Unrest<T>>,
+    confirmed: impl Fn(FaceKey, FaceKey) -> bool,
+) -> Option<Scan<T>> {
+    let why = match said {
+        Said::Touch(site) => match touch(site)? {
+            Unrest::Crossing(at) => return Some(Scan::Crossing(site, at)),
+            Unrest::Aborts(why) => return Some(Scan::Aborts(why)),
+            Unrest::Undecided(why) => why,
+        },
+        // The pair's interference, which `blocks`' `decided` read: here
+        // the two resolvers of a finding's solids disagree, and nothing
+        // clears on that.
+        Said::Pierce | Said::Wedges(None) => Undecided::Unresolved,
+        Said::Wedges(Some(why)) => return Some(why.scan()),
+        // Stand-ins for a curved reading, not failed ones: they wait for
+        // a decided crossing elsewhere.
+        Said::CurvedTouch => Undecided::CurvedTouch,
+        Said::FacePair(a, b) => (!confirmed(a, b)).then_some(Undecided::CurvedTouch)?,
+        Said::Unexamined => Undecided::Unexamined,
+        Said::InBand => return None,
+    };
+    Some(Scan::Undecided(why))
+}
+
+/// **What blocks a solid pair, from its findings and then its sites**
+/// ([`blocked`]): a pair's standing findings are scanned ahead of its
+/// recorded and shared sites, so a finding that aborts ends the reading
+/// before any site is read, and a crossing at a site decides past every
+/// finding that waits.
+fn pair_blocked<T: Real>(
+    findings: impl IntoIterator<Item = Scan<T>>,
+    sites: impl IntoIterator<Item = Scan<T>>,
+) -> Option<Blocked<T>> {
+    blocked(findings.into_iter().chain(sites))
+}
+
+#[cfg(test)]
+mod blocked_rows {
+    use super::{
+        Blocked, CurvedUnread, Said, Scan, TouchSite, TouchUnread, Undecided, Unrest, between_scan,
+        blocked, pair_blocked,
+    };
+    use crate::entity::{FaceKey, VertexKey};
+    use geom_core::Point3;
+    use strum::IntoEnumIterator;
+
+    const CURVED: Undecided = Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable));
+    const WAITS: Undecided = Undecided::Touch(TouchUnread::InBand);
+
+    /// What [`blocked`] read, without the crossing's site and point.
+    #[derive(Debug, PartialEq)]
+    enum Read {
+        Crossing,
+        Undecided(Undecided),
+        Clear,
+    }
+
+    fn site() -> TouchSite {
+        TouchSite::VertexVertex(VertexKey::default(), VertexKey::default())
+    }
+
+    fn crossing() -> Scan<f64> {
+        Scan::Crossing(site(), Point3::new(0.0, 0.0, 0.0))
+    }
+
+    fn read(got: Option<Blocked<f64>>) -> Read {
+        match got {
+            Some(Blocked::Crossing(..)) => Read::Crossing,
+            Some(Blocked::Undecided(why)) => Read::Undecided(why),
+            Some(Blocked::Stands) => unreachable!("blocked never reads a standing finding"),
+            None => Read::Clear,
+        }
+    }
+
+    fn reads(scans: Vec<Scan<f64>>) -> Read {
+        read(blocked(scans))
+    }
+
+    /// The scan of a finding between the pair, its touch read as `at`
+    /// and no face pair confirmed.
+    fn finding(said: Said, at: Option<Unrest<f64>>) -> Scan<f64> {
+        between_scan(said, |_| at, |_, _| false).unwrap_or_else(|| unreachable!("{said:?}"))
+    }
+
+    /// **A reading that aborts is reported at once**, ahead of a decided
+    /// crossing scanned after it and of any other reason: the ladder's
+    /// one meaning of an abort. A touch that does not abort still waits
+    /// behind any other reason, and a crossing scanned first still
+    /// decides.
+    #[test]
+    fn an_aborting_touch_is_reported_ahead_of_a_later_crossing() {
+        assert_eq!(
+            reads(vec![Scan::Aborts(CURVED), crossing()]),
+            Read::Undecided(CURVED),
+            "an abort scanned before a decided crossing"
+        );
+        assert_eq!(
+            reads(vec![
+                Scan::Undecided(Undecided::Unexamined),
+                Scan::Aborts(CURVED)
+            ]),
+            Read::Undecided(CURVED),
+            "an abort after another reason"
+        );
+        assert_eq!(
+            reads(vec![crossing(), Scan::Aborts(CURVED)]),
+            Read::Crossing,
+            "a crossing scanned first"
+        );
+        assert_eq!(
+            reads(vec![
+                Scan::Undecided(WAITS),
+                Scan::Undecided(Undecided::Unexamined)
+            ]),
+            Read::Undecided(Undecided::Unexamined),
+            "a touch that does not abort waits behind another reason"
+        );
+        assert_eq!(
+            reads(vec![Scan::Undecided(WAITS)]),
+            Read::Undecided(WAITS),
+            "a lone undecided touch"
+        );
+        assert_eq!(reads(vec![]), Read::Clear, "nothing read");
+    }
+
+    /// **A touch aborts by its cause's own standing**
+    /// ([`TouchUnread::refusal`]), read before the cause is named as the
+    /// backstop's reason: `Corrupt`, named `CorruptInstance`, aborts
+    /// though no `Undecided::Touch` carries it. No list of names: every
+    /// cause the enum iterates, and a normal fault (not iterated).
+    #[test]
+    fn a_touch_aborts_by_its_causes_standing() {
+        let causes = TouchUnread::iter().chain(
+            [crate::face_normal::NormalAbort::KernelFault]
+                .into_iter()
+                .chain(crate::face_normal::NORMAL_INVALID_INPUTS)
+                .map(TouchUnread::NormalFault),
+        );
+        for why in causes {
+            let aborts = matches!(why.scan::<f64>(), Scan::Aborts(_));
+            assert_eq!(aborts, why.refusal().is_err(), "{why:?}");
+            assert_eq!(
+                matches!(why.unrest::<f64>(), Unrest::Aborts(_)),
+                aborts,
+                "{why:?}: unrest and scan agree"
+            );
+        }
+        assert!(
+            matches!(
+                TouchUnread::Corrupt.scan::<f64>(),
+                Scan::Aborts(Undecided::CorruptInstance)
+            ),
+            "a corrupt body aborts under its renamed reason"
+        );
+    }
+
+    /// **A curved stand-in waits for a decided crossing at another
+    /// site**: a curved touch the curved arm found (`Said::CurvedTouch`)
+    /// and a face pair not confirmed (`Said::FacePair`) stand for a
+    /// reading no analysis here makes, so neither aborts. Scanned as the
+    /// pair's finding ahead of a crossing at a shared vertex, the pair
+    /// reads the crossing, which `blocks`' caller reports as
+    /// `TouchInterference` at its witness; alone, the stand-in renders
+    /// the curved reading's own sentence.
+    #[test]
+    fn a_curved_stand_in_waits_for_a_crossing_at_another_site() {
+        let pair = FaceKey::default();
+        for said in [Said::CurvedTouch, Said::FacePair(pair, pair)] {
+            let standin = finding(said, None);
+            assert!(
+                matches!(standin, Scan::Undecided(Undecided::CurvedTouch)),
+                "{said:?}: waits"
+            );
+            assert_eq!(
+                read(pair_blocked([standin], [crossing()])),
+                Read::Crossing,
+                "{said:?} ahead of a crossing at a site"
+            );
+            assert_eq!(
+                read(pair_blocked([finding(said, None)], [])),
+                Read::Undecided(Undecided::CurvedTouch),
+                "{said:?} alone"
+            );
+        }
+        assert!(
+            between_scan::<f64>(Said::FacePair(pair, pair), |_| None, |_, _| true).is_none(),
+            "a confirmed face pair scans as nothing"
+        );
+        assert_eq!(Undecided::CurvedTouch.what(), CURVED.what(), "one sentence");
+    }
+
+    /// **A pair's findings are scanned before its sites**
+    /// ([`pair_blocked`]): a finding whose touch aborts ends the reading
+    /// ahead of a crossing at a site, and a crossing read by a finding
+    /// decides ahead of a site that aborts.
+    #[test]
+    fn a_pairs_findings_are_scanned_before_its_sites() {
+        let aborting = finding(
+            Said::Touch(site()),
+            Some(Unrest::Aborts(Undecided::CorruptInstance)),
+        );
+        assert_eq!(
+            read(pair_blocked([aborting], [crossing()])),
+            Read::Undecided(Undecided::CorruptInstance),
+            "an aborting finding ahead of a crossing at a site"
+        );
+        let crossed = finding(
+            Said::Touch(site()),
+            Some(Unrest::Crossing(Point3::new(0.0, 0.0, 0.0))),
+        );
+        assert_eq!(
+            read(pair_blocked([crossed], [Scan::Aborts(CURVED)])),
+            Read::Crossing,
+            "a finding's crossing ahead of a site that aborts"
+        );
+    }
+}
+
 impl TouchVerdict {
     /// What arm 2 reads of a verdict read at `at`, a decided
     /// interference included, or `None` for a rest. A crossing with no
@@ -8151,11 +8439,10 @@ impl TouchVerdict {
     fn unrest<T: Real>(&self, at: Option<Point3<T>>) -> Option<Unrest<T>> {
         match self {
             Self::Rest(_) => None,
-            Self::Crossing => Some(at.map_or(
-                Unrest::Undecided(Undecided::CorruptInstance),
-                Unrest::Crossing,
-            )),
-            Self::Unread(why) => Some(Unrest::Undecided(why.undecided())),
+            Self::Crossing => {
+                Some(at.map_or(Unrest::Aborts(Undecided::CorruptInstance), Unrest::Crossing))
+            }
+            Self::Unread(why) => Some(why.unrest()),
         }
     }
 
@@ -10282,35 +10569,16 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         }
         let owns = |id: EntityId| solid_of_entity(id).is_some_and(|s| s == sa || s == sb);
         let between = |x: EntityId, y: EntityId| straddles(sa, sb, x, y);
-        // A touch read as a crossing decides the pair whatever else
-        // stands; failing one, any other reason refuses ahead of a touch
-        // the analysis could not decide.
-        let mut other = None;
-        let mut undecided_touch = None;
-        for e in standing_errors {
+        // The pair's findings, in order, then its recorded and shared
+        // sites, read lazily: [`blocked`] stops at the first crossing or
+        // abort, so no later touch is read.
+        let findings = standing_errors.iter().filter_map(|e| {
             let what = match Named::of(e) {
                 Named::Nothing => Some(Undecided::Unexamined),
                 Named::One(id) => owns(id).then_some(Undecided::Unexamined),
-                Named::Two(x, y, said) if between(x, y) => match said {
-                    Said::Touch(site) => match touch(site) {
-                        Some(Unrest::Crossing(at)) => return Some(Blocked::Crossing(site, at)),
-                        Some(Unrest::Undecided(why)) => Some(why),
-                        None => None,
-                    },
-                    // The pair's interference, which `decided` read
-                    // above: here the two resolvers of a finding's
-                    // solids disagree, and nothing clears on that.
-                    Said::Pierce | Said::Wedges(None) => Some(Undecided::Unresolved),
-                    Said::Wedges(Some(why)) => Some(why.undecided()),
-                    Said::CurvedTouch => Some(Undecided::Touch(TouchUnread::Curved(
-                        CurvedUnread::Unreadable,
-                    ))),
-                    Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b))).then_some(
-                        Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable)),
-                    ),
-                    Said::Unexamined => Some(Undecided::Unexamined),
-                    Said::InBand => None,
-                },
+                Named::Two(x, y, said) if between(x, y) => {
+                    return between_scan(said, touch, |a, b| declared.confirmed.contains(&(a, b)));
+                }
                 Named::Two(x, y, said) if owns(x) && solid_of_entity(x) == solid_of_entity(y) => {
                     match said {
                         Said::Touch(TouchSite::EdgeCross(..))
@@ -10324,14 +10592,8 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 }
                 Named::Two(..) => None,
             };
-            match what {
-                Some(why) if why.is_undecided_touch() => {
-                    undecided_touch = undecided_touch.or(what);
-                }
-                Some(_) => other = other.or(what),
-                None => {}
-            }
-        }
+            what.map(Scan::Undecided)
+        });
         // Declared touches leave no finding and are confirmed for their
         // coincidence only, never for their side: the same analysis runs
         // over the records that name this pair, and over every point the
@@ -10346,16 +10608,13 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 Recorded::FacePair => None,
             })
             .chain(shared(sa, sb).into_iter().map(|site| (site, true)));
-        for (site, strict) in sites {
-            match touch(site) {
-                Some(Unrest::Crossing(at)) => return Some(Blocked::Crossing(site, at)),
-                Some(Unrest::Undecided(why)) if strict => {
-                    undecided_touch = undecided_touch.or(Some(why));
-                }
-                _ => {}
-            }
-        }
-        other.or(undecided_touch).map(Blocked::Undecided)
+        let at_sites = sites.filter_map(|(site, strict)| match touch(site) {
+            Some(Unrest::Crossing(at)) => Some(Scan::Crossing(site, at)),
+            Some(Unrest::Aborts(why)) if strict => Some(Scan::Aborts(why)),
+            Some(Unrest::Undecided(why)) if strict => Some(Scan::Undecided(why)),
+            _ => None,
+        });
+        pair_blocked(findings, at_sites)
     };
     // ---- The material test of one ordering: every vertex of `inner`
     // against `outer`'s material.
@@ -10679,7 +10938,7 @@ fn confirm_vertex_vertex<T: Decide>(
         errors.push(stale);
         return;
     };
-    match gap_is_zero("pm_census_confirm_vv", Margin::norm3(pa - pb), band, errors) {
+    match gap_is_zero_as("pm_census_confirm_vv", Margin::norm3(pa - pb), band, errors) {
         Some(true) | None => {}
         Some(false) => errors.push(stale),
     }
@@ -10727,7 +10986,7 @@ fn confirm_edge_face<T: Decide>(
     let plane = planar_face(geo, face);
     if let (Some(e), Some(f)) = (line, plane) {
         for p in [e.p0, e.p1] {
-            match signed_is_zero(
+            match signed_is_zero_as(
                 "pm_census_confirm_ef",
                 Margin::of(geom::plane_offset(f.origin, f.normal, p)),
                 band,
@@ -17322,22 +17581,30 @@ mod tests {
     /// The in-band, unanalysed, degenerate and out-of-scale reasons are
     /// pinned where their links are built; a piece in band, a curved
     /// face and a corrupt topology have no link-level fixture, so their
-    /// row of `TouchUnread::refusal` is pinned as written.
+    /// row of `TouchUnread::refusal` is pinned as written: the piece in
+    /// band waits, the other two abort.
     #[test]
     fn the_unreached_unread_reasons_refuse_as_their_own_kinds() {
-        for (why, kind) in [
+        for (why, kind, aborts) in [
             (
                 TouchUnread::PieceInBand,
                 Undecided::Touch(TouchUnread::PieceInBand),
+                false,
             ),
             (
                 TouchUnread::Curved(CurvedUnread::Unreadable),
                 Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable)),
+                true,
             ),
-            (TouchUnread::Corrupt, Undecided::CorruptInstance),
+            (TouchUnread::Corrupt, Undecided::CorruptInstance, true),
         ] {
+            let got = TouchVerdict::Unread(why).unrest(None::<Point3<f64>>);
             assert!(
-                matches!(TouchVerdict::Unread(why).unrest(None::<Point3<f64>>), Some(Unrest::Undecided(got)) if got == kind),
+                match got {
+                    Some(Unrest::Undecided(got)) => !aborts && got == kind,
+                    Some(Unrest::Aborts(got)) => aborts && got == kind,
+                    _ => false,
+                },
                 "{why:?}"
             );
         }

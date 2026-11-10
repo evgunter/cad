@@ -59,7 +59,7 @@
 //! more than the band's zero — but it may still be in band of a face's
 //! CARRIER, where its foot lies outside the face. The schedule is walked
 //! by [`crate::ray_walk::walk`], and each ray counts its crossings
-//! ([`crate::ray_walk::Crossings::first_count`]): a crossing landing ON
+//! ([`crate::ray_walk::Crossings::first_count_as`]): a crossing landing ON
 //! a curved face's boundary or meeting its face tangentially before
 //! the count turns, a tie between two faces that do not meet, a tangent
 //! root, or a crossing at `q` grazes the ray; a ray within the band of a
@@ -1257,7 +1257,7 @@ pub(crate) fn trim_window_short<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let rows = TurnRows::exact("bool_sphere_trim_period");
-    Period::new(T::tau())
+    Period::angle()
         .strictly_partial(
             rows,
             Extent::between(raw.0, raw.1),
@@ -2991,7 +2991,7 @@ fn ray_passes_beside<T: Decide>(
 const SCHEDULE_ROWS: RayRows = crate::rows::SCHEDULE_RAY;
 
 /// One ray of the sweep: the side its running count reads
-/// ([`Crossings::first_count`]), or `None` where it crosses nothing
+/// ([`Crossings::first_count_as`]), or `None` where it crosses nothing
 /// that counts.
 fn cast_ray<T: Decide>(
     body: &Body<T>,
@@ -3000,12 +3000,12 @@ fn cast_ray<T: Decide>(
     reach: Lever<T>,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count(
+    let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count_as(
         SCHEDULE_ROWS.order(),
         band,
         RayHit::count,
         |a, b| {
-            a.pair(body, b, SCHEDULE_ROWS.order(), band)
+            a.pair_as(body, b, SCHEDULE_ROWS.order(), band)
                 .map_err(|f| f.map(|(face, diag, _)| PointInSolidError::Escalated { face, diag }))
         },
         |hits| {
@@ -3129,7 +3129,7 @@ impl<T: Copy> RayHit<T> {
     ///
     /// [`RayFault::InBand`] with the pair's first face, its gap and the
     /// other face; [`RayFault::Graze`] at a tie.
-    pub(crate) fn pair<U: Decide>(
+    pub(crate) fn pair_as<U: Decide>(
         &self,
         body: &Body<U>,
         other: &Self,
@@ -3325,7 +3325,7 @@ enum RootSide {
 ///   face is met twice.
 ///
 /// A mark matters only where the count reaches it
-/// ([`Crossings::first_count`]).
+/// ([`Crossings::first_count_as`]).
 #[allow(clippy::too_many_arguments)] // the ray, the planes and the rows, no less
 fn edge_meets<T: Decide>(
     body: &Body<T>,
@@ -4556,7 +4556,7 @@ pub(crate) fn ray_crossings<T: Decide>(
     // alone: faces of one sense tile their carrier (a seam split), so one
     // holds it; a sheet's two faces, opposite senses over one trim, both
     // hold it and cancel; two of one sense that overlap turn the count by
-    // two, which reads nothing ([`Crossings::first_count`]). Where a face
+    // two, which reads nothing ([`Crossings::first_count_as`]). Where a face
     // holds it, the others' readings of it, in band, faulted or not,
     // decide nothing; a fault stands only where no face holds it. ----
     let mut read = vec![false; roots.len()];
@@ -5704,14 +5704,14 @@ mod pair_margin_rows {
         let far = RayHit::crossing(b, 5.0 + 1e-8, 1e-7, -1);
         assert!(
             matches!(
-                near.pair(&body, &far, "bool_point_in_solid_order", band),
+                near.pair_as(&body, &far, "bool_point_in_solid_order", band),
                 Err(RayFault::Graze)
             ),
             "two faces that do not meet, within each other's slack, tie"
         );
         let same = RayHit::crossing(a, 5.0 + 1e-8, 1e-7, -1);
         assert!(
-            near.pair(&body, &same, "bool_point_in_solid_order", band)
+            near.pair_as(&body, &same, "bool_point_in_solid_order", band)
                 .is_ok(),
             "one face's two crossings within each other's slack are summed"
         );

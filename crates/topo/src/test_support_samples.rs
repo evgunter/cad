@@ -107,7 +107,7 @@ fn spindle_miss(major: f64) -> geom::SpindleMiss {
 
 /// A positive-passing gate's rejection of a reading past the band on
 /// the refused side.
-fn rejected_negative(predicate: &'static str) -> Indeterminate {
+fn rejected_negative_as(predicate: &'static str) -> Indeterminate {
     geom_core::k_stats::decide_positive(predicate, geom_core::Margin::of(-1e-3), band())
         .expect_err("a definitely negative reading is the gate's rejection")
 }
@@ -683,12 +683,12 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Escalated {
             check: CertCheck::TransversalityArm,
             sample: 4,
-            cause: rejected_negative("dihedral_arm"),
+            cause: rejected_negative_as("dihedral_arm"),
         },
         CertifyError::Escalated {
             check: CertCheck::ParamSpanMeter,
             sample: geom_brep::certify::NOT_A_SAMPLE,
-            cause: rejected_negative("param_span_meter"),
+            cause: rejected_negative_as("param_span_meter"),
         },
     ];
     v.extend(band_errors().into_iter().map(CertifyError::Band));

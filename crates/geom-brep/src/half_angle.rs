@@ -796,7 +796,7 @@ fn subdivision<T: Decide>(
         }
     };
     let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
-    let definitely = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
+    let definitely_as = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
     // The first reading in the band's gap at a cut the walk tried: what a
     // walk that can cut nowhere definite refuses on.
     let first_in_gap = core::cell::Cell::new(None);
@@ -852,7 +852,7 @@ fn subdivision<T: Decide>(
     // wall crossing's `at_end`, and the ruling's fixed `(−π, π)` window,
     // which re-sorts its roots. None reads the root as an identity.
     let mid = geom::mid_param(t0, t1);
-    let reported = |t: T| geom_core::period::Period::new(T::tau()).near(t, mid);
+    let reported = |t: T| geom_core::period::Period::angle().near(t, mid);
     let mut roots: Vec<T> = Vec::new();
     let mut touches: Vec<Touch<T>> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
@@ -869,13 +869,13 @@ fn subdivision<T: Decide>(
             + fourth_hi * half.powi(4) / twenty_four;
         let clear = (f0.abs() - fall - e0) / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
-        if definitely(rows.clear(), clear) {
+        if definitely_as(rows.clear(), clear) {
             return Step::Settled;
         }
         let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
         let least_slope =
             d1_lo - d2_hi * half - d3_hi * half.powi(2) / two - fourth_hi * half.powi(3) / six;
-        if definitely(rows.monotone(), speed_hi * least_slope / most_bend) {
+        if definitely_as(rows.monotone(), speed_hi * least_slope / most_bend) {
             if sl == sr {
                 return Step::Settled;
             }
@@ -986,7 +986,7 @@ fn subdivision<T: Decide>(
         // The clear margin is a lower bound on the residual, not a
         // reading of it: a looser bound reads it lower, so where it falls
         // says how good the bound is, not how near the carrier passes.
-        if !definitely(rows.width(), speed_hi * (r - l)) {
+        if !definitely_as(rows.width(), speed_hi * (r - l)) {
             return Step::Stop(Unsettled::Tangency.into());
         }
         first_in_gap.set(None);

@@ -1807,39 +1807,42 @@ fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// seam case, but at the chart's own period rather than `τ`. Without
 /// this the walk reports the wrap as a discontinuity: a symptom, not
 /// the cause.
-fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<Period<T>> {
-    // `τ` belongs to the AZIMUTH charts. A spline chart — the
-    // payload's or an approximating surface's fit — has whatever period
-    // its knot domain says, and only if the net actually closes; handing
-    // it `τ` would let the loop walk wrap a chart that does not.
-    if matches!(surface, Surface::Plane { .. }) {
-        return None;
+pub(crate) fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<Period<T>> {
+    // An analytic chart states its own (`Surface::angle_periods`). A
+    // spline chart — the payload's or an approximating surface's fit —
+    // has whatever period its knot domain says, and only if the net
+    // actually closes; handing it `τ` would let the loop walk wrap a
+    // chart that does not.
+    if let Some((u, _)) = surface.angle_periods() {
+        return u;
     }
-    let Some(payload) = surface.spline_chart() else {
-        return Some(Period::new(T::tau()));
-    };
+    let payload = surface.spline_chart()?;
     let (u0, u1) = payload.knot_values_u().domain();
-    net_closes(payload, NetChannel::U, band).then(|| Period::new(u1 - u0))
+    net_closes_as(payload, NetChannel::U, band).then(|| Period::new(u1 - u0))
 }
 
 /// The chart's SECOND channel period — the `v` companion of
 /// [`chart_u_period`] (C4: every closed channel has its own period, which
 /// the chart owns). `τ` where `v` is an angle (sphere, torus:
 /// [`polar_arm`]); the knot domain's length on a spline net decided
-/// closed in `v` ([`net_closes`], `pcurve_chart_v_closed`); `None` on a
+/// closed in `v` ([`net_closes_as`], `pcurve_chart_v_closed`); `None` on a
 /// plane, cylinder or cone, whose `v` is a length, and on an open net.
 /// The kind of period it is ([`VPeriod`]) is what levers its marks
 /// ([`decide_joint`]).
 fn chart_v_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<VPeriod<T>> {
-    if let Some(polar) = polar_arm(surface).map(SupSpeed::new) {
-        return Some(VPeriod::Angle {
-            period: Period::new(T::tau()),
-            polar,
+    if let Some((_, v)) = surface.angle_periods() {
+        return v.map(|period| VPeriod::Angle {
+            period,
+            polar: SupSpeed::new(
+                polar_arm(surface).unwrap_or_else(|| {
+                    unreachable!("a chart whose `v` is an angle has a polar arm")
+                }),
+            ),
         });
     }
     let payload = surface.spline_chart()?;
     let (v0, v1) = payload.knot_values_v().domain();
-    net_closes(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::new(v1 - v0)))
+    net_closes_as(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::new(v1 - v0)))
 }
 
 /// **Which channels of `surface`'s chart close on themselves**, `[u, v]`,
@@ -1877,7 +1880,7 @@ pub(crate) fn chart_side_bounds<T: Decide>(
     !closed && geom_brep::chart_singularity::spline_side_spans(payload, side, band)
 }
 
-/// A spline net's channel, for the closure question [`net_closes`] asks.
+/// A spline net's channel, for the closure question [`net_closes_as`] asks.
 #[derive(Clone, Copy)]
 enum NetChannel {
     U,
@@ -1895,7 +1898,11 @@ enum NetChannel {
 /// vector's boundary, are
 /// `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s,
 /// for both channels.
-fn net_closes<T: Decide>(payload: &geom::NurbsSurface<T>, channel: NetChannel, band: Band) -> bool {
+fn net_closes_as<T: Decide>(
+    payload: &geom::NurbsSurface<T>,
+    channel: NetChannel,
+    band: Band,
+) -> bool {
     let (nu, nv) = payload.control_counts();
     let control = payload.control();
     let (name, pairs): (_, Vec<(usize, usize)>) = match channel {
@@ -2021,27 +2028,26 @@ impl<T: Decide> ChartPeriods<T> {
     /// disagreement is
     /// `work/pcert/chart-channel-periods-are-spelled-in-several-places.md`'s.
     pub(crate) fn stated(surface: &Surface<T>) -> Self {
-        let net = surface.spline_chart();
-        let u = match (surface, net) {
-            (Surface::Plane { .. }, _) => None,
-            (_, Some(payload)) => {
-                let (u0, u1) = payload.knot_values_u().domain();
-                Some(Period::new(u1 - u0))
-            }
-            (_, None) => Some(Period::new(T::tau())),
+        // An analytic chart's are its own (`Surface::angle_periods`); a
+        // net's are its knot domains' lengths, stated without a band.
+        if let Some((u, v)) = surface.angle_periods() {
+            let v = v.map(|period| VPeriod::Angle {
+                period,
+                polar: SupSpeed::new(polar_arm(surface).unwrap_or_else(|| {
+                    unreachable!("a chart whose `v` is an angle has a polar arm")
+                })),
+            });
+            return Self { u, v };
+        }
+        let Some(payload) = surface.spline_chart() else {
+            unreachable!("a surface with no analytic chart is a spline chart")
         };
-        let v = match (polar_arm(surface).map(SupSpeed::new), net) {
-            (Some(polar), _) => Some(VPeriod::Angle {
-                period: Period::new(T::tau()),
-                polar,
-            }),
-            (None, Some(payload)) => {
-                let (v0, v1) = payload.knot_values_v().domain();
-                Some(VPeriod::Net(Period::new(v1 - v0)))
-            }
-            (None, None) => None,
-        };
-        Self { u, v }
+        let (u0, u1) = payload.knot_values_u().domain();
+        let (v0, v1) = payload.knot_values_v().domain();
+        Self {
+            u: Some(Period::new(u1 - u0)),
+            v: Some(VPeriod::Net(Period::new(v1 - v0))),
+        }
     }
 }
 
@@ -2065,6 +2071,8 @@ impl<T: Decide> ChartPeriods<T> {
 /// from "already metres": see [`v_meter`], which is what a caller
 /// wanting the channel's metre rate must ask.
 fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
+    // Which `v` is an angle is the chart's answer; the arm is its radius.
+    surface.angle_periods()?.1?;
     match *surface {
         Surface::Sphere { radius, .. } => Some(radius),
         Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => {
@@ -5002,7 +5010,7 @@ pub(crate) fn lever_periods<T: Decide>(
 /// # Errors
 ///
 /// [`BranchMiss`] where `j`'s own marks miss.
-pub(crate) fn branches_astride<T: Decide>(
+pub(crate) fn branches_astride_as<T: Decide>(
     name: &'static str,
     gap: T,
     period: T,
@@ -5102,23 +5110,6 @@ fn joint_has_room<T: Decide>(
         ),
         Ok(Sign::Positive)
     )
-}
-
-/// A chart's `u` period, decided by surface KIND: `τ` for every surface
-/// of revolution, a closed spline chart's own knot domain, and none for
-/// a plane. `chart_u_period` answers `τ` for a PLANE — it defaults every
-/// non-spline chart to the azimuth period — so a reader that must tell a
-/// plane from a periodic chart asks this one.
-pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> Option<Period<T>> {
-    match *chart {
-        Surface::Plane { .. } => None,
-        Surface::Cylinder { .. }
-        | Surface::Cone { .. }
-        | Surface::Sphere { .. }
-        | Surface::Torus { .. }
-        | Surface::Spindle { .. } => Some(Period::new(T::tau())),
-        Surface::Nurbs(_) | Surface::Approx(_) => chart_u_period(chart, band),
-    }
 }
 
 /// One loop of a face as [`loop_windings`] reads it off the walk.
@@ -9004,7 +8995,7 @@ mod lift_rows {
             f(0.0),
             Point2::new(f(prev.0), f(prev.1)),
             vertex,
-            super::ChartPeriods::given_u(Some(geom_brep::Period::new(T::tau())), surface, band(k)),
+            super::ChartPeriods::given_u(Some(geom_brep::Period::angle()), surface, band(k)),
             band(k),
         )
     }
