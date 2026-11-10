@@ -2,13 +2,14 @@
 id: the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted
 kind: issue
 title: the boolean's sphere re-cut builds its alignment rotation as twelve numbers and decides it at the rigid-motion door; its by-construction route is turned_between
-status: review
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: E
 pr: 6717
 branch: onehome/rigid-motion
 refs: [SYM-17]
+closed: 2026-11-10
 ---
 
 ## What
@@ -60,3 +61,7 @@ carries its computation's width. Minting is the answer:
 `emit_ball_cut_by_brick::a_ball_cut_by_a_brick_refuses_to_name_its_turned_seam_or_pole`
 passes at 1e-9 and 1e-12.
 
+
+## Closed (ONEHOME, 2026-11-10, PR 6717)
+
+`apply_recuts` mints both turns with `turned_between` over `UnitVec3` witnesses and composes them. `check_rigid` is no longer called at T. `emit_ball_cut_by_brick` passes at 1e-9 and 1e-12.
