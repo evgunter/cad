@@ -113,7 +113,8 @@ pub(crate) fn split_star<T: Decide>(
         };
         return Err(SplitReduceError::CurvedBooleanUnsupported { face: s.face, kind });
     }
-    star.refine(&[Datum::Plane(normal)], band).map_err(refused)?;
+    star.refine(&[Datum::Plane(normal)], band)
+        .map_err(refused)?;
     Ok(star)
 }
 

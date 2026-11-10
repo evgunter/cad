@@ -58,7 +58,7 @@
 use geom_core::{Decide, Real};
 
 mod walk;
-pub(crate) use walk::{Bound, Datum, Sector, Star, StarFace, StarFault, departure};
+pub(crate) use walk::{Bound, Datum, Star, StarFace, StarFault, departure};
 
 use crate::body::{Body, WALKS_CLOSE};
 use crate::entity::{EntityId, HalfEdgeKey, LoopKey, VertexKey};

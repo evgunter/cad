@@ -4,7 +4,7 @@
 
 use geom_brep::OutwardNormal;
 use geom_brep::sector_shape::{
-    CornerBounds, CornerShape, SectorFault, SectorShape, TurnOrder, corner_shape, metering_arm,
+    CornerShape, SectorFault, SectorShape, TurnOrder, corner_shape, metering_arm,
 };
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Real, Sign, Vec3};
 
@@ -61,6 +61,18 @@ impl<T: Decide> StarFace<T> {
         match self {
             Self::Tangent(normal) => *normal,
             Self::Apex(apex) => apex.normal_along(d),
+        }
+    }
+}
+
+#[cfg(test)]
+impl<T: Real> StarFace<T> {
+    /// The tangent plane's normal; a row that reads an apex panics.
+    #[allow(clippy::panic)]
+    pub(crate) fn tangent(&self) -> Vec3<T> {
+        match self {
+            Self::Tangent(normal) => normal.vec(),
+            Self::Apex(apex) => panic!("a tangent plane, not {apex:?}"),
         }
     }
 }
@@ -124,6 +136,13 @@ pub(crate) enum StarFault {
     Shape(FaceKey, SectorFault),
     /// Whether a datum's extremum lies inside a sector is in the band.
     Cut(FaceKey, Indeterminate),
+}
+
+impl<T: Real> Star<T> {
+    /// Sector `k`'s CCW-first bound, its start.
+    pub(crate) fn start(&self, k: usize) -> &Bound<T> {
+        &self.bounds[(k + 1) % self.bounds.len()]
+    }
 }
 
 impl<T: Decide> Star<T> {
@@ -284,11 +303,6 @@ impl<T: Decide> Star<T> {
             self.sectors.insert(k + 1, s);
         }
         Ok(())
-    }
-
-    /// The sector's CCW-first bound, its start.
-    pub(crate) fn start(&self, k: usize) -> &Bound<T> {
-        &self.bounds[(k + 1) % self.bounds.len()]
     }
 
     /// The first extremum of `datum`'s side strictly inside sector `k`,

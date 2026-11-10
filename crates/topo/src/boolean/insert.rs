@@ -2967,7 +2967,7 @@ mod tests {
                         geom_core::test_support::fixture_lever(1.0),
                     ),
                     face: body.face_of_half_edge(he).unwrap(),
-                    at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
+                    at_vertex: crate::star::StarFace::Tangent(normal),
                     arm: geom_core::test_support::fixture_lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 })
@@ -3088,9 +3088,9 @@ mod tests {
                 geom_core::test_support::fixture_lever(1.0),
             ),
             face: body.face_of_half_edge(he).unwrap(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                geom_brep::OutwardNormal::from_chart(normal, true),
-            ),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                normal, true,
+            )),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -3217,9 +3217,10 @@ mod tests {
             start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             end_reach,
             face: FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
-            ),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                Vec3::new(0.0, 0.0, 1.0),
+                true,
+            )),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -3594,7 +3595,7 @@ mod tests {
                         geom_core::test_support::fixture_lever(1.0),
                     ),
                     face: body.face_of_half_edge(he).unwrap(),
-                    at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
+                    at_vertex: crate::star::StarFace::Tangent(normal),
                     arm: geom_core::test_support::fixture_lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 })
@@ -3685,9 +3686,7 @@ mod tests {
                 far: o + y,
             },
             face: FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-                normal, true,
-            )),
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(normal, true)),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -3930,7 +3929,7 @@ mod tests {
                             geom_core::test_support::fixture_lever(lever),
                         ),
                         face: FaceKey::default(),
-                        at_vertex: crate::boolean::sectors::BoolFace::Tangent(
+                        at_vertex: crate::star::StarFace::Tangent(
                             geom_brep::OutwardNormal::from_chart(flat, true),
                         ),
                         arm: geom_core::test_support::fixture_lever(lever),
@@ -4000,9 +3999,9 @@ mod tests {
             start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             face: FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                geom_brep::OutwardNormal::from_chart(n, true),
-            ),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                n, true,
+            )),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -4066,9 +4065,9 @@ mod tests {
             start_reach,
             end_reach,
             face: FaceKey::default(),
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
-                geom_brep::OutwardNormal::from_chart(n, true),
-            ),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                n, true,
+            )),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
@@ -4300,9 +4299,7 @@ mod tests {
                 far: o + end,
             },
             face,
-            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-                normal, true,
-            )),
+            at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(normal, true)),
             arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };

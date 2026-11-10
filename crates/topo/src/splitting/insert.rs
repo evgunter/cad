@@ -59,8 +59,7 @@ use geom_core::{Band, Decide, Margin, Real, Sign, Vec3};
 use slotmap::SecondaryMap;
 
 use super::{
-    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SplitPlane,
-    SplitReduceError,
+    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SplitPlane, SplitReduceError,
 };
 use crate::body::Body;
 use crate::chord_join::ApexRulingFault;

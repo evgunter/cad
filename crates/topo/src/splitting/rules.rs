@@ -252,8 +252,7 @@ pub(super) fn apply_rule_a<T: Decide>(
             StarFace::Tangent(n_face) => n_face,
             StarFace::Apex(apex) => {
                 let rays = [star.bounds[k].ray(), star.start(k).ray()];
-                let reading = apex_reading(plane, &apex, rays, band)
-                    .map_err(sliver)?;
+                let reading = apex_reading(plane, &apex, rays, band).map_err(sliver)?;
                 if let WallReading::Grazed(_) = reading
                     && !apex.material_inside()
                 {
@@ -1160,8 +1159,9 @@ mod tests {
         let band = Band::linear(tol).unwrap();
         let (sides, _) = crate::vertex_sides(&operand, &plane, tol).unwrap();
         let tips = crate::sector_shape::SlitTips::of(&fx.body);
-        let hood = super::super::neighborhood::classify(&fx.body, &plane, &sides, base, &tips, band)
-            .unwrap();
+        let hood =
+            super::super::neighborhood::classify(&fx.body, &plane, &sides, base, &tips, band)
+                .unwrap();
         let n = hood.classes.len();
         let k = hood
             .star
@@ -1171,7 +1171,12 @@ mod tests {
             .expect("the in-plane edge is in the orbit");
         let convex = edge_wedge(&fx.body, &hood.star, k, band).unwrap();
         let classes = &hood.classes;
-        (classes[(k + n - 1) % n], classes[(k + 1) % n], convex, classes[k])
+        (
+            classes[(k + n - 1) % n],
+            classes[(k + 1) % n],
+            convex,
+            classes[k],
+        )
     }
 
     /// The derived rule (b) table (module docs), one fixture per row,
