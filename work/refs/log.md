@@ -282,3 +282,10 @@
   - **Rows:** F3, F10 and F11, plus a sketch-on-member row, filed.
 
   `written_count` now accepts a named free count, not only a literal, which fixes the reviewer's rename probe. DM3 still says "a written count", so that goes to the delta review: within Ev's read-from-the-document principle, and the exact sentence. **Delta review dispatched.** Lane target reclaimed.
+- 2026-11-10 — **PR 6555 delta review** (`bc173fd185..a23aadf022`). Every gate passed. It found one blocking item and four should-fix items, and I upheld all of them.
+  - **Blocking:** flatten's and inline's `unwound_selection` fallback still writes the form-1 shape. The probe was a fillet over two members' rim edges, then inline, then flatten. This falsified the premise of the `[ev]` question ("nothing produces it"). I corrected the question block on the PR at once.
+  - **A named pose escapes `SideIndex`/`IndexRank`** at the door and at load. The probe left `head_of` silently `None` and seated a side on an evaluated index.
+  - **`head_of` hands out a `SitedFace` that lowers to form 1.**
+  - **The viewer's refusal branches and F9 are unpinned:** their mutants survive.
+  - **Accepting a named free count at a side is within Ev's read-from-the-document principle.** The DM3 sentence was settled from the review.
+  - Second fix pass sent.
