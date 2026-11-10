@@ -282,10 +282,13 @@ pub(super) fn edge_tangent_at<T: Decide>(
 
 /// **What [`edge_tangent_at`] pushed when it did not read**, as a
 /// touch's refusal: an escalation is a sign in band
-/// ([`TouchUnread::InBand`]); a refusal is its typed reason
-/// ([`TouchUnread::EdgeTangent`]), carried on the refusal whole. A refusal pushed with no reading here, or none pushed at all,
-/// breaks this module's contract (every `None` pushes one of them), and
-/// reads as [`TouchUnread::Corrupt`].
+/// ([`TouchUnread::InBand`](crate::link::TouchUnread::InBand)); a
+/// refusal is its typed reason
+/// ([`TouchUnread::EdgeTangent`](crate::link::TouchUnread::EdgeTangent)),
+/// carried on the refusal whole. A refusal pushed with no reading here,
+/// or none pushed at all, breaks this module's contract (every `None`
+/// pushes one of them), and reads as
+/// [`TouchUnread::Corrupt`](crate::link::TouchUnread::Corrupt).
 pub(super) fn edge_tangent_refusal(refused: &[ValidationError]) -> crate::link::TouchUnread {
     use crate::link::TouchUnread;
     refused

@@ -114,11 +114,8 @@ fn tangent_marks_at_the_cusp(
         .collect();
     assert_eq!(tangent.len(), cusps, "{marks:?}");
     for &e in &tangent {
-        let he = body.get_edge(e).unwrap().he_plus;
-        let ends = [
-            point(body.get_half_edge(he).unwrap().start),
-            point(body.half_edge_end(he).unwrap()),
-        ];
+        let (v0, v1) = body.edge_vertices(e).unwrap();
+        let ends = [point(v0), point(v1)];
         assert!(
             ends.iter().all(&at),
             "a Tangent mark off the cusp: {ends:?}"

@@ -237,13 +237,8 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
 pub(crate) enum Pose<T: geom_core::Real> {
     /// A point.
     Point(Point3<T>),
-    /// The line through `through` along the unit `dir`.
-    Axis {
-        /// A point on the line.
-        through: Point3<T>,
-        /// The unit direction.
-        dir: Vec3<T>,
-    },
+    /// An axis's line, as the pose value holds it.
+    Axis(crate::pose::AxisLine<T>),
     /// The plane through `through` with the unit `normal`, its sense
     /// the side a signed gap reads positive.
     Plane {
@@ -262,10 +257,7 @@ impl<T: geom_core::Real> Pose<T> {
         use crate::pose::PoseValue as V;
         match value {
             V::Point { position } => Some(Self::Point(*position)),
-            V::Axis(line) => Some(Self::Axis {
-                through: line.foot(),
-                dir: line.dir().get(),
-            }),
+            V::Axis(line) => Some(Self::Axis(*line)),
             V::Plane { normal, offset } => Some(Self::Plane {
                 through: V::plane_foot(*normal, *offset),
                 normal: normal.get(),
@@ -281,9 +273,8 @@ impl<T: geom_core::Real> Pose<T> {
     /// A point on the pose.
     pub(crate) fn at(&self) -> Point3<T> {
         match *self {
-            Self::Point(at) | Self::Axis { through: at, .. } | Self::Plane { through: at, .. } => {
-                at
-            }
+            Self::Axis(line) => line.foot(),
+            Self::Point(at) | Self::Plane { through: at, .. } => at,
         }
     }
 }
@@ -790,37 +781,22 @@ fn pose_distance<T: Decide>(
     for (x, other) in [(a, b), (b, a)] {
         let Some(p) = point(x) else { continue };
         match pose(other) {
-            Some((Pose::Axis { through, dir }, _)) => return Ok(axis_offset(through, dir, p)),
+            Some((Pose::Axis(line), _)) => return Ok(line.line().distance(p)),
             Some((Pose::Plane { through, normal }, _)) => {
                 return Ok(magnitude((p - through).dot(normal)));
             }
             _ => {}
         }
     }
-    let (
-        Some((
-            Pose::Axis {
-                through: oa,
-                dir: da,
-            },
-            ra,
-        )),
-        Some((
-            Pose::Axis {
-                through: ob,
-                dir: db,
-            },
-            rb,
-        )),
-    ) = (pose(a), pose(b))
-    else {
+    let (Some((Pose::Axis(la), ra)), Some((Pose::Axis(lb), rb))) = (pose(a), pose(b)) else {
         return unsupported("distance", a, b);
     };
+    let (oa, da, ob, db) = (la.foot(), la.dir().get(), lb.foot(), lb.dir().get());
     if ra.is_none() || rb.is_none() {
         return unsupported_as("distance", NO_LEVER, b.class());
     }
     if parallel(AXES_PARALLEL, da, db, arm(a, b), band)? {
-        return Ok(axis_offset(oa, da, ob));
+        return Ok(la.line().distance(ob));
     }
     let across = da.cross(db);
     Ok(magnitude((ob - oa).dot(across)) / across.norm())
@@ -840,18 +816,25 @@ pub(crate) fn axes_parallel<T: Decide>(
 ) -> Option<bool> {
     let (
         Carrier::Pose {
-            pose: Pose::Axis { dir: da, .. },
+            pose: Pose::Axis(la),
             reach: Some(_),
         },
         Carrier::Pose {
-            pose: Pose::Axis { dir: db, .. },
+            pose: Pose::Axis(lb),
             reach: Some(_),
         },
     ) = (a, b)
     else {
         return None;
     };
-    parallel(AXES_PARALLEL, *da, *db, arm(a, b), band).ok()
+    parallel(
+        AXES_PARALLEL,
+        la.dir().get(),
+        lb.dir().get(),
+        arm(a, b),
+        band,
+    )
+    .ok()
 }
 
 /// The class a refusal names for two axes with no face to lever their
@@ -2090,11 +2073,15 @@ mod tests {
     #[test]
     fn r1_probe_two_meeting_axes_read_zero_and_not_parallel() {
         let axis = |through, dir| Carrier::Pose {
-            pose: Pose::Axis { through, dir },
+            pose: Pose::Axis(crate::pose::AxisLine::through(through, dir)),
             reach: Some(1.0),
         };
-        let a = axis(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0));
-        let b = axis(p(0.0, 0.0, 0.5), v(1.0, 0.0, 0.0));
+        let (x, z) = (
+            geom_core::UnitVec3::exact_x(),
+            geom_core::UnitVec3::exact_z(),
+        );
+        let a = axis(p(0.0, 0.0, 0.0), z);
+        let b = axis(p(0.0, 0.0, 0.5), x);
         let got = distance(&a, &b, band()).expect("reads");
         close(got, 0.0, "two axes that meet");
         assert_eq!(
@@ -2102,7 +2089,7 @@ mod tests {
             Some(false),
             "and not parallel"
         );
-        let c = axis(p(0.0, 0.3, 0.0), v(0.0, 0.0, 1.0));
+        let c = axis(p(0.0, 0.3, 0.0), z);
         close(
             distance(&a, &c, band()).expect("reads"),
             0.3,

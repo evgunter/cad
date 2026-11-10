@@ -613,7 +613,7 @@ fn the_split_param_escalation_reads_whole_through_the_blend_door() {
         site: "meridian split",
         source: Box::new(topo::EulerOpError::SplitParamEscalated {
             edge: topo::EdgeKey::default(),
-            diag: escalation(Some("split_edge_param_interior")),
+            diag: escalation(Some("curve_pair_span_end_chord")),
         }),
     }
     .render(geom_brep::recourse::Reading::Build);

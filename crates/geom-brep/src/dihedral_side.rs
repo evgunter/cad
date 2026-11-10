@@ -368,7 +368,7 @@ pub fn regular_jet<T: Decide>(
     band: Band,
 ) -> Result<SurfaceJet<T>, CreaseReading> {
     let jet = chart.ders(u, v);
-    match near("dihedral_side_regular", irregular_reach(&jet, reach), band) {
+    match near_as("dihedral_side_regular", irregular_reach(&jet, reach), band) {
         Some(reading) => Err(reading),
         None => Ok(jet),
     }
@@ -407,7 +407,7 @@ pub fn chart_normal_at<T: Decide>(
 
 /// A length the foot lies within: `Some` with its reading where the band
 /// does not decide it positive (zero or in band), `None` past the band.
-fn near<T: Decide>(name: &'static str, distance: T, band: Band) -> Option<CreaseReading> {
+fn near_as<T: Decide>(name: &'static str, distance: T, band: Band) -> Option<CreaseReading> {
     match crate::dihedral::decide_magnitude_reported(name, Margin::of(distance), band) {
         Ok((Magnitude::Positive, _)) => None,
         Ok((Magnitude::Zero, margin)) => Some(Ok(margin)),
@@ -443,7 +443,7 @@ fn on_a_crease<T: Decide>(
     (u, v): (T, T),
     band: Band,
 ) -> Option<CreaseReading> {
-    let near = |q: Point3<T>| near("dihedral_side_crease", (q - at).norm(), band);
+    let near = |q: Point3<T>| near_as("dihedral_side_crease", (q - at).norm(), band);
     for (knots, along_u) in [
         (chart.knot_values_u(), true),
         (chart.knot_values_v(), false),

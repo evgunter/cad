@@ -458,16 +458,14 @@ fn between_the_walls(body: &Body<f64>, faces: &[FaceKey]) -> Vec<FaceKey> {
     };
     let spans: Vec<FaceKey> = query::all_edges(body)
         .into_iter()
-        .filter_map(|e| body.get_edge(e))
-        .filter(|e| {
-            let (s, t) = (
-                x(body.get_half_edge(e.he_plus).expect("a half").start),
-                x(body.half_edge_end(e.he_plus).expect("an end")),
-            );
+        .filter_map(|k| body.get_edge(k).map(|e| (k, e)))
+        .filter(|&(k, _)| {
+            let (start, end) = body.edge_vertices(k).expect("an edge's ends");
+            let (s, t) = (x(start), x(end));
             ((s - 0.25).abs() < 1e-9 && (t - 0.75).abs() < 1e-9)
                 || ((s - 0.75).abs() < 1e-9 && (t - 0.25).abs() < 1e-9)
         })
-        .flat_map(|e| [e.he_plus, e.he_minus])
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
         .filter_map(|h| body.face_of_half_edge(h))
         .collect();
     faces

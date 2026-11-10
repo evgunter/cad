@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # rung-holds-one-home.sh — a reading of whether one rung holds becomes
-# its rung in ONE place, `geom_brep::ladder`'s `Rung::holds`, and a
+# its rung in ONE place, `geom_core::ladder`'s `Rung::holds`, and a
 # refusal stands by its own standing in one place, `Rung::refused`. ONE
 # home; ci.yml's `lint` job runs every gate in this directory.
 #
@@ -15,11 +15,12 @@
 #
 # WHAT IS READ: production sources (`crates/*/src`, less test-only mounts
 # and `#[cfg(test)]` items) other than the home,
-# `crates/geom-brep/src/ladder.rs`, in the statement view (comments and
+# `crates/geom-core/src/ladder.rs`, in the statement view (comments and
 # literals blanked, one record per statement, so a call rustfmt splits
 # over lines is read whole), for:
 #   * an arm `Ok(true) => Rung::Answers`, the hand-rolled `Rung::holds`
-#     (the path written `ladder::Rung` or `geom_brep::ladder::Rung`, the
+#     (the path written `ladder::Rung`, `geom_core::ladder::Rung` or the
+#     transitional `geom_brep::ladder::Rung`, the
 #     body a `return`), in either order against its `Ok(false)` arm, since
 #     a match is one record;
 #   * `rung_or_abort(X.refusal(), X, Err)` (or `X.1.refusal()`; the abort
@@ -66,10 +67,14 @@ set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-HOME_FILE=crates/geom-brep/src/ladder.rs
-# A path to the ladder's `Rung`: bare, `ladder::` or `geom_brep::ladder::`.
-LADDER='((geom_brep::)?ladder::)?'
-HOLDS_RE='Ok\(true\)[[:space:]]*=>[[:space:]]*(return[[:space:]]+)?'"$LADDER"'Rung::Answers'
+HOME_FILE=crates/geom-core/src/ladder.rs
+# A path to the ladder's `Rung`: bare, `ladder::`, `geom_core::ladder::`
+# or the transitional `geom_brep::ladder::`.
+LADDER='((geom_core::|geom_brep::)?ladder::)?'
+# The reading `true`, bare or one element of a tuple (`Ok((_, true))`,
+# a reading that carries what it read beside the bool).
+HELD='(true|[(]([^(),]*,[[:space:]]*)*true([[:space:]]*,[^(),]*)*[)])'
+HOLDS_RE='Ok\('"$HELD"'\)[[:space:]]*=>[[:space:]]*(return[[:space:]]+)?'"$LADDER"'Rung::Answers'
 # The abort the ladder hands back as the answer: `Err` (or `Result::Err`),
 # or a closure `|e| Err(e)`, its binding typed or not.
 ABORT='((Result::)?Err|\|[a-z_][a-z0-9_]*([[:space:]]*:[^|]*)?\|[[:space:]]*(Result::)?Err\([a-z_][a-z0-9_]*\))[[:space:]]*,?[[:space:]]*\)'
@@ -102,15 +107,21 @@ gate() {
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "a bool reading or a refusal is turned into a rung by hand: use geom_brep::ladder's Rung::holds(reading, yes, standing) or Rung::refused(e, standing)"
+    gate_error "a bool reading or a refusal is turned into a rung by hand: use geom_core::ladder's Rung::holds(reading, yes, standing) or Rung::refused(e, standing)"
     exit 1
   fi
-  gate_ok "no bool reading or refusal is turned into a rung outside geom_brep::ladder"
+  gate_ok "no bool reading or refusal is turned into a rung outside geom_core::ladder"
 }
 
 plant_holds() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn f(r: Result<bool, E>) -> Rung<Result<(), E>, E> { match r { Ok(true) => Rung::Answers(Ok(())),\n Ok(false) => Rung::Passes,\n Err(e) => e.rung() } }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_holds_in_a_tuple() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(r: Result<(S, bool), E>) -> R { match r { Ok((_, true)) => Rung::Answers(Ok(())),\n Ok((s, false)) => { keep(s); Rung::Passes }\n Err(e) => e.rung() } }\n' \
     > "$1/crates/planted/src/lib.rs"
 }
 
@@ -169,7 +180,7 @@ plant_standing_table() {
 }
 
 plant_in_the_home() {
-  mkdir -p "$1/crates/geom-brep/src"
+  mkdir -p "$(dirname "$1/$HOME_FILE")"
   printf 'pub fn holds(r: Result<bool, E>) -> Rung<Result<(), E>, E> { match r { Ok(true) => Rung::Answers(Ok(())),\n _ => Rung::Passes } }\n' \
     > "$1/$HOME_FILE"
 }
@@ -191,6 +202,7 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_holds
+  gate_selftest_case "$want" plant_holds_in_a_tuple
   gate_selftest_case "$want" plant_refused
   gate_selftest_case "$want" plant_refused_split
   gate_selftest_case "$want" plant_refused_by_path
@@ -203,7 +215,7 @@ gate_selftest() {
   gate_selftest_passes "a refusal whose payload is mapped" plant_mapped_payload
   gate_selftest_passes "a match whose abort maps its payload" plant_mapped_match
   gate_selftest_passes "a spelling inside a #[cfg(test)] module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, the home, a mapped payload (in the call and the match form) and a test module; fires on a hand-rolled holds arm (in either order, by path, as a return) and on a hand-rolled refused (on one line, split over lines, by path, with a closure abort typed or not, and as a match on Aborts or _), and on a standing table kept by hand, and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, the home, a mapped payload (in the call and the match form) and a test module; fires on a hand-rolled holds arm (in either order, by path, as a return, its bool bare or in a tuple) and on a hand-rolled refused (on one line, split over lines, by path, with a closure abort typed or not, and as a match on Aborts or _), and on a standing table kept by hand, and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

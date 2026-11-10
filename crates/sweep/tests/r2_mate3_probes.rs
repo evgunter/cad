@@ -77,10 +77,9 @@ fn r2_cusp_profile_extrudes_and_passes_at_rest() {
     let [edge] = marked.as_slice() else {
         panic!("exactly one Tangent mark: {marks:?}");
     };
-    let he = body.get_edge(*edge).unwrap().he_plus;
+    let (v0, v1) = body.edge_vertices(*edge).unwrap();
     assert!(
-        on_the_kiss(body.get_half_edge(he).unwrap().start)
-            && on_the_kiss(body.half_edge_end(he).unwrap()),
+        on_the_kiss(v0) && on_the_kiss(v1),
         "the one Tangent mark is the strut on the kiss"
     );
 }

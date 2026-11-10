@@ -33,7 +33,7 @@ const W_RATIONAL_EXACT_V: usize = 58;
 /// The derivative ladder of one polynomial (B-spline) net, built once.
 ///
 /// The ladder bottoms out in `None` exactly where the polynomial
-/// degree runs out, which [`grid_vec`] reads as the identically-zero
+/// degree runs out, which [`grid_vec`](super::net::grid_vec) reads as the identically-zero
 /// derivative. Two instantiations: the homogeneous position net
 /// `A = w·P` (all three channels) and the weight net `w` (channel 0,
 /// the other two structural zeros).
