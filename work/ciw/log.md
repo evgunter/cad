@@ -3106,7 +3106,7 @@ The numbers behind `dependents-slow-sets-skip-a-kernel-pr`'s policy.
 
 **A nightly bisect.**
 - The nightlies of 2026-11-03 to 2026-11-09 were 0–80 merges apart, so about 7 probes.
-- One bisect on 2026-11-09 took 13 probes in about 80 min (opt-0, 4 cores), about 6 min a probe.
+- One bisect on 2026-11-09 took 13 probes. Each probe rebuilt one sweep test binary at opt-0 on 4 cores and ran the test (about 2 s). The probe log kept no wall-clock times, so the cost per probe, about 6 min, is an estimate, not a measurement.
 
 **Main's slow set today.** 35 distinct slow tests are red on main:
 - sweep 17, editor-core 10, step-import 3, step-export 2, geom-core 1, topo 1, viewer 1;
