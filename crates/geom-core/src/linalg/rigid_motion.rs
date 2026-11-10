@@ -872,7 +872,12 @@ impl<T: Decide> RigidMotion<T> {
     /// written as and a mapped point still cancels against its mapped
     /// carrier. Entered as computed values ([`Real::from_computed`]),
     /// each axis component would be an unknown of its own there, and no
-    /// identity through the turn would be proved. The translation enters no margin and is kept as
+    /// identity through the turn would be proved. This is not the
+    /// computed value E12 keeps out of `from_f64`, one standing in for a
+    /// function of the parameters: only parameter-free entries take this
+    /// path, and once the margins admit the map the re-minted turn IS the
+    /// motion the model stores and every lane moves by, not a computation
+    /// standing in for one. The translation enters no margin and is kept as
     /// the scalar it is, so a boxed or symbolic shift under a written
     /// turn stays the box or the form it was, its correlation with every
     /// other use of its parameter intact. A map whose linear part is a

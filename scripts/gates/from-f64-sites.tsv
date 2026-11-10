@@ -82,7 +82,7 @@ crates/geom-core/src/linalg/angle.rs	1	constant	(4 * den) as f64	the denominator
 crates/geom-core/src/linalg/angle.rs	1	constant	n as f64	a written fraction's numerator or denominator, an exact integer of magnitude at most 2^53
 crates/geom-core/src/linalg/angle.rs	1	constant	hi as f64	the high half of a written fraction's integer past 2^53, an exact integer below 2^32
 crates/geom-core/src/linalg/angle.rs	1	constant	lo as f64	the low half of a written fraction's integer past 2^53, an exact integer below 2^32
-crates/geom-core/src/linalg/rigid_motion.rs	1	constant	<fn>	check_rigid: the turn of a map whose every linear entry is a plain f64, decided and re-minted at that f64, a function of no parameter (the shift is kept as the scalar it is)
+crates/geom-core/src/linalg/rigid_motion.rs	1	constant	<fn>	check_rigid: the turn of a map whose every linear entry is a plain f64, decided and re-minted at that f64: a function of no parameter, and once admitted the motion the model stores, not a computation standing in for one (E12), so a literal and not from_computed's unknown (the shift is kept as the scalar it is)
 crates/geom-core/src/period.rs	1	constant	f64::from(-i)	a half-period mark's branch below it
 crates/geom-core/src/period.rs	1	constant	f64::from(i)	a half-period mark's index
 crates/geom-core/src/period.rs	1	constant	f64::from(k)	a whole-period count as a length (`Period::times`, through which a stored winding's rate reads too, `Period::rate`)
