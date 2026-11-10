@@ -1087,15 +1087,24 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     let after = retyped(&before, p, slot, typed_quarter());
     cases.push(("a mated spin", before, after, p));
 
-    // A plane read off a copy spun `turn/4` about the world's `x`: the
-    // copy's spin retyped moves the mated copy's key.
+    // A plane read off a copy spun `turn/6` about the world's `x`: the
+    // copy's spin retyped moves the mated copy's key. A sixth, not a
+    // quarter: the solved map is re-minted at its door, so a mated copy
+    // under either spelling of a quarter turn lands on the world's axes,
+    // which would hide a stale memo.
     let mut values = slides();
     values.push((Coord::SPIN, zero(editor_core::Dimension::Angle)));
+    let sixth = || Formula::turn_over(6).expect("a sixth of a turn");
     let (stood, upended_top, upended) =
-        fixture::floor(doc.clone(), vec![(Coord::Spin(Some(X)), quarter())]);
+        fixture::floor(doc.clone(), vec![(Coord::Spin(Some(X)), sixth())]);
     let (before, p) = placed(stood, b, mate(start_cap(b), upended_top), values);
     let slot = value_slot(&before, upended, Coord::Spin(Some(X)));
-    let after = retyped(&before, upended, slot, typed_quarter());
+    let after = retyped(
+        &before,
+        upended,
+        slot,
+        SlotValue::Formula(ang(core::f64::consts::TAU / 6.0)),
+    );
     cases.push(("a spun target's spin", before, after, p));
 
     // The copy's side read through a pose definition spun a sixth of a

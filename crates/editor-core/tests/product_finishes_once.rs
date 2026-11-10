@@ -131,3 +131,88 @@ fn the_census_runs_in_the_gather_and_never_at_the_check() {
         );
     }
 }
+
+/// The finishes `doc`'s evaluation runs, under `opts`.
+#[cfg(debug_assertions)]
+fn finishes_evaluating(doc: &ProfileDoc, opts: &EvalOptions) -> u64 {
+    let before = topo::finishes_on_this_thread();
+    let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), opts, Tol::witness());
+    assert!(
+        ev.nodes
+            .values()
+            .all(|r| matches!(r, editor_core::NodeResult::Ok(_))),
+        "every node evaluates"
+    );
+    topo::finishes_on_this_thread() - before
+}
+
+/// A block and two copies of it, each under a frame of its own.
+#[cfg(debug_assertions)]
+fn two_copies() -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("moved-finishes-none"), tol);
+    let (doc, source) = block(doc);
+    let (doc, a) = editor_core::test_support::in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.0, 0.0, 0.0]),
+        tol,
+    );
+    let (doc, b) = editor_core::test_support::in_world(
+        doc,
+        source,
+        &editor_core::Frame::translation([0.5, 0.25, 0.5]),
+        tol,
+    );
+    (doc, [a, b])
+}
+
+/// **A union of two operands in different frames runs one finish**, its
+/// result's: the operand read into the computing frame is moved, still
+/// finished, and is not finished again where the Boolean takes it.
+#[cfg(debug_assertions)]
+#[test]
+fn a_union_across_two_frames_runs_one_finish() {
+    let (doc, [a, b]) = two_copies();
+    let without = finishes_evaluating(&doc, &EvalOptions::default());
+    let (doc, _) = fixture::union_over(doc, &[a, b]);
+    let with = finishes_evaluating(&doc, &EvalOptions::default());
+    assert_eq!(with - without, 1, "the union runs one finish, its result's");
+}
+
+/// **A mirror and the computing frame's twist run no finish**: each moves
+/// what its source holds, its verdict carried.
+#[cfg(debug_assertions)]
+#[test]
+fn a_mirror_and_a_twist_run_no_finish() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive("a-mirror-finishes-none"), tol);
+    let (doc, source) = block(doc);
+    let alone = finishes_evaluating(&doc, &EvalOptions::default());
+    let plane = fixture::plane_on(&doc, source, [0.0; 3], [-1.0, 0.0, 0.0]);
+    let (mirrored, _) = fixture::insert(
+        doc.clone(),
+        Node::Mirror {
+            body: editor_core::Operand::output(source, 0).into(),
+            plane,
+        },
+    );
+    assert_eq!(
+        finishes_evaluating(&mirrored, &EvalOptions::default()),
+        alone,
+        "the mirror runs no finish"
+    );
+    let twisted = EvalOptions {
+        computing_twist: Some(editor_core::ComputingTwist {
+            axis: [0.0, 0.6, 0.8],
+            angle: 0.7,
+            by: [0.25, -0.5, 1.0],
+        }),
+        ..EvalOptions::default()
+    };
+    assert_eq!(
+        finishes_evaluating(&doc, &twisted),
+        alone,
+        "the twist runs no finish"
+    );
+}

@@ -1598,19 +1598,19 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             );
         }
     }
-    // `MintLimb` on both routes, `Limb` at rest alone. A
+    // `MintLimb` at the shell's mint alone, `Limb` at rest alone. A
     // count over the rows `offset_fit_routes` builds: it holds the
     // roster's route split, not which arms the ops raise.
     assert_eq!(
         (mint_limbs, at_rest_limbs),
-        (4, 2),
+        (2, 2),
         "a limb row went missing"
     );
-    // Both routes raise `Meter`, so every pinned ending has two rows.
+    // The shell's route raises `Meter`, so every pinned ending has one
+    // row.
     assert_eq!(
         pinned,
-        2 * (meter_escalations(DISTANCE).len() + meter_verdicts(DISTANCE).len())
-            + wall_endings().len(),
+        meter_escalations(WALL).len() + meter_verdicts(WALL).len() + wall_endings().len(),
         "a pinned meter row went missing"
     );
 }
@@ -2846,7 +2846,6 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
         "Mirror/NurbsPlaceholder",
         NodeErrorKind::Mirror(E::NurbsPlaceholder),
     )])
-    .chain(certify_refusal_routes())
     .chain(offset_fit_routes())
     .collect()
 }
@@ -3052,22 +3051,17 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
     ]
 }
 
-/// [`certify_refusals`] as the feature tree meets them: a finish's
-/// re-certification of a stored edge.
+/// [`certify_refusals`] as the feature tree meets them at a build: a
+/// sweep's attachment of an edge it minted.
 fn certify_refusal_routes() -> Vec<(String, NodeErrorKind)> {
     certify_refusals()
         .into_iter()
         .map(|(route, source, _)| {
             row(
-                &format!("NotFinished/EdgeCertification/Routed/{route}"),
-                NodeErrorKind::NotFinished {
-                    findings: topo::NotFinished::for_tests(vec![
-                        topo::ValidationError::EdgeCertification {
-                            edge: topo::EdgeKey::default(),
-                            error: source,
-                        },
-                    ]),
-                },
+                &format!("Extrude/Op/Certification/Routed/{route}"),
+                NodeErrorKind::Extrude(sweep::ExtrudeError::Op {
+                    source: topo::EulerOpError::Certification { error: source },
+                }),
             )
         })
         .collect()
@@ -3087,8 +3081,8 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
         if route == "transversality" {
             assert_eq!(
                 text,
-                "node 000000000005 failed: the transform op refused: an edge the map moved failed \
-                 re-certification: the crossing angle at sample 4 escalated: margin 5e-9 \
+                "node 000000000005 failed: the extrude op refused: an Euler operation refused: \
+                 geometry attachment gate: the crossing angle at sample 4 escalated: margin 5e-9 \
                  lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
                  surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"
@@ -3230,9 +3224,9 @@ fn wall_endings() -> [(&'static str, String); 2] {
 ///   the kernel-defect ending.
 /// - **An offset face's finish** (`NotFinished/ApproxCertification/…`):
 ///   tier 3 re-derives a stored face's certificate, so it raises the
-///   certifier's arms — `Meter`, `PatchBound`, `WindowUnsupported` and
-///   `Limb` — on a fit it did not make, and every arm the roster holds
-///   but `Band`.
+///   certifier's arms on a fit it did not make; the rows here are the
+///   ones no build route raises — `PatchBound`, `WindowUnsupported` and
+///   `Limb` — and `Meter` is the shell's route's.
 ///
 /// `Band` reaches neither route. Both derive the run's band before they
 /// reach the door and refuse on it themselves (`ShellError::Band`,
@@ -3302,7 +3296,10 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     let face = FaceKey::default();
     let mut rows = Vec::new();
     for (arm, source) in roster {
-        if !matches!(source, O::Band(_)) {
+        if matches!(
+            source,
+            O::PatchBound(_) | O::WindowUnsupported { .. } | O::Limb { .. }
+        ) {
             rows.push(row(
                 &format!("NotFinished/ApproxCertification/{arm}"),
                 NodeErrorKind::NotFinished {

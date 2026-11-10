@@ -821,8 +821,11 @@ pub fn import_step(
             // finished body moved by an isometry stays finished and asks
             // only the session box again.
             let owed = topo::per_part_gate_owed(model.instances.len());
-            let band =
-                geom_core::Band::linear(tol).map_err(|error| StepImportError::TierInvalid {
+            // A placement is adopted at the file's own band: its re-mint
+            // to an exact rigid motion may move a point by up to ε_in.
+            let band = geom_core::FileCoincidence::new(eps_in)
+                .adoption_band(tol)
+                .map_err(|error| StepImportError::TierInvalid {
                     solid: None,
                     errors: vec![topo::ValidationError::Band { error }],
                 })?;

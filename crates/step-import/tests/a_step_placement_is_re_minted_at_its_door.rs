@@ -1,26 +1,27 @@
-//! **A STEP placement is re-minted at the decided door, and one off
-//! orthogonal beyond the band at the session box refuses there, naming
-//! its transform** (`RigidMotion::check_rigid`). A cylinder of radius
-//! 2.5 m, exported at the origin, is placed by an
+//! **A STEP placement is adopted at the file's band and re-minted at
+//! the decided door, and one off orthogonal beyond that band at the
+//! session box refuses there, naming its transform**
+//! (`RigidMotion::check_rigid`, `FileCoincidence::adoption_band`). A
+//! cylinder of radius 2.5 m, exported at the origin in a file that
+//! declares a coincidence distance ε_in of 1e-6 m, is placed by an
 //! `ITEM_DEFINED_TRANSFORMATION` turning it about `z` and standing it
 //! at `(700, 700, 0)`, about 990 m out. The placement's axis direction
-//! is off unit, and within the file's coincidence distance the reader
-//! adopts it verbatim, so the map's second and third columns carry
-//! the defect.
+//! is off unit, and within ε_in the reader adopts it verbatim, so the
+//! map's second and third columns carry the defect.
 //!
-//! Inside the band, read at the box's extent, the map is admitted as
-//! the rigid motion nearest it and the placed cylinder imports: it
-//! passes the shared gate, whose check 1 reads its frame's unit-ness
-//! at the radius. Off by 0.4 of the band unlevered, it would move a
-//! point at the box's edge by hundreds of bands. It refuses
-//! `PlacementMap`, naming the transform.
+//! A column 1e-10 off unit moves a point at the box's edge by 1e-7 m,
+//! inside ε_in: the map is admitted as the rigid motion nearest it and
+//! the placed cylinder imports, passing the shared gate, whose check 1
+//! reads its frame's unit-ness at the radius. A column 0.4·ε_in off
+//! unit would move a point at the box's edge by hundreds of ε_in, and
+//! refuses `PlacementMap`, naming the transform.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
 
 use geom_core::tolerance::SESSION_BOX_EXTENT;
-use geom_core::{Arc2, Band, Point2, RigidMotionError, Tol};
+use geom_core::{Arc2, Point2, RigidMotionError, Tol};
 use profile::{Profile, RawLoop, Segment, SketchPlane};
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 use sweep::{ExtrudeSide, Extrusion, extrude};
@@ -31,7 +32,11 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-/// The cylinder at the origin, written as a STEP document.
+/// The file's declared coincidence distance.
+const EPS_IN: f64 = 1e-6;
+
+/// The cylinder at the origin, written as a STEP document declaring
+/// [`EPS_IN`].
 fn exported() -> String {
     let rim = RawLoop::new([(
         Point2::new(RADIUS, 0.0),
@@ -49,7 +54,11 @@ fn exported() -> String {
         side: ExtrudeSide::Along,
     };
     let body = extrude(&profile, depth, tol()).unwrap().body;
-    step_export::step_string(&body, &step_export::StepOptions::default(), tol()).unwrap()
+    let options = step_export::StepOptions {
+        uncertainty_m: Some(EPS_IN),
+        ..step_export::StepOptions::default()
+    };
+    step_export::step_string(&body, &options, tol()).unwrap()
 }
 
 /// `text`'s representation placed into a fresh root by a turn of 0.3
@@ -87,8 +96,11 @@ fn placed(text: &str, stretch: f64) -> String {
 
 #[test]
 fn a_step_placement_inside_the_levered_band_imports_its_cylinder() {
-    let eps = tol().get().eps;
-    let stretch = 1e-10_f64.min(0.2 * eps / SESSION_BOX_EXTENT);
+    let stretch = 1e-10;
+    assert!(
+        2.0 * stretch * SESSION_BOX_EXTENT < EPS_IN.max(tol().eps()),
+        "the row's stretch is inside the file's band at the box's extent"
+    );
     let text = placed(&exported(), stretch);
     match import_step(&text, &ImportOptions::default(), tol()) {
         Ok(StepImport::Solid { body, .. }) => {
@@ -108,7 +120,7 @@ fn a_step_placement_inside_the_levered_band_imports_its_cylinder() {
 
 #[test]
 fn a_step_placement_beyond_the_levered_band_refuses_naming_its_transform() {
-    let stretch = 0.4 * Band::linear(tol()).unwrap().zero();
+    let stretch = 0.4 * EPS_IN.max(tol().eps());
     let text = placed(&exported(), stretch);
     match import_step(&text, &ImportOptions::default(), tol()) {
         Err(StepImportError::PlacementMap {

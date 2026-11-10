@@ -129,6 +129,8 @@ mod cert3r1_dump;
 mod clearance_refusals_say_what_they_found;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
+#[path = "corpus_finish_count.rs"]
+mod corpus_finish_count;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dm3_indexed_read.rs"]
