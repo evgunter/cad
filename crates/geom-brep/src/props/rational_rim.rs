@@ -257,7 +257,7 @@ struct PieceForm {
 fn piece_form(span: &RationalSpanQ, p: f64, q: f64) -> PieceForm {
     let (a, len) = (pt(span.a), pt(span.b) - pt(span.a));
     let (s0, s1) = ((pt(p) - a) / len, (pt(q) - a) / len);
-    let delta = (s0 + s1) * pt(0.5) - pt(0.5);
+    let delta = geom::mid_param(s0, s1) - pt(0.5);
     let h = s1 - s0;
     let local = |d: &[Interval]| -> Vec<Interval> {
         let n = d.len();
