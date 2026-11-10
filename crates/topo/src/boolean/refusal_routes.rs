@@ -1698,6 +1698,7 @@ pub(in crate::boolean) mod tests {
         Indeterminate {
             margin,
             band: band(),
+            // UNDECIDED-NAME: the cause diag_of hands every route this suite walks
             predicate: Some("routing_probe"),
             terminal_sliver: false,
         }
@@ -2634,6 +2635,7 @@ pub(in crate::boolean) mod tests {
                 let diag = Indeterminate {
                     margin,
                     band: band(),
+                    // UNDECIDED-NAME: the cause each escalation's viewer sentence is budgeted under
                     predicate: Some("side_of_plane"),
                     terminal_sliver: false,
                 };

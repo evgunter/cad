@@ -344,7 +344,7 @@ impl<T: Decide> ChartInverse<T> {
     /// each angle named in its window, the cone's nappe decided on `h`.
     pub fn point(&self, p: Point3<T>, band: Band) -> ChartPoint<T> {
         let (x, y, h) = self.frame.local(p);
-        let off =
+        let off_as =
             |name, length: T| !matches!(decide(name, Margin::of(length), band), Ok(Sign::Positive));
         // The cone's nappe: the nearer of the two generators in the
         // point's half-plane pair, the `+radial` one where `h > 0`, the
@@ -378,9 +378,12 @@ impl<T: Decide> ChartInverse<T> {
             }
             direction.principal_in(angle.window(), band)
         });
-        let on_axis = || read.rho.is_some_and(|rho| off("chart_point_on_axis", rho));
+        let on_axis = || {
+            read.rho
+                .is_some_and(|rho| off_as("chart_point_on_axis", rho))
+        };
         let on_tube_circle =
-            || tube.is_some_and(|tube| off("chart_point_on_tube_circle", tube.length()));
+            || tube.is_some_and(|tube| off_as("chart_point_on_tube_circle", tube.length()));
         let singular = !nappe_decided || on_axis() || on_tube_circle();
         ChartPoint {
             uv: read.uv,

@@ -630,7 +630,7 @@ which is what actually moves the number.
 | boolean/sectors.rs (`on_planar_face`, read by `runs_in`) | bool_germ_tie_plane | a point's signed height over a face's plane, `(p − o) · n̂` with `n̂` unit | m | OK |
 | boolean/sectors.rs, fate.rs, slit.rs (`geom_brep::parting`: read by `runs_into`, `crescent`, fate.rs's `corner_holds` and slit.rs's `walls_inside`) | bool_sector_runs_into_bend / bool_sector_crescent / bool_fate_corner_bend / bool_fate_corner_bend_straddle / bool_rider_wall_bend_across | `(κ − κ_b)·û·l²/2`: two curvature vectors at a vertex where their curves leave along one tangent, across it toward the side read, at a length `l` the site sets: `runs_into` an edge against a sector bound, at the shorter of their exact reaches; `crescent` two sectors' bounds, at the shorter bound's reach; `walls_inside` the floor's and the wall's normal sections across the line an edge rides, at the wall's reach; `corner_holds` a kept edge against a dropped face's corner bound, at the lever that bound's first-order side is read at, at both its bounds where a reach is known only from both sides and their straddle under `bool_fate_corner_bend_straddle` | m | OK (one reading, one name per site: each is its own decision with its own lever, and a refusal's diagnosis and `k_stats` name the site) |
 | boolean/fate.rs (`corner_holds`, `tip_wraps`, through `sign_at`; `bisector` and `tip_wraps`' half-turn count, through `sign`) | bool_fate_corner / bool_fate_corner_straddle | `n̂ · (a × b)` and `a · b` of two unit directions at a fate cut's corner (the sine and cosine of their angle), levered at the shorter of their reaches (`sectors::reading_lever`), at both bounds where a reach is known only from both sides and their straddle under `bool_fate_corner_straddle`; a sector's bisector sum's length, and a loop's half-turn count against its corners', dimensionless, each levered at 1 m | m | OK |
-| boolean/overlap.rs (`overlap`: `place`, `sort_params`, `one_sense`) | bool_overlap_on_plane / bool_overlap_cut_order / bool_overlap_senses | a point's offset from a face's plane (through `face_placement`); two meetings' parameter difference times the carrier's speed at the span's middle; the dot of two unit outward normals, dimensionless, levered at 1 m | m | OK |
+| boolean/overlap.rs (`overlap`: `sort_params`, `one_sense`) | bool_overlap_cut_order / bool_overlap_senses | two meetings' parameter difference times the carrier's speed at the span's middle; the dot of two unit outward normals, dimensionless, levered at 1 m (`place` decides nothing: its point is held on the face's carrier, `topo::held::Held`) | m | OK |
 | boolean/reduce.rs (`sheets_part`) | bool_touch_sheets_part | `û · v̂` of two unit directions into two tangent faces at a touch of their boundaries (`stands::inward`, each about its face's outward normal), a cosine levered at the longer of the two faces' reaches from their edges (`wedge_reach`, m) | m | OK |
 | boolean/join.rs (`stands_on`) | bool_rim_face_opposed | `n̂ · n̂_f` of a closed rim's coplanar planar face and the face it meets at a boundary vertex, unit outward normals, a cosine levered at the rim face's reach from the rim (`wedge_reach`, m) | m | OK |
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified); a pair `bool_faces_parallel` reads Zero is a near-coincidence and goes to the carrier ladder with every code On (its arm-setting bound reads On or in band) | m | OK |
@@ -1872,6 +1872,24 @@ Flagged, NOT fixed here (dispositions):
   reading off the carrier. Its K samples reach the sink under
   `edge_join_carried_far`. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.
+
+- **F40** (added by ONECOPY's roster-reach unit) `replay_one_cylinder`,
+  `replay_one_cylinder_axis` — `editor-core/src/coincide/replay.rs`
+  `one_cylinder`: whether two faces on cylinders are one cylinder, read
+  as one axis, one radius and one sense. Each component is decided Zero
+  or not; Zero discharges it, anything else keeps the row deferred
+  (`deferred::discharge_or_why`). It was a raw `sign_within` until this
+  unit, so its samples reached the K sink `<unnamed>`.
+  `replay_one_cylinder` takes the metre data through `Margin::of`: the
+  second axis's offset from the first, crossed with its unit direction
+  (`(ob − oa) × db`), and the radius differences (a rim's radius less its
+  cylinder's, and the two cylinders'). `replay_one_cylinder_axis` takes
+  the axes' cross product `da × db`, a sine of two unit directions,
+  **dimensionless**, through `Margin::levered` at `Lever::unsourced(1 m)`.
+  That is bit-identical to the raw read, which held the sine against the
+  band as though it were a length. **FLAG**: the lever has no source.
+  `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
+  carries the real one, with its candidates and a measurement plan.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
