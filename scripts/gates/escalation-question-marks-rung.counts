@@ -1,0 +1,48 @@
+# Every production `?` on a band reading inside a rung's reader (a
+# closure passed to one of the ladder's entry points, `pub fn climb*` in
+# `geom_core::ladder`; a `let` closure it reads through; or the closure a
+# direct caller passes for a parameter it reads), counted per `fn` the
+# reader is written in
+# (scripts/gates/escalation-question-marks.sh, `escalation_rungs.py`).
+# A new site reds until it is registered here with why its `?` is not a
+# search inside the rung; a count that falls reds until it is lowered.
+#
+# Two dispositions, named per entry:
+# - PREMISE: each read a `?` stops is read only on what the reads before
+#   it placed, so the first refusal is the rung's own, not a kept
+#   reading a later read of the same rung answers past.
+# - SEARCH: a later read is independent of the earlier and could answer
+#   for the rung alone: read both before either refuses (the port), and
+#   lower the count. Each is listed with its port in
+#   work/onecopy/a-rungs-later-read-answers-past-its-earlier-question-mark.md.
+#
+# held_cut's cut: `nested` (a strut's) answers `false`, as `on_arc`'s
+# `Some(false)` does on its own: SEARCH. `on_arc`, then `tied_held` only
+# on the end `on_arc` tied: PREMISE.
+rung:crates/topo/src/boolean/insert.rs:held_cut 4
+# FaceOnLocus::at's ride (climb_differing): the end (`hi - s`) is read
+# only where the start decided inside, and is the rung's last read; the
+# start's own refusal is an `and_then`, not a `?`: PREMISE.
+rung:crates/topo/src/boolean/rim_wedge.rs:at 1
+# crescent's pair of bounds. The opening (`bool_sector_crescent`) reads
+# none of the reads before it, and decided off `Positive` it answers
+# `false` alone. So the first `parallel_same`, the across reading and
+# `coincident_run` each refuse ahead of it: SEARCH (the first
+# `parallel_same` also ahead of the across reading). The second
+# `parallel_same`, read only under `coincident_run`: PREMISE.
+rung:crates/topo/src/boolean/sectors.rs:crescent 5
+# path_parity's piece against an arc: `plane_roots` refuses ahead of
+# `misses_in_plane`, whose coplanar-apart arm holds whatever the planes:
+# SEARCH. The meridian arm's `plane_roots`, `segment_misses` and the
+# lead's length on an end already decided on the plane, and
+# `spline_crossings` alone in its arm: PREMISE. Both arms that read a
+# segment's two ends read them together, since an end decided on the
+# cylinder or the plane answers alone.
+rung:crates/topo/src/ring_path.rs:path_parity 6
+# ruled_region's apex walk, a reader `ray_walk::walk` reads through its
+# parameter: `apex_generator` builds the generator `read_leg` reads:
+# PREMISE.
+rung:crates/topo/src/boolean/ruled_region.rs:contains 1
+# point_in_faces' ray sweep, read the same way: `missed_side` is read
+# only where `cast_ray` found no hit: PREMISE.
+rung:crates/topo/src/boolean/solid_contain.rs:point_in_faces 1

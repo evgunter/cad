@@ -136,6 +136,25 @@ gate_require_file() {
   GATE_SCAN_FILES=1
 }
 
+# gate_ladder_entry_points — the ladder's entry points, one per line:
+# each `pub fn climb*` in `geom_core::ladder` (crates/geom-core/src/ladder.rs),
+# the one home a gate reading climbs takes its list from, so a combinator
+# added there joins every such gate by construction. Sets
+# `GATE_LADDER_ENTRY_POINTS`; a home that is gone or names none is an
+# error, not an empty list.
+gate_ladder_entry_points() {
+  local home=crates/geom-core/src/ladder.rs
+  if [ ! -f "$home" ]; then
+    gate_error "$(gate_name): $home does not exist under $PWD — the ladder's entry points are gone, so no climb can be read"
+    exit 1
+  fi
+  GATE_LADDER_ENTRY_POINTS=$(sed -n 's/^pub fn \(climb[a-z_]*\)[<(].*/\1/p' "$home" | sort -u)
+  if [ -z "$GATE_LADDER_ENTRY_POINTS" ]; then
+    gate_error "$(gate_name): $home declares no \`pub fn climb*\` — the ladder's entry points are gone, so no climb can be read"
+    exit 1
+  fi
+}
+
 # gate_base_file FILE — FILE (relative to the root) as the merge base
 # holds it, written to `$GATE_BASE_FILE`: what a pin that only falls is
 # compared against. `GATE_BASE` names the base, a commit or tree in the root's
