@@ -629,17 +629,13 @@ fn nearest<T: Decide>(
         reached.push((c, r));
     }
     let cmp = |a: &(Curve3<T>, T), b: &(Curve3<T>, T)| {
-        decide("offset_section_branch", Margin::of(a.1 - b.1), band).map_err(|diag| {
-            if crate::validate::in_band(&diag) {
-                Undecided::InBand(diag)
-            } else {
-                Undecided::Aborts(diag)
-            }
-        })
+        decide("offset_section_branch", Margin::of(a.1 - b.1), band).map_err(Undecided::of)
     };
     match argmin_decided(reached, cmp, FreeOf::Nothing) {
         Ok(best) => Ok(best.map(|(c, _)| c).ok_or(SectionVerdict::NoBranch)),
         Err(Unpicked::Contested { in_band: None, .. }) => Ok(Err(SectionVerdict::BranchesTied)),
+        // One scalar's difference ranks in no cycle.
+        Err(Unpicked::Cyclic) => unreachable!("a branch's reach ranks in no cycle"),
         Err(
             Unpicked::Contested {
                 in_band: Some(diag),

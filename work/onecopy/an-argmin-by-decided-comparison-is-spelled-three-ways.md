@@ -1,7 +1,7 @@
 ---
 id: an-argmin-by-decided-comparison-is-spelled-three-ways
 kind: issue
-title: The decided argmin (geom_brep::ladder::argmin_decided) refuses at its first in-band comparison; what an in-band comparison leaves of the minimum, and each site's tie rule, is open
+title: The decided argmin (geom_core::ladder::argmin_decided) is built and ported; first_pair's tie between mutual pairs stays on its old fold
 status: open
 opened: 2026-11-09
 priority: P3
@@ -15,22 +15,15 @@ row listed "for its argument, not as a clear port".
 
 ## What
 
-Three folds keep the nearer of an incumbent and a candidate by a
-decided comparison:
-
-- `topo::boolean::join::keep_nearer` (≈`join.rs:2267`): the incumbent
-  keeps a tie (D9), and a comparison in band refuses by `?`. It is typed
-  on `PartnerDistance` and `BooleanError`, so it serves join alone
-  (`find_match`, the walk order, its rows).
-- `topo::offset_derive::nearest` (≈`offset_derive.rs:601`): a decided
-  `Zero` refuses `Unsupported` ("two branches of the section lie equally
-  near the edge"), and an in-band comparison escalates by `?`, the site
-  `escalation-question-marks.counts` registers.
-- `topo::link` (≈`link.rs:1122`, the piece-end turn fold): the incumbent
-  keeps anything not `Less`, and the order's escalation returns by `?`.
-
-The three differ in what a tie is (kept, refused, kept), so they are
-three answers to one question, spelled apart.
+Three folds kept the nearer of an incumbent and a candidate by a
+decided comparison, each with its own tie rule: join's `keep_nearer`
+(the incumbent keeps a tie, an in-band comparison refuses by `?`),
+`offset_derive::nearest` (a decided `Zero` refuses, an in-band
+comparison escalates by `?`), and link's piece-end turn fold (the
+incumbent keeps anything not `Less`). They were three answers to one
+question, spelled apart. All three now read one door,
+`geom_core::ladder::argmin_decided` (below); join's `first_pair` is the
+fold left on its old spelling.
 
 ## The argument the register listed it for
 
@@ -56,7 +49,7 @@ the design-fork procedure before anyone builds it. Until then
 ## Narrowed by `onecopy/argmin-and-leftovers` (2026-11-10)
 
 The designers' reconciled ruling is built:
-`geom_brep::ladder::argmin_decided(cands, cmp, FreeOf)`, the set rule
+`geom_core::ladder::argmin_decided(cands, cmp, FreeOf)`, the set rule
 (a candidate drops out only on a decided reading against one; every
 pair is compared, so the result is free of order), with the ending by
 what the caller is free of (`FreeOf::{Nothing, Ties, Band}`) and its
@@ -77,9 +70,11 @@ exact tie in both lanes. Ported at `Band` in its free lane and `Nothing`
 otherwise, it refused 759 calls over 525 `ci` test processes that build
 today, every one an exact tie (no in-band reading) between mutual pairs.
 
-**The one blocker is a tie with a conic germ in the round**: 663 of 751
-tied sets have conic tied pairs, and the other 88 have straight tied
-pairs beside another conic germ. Freeing it needs a proof that, where a
+**Measured: a tie with a conic germ in the round.** 663 of 751 tied
+sets have conic tied pairs, and the other 88 have straight tied pairs
+beside another conic germ. **Not measured:** ties in a round that is
+not all mutual, and ties at `K ≤ 2`; the 525 processes are the `ci`
+sets at the default band, whose `K` exceeds 2. Freeing it needs a proof that, where a
 germ ranks its partners by travel rather than by chord, committing any
 one of a tied set of mutual pairs first gives one matching.
 
@@ -104,3 +99,11 @@ mutual; commit `P = (g, h)`.
 
 A conic germ ranks by travel, so the first step does not hold for it.
 
+**`K > 2` in the gate.** The K-gate row
+(`at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs`) pins
+that the gate is read: on its seed-3118 fixture every rotation of the
+scan builds the same matching. The gate's `K > 2` premise bounded the
+per-germ incumbent scan that `own_nearest` replaced. Whether an
+all-mutual round needs it at all is the follow-up's to settle, on the
+prover's theorem that such a round's matching is free of the commit
+order at any `K`.

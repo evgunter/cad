@@ -993,6 +993,47 @@ pub enum Undecided<E> {
     Aborts(E),
 }
 
+impl Undecided<Indeterminate> {
+    /// **The one classifier of an undecided reading for
+    /// [`argmin_decided`]**: in band ([`in_band`]) is kept, and a later
+    /// candidate may close it; any other (a poisoned margin, an enclosure
+    /// straddling the band's edge) stops the argmin. Every caller whose
+    /// comparison reads a margin classifies through here, so a poison is
+    /// never superseded away.
+    #[must_use]
+    pub fn of(diag: Indeterminate) -> Self {
+        if in_band(&diag) {
+            Self::InBand(diag)
+        } else {
+            Self::Aborts(diag)
+        }
+    }
+}
+
+impl<E> Undecided<E> {
+    /// The same classification over another payload.
+    #[must_use]
+    pub fn map<F>(self, f: impl FnOnce(E) -> F) -> Undecided<F> {
+        match self {
+            Self::InBand(e) => Undecided::InBand(f(e)),
+            Self::Aborts(e) => Undecided::Aborts(f(e)),
+        }
+    }
+}
+
+/// **Whether an undecided reading lies inside the band**: a point
+/// margin, or an enclosure wholly inside one sliver band
+/// ([`Indeterminate::terminal_sliver`]). An enclosure straddling the
+/// band's edge, or a poisoned margin, is not.
+#[must_use]
+pub fn in_band(diag: &Indeterminate) -> bool {
+    match diag.margin.kind() {
+        crate::MarginKind::Value => true,
+        crate::MarginKind::Enclosure => diag.terminal_sliver,
+        crate::MarginKind::Invalid => false,
+    }
+}
+
 /// **Why [`argmin_decided`] picked no minimum.**
 #[derive(Clone, Debug, PartialEq)]
 pub enum Unpicked<C, E> {
@@ -1008,6 +1049,10 @@ pub enum Unpicked<C, E> {
     },
     /// A comparison stopped the argmin ([`Undecided::Aborts`]).
     Aborted(E),
+    /// Every candidate is decided farther than some other: the
+    /// comparison ranks in a cycle, which no distance does. A kernel
+    /// fault in the caller's `cmp` (row 4), never a minimum of none.
+    Cyclic,
 }
 
 /// **The nearest of `candidates` by decided comparisons.** `cmp(a, b)`
@@ -1029,6 +1074,12 @@ pub enum Unpicked<C, E> {
 /// may be that answer, and it refuses there. An argmin wants the minimum,
 /// so a later candidate can close the question: one decided nearer than
 /// both of an undecided pair puts neither of them in contention.
+///
+/// **What it presupposes**: `cmp` is antisymmetric (`cmp(a, b)` is
+/// `cmp(b, a)` negated, and undecided where it is) and ranks in no
+/// cycle, as a sign of one distance less another does. Order-freedom
+/// rests on the first; a cycle, where every candidate drops out, aborts
+/// ([`Unpicked::Cyclic`]).
 ///
 /// **Recording**, in pair order, as a serial read of the same pairs
 /// would: a decided reading live; an undecided one superseded where the
@@ -1108,6 +1159,9 @@ pub fn argmin_decided<C, E>(
         .zip(out)
         .filter_map(|(c, out)| (!out).then_some(c))
         .collect();
+    if n > 0 && members.is_empty() {
+        return Err(Unpicked::Cyclic);
+    }
     if members.len() <= 1 || covered {
         return Ok((!members.is_empty()).then(|| members.swap_remove(0)));
     }
@@ -1764,6 +1818,39 @@ mod tests {
             ),
             Ok(None),
             "no candidate"
+        );
+        let cycle = [
+            ("a", "b", Sign::Negative),
+            ("b", "c", Sign::Negative),
+            ("c", "a", Sign::Negative),
+        ];
+        assert_eq!(
+            argmin_decided(["a", "b", "c"], table_cmp(&cycle, None), FreeOf::Band),
+            Err(Unpicked::Cyclic),
+            "a cyclic comparison aborts, not a minimum of none"
+        );
+    }
+
+    /// **An in-band reading `free_of` covers is superseded**: two
+    /// candidates in band of each other under [`super::FreeOf::Band`] pick
+    /// the first, and the reading is recorded superseded, since the
+    /// minimum does not rest on it. Red where the coverage branch splices
+    /// a live pair's run live whatever `free_of` covers (`&& !covered`
+    /// dropped), which the subdivision driver would read as the reason a
+    /// node did not decide.
+    #[test]
+    fn an_in_band_reading_band_covers_is_recorded_superseded() {
+        use super::{FreeOf, Undecided, argmin_decided};
+        let cmp = |a: &f64, b: &f64| {
+            crate::k_stats::decide_reported("argmin_row", Margin::of(*a - *b), band())
+                .map(|d| d.sign)
+                .map_err(Undecided::InBand)
+        };
+        let (got, _, escalations) = recorded(|| argmin_decided([0.0, 5e-9], cmp, FreeOf::Band));
+        assert_eq!(got, Ok(Some(0.0)), "Band covers the pair: the first stands");
+        assert!(
+            escalations.is_empty(),
+            "the covered reading is superseded: {escalations:?}"
         );
     }
 }

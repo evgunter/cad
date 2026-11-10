@@ -175,10 +175,10 @@ use crate::loop_winding::{RunClosing, RunMissesEnd, Unwound};
 use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
-use geom_brep::ladder::{
+use geom_core::Tol;
+use geom_core::ladder::{
     Climb, FreeOf, Rung, Undecided, Unpicked, argmin_decided, climb_agreeing, rung_or_abort,
 };
-use geom_core::Tol;
 
 /// The K funnel name of a germ plane's normal-length decision: the
 /// boolean reads a plane carrier's normal into the section lanes, and
@@ -2038,23 +2038,20 @@ fn along_sign<T: Decide>(
 /// straddling the band's edge), which stops it.
 fn kept(e: BooleanError) -> Undecided<Box<BooleanError>> {
     match &e {
-        BooleanError::Escalated { diag, .. } if crate::validate::in_band(diag) => {
-            Undecided::InBand(Box::new(e))
-        }
+        BooleanError::Escalated { diag, .. } => Undecided::of(*diag).map(|_| Box::new(e)),
         _ => Undecided::Aborts(Box::new(e)),
     }
 }
 
 /// **The nearest of `cands` by `sign`** ([`argmin_decided`], free of
-/// `free_of`): an in-band pair left in contention refuses on its margin,
+/// nothing): an in-band pair left in contention refuses on its margin,
 /// and candidates decided equally near refuse as
 /// [`BooleanError::JoinPartnersTied`].
 fn nearest_of<T: Decide, C>(
     cands: Vec<(PartnerDistance<T>, C)>,
     sign: impl Fn(PartnerDistance<T>, PartnerDistance<T>) -> Result<Sign, BooleanError>,
-    free_of: FreeOf,
 ) -> Result<Option<(PartnerDistance<T>, C)>, BooleanError> {
-    match argmin_decided(cands, |a, b| sign(a.0, b.0).map_err(kept), free_of) {
+    match argmin_decided(cands, |a, b| sign(a.0, b.0).map_err(kept), FreeOf::Nothing) {
         Ok(nearest) => Ok(nearest),
         Err(
             Unpicked::Contested {
@@ -2063,6 +2060,9 @@ fn nearest_of<T: Decide, C>(
             | Unpicked::Aborted(e),
         ) => Err(*e),
         Err(Unpicked::Contested { in_band: None, .. }) => Err(BooleanError::JoinPartnersTied),
+        Err(Unpicked::Cyclic) => Err(BooleanError::ClassificationInvariant {
+            what: "the join's nearest-partner comparison ranks in a cycle",
+        }),
     }
 }
 
@@ -2361,7 +2361,7 @@ fn own_nearest<T: Decide>(
     for (germ, partners) in met {
         let cands = partners.into_iter().map(|m| (m.1, m)).collect();
         let sign = |c, b| along_sign(c, b, band);
-        if let Some((_, m)) = nearest_of(cands, sign, FreeOf::Nothing)? {
+        if let Some((_, m)) = nearest_of(cands, sign)? {
             own.insert(germ, m);
         }
     }
@@ -2382,27 +2382,26 @@ fn own_nearest<T: Decide>(
 /// - every germ is straight, so its candidates rank by chord alone and
 ///   each reading is the difference of two chords;
 /// - the band's escalation threshold exceeds twice its zero (`K > 2`).
-///   A germ's scan keeps its incumbent unless a candidate reads at least
-///   `K·zero` nearer, and a tie is within `zero`. In the full scan, every
-///   candidate met before the winner `w` lost to an incumbent at least
-///   `K·zero` farther than `w`, so it lies at least `(K − 1)·zero`
-///   beyond `w`. Every candidate met after `w` lies no nearer than
-///   `w − zero`. A scan that has lost candidates other than `w` therefore
-///   meets `w` against an incumbent that `K > 2` puts past a tie: `w`
-///   takes the incumbency or the reading escalates, and nothing after it
-///   reads `K·zero` nearer. Two chained ties span `2·zero`, which a
-///   smaller `K` reads as definite.
 ///
-/// So each germ keeps its nearest as candidates go, and each later round
-/// holds the same pairs less the ones committed, still mutual. Its scans
-/// may escalate under one order and not another; the matching is free
-/// of the order, not the run. The order still picks which pair the
+/// Each germ's nearest is the decided argmin's ([`own_nearest`]): a
+/// germ drops a candidate only where another is decided nearer, so its
+/// nearest is the same in every order of its partners, and stands while
+/// its partner does (or the round refuses). Committing a mutual pair
+/// therefore removes no other germ's nearest, and each later round holds
+/// the same pairs less the ones committed, still mutual. A round's
+/// readings may escalate under one order and not another: the matching is
+/// free of the order, not the run. The order still picks which pair the
 /// surgery joins first.
+///
+/// The second and third premises carry nothing for an all-mutual round:
+/// they bounded the per-germ incumbent scan this round no longer runs.
+/// They stay read until the follow-up drops them on the argmin row's
+/// theorem (`work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md`).
 ///
 /// Elsewhere the order is read, and an in-band reading escalates.
 /// Committing a pair can turn a germ whose nearest was in it to its
 /// next partner, a pair this round never ranked. Along a conic,
-/// [`along_sign`] ranks by travel from the incumbent's site rather
+/// [`along_sign`] ranks by travel from one candidate's site rather
 /// than by one number per candidate.
 fn first_pair<T: Decide>(
     own: BTreeMap<Slot, Met<T>>,
@@ -4608,7 +4607,7 @@ fn loose_partners<T: Decide>(
         // Free of nothing: no proof yet says a tie between two partners
         // leaves the separation unchanged.
         let sign = |c, b| along_sign(c, b, band);
-        let best = nearest_of(cands, sign, FreeOf::Nothing)?;
+        let best = nearest_of(cands, sign)?;
         let partner = best.map(|(_, jt)| jt);
         a_map.insert(open[i].a[s].0.he, partner.map(|(j, t)| open[j].a[t].0.he));
         b_map.insert(open[i].b[s].0.he, partner.map(|(j, t)| open[j].b[t].0.he));
@@ -7947,13 +7946,14 @@ mod first_pair_rows {
         }
     }
 
-    /// **At `K = 1.1` the order among mutual straight pairs moves the
-    /// matching, so [`first_pair`] reads it** ([`first_pair`]'s third
-    /// premise). Eight germs whose first round is all mutual: with the
-    /// in-band order free, each round's pairs folded in scan order, and
-    /// in scan order started at its third pair, build two different
-    /// matchings (a germ's shortened scan crosses two chained ties);
-    /// [`first_pair`] escalates. The witness is the PR 4769 review's.
+    /// **At `K = 1.1` [`first_pair`] reads the order among mutual
+    /// straight pairs** ([`first_pair`]'s third premise): eight germs whose
+    /// first round is all mutual, and a round whose fold meets an in-band
+    /// reading between two of its pairs, escalate. This pins that the gate
+    /// is read, not that the order moves the matching: here every rotation
+    /// of the scan builds the same matching. Whether `K > 2` is needed at
+    /// all is the follow-up's (an all-mutual round's matching is free of
+    /// the commit order at any `K`, the argmin row's theorem).
     #[test]
     fn at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs() {
         // A seeded search's witness (seed 3118 over 8 germs in a 30 m

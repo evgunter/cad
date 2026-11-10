@@ -78,7 +78,7 @@
 //! other reading takes such a link ([`rest::judge`] and
 //! [`rest::by_round`] refuse it).
 
-use geom_brep::ladder::{
+use geom_core::ladder::{
     Aborts, Answering, Climb, FreeOf, Refusal, Rung, Undecided, Unpicked, argmin_decided, climb,
 };
 
@@ -1156,22 +1156,32 @@ pub(crate) fn face_piece<T: Decide>(
             None => return Err(TouchUnread::PieceInBand),
         })
     };
-    // The order of two points' turns about `p`.
-    let order =
-        |a: (Turn, Point3<T>), b: (Turn, Point3<T>)| -> Result<core::cmp::Ordering, TouchUnread> {
-            if a.0 != b.0 {
-                return Ok(a.0.cmp(&b.0));
-            }
-            if matches!(a.0, Turn::Ahead | Turn::Back) {
-                return Ok(Equal);
-            }
-            Ok(match side(a.1, b.1) {
-                Some(Sign::Positive) => Less,
-                Some(Sign::Negative) => Greater,
-                Some(Sign::Zero) => Equal,
-                None => return Err(TouchUnread::PieceInBand),
-            })
-        };
+    // The order of two points' turns about `p`, keeping why a turn's
+    // side read nothing: the decided argmin below classifies it
+    // ([`Undecided::of`]), so a poisoned reading stops it rather than
+    // being superseded by a candidate that closes the question.
+    let order_kept = |a: (Turn, Point3<T>),
+                      b: (Turn, Point3<T>)|
+     -> Result<core::cmp::Ordering, Undecided<TouchUnread>> {
+        if a.0 != b.0 {
+            return Ok(a.0.cmp(&b.0));
+        }
+        if matches!(a.0, Turn::Ahead | Turn::Back) {
+            return Ok(Equal);
+        }
+        Ok(match wedge_settle(p, m, a.1, b.1, rd) {
+            Ok(Sign::Positive) => Less,
+            Ok(Sign::Negative) => Greater,
+            Ok(Sign::Zero) => Equal,
+            Err(why) => return Err(turn_unread(why)),
+        })
+    };
+    // The same order, as the sort and the sector's ends read it.
+    let order = |a: (Turn, Point3<T>), b: (Turn, Point3<T>)| {
+        order_kept(a, b).map_err(|why| match why {
+            Undecided::InBand(why) | Undecided::Aborts(why) => why,
+        })
+    };
     let mut sorted: Vec<(Turn, Point3<T>)> = Vec::with_capacity(points.len());
     for &q in &points {
         let item = (turn(q)?, q);
@@ -1215,13 +1225,11 @@ pub(crate) fn face_piece<T: Decide>(
             // one turn end the sector at one place, so either stands for
             // the other.
             let cmp = |a: &(Turn, Point3<T>), b: &(Turn, Point3<T>)| {
-                order(*a, *b)
-                    .map(|o| match o {
-                        Less => Sign::Negative,
-                        Equal => Sign::Zero,
-                        Greater => Sign::Positive,
-                    })
-                    .map_err(Undecided::InBand)
+                order_kept(*a, *b).map(|o| match o {
+                    Less => Sign::Negative,
+                    Equal => Sign::Zero,
+                    Greater => Sign::Positive,
+                })
             };
             match argmin_decided(passes, cmp, FreeOf::Ties) {
                 Ok(best) => best.map(|b| b.1),
@@ -1236,6 +1244,9 @@ pub(crate) fn face_piece<T: Decide>(
                 Err(Unpicked::Contested { in_band: None, .. }) => {
                     unreachable!("free of ties, an argmin with no in-band pair picks")
                 }
+                // The turn, then the side within one turn's half-plane:
+                // a total order, which ranks in no cycle.
+                Err(Unpicked::Cyclic) => unreachable!("the turn order ranks in no cycle"),
             }
         }
         PieceAt::Inside => None,
@@ -1362,6 +1373,23 @@ fn wedge_side<T: Decide>(
     rd: Reading<T>,
 ) -> Option<Sign> {
     wedge_settle(p, m, r, x, rd).ok()
+}
+
+/// **A turn's side that read nothing, as the decided argmin keeps it**
+/// ([`face_piece`]'s piece-end fold): a distance in band is classified
+/// by its escalation ([`Undecided::of`]), so a poisoned margin or an
+/// enclosure straddling the band's edge stops the argmin rather than
+/// being superseded; the other in-band arms (row 1(b), as each variant
+/// states) are kept, and a contradiction aborts. Each refuses as the
+/// piece's in-band refusal.
+fn turn_unread<T>(why: Unsettled<T>) -> Undecided<TouchUnread> {
+    match why {
+        Unsettled::InBand(diag) => Undecided::of(diag).map(|_| TouchUnread::PieceInBand),
+        Unsettled::Zero(..) | Unsettled::Slack | Unsettled::Unplaced => {
+            Undecided::InBand(TouchUnread::PieceInBand)
+        }
+        Unsettled::Contradicted => Undecided::Aborts(TouchUnread::PieceInBand),
+    }
 }
 
 /// [`wedge_side`], keeping why it read nothing ([`metric::settle_as`]).
@@ -6383,6 +6411,52 @@ mod standing_rows {
         assert_eq!(
             Unsettled::<f64>::InBand(diag).refusal(),
             Ok(Refusal::Margin(diag))
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod turn_unread_rows {
+    use geom_core::ladder::Undecided;
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{TouchUnread, Unsettled, turn_unread};
+
+    /// **A poisoned turn reading stops the piece-end argmin**: the fold
+    /// classifies a side that read nothing by its escalation, so a
+    /// poisoned margin aborts and is never superseded by a candidate that
+    /// closes the question, while a point margin in band is kept. Red
+    /// where every undecided turn maps to in band, as it did before the
+    /// one classifier ([`Undecided::of`]).
+    #[test]
+    fn a_poisoned_turn_reading_escalates_and_an_in_band_one_is_kept() {
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let cause = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("link_wedge"),
+            terminal_sliver: false,
+        };
+        assert_eq!(
+            turn_unread::<f64>(Unsettled::InBand(cause(MarginDiag::INVALID))),
+            Undecided::Aborts(TouchUnread::PieceInBand),
+            "a poisoned margin aborts"
+        );
+        assert_eq!(
+            turn_unread::<f64>(Unsettled::InBand(cause(MarginDiag::value(5e-9)))),
+            Undecided::InBand(TouchUnread::PieceInBand),
+            "a point margin in band is kept"
+        );
+        assert_eq!(
+            turn_unread::<f64>(Unsettled::Slack),
+            Undecided::InBand(TouchUnread::PieceInBand),
+            "the slack's reading is in band"
+        );
+        assert_eq!(
+            turn_unread::<f64>(Unsettled::Contradicted),
+            Undecided::Aborts(TouchUnread::PieceInBand),
+            "a contradiction aborts"
         );
     }
 }

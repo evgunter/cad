@@ -36,7 +36,6 @@ use super::{Faced, PartnerDistance, Turn, along_facing, along_sign, germ_arm, ne
 use crate::HalfEdgeKey;
 use crate::chord_join::SplitJoinError;
 use geom::{Curve3, Surface};
-use geom_core::ladder::FreeOf;
 use geom_core::{Band, Point3, Tol, Vec3};
 
 fn band() -> Band {
@@ -121,7 +120,7 @@ fn ranked(mut left: Vec<(usize, PartnerDistance<f64>)>) -> Result<Vec<usize>, Bo
             .map(|(k, &(_, reach))| (reach, k))
             .collect();
         let sign = |c, b| along_sign(c, b, band());
-        let best = nearest_of(cands, sign, FreeOf::Nothing)?;
+        let best = nearest_of(cands, sign)?;
         let (_, k) = best.expect("a candidate is left");
         out.push(left.remove(k).0);
     }
