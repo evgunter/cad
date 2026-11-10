@@ -25,7 +25,7 @@
 #   geom-brep/src/curve_face/conic_oracle.rs  the conic rows' torus
 #                                 fixture, built only for tests (its
 #                                 `test-support` reach is `topo`'s rows);
-#   topo/src/boolean/boxes.rs     its rows' fixtures and aimed frames,
+#   topo/src/boxes.rs     its rows' fixtures and aimed frames,
 #                                 read only as supports along an aim;
 #   topo/src/cover.rs             a sphere zone's normal-plane frame,
 #                                 read only through the norm of a
@@ -56,7 +56,7 @@ BASIS_HOMES=(
   crates/step-import/src/recognize.rs
   crates/geom/src/cover.rs
   crates/geom-brep/src/curve_face/conic_oracle.rs
-  crates/topo/src/boolean/boxes.rs
+  crates/topo/src/boxes.rs
   crates/topo/src/cover.rs
   crates/topo/src/side_reader.rs
   crates/topo/src/boolean/section_cert.rs

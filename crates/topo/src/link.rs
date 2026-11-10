@@ -680,12 +680,6 @@ pub enum CurvedUnread {
     /// a vertex in the band of a carrier's axis
     /// ([`crate::sector_face::VertexFace`]).
     NoTangentPlane,
-    /// A corner of a spline face sits on a crease of its surface
-    /// ([`crate::sector_face::SectorFaceError::Crease`]). Kept an abort,
-    /// since refusing it by the crease's own standing would let a solid
-    /// touching itself there finish undetected
-    /// (`work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`).
-    Crease,
     /// A corner face's surface has no sector arm wired
     /// ([`crate::sector_face::SectorFaceError::Unsupported`]).
     NoSectorArm,
