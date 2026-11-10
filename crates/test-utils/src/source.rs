@@ -28,6 +28,13 @@
 //! unconverted reader, and adding the dev-dependency is the first
 //! step of converting it.
 //!
+//! **Scope is not answered here.** *Which binding does this name reach*
+//! (a `let`, a pattern, a parameter, a `use`) is a question about the
+//! syntax tree, and `crates/source-scope` answers it from a `syn` parse.
+//! The ledger's second half sends scope questions there and refuses a
+//! hand-rolled scope reader. This module keeps lexing and the item- and
+//! brace-level helpers, and stays zero-dependency.
+//!
 //! # One lexer, three views, and why the count is three
 //!
 //! [`keeping`] is the only thing in this module that knows Rust's
@@ -1570,7 +1577,7 @@ pub struct PredicateCensus {
 /// carrier. Both are read here; anything still unread is reported, not
 /// dropped.
 ///
-/// **`geom_brep::ladder::read_identity` is a funnel too**, deciding each
+/// **`geom_core::ladder::read_identity` is a funnel too**, deciding each
 /// datum under the name it is handed beside it, and its data are an
 /// iterator this reader cannot follow. Every call of it is therefore an
 /// `indirect` site, `<file>: read_identity(<its first argument's head>)`,
@@ -2457,7 +2464,7 @@ mod tests {
         let raw = "use ladder::{read_identity};\n\
                    /// [`read_identity`] reads data.\n\
                    pub fn read_identity<T>(d: T) {}\n\
-                   fn f() { geom_brep::ladder::read_identity(\n    [(\"lit\", m)], band); \
+                   fn f() { geom_core::ladder::read_identity(\n    [(\"lit\", m)], band); \
                    read_identity(\n    [(\"other\", m)], band); \
                    read_identity(xs.map(|x| (NAME, x)), band); }\n";
         let dir = std::env::temp_dir().join(format!("tu-identity-{}", std::process::id()));
