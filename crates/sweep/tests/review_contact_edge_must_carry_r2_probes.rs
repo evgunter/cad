@@ -466,13 +466,11 @@ fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
             difference(r, 1.0),
             outcome(&result)
         );
-        let value = |m: &sweep::blend::ClassifiedMargin| match m
-            .reading
-            .diagnostic_f64_for_error_text()
-        {
-            ErrorTextReading::Value(v) => v,
-            other => panic!("r = {r}: the margin is a value, got {other:?}"),
-        };
+        let value =
+            |m: &sweep::blend::ClassifiedMargin| match m.reading.diagnostic_f64_for_error_text() {
+                ErrorTextReading::Value(v) => v,
+                other => panic!("r = {r}: the margin is a value, got {other:?}"),
+            };
         match (r, &result) {
             (0.1 | 0.25, Ok(out)) => {
                 let rows = contacts(&out.body);

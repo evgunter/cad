@@ -398,7 +398,10 @@ fn near_limit_radii_refuse_typed() {
                 .diagnostic_f64_for_error_text()
                 .value()
                 .expect("an f64 margin");
-            assert!((m - (1.0 - 2.0 * 0.51)).abs() < 1e-12, "room R − 2r, got {m}");
+            assert!(
+                (m - (1.0 - 2.0 * 0.51)).abs() < 1e-12,
+                "room R − 2r, got {m}"
+            );
             assert!((radius - 0.51).abs() < 1e-15);
         }
         other => panic!("an infeasible ball must refuse that it does not fit, got {other:?}"),

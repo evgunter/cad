@@ -15,7 +15,7 @@ use geom_core::{Point2, Sign, Tol};
 use sweep::Revolution;
 use sweep::blend::{BlendError, BlendRefusal, Filleted, fillet_edges};
 use sweep::test_support::{
-    domed_cavity, dome, finished, hemisphere_on_flat_base, lantern, one_edge_rim_at,
+    dome, domed_cavity, finished, hemisphere_on_flat_base, lantern, one_edge_rim_at,
     revolved_about_y, rim_arcs_at,
 };
 use topo::{Body, EdgeKey};
@@ -78,7 +78,11 @@ where
         }) = &out
         {
             assert_eq!(margin.predicate, "fillet3_ball_room", "{what} at r = {r}");
-            assert_ne!(margin.sign, Sign::Positive, "{what} at r = {r}: refused on room");
+            assert_ne!(
+                margin.sign,
+                Sign::Positive,
+                "{what} at r = {r}: refused on room"
+            );
             assert_eq!(*radius, r, "{what}: the refusal names the request");
             first_no_room.get_or_insert(r);
         }

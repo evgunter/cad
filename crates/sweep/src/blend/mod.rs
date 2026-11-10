@@ -1156,9 +1156,9 @@ pub const FILLET3_KNIFE_END_RECOURSE: &str = "leave that cusp or slit out of the
 /// which is a fact about those fixtures, not about the door. On the
 /// one closed-form curved spine they build, a plane–sphere rim, the
 /// clearance screen answers at every radius from the one that builds
-/// to the one that poisons. The PREMISE that does the work is that a
-/// plane–sphere rim's spine curvature and its clearance run out
-/// together; a spine that folds while clearance is ample would be
+/// to the one whose ball has no room (`fillet3_ball_room`). The PREMISE
+/// that does the work is that a plane–sphere rim's spine curvature, its
+/// clearance and its ball's room run out together; a spine that folds while clearance is ample would be
 /// handed this sentence, and nothing here shows there is no such body.
 /// Measured by
 /// `blend_recourse_followability::the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.

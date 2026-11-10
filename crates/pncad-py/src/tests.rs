@@ -3115,6 +3115,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::MaterialSide,
         BlendDecision::KnifeEnd,
         BlendDecision::KnifeRoom,
+        BlendDecision::BallRoom,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
         BlendDecision::ContactArm,
@@ -4368,6 +4369,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "blend_error_tag",
         values: &[
+            "ball_does_not_fit",
             "band",
             "body_not_intact",
             "certify",

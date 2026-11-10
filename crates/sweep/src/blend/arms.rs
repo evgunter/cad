@@ -471,7 +471,15 @@ pub fn plane_sphere_blend<T: Real>(
         h,
         side,
         offset,
-    } = PlaneSphereFold::of(origin, n, sphere_c, sphere_r, radius, sphere_convex, convexity);
+    } = PlaneSphereFold::of(
+        origin,
+        n,
+        sphere_c,
+        sphere_r,
+        radius,
+        sphere_convex,
+        convexity,
+    );
     let s2 = (offset - h) * (offset + h);
     let s = s2.sqrt();
     let spine_center = sphere_c - n * h;
@@ -583,7 +591,15 @@ pub fn plane_sphere_room<T: Real>(
     sphere_convex: bool,
     convexity: Convexity,
 ) -> T {
-    let fold = PlaneSphereFold::of(origin, n, sphere_c, sphere_r, radius, sphere_convex, convexity);
+    let fold = PlaneSphereFold::of(
+        origin,
+        n,
+        sphere_c,
+        sphere_r,
+        radius,
+        sphere_convex,
+        convexity,
+    );
     fold.offset.abs() - fold.h.abs()
 }
 

@@ -864,7 +864,7 @@ mod kernel {
         /// `BlendError`'s arms, for the `Blend/` rows.
         pub(super) const BLEND_ERROR: BlendError = [
             Band, ChainNotConnected, RadiusHeadroom, FaceClearanceUncertified,
-            FaceClearance, KnifeEdge, SpineIrregular, ChainNotG1,
+            FaceClearance, KnifeEdge, BallDoesNotFit, SpineIrregular, ChainNotG1,
             ConvexitySignFlip, UnsupportedCorner, SpineUnsupported,
             ChamferArmUnsupported, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedRunOut, UnsupportedGeometry, BodyNotIntact,
@@ -3703,6 +3703,14 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 edge,
                 margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
                 refusal: KnifeRefusal::NoRoom { radius: 1.2 },
+            },
+        ),
+        (
+            "BallDoesNotFit",
+            E::BallDoesNotFit {
+                edge,
+                margin: decided("fillet3_ball_room", -0.2, Sign::Negative),
+                radius: 0.6,
             },
         ),
         (
