@@ -593,3 +593,15 @@ fn a_point_in_face_refusal_ends_on_the_containment_findings_lever() {
         "{text}"
     );
 }
+
+/// **A boundary walk that lost its face is the classification invariant**
+/// the walk names (`crate::face_boundary::FaceBoundaryError`), in its own
+/// words, whichever boolean lane walked it.
+#[test]
+fn a_lost_boundary_face_is_the_classification_invariant() {
+    let lost = crate::face_boundary::FaceBoundaryError::FaceLost;
+    assert!(matches!(
+        BooleanError::from(lost),
+        BooleanError::ClassificationInvariant { what } if what == lost.what()
+    ));
+}

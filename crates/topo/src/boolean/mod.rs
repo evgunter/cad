@@ -8642,8 +8642,8 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
 ///
 /// # Panics
 ///
-/// As [`carrier_cross::face_boundary`]'s, where a record past `face` does
-/// not resolve.
+/// As [`crate::face_boundary::face_boundary`]'s, where a record past
+/// `face` does not resolve.
 fn boundary_cuts<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -8652,16 +8652,12 @@ fn boundary_cuts<T: Decide>(
     band: Band,
 ) -> Result<geom_brep::curve_face::Located<T>, FaceUnread> {
     use geom_brep::curve_face::BoundaryRefusal;
-    let boundary = carrier_cross::face_boundary(body, face)
+    let boundary = crate::face_boundary::face_boundary(body, face)
         .map_err(|e| {
             // A face the caller read its placement on that the walk
             // cannot resolve: a kernel fault, as the walk names it.
-            let what = match e {
-                BooleanError::ClassificationInvariant { what } => what,
-                _ => "boundary pass: face lost",
-            };
             FaceUnread::Boundary(BoundaryRefusal::Met(
-                geom_brep::curve_pair::MeetKind::Fault { what },
+                geom_brep::curve_pair::MeetKind::Fault { what: e.what() },
             ))
         })?
         .ok_or(FaceUnread::Fault(UNCERTIFIED_BOUNDARY))?;

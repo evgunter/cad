@@ -153,6 +153,7 @@ pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+pub(crate) mod face_boundary;
 pub mod face_boxes;
 pub mod face_normal;
 mod finish;
