@@ -215,3 +215,7 @@
   - **Two designs, one against ratified text.** Carrying the class means stored granularity, against `[topology.records]`. The census's carrier reading re-decides carriers, against the row.
   - **Unreachable today.** The census cannot record a curved seat (`CensusUndecidable`), so only caller-supplied inputs reach the wrong body, and those already fail tier 3′.
   - **Re-banded P2 `design: true`**, with the fork to run before the census learns curved seats. Filed `a-seat-held-apart-across-two-shells-of-one-solid-passes-the-gate` (P3; the gate compares shells, and the flush cut ends in two shells of one solid) and ATREST's `the-census-cannot-record-a-curved-seat-between-two-solids` (P3). The lane and target were cleaned up.
+- 2026-11-10 — **Design fork `seat-crack` dispatched** on `a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections`, SEAL's last dispatchable P1. Protocol `2126b860b6`.
+  - **Draw:** bytes 10 and 150, so three designers. Recorded on `analysis/design-fork/seat-crack`.
+  - **The problem statement** gives the case, the prototype's measured facts and the four questions. It flags the row's two named directions as the filer's hypotheses.
+  - The designers share one build target, because the disk cannot take three alongside PR 6555's lane.
