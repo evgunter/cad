@@ -264,14 +264,16 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// increasing) or back: the tube's circle at `p`'s tube angle, on
     /// the tube side `p` lies on ([`Section::TubeSide`]).
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::parallel(&self.charted, p.uv(), forward);
+        let curve =
+            SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
     fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let curve = SurfaceCurve::meridian(&self.charted, p.uv(), forward);
+        let curve =
+            SurfaceCurve::meridian(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -1244,5 +1246,78 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **A torus face's circle legs start at the query's closed-form foot,
+    /// so the crossing's place along them reads no chart frame in their
+    /// start.** The patch of
+    /// [`a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`]
+    /// on its six frames, read at the band's escalation, `±1e-8` off each
+    /// edge at 60 stations (480 queries). A query counts where any frame
+    /// answers otherwise than the first. With the legs started at
+    /// `surface.eval(uv)`, the chart's round trip of the foot, 142 do;
+    /// started at the foot, 31. What is left is the frame a curve
+    /// carries in its section and plane
+    /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
+    #[test]
+    fn a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let torus = geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: R,
+            minor_radius: MINOR,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (us, vs) = ((0.4, 2.9), (-0.5, 0.8));
+        let regions: Vec<TorusFaceRegion<f64>> = geom::test_support::CHART_FRAMES
+            .iter()
+            .map(|&(t, flip)| {
+                let torus = geom::test_support::reframed(&torus, t, flip);
+                let meridian = |u: f64, forward: bool, key: u64| {
+                    let mut e = meridian_arc(u, vs);
+                    e.forward = forward;
+                    e.edge = EdgeKey::from(KeyData::from_ffi(key));
+                    e
+                };
+                TorusFaceRegion::on(
+                    Charted::record(Default::default(), &torus),
+                    true,
+                    LoopKey::default(),
+                    vec![
+                        parallel_arc(vs.0, us, true, 1),
+                        meridian(us.1, true, 2),
+                        parallel_arc(vs.1, us, false, 3),
+                        meridian(us.0, false, 4),
+                    ],
+                )
+            })
+            .collect();
+        let class = crate::boolean::region::refusal_class;
+        let mut by_frame = 0;
+        for i in 0..60 {
+            let t = f64::from(i) / 60.0 + 0.004;
+            let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
+            let rho = R + MINOR * v.cos();
+            for o in [-1e-8, 1e-8] {
+                for (what, p) in [
+                    ("parallel v0", at(u, vs.0 + o / MINOR)),
+                    ("parallel v1", at(u, vs.1 + o / MINOR)),
+                    ("meridian u0", at(us.0 + o / rho, v)),
+                    ("meridian u1", at(us.1 + o / rho, v)),
+                ] {
+                    let _ = what;
+                    let first = class(regions[0].contains(p, band));
+                    if regions
+                        .iter()
+                        .skip(1)
+                        .any(|r| class(r.contains(p, band)) != first)
+                    {
+                        by_frame += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(by_frame, 31, "queries a frame answers at the escalation");
     }
 }

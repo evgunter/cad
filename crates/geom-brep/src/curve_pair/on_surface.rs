@@ -17,10 +17,13 @@
 //! ([`geom::ChartChannels::read`]) on the caller's row, so the reading
 //! decides it as a length.
 //!
-//! A [`SurfaceCurve`] is built from a surface record's surface and chart
-//! coordinates and from nothing else: its centre, radius and direction
-//! are that surface's own at those coordinates, so no curve off it can be
-//! built as one. The surface is the record's as stored, or turned about
+//! A [`SurfaceCurve`]'s **locus** is built from a surface record's surface
+//! and chart coordinates and from nothing else: its centre, radius and
+//! direction are that surface's own at those coordinates, so no curve off
+//! it can be built as one. Its parametrisation may start at a point the
+//! caller holds on it ([`SurfaceCurve::starting_at`]): a circle's `θ = 0`
+//! names where along the locus places are counted from, and moves no
+//! point of it. The surface is the record's as stored, or turned about
 //! its own axis onto another seam ([`Charted::turned`]: the sphere
 //! cut-in's meridian), the same surface on another chart.
 //!
@@ -386,6 +389,31 @@ impl<T: Decide> SurfaceCurve<T> {
             toward.x,
             Some(opening),
         ))
+    }
+
+    /// **The circle with its parametrisation started at `p`**, a point the
+    /// caller holds on it: `θ = 0` is `p`'s direction from the centre. The
+    /// locus (centre, axis, radius) is the chart's, as built; only where
+    /// places along it are counted from moves. A region door starts its
+    /// legs at the query's closed-form foot ([`geom::Surface::foot`]) so a
+    /// crossing's place along a leg reads no chart frame in the leg's
+    /// start, which `surface.eval(uv)` carries in its last ulps.
+    ///
+    /// A line's origin is a point of its locus, so it does not move:
+    /// called on a line, this is a caller's defect.
+    #[must_use]
+    pub fn starting_at(self, p: Point3<T>) -> Self {
+        let Shape::Circle(c) = self.shape else {
+            unreachable!("only a circle's start moves: a line's origin is its locus")
+        };
+        let w = p - c.frame.origin;
+        Self {
+            shape: Shape::Circle(Circle::new(
+                Frame::new(c.frame.origin, c.frame.axis, w.normalize()),
+                c.radius,
+            )),
+            ..self
+        }
     }
 
     fn line(chart: Placed<T>, line: geom::Line<T>, u: T, opening: Option<bool>) -> Self {

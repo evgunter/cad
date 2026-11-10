@@ -776,8 +776,8 @@ fn cone_z() -> geom::Surface<f64> {
 /// four edges, at `±5e-10`, `±1e-9` and `±5e-9` off it, 1440 queries a
 /// window, and every frame answers as the first. (The measurement on
 /// the row read 2400 queries a window, adding `±1e-8` and `±2e-8`: at
-/// `±1e-8` the cone's legs, built from the chart's coordinates, still
-/// answer by frame, filed.)
+/// `±1e-8` some still answer by frame:
+/// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`].)
 #[test]
 fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
     let (us, zs) = ((0.4, 2.9), (0.0, 1.5));
@@ -867,3 +867,52 @@ fn a_query_beside_a_cones_apex_plane_reads_the_charts_nappe() {
         }
     }
 }
+
+/// **A cone's circle legs start at the query's closed-form foot, so the
+/// crossing's place along them reads no chart frame in their start.**
+/// The cone window of [`a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`],
+/// on its five frames, read at the band's escalation, `±1e-8` off each
+/// edge at 60 stations (480 queries). A query counts where any frame
+/// answers otherwise than the first. With the legs started at
+/// `surface.eval(uv)`, the chart's round trip of the foot, 141 do; started
+/// at the foot, 35. What is left is the rulings, whose origin is their
+/// locus, and the frame a curve carries in its section
+/// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
+#[test]
+fn a_cones_circle_legs_read_no_chart_frame_at_the_escalation() {
+    let us = (0.4, 2.9);
+    let (vs, s) = ((1.0, 2.0), ALPHA.sin());
+    let cones: Vec<_> = charts(&cone_z())
+        .iter()
+        .map(|surface| cone_window(surface, us, vs))
+        .collect();
+    let mut by_frame = 0;
+    for i in 0..60 {
+        let t = f64::from(i) / 60.0 + 0.004;
+        let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
+        for o in [-1e-8, 1e-8] {
+            for p in [
+                on_cone(u, vs.0 + o),
+                on_cone(u, vs.1 + o),
+                on_cone(us.0 + o / (v * s), v),
+                on_cone(us.1 + o / (v * s), v),
+            ] {
+                let first = class(cones[0].contains(p, b()));
+                if cones
+                    .iter()
+                    .skip(1)
+                    .any(|r| class(r.contains(p, b())) != first)
+                {
+                    by_frame += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(
+        by_frame, KEPT_CONE,
+        "queries a frame answers at the escalation"
+    );
+}
+
+/// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`]'s count.
+const KEPT_CONE: usize = 35;
