@@ -462,11 +462,16 @@ fn crease_at<T: Decide>(
     let t = if starts_at_w { t0 } else { t1 };
     let knots = n.knot_values();
     let (a, b) = knots.domain();
-    // Equal as an exact comparison reads it: the least band, where only
-    // a zero difference is Zero and only an enclosure straddling it is
-    // undecided.
+    crease_read(t, [a, b].into_iter().chain(knots.crease_values()))
+}
+
+/// **`t` against a carrier's creases** ([`crease_at`]): equal as an
+/// exact comparison reads it, at the least band, where only a zero
+/// difference is Zero and only an enclosure straddling it is undecided.
+/// A decided crease answers whatever the others read.
+fn crease_read<T: Decide>(t: T, creases: impl IntoIterator<Item = T>) -> Crease {
     let mut read = Crease::No;
-    for k in [a, b].into_iter().chain(knots.crease_values()) {
+    for k in creases {
         match geom_core::k_stats::prove("edge_join_crease_at", Margin::of(t - k)) {
             Ok(Sign::Zero) => return Crease::Decided,
             Ok(Sign::Positive | Sign::Negative) => {}
@@ -474,6 +479,25 @@ fn crease_at<T: Decide>(
         }
     }
     read
+}
+
+/// **Which edge a join keeps, by the two edges' creases at the vertex**:
+/// `Some(false)` keeps the second, `Some(true)` the first (the pair
+/// swapped), and `None` does not join. **An undecided knot stops the
+/// join; only a decided crease picks the kept edge.** Not joining leaves
+/// the vertex on a smooth edge, which is valid topology whatever the
+/// truth. So an edge that may crease is never run on through the vertex
+/// (Ev's PR 5913 ruling, module docs). Nor is it picked as the edge that
+/// goes, which would join on the other carrier on a reading that did
+/// not decide.
+fn kept_edge(first: Crease, second: Crease) -> Option<bool> {
+    match (first, second) {
+        (Crease::Undecided, _) | (_, Crease::Undecided) | (Crease::Decided, Crease::Decided) => {
+            None
+        }
+        (Crease::No, Crease::Decided) => Some(true),
+        (Crease::Decided | Crease::No, Crease::No) => Some(false),
+    }
 }
 
 /// `w`'s join, if `w` is joinable (module docs). The half-edges in
@@ -514,22 +538,16 @@ fn joinable<T: Decide>(
     };
     // The joined edge runs on the kept carrier through `w`, so `kept`
     // is an edge whose carrier has no crease there; where both have
-    // one, `w` is the vertex the knot structure puts there. **An
-    // undecided knot stops the join; only a decided crease picks the
-    // kept edge.** Not joining leaves `w` a vertex on a smooth edge,
-    // which is valid topology whatever the truth: so an edge that may
-    // crease is never run on through `w` (Ev's PR 5913 ruling, module
-    // docs), and is never chosen as the edge that is not kept either,
-    // which would join on the other carrier on a reading that did not
-    // decide.
-    let (h1, h2, e1, e2) = match (
+    // one, `w` is the vertex the knot structure puts there. An undecided
+    // knot stops the join; only a decided crease picks the kept edge
+    // ([`kept_edge`]).
+    let (h1, h2, e1, e2) = match kept_edge(
         crease_at(body, e1, link(e1, *h1), w),
         crease_at(body, e2, link(e2, *h2), w),
     ) {
-        (Crease::Undecided, _) | (_, Crease::Undecided) => return Ok(None),
-        (Crease::Decided, Crease::Decided) => return Ok(None),
-        (Crease::No, Crease::Decided) => (h2, h1, e2, e1),
-        (Crease::Decided | Crease::No, Crease::No) => (h1, h2, e1, e2),
+        None => return Ok(None),
+        Some(true) => (h2, h1, e2, e1),
+        Some(false) => (h1, h2, e1, e2),
     };
     let (d1, d2) = (link(e1, *h1), link(e2, *h2));
     let (s1, s2) = (edge_sides_of(body, e1, d1), edge_sides_of(body, e2, d2));
@@ -1282,6 +1300,40 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
         band,
         tol,
     )
+}
+
+/// **An undecided knot stops the join** (orchestrator's ruling (i),
+/// `work/onecopy/three-raw-sign-within-reads-predate-their-gate.md`): at
+/// an interval scalar a parameter straddling a crease reads undecided,
+/// and an undecided crease on either edge joins nothing, whatever the
+/// other edge reads. Only a decided crease picks the kept edge. Red
+/// under the old reading, where a straddle read "no crease" and the join
+/// ran the spline on through a knot it could not rule out.
+#[cfg(test)]
+mod crease {
+    use geom_core::Interval;
+
+    use super::{Crease, crease_read, kept_edge};
+
+    #[test]
+    fn a_straddled_knot_reads_undecided_and_stops_the_join() {
+        let knots = [0.0, 0.5, 1.0];
+        let at = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let creases = || knots.map(|k| at(k, k));
+        assert_eq!(crease_read(at(0.5, 0.5), creases()), Crease::Decided);
+        assert_eq!(crease_read(at(0.25, 0.26), creases()), Crease::No);
+        assert_eq!(crease_read(at(0.49, 0.51), creases()), Crease::Undecided);
+        assert_eq!(crease_read(0.5, knots), Crease::Decided);
+        assert_eq!(crease_read(0.5 + 1e-15, knots), Crease::No);
+        for other in [Crease::Decided, Crease::No, Crease::Undecided] {
+            assert_eq!(kept_edge(Crease::Undecided, other), None, "{other:?}");
+            assert_eq!(kept_edge(other, Crease::Undecided), None, "{other:?}");
+        }
+        assert_eq!(kept_edge(Crease::Decided, Crease::Decided), None);
+        assert_eq!(kept_edge(Crease::No, Crease::Decided), Some(true));
+        assert_eq!(kept_edge(Crease::Decided, Crease::No), Some(false));
+        assert_eq!(kept_edge(Crease::No, Crease::No), Some(false));
+    }
 }
 
 #[cfg(test)]
