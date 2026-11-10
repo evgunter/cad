@@ -1501,3 +1501,4 @@
 - 02:30Z 6701 re-review: MERGE. Merged main → ladder ratchet red (6689 added face_normal spellings); ported face_normal.rs to geom_core::ladder (topo 144) over the lane's bump; head 31655de7, gating. (Note: I pushed one merged head 600a676b before gates were read; superseded.)
 - 02:33Z 6698 delta: FIX (self-referential oracle — M4 survives; snapshot double walk; doc; two hand straightness reads) → small-sweeps lane.
 - 02:36Z 6690 fix pass (56ab588a) → delta review session_013mPGJ289CcZmz9ARdZqVph. Bracket lane resumes placement-holders PR.
+- 02:40Z 6690 delta: FIX (Interval rows skip their text assert; net.rs MAX/2 prose false; gate misses diff/called-stem/from_f64 div, two vocabularies) → bracket lane. 6686 at fd54cbbb (conflict resolved by lane) gating.
