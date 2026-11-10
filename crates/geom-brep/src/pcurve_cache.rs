@@ -319,7 +319,7 @@ impl<T: Real> Channel<T> {
 /// this site; a chart whose angle had another period would have to pass
 /// its own.
 pub fn angle_rate<T: Real>(winding: i32) -> T {
-    let tau = Period::new(T::tau());
+    let tau = Period::angle();
     tau.rate(winding, tau)
 }
 
@@ -5437,7 +5437,7 @@ fn run_harmonic_checks<T: Decide>(
     // coordinate is one, a free channel where it is not. Structure,
     // compared with no decision.
     let angle = |c: Channel<T>| c.winding().is_some();
-    let Some((period_u, period_v)) = angle_periods(surface) else {
+    let Some((period_u, period_v)) = surface.angle_periods() else {
         // A spline chart has no closed-form lane (refused above too).
         return Err(PcurveCertifyError::UnsupportedChart { chart });
     };
@@ -6460,28 +6460,6 @@ fn incidence<T: Decide>(
 pub use geom_core::period::Period;
 pub use geom_core::period::{BranchMiss, WalkStop};
 
-/// The `(u, v)` periods of an analytic chart's channels: `None` where the
-/// channel is a length ([`angle_periods`]).
-type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
-
-/// **The analytic chart's angle channels, each with its `Period`**: `τ`
-/// where the chart's coordinate is an angle, none where it is a length
-/// (a plane's two, a cylinder's or cone's `v`). The one home of which
-/// analytic channel is an angle: the harmonic lane's kind check and
-/// [`placement_terms`] read it. `None` on a spline chart, whose periods
-/// are its knot domains' and are decided closed by a band (`topo`).
-fn angle_periods<T: Real>(surface: &Surface<T>) -> Option<AnglePeriods<T>> {
-    let angle = || Some(Period::new(T::tau()));
-    match *surface {
-        Surface::Plane { .. } => Some((None, None)),
-        Surface::Cylinder { .. } | Surface::Cone { .. } => Some((angle(), None)),
-        Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
-            Some((angle(), angle()))
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => None,
-    }
-}
-
 /// Check 4's **placement** terms on the lanes whose envelope is a 3-D
 /// statement — the focal-section, spiric and projected ones. Their
 /// envelopes compare `S(P(t))` with `C(t)` in space, and `S` is periodic
@@ -6491,7 +6469,7 @@ fn angle_periods<T: Real>(surface: &Surface<T>) -> Option<AnglePeriods<T>> {
 /// with the image the mint places over the same span
 /// ([`chart_pcurve_over`], `Placement::over`): the two chart points at
 /// `t₀`, each **angle** channel's offset read past half its own period
-/// ([`angle_periods`]), `(|Δ| − p/2)⁺`, metered at the chart's sup
+/// ([`Surface::angle_periods`]), `(|Δ| − p/2)⁺`, metered at the chart's sup
 /// stretch, as `(FidelityU, FidelityV)` in metres. Below half a period a
 /// stored row's drift moves its point in space, which the lane's own
 /// envelope already reads, so this term reads none of it and no drift is
@@ -6519,7 +6497,7 @@ fn placement_terms<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Result<(T, T), PcurveCertifyError> {
-    let Some((period_u, period_v)) = angle_periods(surface) else {
+    let Some((period_u, period_v)) = surface.angle_periods() else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
         });
@@ -8983,7 +8961,7 @@ impl<T: Decide> Placement<T> {
             // no length) still has its carrier's direction: the reach of
             // the carrier over its own interval. Only a carrier wholly on
             // the axis has none.
-            if (T::one() / over_span).is_bounded() {
+            if geom_core::structure_nonzero(over_span) {
                 over_span
             } else {
                 at(own_interval(carrier))
@@ -9054,7 +9032,7 @@ impl<T: Decide> Placement<T> {
         Ok(if turns == 0 {
             read
         } else {
-            read - Period::new(T::tau()).times(turns)
+            read - Period::angle().times(turns)
         })
     }
 
@@ -9085,15 +9063,15 @@ impl<T: Decide> Placement<T> {
             Along::Tube => self.levers.tube,
             Along::Latitude => self.levers.latitude,
         };
-        // A zero lever (or an enclosure reaching zero: no bounded
-        // reciprocal, at every scalar alike) is an angle that moves
+        // A zero lever (or an enclosure reaching zero, the structure
+        // decision of `structure_nonzero`) is an angle that moves
         // nothing, a pole's zero-radius parallel: every copy names the same
         // points, and the angle as read is the copy (D9's tie-break).
-        if !(T::one() / lever).is_bounded() {
+        if !geom_core::structure_nonzero(lever) {
             return Ok(0);
         }
         let centre = window.centre::<T>();
-        match Period::new(T::tau()).decide(
+        match Period::angle().decide(
             "pcurve_chart_placement",
             at - centre,
             |g| Margin::metered(g, InfSpeed::new(lever)),
@@ -10059,7 +10037,7 @@ fn derive_class_zero<T: Decide>(
                     // An anchor on the axis off the apex names no
                     // generator: the only ruling through an axis point is
                     // the apex's, so the line is no ruling.
-                    if !(T::one() / r_dir.norm()).is_bounded() {
+                    if r_dir.checked_direction().is_err() {
                         return Err(incidence::general_lane(shown, None));
                     }
                     let g = ruling_generator(axis, half_angle, r_dir);
@@ -11533,7 +11511,7 @@ fn torus_oblique_circle<T: Decide>(
     let v_read = T::zero() - vl * t0;
     let v0 = match place.turns(Along::Tube, v_read + vl * place.mid(), band)? {
         0 => v_read,
-        k => v_read - Period::new(T::tau()).times(k),
+        k => v_read - Period::angle().times(k),
     };
     let image = |u0| FocalImage {
         u0,
@@ -12297,7 +12275,7 @@ fn spiric_chart_pcurve<T: Decide>(
             // midpoint, levered at the tube's radius.
             let v0 = match place.turns(Along::Tube, sigma * place.mid(), band)? {
                 0 => T::zero(),
-                k => T::zero() - Period::new(T::tau()).times(k),
+                k => T::zero() - Period::angle().times(k),
             };
             let wall = |u0| SpiricImage::Wall {
                 u0,

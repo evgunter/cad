@@ -137,7 +137,7 @@ use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{IdentityLadder, read_identity};
 use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
+use geom_core::period::{Exact, Extent, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -221,8 +221,10 @@ impl LoopDecision {
         match self {
             Self::Boundary => "move the point exactly onto the boundary or clearly off it",
             Self::Ray => "nudge the point so no boundary corner lines up with it",
-            Self::ArcSpan => "move the geometry so this arc stays clearly short of a full turn",
-            Self::Plane => "move the geometry so the face is flat and the point lies on it",
+            // The edge interval's winding decision's own lever: one arc
+            // short of a full turn, whichever reader asks.
+            Self::ArcSpan => geom_brep::recourse::SpanDecision::Winding.lever(),
+            Self::Plane => geom_core::move_lever!("so the face is flat and the point lies on it"),
         }
     }
 
@@ -903,10 +905,10 @@ impl<T: Decide> ConicArc<T> {
         rows: ConicRows,
         band: Band,
     ) -> Result<Option<Self>, ConicArcError> {
-        if carrier.conic().is_none() {
+        // A conic arc, read in its carrier's own period.
+        let (Some(_), Some(one_turn)) = (carrier.conic(), carrier.period()) else {
             return Ok(None);
-        }
-        let one_turn = Period::new(T::tau());
+        };
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
         };
@@ -1008,7 +1010,17 @@ impl<T: Decide> ConicArc<T> {
             }
             // An ellipse's `Past` stands on the span walk, which can run
             // past its budget: not placed, typed.
-            Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
+            Err(geom::CarrierRefusal::Unwalked(geom::PieceWalkRefusal::Exhausted)) => {
+                ConicHit::Unsettled
+            }
+            // The walk's speed bound is the carrier's greatest speed, at
+            // least its speed floor, which certification decided positive
+            // (`IntervalNotForward` refuses one that is not), and the
+            // conic's lengths are finite (`geom`'s `conic` module): this
+            // arc was built from that certificate.
+            Err(geom::CarrierRefusal::Unwalked(geom::PieceWalkRefusal::Unbounded)) => {
+                unreachable!("a certified conic bounds its speed (check 2's speed floor)")
+            }
         })
     }
 }

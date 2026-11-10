@@ -44,7 +44,7 @@ use geom::cover::{Around, Cover, Site};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
 
 use crate::body::Body;
-use crate::boolean::boxes::sweep_pad;
+use crate::boxes::sweep_pad;
 use crate::cover::{edge_end_point, face_cover, face_nearest};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
@@ -258,14 +258,14 @@ pub(super) fn apart_in_depth<T: Decide>(
 /// face proposes, the offset from it to the other face's nearest
 /// boundary segment point, off the axis or from the centre. This only
 /// proposes. Arm 1 reads both faces' reaches along each direction
-/// ([`crate::boolean::separating::apart_by`]), and the gap there is
+/// ([`crate::separating::apart_by`]), and the gap there is
 /// the certificate, whatever aimed it. A core depth or a boundary with
 /// no segment proposes nothing, and neither does an offset the band cannot
 /// read as a unit direction.
 ///
 /// The same axis proposed twice (a cover's and each coaxial rim's)
 /// proposes two directions that agree only to rounding. They are kept,
-/// as [`crate::boolean::separating::face_axes`] keeps every normal at a
+/// as [`crate::separating::face_axes`] keeps every normal at a
 /// scalar with no bracket to key them by: a second reading of a span
 /// that no verdict depends on.
 pub(super) fn toward<T: Decide>(

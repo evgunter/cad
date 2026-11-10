@@ -358,7 +358,7 @@ impl<T: Decide> Azimuth<T> {
             (Some(y), Some(x)) if y == 0.0 && x == 0.0 => return reference,
             (Some(_), Some(_)) => {}
             // An enclosure that reaches zero length may hold any angle.
-            _ if !(T::one() / self.length()).is_bounded() => {
+            _ if !geom_core::structure_nonzero(self.length()) => {
                 let window = (reference - T::pi()).enclosure_hull(reference + T::pi());
                 debug_assert!(!window.is_poison(), "an enclosure's window is no poison");
                 return window;
@@ -374,11 +374,11 @@ impl<T: Decide> Azimuth<T> {
                 Band::least(),
             )
         });
-        Period::new(T::tau()).near(read, reference)
+        Period::angle().near(read, reference)
     }
 
     fn read_in(self, window: Window, row: &'static str, band: Band) -> T {
-        if !(T::one() / self.length()).is_bounded() {
+        if !geom_core::structure_nonzero(self.length()) {
             return T::zero();
         }
         stable_azimuth_as(row, self.y, self.x, window.start(), band)
