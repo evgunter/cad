@@ -97,12 +97,25 @@ fn separable(a: &[f64], (x0, sx): (f64, f64), b: &[f64], (y0, sy): (f64, f64)) -
 /// lines `x = ½` and `y = ½` cross at the centre and reach the four sides
 /// at their middles.
 fn cross() -> Surface<f64> {
+    cross_charted(false)
+}
+
+/// **The cross saddle over a chart run either way**: with `flipped`, `x`
+/// falls as `u` rises, so the wall's normal `S_u × S_v` is `−z` and the
+/// chart's Hessian reads the same sector sign against the opposite
+/// normal.
+fn cross_charted(flipped: bool) -> Surface<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let a = [-0.5, 0.0, 0.5];
     let control = (0..9)
         .map(|n| {
             let (i, j) = (n / 3, n % 3);
-            pt(0.5 * i as f64, 0.5 * j as f64, 4.0 * a[i] * a[j])
+            let x = if flipped {
+                1.0 - 0.5 * i as f64
+            } else {
+                0.5 * i as f64
+            };
+            pt(x, 0.5 * j as f64, 4.0 * (x - 0.5) * a[j])
         })
         .collect();
     Surface::Nurbs(std::sync::Arc::new(
@@ -164,14 +177,20 @@ fn on_cross(p: Point3<f64>) -> f64 {
 /// the node and name the ray from the node toward that side, the four
 /// rays each claimed once, one node-joined set of the four, a tangency
 /// decided Zero, every carrier unminted. With the plane asked second the
-/// wall is the first surface and the side is read so. Red against the
+/// wall is the first surface and the side is read so; over a chart run
+/// the other way the normal is `−z` and the side is read along it. Red against the
 /// lines read in the wrong turn, the side bit read without `∇f·n`, a
 /// ray matched as the runner-up, and the march run through the node's
 /// box.
 #[test]
 fn a_node_lists_its_lines_side_and_four_arcs() {
-    for (plane_first, wall) in [(true, PairSide::Second), (false, PairSide::First)] {
-        let (p, w) = (level(0.0), cross());
+    for (flipped, plane_first, wall) in [
+        (false, true, PairSide::Second),
+        (false, false, PairSide::First),
+        (true, true, PairSide::Second),
+        (true, false, PairSide::First),
+    ] {
+        let (p, w) = (level(0.0), cross_charted(flipped));
         let s = if plane_first {
             built(&p, &w)
         } else {
@@ -186,9 +205,10 @@ fn a_node_lists_its_lines_side_and_four_arcs() {
             "{:?}",
             node.point
         );
+        let up = if flipped { -1.0 } else { 1.0 };
         assert!(
-            node.normal.dot(Vec3::unit_z()) > 1.0 - 1e-12,
-            "{:?}",
+            node.normal.dot(Vec3::unit_z()) * up > 1.0 - 1e-12,
+            "flipped {flipped}: the wall's own normal: {:?}",
             node.normal
         );
         for l in node.lines {
@@ -204,11 +224,12 @@ fn a_node_lists_its_lines_side_and_four_arcs() {
         );
         // Sector 0, between the two positive rays: the wall's height there.
         let mid = pt(0.5, 0.5, 0.0) + (node.lines[0] + node.lines[1]) * 0.1;
-        let wall_above = on_cross(mid) > 0.0;
+        let wall_above = on_cross(mid) * node.normal.z > 0.0;
         assert_eq!(
             node.above,
             if wall_above { wall } else { wall.other() },
-            "plane first {plane_first}: the side in sector 0"
+            "flipped {flipped}, plane first {plane_first}: the side in sector 0, along the \
+             node's normal"
         );
         let ends = ends_at(&s, 0);
         assert_eq!(ends.len(), 4, "four arc ends at the node: {ends:?}");
