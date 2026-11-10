@@ -983,6 +983,7 @@ mod tests {
                     Want::Off
                 }
                 Err(Unsettled::Sag(Some(diag))) => {
+                    // UNDECIDED-NAME: a row on_surface takes in a tuple the census does not open
                     assert_eq!(diag.predicate, Some("probe_on"), "{why}: the far side's");
                     Want::SagInBand
                 }

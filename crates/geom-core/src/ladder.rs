@@ -256,9 +256,13 @@ impl Refusal {
     }
 }
 
-/// The rung a reading refused with `e` stands as, for a refusal that
+/// **The rung a reading refused with `e` stands as**, for a refusal that
 /// may abort: kept by its kind ([`Refusal::rung`]), or, where it
-/// refuses the whole query, stopping the ladder with `abort(e)`.
+/// refuses the whole query, stopping the ladder with `abort(e)`. The one
+/// home of the rule. Its standing is read already, so the reading kept
+/// may be another value than the one the standing was read off (a
+/// refusal wrapped in its caller's answer, say). Where the two are one
+/// value, [`Rung::refused`] says it, reading the standing off `e`.
 pub fn rung_or_abort<A, E>(
     standing: Result<Refusal, Aborts>,
     e: E,
@@ -431,10 +435,12 @@ impl<A, E> Rung<A, E> {
     /// **The rung a reading refused with `e` stands as**, its standing
     /// read off `e` itself: kept by its kind, or, where it refuses the
     /// whole query, stopping the ladder with `abort(e)`
-    /// ([`rung_or_abort`]). The one home of a rung whose kept reading
-    /// and whose standing are one value; `abort` is `Err` for a ladder
-    /// answering `Result`, the identity for one whose abort is the
-    /// refusal itself.
+    /// ([`rung_or_abort`], the rule's one home, which this reads). The
+    /// shape for a rung whose kept reading and whose standing are one
+    /// value; a caller that keeps another value than the one its
+    /// standing is read off calls [`rung_or_abort`] itself. `abort` is
+    /// `Err` for a ladder answering `Result`, the identity for one whose
+    /// abort is the refusal itself.
     pub fn refused(
         e: E,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
@@ -961,6 +967,213 @@ impl<E> Evidence<E> {
     }
 }
 
+/// **What an argmin's caller has proved its minimum free of**
+/// ([`argmin_decided`]): which undecided pairs among the candidates left
+/// in contention cannot change what the caller does with the minimum, so
+/// that the first of them in candidate order may stand for it. The
+/// levels nest: `Band` covers what `Ties` does.
+///
+/// Every declaration above [`FreeOf::Nothing`] carries its proof at the
+/// call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FreeOf {
+    /// Nothing: any two candidates left in contention refuse.
+    Nothing,
+    /// Exact ties: candidates decided equally near may stand for each
+    /// other.
+    Ties,
+    /// Ties and in-band readings: candidates no reading parts may stand
+    /// for each other.
+    Band,
+}
+
+/// **A comparison [`argmin_decided`] could not decide**, as the caller's
+/// comparison states it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Undecided<E> {
+    /// In band: a tighter tolerance may decide it. The argmin keeps it,
+    /// and [`FreeOf::Band`] covers it.
+    InBand(E),
+    /// Any other undecided reading (a poisoned margin, an enclosure
+    /// straddling the band's edge): the argmin stops on it at once.
+    Aborts(E),
+}
+
+impl Undecided<Indeterminate> {
+    /// **The one classifier of an undecided reading for
+    /// [`argmin_decided`]**: in band ([`in_band`]) is kept, and a later
+    /// candidate may close it; any other (a poisoned margin, an enclosure
+    /// straddling the band's edge) stops the argmin. Every caller whose
+    /// comparison reads a margin classifies through here, so a poison is
+    /// never superseded away.
+    #[must_use]
+    pub fn of(diag: Indeterminate) -> Self {
+        if in_band(&diag) {
+            Self::InBand(diag)
+        } else {
+            Self::Aborts(diag)
+        }
+    }
+}
+
+impl<E> Undecided<E> {
+    /// The same classification over another payload.
+    #[must_use]
+    pub fn map<F>(self, f: impl FnOnce(E) -> F) -> Undecided<F> {
+        match self {
+            Self::InBand(e) => Undecided::InBand(f(e)),
+            Self::Aborts(e) => Undecided::Aborts(f(e)),
+        }
+    }
+}
+
+/// **Whether an undecided reading lies inside the band**: a point
+/// margin, or an enclosure wholly inside one sliver band
+/// ([`Indeterminate::terminal_sliver`]). An enclosure straddling the
+/// band's edge, or a poisoned margin, is not.
+#[must_use]
+pub fn in_band(diag: &Indeterminate) -> bool {
+    match diag.margin.kind() {
+        crate::MarginKind::Value => true,
+        crate::MarginKind::Enclosure => diag.terminal_sliver,
+        crate::MarginKind::Invalid => false,
+    }
+}
+
+/// **Why [`argmin_decided`] picked no minimum.**
+#[derive(Clone, Debug, PartialEq)]
+pub enum Unpicked<C, E> {
+    /// Several candidates are left in contention, and what the caller is
+    /// free of does not cover them: every one of them, in candidate
+    /// order, and the first in-band reading among them, if any. With
+    /// none, they are exact ties the caller refuses as its own.
+    Contested {
+        /// The candidates no candidate is decided nearer than.
+        members: Vec<C>,
+        /// The first in-band reading between two of them.
+        in_band: Option<E>,
+    },
+    /// A comparison stopped the argmin ([`Undecided::Aborts`]).
+    Aborted(E),
+    /// Every candidate is decided farther than some other: the
+    /// comparison ranks in a cycle, which no distance does. A kernel
+    /// fault in the caller's `cmp` (row 4), never a minimum of none.
+    Cyclic,
+}
+
+/// **The nearest of `candidates` by decided comparisons.** `cmp(a, b)`
+/// is the sign of `a`'s distance less `b`'s: `Negative` where `a` is
+/// decided nearer, `Zero` for a decided tie, or an [`Undecided`] reading.
+///
+/// **The set rule.** A candidate drops out only where some candidate is
+/// decided nearer than it, read directly between the two. Every pair is
+/// compared, so what is left in contention is the same in every order of
+/// the candidates. Each pair left in contention is a tie or undecided.
+///
+/// **The ending.** One candidate left is the minimum. Several are, where
+/// `free_of` covers every pair between them ([`FreeOf`]): then the first
+/// in candidate order stands for them. Otherwise they are
+/// [`Unpicked::Contested`].
+///
+/// **How it differs from [`climb`] under [`Answering::First`]**: a
+/// ladder wants the first rung that answers, so a kept rung ahead of it
+/// may be that answer, and it refuses there. An argmin wants the minimum,
+/// so a later candidate can close the question: one decided nearer than
+/// both of an undecided pair puts neither of them in contention.
+///
+/// **What it presupposes**: `cmp` is antisymmetric (`cmp(a, b)` is
+/// `cmp(b, a)` negated, and undecided where it is) and ranks in no
+/// cycle, as a sign of one distance less another does. Order-freedom
+/// rests on the first; a cycle, where every candidate drops out, aborts
+/// ([`Unpicked::Cyclic`]).
+///
+/// **Recording**, in pair order, as a serial read of the same pairs
+/// would: a decided reading live; an undecided one superseded where the
+/// minimum does not rest on it (a candidate of the pair dropped out, or
+/// `free_of` covers it at the ending), and live otherwise. An abort
+/// splices every run read so far live.
+///
+/// # Errors
+///
+/// [`Unpicked`].
+pub fn argmin_decided<C, E>(
+    candidates: impl IntoIterator<Item = C>,
+    mut cmp: impl FnMut(&C, &C) -> Result<Sign, Undecided<E>>,
+    free_of: FreeOf,
+) -> Result<Option<C>, Unpicked<C, E>> {
+    /// A pair's reading, held with its run until the ending.
+    enum Read<E> {
+        Decided,
+        InBand(E),
+    }
+    let candidates: Vec<C> = candidates.into_iter().collect();
+    let n = candidates.len();
+    let mut out = vec![false; n];
+    let mut reads: Vec<((usize, usize), Read<E>, Detached)> = Vec::new();
+    // Every pair, a retired candidate's included: comparing only against
+    // the ones still in contention is not free of order. With `a` and `b`
+    // in band of each other and `c` decided farther than `a` but nearer
+    // than `b`, the order `a, b, c` retires `b` against `c` and leaves `a`;
+    // the order `c, a, b` retires `c` against `a` and then meets `b` only
+    // against `a`, in band, leaving both.
+    for i in 0..n {
+        for j in i + 1..n {
+            let (got, log) = detached(|| cmp(&candidates[i], &candidates[j]));
+            match got {
+                Ok(sign) => {
+                    match sign {
+                        Sign::Negative => out[j] = true,
+                        Sign::Positive => out[i] = true,
+                        Sign::Zero => {}
+                    }
+                    reads.push(((i, j), Read::Decided, log));
+                }
+                Err(Undecided::InBand(e)) => reads.push(((i, j), Read::InBand(e), log)),
+                Err(Undecided::Aborts(e)) => {
+                    for (_, _, run) in reads {
+                        splice(run);
+                    }
+                    splice(log);
+                    return Err(Unpicked::Aborted(e));
+                }
+            }
+        }
+    }
+    let live = |(i, j): (usize, usize)| !out[i] && !out[j];
+    let tied = reads
+        .iter()
+        .filter(|&&(pair, ..)| live(pair))
+        .all(|(_, read, _)| matches!(read, Read::Decided));
+    let covered = match free_of {
+        FreeOf::Nothing => false,
+        FreeOf::Ties => tied,
+        FreeOf::Band => true,
+    };
+    let mut in_band = None;
+    for (pair, read, run) in reads {
+        match read {
+            Read::Decided => splice(run),
+            Read::InBand(e) if live(pair) && !covered => {
+                splice(run);
+                in_band.get_or_insert(e);
+            }
+            Read::InBand(_) => splice_superseded(run),
+        }
+    }
+    let mut members: Vec<C> = candidates
+        .into_iter()
+        .zip(out)
+        .filter_map(|(c, out)| (!out).then_some(c))
+        .collect();
+    if n > 0 && members.is_empty() {
+        return Err(Unpicked::Cyclic);
+    }
+    if members.len() <= 1 || covered {
+        return Ok((!members.is_empty()).then(|| members.swap_remove(0)));
+    }
+    Err(Unpicked::Contested { members, in_band })
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
@@ -1089,7 +1302,12 @@ mod tests {
         assert_eq!(
             Rung::<&str, &str>::refused("limit", standing, core::convert::identity),
             Rung::Blocked("limit"),
-            "a limit is kept, under either map"
+            "a limit is kept under the identity"
+        );
+        assert_eq!(
+            Rung::<Result<(), &str>, &str>::refused("limit", standing, Err),
+            Rung::Blocked("limit"),
+            "a limit is kept under Err"
         );
         assert_eq!(
             Rung::<Result<(), &str>, &str>::refused("near", standing, Err),
@@ -1275,6 +1493,7 @@ mod tests {
         let IdentityLadder::Undecided(cause) = got else {
             panic!("undecided: {got:?}")
         };
+        // UNDECIDED-NAME: datum b of this ladder's fixture, read through read_identity's tuples
         assert_eq!(cause.predicate, Some("b"));
         assert_eq!(verdicts, ["a", "c"]);
         assert_eq!(escalations, ["b"]);
@@ -1307,6 +1526,7 @@ mod tests {
             let IdentityLadder::Undecided(cause) = got else {
                 panic!("{poison}: undecided: {got:?}")
             };
+            // UNDECIDED-NAME: datum b, the in-band one an unreadable datum refuses ahead of
             assert_eq!(cause.predicate, Some("b"), "{poison}");
             assert!(cause.margin.is_invalid(), "{poison}: {cause:?}");
         }
@@ -1456,5 +1676,194 @@ mod tests {
         e.in_band(1);
         e.blocked(4);
         assert_eq!(rank(e), (1, 3), "the first limit");
+    }
+
+    /// A decided comparison over named candidates, read off `table`'s
+    /// unordered pairs (`(a, b, sign of a less b)`), in band where a pair
+    /// is missing; `poison` aborts.
+    fn table_cmp<'a>(
+        table: &'a [(&'a str, &'a str, Sign)],
+        poison: Option<(&'a str, &'a str)>,
+    ) -> impl FnMut(&&'a str, &&'a str) -> Result<Sign, super::Undecided<String>> + 'a {
+        use super::Undecided;
+        move |a: &&str, b: &&str| {
+            let (a, b) = (*a, *b);
+            if poison.is_some_and(|(x, y)| (x, y) == (a, b) || (x, y) == (b, a)) {
+                return Err(Undecided::Aborts(format!("poison {a}{b}")));
+            }
+            for &(x, y, sign) in table {
+                if (x, y) == (a, b) {
+                    return Ok(sign);
+                }
+                if (x, y) == (b, a) {
+                    return Ok(match sign {
+                        Sign::Negative => Sign::Positive,
+                        Sign::Positive => Sign::Negative,
+                        Sign::Zero => Sign::Zero,
+                    });
+                }
+            }
+            Err(Undecided::InBand(format!("{a}{b}")))
+        }
+    }
+
+    /// **A decided argmin's result is the same in every order of its
+    /// candidates**: `a` and `b` read in band of each other, and `c` is
+    /// decided farther than `a` and nearer than `b`. Every order leaves
+    /// `a` alone, which is the minimum. Red where a candidate is compared
+    /// only against the ones still in contention, which in the order
+    /// `c, a, b` leaves `a` and `b` contested.
+    #[test]
+    fn a_decided_argmin_is_free_of_its_candidates_order() {
+        use super::{FreeOf, argmin_decided};
+        let table = [("c", "a", Sign::Positive), ("c", "b", Sign::Negative)];
+        for order in [
+            ["a", "b", "c"],
+            ["a", "c", "b"],
+            ["b", "a", "c"],
+            ["b", "c", "a"],
+            ["c", "a", "b"],
+            ["c", "b", "a"],
+        ] {
+            assert_eq!(
+                argmin_decided(order, table_cmp(&table, None), FreeOf::Nothing),
+                Ok(Some("a")),
+                "{order:?}"
+            );
+        }
+    }
+
+    /// **A decided argmin records an in-band reading live only where it
+    /// refuses on it.** Candidates at `0` and `5e-9` read in band of
+    /// each other (the band's zero is `1e-9`, its escalation `1e-8`).
+    /// Joined by one at `-1`, decided nearer than both, the minimum is
+    /// that one, and the in-band reading is superseded: no live
+    /// escalation is recorded. Alone, the two are contested and the
+    /// reading is live. Red where the in-band run is spliced live
+    /// whatever the outcome, which the subdivision driver would read as
+    /// the reason a node did not decide.
+    #[test]
+    fn a_decided_argmin_records_an_in_band_reading_live_only_where_it_refuses() {
+        use super::{FreeOf, Undecided, Unpicked, argmin_decided};
+        let cmp = |a: &f64, b: &f64| {
+            crate::k_stats::decide_reported("argmin_row", Margin::of(*a - *b), band())
+                .map(|d| d.sign)
+                .map_err(Undecided::InBand)
+        };
+        let (got, verdicts, escalations) =
+            recorded(|| argmin_decided([0.0, 5e-9, -1.0], cmp, FreeOf::Nothing));
+        assert_eq!(got, Ok(Some(-1.0)), "the nearer candidate closes the pair");
+        assert!(
+            escalations.is_empty(),
+            "no live escalation: {escalations:?}"
+        );
+        assert_eq!(
+            verdicts.len(),
+            2,
+            "the two decided readings are live: {verdicts:?}"
+        );
+        let (got, _, escalations) = recorded(|| argmin_decided([0.0, 5e-9], cmp, FreeOf::Nothing));
+        assert!(
+            matches!(got, Err(Unpicked::Contested { ref members, in_band: Some(_) }) if members.len() == 2),
+            "the pair alone is contested: {got:?}"
+        );
+        assert_eq!(
+            escalations,
+            vec!["argmin_row"],
+            "the refusal's reading is live"
+        );
+    }
+
+    /// **What a decided argmin is free of decides what is left in
+    /// contention**: `a` and `b` tied, `c` in band of `a` and decided
+    /// farther than `b`. Under `Nothing` the tie is contested with no
+    /// in-band reading; under `Ties` it stands, the first in order. Adding
+    /// `d`, in band of the tied pair and decided nearer than `c`, leaves a
+    /// tie and an in-band pair: `Ties` leaves it contested with the
+    /// in-band reading, and `Band` covers it. A poisoned pair stops the
+    /// argmin whatever it is free of, and no candidates are no minimum.
+    #[test]
+    fn a_decided_argmin_ends_by_what_it_is_free_of() {
+        use super::{FreeOf, Unpicked, argmin_decided};
+        let ties = [("a", "b", Sign::Zero), ("b", "c", Sign::Negative)];
+        assert_eq!(
+            argmin_decided(["a", "b", "c"], table_cmp(&ties, None), FreeOf::Nothing),
+            Err(Unpicked::Contested {
+                members: vec!["a", "b"],
+                in_band: None,
+            }),
+            "an exact tie, contested"
+        );
+        assert_eq!(
+            argmin_decided(["a", "b", "c"], table_cmp(&ties, None), FreeOf::Ties),
+            Ok(Some("a")),
+            "an exact tie, covered"
+        );
+        let banded = [
+            ("a", "b", Sign::Zero),
+            ("b", "c", Sign::Negative),
+            ("d", "c", Sign::Negative),
+        ];
+        let four = ["a", "b", "c", "d"];
+        assert_eq!(
+            argmin_decided(four, table_cmp(&banded, None), FreeOf::Ties),
+            Err(Unpicked::Contested {
+                members: vec!["a", "b", "d"],
+                in_band: Some("ad".to_owned()),
+            }),
+            "a tie and an in-band pair are past Ties"
+        );
+        assert_eq!(
+            argmin_decided(four, table_cmp(&banded, None), FreeOf::Band),
+            Ok(Some("a")),
+            "Band covers them"
+        );
+        assert_eq!(
+            argmin_decided(four, table_cmp(&banded, Some(("c", "d"))), FreeOf::Band),
+            Err(Unpicked::Aborted("poison cd".to_owned())),
+            "a poisoned pair stops the argmin"
+        );
+        assert_eq!(
+            argmin_decided(
+                Vec::<&str>::new(),
+                table_cmp(&banded, None),
+                FreeOf::Nothing
+            ),
+            Ok(None),
+            "no candidate"
+        );
+        let cycle = [
+            ("a", "b", Sign::Negative),
+            ("b", "c", Sign::Negative),
+            ("c", "a", Sign::Negative),
+        ];
+        assert_eq!(
+            argmin_decided(["a", "b", "c"], table_cmp(&cycle, None), FreeOf::Band),
+            Err(Unpicked::Cyclic),
+            "a cyclic comparison aborts, not a minimum of none"
+        );
+    }
+
+    /// **An in-band reading `free_of` covers is superseded**: two
+    /// candidates in band of each other under [`super::FreeOf::Band`] pick
+    /// the first, and the reading is recorded superseded, since the
+    /// minimum does not rest on it. Red where the coverage branch splices
+    /// a live pair's run live whatever `free_of` covers (`&& !covered`
+    /// dropped), which the subdivision driver would read as the reason a
+    /// node did not decide.
+    #[test]
+    fn an_in_band_reading_band_covers_is_recorded_superseded() {
+        use super::{FreeOf, Undecided, argmin_decided};
+        let cmp = |a: &f64, b: &f64| {
+            crate::k_stats::decide_reported("argmin_row", Margin::of(*a - *b), band())
+                .map(|d| d.sign)
+                .map_err(Undecided::InBand)
+        };
+        let (got, _, escalations) = recorded(|| argmin_decided([0.0, 5e-9], cmp, FreeOf::Band));
+        assert_eq!(got, Ok(Some(0.0)), "Band covers the pair: the first stands");
+        assert!(
+            escalations.is_empty(),
+            "the covered reading is superseded: {escalations:?}"
+        );
     }
 }

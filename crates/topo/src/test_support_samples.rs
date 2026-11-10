@@ -75,6 +75,7 @@ fn diags() -> [Indeterminate; 3] {
     let with = |margin| Indeterminate {
         margin,
         band: band(),
+        // UNDECIDED-NAME: the in-band cause diags() hands every ValidationError sample
         predicate: Some("side_of_plane"),
         terminal_sliver: false,
     };
@@ -245,7 +246,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v
 }
 
-fn uncrossable() -> crate::splitting::Uncrossable {
+pub(crate) fn uncrossable() -> crate::splitting::Uncrossable {
     crate::splitting::Uncrossable {
         r#loop: LoopKey::default(),
         edge: EdgeKey::default(),

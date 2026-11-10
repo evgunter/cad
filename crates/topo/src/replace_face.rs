@@ -227,8 +227,8 @@ use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, Surf
 use geom_core::k_stats::decide;
 use geom_core::{
     Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Decided, Indeterminate,
-    KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign,
-    Tol, Vec3,
+    KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, MOVE_RECOURSE, Margin, NOT_YET_ENDING,
+    Point3, Real, Sign, Tol, Vec3,
 };
 
 use crate::attach::Rechart;
@@ -1074,7 +1074,7 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::MixedEdge { stations, .. } => {
                 write!(
                     f,
-                    "along an edge the offset moves, {stations}. Recourse: {COINCIDENCE_RECOURSE}"
+                    "along an edge the offset moves, {stations}. {MOVE_RECOURSE}"
                 )
             }
             Self::ReanchorPastCarrierEnd { gap, .. } => write!(

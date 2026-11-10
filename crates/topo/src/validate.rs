@@ -433,14 +433,9 @@ pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
 
 /// Whether an undecided reading lies inside the band: a point margin,
 /// or an enclosure wholly inside one sliver band.
+/// One home: [`geom_core::ladder::in_band`].
 pub(crate) fn in_band(diag: &geom_core::Indeterminate) -> bool {
-    match diag.margin.kind() {
-        geom_core::MarginKind::Value => true,
-        // An interval-lane reading; one straddling the band's edge is
-        // not in band.
-        geom_core::MarginKind::Enclosure => diag.terminal_sliver,
-        geom_core::MarginKind::Invalid => false,
-    }
+    geom_core::ladder::in_band(diag)
 }
 
 /// The crate's plain classification door (the `geom-brep` pattern):
@@ -12619,6 +12614,7 @@ mod tests {
                 source: Indeterminate {
                     margin,
                     band: Band::enclosure_sign(),
+                    // UNDECIDED-NAME: the shell-volume cause the at-rest file names
                     predicate: Some("chk_shell_volume_sign"),
                     terminal_sliver: false,
                 },
@@ -13105,6 +13101,7 @@ mod tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: the cause each own-close ending is read for
             predicate: Some("a_margin"),
             terminal_sliver: false,
         };
@@ -18257,6 +18254,7 @@ mod certify_escalation_rows {
             cause: Indeterminate {
                 margin,
                 band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                // UNDECIDED-NAME: the certify cause escalated() wraps for these routes
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             },
@@ -18535,6 +18533,7 @@ mod certify_escalation_rows {
                     cause: Indeterminate {
                         margin: MarginDiag::value(5.0e-9),
                         band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                        // UNDECIDED-NAME: the cause a certify refusal's sentence is rendered for
                         predicate: Some("a_probe"),
                         terminal_sliver: false,
                     },
