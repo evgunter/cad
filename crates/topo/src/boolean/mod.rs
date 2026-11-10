@@ -8625,7 +8625,7 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
 
 /// **Where `face`'s boundary meets `locus` over `span`**: the parameter
 /// of every meeting the located boundary pass reads
-/// ([`carrier_cross::FaceBoundary::located`], each boundary vertex and
+/// ([`crate::face_boundary::FaceBoundary::located`], each boundary vertex and
 /// edge read against the span through the curve-pair table), and the
 /// two ends of the window each member it could not read is undecided
 /// over ([`geom_brep::curve_pair::Span::window_near`]). A run the locus
