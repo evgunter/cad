@@ -605,6 +605,42 @@ mod thin_ellipse_rows {
 
     #[test]
     fn a_crossing_at_a_thin_ellipses_fast_end_splits() {
+        splits_at_this_runs_band();
+    }
+
+    /// The row at ε 1e-12 and 1e-6 whatever ε this run reads: each in a
+    /// child process of this test binary at that ε (the child row
+    /// [`a_crossing_at_a_thin_ellipses_fast_end_splits_child`]), so a run
+    /// at the default ε holds the band's two ends too.
+    #[test]
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits_at_the_bands_ends() {
+        let row = "splitting::classify::thin_ellipse_rows::a_crossing_at_a_thin_ellipses_fast_end_splits_child";
+        for eps in [1e-12, 1e-6] {
+            let exe = std::env::current_exe().expect("a running test binary has a path");
+            let out = std::process::Command::new(&exe)
+                .args([row, "--exact", "--ignored", "--test-threads=1"])
+                .env(geom_core::tolerance::ENV_EPS, format!("{eps:e}"))
+                .env_remove("CAD_AMBIGUITY_K")
+                .output()
+                .expect("the child row spawns");
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            assert!(
+                out.status.success() && stdout.contains("1 passed"),
+                "at ε = {eps:e} the child row failed or did not run:\n{stdout}\n{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+    }
+
+    /// The child the row above runs at each ε: the row itself.
+    #[test]
+    #[ignore = "child row: run at a stated ε by a_crossing_at_a_thin_ellipses_fast_end_splits_at_the_bands_ends"]
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits_child() {
+        splits_at_this_runs_band();
+    }
+
+    /// The cuts and the control at the run's own band.
+    fn splits_at_this_runs_band() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let cut = |s: f64| {

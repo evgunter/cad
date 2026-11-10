@@ -1962,14 +1962,14 @@ fn oriented_arc<T: Decide>(
     // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
         let span = match to {
-            ArcEnd::At(th2) => geom_core::period::Period::new(tau).forward(th1, th2),
+            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th1, th2),
             ArcEnd::WholeTurn => tau,
         };
         Ok((conic.carrier().clone(), th1, th1 + span))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
         let span = match to {
-            ArcEnd::At(th2) => geom_core::period::Period::new(tau).forward(th2, th1),
+            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th2, th1),
             ArcEnd::WholeTurn => tau,
         };
         let flipped = conic
@@ -2006,10 +2006,10 @@ fn chord_arc<T: Decide>(
             let middle = match p2 {
                 None => th1,
                 Some(p2) if ccw => {
-                    th1 + geom_core::period::Period::new(tau).forward(th1, conic.param(p2)) * half
+                    th1 + geom_core::period::Period::new(tau).run_from(th1, conic.param(p2)) * half
                 }
                 Some(p2) => {
-                    th1 - geom_core::period::Period::new(tau).forward(conic.param(p2), th1) * half
+                    th1 - geom_core::period::Period::new(tau).run_from(conic.param(p2), th1) * half
                 }
             };
             SectionCurve::Conic(conic.seamed_near(middle))
@@ -7392,9 +7392,9 @@ mod torn_hop_rows {
                     .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
             })
             .unwrap();
-        let he = body.get_edge(edge).unwrap().he_plus;
-        let u1 = body.get_half_edge(he).unwrap().start;
-        let u2 = body.half_edge_end(he).unwrap();
+        let (v0, v1) = body.edge_vertices(edge).unwrap();
+        let u1 = v0;
+        let u2 = v1;
         let spec = |b: &Body<f64>| {
             super::along_edge_spec(b, &JoinLane::AlongEdge, Some(edge), face, u1, u2)
                 .map(|s| s.is_some())

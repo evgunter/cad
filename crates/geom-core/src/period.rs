@@ -391,15 +391,25 @@ impl<T: Decide> Period<T> {
         self.in_window(t, a, Closed::Lower)
     }
 
-    /// **The forward run from `from` to `to`**, in `[0, length)`: `to`'s
-    /// copy [`Period::at_or_above`] `from`, less `from`. A `to` equal to
-    /// `from` runs nothing, never a whole turn: a caller whose two ends
-    /// may name one point and mean a whole turn says so itself. An
-    /// extent formed from two angles is this, and only then read against
-    /// a period by the turn rule ([`Period::turn`]).
+    /// **The raw run from `from` to `to`**, forward round the turn, in
+    /// `[0, length]`: `to`'s copy [`Period::near`] `from`, lifted a period
+    /// where it lies behind `from`, less `from`. A `to` equal to `from`
+    /// runs nothing, never a whole turn: a caller whose two ends may name
+    /// one point and mean a whole turn says so itself. A `to` a hair
+    /// behind `from` runs a hair short of a whole turn, which may round to
+    /// `length` itself, never to nothing ([`Period::at_or_above`]'s point
+    /// fold onto `from` is the window's, not the run's). A run is a raw
+    /// extent, read against a period only by the turn rule
+    /// ([`Period::turn`]); a sketch's own forward turn is
+    /// `profile::sugar::swept`, which folds a turn's fraction instead.
     #[must_use]
-    pub fn forward(self, from: T, to: T) -> T {
-        self.at_or_above(to, from) - from
+    pub fn run_from(self, from: T, to: T) -> T {
+        use crate::k_stats::{Pick, choose};
+        let n = self.near(to, from);
+        match choose("period_run_behind", Margin::of(n - from), "F31") {
+            Pick::Positive | Pick::Tie => n - from,
+            Pick::Negative => n + self.length - from,
+        }
     }
 
     /// The copy of `t` in the window of one period from `a`, closed at
@@ -617,7 +627,10 @@ impl<T: Decide> Extent<T> {
     /// does, and is positive wherever the arc is past the band and the
     /// span runs forward (`Δt·sup ≥ arc ≥ |chord|`). On a carrier whose
     /// speed varies (an ellipse's fast vertex), the floor under-reads a
-    /// short span by up to `sup/inf`, which the chord does not.
+    /// short span by up to `sup/inf`, which the chord does not. A span
+    /// whose chord is past the band and whose sense reads negative is
+    /// [`NotForward::Reversed`], as at the floor: it is no point, it runs
+    /// backwards.
     ///
     /// # Errors
     ///
@@ -642,15 +655,23 @@ impl<T: Decide> Extent<T> {
                 ..
             })
         );
-        let ahead = apart
-            && matches!(
-                decide_reported(sense_name, Margin::metered_sup(t1 - t0, sup), band),
-                Ok(Decided {
-                    sign: Sign::Positive,
-                    ..
-                })
-            );
-        if ahead { Ok(Self(t1 - t0)) } else { Err(short) }
+        if !apart {
+            return Err(short);
+        }
+        // Apart past the band, so the span is no point: its sense at the
+        // sup speed says which way it runs. Backwards it is `Reversed`,
+        // as `forward` reads a span definitely backwards at the floor.
+        match decide_reported(sense_name, Margin::metered_sup(t1 - t0, sup), band) {
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            }) => Ok(Self(t1 - t0)),
+            Ok(Decided {
+                sign: Sign::Negative,
+                margin,
+            }) => Err(NotForward::Reversed(margin)),
+            _ => Err(short),
+        }
     }
 
     /// The magnitude of a signed net quantity (a revolve's angle, a
@@ -1133,30 +1154,39 @@ mod period_rows {
         assert!(width(r) < 1e-11, "at_or_above: as narrow as t, {r:?}");
     }
 
-    /// **`forward` runs `[0, P)` from its start**: nothing to the start
+    /// **`run_from` runs `[0, P]` from its start**: nothing to the start
     /// itself, a whole turn less the gap to a point just behind it, and a
     /// point ahead by itself, a turn or more away included.
     #[test]
-    fn forward_runs_from_its_start() {
+    fn run_from_runs_from_its_start() {
         let tau = f64::tau();
         let period = Period::new(tau);
         let a = 0.89_f64;
         assert_eq!(
-            period.forward(a, a).to_bits(),
+            period.run_from(a, a).to_bits(),
             0.0_f64.to_bits(),
             "to the start itself"
         );
-        let behind = period.forward(a, a - 0.25);
+        let behind = period.run_from(a, a - 0.25);
         assert!((behind - (tau - 0.25)).abs() < 1e-15, "behind: {behind}");
         assert_eq!(
-            period.forward(a, a + 1.5),
+            period.run_from(a, a + 1.5),
             (a + 1.5) - a,
             "ahead, a copy of itself"
         );
-        let far = period.forward(a, a + 1.5 + 3.0 * tau);
+        let far = period.run_from(a, a + 1.5 + 3.0 * tau);
         assert!((far - 1.5).abs() < 1e-14, "three turns ahead: {far}");
+        // A hair behind the start runs a hair short of a whole turn, never
+        // nothing (the window's point fold onto `from` is not the run's).
+        for from in [4.0_f64, 1.0, 3.0, 5.5, 0.89] {
+            let r = period.run_from(from, from.next_down());
+            assert!(
+                (r - tau).abs() < 1e-14,
+                "{from} → an ulp behind: a whole turn short of an ulp, {r}"
+            );
+        }
         for (from, to) in [(0.3, 5.9), (5.9, 0.3), (-2.0, 2.0), (3.0, -40.0)] {
-            let r = period.forward(from, to);
+            let r = period.run_from(from, to);
             assert!((0.0..tau).contains(&r), "{from} → {to}: {r}");
             assert!(
                 (r - (to - from).reduce_periodic(tau)).abs() < 1e-13,
@@ -1169,8 +1199,8 @@ mod period_rows {
     /// Rates 1 and 1000 m per unit (a 1000 × 1 ellipse's): a span of
     /// `5·10⁻¹¹` reads `5·10⁻¹¹` m at the floor, in the zero, but its
     /// chord of `5·10⁻⁸` m is past the band, so it is forward. The same
-    /// span run backwards, and a span whose chord is in the zero too, are
-    /// not.
+    /// span run backwards is reversed, and a span whose chord is in the
+    /// zero too is a point.
     #[test]
     fn forward_by_arc_reads_the_chord_where_the_floor_under_reads() {
         use super::{Extent, NotForward};
@@ -1190,9 +1220,9 @@ mod period_rows {
         assert!(
             matches!(
                 Extent::forward_by_arc(rows, dt, 0.0, rates, chord(-5e-8), band),
-                Err(NotForward::Zero(_))
+                Err(NotForward::Reversed(_))
             ),
-            "run backwards"
+            "run backwards, apart past the band: reversed, not a point"
         );
         assert!(
             matches!(

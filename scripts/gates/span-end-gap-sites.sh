@@ -29,14 +29,18 @@
 #   inside-only   an INF meter whose Positive alone is accepted: a Zero
 #                 or a Negative refuses or escalates, never "at the end"
 #   witness       `pair_section::within_span`'s witness reading, metered
-#                 at the pointwise speed (filed on the row above: a bound
-#                 over `[t, hi]` is owed)
+#                 at the pointwise speed: a bound over `[t, hi]` is owed
+#                 (`work/onecopy/a-witnesses-gap-from-its-spans-last-end-is-metered-at-its-pointwise-speed.md`)
 #
 # WHAT IS READ: `Margin::metered(`, `Margin::metered_sup(` and
 # `Margin::metered_inf(` whose first argument is `a − b` (parenthesised
 # or not) with EXACTLY ONE operand a span end's name: `t0`, `t1`, `lo`,
 # `hi`, `t_lo`, `t_hi`, `start`, `end`, `span.0`, `span.1`, `u0`, `u1`,
-# `v0`, `v1`, `w0`, `w1` (a `self.` before any). Both operands ends is an
+# `v0`, `v1`, `w0`, `w1`, `tau` (a whole turn's end; a `self.` before
+# any). This is a hand-written list of names, so an end under a name it
+# does not hold slips it; the door that would make the gate read the
+# shape, not the names, is filed
+# (`work/onecopy/a-gap-from-a-span-end-has-no-door-of-its-own.md`). Both operands ends is an
 # extent, the turn rule's or certification's question, not a place. In
 # every `crates/*/src/**/*.rs`, comments and literals out,
 # `#[cfg(test)]` modules out, test-only files out as `atan2-sites.sh`
@@ -60,7 +64,7 @@ import glob, os, re, sys
 
 table_path = sys.argv[1]
 CALL = re.compile(r"Margin::metered(?:_sup|_inf)?\(\s*\(?\s*([\w.]+)\s*-\s*([\w.]+)\s*\)?\s*,")
-END = re.compile(r"^(?:self\.)?(?:t0|t1|lo|hi|t_lo|t_hi|start|end|span\.0|span\.1|u0|u1|v0|v1|w0|w1)$")
+END = re.compile(r"^(?:self\.)?(?:t0|t1|lo|hi|t_lo|t_hi|start|end|span\.0|span\.1|u0|u1|v0|v1|w0|w1|tau)$")
 EXEMPT = {"crates/geom-brep/src/curve_pair/span.rs"}
 CLASSES = {"sup", "exact-rate", "inside-only", "witness"}
 TEST_NAME = re.compile(r"(?:_rows|_fuzz)\.rs$|^test_support")

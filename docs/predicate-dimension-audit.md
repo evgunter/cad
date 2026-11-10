@@ -1585,6 +1585,16 @@ Flagged, NOT fixed here (dispositions):
     (an arc's `t1 − t0`: a whole turn or none at a tie) is a reading
     of the decision, so an enclosure caller that forms one would need
     the side logged at its own band, as `pcurve_chart_cut_side` is.
+  - `geom_core::Period::run_from` (`period_run_behind`, a `k_stats::choose`
+    under this row): the side of `from` on which `near`'s copy of `to`
+    about `from` lies, which decides whether the run is that copy's gap
+    or a period more. A tie takes the zero run, as `at_or_above`'s closed
+    end does; a point lift is not folded onto `from`, so a `to` a hair
+    behind `from` runs a hair short of a turn. Its readers
+    (`topo::chord_join`'s oriented arcs and arc middles, `topo::shell`'s
+    half-turn test) form an extent off it at `f64`, where the side is a
+    float difference's sign and is exact; an enclosure caller would need
+    the side logged at its own band, as above.
   - `geom::Azimuth::near` (`azimuth_near_cut_side`): which of the angle
     window's two `atan2` formulas, equal modulo a turn, reads the
     direction, before `Period::near` renames the read. A harmonic's

@@ -1564,7 +1564,11 @@ pub trait Construct<T: geom_core::Real> {
     /// greatest speed, decides. Only a point inside splits — at/outside an
     /// endpoint refuses ([`EulerOpError::SplitParamNotInterior`]), in-band
     /// escalates ([`EulerOpError::SplitParamEscalated`]; a poisoned
-    /// margin, e.g. an unmeterable carrier, escalates the same way).
+    /// chord or a poisoned sup speed escalates the same way). The speed
+    /// FLOOR is not read here: a carrier whose speed collapses (a spline
+    /// that stops, whose `speed_lower_bound` is not positive) passes on
+    /// its chord and is refused by its children's certification, check 2's
+    /// `nurbs_span_meter` ([`EulerOpError::Certification`]).
     ///
     /// **Surgery** (derived from the interior-left rule, replacing the
     /// book's `lmev(e->he1, e->he2->nxt, p)`): with parent halves

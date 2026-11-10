@@ -89,11 +89,11 @@ two questions, and each now asks it through `Period`:
   point), `pair_section::within_span`, `chord_join`'s `place`, and
   `shell`'s moved-wall split at period π.
 - **A forward run between two angles**, the new
-  `Period::forward(from, to)` (`[0, P)`, `at_or_above(to, from) − from`):
+  `Period::run_from(from, to)` (`[0, P]`: `to`'s copy near `from`, lifted a period where it lies behind, less `from`; a hair behind runs a hair short of a turn):
   `chord_join::oriented_arc` ×2, `chord_arc`'s middle ×2, and `shell`'s
   half-turn test. A `to` equal to `from` runs nothing; `oriented_arc`'s
   whole turn is `ArcEnd::WholeTurn`, stated by its caller, as before.
-  Pinned by `forward_runs_from_its_start`.
+  Pinned by `run_from_runs_from_its_start`.
 
 Stay, each argued at its site:
 - `profile::sugar::swept`, a sketch's own forward turn (already argued);
