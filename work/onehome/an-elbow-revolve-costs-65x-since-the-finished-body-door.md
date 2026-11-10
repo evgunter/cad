@@ -36,8 +36,8 @@ cost is the kernel's.
 
 Not profiled. PR 6371 changed `crates/sweep/src/revolve/mod.rs`, `loft.rs`,
 `extrude.rs` and `test_support.rs`; the elbow is a revolve, so the finish its
-door now runs is the first suspect (a tier-3 gate per build, where the row
-builds 16 spellings). If the finish is meant to cost that, the row belongs in
+door now runs is the first suspect (a gate per build, once per spelling the
+row builds). If the finish is meant to cost that, the row belongs in
 the slow set and the cost is the design's; otherwise the finish repeats work
 the door has already done.
 
