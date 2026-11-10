@@ -903,3 +903,28 @@ pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
         },
     }
 }
+
+/// **The session box's refusal** (`[tolerance.units]`): `got`, a door's
+/// answer on a body past the 1 km box, is its refusal by the box, its
+/// finding `OutsideSessionBox` and its sentence the box's one recourse
+/// (`topo::FindingFamily::SessionBox`). `what` names the body.
+///
+/// # Panics
+///
+/// Where the door builds, or refuses otherwise.
+pub fn refused_by_the_session_box<T, E: core::fmt::Display + core::fmt::Debug>(
+    what: &str,
+    got: Result<T, E>,
+) {
+    let Err(e) = got else {
+        panic!("{what}: past the session box, yet the door builds it");
+    };
+    let recourse = topo::FindingFamily::SessionBox
+        .recourse()
+        .expect("the box has one recourse");
+    let said = e.to_string();
+    assert!(
+        format!("{e:?}").contains("OutsideSessionBox") && said.contains(recourse),
+        "{what}: the door refuses by the session box, with its recourse: {said}\n{e:?}"
+    );
+}
