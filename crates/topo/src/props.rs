@@ -1209,6 +1209,13 @@ impl<T: Real> MassProperties<T> {
 
 /// The predicate names a role read decides under: the bracket's high
 /// end (and an exact volume) under `high`, its low end under `low`.
+///
+/// **No row registry, and why**: `one(name)` takes the caller's name, as every reader but check 7's `validate::PLUS_V` builds it. It carries a name minted
+/// elsewhere (a caller's parameter, a closed decision's `predicate()`, a
+/// shared site's const) rather than minting its own, so it is a plain site
+/// in a wrapper, not a row bundle; a crate's `rows` registry holds bundles
+/// alone. Plain sites' uniqueness is the tree-wide census's question
+/// (`work/onecopy/funnel-row-bundles-have-no-cross-reader-roster.md`).
 #[derive(Clone, Copy, Debug)]
 pub struct RoleNames {
     /// The name the high end, and an exact volume, are decided under.

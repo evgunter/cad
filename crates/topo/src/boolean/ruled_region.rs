@@ -133,10 +133,7 @@ const BOUNDARY: ConicRows = ConicRows::bounded(
 );
 
 /// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
-const LINE: SegmentRows = SegmentRows {
-    segment: "bool_ruled_region_edge_length",
-    boundary: "bool_ruled_region_edge",
-};
+const LINE: SegmentRows = crate::rows::RULED_REGION_LINE;
 
 /// The surface a ruled face lies on.
 #[derive(Clone, Copy, Debug)]

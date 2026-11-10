@@ -72,6 +72,13 @@ pub(crate) enum RelOp {
 /// **The names a sign is decided under**: the walk's own sums under
 /// `walk`, and the round re-derived in interval arithmetic under
 /// `certified` ([`super::Round::certify`]).
+///
+/// **No row registry, and why**: two [`super::RoleNames`], each a caller's name. It carries a name minted
+/// elsewhere (a caller's parameter, a closed decision's `predicate()`, a
+/// shared site's const) rather than minting its own, so it is a plain site
+/// in a wrapper, not a row bundle; a crate's `rows` registry holds bundles
+/// alone. Plain sites' uniqueness is the tree-wide census's question
+/// (`work/onecopy/funnel-row-bundles-have-no-cross-reader-roster.md`).
 #[derive(Clone, Copy, Debug)]
 pub struct SignNames {
     /// The names on the walk's sums.

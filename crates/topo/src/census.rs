@@ -1821,13 +1821,7 @@ fn corners_meet<T: Decide>(
 }
 
 /// [`corners_meet`]'s predicate names.
-const OVERLAP_CORNER: crate::validate::WedgeNames = crate::validate::WedgeNames {
-    after_leaving: "pm_census_overlap_corner_after_leaving",
-    before_arriving: "pm_census_overlap_corner_before_arriving",
-    turn: "pm_census_overlap_corner_turn",
-    straight: "pm_census_overlap_corner_straight",
-    straddle: "pm_census_overlap_corner_straddle",
-};
+const OVERLAP_CORNER: crate::validate::WedgeNames = crate::rows::OVERLAP_CORNER;
 
 /// A face's material about a point of its closure, in the plane
 /// tangent to it there.
@@ -2717,26 +2711,16 @@ fn strictly_inside<T: Decide>(w: &Wedge<T>, v: Vec3<T>, band: Band) -> Result<bo
 /// [`strictly_inside`]'s predicate names: tier 3's pinch-corner
 /// reading, asked of a line's wedges under names of its own, so the K
 /// stream keeps the two questions apart.
-const LINE_WEDGE: crate::validate::WedgeNames = crate::validate::WedgeNames {
-    after_leaving: LINE_WEDGE_AFTER_LEAVING,
-    before_arriving: LINE_WEDGE_BEFORE_ARRIVING,
-    turn: LINE_WEDGE_TURN,
-    straight: LINE_WEDGE_STRAIGHT,
-    // Unreachable: `strictly_inside` hands only exact departures (every
-    // direction scaled to the wedge's own arm), so no sign here is read
-    // at two bounds and this row never records. It names the row only
-    // because every `WedgeNames` carries one.
-    straddle: "pm_census_wedge_straddle",
-};
+const LINE_WEDGE: crate::validate::WedgeNames = crate::rows::LINE_WEDGE;
 
 /// [`LINE_WEDGE`]'s first-bound sign.
-pub(crate) const LINE_WEDGE_AFTER_LEAVING: &str = "pm_census_wedge_after_leaving";
+pub(crate) const LINE_WEDGE_AFTER_LEAVING: &str = crate::rows::LINE_WEDGE.after_leaving();
 /// [`LINE_WEDGE`]'s second-bound sign.
-pub(crate) const LINE_WEDGE_BEFORE_ARRIVING: &str = "pm_census_wedge_before_arriving";
+pub(crate) const LINE_WEDGE_BEFORE_ARRIVING: &str = crate::rows::LINE_WEDGE.before_arriving();
 /// [`LINE_WEDGE`]'s turn.
-pub(crate) const LINE_WEDGE_TURN: &str = "pm_census_wedge_turn";
+pub(crate) const LINE_WEDGE_TURN: &str = crate::rows::LINE_WEDGE.turn();
 /// [`LINE_WEDGE`]'s straight-or-cusp sign.
-pub(crate) const LINE_WEDGE_STRAIGHT: &str = "pm_census_wedge_straight";
+pub(crate) const LINE_WEDGE_STRAIGHT: &str = crate::rows::LINE_WEDGE.straight();
 
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body

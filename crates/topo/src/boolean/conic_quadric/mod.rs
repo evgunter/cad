@@ -176,9 +176,8 @@ use geom_brep::curve_face::circle_roots::{
     CircleRoots, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots, first_harmonic_roots,
 };
 use geom_brep::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame,
 };
-use geom_brep::quartic::QuarticRows;
 use geom_brep::roots::{OnCarrier, Roots, Unsettled};
 use geom_core::rounding_charge;
 
@@ -202,9 +201,6 @@ const SECOND_HARMONIC: &str = "bool_conic_quadric_second_harmonic";
 
 /// The first-harmonic arm's rows.
 const FIRST_ROWS: FirstHarmonicRows = geom_brep::rows::CONIC_QUADRIC_FIRST;
-
-/// The ladder's noise meter's row (module docs, "Two arms").
-const LADDER_NOISE: &str = LADDER_ROWS.noise();
 
 /// The ladder's rows.
 const LADDER_ROWS: HalfAngleRows = geom_brep::rows::CONIC_QUADRIC_LADDER;

@@ -102,12 +102,13 @@
 //! at the chart's reach speed, and a pair the band cannot order is
 //! R-tan.
 
+pub(crate) use crate::rows::ChartRows;
 use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::sign;
 use geom_brep::half_angle::{
-    DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision,
+    DegreeTwo, RootSlack, SubdivisionFrame, Terms, TrigPoly, certified_subdivision,
 };
 use geom_core::rounding_charge;
 
@@ -487,21 +488,6 @@ impl<T: Real> Chart<T> {
     }
 }
 
-/// The predicate rows one chart is read under.
-pub(super) struct ChartRows {
-    /// A fold: `E`'s roots, their order, and the arcs between them.
-    pub(super) fold: &'static str,
-    /// A line parallel to the partner's asymptotic directions: `p₂`'s
-    /// roots, and `p₁`'s sign at them.
-    pub(super) asymptote: &'static str,
-    /// A refusal the representation, not the band, makes: the reading's
-    /// resolution is not inside the band's zero, or the reading answers
-    /// with its rounding uncharged (module docs).
-    pub(super) precision: &'static str,
-    /// The subdivision's own rows.
-    pub(super) walk: SubdivisionRows,
-}
-
 /// What one chart reads of the section.
 #[derive(Debug)]
 pub(super) struct Reading<T: Real> {
@@ -562,7 +548,7 @@ fn roots<T: Decide>(
         Terms::Harmonics(&walk.f),
         &residual,
         &frame,
-        &rows.walk,
+        rows.walk(),
         charged.then_some(&slack),
         band,
     ) {
@@ -635,11 +621,11 @@ pub(super) fn read<T: Decide>(
 ) -> Result<Reading<T>, &'static str> {
     reading(chart, partner, rows, true, band).map_err(|(row, resolution)| {
         let resolved = matches!(
-            sign(rows.precision, Margin::of(resolution), band),
+            sign(rows.precision(), Margin::of(resolution), band),
             Some(Sign::Zero)
         );
         if !resolved || reading(chart, partner, rows, false, band).is_ok() {
-            rows.precision
+            rows.precision()
         } else {
             row
         }
@@ -723,7 +709,7 @@ fn reading<T: Decide>(
                 residual: &clearance,
                 per_metre,
                 noise,
-                row: rows.fold,
+                row: rows.fold(),
             },
             chart.reach_speed,
             rows,
@@ -745,7 +731,7 @@ fn reading<T: Decide>(
                     residual: &lean,
                     per_metre: T::one() / chart.lever,
                     noise: rounding_charge(t2),
-                    row: rows.asymptote,
+                    row: rows.asymptote(),
                 },
                 chart.reach_speed,
                 rows,
@@ -756,10 +742,11 @@ fn reading<T: Decide>(
             for theta in found {
                 let p1_at = at_line(theta)[1];
                 let half = p1_at.div_exact(two);
-                let leaving = match sign(rows.asymptote, Margin::of(shrunk(half, charged)), band) {
+                let leaving = match sign(rows.asymptote(), Margin::of(shrunk(half, charged)), band)
+                {
                     Some(Sign::Positive) => Sign::Negative,
                     Some(Sign::Negative) => Sign::Positive,
-                    _ => return Err(refused(rows.asymptote)),
+                    _ => return Err(refused(rows.asymptote())),
                 };
                 asymptotes.push((theta, leaving));
             }
@@ -801,7 +788,7 @@ fn reading<T: Decide>(
         };
         let side = |theta: T| {
             sign(
-                rows.fold,
+                rows.fold(),
                 Margin::of(shrunk(clearance(theta), charged)),
                 band,
             )
@@ -817,7 +804,7 @@ fn reading<T: Decide>(
         .map_err(refused)
     })();
     if unbounded.get() {
-        return Err(refused(rows.precision));
+        return Err(refused(rows.precision()));
     }
     answer
 }
@@ -855,7 +842,7 @@ fn assemble<T: Decide>(
                 Some(s @ (Sign::Positive | Sign::Negative)) => Some(s),
                 _ => None,
             })
-            .ok_or(rows.fold)?;
+            .ok_or(rows.fold())?;
         if turn == Sign::Negative {
             return Ok(out);
         }
@@ -885,7 +872,7 @@ fn assemble<T: Decide>(
         match side(mid) {
             Some(Sign::Positive) => {}
             Some(Sign::Negative) => continue,
-            _ => return Err(rows.fold),
+            _ => return Err(rows.fold()),
         }
         positive += 1;
         let mut hits = 0usize;
@@ -893,11 +880,11 @@ fn assemble<T: Decide>(
             // The wrapping arc holds what lies past the last fold or
             // short of the first.
             let inside = if i + 1 < count {
-                before(lo, theta, speed, slacks, rows.asymptote, band)?
-                    && before(theta, hi, speed, slacks, rows.asymptote, band)?
+                before(lo, theta, speed, slacks, rows.asymptote(), band)?
+                    && before(theta, hi, speed, slacks, rows.asymptote(), band)?
             } else {
-                before(lo, theta, speed, slacks, rows.asymptote, band)?
-                    || before(theta, folds[0], speed, slacks, rows.asymptote, band)?
+                before(lo, theta, speed, slacks, rows.asymptote(), band)?
+                    || before(theta, folds[0], speed, slacks, rows.asymptote(), band)?
             };
             hits += usize::from(inside);
         }
@@ -908,7 +895,7 @@ fn assemble<T: Decide>(
         }
     }
     if 2 * positive != count || placed != asymptotes.len() {
-        return Err(rows.fold);
+        return Err(rows.fold());
     }
     Ok(out)
 }
@@ -927,17 +914,7 @@ mod tests {
     use super::super::search_kit::band;
     use super::*;
 
-    const ROWS: ChartRows = ChartRows {
-        fold: "fold",
-        asymptote: "asymptote",
-        precision: "precision",
-        walk: SubdivisionRows {
-            clear: "clear",
-            monotone: "monotone",
-            side: "side",
-            width: "width",
-        },
-    };
+    const ROWS: ChartRows = crate::rows::TEST_RULING;
 
     /// `E`'s sign as a cosine's: positive within a quarter turn of `0`.
     fn cosine(theta: f64) -> Option<Sign> {
@@ -991,7 +968,7 @@ mod tests {
         };
         assert_eq!(
             read(&chart, &partner, &ROWS, band()).err(),
-            Some("precision"),
+            Some(ROWS.precision()),
             "a generator along the axis has no clearance bound"
         );
     }
@@ -1008,13 +985,13 @@ mod tests {
         // An asymptote on the arc read negative.
         assert_eq!(
             assembled(&[-FRAC_PI_2, FRAC_PI_2], &[(3.0, Sign::Positive)]),
-            Err("fold"),
+            Err(ROWS.fold()),
             "an asymptote off a positive arc"
         );
         // Three folds: two positive arcs, not half of three.
         assert_eq!(
             assembled(&[-FRAC_PI_2, 0.5, FRAC_PI_2], &[]),
-            Err("fold"),
+            Err(ROWS.fold()),
             "an odd fold count"
         );
         // No fold and no angle of the turn read off the band.
@@ -1025,7 +1002,7 @@ mod tests {
         assert_eq!(
             assemble(&roots, &|_| None, &origin, (1.0, 0.0), &ROWS, band())
                 .map(|r| r.bounded.len()),
-            Err("fold"),
+            Err(ROWS.fold()),
             "an undecided turn"
         );
     }
