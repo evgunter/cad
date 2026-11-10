@@ -3918,7 +3918,7 @@ pub(super) enum OnSegment {
 }
 
 /// **An edge's closed segment, start to end** — the one place a point's
-/// position against an edge is read: [`Segment::place`] says whether it
+/// position against an edge is read: [`Segment::place_as`] says whether it
 /// lies on the segment.
 pub(super) struct Segment<T: Decide> {
     edge: EdgeKey,
@@ -3986,7 +3986,7 @@ impl<T: Decide> Segment<T> {
 
     /// Whether `p` lies on the segment's LINE, decided through
     /// `predicate` over its distance off it: the first verdict
-    /// [`Segment::place`] takes.
+    /// [`Segment::place_as`] takes.
     pub(super) fn on_line_as(
         &self,
         p: Point3<T>,
@@ -4077,8 +4077,8 @@ impl<T: Decide> Segment<T> {
 }
 
 /// **The flush rule's walk** (`names/README.md`, "Flush edges"), one
-/// for a straight edge ([`Segment::cover`]) and a curved one
-/// ([`Track::cover`]): over an edge's span from `start` to `end`, where
+/// for a straight edge ([`Segment::cover_as`]) and a curved one
+/// ([`Track::cover_as`]): over an edge's span from `start` to `end`, where
 /// `ahead(p, q)` says `p` lies strictly past `q` along the edge. Each
 /// candidate comes as the stretches of the span's parameter it holds
 /// (a segment's one; an arc's, and that arc a period back) and whether
@@ -4140,7 +4140,7 @@ fn walk_cover<K, S: Copy>(
     Ok(out)
 }
 
-/// What [`Segment::cover`] found: the candidates the segment lies
+/// What [`Segment::cover_as`] found: the candidates the segment lies
 /// within, those it only overlaps, and whether all of them together
 /// cover it.
 pub(super) struct Cover<K> {
@@ -4149,7 +4149,7 @@ pub(super) struct Cover<K> {
     pub(super) covered: bool,
 }
 
-/// A candidate for [`Track::cover`]: an edge's two end points, the
+/// A candidate for [`Track::cover_as`]: an edge's two end points, the
 /// point halfway along it, and whether it is closed (one vertex at
 /// both ends, structurally).
 #[derive(Clone, Debug)]
@@ -4169,7 +4169,7 @@ pub(super) struct CarrierArc<T: Decide> {
 /// ([`geom::carrier_speed::speed_range`]), so no verdict depends on
 /// which edge of the carrier reads it, and a stretch decided zero is
 /// within the zero band in metres. A closed edge is its carrier's whole
-/// period: nothing [`Track::cover`] says of it depends on where its
+/// period: nothing [`Track::cover_as`] says of it depends on where its
 /// vertex sits, which has no identity of its own (`docs/DESIGN.md`,
 /// maximal edges).
 pub(super) struct Track<T: Decide> {
@@ -4252,7 +4252,7 @@ impl<T: Decide> Track<T> {
     /// point whose reading the anchor cuts, and where the reduction
     /// jumps, is the start.
     /// A closed arc's whole turn is `arc.closed`, which
-    /// [`Self::stretches`] answers from whatever its offsets read.
+    /// [`Self::stretches_as`] answers from whatever its offsets read.
     ///
     /// # Errors
     ///
@@ -4348,7 +4348,7 @@ impl<T: Decide> Track<T> {
         }))
     }
 
-    /// The stretches of offsets `arc` holds ([`Track::span`]): one on
+    /// The stretches of offsets `arc` holds ([`Track::span_as`]): one on
     /// an open carrier; on a periodic one the arc and that arc a period
     /// back, so a stretch through the start reads whole on one side or
     /// the other, and a closed arc's whole period. `None` where the arc
@@ -4394,7 +4394,7 @@ impl<T: Decide> Track<T> {
             && self.sign_as(self.len - u, predicate, bnd)? != Sign::Negative)
     }
 
-    /// **How this edge lies along `candidates`** — [`Segment::cover`]
+    /// **How this edge lies along `candidates`** — [`Segment::cover_as`]
     /// over the carrier's parameter ([`walk_cover`]): the candidates on
     /// the carrier that overlap the edge over a length, those it lies
     /// within, and whether together they cover it end to end. A closed
@@ -4448,8 +4448,8 @@ impl<T: Decide> EdgeCarrier<T> {
     }
 
     /// Whether `other` lies on this edge's line, and if so whether the
-    /// two run the same way along it: [`Segment::runs_with`] for two
-    /// straight edges, [`Track::runs_with`] for two curved ones. A
+    /// two run the same way along it: [`Segment::runs_with_as`] for two
+    /// straight edges, [`Track::runs_with_as`] for two curved ones. A
     /// straight edge lies on no curved one's carrier, nor a curved one
     /// on a straight one's line, and an [`EdgeCarrier::Unread`] edge
     /// lies on no other's line, nor another on its.
@@ -4500,7 +4500,7 @@ impl<T: Decide> Track<T> {
     /// Whether edge `other` lies on this edge's carrier, and if so
     /// whether the two run the same way along it, read off `other`'s
     /// points a quarter, half and three quarters of the way along it:
-    /// it lies on the carrier when all three do ([`Track::offset`]),
+    /// it lies on the carrier when all three do ([`Track::offset_as`]),
     /// and runs this edge's way when, going forward along the carrier
     /// from the first, the second comes before the third. The two
     /// stretches compared differ by a quarter of `other`'s length in
@@ -4513,7 +4513,7 @@ impl<T: Decide> Track<T> {
     ///
     /// # Errors
     ///
-    /// As [`Track::offset`]; [`NamingError::Escalated`] where the band
+    /// As [`Track::offset_as`]; [`NamingError::Escalated`] where the band
     /// cannot decide the two stretches; [`NamingError::WayInZeroBand`]
     /// where it decides them equal.
     pub(super) fn runs_with_as(
@@ -4569,7 +4569,7 @@ fn chord_on_rim<T: Decide>(
 /// `op_body`, read along their common carrier: a straight chord within
 /// a straight rim when both its ends lie on the rim's segment
 /// ([`chord_on_rim`]); a curved one within a curved rim when it lies
-/// within the rim along the chord's carrier ([`Track::cover`]), the
+/// within the rim along the chord's carrier ([`Track::cover_as`]), the
 /// reading a pair boolean's joined edge takes on a curved carrier
 /// (`names/README.md`, "Flush edges"). A straight chord lies within no
 /// curved rim, nor a curved chord within a straight one.
@@ -4936,8 +4936,8 @@ pub(super) fn joined_candidates<'b, T: Decide + 'b, S: Copy + Ord>(
 }
 
 /// **How joined edge `e` lies along `candidates`**: along its line
-/// ([`Segment::cover`]) where it is straight, along its certified
-/// carrier ([`Track::cover`]) where it is curved, through
+/// ([`Segment::cover_as`]) where it is straight, along its certified
+/// carrier ([`Track::cover_as`]) where it is curved, through
 /// [`ON_MEMBER_EDGE`].
 pub(super) fn joined_along<T: Decide, K>(
     body: &Body<T>,
@@ -4957,7 +4957,7 @@ pub(super) fn joined_along<T: Decide, K>(
 }
 
 /// The edges of `set`, each with its source's body, that hold point
-/// `p` ([`edge_holds`] through [`ON_MEMBER_EDGE`]), in `set`'s order: a
+/// `p` ([`edge_holds_as`] through [`ON_MEMBER_EDGE`]), in `set`'s order: a
 /// vertex of a joined edge cites the edges of its set it lies on, never
 /// the whole set (N2).
 pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
@@ -7391,7 +7391,7 @@ mod edge_pieces_of_one_line_tie {
 
 #[cfg(test)]
 mod track_cover {
-    //! **The flush rule along a curved carrier** ([`Track::cover`]).
+    //! **The flush rule along a curved carrier** ([`Track::cover_as`]).
     //! A closed edge's vertex is conventional and has no identity of
     //! its own (`docs/DESIGN.md`, maximal edges), so the same circle
     //! with its vertex anywhere, its candidates in either order, reads

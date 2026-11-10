@@ -284,3 +284,7 @@ those sites against main before it fixes them; some may be gone.
 **Retired by PR 6634:**
 - #3 (`seam_cover_unread`): the `ContainError` is carried whole (`RimUnread::Unplaced`), and it ends as the tangent line's placement does.
 - #4 (`seam_traversal_unread`): it goes through `decide_nonzero`.
+
+## Row 19 retired (SEAL PR 6693, 2026-11-10)
+
+Row 19 (`boolean/vtxfac.rs:550`, the `bool_sector_coplanar` read) is retired by PR 6693 (SEAL's `a-corner-reads-only-its-own-sectors`). The tilt is deleted, and a flat sector of an unglued pair refuses on its steeper bound's tie (`vtxfac::unglued_flat_sector`, `Coincide::CornerBound`).
