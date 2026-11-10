@@ -164,6 +164,33 @@ impl<T: Real> Period<T> {
     pub fn rate(self, k: i32, carrier: Period<T>) -> T {
         self.times(k) / carrier.length()
     }
+
+    /// **`t`'s margins from the start and the stop of the span
+    /// `(lo, hi)`, each also read on `t`'s copy a period away**: the
+    /// start's is the greater of `t − lo` and `hi − (t + P)`, the stop's
+    /// the greater of `hi − t` and `(t − P) − lo`. Each is negative only
+    /// where `t` is past that end on its own copy and before the other
+    /// end on the copy a period away, so a box named whole on one copy
+    /// ([`Period::near`] about a span's middle, a box astride the
+    /// middle's antipode) whose other copy reaches into the span reads
+    /// no end decided past.
+    ///
+    /// For a `t` within half a period of the span's middle, each copy's
+    /// margin is at most `t`'s own in ℝ (`hi − (t + P) − (t − lo)` is
+    /// `2(mid − t) − P`, at most `0`, and likewise at the stop), so on a
+    /// point named about the middle the margins are its own. They are
+    /// equal only at the tie, `t` half a period from the middle, the
+    /// antipode, which a point there is past on either copy: there the
+    /// copy's rounding can move the margin's last bit, never its sign
+    /// past the band (measured over topo, sweep, editor-core, step-import
+    /// and mesh at ε 1e-9 and 1e-12: every moved point reading is such a
+    /// tie). `geom_brep::curve_pair::Span` reads its ends' sides through
+    /// this on a closed carrier, and so does `topo`'s ring lane, each
+    /// with its own meter.
+    pub fn span_margins(self, t: T, (lo, hi): (T, T)) -> (T, T) {
+        let p = self.length;
+        ((t - lo).max(hi - (t + p)), (hi - t).max((t - p) - lo))
+    }
 }
 
 impl<T: Decide> Period<T> {
