@@ -362,9 +362,10 @@ fn touch_and_arc() -> Surface<f64> {
 /// against `z = 0`: its top touches the plane, its Hessian definite, and
 /// an arc crosses the wall from the side `v = 0` to `v = 1`. The section
 /// is the arc and the touch, a point witnessed at the top, a tangency
-/// decided Zero, no pinch. Red against the touch beside ends left to
-/// pinch, and against the touch's box not claimed from seeding and
-/// accounting.
+/// decided Zero, no pinch. The sweep finds the touch's cells enclosed,
+/// so the pair is read through `Sweep::Enclosing`. Red against an
+/// enclosing section read without its points, the touch's box not read
+/// as a region by the accounting, and the box not grown.
 #[test]
 fn a_touch_beside_an_arc_is_listed_with_it() {
     let s = built(&level(0.0), &touch_and_arc()).unwrap_or_else(|e| panic!("{e:?}"));
@@ -509,4 +510,50 @@ fn an_end_between_two_rays_names_neither() {
     // 50° off the x axis, out of the plane of the rays: past the floor.
     let (c, s) = (50f64.to_radians().cos(), 50f64.to_radians().sin());
     assert!(super::ray_of(Vec3::new(c, 0.0, s), rays, extent, band()).is_err());
+}
+
+/// **A touch beside components that reach a side crosses them.** The
+/// bowl `z = −2(x − ½)² − 2(y − ½)²` against `z = 0` is swept loop-free
+/// with its top a touch decided Zero. Alone it is listed beside nothing
+/// (the classification's loop-free listing); with any side reached it
+/// is read whole with its box handed in, its arcs listed with it. The
+/// touch-and-arc wall reaches the listing through `Sweep::Enclosing`,
+/// so this is the row that reads `crosses`'s touch arm on a loop-free
+/// sweep. Red against a touch beside ends left to the loop-free
+/// listing.
+#[test]
+fn a_touch_beside_reaching_components_crosses_them() {
+    use crate::pair_section::ChartReach;
+    use crate::ssi::{ChartAxis, ChartEnd, ChartSide};
+    let bowl = separable(
+        &[-0.5, 2.0, -2.0],
+        (0.0, 1.0),
+        &[-0.5, 2.0, -2.0],
+        (0.0, 1.0),
+    );
+    let p = level(0.0);
+    let pose = SplineImplicitPose::of(&p, &bowl).unwrap();
+    let reading = crate::ImplicitSection::of(&p, pose.net(), pose.domain(), band()).unwrap();
+    let Sweep::LoopFree(decided) = sweep::sweep(
+        reading.boxes(),
+        reading.form(),
+        reading.account_floor(),
+        band(),
+        pose.ball().certified_diameter(),
+    ) else {
+        panic!("the bowl is swept loop-free");
+    };
+    assert!(
+        matches!(decided.as_slice(), [c] if c.kind == sweep::Kind::Touch),
+        "{decided:?}"
+    );
+    assert!(!super::crosses(&decided, ChartReach::default()));
+    for fixed in [ChartAxis::U, ChartAxis::V] {
+        for end in [ChartEnd::Low, ChartEnd::High] {
+            assert!(
+                super::crosses(&decided, ChartReach::side(ChartSide { fixed, end })),
+                "a side reached: {fixed:?} {end:?}"
+            );
+        }
+    }
 }
