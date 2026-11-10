@@ -2,10 +2,12 @@
 id: topo-name-forwarders-hide-their-callers-names
 kind: issue
 title: names spelled in a closed type's predicate() match, and a second forwarder in a file that already forwards, are invisible to topo's roster
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-10
+pr: 0
 ---
 
 Found closing `topo-has-no-predicate-name-roster`; narrowed by the forwarder renames (PR on branch `onecopy/topo-forwarders`).
@@ -19,3 +21,16 @@ That PR renamed topo's generic name forwarders to `*_as` spellings and declared 
 Item 1's `TangentRow::predicate()` arrived with main's tangent-row change: `boolean/contact_verify.rs` decides its off-surface rows through `TangentRow::Off(side).predicate()`, which spells `contact_tangent_off_1` and `contact_tangent_off_2` in `contact.rs`'s match. The roster lists the site as `boolean/contact_verify.rs: row.predicate(`.
 
 A carrier call with no literal and no const is keyed by its first argument even where the name is a later one: `relation_step(e, RelOp::Ge, bound, name, band)` and `contains_step(e, lo, hi, name, band)` are both `props.rs: e` (`NOT_FIRST`), so distinct sites merge on an argument that is not the name at all. Keying by the name argument's position needs the reader to know which argument a carrier's name is, which a declared `NameCarrier::Call` does not say today. A `NameCarrier::CallAt(token, n)` would say it.
+
+**Closed** (2026-11-10, ONECOPY forwarders-by-fn).
+
+- **Item 2, widened to every roster.** `test_utils::source::predicate_census` now keys every indirect site by its innermost enclosing `fn` item (`<file>: <fn>: <head>`, through the shared `source::fn_items` over `item_body`; `-` outside any). That covers a forwarded `decide*` argument, and a declared carrier's call that holds no literal.
+  - A second forwarder in a file is therefore its own entry, and a new one reds until it is declared: as a `FORWARDS` entry naming it, or as a carrier.
+  - topo's, geom's, geom-core's, geom-brep's, editor-core's and sweep's `INDIRECT` lists are re-keyed. Each keeps the reason its file-level entry gave; topo's list went from 107 to 159 entries and geom-brep's from 107 to 149. The `FORWARDS` reason no longer says one entry stands for a file.
+  - The discriminating checks:
+    - the unit test `a_forwarder_is_keyed_by_its_enclosing_fn`, with two same-named forwarders, a `fresh_forward` in an `impl`, a nested `fn`, and a site in a `static`;
+    - on the tree, the review's plant: a `fn fresh_forward(x, predicate, bnd)` added to `editor-core/src/names/emit_topo.rs` and called with a literal now reds editor-core's roster (`names/emit_topo.rs: fresh_forward: predicate`). It was green under the file-level key.
+  - `Segment::ahead` is renamed `ahead_as` and declared a carrier, and the stale `Track::cover` doc in `names/discriminate.rs` reads `Track::cover_as`.
+- **Item 1**, the closed type's `predicate()` match, is the same question as `the-census-reads-no-closed-type-name-table`, which carries it.
+- **The `NOT_FIRST` note** (a carrier call keyed by an argument that is not its name) narrows to one function: two such calls in different `fn`s are now distinct entries. Within one `fn` they still share a key. A `NameCarrier::CallAt(token, n)` that names the name argument's position would part them, and nothing needs that today.
+

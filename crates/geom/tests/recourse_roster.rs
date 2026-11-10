@@ -10,7 +10,9 @@
 //! for. It reads a name at a `decide*` call, or out of a carrier
 //! declared in [`CARRIERS`]. **What it cannot read it reports**, and
 //! each is a red row here: a site whose name is a `const` this file does
-//! not declare, an indirect site not in [`INDIRECT`], a spelling it does
+//! not declare, an indirect site not in [`INDIRECT`] (keyed by the `fn`
+//! it stands in, `<file>: <fn>: <head>`, so each forwarder is an entry
+//! by name and a new one reds until it is declared), a spelling it does
 //! not know, a file it does not walk, and a declared carrier that no
 //! longer matches anything.
 //!
@@ -36,25 +38,28 @@ const CARRIERS: &[NameCarrier] = &[
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; one entry stands for every such site in the \
-                        file, so a new forwarder under an undeclared token here is not seen";
+                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
+                        forwarder reds until it is declared here or as a carrier";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
 const CALLERS_CRATE: &str = "a public door whose caller names the row (`Ray::ahead`), read in the \
                              calling crate's own census";
 
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
-    ("azimuth.rs: row", FORWARDS),
-    ("chart_point.rs: name", FORWARDS),
-    ("curves.rs: site", CALLERS_CRATE),
-    ("curves.rs: sites.off_axis()", ROW_FIELD),
-    ("curves.rs: sites.two_ovals()", ROW_FIELD),
+    ("azimuth.rs: read_in: row", FORWARDS),
+    ("azimuth.rs: stable_azimuth_as: row", FORWARDS),
+    ("chart_point.rs: point: name", FORWARDS),
+    ("curves.rs: ahead: site", CALLERS_CRATE),
+    ("curves.rs: spiric_regime: sites.off_axis()", ROW_FIELD),
+    ("curves.rs: spiric_regime: sites.two_ovals()", ROW_FIELD),
+    ("surfaces.rs: of_at: sites.tube()", ROW_FIELD),
+    ("surfaces.rs: ring_half: name", FORWARDS),
+    ("surfaces.rs: spindle_sheet: name", FORWARDS),
     (
-        "surfaces.rs: RingReader::Convention.sites().tube()",
+        "surfaces.rs: torus_tube: RingReader::Convention.sites().tube()",
         ROW_FIELD,
     ),
-    ("surfaces.rs: name", FORWARDS),
-    ("surfaces.rs: sites.tube()", ROW_FIELD),
+    ("surfaces.rs: tube_half_as: name", FORWARDS),
 ];
 
 /// **The census meets the harness every roster shares**, and reads

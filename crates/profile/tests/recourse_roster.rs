@@ -73,7 +73,11 @@ fn no_funnel_call_in_src_takes_a_literal_name() {
         .indirect
         .iter()
         .filter(|site| {
-            let (file, expr) = site.split_once(": ").expect("`<file>: <expr>`");
+            let mut parts = site.splitn(3, ": ");
+            let (Some(file), Some(_fn), Some(expr)) = (parts.next(), parts.next(), parts.next())
+            else {
+                panic!("`<file>: <fn>: <expr>`: {site}")
+            };
             let the_funnel = file == "gate.rs" && expr.starts_with("self.predicate(");
             !(the_funnel || expr == "name" || expr == "gate" || expr.starts_with("Gate::"))
         })

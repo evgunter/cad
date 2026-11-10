@@ -1565,11 +1565,15 @@ pub struct PredicateCensus {
     /// The names, from a plain literal at the call or out of a declared
     /// carrier.
     pub names: std::collections::BTreeSet<String>,
-    /// `<file>: <expression>` per call whose name-bearing argument is
-    /// not a plain literal, and per declared carrier call that holds no
-    /// literal argument — named by each `const` argument it holds, else
-    /// by its first argument. One entry stands for every site of a file
-    /// that spells the same expression. Each is a site whose carrier the
+    /// `<file>: <fn>: <expression>` per call whose name-bearing argument
+    /// is not a plain literal, and per declared carrier call that holds
+    /// no literal argument — named by its first argument — where `<fn>`
+    /// is the innermost `fn` item it stands in ([`fn_items`]; `-` outside
+    /// any). One entry stands for every site of ONE function that spells
+    /// the same expression, so a second forwarder in a file is its own
+    /// entry and reds until a roster declares it. A `read_identity` call
+    /// is keyed `<file>: read_identity#<n>(<head>)` by its place in its
+    /// file instead. Each is a site whose carrier the
     /// caller must declare — declaring it makes that carrier's own call
     /// sites part of the census, so the chain terminates at literals or
     /// stays red.
@@ -1675,7 +1679,25 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
         // view that keeps literals. Both are blanked in place, so one
         // set of offsets indexes both.
         let bare = code_only(text);
-        for (kind, payload) in funnel_sites(&bare, &code) {
+        // Every indirect site is keyed by the `fn` it stands in
+        // (`<file>: <fn>: <head>`), so each forwarder is its own entry:
+        // a new one reusing a parameter name another already spells
+        // (`predicate`, `name`) reds rather than folding into it.
+        let items = match fn_items(&bare) {
+            Ok(items) => items,
+            Err(why) => {
+                out.unreadable.insert(format!("{rel}: {why}"));
+                Vec::new()
+            }
+        };
+        let enclosing = |at: usize| -> &str {
+            items
+                .iter()
+                .filter(|(_, body)| body.contains(&at))
+                .min_by_key(|(_, body)| body.len())
+                .map_or("-", |(name, _)| name.as_str())
+        };
+        for (kind, payload, at) in funnel_sites_at(&bare, &code) {
             match kind {
                 SiteKind::Name => {
                     out.names.insert(payload);
@@ -1684,7 +1706,8 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                     out.consts.insert(format!("{rel}: {payload}"));
                 }
                 SiteKind::Indirect => {
-                    out.indirect.insert(format!("{rel}: {payload}"));
+                    out.indirect
+                        .insert(format!("{rel}: {}: {payload}", enclosing(at)));
                 }
                 SiteKind::Unreadable => {
                     out.unreadable.insert(format!("{rel}: {payload}"));
@@ -1723,7 +1746,8 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                             // A name handed on from elsewhere, named by the
                             // group's first argument as a `decide*` site is.
                             let head = first_argument(&bare[open + 1..end], &code[open + 1..end]);
-                            out.indirect.insert(format!("{rel}: {head}"));
+                            out.indirect
+                                .insert(format!("{rel}: {}: {head}", enclosing(open)));
                         }
                     }
                 }
@@ -1931,6 +1955,15 @@ enum SiteKind {
 
 /// Every `decide*` occurrence in a blanked view, classified.
 fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
+    funnel_sites_at(bare, code)
+        .into_iter()
+        .map(|(kind, payload, _)| (kind, payload))
+        .collect()
+}
+
+/// [`funnel_sites`], each with the offset of the occurrence that made
+/// it, so a caller can place an indirect site in its enclosing `fn`.
+fn funnel_sites_at(bare: &str, code: &str) -> Vec<(SiteKind, String, usize)> {
     let mut out = Vec::new();
     let mut at = 0usize;
     while let Some(hit) = bare[at..].find("decide") {
@@ -1982,7 +2015,11 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
                     cursor = bare.len() - tail.len();
                 }
                 None => {
-                    out.push((SiteKind::Unreadable, one_line(&code[start..cursor + 3])));
+                    out.push((
+                        SiteKind::Unreadable,
+                        one_line(&code[start..cursor + 3]),
+                        start,
+                    ));
                     continue;
                 }
             }
@@ -1999,6 +2036,7 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
                 out.push((
                     SiteKind::Unreadable,
                     one_line(&code[start..cursor + c.len_utf8()]),
+                    start,
                 ));
                 continue;
             }
@@ -2008,7 +2046,7 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         let arg = code[open + 1..].trim_start();
         let arg_bare = &bare[bare.len() - arg.len()..];
         if let Some(names) = literal_tuple(arg_bare, arg) {
-            out.extend(names.into_iter().map(|name| (SiteKind::Name, name)));
+            out.extend(names.into_iter().map(|name| (SiteKind::Name, name, start)));
             continue;
         }
         // A group of names some of which are not literals
@@ -2020,15 +2058,15 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
             out.extend(
                 direct_literals(&arg[1..close])
                     .into_iter()
-                    .map(|name| (SiteKind::Name, name)),
+                    .map(|name| (SiteKind::Name, name, start)),
             );
         }
         match first_literal(arg) {
-            Some(name) => out.push((SiteKind::Name, name)),
+            Some(name) => out.push((SiteKind::Name, name, start)),
             None => {
                 let close = balanced_end(bare, open).unwrap_or(bare.len());
                 let expr = first_argument(&bare[open + 1..close], &code[open + 1..close]);
-                out.push((SiteKind::Indirect, expr));
+                out.push((SiteKind::Indirect, expr, start));
             }
         }
     }
@@ -3129,7 +3167,7 @@ mod tests {
         );
         assert_eq!(
             census.indirect.iter().collect::<Vec<_>>(),
-            ["a.rs: name"],
+            ["a.rs: f: name"],
             "{census:?}"
         );
         assert_eq!(
@@ -3143,6 +3181,36 @@ mod tests {
     /// clean tree**: a `#[path]` to a file under `src` is walked, one
     /// outside it is not; a stale carrier, an undeclared const site, and
     /// an indirect site missing from or stale in the list each red.
+    /// **Each forwarder is its own indirect site**: two functions in one
+    /// file handing on a parameter of the same name are two entries,
+    /// keyed by the `fn` each stands in, so a new forwarder beside a
+    /// listed one reds rather than folding into its entry; a site outside
+    /// any `fn` keys as `-`.
+    #[test]
+    fn a_forwarder_is_keyed_by_its_enclosing_fn() {
+        let dir = std::env::temp_dir().join(format!("tu-fwd-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn listed(predicate: &'static str) { decide(predicate, m); }\n\
+             impl S { fn fresh_forward(&self, predicate: &'static str) {\n    \
+             decide(predicate, m);\n    let inner = |x| { fn nested(predicate: &str) { decide(predicate, m); } };\n} }\n\
+             static S: X = X { a: decide(predicate, m) };\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            [
+                "a.rs: -: predicate",
+                "a.rs: fresh_forward: predicate",
+                "a.rs: listed: predicate",
+                "a.rs: nested: predicate"
+            ]
+        );
+    }
+
     #[test]
     fn the_roster_harness_names_each_gap() {
         let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));
@@ -3176,7 +3244,7 @@ mod tests {
             "source the reader does not walk: a.rs:3",
             "a declared carrier matched nothing in src: Call(gone)",
             "a site names the const `OTHER`, not declared a carrier: a.rs: OTHER",
-            "an indirect site not listed: a.rs: name",
+            "an indirect site not listed: a.rs: f: name",
             "a listed indirect site the census no longer finds: a.rs: stale",
         ];
         assert_eq!(said.len(), expect.len(), "{said:#?}");
@@ -3202,7 +3270,7 @@ mod tests {
         assert_eq!(census.consts.iter().collect::<Vec<_>>(), ["table.rs: ROW"]);
         assert_eq!(
             census.indirect.iter().collect::<Vec<_>>(),
-            ["table.rs: name"]
+            ["table.rs: f: name"]
         );
     }
 

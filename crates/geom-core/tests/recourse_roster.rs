@@ -10,7 +10,9 @@
 //! for. It reads a name at a `decide*` call, or out of a carrier
 //! declared in [`CARRIERS`]. **What it cannot read it reports**, and
 //! each is a red row here: a site whose name is a `const` this file does
-//! not declare, an indirect site not in [`INDIRECT`], a spelling it does
+//! not declare, an indirect site not in [`INDIRECT`] (keyed by the `fn`
+//! it stands in, `<file>: <fn>: <head>`, so each forwarder is an entry
+//! by name and a new one reds until it is declared), a spelling it does
 //! not know, a file it does not walk, and a declared carrier that no
 //! longer matches anything.
 //!
@@ -49,8 +51,8 @@ const CARRIERS: &[NameCarrier] = &[
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; one entry stands for every such site in the \
-                        file, so a new forwarder under an undeclared token here is not seen";
+                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
+                        forwarder reds until it is declared here or as a carrier";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
 const IDENTITY: &str = "a `read_identity` call over data whose names are read where it is built";
 const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
@@ -59,12 +61,19 @@ const NOT_A_NAME: &str = "another `decide*` call, whose first argument is not a 
 
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
-    ("k_stats.rs: far", FORWARDS),
-    ("k_stats.rs: floor", FORWARDS),
-    ("k_stats.rs: name", FORWARDS),
-    ("k_stats.rs: names", FORWARDS),
-    ("ladder.rs: name", FORWARDS),
-    ("ladder.rs: straddle", FORWARDS),
+    ("k_stats.rs: decide_across: names", FORWARDS),
+    ("k_stats.rs: decide_across_reported: far", FORWARDS),
+    ("k_stats.rs: decide_across_reported: floor", FORWARDS),
+    ("k_stats.rs: decide_magnitude: name", FORWARDS),
+    ("k_stats.rs: decide_passing: name", FORWARDS),
+    ("k_stats.rs: prove: name", FORWARDS),
+    (
+        "ladder.rs: an_agreeing_ladder_reads_every_rung_and_checks_its_answers: name",
+        FORWARDS,
+    ),
+    ("ladder.rs: data_beneath_sum: straddle", FORWARDS),
+    ("ladder.rs: decide_magnitude: name", FORWARDS),
+    ("ladder.rs: decided: name", FORWARDS),
     (
         "ladder.rs: read_identity#1(data.iter().map(|&(n, m)| (n, Margin::of(m))))",
         IDENTITY,
@@ -73,23 +82,37 @@ const INDIRECT: &[(&str, &str)] = &[
         "ladder.rs: read_identity#2(data.iter().map(|&(n, m)| (n, Margin::of(Probe(m)))))",
         IDENTITY,
     ),
-    ("linalg/rigid_motion.rs: check", FORWARDS),
-    ("linalg/rigid_motion.rs: site", FORWARDS),
-    ("linalg/unit_vec.rs: good", NOT_FIRST),
-    ("linalg/unit_vec.rs: site", FORWARDS),
-    ("linalg/unit_vec.rs: v", NOT_FIRST),
-    ("linalg/unit_vec.rs: v * scale", NOT_FIRST),
-    ("line2.rs: det", NOT_A_NAME),
-    ("period.rs: chord_name", FORWARDS),
-    ("period.rs: name", FORWARDS),
-    ("period.rs: sense_name", FORWARDS),
-    // `TurnRows::registered`, a registry's door to the crate-private
-    // `bounded`, hands its caller's row on.
-    ("period.rs: turn", FORWARDS),
-    ("period.rs: rows.straddle", ROW_FIELD),
-    ("period.rs: rows.turn", ROW_FIELD),
-    ("running.rs: name", FORWARDS),
-    ("sym.rs: band", NOT_A_NAME),
+    ("ladder.rs: read_identity: name", FORWARDS),
+    (
+        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: check",
+        FORWARDS,
+    ),
+    ("linalg/rigid_motion.rs: check_rigid: check", FORWARDS),
+    ("linalg/rigid_motion.rs: turned_between: site", FORWARDS),
+    ("linalg/unit_vec.rs: decide_direction_by: site", FORWARDS),
+    ("linalg/unit_vec.rs: decide_unit_direction: v", NOT_FIRST),
+    ("linalg/unit_vec.rs: levered: v", NOT_FIRST),
+    ("linalg/unit_vec.rs: new: v", NOT_FIRST),
+    ("linalg/unit_vec.rs: new_scaled: v * scale", NOT_FIRST),
+    (
+        "linalg/unit_vec.rs: the_direction_door_tells_an_underflowed_length_from_a_zero_one: good",
+        NOT_FIRST,
+    ),
+    (
+        "linalg/unit_vec.rs: the_direction_door_tells_an_underflowed_length_from_a_zero_one: v",
+        NOT_FIRST,
+    ),
+    ("line2.rs: meet: det", NOT_A_NAME),
+    ("period.rs: decide: name", FORWARDS),
+    ("period.rs: decide_signed: name", FORWARDS),
+    ("period.rs: forward: name", FORWARDS),
+    ("period.rs: forward_by_arc: chord_name", FORWARDS),
+    ("period.rs: forward_by_arc: sense_name", FORWARDS),
+    ("period.rs: read: rows.straddle", ROW_FIELD),
+    ("period.rs: read: rows.turn", ROW_FIELD),
+    ("period.rs: registered: turn", FORWARDS),
+    ("running.rs: divisor: name", FORWARDS),
+    ("sym.rs: sign_within: band", NOT_A_NAME),
 ];
 
 /// **The census meets the harness every roster shares**, and reads
