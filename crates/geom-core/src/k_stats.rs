@@ -698,6 +698,25 @@ pub fn decide<T: Decide>(
     classify(name, margin.value(), band).map(|d| d.sign)
 }
 
+/// **[`decide`] for a decision on a size the user may intend that
+/// passes only `passes`**: the same classification and record, with an
+/// undecided reading tagged with the pass set, so its sized ending
+/// offers a tighter tolerance only on the side a smaller tolerance
+/// decides passing (D4 ¶1 (i)). A margin in band on a refused side
+/// shows no size, and offers none.
+///
+/// # Errors
+///
+/// [`decide`]'s, its reading tagged with `passes`.
+pub fn decide_passing<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+    passes: SizedPass,
+) -> Result<Sign, Indeterminate> {
+    decide(name, margin, band).map_err(|e| e.undecided_passing(passes))
+}
+
 /// **A proof's inequality, read exactly**, and logged under `name`: the
 /// sign of `margin` with no band but the least pair of positive `f64`s,
 /// so only an enclosure that straddles zero fails to decide. It is for
@@ -920,48 +939,7 @@ pub fn decide_negative<T: Decide>(
     )
 }
 
-/// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
-/// one of its values, which is what lets a caller match the gate's
-/// outcome exhaustively without an arm for an answer the gate escalated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NonzeroSign {
-    /// The margin classified definitely positive.
-    Positive,
-    /// The margin classified definitely negative.
-    Negative,
-}
-
-impl NonzeroSign {
-    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
-    /// spelling of a ±1 read off a sign already decided. Its hull twin,
-    /// read off a value rather than a decision, is
-    /// [`crate::Real::unit_sign`].
-    #[must_use]
-    pub fn unit<T: Real>(self) -> T {
-        match self {
-            Self::Positive => T::one(),
-            Self::Negative => -T::one(),
-        }
-    }
-
-    /// The other side.
-    #[must_use]
-    pub fn flip(self) -> Self {
-        match self {
-            Self::Positive => Self::Negative,
-            Self::Negative => Self::Positive,
-        }
-    }
-}
-
-impl From<NonzeroSign> for Sign {
-    fn from(side: NonzeroSign) -> Self {
-        match side {
-            NonzeroSign::Positive => Self::Positive,
-            NonzeroSign::Negative => Self::Negative,
-        }
-    }
-}
+use crate::predicate::NonzeroSign;
 
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
 /// for a predicate that reads a SIDE off the margin's sign and has no

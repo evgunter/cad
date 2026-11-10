@@ -145,7 +145,7 @@ use crate::props::AtRestPolicy;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 
 /// How a boolean result body came to be (module docs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
