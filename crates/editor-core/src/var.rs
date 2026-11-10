@@ -317,6 +317,12 @@ pub struct Pick {
 /// that body's name table under the N5 ladder at evaluation, the one
 /// place a name in a slot is resolved.
 ///
+/// The body read is a body seat's ([`crate::BodyRead`], REFERENCES
+/// DM3): a body, or one member of a family, `xs[i]`, whose indices are
+/// `Count` variables of this definition, as a pose definition's
+/// scalars are its own. The names are that body's own: a member's are
+/// the member's, never the family's for it.
+///
 /// The names are stored in the order the kind reads them: an `Edges`
 /// set sorted and deduplicated, so two selections of the same edges are
 /// equal; a `Faces` set in designation order, first occurrence kept
@@ -329,7 +335,7 @@ pub struct Pick {
 #[serde(deny_unknown_fields)]
 pub struct Select {
     /// The body the names are read in.
-    pub body: VarId,
+    pub body: crate::BodyRead<VarId>,
     /// The entities, by name.
     pub names: Vec<crate::names::StableName>,
 }
@@ -498,6 +504,19 @@ pub enum SelectionFault {
     /// body: the name's node is neither the read's operation nor
     /// upstream of it.
     OtherBody,
+    /// A body read by index carrying other than one index per index
+    /// of the family it reads: a node seat's indexed read's fault
+    /// ([`crate::node::InputFault::IndexRank`]), at a selection's body,
+    /// boxed: its seat would otherwise size every error carrying a
+    /// selection fault.
+    Input(Box<crate::node::InputFault>),
+    /// An index of a mate side's body read that is no written count:
+    /// the mate's member walk reads the member from the document, never
+    /// from an evaluated value.
+    SideIndex {
+        /// The index's place, outermost first.
+        k: usize,
+    },
 }
 
 impl SelectionFault {
@@ -512,7 +531,9 @@ impl SelectionFault {
             | Self::NotCanonical { .. }
             | Self::Kind { .. }
             | Self::Repeated { .. }
-            | Self::OtherBody => None,
+            | Self::OtherBody
+            | Self::Input(_)
+            | Self::SideIndex { .. } => None,
         }
     }
 }
@@ -559,6 +580,12 @@ impl core::fmt::Display for SelectionFault {
                 expected.noun()
             ),
             Self::Repeated { first, again } => write!(f, "name {again} repeats name {first}"),
+            Self::Input(fault) => write!(f, "{fault}"),
+            Self::SideIndex { k } => write!(
+                f,
+                "index {k} of the side's body read is no written count — a mate side reads \
+                 its member at a count written in the document"
+            ),
         }
     }
 }

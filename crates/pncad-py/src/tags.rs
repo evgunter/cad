@@ -312,6 +312,8 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::NotALength { .. } => "not_a_length",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
+        R::Family { .. } => "family",
+        R::NoMember { .. } => "no_member",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }
@@ -1952,6 +1954,8 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
+        PinRefusal::UnwrittenIndex => "pin_unwritten_index",
+        PinRefusal::NoMember { .. } => "pin_no_member",
     }
 }
 
@@ -2573,6 +2577,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::VarNameConflict { .. } => "var_name_conflict",
         InlineError::UnreadPose { .. } => "unread_pose",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
+        InlineError::SelectionSpansMembers { .. } => "selection_spans_members",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
@@ -2591,6 +2596,7 @@ pub fn flatten_error_tag(err: &FlattenError) -> &'static str {
         FlattenError::NotANewSpace { .. } => "not_a_new_space",
         FlattenError::SpaceShared { .. } => "space_shared",
         FlattenError::ReadUncarried { .. } => "read_uncarried",
+        FlattenError::SelectionSpansMembers { .. } => "selection_spans_members",
         FlattenError::BothNamed { .. } => "both_named",
         FlattenError::Edit { .. } => "flatten_edit",
     }
@@ -3491,5 +3497,7 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
         F::Kind { .. } => "name_kind",
         F::Repeated { .. } => "repeated",
         F::OtherBody => "other_body",
+        F::Input(fault) => input_fault_tag(fault),
+        F::SideIndex { .. } => "side_index",
     }
 }

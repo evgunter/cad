@@ -720,42 +720,70 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 fault,
             });
         }
-        let body = match snapshot.var(select.body) {
-            None if snapshot.mint.has_var(select.body) => return None,
-            None => SelectionBodyFault::Unminted { body: select.body },
+        // Each seat reading it, directly or through a pose, holds its
+        // body read to the edit door's rule beyond kind
+        // (`edit::selection_body_fault`).
+        // A pose read at a seat, named or written in place, reads the
+        // selections it reaches there (`edit::seat_selections`): a mate
+        // side's plane is its face's.
+        let seats: Vec<crate::OperandSlot> = snapshot
+            .nodes
+            .values()
+            .flat_map(|node| node.operand_rows())
+            .filter(|&(_, read)| crate::edit::seat_selections(snapshot, read).contains(&id))
+            .map(|(slot, _)| slot)
+            .collect();
+        if let Some(fault) = seats.iter().find_map(|&slot| {
+            crate::edit::selection_body_fault(snapshot, crate::SlotId::Operand(slot), &select.body)
+        }) {
+            return Some(SnapshotError::SelectionShape {
+                var: spoken(),
+                fault,
+            });
+        }
+        if let Some((k, found)) = select.body.at.iter().enumerate().find_map(|(k, &index)| {
+            let found = snapshot.var(index)?.kind();
+            (found != crate::VarKind::Count).then_some((k, found))
+        }) {
+            return Some(SnapshotError::SelectionBody {
+                var: spoken(),
+                fault: SelectionBodyFault::Index {
+                    k,
+                    index: Box::new(snapshot.spoken_var(select.body.at[k])),
+                    found,
+                },
+            });
+        }
+        let read = select.body.read;
+        let body = match snapshot.var(read) {
+            None if snapshot.mint.has_var(read) => return None,
+            None => SelectionBodyFault::Unminted { body: read },
             Some(held) => {
                 // Every seat reading the selection admits its body
                 // (the edit door's rule, `edit::selection_body_kind`):
-                // a `Bodies` only where mate sides alone read it. The
-                // body read observes; each seat reading the selection
-                // is asked of the copy in the operand walk.
+                // a `Bodies` only where mate sides alone read it, and
+                // a family for a member read. The body read observes;
+                // each seat reading the selection is asked of the copy
+                // in the operand walk.
                 let narrow = crate::SlotKind::Is(crate::VarKind::Body);
                 let instance = matches!(
-                    snapshot
-                        .operation_of(select.body)
-                        .and_then(|at| snapshot.node(at)),
+                    snapshot.operation_of(read).and_then(|at| snapshot.node(at)),
                     Some(crate::Node::InstantiatePart { .. })
                 );
-                let expected = if !instance
-                    && snapshot.nodes.values().any(|node| {
-                        node.operand_rows().into_iter().any(|(slot, read)| {
-                            read == id
-                                && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
-                                    == narrow
-                        })
-                    }) {
+                let expected = if select.body.is_indexed() {
+                    crate::SlotKind::Is(crate::VarKind::Bodies)
+                } else if !instance
+                    && seats.iter().any(|&slot| {
+                        crate::edit::selection_body_kind(crate::SlotId::Operand(slot)) == narrow
+                    })
+                {
                     narrow
                 } else {
                     crate::SlotKind::Placeable
                 };
-                match snapshot.read_fault(
-                    select.body,
-                    held,
-                    expected,
-                    crate::doc::Reader::Observes,
-                )? {
+                match snapshot.read_fault(read, held, expected, crate::doc::Reader::Observes)? {
                     crate::doc::ReadFault::Kind { found } => SelectionBodyFault::Kind {
-                        body: Box::new(snapshot.spoken_var(select.body)),
+                        body: Box::new(snapshot.spoken_var(read)),
                         found,
                     },
                 }
@@ -1268,6 +1296,15 @@ pub enum SelectionBodyFault {
         /// Its kind.
         found: crate::VarKind,
     },
+    /// An index of a member read (`xs[i]`) that is no `Count`.
+    Index {
+        /// The index's place, outermost first.
+        k: usize,
+        /// The index variable.
+        index: Box<SpokenVar>,
+        /// Its kind.
+        found: crate::VarKind,
+    },
 }
 
 /// A structural invariant violation in a parsed snapshot (load door).
@@ -1749,6 +1786,12 @@ impl core::fmt::Display for SnapshotError {
                         crate::sentence::article(&found.to_string())
                     )
                 }
+                SelectionBodyFault::Index { k, index, found } => write!(
+                    f,
+                    "{var} selects in a member at index {k}, {index}, which is {} {found}, not a \
+                     count",
+                    crate::sentence::article(&found.to_string())
+                ),
             },
             Self::ReadCycle { at } => write!(
                 f,
@@ -2138,7 +2181,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             NameCarrier::Store { body, .. } => doc.reaches_instance(body),
             NameCarrier::Select { var, .. } => doc
                 .selection(var)
-                .is_some_and(|select| doc.reaches_instance(select.body)),
+                .is_some_and(|select| doc.reaches_instance(select.body.read)),
             NameCarrier::Payload { .. } => holds_instance,
         };
         let part = |n: &crate::names::StableName| doc.part_spelled(parted, n);
