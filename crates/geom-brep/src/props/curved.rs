@@ -2104,7 +2104,7 @@ fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsE
         },
     )?;
     let sweep = "props_cone_apex_loop_sweep";
-    match Period::new(T::tau()).not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
+    match Period::angle().not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
         Ok(true) => Ok(()),
         Ok(false) => Err(PropsError::ConeLoop { what: sweep }),
         Err(undecided) => Err(escalated(undecided.diag)),
@@ -3276,7 +3276,7 @@ fn require_rim_only_closed<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let name = "props_rim_only_closed";
-    match Period::new(T::tau()).whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
+    match Period::angle().whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
         Ok(true) => {}
         Ok(false) => return Err(Premise::Inventory.refusal(name)),
         Err(undecided) => {
@@ -4607,7 +4607,7 @@ pub(crate) fn sphere_pole_left<T: Decide>(
 /// circle (`props_sphere_pole_arc_full`, the turn rule's whole turn).
 fn pole_arc_full<T: Decide>(extent: Extent<T>, radius: T, band: Band) -> Result<bool, PropsError> {
     let rows = TurnRows::exact("props_sphere_pole_arc_full");
-    Period::new(T::tau())
+    Period::angle()
         .whole_turn(rows, extent, Exact::new(radius), band)
         .map_err(|undecided| PropsError::Escalated {
             cause: undecided.diag,
@@ -4741,7 +4741,7 @@ fn require_span_within_period<T: Decide, R: TurnRate<T>>(
         NotForward::Zero(_) | NotForward::Reversed(_) => refuse(forward),
     })?;
     let (rate, rows) = rate(extent);
-    if Period::new(T::tau())
+    if Period::angle()
         .not_over(rows, extent, rate, band)
         .map_err(|undecided| escalated(undecided.diag))?
     {
@@ -5427,7 +5427,7 @@ fn torus_chart<T: Decide>(
         let base = rims.iter().map(|&(_, turns, _)| turns).min().unwrap_or(0);
         let lifted: Vec<(T, T)> = rims
             .iter()
-            .map(|&(angle, turns, du)| (angle + Period::new(T::tau()).times(turns - base), du))
+            .map(|&(angle, turns, du)| (angle + Period::angle().times(turns - base), du))
             .collect();
         let (lo, hi) = min_max(&lifted.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
         let anchor = lo + (hi - lo) * half;
@@ -5466,7 +5466,7 @@ fn torus_chart<T: Decide>(
 /// marks decide; a gap on a mark is no rim's.
 fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, T), PropsError> {
     let name = "props_torus_lift_turns";
-    let period = Period::new(T::tau());
+    let period = Period::angle();
     period
         .decide(
             name,

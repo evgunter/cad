@@ -1397,7 +1397,7 @@ pub(crate) fn project<T: Decide>(
     let deck = |along, angle: T| {
         Ok::<_, PcurveCertifyError>(match place.turns(along, angle, band)? {
             0 => T::zero(),
-            k => super::Period::new(T::tau()).times(-k),
+            k => super::Period::angle().times(-k),
         })
     };
     image.u_off = deck(super::Along::Azimuth, at.x)?;
@@ -1650,7 +1650,7 @@ fn axial_floor<T: Real>(z: (f64, f64), nappe: Nappe) -> T {
 }
 
 /// The distance of an angle from the nearest point of `shift + pℤ`, `p`
-/// the channel's own period ([`super::angle_periods`]).
+/// the channel's own period ([`Surface::angle_periods`](geom::Surface::angle_periods)).
 ///
 /// Sound at every scalar on its own terms: a lattice distance is
 /// continuous in the angle and the same on either branch at a tie, so
@@ -2805,7 +2805,7 @@ pub(super) fn projected_envelope<T: Decide>(
     };
     // The chart's angle channels and their periods, from their one home;
     // the plane was answered above, so the first channel is an angle.
-    let Some((Some(period_u), period_v)) = super::angle_periods(surface) else {
+    let Some((Some(period_u), period_v)) = surface.angle_periods() else {
         unreachable!("a curved analytic chart's first channel is an angle")
     };
     let (shift, sign) = if twin_deck {
@@ -2985,7 +2985,7 @@ pub(super) fn run_projected_checks<T: Decide>(
         // the sup arm).
         let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed)?;
         let swept = image.sweep_box(t0, t1);
-        let one_turn = Period::new(T::tau());
+        let one_turn = Period::angle();
         let azimuth = Extent::between(swept.u_min, swept.u_max);
         let not_over = match *surface {
             Surface::Cylinder { radius, .. } => {
