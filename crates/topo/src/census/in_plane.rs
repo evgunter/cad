@@ -219,11 +219,7 @@ fn standing<T: Decide>(
                 return false;
             }
         }
-        let straight = body
-            .edge_curve_linked(e, edge)
-            .certified()
-            .and_then(|curve| curve.carrier().as_line())
-            .is_some();
+        let straight = super::edge_line(body, e).is_some();
         if !straight {
             arcs.push(e);
         } else if s0 == Sign::Zero || s1 == Sign::Zero {
