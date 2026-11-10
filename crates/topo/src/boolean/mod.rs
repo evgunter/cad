@@ -1614,7 +1614,27 @@ fn off_ring_torus(
     refusal: geom_brep::TorusRefusal,
     pair: [(Operand, FaceKey); 2],
 ) -> BooleanError {
-    BooleanError::of_torus_refusal(refusal, torus.of(pair))
+    torus_refusal_at(refusal, torus.of(pair))
+}
+
+/// [`BooleanError::of_torus_refusal`]'s body: a torus face `at` outside its
+/// ring convention, decided or in band.
+fn torus_refusal_at(
+    refusal: geom_brep::TorusRefusal,
+    (operand, face): (Operand, FaceKey),
+) -> BooleanError {
+    match refusal.verdict {
+        geom_brep::TorusVerdict::Refused(verdict) => BooleanError::DegenerateTorus {
+            operand,
+            face,
+            convention: refusal.convention,
+            verdict,
+        },
+        geom_brep::TorusVerdict::Undecided(diag) => BooleanError::Escalated {
+            decision: BooleanDecision::Torus(refusal.convention),
+            diag,
+        },
+    }
 }
 
 /// A face tagged with the operand it belongs to, ordered A before B;
@@ -4776,20 +4796,9 @@ impl BooleanError {
     /// in the half's lever.
     pub(in crate::boolean) fn of_torus_refusal(
         refusal: geom_brep::TorusRefusal,
-        (operand, face): (Operand, FaceKey),
+        at: (Operand, FaceKey),
     ) -> Self {
-        match refusal.verdict {
-            geom_brep::TorusVerdict::Refused(verdict) => Self::DegenerateTorus {
-                operand,
-                face,
-                convention: refusal.convention,
-                verdict,
-            },
-            geom_brep::TorusVerdict::Undecided(diag) => Self::Escalated {
-                decision: BooleanDecision::Torus(refusal.convention),
-                diag,
-            },
-        }
+        torus_refusal_at(refusal, at)
     }
 
     /// An escalation of the coincidence `which` between parts of the two

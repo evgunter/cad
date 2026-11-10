@@ -2595,7 +2595,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "stands_on", "Coincide::Sectors", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "unglued_corner", "Coincide::CornerBound", 1),
-    ("mod.rs", "off_ring_torus", "BooleanDecision::Torus", 1),
+    ("mod.rs", "torus_refusal_at", "BooleanDecision::Torus", 1),
     ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
         "mod.rs",
