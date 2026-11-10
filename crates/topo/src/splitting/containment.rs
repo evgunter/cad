@@ -1010,7 +1010,17 @@ impl<T: Decide> ConicArc<T> {
             }
             // An ellipse's `Past` stands on the span walk, which can run
             // past its budget: not placed, typed.
-            Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
+            Err(geom::CarrierRefusal::Unwalked(geom::PieceWalkRefusal::Exhausted)) => {
+                ConicHit::Unsettled
+            }
+            // The walk's speed bound is the carrier's greatest speed, at
+            // least its speed floor, which certification decided positive
+            // (`IntervalNotForward` refuses one that is not), and the
+            // conic's lengths are finite (`geom`'s `conic` module): this
+            // arc was built from that certificate.
+            Err(geom::CarrierRefusal::Unwalked(geom::PieceWalkRefusal::Unbounded)) => {
+                unreachable!("a certified conic bounds its speed (check 2's speed floor)")
+            }
         })
     }
 }
