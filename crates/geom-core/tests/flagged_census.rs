@@ -70,7 +70,7 @@ use source_scope::{Arg, Bound, Callee, Event, Source};
 /// level by hand with the audit's own prose inventory; the sibling
 /// assertion, [`every_shipped_site_cites_a_ledger_row_that_exists`],
 /// reads its rows out of the audit and does compute.
-const LEDGER_FLAGGED_SITES: usize = 6;
+const LEDGER_FLAGGED_SITES: usize = 7;
 
 /// One shipped call site: where it is, and the row it cites.
 #[derive(Debug)]

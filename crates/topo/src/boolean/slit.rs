@@ -2812,9 +2812,21 @@ fn on_span<T: Decide>(
 
 /// Whether `a` lies past `b` along an edge [`divide`] divides
 /// ([`BooleanDecision::PartingOrder`]), two parameters of its `carrier`.
-/// A parameter is no length (D4 (iii)): their gap is metered at the sup
-/// of the carrier's speed ([`geom::carrier_speed::speed_range`]), so a
-/// Zero puts the two within the band in arc, and so in chord: one point.
+/// A parameter is no length (D4 (iii)): their gap is metered at the
+/// carrier's speed ([`geom::carrier_speed::speed_range`]), each acted-on
+/// side under the bound that makes it sound:
+/// - the order (`bool_parting_order`) at the inf, which under-reads the
+///   arc, so a decided side is two points apart by more than the band;
+/// - one point (`bool_parting_one_point`), read where the order is in
+///   band, at the sup, which over-reads it, so a Zero is within the band
+///   in arc and so in chord;
+/// - where the two disagree (an order in band at the inf, apart at the
+///   sup), it escalates on both bounds (`bool_parting_straddle`).
+///
+/// A spline's floor may read zero, below or poison: no certified inf is
+/// in hand there, so its order rides the finding lane on the parameter's
+/// own sign (`decide_flagged`, ledger row F42), and its Zero is read at
+/// the sup as above.
 ///
 /// # Errors
 ///
@@ -2826,20 +2838,41 @@ fn parting_order<T: Decide>(
     band: Band,
     at_one_point: impl FnOnce() -> BooleanError,
 ) -> Result<bool, BooleanError> {
-    let sup = geom::carrier_speed::speed_range(carrier).1;
-    match crate::validate::decide(PARTING_ORDER, Margin::metered_sup(a - b, sup), band) {
-        Ok(Sign::Positive) => Ok(true),
-        Ok(Sign::Negative) => Ok(false),
-        Ok(Sign::Zero) => Err(at_one_point()),
-        Err(diag) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::PartingOrder,
-            diag,
-        }),
+    use geom_core::k_stats::{decide_flagged_reported, decide_reported, straddle};
+    let escalated = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::PartingOrder,
+        diag,
+    };
+    let (inf, sup) = geom::carrier_speed::speed_range(carrier);
+    let order = if geom_core::structure_ascends(T::zero(), inf.get()) {
+        decide_reported(PARTING_ORDER, Margin::metered(a - b, inf), band)
+    } else {
+        decide_flagged_reported(PARTING_ORDER, a - b, band, "F42")
+    }
+    .map_err(escalated)?;
+    match order.sign {
+        Sign::Positive => return Ok(true),
+        Sign::Negative => return Ok(false),
+        Sign::Zero => {}
+    }
+    let one = decide_reported(PARTING_ONE_POINT, Margin::metered_sup(a - b, sup), band)
+        .map_err(escalated)?;
+    match one.sign {
+        Sign::Zero => Err(at_one_point()),
+        Sign::Positive => Err(escalated(straddle(PARTING_STRADDLE, order, one, band))),
+        Sign::Negative => Err(escalated(straddle(PARTING_STRADDLE, one, order, band))),
     }
 }
 
-/// The site [`parting_order`] decides under.
+/// The site [`parting_order`] decides the order under.
 pub(super) const PARTING_ORDER: &str = "bool_parting_order";
+
+/// The site [`parting_order`] reads an in-band order as one point under.
+pub(super) const PARTING_ONE_POINT: &str = "bool_parting_one_point";
+
+/// An order in band at the inf and apart at the sup: [`parting_order`]'s
+/// two bounds of one undecided gap.
+pub(super) const PARTING_STRADDLE: &str = "bool_parting_straddle";
 
 /// An in-band reading of where a crossing lies on an edge, or where two
 /// edges meet.
@@ -4205,5 +4238,95 @@ mod piece_rung_rows {
             piece_rung(r, unread)
         });
         assert!(matches!(got, Climb::Answered { at: 1, .. }), "{got:?}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod parting_order_rows {
+    use super::parting_order;
+    use crate::boolean::{BooleanDecision, BooleanError};
+    use geom_core::{Band, Point3, Vec3};
+
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// The one-point refusal the rows tell apart from an escalation.
+    fn one_point() -> BooleanError {
+        BooleanError::Band(Band::new(-1.0, 1.0).unwrap_err())
+    }
+
+    fn read(c: &geom::Curve3<f64>, gap: f64) -> Result<bool, BooleanError> {
+        parting_order(c, (0.5 + gap, 0.5), band(), one_point)
+    }
+
+    fn is_one_point(r: &Result<bool, BooleanError>) -> bool {
+        matches!(r, Err(BooleanError::Band(_)))
+    }
+
+    fn is_escalated(r: &Result<bool, BooleanError>) -> bool {
+        matches!(
+            r,
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::PartingOrder,
+                ..
+            })
+        )
+    }
+
+    /// **Each acted-on side of a parting order is read at its own bound**
+    /// (`parting_order`'s docs). On a line the two bounds are one speed:
+    /// apart past the band orders, a gap within it is one point. On a
+    /// thin ellipse (semi-axes 3 and 0.05) a gap of `1e-8` reads within
+    /// the zero at the inf (`5e-10` m) and past the escalation at the sup
+    /// (`3e-8` m): the order is not sound and neither is one point, so it
+    /// escalates on both bounds. Ten times that gap is apart at the inf
+    /// and orders.
+    #[test]
+    fn a_parting_order_is_read_at_the_inf_and_one_point_at_the_sup() {
+        let line = geom::Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.6, 0.8));
+        assert_eq!(read(&line, 1e-6).unwrap(), true);
+        assert_eq!(read(&line, -1e-6).unwrap(), false);
+        assert!(is_one_point(&read(&line, 1e-10)));
+        let thin = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            3.0,
+            0.05,
+        ));
+        assert!(is_escalated(&read(&thin, 1e-8)), "{:?}", read(&thin, 1e-8));
+        assert!(is_escalated(&read(&thin, -1e-8)));
+        assert_eq!(read(&thin, 1e-6).unwrap(), true);
+        assert!(is_one_point(&read(&thin, 1e-11)));
+    }
+
+    /// **A spline whose speed floor certifies nothing orders on the
+    /// parameter's own sign** (ledger row F42). A quadratic that runs out
+    /// and back (`P0 = P2`) has a hodograph through the origin, so its
+    /// floor is not decided positive; its order rides the finding lane,
+    /// and its Zero is still read at the sup.
+    #[test]
+    fn a_spline_with_no_certified_floor_orders_on_the_flagged_lane() {
+        let there_and_back = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .unwrap(),
+                vec![
+                    Point3::origin(),
+                    Point3::new(1.0, 0.0, 0.0),
+                    Point3::origin(),
+                ],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ));
+        let floor = geom::carrier_speed::speed_range(&there_and_back).0.get();
+        assert!(
+            !geom_core::structure_ascends(0.0, floor),
+            "the premise: floor {floor}"
+        );
+        assert_eq!(read(&there_and_back, 1e-6).unwrap(), true);
+        assert_eq!(read(&there_and_back, -1e-6).unwrap(), false);
+        assert!(is_one_point(&read(&there_and_back, 1e-11)));
     }
 }

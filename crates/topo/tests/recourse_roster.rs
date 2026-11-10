@@ -283,6 +283,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SELF_INTERSECTION_ON_SHARED"),
     NameCarrier::Const("PAIR_GAP"),
     NameCarrier::Const("PARTING_ORDER"),
+    NameCarrier::Const("PARTING_ONE_POINT"),
+    NameCarrier::Const("PARTING_STRADDLE"),
     NameCarrier::Const("PAST_EVERY_REACH"),
     NameCarrier::Const("REGION_ARC_SIDE"),
     NameCarrier::Const("REGION_ON_PLANE"),
