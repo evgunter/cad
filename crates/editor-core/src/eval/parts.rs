@@ -149,8 +149,12 @@ pub(crate) struct PartValue<T: topo::AtRestPolicy + Decide> {
 /// the top binds its own run to the record ([`super::evaluate_recorded`]).
 /// Read only off a row that is carried, so off a run that completed:
 /// a canceled run's row is not carried ([`PartStore::enter`]).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct Refusals {
+    /// The document its evaluation read, which a run bound to it pairs
+    /// with by content as well as by its row's key: a resolver may answer
+    /// one pin with other content (A4's premise, which the key trusts).
+    pub doc: Arc<ProfileDoc>,
     /// The part's nodes its evaluation refused.
     pub nodes: BTreeSet<RecipeNodeId>,
     /// Each part it instantiates, by its row's key.
@@ -930,10 +934,13 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                             current.reached.insert(key, Err(fault.clone()));
                             continue;
                         }
-                        // The record's census of this document is this
-                        // run's (one pin, one ε), so it entered every
-                        // part this run does: a miss is the kernel defect
-                        // `NotEntered` names.
+                        // The record's census of a document of this
+                        // content is this run's, so it entered every part
+                        // this run does. A miss is either the kernel
+                        // defect `NotEntered` names, or a document of
+                        // other content under the same pin, whose every
+                        // node the binding refuses as mispaired before any
+                        // reads this row (`RecordBinding::of_part`).
                         None => {
                             current.reached.insert(key, Err(PartFault::NotEntered));
                             continue;
@@ -1040,7 +1047,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // this build ([`Self::charge`]), which proved it fits.
             member_budget: charged,
         };
-        let binding = record.map(|tree| super::RecordBinding::of_part(doc, tree, self.eps_bits));
+        let binding = record.map(|tree| super::RecordBinding::of_part(doc, tree, tol));
         let part_records: PartRecords = reached
             .iter()
             .map(|(&key, row)| {
@@ -1056,11 +1063,12 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             cancel,
             &opts,
             Reached(reached),
-            binding.as_ref(),
+            binding.as_ref().map(Result::as_ref),
             &doc_ref.pin,
             tol,
         );
         let refused = Arc::new(Refusals {
+            doc: Arc::clone(doc),
             nodes: evaluation
                 .nodes
                 .iter()
@@ -1274,6 +1282,7 @@ impl<T: topo::AtRestPolicy + Decide> Carried<T> {
         let mut nodes = row.refused.nodes.clone();
         nodes.insert(node);
         row.refused = Arc::new(Refusals {
+            doc: Arc::clone(&row.refused.doc),
             nodes,
             parts: Arc::clone(&row.refused.parts),
         });

@@ -3867,7 +3867,8 @@ pub enum RecordMispairing {
     /// the record and the document refused to canonicalize, so which
     /// version the record read is not known.
     Unpinned,
-    /// The record read another version of the document.
+    /// The record read another version of the document, or, inside a
+    /// part, a document of other content under the part's pin.
     Revision,
     /// The record decided at another tolerance.
     Tolerance,
@@ -4119,23 +4120,37 @@ impl RecordBinding {
     }
 
     /// `doc`'s run inside a part, bound to `tree`, the build of record's
-    /// run of the same document ([`parts::Refusals`]): one pin and one ε,
-    /// so its pairing is the row's key.
+    /// run of the same part ([`parts::Refusals`]), or why `tree` is not a
+    /// build of it. The row's key says one pin and one ε; the pairing
+    /// also reads the content, since the record's resolver and the run's
+    /// each answered the pin, and a resolver that answered it with other
+    /// content handed the two runs different documents
+    /// ([`RecordMispairing::Revision`]).
     pub(crate) fn of_part(
-        doc: &Doc<ProfileProgram>,
+        doc: &Arc<Doc<ProfileProgram>>,
         tree: &parts::Refusals,
-        eps_bits: u64,
-    ) -> Self {
+        tol: Tol,
+    ) -> Result<Self, RecordMispairing> {
+        if !Arc::ptr_eq(doc, &tree.doc) {
+            match (
+                crate::persist::content_pin(&tree.doc, tol),
+                crate::persist::content_pin(doc, tol),
+            ) {
+                (Ok(theirs), Ok(ours)) if theirs == ours => {}
+                (Ok(_), Ok(_)) => return Err(RecordMispairing::Revision),
+                _ => return Err(RecordMispairing::Unpinned),
+            }
+        }
         let refused = tree
             .nodes
             .iter()
             .copied()
-            .chain(Self::partless(doc, &tree.parts, eps_bits))
+            .chain(Self::partless(doc, &tree.parts, tol.eps().to_bits()))
             .collect();
-        Self {
+        Ok(Self {
             refused,
             parts: Arc::clone(&tree.parts),
-        }
+        })
     }
 
     /// The instances of `doc` whose part the record holds no build of:
@@ -4234,13 +4249,14 @@ pub(crate) enum PassTwo {
 /// anything is the top's part rows, carried from its prior.
 ///
 /// `record` binds the run to the build of record's run of the same
-/// document, where the descent is a dual's ([`RecordBinding::of_part`]).
+/// document, where the descent is a dual's, or refuses every node where
+/// that run was not a build of this one ([`RecordBinding::of_part`]).
 pub(crate) fn evaluate_nested<T>(
     doc: &Doc<ProfileProgram>,
     cancel: &CancelToken,
     opts: &EvalOptions,
     reached: parts::Reached<T>,
-    record: Option<&RecordBinding>,
+    record: Option<Result<&RecordBinding, &RecordMispairing>>,
     pin: &crate::ident::ContentPin,
     tol: Tol,
 ) -> Evaluation<T>
@@ -4253,7 +4269,7 @@ where
         cancel,
         opts,
         Some((reached, pin)),
-        record.map(Ok),
+        record,
         PassTwo::SkippedAtF64,
         tol,
     )
