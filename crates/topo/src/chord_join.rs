@@ -2148,10 +2148,7 @@ fn arc_leaving<T: Decide>(
     const CHORD_LEAVE_GERM: &str = "chord_arc_leave_germ";
     const CHORD_LEAVE_SECTION: &str = "chord_arc_leave_section";
     let (name, margin) = match leave.datum {
-        Datum::Germ => (
-            CHORD_LEAVE_GERM,
-            Margin::levered(along, conic.lever()),
-        ),
+        Datum::Germ => (CHORD_LEAVE_GERM, Margin::levered(along, conic.lever())),
         Datum::Section => (
             CHORD_LEAVE_SECTION,
             Margin::levered(along, geom_brep::curvature_lever_arm(wall, p1)),

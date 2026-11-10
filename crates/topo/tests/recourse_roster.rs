@@ -445,6 +445,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/section_cert/ruling.rs: rows.asymptote", ROW_FIELD),
     ("boolean/section_cert/ruling.rs: rows.fold", ROW_FIELD),
     ("boolean/section_cert/ruling.rs: rows.precision", ROW_FIELD),
+    ("boolean/sectors.rs: predicate: tie.predicate", FORWARDS),
     ("boolean/sectors.rs: reading.predicate", FORWARDS),
     ("boolean/solid_contain.rs: SCHEDULE_ROWS.reaches", ROW_FIELD),
     ("boolean/solid_contain.rs: name", FORWARDS),

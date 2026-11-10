@@ -11793,10 +11793,9 @@ mod incidence {
                 CYLINDER_INCIDENT,
                 "the carrier's points are not at the cylinder's radius from its axis",
             ),
-            (_, Surface::Plane { .. }) => (
-                PLANE_INCIDENT,
-                "the carrier's points are not on the plane",
-            ),
+            (_, Surface::Plane { .. }) => {
+                (PLANE_INCIDENT, "the carrier's points are not on the plane")
+            }
             _ => unreachable!(
                 "incident: a spline carrier on an analytic chart takes its own test \
                  (`net_incidence`)"

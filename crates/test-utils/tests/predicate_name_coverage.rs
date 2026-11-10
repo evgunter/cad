@@ -17,12 +17,15 @@
 //! (`predicate: Some("…")`, `d.predicate == Some("…")`) is a second
 //! spelling of a name some door decides. It has to resolve against the
 //! union of every crate's census, each roster crate's built with its own
-//! roster's carriers (`test_utils::source::declared_carriers`), so a
+//! roster's carriers (`test_utils::source::crate_roster`), so a
 //! fixture that outlives a rename is red here. A deliberate negative — a
 //! hand-built cause, a name asserted absent — says so at the site with
 //! `// UNDECIDED-NAME: <why>` on the line above, not in a list. A name
 //! only a listed crate spells is held by that crate's entry: its roster
 //! is what will read it, and once it runs one the name has to resolve.
+//! A crate that runs a roster but spells its names in a closed type's
+//! table the census does not read (profile's `Gate`) is an entry too,
+//! [`Missing::ClosedTable`], red once it holds no reference.
 //!
 //! **When it runs.** It walks the whole tree, so it is in the slow set:
 //! a PR runs it only when the PR names it, and the nightly every night.
@@ -31,21 +34,43 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use test_utils::source::{
-    PredicateCensus, declared_carriers, predicate_census, repo_root, spelled_literals,
+    PredicateCensus, crate_roster, predicate_census, repo_root, spelled_literals,
     unresolved_references,
 };
 
-/// The crates that decide a name and run no roster yet, each with the
-/// row that gives it one.
-const KNOWN_MISSING: &[(&str, &str)] = &[
+/// Why a crate's decided names are not all in the census union yet.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Missing {
+    /// It decides names and runs no roster.
+    Roster,
+    /// It runs a roster, but its names are spelled in a closed type's
+    /// table, which the census does not read.
+    ClosedTable,
+}
+
+/// The crates whose decided names the union does not yet hold, each
+/// with why and the row that closes it. A reference only such a crate
+/// spells is held by its entry.
+const KNOWN_MISSING: &[(&str, Missing, &str)] = &[
     (
         "editor-core",
+        Missing::Roster,
         "work/onecopy/editor-core-runs-no-predicate-name-roster.md",
     ),
-    ("geom", "work/onecopy/geom-runs-no-predicate-name-roster.md"),
+    (
+        "geom",
+        Missing::Roster,
+        "work/onecopy/geom-runs-no-predicate-name-roster.md",
+    ),
     (
         "geom-core",
+        Missing::Roster,
         "work/onecopy/geom-core-runs-no-predicate-name-roster.md",
+    ),
+    (
+        "profile",
+        Missing::ClosedTable,
+        "work/onecopy/the-census-reads-no-closed-type-name-table.md",
     ),
 ];
 
@@ -65,16 +90,17 @@ fn crates() -> BTreeMap<String, Crate> {
         if !src.is_dir() {
             continue;
         }
-        let roster = std::fs::read_to_string(dir.join("tests/recourse_roster.rs")).ok();
-        let runs_roster = roster
-            .as_deref()
-            .is_some_and(|text| text.contains("roster_violations("));
-        let carriers = roster.as_deref().map(declared_carriers).unwrap_or_default();
+        let roster = crate_roster(&dir);
+        let runs_roster = roster.is_some();
+        let carriers = roster.unwrap_or_default();
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
-        out.insert(name, Crate {
-            census: predicate_census(&src, &carriers),
-            runs_roster,
-        });
+        out.insert(
+            name,
+            Crate {
+                census: predicate_census(&src, &carriers),
+                runs_roster,
+            },
+        );
     }
     out
 }
@@ -94,22 +120,28 @@ fn has_sites(census: &PredicateCensus) -> bool {
 fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
     let crates = crates();
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
-    let listed: BTreeMap<&str, &str> = KNOWN_MISSING.iter().copied().collect();
+    let listed: BTreeMap<&str, Missing> = KNOWN_MISSING
+        .iter()
+        .map(|(name, why, _)| (*name, *why))
+        .collect();
     assert_eq!(listed.len(), KNOWN_MISSING.len(), "a crate is listed twice");
     let mut out = Vec::new();
-    for (name, row) in KNOWN_MISSING {
+    for (name, why, row) in KNOWN_MISSING {
         if !root.join(row).is_file() {
             out.push(format!("`{name}` cites `{row}`, which is not a file"));
         }
-        match crates.get(*name) {
-            None => out.push(format!("`{name}` is listed but is no crate with a src")),
-            Some(c) if c.runs_roster => out.push(format!(
+        match (crates.get(*name), why) {
+            (None, _) => out.push(format!("`{name}` is listed but is no crate with a src")),
+            (Some(c), Missing::Roster) if c.runs_roster => out.push(format!(
                 "`{name}` runs a roster now — remove it from KNOWN_MISSING"
             )),
-            Some(c) if !has_sites(&c.census) => out.push(format!(
+            (Some(c), Missing::Roster) if !has_sites(&c.census) => out.push(format!(
                 "`{name}` decides nothing now — remove it from KNOWN_MISSING"
             )),
-            Some(_) => {}
+            (Some(c), Missing::ClosedTable) if !c.runs_roster => out.push(format!(
+                "`{name}` runs no roster: list it as `Missing::Roster`"
+            )),
+            _ => {}
         }
     }
     for (name, c) in &crates {
@@ -126,22 +158,36 @@ fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
         .flat_map(|c| c.census.names.iter().cloned())
         .collect();
     assert!(!union.is_empty(), "the census read no name anywhere");
-    let held: BTreeSet<String> = KNOWN_MISSING
+    let crates_dir = root.join("crates");
+    let spelled: BTreeMap<&str, BTreeSet<String>> = KNOWN_MISSING
         .iter()
-        .flat_map(|(name, _)| {
-            spelled_literals(&repo_root(env!("CARGO_MANIFEST_DIR")).join("crates").join(name).join("src"))
-        })
+        .map(|(name, _, _)| (*name, spelled_literals(&crates_dir.join(name).join("src"))))
         .collect();
+    let mut holding: BTreeSet<&str> = BTreeSet::new();
     for (name, c) in &crates {
         for site in unresolved_references(&c.census, &union) {
             let referenced = site.rsplit(": ").next().unwrap_or(&site);
-            if !held.contains(referenced) {
+            let holders: Vec<&str> = spelled
+                .iter()
+                .filter(|(_, literals)| literals.contains(referenced))
+                .map(|(holder, _)| *holder)
+                .collect();
+            if holders.is_empty() {
                 out.push(format!(
                     "crates/{name}/src/{site} — a predicate literal no crate decides: \
                      spell it as the door does, route it through the door's const, or mark \
                      a deliberate negative `// UNDECIDED-NAME: <why>` on the line above"
                 ));
             }
+            holding.extend(holders);
+        }
+    }
+    for (name, why, _) in KNOWN_MISSING {
+        if *why == Missing::ClosedTable && !holding.contains(name) {
+            out.push(format!(
+                "`{name}`'s closed table holds no unresolved reference now — remove it from \
+                 KNOWN_MISSING"
+            ));
         }
     }
     assert!(out.is_empty(), "{}", out.join("\n"));

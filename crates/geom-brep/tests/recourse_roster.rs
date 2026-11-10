@@ -79,6 +79,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("TT_COINCIDENT"),
     NameCarrier::Const("WALL_ROUND_AXIS"),
     NameCarrier::Const("NET"),
+    NameCarrier::Const("STRADDLE"),
     NameCarrier::Const("SPHERE_INCIDENT"),
     NameCarrier::Const("TORUS_INCIDENT"),
     NameCarrier::Const("SPINDLE_INCIDENT"),
@@ -130,6 +131,11 @@ const PAIRED: &str = "a row and its floor handed on as an array: its literals ar
                       forwards its caller's name";
 const CLOSED_TYPE: &str = "a closed type's `name()` or `predicate()`, whose names are spelled in \
                            its own match, which the census does not read";
+const STRUCT_UPDATE: &str = "a row struct built from another's literal (`..CHART_HULL`), whose names \
+                             are read there";
+const SAME_NAMED: &str = "a call sharing a declared carrier's token that takes no name first: a \
+                          closed row's `straddle()` accessor, quad's own \
+                          `require_holes_wound_against`";
 const NOT_A_NAME: &str = "another `decide*` or `check*` call, whose first argument is not a name";
 
 /// The indirect sites whose expression is not a declared `const`, as
@@ -146,6 +152,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_face/composite.rs: row", FORWARDS),
     ("curve_face/spline_face.rs: row", FORWARDS),
     ("curve_pair/on_surface.rs: row", FORWARDS),
+    ("curve_pair/pose.rs: read_identity#1(offsets)", IDENTITY),
     ("curve_pair/pose.rs: row", FORWARDS),
     ("curve_pair/walk.rs: name", FORWARDS),
     ("curve_pair/walk.rs: row", FORWARDS),
@@ -153,12 +160,21 @@ const INDIRECT: &[(&str, &str)] = &[
     ("dihedral_side.rs: name", FORWARDS),
     ("edge_nurbs.rs: Interval::from_bounds(0.0, 0.0)", NOT_A_NAME),
     ("edge_nurbs.rs: end", NOT_A_NAME),
-    ("edge_nurbs.rs: geom_core::test_support::refused_point(0.0)", NOT_A_NAME),
+    (
+        "edge_nurbs.rs: geom_core::test_support::refused_point(0.0)",
+        NOT_A_NAME,
+    ),
     ("edge_nurbs.rs: name", FORWARDS),
     ("edge_nurbs.rs: predicate", FORWARDS),
-    ("enters.rs: Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm)", NOT_A_NAME),
+    (
+        "enters.rs: Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm)",
+        NOT_A_NAME,
+    ),
     ("enters.rs: name", FORWARDS),
-    ("enters.rs: parting(bend, reference_normal.vec(), arm)", NOT_A_NAME),
+    (
+        "enters.rs: parting(bend, reference_normal.vec(), arm)",
+        NOT_A_NAME,
+    ),
     ("half_angle.rs: ROWS.side", ROW_FIELD),
     ("half_angle.rs: meter.row", ROW_FIELD),
     ("half_angle.rs: row", FORWARDS),
@@ -168,17 +184,26 @@ const INDIRECT: &[(&str, &str)] = &[
     ("intersect.rs: a", NOT_A_NAME),
     ("intersect.rs: c1", NOT_A_NAME),
     ("intersect.rs: name", FORWARDS),
-    ("ladder.rs: name", FORWARDS),
-    ("ladder.rs: read_identity#1(data.iter().map(|&(n, m)| (n, Margin::of(m))))", IDENTITY),
-    ("ladder.rs: read_identity#2(data.iter().map(|&(n, m)| (n, Margin::of(Probe(m)))))", IDENTITY),
-    ("locus.rs: [internal, \"tangent_locus_internal_gap_floor\"]", PAIRED),
+    (
+        "locus.rs: [internal, \"tangent_locus_internal_gap_floor\"]",
+        PAIRED,
+    ),
     ("offset_meters.rs: meter.predicate()", CLOSED_TYPE),
     ("pair_section.rs: a", NOT_A_NAME),
     ("pair_section.rs: decision.name()", CLOSED_TYPE),
-    ("pair_section.rs: geom::Line { origin, dir: axis }", NOT_A_NAME),
+    (
+        "pair_section.rs: geom::Line { origin, dir: axis }",
+        NOT_A_NAME,
+    ),
     ("pair_section.rs: name", FORWARDS),
-    ("pair_section/cylinders.rs: CcDecision::Radius.name()", CLOSED_TYPE),
-    ("pair_section/cylinders.rs: [decision.name(), decision.floor()]", PAIRED),
+    (
+        "pair_section/cylinders.rs: CcDecision::Radius.name()",
+        CLOSED_TYPE,
+    ),
+    (
+        "pair_section/cylinders.rs: [decision.name(), decision.floor()]",
+        PAIRED,
+    ),
     ("pair_section/cylinders.rs: decision.name()", CLOSED_TYPE),
     ("pair_section/cylinders.rs: lines", NOT_A_NAME),
     ("pair_section/gap.rs: name", FORWARDS),
@@ -187,14 +212,23 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pair_section/gap.rs: self.rows.gap", ROW_FIELD),
     ("pair_section/gap.rs: self.rows.monotone", ROW_FIELD),
     ("pair_section/gap.rs: self.rows.smooth", ROW_FIELD),
+    ("pair_section/gap.rs: self.rows.straddle", ROW_FIELD),
     ("pair_section/gap.rs: self.rows.turn", ROW_FIELD),
+    ("pair_section/ruling.rs: ", SAME_NAMED),
     ("pair_section/ruling.rs: a", NOT_A_NAME),
     ("pair_section/ruling.rs: name", FORWARDS),
     ("pair_section/ruling.rs: row.name()", CLOSED_TYPE),
+    ("pair_section/ruling.rs: row.straddle()", CLOSED_TYPE),
     ("pair_section/spline_implicit/sweep.rs: jets", NOT_A_NAME),
     ("pair_section/spline_implicit/sweep.rs: name", FORWARDS),
-    ("pair_section/torus.rs: [OFFSET, \"section_axes_offset_floor\"]", PAIRED),
-    ("pair_section/torus.rs: [WALL, \"section_torus_coaxial_wall_floor\"]", PAIRED),
+    (
+        "pair_section/torus.rs: [OFFSET, \"section_axes_offset_floor\"]",
+        PAIRED,
+    ),
+    (
+        "pair_section/torus.rs: [WALL, \"section_torus_coaxial_wall_floor\"]",
+        PAIRED,
+    ),
     ("pair_section/torus.rs: [row, floor_of(row)]", PAIRED),
     ("pair_section/torus.rs: name", FORWARDS),
     ("pair_section/torus_arms.rs: [far, floor]", PAIRED),
@@ -211,9 +245,11 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurve_cache/spline_incidence.rs: name", FORWARDS),
     ("props/closure.rs: name", FORWARDS),
     ("props/curved.rs: name", FORWARDS),
+    ("props/curved.rs: whole_name", FORWARDS),
     ("props/curved/turn_rows.rs: forward", FORWARDS),
     ("props/curved/turn_rows.rs: name", FORWARDS),
     ("props/curved/turn_rows.rs: winding", FORWARDS),
+    ("props/quad/rotational.rs: &entries", SAME_NAMED),
     ("props/quad/run.rs: name", FORWARDS),
     ("quartic.rs: rows.depth", ROW_FIELD),
     ("quartic.rs: rows.disc", ROW_FIELD),
@@ -227,6 +263,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ssi/boundary.rs: root", NOT_A_NAME),
     ("ssi/certify.rs: arm.sup", ROW_FIELD),
     ("ssi/certify.rs: arm.value", ROW_FIELD),
+    (
+        "ssi/certify.rs: value_limb: SsiLimb::ImageMiss",
+        STRUCT_UPDATE,
+    ),
     ("ssi/ends.rs: self.sys", NOT_A_NAME),
     ("ssi/handle.rs: self.sys", NOT_A_NAME),
     ("ssi/march.rs: sys", NOT_A_NAME),
@@ -247,7 +287,11 @@ const INDIRECT: &[(&str, &str)] = &[
 fn every_decided_name_is_read_and_every_site_is_listed() {
     let src = crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let census = predicate_census(&src, CARRIERS);
-    assert!(!census.names.is_empty(), "the census read no name in {}", src.display());
+    assert!(
+        !census.names.is_empty(),
+        "the census read no name in {}",
+        src.display()
+    );
     let violations = roster_violations(&src, &census, CARRIERS, Some(INDIRECT));
     assert!(violations.is_empty(), "{}", violations.join("\n"));
 }

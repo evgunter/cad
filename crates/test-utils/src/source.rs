@@ -2190,6 +2190,18 @@ pub fn declared_carriers(roster: &str) -> Vec<NameCarrier> {
     found.into_iter().map(|(_, carrier)| carrier).collect()
 }
 
+/// **The roster a crate runs, if it runs one**: the carriers
+/// `<crate>/tests/recourse_roster.rs` declares, where that file calls
+/// [`roster_violations`] in code; `None` where it does not, or there is
+/// no such file. The coverage row's one test of "runs a roster".
+#[must_use]
+pub fn crate_roster(crate_dir: &std::path::Path) -> Option<Vec<NameCarrier>> {
+    let text = std::fs::read_to_string(crate_dir.join("tests/recourse_roster.rs")).ok()?;
+    code_only(&text)
+        .contains("roster_violations(")
+        .then(|| declared_carriers(&text))
+}
+
 /// **Every plain string literal spelled in code under `src`** — not in
 /// a comment. What the coverage row asks of a crate that runs no
 /// roster yet: whether a name it cannot resolve is spelled there.
@@ -2906,11 +2918,7 @@ mod tests {
         )
         .expect("write");
         std::fs::write(dir.join("t.in"), "[1.0]\n").expect("write");
-        std::fs::write(
-            dir.join("b.rs"),
-            "fn g() {\n    include!(\"c.rs\");\n}\n",
-        )
-        .expect("write");
+        std::fs::write(dir.join("b.rs"), "fn g() {\n    include!(\"c.rs\");\n}\n").expect("write");
         std::fs::write(dir.join("c.rs"), "fn h() {}\n").expect("write");
         let census = super::predicate_census(&dir, &[]);
         let violations = super::roster_violations(&dir, &census, &[], None);
@@ -2918,7 +2926,59 @@ mod tests {
         let unwalked: Vec<&str> = census.unwalked.iter().map(String::as_str).collect();
         assert_eq!(unwalked, ["a.rs:2", "b.rs:2"], "{census:?}");
         assert_eq!(violations.len(), 1, "{violations:?}");
-        assert!(violations[0].contains("b.rs:2") && violations[0].contains("c.rs"), "{violations:?}");
+        assert!(
+            violations[0].contains("b.rs:2") && violations[0].contains("c.rs"),
+            "{violations:?}"
+        );
+    }
+
+    /// **A roster's carriers are read off its text, in order, and only a
+    /// file that calls the harness in code runs a roster**: a commented
+    /// call, or no file, is none.
+    #[test]
+    fn a_roster_is_read_off_its_text_and_runs_only_when_it_calls_the_harness() {
+        let text = "const C: &[NameCarrier] = &[\n\
+                    NameCarrier::Call(\"row_as\"),\n\
+                    // NameCarrier::Const(\"COMMENTED\"),\n\
+                    NameCarrier::Const(\"GAP\"),\n];\n";
+        let got: Vec<String> = super::declared_carriers(text)
+            .iter()
+            .map(|c| format!("{c:?}"))
+            .collect();
+        assert_eq!(got, [r#"Call("row_as")"#, r#"Const("GAP")"#], "{got:?}");
+        let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("tests")).expect("temp dir");
+        assert!(super::crate_roster(&dir).is_none(), "no file is no roster");
+        let roster = dir.join("tests/recourse_roster.rs");
+        std::fs::write(&roster, format!("{text}// roster_violations(&src)\n")).expect("write");
+        assert!(
+            super::crate_roster(&dir).is_none(),
+            "a commented call runs nothing"
+        );
+        std::fs::write(
+            &roster,
+            format!("{text}fn t() {{ roster_violations(&src); }}\n"),
+        )
+        .expect("write");
+        let carriers = super::crate_roster(&dir);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(carriers.map(|c| c.len()), Some(2));
+    }
+
+    /// **The literals a crate spells are its code's, not its prose's**: a
+    /// string in a comment is not spelled, and a `'"'` char opens none.
+    #[test]
+    fn the_spelled_literals_are_the_codes_alone() {
+        let dir = std::env::temp_dir().join(format!("tu-spelled-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "// \"in_prose\"\nfn f() { let q = '\"'; g(\"spelled\", q); }\n",
+        )
+        .expect("write");
+        let got = super::spelled_literals(&dir);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(got.into_iter().collect::<Vec<_>>(), ["spelled"]);
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the
