@@ -422,3 +422,38 @@ fn horn() -> geom_brep::TorusRefusal {
         }),
     }
 }
+
+/// **A line's wedge unread on a torus outside the ring convention renders
+/// through the convention's home** ([`BooleanError::LineWedges`]): the
+/// Boolean reads the line on a result whose operands a dual never put
+/// through tier 3, so its sentence is the half's own clause and lever,
+/// on either half, and never the kernel's.
+#[test]
+fn a_line_wedge_on_an_invalid_torus_ends_on_its_half() {
+    use crate::face_normal::{NORMAL_INVALID_INPUTS, NormalAbort};
+    let at = geom_brep::recourse::ReadAt::from(geom_brep::recourse::Reading::Build);
+    for abort in NORMAL_INVALID_INPUTS {
+        let NormalAbort::InvalidInput {
+            convention,
+            verdict,
+        } = abort
+        else {
+            panic!("{abort:?} is an invalid input")
+        };
+        let text = BooleanError::LineWedges {
+            fault: super::LineWedgeFault::Unread {
+                edge: EdgeKey::default(),
+                why: crate::link::TouchUnread::NormalFault(abort),
+            },
+            from: "(0, 0, 0)".to_owned(),
+            to: "(1, 0, 0)".to_owned(),
+        }
+        .render(geom_brep::recourse::Reading::Build);
+        assert!(
+            text.contains(convention.refused("its", verdict).as_str())
+                && text.ends_with(convention.sized().recourse(verdict.arm(), at).as_str())
+                && !text.contains(geom_core::KERNEL_DEFECT_ENDING),
+            "{convention:?}: {text}"
+        );
+    }
+}

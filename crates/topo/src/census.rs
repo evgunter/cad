@@ -7770,11 +7770,16 @@ mod normal_fault_rows {
 /// holds at a certifying scalar only: a dual's finished body is a
 /// [`crate::Replay`], tier 2 alone, and holds for it because the census
 /// does not run at a dual at all (`AtRestPolicy for Dual`: its
-/// `census_at_rest` and `flush_at_rest` are empty). Asked only by
-/// readers the census runs at rest alone: the flush pairs' meeting
-/// ([`normal_at`]) and the overlap closure. [`wedge`], which the Boolean
-/// also reads on a result whose operands may hold such a torus, carries
-/// the row instead ([`TouchUnread::NormalFault`]).
+/// `census_at_rest` and `flush_at_rest` are empty). The premise covers
+/// exactly the readers the census runs at rest alone: the flush pairs'
+/// meeting ([`normal_at`]) and the overlap closure, which ask this, and
+/// the cross-solid backstop, whose sentence for either row of
+/// [`TouchUnread::NormalFault`] is the kernel's
+/// (`TouchUnread::backstop_sentence`). [`wedge`], which the Boolean also
+/// reads on a result whose operands may hold such a torus (at a dual,
+/// tier 2 alone), carries the row instead, and its touch sentences render
+/// an invalid input through the convention's own clause and lever
+/// (`TouchUnread::sentence`).
 fn at_rest_fault(why: &crate::face_normal::NormalAtError) -> bool {
     why.standing().is_err()
 }
