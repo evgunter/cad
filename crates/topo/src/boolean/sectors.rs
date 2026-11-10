@@ -1051,8 +1051,8 @@ impl PairRecord {
 ///
 /// Sense-invariant given the sector: `start`/`end` are traversal-
 /// derived and `normal` already carries the sense, and `revert` flips
-/// both together — a second sense fold here would cancel
-/// [`sector_face`]'s and turn every membership test inside out.
+/// both together — a second sense fold here would cancel the one the
+/// sector's face was read with and turn every membership test inside out.
 pub(super) fn within<T: Decide>(
     s: &BoolSector<T>,
     dir: Vec3<T>,

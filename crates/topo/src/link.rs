@@ -125,7 +125,7 @@ const LINK_PIECE_MEET: &str = "link_piece_meet";
 const LINK_BALL: &str = "link_offset_ball";
 /// K name: a point's distance from the piece of a link's boundary it is
 /// nearest, and two points of a segment's distance apart, in metres
-/// ([`Link::lowest_on`]'s ties, [`Cone::touches`]' rays), each a norm
+/// ([`Link::lowest_on`]'s ties, [`Link::touches`]' rays), each a norm
 /// ([`metric::Distance::apart`]).
 const LINK_TIE: &str = "link_offset_tie";
 /// K name: a point of a link's boundary, or the lowest of a segment of
@@ -1532,7 +1532,7 @@ fn wedge_distance<T: Decide>(
 /// *point's* offset across the plane through `p` square to the direction
 /// to `r`, in metres (the direction is normalized here), and it is a
 /// different decision in two ways:
-/// - it is decided through [`metric::settle`]'s [`Reading`], whose slack
+/// - it is decided through [`metric::settle_as`]'s [`Reading`], whose slack
 ///   must hold the sign over every sector within the tie. The ahead line
 ///   turns with the ray through the tie ([`Reading::tied`]), and a metre
 ///   slack moves only a margin in metres;
