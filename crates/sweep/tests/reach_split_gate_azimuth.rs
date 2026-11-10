@@ -42,6 +42,10 @@ struct Fixture {
     arc: ((f64, f64), f64, (f64, f64)),
 }
 
+/// **The far scale**, `reach_split_gate_pose`'s: a posed fixture lies
+/// within 805 m, in the 1 km session box (`[tolerance.units]`).
+const FAR: f64 = 350.0;
+
 /// The sphere of radius 5/4 about `(0, 1/4)`.
 const R: f64 = 1.25;
 const CY: f64 = 0.25;
@@ -460,7 +464,7 @@ fn posed_bodies(f: &Fixture, s: f64) -> Vec<(&'static str, Affine3<f64>, AtRestB
 fn probe() {
     for f in fixtures() {
         let sigma = sense(&build(&f, 1.0), f.theta);
-        for s in [1e-3, 1.0, 1e3] {
+        for s in [1e-3, 1.0, FAR] {
             for (pose, map, posed) in posed_bodies(&f, s) {
                 let mut t = Tally::default();
                 for (n, d) in planes(&f, sigma) {
@@ -573,7 +577,7 @@ fn every_cut_clear_of_a_partial_turn_sphere_face_splits_row() {
                 f.name
             );
         }
-        for s in [1e-3, 1.0, 1e3] {
+        for s in [1e-3, 1.0, FAR] {
             let posed = posed_bodies(&f, s);
             if posed.is_empty() {
                 continue;

@@ -455,7 +455,6 @@ fn review_4781_touch_pairs_every_op_row() {
 /// limb 2's kernel limit first at ε = 1e-12.)
 #[test]
 fn a_touch_pair_past_the_session_box_is_refused_by_it() {
-    use ::profile::RawLoop as _;
     let shape = touch_pairs()
         .into_iter()
         .flat_map(|(_, a, b)| [a, b])
@@ -464,26 +463,9 @@ fn a_touch_pair_past_the_session_box_is_refused_by_it() {
     let Shape::Box { x, y, z } = shape.scaled(1001.0 / shape.reach()) else {
         unreachable!("a box scaled is a box");
     };
-    let profile = Profile::new(
-        sketch_at(z.0),
-        vec![::profile::ProfileLoop::polygon(
-            [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
-                .into_iter()
-                .map(|(u, v)| geom_core::Point2::new(u, v)),
-        )],
-    )
-    .validate(tol())
-    .unwrap();
     crate::common::refused_by_the_session_box(
         "the box reaching 1001 m",
-        extrude(
-            &profile,
-            Extrusion::Distance {
-                depth: z.1 - z.0,
-                side: ExtrudeSide::Along,
-            },
-            tol(),
-        ),
+        crate::common::brick_door(x, y, z),
     );
 }
 

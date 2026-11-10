@@ -928,3 +928,32 @@ pub fn refused_by_the_session_box<T, E: core::fmt::Display + core::fmt::Debug>(
         "{what}: the door refuses by the session box, with its recourse: {said}\n{e:?}"
     );
 }
+
+/// The extrude door's answer on the brick `x × y × z`, its refusal
+/// handed back: a planar body for a row that pins a refusal no curved
+/// carrier's own limit reads first.
+pub fn brick_door(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+) -> Result<sweep::Extruded<f64>, sweep::ExtrudeError> {
+    let tol = Tol::witness();
+    let profile = Profile::new(
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, z.0)),
+        vec![ProfileLoop::polygon(
+            [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
+                .into_iter()
+                .map(|(u, v)| Point2::new(u, v)),
+        )],
+    )
+    .validate(tol)
+    .expect("the brick's rectangle is a valid profile");
+    sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance {
+            depth: z.1 - z.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+}
