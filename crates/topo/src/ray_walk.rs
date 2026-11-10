@@ -341,10 +341,13 @@ impl<T: Decide, H> Crossings<T, H> {
         let gap =
             |k: usize, b: usize| decide(order, Margin::of(self.ahead[k].0 - self.ahead[b].0), band);
         // Not the decided argmin (`scripts/gates/argmin-folds.tsv`,
-        // nearest-unique): the closest must be decided apart from every
-        // other crossing, a tie with it a graze, while the set rule would
-        // pass a tie between two crossings beyond it. The scan only names
-        // a candidate; the pass below certifies it against every other.
+        // nearest-unique): the closest is certified against EVERY other
+        // crossing, a tie or a reversal with it a graze and an undecided
+        // pair with it the ray's in-band refusal. The set rule asks less:
+        // it reads every pair, and a tie or an undecided pair between two
+        // crossings both beaten would end the door's read, where here it
+        // is never read as one. The scan only names a candidate; the pass
+        // below certifies it against every other.
         let mut best = 0;
         for k in 1..self.ahead.len() {
             if gap(k, best) == Ok(Sign::Negative) {

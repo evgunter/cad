@@ -2056,12 +2056,10 @@ fn nearest_of<T: Decide, C>(
     argmin_decided(cands, |a, b| sign(a.0, b.0).map_err(kept), FreeOf::Nothing).map_err(
         |unpicked| {
             *unpicked.refusal(
-                |_| Box::new(BooleanError::JoinPartnersTied),
-                || {
-                    Box::new(BooleanError::ClassificationInvariant {
-                        what: "the join's nearest-partner comparison ranks in a cycle",
-                    })
-                },
+                || Box::new(BooleanError::JoinPartnersTied),
+                // The half-turn, then the chord: a lexicographic of two
+                // orders by one quantity each, which ranks in no cycle.
+                || unreachable!("the join's nearest-partner order ranks in no cycle"),
             )
         },
     )
@@ -2394,11 +2392,13 @@ fn first_pair<T: Decide>(
     // germ, at one distance, and would read tied with itself. Its entry
     // met first in scan order stands for it.
     // The entry dropped stands for the one kept only where the two read
-    // one distance, which `partners` builds them to: checked, so a pair
-    // read two ways is a desync (`JoinDesync`), and a poisoned reading on
-    // either side escalates, rather than being discarded unread. A decided
-    // `Zero` is superseded (the pick does not rest on it); any other
-    // reading the refusal rests on, live.
+    // one distance, which `partners` builds them to, and it is checked
+    // rather than discarded unread. A decided `Zero` is superseded (the
+    // pick does not rest on it). A poisoned reading (or an enclosure
+    // straddling the band's edge) escalates on its margin, so the poison
+    // stays visible. Any other difference, in band or decided, is a pair
+    // read two ways: a desync (`JoinDesync`). The refusal's reading is
+    // spliced live.
     for (germ, &(at, reach, (partner, _))) in &own {
         let Some(&(back_at, back_reach, (back, _))) = own.get(&partner) else {
             continue;
@@ -2409,13 +2409,11 @@ fn first_pair<T: Decide>(
         let (same, log) = geom_core::k_stats::detached(|| nearest_sign(reach, back_reach, band));
         match same {
             Ok(Sign::Zero) => geom_core::k_stats::splice_superseded(log),
-            // A poisoned or undecided reading escalates as the argmin's
-            // own would: the poison is the reading's, and stays visible.
-            Err(diag) => {
+            Err(diag) if !geom_core::ladder::in_band(&diag) => {
                 geom_core::k_stats::splice(log);
                 return Err(join_escalate(diag));
             }
-            Ok(Sign::Negative | Sign::Positive) => {
+            Err(_) | Ok(Sign::Negative | Sign::Positive) => {
                 geom_core::k_stats::splice(log);
                 return Err(BooleanError::JoinDesync {
                     what: "a mutual pair's two entries read different distances",
@@ -2440,12 +2438,10 @@ fn first_pair<T: Decide>(
         .map(|best| best.map(|(_, _, m)| m))
         .map_err(|unpicked| {
             *unpicked.refusal(
-                |_| Box::new(BooleanError::JoinPairsTied),
-                || {
-                    Box::new(BooleanError::ClassificationInvariant {
-                        what: "the join's pair order ranks in a cycle",
-                    })
-                },
+                || Box::new(BooleanError::JoinPairsTied),
+                // One partner distance against another, as `nearest_of`
+                // reads it: a lexicographic order, which ranks in no cycle.
+                || unreachable!("the join's pair order ranks in no cycle"),
             )
         })
 }
@@ -7840,10 +7836,10 @@ mod first_pair_rows {
 
     /// **A mutual pair's two entries must read one distance**
     /// ([`first_pair`]): the entry dropped stands for the one kept only
-    /// where they decide `Zero` apart. Two entries a band apart refuse as
-    /// a desync, and a poisoned chord on the entry dropped escalates on
-    /// its margin, rather than either being discarded unread. Red where
-    /// the dropped entry is not read.
+    /// where they decide `Zero` apart. Two entries decided apart, or in
+    /// band of each other, refuse as a desync, and a poisoned chord on the
+    /// entry dropped escalates on its margin, rather than either being
+    /// discarded unread. Red where the dropped entry is not read.
     #[test]
     fn a_mutual_pairs_two_entries_read_one_distance_or_desync() {
         let band = Band::new(1e-6, 1e-5).unwrap();
@@ -7858,7 +7854,15 @@ mod first_pair_rows {
             met(4, d, c, 1.0),
         ]);
         let got = first_pair(apart, band);
-        assert!(desync(&got), "two entries a band apart: {got:?}");
+        assert!(desync(&got), "two entries decided apart: {got:?}");
+        let close = by_germ(vec![
+            met(1, a, b, 3.0),
+            met(2, b, a, 3.0 + 4e-6),
+            met(3, c, d, 1.0),
+            met(4, d, c, 1.0),
+        ]);
+        let got = first_pair(close, band);
+        assert!(desync(&got), "two entries in band of each other: {got:?}");
         let poisoned = by_germ(vec![
             met(1, a, b, 3.0),
             met(2, b, a, f64::NAN),

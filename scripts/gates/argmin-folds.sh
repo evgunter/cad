@@ -20,10 +20,12 @@
 #
 # THE CLASSES. Each row names one; the class says why the site is not
 # the door's question.
-#   nearest-unique  a nearest that must be decided apart from EVERY other
-#                   candidate, a tie with the winner a refusal of its own
-#                   kind (`ray_walk::Crossings::closest`'s graze), where
-#                   the set rule would let a tie between losers pass
+#   nearest-unique  a nearest certified against EVERY other candidate, a
+#                   tie with it a refusal of its own kind and an undecided
+#                   pair with it the site's in-band refusal
+#                   (`ray_walk::Crossings::closest`'s graze), where the
+#                   set rule reads every pair and ends on a tie or an
+#                   undecided pair between two candidates both beaten
 #   cluster         the least cluster of spans, where a tie joins the
 #                   cluster rather than contesting the minimum
 #                   (`ray_walk::Crossings::first_count`)
@@ -38,23 +40,30 @@
 #   pair            two candidates read by one decided comparison, its
 #                   tie and its undecided reading each the site's own
 #                   refusal: an argmin of two is that comparison
+#   recompute       one value re-read and replaced by a recomputation of
+#                   itself; no two candidates compared (the fold's shape,
+#                   with no minimum in it)
 #
 # WHAT IS A FOLD (a heuristic; its blind spots below). In a production
 # function, a binding declared `let mut NAME` that is reassigned
 # (`NAME = …`, or `NAME.0 = …`, not `==`) within six lines after a
 # decided call (`decide(`, `decide_reported(`, `decide_magnitude(`,
-# `prove(`, `sign_within(`, `nearest_sign(`, `along_sign(`, and the
-# named deciding helper `lex_less(`) whose
-# argument text names NAME: the fold compares a candidate against its
+# `prove(`, `sign_within(`, `nearest_sign(`, `along_sign(`, the
+# named deciding helper `lex_less(`, and every local closure of the
+# function whose own text makes one of these calls, `let cmp = |a, b|
+# decide(..)`, a closure over such a closure counting too) whose
+# argument text names NAME, or what an `Option` incumbent is read
+# through (the bindings of `Some(..) = NAME` and of a `match NAME`'s
+# `Some(..)` arms): the fold compares a candidate against its
 # incumbent. ALSO, by name alone: a `let mut` binding named best, least,
 # nearest, closest, incumbent, winner or min, in a function holding a
 # loop and a decided call. Each (file, function) counts its matching
 # bindings once.
 #
 # BLIND SPOTS, stated as this gate's own: a fold whose comparison is
-# a helper's that the list above does not name, and whose binding has
-# none of the names above; a fold over `.min_by`/`.fold`
-# with a decided closure; an incumbent reassigned more than six lines
+# a helper's that the list above does not name (a fn, not a local
+# closure), and whose binding has none of the names above; a fold over
+# `.min_by`/`.fold` with a decided closure; an incumbent reassigned more than six lines
 # after its comparison; a call through a path or a macro. A raised
 # count, a new row, or a class changed within a row passes here; the
 # table's diff is read in review, and that is where it is held.
@@ -79,7 +88,7 @@ import glob, os, re, sys
 
 table_path = sys.argv[1]
 EXEMPT = {"crates/geom-core/src/ladder.rs"}
-CLASSES = {"nearest-unique", "cluster", "refusal-only", "pair", "lex-total"}
+CLASSES = {"nearest-unique", "cluster", "refusal-only", "pair", "lex-total", "recompute"}
 TEST_NAME = re.compile(r"(?:_rows|_fuzz)\.rs$|^test_support")
 # The decided calls, and the named helpers that decide (a helper's own
 # decide is in another function, out of this gate's sight).
@@ -182,8 +191,58 @@ def functions(text):
     return out
 
 
+CLOSURE = re.compile(r"\blet\s+(\w+)\s*(?::[^=]*)?=\s*(?:move\s*)?\|")
+
+
+def statement_end(text, at):
+    """The index of the `;` ending the statement that starts at `at`, at
+    depth zero in braces, parentheses and brackets."""
+    depth = 0
+    for i in range(at, len(text)):
+        c = text[i]
+        if c in "({[":
+            depth += 1
+        elif c in ")}]":
+            depth -= 1
+        elif c == ";" and depth == 0:
+            return i
+    return len(text)
+
+
+def deciding(body):
+    """The decided calls in `body`: the list above, and every local
+    closure whose own text makes one (`let cmp = |a, b| decide(..)`),
+    taken to a fixpoint, so a closure over a closure counts."""
+    names = set()
+    while True:
+        extra = "|".join(re.escape(n) for n in sorted(names))
+        pattern = re.compile(DECIDED.pattern[:-len(r")\s*\(")] + ("|" + extra if extra else "") + r")\s*\(")
+        grown = set(names)
+        for m in CLOSURE.finditer(body):
+            if pattern.search(body[m.end():statement_end(body, m.end())]):
+                grown.add(m.group(1))
+        if grown == names:
+            return pattern
+        names = grown
+
+
+def aliases(body, name):
+    """`name` and what an `Option` incumbent is read through: the
+    bindings of `Some(..) = name` (`if let`, `let .. else`, `while let`)
+    and of `Some(..) =>` arms of a `match name`."""
+    out = {name}
+    for m in re.finditer(r"Some\(([^=;{}]*?)\)\s*=\s*&?\s*(?:mut\s+)?" + re.escape(name) + r"\b", body):
+        out.update(w for w in re.findall(r"\b[a-z_]\w*\b", m.group(1)) if w not in ("mut", "ref", "_"))
+    for m in re.finditer(r"\bmatch\s+&?\s*(?:mut\s+)?" + re.escape(name) + r"\b\s*\{", body):
+        arms = body[m.end():matching(body, m.end() - 1)]
+        for a in re.finditer(r"Some\(([^=;{}]*?)\)\s*(?:if\b[^=]*)?=>", arms):
+            out.update(w for w in re.findall(r"\b[a-z_]\w*\b", a.group(1)) if w not in ("mut", "ref", "_"))
+    return out
+
+
 def folds(body):
     lines = body.split("\n")
+    decided = deciding(body)
     found = set()
     for m in re.finditer(r"\blet\s+mut\s+(\w+)", body):
         name = m.group(1)
@@ -191,20 +250,20 @@ def folds(body):
             continue
         decl_line = body.count("\n", 0, m.start())
         assign = re.compile(r"(?<![\w.])" + re.escape(name) + r"(?:\.\d+)?\s*=(?!=)")
-        uses = re.compile(r"\b" + re.escape(name) + r"\b")
+        uses = re.compile(r"\b(?:" + "|".join(re.escape(a) for a in sorted(aliases(body, name))) + r")\b")
         hit = False
         for i in range(decl_line + 1, len(lines)):
             if not assign.search(lines[i]):
                 continue
             window = "\n".join(lines[max(decl_line + 1, i - 6):i + 1])
-            for d in DECIDED.finditer(window):
+            for d in decided.finditer(window):
                 close = matching_paren(window, d.end() - 1)
                 if uses.search(window[d.end():close]):
                     hit = True
                     break
             if hit:
                 break
-        if not hit and name in NAMES and LOOP.search(body) and DECIDED.search(body):
+        if not hit and name in NAMES and LOOP.search(body) and decided.search(body):
             hit = True
         if hit:
             found.add(name)
@@ -233,16 +292,17 @@ for path, text in code.items():
         test_only.add(os.path.join(base, m.group(1) + ".rs"))
         test_dirs.add(os.path.join(base, m.group(1)) + os.sep)
 
-counts = {}
+counts, bindings = {}, {}
 for path in files:
     if (path in EXEMPT or path in test_only or TEST_NAME.search(os.path.basename(path))
             or any(path.startswith(d) for d in test_dirs)):
         continue
     for fn, body in functions(without_test_mods(code[path])):
-        n = len(folds(body))
-        if n:
+        found = folds(body)
+        if found:
             key = (path, fn)
-            counts[key] = counts.get(key, 0) + n
+            counts[key] = counts.get(key, 0) + len(found)
+            bindings.setdefault(key, set()).update(found)
 
 table, bad = {}, []
 with open(table_path, encoding="utf-8") as fh:
@@ -266,7 +326,7 @@ for b in bad:
 for key in sorted(set(counts) | set(table)):
     now, was = counts.get(key, 0), table.get(key, 0)
     if now > was:
-        print(f"ROSE {key[0]} {key[1]}: {was} -> {now}")
+        print(f"ROSE {key[0]} {key[1]}: {was} -> {now} (`let mut` {', '.join(sorted(bindings[key]))})")
     elif now < was:
         print(f"FELL {key[0]} {key[1]}: {was} -> {now}")
 print(f"TOTAL {sum(counts.values())}")
@@ -310,9 +370,33 @@ plant_renamed_fold() {
   printf 'pub fn pick(xs: &[f64]) -> usize {\n    let mut keep = 0;\n    for i in 1..xs.len() {\n        if decide("row", Margin::of(xs[i] - xs[keep]), band) == Ok(Sign::Negative) {\n            keep = i;\n        }\n    }\n    keep\n}\n' >> "$1/crates/clean/src/lib.rs"
 }
 
+# A fold through a local deciding closure, its incumbent an `Option`
+# read through `if let Some(..)` (the old `first_pair`'s shape).
+plant_closure_option_fold() {
+  printf 'pub fn pick(xs: &[f64]) -> Option<f64> {\n    let nearer = |a: f64, b: f64| decide("row", Margin::of(a - b), band);\n    let cmp = |a: f64, b: f64| nearer(a, b);\n    let mut cur = None;\n    for &x in xs {\n        if let Some(c) = cur {\n            if cmp(x, c) == Ok(Sign::Negative) {\n                cur = Some(x);\n            }\n        } else {\n            cur = Some(x);\n        }\n    }\n    cur\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
 plant_at_table() {
   printf 'crates/clean/src/lib.rs pick 1 nearest-unique\n' >> "$1/$TABLE"
   plant_fold "$1"
+}
+
+# A recompute: one value re-read, and replaced by a recomputation of
+# itself. At its `recompute` row it passes.
+plant_recompute() {
+  printf 'pub fn axis(a: f64, b: f64) -> f64 {\n    let mut k = a;\n    if decide("row", Margin::of(k), band) == Ok(Sign::Zero) {\n        k = b;\n    }\n    k\n}\n' >> "$1/crates/clean/src/lib.rs"
+}
+
+plant_recompute_at_row() {
+  printf 'crates/clean/src/lib.rs axis 1 recompute\n' >> "$1/$TABLE"
+  plant_recompute "$1"
+}
+
+# Past the line: the same function also keeps an incumbent across a
+# comparison of two candidates, and its count rises past the row.
+plant_recompute_and_fold() {
+  printf 'crates/clean/src/lib.rs axis 1 recompute\n' >> "$1/$TABLE"
+  printf 'pub fn axis(xs: &[f64], b: f64) -> f64 {\n    let mut k = xs[0];\n    if decide("row", Margin::of(k), band) == Ok(Sign::Zero) {\n        k = b;\n    }\n    let mut best = 0;\n    for i in 1..xs.len() {\n        if decide("row", Margin::of(xs[i] - xs[best]), band) == Ok(Sign::Negative) {\n            best = i;\n        }\n    }\n    k + xs[best]\n}\n' >> "$1/crates/clean/src/lib.rs"
 }
 
 plant_stale_row() {
@@ -341,11 +425,15 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_case "fold keeping an incumbent" plant_fold
   gate_selftest_case "fold keeping an incumbent" plant_renamed_fold
+  gate_selftest_case "fold keeping an incumbent" plant_closure_option_fold
+  gate_selftest_case "fold keeping an incumbent" plant_recompute
+  gate_selftest_case "fold keeping an incumbent" plant_recompute_and_fold
   gate_selftest_case "went away" plant_stale_row
   gate_selftest_case "is not a class" plant_bad_class
   gate_selftest_passes "a fold at its row" plant_at_table
+  gate_selftest_passes "a recompute at its row" plant_recompute_at_row
   gate_selftest_passes "comments, strings, test modules, rows files, the door's file, a plain minimum and a decided filter" plant_not_folds
-  printf '%s selftest OK: passes a clean fixture, a fold at its row, and non-folds (comments, strings, test modules, rows files, the door, a plain minimum, a decided filter); fires on a new fold, a renamed one, a stale row and an unknown class\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a fold at its row, a recompute at its row, and non-folds (comments, strings, test modules, rows files, the door, a plain minimum, a decided filter); fires on a new fold, a renamed one, one through a local closure over an Option incumbent, an unregistered recompute, a fold beside a registered recompute, a stale row and an unknown class\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

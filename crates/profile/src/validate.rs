@@ -2204,9 +2204,11 @@ fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>) -> Result<bool, Escalation> {
 /// **Not the decided argmin** (`scripts/gates/argmin-folds.tsv`,
 /// lex-total): the order is strict and total on what this fold reads, so
 /// the fold's n − 1 reads find the minimum the door's every-pair read
-/// would. Validation's simplicity pass runs first and refuses two
-/// vertices of one loop tied in both x and y (within `√2·zero` of each
-/// other, a contact), so no two vertices tie; every undecided read
+/// would. Its band is `prove`'s hairline (the exact-order band, module
+/// docs), not the tolerance band: a tie there is two coordinates at most
+/// a minimum subnormal apart. Validation's simplicity pass runs first
+/// and refuses two vertices of one loop that close (a contact), so no
+/// two vertices tie in both x and y; every undecided read
 /// escalates (`?`); and a strict total order's minimum is unique and the
 /// same in every order of the vertices. What can depend on the vertices'
 /// order is *which* undecided read refuses, since the fold reads n − 1

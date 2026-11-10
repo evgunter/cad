@@ -52,6 +52,7 @@ use super::{
 use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::ray_walk::RayFault;
+use crate::side_reader::MarkKind;
 use crate::validate::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
@@ -210,16 +211,12 @@ pub(super) fn read<T: Decide>(
                 nearest(&cb, (lo, hi), band, rows),
             ) {
                 (Nearest::Cross(xa), Nearest::Cross(xb)) => (xa, xb),
-                (Nearest::Fatal(diag), _) | (_, Nearest::Fatal(diag)) => {
-                    return Err(RayFault::Fatal(PointInSolidError::Escalated {
-                        face: faces[0],
-                        diag,
-                    }));
-                }
                 (Nearest::Order(gap), _) | (_, Nearest::Order(gap)) => {
-                    meets
-                        .marks
-                        .push(RayHit::marked(faces, at, Mark::Order(gap)));
+                    meets.marks.push(RayHit::marked(
+                        faces,
+                        at,
+                        Mark::SetAside(MarkKind::Order, gap),
+                    ));
                     continue;
                 }
                 (Nearest::Graze, _) | (_, Nearest::Graze) => {
@@ -352,12 +349,11 @@ enum Nearest {
     /// No one is decided nearer than every other, on decided readings (a
     /// tie, or two crossings the span's ends order apart): the ray grazes.
     Graze,
-    /// An in-band reading is left in contention: the ray grazes, keeping
-    /// the margin ([`Mark::Order`]).
+    /// An in-band reading is left in contention, or a reading aborted (a
+    /// poison, an enclosure straddling the band's edge): the ray is set
+    /// aside in band, keeping the margin ([`MarkKind::Order`]), as the
+    /// module's every escalation on a ray is, and another ray may answer.
     Order(geom_core::Indeterminate),
-    /// A poisoned reading, or an enclosure straddling the band's edge:
-    /// the ray refuses the query ([`RayFault::Fatal`]).
-    Fatal(geom_core::Indeterminate),
 }
 
 /// The crossing of `cs` nearest the passage spanning `(lo, hi)` along
@@ -367,7 +363,7 @@ enum Nearest {
 /// of the span. Two crossings the two ends order apart are no nearer
 /// either way, a tie.
 fn nearest<T: Decide>(cs: &[(Cross, T)], (lo, hi): (T, T), band: Band, rows: RayRows) -> Nearest {
-    use geom_core::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
+    use geom_core::ladder::{FreeOf, Uncarried, Undecided, argmin_decided};
     let cmp = |&(_, t): &(Cross, T), &(_, u): &(Cross, T)| {
         let mut signs = [Sign::Zero; 2];
         for (k, at) in [lo, hi].into_iter().enumerate() {
@@ -386,14 +382,14 @@ fn nearest<T: Decide>(cs: &[(Cross, T)], (lo, hi): (T, T), band: Band, rows: Ray
     };
     match argmin_decided(cs.iter().copied(), cmp, FreeOf::Nothing) {
         Ok(Some((c, _))) => Nearest::Cross(c),
-        Ok(None) | Err(Unpicked::Contested { in_band: None, .. }) => Nearest::Graze,
-        Err(Unpicked::Contested {
-            in_band: Some(gap), ..
-        }) => Nearest::Order(gap),
-        Err(Unpicked::Aborted(diag)) => Nearest::Fatal(diag),
-        // Nearer from both ends is the meet of two orders by distance,
-        // which ranks in no cycle.
-        Err(Unpicked::Cyclic) => unreachable!("an order from two ends ranks in no cycle"),
+        Ok(None) => Nearest::Graze,
+        Err(unpicked) => match unpicked.carried() {
+            Ok(gap) => Nearest::Order(gap),
+            Err(Uncarried::Tied(_)) => Nearest::Graze,
+            // Nearer from both ends is the meet of two orders by distance,
+            // which ranks in no cycle.
+            Err(Uncarried::Cyclic) => unreachable!("an order from two ends ranks in no cycle"),
+        },
     }
 }
 
@@ -486,5 +482,87 @@ mod straddle_rows {
             ),
             "the ray grazes the arc's start"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod nearest_rows {
+    use super::{Cross, Nearest, nearest};
+    use crate::boolean::solid_contain::{Mark, RayHit};
+    use crate::entity::FaceKey;
+    use crate::ray_walk::RayFault;
+    use crate::side_reader::MarkKind;
+    use geom_core::Band;
+
+    const ZERO: f64 = 1e-9;
+
+    fn read(ts: &[f64], span: (f64, f64)) -> Nearest {
+        let band = Band::new(ZERO, 10.0 * ZERO).unwrap_or_else(|_| unreachable!("a valid band"));
+        let cs: Vec<(Cross, f64)> = ts
+            .iter()
+            .enumerate()
+            .map(|(k, &t)| (Cross::Root(k), t))
+            .collect();
+        nearest(&cs, span, band, crate::rows::SCHEDULE_RAY)
+    }
+
+    /// **A passage's nearest crossing is the one decided nearer from both
+    /// ends of its span**, and anything short of that sets the ray aside:
+    /// a decided tie grazes; a reading in band, or one that aborts (a
+    /// poisoned advance), keeps its margin as [`MarkKind::Order`] rather
+    /// than refusing the query, as every escalation on a ray in this
+    /// module does. Red if an aborted reading refuses the query, or an
+    /// in-band one reads as a plain graze.
+    #[test]
+    fn a_passages_nearest_crossing_is_decided_from_both_ends() {
+        let span = (1.0, 1.0);
+        assert!(matches!(
+            read(&[1.0, 3.0], span),
+            Nearest::Cross(Cross::Root(0))
+        ));
+        assert!(matches!(
+            read(&[3.0, 1.0], span),
+            Nearest::Cross(Cross::Root(1))
+        ));
+        assert!(
+            matches!(read(&[0.0, 2.0], span), Nearest::Graze),
+            "a decided tie"
+        );
+        assert!(
+            matches!(
+                read(
+                    &[1.0, 1.0 + 5.0 * ZERO],
+                    (1.0 - 2.0 * ZERO, 1.0 - 2.0 * ZERO)
+                ),
+                Nearest::Order(_)
+            ),
+            "a reading in band keeps its margin"
+        );
+        assert!(
+            matches!(read(&[1.0, f64::NAN], span), Nearest::Order(_)),
+            "a poisoned reading sets the ray aside, not the query"
+        );
+    }
+
+    /// **A ray set aside at an unordered crossing reads in band, by its
+    /// kind**: [`RayHit::unread`] hands the count's reader the mark's kind,
+    /// its faces and its margin. Red if an unordered crossing reads as a
+    /// graze, or as another kind.
+    #[test]
+    fn an_unordered_crossing_reads_in_band_by_its_kind() {
+        let band = Band::new(ZERO, 10.0 * ZERO).unwrap_or_else(|_| unreachable!("a valid band"));
+        let gap = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5.0 * ZERO),
+            band,
+            predicate: Some("ray_order"),
+            terminal_sliver: false,
+        };
+        let faces = [FaceKey::default(); 2];
+        let hit = RayHit::marked(faces, 1.0_f64, Mark::SetAside(MarkKind::Order, gap));
+        match RayHit::unread(&[&hit], |kind, _, g| (kind, g)) {
+            RayFault::InBand((MarkKind::Order, g)) => assert_eq!(g, gap),
+            _ => panic!("an unordered crossing reads in band as one"),
+        }
     }
 }

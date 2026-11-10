@@ -1336,7 +1336,7 @@ pub(crate) fn face_piece<T: Decide>(
             argmin_decided(passes, cmp, FreeOf::Ties)
                 .map_err(|unpicked| {
                     unpicked.refusal(
-                        |_| unreachable!("free of ties, an argmin with no in-band pair picks"),
+                        || unreachable!("free of ties, an argmin with no in-band pair picks"),
                         // The turn, then the side within one turn's
                         // half-plane: a total order, which ranks in no cycle.
                         || unreachable!("the turn order ranks in no cycle"),

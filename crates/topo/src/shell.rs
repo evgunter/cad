@@ -5390,7 +5390,7 @@ impl<T: Decide> MovedWall<T> {
             let least = argmin_decided(i..crossings.len(), cmp, FreeOf::Band)
                 .map_err(|unpicked| {
                     unpicked.refusal(
-                        |_| unreachable!("free of ties and in-band readings, an argmin picks"),
+                        || unreachable!("free of ties and in-band readings, an argmin picks"),
                         || unreachable!("one height's difference ranks in no cycle"),
                     )
                 })?
