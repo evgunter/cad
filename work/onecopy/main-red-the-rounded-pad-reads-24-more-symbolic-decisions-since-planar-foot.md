@@ -2,10 +2,12 @@
 id: main-red-the-rounded-pad-reads-24-more-symbolic-decisions-since-planar-foot
 kind: issue
 title: main red (slow set): m10_9_no_registrant_lies_on_any_measured_document reads r2_rounded_pad at 1684 symbolic against 1660 since PR 6594 (onecopy/planar-foot)
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: E
+closed: 2026-11-10
+pr: 6714
 ---
 
 

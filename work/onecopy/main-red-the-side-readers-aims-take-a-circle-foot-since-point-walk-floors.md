@@ -2,10 +2,12 @@
 id: main-red-the-side-readers-aims-take-a-circle-foot-since-point-walk-floors
 kind: issue
 title: main red (probe roster): side_reader_aims_ask_nothing's rod aims take a circle foot since PR 6645's circle floor reads an azimuth offset
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: E
+closed: 2026-11-10
+pr: 6714
 ---
 
 
