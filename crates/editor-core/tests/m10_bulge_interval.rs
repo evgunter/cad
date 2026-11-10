@@ -254,9 +254,9 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// 0/128, the `pcurve_*` rows about four in ten, `ssi_hull_sup` 36/4 ->
 /// 28/4, `carrier_matches_mapped_source` 18 symbolic fewer in both
 /// spellings, and the rest as listed. `pcurve_chart_radial_moving` loses
-/// 8/8 to it, 22/20 -> 14/12; main reads 4 of those decisions numeric
-/// since PR 6504 (`work/scalar/main-red-m10-bulge-d-tab-radial-moving-pcurve-chart-moved.md`),
-/// which this pin does not absorb.
+/// 8/8 to it: main pins it at 18/24 (four of PR 6504's decisions read
+/// numeric, the one ruling reading), and the carried verdict takes it to
+/// 10/16.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -287,7 +287,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
     ("pcurve_chart_placement", [0, 52]),
-    ("pcurve_chart_radial_moving", [14, 12]),
+    ("pcurve_chart_radial_moving", [10, 16]),
     // PCERT E1c (every mint reads incidence first, PR 5889):
     // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
     // and [28, 6] -> [20, 4].

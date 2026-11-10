@@ -803,9 +803,9 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x3700_6d9b_e14f_5fe1),
-    (1e-6, 0xb325_72bf_8aa8_e11a),
-    (1e-12, 0x8924_47df_da68_0a93),
+    (1e-9, 0xa0d7_e6f2_ebad_b6e3),
+    (1e-6, 0x775b_775d_2b61_74ab),
+    (1e-12, 0xc1d6_4e07_b160_29aa),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -870,7 +870,9 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// RE-PINNED when a copy moved into another frame came to carry its
 /// source's edge certificates rather than re-deriving them, which moves
 /// the `max_residual` the digest's edge `Debug` feeds. The solved maps
-/// themselves are main's bits: every one is composed as motions.
+/// themselves are main's bits: every one is composed as motions, and
+/// `m10_p_fence`'s geometry and evaluation fences hold at all three ε
+/// rows, so no point moved.
 #[test]
 fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

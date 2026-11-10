@@ -874,10 +874,14 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1529, 1382] -> [1573, 1500], the retries holding. Then ONEHOME
     // (`mate::solve::admitted` removed: a placement composed as motions
     // decides no rigidity margin): the pad's placement's seven
-    // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic.
+    // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic. Then
+    // ONEHOME's moved copy, its verdict carried and its edges not
+    // re-certified after the transform (`topo::FinishedBody::moved`):
+    // [1566, 1500] -> [1392, 1345], the retries holding, the same −174
+    // symbolic and −155 numeric `m10_9_pins_interval` reads off the pad.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1566, 1500, 34],
+        [1392, 1345, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -896,8 +900,9 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // decisions, as the shipped receipt's. Then the run in as its own
     // segment, as the shipped receipt's: [1495, 1416, 0] -> [1539, 1534, 0].
     // Then ONEHOME's seven rigidity margins, as the shipped receipt's:
-    // [1539, 1534, 0] -> [1532, 1534, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1532, 1534, 0]);
+    // [1539, 1534, 0] -> [1532, 1534, 0]. Then ONEHOME's moved copy, as the
+    // shipped receipt's: [1532, 1534, 0] -> [1358, 1379, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1358, 1379, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

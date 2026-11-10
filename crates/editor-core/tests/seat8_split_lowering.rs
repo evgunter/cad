@@ -424,13 +424,20 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// changes the edge curve's `Debug` the digest feeds. With that `Debug`
 /// written in main's shape every row here reproduces main's value at all
 /// three ε rows, so nothing else moved.
+///
+/// RE-BLESSED, `kitchen_sink` only, when a placed copy came to carry its
+/// source's edge certificates rather than re-deriving them after the
+/// transform (ONEHOME, `topo::FinishedBody::moved`): the digest feeds each
+/// edge's `Debug`, whose `max_residual` is now the source's. One value at
+/// every ε row, and no point moved: `m10_p_fence`'s geometry and
+/// evaluation fences held at 1e-9, 1e-6 and 1e-12.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x2e84_77bc_7b57_1d78_u64),
         ("part_select", 0x8429_e064_94cc_634d),
-        ("kitchen_sink", 0x9343_0074_7900_50e2),
+        ("kitchen_sink", 0x78c9_139b_a06d_2ba2),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
