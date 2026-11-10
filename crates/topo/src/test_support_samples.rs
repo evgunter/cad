@@ -246,7 +246,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v
 }
 
-fn uncrossable() -> crate::splitting::Uncrossable {
+pub(crate) fn uncrossable() -> crate::splitting::Uncrossable {
     crate::splitting::Uncrossable {
         r#loop: LoopKey::default(),
         edge: EdgeKey::default(),
