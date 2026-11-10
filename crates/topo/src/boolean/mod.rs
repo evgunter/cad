@@ -8516,7 +8516,26 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     use contain::CurvedPlacement;
     let inside = |i: usize, p, held: &mut Vec<E>| {
         let (body, face) = faces[i];
-        let why = match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
+        let probed = contain::face_placement(body, face, p, band, "bool_tangent_line_in_face");
+        if let Some(view) = body.face(face) {
+            crate::held::probe(
+                "line_through",
+                view.surface(),
+                p,
+                band,
+                &match &probed {
+                    Err(contain::PlacementError::Door(e)) => format!("Err({e:?})"),
+                    other => format!("{other:?}"),
+                },
+                || {
+                    format!(
+                        "{:?}",
+                        contain::placement_unheld(body, face, p, band).map(|(at, _, _)| at)
+                    )
+                },
+            );
+        }
+        let why = match probed {
             Ok(CurvedPlacement::Trim(Some(at))) => return Some(at == FaceContainment::In),
             Ok(CurvedPlacement::OffCarrier) => return Some(false),
             Ok(CurvedPlacement::Trim(None)) => FaceUnread::Trim,

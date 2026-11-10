@@ -130,3 +130,51 @@ impl<T: Decide> Held<T> {
         }
     }
 }
+
+/// PROBE, not for merge: at a site that states a carrier-held premise
+/// but reads through the unheld door, the residual's reading and both
+/// answers, appended to `$CAD_HELD_PROBE`.
+pub(crate) fn probe<T: Decide>(
+    site: &'static str,
+    surface: &Surface<T>,
+    at: Point3<T>,
+    band: Band,
+    old: &str,
+    new: impl FnOnce() -> String,
+) {
+    let Some(path) = std::env::var_os("CAD_HELD_PROBE") else {
+        return;
+    };
+    let (read, new) = geom_core::k_stats::unlogged("F38", || {
+        let residual = geom_brep::implicit_residual(surface, at);
+        let read = if residual.is_poison() {
+            "poison"
+        } else {
+            match geom_core::k_stats::check_unlogged(
+                "held_probe",
+                Margin::of(residual).value(),
+                band,
+                "F38",
+            ) {
+                Ok(Sign::Zero) => "zero",
+                Ok(_) => "off",
+                Err(_) => "band",
+            }
+        };
+        (read, new())
+    });
+    let line = format!(
+        "{site}\t{:?}\t{}\t{read}\t{}\t{old}\t{new}\n",
+        surface.kind(),
+        core::any::type_name::<T>(),
+        if old == new { "same" } else { "DIFF" },
+    );
+    use std::io::Write as _;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = f.write_all(line.as_bytes());
+    }
+}

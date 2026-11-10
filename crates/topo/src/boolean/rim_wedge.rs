@@ -618,7 +618,26 @@ fn contains<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, RimUnread> {
     let unread = |why| RimUnread::Unplaced { side, why };
-    let read = match face_placement(body, face, p, band, RIM_ON_PLANE) {
+    let probed = face_placement(body, face, p, band, RIM_ON_PLANE);
+    if let Some(view) = body.face(face) {
+        crate::held::probe(
+            "rim_wedge",
+            view.surface(),
+            p,
+            band,
+            &match &probed {
+                Err(super::contain::PlacementError::Door(e)) => format!("Err({e:?})"),
+                other => format!("{other:?}"),
+            },
+            || {
+                format!(
+                    "{:?}",
+                    super::contain::placement_unheld(body, face, p, band).map(|(at, _, _)| at)
+                )
+            },
+        );
+    }
+    let read = match probed {
         Ok(read) => read,
         // The boundary pass placed the point at an arc's end and clear of
         // its corners, two definite readings no verdict reconciles at this

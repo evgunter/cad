@@ -397,7 +397,26 @@ fn place<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<FaceContainment, OverlapRefusal> {
-    match face_placement(body, face, q, band, "bool_overlap_on_plane") {
+    let probed = face_placement(body, face, q, band, "bool_overlap_on_plane");
+    if let Some(view) = body.face(face) {
+        crate::held::probe(
+            "overlap",
+            view.surface(),
+            q,
+            band,
+            &match &probed {
+                Err(super::contain::PlacementError::Door(e)) => format!("Err({e:?})"),
+                other => format!("{other:?}"),
+            },
+            || {
+                format!(
+                    "{:?}",
+                    super::contain::placement_unheld(body, face, q, band).map(|(at, _, _)| at)
+                )
+            },
+        );
+    }
+    match probed {
         Ok(CurvedPlacement::Trim(Some(at))) => Ok(at),
         Ok(CurvedPlacement::Trim(None)) => Err(OverlapRefusal::Unread(OverlapUnread::RegionUnread)),
         Ok(CurvedPlacement::OffCarrier) => Err(OverlapRefusal::Unread(OverlapUnread::OffCarrier)),

@@ -34,9 +34,26 @@ fn placed<T: Decide>(
     node: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    match curved_face_placement(body, face, node, band)
-        .map_err(|e| super::reduce::esc(e, operand, face))?
-    {
+    let probed = curved_face_placement(body, face, node, band);
+    if let Some(view) = body.face(face) {
+        crate::held::probe(
+            "node",
+            view.surface(),
+            node,
+            band,
+            &match &probed {
+                Err(e) => format!("Err({e:?})"),
+                other => format!("{other:?}"),
+            },
+            || {
+                format!(
+                    "{:?}",
+                    super::contain::placement_unheld(body, face, node, band).map(|(at, _, _)| at)
+                )
+            },
+        );
+    }
+    match probed.map_err(|e| super::reduce::esc(e, operand, face))? {
         CurvedPlacement::Trim(Some(FaceContainment::Out)) => Ok(Placed::Out),
         CurvedPlacement::Trim(Some(FaceContainment::In)) => Ok(Placed::In),
         CurvedPlacement::Trim(Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))) => {
