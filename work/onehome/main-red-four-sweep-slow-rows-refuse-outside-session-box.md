@@ -48,3 +48,14 @@ None is BOXES'. (BOXES nightly-reds triage, 2026-11-09)
 ## Witness (ONECOPY, `onecopy/edge-ends-turns`, PR 6710, 2026-11-10)
 
 `reach_split_gate_azimuth::probe` and `reach_split_gate_pose::probe` (listed above) refuse with `NotFinished { OutsideSessionBox { margin −500 } }` at ε 1e-9 and 1e-6, on PR 6710's head and on main `7c1424abbfb`. Main was built fresh, in its own target directory. Both are `#[ignore]` measurement probes (`reach_split_gate_pose.rs:277`, `reach_split_gate_azimuth.rs:459`), not slow-set rows: `--run-ignored all` reaches them, `.config/nextest.toml` does not name them.
+
+## Witness (ONECOPY, `onecopy/slow-set-reach`, 2026-11-10)
+
+The whole slow set, run per crate on main `45185551` (a fresh build in its own target directory, default ε), reproduces six of this family's rows:
+- `a_lofted_lens_blade_certifies_its_sign::a_round_tube_certifies_its_sign_while_its_number_is_open`: `OutsideSessionBox` at margin −63000.
+- `germ_plane_torus_chord::a_tilted_cap_builds_its_true_body_wherever_its_origin_is_stored`: margin −3.0000000007.
+- `tcost_k3_certificate::a_refusing_arm_returns_no_properties_through_either_door`: margin −69710.68.
+- `tcost_k3_certificate::a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement`: margin −219710.68.
+- `sign_walk_plus_v::an_undecided_sign_with_the_schedule_run_out_refuses` and `::a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket`: fail at the fixture's `the strip lofts at every ε row` expect, the refusal the nightly reading above names.
+
+None is moved by that branch, which builds nothing.

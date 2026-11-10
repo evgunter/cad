@@ -4188,6 +4188,13 @@ pub enum BooleanError {
     /// capability gaps with a body defect, so the abort is not the class of every case it carries,
     /// and a ladder that reads one splits it first.
     JoinUndecided(edge_join::JoinUndecided),
+    /// **Two partners of a germ are decided equally near**, where no
+    /// proof frees the join's choice of them (`join::find_match`): the
+    /// join does not pick one by scan order. A precision limit (row
+    /// 1(b)): the two lie within the band's zero along the germ line
+    /// (`bool_join_nearest`, `bool_join_foot_travel`,
+    /// `bool_join_arc_travel`), so a tighter tolerance may part them.
+    JoinPartnersTied,
     /// **A curved join on a carrier the stage cannot run on.** The join
     /// restates the kept edge over both edges' span on its own carrier
     /// (`edge_join::joined_spec` says where the far parameter comes
@@ -4709,6 +4716,8 @@ pub enum BooleanErrorKind {
     Join,
     /// [`BooleanError::JoinUndecided`].
     JoinUndecided,
+    /// [`BooleanError::JoinPartnersTied`].
+    JoinPartnersTied,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
     /// [`BooleanError::CarryRefused`].
@@ -4985,6 +4994,7 @@ impl BooleanError {
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
+            Self::JoinPartnersTied => BooleanErrorKind::JoinPartnersTied,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
@@ -5045,6 +5055,7 @@ impl BooleanError {
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
+            Self::JoinPartnersTied => Ok(Refusal::InBand),
             Self::JoinUndecided(u) => match &u.reading {
                 edge_join::JoinReading::Regularity(diag)
                 | edge_join::JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(
@@ -5860,6 +5871,11 @@ impl BooleanError {
                 read_at(e.error(), at)
             ),
             Self::JoinUndecided(e) => write!(f, "{}", read_at(e, at)),
+            Self::JoinPartnersTied => f.write_str(
+                "the operands' sections meet where two of their ends lie equally near one \
+                 another, so the Boolean cannot tell which to join. Recourse: move the parts \
+                 so the sections' ends clearly part",
+            ),
             Self::JoinCarrierUnsupported {
                 edge,
                 carrier,
@@ -9984,6 +10000,7 @@ mod tests {
                 BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
+                BooleanErrorKind::JoinPartnersTied => "JoinPartnersTied",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
