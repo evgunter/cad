@@ -2714,8 +2714,11 @@ fn plan_edge<'s, T: Decide>(
             // An edge laid against the row runs on the row reflected
             // through 0 (`geom_brep::reversed_column`), `t ↦ −t`, so its
             // span runs forward on its carrier.
+            // The span's sign along the row: a parameter difference with no
+            // certifiable inf rate to meter it (a fit's stretch floor can
+            // vanish), so it rides the finding lane, ledger row F41.
             let against = matches!(
-                decide("iso_row_runs_against", Margin::of(s1 - s0), band)
+                geom_core::k_stats::decide_flagged("iso_row_runs_against", s1 - s0, band, "F41")
                     .map_err(|source| ReplaceFaceError::Escalated { source })?,
                 Sign::Negative
             );

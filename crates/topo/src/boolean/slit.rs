@@ -1214,7 +1214,13 @@ fn cuts<T: Decide>(
                 face: f,
                 gap: EdgeInFaceGap::AtACrossing,
             };
-            match slot_from_far_end(at.iter().copied(), crossing.at, at_one_point, band) {
+            match slot_from_far_end(
+                along.carrier(),
+                at.iter().copied(),
+                crossing.at,
+                at_one_point,
+                band,
+            ) {
                 Ok(slot) => at.insert(slot, crossing.at),
                 Err(BooleanError::EdgeInFace { .. }) => {}
                 Err(other) => return Err(other),
@@ -2474,6 +2480,7 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     };
     for crossing in crossings {
         let slot = slot_from_far_end(
+            &carrier,
             ordered.iter().map(|c| c.at),
             crossing.at,
             || refused_at(crossed_cell(crossing.crossed), EdgeInFaceGap::AtACrossing),
@@ -2485,7 +2492,9 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     for (k, crossing) in ordered.iter().enumerate() {
         if let Crossed::Edge(g, at) = crossing.crossed {
             let on_g = crossed_edges.entry(g).or_default();
+            let (g_carrier, _) = span_of(body, g).ok_or_else(desync)?;
             let slot = slot_from_far_end(
+                &g_carrier,
                 on_g.iter().map(|&(t, _)| t),
                 at,
                 || refused_at(Cell::Edge(g), EdgeInFaceGap::AtACrossing),
@@ -2515,10 +2524,11 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
         match row.record.kind() {
             ContactKind::VertexEdge(vertex, on) if divided(on) => {
                 let point = crate::readback::vertex_point(body, vertex).map_err(|_| desync())?;
-                let (t, crossings): (T, Vec<T>) = if on == edge {
+                let (t, crossings, on_carrier): (T, Vec<T>, geom::Curve3<T>) = if on == edge {
                     (
                         on_span(&along, point, band, refused(EdgeInFaceGap::Unplaced))?,
                         ordered.iter().map(|c| c.at).collect(),
+                        carrier.clone(),
                     )
                 } else {
                     let (other, other_span) = span_of(body, on).ok_or_else(desync)?;
@@ -2535,11 +2545,12 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
                             .iter()
                             .map(|&(at, _)| at)
                             .collect(),
+                        other,
                     )
                 };
                 let mut past = 0;
                 for at in crossings {
-                    past += usize::from(parting_order(t, at, band, || {
+                    past += usize::from(parting_order(&on_carrier, (t, at), band, || {
                         refused_at(Cell::Edge(on), EdgeInFaceGap::AtACrossing)
                     })?);
                 }
@@ -2721,6 +2732,7 @@ fn crossing_named<T: Decide>(
 /// `at_one_point()` where `t` is one of them; [`BooleanError::Escalated`]
 /// where an order is in band.
 fn slot_from_far_end<T: Decide>(
+    carrier: &geom::Curve3<T>,
     placed: impl Iterator<Item = T>,
     t: T,
     at_one_point: impl Fn() -> BooleanError,
@@ -2728,7 +2740,7 @@ fn slot_from_far_end<T: Decide>(
 ) -> Result<usize, BooleanError> {
     let mut count = 0;
     for (k, at) in placed.enumerate() {
-        if parting_order(t, at, band, &at_one_point)? {
+        if parting_order(carrier, (t, at), band, &at_one_point)? {
             return Ok(k);
         }
         count = k + 1;
@@ -2799,19 +2811,23 @@ fn on_span<T: Decide>(
 }
 
 /// Whether `a` lies past `b` along an edge [`divide`] divides
-/// ([`BooleanDecision::PartingOrder`]), two parameters of its carrier.
+/// ([`BooleanDecision::PartingOrder`]), two parameters of its `carrier`.
+/// A parameter is no length (D4 (iii)): their gap is metered at the sup
+/// of the carrier's speed ([`geom::carrier_speed::speed_range`]), so a
+/// Zero puts the two within the band in arc, and so in chord: one point.
 ///
 /// # Errors
 ///
 /// `at_one_point()` ([`EdgeInFaceGap::AtACrossing`]) where the two are one
 /// point; [`BooleanError::Escalated`] where the order is in band.
 fn parting_order<T: Decide>(
-    a: T,
-    b: T,
+    carrier: &geom::Curve3<T>,
+    (a, b): (T, T),
     band: Band,
     at_one_point: impl FnOnce() -> BooleanError,
 ) -> Result<bool, BooleanError> {
-    match crate::validate::decide(PARTING_ORDER, Margin::of(a - b), band) {
+    let sup = geom::carrier_speed::speed_range(carrier).1;
+    match crate::validate::decide(PARTING_ORDER, Margin::metered_sup(a - b, sup), band) {
         Ok(Sign::Positive) => Ok(true),
         Ok(Sign::Negative) => Ok(false),
         Ok(Sign::Zero) => Err(at_one_point()),
