@@ -23,6 +23,17 @@ Recourse is the gate's own: read each re-keyed face in the model first, then re-
 
 (BOXES nightly-reds triage, 2026-11-09)
 
+## Dispatch
+
+2026-11-10, INSTR orchestrator (the SEAL/REFS session, picking up INSTR
+as a program with two open P0/P1 rows). One FULL-tier implementer, lane
+`instr-tess`, branch `instr/tess-gate-eight`. The brief is to reproduce
+on main (nightly 88 is still red on this job), read each re-keyed face
+and the klein growth in the model and name its cause commit before
+anything is re-cut, and to stop and file on the owner any finding that
+is a defect rather than an intended change. The re-cut covers only what
+has been explained.
+
 ## Closed (2026-11-10)
 
 Reproduced on main `35e3f16882`: the same 8 findings, with the same
