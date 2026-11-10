@@ -690,7 +690,7 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
 
     const COMPONENT: &'static str = "bool_ruled_region_component";
 
-    const SIDE: (&'static str, &'static str) =
+    const SIDE_ROWS: (&'static str, &'static str) =
         ("bool_ruled_region_order", "bool_ruled_region_cross");
 
     fn lever(&self) -> T {
