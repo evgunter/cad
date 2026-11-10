@@ -36,7 +36,7 @@
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
 //! A bound's code against the other sector's face is read as its
-//! [`BoundSupport`] allows ([`side_code`]): a line edge at its far vertex, in
+//! [`BoundSupport`] allows ([`datum_code`]): a line edge at its far vertex, in
 //! metres; a curved edge and a bisector through
 //! [`geom_brep::enters_material`]: `Enters ⇒ In`, `Exits ⇒ Out`,
 //! `Tangent ⇒ On` in the sector passes; the vertex-on-face pass reads a
@@ -1554,7 +1554,7 @@ pub(super) fn within<T: Decide>(
 /// **A direction's side of a bound is read at the shorter of the two's
 /// reaches**: for a unit direction the reading is `sin θ` times the
 /// bound's reach, how far its far end lies off the direction's line, at
-/// the length the side codes read the bound at ([`side_code`]); a
+/// the length the side codes read the bound at ([`datum_code`]); a
 /// direction with a reach of its own is known no farther than that
 /// reach. Two faces' line, un-normalized, reads `sin θ · sin φ` times
 /// the reach ([`rays_within`]). The sector's `arm`, the shorter chord of
@@ -1699,7 +1699,7 @@ fn within_signs<T: Decide>(
 /// end's offset from `b`'s plane. The two terms can add or cancel; the
 /// first is within the zero wherever `a` holds its bound. For a straight
 /// bound the second is what its side code reads at the chord's far point
-/// ([`side_code`]); a curved bound's code reads the edge where this
+/// ([`datum_code`]); a curved bound's code reads the edge where this
 /// reads its tangent. The unit line would divide the whole by
 /// `|m| = sin φ`, so a far end within the zero of both planes would read
 /// off their line wherever the two faces are near parallel.
