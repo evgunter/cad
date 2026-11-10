@@ -8479,10 +8479,6 @@ fn locus_through_both_faces<T: Decide>(
                         geom_brep::curve_pair::MeetKind::Fault { what },
                     ) => BooleanError::ClassificationInvariant { what },
                 },
-                // The operand gate certified every curve.
-                FaceUnread::Uncertified => BooleanError::ClassificationInvariant {
-                    what: "a tangent face's boundary edge holds no certified curve",
-                },
             });
         },
     )
@@ -8499,6 +8495,12 @@ fn locus_through_both_faces<T: Decide>(
 /// off a face's carrier.
 const STATION_OFF_CARRIER: &str = "a station of a tangent locus is off a face's carrier";
 
+/// [`FaceUnread::Fault`]'s invariant where a face's boundary holds an edge
+/// with no certified curve: the op's operand gate and tier 2 at rest
+/// (`NullEdgeAtRest`) admit none.
+const UNCERTIFIED_BOUNDARY: &str = "a face's boundary holds an edge with no certified \
+     curve, which the operand gate and tier 2 (`NullEdgeAtRest`) refuse";
+
 /// Why one face left a point of a tangent line unread
 /// ([`line_through_both_faces`]).
 pub(crate) enum FaceUnread {
@@ -8511,12 +8513,9 @@ pub(crate) enum FaceUnread {
     /// whole face where the pass faults, its meetings, so the runs, are
     /// unknown.
     Boundary(geom_brep::curve_face::BoundaryRefusal),
-    /// An edge of the face's boundary holds no certified curve, which the
-    /// boundary pass cannot read.
-    Uncertified,
-    /// A premise of the caller's broken, the kernel's invariant it names:
-    /// a station of the tangent locus read definitely off a face's
-    /// carrier, which the locus lies on.
+    /// A premise of the caller's broken, the kernel's invariant it names
+    /// ([`UNCERTIFIED_BOUNDARY`], [`STATION_OFF_CARRIER`]), which each
+    /// mapper raises as its invariant.
     Fault(&'static str),
 }
 
@@ -8679,8 +8678,9 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
 /// # Errors
 ///
 /// [`FaceUnread::Boundary`] where a member's reading faults, and as a
-/// fault where `face` does not resolve; [`FaceUnread::Uncertified`]
-/// where a boundary edge holds no certified curve.
+/// fault where `face` does not resolve; [`FaceUnread::Fault`]
+/// ([`UNCERTIFIED_BOUNDARY`]) where a boundary edge holds no certified
+/// curve.
 ///
 /// # Panics
 ///
@@ -8706,7 +8706,7 @@ fn boundary_cuts<T: Decide>(
                 geom_brep::curve_pair::MeetKind::Fault { what },
             ))
         })?
-        .ok_or(FaceUnread::Uncertified)?;
+        .ok_or(FaceUnread::Fault(UNCERTIFIED_BOUNDARY))?;
     let swept = geom_brep::curve_pair::Span::new(locus, span);
     let located = boundary.located(&swept, band);
     match located.fault() {
