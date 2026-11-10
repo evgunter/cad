@@ -8,7 +8,7 @@
 # where a reading it has not read yet would answer definitely:
 # `splitting::pieced_arc::PiecedArc::contact` refused an end in band
 # where a piece placed the point on the arc. The rule is stated once, in
-# `geom_brep::ladder::climb`, which keeps what it passes over and ranks
+# `geom_core::ladder::climb`, which keeps what it passes over and ranks
 # it. `escalation-discards.sh` sees the loop that drops a refusal; this
 # gate sees the loop that returns one early. A new site reds until the
 # register names why its `?` is not a search's kept reading: most are,
@@ -158,7 +158,7 @@ gate() {
     diff=$(diff <(printf '%s\n' "$live" | sed '/^$/d' | sort) <(printf '%s\n' "$want" | sed '/^$/d') || true)
     if [ -n "$diff" ]; then
       printf '%s\n' "$diff"
-      gate_error "early returns on a band reading in a loop differ from ${reg%%:*} ('<' is the tree, '>' the register): port the loop to geom_brep::ladder::climb, or register the site with why its ? is not a search's kept reading"
+      gate_error "early returns on a band reading in a loop differ from ${reg%%:*} ('<' is the tree, '>' the register): port the loop to geom_core::ladder::climb, or register the site with why its ? is not a search's kept reading"
       exit 1
     fi
   done

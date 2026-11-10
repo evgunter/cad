@@ -620,8 +620,9 @@ fn verdict_at<T: Decide + crate::props::AtRestPolicy>(
         .verts
         .iter()
         .filter(|&&(_, q)| {
-            axes.iter()
-                .all(|&e| metric::sign(LINK_PLANE, Distance::of(q, o, e), band) == Some(Sign::Zero))
+            axes.iter().all(|&e| {
+                metric::sign_as(LINK_PLANE, Distance::of(q, o, e), band) == Some(Sign::Zero)
+            })
         })
         .map(|&(v, _)| v)
         .collect();
