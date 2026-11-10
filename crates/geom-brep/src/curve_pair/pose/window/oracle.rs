@@ -200,24 +200,31 @@ fn check(
     let (ika, ikb) = (ia.conic().unwrap(), ib.conic().unwrap());
     let sb = Span::new(b, (-PI, PI));
     let isb = Span::new(&ib, (iv(-PI), iv(PI)));
-    let reads = [
-        (
-            "f64",
-            window(&ka, &kb, &sb).read(piece, Some(away), &level_on(&ka, &kb), band),
-        ),
-        (
-            "interval",
-            window(&ika, &ikb, &isb).read(
-                (iv(piece.0), iv(piece.1)),
-                Some(away),
-                &level_on(&ika, &ikb),
-                band,
+    // Each lane reads the piece outward from the joint, and as an arc no
+    // ring bounds, where off is past the escalation and receding is up `θ`.
+    let read = |ring: Option<bool>| {
+        [
+            (
+                "f64",
+                ring,
+                window(&ka, &kb, &sb).read(piece, ring, &level_on(&ka, &kb), band),
             ),
-        ),
-    ];
+            (
+                "interval",
+                ring,
+                window(&ika, &ikb, &isb).read(
+                    (iv(piece.0), iv(piece.1)),
+                    ring,
+                    &level_on(&ika, &ikb),
+                    band,
+                ),
+            ),
+        ]
+    };
+    let reads: Vec<_> = read(Some(away)).into_iter().chain(read(None)).collect();
     // A piece neither lane reads has no claim to check: the dense
     // distance is sampled only where one was made.
-    if reads.iter().all(|(_, read)| read.is_none()) {
+    if reads.iter().all(|(_, _, read)| read.is_none()) {
         return Ok(Vec::new());
     }
     let n = 2000;
@@ -233,16 +240,17 @@ fn check(
     // half of the touch family's scales (the #5477 review's M2).
     let tol = (1e-13 * scale.max(1.0)).min(z / 8.0);
     let mut made = Vec::new();
-    for (lane, read) in reads {
+    for (lane, ring, read) in reads {
         let Some(read) = read else {
             continue;
         };
+        let off = if ring.is_some() { z } else { band.escalate() };
         let ok = match read {
-            Read::Off | Read::OffSpan => ds.iter().all(|&d| d > z - tol),
+            Read::Off | Read::OffSpan => ds.iter().all(|&d| d > off - tol),
             Read::On => ds.iter().all(|&d| d <= z + tol),
             Read::Recedes => {
                 let mut seq = ds.clone();
-                if !away {
+                if !ring.unwrap_or(true) {
                     seq.reverse();
                 }
                 let mut most = f64::NEG_INFINITY;
@@ -254,7 +262,7 @@ fn check(
             }
         };
         if !ok {
-            return Err(format!("{lane}: {read:?} on {piece:?} away {away}"));
+            return Err(format!("{lane}: {read:?} on {piece:?} ring {ring:?}"));
         }
         made.push(read);
     }
