@@ -841,7 +841,7 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
         }),
     );
     let at_f64 = measured(&eval(&doc), m).0;
-    let ev_d = evaluate::<Dual64>(
+    let ev_d = editor_core::test_support::evaluate_bound::<Dual64>(
         &doc,
         None,
         &CancelToken::new(),

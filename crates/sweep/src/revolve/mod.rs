@@ -156,10 +156,7 @@ use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, Soli
 /// The predicate names a revolve's cosurface decision reports under
 /// (the revolution walls: planes, cylinders and cones from lines,
 /// spheres and tori from arcs).
-pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::swept::CosurfaceNames {
-    lines: "wall_lines_cosurface",
-    arcs: "wall_arcs_cosurface",
-};
+pub(super) const WALL_COSURFACE: crate::swept::CosurfaceNames = crate::rows::WALL_COSURFACE;
 
 /// The revolve axis: a line in **sketch coordinates** (module docs).
 /// The profile must lie in the closed half-plane `r ≥ 0`, where `r` is

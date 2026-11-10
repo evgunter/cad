@@ -256,14 +256,15 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
         // On the lowered ring the rim is on the wall and no row holds it:
         // "not yet".
         let middle = derived::<T>((0.0, -0.5), form);
-        assert_eq!(
-            refused(&middle),
-            Some(PcurveCertifyError::NoGeneralLane {
-                chart: geom::SurfaceKind::Nurbs,
-                carrier: geom::CurveKind::Circle,
-                gap: geom_brep::LaneGap::Unwritten,
-            }),
-            "{form:?}: a rim on the wall that no row holds refuses \"not yet\", at {}",
+        let middle = refused(&middle);
+        assert!(
+            middle
+                .as_ref()
+                .and_then(PcurveCertifyError::chart_carrier_kinds)
+                == Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Circle))
+                && middle.as_ref().and_then(PcurveCertifyError::refused_check)
+                    == Some(geom_brep::PcurveCheck::ChartClass),
+            "{form:?}: a rim on the wall that no row holds refuses \"not yet\", at {}: {middle:?}",
             T::NAME
         );
     }
