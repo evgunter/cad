@@ -7938,6 +7938,70 @@ mod first_pair_rows {
     /// [`first_pair`] escalates. The witness is the PR 4769 review's.
     #[test]
     fn at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs() {
+        // A seeded search's witness (seed 3118 over 8 germs in a 30 m
+        // square): no germ's partners tie or read in band of each other,
+        // so each round reaches `first_pair`.
+        let points = [
+            (29.917238827326724, 27.87786026681649),
+            (7.4858152912142355, 4.322009183593643),
+            (25.808946745765223, 19.214928804313665),
+            (27.701499409469754, 29.44760472044568),
+            (28.12692824627822, 16.893643512330684),
+            (1.2360764813614777, 13.116606996891312),
+            (12.298989298137148, 0.5569020398678726),
+            (5.528651116976726, 13.530660114789436),
+        ];
+        let edges = [
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (1, 6),
+            (2, 3),
+            (2, 4),
+            (2, 7),
+            (3, 4),
+            (3, 5),
+            (4, 5),
+            (4, 6),
+            (5, 6),
+            (5, 7),
+        ];
+        let band = Band::new(1.0, 1.1).unwrap();
+        let escalated_mutual = std::cell::Cell::new(None);
+        let got = rounds(&points, &edges, band, |own| {
+            let mutual = own.iter().all(|(germ, &(_, reach, (partner, _)))| {
+                reach.turn.is_none()
+                    && own
+                        .get(&partner)
+                        .is_some_and(|&(_, _, (back, _))| back == *germ)
+            });
+            let pick = first_pair(own, band);
+            if pick.is_err() {
+                escalated_mutual.set(Some(mutual));
+            }
+            pick
+        });
+        assert!(
+            matches!(&got, Err(BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("bool_join_nearest")),
+            "first_pair reads the order at K = 1.1: {got:?}"
+        );
+        assert_eq!(
+            escalated_mutual.get(),
+            Some(true),
+            "the escalating round is all mutual and straight, so the K gate is what reads it"
+        );
+    }
+
+    /// **A tie among one germ's partners refuses before the K gate**
+    /// (`own_nearest`, free of nothing): eight straight germs under a
+    /// band whose zero is a metre, against chords of one to two, so a
+    /// germ's partners read exactly tied. The run refuses
+    /// [`BooleanError::JoinPartnersTied`] and no round reaches
+    /// [`first_pair`]. Red where a germ's nearest partner keeps the one
+    /// met first on a tie.
+    #[test]
+    fn a_tie_among_a_germs_partners_refuses_before_the_k_gate() {
         let points = [
             (1.6374561303759052, 0.5775992446059082),
             (0.40233212126666984, 0.3418720853489539),
@@ -7984,14 +8048,13 @@ mod first_pair_rows {
             pick
         });
         assert!(
-            matches!(&got, Err(BooleanError::Escalated { diag, .. })
-                if diag.predicate == Some("bool_join_nearest")),
-            "first_pair reads the order at K = 1.1: {got:?}"
+            matches!(&got, Err(BooleanError::JoinPartnersTied)),
+            "a germ's partners tied: {got:?}"
         );
         assert_eq!(
             escalated_mutual.get(),
-            Some(true),
-            "the escalating round is all mutual and straight, so the K gate is what reads it"
+            None,
+            "the tie refuses before any round reaches first_pair's K gate"
         );
     }
 }
