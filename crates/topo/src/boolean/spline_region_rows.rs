@@ -1878,3 +1878,35 @@ fn an_iso_images_ends_hold_their_evaluations_rounding() {
         test_utils::fuzz::replay()
     );
 }
+
+/// **A spline face's stations read on its own chart, never off its
+/// carrier** (`crate::cell_region`'s held door). The twisted bilinear
+/// patch `(u, v, u·v)`, a sheet over `[0.1, 0.9]²` of it: every station
+/// of an 11 × 11 grid over the whole chart is placed by the curved door,
+/// and none reads `OffCarrier`. A station is a point of the chart, and
+/// the spline arm reads it by its own search, which `Held::check` does
+/// not guard. `cell_region::station_region` answers `In` well inside the
+/// sheet and `Out` well outside it, and panics nowhere.
+#[test]
+fn a_spline_faces_stations_read_on_its_own_chart() {
+    let (body, face) = sheet(
+        &twisted(1.0),
+        &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
+    );
+    let surface = body.face(face).unwrap().surface().clone();
+    let n = 10;
+    for i in 0..=n {
+        for j in 0..=n {
+            let (u, v) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+            let at = curved_face_placement(&body, face, surface.eval(u, v), band());
+            assert!(
+                !matches!(at, Ok(CurvedPlacement::OffCarrier)),
+                "the station ({u}, {v}) reads off its own carrier: {at:?}"
+            );
+            let _ = crate::cell_region::station_region(&body, face, (u, v), band());
+        }
+    }
+    let region = |uv| crate::cell_region::station_region(&body, face, uv, band());
+    assert_eq!(region((0.5, 0.5)), Some(FaceContainment::In));
+    assert_eq!(region((0.02, 0.5)), Some(FaceContainment::Out));
+}

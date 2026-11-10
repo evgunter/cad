@@ -313,6 +313,10 @@ pub enum Unreplayed {
     /// ([`crate::EvalOutcome::Exhausted`]) at or before the node the
     /// row was decided at.
     Exhausted,
+    /// The replay could not read the extent of the two faces whose axes'
+    /// tilt it levers over it, for the pair door's reason
+    /// ([`topo::boolean::carrier_pair_arm`]).
+    Extent(topo::boolean::PairUnread),
 }
 
 impl fmt::Display for Unreplayed {
@@ -338,6 +342,10 @@ impl fmt::Display for Unreplayed {
             Self::Exhausted => {
                 "the replay with every variable a symbol ran out of member budget before the \
                  row's node"
+            }
+            Self::Extent(_) => {
+                "the replay with every variable a symbol could not read the two faces' extent \
+                 its axes' tilt is levered over"
             }
         })
     }
