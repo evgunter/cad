@@ -2039,7 +2039,7 @@ pub(super) fn runs_into<T: Decide>(
         (s.end, s.end_reach, s.end_edge()),
     ] {
         let lever = exact_lever(along.lever(), Some(reach.lever()));
-        if !(is_edge && parallel_same(dir, bound, lever, BOUNDS_PARALLEL, band)?) {
+        if !(is_edge && parallel_same_as(dir, bound, lever, BOUNDS_PARALLEL, band)?) {
             continue;
         }
         let (Some((k, l)), Some((kb, lb))) = (bound_bend(reach), bound_bend(along)) else {
@@ -2066,7 +2066,7 @@ pub(super) fn runs_into<T: Decide>(
 /// so a margin is a length whatever the directions' norms. The caller's
 /// `reading` names the parallelism margin and the coincidence an in-band
 /// reading refuses as.
-pub(super) fn parallel_same<T: Decide>(
+pub(super) fn parallel_same_as<T: Decide>(
     u: Vec3<T>,
     v: Vec3<T>,
     arm: Lever<T>,
@@ -2171,7 +2171,7 @@ fn first_order_overlap<T: Decide>(
     }
     let along = |(u, ru): (Vec3<T>, BoundSupport<T>), (v, rv): (Vec3<T>, BoundSupport<T>)| {
         let lever = exact_lever(rv.lever(), Some(ru.lever()));
-        parallel_same(u, v, lever, BOUNDS_PARALLEL, band)
+        parallel_same_as(u, v, lever, BOUNDS_PARALLEL, band)
     };
     let (a_start, a_end) = ((a.start, a.start_reach), (a.end, a.end_reach));
     let (b_start, b_end) = ((b.start, b.start_reach), (b.end, b.end_reach));
@@ -2260,7 +2260,7 @@ fn crescent<T: Decide>(
         let square = |v: Vec3<T>| v - d * v.dot(d);
         let u = square(a.middle()).normalize();
         let l = la.min(lb);
-        let parallel = || parallel_same(da, db, arm, BOUNDS_PARALLEL, band);
+        let parallel = || parallel_same_as(da, db, arm, BOUNDS_PARALLEL, band);
         // `pair_search` reads two sectors sharing a bound from one
         // side as overlapping, so a touching pair lies across it;
         // this reads that premise where the claim rests on it.
@@ -2271,7 +2271,7 @@ fn crescent<T: Decide>(
                 .map(|s| s == Sign::Negative)
         };
         let off_run = || coincident_run((ca, a_start), (cb, b_start), contacts, band).map(|run| !run);
-        let along = || parallel_same(da, db, l, BOUNDS_PARALLEL, band);
+        let along = || parallel_same_as(da, db, l, BOUNDS_PARALLEL, band);
         let run = || any_holds([&off_run as &dyn Fn() -> _, &along]);
         let opened = || {
             let opened = geom_brep::parting(kb - ka, u, l.length());
@@ -2371,7 +2371,7 @@ fn coincident_run<T: Decide>(
         .vv
         .iter()
         .any(|c| a.far.contains(&c.a) && b.far.contains(&c.b))
-        && parallel_same(
+        && parallel_same_as(
             a.dir,
             b.dir,
             exact_lever(b.reach, Some(a.reach)),
@@ -2891,7 +2891,7 @@ mod tests {
         let tilted = Vec3::new(1.0, gray, 0.0).normalize();
         let b = hand_sector((tilted, y), z, 1.0, 2, plane);
         assert!(
-            parallel_same(x, tilted, a.arm, BOUNDS_PARALLEL, band).is_err(),
+            parallel_same_as(x, tilted, a.arm, BOUNDS_PARALLEL, band).is_err(),
             "the start bounds are parallel only in band"
         );
         let body = Body::<f64>::new();
@@ -3166,7 +3166,7 @@ mod tests {
             let (u, v) = apart(sin);
             for norm in [1e-3, 1.0, 1e3] {
                 assert_eq!(
-                    parallel_same(
+                    parallel_same_as(
                         u * norm,
                         v * norm,
                         geom_core::test_support::fixture_lever(1.0),
@@ -3185,7 +3185,7 @@ mod tests {
         for norm in [1e-3, 1.0, 1e3] {
             for (w, want) in [(v, true), (-v, false)] {
                 assert_eq!(
-                    parallel_same(
+                    parallel_same_as(
                         u * norm,
                         w * norm,
                         geom_core::test_support::fixture_lever(2.0 * e),
@@ -3206,7 +3206,7 @@ mod tests {
                 Coincide::EdgeOnEdge,
             ),
         ] {
-            let err = parallel_same(
+            let err = parallel_same_as(
                 u * 1e3,
                 v * 1e3,
                 geom_core::test_support::fixture_lever(1.0),
@@ -3245,7 +3245,7 @@ mod tests {
             (Vec3::zero(), Vec3::zero()),
             (Vec3::new(f64::NAN, 0.0, 0.0), u),
         ] {
-            let got = parallel_same(
+            let got = parallel_same_as(
                 p,
                 q,
                 geom_core::test_support::fixture_lever(1.0),
@@ -3258,7 +3258,7 @@ mod tests {
         // direction: normalize prescales it.
         let tiny = Vec3::new(1e-300, 0.0, 0.0);
         assert!(
-            parallel_same(
+            parallel_same_as(
                 tiny,
                 u,
                 geom_core::test_support::fixture_lever(1.0),
@@ -3268,7 +3268,7 @@ mod tests {
             .unwrap()
         );
         assert!(
-            !parallel_same(
+            !parallel_same_as(
                 -tiny,
                 u,
                 geom_core::test_support::fixture_lever(1.0),

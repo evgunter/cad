@@ -490,7 +490,7 @@ pub(crate) fn decide_positive<T: Decide>(
 ///
 /// The rounding `K` times over, as the band read it, where it is past
 /// that share.
-pub(crate) fn resolved<T: Decide>(
+pub(crate) fn resolved_as<T: Decide>(
     name: &'static str,
     rounding: T,
     band: Band,
@@ -5582,7 +5582,7 @@ pub enum RingPairContact {
 
 impl RingPairContact {
     /// The pair's contact from the arms' answer for `other` read in the
-    /// outer loop's seat ([`ring_outer_contact_about`]).
+    /// outer loop's seat ([`ring_outer_contact_about_as`]).
     fn of(contact: RingContact) -> Self {
         match contact {
             RingContact::Vertex {
@@ -8661,7 +8661,7 @@ pub(crate) fn tier3_local_checks_marked<
     for (face_key, face) in body.faces.iter() {
         let normal = plane_chart_normal(body, face.surface);
         for &ring in &face.rings {
-            match ring_outer_contact_about(body, face.outer, ring, normal, band) {
+            match ring_outer_contact_about_as(body, face.outer, ring, normal, band) {
                 RingOuterVerdict::Disjoint => {
                     let Some(normal) = normal else {
                         continue; // the nesting residue, enumerated above
@@ -8702,7 +8702,7 @@ pub(crate) fn tier3_local_checks_marked<
         }
         for (i, j) in ring_pairs(body, &face.rings, band) {
             let (ring, other) = (face.rings[i], face.rings[j]);
-            match ring_outer_contact_about(body, other, ring, normal, band) {
+            match ring_outer_contact_about_as(body, other, ring, normal, band) {
                 RingOuterVerdict::Disjoint => {}
                 RingOuterVerdict::Contact(contact) => {
                     errors.push(ValidationError::RingMeetsRing {
@@ -9222,25 +9222,26 @@ pub(crate) fn wedge_holds_named<T: Decide>(
     let (a, b, d) = (a.into(), b.into(), d.into());
     // `f(x, y)` is levered at `y`'s length: read once where it is exact,
     // else at both its scalings.
-    let read = |name,
-                x: Departure<T>,
-                y: Departure<T>,
-                f: &dyn Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> T| match y {
-        Departure::Exact(y) => decide(name, Margin::of(f(x.above(), y)), band),
-        Departure::Between(lo, hi) => decide_agreed(
-            (name, names.straddle()),
-            Margin::of(f(x.below(), lo)),
-            Margin::of(f(x.above(), hi)),
-            band,
-        ),
-    };
+    let read_as =
+        |name,
+         x: Departure<T>,
+         y: Departure<T>,
+         f: &dyn Fn(geom_core::Vec3<T>, geom_core::Vec3<T>) -> T| match y {
+            Departure::Exact(y) => decide(name, Margin::of(f(x.above(), y)), band),
+            Departure::Between(lo, hi) => decide_agreed(
+                (name, names.straddle()),
+                Margin::of(f(x.below(), lo)),
+                Margin::of(f(x.above(), hi)),
+                band,
+            ),
+        };
     let off = |x: geom_core::Vec3<T>, y: geom_core::Vec3<T>| n.dot(x.cross(y)) / x.norm();
-    let left = |name, x, y| read(name, x, y, &off).map(|s| s == Sign::Positive);
+    let left_as = |name, x, y| read_as(name, x, y, &off).map(|s| s == Sign::Positive);
     let (after_a, before_b) = (
-        left(names.after_leaving(), a, d),
-        left(names.before_arriving(), d, b),
+        left_as(names.after_leaving(), a, d),
+        left_as(names.before_arriving(), d, b),
     );
-    match read(names.turn(), a, b, &off)? {
+    match read_as(names.turn(), a, b, &off)? {
         // Under a half turn: inside both bounds.
         Sign::Positive => match (after_a, before_b) {
             (Ok(false), _) | (_, Ok(false)) => Ok(false),
@@ -9253,7 +9254,7 @@ pub(crate) fn wedge_holds_named<T: Decide>(
             (Ok(false), Ok(false)) => Ok(false),
             (Err(e), _) | (_, Err(e)) => Err(e),
         },
-        Sign::Zero => match read(names.straight(), a, b, &|x, y| x.dot(y) / x.norm())? {
+        Sign::Zero => match read_as(names.straight(), a, b, &|x, y| x.dot(y) / x.norm())? {
             Sign::Negative => after_a,
             Sign::Zero | Sign::Positive => Ok(false),
         },
@@ -9297,14 +9298,14 @@ pub(crate) fn ring_outer_contact<T: Decide>(
         .get_loop(outer)
         .and_then(|l| body.get_face(l.face))
         .and_then(|f| plane_chart_normal(body, f.surface));
-    ring_outer_contact_about(body, outer, ring, normal, band)
+    ring_outer_contact_about_as(body, outer, ring, normal, band)
 }
 
 /// [`ring_outer_contact`] for two loops in the plane with `normal`,
 /// whatever face they bound — the split's section loops, read before
 /// their faces wear the section plane. `None` is the recorded residue
 /// of a face with no plane: the edge-pair arm sees nothing.
-pub(crate) fn ring_outer_contact_about<T: Decide>(
+pub(crate) fn ring_outer_contact_about_as<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
     ring: LoopKey,

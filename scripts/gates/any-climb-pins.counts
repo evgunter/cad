@@ -17,11 +17,14 @@ crates/topo/src/boolean/carrier_touch.rs off_face 1 row t4-ports-unpinned-for-a-
 crates/topo/src/boolean/contain.rs loop_circle 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/fate.rs rehome 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/insert.rs held_cut 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/insert.rs unheld_walk 1 pin a_walk_off_the_run_answers_past_a_nesting_in_band_never_past_a_fault
 crates/topo/src/boolean/overlap.rs any_corner_meets 1 pin a_corner_that_meets_answers_past_one_in_band
 crates/topo/src/boolean/region.rs on_boundary 1 pin an_edge_holding_the_point_answers_past_one_in_band
 crates/topo/src/boolean/rim_wedge.rs departures 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/rim_wedge.rs rim_exists 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/sectors.rs any_holds 1 pin a_conjunction_answers_past_a_margin_and_never_past_a_fault
 crates/topo/src/boolean/sectors.rs crescent 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/sectors.rs every_holds 1 pin a_conjunction_answers_past_a_margin_and_never_past_a_fault
 crates/topo/src/boolean/sectors.rs rays_within 1 pin a_sector_not_holding_the_line_answers_past_one_in_band
 crates/topo/src/boolean/slit.rs holding 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/solid_contain.rs point_in_faces 1 pin a_face_holding_the_point_answers_past_a_face_in_band
@@ -30,7 +33,7 @@ crates/topo/src/census.rs planar_interiors_meet 1 row t4-ports-unpinned-for-a-ke
 crates/topo/src/census.rs probe_vertices 1 pin an_abort_stops_the_probe_and_a_limit_outranks_in_band
 crates/topo/src/census.rs shared_interior_witness 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/census.rs shared_run 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/census.rs span_clear 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/census.rs span_clear_as 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 # wedges_overlap: its pair ladder and each pair's probe ladder, both read
 # by the production function in the one module.
 crates/topo/src/census.rs wedges_overlap 2 pin a_pair_whose_wedge_does_not_read_is_kept_and_a_later_pair_answers
