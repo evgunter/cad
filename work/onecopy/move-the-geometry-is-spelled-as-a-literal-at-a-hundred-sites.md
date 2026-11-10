@@ -2,10 +2,11 @@
 id: move-the-geometry-is-spelled-as-a-literal-at-a-hundred-sites
 kind: issue
 title: "Recourse: move the geometry …" is spelled as a literal on 103 lines, beside its home (MOVE_RECOURSE, move_recourse!("so …"))
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: M
+closed: 2026-11-10
 ---
 
 
