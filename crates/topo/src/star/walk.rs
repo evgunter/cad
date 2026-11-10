@@ -145,10 +145,149 @@ impl<T: Real> Star<T> {
     }
 }
 
+/// **A vertex's orbit, each edge with its departure**, before any corner
+/// is read: what the walk reads every corner from, and what a reader that
+/// needs only some corners ([`crate::vertex_section`]) reads them from
+/// one at a time ([`Orbit::corner`]).
+#[derive(Clone, Debug)]
+pub(crate) struct Orbit<T: Real> {
+    /// The vertex.
+    pub vertex: VertexKey,
+    /// Each orbit edge's bound, in orbit order.
+    pub edges: Vec<Bound<T>>,
+    /// Each edge's departure scaled to its reach, as the corner readings
+    /// take it.
+    departures: Vec<Vec3<T>>,
+}
+
+impl<T: Decide> Orbit<T> {
+    /// The orbit of `vertex`.
+    ///
+    /// # Errors
+    ///
+    /// [`StarFault::Lone`], [`StarFault::NullEdge`].
+    pub(crate) fn of(body: &Body<T>, vertex: VertexKey) -> Result<Self, StarFault> {
+        let orbit = body.vertex_orbit_linked(vertex);
+        if orbit.is_empty() {
+            return Err(StarFault::Lone);
+        }
+        let mut edges = Vec::with_capacity(orbit.len());
+        let mut departures = Vec::with_capacity(orbit.len());
+        for he in orbit {
+            let (dir, reach) = departure(body, vertex, he)?;
+            edges.push(Bound {
+                he,
+                real: true,
+                dir: dir.normalize(),
+                reach,
+            });
+            departures.push(dir);
+        }
+        Ok(Self {
+            vertex,
+            edges,
+            departures,
+        })
+    }
+
+    /// **Corner `i`, the one after edge `i`, convex in its own geometry**:
+    /// its bounds from edge `i` across its dividers, each with the sector
+    /// after it (module docs of [`crate::star`], "The walk").
+    ///
+    /// # Errors
+    ///
+    /// [`StarFault::Face`], [`StarFault::NearAxis`], [`StarFault::Shape`].
+    pub(crate) fn corner(
+        &self,
+        body: &Body<T>,
+        i: usize,
+        tips: &SlitTips,
+        band: Band,
+    ) -> Result<(Vec<Bound<T>>, Vec<Sector<T>>), StarFault> {
+        let (vertex, n) = (self.vertex, self.edges.len());
+        let p = body.resolve_vertex_point(vertex, Proven);
+        let edge = self.edges[i];
+        let he = edge.he;
+        let (own, next) = (self.departures[i], self.departures[(i + 1) % n]);
+        let resolved =
+            crate::sector_face::resolve(body, vertex, he, band).map_err(StarFault::Face)?;
+        let face = resolved.face;
+        let view = body.proven_face(face);
+        let bend = FaceBend::at(view.surface(), view.sense(), p);
+        let corner_bounds = tips.bounds(vertex, face, n == 1);
+        let shape = |fault| StarFault::Shape(face, fault);
+        let sector = |at, arm| Sector {
+            face,
+            carrier: resolved.carrier,
+            at,
+            bend,
+            arm,
+        };
+        let (mut bounds, mut sectors) = (Vec::new(), Vec::new());
+        let mut push = |dir: Vec3<T>, reach, real, at, arm| {
+            bounds.push(Bound {
+                he,
+                real,
+                dir,
+                reach,
+            });
+            sectors.push(sector(at, arm));
+        };
+        match resolved.at_vertex {
+            VertexFace::NearAxis(_) => return Err(StarFault::NearAxis(face)),
+            VertexFace::Tangent(normal) => {
+                let at = StarFace::Tangent(normal);
+                match corner_shape(own, next, normal, corner_bounds, band).map_err(shape)? {
+                    CornerShape::Sector(SectorShape { arm, bisector, .. }) => {
+                        let arm = metering_arm(arm);
+                        push(edge.dir, edge.reach, true, at, arm);
+                        if let Some(b) = bisector {
+                            let b = b.normalize();
+                            let reach = BoundSupport::bisector(arm, b, normal.vec(), bend);
+                            push(b, reach, false, at, arm);
+                        }
+                    }
+                    CornerShape::FullTurn(turn) => {
+                        let arm = metering_arm(turn.arm);
+                        push(edge.dir, edge.reach, true, at, arm);
+                        for q in turn.quarters(TurnOrder::FromOwn) {
+                            let q = q.normalize();
+                            let reach = BoundSupport::bisector(arm, q, normal.vec(), bend);
+                            push(q, reach, false, at, arm);
+                        }
+                    }
+                }
+            }
+            VertexFace::Apex(apex) => {
+                let at = StarFace::Apex(apex);
+                let read =
+                    apex_corner_shape((own, next), &apex, corner_bounds, band).map_err(shape)?;
+                let unit_next = next.normalize();
+                // A whole turn is quartered, a window over a half-turn
+                // halved; the fractions run from the own bound.
+                let fractions: &[f64] = if read.whole_turn {
+                    &[0.75, 0.5, 0.25]
+                } else if apex_over_half_turn(&apex, read.window, read.arm, band).map_err(shape)? {
+                    &[0.5]
+                } else {
+                    &[]
+                };
+                let arm = metering_arm(read.arm);
+                push(edge.dir, edge.reach, true, at, arm);
+                for &k in fractions {
+                    let r = apex.ruling_from(unit_next, read.window * T::from_f64(k));
+                    push(r, BoundSupport::straight_bisector(arm), false, at, arm);
+                }
+            }
+        }
+        Ok((bounds, sectors))
+    }
+}
+
 impl<T: Decide> Star<T> {
     /// **The star of `vertex`, convex in its own geometry** (module docs
-    /// of [`crate::star`], "The walk"). `tips` are the body's slit tips,
-    /// read at rest.
+    /// of [`crate::star`], "The walk"): every corner of its [`Orbit`].
+    /// `tips` are the body's slit tips, read at rest.
     ///
     /// # Errors
     ///
@@ -159,103 +298,16 @@ impl<T: Decide> Star<T> {
         tips: &SlitTips,
         band: Band,
     ) -> Result<Self, StarFault> {
-        let orbit = body.vertex_orbit_linked(vertex);
-        if orbit.is_empty() {
-            return Err(StarFault::Lone);
-        }
-        let p = body.resolve_vertex_point(vertex, Proven);
-        let n = orbit.len();
-        let departures = orbit
-            .iter()
-            .map(|&he| departure(body, vertex, he))
-            .collect::<Result<Vec<_>, _>>()?;
+        let orbit = Orbit::of(body, vertex)?;
         let mut star = Self {
             vertex,
-            bounds: Vec::with_capacity(n + 2),
-            sectors: Vec::with_capacity(n + 2),
+            bounds: Vec::with_capacity(orbit.edges.len() + 2),
+            sectors: Vec::with_capacity(orbit.edges.len() + 2),
         };
-        for i in 0..n {
-            let he = orbit[i];
-            let (own, own_reach) = departures[i];
-            let (next, _) = departures[(i + 1) % n];
-            let resolved =
-                crate::sector_face::resolve(body, vertex, he, band).map_err(StarFault::Face)?;
-            let face = resolved.face;
-            let view = body.proven_face(face);
-            let bend = FaceBend::at(view.surface(), view.sense(), p);
-            let bounds = tips.bounds(vertex, face, n == 1);
-            let shape = |fault| StarFault::Shape(face, fault);
-            let sector = |at, arm| Sector {
-                face,
-                carrier: resolved.carrier,
-                at,
-                bend,
-                arm,
-            };
-            let mut push = |dir: Vec3<T>, reach, real, at, arm| {
-                star.bounds.push(Bound {
-                    he,
-                    real,
-                    dir,
-                    reach,
-                });
-                star.sectors.push(sector(at, arm));
-            };
-            match resolved.at_vertex {
-                VertexFace::NearAxis(_) => return Err(StarFault::NearAxis(face)),
-                VertexFace::Tangent(normal) => {
-                    let at = StarFace::Tangent(normal);
-                    match corner_shape(own, next, normal, bounds, band).map_err(shape)? {
-                        CornerShape::Sector(SectorShape {
-                            arm,
-                            unit_own,
-                            bisector,
-                            ..
-                        }) => {
-                            let arm = metering_arm(arm);
-                            push(unit_own, own_reach, true, at, arm);
-                            if let Some(b) = bisector {
-                                let b = b.normalize();
-                                let reach = BoundSupport::bisector(arm, b, normal.vec(), bend);
-                                push(b, reach, false, at, arm);
-                            }
-                        }
-                        CornerShape::FullTurn(turn) => {
-                            let arm = metering_arm(turn.arm);
-                            push(turn.unit_own, own_reach, true, at, arm);
-                            for q in turn.quarters(TurnOrder::FromOwn) {
-                                let q = q.normalize();
-                                let reach = BoundSupport::bisector(arm, q, normal.vec(), bend);
-                                push(q, reach, false, at, arm);
-                            }
-                        }
-                    }
-                }
-                VertexFace::Apex(apex) => {
-                    let at = StarFace::Apex(apex);
-                    let read =
-                        apex_corner_shape((own, next), &apex, bounds, band).map_err(shape)?;
-                    let unit_next = next.normalize();
-                    // A whole turn is quartered, a window over a
-                    // half-turn halved; the fractions run from the own
-                    // bound.
-                    let fractions: &[f64] = if read.whole_turn {
-                        &[0.75, 0.5, 0.25]
-                    } else if apex_over_half_turn(&apex, read.window, read.arm, band)
-                        .map_err(shape)?
-                    {
-                        &[0.5]
-                    } else {
-                        &[]
-                    };
-                    let arm = metering_arm(read.arm);
-                    push(own.normalize(), own_reach, true, at, arm);
-                    for &k in fractions {
-                        let r = apex.ruling_from(unit_next, read.window * T::from_f64(k));
-                        push(r, BoundSupport::straight_bisector(arm), false, at, arm);
-                    }
-                }
-            }
+        for i in 0..orbit.edges.len() {
+            let (bounds, sectors) = orbit.corner(body, i, tips, band)?;
+            star.bounds.extend(bounds);
+            star.sectors.extend(sectors);
         }
         Ok(star)
     }
@@ -270,8 +322,24 @@ impl<T: Decide> Star<T> {
     /// [`StarFault::Shape`] or [`StarFault::Cut`] where whether an
     /// extremum lies inside a sector is in the band.
     pub(crate) fn refine(&mut self, datums: &[Datum<T>], band: Band) -> Result<(), StarFault> {
+        self.refine_first(self.sectors.len(), datums, band)
+    }
+
+    /// [`Self::refine`] of the star's first `pieces` sectors alone: a
+    /// reader that holds one corner and the bound after it
+    /// ([`crate::vertex_section`]) refines that corner and nothing past it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::refine`].
+    pub(crate) fn refine_first(
+        &mut self,
+        mut pieces: usize,
+        datums: &[Datum<T>],
+        band: Band,
+    ) -> Result<(), StarFault> {
         let mut k = 0;
-        while k < self.sectors.len() {
+        while k < pieces {
             let mut cut = None;
             for datum in datums {
                 if let Some(dir) = self.extremum_inside(k, datum, band)? {
@@ -301,6 +369,7 @@ impl<T: Decide> Star<T> {
                 },
             );
             self.sectors.insert(k + 1, s);
+            pieces += 1;
         }
         Ok(())
     }
@@ -452,6 +521,21 @@ mod tests {
         (body, seed.vertex)
     }
 
+    /// [`strut_on_cone`] from the apex with a second ruling from it to
+    /// `second`: the face's two corners at the apex part its turn
+    /// between the two rulings.
+    fn two_rulings_on_cone(
+        alpha: f64,
+        first: Point3<f64>,
+        second: Point3<f64>,
+    ) -> (Body<f64>, VertexKey) {
+        let (mut body, apex) = strut_on_cone(alpha, Point3::origin(), first);
+        let out = body.vertex_orbit_linked(apex)[0];
+        body.mev_line(MevSite::Fan { he1: out, he2: out }, second, Tol::witness())
+            .unwrap();
+        (body, apex)
+    }
+
     /// The cone's point at azimuth `u` and height `z`.
     fn on_cone(alpha: f64, u: f64, z: f64) -> Point3<f64> {
         let r = z * alpha.tan();
@@ -491,7 +575,10 @@ mod tests {
     }
 
     /// **Every sector is convex, and every datum's side is monotone across
-    /// it after refinement.** The strut's whole turn at the apex refined
+    /// it after refinement.** Two rulings at an apex three quarter-turns
+    /// apart, alone and against a tilted plane (the wider corner's window
+    /// lies between a half-turn and a whole turn, so only its halving keeps
+    /// it under a half-turn); the strut's whole turn at the apex refined
     /// against tilted planes and a partner cone at the apex, and a cube's
     /// corner refined against tilted partner cones: each apex sector spans
     /// under a half-turn and each tangent sector under a half-turn about
@@ -501,6 +588,14 @@ mod tests {
     fn every_sector_is_convex_and_every_datums_side_monotone_after_refinement() {
         let alpha = 0.5;
         let (cone, apex) = strut_on_cone(alpha, Point3::origin(), on_cone(alpha, 0.3, 1.0));
+        // Two rulings three quarter-turns apart: one corner's window lies
+        // strictly between a half-turn and a whole turn.
+        let wide = core::f64::consts::PI * 1.5;
+        let (fan, fan_apex) = two_rulings_on_cone(
+            alpha,
+            on_cone(alpha, 0.3, 1.0),
+            on_cone(alpha, 0.3 + wide, 1.0),
+        );
         let cube = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let corner = cube
             .vertices()
@@ -519,6 +614,8 @@ mod tests {
             sense: true,
         };
         let rows = [
+            (&fan, fan_apex, vec![]),
+            (&fan, fan_apex, vec![Datum::Plane(tilted(0.3, 1.0, -0.2))]),
             (&cone, apex, vec![Datum::Plane(tilted(0.3, 1.0, -0.2))]),
             (&cone, apex, vec![Datum::Plane(tilted(1.0, 0.2, 0.4))]),
             (

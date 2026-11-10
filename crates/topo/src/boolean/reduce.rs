@@ -709,12 +709,27 @@ fn vertex_face_side<T: Decide>(
     )
 }
 
+/// [`vertex_refusal`] of operand A's `vertex`, with no declaration read.
+#[cfg(test)]
+pub(crate) fn vertex_refusal_for_tests(
+    refusal: VertexRefusal,
+    vertex: VertexKey,
+    band: Band,
+) -> BooleanError {
+    vertex_refusal(
+        refusal,
+        (Operand::A, vertex),
+        &|_| DeclarationRead::Moot,
+        band,
+    )
+}
+
 /// The Boolean's refusal of a vertex of operand `x_is` the rule could
 /// not place on a planar face, `read` reading the pair's declaration
 /// ahead of a question: the refusal of the decision that refused it.
 fn vertex_refusal(
     refusal: VertexRefusal,
-    x_is: Operand,
+    (x_is, vertex): (Operand, VertexKey),
     read: &dyn Fn(Coincide) -> DeclarationRead,
     band: Band,
 ) -> BooleanError {
@@ -722,14 +737,13 @@ fn vertex_refusal(
     match refusal {
         VertexRefusal::Offset(diag) => coincidence(Coincide::VertexOnFace, diag),
         VertexRefusal::Section(diag) => coincidence(Coincide::VertexOnSection, diag),
-        VertexRefusal::Sector(e) => e.boolean_refusal(x_is, band),
-        VertexRefusal::Walk(crate::splitting::SplitReduceError::SliverSector {
-            reading: crate::splitting::SectorReading::Escalated(diag),
-            ..
-        }) => BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag),
+        VertexRefusal::Star(fault) => super::sectors::star_fault(fault, x_is, vertex, band),
+        VertexRefusal::Side { diag, .. } => {
+            BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
+        }
         VertexRefusal::Walk(_) => BooleanError::ClassificationInvariant {
-            what: "the neighbourhood walk refused a vertex of an operand at rest (a null edge \
-                   or a degenerate chord, which a finished operand holds none of)",
+            what: "the vertex section asked the split's record for a far vertex's side, which \
+                   the Boolean's reading does not keep",
         },
         VertexRefusal::Plane(what) => BooleanError::ClassificationInvariant { what },
     }
@@ -1232,7 +1246,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             (chart_origin, chart_normal),
                             band,
                         )
-                        .map_err(|refusal| vertex_refusal(refusal, x_is, &read, band))
+                        .map_err(|refusal| vertex_refusal(refusal, (x_is, w), &read, band))
                     };
                     let (d1, d2) = (side(u, pu)?, side(v, pv)?);
                     let (s1, s2) = (d1.sign, d2.sign);
@@ -1461,9 +1475,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 )
             };
             let read = |which| edge_face_read(x, x_is, &edge, face, declared, which);
-            let on_face = |refusal| vertex_refusal(refusal, x_is, &read, band);
-            let d1 = side(u, pu).map_err(on_face)?;
-            let d2 = side(v, pv).map_err(on_face)?;
+            let on_face = |w| move |refusal| vertex_refusal(refusal, (x_is, w), &read, band);
+            let d1 = side(u, pu).map_err(on_face(u))?;
+            let d2 = side(v, pv).map_err(on_face(v))?;
             match (d1.sign, d2.sign) {
                 (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
                     // Proper plane crossing: locate p on the carrier and
@@ -6308,7 +6322,7 @@ fn read_on_plane<T: Decide + crate::props::AtRestPolicy>(
         (plane.origin, plane.normal),
         band,
     )
-    .map_err(|refusal| vertex_refusal(refusal, x_is, &read, band))?;
+    .map_err(|refusal| vertex_refusal(refusal, (x_is, w), &read, band))?;
     if on.sign != Sign::Zero {
         return Ok(false);
     }

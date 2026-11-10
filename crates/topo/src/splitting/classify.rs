@@ -263,7 +263,12 @@ pub(super) fn classify_vertices_margined<T: Decide>(
                 }
             }
             VertexRefusal::Walk(e) => e,
-            VertexRefusal::Sector(e) => e.split_refusal(vertex_key),
+            VertexRefusal::Star(fault) => fault.split_refusal(vertex_key, band),
+            VertexRefusal::Side { face, diag } => SplitReduceError::SliverSector {
+                vertex: vertex_key,
+                face,
+                reading: crate::splitting::SectorReading::Escalated(diag),
+            },
             VertexRefusal::Plane(what) => unreachable!(
                 "{vertex_key:?}: the split plane reads into the table whole, yet {what}"
             ),

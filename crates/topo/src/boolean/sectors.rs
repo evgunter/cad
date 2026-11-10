@@ -371,7 +371,12 @@ pub(super) fn datums_of<T: geom_core::Real>(faces: &[StarFace<T>]) -> Vec<Datum<
 /// not read. A lone vertex and a null edge in the orbit are not a gated
 /// operand's, and the Boolean reads a vertex's sectors once, before it
 /// hangs a null edge there.
-fn star_fault(fault: StarFault, operand: Operand, vertex: VertexKey, band: Band) -> BooleanError {
+pub(super) fn star_fault(
+    fault: StarFault,
+    operand: Operand,
+    vertex: VertexKey,
+    band: Band,
+) -> BooleanError {
     match fault {
         StarFault::Lone => unreachable!(
             "{operand:?}'s vertex {vertex:?}, met through a contact, is a lone vertex: a gated \

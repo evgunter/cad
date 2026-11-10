@@ -43,10 +43,9 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::{FaceKey, VertexKey};
-use crate::sector_face::SectorFaceError;
 use crate::sector_shape::SlitTips;
-use crate::splitting::{EntryFault, PlaneSide, SectorReading, SplitReduceError, bound_side};
-use crate::star::{Datum, Star, StarFault};
+use crate::splitting::{EntryFault, PlaneSide, SplitReduceError, bound_side};
+use crate::star::{Bound, Datum, Orbit, Star, StarFault};
 use crate::validate::decide_reported;
 
 /// K name: a vertex ON a plane read against the sections the plane cuts
@@ -92,12 +91,21 @@ pub(crate) enum VertexRefusal {
     /// Its admitted distance from a section it would end lies in the
     /// band ([`VERTEX_SECTION_SIDE`]): the input's.
     Section(Indeterminate),
-    /// The walk refused the vertex's neighbourhood: a sector reading in
-    /// the band, or a degenerate one.
+    /// The split's record held no side for a far vertex the reading
+    /// asked about.
     Walk(SplitReduceError),
-    /// The walk could not resolve a sector of the vertex: a cone face's
-    /// apex undecided.
-    Sector(SectorFaceError),
+    /// The star could not read a corner the reading asked about: its
+    /// face's resolution, its shape, or its refinement against the
+    /// plane. Each verb maps it as its own walk's fault.
+    Star(StarFault),
+    /// A curved edge's or a divider's side of the plane, in the corner
+    /// of `face`, lies in the band.
+    Side {
+        /// The face whose corner the bound bounds.
+        face: FaceKey,
+        /// The escalation.
+        diag: Indeterminate,
+    },
     /// The door could not read its plane into the section table; the
     /// clause says why.
     Plane(&'static str),
@@ -222,20 +230,23 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 }
 
 /// Whether `face` is read at `at`: a curved face with an implicit form
-/// and a tangent plane there. A planar face's section is a line through
-/// its ends; a fitted face has no implicit normal to read `ψ` from, and
-/// the section the join fits in it is certified at the fit's own
-/// resolution. At a cone's apex (decided as the sector walk decides it,
+/// and a decided tangent plane there. A planar face's section is a line
+/// through its ends; a fitted face has no implicit normal to read `ψ`
+/// from, and the section the join fits in it is certified at the fit's
+/// own resolution. At a cone's apex (decided as the star decides it,
 /// [`crate::face_normal::cone_point`]) the wall has no tangent plane,
 /// and a plane through the apex cuts the cone along rulings, which are
-/// minted straight, or meets it at the apex alone. A vertex near the
-/// axis but not at the apex is read; one whose apex reading escalates
-/// is read, and its sector's resolution refuses it.
+/// minted straight, or meets it at the apex alone. Near the axis but off
+/// the apex its tangent plane is not decided either, and the star reads
+/// no corner there ([`crate::star::StarFault::NearAxis`]): the face is
+/// not read here, and the verb's own walk refuses the vertex typed where
+/// it reads that corner. A vertex whose apex reading escalates is read,
+/// and its corner's resolution refuses it.
 ///
 /// The split refuses a sphere's or a torus's sector
 /// (`neighborhood::split_star`) because the split's gate refuses those
 /// kinds wherever the plane may meet them; the Boolean serves them, so
-/// this reading resolves sectors through [`crate::sector_face::resolve`],
+/// this reading resolves corners through [`crate::sector_face::resolve`],
 /// which has an arm for every kind read here.
 fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band) -> bool {
     let f = body.proven_face(face);
@@ -249,7 +260,7 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
                 at,
                 band
             ),
-            Ok(crate::face_normal::ConePoint::Apex)
+            Ok(crate::face_normal::ConePoint::Apex | crate::face_normal::ConePoint::NearAxis)
         ),
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
@@ -262,9 +273,15 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
 }
 
 /// The read faces ([`read_kind`]) whose corner at the vertex holds the
-/// plane's trace (module docs), read off the vertex's star refined
-/// against the plane ([`crate::star`]); a corner at one of `tips` is the
-/// face's full turn round the slit's tip.
+/// plane's trace (module docs); a corner at one of `tips` is the face's
+/// full turn round the slit's tip.
+///
+/// **It reads only what the question needs**: every orbit edge's side, and
+/// a read face's corner ([`Orbit::corner`], refined against the plane)
+/// only where both its edges leave on one strict side, so a corner or a
+/// face the trace's question does not reach is never walked and none of
+/// its readings can refuse the vertex. Within such a corner it stops at
+/// the first divider across from its edges.
 fn entered_faces<T: Decide>(
     (body, tips): (&Body<T>, &SlitTips),
     (vertex, at): (VertexKey, Point3<T>),
@@ -272,55 +289,47 @@ fn entered_faces<T: Decide>(
     far: &impl Fn(VertexKey) -> Result<PlaneSide, VertexRefusal>,
     band: Band,
 ) -> Result<Vec<FaceKey>, VertexRefusal> {
-    let star = Star::walk(body, vertex, tips, band)
-        .and_then(|mut star| {
-            star.refine(&[Datum::Plane(plane.normal.get())], band)?;
-            Ok(star)
-        })
-        .map_err(|fault| match fault {
-            StarFault::Face(e) => VertexRefusal::Sector(e),
-            fault => VertexRefusal::Walk(fault.split_refusal(vertex, band)),
-        })?;
-    // Each bound's side, read only where the trace's question needs it:
-    // every real edge's, and a corner's dividers only where its edges
-    // leave on one side.
-    let side = |k: usize| {
-        bound_side(body, &star.bounds[k], plane.reference, far, band).map_err(|fault| match fault {
+    let orbit = Orbit::of(body, vertex).map_err(VertexRefusal::Star)?;
+    let n = orbit.edges.len();
+    let face_of = |i: usize| crate::sector_face::face_of(body, vertex, orbit.edges[i].he);
+    let side = |bound: &Bound<T>, face: FaceKey| {
+        bound_side(body, bound, plane.reference, far, band).map_err(|fault| match fault {
             EntryFault::Far(e) => e,
-            EntryFault::Undecided(diag) => VertexRefusal::Walk(SplitReduceError::SliverSector {
-                vertex,
-                face: star.sectors[k].face,
-                reading: SectorReading::Escalated(diag),
-            }),
+            EntryFault::Undecided(diag) => VertexRefusal::Side { face, diag },
         })
     };
-    let m = star.bounds.len();
-    let edges = (0..m)
-        .map(|k| star.bounds[k].real.then(|| side(k)).transpose())
+    let edges = (0..n)
+        .map(|i| side(&orbit.edges[i], face_of(i)))
         .collect::<Result<Vec<_>, _>>()?;
     let mut entered = Vec::new();
-    for k in (0..m).filter(|&k| star.bounds[k].real) {
-        let face = star.sectors[k].face;
+    for i in 0..n {
+        let face = face_of(i);
         if !read_kind(body, face, at, band) || entered.contains(&face) {
             continue;
         }
-        // The corner runs from its own edge across its dividers to the
-        // next real edge.
-        let mut next = (k + 1) % m;
-        let mut inner = Vec::new();
-        while !star.bounds[next].real {
-            inner.push(next);
-            next = (next + 1) % m;
-        }
-        let (Some(a), Some(b)) = (edges[k], edges[next]) else {
-            unreachable!("a real bound has its side read")
-        };
+        let (a, b) = (edges[i], edges[(i + 1) % n]);
         let holds = match (a, b) {
             (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above) => true,
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
+                // The corner and the edge after it, refined in the corner
+                // alone.
+                let (mut bounds, mut sectors) = orbit
+                    .corner(body, i, tips, band)
+                    .map_err(VertexRefusal::Star)?;
+                let pieces = sectors.len();
+                bounds.push(orbit.edges[(i + 1) % n]);
+                sectors.push(sectors[pieces - 1]);
+                let mut corner = Star {
+                    vertex,
+                    bounds,
+                    sectors,
+                };
+                corner
+                    .refine_first(pieces, &[Datum::Plane(plane.normal.get())], band)
+                    .map_err(VertexRefusal::Star)?;
                 let mut opposed = false;
-                for &j in &inner {
-                    if opposes(side(j)?, a) {
+                for divider in &corner.bounds[1..corner.bounds.len() - 1] {
+                    if opposes(side(divider, face)?, a) {
                         opposed = true;
                         break;
                     }
@@ -376,4 +385,115 @@ fn section_sine<T: Decide>(
     });
     let [x, y, z] = geom_core::running::cross(geom_core::running::exact_vec(plane.normal.get()), g);
     Some(x.hypot(y).hypot(z))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::construction::{FaceSurface, MevSite};
+    use crate::star::StarFault;
+    use geom_core::Tol;
+
+    /// A needle cone's one face, of half-angle 0.01 about `+z` from the
+    /// origin, holding one edge from a vertex a band's width off the axis
+    /// at `z = 1e-5`, well off the apex, out along its ruling to `z = 1`.
+    fn near_axis_strut() -> (Body<f64>, VertexKey, VertexKey, FaceKey) {
+        let alpha: f64 = 0.01;
+        let at = |z: f64| Point3::new(z * alpha.tan(), 0.0, z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(1e-5), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Cone {
+                    apex: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    half_angle: alpha,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let far = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                at(1.0),
+                Tol::witness(),
+            )
+            .unwrap()
+            .vertex;
+        (body, seed.vertex, far, seed.face)
+    }
+
+    /// **A vertex near a cone's axis reads ON where its offset does.** The
+    /// plane through it square to the axis leaves its one edge above, so
+    /// the face's corner is the one the trace's question would read. Near
+    /// the axis the cone has no decided tangent plane there, and the face
+    /// is not read: the offset's Zero stands, as on main, and no refusal
+    /// is raised for the verb's own walk to misname.
+    #[test]
+    fn a_vertex_near_a_cones_axis_reads_on_where_its_offset_does() {
+        let (body, vertex, far_vertex, _) = near_axis_strut();
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let p = body.resolve_vertex_point(vertex, crate::live::Proven);
+        let n = Vec3::unit_z();
+        let plane = || {
+            Ok(SectionPlane {
+                origin: p,
+                normal: UnitVec3::new(n, "a test plane's normal", band).unwrap(),
+                reference: ReferenceNormal::of_split_plane(n),
+            })
+        };
+        let offset = Offset {
+            value: geom::plane_offset_rounded(p, n, p),
+            normal: n,
+        };
+        let far = |v: VertexKey| {
+            assert_eq!(v, far_vertex, "the reading asks only the edge's far end");
+            Ok(PlaneSide::Above)
+        };
+        let decided = decide_vertex_on_plane(
+            "vertex_section_probe",
+            (&body, &SlitTips::of(&body)),
+            (vertex, p),
+            plane,
+            (offset, far),
+            band,
+        )
+        .unwrap();
+        assert_eq!(decided.sign, Sign::Zero, "ON, as the offset reads it");
+    }
+
+    /// **The corner refusals keep their kind through both verbs**: a star
+    /// fault the section reading raises reaches each verb as that verb's
+    /// own walk would name it, never as a broken invariant.
+    #[test]
+    fn a_star_fault_in_the_section_reading_is_each_verbs_own() {
+        let (_, vertex, _, face) = near_axis_strut();
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let split = StarFault::NearAxis(face).split_refusal(vertex, band);
+        assert!(
+            matches!(
+                split,
+                SplitReduceError::VertexNearConeAxis { vertex: v, face: f, .. } if v == vertex && f == face
+            ),
+            "the split's: {split:?}"
+        );
+        let boolean = crate::boolean::reduce::vertex_refusal_for_tests(
+            VertexRefusal::Star(StarFault::NearAxis(face)),
+            vertex,
+            band,
+        );
+        assert!(
+            matches!(
+                boolean,
+                crate::boolean::BooleanError::VertexNearConeAxis { face: f, .. } if f == face
+            ),
+            "the Boolean's: {boolean:?}"
+        );
+    }
 }
