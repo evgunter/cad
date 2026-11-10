@@ -287,9 +287,9 @@ type Leg<T> = region::Leg<T, LegShape<T>>;
 /// surface, unchecked. The premise is that every edge lies on the face's
 /// surface, as a line on a cylinder or a cone is then a ruling and a
 /// conic a plane section: tier 3 places each edge on both its faces'
-/// carriers at rest, and on the reduction's working copies an edge a
-/// face gains is a section of its carrier with the other operand's, on
-/// both by construction.
+/// carriers at rest (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual"), and on the
+/// reduction's working copies an edge a face gains is a section of its carrier with the other
+/// operand's, on both by construction.
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between

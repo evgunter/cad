@@ -9048,7 +9048,9 @@ pub(crate) fn point_corners<T: Decide>(
 /// door gives none there (`pinch_corner_errors`' residue), a vertex the
 /// door reads off the face's surface among them: that is check 3's
 /// finding, and a caller that needs the normal refuses its absence
-/// (`splitting::section_cones`).
+/// (`splitting::section_cones`). A torus off its convention, which
+/// check 1 refuses, reads `None` here too; at a dual, see
+/// [`crate::Replay`]'s "A tier-3 premise at a dual".
 ///
 /// # Errors
 ///

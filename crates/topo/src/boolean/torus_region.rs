@@ -153,7 +153,7 @@ type Leg<T> = region::Leg<T, Round<T>>;
 /// plane — a spline — or is neither a circle nor a spiric. A circle or a
 /// spiric is taken as a plane section of this torus, unchecked: every
 /// such edge of a torus face is one at rest (tier 3 places each edge on
-/// both its faces' carriers).
+/// both its faces' carriers (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual")).
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between

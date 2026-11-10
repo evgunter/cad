@@ -778,7 +778,8 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         /// a sense; asking the representative is asking the group, and
         /// it is the representative that the arms act for. (Agreement
         /// across the group is a tier-3 obligation, not re-checked
-        /// here.) `false` swaps the near/far crossing pair below.
+        /// here (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual").) `false` swaps the
+        /// near/far crossing pair below.
         sense: bool,
     },
     /// A cone face: the ray/double-cone quadratic's roots, each tested
@@ -826,7 +827,8 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         /// The major radius `R` (centre to tube centre).
         major_radius: T,
         /// The minor radius `r` (the tube), `R > r` by the ring-torus
-        /// convention tier-3 check 1 enforces at rest.
+        /// convention tier-3 check 1 enforces at rest (at a dual, [`crate::Replay`]'s "A tier-3
+        /// premise at a dual").
         minor_radius: T,
         /// The group's first face in the selection's order. Arms no-op
         /// on every other member.
