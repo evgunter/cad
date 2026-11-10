@@ -2,12 +2,11 @@
 id: a-selects-body-takes-an-indexed-read
 kind: issue
 title: A selection's body is a plain read, so a member read by index (xs[i]) cannot be selected from, and Rebind { body } would reach every member's selections
-status: parked
+status: dispatched
 opened: 2026-10-10
 priority: P1
 cost: M
 design: true
-blocked_on: [6555]
 pr: 6555
 branch: reads/select-indexed-member
 ---
@@ -32,3 +31,7 @@ rewrites every selection of one body read. Two selections of different members
 of one family (`xs[0]`, `xs[1]`) share that body read, so a `Rebind { body: xs }`
 would reach both; it must address the indexed read (read and indices), not the
 read alone.
+
+## Dispatch (2026-11-10)
+
+Built into PR 6555 on `reads/select-indexed-member`, per DM3 as ratified there and Ev's ruling (comments 6757433076, 6757577350): form 1 (a selection over the family read whole, its names `Member`-spelled) is deleted with its producers and consumers, and the family read whole does not type-check at a selection's body seat. Review tier: single FULL (a public API change, deletions across editor-core, Python and the viewer).
