@@ -522,13 +522,13 @@ fn every_door_name_carries_a_listed_prefix() {
     assert_eq!(
         indirect,
         [
-            "circle_roots.rs: c0",
-            "circle_roots.rs: row",
-            "circle_roots.rs: rows.coaxial",
-            "circle_roots.rs: rows.noise",
-            "circle_roots.rs: rows.root_slack",
-            "composite.rs: row",
-            "spline_face.rs: row",
+            "circle_roots.rs: constant_residual_roots: row",
+            "circle_roots.rs: harmonic_crossing: c0",
+            "circle_roots.rs: harmonic_crossing: rows.coaxial()",
+            "circle_roots.rs: harmonic_crossing: rows.noise()",
+            "circle_roots.rs: harmonic_crossing: rows.root_slack()",
+            "composite.rs: settle: row",
+            "spline_face.rs: settle: row",
         ],
         "the census's indirect sites"
     );

@@ -400,6 +400,12 @@ fn a_curved_edge_meeting_one_half_of_the_span_is_not_read_clear() {
 /// `L/2 + reach` by less: the span is not read clear. Every point of the
 /// arc stands past `L/2 − 2e-6` from the span, so the crossing pierces
 /// the cap; the refusal is the price of a bound read from one point.
+///
+/// The clearance is decided in band, so the refusal is that decision's
+/// own escalation (`pm_census_ef_pierce_curve_clear`), kept by
+/// `span_clear_as`'s ladder (PR 6739's review, F1). Before, an undecided
+/// clearance read as "not clear", and the census refused on the span's
+/// straddle row instead.
 #[test]
 fn a_curved_edge_clears_the_span_only_past_its_reach() {
     let band = Band::new(1e-12, 1e-11).unwrap();
@@ -432,7 +438,7 @@ fn a_curved_edge_clears_the_span_only_past_its_reach() {
     );
     let (got, rows) = half_disc_read::<f64>(centre, radius, origin, (x, y));
     assert!(
-        refused_by_the_span(got, &rows),
+        got == Found::Refused && rows == ["pm_census_ef_pierce_curve_clear"],
         "read {got:?}, refused by {rows:?}"
     );
 }
@@ -455,7 +461,7 @@ fn a_side_with_no_closed_form_clearance_is_not_read_clear() {
         let lever = 0.01 * pair.e.len;
         let half = 5.0 * band.zero() / lever / 2.0;
         let mut errors = Vec::new();
-        let read = span_clear(
+        let read = span_clear_as(
             pair.body,
             &pair.geo,
             &pair.e,
@@ -722,7 +728,7 @@ fn a_spans_reach_counts_the_band_and_the_slope() {
         let lever = slope * pair.e.len;
         let half = height * band.zero() / lever / 2.0;
         let mut errors = Vec::new();
-        let read = span_clear(
+        let read = span_clear_as(
             pair.body,
             &pair.geo,
             &pair.e,
@@ -770,7 +776,7 @@ fn a_span_overhanging_its_edges_start_is_read_over_the_overhang() {
         let pair = Pair::new(&prism.body, prism.top_face, ends);
         let lever = T::from_f64(1e-13);
         let mut errors = Vec::new();
-        let read = span_clear(
+        let read = span_clear_as(
             pair.body,
             &pair.geo,
             &pair.e,

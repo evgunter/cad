@@ -117,18 +117,10 @@ use crate::validate::decide;
 const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
 
 /// A circle edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_torus_region_arc_span",
-    "bool_torus_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::TORUS_REGION_CONIC;
 
 /// An oval edge's boundary reading's rows (module docs).
-const SPIRIC: ArcRows = ArcRows {
-    end: "bool_torus_region_spiric_end",
-    clear: "bool_torus_region_spiric_clear",
-    on: "bool_torus_region_spiric_on",
-    leaf: "bool_torus_region_spiric_leaf",
-};
+const SPIRIC: ArcRows = crate::rows::TORUS_REGION_SPIRIC;
 
 /// A trimmed torus face's boundary: every edge of every loop, each with
 /// the direction its loop traverses it.
@@ -161,7 +153,7 @@ type Leg<T> = region::Leg<T, Round<T>>;
 /// plane — a spline — or is neither a circle nor a spiric. A circle or a
 /// spiric is taken as a plane section of this torus, unchecked: every
 /// such edge of a torus face is one at rest (tier 3 places each edge on
-/// both its faces' carriers).
+/// both its faces' carriers (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual")).
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -1123,7 +1115,7 @@ mod tests {
     #[test]
     fn a_walls_null_edge_bounds_nothing() {
         let wall = || {
-            crate::boolean::boxes::tests::torus_wall(
+            crate::boxes::tests::torus_wall(
                 Point3::origin(),
                 Vec3::unit_z(),
                 Vec3::unit_x(),

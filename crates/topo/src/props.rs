@@ -1207,27 +1207,7 @@ impl<T: Real> MassProperties<T> {
     }
 }
 
-/// The predicate names a role read decides under: the bracket's high
-/// end (and an exact volume) under `high`, its low end under `low`.
-#[derive(Clone, Copy, Debug)]
-pub struct RoleNames {
-    /// The name the high end, and an exact volume, are decided under.
-    pub high: &'static str,
-    /// The name the low end is decided under.
-    pub low: &'static str,
-}
-
-impl RoleNames {
-    /// One name for both ends — every decision but check 7's, which keeps
-    /// its two historical names.
-    #[must_use]
-    pub const fn one(name: &'static str) -> Self {
-        Self {
-            high: name,
-            low: name,
-        }
-    }
-}
+pub use crate::rows::RoleNames;
 
 /// A role read that decided no role: the two ends' decisions (one and
 /// the same for an exact volume).
@@ -1291,18 +1271,18 @@ pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) ->
     };
     match reading {
         SignReading::Exact { volume, .. } => {
-            let one = sign_as(names.high, volume);
+            let one = sign_as(names.high(), volume);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
                 RoleUnread { lo: one, hi: one },
             )
         }
         SignReading::Bracket(ends) => {
-            let hi = sign_as(names.high, ends.volume_hi);
+            let hi = sign_as(names.high(), ends.volume_hi);
             if let Some(role) = role_at(BracketEnd::High, hi) {
                 return RoleRead::Decided(role);
             }
-            let lo = sign_as(names.low, ends.volume_lo);
+            let lo = sign_as(names.low(), ends.volume_lo);
             read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
         }
     }
@@ -2517,7 +2497,7 @@ mod face_walk_composition_tests {
     }
 
     /// A detached run that records exactly one verdict, under `name`.
-    fn one_verdict(name: &'static str) -> Detached {
+    fn one_verdict_as(name: &'static str) -> Detached {
         detached(|| {
             let _ = crate::validate::decide(name, Margin::of(1.0f64), band());
         })
@@ -2543,12 +2523,12 @@ mod face_walk_composition_tests {
 
     /// The slots, with a hard refusal at `refuse_at` when one is asked
     /// for; every slot carries a recording naming itself.
-    fn slots(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
+    fn slots_as(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
         names
             .iter()
             .enumerate()
             .map(|(i, &name)| {
-                let recording = one_verdict(name);
+                let recording = one_verdict_as(name);
                 let run = if refuse_at == Some(i) {
                     Err(MassPropsError::Corrupt {
                         what: "the injected refusal",
@@ -2691,7 +2671,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn every_recording_splices_in_arena_order_when_no_face_refuses() {
-        let decided = slots(&NAMES, None);
+        let decided = slots_as(&NAMES, None);
         let bracket = Bracket::open();
         let runs = splice_in_arena_order(decided).expect("no face refused");
         let log = bracket.finish();
@@ -2766,7 +2746,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn the_refusing_faces_recording_splices_and_every_later_one_is_dropped() {
-        let decided = slots(&NAMES, Some(2));
+        let decided = slots_as(&NAMES, Some(2));
         let bracket = Bracket::open();
         let err = match splice_in_arena_order(decided) {
             Err(err) => err,
@@ -5660,7 +5640,7 @@ pub enum ShellClassifyError {
 /// definite gap. One decision and one lever, at rest and at a boolean's
 /// door alike (`BooleanDecision::ShellRole`).
 pub const AIMED_PAIR: SizedDecision = SizedDecision {
-    lever: "move the geometry so the two faces the aimed ray met are clearly apart",
+    lever: geom_core::move_lever!("so the two faces the aimed ray met are clearly apart"),
     size: "gap",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,

@@ -188,7 +188,7 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
         "the row read off is on the degraded chart"
     );
     assert_eq!(
-        geom_brep::IncidenceRead::kinds_of(error).map(|(chart, _)| chart),
+        error.chart_carrier_kinds().map(|(chart, _)| chart),
         Some(geom::SurfaceKind::Approx),
         "the refusal names the degraded chart: {minted:?}"
     );

@@ -234,7 +234,7 @@ impl Recording<'_, ProfileProgram> {
         let read_inside = doc.name_carriers().any(|carrier| match carrier {
             crate::doc::NameCarrier::Select { var, name } => {
                 doc.selection(var)
-                    .is_some_and(|select| bodies.contains_key(&select.body))
+                    .is_some_and(|select| bodies.contains_key(&select.body.read))
                     || crate::resolve::derivation_reads(name)
                         .iter()
                         .any(|r| bodies.contains_key(r))

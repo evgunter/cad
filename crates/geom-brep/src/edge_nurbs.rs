@@ -1029,7 +1029,11 @@ pub struct PlaneNurbsIncidence<T: Real> {
 /// inside `(0, 1)` always do; an empty list holds nothing, and reads as
 /// no candidate.
 #[must_use]
-pub fn arc_rim_candidates<T: Real>(chart: &NurbsSurface<T>, t0: T, span: T) -> Vec<Pcurve<T>> {
+pub fn arc_rim_candidates<T: SpanLocate>(
+    chart: &NurbsSurface<T>,
+    t0: T,
+    span: T,
+) -> Vec<Pcurve<T>> {
     arc_rim_images(chart, |_, _| Some((t0, span)))
 }
 
@@ -1067,21 +1071,17 @@ pub fn arc_rim_measured<T: Decide>(
     (t0, span): (T, T),
     band: Band,
 ) -> Vec<Pcurve<T>> {
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        ..
-    }) = *carrier
-    else {
+    // A circle carrier, read in its own period.
+    let (Curve3::Circle(circle), Some(turn)) = (carrier, carrier.period()) else {
         return Vec::new();
     };
+    let geom::Frame {
+        origin: center,
+        axis,
+        u_ref,
+    } = circle.frame;
     let vref = axis.cross(u_ref);
     let spans = arc_rim_spans(chart);
-    let turn = crate::pcurve_cache::Period::new(T::tau());
     arc_rim_images(chart, |end, forward| {
         let row = crate::nurbs_iso::boundary_iso_v(chart, end).ok()?;
         let angle = crate::pcurve_cache::arc_rim_turn(&row, spans, band)?;
@@ -1117,7 +1117,7 @@ fn arc_rim_spans<T: Real>(chart: &NurbsSurface<T>) -> usize {
 /// in each row, each over the arc `arc(end, forward)` names: the row
 /// at `v₁` where `end`, running with `u` where `forward`. An arc that
 /// is `None` offers no image.
-fn arc_rim_images<T: Real>(
+fn arc_rim_images<T: SpanLocate>(
     chart: &NurbsSurface<T>,
     arc: impl Fn(bool, bool) -> Option<(T, T)>,
 ) -> Vec<Pcurve<T>> {
@@ -1131,6 +1131,7 @@ fn arc_rim_images<T: Real>(
     [(false, cv0), (true, cv1)]
         .into_iter()
         .flat_map(|(end, v)| {
+            let ends = row_end_weights(chart, end);
             [(true, cu0, cu1 - cu0), (false, cu1, cu0 - cu1)].map(|(forward, p0x, sign)| {
                 arc(end, forward).map(|(t0, angle)| Pcurve::IsoArc {
                     p0: Point2::new(p0x, v),
@@ -1138,11 +1139,31 @@ fn arc_rim_images<T: Real>(
                     t0,
                     angle,
                     breaks: breaks.clone(),
+                    ends: if forward {
+                        ends.as_slice().into()
+                    } else {
+                        ends.iter().rev().copied().collect()
+                    },
                 })
             })
         })
         .flatten()
         .collect()
+}
+
+/// **A boundary row's end weights**, along the chart's `u`, where they
+/// are not one value ([`Pcurve::IsoArc`]'s `ends`). Empty for a row at
+/// one end weight, and for a row the chart cannot give.
+fn row_end_weights<T: SpanLocate>(chart: &NurbsSurface<T>, end: bool) -> Vec<T> {
+    let Ok(row) = crate::nurbs_iso::boundary_iso_v(chart, end) else {
+        return Vec::new();
+    };
+    let ends = crate::pcurve_cache::joint_weights(&row);
+    if crate::pcurve_cache::one_value(&ends) {
+        Vec::new()
+    } else {
+        ends
+    }
 }
 
 /// **The `k`-th of `m` uniform breakpoints on `[0, 1]`**, `k/m` as one
@@ -1952,7 +1973,7 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// reading is the enclosure `[floor, upper]` of that distance — `floor`
 /// the certified value at the break the rounds stopped on, `0` where
 /// they stopped on the bound — decided as one margin
-/// ([`limb2_enclosure`]): `upper` within the band passes, a floor past
+/// ([`limb2_enclosure_as`]): `upper` within the band passes, a floor past
 /// it is the measured miss ([`AnalyticRung3Refusal::Limb`]), and
 /// anything else is undecided at this input: a bare upper bound refuses
 /// [`AnalyticRung3Refusal::Stalled`], claiming no cause and no
@@ -1999,7 +2020,7 @@ fn limb2<T: Decide>(
     } = read.map_err(refused)?;
     let decided = match (T::WITNESS, offset) {
         (geom_core::Witness::Exact, Offset::Bound(_) | Offset::Miss { bound: Ok(_), .. }) => {
-            limb2_enclosure(kind, floor, upper, band, |free| {
+            limb2_enclosure_as(kind, floor, upper, band, |free| {
                 free_residual(carrier, params, operand, free)
             })
         }
@@ -2037,7 +2058,7 @@ fn limb2<T: Decide>(
 /// ([`AnalyticRung3Refusal::Escalated`] on [`Rung3Limb::HullValue`]),
 /// the classifier's terminal bit kept: a distance measured in the
 /// sliver is one no subdivision decides.
-fn limb2_enclosure<T: Decide>(
+fn limb2_enclosure_as<T: Decide>(
     operand: geom::SurfaceKind,
     floor: f64,
     upper: f64,
@@ -2066,7 +2087,7 @@ fn limb2_enclosure<T: Decide>(
     }
 }
 
-/// **Limb 2's symbolic identity** ([`limb2_enclosure`]): the residual of
+/// **Limb 2's symbolic identity** ([`limb2_enclosure_as`]): the residual of
 /// the carrier's own description against `operand`, with the carrier's
 /// parameter free (`free` mints it). The operand is read as the
 /// composite reads it, its frame made orthonormal
@@ -2436,7 +2457,7 @@ pub enum AnalyticRung3Refusal {
     /// **Limb 2 undecided at this input** — at an enclosure scalar, the
     /// composite's enclosure `[0, upper]` of the carrier's distance from
     /// the operand neither clears the band nor shows a measured miss
-    /// ([`limb2_enclosure`]). It claims no cause and no terminality: over
+    /// ([`limb2_enclosure_as`]). It claims no cause and no terminality: over
     /// a parameter box a smaller box is the remedy and the drive bisects
     /// it (E6), its escalation on the node's log. A floor measured inside
     /// the band is not this: it escalates on the measured value
@@ -3092,7 +3113,7 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let decide = |b: Interval| {
             let upper = Offset::Bound(b).upper();
-            limb2_enclosure::<Interval>(geom::SurfaceKind::Plane, 0.0, upper, band, |_| b)
+            limb2_enclosure_as::<Interval>(geom::SurfaceKind::Plane, 0.0, upper, band, |_| b)
         };
         assert!(
             decide(Interval::from_bounds(0.0, 0.0)).is_ok(),

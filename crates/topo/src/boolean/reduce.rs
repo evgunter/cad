@@ -4,7 +4,7 @@
 //!
 //! - **Candidate generation through the `bvh` tree** (M5 PR 8, C10 —
 //!   the documented quadratic of M3, retired): each edge fragment
-//!   queries the per-direction face tree ([`super::boxes`], padded
+//!   queries the per-direction face tree ([`crate::boxes`], padded
 //!   vertex-extent boxes) instead of scanning every face. THE TREE
 //!   PRUNES, PREDICATES DECIDE: candidates arrive in ascending face
 //!   arena order (a subsequence of the brute-force scan), the exact
@@ -63,18 +63,18 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use super::boxes;
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
 use super::plane_eq::PlaneDesc;
-use super::separating::Item;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, EfContact, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
+use crate::boxes;
 use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
 use crate::sector_shape::SlitTips;
+use crate::separating::Item;
 use crate::splitting::PlaneSide as SplitSide;
 use crate::sweep_trace::SweepPairs;
 use crate::validate::decide;
@@ -459,7 +459,7 @@ pub(super) struct UnsupportedPair {
 ///   the operation and the gate has nothing to say about it.
 /// - **The boxes separate along the world's axes only**, so an
 ///   overlap is followed by the narrow phase
-///   ([`super::separating::apart`]), which reads both faces along
+///   ([`crate::separating::apart`]), which reads both faces along
 ///   directions that turn with the operands. A pair it parts is
 ///   certified apart as a box non-overlap is, and the verdict is the
 ///   pair's rather than the pose's.
@@ -470,7 +470,7 @@ pub(super) struct UnsupportedPair {
 ///   built from it say the faces "may meet" rather than claiming a
 ///   meeting the kernel has not computed.
 ///
-/// The pad is the sweep's own ([`super::boxes::sweep_pad`]), and the
+/// The pad is the sweep's own ([`crate::boxes::sweep_pad`]), and the
 /// sweep's curved arm reads the same narrow phase behind its tree, for
 /// an edge and for either face it lies on: a face pair the gate parts,
 /// the sweep parts too, for every edge of that face. The converse does
@@ -523,8 +523,8 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
     supported: impl Fn(&geom::Surface<T>) -> bool,
     covered: impl Fn(Operand, FaceKey, FaceKey) -> bool,
 ) -> Result<Option<UnsupportedPair>, BooleanError> {
-    let pad = super::boxes::sweep_pad(band);
-    let axes = super::separating::OperandAxes::new(super::boxes::axis_key);
+    let pad = crate::boxes::sweep_pad(band);
+    let axes = crate::separating::OperandAxes::new(crate::boxes::axis_key);
     for (operand, body, other) in [(Operand::A, a, b), (Operand::B, b, a)] {
         // Arena order both ways, and no box is built for an operand
         // that carries no unsupported kind at all — the common case
@@ -547,15 +547,15 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             .face_views()
             .map(|f| {
                 let (key, kind) = (f.key(), f.surface().kind());
-                Ok((key, kind, super::boxes::face_box(other, key, pad, band)))
+                Ok((key, kind, crate::boxes::face_box(other, key, pad, band)))
             })
             .collect::<Result<_, BooleanError>>()?;
         for (face, kind) in offenders {
-            let boxed = super::boxes::face_box(body, face, pad, band);
+            let boxed = crate::boxes::face_box(body, face, pad, band);
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
-                    && !super::separating::apart(
+                    && !crate::separating::apart(
                         (body, Item::Face(face)),
                         (other, Item::Face(other_face)),
                         axes.of(a, b, band),
@@ -652,7 +652,7 @@ pub(super) fn plane_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Pla
 /// reads its side by: the split's rule
 /// ([`crate::vertex_section::decide_vertex_on_plane`]). The face's
 /// outward normal is read into the section table as a unit direction
-/// over the face's reach ([`super::separating::planar_axis`]), and a
+/// over the face's reach ([`crate::separating::planar_axis`]), and a
 /// far vertex of `x` takes its side from its own offset, under this
 /// door's name.
 fn vertex_face_side<T: Decide>(
@@ -666,7 +666,7 @@ fn vertex_face_side<T: Decide>(
         let outward = crate::face_normal::face_outward_normal(y, face).ok_or(
             VertexRefusal::Plane("the face's plane has no outward normal (not a plane)"),
         )?;
-        let normal = super::separating::planar_axis(
+        let normal = crate::separating::planar_axis(
             y,
             face,
             || crate::census::face_reach(y, face, band),
@@ -819,11 +819,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                 });
             }
             Err(super::PlaneEqError::Escalated { rung, diag }) => {
-                return Err(BooleanError::plane_identity(
-                    rung,
-                    super::PlaneDoor::Neighbours,
-                    diag,
-                ));
+                return Err(BooleanError::plane_identity(rung, diag));
             }
             Err(super::PlaneEqError::OffRing { torus, refusal }) => {
                 return Err(super::off_ring_torus(
@@ -917,7 +913,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     knobs: &SweepKnobs,
     mut trace: Option<&mut SweepPairs<(EdgeKey, FaceKey)>>,
     deferred: &mut Vec<DeferredTouch>,
-    axes: &super::separating::OperandAxes<T>,
+    axes: &crate::separating::OperandAxes<T>,
     tol: Tol,
 ) -> Result<(), BooleanError> {
     let faces: Vec<FaceKey> = y.faces().map(|(k, _)| k).collect();
@@ -998,7 +994,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // The parents' reading is the operand gate's, so a pair
                 // the gate cleared is cleared here too.
                 let apart_from_face = |item| {
-                    super::separating::apart(
+                    crate::separating::apart(
                         (x, item),
                         (y, Item::Face(face)),
                         axes.of(x, y, band),
@@ -1650,7 +1646,7 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut deferred = Vec::new();
     // Both directions read one axis set, taken when the first curved
     // face is met.
-    let axes = super::separating::OperandAxes::new(super::boxes::axis_key);
+    let axes = crate::separating::OperandAxes::new(crate::boxes::axis_key);
     sweep_direction(
         (a, a_tips),
         b,
@@ -2299,9 +2295,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // roots that answer `LiesOn` sit behind the uncovered arm.
             if covered && !on_carrier {
                 let (t0, t1) = curve.params();
-                if let Ok(SpanVerdict::LiesOn) =
-                    wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)
-                    && parents_distinct_from(x, edge, y, face, band)
+                if let Ok(SpanVerdict::LiesOn) = wall_crossing(
+                    y,
+                    face,
+                    x_is.other(),
+                    &surface,
+                    curve.carrier(),
+                    t0,
+                    t1,
+                    band,
+                    &escalate,
+                ) && parents_distinct_from(x, edge, y, face, band)
                 {
                     let arc = ArcOnCarrier {
                         x,
@@ -2663,7 +2667,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         (Sign::Zero, Sign::Positive | Sign::Negative)
         | (Sign::Positive | Sign::Negative, Sign::Zero) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
+            match wall_crossing(
+                y,
+                face,
+                x_is.other(),
+                &surface,
+                curve.carrier(),
+                t0,
+                t1,
+                band,
+                &escalate,
+            )? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2761,7 +2775,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // a tangency, and a trim with no verdict.
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
+            match wall_crossing(
+                y,
+                face,
+                x_is.other(),
+                &surface,
+                curve.carrier(),
+                t0,
+                t1,
+                band,
+                &escalate,
+            )? {
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, m1, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, m2, contacts, band, tol)?;
@@ -2799,7 +2823,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // one.
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
+            match wall_crossing(
+                y,
+                face,
+                x_is.other(),
+                &surface,
+                curve.carrier(),
+                t0,
+                t1,
+                band,
+                &escalate,
+            )? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2847,7 +2881,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 ) =>
         {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
+            match wall_crossing(
+                y,
+                face,
+                x_is.other(),
+                &surface,
+                curve.carrier(),
+                t0,
+                t1,
+                band,
+                &escalate,
+            )? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2962,6 +3006,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     match wall_crossing(
                         y,
                         face,
+                        x_is.other(),
                         &surface,
                         curve.carrier(),
                         t0,
@@ -4909,6 +4954,7 @@ fn place_crossing<T: Decide>(
 fn wall_crossing<T: Decide + Bounds>(
     y: &Body<T>,
     face: FaceKey,
+    operand: Operand,
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -4967,16 +5013,18 @@ fn wall_crossing<T: Decide + Bounds>(
                     geom_brep::curve_face::circle_torus::circle_torus_roots(
                         carrier, t0, t1, surface, band,
                     )
-                    .map_err(BooleanError::of_door_refusal(
+                    .map_err(BooleanError::of_torus_door_refusal(
                         BooleanDecision::ArcTorusRoots,
+                        (operand, face),
                     )),
                 ),
                 (_, geom::Surface::Torus { .. }) => Some(
                     geom_brep::curve_face::ellipse_torus::ellipse_torus_roots(
                         carrier, t0, t1, surface, band,
                     )
-                    .map_err(BooleanError::of_door_refusal(
+                    .map_err(BooleanError::of_torus_door_refusal(
                         BooleanDecision::ArcTorusRoots,
+                        (operand, face),
                     )),
                 ),
                 _ => None,
@@ -7161,7 +7209,7 @@ mod declaration_order_rows {
     /// torus and no shared rim.
     #[test]
     fn the_circle_torus_lane_escalates_as_its_own_decision_and_no_declaration_settles_it() {
-        use crate::boolean::boxes::tests::torus_wall;
+        use crate::boxes::tests::torus_wall;
         let tol = Tol::witness();
         let b = Band::linear(tol).expect("the witness band");
         let mid = (b.zero() + b.escalate()) / 2.0;
@@ -7276,17 +7324,17 @@ mod declaration_order_rows {
         );
     }
 
-    /// **A coplanar sector's in-band parallelism refuses on the sector**,
-    /// on a union: a parallelepiped cornered at a point of a block's top
-    /// face by a 5° wedge angle, its face there tilted by an in-band
-    /// angle about the wedge's one edge, so the wedge's two edges read
-    /// on that face while its normal reads in-band parallel at the
-    /// corner's arm. Two poses: standing on the block, its bottom face
-    /// opposed to the block's top; and sunk into it, its top face flush
-    /// with the block's top and aligned with it. The sector names the
-    /// one-carrier class the senses make the pair (`Rest` opposed, a
-    /// continuation aligned), and its recourse is the geometry or the
-    /// tolerance, where that lies above `EPS_MIN` (D4 ¶4).
+    /// **A coplanar sector of a pair the glue door did not glue refuses
+    /// on its own bounds**, on a union: a parallelepiped cornered at a
+    /// point of a block's top face by a 5° wedge angle, its face there
+    /// tilted by an in-band angle about the wedge's one edge, so the
+    /// wedge's two edges read on that face. Two poses: standing on the
+    /// block, its bottom face opposed to the block's top; and sunk into
+    /// it, its top face flush with the block's top and aligned with it.
+    /// Either way the corner refuses on the steeper bound's tie, naming no
+    /// class (carrier identity is the glue door's alone), and its
+    /// recourse is the geometry or the tolerance, where that lies above
+    /// `EPS_MIN` (D4 ¶4).
     #[test]
     fn a_coplanar_sectors_in_band_parallelism_refuses_on_the_sector() {
         use crate::test_support_fixtures::{brick, mapped_cube};
@@ -7304,14 +7352,13 @@ mod declaration_order_rows {
             brick::<f64>((0.0, 3.0), (-2.0, 2.5), (0.0, 1.0), tol),
             tol,
         );
-        let poses: [(&'static str, crate::body::Body<f64>, GlueClass); 2] = [
+        let poses: [(&'static str, crate::body::Body<f64>); 2] = [
             (
                 "standing on the block",
                 mapped_cube::<f64>(
                     move |u, v, w| p + ea * u + eb * v + geom_core::Vec3::new(0.0, 0.0, w),
                     tol,
                 ),
-                GlueClass::Rest,
             ),
             (
                 "sunk into the block",
@@ -7321,19 +7368,17 @@ mod declaration_order_rows {
                     },
                     tol,
                 ),
-                GlueClass::Continuation,
             ),
         ];
-        for (label, wedge, class) in poses {
+        for (label, wedge) in poses {
             let wedge = finished(label, wedge, tol);
             let got = crate::boolean::union(&block, &wedge, tol).map(|_| ());
             assert!(
                 matches!(
                     decision_of(label, &got),
-                    BooleanDecision::Coincidence(Coincide::Sectors, DeclarationRead::Settles(s))
-                        if s.class() == class
+                    BooleanDecision::Coincidence(Coincide::CornerBound, DeclarationRead::Moot)
                 ),
-                "{label}: the sector names {class:?}, as the senses make the pair: {got:?}"
+                "{label}: the corner refuses on its own bound: {got:?}"
             );
             let Err(BooleanError::Escalated { diag, .. }) = &got else {
                 panic!("{label}: an escalation: {got:?}");
@@ -7348,13 +7393,14 @@ mod declaration_order_rows {
                 .expect_err("it refuses")
                 .render(geom_brep::recourse::Reading::Build);
             assert!(
-                text.starts_with("how two corners of the two solids overlap where they meet is ")
-                    && text.contains(
-                        "Recourse: move the parts so they clearly meet or clearly stand apart \
-                         there"
-                    )
-                    && text.contains(", or, if this gap is intended, tighten the tolerance below ")
-                        == offers
+                text.starts_with(
+                    "whether a corner of one solid lying on a face of the other leaves its plane \
+                     is "
+                ) && text.contains(
+                    "Recourse: move the parts so the corner's edges clearly leave the other \
+                     face's plane"
+                ) && text.contains(", or, if this rise is intended, tighten the tolerance below ")
+                    == offers
                     && !text.contains("declare"),
                 "{label}: offered exactly above EPS_MIN ({offers}): {text}"
             );
@@ -7449,6 +7495,7 @@ mod edge_span_tests {
             wall_crossing(
                 &y,
                 FaceKey::default(),
+                crate::boolean::Operand::B,
                 &wall,
                 &line,
                 t0,
@@ -7513,6 +7560,7 @@ mod edge_span_tests {
         let got = wall_crossing(
             &y,
             face,
+            crate::boolean::Operand::B,
             &wall,
             &ellipse,
             core::f64::consts::FRAC_PI_2 - 0.1,
@@ -7566,6 +7614,7 @@ mod edge_span_tests {
         let got = wall_crossing(
             &y,
             face,
+            crate::boolean::Operand::B,
             &frame.surface(),
             &spline,
             0.0,
@@ -8944,6 +8993,7 @@ mod arc_end_rows {
         let got = wall_crossing(
             &body,
             cap,
+            crate::boolean::Operand::B,
             &sphere,
             &line,
             0.5 * reach,

@@ -147,10 +147,7 @@ use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
 
 /// The boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_sphere_region_arc_span",
-    "bool_sphere_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::SPHERE_REGION_CONIC;
 
 /// The fraction of each arc's span [`SphereFaceRegion::aim`] steps from:
 /// the golden section ([`geom_core::GOLDEN_SECTION`]), off the middle a
@@ -897,7 +894,7 @@ mod tests {
     #[test]
     fn a_zones_null_edge_leaves_no_region() {
         let sheet = || {
-            crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet(
+            crate::boxes::sphere_rect_rows::sphere_zone_sheet(
                 (0.2, 1.0),
                 (-0.3, 0.4),
                 geom_core::Tol::witness(),

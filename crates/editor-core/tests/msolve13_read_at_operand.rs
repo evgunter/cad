@@ -544,7 +544,7 @@ fn a3c_a_mate_read_through_a_union_crosses_onto_the_instance() {
         panic!("the seat's target reads one face")
     };
     assert_eq!(
-        out.remainder.selection(select).map(|s| s.body),
+        out.remainder.selection(select).map(|s| s.body.read),
         out.remainder.output(out.instance, 0),
         "the kept seat's target reads the instance's copies"
     );

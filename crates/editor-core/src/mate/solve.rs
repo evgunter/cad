@@ -537,8 +537,9 @@ pub(crate) struct ReadMate<T: Real> {
 /// `z` onto it, whose columns are rational in `d`'s components with the
 /// one divisor `1 + c`; where `c < 0` it is aimed from `−z` instead
 /// (divisor `1 − c`), after the half-turn about `x`. Which of the two
-/// is a choice of arithmetic, not a verdict ([`SolveScalar`]): both
-/// carry `z` to `d`, and at a point neither divisor falls below one
+/// is a choice of arithmetic, not a verdict, and the mint's own
+/// ([`geom_core::RigidMotion::aimed`], by the middle of `c`'s bracket):
+/// both carry `z` to `d`, and at a point neither divisor falls below one
 /// where it is taken (over an enclosure, below one by at most half its
 /// width in `c`). So at `Sym` a
 /// frame is a rational function of the pose, with no guard the
@@ -547,8 +548,7 @@ fn frame_of<T: SolveScalar>(
     pose: &PoseValue<T>,
 ) -> Result<geom_core::RigidMotion<T>, geom_core::RigidMotionError> {
     use geom_core::RigidMotion;
-    let aimed =
-        |origin, d: geom_core::UnitVec3<T>| RigidMotion::aimed(origin, d, d.get().z.quoted() < 0.0);
+    let aimed = RigidMotion::aimed;
     match *pose {
         PoseValue::Point { position } => RigidMotion::world_at(position),
         PoseValue::Direction { dir } => aimed(geom_core::linalg::Point3::origin(), dir),

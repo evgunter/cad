@@ -372,10 +372,9 @@ impl<T: SolveScalar> Chart<T> {
         // Where `n` is `d` exactly the least turn is the identity, and the
         // carried axes are the target's own, exactly, at every scalar.
         let turn = if [n.x - dv.x, n.y - dv.y, n.z - dv.z].into_iter().all(zero) {
-            RigidMotion::world_at(Point3::origin()).map_err(|_| degenerate())?
+            RigidMotion::world()
         } else {
-            let arm = super::turn::LeastTurn::between(n, dv).arm();
-            let least = RigidMotion::least_turn(from, d, arm).map_err(|_| degenerate())?;
+            let least = RigidMotion::least_turn(from, d).map_err(|_| degenerate())?;
             // Each carried axis is a turn of a unit vector, so unit over
             // the reals at every point a box spans: a frame lane keeps each
             // as it is, which a normalization would widen by its own norm's
@@ -593,7 +592,7 @@ impl<T: SolveScalar> Chart<T> {
                     Seat::Depth(_) => Some(d.dot(u)),
                     Seat::Line { .. } => {
                         let c = d.cross(u);
-                        Some(c.dot(c).sqrt())
+                        Some(c.norm())
                     }
                     Seat::Free => None,
                 };

@@ -2,13 +2,16 @@
 id: meet-refuses-a-near-tangent-tilt-in-both-orders
 kind: issue
 title: meet escalates a needle near-miss within two zero widths past the band's escalation
-status: open
+status: closed
 refs: [6525, 6541]
 opened: 2026-11-04
+closed: 2026-11-10
+branch: onecopy/meet-tilt
+pr: 6740
 ---
 
 
-Filed by `onecopy/p0-needle` (PR 6525), under item 7(b) of the decision on that PR. Narrowed by PR 6541, and by PR 6623 to the residue below.
+Filed by `onecopy/p0-needle` (PR 6525), under item 7(b) of the decision on that PR. Narrowed by PR 6541, by PR 6623 to the residue below, and closed by `onecopy/meet-tilt`.
 
 ## What PR 6541 settled
 
@@ -40,3 +43,10 @@ Measured against `span_gap`, in both orders:
 - **A foot inside the span, on a wide window.** Turned ±1e-5 about the cross and moved +1e-5 along that line (gaps 4.95e-10 and 3.30e-10), it escalates the same way. The window reads off `b`'s span only where a piece's foot on `b`'s carrier is not read inside the span (`Span::place`); a piece of an arc no ring bounds whose foot is inside, and which reads neither off nor on, ends the window and the root goes to the polish, whose basin the near-parallel tangents leave unproved. Halving such pieces decides these poses but costs `plane_rows::a_seam_vertex_at_a_far_turn_leaves_the_meeting_before_the_seam` 60 times its time (0.03 s to 1.9 s), where the polish decides cheaply.
 
 Open: a cheaper certificate for a wide arc whose foot stays inside the span (the carrier's distance is the span's there), or a basin that survives near-parallel tangents.
+
+## What `onecopy/meet-tilt` settled
+
+Both residues are one reading. The F33 choice of the conic read across the other's plane is order-free, so the two orders share one reading: the near-circle's height above the long ellipse's plane, with an extreme of −5.0e-12 in the gap. The refusal was one window, read the same in both orders. Its arc has no ring and runs from the window's edge to the near-circle's span end. Each piece of the arc read **receding**: `d` grows up `θ`, the foot inside the span. On an arc with no ring, only off certified, so the root went to the polish and escalated on the extreme.
+
+`d` grows away from the near end, so that end is the closest point. A receding piece of an arc with no ring is therefore off past the escalation where its point at the near end reads off (`window.rs`, `Window::read`, by `Window::off` at that end). The two order-specific rows above read apart in both orders, as does turned −1e-5 and moved 3e-6 (1.9e-12 past the escalation). The poses in the gap still escalate (turned −1e-5, moved 1e-6; moved 3e-7 at either tilt). `order_rows::a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart` pins them. No halving was added, so the seam row's cost is unchanged.
+

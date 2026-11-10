@@ -391,6 +391,7 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::MaterialSide => "material_side",
         BlendDecision::KnifeEnd => "knife_end",
         BlendDecision::KnifeRoom => "knife_room",
+        BlendDecision::BallRoom => "ball_room",
         BlendDecision::RingClearance => "ring_clearance",
         BlendDecision::SupportCoaxiality => "support_coaxiality",
         BlendDecision::ContactArm => "contact_arm",
@@ -633,10 +634,7 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
         CornerConfig::NEdgeVertex { valence: 4 }.policy(),
         Some(RunOutPolicy::RunOutStopAtVertex)
     );
-    assert_eq!(
-        CornerConfig::MixedConvexity { convex: 2 }.policy(),
-        Some(RunOutPolicy::RunOutFeather)
-    );
+    assert_eq!(CornerConfig::MixedConvexity { convex: 2 }.policy(), None);
 
     assert_eq!(
         blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),
@@ -7044,7 +7042,22 @@ mod the_hollowed_box_through_the_facade {
     #[test]
     fn the_box_refuses_typed_at_a_dual_and_there_alone() {
         let (doc, cup) = open_box();
-        let ev: Evaluation<pncad::geom_core::Dual64> = run!(pncad::geom_core::Dual64, &doc);
+        // A dual evaluates bound to the build of record (DUAL-DESIGN DL3).
+        let record: Evaluation<f64> = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default().of_record(),
+            Tol::witness(),
+        );
+        let ev: Evaluation<pncad::geom_core::Dual64> = pncad::document::evaluate_recorded(
+            &doc,
+            None,
+            &record,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let head = ev.nodes.get(&cup).expect("the shell node ran");
         let NodeResult::Failed(e) = head else {
             panic!("the shell did not refuse at a dual: {head:?}");
@@ -7503,7 +7516,7 @@ mod pattern_presets_are_recognised_as_themselves {
     fn cap_axis(body: RecipeNodeId) -> Operand {
         Operand::Pose(Box::new(pncad::document::pose::PoseDef::Axis {
             of: Operand::Select {
-                body: Box::new(Operand::Node(body)),
+                body: Box::new(Operand::Node(body).into()),
                 names: vec![pncad::prelude::StableName {
                     kind: pncad::select::EntityKind::Face,
                     node: body,

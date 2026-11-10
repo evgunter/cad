@@ -305,8 +305,7 @@ impl Frame {
         if !self.is_finite() {
             return Some(FrameFault::NonFinite);
         }
-        // A reflection is refused whatever the tolerance: no band reads
-        // the sign of a determinant that is not positive.
+        // A reflection is refused first, by its determinant's sign alone.
         if self.determinant() <= 0.0 {
             return Some(FrameFault::NotRigid {
                 check: "transform_rigid_det_plus_one",
@@ -314,12 +313,13 @@ impl Frame {
         }
         match RigidMotion::check_rigid(&self.affine_f64()) {
             Ok(_) => None,
-            Err(
-                RigidMotionError::NotRigid { check } | RigidMotionError::Undecided { check, .. },
-            ) => Some(FrameFault::NotRigid { check }),
-            // The door's other refusals are about finiteness, and the
-            // frame's coordinates were decided finite above.
+            Err(RigidMotionError::NotRigid { check }) => Some(FrameFault::NotRigid { check }),
+            // An entry finite but too large to square is no frame a margin
+            // can read.
             Err(RigidMotionError::NonFinite(_)) => Some(FrameFault::NonFinite),
+            Err(RigidMotionError::Undecided { .. }) => {
+                unreachable!("the f64 door decides nothing against a band")
+            }
         }
     }
 
@@ -364,10 +364,12 @@ pub enum FrameFault {
 impl core::fmt::Display for FrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NonFinite => f.write_str("carries a non-finite coordinate"),
+            Self::NonFinite => f.write_str(
+                "carries a coordinate that is not a finite number, or too large to square",
+            ),
             Self::NotRigid { check } => write!(
                 f,
-                "is not definitely rigid at tolerance: {}",
+                "is not a rigid motion within its rounding: {}",
                 geom_core::not_rigid_reading(check)
             ),
         }
@@ -381,8 +383,13 @@ impl FrameFault {
     #[must_use]
     pub fn recourse(&self) -> &'static str {
         match self {
-            Self::NonFinite => "give every coordinate of that frame a finite value",
-            Self::NotRigid { .. } => "use only a rotation and a translation in that frame",
+            Self::NonFinite => {
+                "give every coordinate of that frame a finite value within the session's range"
+            }
+            Self::NotRigid { .. } => {
+                "use only a rotation and a translation in that frame, its entries written to \
+                 full precision"
+            }
         }
     }
 }

@@ -68,6 +68,7 @@
 //! to.
 
 use geom_core::NonzeroSign;
+use geom_core::ladder::{Answering, Rung, climb};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
@@ -1462,9 +1463,18 @@ fn held_cut<T: Decide>(
         lo.entry
     );
     let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
-    for &cut in cuts {
+    // Any cut the run holds answers, whatever an earlier cut read
+    // ([`climb`], [`Answering::Any`]). The owner is a witness only
+    // (`Answering::Any`'s diagnostic payload): `reconcile_pass` reads
+    // whether a cut is held to choose the way round, and the owner only
+    // names the second partner of the `SharedVertexCrossings` refusal it
+    // raises where neither way mints. A cut read in
+    // band is kept by its standing ([`BooleanError::refusal`]), refusing
+    // only where no other cut is held. Each cut's reads are premises of
+    // one another, so they stay inside its rung.
+    let holds = |cut: OtherCut<T>| -> Result<bool, BooleanError> {
         let at = cut.at;
-        let held =
+        Ok(
             if strut && (secs[at.entry].he != secs[lo.entry].he || nested(secs, own, cut, band)?) {
                 false
             } else {
@@ -1474,12 +1484,14 @@ fn held_cut<T: Decide>(
                     [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
                     [Some(true), Some(true)] => true,
                 }
-            };
-        if held {
-            return Ok(Some(cut.owner));
-        }
-    }
-    Ok(None)
+            },
+        )
+    };
+    climb(Answering::Any, cuts.iter().copied(), |cut| {
+        Rung::holds(holds(cut), cut.owner, BooleanError::refusal)
+    })
+    .into_reading()
+    .and_then(Option::transpose)
 }
 
 /// Whether `cut`'s run is a strut that the strut segment `own` holds
@@ -2469,8 +2481,14 @@ fn record_germ_dir<T: Decide>(
         &[],
     );
     if read != DeclarationRead::Spent(GlueClass::Tangent) {
-        if sa.apex().is_some() || sb.apex().is_some() {
-            return fan_germ_dir((a_body, a_vertex, sa), (b_body, b_vertex, sb), read, band);
+        if let Some(fan) = super::fan::Fan::of(sa, sb) {
+            return fan_germ_dir(
+                (a_body, a_vertex, sa),
+                (b_body, b_vertex, sb),
+                fan,
+                read,
+                band,
+            );
         }
         return germ_dir(sa, sb, read, band);
     }
@@ -2566,7 +2584,7 @@ fn germ_dir<T: Decide>(
 
 /// **The germ's direction where a sector of the pair is a fan of a cone's
 /// apex**: the ray of the faces' meeting at the vertex
-/// ([`super::fan::meeting`], the one the pair search read the record
+/// ([`super::fan::fan_meeting`], the one the pair search read the record
 /// on) that lies within both sectors (`sectors::rays_within`), upright:
 /// a ruling is a ray of its own, with no line's lean to carry.
 ///
@@ -2578,13 +2596,15 @@ fn germ_dir<T: Decide>(
 fn fan_germ_dir<T: Decide>(
     (a_body, a_vertex, sa): (&Body<T>, VertexKey, &BoolSector<T>),
     (b_body, b_vertex, sb): (&Body<T>, VertexKey, &BoolSector<T>),
+    fan: super::fan::Fan<'_, T>,
     read: DeclarationRead,
     band: Band,
 ) -> Result<Leaned<T>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
-    let super::fan::Meeting::Rays(rays) = super::fan::meeting(
+    let super::fan::Meeting::Rays(rays) = super::fan::fan_meeting(
         (super::Operand::A, Some((a_body, a_vertex)), sa),
         (super::Operand::B, Some((b_body, b_vertex)), sb),
+        fan,
         band,
     )?
     else {
@@ -2848,6 +2868,7 @@ mod tests {
             sa,
             sb,
             intersect: true,
+            coincident: None,
         };
         let mut a = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
         let mut b = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
@@ -3000,6 +3021,7 @@ mod tests {
             sa,
             sb: sa,
             intersect: true,
+            coincident: None,
         };
         let plan = |laps: (usize, bool), recs: &[PairRecord], op| {
             let (va, a_secs) = sectors_of(&abody, z, v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), laps);
@@ -3135,6 +3157,7 @@ mod tests {
             sa,
             sb: sa,
             intersect: true,
+            coincident: None,
         };
         let recs = [
             rec(2, 0, (In, Out)),
@@ -3578,6 +3601,7 @@ mod tests {
             sa,
             sb,
             intersect: true,
+            coincident: None,
         };
         let mut abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
         let mut bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
@@ -4344,6 +4368,7 @@ mod tests {
                 sa,
                 sb,
                 intersect: true,
+                coincident: None,
             };
             let r = PairRecord {
                 sa: clean(sa),

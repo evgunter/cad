@@ -22,3 +22,15 @@ sweep's blend decisions (`blend/mod.rs`: `Self::RingClearance => "fillet3_ring_c
 **The shape to read**: `Variant => "lit"` arms inside a `fn name`/`fn predicate`/`fn straddle`/`fn floor` body returning `&'static str`, plus profile's gate macro, whose rows put the name first after `=>`. Reading them makes each roster's `CLOSED_TYPE` entries read sites rather than listed ones, and moves what topo's and geom-brep's rosters see. That is why it is its own row and not part of roster-reach.
 
 **Done** when the census reads those tables, the rosters' `CLOSED_TYPE` entries are gone, and the three entries are gone from `KNOWN_MISSING`.
+
+**Two additions** (2026-11-10, ONECOPY roster-rest, at #6736's review):
+
+- **editor-core's own `decisions!` table** (`crates/editor-core/src/decision.rs:91-102`) is a closed table of the same kind. It is decided through `decision.name()`, for example at `crates/editor-core/src/eval/wire.rs:4568` (`turns_off`'s `decide_flagged(decision.name(), …)`). Most of its rows are consts the roster reads (`EVAL_DIRECTION_NORM`, `ON_MEMBER_EDGE`, `CHORD_ON_RIM`, `SEL_PLANE_DISTANCE`), but `RevolveFullTurn => "revolve_full_vs_partial"` is spelled only in the table, so no census reads it and no hold covers it. editor-core's roster lists the site as `CLOSED_TYPE` and claims completeness only up to this row.
+- **The hold's known over-hold.** `source::held_spellings` takes every `Variant => "lit"` arm inside a `fn name/predicate/straddle/floor/row` body and inside any braced macro invocation. `fn name` in particular is also how a type spells a human label, so labels and prose are held as if they were decided names. Four such sites:
+  - `crates/sweep/src/blend/arms.rs:247`: blend-arm shape labels ("plane–plane → cylinder", …);
+  - `crates/geom-brep/src/pcurve_cache.rs:1904`: pcurve kind labels ("Harmonic", "IsoLine", …);
+  - `crates/geom-brep/src/ssi/certify.rs:323`: limb prose ("limb 1 (on-locus residual)", …);
+  - `crates/geom-brep/src/ssi/exhaust.rs:383`: floor prose ("seeding floor", …).
+
+  A held label can only make a reference resolve that should not. A fixture naming "Harmonic" as a predicate would be green, which is the permissive direction. Reading the tables by what they are, not by the fn's name, fixes it with the rest of this row.
+

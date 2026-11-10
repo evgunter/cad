@@ -151,7 +151,12 @@
 //!
 //! A frame exists at a scalar only by being minted there: by an exact
 //! mint or a decided mint over inputs held at that scalar, or at `f64`
-//! by the `f64` door. No door carries a frame up from `f64`. Every frame that
+//! by the `f64` door. One door carries a frame up from `f64`:
+//! [`RigidMotion::computed_at`], each component through
+//! [`Real::from_computed`], which a skin's station turn crosses by
+//! (`work/onehome/a-skin-stations-turn-crosses-up-from-f64-through-computed-at.md`).
+//! At `Sym` it enters twelve unknowns, over which nothing is proved; no
+//! other door crosses up. Every frame that
 //! would cross is the product of a decision, so at `Sym` it would
 //! enter either as literals, a theorem about its rounding (E12), or as
 //! unknowns, over which nothing is proved; minted at the scalar, it
@@ -367,20 +372,40 @@ pub enum RigidMotionError {
     },
 }
 
-/// **Which arithmetic a least turn's `1 + c` is computed by**
-/// ([`RigidMotion::least_turn`]): `1 + c` itself, or `|k|²/(1 − c)` for
-/// `k = from × to`, which loses no digit near the pole. Over the reals the
-/// two are one number for unit `from` and `to`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OnePlusC {
-    /// `1 + c`.
-    Direct,
-    /// `|from × to|² / (1 − c)`.
-    ByTheCross,
+/// **Whether `x` reads negative, as a choice of arithmetic**: the middle
+/// of the bracket of every value it stands for below zero — the value
+/// itself at a point, the enclosure's middle at `Interval`, the value
+/// channel's at the wrappers. Never a verdict: a construction that reads
+/// it takes one of two forms that are one number over the reals, and
+/// picks the one whose divisor stays at least one. Poison reads
+/// non-negative.
+fn reads_negative<T: Decide>(x: T) -> bool {
+    x.structure_bracket()
+        .is_some_and(|(lo, hi)| crate::param::mid_param(lo, hi) < 0.0)
 }
 
-/// The recourse every rigidity refusal of a raw map ends with.
-const RIGID_RECOURSE: &str = "use only a rotation and a translation";
+/// **A least turn's `1 + c`**, for `k = from × to` and `c = from · to`
+/// of two unit directions, computed by the form whose divisor is at least
+/// one ([`reads_negative`]): `1 + c` itself where `c` reads non-negative,
+/// else `|k|²/(1 − c)`, which loses no digit near the pole. Over the
+/// reals the two are one number. The one spelling of the choice: the
+/// least-turn mint ([`RigidMotion::least_turn`]) computes its divisor
+/// here, and so does any reader of the same turn.
+#[must_use]
+pub fn least_turn_one_plus_c<T: Decide>(k: Vec3<T>, c: T) -> T {
+    let one = T::one();
+    if reads_negative(c) {
+        k.dot(k) / (one - c)
+    } else {
+        one + c
+    }
+}
+
+/// The recourse every rigidity refusal of a raw map ends with. A
+/// rotation printed with too few digits is no rotation in floating
+/// point, so the recourse says how to write one.
+const RIGID_RECOURSE: &str = "use only a rotation and a translation, its entries written to \
+                              full precision (or built from an axis and an angle)";
 
 impl core::fmt::Display for RigidMotionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -393,17 +418,17 @@ impl core::fmt::Display for RigidMotionError {
             ),
             Self::NotRigid { check } => write!(
                 f,
-                "the map is not rigid at tolerance: {}. Recourse: {RIGID_RECOURSE}",
-                rigid_defect(check)
+                "the map is not rigid within its rounding: {}. Recourse: {RIGID_RECOURSE}",
+                not_rigid_reading(check)
             ),
-            // The door refuses a non-finite entry before any margin, so a
-            // poisoned margin here is the kernel's arithmetic; at f64 none
-            // is reachable past that probe, since finite entries give
-            // finite or infinite (decided) column norms and decided-unit
-            // columns bound the rest.
+            // Only the suites' door decides a margin at a band, so only it
+            // can leave one undecided; the `f64` door decides nothing.
             Self::Undecided { check, source } => source
                 .undecided(
-                    format_args!("whether the map is rigid ({})", not_rigid_reading(check)),
+                    format_args!(
+                        "whether the map is rigid (perhaps {})",
+                        not_rigid_reading(check)
+                    ),
                     source.lever_ending(RIGID_RECOURSE),
                 )
                 .fmt(f),
@@ -413,25 +438,14 @@ impl core::fmt::Display for RigidMotionError {
 
 impl std::error::Error for RigidMotionError {}
 
-/// **What a rigidity check found possible**, in words — the one
-/// reading of [`RigidMotion::check_rigid`]'s check names for a check
-/// that did NOT decide `Zero`, whether it decided a defect or could
-/// not decide, so the reading says what the check found possible, not
-/// a verdict. The checks run in order: the mirror check is reached
-/// only by columns decided orthonormal.
+/// **The defect a rigidity margin names**, in words — the one reading
+/// of [`RigidMotion::check_rigid`]'s check names. The `f64` door decides
+/// nothing against a band, so a margin beyond its rounding IS that
+/// defect: the reading states it. The checks run in order: the mirror
+/// check is reached only by columns within their rounding of
+/// orthonormal.
 #[must_use]
 pub fn not_rigid_reading(check: &str) -> &'static str {
-    match check {
-        "transform_rigid_col01_orth"
-        | "transform_rigid_col12_orth"
-        | "transform_rigid_col02_orth" => "it may shear",
-        "transform_rigid_det_plus_one" => "it may mirror",
-        _ => "it may scale an axis",
-    }
-}
-
-/// The defect a check DECIDED non-zero names.
-fn rigid_defect(check: &str) -> &'static str {
     match check {
         "transform_rigid_col01_orth"
         | "transform_rigid_col12_orth"
@@ -466,7 +480,10 @@ fn finite_linear<T: Real>(map: &Affine3<T>) -> Result<(), RigidMotionError> {
 
 /// The seven rigidity margins in [`RigidMotion::check_rigid`]'s order,
 /// each with its rounding charge ([`crate::rounding_charge`] of the sum
-/// of the magnitudes it subtracts).
+/// of the magnitudes it subtracts). Measured against the charge, the
+/// worst margin of an honest rotation is 0.47 of it at `f64` (2000
+/// Rodrigues rotations), 0.56 for the same rotations entered at `Interval`
+/// as points, and 0.81 for products of three: each within, with room.
 fn charged_margins<T: Real>(map: &Affine3<T>) -> [(&'static str, crate::Rounded<T>); 7] {
     let l = &map.linear;
     let one = T::one();
@@ -498,9 +515,22 @@ fn charged_margins<T: Real>(map: &Affine3<T>) -> [(&'static str, crate::Rounded<
 /// comparison of numbers that decides no sign. Poison is not within.
 fn within_rounding<T: Decide>(m: crate::Rounded<T>) -> bool {
     match (m.value.structure_bracket(), m.error.structure_bracket()) {
-        (Some((lo, hi)), Some((charge, _))) => lo.abs().max(hi.abs()) <= charge,
+        (Some((lo, hi)), Some((charge, _))) => {
+            charge.is_finite() && lo.abs().max(hi.abs()) <= charge
+        }
         _ => false,
     }
+}
+
+/// Whether a margin and its charge are finite numbers. An entry whose
+/// square overflows makes both infinite, and an infinite charge bounds
+/// nothing: such a margin is no number the door can read, so it refuses
+/// as not finite rather than being compared.
+fn margin_finite<T: Decide>(m: crate::Rounded<T>) -> bool {
+    [m.value, m.error].into_iter().all(|x| {
+        x.structure_bracket()
+            .is_some_and(|(lo, hi)| lo.is_finite() && hi.is_finite())
+    })
 }
 
 /// Whether every one of `map`'s seven margins is within its rounding,
@@ -508,9 +538,11 @@ fn within_rounding<T: Decide>(m: crate::Rounded<T>) -> bool {
 #[cfg(any(test, feature = "test-support"))]
 fn within_its_rounding<T: Decide>(map: &Affine3<T>) -> Result<bool, RigidMotionError> {
     finite_linear(map)?;
-    Ok(charged_margins(map)
-        .iter()
-        .all(|(_, m)| within_rounding(*m)))
+    let margins = charged_margins(map);
+    if !margins.iter().all(|(_, m)| margin_finite(*m)) {
+        return Err(RigidMotionError::NonFinite(MotionPart::Linear));
+    }
+    Ok(margins.iter().all(|(_, m)| within_rounding(*m)))
 }
 
 /// `Ok(p)` when every component of `p` [`Real::is_bounded`] — a
@@ -610,10 +642,26 @@ impl<T: Real> RigidMotion<T> {
     }
 
     /// The identity motion: the world xy frame at the coordinate
-    /// origin.
+    /// origin, its `w` computed as `x̂ × ŷ` ([`Self::axes_xy`]). One
+    /// frame with [`Self::world`] at every scalar that represents `0` and
+    /// `±1`; at `Sym` the computed `w` is its own expression, so a caller
+    /// whose forms read the world's axes as written takes
+    /// [`Self::world`].
     #[must_use]
     pub fn identity() -> Self {
         Self::axes_xy(Point3::origin())
+    }
+
+    /// **The world frame at the coordinate origin, its axes stated**:
+    /// [`Self::world_at`] the origin, which cannot fail.
+    #[must_use]
+    pub fn world() -> Self {
+        Self {
+            origin: Point3::origin(),
+            u: UnitVec3::exact_x(),
+            v: UnitVec3::exact_y(),
+            w: UnitVec3::exact_z(),
+        }
     }
 
     /// The world **xy** frame at `origin`: `u = x̂`, `v = ŷ`, `w = ẑ`.
@@ -961,89 +1009,6 @@ impl<T: Real> RigidMotion<T> {
         })
     }
 
-    /// **The least turn carrying the unit `from` onto the unit `to`**, as
-    /// the rational Rodrigues form with its angle eliminated:
-    /// `S·v = c·v + k × v + k (k · v)/(1 + c)` for `k = from × to`,
-    /// `c = from · to`, applied to the basis vectors. Rotating `from` onto
-    /// `to` about `k` by construction, with the turn's own `1 + c`
-    /// computed by `arm` ([`OnePlusC`]): the two arms are one number over
-    /// the reals, so which is a choice of arithmetic, not a verdict. The
-    /// origin is the coordinate origin.
-    ///
-    /// # Errors
-    ///
-    /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Linear`]
-    /// where a column is not finite (at the turn's pole, `1 + c = 0`).
-    pub fn least_turn(
-        from: UnitVec3<T>,
-        to: UnitVec3<T>,
-        arm: OnePlusC,
-    ) -> Result<Self, RigidMotionError> {
-        let (f, t) = (from.get(), to.get());
-        let one = T::one();
-        let k = f.cross(t);
-        let c = f.dot(t);
-        let one_plus_c = match arm {
-            OnePlusC::Direct => one + c,
-            OnePlusC::ByTheCross => k.dot(k) / (one - c),
-        };
-        let col = |v: Vec3<T>| v * c + k.cross(v) + k * (k.dot(v) / one_plus_c);
-        let l = Mat3::from_cols(
-            col(Vec3::unit_x()),
-            col(Vec3::unit_y()),
-            col(Vec3::unit_z()),
-        );
-        for column in [l.c0, l.c1, l.c2] {
-            finite(at(column), MotionPart::Linear)?;
-        }
-        Ok(Self::from_linear(l, Point3::origin()))
-    }
-
-    /// **The frame aimed along the unit `d`, standing at `origin`**: `w =
-    /// d`, and `u`, `v` the images of `x̂`, `ŷ` under the shortest turn
-    /// carrying `ẑ` onto `d`, rational in `d = (a, b, c)` with the one
-    /// divisor `1 + c`; `from_below` aims from `−ẑ` instead (divisor
-    /// `1 − c`), after the half turn about `x̂`. Both carry `ẑ` to `d`,
-    /// so which is a choice of arithmetic, not a verdict: rigid by
-    /// construction either way.
-    ///
-    /// # Errors
-    ///
-    /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Linear`]
-    /// where a column is not finite, or [`MotionPart::Translation`] for
-    /// an origin that is not.
-    pub fn aimed(
-        origin: Point3<T>,
-        d: UnitVec3<T>,
-        from_below: bool,
-    ) -> Result<Self, RigidMotionError> {
-        let dv = d.get();
-        let (a, b, c) = (dv.x, dv.y, dv.z);
-        let one = T::one();
-        let (x, y) = if from_below {
-            let k = one - c;
-            (
-                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, a),
-                Vec3::new(a * b / k, b.powi(2) / k - one, T::zero() - b),
-            )
-        } else {
-            let k = one + c;
-            (
-                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, T::zero() - a),
-                Vec3::new(T::zero() - a * b / k, one - b.powi(2) / k, T::zero() - b),
-            )
-        };
-        for column in [x, y] {
-            finite(at(column), MotionPart::Linear)?;
-        }
-        Ok(Self {
-            origin: finite(origin, MotionPart::Translation)?,
-            u: UnitVec3::by_construction(x),
-            v: UnitVec3::by_construction(y),
-            w: d,
-        })
-    }
-
     /// **This motion's axes spun about the unit `axis` by `angle`**, the
     /// origin kept: each axis `v` turned by Rodrigues' vector form,
     /// `v cos θ + (a × v) sin θ + a (a · v)(1 − cos θ)`. A turn of a
@@ -1128,17 +1093,21 @@ impl RigidMotion<f64> {
     /// # Errors
     ///
     /// [`RigidMotionError::NotRigid`] naming the check, or
-    /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Linear`] or
+    /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Linear`] (an
+    /// entry, or a margin an entry's square overflows) or
     /// [`MotionPart::Translation`].
     pub fn check_rigid(map: &Affine3<f64>) -> Result<Self, RigidMotionError> {
-        if let Some((check, _)) = charged_margins(map)
-            .into_iter()
-            .find(|(_, m)| !within_rounding(*m))
-        {
-            finite_linear(map)?;
-            return Err(RigidMotionError::NotRigid { check });
-        }
         finite_linear(map)?;
+        // In order, so a column far off unit refuses as that column's
+        // defect before a later margin's charge overflows on it.
+        for (check, m) in charged_margins(map) {
+            if !margin_finite(m) {
+                return Err(RigidMotionError::NonFinite(MotionPart::Linear));
+            }
+            if !within_rounding(m) {
+                return Err(RigidMotionError::NotRigid { check });
+            }
+        }
         let origin = finite(at(map.translation), MotionPart::Translation)?;
         Ok(Self::from_linear(map.linear, origin))
     }
@@ -1147,7 +1116,9 @@ impl RigidMotion<f64> {
     /// every component through [`Real::from_computed`]. The crossing
     /// changes no component's value, so the axes stay witnesses; at an
     /// enclosure scalar each component is the point it was. The
-    /// crossing the other way is [`RigidMotion::point_value`].
+    /// crossing the other way is [`RigidMotion::point_value`]. The one
+    /// door that carries a frame up from `f64` ("Crossing scalars" in the
+    /// module docs).
     #[must_use]
     pub fn computed_at<T: Real>(self) -> RigidMotion<T> {
         let axis = |a: UnitVec3<f64>| UnitVec3::by_construction(a.get().map(T::from_computed));
@@ -1157,6 +1128,84 @@ impl RigidMotion<f64> {
             v: axis(self.v),
             w: axis(self.w),
         }
+    }
+}
+
+impl<T: Decide> RigidMotion<T> {
+    /// **The least turn carrying the unit `from` onto the unit `to`**, as
+    /// the rational Rodrigues form with its angle eliminated:
+    /// `S·v = c·v + k × v + k (k · v)/(1 + c)` for `k = from × to`,
+    /// `c = from · to`, applied to the basis vectors. Rotating `from` onto
+    /// `to` about `k` by construction, with the turn's own `1 + c` taken
+    /// by the form whose divisor is at least one
+    /// ([`least_turn_one_plus_c`]): the mint chooses it, never its caller,
+    /// so the turn is rigid within rounding at every input
+    /// (`every_construction_mint_is_rigid_within_rounding_on_the_whole_sphere`).
+    /// Near opposed the turn is rigid but carries `from` onto `to` less
+    /// tightly (`the_least_turns_carry_near_opposed_is_its_pinned_bound`).
+    /// The origin is the coordinate origin.
+    ///
+    /// # Errors
+    ///
+    /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Linear`]
+    /// where a column is not finite (at the turn's pole, `1 + c = 0`).
+    pub fn least_turn(from: UnitVec3<T>, to: UnitVec3<T>) -> Result<Self, RigidMotionError> {
+        let (f, t) = (from.get(), to.get());
+        let k = f.cross(t);
+        let c = f.dot(t);
+        let one_plus_c = least_turn_one_plus_c(k, c);
+        let col = |v: Vec3<T>| v * c + k.cross(v) + k * (k.dot(v) / one_plus_c);
+        let l = Mat3::from_cols(
+            col(Vec3::unit_x()),
+            col(Vec3::unit_y()),
+            col(Vec3::unit_z()),
+        );
+        for column in [l.c0, l.c1, l.c2] {
+            finite(at(column), MotionPart::Linear)?;
+        }
+        Ok(Self::from_linear(l, Point3::origin()))
+    }
+
+    /// **The frame aimed along the unit `d`, standing at `origin`**: `w =
+    /// d`, and `u`, `v` the images of `x̂`, `ŷ` under the shortest turn
+    /// carrying `ẑ` onto `d`, rational in `d = (a, b, c)` with the one
+    /// divisor `1 + c`; where `c` reads negative ([`reads_negative`]) it
+    /// aims from `−ẑ` instead (divisor `1 − c`), after the half turn about
+    /// `x̂`. Both carry `ẑ` to `d`, and the mint takes the one whose
+    /// divisor is at least one, never its caller: rigid within rounding
+    /// at every `d`.
+    ///
+    /// # Errors
+    ///
+    /// [`RigidMotionError::NonFinite`] naming [`MotionPart::Linear`]
+    /// where a column is not finite, or [`MotionPart::Translation`] for
+    /// an origin that is not.
+    pub fn aimed(origin: Point3<T>, d: UnitVec3<T>) -> Result<Self, RigidMotionError> {
+        let dv = d.get();
+        let (a, b, c) = (dv.x, dv.y, dv.z);
+        let one = T::one();
+        let (x, y) = if reads_negative(c) {
+            let k = one - c;
+            (
+                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, a),
+                Vec3::new(a * b / k, b.powi(2) / k - one, T::zero() - b),
+            )
+        } else {
+            let k = one + c;
+            (
+                Vec3::new(one - a.powi(2) / k, T::zero() - a * b / k, T::zero() - a),
+                Vec3::new(T::zero() - a * b / k, one - b.powi(2) / k, T::zero() - b),
+            )
+        };
+        for column in [x, y] {
+            finite(at(column), MotionPart::Linear)?;
+        }
+        Ok(Self {
+            origin: finite(origin, MotionPart::Translation)?,
+            u: UnitVec3::by_construction(x),
+            v: UnitVec3::by_construction(y),
+            w: d,
+        })
     }
 }
 
@@ -2304,21 +2353,21 @@ mod motion_rows {
     #[test]
     fn an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin() {
         let check = "transform_rigid_col0_unit";
-        let render = |margin: f64| {
+        let render_as = |margin: f64| {
             let source =
                 crate::k_stats::decide(check, crate::predicate::Margin::of(margin), band())
                     .unwrap_err();
             RigidMotionError::Undecided { check, source }.to_string()
         };
-        let in_band = render(0.5 * (band().zero() + band().escalate()));
+        let in_band = render_as(0.5 * (band().zero() + band().escalate()));
         assert!(
-            in_band.ends_with(". Recourse: use only a rotation and a translation"),
+            in_band.ends_with(&format!(". Recourse: {RIGID_RECOURSE}")),
             "in band: the lever alone: {in_band}"
         );
-        let poisoned = render(f64::NAN);
+        let poisoned = render_as(f64::NAN);
         assert!(
             poisoned.ends_with(&format!(
-                ". Recourse: use only a rotation and a translation; {}",
+                ". Recourse: {RIGID_RECOURSE}; {}",
                 crate::predicate::UNREADABLE_MARGIN_NOTE
             )),
             "poisoned: the lever, then the note: {poisoned}"
@@ -2485,11 +2534,13 @@ mod motion_rows {
         );
     }
 
-    /// **The `f64` door at `f64` admits within rounding and refuses
-    /// beyond it, against no band**: a rotation comes back bit for bit; a
-    /// column `0.2ε/S` off unit, which a levered band would have called
-    /// rigid, is refused, naming its margin; so is a column 0.4 zeros
-    /// off unit. A suite's door admits the first at the band.
+    /// **The `f64` door admits within rounding and refuses beyond it,
+    /// against no band, at every ε**: a rotation comes back bit for bit,
+    /// and so does a column one ulp off unit; a column `10⁻¹²` off unit,
+    /// and one 0.4 zeros off, are refused, naming their margin. Where ε
+    /// leaves a stretch beyond rounding that a levered band calls rigid
+    /// (`0.2ε/S`), the suites' door admits it and the `f64` door refuses
+    /// it.
     #[test]
     fn the_f64_door_admits_within_rounding_and_refuses_beyond_it() {
         let zero = band().zero();
@@ -2536,6 +2587,55 @@ mod motion_rows {
             assert!(
                 RigidMotion::check_rigid(&stretch(1.0 + in_band)).is_err(),
                 "the f64 door refuses it"
+            );
+        }
+    }
+
+    /// **A scale whose square overflows refuses as not finite**, never
+    /// as within rounding: `diag(1e155, 1, 1)` and `diag(1e200, 1e200,
+    /// 1e200)` make a margin and its charge both infinite, and an
+    /// infinite charge bounds nothing. A `1e154` column, whose square is
+    /// finite, refuses as its column's defect: the margins are read in
+    /// order, before the determinant's charge overflows on it.
+    ///
+    /// *Breaks if* `∞ ≤ ∞` reads as within rounding, at either door.
+    #[test]
+    fn a_scale_whose_square_overflows_refuses_as_not_finite() {
+        let diag = |x: f64, y: f64, z: f64| {
+            Affine3::from_parts(
+                Mat3::from_cols(
+                    Vec3::new(x, 0.0, 0.0),
+                    Vec3::new(0.0, y, 0.0),
+                    Vec3::new(0.0, 0.0, z),
+                ),
+                Vec3::zero(),
+            )
+        };
+        for (what, map) in [
+            ("diag(1e155, 1, 1)", diag(1e155, 1.0, 1.0)),
+            ("diag(1e200, 1e200, 1e200)", diag(1e200, 1e200, 1e200)),
+        ] {
+            assert_eq!(
+                RigidMotion::check_rigid(&map).map(|_| ()),
+                Err(RigidMotionError::NonFinite(MotionPart::Linear)),
+                "{what}: the f64 door"
+            );
+            assert_eq!(
+                RigidMotion::admitted_for_a_suite(&map, band()).map(|_| ()),
+                Err(RigidMotionError::NonFinite(MotionPart::Linear)),
+                "{what}: the suites' door"
+            );
+        }
+        // A `1e154` column's square is finite, so it refuses as its
+        // column's defect, read before the determinant's charge (which
+        // cubes the mean squared norm) overflows on it; so does `1e100`.
+        for x in [1e154, 1e100] {
+            assert_eq!(
+                RigidMotion::check_rigid(&diag(x, 1.0, 1.0)).map(|_| ()),
+                Err(RigidMotionError::NotRigid {
+                    check: "transform_rigid_col0_unit"
+                }),
+                "a {x:e} column is a defect, its square finite"
             );
         }
     }
@@ -3026,7 +3126,7 @@ mod turned_onto_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod construction_mint_rows {
-    use super::tests::{SITE, band};
+    use super::tests::{SITE, band, bits12};
     use super::*;
 
     fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
@@ -3079,23 +3179,63 @@ mod construction_mint_rows {
         let back = RigidMotion::check_rigid(&m.to_affine())
             .unwrap_or_else(|e| panic!("{what}: the f64 door refuses the mint: {e}"));
         assert_eq!(
-            back.to_affine()
-                .cols()
-                .map(|c| c.to_array().map(f64::to_bits)),
-            m.to_affine().cols().map(|c| c.to_array().map(f64::to_bits)),
+            bits12(&back.to_affine()),
+            bits12(&m.to_affine()),
             "{what}: admitted as given"
         );
     }
 
-    /// The least turn by the arm a caller choosing `1 + c ≥ 1` takes:
-    /// `1 + c` itself where `c ≥ 0`, else `|k|²/(1 − c)`.
+    /// The least turn, by the arm the mint chooses.
     fn least(from: UnitVec3<f64>, to: UnitVec3<f64>) -> Result<RigidMotion<f64>, RigidMotionError> {
-        let arm = if from.get().dot(to.get()) < 0.0 {
-            OnePlusC::ByTheCross
-        } else {
-            OnePlusC::Direct
-        };
-        RigidMotion::least_turn(from, to, arm)
+        RigidMotion::least_turn(from, to)
+    }
+
+    /// **Near opposed, the least turn carries `a` onto `b` to a pinned
+    /// bound that grows as `1/δ`**, `δ` the angle short of opposed:
+    /// rigid within rounding throughout (the row above), but `k = a × b`
+    /// carries its components' rounding, about `u`, against a length
+    /// `δ`, so the turn's axis is off by about `u/δ` and `a` lands off `b`
+    /// by that much. Over 2000 drawn directions at each `δ` from `10⁻¹`
+    /// to `10⁻⁹`, the miss is at most `MISS_ULPS · u/δ` plus a few `u`.
+    /// Today's bound, measured, not a requirement met:
+    /// `work/onehome/the-least-turn-misses-its-target-by-u-over-delta-near-opposed.md`
+    /// owns the debt: measured here, `1.3·10⁻⁹` at `δ = 10⁻⁷` and
+    /// `1.2·10⁻⁷` at `10⁻⁹`, so a mate admitted about `10⁻⁷` from opposed
+    /// lands about `1.3ε` off at a 1 m arm at the default ε.
+    ///
+    /// *Breaks if* the carry near opposed gets worse than measured.
+    #[test]
+    fn the_least_turns_carry_near_opposed_is_its_pinned_bound() {
+        // Measured worst: 0.6 at every δ from 10⁻¹ to 10⁻⁹.
+        const MISS_ULPS: f64 = 2.0;
+        let u = f64::EPSILON;
+        let mut d = Draw(0x9e37_79b9_7f4a_7c15);
+        let mut worst_ratio = 0.0_f64;
+        for k in 1..=9 {
+            let delta = 10f64.powi(-k);
+            let mut worst = 0.0_f64;
+            for _ in 0..2000 {
+                let a = d.direction();
+                let across = loop {
+                    let p = d.direction().get();
+                    let r = p - a.get() * a.get().dot(p);
+                    if r.norm() > 0.1 {
+                        break unit(r);
+                    }
+                };
+                let b = unit(-a.get() * delta.cos() + across.get() * delta.sin());
+                let Ok(turn) = least(a, b) else { continue };
+                worst = worst.max((turn.turn(a).get() - b.get()).norm());
+            }
+            let bound = MISS_ULPS * u / delta + 4.0 * u;
+            eprintln!("δ = 1e-{k}: worst miss {worst:.3e}, bound {bound:.3e}");
+            worst_ratio = worst_ratio.max(worst / (u / delta));
+            assert!(
+                worst <= bound,
+                "δ = 1e-{k}: a lands {worst:e} off b, past {bound:e}"
+            );
+        }
+        eprintln!("worst miss / (u/δ) = {worst_ratio:.1}");
     }
 
     /// **Every construction mint is rigid within rounding at every
@@ -3131,7 +3271,7 @@ mod construction_mint_rows {
         let origin = Point3::new(0.3, -1.25, 2.0);
         let (mut checked, mut refused) = (0, 0);
         for (i, &a) in directions.iter().enumerate() {
-            let aimed = RigidMotion::aimed(origin, a, a.get().z < 0.0).unwrap();
+            let aimed = RigidMotion::aimed(origin, a).unwrap();
             within_rounding(aimed, &format!("aimed along direction {i}"));
             let b = directions[(i * 7 + 3) % directions.len()];
             let pairs = [

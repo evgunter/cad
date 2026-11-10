@@ -350,7 +350,7 @@ impl ImplicitForm {
         let over = self
             .form
             .meters()
-            .over(Interval::point(mag), rho, (0.0, 0.0), |lever| {
+            .over(Interval::point(mag), rho, (0.0, 0.0), |lever, _| {
                 if lever.is_certified() && lever.lo() > 0.0 {
                     Ok(lever)
                 } else {

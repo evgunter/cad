@@ -64,7 +64,17 @@ const CARRIERS: &[NameCarrier] = &[
 /// as `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
     (
-        "blend/mod.rs: name",
+        "blend/mod.rs: classify: name",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
+    ),
+    (
+        "blend/mod.rs: classify_positive: name",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
+    ),
+    (
+        "blend/mod.rs: classify_reported: name",
         "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
          `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
     ),
@@ -74,31 +84,35 @@ const INDIRECT: &[(&str, &str)] = &[
          carrier",
     ),
     (
-        "swept.rs: name",
-        "the swept-traversal funnel, forwarding its parameter",
-    ),
-    (
-        "swept.rs: names.lines",
-        "a `CosurfaceNames` field — the line half of a caller's table",
-    ),
-    (
-        "swept.rs: names.arcs",
-        "a `CosurfaceNames` field — the arc half of the same table",
-    ),
-    (
-        "revolve/axis.rs: name",
+        "revolve/axis.rs: classify_segment: name",
         "the axis clearance's funnel, naming the closed `ClearanceDecision` it takes — its \
          names are `ClearanceDecision::ALL`'s",
     ),
     (
-        "revolve/tube.rs: name",
+        "revolve/tube.rs: build: name",
         "the tube's funnel, naming the closed `TubeDecision` it takes — its names are \
          `TubeDecision::ALL`'s",
     ),
     (
-        "revolve/turn_rows.rs: name",
+        "revolve/turn_rows.rs: old_decide: name",
         "the tube's old funnel, kept as the agreement test's oracle, naming the closed \
          `TubeDecision` it takes",
+    ),
+    (
+        "swept.rs: cosurface: names.arcs()",
+        "a `CosurfaceNames` field — the arc half of the same table",
+    ),
+    (
+        "swept.rs: cosurface: names.lines()",
+        "a `CosurfaceNames` field — the line half of a caller's table",
+    ),
+    (
+        "swept.rs: decide: name",
+        "the swept-traversal funnel, forwarding its parameter",
+    ),
+    (
+        "swept.rs: decide_reported: name",
+        "the swept-traversal funnel, forwarding its parameter",
     ),
 ];
 
@@ -179,6 +193,10 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     (
         BlendDecision::KnifeRoom,
         sweep::blend::FILLET3_KNIFE_RECOURSE,
+    ),
+    (
+        BlendDecision::BallRoom,
+        sweep::blend::FILLET3_BALL_ROOM_RECOURSE,
     ),
     (
         BlendDecision::RingClearance,

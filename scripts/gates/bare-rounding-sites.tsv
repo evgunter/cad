@@ -44,7 +44,7 @@ crates/geom-brep/src/pair_section/torus.rs	prod	2	re-pose
 crates/geom-brep/src/pair_section/torus_arms.rs	prod	2	re-pose
 crates/geom-brep/src/pcurve_cache.rs	prod	13	re-pose
 crates/geom-brep/src/pcurve_cache.rs	test	1	oracle
-crates/geom-brep/src/pcurve_cache/circle_lane_rows.rs	test	6	oracle
+crates/geom-brep/src/pcurve_cache/circle_lane_rows.rs	test	8	oracle
 crates/geom-brep/src/pcurve_cache/cone_line_rows.rs	test	3	oracle
 crates/geom-brep/src/pcurve_cache/cylinder_line_rows.rs	test	2	oracle
 crates/geom-brep/src/pcurve_cache/envelope_lemma_fuzz.rs	test	10	oracle
@@ -174,9 +174,8 @@ crates/sweep/tests/spiric_rim.rs	test	1	oracle
 crates/sweep/tests/split_through_a_ruling.rs	test	2	oracle
 crates/sweep/tests/the_football_revolves.rs	test	1	oracle
 crates/sweep/tests/torax_axial.rs	test	1	oracle
-crates/sweep/tests/torus_touch_off_faces.rs	test	1	oracle
 crates/sweep/tests/vrev_acceptance_set.rs	test	1	oracle
-crates/topo/src/boolean/boxes.rs	test	9	oracle
+crates/topo/src/boxes.rs	test	9	oracle
 crates/topo/src/boolean/conic_quadric/circle_sphere_rows.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/circle_wall_rows.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/cone_rows.rs	test	2	oracle
@@ -192,7 +191,7 @@ crates/topo/src/boolean/section_cert/cone_search.rs	test	1	oracle
 crates/topo/src/boolean/section_cert/ruling.rs	prod	25	re-pose
 crates/topo/src/boolean/section_cert/square_search.rs	test	2	oracle
 crates/topo/src/boolean/section_cert_rows.rs	test	3	oracle
-crates/topo/src/boolean/separating.rs	test	1	oracle
+crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/boolean/solid_contain.rs	prod	10	re-pose
 crates/topo/src/boolean/spline_region.rs	prod	8	re-pose
 crates/topo/src/boolean/spline_region_rows.rs	test	1	oracle
@@ -203,7 +202,7 @@ crates/topo/src/census/segment_fuzz.rs	test	2	oracle
 crates/topo/src/chord_join.rs	prod	1	far-centre
 crates/topo/src/chord_join/section_end_rows.rs	test	2	oracle
 crates/topo/src/injective.rs	prod	1	re-pose
-crates/topo/src/link.rs	test	1	oracle
+crates/topo/src/link.rs	test	2	oracle
 crates/topo/src/offset_axial.rs	test	1	oracle
 crates/topo/src/props.rs	prod	2	re-pose
 crates/topo/src/props.rs	test	2	oracle

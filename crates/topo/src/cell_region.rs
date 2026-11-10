@@ -23,8 +23,9 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::curved_face_containment`] on a curved carrier), says
-//!    which.
+//!    [`crate::boolean::curved_face_placement`] on a curved carrier),
+//!    says which; a station the curved door reads off its own carrier
+//!    is the kernel's defect, and panics.
 //!
 //! Anything else is [`CellRegion::Undecided`]: an edge not decided
 //! clear (in the band, poisoned, or genuinely crossing), a station the
@@ -45,7 +46,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::boolean::{FaceContainment, contfp, curved_face_containment};
+use crate::boolean::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
@@ -148,7 +149,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         )
     };
     if !(clear_of_singular(surface, station, &clear_as)
-        && clear_of_boundary(boundary, station, &clear_as))
+        && clear_of_boundary_as(boundary, station, &clear_as))
     {
         return CellRegion::Undecided;
     }
@@ -164,9 +165,18 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::curved_face_containment`] on a curved carrier. `None` for
-/// a face that does not resolve, a door that refuses, and
-/// a curved door's unread remainder.
+/// [`crate::boolean::curved_face_placement`] on a curved carrier. `None`
+/// for a face that does not resolve, a door that refuses, and a curved
+/// door's unread remainder.
+///
+/// # Panics
+///
+/// In every build, where the curved door reads the station definitely
+/// off an analytic face's carrier (a sphere, cylinder, cone, torus or
+/// ruled carrier): the station is a point of the face's own chart, so
+/// that is the kernel's defect. A spline face's off-carrier reading is
+/// `None` instead: its station has no premise check, and the spline
+/// region's search is the only reading of it.
 pub fn station_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -189,9 +199,30 @@ fn place<T: Decide>(
         .check(surface, band);
     match *surface {
         Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
-        _ => curved_face_containment(body, face, station, band)
-            .ok()
-            .flatten(),
+        _ => match curved_face_placement(body, face, station, band).ok()? {
+            CurvedPlacement::Trim(at) => at,
+            // A spline chart's station is read by the spline region's own
+            // search (hull cells and feet), and `Held::check` does not
+            // read a spline: that search is the only reading of it, so
+            // its off-carrier answer is a reading the door could not
+            // settle, not a contradiction of a checked premise. The cell
+            // is kept, the direction a subdivision consumer's looseness
+            // runs. An analytic carrier's station is the face's own
+            // chart's (`constructed`), which `Held::check` reads in debug
+            // and the closed form decides here, so its off-carrier reading
+            // is the kernel's defect, as at every held door, never a
+            // reading of `Out`.
+            CurvedPlacement::OffCarrier => {
+                if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    return None;
+                }
+                unreachable!(
+                    "cell region: face {face:?}: a station of the face's own stored chart reads \
+                     definitely off its carrier. {}",
+                    geom_core::kernel_defect_ending!()
+                )
+            }
+        },
     }
 }
 
@@ -235,7 +266,7 @@ impl Ball {
     }
 
     /// Is the arc of `carrier` over `params` decided clear of the ball?
-    pub(crate) fn clear_of_arc(
+    pub(crate) fn clear_of_arc_as(
         self,
         carrier: &geom::Curve3<Interval>,
         params: (Interval, Interval),
@@ -275,7 +306,7 @@ fn clear_of_singular(
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:
-/// what [`clear_of_boundary`] decides, in the order it decides it.
+/// what [`clear_of_boundary_as`] decides, in the order it decides it.
 #[derive(Debug, Clone)]
 pub(crate) enum BoundaryStop {
     /// A vertex's point.
@@ -328,7 +359,7 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
 
 /// Is every stop of a face's lifted boundary decided clear of the
 /// ball? The first stop that is not ends the walk.
-fn clear_of_boundary(
+fn clear_of_boundary_as(
     stops: &[BoundaryStop],
     station: Point3<Interval>,
     clear_as: &dyn Fn(&'static str, Interval) -> bool,

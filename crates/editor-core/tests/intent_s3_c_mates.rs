@@ -959,11 +959,11 @@ fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
 }
 
 /// `doc` evaluated at scalar `T` under `o`.
-fn evaluated<T: editor_core::EvalScalar>(
+fn evaluated<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     o: &EvalOptions,
 ) -> editor_core::Evaluation<T> {
-    editor_core::evaluate::<T>(
+    editor_core::test_support::evaluate_any::<T>(
         doc,
         None,
         &editor_core::CancelToken::new(),

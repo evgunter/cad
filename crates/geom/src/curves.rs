@@ -57,6 +57,7 @@ mod on_carrier;
 pub mod projection;
 pub mod second_derivative;
 
+use crate::rows::{SpiricReader, SpiricRegimeSites};
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
@@ -464,109 +465,15 @@ pub enum SpiricRegime {
     PastInnerEquator,
 }
 
-/// **The site names one reader of [`spiric_regime`] decides under**, so a
-/// refusal and its `k_stats` stream name the reading that met them:
-/// three distinct names, one per margin.
-/// Minted only by its reader ([`SpiricReader::sites`]), so no two readers
-/// share a name (`reader_rows`, in this crate's root).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SpiricRegimeSites {
-    off_axis: &'static str,
-    two_ovals: [&'static str; 2],
-}
-
-impl SpiricRegimeSites {
-    /// The rows for the offset off zero (`off_axis`) and the two-oval
-    /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
-    /// Private to this module: a reader names its rows at
-    /// [`SpiricReader::sites`], and no code mints a bundle elsewhere, this
-    /// crate's included.
-    ///
-    /// # Panics
-    ///
-    /// Where two of the names are equal: each names its own margin. In a
-    /// `const` item the panic is a compile error.
-    #[must_use]
-    pub(crate) const fn rows_as(
-        off_axis: &'static str,
-        far: &'static str,
-        floor: &'static str,
-    ) -> Self {
-        assert!(
-            !crate::str_eq(off_axis, far)
-                && !crate::str_eq(off_axis, floor)
-                && !crate::str_eq(far, floor),
-            "a spiric regime's three rows need three names"
-        );
-        Self {
-            off_axis,
-            two_ovals: [far, floor],
-        }
-    }
-}
-
-impl SpiricRegimeSites {
-    /// The reader's three rows: off the axis, then the two-oval margin's
-    /// far and floor rows.
-    #[must_use]
-    pub(crate) const fn rows(self) -> [&'static str; 3] {
-        [self.off_axis, self.two_ovals[0], self.two_ovals[1]]
-    }
-}
-
-/// **Every reader of [`spiric_regime`]**, each with its own rows
-/// ([`Self::sites`]): a new reader is a variant here, which the roster
-/// (`reader_rows`, in this crate's root) reads off this enum, so its names are
-/// checked against every other reader's when this crate compiles.
-///
-/// **This enum is the registry of who reads the spiric regime.** It spells
-/// its callers' row names, `topo`'s and `geom-brep`'s, as strings only:
-/// those names are global to the `k_stats` stream and the ledger
-/// (`docs/predicate-dimension-audit.md`) already, and this crate depends
-/// on nothing of its callers to hold them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
-pub enum SpiricReader {
-    /// [`Curve3::spiric`]'s mint.
-    Mint,
-    /// The Boolean's rider, reading a spiric edge against a curved face.
-    BooleanRider,
-    /// The plane×torus section, choosing the spiric it mints.
-    PlaneTorus,
-}
-
-impl SpiricReader {
-    /// The reader's rows.
-    #[must_use]
-    pub const fn sites(self) -> SpiricRegimeSites {
-        match self {
-            Self::Mint => SpiricRegimeSites::rows_as(
-                "spiric_off_axis",
-                "spiric_two_ovals",
-                "spiric_two_ovals_floor",
-            ),
-            Self::BooleanRider => SpiricRegimeSites::rows_as(
-                "bool_rider_spiric_off_axis",
-                "bool_rider_spiric_regime",
-                "bool_rider_spiric_regime_floor",
-            ),
-            Self::PlaneTorus => SpiricRegimeSites::rows_as(
-                "pt_spiric_off_axis",
-                "pt_spiric_two_ovals",
-                "pt_spiric_two_ovals_floor",
-            ),
-        }
-    }
-}
-
 /// **Whether an axis-parallel plane at signed stand-off `offset` from
 /// the axis of ring torus `ring` cuts it in two ovals**,
 /// `0 < |offset| < R − r`: the regime's one statement, which
 /// [`Curve3::spiric`] mints under and every reader of a spiric's regime
 /// asks, each under its own `sites`.
 ///
-/// - `sites.off_axis` — margin `offset` (m): Zero ⇒
+/// - `sites.off_axis()` — margin `offset` (m): Zero ⇒
 ///   [`SpiricRegime::ThroughAxis`].
-/// - `sites.two_ovals` — margin `(R − r) − |offset|` (m), the length the
+/// - `sites.two_ovals()` — margin `(R − r) − |offset|` (m), the length the
 ///   regime closes by, decided before any root is taken, read with
 ///   `swing` beside it ([`geom_core::k_stats::decide_across`]): Positive
 ///   ⇒ [`SpiricRegime::TwoOvals`], else
@@ -588,12 +495,12 @@ pub fn spiric_regime<T: Decide>(
     band: Band,
 ) -> Result<SpiricRegime, Indeterminate> {
     use geom_core::k_stats::{decide, decide_across};
-    if decide(sites.off_axis, Margin::of(offset), band)? == Sign::Zero {
+    if decide(sites.off_axis(), Margin::of(offset), band)? == Sign::Zero {
         return Ok(SpiricRegime::ThroughAxis);
     }
     Ok(
         match decide_across(
-            sites.two_ovals,
+            sites.two_ovals(),
             (ring.major_radius() - ring.minor_radius()) - offset.abs(),
             swing,
             band,
@@ -1053,16 +960,18 @@ impl<T: Real> Curve3<T> {
         }
     }
 
-    /// **Whether the carrier's parameter is an angle**: a circle, an
-    /// ellipse and a spiric oval repeat every turn, so a parameter names
-    /// its point modulo `τ`; a line and a spline do not. The one reading
-    /// of a carrier's period, matched exhaustively so a new kind decides
-    /// here.
+    /// **The carrier's period, where its parameter repeats**: a conic's
+    /// ([`conic_period`]) and a spiric oval's ([`spiric_period`]), each
+    /// kind's own statement; a line and a spline do not repeat (`None`).
+    /// Matched exhaustively over the kinds. A renaming by whole periods,
+    /// or a reading on a copy a period away ([`Period::span_margins`]),
+    /// reads it.
     #[must_use]
-    pub fn is_periodic(&self) -> bool {
+    pub fn period(&self) -> Option<Period<T>> {
         match self {
-            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
-            Curve3::Line(_) | Curve3::Nurbs(_) => false,
+            Curve3::Circle(_) | Curve3::Ellipse(_) => Some(conic_period()),
+            Curve3::Spiric { .. } => Some(spiric_period()),
+            Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
     }
 
@@ -1272,11 +1181,7 @@ impl<T: Decide> Curve3<T> {
     /// on an open one.
     #[must_use]
     pub fn branch_near(&self, t: T, reference: T) -> T {
-        if self.is_periodic() {
-            Period::new(T::tau()).near(t, reference)
-        } else {
-            t
-        }
+        self.period().map_or(t, |p| p.near(t, reference))
     }
 
     /// **The direction of `p` about a closed carrier's centre**, whose
@@ -1564,6 +1469,20 @@ impl<T: Real> Curve3<T> {
     pub fn circle_at(frame: &Frame<T>, radius: T, t: T) -> Point3<T> {
         Circle::new(*frame, radius).point_at(t)
     }
+}
+
+/// **A conic's period**, one turn: a circle's or an ellipse's parameter
+/// is an angle ([`Conic`]), so a parameter names its point modulo `τ`. A
+/// free function, not a [`Conic`] method, so no implementor restates it.
+pub fn conic_period<T: Real>() -> Period<T> {
+    Period::angle()
+}
+
+/// **A spiric oval's period**, one turn: its parameter is the torus's
+/// minor angle ([`Curve3::Spiric`]), so a parameter names its point
+/// modulo `τ`.
+pub fn spiric_period<T: Real>() -> Period<T> {
+    Period::angle()
 }
 
 /// The range of a spiric's `f = √(ρ² − offset²)` over one period, as
@@ -1930,6 +1849,45 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **Each kind's period, pinned**: a circle, an ellipse and a spiric
+    /// oval repeat every turn, at `τ` exactly; a line and a spline do not.
+    /// The bits are `τ`'s, so a renaming by whole periods reads the same
+    /// expression at every kind that has one.
+    #[test]
+    fn each_kind_states_its_period() {
+        let frame = Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let periodic = [
+            Curve3::Circle(Circle::new(frame, 1.5)),
+            Curve3::Ellipse(Ellipse::new(frame, 2.0, 1.0)),
+            Curve3::Spiric {
+                center: frame.origin,
+                axis: frame.axis,
+                u_ref: frame.u_ref,
+                major_radius: 3.0,
+                minor_radius: 1.0,
+                offset: 0.5,
+            },
+        ];
+        for c in &periodic {
+            let p = c.period().unwrap_or_else(|| panic!("{c:?} repeats"));
+            assert_eq!(p.length().to_bits(), TAU.to_bits(), "{c:?}");
+        }
+        let open = [
+            Curve3::Line(Line {
+                origin: frame.origin,
+                dir: frame.axis,
+            }),
+            Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
+        ];
+        for c in &open {
+            assert!(c.period().is_none(), "{c:?} does not repeat");
+        }
+    }
 
     /// **Two lines' closest approach**: skew lines meet their common
     /// perpendicular at the parameters the closed form reads, whatever the
@@ -2687,15 +2645,6 @@ mod tests {
         );
         let poison = spiric_regime(ring, f64::NAN, 0.0, sites, band()).expect_err("poison");
         assert_eq!(poison.predicate, Some(off_axis), "{poison:?}");
-    }
-
-    /// **A reader's three regime rows need three names**: one name on
-    /// two margins would merge them in the `k_stats` stream.
-    #[test]
-    #[should_panic(expected = "three rows need three names")]
-    fn spiric_regime_sites_refuse_a_shared_name() {
-        let shared = std::hint::black_box("shared");
-        let _ = SpiricRegimeSites::rows_as(shared, shared, "floor");
     }
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {

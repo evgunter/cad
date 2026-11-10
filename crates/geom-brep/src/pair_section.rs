@@ -662,7 +662,7 @@ pub enum RaySense {
 }
 
 /// One surface of the pair, in the order the section was asked of.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PairSide {
     /// The first.
     First,
@@ -2774,16 +2774,19 @@ impl<T: Decide> CarriedComponent<T> {
     /// and only a fitted component has one, on a spline carrier, which
     /// returns above. A conic component with a pad is a desync.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
-        if self.closed() || !matches!(self.carrier, Curve3::Circle(_) | Curve3::Ellipse(_)) {
+        // An open conic component, read in its carrier's own period.
+        let (Some(_), Some(turn), false) =
+            (self.carrier.conic(), self.carrier.period(), self.closed())
+        else {
             return Ok(Some(t));
-        }
+        };
         if self.pad > 0.0 {
             return Err(SiteRefusal::Desync(
                 "a conic component carries a pad: its witness can stand past the band from its foot",
             ));
         }
         let (lo, hi) = self.span;
-        let t = geom_core::period::Period::new(T::tau()).at_or_above(t, lo);
+        let t = turn.at_or_above(t, lo);
         let speed = self.carrier.ders1(t).1.norm();
         use geom_core::NonzeroSign;
         use geom_core::k_stats::decide_nonzero;

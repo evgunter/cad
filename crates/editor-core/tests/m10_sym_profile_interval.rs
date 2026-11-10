@@ -428,9 +428,9 @@ const PLATE_MAX_TERMS: usize = 38;
 /// freezing is not monotone in reach, so a form frozen past the degree
 /// budget can flip a verdict elsewhere.
 ///
-/// **Moved with ONEHOME's rigidity door** (`RigidMotion::check_rigid`:
-/// a map within its own rounding is admitted as given and decides
-/// nothing): the two holes' placements no longer decide their seven
+/// **Moved with ONEHOME's composed placements** (`mate::solve::admitted`
+/// removed: a solved placement is composed as motions and decides no
+/// rigidity margin): the two holes' placements no longer decide their seven
 /// rigidity margins, so `Plain/Decision` loses those 14 calls (1203 →
 /// 1189) and the nine forms they built (55907 → 55898). No other line
 /// moves.

@@ -140,6 +140,10 @@ const LEDGER: &[Entry] = &[
                              // needles, code view
     },
     Entry {
+        path: "crates/editor-core/tests/every_predicate_name_is_minted_once.rs",
+        disposition: Shared, // every crate's row registry and its turn-bundle door, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
         disposition: Shared, // polygon-close uniqueness census, code view
     },
@@ -374,7 +378,7 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // this census, literal view
     },
     Entry {
-        path: "crates/topo/src/boolean/boxes.rs",
+        path: "crates/topo/src/boxes.rs",
         disposition: Unconverted(
             "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \
              topo's handle on it; the direct call is Track Q's to make",

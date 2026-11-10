@@ -31,6 +31,7 @@ pub mod period;
 pub mod predicate;
 pub mod readable;
 pub mod real;
+pub mod rows;
 pub mod running;
 pub mod spline;
 pub mod structure;
@@ -63,9 +64,9 @@ pub use interval::Interval;
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
     Affine3, Angle, FrameError, FrameInput, LengthOutOfFormat, LeveredUnitError, Mat3, MotionPart,
-    NoDirection, OnePlusC, OrthoAxis, OrthonormalizeError, Point2, Point3, RigidMotion,
-    RigidMotionError, TurnError, Turns, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3,
-    decide_unit_direction, not_rigid_reading,
+    NoDirection, OrthoAxis, OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError,
+    TurnError, Turns, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3,
+    decide_unit_direction, least_turn_one_plus_c, not_rigid_reading,
 };
 pub use line2::{Line2, LineMeet};
 pub use param::{bracket_mid, mid_param};
@@ -83,7 +84,7 @@ pub use predicate::{
 pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, TangentTransport, Uncertified, Witness,
-    is_exact_zero, is_finite_length, is_underflowed_length, is_zero_length, poison, pow2,
+    is_exact_zero, is_finite_length, is_underflowed_length, is_zero_length, poison, pow2, width,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};

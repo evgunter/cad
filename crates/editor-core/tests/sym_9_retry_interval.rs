@@ -692,8 +692,8 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // three ε rows: the plate +54, the annulus +54, the boss +36 symbolic
     // and +8 numeric, the bracket +62 and the link +36 symbolic and +16
     // numeric, the decisions of the read every mint makes first.
-    // Then ONEHOME (`RigidMotion::check_rigid`: a map within its own
-    // rounding is admitted as given and decides nothing): each placed
+    // Then ONEHOME (`mate::solve::admitted` removed: a placement composed
+    // as motions decides no rigidity margin): each placed
     // map's seven `transform_rigid_*` margins log no row, 7 symbolic per map
     // both ways, the numeric unmoved: the plate and the bracket −14, the
     // annulus, the boss and the link −7. Then ONEHOME's moved copy (a
@@ -872,8 +872,8 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // straight leg became a segment of its own, so each of the pad's
     // filleted corners keeps its leg's end as a vertex inside a run:
     // [1529, 1382] -> [1573, 1500], the retries holding. Then ONEHOME
-    // (`RigidMotion::check_rigid`: a map within its own rounding is
-    // admitted as given and decides nothing): the pad's placement's seven
+    // (`mate::solve::admitted` removed: a placement composed as motions
+    // decides no rigidity margin): the pad's placement's seven
     // `transform_rigid_*` margins log no row: 1573 -> 1566 symbolic.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],

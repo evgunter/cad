@@ -1733,7 +1733,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     // A default evaluation seeded on `r` carries the tangent: the
     // profile is elaborated at the lane, where a lift through
     // `from_f64` gave a silent zero.
-    let seeded = evaluate::<geom_core::Dual64>(
+    let seeded = editor_core::test_support::evaluate_bound::<geom_core::Dual64>(
         &doc,
         None,
         &CancelToken::new(),
