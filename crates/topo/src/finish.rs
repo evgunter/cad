@@ -115,21 +115,20 @@ impl<T: Real> Deref for Replay<T> {
 }
 
 impl<T: AtRestPolicy> Replay<T> {
-    /// **This replay under an isometry**: its data mapped, and every
-    /// family not up to isometry asked again of the image, as a finished
-    /// body's move asks it ([`asked_after_isometry`]). A replay carries
-    /// no verdict and its tier 2 is topology, which no map moves; the box
-    /// is asked so that a leaf's move decides at every lane what it
-    /// decides at `f64`, where the leaf is the finished body.
+    /// **This replay under an isometry**: its data mapped. A replay
+    /// carries no verdict and its tier 2 is topology, which no map moves,
+    /// so nothing is asked: at the box scalars the taker's tier 3 asks
+    /// the moved body everything, the session box included.
     ///
     /// # Errors
     ///
-    /// [`NotFinished`]: the session box's finding, the band's, or a
-    /// state the data map refuses ([`moved_body`]).
+    /// [`NotFinished`] where the data map meets a state tier 2 refuses,
+    /// which a replay never holds, or a mirror's re-minted row refuses
+    /// ([`moved_body`]).
     pub fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
-        let body = moved_body(&self.body, iso, tol)?;
-        asked_after_isometry(&body, tol)?;
-        Ok(Self { body })
+        Ok(Self {
+            body: moved_body(&self.body, iso, tol)?,
+        })
     }
 }
 
@@ -208,13 +207,18 @@ pub trait LeafBody:
     #[must_use]
     fn into_body(self) -> Body<Self::Scalar>;
 
-    /// **This leaf under an isometry**, a leaf of the same kind
-    /// ([`FinishedBody::moved`] where it is the finished body,
-    /// [`Replay::moved`] where it is a replay).
+    /// **This leaf under an isometry**, a leaf of the same kind: the
+    /// image's leaf at `f64` and `Probe` ([`AtRestPolicy::leaf`] of the
+    /// moved body, its finish held off the log), [`Replay::moved`] where
+    /// it is a replay. While the box-scalar switch lives a leaf's held
+    /// record must be what the box lane's taker decides of the same body,
+    /// and that taker runs tier 3 on the image, so a moved leaf is
+    /// finished again on its image; that re-finish goes with the switch,
+    /// and a finished value's move ([`FinishedBody::moved`]) runs none.
     ///
     /// # Errors
     ///
-    /// [`NotFinished`]: the finished body's session-box finding.
+    /// [`NotFinished`]: the image's leaf's findings.
     fn moved(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, NotFinished>;
 }
 
@@ -226,7 +230,7 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     }
 
     fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
-        AtRestBody::moved(self, iso, tol)
+        T::leaf(moved_body(self, iso, tol)?, tol)
     }
 }
 

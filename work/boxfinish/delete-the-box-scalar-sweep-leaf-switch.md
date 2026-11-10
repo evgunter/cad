@@ -27,6 +27,7 @@ this final state, but … keep it disabled/selectively disabled for now".
   builders (`crates/sweep/src/loft.rs`, `crates/sweep/src/revolve/mod.rs`),
   which become the doors' finish;
 - `sweep::test_support::taken`;
+- `LeafBody::moved`'s re-finish at f64 goes with the switch;
 - the `⊔` graft's `T::leaf` end, which becomes `T::finish`
   (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
   what a value holds (`Held::moved`) and end in no gate;
