@@ -1051,6 +1051,22 @@ impl<T: Real> Pcurve<T> {
         }
     }
 
+    /// **Which door certifies this kind of image**: the one spelling of
+    /// that routing, for every pass that certifies a row. The match has
+    /// no wildcard, so a new kind states its door before it compiles.
+    #[must_use]
+    pub fn certifying_door(&self) -> CertifyingDoor {
+        match self {
+            Pcurve::Harmonic { .. }
+            | Pcurve::FocalSection(_)
+            | Pcurve::Spiric { .. }
+            | Pcurve::IsoLine { .. }
+            | Pcurve::IsoArc { .. } => CertifyingDoor::ClosedForm,
+            Pcurve::Projected(_) => CertifyingDoor::Either,
+            Pcurve::Fitted(_) | Pcurve::General(_) => CertifyingDoor::Fitted,
+        }
+    }
+
     /// **Whether a derivation places this kind of image** over its edge's
     /// span (C4): a closed-form or projected image is derived again over
     /// any sub-span and named in its chart's window there, while a fitted,
@@ -4434,6 +4450,66 @@ pub struct PcurveCache<T: Real> {
     param_start: T,
     param_end: T,
     certificate: PcurveCertificate<T>,
+}
+
+/// **The door that certifies a kind of image** ([`Pcurve::certifying_door`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CertifyingDoor {
+    /// The closed-form door, [`PcurveCache::certify`], at every scalar.
+    ClosedForm,
+    /// The fitted door alone: the closed-form door refuses the image.
+    Fitted,
+    /// The fitted door where a pass holds it, the closed-form door
+    /// otherwise: a projected circle row certifies there at every scalar,
+    /// and a projected net's refuses there for want of the fitted door.
+    Either,
+}
+
+/// **A chart image as its derivation leaves it**: the image over its
+/// carrier interval, or, where the derivation's lane choice already read
+/// the image's certificate, that certificate, which holds the image and
+/// its interval. A reader that certifies the image takes the certificate
+/// rather than asking the same question again, and cannot see an image
+/// beside a certificate that disagrees with it: there is no second copy.
+#[derive(Clone, Debug)]
+pub enum ChartImage<T: Real> {
+    /// The image over the carrier interval `(t0, t1)`, not yet certified.
+    Image {
+        /// The chart image.
+        pcurve: Pcurve<T>,
+        /// The carrier interval's start.
+        t0: T,
+        /// The carrier interval's end.
+        t1: T,
+    },
+    /// The image with the certificate its lane choice read.
+    Certified(PcurveCache<T>),
+}
+
+impl<T: Real> ChartImage<T> {
+    /// The chart image.
+    pub fn pcurve(&self) -> &Pcurve<T> {
+        match self {
+            Self::Image { pcurve, .. } => pcurve,
+            Self::Certified(cache) => cache.pcurve(),
+        }
+    }
+
+    /// The carrier interval the image is over.
+    pub fn window(&self) -> (T, T) {
+        match self {
+            Self::Image { t0, t1, .. } => (*t0, *t1),
+            Self::Certified(cache) => cache.params(),
+        }
+    }
+
+    /// The chart image, its certificate dropped.
+    pub fn into_pcurve(self) -> Pcurve<T> {
+        match self {
+            Self::Image { pcurve, .. } => pcurve,
+            Self::Certified(cache) => cache.pcurve,
+        }
+    }
 }
 
 impl<T: Real> PcurveCache<T> {
