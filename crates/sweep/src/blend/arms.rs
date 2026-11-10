@@ -959,14 +959,20 @@ impl<T: Real> Meridian<T> {
     /// **The coaxial arm**: the torus about the circular spine, with
     /// both trimlines as circles coaxial with it.
     ///
-    /// The spine radius `s` is the ball centre's own radial coordinate
-    /// and is stored SIGNED: a centre that has crossed the axis yields a
-    /// negative major radius, which is a torus the surface inventory
-    /// reports rather than one this arm quietly repairs (the `minor ≥
-    /// major` net). `spine_curvature` is `1/s`, so a spine that does not
-    /// exist at all reaches predicate 3 as poison and a spine the tube
-    /// swallows reaches it as a finite curvature — the two degenerate
-    /// cases [`plane_sphere_blend`] distinguishes, unchanged here.
+    /// The spine is the circle the ball centre sweeps about the axis: of
+    /// radius `|s|`, where `s` is the centre's radial coordinate in the
+    /// sheet. A centre that has crossed the axis (`s < 0`) sweeps the same
+    /// circle as one at `|s|` on the rim's side, so the band surface is
+    /// the torus of major radius `|s|` with its seam turned to the
+    /// centre's side (`u_ref` along the centre's own radial): the point
+    /// set the signed form would trace, in the ring convention's terms.
+    /// The trimlines are their circles the same way, of radius the
+    /// contact's distance from the axis with the seam turned to its side,
+    /// which is the signed form's own parametrisation. `spine_curvature`
+    /// is `1/|s|`, so a spine that does not exist at all reaches
+    /// predicate 3 as poison and a spine the tube swallows — on either
+    /// side of the axis — reaches it as a finite curvature past `1/r`,
+    /// the two degenerate cases [`plane_sphere_blend`] distinguishes.
     #[must_use]
     pub fn blend(
         &self,
@@ -979,27 +985,13 @@ impl<T: Real> Meridian<T> {
         let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius, branch);
         let level = |q: Point3<T>| self.axis.foot(q);
         let s = (center - self.axis.origin).dot(radial);
-        {
-            use std::io::Write;
-            let num = |x: T| format!("{x:?}").split(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == 'e')).find_map(|w| w.parse::<f64>().ok()).unwrap_or(f64::NAN);
-            let (sv, rv) = (num(s), num(radius));
-            let tag = if sv < 0.0 { if -sv > rv { "NEG_RING" } else { "NEG_SPINDLE" } } else if sv > rv { "POS_RING" } else { "POS_SPINDLE" };
-            let name = std::thread::current().name().unwrap_or("?").to_string();
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(format!("/tmp/claude-0/-home-user-cad/b6e0c139-d1ac-5d9b-a208-ff9f91c2be5c/scratchpad/coax/{}.log", std::process::id())) {
-                let _ = writeln!(f, "{tag}\t{name}\t{sv:e}\t{rv:e}");
-            }
-        }
         // The setback is the EUCLIDEAN displacement of the trimline from
         // the rim, the metric predicate 2 measures face extents in.
         let trim = |t: SupportTrace<T>| {
             let q = t.contact(center, radius);
+            let rho = (q - self.axis.origin).dot(radial);
             (
-                Curve3::circle(
-                    level(q),
-                    self.axis.dir,
-                    (q - self.axis.origin).dot(radial),
-                    radial,
-                ),
+                Curve3::circle(level(q), self.axis.dir, rho.abs(), radial * rho.unit_sign()),
                 (q - self.rim).norm(),
             )
         };
@@ -1007,11 +999,11 @@ impl<T: Real> Meridian<T> {
             surface: Surface::Torus {
                 center: level(center),
                 axis: self.axis.dir,
-                major_radius: s,
+                major_radius: s.abs(),
                 minor_radius: radius,
-                u_ref: radial,
+                u_ref: radial * s.unit_sign(),
             },
-            spine_curvature: T::one() / s,
+            spine_curvature: T::one() / s.abs(),
             trim_a: trim(a),
             trim_b: trim(b),
         }
