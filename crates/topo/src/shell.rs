@@ -741,7 +741,7 @@ impl<T: Real> ShellError<T> {
                 "whether the thin solid's inner walls stay clear of each other could not be \
                  certified: {}. {}",
                 cavity_refusal_said(refusal),
-                cavity_refusal_ending(refusal)
+                cavity_refusal_ending(refusal, at)
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -882,7 +882,14 @@ fn cavity_refusal_said(
         )
         .into(),
         R::CollapsedChart { .. } => "a wall's chart collapses an edge to a point".into(),
-        R::TorusNotRing { .. } => "a wall lies on a torus that meets itself".into(),
+        R::TorusNotRing { refusal, .. } => match refusal.verdict {
+            geom_brep::TorusVerdict::Refused(_) => {
+                "a wall lies on a torus that meets itself".into()
+            }
+            geom_brep::TorusVerdict::Undecided(_) => {
+                format!("whether a wall's torus is a ring is not decided ({refusal})").into()
+            }
+        },
         R::EmptyScope { .. } => "the cavity has no face".into(),
         R::BoxDependent { .. } => {
             "an upper bound's pair was confirmed at one point only, which the cavity's \
@@ -899,11 +906,27 @@ fn cavity_refusal_said(
 /// op's defect, since the op built every chart it hands the engine.
 fn cavity_refusal_ending(
     refusal: &crate::clearance::EngineRefusal,
+    at: Option<geom_brep::recourse::ReadAt>,
 ) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
         R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
+        }
+        // A convention half the band cannot decide ends in its own lever,
+        // as the convention ends it at the door that reads it
+        // (`TorusConvention::sized`); read as the payload alone, in the
+        // lever, as this map's other arms are.
+        R::TorusNotRing { refusal, .. }
+            if let geom_brep::TorusVerdict::Undecided(diag) = &refusal.verdict =>
+        {
+            let sized = refusal.convention.sized();
+            match at {
+                Some(at) => sized
+                    .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
+                    .into(),
+                None => format!("Recourse: {}", sized.lever).into(),
+            }
         }
         R::Unsupported { .. }
         | R::Uncertified { .. }
@@ -3123,7 +3146,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             band,
             designated,
         )?;
-        if strictly_inside(&reach, p_boundary, p_pole, corner, band)?.is_none() {
+        if strictly_inside(&reach, corner, band)?.is_none() {
             return Err(not_expressible(
                 "the cavity counterpart's corner does not project onto the designated chart's \
                  seam between its boundary and the pole, so the rim is not a band of the \
@@ -3329,8 +3352,8 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
         let (q_start, q_end) = (point(body, b_start), point(body, b_end));
         let reach = along(body, seam, q_start, q_end, host_surface, band, designated)?;
         let (Some(s_start), Some(s_end)) = (
-            strictly_inside(&reach, q_start, q_end, p_start, band)?,
-            strictly_inside(&reach, q_start, q_end, p_end, band)?,
+            strictly_inside(&reach, p_start, band)?,
+            strictly_inside(&reach, p_end, band)?,
         ) else {
             return Err(not_expressible(
                 "the cavity counterpart's corners do not project onto the designated chart's \
@@ -3521,19 +3544,16 @@ fn guest_corner<T: Real>(
         .find(|&g| twins.vertices.get(g) == Some(&v) || twins.vertices.get(v) == Some(&g))
 }
 
-/// Where `corner` projects onto `stretch` — an [`along`] answer, from
-/// `from` to `to` — when it lands strictly inside it: its parameter on
-/// the stretch's carrier. Each gap to an end is metered at the
-/// stretch's average speed (the chord over the parameter span), so the
-/// margin is a length. Both band surgeries place a counterpart corner on
-/// a seam through this one predicate; the two-boundary band then asks
-/// one more question of its two corners, their order
-/// (`shell_band_corners_ordered`), which a pole's seam, holding one
-/// corner, has no use for.
+/// Where `corner` projects onto `stretch` — an [`along`] answer — when
+/// it lands strictly inside it: its parameter on the stretch's carrier,
+/// read about the stretch's middle and placed against its ends by the one
+/// span reading ([`geom_brep::curve_pair::Span::place_param`]), inside
+/// and at no end. Both band surgeries place a counterpart corner on a
+/// seam through it; the two-boundary band then asks one more question of
+/// its two corners, their order (`shell_band_corners_ordered`), which a
+/// pole's seam, holding one corner, has no use for.
 fn strictly_inside<T: Decide>(
     stretch: &geom_brep::EdgeCurveSpec<T>,
-    from: geom_core::Point3<T>,
-    to: geom_core::Point3<T>,
     corner: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Option<T>, ShellError<T>> {
@@ -3541,15 +3561,14 @@ fn strictly_inside<T: Decide>(
     let Some(s) = stretch.carrier.param_near(corner, geom::mid_param(s0, s1)) else {
         return Ok(None);
     };
-    let scale = (to - from).norm() / (s1 - s0);
-    for gap in [s - s0, s1 - s] {
-        let sign = decide("shell_seam_corner_inside", Margin::of(gap * scale), band)
-            .map_err(|source| ShellError::Escalated { source })?;
-        if sign != Sign::Positive {
-            return Ok(None);
-        }
+    let span = geom_brep::curve_pair::Span::new(&stretch.carrier, (s0, s1));
+    match span
+        .place_param(s, band)
+        .map_err(|source| ShellError::Escalated { source })?
+    {
+        geom_brep::curve_pair::Place::Inside => Ok(Some(s)),
+        _ => Ok(None),
     }
-    Ok(Some(s))
 }
 
 /// A scaffold edge's spec: the stretch of `edge`'s own carrier from
@@ -3715,6 +3734,42 @@ mod rim_seam_rows {
                 && text.ends_with("Recourse: change the wall thickness, or move the geometry"),
             "the refusal names the seam and the shell's lever: {text}"
         );
+    }
+}
+
+/// **A cavity wall's torus the band cannot decide a ring ends in the
+/// convention's lever**, as the convention ends it at every door
+/// (`geom_brep::TorusConvention::sized`); one decided outside it has no
+/// injectivity lane and ends "not yet" (D3, escalate-never-guess).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod cavity_torus_endings {
+    use super::{cavity_refusal_ending, cavity_refusal_said};
+    use crate::clearance::{EngineRefusal, Which};
+    use geom_core::{Band, NOT_YET_ENDING, Tol};
+
+    #[test]
+    fn an_undecided_cavity_torus_ends_in_its_halfs_lever() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let wall = |major: f64| EngineRefusal::TorusNotRing {
+            face: crate::FaceKey::default(),
+            side: Which::First,
+            refusal: Box::new(geom_brep::TorusRefusal::require(major, 1.0, band).unwrap_err()),
+        };
+        let undecided = wall(1.0 + 0.5 * (band.zero() + band.escalate()));
+        let lever = geom_brep::TorusConvention::Ring.sized().lever;
+        let ending =
+            cavity_refusal_ending(&undecided, Some(geom_brep::recourse::Reading::Build.into()));
+        assert!(ending.contains(lever), "{ending}");
+        assert!(
+            !cavity_refusal_said(&undecided).contains("meets itself"),
+            "an undecided torus is never said to meet itself"
+        );
+        assert!(
+            cavity_refusal_ending(&undecided, None).contains(lever),
+            "the payload alone ends in the lever too"
+        );
+        assert_eq!(cavity_refusal_ending(&wall(0.5), None), NOT_YET_ENDING);
     }
 }
 

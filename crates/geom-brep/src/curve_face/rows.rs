@@ -492,7 +492,10 @@ fn every_door_name_carries_a_listed_prefix() {
         predicate_census(&src.join("curve_face"), &carriers),
     );
     assert!(
-        table.indirect.is_empty() && table.unreadable.is_empty() && table.unwalked.is_empty(),
+        table.indirect.is_empty()
+            && table.consts.is_empty()
+            && table.unreadable.is_empty()
+            && table.unwalked.is_empty(),
         "curve_face.rs holds a site the census could not read: {table:?}"
     );
     assert!(
@@ -520,15 +523,15 @@ fn every_door_name_carries_a_listed_prefix() {
     assert_eq!(
         indirect,
         [
-            "circle_roots.rs: (c0, a1 + noise, rows.extreme, band)",
-            "circle_roots.rs: (row, value, spread, band)",
+            "circle_roots.rs: c0",
+            "circle_roots.rs: row",
             "circle_roots.rs: rows.coaxial",
             "circle_roots.rs: rows.noise",
             "circle_roots.rs: rows.root_slack",
             "composite.rs: row",
-            "spline_face.rs: (exact(m[0]), w)",
-            "spline_face.rs: (x.interval(0), w)",
+            "spline_face.rs: exact(m[0])",
             "spline_face.rs: row",
+            "spline_face.rs: x.interval(0)",
         ],
         "the census's indirect sites"
     );

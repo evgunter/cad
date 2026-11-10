@@ -60,7 +60,7 @@ fn refuse_meeting(edge: EdgeKey, why: MeetUnread, errors: &mut Vec<ValidationErr
 }
 
 /// `margin`'s sign, or `None` with the escalation pushed.
-pub(super) fn decided<T: Decide>(
+pub(super) fn decided_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -99,12 +99,12 @@ fn read<T: Decide>(
     let (lo, hi) = geom::carrier_speed::speed_range(&carrier);
     let span = curve.params();
     let span_reach = Margin::metered_sup((span.1 - span.0).abs(), hi);
-    if decided("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
+    if decided_as("pm_census_curved_speed_hi", span_reach, band, errors)? != Sign::Positive {
         refuse(edge, crate::validate::EdgeTangentUnread::NoReach, errors);
         return None;
     }
     let length = Margin::metered((span.1 - span.0).abs(), lo);
-    if decided("pm_census_curved_speed_floor", length, band, errors)? != Sign::Positive {
+    if decided_as("pm_census_curved_speed_floor", length, band, errors)? != Sign::Positive {
         refuse(edge, crate::validate::EdgeTangentUnread::NoLength, errors);
         return None;
     }
@@ -560,9 +560,9 @@ mod tests {
             (TouchUnread::OffInterior, geom_core::kernel_defect_ending!()),
         ] {
             assert!(
-                why.sentence().ends_with(ending),
+                why.sentence(None).ends_with(ending),
                 "{why:?}: {}",
-                why.sentence()
+                why.sentence(None)
             );
         }
     }
