@@ -5,7 +5,7 @@ title: main red: certified_endpoint_census reads ssi/one_arc.rs at 20/13 against
 status: closed
 opened: 2026-11-10
 closed: 2026-11-10
-pr: 0
+pr: 6737
 priority: P2
 cost: C
 ---
