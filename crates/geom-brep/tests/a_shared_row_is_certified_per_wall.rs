@@ -199,7 +199,8 @@ impl Pair {
             NurbsLane::certified(),
         )
         .expect("the draft's edge certifies");
-        let [ia, ib] = images;
+        let (t0, t1) = edge.params();
+        let [ia, ib] = images.map(|pcurve| geom_brep::ChartImage::Image { pcurve, t0, t1 });
         IntersectionDraft::of(Some(&edge), p0, p1).shared_row(
             self.pair(),
             [

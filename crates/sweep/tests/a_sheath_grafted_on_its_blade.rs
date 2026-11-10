@@ -118,7 +118,21 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         ("blade ∪ sheath", &leaf, &sheath),
         ("sheath ∪ blade", &sheath, &leaf),
     ] {
-        let err = topo::union(a, b, tol).expect_err(what);
+        let (err, read) = geom_core::k_stats::detached(|| topo::union(a, b, tol));
+        // The result's rims are new edges, so the transverse seam's
+        // shared-row test reads each wall's arc-rim image from its
+        // derivation, whose lane choice already certified it: the test
+        // takes that certificate, and the rim is certified once.
+        assert_eq!(
+            read.recorded()
+                .verdicts
+                .iter()
+                .filter(|v| v.predicate == "pcurve_iso_boundary")
+                .count(),
+            71,
+            "{what}: each arc rim's iso-boundary checks are read once"
+        );
+        let err = err.expect_err(what);
         assert!(
             matches!(
                 &err,
