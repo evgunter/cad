@@ -2,7 +2,7 @@
 id: dome-clearance-screen-escalates-an-invalid-margin
 kind: issue
 title: sweep: the dome's equator at r >= 0.6 escalates fillet3_face_clearance with MarginDiag::Invalid
-status: open
+status: dispatched
 opened: 2026-09-13
 priority: P0
 cost: H
@@ -41,3 +41,18 @@ Outside BLEND-14's fence (the battery's screen and the arms' setbacks);
 filed for whoever owns the clearance screen. Not acted on.
 
 Moved from `work/issues/` to `work/bandreach/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Dispatch
+
+2026-11-10, BANDREACH orchestrator. One FULL-tier implementer, lane
+`bandreach-dome`, branch `bandreach/dome-invalid-margin`. The brief is
+to re-measure the ladder on main first, trace the non-value margin to
+the input of `gap − setback_here − setback_there` that goes bad, and fix
+it where the reading goes bad, not in the screen's message. A non-value
+margin must not be quotable as in band from any caller of the screen.
+The right outcome past `r = R/2` (a build, a typed refusal naming the
+geometric reason, or the funnel's poison) is chosen by meaning; if it
+is a design question, the lane stops and reports it. The fixture is
+`dome(1.0, tol())` in
+`crates/sweep/tests/review_contact_edge_must_carry_r2_probes.rs`, not
+`test_support::dome` as the finding says.
