@@ -332,3 +332,25 @@ decision and the mapping. Both rows are unparked into one build unit,
 and record changes reach the viewer and Python, and the closed-form
 radius has branch assignment to get right. The two P3 sentence rows
 ride with it.
+
+PR 6719 (the refused-corner unit) is up, and its single FULL review
+returned REQUEST-CHANGES.
+- **The major (M1).** The rendered X and S sat only ~1e-10 on the
+  fitting side, inside the fit gate's own band. Typed back, they
+  re-tripped `fillet_leg_fit` as an escalation (1215 grid-A cases at
+  ε = 1e-12). The pinning test only looked for the entry kind, so it
+  could not see this. Fix: render outside the band, and have the
+  typed-back row assert no `fillet_leg_fit` refusal of any form.
+- **Minors folded in:**
+  - noisy 10-figure numbers;
+  - the README parenthetical reworded to "each overrunning leg";
+  - `CuspDoublesBackOverLeg` added to PATHS §3's list;
+  - the flip band asserted per ε row;
+  - the real over-budget distribution recorded;
+  - one home for `num`/`num_toward`, and the `Drawing` step check
+    made fail-loud;
+  - the which-legs type made unable to say neither;
+  - the turn refusal's corner drawn.
+- **The cusp passenger's new door refusal is accepted.** The row left
+  the choice to the unit, after `.cusp()` the lattice admits only the
+  exact reverse, and the reviewer found no valid profile it refuses.
