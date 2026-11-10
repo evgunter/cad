@@ -7768,7 +7768,7 @@ mod normal_fault_rows {
 
     /// The fault ends on the kernel's defect at every reader. An invalid
     /// input names its torus through the convention's own clause and
-    /// lever ([`geom_brep::TorusConvention::refused_ended`]), each half
+    /// lever ([`geom_brep::TorusRefusal::said`]), each half
     /// its own: a tube below zero is told so, not that it is a horn. The
     /// backstop, which runs at rest alone, reads it as the kernel's
     /// ([`at_rest_fault`]).
@@ -7795,7 +7795,7 @@ mod normal_fault_rows {
                 panic!("{abort:?} is an invalid input")
             };
             let input = TouchUnread::NormalFault(abort);
-            let lever = convention.sized().recourse(verdict.arm(), at);
+            let lever = geom_brep::TorusRefusal::decided(convention, verdict).recourse(at);
             let clause = convention.refused("its", verdict);
             for (what, text) in [
                 ("a touch", input.sentence(Some(at))),
@@ -14816,12 +14816,8 @@ mod tests {
         }
         let edges: Vec<EdgeKey> = p.body.edges().map(|(k, _)| k).collect();
         for e in edges {
-            let he = p.body.get_edge(e).expect("an edge").he_plus;
-            let p0 = point_of(
-                &p.body,
-                p.body.get_half_edge(he).expect("a half-edge").start,
-            );
-            let p1 = point_of(&p.body, p.body.half_edge_end(he).expect("an end"));
+            let (v0, v1) = p.body.edge_vertices(e).expect("an edge");
+            let (p0, p1) = (point_of(&p.body, v0), point_of(&p.body, v1));
             p.body
                 .set_edge_curve(e, EdgeCurveSpec::line_between(p0, p1), tol)
                 .expect("a line between the edge's vertices");

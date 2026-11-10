@@ -201,9 +201,8 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
 
     // Teeth: an Intersection naming a NON-adjacent pair is refused by
     // the upgrade path (adjacency coherence).
-    let (edge_key, edge) = body.edges().next().map(|(k, e)| (k, e.clone())).unwrap();
-    let start = body.get_half_edge(edge.he_plus).unwrap().start;
-    let end = body.half_edge_end(edge.he_plus).unwrap();
+    let edge_key = body.edges().next().map(|(k, _)| k).unwrap();
+    let (start, end) = body.edge_vertices(edge_key).unwrap();
     let p0 = *body
         .get_point(body.get_vertex(start).unwrap().point)
         .unwrap();
