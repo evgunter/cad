@@ -66,14 +66,15 @@ are shared on purpose.
 
 PR 6723. Every crate that mints row bundles holds them in one registry: `geom::rows`, `geom_brep::rows`, `topo::rows`, `sweep::rows`.
 
-- The bundle types' fields (or, in geom, their constructors) are private to the registry, so no reader builds one field by field.
-- Every reader's bundle is a `const` there.
-- A `ROSTER` of their names is checked distinct by a `const` assertion (`geom_core::rows::first_shared_in`).
+- The bundle types' fields and constructors are private to the registry, so no reader builds one field by field.
+- Every reader's bundle is a `const` given to `geom_core::row_registry!`, which derives the crate's `ROSTER` from exactly those consts and fails the build on a shared name.
+- geom's roster is read off its reader enums.
 - editor-core's `every_predicate_name_is_minted_once_tree_wide` walks all four rosters together.
 
-**Not registered: wrappers of a passed-in name.** These carry a name minted elsewhere, and each has a comment at its type saying so:
-- `geom_core::period::TurnRows`, and topo's `ConicRows` alias of it;
-- `topo::props::RoleNames` (`one(name)`) and `SignNames`;
+topo's `ConicRows` (a `TurnRows` with two names of its reader's own) and check 7's `RoleNames` are registered bundles. Still unregistered, as wrappers of a name minted elsewhere:
+- `geom_core::period::TurnRows::exact` / `::bounded` called with a passed-in name;
+- `RoleNames::one`;
+- `SignNames`;
 - `half_angle::RootSlack`'s `row`.
 
-Their uniqueness is the plain-site census's question. The plain-site census of `k_stats` door literals is still open; it joins the editor-core test, and `TurnRows::bounded` literal sites are part of it.
+Their uniqueness, and that of literals at `k_stats` doors, is `plain-predicate-sites-have-no-tree-wide-census`.
