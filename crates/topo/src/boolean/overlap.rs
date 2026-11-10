@@ -46,7 +46,7 @@ use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
-use super::contain::{CurvedPlacement, FaceContainment, PlacementError, face_placement};
+use super::contain::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use super::fate::{Holds, Leaving, corner_holds, departure};
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -78,9 +78,6 @@ pub enum OverlapRefusal {
     /// the containment door with no verdict. As the door states it
     /// (`ContainError::refusal`).
     Placement(super::ContainError),
-    /// A point of one face read in band of the other's plane. Ranked by
-    /// its margin.
-    OnPlane(Indeterminate),
     /// The boundary pass over an edge refused: a meeting in band, or a
     /// reading that could not run. Its member's window reached a piece
     /// read not strictly inside, or its reading faulted. As the pass
@@ -205,13 +202,12 @@ impl OverlapRefusal {
     /// [`geom_brep::ladder::Aborts`] for a refusal of the whole query (the
     /// variants' docs), and each payload's own aborts.
     fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
-        use geom_brep::ladder::{Aborts, Refusal};
+        use geom_brep::ladder::Aborts;
         match self {
             Self::SplineCarrier { .. }
             | Self::StaleFace { .. }
             | Self::OppositeSenses
             | Self::Senses(_) => Err(Aborts),
-            Self::OnPlane(diag) => Ok(Refusal::Margin(*diag)),
             Self::Placement(e) => e.refusal(),
             Self::Meeting(e) => e.refusal(),
             Self::Normal(e) => e.refusal(),
@@ -237,7 +233,6 @@ impl OverlapRefusal {
             }
             Self::Senses(d) => write!(f, "the two faces' senses read in band: {d}"),
             Self::Placement(e) => write!(f, "placing a point in a face: {}", read_at(e, at)),
-            Self::OnPlane(d) => write!(f, "a point read in band of a face's plane: {d}"),
             Self::Meeting(r) => match r {
                 BoundaryRefusal::Escalated(d) => {
                     write!(f, "a boundary vertex's place on an edge read in band: {d}")
@@ -391,18 +386,23 @@ fn normal_at<T: Decide>(
         .ok_or(OverlapRefusal::StaleFace { face })
 }
 
-/// Where point `q`, on face `face`'s carrier, lies against the face.
+/// Where point `q`, a point of the other face, lies against `face`: on
+/// its carrier by the verdict that put both faces on one carrier, within
+/// that verdict's band ([`crate::held::Held::in_band`], as the census's
+/// `meets_at` holds its probe), so the placement reads no on-plane
+/// margin again, and a reading definitely off the carrier contradicts
+/// the verdict ([`OverlapUnread::OffCarrier`], an abort).
 fn place<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
     q: Point3<T>,
     band: Band,
 ) -> Result<FaceContainment, OverlapRefusal> {
-    match face_placement(body, face, q, band, "bool_overlap_on_plane") {
+    let held = crate::held::Held::in_band(q);
+    match placement_on_carrier(body, face, held, band).map(|(at, _, _)| at) {
         Ok(CurvedPlacement::Trim(Some(at))) => Ok(at),
         Ok(CurvedPlacement::Trim(None)) => Err(OverlapRefusal::Unread(OverlapUnread::RegionUnread)),
         Ok(CurvedPlacement::OffCarrier) => Err(OverlapRefusal::Unread(OverlapUnread::OffCarrier)),
-        Err(PlacementError::OnPlane(diag)) => Err(OverlapRefusal::OnPlane(diag)),
-        Err(PlacementError::Door(e)) => Err(OverlapRefusal::Placement(e)),
+        Err(e) => Err(OverlapRefusal::Placement(e)),
     }
 }
 
@@ -787,17 +787,11 @@ mod piece_ranking {
     use geom_brep::curve_face::BoundaryRefusal;
     use geom_brep::curve_pair::MeetKind;
     use geom_brep::ladder::Evidence;
-    use geom_core::{Band, Indeterminate, MarginDiag};
 
     use super::{OverlapRefusal, OverlapUnread, keep_piece_refusal};
 
     fn in_band() -> OverlapRefusal {
-        OverlapRefusal::OnPlane(Indeterminate {
-            margin: MarginDiag::value(5e-9),
-            band: Band::new(1e-9, 1e-8).expect("a valid band"),
-            predicate: Some("t"),
-            terminal_sliver: false,
-        })
+        OverlapRefusal::Placement(super::super::ContainError::RayExhausted)
     }
 
     fn unread() -> OverlapRefusal {
@@ -871,7 +865,7 @@ mod piece_ranking {
         assert!(
             matches!(
                 read(vec![Err(in_band()), Ok(false)]),
-                Err(OverlapRefusal::OnPlane(_))
+                Err(OverlapRefusal::Placement(_))
             ),
             "with no corner meeting the piece, the corner in band refuses"
         );

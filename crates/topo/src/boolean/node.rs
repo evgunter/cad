@@ -12,7 +12,7 @@
 
 use geom_core::{Band, Decide, Tol};
 
-use super::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
+use super::contain::{CurvedPlacement, FaceContainment};
 use super::{BooleanError, Operand};
 use crate::body::Body;
 
@@ -27,14 +27,20 @@ enum Placed {
 }
 
 /// [`Placed`] of `node` in `face` of the unmutated operand `body`, the
-/// containment door's margined read ([`curved_face_placement`]).
+/// held placement's read ([`super::contain::placement_on_carrier`]): the
+/// node lies on both walls of the equal pair by its construction
+/// ([`crate::held::Held::constructed`]), so a reading off the wall is a
+/// desync.
 fn placed<T: Decide>(
     (operand, body): (Operand, &Body<T>),
     face: crate::entity::FaceKey,
     node: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    match curved_face_placement(body, face, node, band)
+    let held =
+        crate::held::Held::constructed(node, "a node of an equal cylinder pair, on both walls");
+    match super::contain::placement_on_carrier(body, face, held, band)
+        .map(|(at, _, _)| at)
         .map_err(|e| super::reduce::esc(e, operand, face))?
     {
         CurvedPlacement::Trim(Some(FaceContainment::Out)) => Ok(Placed::Out),
