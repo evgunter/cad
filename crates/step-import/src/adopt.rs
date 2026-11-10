@@ -936,7 +936,7 @@ fn line_column_match(
         if !line.param(p).is_finite() {
             return None;
         }
-        if !((p - line.foot_within(p, (0.0, 1.0))).norm() <= eps) {
+        if !(line.distance_within(p, (0.0, 1.0)) <= eps) {
             return None;
         }
     }
@@ -1023,8 +1023,10 @@ fn mapped_self_description(
         }) => Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p_start - Point3::origin()),
-            axis_origin: *center,
-            axis_dir: *axis,
+            axis: geom::Line {
+                origin: *center,
+                dir: *axis,
+            },
             angle: t1 - t0,
         })),
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,

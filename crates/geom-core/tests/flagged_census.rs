@@ -17,34 +17,42 @@
 //! tomorrow with no list here to update. A door of the home is that
 //! module's fn, not its verb: a call counts when it goes through
 //! `k_stats` (or an `as` name of it, or `self` in the home), or bare
-//! under a `use` that imports it, in a group, by glob or renamed
-//! ([`spellings`]); a method door's `.m(` and `Type::m(` count too. A fn
-//! that forwards a `&'static str` parameter to a door's row is a door in
-//! its own right, keyed on its name, and its callers are checked
+//! where the name resolves to an import of it, in a group, by glob or
+//! renamed; a method door's `.m(` and `Type::m(` count too. A fn that
+//! forwards a `&'static str` parameter to a door's row is a door in its
+//! own right, keyed on its name, and its callers are checked
 //! ([`forwarding_door`]), to a fixed point.
+//!
+//! **Scopes are read off a parse** ([`source_scope`]): a bare name
+//! resolves to its innermost binding, a `use`, a `let`, a closure's or a
+//! pattern's binding, a parameter or an item, as Rust resolves it, so a
+//! call inside another binding of the door's name is that other meaning
+//! and a field or a method binds nothing. An import whose path stays in
+//! the file (`use super::choose`, `use self::m::choose`, a glob of a
+//! glob) and a `self::`/`super::` call are followed to the import that
+//! leaves it, a path's head read first in the block around it. This
+//! census asks only its own question of what the parse resolves.
 //!
 //! **What the census cannot read, it lists rather than skips**: a row
 //! that is not a string literal and not a forwarded parameter; a
-//! forwarded parameter the body may rebind; a door named without a call
-//! (a fn pointer, a binding, a macro argument); a bare call of a door's
-//! name that nothing in its file resolves (a `use super::*` child, no
-//! import); a `pub use` re-export of a door or of the module under
-//! another name. Each is a site citing no row. A home fn with two
-//! row-like parameters, a stale [`NON_ROW_DOORS`] entry and a turbofish
-//! it cannot balance stop it.
+//! forwarded parameter something rebinds before the call; a door named
+//! without a call (a fn pointer, a binding); a door's name inside a
+//! macro whose arguments do not parse as expressions, or in a
+//! `macro_rules!` body; a bare call of a door's name that nothing in its
+//! file resolves (no import, or a glob that leaves the file with nothing
+//! behind it); a `self::`/`super::` path, called or imported, that
+//! leaves the file; a name with two `#[cfg]`-kept bindings, the door
+//! among them; a `pub use` re-export of a door or of the module under
+//! another name. Each is a
+//! site citing no row. A home fn with two row-like parameters, a stale
+//! [`NON_ROW_DOORS`] entry and a file that does not parse stop it.
 //!
 //! **Blind spots, stated:** a call a macro generates; a door whose row
 //! reaches it inside a struct argument, or as a type named for text
-//! outside the home (the shape `k_stats`' header rules out); a bare call
-//! of a door's name inside the scope of another binding of that name (an
-//! import from elsewhere or a free `fn` in its block, a `let` from it to
-//! its block's end, a closure parameter in that closure's body, a
-//! parameter in its fn's body), which is read as that other meaning. A
-//! struct field and a method bind nothing; a closure is read by its own
-//! `|…|` head where an expression starts, so a match or-pattern or a
-//! bitwise or is no closure. Each of these is a lexical reading of a
-//! scope, and a shape it does not know is read as no binding (the loud
-//! direction) unless it looks like one it knows.
+//! outside the home (the shape `k_stats`' header rules out); and what a
+//! glob other than `k_stats::*` brings in: the binding behind it is read
+//! in its place, so a glob that does define the door's name over an
+//! outer import of the door is read as the door.
 //!
 //! The `decide_flagged` total is hand-synced and spelled ONCE, at
 //! [`LEDGER_FLAGGED_SITES`]; the rows are computed from the document.
@@ -53,6 +61,8 @@
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+
+use source_scope::{Arg, Bound, Callee, Event, Source};
 
 /// The ledger's current shipped `decide_flagged` inventory.
 ///
@@ -70,95 +80,17 @@ struct Site {
     ledger_row: String,
 }
 
-/// The offset, within the text just after the identifier, of the `(` that
-/// opens the call — skipping whitespace and an optional turbofish.
-///
-/// **A turbofish call is a call.** `decide_flagged::<f64>(…)` is the same
-/// shipped site as `decide_flagged(…)`, and a scan that required `(` to
-/// follow the identifier immediately would skip it silently and leave its
-/// ledger row unverified — the undercount direction this file refuses
-/// everywhere else. The generic *definition* is not swept up with it:
-/// `pub fn decide_flagged<T: Decide>(` has a bare `<`, never `::<`.
-///
-/// **Anything that opens a turbofish and does not resolve to a `(` is a
-/// panic, never a quiet "no call here."** Angle depth is counted over `<`
-/// and `>` alone, so an arrow or a comparison inside the type arguments
-/// breaks the balance — and both the unbalanced case and the
-/// balanced-but-misplaced case stop the census, because a site the scan
-/// cannot read is a site it must not drop. No such site exists today.
-fn skip_turbofish(rest: &str, at: usize) -> usize {
-    let mut k = rest.len() - rest.trim_start().len();
-    if !rest[k..].starts_with("::") {
-        return k;
-    }
-    let after_colons = k + 2;
-    let angle =
-        after_colons + (rest[after_colons..].len() - rest[after_colons..].trim_start().len());
-    if !rest[angle..].starts_with('<') {
-        return k;
-    }
-    let mut depth = 0usize;
-    let mut end = None;
-    for (off, c) in rest[angle..].char_indices() {
-        match c {
-            '<' => depth += 1,
-            '>' => {
-                depth -= 1;
-                if depth == 0 {
-                    end = Some(angle + off + 1);
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-    let end = end.unwrap_or_else(|| {
-        panic!(
-            "a door's `::<…>` turbofish at byte {at} has unbalanced angle brackets, so \
-             this census cannot tell a call site from a mention. Rather than skip it — which \
-             would undercount the shipped tree — the census stops here. Spell the site without \
-             a turbofish, or teach `skip_turbofish` the form it uses."
-        )
-    });
-    k = end + (rest[end..].len() - rest[end..].trim_start().len());
-    // A turbofish was consumed, so this IS a call site. If the scan did not
-    // land on its `(`, the angle balance was wrong — an arrow or a comparison
-    // inside the type arguments will do it — and returning quietly here would
-    // drop a shipped site. Stop instead.
-    assert!(
-        rest[k..].starts_with('('),
-        "a door's turbofish at byte {at} did not resolve to a call: after its type \
-         arguments the scan is at {:?}, not `(`. Angle depth is counted over `<` and `>` alone, \
-         so an arrow or comparison inside the type arguments breaks it. The census stops rather \
-         than skipping a shipped site.",
-        &rest[k..rest.len().min(k + 24)]
-    );
-    k
-}
-
 /// What a door call cites as its ledger row.
 enum Cite {
     /// A string literal: the row itself.
     Row(String),
-    /// An identifier passed straight through, at byte `at` of the call: a
-    /// wrapper's forwarding, which [`forwarding_door`] resolves.
-    Forwarded { ident: String, at: usize },
-}
-
-/// The ledger row a site cites, which must be a string literal.
-fn ledger_row(raw: &str) -> String {
-    let cited = raw.trim();
-    cited
-        .strip_prefix('"')
-        .and_then(|s| s.strip_suffix('"'))
-        .unwrap_or_else(|| {
-            panic!(
-                "a door's site cites its ledger row as `{cited}`, not a string literal. \
-                 The census can only verify literals; give the site its row directly, or teach \
-                 this test to resolve the indirection — do not leave it unchecked."
-            )
-        })
-        .to_string()
+    /// An identifier passed straight through: a wrapper's forwarding,
+    /// which [`forwarding_door`] resolves.
+    Forwarded {
+        ident: String,
+        bound: Option<Bound>,
+        around: Option<usize>,
+    },
 }
 
 /// The home of the doors, under the crates directory, and the module a
@@ -168,10 +100,10 @@ const HOME_MODULE: &str = "k_stats";
 
 /// A door that cites a ledger row: its name, the row's argument index
 /// (from 0), and, for a door of the home, the file that defines it. A
-/// door of the home is reached through [`HOME_MODULE`] ([`spellings`]);
-/// a forwarding wrapper ([`forwarding_door`]) is keyed on its name
-/// alone, which reads every same-named call as one of its sites: the
-/// loud direction.
+/// door of the home is reached through [`HOME_MODULE`] or an import of
+/// it ([`door_calls_in`]); a forwarding wrapper ([`forwarding_door`]) is
+/// keyed on its name alone, which reads every same-named call as one of
+/// its sites: the loud direction.
 ///
 /// A door of the home defined in an `impl` is a method: a `.m(` or
 /// `Type::m(` call of it is a site too, its row one argument later in
@@ -185,109 +117,6 @@ struct Door {
     receiver: bool,
 }
 
-/// A `fn` head in a blanked view: its offset, name, parameters (name, with
-/// any `mut` dropped, and type with its whitespace runs made one space, read from the
-/// unblanked text), whether it is `pub` (`pub(…)` included), whether it
-/// sits in an `impl` and whether in a `#[cfg(test)]` item, and its body,
-/// if it has one.
-struct FnHead {
-    at: usize,
-    name: String,
-    params: Vec<(String, String)>,
-    public: bool,
-    in_impl: bool,
-    in_test: bool,
-    receiver: bool,
-    body: Option<std::ops::Range<usize>>,
-}
-
-/// Every `fn` head in `code` (the blanked view of `text`).
-fn fn_heads(text: &str, code: &str) -> Vec<FnHead> {
-    use test_utils::source::{
-        ItemBody, attributed_extent, balanced_end, boundary_after, boundary_before, ident,
-        item_body,
-    };
-    // `impl` blocks: an `impl` that opens an item (after a `}`, `;`, `{`,
-    // an attribute or the start), not `impl Trait` in a type.
-    let impls: Vec<std::ops::Range<usize>> = code
-        .match_indices("impl")
-        .filter(|&(at, _)| {
-            boundary_before(code, at)
-                && boundary_after(code, at + 4)
-                && code[..at]
-                    .trim_end()
-                    .chars()
-                    .next_back()
-                    .is_none_or(|c| matches!(c, '}' | ';' | '{' | ']'))
-        })
-        .filter_map(|(at, _)| match item_body(code, at) {
-            ItemBody::Body(b) => Some(b),
-            _ => None,
-        })
-        .collect();
-    let tests: Vec<std::ops::Range<usize>> = code
-        .match_indices("#[cfg(test)]")
-        .filter_map(|(at, _)| attributed_extent(code, at))
-        .collect();
-    let mut out = Vec::new();
-    for (head, _) in code.match_indices("fn ") {
-        if !boundary_before(code, head) {
-            continue;
-        }
-        let name_at = head + 3 + code[head + 3..].len() - code[head + 3..].trim_start().len();
-        let name = ident(code, name_at).to_string();
-        let Some(open) = code[name_at..].find('(').map(|o| name_at + o) else {
-            continue;
-        };
-        let Some(close) = balanced_end(code, open) else {
-            continue;
-        };
-        let receiver = code[open + 1..close].split(',').next().is_some_and(|p| {
-            let p = p.trim().trim_start_matches('&').trim_start();
-            let p = p.strip_prefix("mut ").unwrap_or(p).trim_start();
-            p == "self" || p.starts_with("self:") || p.starts_with("self ")
-        });
-        let params = test_utils::source::top_level_split(&code[open + 1..close], ',')
-            .into_iter()
-            .filter_map(|r| {
-                let (n, ty) = text[open + 1..close][r].split_once(':')?;
-                let n = n.trim();
-                Some((
-                    n.strip_prefix("mut ").unwrap_or(n).trim().to_string(),
-                    ty.split_whitespace().collect::<Vec<_>>().join(" "),
-                ))
-            })
-            .collect();
-        let mut before = code[..head].trim_end();
-        while let Some(b) = ["const", "unsafe", "async"]
-            .iter()
-            .find_map(|k| before.strip_suffix(k))
-        {
-            before = b.trim_end();
-        }
-        let public = before.ends_with("pub")
-            || (before.ends_with(')')
-                && before
-                    .rfind("pub(")
-                    .is_some_and(|p| !before[p..].contains('\n')));
-        let body = match item_body(code, head) {
-            ItemBody::Body(b) => Some(b),
-            _ => None,
-        };
-        out.push(FnHead {
-            at: head,
-            name,
-            params,
-            public,
-            in_impl: impls.iter().any(|b| b.contains(&head)),
-            in_test: tests.iter().any(|t| t.contains(&head)),
-            receiver,
-            body,
-        });
-    }
-    out
-}
-
 /// The home's `pub` fns that take a row-like parameter and cite no
 /// ledger row: each must be one ([`home_doors`] refuses a stale entry).
 const NON_ROW_DOORS: [&str; 2] = ["in_family", "identity_pass_set"];
@@ -295,66 +124,52 @@ const NON_ROW_DOORS: [&str; 2] = ["in_family", "identity_pass_set"];
 /// Whether a parameter reads as a ledger row: a name holding `row`, or,
 /// under any name but the predicate's `name`, a type that names `str` or
 /// `String` (`&'static str`, `&str`, `String`, `Cow<str>`) or one of
-/// `texts`, the home's aliases of those, and is no list ([`is_list`]).
-/// A list of text, `[&'static str; 2]` or `&'static [String]`, is
-/// predicate names, as `name` is, unless its name holds `row`.
-fn row_like((name, ty): &(String, String), texts: &[String]) -> bool {
+/// `texts`, the home's aliases of those, and is no list. A list of text,
+/// `[&'static str; 2]` or `&'static [String]`, is predicate names, as
+/// `name` is, unless its name holds `row`.
+fn row_like(p: &source_scope::Param, texts: &[String]) -> bool {
+    let Some(name) = p.name.as_deref() else {
+        return false;
+    };
     name.contains("row")
         || (name != "name"
-            && !is_list(ty)
-            && ty
-                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
-                .any(|w| w == "str" || w == "String" || texts.iter().any(|t| t == w)))
-}
-
-/// Whether `ty` is an array or a slice: `[` once its references, their
-/// lifetimes and `mut` are read off the front, whatever they are.
-fn is_list(ty: &str) -> bool {
-    let mut rest = ty.trim_start();
-    loop {
-        if let Some(r) = rest.strip_prefix('&') {
-            rest = r.trim_start();
-        } else if let Some(r) = rest.strip_prefix('\'') {
-            let end = r
-                .find(|c: char| !(c.is_alphanumeric() || c == '_'))
-                .unwrap_or(r.len());
-            rest = r[end..].trim_start();
-        } else if let Some(r) = rest.strip_prefix("mut ") {
-            rest = r.trim_start();
-        } else {
-            return rest.starts_with('[');
-        }
-    }
+            && !p.ty.list
+            && p.ty
+                .idents
+                .iter()
+                .any(|w| w == "str" || w == "String" || texts.contains(w)))
 }
 
 /// The home's `type` aliases of a text type (`str`, `String`, or another
 /// such alias), to a fixed point.
-fn text_aliases(code: &str) -> Vec<String> {
+fn text_aliases(src: &Source) -> Vec<String> {
     let mut texts: Vec<String> = Vec::new();
     loop {
         let before = texts.len();
-        for (at, _) in code.match_indices("type ") {
-            if !test_utils::source::boundary_before(code, at) {
-                continue;
-            }
-            let Some(end) = code[at..].find(';').map(|e| at + e) else {
-                continue;
-            };
-            let Some((head, rhs)) = code[at + 5..end].split_once('=') else {
-                continue;
-            };
-            let alias = test_utils::source::ident(head.trim_start(), 0).to_string();
-            let texty = rhs
-                .split(|c: char| !(c.is_alphanumeric() || c == '_'))
-                .any(|w| w == "str" || w == "String" || texts.iter().any(|t| t == w));
-            if texty && !alias.is_empty() && !texts.contains(&alias) {
-                texts.push(alias);
+        for alias in &src.type_aliases {
+            let texty = alias
+                .rhs
+                .iter()
+                .any(|w| w == "str" || w == "String" || texts.contains(w));
+            if texty && !texts.contains(&alias.name) {
+                texts.push(alias.name.clone());
             }
         }
         if texts.len() == before {
             return texts;
         }
     }
+}
+
+/// `text`, parsed: a file that does not parse stops the census.
+fn parse(path: &Path, text: &str) -> Source {
+    source_scope::read(text).unwrap_or_else(|e| {
+        panic!(
+            "{} does not parse ({e}): this census reads scopes off a parse, so a file it \
+             cannot parse is a file it cannot check",
+            path.display()
+        )
+    })
 }
 
 /// **The roster is the home's signatures**: every `pub` fn of `home`
@@ -370,11 +185,11 @@ fn home_doors(home: &Path, text: &str) -> Vec<Door> {
 
 /// [`home_doors`] with the non-doors `but`.
 fn home_doors_but(home: &Path, text: &str, but: &[&str]) -> Vec<Door> {
-    let code = test_utils::source::code_only(text);
-    let texts = text_aliases(&code);
+    let src = parse(home, text);
+    let texts = text_aliases(&src);
     let mut doors = Vec::new();
     let mut takers = Vec::new();
-    for f in fn_heads(text, &code) {
+    for f in &src.fns {
         if !f.public || f.in_test {
             continue;
         }
@@ -389,13 +204,13 @@ fn home_doors_but(home: &Path, text: &str, but: &[&str]) -> Vec<Door> {
                  is its ledger row. Name one `ledger_row`, or teach `home_doors` the shape.",
                 home.display(),
                 f.name,
-                f.params
+                f.params.iter().map(|p| p.name.clone()).collect::<Vec<_>>()
             ),
         };
         takers.push(f.name.clone());
         if !but.contains(&f.name.as_str()) {
             doors.push(Door {
-                name: f.name,
+                name: f.name.clone(),
                 cite,
                 home: Some(home.to_path_buf()),
                 method: f.in_impl,
@@ -419,486 +234,276 @@ fn home_doors_but(home: &Path, text: &str, but: &[&str]) -> Vec<Door> {
     doors
 }
 
-/// One leaf of a `use` tree: the path it imports, by segment, its `as`
-/// name, and whether the item re-exports it.
-#[derive(Debug)]
-struct UseLeaf {
-    path: Vec<String>,
-    alias: Option<String>,
-    public: bool,
+/// A source file read once for every door, its events indexed by every
+/// name they reach ([`Event::reaches`]: their own, and the item each
+/// import they resolve through ends at, so `choose as pick` is found
+/// under `choose`). [`reach`] matches a binding by the same followed
+/// paths, so the index and the match are one alias rule.
+struct Scanned<'a> {
+    path: &'a Path,
+    src: Source,
+    by_name: std::collections::HashMap<String, Vec<usize>>,
 }
 
-/// The byte range of each `use` item in `code`, and its leaves: groups,
-/// nested groups, `self`, globs and `as` are expanded, so a leaf is
-/// matched by its path's segments and `k_stats::choose_x` is not
-/// `k_stats::choose`.
-fn use_items(code: &str) -> Vec<(std::ops::Range<usize>, Vec<UseLeaf>)> {
-    use test_utils::source::{boundary_after, boundary_before};
-    let mut out = Vec::new();
-    for (at, _) in code.match_indices("use") {
-        if !boundary_before(code, at)
-            || !boundary_after(code, at + 3)
-            || !code[at + 3..].starts_with(char::is_whitespace)
-        {
-            continue;
-        }
-        let Some(end) = code[at..].find(';').map(|e| at + e) else {
-            continue;
-        };
-        let before = code[..at].trim_end();
-        let public = before.ends_with("pub")
-            || (before.ends_with(')')
-                && before
-                    .rfind("pub(")
-                    .is_some_and(|p| !before[p..].contains('\n')));
-        let mut tokens = Vec::new();
-        let tree = &code[at + 3..end];
-        let mut chars = tree.char_indices().peekable();
-        while let Some((i, c)) = chars.next() {
-            // `$` opens a macro fragment (`$crate`, `$tag`), one segment.
-            if c.is_alphanumeric() || c == '_' || c == '$' {
-                let mut j = i + c.len_utf8();
-                while let Some(&(k, d)) = chars.peek() {
-                    if d.is_alphanumeric() || d == '_' {
-                        j = k + d.len_utf8();
-                        chars.next();
-                    } else {
-                        break;
-                    }
-                }
-                tokens.push(tree[i..j].to_string());
-            } else if c == ':' {
-                if chars.next_if(|&(_, d)| d == ':').is_none() {
-                    panic!("a `use` item at byte {at} holds a lone `:`: {tree:?}");
-                }
-                tokens.push("::".to_string());
-            } else if !c.is_whitespace() {
-                tokens.push(c.to_string());
+impl<'a> Scanned<'a> {
+    fn of(path: &'a Path, text: &str) -> Self {
+        let src = parse(path, text);
+        let mut by_name: std::collections::HashMap<String, Vec<usize>> =
+            std::collections::HashMap::new();
+        for (i, ev) in src.events.iter().enumerate() {
+            for name in ev.reaches() {
+                by_name.entry(name.to_string()).or_default().push(i);
             }
         }
-        let mut leaves = Vec::new();
-        let mut i = 0;
-        use_tree(&tokens, &mut i, Vec::new(), public, &mut leaves);
-        assert_eq!(
-            i,
-            tokens.len(),
-            "a `use` item at byte {at} read only in part: {tree:?}"
-        );
-        out.push((at..end, leaves));
+        Scanned { path, src, by_name }
     }
-    out
 }
 
-/// One `use` tree from `t[*i..]`, under `prefix`, into `out`.
-fn use_tree(
-    t: &[String],
-    i: &mut usize,
-    mut prefix: Vec<String>,
-    public: bool,
-    out: &mut Vec<UseLeaf>,
-) {
-    loop {
-        let tok = t.get(*i).map(String::as_str);
-        match tok {
-            Some("::") => *i += 1,
-            Some("*") => {
-                *i += 1;
-                prefix.push("*".to_string());
-                out.push(UseLeaf {
-                    path: prefix,
-                    alias: None,
-                    public,
-                });
-                return;
+/// Whether `path` ends with the segments `tail`.
+fn ends(path: &[String], tail: &[&str]) -> bool {
+    path.len() >= tail.len() && path[path.len() - tail.len()..].iter().eq(tail.iter())
+}
+
+/// How one event reaches a door.
+enum Reach {
+    /// A site of the door, its row at this argument index.
+    Site(usize),
+    /// A bare call of the door's own name that nothing in the file
+    /// resolves.
+    Unresolved,
+    /// A `self::`/`super::` path of the door's name, called or imported,
+    /// that leaves the file's modules.
+    LeavesFile,
+    /// The door's name inside macro tokens this census cannot parse.
+    InMacro,
+    /// The name resolves to more than one binding here, one of them the
+    /// door (`#[cfg]`-kept declarations, or globs that each bring it in).
+    Ambiguous,
+    /// Not the door.
+    No,
+}
+
+/// How a binding of `ev`'s name reaches `door`. A followed import
+/// reaches it when its path ends at the home's item
+/// ([`Bound::targets`], the rule [`Scanned::of`] indexes by); a glob of
+/// the home brings in the door's own name; what lies behind any other
+/// glob is read in its place.
+fn reach_bound(b: Option<&Bound>, ev: &Event, door: &Door, in_home: bool) -> Reach {
+    let own = ev.name == door.name;
+    let called = ev.args.is_some();
+    match b {
+        Some(Bound::Use { path, .. }) if ends(path, &[HOME_MODULE, &door.name]) => {
+            Reach::Site(door.cite)
+        }
+        Some(Bound::Glob { paths, behind }) => {
+            if own && paths.iter().any(|g| ends(g, &[HOME_MODULE, "*"])) {
+                Reach::Site(door.cite)
+            } else if behind.is_some() {
+                reach_bound(behind.as_deref(), ev, door, in_home)
+            } else if own && called {
+                Reach::Unresolved
+            } else {
+                Reach::No
             }
-            Some("{") => {
-                *i += 1;
-                loop {
-                    if t.get(*i).map(String::as_str) == Some("}") {
-                        *i += 1;
-                        return;
-                    }
-                    use_tree(t, i, prefix.clone(), public, out);
-                    match t.get(*i).map(String::as_str) {
-                        Some(",") => *i += 1,
-                        Some("}") => {}
-                        other => panic!("a `use` group continues with {other:?}: {t:?}"),
-                    }
-                }
-            }
-            Some(seg)
-                if seg
-                    .chars()
-                    .all(|c| c.is_alphanumeric() || c == '_' || c == '$') =>
+        }
+        Some(Bound::Item) if own && in_home => Reach::Site(door.cite),
+        Some(Bound::Ambiguous(all)) => {
+            if all
+                .iter()
+                .any(|b| matches!(reach_bound(Some(b), ev, door, in_home), Reach::Site(_)))
             {
-                *i += 1;
-                if seg != "self" {
-                    prefix.push(seg.to_string());
-                }
-                if t.get(*i).map(String::as_str) == Some("::") {
-                    continue;
-                }
-                let alias = (t.get(*i).map(String::as_str) == Some("as")).then(|| {
-                    *i += 2;
-                    t.get(*i - 1)
-                        .cloned()
-                        .unwrap_or_else(|| panic!("`as` with no name: {t:?}"))
-                });
-                out.push(UseLeaf {
-                    path: prefix,
-                    alias,
-                    public,
-                });
-                return;
+                Reach::Ambiguous
+            } else {
+                Reach::No
             }
-            other => panic!("a `use` tree holds {other:?}, which this census cannot read: {t:?}"),
         }
+        // An import the parse could not place: still headed by `super` or
+        // `self` after following, it points past this file's modules, so
+        // it may be the door.
+        Some(Bound::Use { path, .. })
+            if matches!(path.first().map(String::as_str), Some("super" | "self"))
+                && path.last() == Some(&door.name) =>
+        {
+            Reach::LeavesFile
+        }
+        None if own && called => Reach::Unresolved,
+        _ => Reach::No,
     }
 }
 
-/// **How a file spells a door of the home.**
-struct Spelling {
-    /// The names a bare call of it goes by: its own in the home, under an
-    /// import, under a glob of the module, and an `as` name.
-    bare: Vec<String>,
-    /// The qualifiers a path call goes through: [`HOME_MODULE`], any `as`
-    /// name of it, and `self` in the home.
-    quals: Vec<String>,
-    /// The spans where the file gives the door's name another meaning,
-    /// each the scope of one binding: an import of it from another path
-    /// (its block, or the file), a `let` (from it to its block's end), a
-    /// closure's `|…|` (that closure's body, [`closure_parameter`]), a
-    /// free `fn` of that name (the block it is declared in; a method or an
-    /// associated fn, in an `impl` or `trait`, is never reached bare); a
-    /// parameter's (its fn's body) is read on demand
-    /// ([`parameter_scopes`]). A bare call inside one is that, not the
-    /// door. A struct field of that name binds nothing.
-    elsewhere: Vec<std::ops::Range<usize>>,
-    /// Each re-export of the door, or of the module under another name, as
-    /// `(line, row)`: a route this census cannot follow into its
-    /// importers, listed as a site citing no row.
-    offences: Vec<(usize, String)>,
+/// How `ev` reaches `door`, given the file's module qualifiers `quals`.
+fn reach(ev: &Event, door: &Door, quals: &[String], in_home: bool) -> Reach {
+    let own = ev.name == door.name;
+    if door.home.is_none() {
+        return match (own, &ev.callee) {
+            (false, _) => Reach::No,
+            (true, Callee::Macro) => Reach::InMacro,
+            (true, _) => Reach::Site(door.cite),
+        };
+    }
+    match &ev.callee {
+        Callee::Bare(b) => reach_bound(b.as_ref(), ev, door, in_home),
+        Callee::Path {
+            qualifier,
+            resolved,
+        } => {
+            if resolved.is_some() {
+                let r = reach_bound(resolved.as_ref(), ev, door, in_home);
+                if !matches!(r, Reach::No) {
+                    return r;
+                }
+            }
+            if !own {
+                return Reach::No;
+            }
+            let q = qualifier.as_deref().unwrap_or("");
+            let through = quals.iter().any(|m| m == q);
+            let typed = door.method && q.starts_with(char::is_uppercase);
+            let in_file_head = matches!(q, "self" | "super");
+            match (through, typed) {
+                (true, _) => Reach::Site(door.cite),
+                (false, true) => Reach::Site(door.cite + usize::from(door.receiver)),
+                // `self::`/`super::` the parse could not follow: the path
+                // leaves this file's modules, so it may be the door.
+                (false, false) if in_file_head && resolved.is_none() && ev.args.is_some() => {
+                    Reach::LeavesFile
+                }
+                (false, false) => Reach::No,
+            }
+        }
+        Callee::Method if own && door.method => Reach::Site(door.cite),
+        Callee::Macro if own => Reach::InMacro,
+        _ => Reach::No,
+    }
 }
 
-/// How `file` spells `door`, a door of the home ([`Spelling`]).
-fn spellings(file: &Scanned, door: &Door, in_home: bool) -> Spelling {
-    use test_utils::source::{boundary_after, boundary_before};
-    let mut sp = Spelling {
-        bare: Vec::new(),
-        quals: vec![HOME_MODULE.to_string()],
-        elsewhere: Vec::new(),
-        offences: Vec::new(),
-    };
+/// Every site of `door` in `file`, with what each cites at the row's
+/// index; an identifier is a [`Cite::Forwarded`].
+///
+/// **A door named and not called is a site citing no row**: a fn
+/// pointer (`let f = choose;`), anything that reaches the door other than
+/// by a call this census can read. A `pub use` re-export of the door, or
+/// of the module under another name, is one too: its importers reach the
+/// door by a path this census does not read.
+fn door_calls_in(file: &Scanned, door: &Door) -> Vec<(usize, Cite)> {
+    let in_home = door.home.as_deref() == Some(file.path);
+    let mut out = Vec::new();
+    let mut quals = vec![HOME_MODULE.to_string()];
     if in_home {
-        sp.bare.push(door.name.clone());
-        sp.quals.push("self".to_string());
+        quals.push("self".to_string());
     }
-    for (range, leaves) in &file.uses {
-        for leaf in leaves {
-            let p = &leaf.path;
-            let ends = |tail: &[&str]| p.len() >= tail.len() && p[p.len() - tail.len()..] == *tail;
-            let is_door = ends(&[HOME_MODULE, &door.name]);
-            let glob = ends(&[HOME_MODULE, "*"]);
-            let module = ends(&[HOME_MODULE]);
-            if leaf.public && (is_door || glob || (module && leaf.alias.is_some())) {
+    if door.home.is_some() {
+        for leaf in &file.src.uses {
+            let module = ends(&leaf.path, &[HOME_MODULE]);
+            let is_door = ends(&leaf.path, &[HOME_MODULE, &door.name]);
+            let glob = ends(&leaf.path, &[HOME_MODULE, "*"]);
+            if let (Some(a), true) = (&leaf.alias, module)
+                && a != "_"
+            {
+                quals.push(a.clone());
+            }
+            if !in_home && leaf.public && (is_door || glob || (module && leaf.alias.is_some())) {
                 let what = match (&leaf.alias, module) {
                     (Some(a), true) => format!("the module `{HOME_MODULE}` as `{a}`"),
                     _ => format!("`{}`", door.name),
                 };
-                sp.offences.push((
-                    test_utils::source::line(&file.code, range.start),
-                    format!(
+                out.push((
+                    leaf.line,
+                    Cite::Row(format!(
                         "<re-exports {what} (`pub use {}`): its importers reach the door by a \
                          path this census does not read>",
-                        p.join("::")
-                    ),
+                        leaf.path.join("::")
+                    )),
                 ));
             }
-            match (&leaf.alias, is_door, glob, module) {
-                (Some(a), true, _, _) if a != "_" => sp.bare.push(a.clone()),
-                (None, true, _, _) | (_, _, true, _) => sp.bare.push(door.name.clone()),
-                (Some(a), _, _, true) if a != "_" => sp.quals.push(a.clone()),
-                _ => {
-                    let named = leaf.alias.as_deref().or(p.last().map(String::as_str));
-                    if named == Some(door.name.as_str()) {
-                        sp.elsewhere.push(enclosing_block(&file.code, range.start));
-                    }
-                }
-            }
         }
     }
-    if in_home {
-        return sp;
-    }
-    let code = &file.code;
-    let n = &door.name;
-    for (at, _) in code.match_indices(n.as_str()) {
-        if !boundary_before(code, at) || !boundary_after(code, at + n.len()) {
-            continue;
-        }
-        let before = code[..at].trim_end();
-        let keyword =
-            |k: &str| before.ends_with(k) && boundary_before(before, before.len() - k.len());
-        let block = enclosing_block(code, at);
-        if let Some(body) = closure_parameter(code, at, n.len()) {
-            sp.elsewhere.push(body);
-        } else if keyword("fn") {
-            if !is_impl_or_trait_body(code, &block) {
-                sp.elsewhere.push(block);
-            }
-        } else if keyword("let") || keyword("mut") {
-            sp.elsewhere.push(at..block.end);
-        }
-    }
-    sp
-}
-
-/// **The body of the closure whose parameter list holds `code[at..at +
-/// len]`**, or `None` where it is no closure parameter. A closure is read
-/// by its own head: a `|` opening where an expression starts (after `(`,
-/// `[`, `{`, `,`, `=`, `;`, `=>`, `move` or `return`), parameters only
-/// up to the closing `|`, then a body: a `{ … }` block, or an expression
-/// up to the `,`, `;` or closer that ends it at its own depth. A match
-/// or-pattern (`1 | 2 =>`) and a bitwise or (`a | b`) open no closure.
-fn closure_parameter(code: &str, at: usize, len: usize) -> Option<std::ops::Range<usize>> {
-    let param = |c: char| c.is_alphanumeric() || " \t\n_,:&()<>'".contains(c);
-    let open = code[..at].rfind('|')?;
-    if !code[open + 1..at].chars().all(param) {
-        return None;
-    }
-    let lead = code[..open].trim_end();
-    let starts = ["(", "[", "{", ",", "=", ";", "=>"]
-        .iter()
-        .any(|t| lead.ends_with(t))
-        || ["move", "return"].iter().any(|k| {
-            lead.ends_with(k) && test_utils::source::boundary_before(lead, lead.len() - k.len())
-        });
-    if !starts
-        || lead.ends_with("==")
-        || lead.ends_with("!=")
-        || lead.ends_with("<=")
-        || lead.ends_with(">=")
-    {
-        return None;
-    }
-    let close = at + len + code[at + len..].find('|')?;
-    if !code[at + len..close].chars().all(param) {
-        return None;
-    }
-    let from = close + 1;
-    let start = test_utils::source::skip_ws(code, from);
-    if code[start..].starts_with('{') {
-        let end = test_utils::source::balanced_end(code, start)?;
-        return Some(from..end + 1);
-    }
-    let mut depth = 0usize;
-    for (i, c) in code[from..].char_indices() {
-        match c {
-            '(' | '[' | '{' => depth += 1,
-            ')' | ']' | '}' if depth == 0 => return Some(from..from + i),
-            ')' | ']' | '}' => depth -= 1,
-            ',' | ';' if depth == 0 => return Some(from..from + i),
-            _ => {}
-        }
-    }
-    Some(from..code.len())
-}
-
-/// Whether `block` is the body of an `impl` or a `trait`: a `fn` declared
-/// there is a method or an associated fn, which a bare call never reaches.
-fn is_impl_or_trait_body(code: &str, block: &std::ops::Range<usize>) -> bool {
-    if block.start == 0 && block.end == code.len() {
-        return false;
-    }
-    let head_end = block.start;
-    let head_start = code[..head_end].rfind(['}', ';', '{']).map_or(0, |i| i + 1);
-    let head = &code[head_start..head_end];
-    head.split(|c: char| !(c.is_alphanumeric() || c == '_'))
-        .find(|w| matches!(*w, "impl" | "trait" | "fn" | "mod" | "struct" | "enum"))
-        .is_some_and(|w| w == "impl" || w == "trait")
-}
-
-/// The bodies of `file`'s fns that take a parameter named `name`: where a
-/// bare call of `name` is that parameter. Read only for a call nothing
-/// else resolves.
-fn parameter_scopes(file: &Scanned, name: &str) -> Vec<std::ops::Range<usize>> {
-    fn_heads(file.text, &file.code)
-        .into_iter()
-        .filter(|f| f.params.iter().any(|(p, _)| p == name))
-        .filter_map(|f| f.body)
-        .collect()
-}
-
-/// The innermost `{ … }` of `code` that holds `at`, braces included, or
-/// the whole file outside every block.
-fn enclosing_block(code: &str, at: usize) -> std::ops::Range<usize> {
-    let mut depth = 0usize;
-    for (i, c) in code[..at].char_indices().rev() {
-        match c {
-            '}' => depth += 1,
-            '{' if depth == 0 => {
-                let end = test_utils::source::balanced_end(code, i).unwrap_or(code.len() - 1);
-                return i..end + 1;
-            }
-            '{' => depth -= 1,
-            _ => {}
-        }
-    }
-    0..code.len()
-}
-
-/// A source file read once for every door: its text, blanked view and
-/// `use` items.
-struct Scanned<'a> {
-    path: &'a Path,
-    text: &'a str,
-    code: String,
-    uses: Vec<(std::ops::Range<usize>, Vec<UseLeaf>)>,
-}
-
-impl<'a> Scanned<'a> {
-    fn of(path: &'a Path, text: &'a str) -> Self {
-        let code = test_utils::source::code_only(text);
-        let uses = use_items(&code);
-        Scanned {
-            path,
-            text,
-            code,
-            uses,
-        }
-    }
-}
-
-/// Every call of `door` in `text` (at `path`), with what it cites at the
-/// row's index. An argument `forwards` accepts is a [`Cite::Forwarded`]
-/// rather than refused for not being a literal.
-///
-/// **A door named and not called is a site citing no row**: a fn
-/// pointer (`let f = choose;`), an argument to a macro that calls it,
-/// anything that reaches the door other than by a call this census can
-/// read. The definition and the `use` items are not mentions.
-fn door_calls_in(
-    file: &Scanned,
-    door: &Door,
-    forwards: impl Fn(&str) -> bool,
-) -> Vec<(usize, Cite)> {
-    use test_utils::source::{boundary_after, boundary_before};
-    let (text, code) = (file.text, &file.code);
-    let sp = match &door.home {
-        Some(home) => spellings(file, door, home == file.path),
-        None => Spelling {
-            bare: vec![door.name.clone()],
-            quals: Vec::new(),
-            elsewhere: Vec::new(),
-            offences: Vec::new(),
-        },
-    };
-    let mut out: Vec<(usize, Cite)> = sp
-        .offences
-        .iter()
-        .map(|(line, row)| (*line, Cite::Row(row.clone())))
-        .collect();
-    let mut names = sp.bare.clone();
-    if !names.contains(&door.name) {
-        names.push(door.name.clone());
-    }
-    for name in &names {
-        for (at, _) in code.match_indices(name.as_str()) {
-            if !boundary_before(code, at) || !boundary_after(code, at + name.len()) {
-                continue;
-            }
-            if file.uses.iter().any(|(u, _)| u.contains(&at)) {
-                continue;
-            }
-            let before = code[..at].trim_end();
-            if before.ends_with("fn") && boundary_before(before, before.len() - 2) {
-                continue;
-            }
-            let calls = code[at + name.len()..].trim_start().starts_with('(')
-                || code[at + name.len()..].trim_start().starts_with("::<");
-            let mut cite_at = door.cite;
-            if door.home.is_some() {
-                let own = *name == door.name;
-                let accepted = if before.ends_with('.') {
-                    // A method call: the door's when the door is a method.
-                    own && door.method
-                } else if let Some(q) = before.strip_suffix("::") {
-                    let q = q.trim_end();
-                    let q = q.strip_suffix('>').unwrap_or(q).trim_end();
-                    let through = sp
-                        .quals
-                        .iter()
-                        .any(|m| q.ends_with(m.as_str()) && boundary_before(q, q.len() - m.len()));
-                    let typed = door.method
-                        && q.rsplit(|c: char| !(c.is_alphanumeric() || c == '_'))
-                            .next()
-                            .is_some_and(|seg| seg.starts_with(char::is_uppercase));
-                    if own && typed && !through && door.receiver {
-                        cite_at += 1;
-                    }
-                    own && (through || typed)
-                } else if sp.bare.contains(name) {
-                    true
-                } else if own
-                    && calls
-                    && !sp.elsewhere.iter().any(|r| r.contains(&at))
-                    && !parameter_scopes(file, name).iter().any(|r| r.contains(&at))
-                {
-                    // A bare call nothing in this file resolves: not
-                    // dropped, but listed.
-                    out.push((
-                        test_utils::source::line(code, at),
-                        Cite::Row(format!(
-                            "<calls `{name}` bare where nothing in this file resolves it: import \
-                             it from `{HOME_MODULE}`, or qualify it>"
-                        )),
-                    ));
-                    continue;
-                } else {
-                    false
-                };
-                if !accepted {
-                    continue;
-                }
-            }
-            let line = test_utils::source::line(code, at);
-            let i = at + name.len();
-            let open = skip_turbofish(&code[i..], at);
-            if !code[i + open..].starts_with('(') {
+    let events = file.by_name.get(&door.name).map_or(&[][..], Vec::as_slice);
+    for ev in events.iter().map(|&i| &file.src.events[i]) {
+        let name = &ev.name;
+        let cite_at = match reach(ev, door, &quals, in_home) {
+            Reach::No => continue,
+            Reach::Unresolved => {
                 out.push((
-                    line,
+                    ev.line,
                     Cite::Row(format!(
-                        "<names `{name}` without calling it: a fn pointer, a binding or a macro \
-                         argument this census cannot follow>"
+                        "<calls `{name}` bare where nothing in this file resolves it: import \
+                         it from `{HOME_MODULE}`, or qualify it>"
                     )),
                 ));
                 continue;
             }
-            let paren = i + open;
-            let end = test_utils::source::balanced_end(code, paren)
-                .unwrap_or_else(|| panic!("unterminated {name} argument list at byte {paren}"));
-            let args = paren + 1;
-            let split = test_utils::source::top_level_split(&code[args..end], ',');
-            let cite = split.get(cite_at).unwrap_or_else(|| {
-                panic!(
-                    "{name} call with fewer than {} arguments: {:.200}",
-                    cite_at + 1,
-                    &text[args..end]
-                )
-            });
-            let raw = &text[args + cite.start..args + cite.end];
+            Reach::LeavesFile => {
+                out.push((
+                    ev.line,
+                    Cite::Row(format!(
+                        "<reaches `{name}` by a `self::`/`super::` path, called or imported, \
+                         that leaves this file's modules, so this census cannot follow it: \
+                         import it from `{HOME_MODULE}`, or qualify it>"
+                    )),
+                ));
+                continue;
+            }
+            Reach::Ambiguous => {
+                out.push((
+                    ev.line,
+                    Cite::Row(format!(
+                        "<calls `{name}` where it resolves to more than one binding, the door \
+                         among them (`#[cfg]`-kept declarations, or globs): this census reads \
+                         none of them; give the name one binding>"
+                    )),
+                ));
+                continue;
+            }
+            Reach::InMacro => {
+                out.push((
+                    ev.line,
+                    Cite::Row(format!(
+                        "<names `{name}` inside a macro whose arguments this census cannot \
+                         parse>"
+                    )),
+                ));
+                continue;
+            }
+            Reach::Site(at) => at,
+        };
+        let Some(args) = &ev.args else {
             out.push((
-                line,
-                if forwards(raw) {
-                    Cite::Forwarded {
-                        ident: raw.trim().to_string(),
-                        at,
-                    }
-                } else {
-                    Cite::Row(ledger_row(raw))
-                },
+                ev.line,
+                Cite::Row(format!(
+                    "<names `{name}` without calling it: a fn pointer, a binding or a macro \
+                     argument this census cannot follow>"
+                )),
             ));
-        }
+            continue;
+        };
+        let cited = args.get(cite_at).unwrap_or_else(|| {
+            panic!(
+                "{}:{}: `{name}` call with fewer than {} arguments",
+                file.path.display(),
+                ev.line,
+                cite_at + 1
+            )
+        });
+        out.push((
+            ev.line,
+            match cited {
+                Arg::Str(row) => Cite::Row(row.clone()),
+                Arg::Ident { name, bound } => Cite::Forwarded {
+                    ident: name.clone(),
+                    bound: bound.clone(),
+                    around: ev.enclosing_fn,
+                },
+                Arg::Other => panic!(
+                    "{}:{}: a door's site cites its ledger row as an expression, not a string \
+                     literal. The census can only verify literals; give the site its row \
+                     directly, or teach this test to resolve the indirection — do not leave it \
+                     unchecked.",
+                    file.path.display(),
+                    ev.line
+                ),
+            },
+        ));
     }
     out
 }
@@ -906,27 +511,34 @@ fn door_calls_in(
 /// The sites of `doors` in `files`, wrappers resolved to a fixed point
 /// ([`forwarding_door`]).
 fn door_sites(files: &[(PathBuf, String)], doors: &[Door]) -> Vec<Site> {
-    let identifier = |raw: &str| {
-        !raw.trim().is_empty() && raw.trim().chars().all(|c| c.is_alphanumeric() || c == '_')
-    };
     let scanned: Vec<Scanned> = files.iter().map(|(p, t)| Scanned::of(p, t)).collect();
+    door_sites_in(&scanned, doors)
+}
+
+/// [`door_sites`] over files already read.
+fn door_sites_in(scanned: &[Scanned], doors: &[Door]) -> Vec<Site> {
     let mut known: Vec<Door> = doors.to_vec();
     let mut hits: Vec<Site> = Vec::new();
     let mut next = 0;
     while next < known.len() {
         let door = known[next].clone();
         next += 1;
-        for file in &scanned {
+        for file in scanned {
             let path = &file.path.to_path_buf();
-            for (line, found) in door_calls_in(file, &door, identifier) {
+            for (line, found) in door_calls_in(file, &door) {
                 match found {
                     Cite::Row(ledger_row) => hits.push(Site {
                         file: path.clone(),
                         line,
                         ledger_row,
                     }),
-                    Cite::Forwarded { ident, at } => {
-                        match forwarding_door(file.text, &file.code, at, &ident) {
+                    Cite::Forwarded {
+                        ident,
+                        bound,
+                        around,
+                    } => {
+                        let around = around.map(|i| &file.src.fns[i]);
+                        match forwarding_door(around, &ident, bound.as_ref()) {
                             Ok((name, cite)) => {
                                 // A door of the home forwarding to another is
                                 // already on the roster; any other wrapper is a
@@ -965,48 +577,35 @@ fn door_sites(files: &[(PathBuf, String)], doors: &[Door]) -> Vec<Site> {
     hits
 }
 
-/// **The door a forwarding call makes of the fn around it**: the
-/// innermost `fn` whose body holds byte `at` of `code`, where it takes
-/// `ident` as a `&'static str` parameter, as its name and that
-/// parameter's index. `text` is the unblanked source at the same offsets,
-/// read for the parameter's type.
+/// **The door a forwarding call makes of the fn around it** (`around`):
+/// where that fn takes `ident` as a `&'static str` parameter, its name
+/// and that parameter's index.
 ///
-/// **The parameter must reach the call unbound again.** Any other
-/// mention of `ident` in the body before the call (a `let`, a closure's
-/// `|ident|`, a pattern) may rebind it, and then the caller's literal is
-/// not the row the door receives: refused, as a site citing no row,
-/// rather than read as a forwarding.
+/// **The parameter must be what the call's `ident` resolves to.** A
+/// `let`, a closure's parameter or a pattern that binds `ident` again
+/// between the fn's head and the call (`bound`, as the parse resolves it)
+/// means the caller's literal is not the row the door receives: refused,
+/// as a site citing no row, rather than read as a forwarding.
 fn forwarding_door(
-    text: &str,
-    code: &str,
-    at: usize,
+    around: Option<&source_scope::FnItem>,
     ident: &str,
+    bound: Option<&Bound>,
 ) -> Result<(String, usize), String> {
-    use test_utils::source::{boundary_after, boundary_before};
-    let head = fn_heads(text, code)
-        .into_iter()
-        .rev()
-        .find(|f| f.at < at && f.body.as_ref().is_some_and(|b| b.contains(&at)))
-        .ok_or_else(|| "outside any fn".to_string())?;
-    let index = head
+    let f = around.ok_or_else(|| "outside any fn".to_string())?;
+    let index = f
         .params
         .iter()
-        .position(|(n, ty)| {
-            n == ident && ty.split_whitespace().collect::<String>() == "&'staticstr"
-        })
+        .position(|p| p.name.as_deref() == Some(ident) && p.ty.static_str)
         .ok_or_else(|| "which is no `&'static str` parameter of the fn around it".to_string())?;
-    let body = head.body.expect("filtered on a body");
-    let rebound = code[body.start..at].match_indices(ident).any(|(k, _)| {
-        let k = body.start + k;
-        boundary_before(code, k) && boundary_after(code, k + ident.len())
-    });
-    if rebound {
-        return Err(format!(
+    match bound {
+        Some(Bound::Param { fn_name, index: i }) if *fn_name == f.name && *i == index => {
+            Ok((f.name.clone(), index))
+        }
+        _ => Err(format!(
             "which the body of `{}` names before the call, so it may be rebound",
-            head.name
-        ));
+            f.name
+        )),
     }
-    Ok((head.name, index))
 }
 
 /// Every `.rs` file under each crate's `src/`, with its text.
@@ -1051,7 +650,22 @@ fn flagged_sites() -> Vec<Site> {
         !flagged.is_empty(),
         "the home defines no decide_flagged door"
     );
-    door_sites(&shipped_files(), &flagged)
+    door_sites_in(shipped_scanned(), &flagged)
+}
+
+/// The shipped files, read and parsed once per process: both shipped
+/// rows read the same parse. (Under nextest each row is its own
+/// process, so there the parse is once per row.)
+fn shipped_scanned() -> &'static [Scanned<'static>] {
+    static FILES: std::sync::OnceLock<Vec<(PathBuf, String)>> = std::sync::OnceLock::new();
+    static SCANNED: std::sync::OnceLock<Vec<Scanned<'static>>> = std::sync::OnceLock::new();
+    SCANNED.get_or_init(|| {
+        FILES
+            .get_or_init(shipped_files)
+            .iter()
+            .map(|(p, t)| Scanned::of(p, t))
+            .collect()
+    })
 }
 
 #[test]
@@ -1069,7 +683,7 @@ fn shipped_decide_flagged_sites_match_the_ledger() {
 
 #[test]
 fn every_shipped_site_cites_a_ledger_row_that_exists() {
-    let hits = door_sites(&shipped_files(), &shipped_doors());
+    let hits = door_sites_in(shipped_scanned(), &shipped_doors());
     let audit = crates_root()
         .parent()
         .expect("workspace root")
@@ -1148,6 +762,8 @@ fn the_doors_are_the_homes_fns_that_take_a_ledger_row() {
          pub fn one(label: [&'static str; 1]) {}\n\
          pub fn owned_list(labels: &[String]) {}\n\
          pub fn static_list(labels: &'static [&'static str]) {}\n\
+         pub fn mut_list(labels: &mut [&str]) {}\n\
+         pub fn mut_static_list(labels: &'a mut [String]) {}\n\
          pub fn row_list(rows: &'static [&'static str]) {}\n\
          impl Bracket {\n    pub fn cite(&self, ledger_row: &'static str) {}\n}\n\
          #[cfg(test)]\nmod tests {\n    pub fn in_a_test(ledger_row: &'static str) {}\n}\n",
@@ -1468,4 +1084,289 @@ fn a_re_exported_door_is_a_site_citing_no_row() {
         want,
         "each re-export is listed"
     );
+}
+
+/// **A pattern's binding holds over what the pattern governs, and no
+/// further**: an `if let`, a `for`, a match arm and a tuple `let` each
+/// bind `choose` somewhere in these files, and a call outside that scope
+/// is still a door call. A parameter of one fn does not shadow an
+/// import in another. Inside each scope the name is the local, and
+/// nothing is reported. A lexical scope reader read each of these
+/// shapes as file-wide or block-wide and dropped the door call beside
+/// it. That is the census's silent direction, and these shapes are what
+/// the move onto a parse closed.
+#[test]
+fn a_patterns_binding_holds_only_over_what_the_pattern_governs() {
+    let home = "k_stats.rs";
+    let files = [
+        planted(
+            home,
+            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
+        ),
+        planted(
+            "if_let_beside.rs",
+            "use super::*;\nfn b(x: O) {\n    if let Some(choose) = x { g(choose); }\n    choose(\"n\", m, \"ROW\");\n}\n",
+        ),
+        planted(
+            "for_beside.rs",
+            "use super::*;\nfn b() {\n    for choose in xs { g(choose); }\n    choose(\"n\", m, \"ROW\");\n}\n",
+        ),
+        planted(
+            "arm_beside.rs",
+            "use super::*;\nfn b(x: O) {\n    match x { Some(choose) => g(choose), None => {} }\n    choose(\"n\", m, \"ROW\");\n}\n",
+        ),
+        planted(
+            "tuple_let_after.rs",
+            "use super::*;\nfn b() {\n    choose(\"n\", m, \"ROW\");\n    let (choose, y) = (1, 2);\n}\n",
+        ),
+        planted(
+            "param_elsewhere.rs",
+            "use crate::k_stats::choose;\nfn a(choose: F) { choose(1, 2); }\nfn b() { choose(\"n\", m, \"ROW\"); }\n",
+        ),
+        planted(
+            "in_scope.rs",
+            "use crate::k_stats::choose;\nfn a(x: O, fs: V) {\n    if let Some(choose) = x { choose(1, 2); }\n    \
+             for choose in fs { choose(1, 2); }\n    match x { Some(choose) => choose(1, 2), None => {} }\n    \
+             let (choose, y) = (f, 2);\n    choose(1, 2);\n}\n",
+        ),
+    ];
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let unresolved = "<calls `choose` bare where nothing in this file resolves it: import it from \
+                      `k_stats`, or qualify it>";
+    let mut want: Vec<(String, String)> = [
+        "arm_beside.rs",
+        "for_beside.rs",
+        "if_let_beside.rs",
+        "tuple_let_after.rs",
+    ]
+    .into_iter()
+    .map(|f| (f.to_string(), unresolved.to_string()))
+    .collect();
+    want.push(("param_elsewhere.rs".to_string(), "ROW".to_string()));
+    want.sort();
+    let mut got = rows_of(&door_sites(&files, &roster));
+    got.sort();
+    assert_eq!(got, want, "each pattern's own scope");
+}
+
+/// The row of a door reached by a `self::`/`super::` path that leaves the
+/// file.
+const LEAVES_THE_FILE: &str = "<reaches `choose` by a `self::`/`super::` path, called or \
+                               imported, that leaves this file's modules, so this census \
+                               cannot follow it: import it from `k_stats`, or qualify it>";
+
+/// **A door reached through an in-file path is a site**: an import of a
+/// parent's or a child's import (`use super::choose`, `use
+/// self::inner::choose`, an alias through `super`), a `self::`/`super::`
+/// path call, and a glob of a glob of the home. Each is followed to the
+/// import that leaves the file. A block's glob that leaves the file
+/// keeps the outer import behind it. `super::` past the file's own
+/// module, and two `#[cfg]`-kept imports of one name, are rows that say
+/// what the census cannot read, never a silent drop.
+#[test]
+fn a_door_reached_through_an_in_file_path_is_a_site() {
+    let home = "k_stats.rs";
+    let files = [
+        planted(
+            home,
+            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
+        ),
+        planted(
+            "use_super.rs",
+            "use crate::k_stats::choose;\nmod tests {\n    use super::choose;\n    fn a() { choose(\"n\", m, \"R1\"); }\n}\n",
+        ),
+        planted(
+            "use_self_child.rs",
+            "use self::inner::choose;\nmod inner { pub use crate::k_stats::choose; }\nfn a() { choose(\"n\", m, \"R2\"); }\n",
+        ),
+        planted(
+            "self_path.rs",
+            "use crate::k_stats::choose;\nfn a() { self::choose(\"n\", m, \"R3\"); }\n",
+        ),
+        planted(
+            "super_path.rs",
+            "use crate::k_stats::choose;\nmod t {\n    fn a() { super::choose(\"n\", m, \"R4\"); }\n}\n",
+        ),
+        planted(
+            "glob_of_glob.rs",
+            "use crate::k_stats::*;\nmod a {\n    use super::*;\n    mod b {\n        use super::*;\n        fn f() { choose(\"n\", m, \"R5\"); }\n    }\n}\n",
+        ),
+        planted(
+            "block_glob.rs",
+            "use crate::k_stats::choose;\nfn f() {\n    use other::*;\n    choose(\"n\", m, \"R6\");\n}\n",
+        ),
+        planted(
+            "alias_through_super.rs",
+            "use crate::k_stats::choose as pick;\nmod t {\n    use super::pick;\n    fn a() { pick(\"n\", m, \"R7\"); }\n}\n",
+        ),
+        planted(
+            "super_leaves.rs",
+            "fn a() { super::choose(\"n\", m, \"R8\"); }\n",
+        ),
+        planted(
+            "cfg_kept.rs",
+            "#[cfg(test)]\nuse crate::k_stats::choose;\n#[cfg(not(test))]\nuse other::choose;\nfn a() { choose(\"n\", m, \"R9\"); }\n",
+        ),
+        planted(
+            "another_meaning_through_super.rs",
+            "use other::choose;\nmod t {\n    use super::choose;\n    fn a() { choose(1, 2); }\n}\n",
+        ),
+    ];
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let mut got = rows_of(&door_sites(&files, &roster));
+    got.sort();
+    let leaves = LEAVES_THE_FILE;
+    let ambiguous = "<calls `choose` where it resolves to more than one binding, the door among \
+                     them (`#[cfg]`-kept declarations, or globs): this census reads none of \
+                     them; give the name one binding>";
+    // The child's `pub use` is a re-export in its own right.
+    let reexport = "<re-exports `choose` (`pub use crate::k_stats::choose`): its importers reach \
+                    the door by a path this census does not read>";
+    let mut want: Vec<(String, String)> = [
+        ("alias_through_super.rs", "R7"),
+        ("block_glob.rs", "R6"),
+        ("cfg_kept.rs", ambiguous),
+        ("glob_of_glob.rs", "R5"),
+        ("self_path.rs", "R3"),
+        ("super_leaves.rs", leaves),
+        ("super_path.rs", "R4"),
+        ("use_self_child.rs", "R2"),
+        ("use_self_child.rs", reexport),
+        ("use_super.rs", "R1"),
+    ]
+    .into_iter()
+    .map(|(f, r)| (f.to_string(), r.to_string()))
+    .collect();
+    want.sort();
+    assert_eq!(got, want, "each in-file path, followed");
+}
+
+/// **A path's head is resolved once, in the scopes around it**: a
+/// block's own import or inline module names the head before the
+/// module's do (P1–P4, P7 of 6694's delta review), a block's glob of an
+/// in-file module reads that module, and an import of `super::`'s door
+/// past the file, by name or renamed, is a row that says so (Q1–Q3).
+#[test]
+fn a_door_reached_through_a_block_scope_or_past_the_file() {
+    let home = "k_stats.rs";
+    let files = [
+        planted(
+            home,
+            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
+        ),
+        planted(
+            "q1_use_super.rs",
+            "use super::choose;\nfn a() { choose(\"n\", m, \"Q1\"); }\n",
+        ),
+        planted(
+            "q2_use_super_as.rs",
+            "use super::choose as pick;\nfn a() { pick(\"n\", m, \"Q2\"); }\n",
+        ),
+        planted(
+            "q3_super_super.rs",
+            "mod t {\n    use super::super::choose;\n    fn a() { choose(\"n\", m, \"Q3\"); }\n}\n",
+        ),
+        planted(
+            "p1_block_use_super_module.rs",
+            "mod m { pub use crate::k_stats::choose; }\nmod t {\n    fn a() {\n        use super::m;\n        m::choose(\"n\", x, \"P1\");\n    }\n}\n",
+        ),
+        planted(
+            "p2_block_import_over_module_import.rs",
+            "use other::m;\nmod n { pub use crate::k_stats::choose; }\nfn a() {\n    use self::n as m;\n    m::choose(\"n\", x, \"P2\");\n}\n",
+        ),
+        planted(
+            "p3_block_inline_mod.rs",
+            "fn a() {\n    mod inner { pub use crate::k_stats::choose; }\n    inner::choose(\"n\", x, \"P3\");\n}\n",
+        ),
+        planted(
+            "p4_head_a_block_import.rs",
+            "fn a() {\n    use crate::k_stats as q;\n    use q::choose;\n    choose(\"n\", x, \"P4\");\n}\n",
+        ),
+        planted(
+            "p7_block_import_over_inline_mod.rs",
+            "mod m { pub use x::choose; }\nfn a() {\n    use other::m;\n    m::choose(\"n\", x, \"P7\");\n}\n",
+        ),
+        planted(
+            "b1_block_glob_of_parent.rs",
+            "use crate::k_stats::choose;\nmod t {\n    fn a() {\n        use super::*;\n        choose(\"n\", x, \"B1\");\n    }\n}\n",
+        ),
+    ];
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let mut got = rows_of(&door_sites(&files, &roster));
+    got.sort();
+    let reexport = "<re-exports `choose` (`pub use crate::k_stats::choose`): its importers reach \
+                    the door by a path this census does not read>";
+    let mut want: Vec<(String, String)> = [
+        ("b1_block_glob_of_parent.rs", "B1"),
+        ("p1_block_use_super_module.rs", "P1"),
+        ("p1_block_use_super_module.rs", reexport),
+        ("p2_block_import_over_module_import.rs", "P2"),
+        ("p2_block_import_over_module_import.rs", reexport),
+        ("p3_block_inline_mod.rs", "P3"),
+        ("p3_block_inline_mod.rs", reexport),
+        ("p4_head_a_block_import.rs", "P4"),
+        ("q1_use_super.rs", LEAVES_THE_FILE),
+        (
+            "q2_use_super_as.rs",
+            &LEAVES_THE_FILE.replace("`choose`", "`pick`"),
+        ),
+        ("q3_super_super.rs", LEAVES_THE_FILE),
+    ]
+    .into_iter()
+    .map(|(f, r): (&str, &str)| (f.to_string(), r.to_string()))
+    .collect();
+    want.sort();
+    assert_eq!(got, want, "each head in its own scope");
+}
+
+/// **An import that names an in-file module re-enters the file**: a
+/// path's middle segment bound by an import of a sibling module (N1, and
+/// its `use` leaf form), and a module brought in by a `use super::*`
+/// glob, as a path's head (N18) and as an import's (N19), each reach the
+/// door the module re-exports (6694's second delta review).
+#[test]
+fn an_import_of_an_in_file_module_is_walked_on() {
+    let home = "k_stats.rs";
+    let files = [
+        planted(
+            home,
+            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
+        ),
+        planted(
+            "n1_middle_import.rs",
+            "mod a { pub use super::n as q; }\nmod n { pub use crate::k_stats::choose; }\nfn f() { a::q::choose(\"n\", x, \"N1\"); }\n",
+        ),
+        planted(
+            "n1_leaf.rs",
+            "mod a { pub use super::n as q; }\nmod n { pub use crate::k_stats::choose; }\nuse self::a::q::choose;\nfn f() { choose(\"n\", x, \"N1L\"); }\n",
+        ),
+        planted(
+            "n18_glob_brought_head.rs",
+            "mod m { pub use crate::k_stats::choose; }\nmod t {\n    use super::*;\n    fn f() { m::choose(\"n\", x, \"N18\"); }\n}\n",
+        ),
+        planted(
+            "n19_glob_brought_import.rs",
+            "mod m { pub use crate::k_stats::choose; }\nmod t {\n    use super::*;\n    use m::choose;\n    fn f() { choose(\"n\", x, \"N19\"); }\n}\n",
+        ),
+    ];
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let mut got = rows_of(&door_sites(&files, &roster));
+    got.sort();
+    let reexport = "<re-exports `choose` (`pub use crate::k_stats::choose`): its importers reach \
+                    the door by a path this census does not read>";
+    let mut want: Vec<(String, String)> = [
+        ("n18_glob_brought_head.rs", "N18"),
+        ("n18_glob_brought_head.rs", reexport),
+        ("n19_glob_brought_import.rs", "N19"),
+        ("n19_glob_brought_import.rs", reexport),
+        ("n1_leaf.rs", "N1L"),
+        ("n1_leaf.rs", reexport),
+        ("n1_middle_import.rs", "N1"),
+        ("n1_middle_import.rs", reexport),
+    ]
+    .into_iter()
+    .map(|(f, r)| (f.to_string(), r.to_string()))
+    .collect();
+    want.sort();
+    assert_eq!(got, want, "each import of an in-file module, walked on");
 }

@@ -590,8 +590,10 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
         declared: Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
-            axis_origin: Point3::new(0.0, 0.0, 0.0),
-            axis_dir: Vec3::unit_y(),
+            axis: geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::unit_y(),
+            },
             angle: 0.5,
         })),
     };

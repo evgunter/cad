@@ -33,3 +33,7 @@ rigid map without re-deriving it — a design reading of
 `[topology.tiers]`, since `finish` is today the one constructor — or is
 the re-run the price of keeping `finish` the only constructor? Until it
 is answered, the placement doors pay one finish per map.
+
+## Decided (fork 256, PR 6589)
+
+Answered with `a-rigid-motion-rewrites-and-recertifies-every-edge`. The primitives take and return the finished type through one `moved` door. The move carries the verdict and asks only the session box again, and `finish` is the one place a verdict is derived. Both rows close in one unit.

@@ -780,7 +780,9 @@ pub enum ReplaceFaceError<T: Real> {
     /// words. The door does not validate the body it is handed, so the
     /// neighbour's torus is whatever the body carries.
     ///
-    /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
+    /// Standing: as the convention states it
+    /// ([`geom_brep::TorusRefusal::refusal`]): ranked by its margin in
+    /// band, an abort where decided outside the convention.
     DegenerateTorus {
         /// The edge whose section read the torus.
         edge: EdgeKey,
@@ -855,12 +857,14 @@ impl<T: Real> ReplaceFaceError<T> {
     ///
     /// # Errors
     ///
-    /// [`geom_brep::ladder::Aborts`] for every kind but `Escalated`.
+    /// [`geom_brep::ladder::Aborts`] for an invalid input, a kernel or
+    /// stored-data fault and a payload that mixes classes.
     pub(crate) const fn refusal(
         &self,
     ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         match self {
             Self::Escalated { source } => Ok(geom_brep::ladder::Refusal::Margin(*source)),
+            Self::DegenerateTorus { refusal, .. } => refusal.refusal(),
             Self::ReanchorInconclusive { .. } => Ok(geom_brep::ladder::Refusal::Unsettled),
             Self::ApproxLaneUnsupported { .. }
             | Self::NeighborPairUnroutable { .. }
@@ -899,7 +903,6 @@ impl<T: Real> ReplaceFaceError<T> {
             | Self::CornerSection { .. }
             | Self::TogetherAxialEdge { .. }
             | Self::TogetherConicArc { .. }
-            | Self::DegenerateTorus { .. }
             | Self::Op { .. }
             | Self::Pcurve { .. }
             | Self::Join { .. } => Err(geom_brep::ladder::Aborts),
@@ -1247,7 +1250,14 @@ fn transport_curve<T: Decide>(
             // three faces of the mint's own action, and this door reads
             // all three rather than re-deriving any (the drift that
             // costs is a second copy, not a second call).
-            let action = geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d);
+            let action = geom_brep::ConeOffset::new(
+                geom::Line {
+                    origin: *apex,
+                    dir: *axis,
+                },
+                *half_angle,
+                d,
+            );
             let (sin_a, cos_a) = half_angle.sin_cos();
             match curve {
                 // A chart line is a generator, and the action's
@@ -2067,8 +2077,16 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
             ..
         } = old_surface
         {
-            let (v_min, v_max) = group_cone_v_window(body, faces, apex, axis, half_angle.cos())
-                .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
+            let (v_min, v_max) = group_cone_v_window(
+                body,
+                faces,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+                half_angle.cos(),
+            )
+            .ok_or(ReplaceFaceError::ApexWindowUnknown { face })?;
             // The nappe decides which end of the window is the one
             // nearest the apex; the window decides whether that end has
             // CLEARED the apex. One predicate, on the near end alone,
@@ -2186,8 +2204,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 &plan.spec.carrier,
                 plan.spec.param_start,
                 plan.spec.param_end,
-                apex,
-                axis,
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
                 half_angle.cos(),
             );
             window = Some(match window {
@@ -2382,7 +2402,15 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
             axis,
             half_angle,
             ..
-        } => geom_brep::ConeOffset::new(*apex, *axis, *half_angle, d).shift(),
+        } => geom_brep::ConeOffset::new(
+            geom::Line {
+                origin: *apex,
+                dir: *axis,
+            },
+            *half_angle,
+            d,
+        )
+        .shift(),
         _ => T::zero(),
     }
 }
@@ -2402,16 +2430,28 @@ fn apex_shift<T: Real>(old: &Surface<T>, d: T) -> T {
 fn group_cone_v_window<T: Decide>(
     body: &Body<T>,
     group: &[FaceKey],
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     cos_a: T,
 ) -> Option<(T, T)> {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let mut window: Option<(T, T)> = None;
     for edge in group_boundary(body, group) {
         let edge_data = proven(&body.edges, edge, EntityId::Edge);
         let curve = body.edge_curve_linked(edge, edge_data).certified()?;
         let (t0, t1) = curve.params();
-        let (lo, hi) = cone_v_range(curve.carrier(), t0, t1, apex, axis, cos_a);
+        let (lo, hi) = cone_v_range(
+            curve.carrier(),
+            t0,
+            t1,
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            cos_a,
+        );
         window = Some(match window {
             None => (lo, hi),
             Some((a, b)) => (a.min(lo), b.max(hi)),
@@ -2426,10 +2466,13 @@ fn cone_v_range<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
-    apex: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     cos_a: T,
 ) -> (T, T) {
+    let geom::Line {
+        origin: apex,
+        dir: axis,
+    } = axis;
     let v_of = |p: Point3<T>| (p - apex).dot(axis) / cos_a;
     match carrier {
         // `v` is affine in `t`, so the endpoints are the extremes.
@@ -4160,6 +4203,15 @@ fn past_eps(d: &Decided) -> bool {
 /// whatever an earlier gap read ([`climb`], [`Answering::Any`]; a gap
 /// in band is kept). `Some` of that gap and its index where one is past
 /// ε, `None` where every gap is within it.
+///
+/// **Which gap is reported is a choice among true reports.** The index
+/// and the gap are a witness, and every answering rung's is a gap decided
+/// past ε. They become [`ReplaceFaceError::VertexDisagreement`]'s vertex
+/// and gap, whose ending is "not yet" and sizes nothing, and the shell
+/// operation reads the vertex back to name the face that failed
+/// (`shell::offending_face`, `ShellError::Face`; the editor's shell verb
+/// carries it on). So rung order chooses which disagreeing vertex, and
+/// which face, the user is told about, and every choice is a true one.
 ///
 /// # Errors
 ///

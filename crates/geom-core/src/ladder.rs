@@ -38,19 +38,19 @@
 //! ahead of every kept rung is spliced at once. The caller declares what
 //! an answer may do with the kept readings ahead of it ([`Answering`]):
 //! where every answering rung gives one answer, a kept reading's run is
-//! spliced superseded ([`geom_core::k_stats::splice_superseded`]), since
+//! spliced superseded ([`crate::k_stats::splice_superseded`]), since
 //! the answer does not rest on it; where which rung answers chooses the
 //! answer, it stays live, since a kept rung ahead may truly have answered
 //! first. An agreeing ladder's answer supersedes its kept rungs as `Any`
 //! does; its disagreement and an abort keep every run live. Every run is
 //! spliced in rung order.
 
-use geom_core::k_stats::{
+use crate::k_stats::{
     Detached, Magnitude, decide_magnitude_reported, decide_reported, detached, splice,
     splice_superseded,
 };
-use geom_core::predicate::{Decided, Indeterminate};
-use geom_core::{Band, Decide, Margin, MarginDiag, Sign};
+use crate::predicate::{Decided, Indeterminate};
+use crate::{Band, Decide, Margin, MarginDiag, Sign};
 
 /// What one rung of a ladder read ([`climb`]).
 #[derive(Clone, Debug, PartialEq)]
@@ -165,12 +165,12 @@ pub enum Ending {
     /// The tolerance this margin sizes, then moving the geometry
     /// ([`Indeterminate::ending`]).
     Sized(Indeterminate),
-    /// Moving the geometry ([`geom_core::MOVE_RECOURSE`]).
+    /// Moving the geometry ([`crate::MOVE_RECOURSE`]).
     Move,
     /// A kernel approximation limit's lever
-    /// ([`geom_core::KERNEL_LIMIT_RECOURSE`]).
+    /// ([`crate::KERNEL_LIMIT_RECOURSE`]).
     KernelLimit,
-    /// No way through yet ([`geom_core::NOT_YET_ENDING`]).
+    /// No way through yet ([`crate::NOT_YET_ENDING`]).
     NotYet,
 }
 
@@ -179,10 +179,10 @@ impl Ending {
     #[must_use]
     pub fn render(self) -> std::borrow::Cow<'static, str> {
         match self {
-            Self::Sized(diag) => diag.ending(geom_core::COINCIDENCE_RECOURSE).into(),
-            Self::Move => geom_core::MOVE_RECOURSE.into(),
-            Self::KernelLimit => geom_core::KERNEL_LIMIT_RECOURSE.into(),
-            Self::NotYet => geom_core::NOT_YET_ENDING.into(),
+            Self::Sized(diag) => diag.ending(crate::COINCIDENCE_RECOURSE).into(),
+            Self::Move => crate::MOVE_RECOURSE.into(),
+            Self::KernelLimit => crate::KERNEL_LIMIT_RECOURSE.into(),
+            Self::NotYet => crate::NOT_YET_ENDING.into(),
         }
     }
 }
@@ -220,8 +220,10 @@ impl Refusal {
     /// its normal is not continuous across, or of a pole): a distance in
     /// band is ranked by its margin, and one decided zero is a limit no
     /// tolerance moves, the pose not read (`[failure.taxonomy]` row 2).
+    /// The reading is `geom_brep::dihedral_side::CreaseReading`, spelled
+    /// out here, whose crate this one does not see.
     #[must_use]
-    pub const fn of_crease(reading: crate::CreaseReading) -> Self {
+    pub const fn of_crease(reading: Result<crate::MarginDiag, crate::Indeterminate>) -> Self {
         match reading {
             Err(diag) => Self::Margin(diag),
             Ok(_) => Self::Limit,
@@ -235,19 +237,6 @@ impl Refusal {
     #[must_use]
     pub const fn of_apex() -> Self {
         Self::InBand
-    }
-
-    /// **A spline walk's refusal's standing**, stated once for every
-    /// reader of one: a walk past its budget is unsettled (no margin, and
-    /// a coarser band may settle it); a spline with no speed bound is a
-    /// limit no tolerance moves. Here rather than on
-    /// [`geom::PieceWalkRefusal`], whose crate does not see a ladder.
-    #[must_use]
-    pub const fn of_walk(why: geom::PieceWalkRefusal) -> Self {
-        match why {
-            geom::PieceWalkRefusal::Exhausted => Self::Unsettled,
-            geom::PieceWalkRefusal::Unbounded => Self::Limit,
-        }
     }
 
     /// The rung a reading refused with `e` stands as: kept by its kind.
@@ -325,7 +314,7 @@ fn banded<T: Decide, R>(
     margin: Margin<T>,
     read: impl FnOnce(Margin<T>) -> Result<R, Indeterminate>,
 ) -> Result<R, Kept<Indeterminate>> {
-    let margin = if geom_core::is_finite_length(margin.value()) {
+    let margin = if crate::is_finite_length(margin.value()) {
         margin
     } else {
         Margin::of(margin.value() - margin.value())
@@ -366,14 +355,12 @@ impl<A> Rung<A, Indeterminate> {
     }
 
     /// A reading that answers `Some`, says nothing (`None`: the zero
-    /// band, passed to the later rungs), or did not decide (kept).
+    /// band, passed to the later rungs), or did not decide (kept): an
+    /// [`Indeterminate`] stands by its margin and never aborts, so the
+    /// answer is `a` itself, with no refusal beside it.
     #[must_use]
     pub fn of_reading(reading: Result<Option<A>, Indeterminate>) -> Self {
-        match reading {
-            Ok(Some(a)) => Self::Answers(a),
-            Ok(None) => Self::Passes,
-            Err(cause) => Self::kept(cause),
-        }
+        Self::of_option(reading, Self::kept)
     }
 
     /// A reading the band did not decide, kept as what it is
@@ -385,6 +372,19 @@ impl<A> Rung<A, Indeterminate> {
 }
 
 impl<A, E> Rung<A, E> {
+    /// **A reading of an `Option` as its rung**, the one door for it:
+    /// `Some(a)` answers `a`, `None` passes, and a refusal stands as
+    /// `refused` says. [`Self::of_reading`] and [`Rung::answers`] read
+    /// through it; they differ only in what a refusal can do, so each
+    /// names that and nothing else.
+    pub fn of_option<R>(reading: Result<Option<A>, R>, refused: impl FnOnce(R) -> Self) -> Self {
+        match reading {
+            Ok(Some(a)) => Self::Answers(a),
+            Ok(None) => Self::Passes,
+            Err(e) => refused(e),
+        }
+    }
+
     /// The rung with its kept reading mapped by `f`, for a reader whose
     /// refusal carries more than the reading's own cause (the entity it
     /// was read at). An answer and a pass are unchanged.
@@ -421,11 +421,9 @@ impl<A, E> Rung<Result<A, E>, E> {
         reading: Result<Option<A>, E>,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
     ) -> Self {
-        match reading {
-            Ok(Some(a)) => Self::Answers(Ok(a)),
-            Ok(None) => Self::Passes,
-            Err(e) => Self::refused(e, standing, Err),
-        }
+        Self::of_option(reading.map(|a| a.map(Ok)), |e| {
+            Self::refused(e, standing, Err)
+        })
     }
 }
 
@@ -488,7 +486,9 @@ pub enum Answering {
 pub enum Climb<A, E> {
     /// A rung answered: its index among the rungs, and its answer.
     Answered {
-        /// The answering rung's index.
+        /// The answering rung's index. Under [`Answering::Any`] it is a
+        /// diagnostic only: which rung answered rests on rung order, so no
+        /// caller branches on it.
         at: usize,
         /// Its answer.
         answer: A,
@@ -738,13 +738,14 @@ impl IdentityLadder {
 /// decided apart says the same "not one") whose answer is a datum decided
 /// apart.
 ///
-/// **A datum's name is spelled once, as a literal at the datum**, as a
-/// `decide*` call's is. `test_utils::source::predicate_census` reads
-/// names at `decide*` calls only, so a crate whose roster runs it
-/// (sweep's `recourse_roster`) carries each identity datum's name in a
-/// `const` and declares it (`NameCarrier::Const`, sweep's
-/// `LOFT_RIM_PINNED`). A crate with no such roster (topo) writes the
-/// literal.
+/// **A datum's name is spelled once.** `test_utils::source::predicate_census`
+/// cannot follow the data to their names, so it reports every call of
+/// this function as an indirect site; a crate whose roster runs it
+/// (sweep's and topo's `recourse_roster`) lists each call and spells
+/// each datum's name in a `const` the roster declares
+/// (`NameCarrier::Const`: sweep's `LOFT_RIM_PINNED`, topo's
+/// `BOOL_WRAP_RIM`), under its door's prefix where the roster keys doors
+/// by prefix (topo's).
 pub fn read_identity<T: Decide>(
     data: impl IntoIterator<Item = (&'static str, Margin<T>)>,
     band: Band,
@@ -775,7 +776,7 @@ pub fn read_identity<T: Decide>(
 /// separation; `upper`, the reading of a sum of the data's magnitudes,
 /// bounds the displacement from above. Past the band it straddles the
 /// band with the data, under the site's `straddle` row
-/// ([`geom_core::k_stats::straddle`]); short of deciding, it is its own
+/// ([`crate::k_stats::straddle`]); short of deciding, it is its own
 /// reading. `data` is the data's `Zero` as [`IdentityLadder::Zero`] keeps
 /// it, the first datum's reading, so the straddle's low end is that
 /// datum's reading and not the largest of them.
@@ -790,7 +791,7 @@ pub fn read_identity<T: Decide>(
 ///
 /// Where `upper` decided `Zero`, the caller's one carrier, or
 /// `Negative`, which a sum of magnitudes never reads
-/// ([`geom_core::k_stats::straddle`]'s panic).
+/// ([`crate::k_stats::straddle`]'s panic).
 pub fn data_beneath_sum(
     straddle: &'static str,
     data: MarginDiag,
@@ -798,7 +799,7 @@ pub fn data_beneath_sum(
     band: Band,
 ) -> Indeterminate {
     match upper {
-        Ok(upper) => geom_core::k_stats::straddle(
+        Ok(upper) => crate::k_stats::straddle(
             straddle,
             Decided {
                 sign: Sign::Zero,
@@ -963,9 +964,9 @@ impl<E> Evidence<E> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
-    use geom_core::k_stats::Bracket;
-    use geom_core::predicate::{Band, Indeterminate};
-    use geom_core::{Margin, MarginDiag, Sign};
+    use crate::k_stats::Bracket;
+    use crate::predicate::{Band, Indeterminate};
+    use crate::{Margin, MarginDiag, Sign};
 
     use super::{Answering, Climb, Evidence, IdentityLadder, Ranked, Rung, climb, read_identity};
 
@@ -985,7 +986,7 @@ mod tests {
             recorded
                 .escalations
                 .iter()
-                .map(geom_core::k_stats::Escalation::predicate)
+                .map(crate::k_stats::Escalation::predicate)
                 .collect(),
         )
     }
@@ -1218,7 +1219,7 @@ mod tests {
             climb_agreeing(
                 [("a", 5e-9), ("b", 0.0), ("c", 0.0)],
                 |(name, m): (&'static str, f64)| {
-                    Rung::<bool, geom_core::predicate::Indeterminate>::decide(
+                    Rung::<bool, crate::predicate::Indeterminate>::decide(
                         name,
                         Margin::of(m),
                         band(),
@@ -1251,7 +1252,7 @@ mod tests {
         assert_eq!(decided.sign, Sign::Positive);
         assert_eq!(
             decided.margin,
-            geom_core::MarginDiag::value(1.0),
+            crate::MarginDiag::value(1.0),
             "the answer keeps the margin it was decided on"
         );
         assert_eq!(
@@ -1288,7 +1289,7 @@ mod tests {
             panic!("the first datum answers: {got:?}")
         };
         assert_eq!(decided.sign, Sign::Negative);
-        assert_eq!(decided.margin, geom_core::MarginDiag::value(-1.0));
+        assert_eq!(decided.margin, crate::MarginDiag::value(-1.0));
         assert_eq!(verdicts, ["a"], "nothing past the answer is read");
         let (got, _, _) = read(&[("a", 0.0), ("b", 5e-10)]);
         assert!(matches!(got, IdentityLadder::Zero(Some(_))), "{got:?}");
@@ -1411,7 +1412,7 @@ mod tests {
     #[cfg(feature = "probe")]
     #[test]
     fn the_sample_stream_interleaves_in_rung_order() {
-        use geom_core::k_stats::{self, Probe};
+        use crate::k_stats::{self, Probe};
         k_stats::start_recording();
         let data = [("a", 0.0), ("b", 5e-9), ("c", 0.0), ("d", 0.0)];
         let got = read_identity(data.iter().map(|&(n, m)| (n, Margin::of(Probe(m)))), band());

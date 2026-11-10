@@ -542,13 +542,21 @@ pub enum EngineRefusal {
         /// The vertex of the face's body the chart collapses to.
         vertex: VertexKey,
     },
-    /// A face on a torus not decided a ring (`R > r`): the carrier meets
-    /// itself, so the face is not injective by its kind.
+    /// A face on a torus not decided a ring (`R > r > 0`), so not
+    /// injective by its kind: a half of the convention decided outside it
+    /// (a tube not shown thicker than zero, or not shown thinner than its
+    /// ring), or one the band cannot decide, which escalates as its own
+    /// margin. The convention's one refusal carries which, and says it in
+    /// the half's own words ([`geom_brep::TorusRefusal`]).
     TorusNotRing {
         /// The face.
         face: FaceKey,
         /// The side it is on.
         side: Which,
+        /// The convention's half and its verdict, boxed: its undecided
+        /// verdict carries an [`geom_core::Indeterminate`], which would
+        /// make every engine refusal as large.
+        refusal: Box<geom_brep::TorusRefusal>,
     },
     /// A cell pair the interval pass classified as a definite violation
     /// of a lower bound, or as within an upper one, whose witness the
@@ -616,7 +624,7 @@ impl EngineRefusal {
             Self::CollapsedChart { face, side, vertex } => {
                 format!("{}={face:?} {vertex:?}", side.name())
             }
-            Self::TorusNotRing { face, side } => format!("{}={face:?}", side.name()),
+            Self::TorusNotRing { face, side, .. } => format!("{}={face:?}", side.name()),
             Self::EmptyScope { side } => side.name().to_owned(),
         }
     }
@@ -711,10 +719,13 @@ impl EngineRefusal {
                  near a touching pair, and the monotone certificate reads no collapsed chart",
                 side.of(sides)
             ),
-            Self::TorusNotRing { face, side } => write!(
+            Self::TorusNotRing {
+                face,
+                side,
+                refusal,
+            } => write!(
                 f,
-                "face {face:?} of {} lies on a torus not decided a ring (R > r), so its \
-                 carrier meets itself",
+                "face {face:?} of {} lies on a torus not decided a ring (R > r > 0): {refusal}",
                 side.of(sides)
             ),
         }

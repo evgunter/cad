@@ -2,10 +2,12 @@
 id: census-and-validate-normal-readers-blur-an-abort-into-unread
 kind: issue
 title: census's five and validate's corner_normal face-normal readers fold a normal's abort (OffSurface) into Unreadable or no normal
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6660
 ---
 
 

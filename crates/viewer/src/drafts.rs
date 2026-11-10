@@ -120,7 +120,7 @@ pub(crate) struct Drafts {
     /// The trace's branches: which crossing, and which sense.
     pub(crate) trace_gesture: sketch::TraceGesture,
     /// The trace the two latches show, as last read against the landed
-    /// evaluation ([`Self::sync_trace_shown`]).
+    /// evaluation ([`Self::trace_wanted`], [`Self::show_trace`]).
     pub(crate) trace_shown: Option<TraceShown>,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,

@@ -146,7 +146,7 @@ mod upgrade;
 use core::fmt;
 
 use crate::swept::CapPlaneError;
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
@@ -871,14 +871,14 @@ impl RevolveError {
             Self::NonFiniteAxis => write!(
                 f,
                 "the revolve axis direction has no finite length (a component overflows \
-                 the norm or is not a number). Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 the norm or is not a number). {}",
+                geom_core::RANGE_ENDING
             ),
             Self::UnderflowedAxis => write!(
                 f,
                 "the revolve axis direction's length underflowed out of the format: it \
-                 measures zero while still naming a direction. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 measures zero while still naming a direction. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::DegenerateAxis => write!(
                 f,

@@ -101,6 +101,15 @@
 //!   tree rather than tracing raise paths — because a reachability
 //!   analysis is the half that goes stale silently when a door is
 //!   added.
+//! * **A renderer outside the three shapes it reads**: an `impl
+//!   Display`, an `impl Say`, and an inherent method taking `self` and a
+//!   `Formatter` (whatever its name: the `write` that
+//!   `geom_brep::ended_by_write!` wraps, a `write_payload`, `topo::shell`'s
+//!   `AsShelled::write`). A sentence trait under another name, and a free
+//!   function writing into a `Formatter`, are not read. None of the
+//!   latter holds a `Debug` placeholder today; the check is a scan of
+//!   every `fn NAME(f: &mut …Formatter…)` body in `crates/*/src` for
+//!   `{x:?}`.
 //! * **`macro_rules!` bodies and `include!`d text**, which the shared
 //!   lexer does not expand. A type declared inside a macro parses to
 //!   an item with no fields, which is why an empty parse answers
@@ -1331,8 +1340,90 @@ fn clone_variant(variant: &VariantShape) -> VariantShape {
     }
 }
 
+/// `(type, body)` of every inherent method that takes `self` and a
+/// `Formatter`: a renderer found by what it does, not by a trait or
+/// method name.
+///
+/// **A refusal's sentence is written there, not in an `impl Display`.**
+/// `geom_brep::ended_by_write!` generates the `Display` (and `render(at)`)
+/// over the type's own `write(f, at)`, the same shape is written by
+/// hand where a `Display` delegates to `self.write(..)` or
+/// `self.write_payload(..)`, and a renderer
+/// with no `Display` at all (`topo::shell`'s `AsShelled`) is read
+/// through `fmt::from_fn(|f| x.write(f))`. Reading `impl Display` and
+/// `impl Say` heads alone misses every one of those, and silently.
+fn write_renderer_bodies(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let skip_ws = |at: usize| at + (code[at..].len() - code[at..].trim_start().len());
+    let mut out = Vec::new();
+    for (at, _) in code.match_indices("impl") {
+        if code[..at].chars().next_back().is_some_and(ident) {
+            continue;
+        }
+        let mut i = at + "impl".len();
+        if !code[i..].starts_with(|c: char| c.is_whitespace() || c == '<') {
+            continue;
+        }
+        i = skip_ws(i);
+        if code[i..].starts_with('<') {
+            let Some(close) = angle_end(code, i) else {
+                continue;
+            };
+            i = skip_ws(close + 1);
+        }
+        let path: String = code[i..]
+            .chars()
+            .take_while(|&c| ident(c) || c == ':')
+            .collect();
+        let name = path.rsplit("::").next().unwrap_or_default().to_owned();
+        if name.is_empty() {
+            continue;
+        }
+        i = skip_ws(i + path.len());
+        if code[i..].starts_with('<') {
+            let Some(close) = angle_end(code, i) else {
+                continue;
+            };
+            i = skip_ws(close + 1);
+        }
+        // An inherent impl: the body opens next, or after a `where`.
+        let open = if code[i..].starts_with('{') {
+            i
+        } else if code[i..].starts_with("where") {
+            let Some(o) = code[i..].find('{') else {
+                continue;
+            };
+            i + o
+        } else {
+            continue;
+        };
+        let Some(close) = balanced_end(code, open) else {
+            continue;
+        };
+        for (w, head) in code[open..close].match_indices("fn ") {
+            let after = open + w + head.len();
+            if code[..open + w].chars().next_back().is_some_and(ident) {
+                continue;
+            }
+            let Some(body_open) = code[after..close].find('{').map(|o| after + o) else {
+                continue;
+            };
+            let signature = &code[after..body_open];
+            if !(signature.contains("self") && signature.contains("Formatter")) {
+                continue;
+            }
+            let Some(body_close) = balanced_end(code, body_open) else {
+                continue;
+            };
+            out.push((name.clone(), body_open + 1..body_close));
+        }
+    }
+    out
+}
+
 /// Every `Debug` rendering inside every `impl Display` and `impl Say`
-/// in the tree.
+/// in the tree, and inside every inherent `fn write` renderer
+/// ([`write_renderer_bodies`]).
 fn census(sources: &[Source]) -> Vec<Site> {
     let types = type_table(sources);
     let mut out = Vec::new();
@@ -1344,6 +1435,7 @@ fn census(sources: &[Source]) -> Vec<Site> {
         let impls = code
             .match_indices("Display for ")
             .chain(code.match_indices("Say for "));
+        let mut bodies = Vec::new();
         for (found, head) in impls {
             let window = found.saturating_sub(200);
             if !code[window..found].contains("impl") {
@@ -1358,7 +1450,10 @@ fn census(sources: &[Source]) -> Vec<Site> {
             let Some(close) = balanced_end(code, open) else {
                 continue;
             };
-            let body = open + 1..close;
+            bodies.push((display_type, open + 1..close));
+        }
+        bodies.extend(write_renderer_bodies(code));
+        for (display_type, body) in bodies {
             let variants = variants_in_scope(&types, &module, &display_type);
             let mut fields: Vec<(String, Typed)> = Vec::new();
             for declaration in types.lookup(&module, &display_type).1 {
@@ -1745,24 +1840,24 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
-        "crates/editor-core/src/persist/check.rs",
-        "ProgramFault",
-        "verb",
+        "crates/editor-core/src/checks.rs",
+        "SaidFinding",
+        "at",
         1,
-        "`profile::Verb` resolves to its declaration in a `macro_rules!` body, \
-         which the shared lexer does not expand, so its shape is unreadable",
+        "`at` is bound by `Unexaminable::Corrupt { at }` in a `match` on \
+         `unexamined.why`, a field of a nested binding, which this census does \
+         not type (its type, `topo::StructureRead`, is unit-only)",
     ),
-    // Pinned red, not yet a reason: CertifyError's two `check` reads
+    // Pinned red, not yet a reason: CertifyError's `check` read
     // (`work/splice/main-red-prose-census-cannot-decide-certify-errors-check.md`).
     (
         "crates/geom-brep/src/certify.rs",
         "CertifyError",
         "check",
-        2,
+        1,
         "the binding is introduced by a pattern NESTED inside the field pattern \
-         this census reads — `refusal: RowRefusal::Image(Some(check))` and \
-         `refusal: RowRefusal::ImageEscalated { check, cause }` — so no declared \
-         type reaches it",
+         this census reads — `refusal: RowRefusal::ImageEscalated { check, cause }` \
+         — so no declared type reaches it",
     ),
     (
         "crates/geom-brep/src/nurbs_iso.rs",
@@ -1797,11 +1892,53 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     ),
     (
         "crates/profile/src/path/program.rs",
-        "ReplayError",
+        "Refused",
         "verb",
         1,
-        "the binding is introduced by a pattern NESTED inside the field pattern \
-         this census reads — `verb: Some(verb)` — so no declared type reaches it",
+        "`profile::Verb` resolves to its declaration in a `macro_rules!` body, \
+         which the shared lexer does not expand, so its shape is unreadable",
+    ),
+    (
+        "crates/profile/src/path/program.rs",
+        "Takes",
+        "mode",
+        2,
+        "`mode` is a `for` pattern's and a closure parameter's binding over a \
+         method call's result (`forms.forms()`), which this census does not type",
+    ),
+    (
+        "crates/profile/src/path/program.rs",
+        "Takes",
+        "target",
+        1,
+        "`target` is a closure parameter over a method call's result \
+         (`forms.targets(mode)`), which this census does not type",
+    ),
+    (
+        "crates/profile/src/path/program.rs",
+        "Takes",
+        "verb",
+        2,
+        "`verb` is destructured from a tuple field (`self.0`) and is a closure \
+         parameter over `state.verbs()`, neither of which this census types",
+    ),
+    (
+        "crates/topo/src/cover.rs",
+        "FaceUncovered",
+        "ek",
+        1,
+        "`ek` is bound in a `match` on a `for` loop's variable over \
+         `self.boundary`, a `Vec` field, whose element type this census does not \
+         reach",
+    ),
+    (
+        "crates/topo/src/cover.rs",
+        "FaceUncovered",
+        "v",
+        1,
+        "`v` is bound in a `match` on a `for` loop's variable over \
+         `self.boundary`, a `Vec` field, whose element type this census does not \
+         reach",
     ),
     (
         "crates/step-import/src/error.rs",
@@ -2463,6 +2600,46 @@ impl fmt::Display for PlantedError {
              answering undecided over a brace-shaped one leaves the panic in \
              place: {sites:?}"
         );
+    }
+
+    /// **A sentence written in an inherent `Formatter` method is read**,
+    /// whatever the method's name and with no `impl Display` in the
+    /// text: `geom_brep::ended_by_write!` generates the `Display` over a
+    /// type's own `write(f, at)`, and hand-written delegations name it
+    /// `write_payload`. A census reading trait heads alone sees none of
+    /// them; a method that takes no `Formatter` is not a renderer and is
+    /// not read.
+    #[test]
+    fn a_sentence_written_in_an_inherent_formatter_method_is_read() {
+        for method in ["write", "write_payload"] {
+            let site = format!(
+                r#"
+pub struct Braced {{ a: u32 }}
+pub enum PlantedError {{ Bad {{ p: Braced }} }}
+impl PlantedError {{
+    fn {method}(&self, f: &mut fmt::Formatter<'_>, at: Option<ReadAt>) -> fmt::Result {{
+        match self {{
+            Self::Bad {{ p }} => write!(f, "at {{p:?}}"),
+        }}
+    }}
+    fn describe(&self) -> String {{
+        match self {{
+            Self::Bad {{ p }} => format!("at {{p:?}}"),
+        }}
+    }}
+}}
+ended_by_write!(PlantedError);
+"#
+            );
+            let sites = census(&planted_tree(&[("crates/site/src/lib.rs", site.as_str())]));
+            assert_eq!(sites.len(), 1, "one renderer, in `{method}`: {sites:?}");
+            assert_eq!(
+                sites[0].verdict,
+                Verdict::Braced,
+                "`{method}` renders a named-field payload through `Debug`; a census \
+                 that reads only `impl Display` heads does not see it: {sites:?}"
+            );
+        }
     }
 
     #[test]

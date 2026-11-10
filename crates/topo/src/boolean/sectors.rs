@@ -36,7 +36,7 @@
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
 //! A bound's code against the other sector's face is read as its
-//! [`BoundSupport`] allows ([`side_code`]): a line edge at its far vertex, in
+//! [`BoundSupport`] allows ([`datum_code`]): a line edge at its far vertex, in
 //! metres; a curved edge and a bisector through
 //! [`geom_brep::enters_material`]: `Enters ⇒ In`, `Exits ⇒ Out`,
 //! `Tangent ⇒ On` in the sector passes; the vertex-on-face pass reads a
@@ -75,9 +75,9 @@
 use geom_brep::LeverBounds;
 #[cfg(test)]
 use geom_brep::enters_material;
-use geom_brep::ladder::{Climb, Rung, climb_agreeing};
+use geom_brep::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use geom_brep::{ConicDeparture, EntersMaterial, OutwardNormal};
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Decided, Lever, Margin, Point3, Sign, Vec3};
 
 use super::refusal_routes::{BOUNDS_PARALLEL, Parallelism};
@@ -1554,7 +1554,7 @@ pub(super) fn within<T: Decide>(
 /// **A direction's side of a bound is read at the shorter of the two's
 /// reaches**: for a unit direction the reading is `sin θ` times the
 /// bound's reach, how far its far end lies off the direction's line, at
-/// the length the side codes read the bound at ([`side_code`]); a
+/// the length the side codes read the bound at ([`datum_code`]); a
 /// direction with a reach of its own is known no farther than that
 /// reach. Two faces' line, un-normalized, reads `sin θ · sin φ` times
 /// the reach ([`rays_within`]). The sector's `arm`, the shorter chord of
@@ -1699,7 +1699,7 @@ fn within_signs<T: Decide>(
 /// end's offset from `b`'s plane. The two terms can add or cancel; the
 /// first is within the zero wherever `a` holds its bound. For a straight
 /// bound the second is what its side code reads at the chord's far point
-/// ([`side_code`]); a curved bound's code reads the edge where this
+/// ([`datum_code`]); a curved bound's code reads the edge where this
 /// reads its tangent. The unit line would divide the whole by
 /// `|m| = sin φ`, so a far end within the zero of both planes would read
 /// off their line wherever the two faces are near parallel.
@@ -2649,6 +2649,10 @@ fn bound_bend<T: Decide>(reach: BoundSupport<T>) -> Option<(Vec3<T>, Lever<T>)> 
 /// the term at the shorter bound's reach with its own ½, answers only
 /// whether the band resolves that sign there; no witness point of
 /// either bound is read (`a-leaves-verdict-carries-no-witness-point`).
+/// One bound [`crescent`] reads: whether it is the sector's `start`, its
+/// direction, and what stands behind it.
+type CrescentBound<T> = (bool, Vec3<T>, BoundSupport<T>);
+
 fn crescent<T: Decide>(
     ca: Corner<'_, T>,
     cb: Corner<'_, T>,
@@ -2658,44 +2662,53 @@ fn crescent<T: Decide>(
     let (a, b) = (ca.sector, cb.sector);
     let arm = a.arm.min(b.arm);
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    for (a_start, da, ra) in [(true, a.start, a.start_reach), (false, a.end, a.end_reach)] {
-        for (b_start, db, rb) in [(true, b.start, b.start_reach), (false, b.end, b.end_reach)] {
-            let (Some((ka, la)), Some((kb, lb))) = (bound_bend(ra), bound_bend(rb)) else {
-                continue;
-            };
-            if !matches!(ra, BoundSupport::Conic { .. })
-                && !matches!(rb, BoundSupport::Conic { .. })
-            {
-                continue;
-            }
-            if !parallel_same(da, db, arm, BOUNDS_PARALLEL, band)? {
-                continue;
-            }
-            let d = da.normalize();
-            let square = |v: Vec3<T>| v - d * v.dot(d);
-            let u = square(a.middle()).normalize();
-            // `pair_search` reads two sectors sharing a bound from one
-            // side as overlapping, so a touching pair lies across it;
-            // this reads that premise where the claim rests on it.
-            let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
-            if decide("bool_sector_crescent_across", across, band).map_err(escalate)?
-                != Sign::Negative
-            {
-                continue;
-            }
-            let l = la.min(lb);
-            if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
-                && !parallel_same(da, db, l, BOUNDS_PARALLEL, band)?
-            {
-                continue;
-            }
-            let opened = geom_brep::parting(kb - ka, u, l.length());
-            if decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive {
-                return Ok(true);
-            }
+    // Whether one pair of bounds, `a`'s and `b`'s, opens a crescent.
+    let pair = |((a_start, da, ra), (b_start, db, rb)): (CrescentBound<T>, CrescentBound<T>)|
+     -> Result<bool, BooleanError> {
+        let (Some((ka, la)), Some((kb, lb))) = (bound_bend(ra), bound_bend(rb)) else {
+            return Ok(false);
+        };
+        if !matches!(ra, BoundSupport::Conic { .. }) && !matches!(rb, BoundSupport::Conic { .. }) {
+            return Ok(false);
         }
+        if !parallel_same(da, db, arm, BOUNDS_PARALLEL, band)? {
+            return Ok(false);
+        }
+        let d = da.normalize();
+        let square = |v: Vec3<T>| v - d * v.dot(d);
+        let u = square(a.middle()).normalize();
+        // `pair_search` reads two sectors sharing a bound from one
+        // side as overlapping, so a touching pair lies across it;
+        // this reads that premise where the claim rests on it.
+        let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
+        if decide("bool_sector_crescent_across", across, band).map_err(escalate)? != Sign::Negative
+        {
+            return Ok(false);
+        }
+        let l = la.min(lb);
+        if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
+            && !parallel_same(da, db, l, BOUNDS_PARALLEL, band)?
+        {
+            return Ok(false);
+        }
+        let opened = geom_brep::parting(kb - ka, u, l.length());
+        Ok(decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive)
+    };
+    // A ladder over the four pairs of bounds ([`climb`],
+    // [`Answering::Any`]: a theorem, any pair that opens a crescent is an
+    // overlap), so a pair read in band is kept and refuses only where no
+    // other pair opens one ([`BooleanError::refusal`]).
+    let bounds = |s: &BoolSector<T>| [(true, s.start, s.start_reach), (false, s.end, s.end_reach)];
+    let pairs = bounds(a)
+        .into_iter()
+        .flat_map(|x| bounds(b).map(|y| (x, y)));
+    match climb(Answering::Any, pairs, |p| {
+        Rung::holds(pair(p), (), BooleanError::refusal)
+    }) {
+        Climb::Answered { answer, .. } => answer.map(|()| true),
+        Climb::Passed => Ok(false),
+        Climb::Undecided(e) => Err(e),
     }
-    Ok(false)
 }
 
 /// **Whether the section runs on from a vertex pair along the other
@@ -5077,7 +5090,7 @@ mod tests {
         let b = band();
         let got = sector_face(&body, Operand::A, apex_vertex, apex_he, b);
         assert!(
-            matches!(got, Ok((f, BoolFace::Apex(at))) if f == face && at.apex.distance(apex) == 0.0),
+            matches!(got, Ok((f, BoolFace::Apex(at))) if f == face && at.apex.equals_exactly(apex)),
             "the apex corner: {got:?}"
         );
         let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)

@@ -8,7 +8,7 @@
 # continue`) refuses, where none decides, with a cause that is not the
 # reading that stopped it: `splitting::finish::whole_body_side` refused
 # every curved edge in band as a corrupt body. The rule is stated once,
-# in `geom_brep::ladder::climb`, which keeps what it passes over, ranks
+# in `geom_core::ladder::climb`, which keeps what it passes over, ranks
 # it (`ladder::Evidence`) and owns the recording. This gate makes the
 # hand-rolled spelling visible: a new arm of the shape reds until the
 # register below names why it is not a search's kept reading.
@@ -60,7 +60,7 @@ gate() {
   diff=$(diff <(printf '%s\n' "$live" | sed '/^$/d' | sort) <(printf '%s\n' "$want" | sed '/^$/d') || true)
   if [ -n "$diff" ]; then
     printf '%s\n' "$diff"
-    gate_error "escalation discards differ from $REGISTER ('<' is the tree, '>' the register): port a search to geom_brep::ladder::climb, or register the arm with why it is no search's kept reading"
+    gate_error "escalation discards differ from $REGISTER ('<' is the tree, '>' the register): port a search to geom_core::ladder::climb, or register the arm with why it is no search's kept reading"
     exit 1
   fi
   gate_ok "every production arm that passes over a refusal unread is registered"

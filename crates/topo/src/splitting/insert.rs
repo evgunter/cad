@@ -54,7 +54,7 @@
 //! the above end ([`Body::mev_null_run`]). Each copy's side verdict is
 //! cached ON (the old vertex's own point: structural coincidence).
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Real, Sign, Vec3};
 use slotmap::SecondaryMap;
 
@@ -310,7 +310,7 @@ fn section_chords<T: Decide>(
 ///
 /// [`SplitReduceError::SectionGermsEscalated`] where the table or the
 /// reading escalates; [`SplitReduceError::ApexSection`] where the table
-/// and the walk disagree on the apex ([`ApexSectionReading`]): the table
+/// and the walk disagree on the apex ([`ApexSectionReading`](crate::splitting::ApexSectionReading)): the table
 /// refuses, or reads the section clear of the apex, or not exactly one of
 /// its rulings lies inside the sub-sector the walk read the plane
 /// crossing.

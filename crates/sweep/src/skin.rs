@@ -95,7 +95,7 @@ use geom_core::Tol;
 use geom_core::spline::{Built, KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
     Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate,
-    KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, MarginDiag, Point2, Point3, RANGE_RECOURSE, Real,
+    KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, MarginDiag, Point2, Point3, RANGE_ENDING, Real,
     RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
 };
 use profile::{
@@ -469,7 +469,7 @@ impl core::fmt::Display for SkinError {
             Self::StationNotFinite { station } => write!(
                 f,
                 "the profile's placement at station {station} is not a finite number. \
-                 Recourse: {RANGE_RECOURSE}"
+                 {RANGE_ENDING}"
             ),
             Self::Band(e) => write!(f, "{e}"),
             Self::RowMotionUndecided { row } => write!(
@@ -915,7 +915,7 @@ fn chord_length_parameters<T: SpanLocate>(
     params[0] = T::zero();
     params[k - 1] = T::one();
     for j in 1..k {
-        if !geom_core::spline::structure_ascends(params[j - 1], params[j]) {
+        if !geom_core::structure_ascends(params[j - 1], params[j]) {
             return Err(SkinError::NoParameterStep { section: j });
         }
     }

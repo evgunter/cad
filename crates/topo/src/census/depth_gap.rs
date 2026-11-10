@@ -141,7 +141,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
             edge_end_point(body, ek, edge.he_plus, "he_plus"),
             edge_end_point(body, ek, edge.he_minus, "he_minus"),
         );
-        if carrier.as_line().is_some() {
+        if super::edge_line(body, ek).is_some() {
             segments.push(ends);
         } else if let Some(conic) = carrier.conic() {
             depths.push(Proposed {
@@ -525,7 +525,7 @@ mod tests {
             u_ref: v(1.0, 0.0, 0.0),
         };
         assert!(
-            matches!(sphere.cover().unwrap().about()[..], [Around::Point(c)] if (c - p(0.0, 1.0, 0.0)).norm() == 0.0),
+            matches!(sphere.cover().unwrap().about()[..], [Around::Point(c)] if c.equals_exactly(p(0.0, 1.0, 0.0))),
             "a sphere is measured about its centre"
         );
         assert_eq!(
@@ -618,7 +618,7 @@ mod tests {
         let (ra, rb) = (read(a), read(b));
         let axis = ra.cover.about()[0];
         assert!(
-            matches!(axis, Around::Line(geom::Line { origin, dir }) if (origin - p(0.0, 0.0, 0.0)).norm() == 0.0 && dir.cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
+            matches!(axis, Around::Line(geom::Line { origin, dir }) if origin.equals_exactly(p(0.0, 0.0, 0.0)) && dir.cross(v(0.0, 0.0, 1.0)).norm() == 0.0),
             "about its axis: {axis:?}"
         );
         assert_eq!(ra.cover.range_about(&axis), (1.0, 1.0), "the inner wall");

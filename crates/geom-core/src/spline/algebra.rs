@@ -1884,10 +1884,10 @@ mod tests {
                 0.653_846_153_846_153_9
             ]
         );
-        // A finite width near `f64::MAX`: `grid_clearance` divides
-        // before it scales, so it is finite and a grid point
-        // clear of the knot stands.
-        let big = f64::MAX / 2.0;
+        // The widest domain a knot vector admits, of width `f64::MAX`:
+        // `grid_clearance` divides before it scales, so it is finite and
+        // a grid point clear of the knot stands.
+        let big = crate::spline::KNOT_MAGNITUDE_MAX;
         let huge = KnotVector::clamped(vec![-big, -big, 0.5 * big, big, big], 1).unwrap();
         assert_eq!(domain_grid_points(&huge, 4), [-0.5 * big, 0.0]);
     }

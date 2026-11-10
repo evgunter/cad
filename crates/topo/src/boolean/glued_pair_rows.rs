@@ -66,7 +66,7 @@ fn a_glued_pairs_row_carries_the_doors_margin() {
         let out = super::union(&a, &b, tol()).unwrap();
         let rows = &out.body().expect("the union builds").coincidences;
         let mut read = 0;
-        for pair in decls.pairs.iter().filter(|p| p.class.is_one_carrier()) {
+        for pair in decls.pairs.iter().filter(|p| p.class().is_one_carrier()) {
             let Ok(Ok(super::CarrierVerdict::One { margin, .. })) =
                 super::carrier_pair::carrier_pair_decided(&a, pair.a, &b, pair.b, band())
             else {
@@ -77,7 +77,7 @@ fn a_glued_pairs_row_carries_the_doors_margin() {
                 .filter(|r| r.face_pair() == Some((pair.a, pair.b)))
                 .collect();
             assert!(
-                matches!(&row[..], [r] if r.margin == margin && r.relation == pair.class.relation()),
+                matches!(&row[..], [r] if r.margin == margin && r.relation == pair.class().relation()),
                 "{what}: {pair:?}'s row: {row:?}, the door's margin {margin:?}"
             );
             read += 1;
@@ -143,7 +143,7 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
     let glued = decls
         .pairs
         .iter()
-        .find(|p| p.class == GlueClass::Rest)
+        .find(|p| p.class() == GlueClass::Rest)
         .expect("the door glues the top against the tilted bottom, Rest");
     let (na, nb) = match (
         face_carrier(&lower, glued.a).unwrap(),
@@ -385,4 +385,152 @@ fn a_fold_step_glues_a_pair_its_door_reads_in_band_today() {
         "the fold step glues it on the second judgement's record: {:?}",
         run.end
     );
+}
+
+/// **A glued tangency's row is what the glue door certified**, read
+/// once. A unit cylinder wall about z and a brick whose face stands
+/// `0.3·ε` off it at `x = 1`: the door glues the two `Tangent` on the
+/// witness lane, and the declaration door records the touch's margin the
+/// door decided, not a second reading. A pair the door decided nothing
+/// of is refused there, not read again.
+#[test]
+fn a_glued_tangency_records_the_margin_the_door_certified() {
+    use super::{BooleanError, Glued, GluedPair};
+    let mut a = crate::body::Body::<f64>::new();
+    let wall = crate::test_support_fixtures::cyl_wall_sheet(
+        &mut a,
+        crate::test_support_fixtures::CylFrame::canonical(1.0),
+        (-0.5, 0.5),
+        (0.0, 1.0),
+        tol(),
+    );
+    crate::test_support_fixtures::set_sheet_sense(&mut a, wall, true, tol());
+    let x = 1.0 + 0.3 * band().zero();
+    let b = brick::<f64>((x, x + 1.0), (-0.5, 0.5), (0.0, 1.0), tol());
+    let none = Glue::none();
+    let decls = glue::decided_glue(&a, &b, &none, band())
+        .unwrap()
+        .into_owned();
+    let tangent: Vec<_> = decls
+        .pairs
+        .iter()
+        .filter(|p| p.a == wall && p.class() == GlueClass::Tangent)
+        .collect();
+    let [pair] = tangent[..] else {
+        panic!("the door glues the wall and the brick's face tangent: {tangent:?}");
+    };
+    let Some(Glued::Tangent(tangency)) = pair.decided() else {
+        panic!("a glued tangency carries what the door certified: {pair:?}");
+    };
+    assert!(
+        !tangency.margin.is_invalid() && tangency.margin != geom_core::MarginDiag::value(0.0),
+        "the fixture's touch reads a margin: {tangency:?}"
+    );
+    let verified = verify_glued_contacts(&a, &b, &decls, band()).unwrap();
+    let rows: Vec<_> = verified
+        .coincidences
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.face_pair() == Some((pair.a, pair.b)))
+        .collect();
+    let [(at, row)] = rows[..] else {
+        panic!("one row for the tangency: {rows:?}");
+    };
+    assert!(
+        row.margin == tangency.margin && row.relation == crate::Relation::SurfaceTangent,
+        "the row carries the door's margin {:?}: {row:?}",
+        tangency.margin
+    );
+    // The line runs through both faces' interiors, so the touch is a
+    // face–face row citing the tangency's, on the door's margin.
+    let touches: Vec<_> = verified
+        .touches
+        .iter()
+        .filter(|t| (t.a, t.b) == (pair.a, pair.b))
+        .collect();
+    assert!(
+        matches!(&touches[..], [t] if t.margin == tangency.margin && t.row == at),
+        "the face–face row cites the tangency's row {at} on the door's margin: {touches:?}"
+    );
+    let (Some(kept), Some(line)) = (verified.lines.get(&(pair.a, pair.b)), tangency.line) else {
+        panic!("the line the door decided is handed on: {tangency:?}");
+    };
+    assert!(
+        kept.origin.equals_exactly(line.origin) && kept.dir.equals_exactly(line.dir),
+        "the line kept is the door's: {kept:?}, {line:?}"
+    );
+    assert_eq!(
+        verified.tangent.get(&(pair.a, pair.b)).copied(),
+        Some(super::TangentCert {
+            kinds: (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Plane),
+            line: true,
+        }),
+        "the cover reads the pair's kinds and a line locus"
+    );
+    let bare = Glue {
+        pairs: vec![GluedPair::new(pair.a, pair.b, GlueClass::Tangent)],
+        ..Glue::none()
+    };
+    assert!(
+        matches!(
+            verify_glued_contacts(&a, &b, &bare, band()),
+            Err(BooleanError::ClassificationInvariant { .. })
+        ),
+        "a glued pair the door decided nothing of is read nowhere again"
+    );
+}
+
+/// **A glued one-carrier pair's row is the margin the door decided it
+/// on**, read once. A brick standing `0.3·ε` over a cube's top: the door
+/// glues the top and the bottom `Rest` on a margin the gap reads, and the
+/// declaration door records that margin, at the ladder that read it.
+#[test]
+fn a_glued_rest_pair_records_the_margin_the_door_decided() {
+    use super::Glued;
+    let lift = 1.0 + 0.3 * band().zero();
+    let lower = finished(
+        "the cube",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let upper = finished(
+        "the brick",
+        brick::<f64>((0.25, 0.75), (0.25, 0.75), (lift, 2.0), tol()),
+        tol(),
+    );
+    let none = Glue::none();
+    let decls = glue::decided_glue(&lower, &upper, &none, band())
+        .unwrap()
+        .into_owned();
+    let rest: Vec<_> = decls
+        .pairs
+        .iter()
+        .filter(|p| p.class() == GlueClass::Rest)
+        .collect();
+    let [pair] = rest[..] else {
+        panic!(
+            "the door glues the top and the bottom Rest: {:?}",
+            decls.pairs
+        );
+    };
+    let Some(Glued::OneCarrier { margin, .. }) = pair.decided() else {
+        panic!("a glued Rest pair carries the door's margin: {pair:?}");
+    };
+    assert!(
+        !margin.is_invalid() && margin != geom_core::MarginDiag::value(0.0),
+        "the fixture's gap reads a margin: {margin:?}"
+    );
+    let verified = verify_glued_contacts(&lower, &upper, &decls, band()).unwrap();
+    let rows: Vec<_> = verified
+        .coincidences
+        .iter()
+        .filter(|r| r.face_pair() == Some((pair.a, pair.b)))
+        .collect();
+    assert!(
+        matches!(&rows[..], [r] if r.margin == margin
+            && r.relation == crate::Relation::SameOpposite
+            && r.site == crate::DecisionSite::PlaneLadder),
+        "the row carries the door's margin {margin:?}: {rows:?}"
+    );
+    assert!(verified.one_carrier.contains(&(pair.a, pair.b)));
 }

@@ -182,10 +182,13 @@ pub(crate) fn side_at_closest<T: Decide>(
 /// edge, where no side is read.
 pub(crate) type Landing<T> = (Point3<T>, T, bool);
 
-/// **A query read onto its surface**: its chart coordinates and the
-/// point of the surface they name. A leg or a corner is built from one
-/// and from nothing else, so every leg lies on the surface wherever the
-/// query lies off it; the boundary pre-pass reads the same point.
+/// **A query read onto its surface**: its chart coordinates and its point
+/// on the surface. A leg or a corner is built from the coordinates and
+/// from nothing else, so every leg lies on the surface wherever the query
+/// lies off it. The boundary pre-pass reads the point
+/// ([`QueryFoot::read`]): off the chart's singular readings, the foot read
+/// in closed form on no chart, which the legs' start at the coordinates
+/// matches only to rounding; on them, the chart's own point.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
     uv: Point2<T>,
@@ -193,17 +196,21 @@ pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
 }
 
 impl<T: Decide> QueryFoot<T> {
-    /// `p`'s foot on `surface`, its coordinates read through its chart
-    /// ([`geom::Surface::chart_point`]) once.
+    /// `p`'s foot on `surface`: its coordinates read through its chart
+    /// ([`geom::Surface::chart_point`]) once, and its point read in closed
+    /// form on no chart ([`geom::Surface::foot`]), so a pre-pass reading
+    /// `p` at the band's zero answers the same on every frame. The chart's
+    /// round trip `eval(uv)` lands within rounding of that point, but in
+    /// rounding that depends on the frame.
     ///
-    /// On a sphere the foot's point is read along the radius,
-    /// `c + R·(p − c)/|p − c|`, not back through the chart. The chart's
-    /// round trip lands within a few ulps of it, and which ulps depends on
-    /// the chart's frame, so a door's answer for a `p` placed at a band's
-    /// edge would move with the frame. The point read off the radius
-    /// depends on no frame. A `p` at the centre names no radius (every
-    /// point of the sphere is a foot of it), and there the chart's point
-    /// stands.
+    /// Where the chart reads `p` singular, its own point stands: the
+    /// coordinates there are a convention the chart chose (a cone's nappe
+    /// undecided within the band of its apex plane, a point within the
+    /// band of an axis or a tube circle), and the closed form may choose
+    /// otherwise: the cone's foot takes the nappe by the raw sign of
+    /// `p`'s height, the opening nappe's chart the decided one. Reading
+    /// the chart's point there keeps the pre-pass and the legs on one
+    /// foot. The same stands where `p` has no foot in closed form.
     ///
     /// # Panics
     ///
@@ -213,16 +220,15 @@ impl<T: Decide> QueryFoot<T> {
         let Ok(chart) = surface.chart_point(p, band) else {
             unreachable!("a region door reads an analytic surface")
         };
-        let on_chart = Self::of_chart(surface, chart.uv);
-        match *surface {
-            geom::Surface::Sphere { center, radius, .. } => (p - center)
-                .checked_direction()
-                .map_or(on_chart, |(toward, _)| Self {
-                    uv: chart.uv,
-                    at: center + toward * radius,
-                }),
-            _ => on_chart,
-        }
+        let foot = if chart.singular {
+            None
+        } else {
+            surface.foot(p)
+        };
+        foot.map_or_else(
+            || Self::of_chart(surface, chart.uv),
+            |at| Self { uv: chart.uv, at },
+        )
     }
 
     /// The point at chart coordinates `uv` on `surface`: a corner a door
@@ -259,7 +265,7 @@ pub(in crate::boolean) enum ReadAcross {
 /// **Where `leg` meets `edge`**: each meeting's point, the edge's
 /// parameter there, and whether it lies within the band of an end of the
 /// edge ([`Landing`]). One curve is read across the other's plane through
-/// the plane door ([`span_plane_meet`]), the pair's orientation the
+/// the plane door ([`span_plane_meet`](geom_brep::curve_face::plane_crossing::span_plane_meet)), the pair's orientation the
 /// door's choice ([`Legs::across`]), and each root is a meeting where it
 /// lies on both curves: on the leg's section of its plane
 /// ([`Section`](geom_brep::curve_pair::on_surface::Section)), or where the door places it on the edge. Where along
@@ -726,7 +732,7 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
     const AT: &'static str;
 
     /// The rows the closest crossing is read under: `(order, cross)`.
-    const SIDE: (&'static str, &'static str);
+    const SIDE_ROWS: (&'static str, &'static str);
 
     /// The row a root's section of a leg's plane is read on
     /// ([`Section`](geom_brep::curve_pair::on_surface::Section)), and an edge's offset from a plane it is parallel
@@ -921,7 +927,7 @@ fn side<T: Decide, D: Legs<T>>(
     crossings: Crossings<T, Hit<T>>,
     band: Band,
 ) -> Result<bool, Fault> {
-    side_at_closest(crossings, D::SIDE, door.lever(), band)
+    side_at_closest(crossings, D::SIDE_ROWS, door.lever(), band)
 }
 
 /// **The crossing offer**: every crossing of `leg` with the boundary,
@@ -1125,6 +1131,19 @@ macro_rules! fixture_turns {
 }
 
 fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
+
+/// **A door's answer as a frame pin compares it**: the answer itself,
+/// or its refusal's predicate (`Some("another refusal")` for a refusal
+/// that names none), so two frames agree where they refuse alike.
+#[cfg(test)]
+pub(in crate::boolean) fn refusal_class(
+    r: Result<Option<bool>, RegionRefusal>,
+) -> Result<Option<bool>, Option<&'static str>> {
+    r.map_err(|e| match e {
+        RegionRefusal::Escalated(diag) => diag.predicate,
+        _ => Some("another refusal"),
+    })
+}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]

@@ -505,7 +505,7 @@ mod tests {
                 .control()
                 .iter()
                 .zip(want.control())
-                .all(|(a, b)| a.distance(*b) == 0.0),
+                .all(|(a, b)| a.equals_exactly(*b)),
             "the selected row IS the u0 row, point for point"
         );
 
@@ -516,7 +516,7 @@ mod tests {
             last.control()
                 .iter()
                 .zip(want.control())
-                .all(|(a, b)| a.distance(*b) == 0.0),
+                .all(|(a, b)| a.equals_exactly(*b)),
             "and the u1 row for the other end"
         );
 
@@ -546,7 +546,7 @@ mod tests {
                     .control()
                     .iter()
                     .zip(want.control())
-                    .all(|(a, b)| a.distance(*b) == 0.0),
+                    .all(|(a, b)| a.equals_exactly(*b)),
                 "the selected column IS the v = {v} column, point for point"
             );
         }
@@ -591,7 +591,7 @@ mod tests {
             end.control()
                 .iter()
                 .zip(copy.control())
-                .all(|(a, b)| a.distance(*b) == 0.0),
+                .all(|(a, b)| a.equals_exactly(*b)),
             "at a domain end the collapse is the boundary row's copy"
         );
     }

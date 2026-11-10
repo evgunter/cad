@@ -65,11 +65,8 @@ pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>
 /// name, because the names are its door's rows: [`WrapRims`]
 /// (`bool_wrap_rim`) and the sphere trim's latitude-rim class
 /// (`bool_sphere_iso_rim`).
-pub(super) fn coaxial_margins<T: Decide>(
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    rim: &Rim<T>,
-) -> [Margin<T>; 2] {
+pub(super) fn coaxial_margins<T: Decide>(axis: geom::Line<T>, rim: &Rim<T>) -> [Margin<T>; 2] {
+    let geom::Line { origin, dir: axis } = axis;
     [
         Margin::levered(
             rim.axis.cross(axis).norm(),
@@ -86,17 +83,18 @@ pub(super) fn coaxial_margins<T: Decide>(
 /// on the axis but not coaxial, so the test is both halves.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct WrapRims<T: geom_core::Real> {
-    pub(super) origin: Point3<T>,
-    pub(super) axis: Vec3<T>,
+    pub(super) axis: geom::Line<T>,
 }
+
+/// The name a rim's coaxial margins are each decided under.
+pub(super) const BOOL_WRAP_RIM: &str = "bool_wrap_rim";
 
 impl<T: Decide> WrapRims<T> {
     /// Coaxial is an identity: either margin decided apart answers
     /// "not coaxial", whatever the other read ([`read_identity`]).
     fn holds(self, rim: &Rim<T>, band: Band) -> Result<bool, Indeterminate> {
-        let Self { origin, axis } = self;
         read_identity(
-            coaxial_margins(origin, axis, rim).map(|margin| ("bool_wrap_rim", margin)),
+            coaxial_margins(self.axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)),
             band,
         )
         .holds()
@@ -294,8 +292,10 @@ mod wrap_rims_holds_rows {
         let band = Band::linear(tol).expect("a valid band");
         let tilt = 0.5 * (1.0 + tol.k()) * tol.eps();
         let rims = WrapRims {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_z(),
+            },
         };
         let rim = |center: Point3<f64>| Rim {
             center,
