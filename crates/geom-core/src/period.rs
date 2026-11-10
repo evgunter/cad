@@ -1246,26 +1246,26 @@ mod period_rows {
         use crate::{InfSpeed, SupSpeed};
         let band = band();
         let rates = (InfSpeed::new(1.0_f64), SupSpeed::new(1000.0));
-        let rows = ("t_forward", "t_chord", "t_sense");
+        const ARC_ROWS: (&str, &str, &str) = ("t_forward", "t_chord", "t_sense");
         let chord = |x: f64| crate::Vec3::new(x, 0.0, 0.0);
         let dt = 5e-11;
         assert!(matches!(
             Extent::forward("t_forward", 0.0, dt, rates.0, band),
             Err(NotForward::Zero(_))
         ));
-        let extent = Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-8), band)
+        let extent = Extent::forward_by_arc(ARC_ROWS, 0.0, dt, rates, chord(5e-8), band)
             .expect("forward by its chord");
         assert_eq!(extent.get(), dt);
         assert!(
             matches!(
-                Extent::forward_by_arc(rows, dt, 0.0, rates, chord(-5e-8), band),
+                Extent::forward_by_arc(ARC_ROWS, dt, 0.0, rates, chord(-5e-8), band),
                 Err(NotForward::Reversed(_))
             ),
             "run backwards, apart past the band: reversed, not a point"
         );
         assert!(
             matches!(
-                Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-10), band),
+                Extent::forward_by_arc(ARC_ROWS, 0.0, dt, rates, chord(5e-10), band),
                 Err(NotForward::Zero(_))
             ),
             "a chord in the zero"
@@ -1630,7 +1630,7 @@ mod turn_rows {
     }
 
     /// The rule at an inf of 1 and a sup of 20, with what it recorded.
-    fn bounded(h: f64) -> (Result<Turn, TurnUndecided>, crate::k_stats::Recorded) {
+    fn turn_of(h: f64) -> (Result<Turn, TurnUndecided>, crate::k_stats::Recorded) {
         let bracket = Bracket::open();
         let rate = Bounded::new(InfSpeed::new(1.0), SupSpeed::new(20.0));
         let got = one_turn().turn(ROWS, past(h), rate, band());
@@ -1678,7 +1678,7 @@ mod turn_rows {
     #[test]
     fn a_bounded_rate_decides_on_the_sound_bound() {
         for (h, short) in [(20.0 * EPS, true), (-20.0 * EPS, false)] {
-            let (got, recorded) = bounded(h);
+            let (got, recorded) = turn_of(h);
             let want = if short { "short" } else { "over" };
             assert!(
                 matches!(
@@ -1689,11 +1689,11 @@ mod turn_rows {
             );
             assert_eq!(reads(&recorded), 1, "{want}: the inf reading alone");
         }
-        let (got, recorded) = bounded(0.04 * EPS);
+        let (got, recorded) = turn_of(0.04 * EPS);
         assert!(matches!(got, Ok(Turn::Whole(_))), "whole: {got:?}");
         assert_eq!(reads(&recorded), 2, "whole: both readings");
         for (h, over) in [(-0.9 * EPS, true), (0.9 * EPS, false)] {
-            let (got, recorded) = bounded(h);
+            let (got, recorded) = turn_of(h);
             let Err(
                 undecided @ TurnUndecided {
                     diag,
@@ -1729,7 +1729,7 @@ mod turn_rows {
         // The inf reading in the band: undecided on its own margin, over at
         // the sup where the sup reading is definitely negative.
         for (h, over) in [(-3.0 * EPS, true), (3.0 * EPS, false)] {
-            let (got, _) = bounded(h);
+            let (got, _) = turn_of(h);
             assert!(
                 matches!(
                     got,
@@ -1741,7 +1741,7 @@ mod turn_rows {
         }
         // The inf reading Zero, the sup in the band: undecided on the sup's
         // margin, not over.
-        let (got, _) = bounded(-0.3 * EPS);
+        let (got, _) = turn_of(-0.3 * EPS);
         assert!(
             matches!(
                 got,

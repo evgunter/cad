@@ -709,8 +709,7 @@ struct ReadRun<T: geom_core::Real> {
 /// refusal a reading of the pierce can meet is here, so a pass reads
 /// each pierce before it mints any; what is left to [`mint_pierce`] is
 /// the Euler operator's own refusal. Where the vertex is read again
-/// (`reread`, from
-/// [`pierced_and_paired`]) and crosses the face, refuses
+/// (`reread`, from [`pierced_and_paired`]) and crosses the face, refuses
 /// [`BooleanError::VertexReadTwice`].
 #[allow(clippy::too_many_arguments)]
 pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(

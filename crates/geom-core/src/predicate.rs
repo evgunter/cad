@@ -4784,6 +4784,7 @@ mod tests {
         assert_eq!(err.predicate, None);
 
         let named = err.with_predicate("side_of_plane");
+        // UNDECIDED-NAME: the name with_predicate attaches, any name the test reads back
         assert_eq!(named.predicate, Some("side_of_plane"));
         // Margin and band pass through untouched.
         assert_eq!(named.margin, err.margin);
@@ -4792,6 +4793,7 @@ mod tests {
         // Re-attaching replaces: the outermost predicate wins.
         assert_eq!(
             named.with_predicate("transversality").predicate,
+            // UNDECIDED-NAME: the name with_predicate replaces the first with, read back
             Some("transversality")
         );
     }
@@ -4860,6 +4862,7 @@ mod tests {
         let enclosure = Indeterminate {
             margin: MarginDiag::enclosure(-2e-9, 5e-9),
             band,
+            // UNDECIDED-NAME: the enclosure cause Display's golden string is pinned on
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         };
