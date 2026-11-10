@@ -1411,3 +1411,15 @@
   - **Merged PR 6683 (small-sweeps: hypot routings, lone loops), b5743060.** Delta review MERGE (every census verdict identical; wording only); 11219/11219 on the merged tree. Follow-ups N1 (the at-point arm doc is now false, so find what refuses first or pin the live arm) and S8 go to onecopy/lone-loop-followups, then the a-walk-refusals-standing residue.
   - **6689 backstop fork: (d).** The census backstop runs only at rest at certifying scalars after tier 3 is clean, so a degenerate torus there renders as the kernel-fault backstop. One premise, in at_rest_fault's doc; no torus text in the census. (a), a public `what` Cow change, and (b), a static per-half copy that drifts from SizedDecision::recourse, are rejected.
   - **6695 (torus-ring-names) opened:** by_kind escalates via require_at; RingReader/SpiricReader registries with a const duplicate assert. FULL review: session_013mPGJ62pL6qyYKJNMVwxZS.
+- 2026-11-10 03:40Z
+  - **Merged PR 6688 (sign-homes), f85c5e36.** Delta review MERGE: mutants M0–M7, and a production wrong-face-kind plant goes red. 13017/13017 on the merged tree.
+  - **Reviews:**
+    - 6679 delta: MERGE. The curve_face `table.consts` one-liner folds into 6686.
+    - 6692 FULL: MERGE. read_loop still double-certifies, so a follow-up (onecopy/loft-rim-red-2) makes `Walked` hold `Image | Certified`.
+    - 6695 FULL: MERGE. Follow-up onecopy/torus-words: "meets itself" said of non-self-meeting tori; the shell's decided arm "not yet" vs the convention's lever rule; the editor pin built at f64; consts minted outside the readers.
+    - 6691 FULL: FIX, folded at 96670256. The pcert circle_lane row stays open until the torus-harmonics PR; die_composed_tour recorded; false seed claims corrected.
+  - **Dispatched:**
+    - 6686 FULL (session_013mPGJ2FVDF1SWocDQ1puoj), against 6679's head.
+    - 6696 (span-turns: `Span::ends_place` copy margin, a constructed wrong Past on base) FULL (session_013mPGJ64pPdiTZfCFcHknjc), against 6687.
+    - 6676 fix pass (6b738a2d: one foot per query inside singular bands; checked_direction refuses an enclosure holding zero; the S6 radial-leak defect fixed) → delta by its original reviewer. unit-axis resumes.
+  - **Merge queue, one at a time:** 6692, 6679, 6691, 6695.
