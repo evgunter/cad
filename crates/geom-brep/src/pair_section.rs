@@ -662,7 +662,7 @@ pub enum RaySense {
 }
 
 /// One surface of the pair, in the order the section was asked of.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PairSide {
     /// The first.
     First,

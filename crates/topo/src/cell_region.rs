@@ -171,9 +171,12 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 ///
 /// # Panics
 ///
-/// Where the curved door reads the station definitely off the face's
-/// carrier: the station is a point of the face's own chart, so that is
-/// the kernel's defect.
+/// In every build, where the curved door reads the station definitely
+/// off an analytic face's carrier (a sphere, cylinder, cone, torus or
+/// ruled carrier): the station is a point of the face's own chart, so
+/// that is the kernel's defect. A spline face's off-carrier reading is
+/// `None` instead: its station has no premise check, and the spline
+/// region's search is the only reading of it.
 pub fn station_region<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -198,9 +201,23 @@ fn place<T: Decide>(
         Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
         _ => match curved_face_placement(body, face, station, band).ok()? {
             CurvedPlacement::Trim(at) => at,
-            // The station is the face's own chart's (`constructed`), so a
-            // curved door's off-carrier reading is the kernel's defect,
-            // as at every held door, never a reading of `Out`.
+            // A spline chart's station is read by the spline region's own
+            // search (hull cells and feet), and `Held::check` does not
+            // read a spline: that search is the only reading of it, so
+            // its off-carrier answer is a reading the door could not
+            // settle, not a contradiction of a checked premise. The cell
+            // is kept, the direction a subdivision consumer's looseness
+            // runs.
+            CurvedPlacement::OffCarrier
+                if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) =>
+            {
+                None
+            }
+            // An analytic carrier's station is the face's own chart's
+            // (`constructed`), which `Held::check` reads in debug and the
+            // closed form decides here, so a curved door's off-carrier
+            // reading is the kernel's defect, as at every held door, never
+            // a reading of `Out`.
             CurvedPlacement::OffCarrier => unreachable!(
                 "cell region: face {face:?}: a station of the face's own stored chart reads \
                  definitely off its carrier. {}",
@@ -360,4 +377,50 @@ fn clear_of_boundary(
         }),
         BoundaryStop::Unreadable => false,
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::boolean::spline_region::rows::{sheet, twisted};
+    use geom_core::Tol;
+
+    /// **A spline face's stations read on its own chart, never off its
+    /// carrier.** The twisted bilinear patch `(u, v, u·v)`, a sheet over
+    /// `[0.1, 0.9]²` of it: every station of a 21 × 21 grid over the
+    /// whole chart is placed by the curved door, and none reads
+    /// `OffCarrier` (a station is a point of the chart; the spline arm
+    /// reads it by its own search, which `Held::check` does not guard).
+    /// `station_region` answers `In` well inside the sheet and `Out` well
+    /// outside it, and panics nowhere.
+    #[test]
+    fn a_spline_faces_stations_read_on_its_own_chart() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, face) = sheet(
+            &twisted(1.0),
+            &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
+        );
+        let surface = body.face(face).unwrap().surface().clone();
+        let n = 20;
+        for i in 0..=n {
+            for j in 0..=n {
+                let (u, v) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
+                let at = curved_face_placement(&body, face, surface.eval(u, v), band);
+                assert!(
+                    !matches!(at, Ok(CurvedPlacement::OffCarrier)),
+                    "the station ({u}, {v}) reads off its own carrier: {at:?}"
+                );
+                let _ = station_region(&body, face, (u, v), band);
+            }
+        }
+        assert_eq!(
+            station_region(&body, face, (0.5, 0.5), band),
+            Some(FaceContainment::In)
+        );
+        assert_eq!(
+            station_region(&body, face, (0.02, 0.5), band),
+            Some(FaceContainment::Out)
+        );
+    }
 }
