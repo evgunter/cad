@@ -45,6 +45,21 @@ filed for whoever owns the clearance screen. Not acted on.
 
 Moved from `work/issues/` to `work/bandreach/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
+## Dispatch
+
+2026-11-10, BANDREACH orchestrator. One FULL-tier implementer, lane
+`bandreach-dome`, branch `bandreach/dome-invalid-margin`. The brief is
+to re-measure the ladder on main first, trace the non-value margin to
+the input of `gap − setback_here − setback_there` that goes bad, and fix
+it where the reading goes bad, not in the screen's message. A non-value
+margin must not be quotable as in band from any caller of the screen.
+The right outcome past `r = R/2` (a build, a typed refusal naming the
+geometric reason, or the funnel's poison) is chosen by meaning; if it
+is a design question, the lane stops and reports it. The fixture is
+`dome(1.0, tol())` in
+`crates/sweep/tests/review_contact_edge_must_carry_r2_probes.rs`, not
+`test_support::dome` as the finding says.
+
 ## Closed
 
 Re-measured on `origin/main` at `b0acc5e1e9`: r = 0.1, 0.25 build; 0.4,
@@ -84,4 +99,3 @@ and 0.25, refuses the clearance screen at 0.4, and refuses
 - `blend_recourse_followability::the_ball_room_recourse_is_followed_by_a_ball_that_fits`.
 - `verbs_arms1_r1_probes::near_limit_radii_refuse_typed`, at the
   closed-form room.
-
