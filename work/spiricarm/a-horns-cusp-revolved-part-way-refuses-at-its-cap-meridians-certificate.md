@@ -2,10 +2,11 @@
 id: a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate
 kind: issue
 title: A horn's cusp revolved part way refuses at its cap meridians: the horn's two sheets are tangent at the cusp, so limb 2 reads only the distance from it over a stretch near it
-status: open
+status: dispatched
 opened: 2026-11-04
 priority: P1
 cost: H
+branch: spiricarm/horn-cusp
 ---
 
 (SPIRICARM, a residue of `a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate`.)
@@ -48,3 +49,15 @@ measure `θ/2π` of the full revolve's volume and sheet area plus their caps,
 or refuse typed with a reason that names the cusp. A bound near the cusp
 that reads the tangency (the sheets part as `t²`, not `t`) is the likely
 lane; it needs a row that goes red when its load-bearing check is removed.
+
+## Dispatched (2026-11-10)
+
+Branch `spiricarm/horn-cusp`.
+
+**Phase 0 is a decide:** what certificate bounds an edge's distance from a sheet over the stretch where the horn's two sheets are tangent at the cusp. The cusp is a point of tangency, not a crossing, so the side check cannot shrink by halving.
+
+- Read the cone apex, the lemon/apple apex (`Meters::apex_root`, PR 6521), and how the sphere handles a pole.
+- Propose the final state before building it.
+- If the answer changes a ratified clause, or has several viable answers where Ev's preference matters, stop and report the fork as a problem.
+
+**Review tier:** dual. This is a new certificate at a tangency, which is soundness-critical.

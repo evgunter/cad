@@ -380,7 +380,7 @@ fn chords() -> Vec<(&'static str, Vec<f64>, usize, Vec<[f64; 3]>, Vec<f64>)> {
 #[test]
 fn projected_integrals_hold_high_precision_truths() {
     let truths: [[f64; 3]; 3] = include!("framed_truths.in");
-    let chart = RotationalChartQ::Cylinder { radius: pt(0.8) };
+    let radius = pt(0.8);
     for ((label, knots, degree, control, w), truth) in chords().into_iter().zip(truths) {
         let n = net(
             knots,
@@ -408,7 +408,11 @@ fn projected_integrals_hold_high_precision_truths() {
             env: Interval::zero(),
         };
         for pieces in [8, 128] {
-            let (got, _) = projected_integrals(&e, chart, 0.25, pieces);
+            let (got, _) = projected_integrals(&e, pieces, |at| {
+                let [f, g] = cylinder_projected_forms(radius, &e, at, 0.25);
+                let minus = -Interval::one();
+                [f.mul(at.du).scale(minus), g.mul(at.du).scale(minus), at.du]
+            });
             for k in 0..3 {
                 encloses(got[k], truth[k], &format!("{label} @{pieces} [{k}]"));
             }
