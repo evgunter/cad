@@ -71,8 +71,15 @@ fn every_row_bundle_is_minted_in_its_registry() {
             continue;
         }
         for path in rust_sources(&src) {
-            let code = code_only(&std::fs::read_to_string(&path).unwrap());
+            // Only a file whose raw text names the door, and a registry,
+            // is lexed: the blanked view can only lose a needle the raw
+            // text holds, never add one, so the prefilter drops no site.
+            let text = std::fs::read_to_string(&path).unwrap();
             let is_registry = path.ends_with("rows.rs");
+            if !is_registry && !text.contains("TurnRows::registered(") {
+                continue;
+            }
+            let code = code_only(&text);
             if !is_registry
                 && !path.ends_with("geom-core/src/period.rs")
                 && code.contains("TurnRows::registered(")

@@ -2555,7 +2555,7 @@ mod tests {
         let Ok(Some(k)) = conic_of(
             &carrier,
             (p(0.0), p(core::f64::consts::PI)),
-            WALK_ROWS.conic,
+            WALK_ROWS.conic(),
             band,
         ) else {
             panic!("the arc is read");
