@@ -1851,7 +1851,21 @@ pub(crate) fn place_witness<T: Decide>(
     band: Band,
 ) -> Option<FaceContainment> {
     use super::contain::{CurvedPlacement, PlacementError};
-    match super::contain::face_placement(body, face, p, band, "bool_section_witness_on_plane") {
+    let probed =
+        super::contain::face_placement(body, face, p, band, "bool_section_witness_on_plane");
+    let old_s = match &probed {
+        Err(crate::boolean::PlacementError::Door(e)) => format!("Err({e:?})"),
+        other => format!("{other:?}"),
+    };
+    if let Some(view) = body.face(face) {
+        crate::held::probe("place_witness", view.surface(), p, band, &old_s, || {
+            format!(
+                "{:?}",
+                super::contain::placement_unheld(body, face, p, band).map(|(at, _, _)| at)
+            )
+        });
+    }
+    match probed {
         Ok(CurvedPlacement::Trim(at)) => at,
         Ok(CurvedPlacement::OffCarrier) | Err(PlacementError::OnPlane(_)) => None,
         Err(PlacementError::Door(ContainError::StaleFace(face))) => {
@@ -3653,7 +3667,20 @@ pub(super) fn piece_reading<T: Decide>(
         decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
         diag,
     };
-    match super::contain::face_placement(body, face, q, band, "bool_carry_vf_on_plane") {
+    let probed = super::contain::face_placement(body, face, q, band, "bool_carry_vf_on_plane");
+    let old_s = match &probed {
+        Err(crate::boolean::PlacementError::Door(e)) => format!("Err({e:?})"),
+        other => format!("{other:?}"),
+    };
+    if let Some(view) = body.face(face) {
+        crate::held::probe("piece_reading", view.surface(), q, band, &old_s, || {
+            format!(
+                "{:?}",
+                super::contain::placement_unheld(body, face, q, band).map(|(at, _, _)| at)
+            )
+        });
+    }
+    match probed {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(PieceRead::In),
         Ok(
             CurvedPlacement::OffCarrier

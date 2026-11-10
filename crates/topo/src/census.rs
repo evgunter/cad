@@ -10828,7 +10828,15 @@ pub(crate) fn face_holds<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
     use crate::boolean::{CurvedPlacement, PlacementError};
-    match crate::boolean::face_placement(body, face, q, band, on_plane) {
+    let probed = crate::boolean::face_placement(body, face, q, band, on_plane);
+    let old_s = match &probed {
+        Err(crate::boolean::PlacementError::Door(e)) => format!("Err({e:?})"),
+        other => format!("{other:?}"),
+    };
+    if let Some(view) = body.face(face) {
+        crate::held::probe(on_plane, view.surface(), q, band, &old_s, || old_s.clone());
+    }
+    match probed {
         Ok(CurvedPlacement::OffCarrier) => Some(Some(FaceContainment::Out)),
         Ok(CurvedPlacement::Trim(at)) => Some(at),
         Err(PlacementError::OnPlane(cause)) => {
