@@ -2250,11 +2250,12 @@ fn crescent<T: Decide>(
         if !matches!(ra, BoundSupport::Conic { .. }) && !matches!(rb, BoundSupport::Conic { .. }) {
             return Ok(false);
         }
-        // The pair opens a crescent where four readings all hold, none
-        // read off another ([`all_hold`]): the bounds parallel, the
-        // sectors across them, a coincident run's bounds parallel along it
-        // too, and the opening. One decided not to hold answers `false`
-        // alone, so a refusal stands only where none decides against.
+        // The pair opens a crescent where every one of five readings
+        // holds, none read off another ([`every_holds`]): the bounds
+        // parallel, the sectors across them, the run's clause, and the
+        // opening. The run's clause holds off a run, or where the bounds
+        // stay parallel along it, so it is itself two readings, either
+        // answering it ([`any_holds`]).
         let d = da.normalize();
         let square = |v: Vec3<T>| v - d * v.dot(d);
         let u = square(a.middle()).normalize();
@@ -2269,27 +2270,16 @@ fn crescent<T: Decide>(
                 .map_err(escalate)
                 .map(|s| s == Sign::Negative)
         };
-        // The run's clause holds off a run, or where the bounds stay
-        // parallel along it: either answers it alone.
-        let run = || match coincident_run((ca, a_start), (cb, b_start), contacts, band) {
-            Ok(false) => Ok(true),
-            run => match parallel_same(da, db, l, BOUNDS_PARALLEL, band) {
-                Ok(true) => Ok(true),
-                along => run.and(along),
-            },
-        };
+        let off_run = || coincident_run((ca, a_start), (cb, b_start), contacts, band).map(|run| !run);
+        let along = || parallel_same(da, db, l, BOUNDS_PARALLEL, band);
+        let run = || any_holds([&off_run as &dyn Fn() -> _, &along]);
         let opened = || {
             let opened = geom_brep::parting(kb - ka, u, l.length());
             decide("bool_sector_crescent", opened, band)
                 .map_err(escalate)
                 .map(|s| s == Sign::Positive)
         };
-        all_hold(
-            core::iter::once_with(parallel)
-                .chain(core::iter::once_with(across))
-                .chain(core::iter::once_with(run))
-                .chain(core::iter::once_with(opened)),
-        )
+        every_holds([&parallel as &dyn Fn() -> _, &across, &run, &opened])
     };
     // A ladder over the four pairs of bounds ([`climb`],
     // [`Answering::Any`]: a theorem, any pair that opens a crescent is an
@@ -2308,23 +2298,40 @@ fn crescent<T: Decide>(
     }
 }
 
-/// **Whether every one of a conjunction's readings holds**, read in
-/// order and lazily: the first decided not to hold answers `false`
-/// whatever any other read, and stops the reading there; failing one, the
-/// first refusal stands, where a reading it stopped might not hold; and
-/// `true` where every one holds. The readings are independent of one
-/// another, so none is a premise of a later one: a `?` on each in turn
-/// would refuse at an earlier reading where a later one answers.
-fn all_hold<E>(readings: impl IntoIterator<Item = Result<bool, E>>) -> Result<bool, E> {
-    let mut refused = None;
-    for reading in readings {
-        match reading {
-            Ok(false) => return Ok(false),
-            Ok(true) => {}
-            Err(e) => refused = refused.or(Some(e)),
-        }
+/// **Whether every one of a conjunction's readings holds**, as a
+/// ladder over them ([`climb`], [`Answering::Any`]): a reading decided
+/// not to hold answers `false`, whatever any other read; one in band is
+/// kept by its standing ([`BooleanError::refusal`]) and refuses only
+/// where none decides against; and one whose standing aborts (a kernel
+/// fault) ends the reading at once, read past by nothing. Each reading
+/// is read only where none before it answered.
+fn every_holds<const N: usize>(
+    readings: [&dyn Fn() -> Result<bool, BooleanError>; N],
+) -> Result<bool, BooleanError> {
+    let climbed = climb(Answering::Any, readings, |read| {
+        Rung::holds(read().map(|held| !held), (), BooleanError::refusal)
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer.map(|()| false),
+        Climb::Passed => Ok(true),
+        Climb::Undecided(e) => Err(e),
     }
-    refused.map_or(Ok(true), Err)
+}
+
+/// **Whether any one of a disjunction's readings holds**, as a ladder
+/// over them ([`climb`], [`Answering::Any`]): [`every_holds`]'s dual,
+/// a reading that holds answering `true`.
+fn any_holds<const N: usize>(
+    readings: [&dyn Fn() -> Result<bool, BooleanError>; N],
+) -> Result<bool, BooleanError> {
+    let climbed = climb(Answering::Any, readings, |read| {
+        Rung::holds(read(), (), BooleanError::refusal)
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer.map(|()| true),
+        Climb::Passed => Ok(false),
+        Climb::Undecided(e) => Err(e),
+    }
 }
 
 /// **Whether the section runs on from a vertex pair along the other
@@ -2781,47 +2788,73 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// **A crescent's conjunction answers `false` past a reading in
-    /// band** ([`all_hold`]): each reading decided not to hold answers
-    /// alone, wherever it stands; a refusal stands only where none
-    /// decides against; and the reading stops at the first that does not
-    /// hold. Red against a `?` on each reading in turn, which refuses at
-    /// the first.
+    /// A reading in band, kept by its standing, and a kernel fault, which
+    /// aborts ([`BooleanError::refusal`]).
+    fn in_band() -> BooleanError {
+        let diag =
+            decide("bool_sector_crescent", Margin::of(5e-9), band_witness()).expect_err("mid-band");
+        BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+    }
+    fn fault() -> BooleanError {
+        BooleanError::ClassificationInvariant {
+            what: "a planted fault",
+        }
+    }
+
+    /// **A conjunction answers `false` past a reading in band, never past
+    /// a fault** ([`every_holds`], [`any_holds`]): each reading decided
+    /// not to hold answers alone, wherever it stands; a reading in band
+    /// refuses only where none decides against; a fault ends the reading
+    /// where it stands, so no later reading answers past it, and none is
+    /// read after it. The run's clause, a disjunction, answers `true` past
+    /// a reading in band, never past a fault. Red against a hand-rolled
+    /// conjunction that answers past any refusal.
     #[test]
-    fn a_conjunction_answers_false_past_an_earlier_refusal() {
-        let refused = || Err::<bool, &str>("in band");
-        assert_eq!(
-            all_hold([refused(), Ok(false)]),
-            Ok(false),
-            "past a refusal"
+    fn a_conjunction_answers_past_a_margin_and_never_past_a_fault() {
+        let held = |b: bool| move || Ok::<_, BooleanError>(b);
+        let refused = |e: fn() -> BooleanError| move || Err::<bool, _>(e());
+        let (t, f) = (held(true), held(false));
+        let (margin, kernel) = (refused(in_band), refused(fault));
+        assert!(
+            matches!(every_holds([&margin as &dyn Fn() -> _, &f]), Ok(false)),
+            "past a margin"
         );
-        assert_eq!(
-            all_hold([Ok(true), refused(), Ok(true), Ok(false)]),
-            Ok(false)
-        );
-        assert_eq!(
-            all_hold([refused(), Ok(true)]),
-            Err("in band"),
+        assert!(
+            matches!(every_holds([&t as &dyn Fn() -> _, &margin, &t]), Err(e) if e.refusal().is_ok()),
             "nothing against"
         );
-        assert_eq!(
-            all_hold([Err("first"), Err("second")]),
-            Err("first"),
-            "the first refusal"
+        assert!(
+            matches!(
+                every_holds([&kernel as &dyn Fn() -> _, &f]),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "never past a fault"
         );
-        assert_eq!(all_hold([Ok::<_, &str>(true), Ok(true)]), Ok(true));
-        let mut read = 0;
-        let stopped = all_hold(core::iter::once_with(|| Ok::<_, &str>(false)).chain(
-            core::iter::once_with(|| {
-                read += 1;
-                Ok(true)
-            }),
+        let read = core::cell::Cell::new(false);
+        let after = || {
+            read.set(true);
+            Ok(false)
+        };
+        assert!(matches!(
+            every_holds([&f as &dyn Fn() -> _, &after]),
+            Ok(false)
         ));
-        assert_eq!(
-            (stopped, read),
-            (Ok(false), 0),
-            "a decided false stops the reading"
+        assert!(!read.get(), "a decided false stops the reading");
+        assert!(every_holds([&kernel as &dyn Fn() -> _, &after]).is_err());
+        assert!(!read.get(), "a fault stops the reading");
+        assert!(matches!(every_holds([&t as &dyn Fn() -> _, &t]), Ok(true)));
+        assert!(
+            matches!(any_holds([&margin as &dyn Fn() -> _, &t]), Ok(true)),
+            "the run's clause past a margin"
         );
+        assert!(
+            matches!(
+                any_holds([&kernel as &dyn Fn() -> _, &t]),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "the run's clause never past a fault"
+        );
+        assert!(matches!(any_holds([&f as &dyn Fn() -> _, &f]), Ok(false)));
     }
 
     /// **Two coplanar sectors whose bounds are parallel only in band read
