@@ -1551,3 +1551,4 @@
 - 05:55Z 6722 FULL: FIX (doc rows EdgeScale/Unreadable 1(b); full-roster standing pins; derive RegionRefusal standing; census second classification of ChartRegionError → row) → ladder lane.
 - 06:00Z Merged 6721 (scope-readers gate passes with no base; one_of glob rule). 6718 re-merged main (real change: 6721) → 4e63849f, check+gates clean, re-gating.
 - 06:03Z 6715 fix (dc3cdd19; all 8 plants red; geom+geom-core rosters in) → same reviewer. PR 6727 turn-place (b9f3a950; Period::span_margins one door) → FULL review.
+- 06:07Z dual-tier3 ruling (B): premise asserted at the evaluation service per DL3 (no DL3 change, no Ev); dual entry takes the f64 Record by signature; record-refused nodes refused typed; one shared doc anchor at topo sites; topo public Dual entries → row (by-type evidence, possible later [ev], cf. fork row 196).
