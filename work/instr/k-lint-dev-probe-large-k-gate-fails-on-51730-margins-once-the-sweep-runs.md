@@ -140,3 +140,50 @@ k-lint: GATE FAILED — the margin distribution changed: 10033 margin(s) crowd a
 51730 crowding margins on 2026-10-29 are 10033 now; rule 1 is 3997 (24045). The large-K gate still fails, as its nightly step pins (exit 2). Rule 1 by shape and predicate at 1e-9: `demo/lily_walls:bool_spline_region_carrier` 720, `demo/lily_walls:curve_pair_walk_foot_clear` 522, `demo/lily_walls:curve_pair_walk_foot_piece` 270, then `curve_pair_pose_parallel` on `lily` (72), `lily_walls` (62), `projectbox_cutaway` (48), `axis_projection` (40); at 1e-6 `bool_spline_region_carrier` is 1106. The lily's curve-pair walks are still the bulk of it, now beside the spline region's carrier read. The 1e-12 file still excludes the lily past its pinned stem.
 
 The driver lint (`--gate-rule-1-only`) passes: rule 1 is 0, with 342 advisory flags (108 / 117 / 117), the same 342 as before.
+
+## Read (2026-11-10, `instr/klint-large-k`)
+
+**What was measured.** Main `9fe94da35`, running
+`scripts/k_probe_sweep.sh`'s dump half.
+
+- The plain half stops at `assemble_one_local_battery`, which
+  `work/onehome/main-red-the-gather-records-one-sample-tier-3-prime-does-not.md`
+  tracks.
+- The large-K lint's flags match the 2026-11-09 reading exactly: 4159
+  / 5171 / 703, with rule 1 at 2167 / 1830 / 0.
+- The sample counts have grown, to 4 271 646 / 4 255 332 / 3 767 989.
+- The driver lint still reports 342 advisory flags.
+
+**Every flag, uncapped.** `k_lint::lint_csv`'s own flags, so no rule
+was re-implemented. They fall into three populations:
+
+| population | names | 1e-6 r1 / r2·3 | 1e-9 r1 / r2·3 | 1e-12 r2·3 |
+|---|---|--:|--:|--:|
+| A: ε-coupled pads, \|m\| = Kε, 2Kε or 24·ε | `bool_pair_gap`, `curve_pair_pose_{clear,parallel,tilt}` | 279 / 1164 | 318 / 1125 | 703 |
+| B: refinement walks, \|m\| from ε to 3.9e-5 | `curve_pair_walk_foot_{clear,piece}`, `bool_spline_region_carrier` | 1862 / 754 | 1512 / 2118 | — |
+| C: lily fine features, 3 µm to 38 µm, ε-independent except  | `plane_crossing_belly_graze`, `link_wedge`, `tangent_sector_order2`, `bool_conic_quadric_sub_clear`, `bool_ray_torus_disc` | 26 / 74 | 0 / 98 | — |
+
+The r2·3 columns count flags. At 1e-9 rule 2 is 2565 and rule 3 is
+3341; elsewhere the two are equal. The lily is not recorded at 1e-12.
+
+**Where each population goes.**
+
+- **Rule 1, by family:**
+  - the walks' feet: `work/cpair/lily-walls-curve-walks-decide-24045-margins-in-band-under-k-lint.md`;
+  - the carrier walk: `work/splice/the-spline-region-carrier-walk-records-in-band-margins-by-construction-under-k-lint.md`;
+  - the pose screens: `work/cpair/the-pose-screens-clear-and-parallel-record-minus-k-eps-and-land-in-band-under-k-lint.md`;
+  - the lily's micron features at 1e-6: `work/inside/a-lily-wall-ray-reads-the-torus-quartic-disc-in-band-at-1e-6.md`,
+    `work/germ/a-lily-wall-conic-quadric-sub-clearance-of-3-microns-is-in-band-at-1e-6.md`
+    and `work/splice/a-lily-wall-tangent-sector-order2-margin-of-8-microns-escalates-at-1e-6.md`.
+- **Rules 2 and 3:**
+  - A goes to `bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint`'s rule (4) fork;
+  - B goes to `refinement-walks-flag-rules-2-and-3-by-construction-in-the-gated-sweep`;
+  - C is the stale floor of `k-lints-definite-floor-is-read-off-a-retired-predicate`.
+    The lily, added after M7, has features at 29 µm and 38 µm, under the
+    4e-5 floor.
+
+**What re-deriving the thresholds can reach.** Rule 1 reads only the
+`outcome` column, so no k-lint threshold reaches it. No metre floor
+reaches A, and B fills every decade from `Kε` upward. A floor re-cut
+now would clear C's 74 definite rows at 1e-6 and at 1e-9; that is 148
+of the 6036 flags under rules 2 and 3, and the step would still exit 2.
