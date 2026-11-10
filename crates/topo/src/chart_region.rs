@@ -3190,12 +3190,7 @@ const SCHEDULE_2D: [Vec2<f64>; 16] = [
 /// Chart-space margins are metered separately from the 3-D loop's —
 /// the polygon is metred by the exact arms, but it is a different
 /// population — so the names stay distinct even though the walk is one.
-const ROWS: ParityRows = ParityRows {
-    segment: "chart_region_segment",
-    boundary: "chart_region_boundary",
-    side: "chart_region_side",
-    advance: "chart_region_advance",
-};
+const ROWS: ParityRows = crate::rows::CHART_REGION;
 
 /// Ray-parity containment of `q` in the (CCW, metred) `poly`.
 ///
@@ -3825,7 +3820,7 @@ fn overlap_of_regions<T: Decide + Bounds>(
 /// boundaries do not cross, so a vertex read in band is kept by its
 /// standing ([`ChartRegionError::refusal`]) and a later definite vertex
 /// answers. That is a premise about the input, not a theorem of the
-/// rule, so the ladder climbs under [`Answering::First`] (a kept vertex
+/// rule, so the ladder climbs under [`geom_core::ladder::Answering::First`] (a kept vertex
 /// ahead stays live on the record), pending 6592's `Alike`
 /// (`work/onecopy/side-at-infinity-aimed-rays-disagree.md`).
 fn polygon_relation<T: Decide>(
