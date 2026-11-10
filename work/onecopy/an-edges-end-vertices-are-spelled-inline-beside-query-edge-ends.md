@@ -28,3 +28,19 @@ The `next` spelling, `body.half_edge_end(e.he_plus)` (usually beside `get_half_e
 Inside `crates/topo/src` the same call is mostly an Euler operator's test asserting a half-edge's own end, which is not this class.
 
 The gate cannot hold this shape: by text, `half_edge_end(e.he_plus)` is also a half-edge's own end. Once the sites are ported, deprecating the pair spelling is the remaining lever.
+
+## Closed by `onecopy/edge-ends-turns`
+
+All 52 sites read `Body::edge_vertices(key)` (44 files). The sweep's grep
+now finds none outside `crates/topo/src`. Where a site held only the
+`Edge`, its key was taken from where the edge was fetched (an
+`edges()` pair, a `get_edge(k)`), so no site needed a new lookup. A
+paired `get_half_edge(e.he_plus).start` beside it folded into the same
+call. The closed-edge checks that compared `Some(start) ==
+half_edge_end(..)` now compare both ends of one `edge_vertices`, which
+differs only on a stale `next`, which no test body has.
+
+Not done: deprecating the pair spelling. `half_edge_end(e.he_plus)` is
+also a half-edge's own end by text, and inside `crates/topo/src` that
+is its use (an Euler operator's tests asserting a half-edge's end), so
+the call stays and no gate can hold the edge reading of it.
