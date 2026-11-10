@@ -62,6 +62,15 @@ is right and rewrites the comment either way.
 
 Moved from `work/issues/` to `work/flush/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
+## Dispatch
+
+2026-11-10, FLUSH orchestrator (the SEAL/REFS session, picking up FLUSH as a program with two open P0/P1 rows). One implementer, lane `flush-lattice`, on branch `flush/lattice-discard-pin`. The lane will:
+- reproduce the count on main;
+- diff the stretch list per body against `82f9f9f7` and `d2764de3`;
+- read each moved class in the model, and decide by meaning whether the pin's count is right or a wrong discard.
+
+A discard rule that is ambiguous stops the lane and comes back as a design question.
+
 ## Closed
 
 **Right: the count is the kernel's, and PR 5724 has no part in it.**
