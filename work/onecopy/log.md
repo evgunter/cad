@@ -1507,3 +1507,4 @@
 - 02:53Z PR 6709 crease-at (76d8b436; prove-door Crease read, kept_edge, 0 moves) → FULL review session_013mPGJ4t6C8MSEJymSxuJiG. Warned roster-reach of overlap on the raw-sign row/register.
 - 02:55Z Ev on [ev] 6570: "what consumes the things that meet returns?" → curve-pair-tidy lane to answer with the consumer list.
 - 02:58Z 6570: curve-pair-tidy lane answered Ev (8 consumers, none reads an extent; body unchanged) → lane on onecopy/meet-tilt (meet-refuses-a-near-tangent-tilt-in-both-orders). 6698 fold 95128966 → same reviewer.
+- 03:00Z curve-pair-tidy lane can push only its own branch (6570 head) → meet-tilt to new implementer session_013mPGJ3k7SqJTgEmAEycXmG.
