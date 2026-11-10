@@ -781,8 +781,8 @@ fn before<T: Decide>(s: T, t: T) -> bool {
 
 /// [`geom_core::k_stats::param_order`], `None` where an enclosure
 /// straddles.
-pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
-    geom_core::k_stats::param_order(row, s, t).ok()
+pub(super) fn compare<T: Decide>(name: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
+    geom_core::k_stats::param_order(name, s, t).ok()
 }
 
 impl From<geom::CarrierRefusal> for MeetFault {

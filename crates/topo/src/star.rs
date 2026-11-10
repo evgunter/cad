@@ -15,7 +15,7 @@
 //! [`Star::walk`] reads no side. It is the cyclic list of the vertex's
 //! bounds ([`Bound`]: a half-edge, real or a divider, a unit direction,
 //! and what stands behind it, a [`crate::bound_side::BoundSupport`]),
-//! each with the sector after it ([`Sector`]: its face, what the face is
+//! each with the sector after it ([`Sector`](walk::Sector): its face, what the face is
 //! at the vertex, a tangent plane or a cone's apex, its bend and its
 //! arm). A real edge's reach is the edge's: a line's chord to its far
 //! vertex, a curved edge's departure tangent at its extent with its bend
