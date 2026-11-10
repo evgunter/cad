@@ -916,8 +916,8 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
 
     /// **This value read whole**: in a member's view of its family, the
     /// family; else this. A seat that takes a family whole
-    /// ([`crate::repetition::takes_whole`]) and a selection naming its
-    /// members read it so.
+    /// ([`crate::repetition::takes_whole`]) and a selection of one
+    /// member read it so.
     pub(crate) fn whole(&self) -> &Self {
         self.family.as_deref().unwrap_or(self)
     }

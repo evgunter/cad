@@ -4031,9 +4031,10 @@ impl DocSession {
             _ => self.require_read(&read, NodeKindWanted::Body)?,
         }
         let takeover = self.takeover(&read)?;
+        let (body, selection) = member_selection(doc, self.evaluation(), read, selection);
         let node = match kind {
-            BlendKindChoice::Fillet => Node::fillet(read, size, selection),
-            BlendKindChoice::Chamfer => Node::chamfer(read, size, selection),
+            BlendKindChoice::Fillet => Node::fillet(body, size, selection),
+            BlendKindChoice::Chamfer => Node::chamfer(body, size, selection),
         };
         // A feature gesture's one action (A10, Ev's residue 1): the
         // result, taking over what read the target, so the picture
@@ -5889,6 +5890,36 @@ pub(crate) fn picked_body(
             (crate::combine::member_read(body, &at), own)
         }
         None => (pncad::document::BodyRead::plain(body), name),
+    }
+}
+
+/// **A selection of entities picked on `read`'s drawn bodies, as one
+/// body reads them** (REFERENCES DM3): where `read` is a family and every
+/// name, found by its entity in `ev` ([`pncad::select::member_entity`]),
+/// is one member's, that member, `xs[i]`, by its own names; else `read`
+/// and the names as picked.
+pub(crate) fn member_selection(
+    doc: &Doc<ProfileProgram>,
+    ev: Option<&Evaluation<f64>>,
+    read: Operand,
+    names: Vec<StableName>,
+) -> (pncad::document::BodyRead<Formula>, Vec<StableName>) {
+    let member = || {
+        let ev = ev?;
+        let var = crate::world::read_var(doc, &read)?;
+        let found: Vec<(Vec<u32>, StableName)> = names
+            .iter()
+            .map(|name| pncad::select::member_entity(ev, var, name))
+            .collect::<Option<_>>()?;
+        let (at, _) = found.first()?;
+        found.iter().all(|(other, _)| other == at).then(|| {
+            let at: Vec<i64> = at.iter().copied().map(i64::from).collect();
+            (at, found.iter().map(|(_, own)| own.clone()).collect::<Vec<_>>())
+        })
+    };
+    match member() {
+        Some((at, own)) => (crate::combine::member_read(read, &at), own),
+        None => (pncad::document::BodyRead::plain(read), names),
     }
 }
 

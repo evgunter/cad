@@ -1283,7 +1283,11 @@ fn on_read(
                 });
             let (at, port) = crate::world::seat_read(doc, at, Some(port));
             let body = crate::seats::Output::named(port).read(at);
-            let read = Operand::select(body, vec![pick.name().clone()]);
+            // A copy of one member carries the family's name for the
+            // entity: the side reads that member by its own name.
+            let (body, names) =
+                crate::session::member_selection(doc, ev, body, vec![pick.name().clone()]);
+            let read = Operand::select(body, names);
             (SitedRef::new(at, pick.name().clone()), read)
         }
         Some(Node::InstantiatePart { .. }) => (picked.clone(), picked.into()),

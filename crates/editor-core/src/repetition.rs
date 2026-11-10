@@ -8,8 +8,7 @@
 //! `assemble`'s member, or an indexed read `xs[i, j]`, whose own index
 //! expressions are slots — reaches nothing through the family it reads:
 //! the family is its operand, not its repetition. So does a selection
-//! whose names say which member they name (`Member { at, of }`, the
-//! family's own table): it reads the family whole.
+//! of one member, `xs[i]`: it reaches what its indices reach.
 //!
 //! The indices one reader reaches are a chain: each within the one
 //! before it, outermost first ([`Reach::order`]). An index is within
