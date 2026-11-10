@@ -805,8 +805,8 @@ impl SectionError {
             Self::CoincidentSurfaces => write!(
                 f,
                 "the surfaces are coincident (the same cylinder or the same sphere), so \
-                 they share a surface rather than meet along a curve. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 they share a surface rather than meet along a curve. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::DegenerateTorus(refusal) => {
                 write!(f, "{}", crate::recourse::read_at(refusal, at))
