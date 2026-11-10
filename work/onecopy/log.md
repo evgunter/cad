@@ -1489,3 +1489,4 @@
 - 01:45Z 6686 fix pass in (155921e); main merged → f2cb78b5, gating. Dispatched: topo-roster lane → onecopy/roster-reach (identity-and-fixture-names + three-raw-sign-within); census lane → onecopy/main-reds-pad-and-aims (both main-red rows).
 - 01:47Z torus-words PR 6706 (dbed5119) → FULL review session_013mPGJ5hCsHUAMLvednfJ3k. Torus lane → onecopy/funnel-bundles (funnel-row-bundles row).
 - 01:50Z roster-reach ruling: A phased (tree-wide coverage row with two-way-ratchet known-missing list, geom-brep whole-src roster, census `references` for fixture strings resolved against the census union); other crates + geom-brep door table filed as rows.
+- 01:53Z funnel-bundles ruling: A (per-crate private-ctor rows registry, RowBundle trait in geom-core, tree-wide name-uniqueness test in editor-core so the plain-site census joins it); pass-through wrappers get no registry; geom Ring/Spiric fold after 6706.
