@@ -919,7 +919,7 @@ impl<T: Decide> ConicArc<T> {
         // read as over-wound.
         let (turn, recording) = geom_core::k_stats::detached(|| match carrier {
             geom::Curve3::Circle(_) => one_turn.turn(
-                TurnRows::exact(rows.rows().turn),
+                TurnRows::exact(rows.rows().turn()),
                 extent,
                 Exact::new(floor.get()),
                 band,
@@ -2466,7 +2466,7 @@ mod tests {
             assert_straddle(
                 got,
                 &recorded,
-                (LoopDecision::ArcSpan, WALK_ROWS.conic().rows().straddle),
+                (LoopDecision::ArcSpan, WALK_ROWS.conic().rows().straddle()),
                 (gap * sup, gap * inf),
                 &format!("overlap √({k}ε)"),
             );
@@ -2802,7 +2802,7 @@ mod tests {
         let lever = a.min(b);
         let gap = T::tau() - (t1 - t0);
         let low = decide_reported(
-            rows.rows().turn,
+            rows.rows().turn(),
             Margin::metered(gap, geom_core::InfSpeed::new(lever)),
             band,
         );
@@ -2821,7 +2821,7 @@ mod tests {
                 sign: Sign::Negative,
                 ..
             }) = decide_reported(
-                rows.rows().turn,
+                rows.rows().turn(),
                 Margin::metered_sup(gap, geom_core::SupSpeed::new(speed)),
                 band,
             )

@@ -72,6 +72,64 @@ pub const fn first_shared_in(roster: &[&[&str]]) -> Option<((usize, usize), (usi
     None
 }
 
+/// **The bundle consts a registry's source declares outside its
+/// [`row_registry!`] blocks**, which would escape the derived roster: each
+/// line of `src` (the registry's own file, read with `include_str!`) that
+/// declares `const NAME: T` for a bundle type `T` in `types` and lies in no
+/// `row_registry! { .. }` invocation. A registry's test asserts this is
+/// empty. Comment lines are not read; a declaration split before its
+/// type is (the type follows the name on the declaring line by `rustfmt`).
+#[must_use]
+pub fn consts_outside_registry(src: &str, types: &[&str]) -> Vec<String> {
+    let mut inside = Vec::new();
+    let mut at = 0;
+    while let Some(hit) = src[at..].find("row_registry! {") {
+        let open = at + hit + "row_registry! ".len();
+        let mut depth = 0usize;
+        let mut end = src.len();
+        for (k, c) in src[open..].char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = open + k;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        inside.push(open..end);
+        at = end;
+    }
+    let mut out = Vec::new();
+    let mut offset = 0;
+    for line in src.split_inclusive('\n') {
+        let start = offset;
+        offset += line.len();
+        let code = line.trim();
+        if code.starts_with("//") || inside.iter().any(|r| r.contains(&start)) {
+            continue;
+        }
+        let decl = code
+            .strip_prefix("pub(crate) ")
+            .or_else(|| code.strip_prefix("pub "))
+            .unwrap_or(code);
+        let Some(rest) = decl.strip_prefix("const ") else {
+            continue;
+        };
+        let Some((_, ty)) = rest.split_once(':') else {
+            continue;
+        };
+        let ty = ty.split('=').next().unwrap_or(ty).trim();
+        if types.contains(&ty) {
+            out.push(code.to_owned());
+        }
+    }
+    out
+}
+
 /// **A crate's row registry, its roster derived**: every `const` bundle
 /// given here, and a `ROSTER` of their names that lists exactly those
 /// consts, with the `const` assertion that fails the build on a name used
@@ -127,5 +185,24 @@ mod tests {
             Some(((0, 0), (0, 1)))
         );
         assert_eq!(first_shared_in(&[&["a", "b"], &["c"], &[]]), None);
+    }
+
+    /// **A bundle const outside the registry's block is found**, one
+    /// inside it is not, nor a comment or a const of another type.
+    #[test]
+    fn a_const_outside_the_registry_block_is_found() {
+        let src = "pub(crate) const STRAY: Rows = Rows { a: \"x\" };\n\
+                   /// const DOC: Rows = ..\n\
+                   const OTHER: u8 = 1;\n\
+                   geom_core::row_registry! {\n    pub const ROSTER;\n    \
+                   pub(crate) const IN: Rows = Rows { a: \"y\" };\n}\n\
+                   pub const SPLIT: Rows =\n    Rows { a: \"z\" };\n";
+        assert_eq!(
+            super::consts_outside_registry(src, &["Rows"]),
+            [
+                "pub(crate) const STRAY: Rows = Rows { a: \"x\" };",
+                "pub const SPLIT: Rows =",
+            ]
+        );
     }
 }

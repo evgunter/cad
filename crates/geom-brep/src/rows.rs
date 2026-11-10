@@ -384,6 +384,33 @@ impl GapRows {
     }
 }
 
+/// **A reader's period-door rows**: the turn row a span is read against a
+/// period under, and the straddle row a bounded channel's two readings
+/// name where they straddle the band. Read as a
+/// [`geom_core::period::TurnRows`] ([`Self::rows`]); minted only here.
+#[derive(Clone, Copy, Debug)]
+pub struct PeriodRows(geom_core::period::TurnRows<&'static str>);
+
+impl PeriodRows {
+    /// The rows for the span's turn and its straddle. Private: a reader
+    /// names its rows at a const below.
+    const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
+        Self(geom_core::period::TurnRows::registered(turn, straddle))
+    }
+
+    /// The rows, as the period door reads them.
+    #[must_use]
+    pub const fn rows(self) -> geom_core::period::TurnRows<&'static str> {
+        self.0
+    }
+
+    /// Every row the bundle names, for the roster.
+    #[must_use]
+    pub const fn names(&self) -> [&'static str; 2] {
+        [self.0.turn(), self.0.straddle()]
+    }
+}
+
 geom_core::row_registry! {
     /// **Every registered bundle's rows**, one entry per const below, derived
     /// from the consts given here, so none can be left out of it.
@@ -457,6 +484,21 @@ geom_core::row_registry! {
         straddle: "tt_critical_gap_straddle",
     };
 
+    /// Check 2's interval-span winding (`certify`): a periodic span's
+    /// turn, and the straddle of a bounded channel's two readings.
+    pub const INTERVAL_SPAN_WINDING: PeriodRows =
+        PeriodRows::bounded("interval_span_winding", "interval_span_winding_straddle");
+
+    /// The pcurve's azimuth period gate (`pcurve_cache::projected`).
+    pub const PCURVE_AZIMUTH_PERIOD: PeriodRows =
+        PeriodRows::bounded("pcurve_azimuth_period", "pcurve_azimuth_period_straddle");
+
+    /// A cone face's ellipse rim's span winding (`props::curved`).
+    pub const PROPS_CONE_ELLIPSE_SPAN_WINDING: PeriodRows = PeriodRows::bounded(
+        "props_cone_ellipse_span_winding",
+        "props_cone_ellipse_span_winding_straddle",
+    );
+
     // ------------------------------------------------- topo's readers
 
     /// `topo`'s conic × quadric first-harmonic arm's rows
@@ -509,4 +551,27 @@ geom_core::row_registry! {
         side: "section_ruling_side",
         width: "section_ruling_width",
     };
+}
+
+#[cfg(test)]
+mod registry_source {
+    /// **No bundle const of this registry lies outside its
+    /// `row_registry!` blocks**, where it would escape the derived roster
+    /// ([`geom_core::rows::consts_outside_registry`]).
+    #[test]
+    fn every_bundle_const_is_in_the_registry_block() {
+        let stray = geom_core::rows::consts_outside_registry(
+            include_str!("rows.rs"),
+            &[
+                "HalfAngleRows",
+                "SubdivisionRows",
+                "TouchRows",
+                "QuarticRows",
+                "FirstHarmonicRows",
+                "GapRows",
+                "PeriodRows",
+            ],
+        );
+        assert!(stray.is_empty(), "consts outside the registry: {stray:#?}");
+    }
 }

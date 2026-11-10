@@ -774,18 +774,32 @@ impl Turn {
 ///
 /// **Where its names are registered**: a reader that mints its own two
 /// names into one is a row bundle, registered in its crate's `rows`
-/// registry behind a type of that crate's (`topo::rows::ConicRows`). A
-/// caller of [`TurnRows::exact`] or [`TurnRows::bounded`] with a name
-/// minted elsewhere (a parameter, a closed decision's `predicate()`, a
+/// registry behind a type of that crate's (`topo::rows::ConicRows`,
+/// `geom_brep::rows::PeriodRows`), which alone can build one. A caller of
+/// [`TurnRows::exact`] with a name minted elsewhere (a parameter, a closed decision's `predicate()`, a
 /// shared site's const) is a plain site in this wrapper, whose uniqueness
 /// is the plain-site census's question
 /// (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`).
 #[derive(Clone, Copy, Debug)]
 pub struct TurnRows<S> {
     /// The headroom's row, `(period − extent)` at the rate.
-    pub turn: &'static str,
+    turn: &'static str,
     /// The row a straddle of the two readings is named by.
-    pub straddle: S,
+    straddle: S,
+}
+
+impl<S: Copy> TurnRows<S> {
+    /// The headroom's row.
+    #[must_use]
+    pub const fn turn(&self) -> &'static str {
+        self.turn
+    }
+
+    /// The straddle's row.
+    #[must_use]
+    pub const fn straddle(&self) -> S {
+        self.straddle
+    }
 }
 
 impl TurnRows<()> {
@@ -797,10 +811,24 @@ impl TurnRows<()> {
 }
 
 impl TurnRows<&'static str> {
-    /// The rows of a [`Bounded`] site.
+    /// The rows of a [`Bounded`] site, two names of one reader's: a row
+    /// bundle. Crate-private: outside this crate a reader mints its two
+    /// names in its crate's `rows` registry ([`Self::registered`]).
     #[must_use]
-    pub const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
+    pub(crate) const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
         Self { turn, straddle }
+    }
+
+    /// **The rows of a [`Bounded`] site, minted by a crate's `rows`
+    /// registry alone**: the registry's own bundle type wraps it
+    /// (`topo::rows::ConicRows`, `geom_brep::rows::PeriodRows`), and
+    /// editor-core's tree-wide test refuses a call of this outside a
+    /// `rows.rs` in any crate's `src`. A test probe of the period door
+    /// calls it too.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn registered(turn: &'static str, straddle: &'static str) -> Self {
+        Self::bounded(turn, straddle)
     }
 }
 

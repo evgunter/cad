@@ -2664,10 +2664,7 @@ fn require_cone_conic_spans<T: Decide>(
                 let Some(floor) = geom::carrier_speed::speed_floor(ellipse) else {
                     unreachable!("`speed_floor` answers an ellipse")
                 };
-                let rows = TurnRows::bounded(
-                    "props_cone_ellipse_span_winding",
-                    "props_cone_ellipse_span_winding_straddle",
-                );
+                let rows = crate::rows::PROPS_CONE_ELLIPSE_SPAN_WINDING.rows();
                 require_span_within_period(
                     (e.t0, e.t1),
                     floor,
@@ -4750,7 +4747,7 @@ fn require_span_within_period<T: Decide, R: TurnRate<T>>(
     {
         Ok(extent)
     } else {
-        Err(refuse(rows.turn))
+        Err(refuse(rows.turn()))
     }
 }
 

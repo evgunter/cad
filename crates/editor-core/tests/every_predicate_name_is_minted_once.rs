@@ -15,6 +15,8 @@
 //! (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`)
 //! joins this same test rather than a second one.
 
+#![allow(clippy::unwrap_used)]
+
 /// Every registry's roster, by crate.
 fn rosters() -> Vec<(&'static str, &'static [&'static [&'static str]])> {
     vec![
@@ -43,4 +45,44 @@ fn every_predicate_name_is_minted_once_tree_wide() {
         }
     }
     assert!(shared.is_empty(), "names minted twice: {shared:#?}");
+}
+
+/// **Only a crate's row registry mints a two-row turn bundle**: a call of
+/// `TurnRows::registered` in any crate's `src` lies in a `rows.rs`, where
+/// the registry's own bundle type wraps it. Anywhere else it would mint
+/// two names outside every roster.
+#[test]
+fn only_a_registry_mints_a_two_row_turn_bundle() {
+    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let mut stray = Vec::new();
+    let mut stack: Vec<std::path::PathBuf> = std::fs::read_dir(&crates)
+        .unwrap()
+        .map(|e| e.unwrap().path().join("src"))
+        .filter(|p| p.is_dir())
+        .collect();
+    let mut read = 0;
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|x| x == "rs") {
+                read += 1;
+                let text = std::fs::read_to_string(&path).unwrap();
+                let defines = path.ends_with("geom-core/src/period.rs");
+                let calls = text
+                    .lines()
+                    .filter(|l| !l.trim_start().starts_with("//"))
+                    .any(|l| l.contains("TurnRows::registered("));
+                if calls && !defines && !path.ends_with("rows.rs") {
+                    stray.push(path.display().to_string());
+                }
+            }
+        }
+    }
+    assert!(read > 100, "the crates' sources were read: {read} files");
+    assert!(
+        stray.is_empty(),
+        "two-row turn bundles minted outside a registry: {stray:#?}"
+    );
 }

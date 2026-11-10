@@ -2106,8 +2106,7 @@ const FORWARD_SENSE_ROW: &str = "interval_span_sense";
 
 /// Check 2's winding rows: the headroom to one period, and the straddle
 /// of a bounded rate's two readings.
-const WINDING_ROWS: TurnRows<&str> =
-    TurnRows::bounded("interval_span_winding", "interval_span_winding_straddle");
+const WINDING_ROWS: TurnRows<&str> = crate::rows::INTERVAL_SPAN_WINDING.rows();
 
 /// An edge carrier: the intensional description, its cached [`Curve3`]
 /// carrier with its parameter interval and turn, and what the scalar's
@@ -3960,7 +3959,7 @@ fn decide_turn<T: Decide>(
             )
             .map_err(not_forward)?;
             let turn = if let Curve3::Circle(..) = periodic {
-                let rows = TurnRows::exact(WINDING_ROWS.turn);
+                let rows = TurnRows::exact(WINDING_ROWS.turn());
                 one_turn.turn(rows, extent, Exact::new(floor.get()), band)
             } else {
                 // The ellipse and the spiric read the turn between the

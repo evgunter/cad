@@ -61,3 +61,16 @@ geom_core::row_registry! {
         arcs: "wall_arcs_cosurface",
     };
 }
+
+#[cfg(test)]
+mod registry_source {
+    /// **No bundle const of this registry lies outside its
+    /// `row_registry!` blocks**, where it would escape the derived roster
+    /// ([`geom_core::rows::consts_outside_registry`]).
+    #[test]
+    fn every_bundle_const_is_in_the_registry_block() {
+        let stray =
+            geom_core::rows::consts_outside_registry(include_str!("rows.rs"), &["CosurfaceNames"]);
+        assert!(stray.is_empty(), "consts outside the registry: {stray:#?}");
+    }
+}

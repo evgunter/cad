@@ -42,7 +42,7 @@ impl ConicRows {
     /// The rows for the span's turn and its straddle. Private: a reader
     /// names its rows at a const below.
     const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
-        Self(geom_core::period::TurnRows::bounded(turn, straddle))
+        Self(geom_core::period::TurnRows::registered(turn, straddle))
     }
 
     /// The rows, as the period door reads them.
@@ -54,7 +54,7 @@ impl ConicRows {
     /// Every row the bundle names, for the roster.
     #[must_use]
     pub(crate) const fn names(&self) -> [&'static str; 2] {
-        [self.0.turn, self.0.straddle]
+        [self.0.turn(), self.0.straddle()]
     }
 }
 
@@ -454,8 +454,8 @@ impl BoundaryRows {
     pub(crate) const fn names(&self) -> [&'static str; 10] {
         let (s, p) = (self.spiric.names(), self.spline.names());
         [
-            self.conic.0.turn,
-            self.conic.0.straddle,
+            self.conic.0.turn(),
+            self.conic.0.straddle(),
             s[0],
             s[1],
             s[2],
@@ -810,5 +810,30 @@ mod roster_rows {
     fn every_registered_row_is_named_once() {
         let all: Vec<&[&str]> = ROSTER.iter().chain(TEST_ROSTER).copied().collect();
         assert_eq!(geom_core::rows::first_shared_in(&all), None);
+    }
+}
+
+#[cfg(test)]
+mod registry_source {
+    /// **No bundle const of this registry lies outside its
+    /// `row_registry!` blocks**, where it would escape the derived roster
+    /// ([`geom_core::rows::consts_outside_registry`]).
+    #[test]
+    fn every_bundle_const_is_in_the_registry_block() {
+        let stray = geom_core::rows::consts_outside_registry(
+            include_str!("rows.rs"),
+            &[
+                "ParityRows",
+                "SegmentRows",
+                "ArcRows",
+                "BoundaryRows",
+                "WedgeNames",
+                "RayRows",
+                "ChartRows",
+                "ConicRows",
+                "RoleNames",
+            ],
+        );
+        assert!(stray.is_empty(), "consts outside the registry: {stray:#?}");
     }
 }
