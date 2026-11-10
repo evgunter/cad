@@ -35,7 +35,7 @@ Not in scope: whether one point may stand for the whole in-band arc where a read
 **The subdivision** (`crates/geom-brep/src/half_angle.rs`). `certified_subdivision_touching` now returns each touch as a `Touch { at, spread }`. The spread is `speed_hi·(|G′(θ*)| + e₁)/c`, from the terms already read there.
 
 **The closed forms** (`crates/geom-brep/src/curve_pair/pose.rs`, `angle_spread`). The touch is `C(θ_hi)`, `θ_hi` the angle of the first harmonic's coefficients. That angle is a well-conditioned reading of them: its rounding is relative to their length, however near the centres or however close the conic to the line.
-- So at a point scalar it is treated as exact, and the spread is zero: DESIGN `[simple.conditioned]`, under which no site charges rounding. The `scripts/gates/bare-rounding-allowlist.sh` gate refuses the `geom_core::running` charge this row's first reading asked for.
+- So at a point scalar it is treated as exact, and the spread is zero. This applies ratified DESIGN `[simple.conditioned]`, under which no site charges rounding; it is not a departure from the row's "Done when". The row's "a certified bound on `θ_hi`'s rounding" is, under that rule, the angle's own enclosure. (A `geom_core::running` charge, tried first, is what `scripts/gates/bare-rounding-allowlist.sh` refuses.)
 - At `Interval` the spread is the angle's own enclosure, `r·(θ − θ)`, which is certified and charges nothing.
 
 **Held to the band** (`spread_held`, `curve_pair_pose_touch_spread`). The most two readings can lie apart is read: twice the subdivision's spread, or the angle enclosure's width.
