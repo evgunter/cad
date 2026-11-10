@@ -87,7 +87,7 @@ Stages 2 and 3 remain on this row.
 
 ## Stage 2's design (2026-11-10)
 
-This applies PR 6359's decision and does not change it. Two designers weighed it, as fork 253; Ev declined the DESIGN edit on PR 6585 because no decision changed.
+This applies PR 6359's decision and does not change it. Two designers weighed it, as fork 257; Ev declined the DESIGN edit on PR 6585 because no decision changed.
 
 - **The star's walk reads no side.** `Star` is the cyclic list of bounds out of the vertex (a half-edge, real or a divider, a unit direction, and its `BoundSupport`) with the sector between consecutive bounds (a face, a tangent plane or a cone apex, its bend and its arm).
 - **Sectors are convex in their own geometry, and refined where a datum's side turns.**
