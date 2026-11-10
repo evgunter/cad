@@ -195,3 +195,8 @@
     - the slack enclosure's sign is corrected to `[−3.3z, 0.3z]`.
   - Main's chord-arc rung red is already filed (ONECOPY `main-red-the-chord-arc-rung-count-reads-zero-through-a-const`).
   - **Delta review dispatched** (the fix pass changed behaviour and types, so not the orchestrator's read alone). Its claims lead with whether `sector_overlap` is decided, since a silent skip on an undecided overlap would be a wrong answer. Target reclaimed.
+- 2026-11-10 — **PR 6693 delta review** (`23595a252d..9aedca00ce`): mergeable.
+  - The overlap gate is a decided reading and matches main's `if overlap`, so "reaches the coplanar branch" = overlap holds.
+  - Should-fix: `recl.rs:1758`'s new `Contradicted` arm is an unreachable invariant labelled in-band (the topo suite stays green with it a `panic!`); the 1e-6 stand-down silences the needle rows, and its stated cause is wrong (a θ-independent `Containment` in both tool poses).
+  - Nits: all-On crossing records pass `recl_sectors` silently (a convention between `coincident` and the codes); dead code; stale prose; rows citing deleted sites.
+  - All upheld; the last fix pass was sent, to merge on the orchestrator's delta read.
