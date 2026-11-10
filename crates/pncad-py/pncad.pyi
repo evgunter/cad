@@ -653,7 +653,8 @@ class SelectRefusal(PncadError):
     `face_unresolved`, `not_a_length`, `bad_value`,
     `band`, `family` (`select` or `select_where` asked of a family
     read whole: a selection reads one body, so ask one member,
-    `xs[i]`), `read_not_an_output` (`Evaluation.resolve` asked in a read
+    `xs[i]`), `no_member` (`xs[i]` at values the read holds no member
+    at), `read_not_an_output` (`Evaluation.resolve` asked in a read
     that is no body output, so no table to ask), or `node_not_held`
     (`Evaluation.resolve` at a node handle the document no longer
     holds, for a name it did not mint). The other attributes are the
@@ -2046,7 +2047,7 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
-_MeasureRef: TypeAlias = tuple[NodeId, str] | PoseDef | Var
+_MeasureRef: TypeAlias = tuple[NodeId | IndexedRead, str] | PoseDef | Var
 
 class MeasurePrimitive:
     """Which closed-form measurement a measure computes, and of which
@@ -2057,7 +2058,8 @@ class MeasurePrimitive:
     a measure but a requirement, `Node.clearance`.
 
     Each reference is a `(node, name)` pair: the entity's stable name
-    and the node its carrier is READ AT. A text that is not a name
+    and the node its carrier is READ AT; or `(xs[i], name)`, one member
+    of a family by the member's own name. A text that is not a name
     raises ValueError here.
     """
 
@@ -2073,7 +2075,9 @@ class MeasurePrimitive:
         at `evaluate` (`measure_unsupported`), naming the pair."""
 
     @staticmethod
-    def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
+    def angle(
+        a: tuple[NodeId | IndexedRead, str], b: tuple[NodeId | IndexedRead, str]
+    ) -> MeasurePrimitive:
         """The angle between two referenced entities — an angle. Each
         reference names a face or an edge (another kind refuses
         `slot_var_kind` at insert)."""
@@ -2573,8 +2577,8 @@ class Node:
 
     @staticmethod
     def clearance(
-        a: tuple[NodeId, str],
-        b: tuple[NodeId, str],
+        a: tuple[NodeId | IndexedRead, str],
+        b: tuple[NodeId | IndexedRead, str],
         *,
         at_least: Optional[Formula] = None,
         at_most: Optional[Formula] = None,
@@ -5613,7 +5617,8 @@ class Evaluation:
         A selection reads one body. One member of a family is read as
         `xs[i]`, each index a count written as a number, and answers
         that member's own names, the ones a selection of `xs[i]`
-        holds; no member at those counts answers nothing. A family
+        holds; no member at those counts raises `SelectRefusal`
+        (`reason="no_member"`). A family
         read whole raises `SelectRefusal` (`reason="family"`): select
         from `xs[i]`."""
 

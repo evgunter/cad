@@ -904,6 +904,14 @@ impl AtArg {
             Self::Var(var) => pncad::select::At::Read(var.0),
         }
     }
+
+    /// The read as an operand.
+    pub(crate) fn read(self) -> d::Operand {
+        match self {
+            Self::Node(node) => d::Operand::Node(node.0),
+            Self::Var(var) => d::Operand::Var(var.0),
+        }
+    }
 }
 
 /// **One member of a family, read by index** (REFERENCES DM3, D10
@@ -916,7 +924,7 @@ impl AtArg {
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct IndexedRead {
-    read: OperandArg,
+    read: AtArg,
     at: Vec<d::Formula>,
 }
 
@@ -932,7 +940,7 @@ pub(crate) enum IndexArg {
 
 impl IndexedRead {
     /// `read` at `index`, each read as a count.
-    fn of(py: Python<'_>, read: OperandArg, index: &IndexArg) -> PyResult<Self> {
+    fn of(py: Python<'_>, read: AtArg, index: &IndexArg) -> PyResult<Self> {
         let at = match index {
             IndexArg::One(one) => vec![one.formula(py, d::Dimension::Count)?],
             IndexArg::Many(many) => many
@@ -948,13 +956,8 @@ impl IndexedRead {
 impl IndexedRead {
     fn __repr__(&self) -> String {
         let read = match &self.read {
-            OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
-            OperandArg::Var(var) => format!("Var({})", var.0.full()),
-            OperandArg::Pose(_) | OperandArg::Pick(_) => {
-                unreachable!(
-                    "an indexed read is `[]` on a node or a variable, never a pose or a pick"
-                )
-            }
+            AtArg::Node(node) => format!("NodeId({})", node.0.full()),
+            AtArg::Var(var) => format!("Var({})", var.0.full()),
         };
         let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
         format!("{read}[{}]", at.join(", "))
@@ -967,58 +970,50 @@ impl IndexedRead {
     /// as a number — a materializer answers for the evaluation in hand,
     /// so it reads no index an expression would have to evaluate.
     pub(crate) fn member(&self) -> PyResult<(pncad::select::At, Vec<u32>)> {
-        let at = match &self.read {
-            OperandArg::Node(node) => pncad::select::At::Node(node.0),
-            OperandArg::Var(var) => pncad::select::At::Read(var.0),
-            OperandArg::Pose(_) | OperandArg::Pick(_) => {
-                unreachable!("an indexed read is `[]` on a node or a variable")
-            }
-        };
-        let member = self
-            .at
-            .iter()
-            .map(|index| {
-                index
-                    .as_integer()
-                    .and_then(|value| u32::try_from(value).ok())
-                    .ok_or_else(|| {
-                        pyo3::exceptions::PyValueError::new_err(format!(
-                            "a member read here is at counts written as numbers, and {index} is \
-                             no such count"
-                        ))
-                    })
-            })
-            .collect::<PyResult<Vec<u32>>>()?;
-        Ok((at, member))
+        let member = self.body().written_member().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "a member read here is at counts written as numbers, not {}",
+                self.at
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
+        })?;
+        Ok((self.read.at(), member))
+    }
+
+    /// The authored read.
+    pub(crate) fn body(&self) -> d::BodyRead<d::Formula> {
+        d::BodyRead::indexed(self.read.read(), self.at.clone())
     }
 }
 
-/// **What a selector reads, as Python writes it**: one member of a
-/// family (`op[i]`), or a node or a variable read as one body.
-#[derive(FromPyObject)]
-pub(crate) enum SelectAt {
+/// **A read, or one member of a family, as Python writes it**: `op[i]`
+/// ([`IndexedRead`]) or the read `R` plainly — an operand at a body
+/// seat ([`BodyArg`]), a node or a variable at a name door
+/// ([`SelectAt`]).
+#[derive(FromPyObject, Clone)]
+pub(crate) enum MemberOr<R> {
     /// One member of a family.
     Member(IndexedRead),
-    /// A node or a variable.
-    At(AtArg),
+    /// The read, plainly.
+    Plain(R),
 }
 
-/// **A read at a body seat as Python writes it**: an operand read
-/// plainly, or one member of a family (`op[i]`, [`IndexedRead`]).
-#[derive(FromPyObject, Clone)]
-pub(crate) enum BodyArg {
-    /// One member of a family.
-    Indexed(IndexedRead),
-    /// An operand, read plainly.
-    Read(OperandArg),
-}
+/// What a body seat takes.
+pub(crate) type BodyArg = MemberOr<OperandArg>;
+
+/// What a name door reads in: one member of a family, or a node or a
+/// variable read as one body.
+pub(crate) type SelectAt = MemberOr<AtArg>;
 
 impl BodyArg {
     /// The authored read.
     pub(crate) fn read(self) -> d::BodyRead<d::Formula> {
         match self {
-            Self::Indexed(IndexedRead { read, at }) => d::BodyRead::indexed(read.read(), at),
-            Self::Read(read) => d::BodyRead::plain(read.read()),
+            Self::Member(read) => read.body(),
+            Self::Plain(read) => d::BodyRead::plain(read.read()),
         }
     }
 }
@@ -1058,7 +1053,7 @@ impl NodeId {
     /// One member of the family this node's output is, at `index`: one
     /// count per index of the family ([`IndexedRead`]).
     fn __getitem__(&self, py: Python<'_>, index: IndexArg) -> PyResult<IndexedRead> {
-        IndexedRead::of(py, OperandArg::Node(*self), &index)
+        IndexedRead::of(py, AtArg::Node(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -3650,8 +3645,8 @@ impl Node {
     #[staticmethod]
     #[pyo3(signature = (a, b, *, at_least=None, at_most=None, equal=None))]
     fn clearance(
-        a: (NodeId, String),
-        b: (NodeId, String),
+        a: (super::measure::CellAt, String),
+        b: (super::measure::CellAt, String),
         at_least: Option<&super::expr::Formula>,
         at_most: Option<&super::expr::Formula>,
         equal: Option<&super::expr::Formula>,
@@ -3767,7 +3762,7 @@ impl Var {
     /// One member of the family this variable holds, at `index`: one
     /// count per index of the family ([`IndexedRead`]).
     fn __getitem__(&self, py: Python<'_>, index: IndexArg) -> PyResult<IndexedRead> {
-        IndexedRead::of(py, OperandArg::Var(*self), &index)
+        IndexedRead::of(py, AtArg::Var(*self), &index)
     }
 
     fn __eq__(&self, other: &Self) -> bool {

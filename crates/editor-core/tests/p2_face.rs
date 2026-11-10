@@ -27,7 +27,7 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{head, head_at, in_copy, insert, len, run, solve, step};
+use fixture::{head, head_at, insert, len, member_head, run, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -371,8 +371,8 @@ fn a_mate_reading_a_family_member_crosses_split_and_inline_unmoved() {
     // splices, so the round trip keeps the placements' order (A4).
     let (doc, k) = insert(doc, fixture::mated_instance(p.top));
     let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.top), &o);
-    let (doc, kk, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 3);
-    let copy_cap = head(in_copy(pattern, kk, 2, p.top_upper_cap(leg)));
+    let (doc, _kk, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 3);
+    let copy_cap = member_head(pattern, &[2], p.top_upper_cap(leg));
     let (doc, m) = face_mate(doc, k, head(p.top_cap(k)), copy_cap);
     let copy_two = [4.0, 0.0, 0.0];
     let before = target_world(&doc, &o, m, copy_two);
@@ -504,7 +504,7 @@ fn a_mate_on_a_family_member_reads_the_masters_face_at_the_member() {
     let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.top), &o);
     let (doc, kk, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 3);
     let (doc, mover) = insert(doc, fixture::mated_instance(p.base));
-    let copy_cap = in_copy(pattern, kk, 2, p.top_upper_cap(leg));
+    let copy_cap = fixture::copy_site(pattern, kk, 2, p.top_upper_cap(leg));
     let (doc, m) = seat_at(
         doc,
         mover,

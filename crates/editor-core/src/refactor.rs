@@ -4388,9 +4388,7 @@ pub fn inline(
                 names,
             ),
             false => match spliced_at {
-                Some(family) => {
-                    crate::operand::selection_at(host_body(select.body.read), family, names)
-                }
+                Some(family) => unwound_selection(host_body(select.body.read), family, names),
                 None => crate::Operand::select(host_body(select.body.read), names),
             },
         })
@@ -4802,7 +4800,7 @@ pub fn flatten(
         // Names a `⊔` source keys by one member's read are that member's
         // own, read in the member: the `⊔` only grouped the copy. A member
         // that is a family reads the one of its members they name
-        // (`operand::selection_at`).
+        // ([`unwound_selection`]).
         let group = doc
             .operation_of(source)
             .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })));
@@ -4822,7 +4820,7 @@ pub fn flatten(
                 members.into_iter().map(|(_, of)| of).collect(),
             );
             return Ok(match doc.operation_of(read) {
-                Some(at) => crate::operand::selection_at(crate::Operand::Var(read), at, names),
+                Some(at) => unwound_selection(crate::Operand::Var(read), at, names),
                 None => crate::Operand::select(crate::Operand::Var(read), names),
             });
         }
@@ -5637,5 +5635,43 @@ mod remap_keeps_a_parts_section {
             Err(RemapError::Unmapped(Unmapped::Section(b))),
             "outside a parted carry an unmapped section misses on it"
         );
+    }
+}
+
+/// **A selection of names a body built from a family carried, read
+/// again in the family itself** — flatten's `⊔` unwrap and inline's
+/// reselect, where the copy that carried the names is gone and the read
+/// is the family the operation `at` defines. Such a body names a
+/// member's entity as the family's table does, `Member { at: values,
+/// of }` at `at`; read in the family, a selection reads one body
+/// (REFERENCES DM3), so where every name spells one member the same
+/// way, the selection is that member, `xs[i]` at those values, by its
+/// own names `of`. Any other selection is `read` and the names as they
+/// were.
+fn unwound_selection(
+    read: crate::Operand,
+    at: RecipeNodeId,
+    names: Vec<StableName>,
+) -> crate::Operand {
+    let member = |name: &StableName| match name.path.as_slice() {
+        [RoleSeg::Member { at: values, of }] if name.node == at => Some((
+            values.iter().map(|&(_, value)| value).collect::<Vec<u32>>(),
+            (**of).clone(),
+        )),
+        _ => None,
+    };
+    match names.iter().map(member).collect::<Option<Vec<_>>>() {
+        Some(members)
+            if members
+                .first()
+                .is_some_and(|(first, _)| members.iter().all(|(values, _)| values == first)) =>
+        {
+            let values = members[0].0.clone();
+            crate::Operand::select(
+                crate::BodyRead::member(read, &values),
+                members.into_iter().map(|(_, own)| own).collect(),
+            )
+        }
+        _ => crate::Operand::select(read, names),
     }
 }

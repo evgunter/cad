@@ -65,9 +65,26 @@ pub(crate) struct MeasurePrimitive {
     refs: [MeasureRef; 2],
 }
 
-/// A `(node, name)` pair as the kernel's sited reference.
-pub(crate) fn sited((at, name): (NodeId, String)) -> PyResult<d::SitedRef> {
-    Ok(d::SitedRef::new(at.0, super::doc::name_from_text(&name)?))
+/// **Where a cell is read**: a node, or one member of a family read by
+/// index (`xs[i]`), whose cells are named by the member's own names.
+pub(crate) type CellAt = super::doc::MemberOr<NodeId>;
+
+/// A `(node, name)` pair, or `(xs[i], name)`, as the operand a seat
+/// reads: the one-name selection of the body, or of the member.
+pub(crate) fn sited((at, name): (CellAt, String)) -> PyResult<d::Operand> {
+    let name = super::doc::name_from_text(&name)?;
+    Ok(match at {
+        CellAt::Plain(node) => d::SitedRef::new(node.0, name).into(),
+        CellAt::Member(read) => d::Operand::select(read.body(), vec![name]),
+    })
+}
+
+/// The cell's `at` as it was passed.
+fn at_object(py: Python<'_>, at: &CellAt) -> PyResult<Py<PyAny>> {
+    Ok(match at {
+        CellAt::Plain(node) => Py::new(py, *node)?.into_any(),
+        CellAt::Member(read) => Py::new(py, read.clone())?.into_any(),
+    })
 }
 
 /// **One reference of a measure**: a `(node, name)` pair naming a cell,
@@ -75,8 +92,9 @@ pub(crate) fn sited((at, name): (NodeId, String)) -> PyResult<d::SitedRef> {
 /// (`PoseDef`, such as `PoseDef.axis(...)` off a face), or a pose `Var`.
 #[derive(FromPyObject, Clone)]
 pub(crate) enum MeasureRef {
-    /// A cell, by the node it is read at and its name there.
-    Cell((NodeId, String)),
+    /// A cell, by the node or the member it is read at and its name
+    /// there.
+    Cell((CellAt, String)),
     /// A pose defined at the seat.
     Pose(super::pose::PoseDef),
     /// A variable, read as itself.
@@ -87,7 +105,7 @@ impl MeasureRef {
     /// The operand the kernel reads.
     fn operand(&self) -> PyResult<d::Operand> {
         Ok(match self {
-            Self::Cell(pair) => sited(pair.clone())?.into(),
+            Self::Cell(pair) => sited(pair.clone())?,
             Self::Pose(pose) => pose.inner.clone(),
             Self::Var(var) => d::Operand::Var(var.0),
         })
@@ -96,7 +114,10 @@ impl MeasureRef {
     /// The reference as it was passed.
     fn object(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         Ok(match self {
-            Self::Cell(pair) => pair.clone().into_pyobject(py)?.into_any().unbind(),
+            Self::Cell((at, name)) => (at_object(py, at)?, name.clone())
+                .into_pyobject(py)?
+                .into_any()
+                .unbind(),
             Self::Pose(pose) => Py::new(py, pose.clone())?.into_any(),
             Self::Var(var) => Py::new(py, *var)?.into_any(),
         })
@@ -138,7 +159,7 @@ impl MeasurePrimitive {
 
     /// The angle between two referenced entities — an `Angle`.
     #[staticmethod]
-    fn angle(a: (NodeId, String), b: (NodeId, String)) -> PyResult<Self> {
+    fn angle(a: (CellAt, String), b: (CellAt, String)) -> PyResult<Self> {
         Self::of(MeasureRef::Cell(a), MeasureRef::Cell(b), |a, b| {
             d::MeasurePrimitive::Angle { a, b }
         })
@@ -205,7 +226,8 @@ impl MeasurePrimitive {
         self.inner.verb().hash(&mut hasher);
         for r in &self.refs {
             match r {
-                MeasureRef::Cell((node, _)) => (0u8, node.0).hash(&mut hasher),
+                MeasureRef::Cell((CellAt::Plain(node), _)) => (0u8, node.0).hash(&mut hasher),
+                MeasureRef::Cell((CellAt::Member(_), _)) => 3u8.hash(&mut hasher),
                 MeasureRef::Pose(_) => 1u8.hash(&mut hasher),
                 MeasureRef::Var(var) => (2u8, var.0).hash(&mut hasher),
             }

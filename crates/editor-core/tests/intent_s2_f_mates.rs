@@ -486,18 +486,13 @@ fn a_selection_of_one_member_of_a_family_reads_that_member() {
         crate::fixture::mated_instance(leg_ref),
         &with_resolver(store),
     );
-    let (doc, k, pattern) = crate::fixture::linear(doc, instance, [1.0, 0.0, 0.0], 2.0, 4);
+    let (doc, _k, pattern) = crate::fixture::linear(doc, instance, [1.0, 0.0, 0.0], 2.0, 4);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let (doc, mate) = fixture::constrain(
         doc,
         fixture::rest(
             fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
-            fixture::head(fixture::in_copy(
-                pattern,
-                k,
-                2,
-                in_part(instance, leg, CapEnd::End),
-            )),
+            fixture::member_head(pattern, &[2], in_part(instance, leg, CapEnd::End)),
         ),
     );
     let target = fixture::constraint(&doc, mate).to;

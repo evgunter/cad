@@ -5689,6 +5689,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "family",
             "frame_refused",
             "in_band",
+            "no_member",
             "not_a_length",
             "not_a_plane",
             "tied_disagrees",
@@ -5699,7 +5700,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "selection_fault_tag",
         values: &[
-            "index_rank",
             "name_count",
             "name_kind",
             "not_a_selection",
@@ -5709,7 +5709,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seat",
             "side_index",
         ],
-        delegates: &[],
+        delegates: &["input_fault_tag"],
     },
     TagEntry {
         function: "shell_classify_error_tag",
@@ -6370,10 +6370,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Coincidence, not one fact: an index variable refused as declared
     // at the edit door, and a slot of an indexed read.
     ("index", 2),
-    // One fact (REFERENCES DM3): a read by index carries one value per
-    // index of its family, at a node's body seat (`InputFault`) and at a
-    // selection's body (`SelectionFault`).
-    ("index_rank", 2),
     // One fact (D10 `[repetition]`) at the edit and evaluate doors: two
     // indices one reader reads, neither within the other.
     ("indices_unrelated", 2),

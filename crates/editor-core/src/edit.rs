@@ -1381,11 +1381,22 @@ fn lower_read<P: crate::ProfilePayload>(
     // stored document to the same rule). And it is in its kind's stored
     // form, however it was minted: a selection read by id is held to
     // `Select::fault` as one authored here is.
+    // A selection a pose read here reaches is read at this seat too: a
+    // mate side's plane is its face's.
+    if let Some(fault) = seat_reads(doc, var).into_iter().find_map(|leaf| {
+        let select = doc.selection(leaf)?;
+        selection_body_fault(doc, slot, &select.body)
+    }) {
+        return Err(EditError::SelectionShape {
+            node: spoken(),
+            slot,
+            fault,
+        });
+    }
     if let Some(select) = doc.selection(var) {
         if let Some(fault) = doc
             .var(var)
             .and_then(|held| crate::var::Select::fault(held.kind(), &select.names))
-            .or_else(|| selection_body_fault(doc, slot, &select.body))
         {
             return Err(EditError::SelectionShape {
                 node: spoken(),
@@ -1578,7 +1589,7 @@ pub(crate) fn selection_body_kind(slot: SlotId) -> crate::SlotKind {
 
 /// **What is wrong with a selection's body read at `slot`**, beyond its
 /// kind: a member read by other than its family's rank of indices
-/// ([`crate::var::SelectionFault::IndexRank`]), or at a mate side an
+/// ([`crate::node::InputFault::IndexRank`]), or at a mate side an
 /// index that is no written count ([`crate::var::SelectionFault::SideIndex`]).
 /// The edit door asks it of every selection a seat reads, and the load
 /// door of every selection it holds.
@@ -1590,14 +1601,21 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
     if !body.is_indexed() {
         return None;
     }
+    let seat = match slot {
+        SlotId::Operand(seat) | SlotId::Index { seat, .. } => seat,
+        _ => return None,
+    };
     let rank = doc.var_reach(body.read).chain().map_or(0, <[VarId]>::len);
     if body.at.len() != rank {
-        return Some(crate::var::SelectionFault::IndexRank {
-            found: body.at.len(),
-            rank,
-        });
+        return Some(crate::var::SelectionFault::Input(
+            crate::node::InputFault::IndexRank {
+                seat,
+                found: body.at.len(),
+                rank,
+            },
+        ));
     }
-    if !matches!(slot, SlotId::Operand(crate::OperandSlot::Side { .. })) {
+    if !matches!(seat, crate::OperandSlot::Side { .. }) {
         return None;
     }
     body.at
@@ -1606,18 +1624,26 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
         .map(|k| crate::var::SelectionFault::SideIndex { k })
 }
 
-/// **The count `index` holds where it is written in the document**: an
-/// anonymous variable a count literal lowered to. `None` for any other
-/// variable, whose value is an evaluation's.
+/// **The count `index` holds where it is written in the document**: a
+/// free count, its value a number the document holds, or a count
+/// literal lowered anonymously. `None` for any other variable, whose
+/// value is an evaluation's.
 pub(crate) fn written_count<P>(doc: &Doc<P>, index: VarId) -> Option<i64> {
-    if doc.var_name(index).is_some() {
-        return None;
-    }
     match doc.var(index).map(Var::def)? {
         VarDef::Free(crate::doc::FreeVar::Count { value }) => Some(*value),
-        VarDef::Defined(expr) => expr.as_integer(),
+        VarDef::Defined(expr) if doc.var_name(index).is_none() => expr.as_integer(),
         _ => None,
     }
+}
+
+/// **The index values a stored member read writes**
+/// ([`written_count`] each), one per index, outermost first; `None`
+/// where an index is no written count or no `u32` holds it.
+pub(crate) fn written_member<P>(doc: &Doc<P>, body: &crate::BodyRead<VarId>) -> Option<Vec<u32>> {
+    body.at
+        .iter()
+        .map(|&index| u32::try_from(written_count(doc, index)?).ok())
+        .collect()
 }
 
 /// **A selection authored at a seat, minted** (D10): the body read
@@ -7224,17 +7250,9 @@ impl Recording<'_, crate::ProfileProgram> {
         // table names it otherwise.
         let family_name;
         let face = if body.is_indexed() {
-            let member: Option<Vec<u32>> = body
-                .at
-                .iter()
-                .map(|index| {
-                    index
-                        .as_integer()
-                        .and_then(|value| u32::try_from(value).ok())
-                })
-                .collect();
-            let Some(name) =
-                member.and_then(|member| crate::names::family_entity(&ev, at, &member, face))
+            let Some(name) = body
+                .written_member()
+                .and_then(|member| crate::names::family_entity(&ev, at, &member, face))
             else {
                 return crate::Orientation::IDENTITY;
             };
@@ -9203,7 +9221,7 @@ fn selections_going<P: crate::ProfilePayload>(doc: &Doc<P>) -> std::collections:
 /// body, and through a pose written in place (an anonymous definition)
 /// every read inside it, in read order. A named pose is a read of its
 /// own and is not walked.
-fn seat_reads<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
+pub(crate) fn seat_reads<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
     fn walk<P>(doc: &Doc<P>, var: VarId, out: &mut Vec<VarId>) {
         if out.contains(&var) {
             return;

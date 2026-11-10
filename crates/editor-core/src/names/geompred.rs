@@ -281,6 +281,14 @@ pub enum SelectRefusal {
         /// The family's operation.
         node: crate::RecipeNodeId,
     },
+    /// The read holds no member at the index values asked: no family,
+    /// or values past its members.
+    NoMember {
+        /// The read's operation.
+        node: crate::RecipeNodeId,
+        /// The index values asked, outermost first.
+        member: Vec<u32>,
+    },
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -379,6 +387,12 @@ impl crate::spoken::Say for SelectRefusal {
                 f,
                 "select: the ambiguity band itself could not be built from the ambient \
                  tolerance, so no comparison below it can be trusted: {error}"
+            ),
+            Self::NoMember { node, member } => write!(
+                f,
+                "select: {} holds no member at {member:?}. {}",
+                by.node(*node),
+                crate::sentence::Recourse("read a member the family has, one value per index")
             ),
             Self::Family { node } => write!(
                 f,
@@ -646,6 +660,7 @@ mod census {
             BadValue,
             Band,
             Family,
+            NoMember,
         ];
     }
 
@@ -703,6 +718,10 @@ mod census {
             }),
             SelectRefusal::Family {
                 node: RecipeNodeId::new(0, 7),
+            },
+            SelectRefusal::NoMember {
+                node: RecipeNodeId::new(0, 7),
+                member: vec![3],
             },
         ];
         let read: Vec<String> = samples

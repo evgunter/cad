@@ -449,57 +449,11 @@ impl core::fmt::Display for SlotKind {
 }
 
 /// A mate side as its seat reads it: the `Face` selection of its name
-/// in `at`'s body ([`sited_selection`]).
+/// in `at`'s body, or in the member of it the side reads
+/// ([`BodyRead::member`]).
 impl From<crate::SitedFace> for Operand {
     fn from(r: crate::SitedFace) -> Self {
-        sited_selection(r.at, r.name.into_name())
-    }
-}
-
-/// **A sited name, as the selection of it a seat reads**
-/// ([`selection_at`] of `at`'s body). The inverse of
-/// [`crate::mate::member::head_of`].
-fn sited_selection(at: RecipeNodeId, name: crate::names::StableName) -> Operand {
-    selection_at(Operand::Node(at), at, vec![name])
-}
-
-/// **The selection of `names` in the body `read` reads, the output of
-/// the operation `at`, as one body** (REFERENCES DM3: a selection reads
-/// one body): where every name is the table of the family `at` defines
-/// spelling an entity of one member — `Member { at: values, of }` at
-/// `at`, the same values throughout, as a site states one and as a body
-/// built from the family carries it — the selection of that member,
-/// `xs[i]` at the values written as counts, by its own names `of`; any
-/// other as written.
-pub(crate) fn selection_at(
-    read: Operand,
-    at: RecipeNodeId,
-    names: Vec<crate::names::StableName>,
-) -> Operand {
-    let member = |name: &crate::names::StableName| match name.path.as_slice() {
-        [crate::names::RoleSeg::Member { at: values, of }] if name.node == at => {
-            Some((values.clone(), (**of).clone()))
-        }
-        _ => None,
-    };
-    let members: Option<Vec<_>> = names.iter().map(member).collect();
-    match members {
-        Some(members)
-            if members
-                .first()
-                .is_some_and(|(first, _)| members.iter().all(|(values, _)| values == first)) =>
-        {
-            let at = members[0]
-                .0
-                .iter()
-                .map(|&(_, value)| crate::Formula::count(i64::from(value)))
-                .collect();
-            Operand::select(
-                BodyRead::indexed(read, at),
-                members.into_iter().map(|(_, own)| own).collect(),
-            )
-        }
-        _ => Operand::select(read, names),
+        Self::select(BodyRead::member(r.at, &r.member), vec![r.name.into_name()])
     }
 }
 
@@ -668,6 +622,37 @@ impl<S: crate::expr::Slot> BodyRead<S> {
             read: read(seat, &self.read)?,
             at: self.at.iter().map(&mut *f).collect::<Result<_, _>>()?,
         })
+    }
+}
+
+impl BodyRead<crate::Formula> {
+    /// **One member of the family `read`, at the index values `member`**
+    /// written as counts (`xs[i]`); the plain read where `member` is
+    /// empty. The one spelling of a member read at known values.
+    #[must_use]
+    pub fn member(read: impl Into<Operand>, member: &[u32]) -> Self {
+        Self::indexed(
+            read,
+            member
+                .iter()
+                .map(|&value| crate::Formula::count(i64::from(value)))
+                .collect(),
+        )
+    }
+
+    /// **The index values this read writes as numbers**, one per index:
+    /// `Some(vec![])` for a plain read, `None` where an index is a
+    /// formula no number spells, or a count no `u32` holds.
+    #[must_use]
+    pub fn written_member(&self) -> Option<Vec<u32>> {
+        self.at
+            .iter()
+            .map(|index| {
+                index
+                    .as_integer()
+                    .and_then(|value| u32::try_from(value).ok())
+            })
+            .collect()
     }
 }
 
@@ -869,6 +854,6 @@ impl<'de, S: crate::expr::Slot> serde::Deserialize<'de> for BodyRead<S> {
 /// ([`crate::var::SelectionFault::OtherBody`]).
 impl From<crate::SitedRef> for Operand {
     fn from(r: crate::SitedRef) -> Self {
-        sited_selection(r.at, r.name)
+        Self::select(r.at, vec![r.name])
     }
 }

@@ -3884,6 +3884,7 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::Band": "SelectRefusal.reason",
     "SelectRefusal::Frame": "SelectRefusal.reason",
     "SelectRefusal::Family": "SelectRefusal.reason",
+    "SelectRefusal::NoMember": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
     "SplitError::CutsTheWorld": "SplitError.variant",

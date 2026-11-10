@@ -1006,16 +1006,45 @@ pub fn select<T: topo::AtRestPolicy + Decide>(
 /// `sel`** (REFERENCES DM3, `xs[i]`): [`select`] over the member's own
 /// table ([`super::interrogate::member_table`]), so the names are the
 /// member's own, those a selection of `xs[i]` holds. Empty where `at`
-/// names no family or no member stands at `member`, as [`select`] is
-/// empty for a read with no value.
+/// has no value, as [`select`] is.
+///
+/// # Errors
+///
+/// [`SelectRefusal::NoMember`] where `at`'s value holds no member at
+/// `member`: a read that is no family, or values past its members.
 pub fn select_member<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
     member: &[u32],
     sel: &Selector,
-) -> Vec<StableName> {
+) -> Result<Vec<StableName>, SelectRefusal> {
+    Ok(member_of(ev, at, member)?.map_or_else(Vec::new, |(_, _, table)| matching(table, sel)))
+}
+
+/// [`super::interrogate::member_table`], refusing where `at` has a
+/// value that holds no member at `member`; `None` where it has no value.
+fn member_of<'e, T: topo::AtRestPolicy + Decide>(
+    ev: &'e Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+) -> Result<Option<(crate::VarId, u32, &'e super::NameTable)>, SelectRefusal> {
+    let at = at.into();
+    let Some(node) = ev
+        .at_var(at)
+        .and_then(|var| ev.read_port(var))
+        .map(|(node, _)| node)
+    else {
+        return Ok(None);
+    };
+    if ev.value(node).is_none() {
+        return Ok(None);
+    }
     super::interrogate::member_table(ev, at, member)
-        .map_or_else(Vec::new, |(_, _, table)| matching(table, sel))
+        .map(Some)
+        .ok_or_else(|| SelectRefusal::NoMember {
+            node,
+            member: member.to_vec(),
+        })
 }
 
 /// The names of `table` matching `sel`, in canonical order.
@@ -1125,11 +1154,11 @@ pub fn select_where<T: topo::AtRestPolicy + Decide>(
 /// (REFERENCES DM3, `xs[i]`): the member's own names
 /// ([`select_member`]), each candidate read at the member's place in
 /// the family, and a distance measured from a face the member's own
-/// table names. Empty where no member stands at `member`.
+/// table names.
 ///
 /// # Errors
 ///
-/// [`select_where`]'s.
+/// [`select_member`]'s and [`select_where`]'s.
 pub fn select_where_member<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
     at: impl Into<crate::At>,
@@ -1138,7 +1167,7 @@ pub fn select_where_member<T: topo::AtRestPolicy + Decide>(
     geom: &[GeomPred],
     (params, tol): (&VarEnv<T>, Tol),
 ) -> Result<Vec<StableName>, SelectRefusal> {
-    let Some((var, place, own)) = super::interrogate::member_table(ev, at, member) else {
+    let Some((var, place, own)) = member_of(ev, at, member)? else {
         return Ok(Vec::new());
     };
     // The member's own names, each at its body's place in the family.

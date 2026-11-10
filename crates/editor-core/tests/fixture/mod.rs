@@ -776,6 +776,22 @@ pub fn head(name: impl Sited) -> editor_core::SitedFace {
     name.sited()
 }
 
+/// **A side read in one member of the family `family` defines**,
+/// `family[member]`, by the member's own name `of` (REFERENCES DM3): the
+/// native member read a side states.
+pub fn member_head(family: RecipeNodeId, member: &[u32], of: impl Sited) -> editor_core::SitedFace {
+    editor_core::SitedFace::in_member(family, member.to_vec(), face(of.name()))
+}
+
+/// **`name` read in one member of `family`**, `family[member]`, of any
+/// entity kind: the one-name selection of that member.
+pub fn read_member(family: RecipeNodeId, member: &[u32], of: impl Sited) -> editor_core::Operand {
+    editor_core::Operand::select(
+        editor_core::BodyRead::member(family, member),
+        vec![of.name()],
+    )
+}
+
 /// The same side read at `at` rather than at its mint.
 pub fn head_at(at: RecipeNodeId, name: impl Into<StableName>) -> editor_core::SitedFace {
     editor_core::SitedFace::new(at, face(name))
@@ -880,6 +896,43 @@ impl Sited for (RecipeNodeId, StableName) {
     }
     fn name(self) -> StableName {
         self.1
+    }
+}
+
+/// **A name read in one member of a family** (REFERENCES DM3): the
+/// family, the member's index values keyed by their indices, and the
+/// member's own name. A side states it natively, `family[i]` by the own
+/// name ([`Sited::sited`]); a readback of the family's table names it as
+/// the table does, under the `Member` qualifier ([`Sited::name`]).
+#[derive(Debug, Clone)]
+pub struct InMember {
+    /// The family's operation.
+    pub family: RecipeNodeId,
+    /// The member's index values, outermost first.
+    pub at: editor_core::MemberAt,
+    /// The member's own name.
+    pub of: StableName,
+}
+
+impl Sited for InMember {
+    fn site(&self) -> RecipeNodeId {
+        self.family
+    }
+    fn name(self) -> StableName {
+        in_member(self.family, self.at, self.of)
+    }
+    fn sited(self) -> editor_core::SitedFace {
+        let member: Vec<u32> = self.at.iter().map(|&(_, value)| value).collect();
+        editor_core::SitedFace::in_member(self.family, member, face(self.of))
+    }
+}
+
+/// [`InMember`] of a one-index family: member `i` of `index`.
+pub fn copy_site(family: RecipeNodeId, index: VarId, i: u32, of: impl Sited) -> InMember {
+    InMember {
+        family,
+        at: vec![(index, i)],
+        of: of.name(),
     }
 }
 
@@ -3976,10 +4029,9 @@ fn glued_block(
 }
 
 /// **`name` read at `at`**, of any entity kind: a one-name selection of
-/// `at`'s body, or of the member of it a family's name states
-/// (`From<SitedRef> for Operand`).
+/// `at`'s body.
 pub fn read_at(at: RecipeNodeId, name: StableName) -> editor_core::Operand {
-    editor_core::SitedRef::new(at, name).into()
+    editor_core::Operand::select(at, vec![name])
 }
 
 /// [`read_at`] where `name` is read ([`Sited`]): at the node that

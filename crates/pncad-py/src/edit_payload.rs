@@ -328,7 +328,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 F::NotASelection { .. }
                 | F::Seat { .. }
                 | F::OtherBody
-                | F::IndexRank { .. } => (None, None, None),
+                | F::Input(_) => (None, None, None),
             };
             let (found_kind, expected_kind) = match fault {
                 F::Kind {
@@ -340,7 +340,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 | F::Count { .. }
                 | F::NotASelection { .. }
                 | F::OtherBody
-                | F::IndexRank { .. }
+                | F::Input(_)
                 | F::SideIndex { .. } => (None, None),
             };
             EditPayload {

@@ -16,12 +16,12 @@ use editor_core::Dimension;
 
 use editor_core::{
     CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+    ProfileDoc, RecipeNodeId, RoleSeg, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
-    constrain, head, in_copy, insert, insert_pinned, len, mated_instance, on_frame, plane, rest,
-    run, solve,
+    constrain, head, insert, insert_pinned, len, mated_instance, member_head, on_frame, plane,
+    rest, run, solve,
 };
 use geom_core::Tol;
 
@@ -77,26 +77,23 @@ impl Cube {
         in_part(instance, self.body, end)
     }
 
-    /// The frame at corner 0 of cap `end` as `instance` places it,
-    /// each name spelled by `wrap` ([`fixture::corner_frame`]): `z` up
-    /// its lateral edge, `x` along wall 0.
+    /// The frame at corner 0 of cap `end` as `instance` places it, or
+    /// as one member of a family of it does (`member`: the family and
+    /// the member's index values), read in that member by the part's own
+    /// names ([`fixture::corner_frame`]): `z` up its lateral edge, `x`
+    /// along wall 0.
     fn frame(
         &self,
         instance: RecipeNodeId,
         end: CapEnd,
-        wrap: &dyn Fn(StableName) -> StableName,
+        member: Option<(RecipeNodeId, &[u32])>,
     ) -> editor_core::Operand {
         let name = |kind, seg| {
             let own = fixture::resolver::in_part_of(kind, instance, self.body, seg);
-            let worn = wrap(own.name.clone());
-            // A part's own name is read at its instance; a name a
-            // pattern wraps, at the pattern that minted it.
-            let at = if worn == own.name {
-                instance
-            } else {
-                worn.node
-            };
-            fixture::read_at(at, worn)
+            match member {
+                Some((family, at)) => fixture::read_member(family, at, own.name),
+                None => fixture::read_at(instance, own.name),
+            }
         };
         fixture::corner_frame(
             name(EntityKind::Edge, RoleSeg::LateralEdge(self.corners[0])),
@@ -106,8 +103,8 @@ impl Cube {
 }
 
 /// **The seat**: one pin (FORK-S3O) equating the top's corner frame
-/// at its start cap with the copy's at its end cap (`copy` wraps the
-/// copy's part names), so the top stands on the copy flush, one unit up
+/// at its start cap with the copy's at its end cap (`copy`: the member
+/// of a family of the copy the seat reads, if any), so the top stands on the copy flush, one unit up
 /// the copy's own coordinates, whatever the copy's pose. Three plane
 /// mates (a rest and two walls) said it before the bundle rule, which
 /// refuses them.
@@ -115,15 +112,15 @@ fn seat(
     doc: ProfileDoc,
     top: RecipeNodeId,
     top_part: &Cube,
-    copy: impl Fn(StableName) -> StableName,
+    copy: Option<(RecipeNodeId, &[u32])>,
     copy_part: &Cube,
     copy_at: RecipeNodeId,
 ) -> (ProfileDoc, MateRef) {
     constrain(
         doc,
         fixture::frame_seat(
-            top_part.frame(top, CapEnd::Start, &|n| n),
-            copy_part.frame(copy_at, CapEnd::End, &copy),
+            top_part.frame(top, CapEnd::Start, None),
+            copy_part.frame(copy_at, CapEnd::End, copy),
             0.0,
             0.0,
         ),
@@ -189,13 +186,13 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
         translation: [5.0, 7.0, 11.0],
     };
     let (doc, leg) = pinned_at(doc, leg_part.doc_ref, &f, &o);
-    let (doc, k, pattern) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], spacing, 4);
+    let (doc, _k, pattern) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], spacing, 4);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = seat(
         doc,
         top,
         &top_part,
-        |n| in_copy(pattern, k, 2, n),
+        Some((pattern, &[2][..])),
         &leg_part,
         leg,
     );
@@ -319,7 +316,7 @@ fn r1_off_origin_circular_axis_with_a_non_identity_group_frame() {
         unturn(f, axis_dir),
         &o,
     );
-    let (doc, k, pattern) = crate::fixture::circular(doc, leg, axis, theta, 3);
+    let (doc, _k, pattern) = crate::fixture::circular(doc, leg, axis, theta, 3);
     let mut doc = doc;
     let mut seated = Vec::new();
     for member in [0, 2] {
@@ -328,7 +325,7 @@ fn r1_off_origin_circular_axis_with_a_non_identity_group_frame() {
             next,
             top,
             &top_part,
-            |n| in_copy(pattern, k, member, n),
+            Some((pattern, &[member][..])),
             &leg_part,
             leg,
         );
@@ -381,13 +378,13 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
     let doc = ProfileDoc::empty(DocumentId::derive("r1-freedom"), Tol::witness());
     // The leg is a loose copy: the identity of its own space.
     let (doc, leg) = insert(doc, crate::fixture::mated_instance(leg_part.doc_ref));
-    let (doc, k, pattern) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 3);
+    let (doc, _k, pattern) = crate::fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 3);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = seat(
         doc,
         top,
         &top_part,
-        |n| in_copy(pattern, k, 1, n),
+        Some((pattern, &[1][..])),
         &leg_part,
         leg,
     );
@@ -417,8 +414,8 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         &DocEdit::AddConstraint {
             placement: pattern,
             mate: Box::new(editor_core::Mate {
-                on: plane(head(in_copy(pattern, k, 0, leg_part.cap(leg, CapEnd::End)))),
-                to: plane(head(in_copy(pattern, k, 1, leg_part.cap(leg, CapEnd::End)))),
+                on: plane(member_head(pattern, &[0], leg_part.cap(leg, CapEnd::End))),
+                to: plane(member_head(pattern, &[1], leg_part.cap(leg, CapEnd::End))),
                 orient: editor_core::Orientation::IDENTITY,
             }),
             fresh: Vec::new(),
@@ -492,7 +489,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
         } else {
             insert_pinned(doc, crate::fixture::mated_instance(c_part.doc_ref), &o)
         };
-        let (doc, _m0) = seat(doc, b, &b_part, |n| n, &a_part, a);
+        let (doc, _m0) = seat(doc, b, &b_part, None, &a_part, a);
         let doc = if chain {
             // `c` rests on `b`, its three freedoms set by values: a
             // quarter along `b`'s x, none along its y, no turn.
@@ -562,16 +559,16 @@ fn r1_pattern_free_solves_are_bit_identical() {
 /// `Member` keys ONE of its two indices, which reads no face, and a
 /// family of a PLACED COPY, which places.
 ///
-/// **The first half is a NAME row, not a nesting row.** A member of a
-/// family of families is keyed by both indices. This name keys one,
-/// which is the name the family's table never mints: the side it states
-/// reads the member at one index of two, which the door refuses as the
-/// read's rank (`SelectionFault::IndexRank`, REFERENCES DM3).
+/// **The first half is a READ row, not a nesting row.** A member of a
+/// family of families is keyed by both indices. This side reads it at
+/// one, `outer[1]`, which the door refuses as the read's rank
+/// (`InputFault::IndexRank`, REFERENCES DM3), as it refuses a node
+/// seat's.
 ///
-/// *Breaks if* a one-index name over a family of families is admitted,
+/// *Breaks if* a one-index read of a family of families is admitted,
 /// or a family of a placed copy does not place the top.
 #[test]
-fn r1_an_underqualified_nested_name_refuses_and_a_family_of_a_placed_copy_places() {
+fn r1_an_underqualified_nested_read_refuses_and_a_family_of_a_placed_copy_places() {
     // (a) a family OF A FAMILY of an instance.
     let mut store = PartStore::default();
     let leg_part = cube(&mut store, "r1-nested-leg");
@@ -593,7 +590,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_family_of_a_placed_copy_places
             placement: top,
             mate: Box::new(rest(
                 head(top_part.cap(top, CapEnd::Start)),
-                head(in_copy(outer, outer_k, 1, leg_part.cap(leg, CapEnd::End))),
+                member_head(outer, &[1], leg_part.cap(leg, CapEnd::End)),
             )),
             fresh: Vec::new(),
         },
@@ -603,13 +600,16 @@ fn r1_an_underqualified_nested_name_refuses_and_a_family_of_a_placed_copy_places
         matches!(
             refused,
             Err(editor_core::EditError::SelectionShape {
-                fault: editor_core::SelectionFault::IndexRank { found: 1, rank: 2 },
+                fault: editor_core::SelectionFault::Input(editor_core::InputFault::IndexRank {
+                    found: 1,
+                    rank: 2,
+                    ..
+                }),
                 ..
             })
         ),
-        "a one-index name over a family of families refuses its read's rank: {refused:?}"
+        "a one-index read of a family of families refuses its rank: {refused:?}"
     );
-    let _ = &o;
 
     // (b) a family of a PLACEMENT of an instance.
     let mut store2 = PartStore::default();
@@ -619,19 +619,10 @@ fn r1_an_underqualified_nested_name_refuses_and_a_family_of_a_placed_copy_places
     let doc2 = ProfileDoc::empty(DocumentId::derive("r1-xform"), Tol::witness());
     let (doc2, li) = insert_pinned(doc2, crate::fixture::mated_instance(leg2.doc_ref), &o2);
     let (doc2, xf) = crate::mate1_member_vocab::slid_with(doc2, li, li, [0.0, 0.0, 0.5], &o2);
-    let (doc2, pat_k, pat) = crate::fixture::linear(doc2, xf, [1.0, 0.0, 0.0], 2.0, 2);
+    let (doc2, _pat_k, pat) = crate::fixture::linear(doc2, xf, [1.0, 0.0, 0.0], 2.0, 2);
     let (doc2, ti) = insert(doc2, mated_instance(top2.doc_ref));
-    // The copy's names are its placement's: the leg's own, under the
-    // `Placed` layer of `xf`.
-    let copy = |n: StableName| n;
-    let (doc2, m2) = seat(
-        doc2,
-        ti,
-        &top2,
-        |n| in_copy(pat, pat_k, 1, copy(n)),
-        &leg2,
-        li,
-    );
+    // The copy's names are its placement's: the leg's own.
+    let (doc2, m2) = seat(doc2, ti, &top2, Some((pat, &[1][..])), &leg2, li);
     let poses2 = solve(&doc2, &o2, Tol::witness());
     // A family OF A PLACED COPY resolves: the face is read through the
     // family's `Member` and on through the copy's placement, and the
@@ -677,7 +668,7 @@ fn r1_an_out_of_range_copy_refuses_at_the_solve_too() {
         doc,
         kept,
         &top_part,
-        |n| in_copy(pattern, k, 0, n),
+        Some((pattern, &[0][..])),
         &leg_part,
         leg,
     );
@@ -686,7 +677,7 @@ fn r1_an_out_of_range_copy_refuses_at_the_solve_too() {
         doc,
         stranded,
         &top_part,
-        |n| in_copy(pattern, k, 1, n),
+        Some((pattern, &[1][..])),
         &leg_part,
         leg,
     );

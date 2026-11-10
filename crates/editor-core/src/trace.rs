@@ -787,13 +787,14 @@ impl core::fmt::Display for TracedFrameFault {
 
 impl core::error::Error for TracedFrameFault {}
 
-/// The body and the one name of a face selection.
+/// The body read and the one name of a face selection: a body, or one
+/// member of a family by its own name.
 fn face_pick(
     pick: &crate::Operand,
-) -> Result<(&crate::Operand, &crate::StableName), TracedFrameFault> {
+) -> Result<(&crate::BodyRead<crate::Formula>, &crate::StableName), TracedFrameFault> {
     match pick {
         crate::Operand::Select { body, names } => match names.as_slice() {
-            [name] if !body.is_indexed() => Ok((&body.read, name)),
+            [name] => Ok((body, name)),
             _ => Err(TracedFrameFault::NotAFace),
         },
         _ => Err(TracedFrameFault::NotAFace),
@@ -812,7 +813,8 @@ fn face_pick(
 /// The picked face is checked against `ev`, as a profile drawn on the
 /// frame reads it: a plane, square to the axis, with a vertex off it.
 /// `plane` and `traced` are face selections (`Operand::select` of one
-/// name).
+/// name), each of a body or of one member of a family, `xs[i]` at counts
+/// written as numbers, by the member's own name.
 ///
 /// # Errors
 ///
@@ -831,7 +833,7 @@ pub fn traced_frame(
     let band = Band::linear(tol)
         .map_err(|e| TracedFrameFault::Read(Box::new(crate::NodeErrorKind::Band(e))))?;
     let (_, framed, table, _) =
-        crate::mate::corner::read_of(doc, ev, plane_body).map_err(TracedFrameFault::Body)?;
+        crate::mate::corner::read_of_member(doc, ev, plane_body).map_err(TracedFrameFault::Body)?;
     let solid = framed.body();
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let Some((face, _)) = solid

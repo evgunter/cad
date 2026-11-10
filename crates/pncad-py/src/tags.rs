@@ -312,6 +312,7 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
         R::Family { .. } => "family",
+        R::NoMember { .. } => "no_member",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }
@@ -3482,7 +3483,7 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
         F::Kind { .. } => "name_kind",
         F::Repeated { .. } => "repeated",
         F::OtherBody => "other_body",
-        F::IndexRank { .. } => "index_rank",
+        F::Input(fault) => input_fault_tag(fault),
         F::SideIndex { .. } => "side_index",
     }
 }

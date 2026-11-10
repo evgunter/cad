@@ -249,7 +249,9 @@ class TestASelectionReadsOneBody(unittest.TestCase):
         own = ev.select(prototype, edges)
         self.assertEqual(ev.select(row[1], edges), own)
         self.assertEqual(ev.select_where(row[1], edges, []), own)
-        self.assertEqual(ev.select(row[COUNT], edges), [], "no member at the count")
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.select(row[COUNT], edges)
+        self.assertEqual(caught.exception.reason, "no_member")
 
     def test_a_fillet_of_a_member_reads_that_member(self):
         doc = Doc()

@@ -1427,7 +1427,7 @@ impl Evaluation {
     ) -> PyResult<(pncad::select::At, pncad::prelude::StableName)> {
         let name = super::doc::name_from_text(name)?;
         match node {
-            super::doc::SelectAt::At(at) => Ok((at.at(), name)),
+            super::doc::SelectAt::Plain(at) => Ok((at.at(), name)),
             super::doc::SelectAt::Member(read) => {
                 let (at, member) = read.member()?;
                 let whole = pncad::select::family_entity(&self.inner, at, &member, &name)
@@ -1701,9 +1701,11 @@ impl Evaluation {
         let found = match node {
             super::doc::SelectAt::Member(read) => {
                 let (at, member) = read.member()?;
-                pncad::select::select_member(&self.inner, at, &member, &selector.0)
+                pncad::select::select_member(&self.inner, at, &member, &selector.0).map_err(
+                    |refusal| super::select::select_refusal(py, &refusal, &self.doc, &self.inner),
+                )?
             }
-            super::doc::SelectAt::At(at) => {
+            super::doc::SelectAt::Plain(at) => {
                 let at = at.at();
                 self.one_body(py, at)?;
                 pncad::select::select(&self.inner, at, &selector.0)
@@ -1757,7 +1759,7 @@ impl Evaluation {
                     (&self.params, tol),
                 )
             }
-            super::doc::SelectAt::At(at) => {
+            super::doc::SelectAt::Plain(at) => {
                 let at = at.at();
                 self.one_body(py, at)?;
                 pncad::select::select_where(&self.inner, at, &selector.0, &atoms, &self.params, tol)

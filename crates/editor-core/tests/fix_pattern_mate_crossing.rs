@@ -38,7 +38,7 @@ use editor_core::{
     RoleSeg,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{in_copy, in_member, insert, len, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// The unit cube `[0,1]³`, as a whole part document, and its body.
@@ -150,7 +150,7 @@ fn four_legs(
     let (doc, mate) = seat(
         doc,
         top,
-        in_copy(pattern, k, COPY, in_part(leg, leg_body, CapEnd::End)),
+        fixture::copy_site(pattern, k, COPY, in_part(leg, leg_body, CapEnd::End)),
         in_part(top, top_body, CapEnd::Start),
     );
     (doc, leg, pattern, top, mate, leg_body)
@@ -342,12 +342,11 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
         .expect("the index crosses with its family");
     assert_eq!(
         a,
-        crate::fixture::head(in_copy(
+        crate::fixture::member_head(
             new_pattern,
-            new_k,
-            COPY,
+            &[COPY],
             in_part(new_leg, leg_body, CapEnd::End)
-        )),
+        ),
         "ids remap through the recorded map; the member's value does not"
     );
     let RoleSeg::Member { ref at, .. } = a.name.path[0] else {
@@ -360,18 +359,18 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
     );
 }
 
-/// A head whose `Member` qualifier keys FEWER indices than its family
-/// is over names no member, and no side can state it: the side it spells
-/// reads the family at one index of two, which the door refuses as the
-/// read's rank (`SelectionFault::IndexRank`, REFERENCES DM3). So no such
-/// constraint reaches a seam, and the gate asking the member vocabulary
-/// is never handed a head its walk refuses (AQ8 option (b), SKIP —
-/// `crates/editor-core/ASSEMBLY.md`'s AQ8 clause).
+/// A side reading a family of families at FEWER indices than the
+/// family is keyed by names no member: `outer[1]`, one index of two. The
+/// door refuses it as the read's rank (`InputFault::IndexRank`,
+/// REFERENCES DM3), the refusal a node seat's `outer[1]` takes too, so
+/// the constraint is never written. A head that reaches the seam from a
+/// stored side is read off a read the door admitted; one a later edit
+/// leaves at another rank is `work/refs/a-rank-change-leaves-readers-unsaveable.md`.
 ///
 /// *Breaks if* a side reading a family of families at one index is
 /// admitted.
 #[test]
-fn an_underqualified_family_head_is_refused_at_the_door() {
+fn an_underqualified_member_side_is_refused_at_the_door() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-nested"), Tol::witness());
     let (doc, leg, leg_body) = pinned_block(doc, "fix-xs-n-leg");
     let (doc, i, inner) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
@@ -386,11 +385,7 @@ fn an_underqualified_family_head_is_refused_at_the_door() {
             placement: top,
             mate: Box::new(fixture::rest(
                 fixture::head(in_part(top, top_body, CapEnd::Start)),
-                fixture::head(in_member(
-                    outer,
-                    vec![(j, 1)],
-                    in_part(leg, leg_body, CapEnd::End),
-                )),
+                fixture::member_head(outer, &[1], in_part(leg, leg_body, CapEnd::End)),
             )),
             fresh: Vec::new(),
         },
@@ -400,7 +395,11 @@ fn an_underqualified_family_head_is_refused_at_the_door() {
         matches!(
             refused,
             Err(editor_core::EditError::SelectionShape {
-                fault: editor_core::SelectionFault::IndexRank { found: 1, rank: 2 },
+                fault: editor_core::SelectionFault::Input(editor_core::InputFault::IndexRank {
+                    found: 1,
+                    rank: 2,
+                    ..
+                }),
                 ..
             })
         ),

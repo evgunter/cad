@@ -102,6 +102,31 @@ pub(crate) fn read_of(
     evaluation: &Evaluation<f64>,
     body: &Operand,
 ) -> Result<ReadBody, PinRefusal> {
+    read_in(doc, evaluation, body, None)
+}
+
+/// [`read_of`] of one member of a family, `xs[i]` at counts written as
+/// numbers (REFERENCES DM3): that member's body, in its own names, and
+/// its motion. A plain read is [`read_of`]'s.
+pub(crate) fn read_of_member(
+    doc: &crate::ProfileDoc,
+    evaluation: &Evaluation<f64>,
+    body: &crate::BodyRead<crate::Formula>,
+) -> Result<ReadBody, PinRefusal> {
+    if !body.is_indexed() {
+        return read_of(doc, evaluation, &body.read);
+    }
+    let member = body.written_member().ok_or(PinRefusal::NoNode)?;
+    read_in(doc, evaluation, &body.read, Some(&member))
+}
+
+/// [`read_of`] of `body`, or of its member at `member`.
+fn read_in(
+    doc: &crate::ProfileDoc,
+    evaluation: &Evaluation<f64>,
+    body: &Operand,
+    member: Option<&[u32]>,
+) -> Result<ReadBody, PinRefusal> {
     let node = match body {
         Operand::Output { node, .. } | Operand::Node(node) => *node,
         Operand::Var(var) => doc.operation_of(*var).ok_or(PinRefusal::NoNode)?,
@@ -110,6 +135,20 @@ pub(crate) fn read_of(
     let Some(NodeResult::Ok(value)) = evaluation.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
+    if let Some(member) = member {
+        let own = value
+            .members
+            .as_ref()
+            .and_then(|members| members.at(member))
+            .ok_or(PinRefusal::NotABody { node })?;
+        let solid = own
+            .payload
+            .one_body()
+            .flatten()
+            .ok_or(PinRefusal::NotABody { node })?;
+        let table = own.output(0).ok_or(PinRefusal::NotABody { node })?.table();
+        return Ok((node, solid.clone(), table.clone(), own.motion));
+    }
     // A family is read through its first member that is a body, in that
     // member's own names: the names a reader evaluated once per member
     // reads at each (D10 `[repetition]`), which any member spells. An

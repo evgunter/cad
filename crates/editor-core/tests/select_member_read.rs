@@ -12,7 +12,7 @@ use crate::fixture;
 use editor_core::{
     BodyRead, Dimension, DocEdit, EditError, EntityKind, Evaluation, Formula, MeasurePrimitive,
     Node, NodeError, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, ValuePayload, VarId,
+    SnapshotError, StableName, ValuePayload, VarId,
 };
 use fixture::{insert, len, run};
 use geom_core::Tol;
@@ -314,5 +314,182 @@ fn a_selection_of_an_empty_member_refuses_empty_operand() {
         matches!(error_of(&ev, fillet), NodeErrorKind::EmptyOperand { input } if *input == cut),
         "the empty member is an empty operand: {:?}",
         ev.result(fillet)
+    );
+}
+
+/// A pinned leg, a row of two of it under `k`, and a top resting on
+/// the row's member 1 by a plane mate: the side `pattern[1]`, read
+/// through the plane pose of its cap. Answers the document, `k`, the
+/// top, the side's index variable and the options reaching the parts.
+fn side_on_member(
+    label: &str,
+) -> (
+    ProfileDoc,
+    VarId,
+    RecipeNodeId,
+    VarId,
+    editor_core::EvalOptions,
+) {
+    use fixture::resolver::{PartStore, in_part, with_resolver};
+    let leg = |label: &str| {
+        let doc = ProfileDoc::empty(editor_core::DocumentId::derive(label), Tol::witness());
+        let (doc, p) = fixture::on_frame(
+            doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: p.into(),
+                distance: len(1.0),
+            },
+        )
+    };
+    let mut store = PartStore::default();
+    let (leg_ref, leg_body) = store.insert_part(leg(&format!("{label}-leg")), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(leg(&format!("{label}-top")), Tol::witness());
+    let o = with_resolver(store);
+    let doc = ProfileDoc::empty(editor_core::DocumentId::derive(label), Tol::witness());
+    let (doc, legs) = fixture::insert_pinned(doc, fixture::mated_instance(leg_ref), &o);
+    let (doc, k, pattern) = fixture::linear(doc, legs, [1.0, 0.0, 0.0], 2.0, 2);
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let to = fixture::flip(fixture::plane(fixture::member_head(
+        pattern,
+        &[1],
+        in_part(legs, leg_body, editor_core::CapEnd::End),
+    )));
+    let mate = fixture::mate(
+        fixture::plane(fixture::head(in_part(
+            top,
+            top_body,
+            editor_core::CapEnd::Start,
+        ))),
+        to,
+    );
+    let (doc, _) = fixture::constrain_with(
+        doc,
+        mate,
+        &[
+            (
+                editor_core::Coord::slide(editor_core::TargetAxis::X),
+                len(0.0),
+            ),
+            (
+                editor_core::Coord::slide(editor_core::TargetAxis::Y),
+                len(0.0),
+            ),
+            (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
+        ],
+    );
+    let index = doc
+        .var_ids()
+        .into_iter()
+        .find_map(|id| {
+            let select = doc.selection(id)?;
+            select.body.is_indexed().then(|| select.body.at[0])
+        })
+        .expect("the side is a member read");
+    (doc, k, top, index, o)
+}
+
+/// **A mate side's index named after the door is still a written
+/// count**: its value is the document's, so the side's head reads the
+/// member from the document, the top seats, and the document saves and
+/// loads. Red if naming the count strands the side.
+#[test]
+fn a_side_index_named_after_the_door_still_reads_its_member() {
+    let (doc, _, top, index, o) = side_on_member("select-side-named");
+    let doc = doc
+        .apply(
+            &DocEdit::RenameVar {
+                var: index.into(),
+                name: Some(editor_core::VarName::new("n").expect("a name")),
+            },
+            Tol::witness(),
+        )
+        .expect("the count is named")
+        .doc;
+    assert_eq!(
+        fixture::solve(&doc, &o, Tol::witness()).fault(top),
+        None,
+        "the top seats"
+    );
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    editor_core::persist::load(&text, Tol::witness()).expect("and loads");
+}
+
+/// **The load door holds a side read through a pose to the side's
+/// rules**, as the edit door does: a side whose index stops being a
+/// written count (`SideIndex`), and one whose family gains an index
+/// (`IndexRank`), each refuse at save, which asks the load door's
+/// checks, naming the selection. Red if the load door gathers a
+/// selection's seats from direct reads alone, which a mate side, read
+/// through its plane pose, never is.
+#[test]
+fn the_load_door_holds_a_side_read_through_a_pose() {
+    let (doc, k, _, index, _) = side_on_member("select-side-load");
+    let defined = doc
+        .apply(
+            &DocEdit::DefineVar {
+                var: editor_core::VarRef::Id(index),
+                def: editor_core::VarDecl::Defined(
+                    Formula::modulo(Formula::var(k, Dimension::Count), Formula::count(2))
+                        .expect("a count"),
+                ),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect(
+            "the redefinition is admitted (work/refs/a-rank-change-leaves-readers-unsaveable.md)",
+        )
+        .doc;
+    assert!(
+        matches!(
+            editor_core::persist::save(&defined, &[], Tol::witness()),
+            Err(editor_core::PersistError::Snapshot(
+                SnapshotError::SelectionShape {
+                    fault: editor_core::SelectionFault::SideIndex { k: 0 },
+                    ..
+                }
+            ))
+        ),
+        "a side's index defined as an expression refuses at the load door"
+    );
+    let (doc, j) = fixture::index(doc, "j", 2);
+    let deeper = doc
+        .apply(
+            &DocEdit::DefineVar {
+                var: editor_core::VarRef::Id(k),
+                def: editor_core::VarDecl::Index {
+                    count: Formula::count(2),
+                    within: Some(Formula::var(j, Dimension::Count)),
+                },
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect(
+            "the redefinition is admitted (work/refs/a-rank-change-leaves-readers-unsaveable.md)",
+        )
+        .doc;
+    assert!(
+        matches!(
+            editor_core::persist::save(&deeper, &[], Tol::witness()),
+            Err(editor_core::PersistError::Snapshot(
+                SnapshotError::SelectionShape {
+                    fault: editor_core::SelectionFault::Input(editor_core::InputFault::IndexRank {
+                        found: 1,
+                        rank: 2,
+                        ..
+                    }),
+                    ..
+                }
+            ))
+        ),
+        "a side whose family gained an index refuses at the load door"
     );
 }

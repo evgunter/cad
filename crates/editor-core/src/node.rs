@@ -1256,7 +1256,10 @@ use expr_table;
 /// any kind: a face, an edge, a vertex, a whole body.
 ///
 /// A mate's side is authored in its own type, [`SitedFace`], which
-/// fixes the name's kind to a face and lowers the same way.
+/// fixes the name's kind to a face and lowers the same way. A
+/// reference to one member of a family is written as the read it is,
+/// `Operand::select(BodyRead::indexed(xs, [i]), [name])`, by the
+/// member's own name (REFERENCES DM3).
 ///
 /// There is no `Option` on `at`: "as authored" is spelled
 /// [`SitedRef::at_mint`].
@@ -1301,11 +1304,18 @@ impl SitedRef {
 ///
 /// [`SitedRef`]'s shape with the name's kind fixed by the type. It
 /// lowers (`impl From<SitedFace> for Operand`) to a one-name selection
-/// of `at`'s output, which the door mints as a `Face` variable, so the
-/// selection's body read is an ordinary DAG edge and the name resolves
-/// against `at`'s own evaluated table through the N5 ladder every
-/// other authored name takes. A mate reads it inside a pose — the
-/// plane of the face ([`crate::pose::PoseDef::Plane`]).
+/// of `at`'s output — or, for a side on one member of the family `at`
+/// defines, of that member, `xs[i]` at the values `member` (REFERENCES
+/// DM3), by the member's own name — which the door mints as a `Face`
+/// variable, so the selection's body read is an ordinary DAG edge and
+/// the name resolves against the body's own evaluated table through
+/// the N5 ladder every other authored name takes. A mate reads it
+/// inside a pose — the plane of the face
+/// ([`crate::pose::PoseDef::Plane`]).
+///
+/// The mate's member walk reads a side's head off its stored selection
+/// ([`crate::mate::head_of`]): for a member read, the family's name for
+/// the member's entity, derived and never authored.
 ///
 /// Where a face name comes from is [`FaceName`]'s own doc: the three
 /// boundaries that turn DATA into one, and the single in-crate door
@@ -1358,7 +1368,11 @@ pub struct SitedFace {
     /// The node whose output the face is read in — the PLACED
     /// geometry, when that node placed it.
     pub at: RecipeNodeId,
-    /// The face's stable name.
+    /// The member of the family `at` defines the face is read in, by
+    /// its index values, outermost first; empty for `at`'s own body.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub member: Vec<u32>,
+    /// The face's stable name: the member's own, for a member.
     pub name: FaceName,
 }
 
@@ -1366,15 +1380,22 @@ impl SitedFace {
     /// A side read at the node that minted the name — the degenerate
     /// case, and the honest spelling of "as authored".
     pub fn at_mint(name: FaceName) -> Self {
-        Self {
-            at: name.node,
-            name,
-        }
+        Self::new(name.node, name)
     }
 
     /// A side read at `at`.
     pub fn new(at: RecipeNodeId, name: FaceName) -> Self {
-        Self { at, name }
+        Self {
+            at,
+            member: Vec::new(),
+            name,
+        }
+    }
+
+    /// A side read in one member of the family `at` defines, `xs[i]` at
+    /// the index values `member`, by the member's own name.
+    pub fn in_member(at: RecipeNodeId, member: Vec<u32>, name: FaceName) -> Self {
+        Self { at, member, name }
     }
 }
 

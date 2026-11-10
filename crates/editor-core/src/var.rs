@@ -505,14 +505,9 @@ pub enum SelectionFault {
     /// upstream of it.
     OtherBody,
     /// A body read by index carrying other than one index per index
-    /// of the family it reads ([`crate::node::InputFault::IndexRank`]'s
-    /// rule, at a selection's body).
-    IndexRank {
-        /// How many indices it carries.
-        found: usize,
-        /// How many indices the family is keyed by.
-        rank: usize,
-    },
+    /// of the family it reads: a node seat's indexed read's fault
+    /// ([`crate::node::InputFault::IndexRank`]), at a selection's body.
+    Input(crate::node::InputFault),
     /// An index of a mate side's body read that is no written count:
     /// the mate's member walk reads the member from the document, never
     /// from an evaluated value.
@@ -535,7 +530,7 @@ impl SelectionFault {
             | Self::Kind { .. }
             | Self::Repeated { .. }
             | Self::OtherBody
-            | Self::IndexRank { .. }
+            | Self::Input(_)
             | Self::SideIndex { .. } => None,
         }
     }
@@ -583,11 +578,7 @@ impl core::fmt::Display for SelectionFault {
                 expected.noun()
             ),
             Self::Repeated { first, again } => write!(f, "name {again} repeats name {first}"),
-            Self::IndexRank { found, rank } => write!(
-                f,
-                "the body is read at {found} indices, and the family it reads is keyed by \
-                 {rank} — a member is read by one value per index, outer first"
-            ),
+            Self::Input(fault) => write!(f, "{fault}"),
             Self::SideIndex { k } => write!(
                 f,
                 "index {k} of the side's body read is no written count — a mate side reads \

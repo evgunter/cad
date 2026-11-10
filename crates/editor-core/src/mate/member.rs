@@ -249,21 +249,45 @@ pub(super) fn walk<P: crate::ProfilePayload>(
 /// face, an edge or a vertex read at its node ([`Headed`]) — takes the
 /// one vocabulary.
 pub fn member_of<P: crate::ProfilePayload>(doc: &Doc<P>, head: &impl Headed) -> Option<Member> {
+    walked(doc, head).map(|w| w.member)
+}
+
+/// [`walk`] from `head`: its name at its node, or, for a head reading
+/// one member of a family (`xs[i]`), the family's name for that member's
+/// entity ([`member_spelling`]). `None` where the walk refuses.
+fn walked<P: crate::ProfilePayload>(doc: &Doc<P>, head: &impl Headed) -> Option<Walk> {
     let (at, name) = head.head();
-    walk(doc, at, name).ok().map(|w| w.member)
+    let spelled;
+    let name = match head.member() {
+        [] => name,
+        member => {
+            spelled = member_spelling(doc, at, member, name)?;
+            &spelled
+        }
+    };
+    walk(doc, at, name).ok()
 }
 
 /// **A reference the member walk starts from**: the node it is read at
 /// and its name — a mate head ([`crate::node::SitedFace`]) or a
-/// reference of any entity kind ([`crate::node::SitedRef`]).
+/// reference of any entity kind ([`crate::node::SitedRef`]) — and the
+/// member of the node's family it reads, if any.
 pub trait Headed {
     /// The node the name is read at, and the name.
     fn head(&self) -> (RecipeNodeId, &crate::names::StableName);
+    /// The member of the family at the head's node it reads, by its
+    /// index values (`xs[i]`); empty for the node's own body.
+    fn member(&self) -> &[u32] {
+        &[]
+    }
 }
 
 impl Headed for crate::node::SitedFace {
     fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
         (self.at, &self.name)
+    }
+    fn member(&self) -> &[u32] {
+        &self.member
     }
 }
 
@@ -276,6 +300,9 @@ impl Headed for crate::node::SitedRef {
 impl<H: Headed> Headed for &H {
     fn head(&self) -> (RecipeNodeId, &crate::names::StableName) {
         (**self).head()
+    }
+    fn member(&self) -> &[u32] {
+        (**self).member()
     }
 }
 
@@ -291,9 +318,7 @@ pub fn member_reading<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<(Member, crate::names::StableName)> {
-    walk(doc, head.at, &head.name)
-        .ok()
-        .map(|w| (w.member, w.placed))
+    walked(doc, head).map(|w| (w.member, w.placed))
 }
 
 /// **The face of the member's source a side names** — the side walked
@@ -306,16 +331,15 @@ pub fn head_face<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<crate::FaceName> {
-    walk(doc, head.at, &head.name).ok()?.part_face()
+    walked(doc, head)?.part_face()
 }
 
 /// **A name read in `body`, as the table of the variable it reads
 /// spells it**: itself for a plain read; for one member of a family
-/// (`xs[i]`, REFERENCES DM3), the member's own name under the `Member`
-/// qualifier at the index values the read writes — counts written in
-/// the document, never evaluated ([`crate::edit::written_count`]), so
-/// the family's table, and every body built from it, names the entity
-/// so. `None` where an index is no written count.
+/// (`xs[i]`, REFERENCES DM3), [`member_spelling`] at the index values
+/// the read writes — counts written in the document, never evaluated
+/// ([`crate::edit::written_member`]). `None` where an index is no
+/// written count or the read is not at its family's rank.
 pub(crate) fn spelled_whole<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     body: &crate::BodyRead<crate::VarId>,
@@ -324,23 +348,32 @@ pub(crate) fn spelled_whole<P: crate::ProfilePayload>(
     if !body.is_indexed() {
         return Some(name.clone());
     }
-    let chain = doc.var_reach(body.read).chain()?.to_vec();
-    if chain.len() != body.at.len() {
+    let values = crate::edit::written_member(doc, body)?;
+    member_spelling(doc, doc.operation_of(body.read)?, &values, name)
+}
+
+/// **The family's name for an entity of one of its members**: the
+/// member's own name `name` under the `Member` qualifier at the values
+/// `member` of the indices the family `at` reaches, in order — how the
+/// family's table, and every body built from the family, names the
+/// entity. The one spelling of a member read as a name, which the
+/// member walk reads; `None` where `member` is not one value per index
+/// of the family.
+pub(crate) fn member_spelling<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    at: RecipeNodeId,
+    member: &[u32],
+    name: &crate::names::StableName,
+) -> Option<crate::names::StableName> {
+    let chain = doc.node_reach(at).chain()?.to_vec();
+    if chain.len() != member.len() {
         return None;
     }
-    let values = chain
-        .into_iter()
-        .zip(&body.at)
-        .map(|(index, &written)| {
-            let value = crate::edit::written_count(doc, written)?;
-            Some((index, u32::try_from(value).ok()?))
-        })
-        .collect::<Option<crate::names::MemberAt>>()?;
     Some(crate::names::StableName {
         kind: name.kind,
-        node: doc.operation_of(body.read)?,
+        node: at,
         path: vec![RoleSeg::Member {
-            at: values,
+            at: chain.into_iter().zip(member.iter().copied()).collect(),
             of: crate::names::NameRef::new(name.clone()),
         }],
     })
