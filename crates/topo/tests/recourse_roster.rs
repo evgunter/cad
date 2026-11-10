@@ -300,7 +300,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("RIDER_ON_CURVED"),
     NameCarrier::Const("RIDER_SPIRIC_PLANE"),
     NameCarrier::Const("RIDER_WALL_BEND_ACROSS"),
-    NameCarrier::Const("RIM_ON_PLANE"),
     NameCarrier::Const("ROW"),
     NameCarrier::Const("RULINGS"),
     NameCarrier::Const("SEAM_GERM_ON_PLANE"),
