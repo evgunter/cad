@@ -169,7 +169,8 @@ fn rows_hold(at: Seat) {
     let rest = |v: &SelfTouch| matches!(v, SelfTouch::Read(TouchVerdict::Rest(_)));
     let in_band = |v: &SelfTouch| *v == SelfTouch::Read(TouchVerdict::Unread(TouchUnread::InBand));
     let crossing = |v: &SelfTouch| *v == SelfTouch::Read(Crossing);
-    let tangency = |v: &SelfTouch| *v == SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable));
+    let tangency =
+        |v: &SelfTouch| *v == SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable));
     type Reads = fn(&SelfTouch) -> bool;
     let rows: Vec<(&str, [[f64; 3]; 3], Reads)> = match at {
         Seat::Corner => vec![
@@ -424,7 +425,10 @@ fn a_cusp_corner_is_left_to_second_order() {
         TouchUnread::Curved(CurvedUnread::Unreadable),
         "a planar face's curved edge held at its corner"
     );
-    assert_eq!(verdict, SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable)));
+    assert_eq!(
+        verdict,
+        SelfTouch::SecondOrder(TouchUnread::Curved(CurvedUnread::Unreadable))
+    );
 }
 
 /// **An elliptic edge's direction at a touch reads at its certified
@@ -703,7 +707,11 @@ fn a_thorn_of_its_own_reads_its_horns_one_order_down() {
         let c = Point3::new(0.3 + far, 0.2 - 2.0 * far, 0.5 * far);
         let (body, corner, ties) = thorn_and_corner(c, away);
         let (planar, verdict) = read(&body, corner, &ties);
-        assert_eq!(planar, TouchUnread::Curved(CurvedUnread::Unreadable), "{far} off: a sphere face");
+        assert_eq!(
+            planar,
+            TouchUnread::Curved(CurvedUnread::Unreadable),
+            "{far} off: a sphere face"
+        );
         assert!(
             matches!(verdict, SelfTouch::Read(TouchVerdict::Rest(_))),
             "{far} off, the corner away: {verdict:?}"

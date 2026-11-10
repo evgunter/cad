@@ -15,8 +15,8 @@
 
 use super::metric::{self, Departure, Distance, Reading};
 use super::{
-    Band, Bound, Decide, LINK_PLANE, LINK_SECOND_ORDER, Link, Material, Place, Point3, Sign,
-    TouchUnread, Vec3, ahead, wedge_side,
+    Band, Bound, CurvedUnread, Decide, LINK_PLANE, LINK_SECOND_ORDER, Link, Material, Place,
+    Point3, Sign, TouchUnread, Vec3, ahead, wedge_side,
 };
 use crate::entity::EdgeKey;
 use geom_core::Lever;

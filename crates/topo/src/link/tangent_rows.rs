@@ -305,7 +305,11 @@ fn a_tangent_link_reads_only_the_coincidences_its_faces_keep() {
     // Two balls kissing at the origin, and a ball in a socket.
     for (c, up) in [(1.0, false), (-2.0, true)] {
         let s = vec![whole(sphere(-1.0), true), whole(sphere(c), up)];
-        assert_eq!(read(s), Unread(TouchUnread::Curved(CurvedUnread::Unreadable)), "two balls, {c}");
+        assert_eq!(
+            read(s),
+            Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            "two balls, {c}"
+        );
     }
     // No reading but the one-material one takes a tangent link.
     let tangent = Link::of(Point3::origin(), corner(&up, true, &k, &[])).unwrap();
@@ -502,7 +506,10 @@ fn a_bound_is_kept_only_on_a_bound_it_lies_ahead_on() {
         half(v(0.0, 0.0, 1.0), [tag(a, true), tag(d, false)]),
         half(v(0.0, -1.0, 0.0), [tag(d, false), tag(c, true)]),
     ];
-    assert_eq!(read(s), TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)));
+    assert_eq!(
+        read(s),
+        TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable))
+    );
 }
 
 /// **Only a spur's tip is the whole turn**: two departures a tenth of the
@@ -606,5 +613,8 @@ fn a_frame_direction_opposite_the_normal_turns_no_fan() {
         whole_at(ball(p + u * r, r, a), -u, p, 1.0),
         whole_at(ball(p - u * r, r, a), u, p, 1.0),
     ];
-    assert_eq!(read_at(p, s), TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)));
+    assert_eq!(
+        read_at(p, s),
+        TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable))
+    );
 }

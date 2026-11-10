@@ -637,10 +637,9 @@ impl TouchUnread {
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
             Self::LoneLoop => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::EdgeTangent(why) => Ok(why.refusal()),
-            Self::Curved(_)
-            | Self::OffInterior
-            | Self::NormalFault(_)
-            | Self::Corrupt => Err(Aborts),
+            Self::Curved(_) | Self::OffInterior | Self::NormalFault(_) | Self::Corrupt => {
+                Err(Aborts)
+            }
         }
     }
 
@@ -2665,7 +2664,9 @@ impl<T: Decide> FaceSector<T> {
         let along: Vec<(Vec3<T>, bool)> = match edge {
             None => vec![((u_ref - outward * outward.dot(u_ref)).normalize(), false)],
             // No line edge between the held ends: a curved edge held.
-            Some(_) if passes.is_empty() => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+            Some(_) if passes.is_empty() => {
+                return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
+            }
             Some(_) => passes.into_iter().map(|d| (d, true)).collect(),
         };
         Ok(along
@@ -2968,7 +2969,10 @@ impl<T: Decide> FaceSector<T> {
             geom::Surface::Cone { apex, .. } => Some(apex),
             _ => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
         };
-        let line = face.surface.axis_line().ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
+        let line = face
+            .surface
+            .axis_line()
+            .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         let (centre, axis) = (line.foot(p), line.dir);
         let (along, m0) = (face.along, face.outward);
         let radial = p - centre;
@@ -3171,7 +3175,10 @@ pub(crate) fn clearance<T: Decide>(
             (position(body, half.start)?, position(body, end)?),
         ));
     }
-    curve.carrier().clearance(p).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))
+    curve
+        .carrier()
+        .clearance(p)
+        .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))
 }
 
 impl<T: Decide> Link<T> {
@@ -3910,7 +3917,7 @@ pub(crate) mod rest {
         Band, Cone, Decide, Link, Material, Place, Point3, Reading, Segment, Sign, TouchUnread,
         TouchVerdict,
     };
-    use super::{Distance, Germ, LINK_PLANE, LINK_ROUND, Round, metric};
+    use super::{CurvedUnread, Distance, Germ, LINK_PLANE, LINK_ROUND, Round, metric};
     use super::{LINK_NORMAL, ahead, on_plane, pairing, wedge_side, within};
     use geom_brep::ladder::Evidence;
 

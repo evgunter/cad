@@ -349,7 +349,9 @@ use crate::live::proven;
 use crate::null::CurveGeom;
 use crate::sweep_trace::SweepPairs;
 
-use crate::link::{FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest};
+use crate::link::{
+    CurvedUnread, FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest,
+};
 #[cfg(test)]
 use crate::link::{PieceAt, Sector, face_piece};
 use crate::validate::{
@@ -2679,7 +2681,10 @@ fn wedge<T: Decide>(
             Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
                 Err(WedgeRefusal::Undecided(diag))
             }
-            Ok(None) => Err(WedgeRefusal::Unread(e.key, TouchUnread::Curved(CurvedUnread::Unreadable))),
+            Ok(None) => Err(WedgeRefusal::Unread(
+                e.key,
+                TouchUnread::Curved(CurvedUnread::Unreadable),
+            )),
             Err(why) => Err(WedgeRefusal::Unread(
                 e.key,
                 match why.standing() {
@@ -8397,7 +8402,9 @@ impl TouchSite {
         }
         let edge = |e: EdgeKey| {
             geo.line_edge(e)
-                .ok_or(TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)))
+                .ok_or(TouchVerdict::Unread(TouchUnread::Curved(
+                    CurvedUnread::Unreadable,
+                )))
         };
         let on_edge =
             |e: EdgeKey, p: Point3<T>| Link::touch_on_edge(body, geo, e, p, band).map(Germ::Link);
@@ -8412,8 +8419,9 @@ impl TouchSite {
                 // Every cell of the overlap the finding reports,
                 // re-derived by the same walk. A refusal on the way is
                 // this touch's own.
-                let fg =
-                    planar_face(geo, f).ok_or(TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)))?;
+                let fg = planar_face(geo, f).ok_or(TouchVerdict::Unread(TouchUnread::Curved(
+                    CurvedUnread::Unreadable,
+                )))?;
                 let mut refused = Vec::new();
                 let cells = ef_overlap_cells(body, edge(e)?, fg, geo, band, &mut refused);
                 if !refused.is_empty() {
@@ -8898,7 +8906,9 @@ impl<T: Decide> Germ<T> {
                     Held::Corner(v) => Hold::Corner(v),
                     Held::Inside => Hold::Inside,
                     Held::Edge(e) => {
-                        let edge = geo.line_edge(e).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
+                        let edge = geo
+                            .line_edge(e)
+                            .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
                         Hold::Edge(edge.v0, edge.v1)
                     }
                 };
@@ -9122,9 +9132,7 @@ fn corner_normal<T: Decide>(
 /// **A resolved corner face's normal at the vertex**, or no tangent
 /// plane there ([`CurvedUnread::NoTangentPlane`]): a vertex in the band
 /// of the carrier's axis, or a cone's apex.
-fn vertex_normal<T: Decide>(
-    at: crate::sector_face::VertexFace<T>,
-) -> Result<Vec3<T>, TouchUnread> {
+fn vertex_normal<T: Decide>(at: crate::sector_face::VertexFace<T>) -> Result<Vec3<T>, TouchUnread> {
     use crate::sector_face::VertexFace;
     match at {
         VertexFace::Tangent(n) => Ok(n.vec()),
@@ -9168,7 +9176,9 @@ fn foot_normal<T: Decide>(
         Ok(None) => Err(TouchUnread::Corrupt),
         // Within the band of the carrier's axis, centre or apex: the
         // corner's cause ([`corner_cause`]), read at a foot.
-        Err(FootNormalError::NoFoot { .. }) => Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane)),
+        Err(FootNormalError::NoFoot { .. }) => {
+            Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
+        }
         Err(FootNormalError::Unread) => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
     }
 }
@@ -9183,8 +9193,8 @@ fn departure<T: Decide>(
     v: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
-    let (_, dir, bend) =
-        crate::splitting::neighborhood::chord(body, v, he).map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?;
+    let (_, dir, bend) = crate::splitting::neighborhood::chord(body, v, he)
+        .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?;
     Ok((
         dir,
         bend.is_none(),
@@ -9232,7 +9242,9 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        let edge = geo.line_edge(e).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
+        let edge = geo
+            .line_edge(e)
+            .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         let mut keys = vec![edge.f_plus];
         if edge.f_minus != edge.f_plus {
             keys.push(edge.f_minus);
@@ -9266,7 +9278,9 @@ impl<T: Decide> Link<T> {
         band: Band,
     ) -> Result<Self, TouchUnread> {
         use crate::link::Ruled;
-        let edge = geo.line_edge(e).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
+        let edge = geo
+            .line_edge(e)
+            .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         let outward = |f: FaceKey| {
             crate::face_normal::face_outward_normal(body, f)
                 .map(|n| n.vec())
@@ -10264,9 +10278,12 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     // solids disagree, and nothing clears on that.
                     Said::Pierce | Said::Wedges(None) => Some(Undecided::Unresolved),
                     Said::Wedges(Some(why)) => Some(why.undecided()),
-                    Said::CurvedTouch => Some(Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable))),
-                    Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b)))
-                        .then_some(Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable))),
+                    Said::CurvedTouch => Some(Undecided::Touch(TouchUnread::Curved(
+                        CurvedUnread::Unreadable,
+                    ))),
+                    Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b))).then_some(
+                        Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable)),
+                    ),
                     Said::Unexamined => Some(Undecided::Unexamined),
                     Said::InBand => None,
                 },
@@ -22254,7 +22271,7 @@ mod line_wedges_ranking {
 /// no body a constructor builds refuses at two faces of one link.
 #[cfg(test)]
 mod link_faces_ranking {
-    use super::{TouchUnread, sectors_of_faces};
+    use super::{CurvedUnread, TouchUnread, sectors_of_faces};
     use crate::validate::EdgeTangentUnread;
 
     fn read(faces: Vec<Result<(), TouchUnread>>) -> Option<TouchUnread> {
@@ -22643,9 +22660,11 @@ mod corner_cause_rows {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
             sense: true,
         });
-        assert_eq!(
-            vertex_normal(apex),
-            Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane)),
+        assert!(
+            matches!(
+                vertex_normal(apex),
+                Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
+            ),
             "a cone's apex"
         );
         let causes = [
