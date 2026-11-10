@@ -3507,7 +3507,7 @@ pub(super) fn line_of<T: Decide>(
     band: Band,
 ) -> Result<super::Branch, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let on = |name: &'static str, margin: Margin<T>| {
+    let on_as = |name: &'static str, margin: Margin<T>| {
         decide(name, margin, band)
             .map(|s| s == Sign::Zero)
             .map_err(join_escalate)
@@ -3519,7 +3519,7 @@ pub(super) fn line_of<T: Decide>(
             dir: *d,
         }
         .distance(site);
-        at_site[k] = on("bool_germ_apex_line", Margin::of(off))?;
+        at_site[k] = on_as("bool_germ_apex_line", Margin::of(off))?;
     }
     let along = match at_site {
         [true, false] => return Ok(super::Branch::Line(0)),
@@ -3533,7 +3533,7 @@ pub(super) fn line_of<T: Decide>(
             let mut along = [false; 2];
             for (k, d) in lines.dirs.iter().enumerate() {
                 let sine = dir.cross(*d).norm() / (dir.norm() * d.norm());
-                along[k] = on("bool_germ_apex_heading", Margin::levered(sine, lines.lever))?;
+                along[k] = on_as("bool_germ_apex_heading", Margin::levered(sine, lines.lever))?;
             }
             along
         }

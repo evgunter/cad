@@ -70,7 +70,7 @@ pub(super) fn cusp<T: Decide>(
     let w = m.cross(t0).normalize();
     let residue = Distance::of(apex + t1 * l, apex + t0 * l, w);
     let bend = Distance::departure(Departure::Parted(k1 - k0), w, arm);
-    match metric::settle(
+    match metric::settle_as(
         LINK_SECOND_ORDER,
         bend,
         Reading::plain(band).charged(residue),
@@ -170,7 +170,7 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
         for (other, _) in &rays[k + 1..] {
             let off = |f: &usize| {
                 matches!(
-                    metric::sign(
+                    metric::sign_as(
                         LINK_PLANE,
                         Distance::of(*other, p, horns[*f].outward),
                         rd.band
@@ -202,10 +202,10 @@ fn beside<T: Decide>(
 ) -> Option<Sign> {
     let l = arm.length();
     let residue = Distance::of(p + tc.normalize() * l, p + ta.normalize() * l, m);
-    if metric::sign(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
+    if metric::sign_as(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
         return None;
     }
-    metric::settle(
+    metric::settle_as(
         LINK_SECOND_ORDER,
         Distance::departure(Departure::Parted(c.bend - a.bend), m, arm),
         rd.charged(residue),
@@ -357,11 +357,11 @@ fn misses<T: Decide>(
     // `also` charged beside the anchors' first-order parting.
     let off = |n: Vec3<T>, also: Option<Distance<T>>| {
         let residue = Distance::of(p + b.at * l, p + a.at * l, n);
-        if metric::sign(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
+        if metric::sign_as(LINK_PLANE, residue, rd.band) != Some(Sign::Zero) {
             return None;
         }
         let rd = also.map_or(rd, |d| rd.charged(d)).charged(residue);
-        metric::settle(
+        metric::settle_as(
             LINK_SECOND_ORDER,
             Distance::departure(Departure::Parted(b.anchor - a.anchor), n, arm),
             rd,
