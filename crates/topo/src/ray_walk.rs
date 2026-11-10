@@ -340,6 +340,11 @@ impl<T: Decide, H> Crossings<T, H> {
     ) -> Result<Option<H>, RayFault<E>> {
         let gap =
             |k: usize, b: usize| decide(order, Margin::of(self.ahead[k].0 - self.ahead[b].0), band);
+        // Not the decided argmin (`scripts/gates/argmin-folds.tsv`,
+        // nearest-unique): the closest must be decided apart from every
+        // other crossing, a tie with it a graze, while the set rule would
+        // pass a tie between two crossings beyond it. The scan only names
+        // a candidate; the pass below certifies it against every other.
         let mut best = 0;
         for k in 1..self.ahead.len() {
             if gap(k, best) == Ok(Sign::Negative) {
@@ -413,6 +418,10 @@ impl<T: Decide, H> Crossings<T, H> {
         let mut left: Vec<usize> = (0..n).collect();
         let mut running = 0;
         while let Some(&first) = left.first() {
+            // Not the decided argmin (`scripts/gates/argmin-folds.tsv`,
+            // cluster): the least of the spans names a cluster's seed, and
+            // every span not decided after the cluster joins it below, so a
+            // tie joins rather than contests.
             let mut least = first;
             for &k in &left[1..] {
                 if before(k, least) {

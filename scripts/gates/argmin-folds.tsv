@@ -1,0 +1,7 @@
+# path function count class
+# Each row: the fold's (file, function), how many incumbents it keeps
+# across a decided reading, and its class (argmin-folds.sh's header).
+crates/geom-brep/src/chart_singularity.rs sampled_near 1 refusal-only
+crates/topo/src/offset_axial.rs solve_corner 1 pair
+crates/topo/src/ray_walk.rs closest 1 nearest-unique
+crates/topo/src/ray_walk.rs first_count 1 cluster
