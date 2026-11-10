@@ -296,8 +296,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Then (1474, 1228) -> (1474, 1218) when the simplicity pass
             // stopped reading a gap on a line pair that shares a vertex
             // (PR 5952), and (1474, 1218) -> (1488, 1218) with the
-            // cylinder rim's axial decision (PR 6105, the fn doc).
-            without_the_registry: Some(((1544, 1224), None)),
+            // cylinder rim's axial decision (PR 6105, the fn doc). Then
+            // (1544, 1224) -> (1542, 1226): pinned at what main measures.
+            // It reads (1542, 1226) at `b2eb7192`, the merge that pinned
+            // (1544, 1224), and at both of its parents, so the pin was
+            // never main's reading and the move is unbisected (before PR
+            // 6530).
+            without_the_registry: Some(((1542, 1226), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -324,11 +329,24 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Pinned at what main measures: (1546, 1260) -> (1592, 1250),
             // the same receipt as shipped, unbisected between PR 5728 and
             // PR 5811 (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
-            without_the_registry: Some(((1660, 1250), None)),
+            // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
+            // PR 6594 and PR 6682 (`symbolic` below).
+            without_the_registry: Some(((1704, 1368), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1660, 1660, 1660],
+            //
+            // 1660 -> 1684 with the planar line's home (PR 6594):
+            // `line_arc` reads its candidates' height and half-chord
+            // through `Line2`, which divides by the chord direction's
+            // norm. Near its four tangent line/arc junctions the
+            // half-chord's root widens, `arc_span` escalates there, and
+            // `candidates` settles each by `end_in_stretch`: nine more
+            // decisions apiece, six proven. Then 1684 -> 1704 when an
+            // extension's run became its own segment (Ev, PR 6542; PR
+            // 6682, "the same added-vertex move as sym_9"): each corner
+            // after a straight leg keeps the leg's end as a vertex.
+            symbolic: [1704, 1704, 1704],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -848,8 +866,12 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
     // Then PCERT E1c (every mint reads incidence first, PR 5889):
     // (1592, 1250, 2465) -> (1660, 1250, 3257), the read's decisions and
-    // the forms it freezes.
-    assert_eq!(got[0], (1660, 1250, 3257), "rule F shut: the pad's receipt");
+    // the forms it freezes. Then (1660, 1250) -> (1684, 1262) -> (1704,
+    // 1368) with PR 6594 and PR 6682 (the study's `symbolic`). `frozen`
+    // read 3281 at PR 6594's first parent, 3294 at its merge, 3637 at PR
+    // 6682's first parent and 3751 at its merge: each added decision's
+    // forms.
+    assert_eq!(got[0], (1704, 1368, 3751), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
