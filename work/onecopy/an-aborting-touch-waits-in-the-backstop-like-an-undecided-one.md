@@ -29,18 +29,19 @@ This is cross-cutting: it touches every abort the backstop meets, not one reason
 The orchestrator ruled one meaning of an abort, the ladder's: the first touch whose reading aborts ends the pair's reading and is reported as the backstop's finding. A later decided crossing does not hide it. "As `Corrupt` is" was the other candidate, and it would leave that hole open for a defect read (`OffInterior`, a contradicted `EdgeTangent`) reaching the backstop.
 
 **The change.**
-- `census.rs`'s `blocks` now hands its readings, in scan order and read lazily, to one pure function, `blocked`. The readings are the pair's findings, then its recorded and shared-key sites.
-- `blocked` returns:
-  - the first crossing;
-  - else the first aborting touch, at once;
-  - else the first other reason ahead of the first waiting touch.
-- **The standing** is the touch's own, `Undecided::aborts` over `TouchUnread::refusal()`, so a future abort cause joins without a list.
+- `census.rs`'s `blocks` now hands its readings, in scan order and read lazily, to one pure function, `blocked`, through `pair_blocked`: the pair's findings first (each scanned by `between_scan`), then its recorded and shared-key sites.
+- `blocked` returns the first crossing or the first abort, whichever is scanned first, at once. Failing both, it returns the first other reason ahead of the first waiting touch.
+- **The standing** is read off the touch's cause, `TouchUnread::refusal()`, before `TouchUnread::undecided` names it as the backstop's reason (`Unrest::Aborts`, `Scan::Aborts`). So `Corrupt`, named `CorruptInstance`, aborts too, and a future abort cause joins without a list. A crossing read with no point, a kernel defect, aborts as well.
+- **Stand-ins wait** (the orchestrator's F1 ruling in PR 6757's review). A curved touch the curved arm found (`Said::CurvedTouch`) and an unconfirmed face pair (`Said::FacePair`) stand for a reading no analysis here makes; they are not failed reads. They used to map to `Touch(Curved(Unreadable))`, which aborts. That was a mislabel: an abort is a reading no later one rescues, and a decided crossing at another site of the pair does rescue these. They now read `Undecided::CurvedTouch`, which waits like an undecided touch and renders the curved reading's sentence. The real faults (`OffInterior`, `NormalFault`, a contradicted `EdgeTangent`, `Corrupt`) still abort at once.
 
 **Measured before building** (the topo, sweep and editor-core `ci` sets, both ε):
-- 123 backstop readings per ε met an aborting touch, all `Unreadable` (now `Curved(..)`).
-- None ended in a crossing or `Stands`. Each lost today to another undecided reason (`Unexamined` 121, `LoneLoop` 2).
-- Every changed reading stays `Blocked::Undecided`, so the finding stays `CensusUndecidable { MayOverlap }` with only its `what` text changing. No verdict moves.
+- 123 backstop readings per ε met a touch then read as aborting, all `Curved(Unreadable)`.
+- None ended in a crossing or `Stands`. Each lost to another undecided reason (`Unexamined` 121, `LoneLoop` 2).
 
-**Moved and re-pinned.** Three sweep rows read the solid pair's finding through `common/touch_union.rs`'s `only_curved_within_reach`, which now accepts the curved touch's sentence beside `Unexamined`, with the reason at the helper. The rows are `two_discs_kissing_externally_touch_at_every_op`, `externally_tangent_walls_touch_at_every_op` and `a_same_side_tangent_touch_answers_every_op`.
+All 123 were stand-ins, so the F1 ruling returns them to waiting, and their findings read as before. The sweep helper `only_curved_within_reach` was loosened for three rows and is now back to `Unexamined` alone.
 
-**Pinned:** `census::blocked_rows::an_aborting_touch_is_reported_ahead_of_a_later_crossing`. An abort scanned before a decided crossing reports the abort, and it is red under the old rule.
+**Pinned** in `census::blocked_rows`:
+- `an_aborting_touch_is_reported_ahead_of_a_later_crossing`: an abort scanned before a decided crossing reports the abort, and it is red under the old rule.
+- `a_touch_aborts_by_its_causes_standing`: every cause, by its own `refusal()`, with `Corrupt` aborting under `CorruptInstance`.
+- `a_curved_stand_in_waits_for_a_crossing_at_another_site`: either stand-in as a finding ahead of a crossing at a site reads the crossing, which `blocks`' caller reports as `TouchInterference`.
+- `a_pairs_findings_are_scanned_before_its_sites`: the scan order `pair_blocked` fixes.
