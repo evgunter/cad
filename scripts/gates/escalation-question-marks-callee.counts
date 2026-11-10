@@ -1,0 +1,126 @@
+# Every production `?` on a call that reads `band` and decides inside
+# it (no `decide*(` on the line), inside a loop whose outermost loop has
+# an early answering exit, counted per file
+# (scripts/gates/escalation-question-marks.sh, `callee_question_marks`).
+# A new site reds until it is registered here with why its `?` is not a
+# search's kept reading; a count that falls reds until it is lowered.
+#
+# Three dispositions, named per file:
+# - HAND-ROLLED: a search or an identity whose `?` returns a refusal
+#   ahead of a later reading that could answer. Listed with its port in
+#   work/onecopy/question-mark-ladders-the-gate-registered.md.
+# - WHICH: the answer names which element holds (a vertex, a face, a
+#   crossing, a cut's owner), so an element read in band may be the true
+#   holder and refusing ahead of a later one is right (the `place_off`
+#   ruling, PR 6553).
+# - NOT A SEARCH: every element is needed (a count, a sort, a fold, a
+#   walk), or the read is the premise of what follows.
+#
+# editor-core trace: resolve_chain's steps, each read from the pen the
+# step before left: NOT A SEARCH.
+crates/editor-core/src/trace.rs 4
+# pose: one_line (either line off the other answers "not one line"):
+# HAND-ROLLED.
+crates/geom-brep/src/curve_pair/pose.rs 1
+# props curved: sphere_region_material_sign (2) and pole_side (1), an arc
+# against the pole answers: HAND-ROLLED; pole_turning (1) sums every arc's
+# turning: NOT A SEARCH.
+crates/geom-brep/src/props/curved.rs 4
+# quadrature rounds: each round's extent is the premise of its estimate:
+# NOT A SEARCH.
+crates/geom-brep/src/props/quad/patch.rs 1
+crates/geom-brep/src/props/quad/rational.rs 1
+crates/geom-brep/src/props/quad/trimmed.rs 1
+# ssi certify: limb_three's ladder over radii, the rung that certifies is
+# the certificate's tube: WHICH.
+crates/geom-brep/src/ssi/certify.rs 1
+# ssi march and refine: each step's or round's read is the next one's
+# premise: NOT A SEARCH.
+crates/geom-brep/src/ssi/march.rs 1
+crates/geom-brep/src/ssi/refine.rs 1
+# profile seg: arc_arc, any end over the other arc answers Overlap:
+# HAND-ROLLED.
+crates/profile/src/seg.rs 1
+# attach: unvouched reads every edge: NOT A SEARCH.
+crates/topo/src/attach.rs 1
+# carrier_touch: off_face and ball_off_face (any cluster or edge not off
+# answers "not off"): HAND-ROLLED.
+crates/topo/src/boolean/carrier_touch.rs 2
+# contain: boundary_pre_pass's per-loop place_off: WHICH (its doc says so).
+crates/topo/src/boolean/contain.rs 1
+# edge_join: joinable's regularity read over the two surfaces: HAND-ROLLED
+# (with its decide site in escalation-question-marks.counts); join_all's
+# two reads, a fixpoint where each join is read on the body the last one
+# left: NOT A SEARCH.
+crates/topo/src/boolean/edge_join.rs 3
+# factored_crossing: both parameters' landings are needed: NOT A SEARCH.
+crates/topo/src/boolean/factored_crossing.rs 1
+# fate: places' corner and place's reading, the side a corner holds: WHICH.
+crates/topo/src/boolean/fate.rs 2
+# insert: walk_order's comparison (a sort) and reconcile_pass's cuts (every
+# run's): NOT A SEARCH. reconcile_pass's held_cut call, which chooses the
+# way round a run is minted: WHICH. held_cut's three reads (`nested`, both
+# `tied_held`): its owner only names SharedVertexCrossings, so any held
+# cut answers: HAND-ROLLED (question-mark-ladders-the-gate-registered).
+# reconcile_shared's fixpoint (`reconcile_pass(..)?` until a pass turns
+# nothing, then `return hang_at_shared(..)`): every pass is needed, so
+# NOT A SEARCH.
+crates/topo/src/boolean/insert.rs 7
+# join: bool_connect's partners, every segment's: NOT A SEARCH.
+crates/topo/src/boolean/join.rs 1
+# boolean mod: vertex_at, which vertex is at the point: WHICH.
+crates/topo/src/boolean/mod.rs 1
+# overlap: overlap_as's edge_witness `?` carries only refusals of the
+# whole query (its kept ones are in Evidence): NOT A SEARCH.
+crates/topo/src/boolean/overlap.rs 1
+# recl: recl_edges classifies every mention pair: NOT A SEARCH.
+crates/topo/src/boolean/recl.rs 3
+# reduce: arc_chain_reaches' walk (1): NOT A SEARCH; spline_interior (2),
+# spline_wall_event (1) and wall_crossing (1), which crossing is the
+# event: WHICH. (first_unsupported_pair's two box reads left with main's
+# operand gate, e4516384d5.)
+crates/topo/src/boolean/reduce.rs 5
+# region: on_boundary, any edge holding the point answers: HAND-ROLLED.
+crates/topo/src/boolean/region.rs 1
+# rim_wedge: departures's two cover reads (either pair's departure
+# answers): HAND-ROLLED; reach's four reads, every arc's: NOT A SEARCH.
+crates/topo/src/boolean/rim_wedge.rs 6
+# section_cert ruling: roots walks sorted roots to the first past the
+# window: NOT A SEARCH.
+crates/topo/src/boolean/section_cert/ruling.rs 1
+# sectors: partner_cuts (2): every cut inside a sector is applied, and a
+# cut in band stays in band of the bound it is near through every later
+# split: NOT A SEARCH; rays_within (1), any ray not within answers "no":
+# HAND-ROLLED; closed_reach (2), which face holds the reach: WHICH.
+# (crescent climbs its bound pairs.)
+crates/topo/src/boolean/sectors.rs 5
+# slit: slot_from_far_end, which slot: WHICH.
+crates/topo/src/boolean/slit.rs 1
+# vtxfac: germ_order, a sort: NOT A SEARCH.
+crates/topo/src/boolean/vtxfac.rs 1
+# census: span_clear's three reads, a lone vertex's and a side's end and
+# interior (anything meeting answers "not clear"): HAND-ROLLED.
+crates/topo/src/census.rs 3
+# chart_region: polygon_relation, the first decisive vertex answers:
+# HAND-ROLLED.
+crates/topo/src/chart_region.rs 1
+# pcurves: site_rows reads every half's pcurve: NOT A SEARCH.
+crates/topo/src/pcurves.rs 1
+# ray_walk: on_boundary, any segment holding the point answers:
+# HAND-ROLLED.
+crates/topo/src/ray_walk.rs 1
+# shell: band_seam (any side not winding once answers "no") and
+# wraps_its_period (any start winding once answers "yes"): HAND-ROLLED.
+crates/topo/src/shell.rs 2
+# containment: place_off (WHICH, ruled). conic_crossings reads its roots
+# through the co-surface arm once, outside its loop; inside it, a root in
+# band of an arc's end returns its `Undecided` refusal, a `return Err` this
+# matcher does not read: NOT A SEARCH, a crossing count that needs every
+# root.
+crates/topo/src/splitting/containment.rs 1
+# section_cones: next_fusion, which section fuses: WHICH.
+crates/topo/src/splitting/section_cones.rs 1
+# stands: face_interior_point's three reads (any certified interior point
+# answers): HAND-ROLLED; witness_insides' reading, a ranking of its own
+# (On, Blocked, InBand), listed with them.
+crates/topo/src/stands.rs 4

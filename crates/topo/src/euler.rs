@@ -2385,7 +2385,7 @@ impl<T: Decide> Body<T> {
     /// not reachable".
     ///
     /// It reads the explicitly unchecked walk
-    /// ([`Body::unchecked_face_cycles`]) on purpose: no Euler operator
+    /// ([`Body::unchecked_face_boundary`]) on purpose: no Euler operator
     /// calls it, only tests and hand construction, whose bodies no door
     /// has certified yet, so an unwalkable loop is an honest "not here"
     /// rather than a kernel bug.
@@ -2395,8 +2395,11 @@ impl<T: Decide> Body<T> {
         from: VertexKey,
         to: VertexKey,
     ) -> Option<HalfEdgeKey> {
-        self.unchecked_face_cycles(self.get_face(face)?)
-            .filter_map(Result::ok)
+        self.unchecked_face_boundary(self.get_face(face)?)
+            .filter_map(|read| match read {
+                Ok(crate::live::UncheckedLoop::Cycle(cycle)) => Some(cycle),
+                Ok(crate::live::UncheckedLoop::Lone(_)) | Err(_) => None,
+            })
             .flatten()
             .find(|&he| {
                 self.get_half_edge(he).is_some_and(|h| h.start == from)
@@ -3221,21 +3224,6 @@ impl<T: Decide> Body<T> {
             .iter()
             .find(|&(he, data)| data.start == v && !skip.contains_key(he))
             .map(|(he, _)| he)
-    }
-
-    /// The first loop in arena order, other than `besides`, that is
-    /// `Empty` at `v`: the scan behind a kill's proof that the loop it
-    /// empties at `v` is the only one there
-    /// ([`Body::require_kill_anchors`]) and that no loop it keeps holds a
-    /// vertex it removes ([`Body::require_vertex_unnamed`]). It reads the
-    /// whole loop arena.
-    pub(crate) fn empty_at_besides(&self, v: VertexKey, besides: &[LoopKey]) -> Option<LoopKey> {
-        self.loops
-            .iter()
-            .find(|&(l, data)| {
-                data.boundary == LoopBoundary::Empty { vertex: v } && !besides.contains(&l)
-            })
-            .map(|(l, _)| l)
     }
 
     /// Proves the anchor writes of a kill that removes the half-edges
@@ -4497,6 +4485,21 @@ impl<T: Decide> Body<T> {
 /// The plan-phase reads that need no scalar decision, so serve every
 /// scalar backend.
 impl<T: Real> Body<T> {
+    /// The first loop in arena order, other than `besides`, that is
+    /// `Empty` at `v`: the scan behind a kill's proof that the loop it
+    /// empties at `v` is the only one there
+    /// ([`Body::require_kill_anchors`]) and that no loop it keeps holds a
+    /// vertex it removes ([`Body::require_vertex_unnamed`]). It reads the
+    /// whole loop arena.
+    pub(crate) fn empty_at_besides(&self, v: VertexKey, besides: &[LoopKey]) -> Option<LoopKey> {
+        self.loops
+            .iter()
+            .find(|&(l, data)| {
+                data.boundary == LoopBoundary::Empty { vertex: v } && !besides.contains(&l)
+            })
+            .map(|(l, _)| l)
+    }
+
     /// Resolves a half-edge, copying out its fields, its miss answered
     /// as `from` says ([`KeySource`]).
     ///
@@ -5763,7 +5766,7 @@ mod tests {
             .map(|he| body.face_of_half_edge(he).unwrap())
             .find(|&f| {
                 matches!(
-                    body.passed_face(f).map(|f| f.surface()),
+                    body.face(f).map(|f| f.surface()),
                     Some(geom::Surface::Plane { .. })
                 )
             })

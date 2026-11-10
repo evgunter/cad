@@ -18,7 +18,7 @@ fn tol() -> Tol {
 }
 
 fn finished(body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol()).expect("a valid operand")
+    topo::finish(body, tol()).expect("a valid operand")
 }
 
 fn circle(cx: f64, cy: f64, r: f64) -> Vec<(Point2<f64>, f64)> {

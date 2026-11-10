@@ -126,7 +126,7 @@ fn every_document_evaluates_at_dual64_with_the_f64_value_channel() {
 /// DL3 working at the gather, with its witness sets pinned BY NAME:
 /// every corpus product gathers at `f64` (the refusal set is EMPTY —
 /// if a refusing document ever joins the corpus, this row is where the
-/// f64 `gate_at_rest` arm gains its corpus-level witness; today that
+/// f64 `finish` arm gains its corpus-level witness; today that
 /// arm's refusing pin is `topo`'s `at_rest_policy_tests`), every one
 /// gathers at `Dual64` too with a bit-equal value channel, and the
 /// documents whose product bodies the structural door refuses at
@@ -209,28 +209,12 @@ fn the_dl3_witnesses_are_refused_by_the_closed_form_alone_at_dual64() {
 /// The census arm at `Interval` (the certifying scalar the hosted
 /// interval lane gates): the at-rest check could not look at exactly the
 /// same corpus documents as at `f64`. This is the corpus-level pin of
-/// `Interval::gate_at_rest_declared` actually validating — gutting it
+/// `Interval::census_at_rest` actually validating — gutting it
 /// leaves the could-not-look documents clean and reds this row. (The
 /// refusing-subject pins for every certifying arm are `topo`'s
 /// `at_rest_policy_tests`.)
 #[test]
 fn at_rest_census_verdicts_match_f64_at_interval() {
-    // Pinned red: at ε = 1e-12 `reshaped_rod`'s census reads f64 `Some(false)`
-    // against Interval `Some(true)`
-    // (`work/scalar/main-red-dual-corpus-reshaped-rod-census-disagrees-at-1e-12`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the at-rest census across scalars",
-        &[
-            "reshaped_rod: the census disagreed across certifying scalars (f64 None vs Interval None)\n  left: Some(false)\n right: Some(true)",
-        ],
-        at_rest_census_verdicts_match_f64_at_interval_row,
-    );
-}
-
-/// The row [`at_rest_census_verdicts_match_f64_at_interval`] runs, under its pin.
-fn at_rest_census_verdicts_match_f64_at_interval_row() {
     use geom_core::Interval;
     let blind = |findings: Result<Vec<editor_core::CheckFinding>, editor_core::ChecksError>| {
         findings.map(|f| !crate::fixture::could_not_look(&f).is_empty())

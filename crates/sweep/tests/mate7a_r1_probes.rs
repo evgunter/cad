@@ -112,7 +112,7 @@ pub(crate) fn arch() -> AtRestBody<f64> {
 
 fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
     body.faces()
-        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+        .filter_map(|(k, _)| match body.face_surface(k) {
             Some(&geom::Surface::Plane { origin, normal, .. }) => Some((k, origin, normal)),
             _ => None,
         })
@@ -289,8 +289,8 @@ fn p1_wall1_glues_the_stem_into_one_body() {
     // their minor radii differ (0.060 vs 0.052) and their cross-sections
     // there are concentric. Sampled on both walls within 1° of the weld.
     let assert_minor = |body: &Body<f64>, want: f64| {
-        for (_, f) in body.faces() {
-            if let Some(&geom::Surface::Torus { minor_radius, .. }) = body.get_surface(f.surface) {
+        for (fk, _) in body.faces() {
+            if let Some(&geom::Surface::Torus { minor_radius, .. }) = body.face_surface(fk) {
                 assert!((minor_radius - want).abs() < 1e-12, "minor radius {want}");
             }
         }
@@ -397,7 +397,7 @@ fn a_stem_window_reaching_over_a_loop_does_not_glue() {
                 Err(BooleanError::GermSectionUnbuilt {
                     a_kind: geom::SurfaceKind::Torus,
                     b_kind: geom::SurfaceKind::Torus,
-                    why: topo::SectionUnbuilt::March(march),
+                    why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(march)),
                     ..
                 }) => {
                     if coarse {

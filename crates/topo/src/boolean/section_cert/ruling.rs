@@ -105,9 +105,9 @@
 use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::sign;
+use super::sign_as;
 use geom_brep::half_angle::{
-    DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
+    DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision,
 };
 use geom_core::rounding_charge;
 
@@ -286,14 +286,11 @@ impl<T: Real> Vector<T> for Swing<T> {
 /// sign of its discriminant along a line, are read.
 #[derive(Clone, Copy)]
 pub(super) enum Quadric<T: Real> {
-    /// The wall about the axis through `o` along the unit `d`.
-    Cylinder { o: Point3<T>, d: Vec3<T>, r: T },
-    /// The double cone at `apex` about the unit `a`, `sc = (sin α, cos α)`.
-    Cone {
-        apex: Point3<T>,
-        a: Vec3<T>,
-        sc: (T, T),
-    },
+    /// The wall of radius `r` about `axis`, its direction unit.
+    Cylinder { axis: geom::Line<T>, r: T },
+    /// The double cone about `axis` from its apex, its direction unit,
+    /// `sc = (sin α, cos α)`.
+    Cone { axis: geom::Line<T>, sc: (T, T) },
 }
 
 /// The pad a ceiling formed in a few correctly rounded operations is
@@ -304,8 +301,14 @@ impl<T: Real> Quadric<T> {
     /// `P`.
     fn at(&self) -> Point3<T> {
         match *self {
-            Self::Cylinder { o, .. } => o,
-            Self::Cone { apex, .. } => apex,
+            Self::Cylinder {
+                axis: geom::Line { origin: o, .. },
+                ..
+            } => o,
+            Self::Cone {
+                axis: geom::Line { origin: apex, .. },
+                ..
+            } => apex,
         }
     }
 
@@ -314,13 +317,21 @@ impl<T: Real> Quadric<T> {
     fn coefficients<V: Vector<T>>(&self, u: &V, v: &V) -> [V::S; 3] {
         let exact = Rounded::exact;
         let (alpha, beta, n, gamma) = match *self {
-            Self::Cylinder { d, r, .. } => (
+            Self::Cylinder {
+                axis: geom::Line { dir: d, .. },
+                r,
+                ..
+            } => (
                 exact(T::one()),
                 exact(T::zero() - T::one()),
                 d,
                 exact(T::zero()) - exact(r).square(),
             ),
-            Self::Cone { a, sc, .. } => (
+            Self::Cone {
+                axis: geom::Line { dir: a, .. },
+                sc,
+                ..
+            } => (
                 exact(T::zero()) - exact(sc.1).square(),
                 exact(T::one()),
                 a,
@@ -351,21 +362,32 @@ impl<T: Real> Quadric<T> {
         T: Decide,
     {
         match *self {
-            Self::Cylinder { d, r, .. } => {
+            Self::Cylinder {
+                axis: geom::Line { dir: d, .. },
+                r,
+                ..
+            } => {
                 let m = running::cross(w, running::exact_vec(d));
                 let reach = running::dot(u, m);
                 let reach = Rounded {
                     value: reach.value.abs(),
                     ..reach
                 };
-                let across = running::dot(m, m).sqrt().divisor()?;
+                let across = running::dot(m, m)
+                    .sqrt()
+                    .divisor("ruling_clearance_across")?;
                 Some(Rounded::exact(r) - reach.quotient(across))
             }
             Self::Cone { .. } => {
                 let along = running::dot(u, w);
                 let perp = [0, 1, 2].map(|i| u[i] - w[i] * along);
                 let apart = running::dot(perp, perp).sqrt();
-                Some(e.quotient((apart * Rounded::exact(T::from_f64(16.0))).divisor()?))
+                Some(
+                    e.quotient(
+                        (apart * Rounded::exact(T::from_f64(16.0)))
+                            .divisor("ruling_clearance_across")?,
+                    ),
+                )
             }
         }
     }
@@ -377,14 +399,20 @@ impl<T: Real> Quadric<T> {
     /// rounds as `|x − P|` does, where the form rounds as its square.
     fn level(&self, x: Point3<T>, w: Vec3<T>) -> (T, T) {
         match *self {
-            Self::Cylinder { o, d, r } => {
+            Self::Cylinder {
+                axis: geom::Line { origin: o, dir: d },
+                r,
+            } => {
                 let m = (x - o).cross(d);
                 let rho = m.norm();
                 (rho - r, m.dot(w.cross(d)) / rho)
             }
             Self::Cone {
-                apex,
-                a,
+                axis:
+                    geom::Line {
+                        origin: apex,
+                        dir: a,
+                    },
                 sc: (s, c),
             } => {
                 let y = x - apex;
@@ -451,8 +479,11 @@ pub(super) struct Chart<T: Real> {
 }
 
 impl<T: Real> Chart<T> {
-    fn line(&self, theta: T) -> (Point3<T>, Vec3<T>) {
-        (self.base + self.offset.at(theta), self.dir.at(theta))
+    fn line(&self, theta: T) -> geom::Line<T> {
+        geom::Line {
+            origin: self.base + self.offset.at(theta),
+            dir: self.dir.at(theta),
+        }
     }
 }
 
@@ -514,7 +545,6 @@ fn roots<T: Decide>(
         f_per_metre: walk.per_metre,
         f_per_metre_hi: walk.per_metre,
         residual_reach: None,
-        jet: None,
     };
     let slack = RootSlack {
         row: walk.row,
@@ -529,7 +559,7 @@ fn roots<T: Decide>(
         }
     };
     let found = match certified_subdivision(
-        &walk.f,
+        Terms::Harmonics(&walk.f),
         &residual,
         &frame,
         &rows.walk,
@@ -575,7 +605,7 @@ fn before<T: Decide>(
         value: (y - x) * speed,
         error: slacks,
     };
-    match sign(row, Margin::of(gap.toward_zero()), band) {
+    match sign_as(row, Margin::of(gap.toward_zero()), band) {
         Some(Sign::Positive) => Ok(true),
         Some(Sign::Negative) => Ok(false),
         _ => Err(row),
@@ -605,7 +635,7 @@ pub(super) fn read<T: Decide>(
 ) -> Result<Reading<T>, &'static str> {
     reading(chart, partner, rows, true, band).map_err(|(row, resolution)| {
         let resolved = matches!(
-            sign(rows.precision, Margin::of(resolution), band),
+            sign_as(rows.precision, Margin::of(resolution), band),
             Some(Sign::Zero)
         );
         if !resolved || reading(chart, partner, rows, false, band).is_ok() {
@@ -639,7 +669,7 @@ fn reading<T: Decide>(
     // One line as `P + u + t·w`, and its coefficients from the same
     // form, with their running bounds.
     let line_at = |theta: T| {
-        let (b, w) = chart.line(theta);
+        let geom::Line { origin: b, dir: w } = chart.line(theta);
         let (b, p) = (
             running::exact_vec(b - Point3::origin()),
             running::exact_vec(at - Point3::origin()),
@@ -726,7 +756,8 @@ fn reading<T: Decide>(
             for theta in found {
                 let p1_at = at_line(theta)[1];
                 let half = p1_at.div_exact(two);
-                let leaving = match sign(rows.asymptote, Margin::of(shrunk(half, charged)), band) {
+                let leaving = match sign_as(rows.asymptote, Margin::of(shrunk(half, charged)), band)
+                {
                     Some(Sign::Positive) => Sign::Negative,
                     Some(Sign::Negative) => Sign::Positive,
                     _ => return Err(refused(rows.asymptote)),
@@ -742,7 +773,7 @@ fn reading<T: Decide>(
         // within a quarter of the roots' gap (on its branch) and only where
         // it lowers the level.
         let point = |theta: T, branch: Option<Sign>| {
-            let (b, w) = chart.line(theta);
+            let geom::Line { origin: b, dir: w } = chart.line(theta);
             let [p2, p1, p0] = at_line(theta).map(|x| x.value);
             let root = (p1.powi(2) - four * p2 * p0).max(T::zero()).sqrt();
             let q = (p1 + p1.select_le_zero(T::zero() - root, root)) / (T::zero() - two);
@@ -770,7 +801,7 @@ fn reading<T: Decide>(
             b + w * t
         };
         let side = |theta: T| {
-            sign(
+            sign_as(
                 rows.fold,
                 Margin::of(shrunk(clearance(theta), charged)),
                 band,
@@ -953,8 +984,10 @@ mod tests {
             lever: 10.0,
         };
         let partner = Quadric::Cylinder {
-            o: Point3::new(3.0, 0.0, 0.0),
-            d: Vec3::new(s, 0.0, c),
+            axis: geom::Line {
+                origin: Point3::new(3.0, 0.0, 0.0),
+                dir: Vec3::new(s, 0.0, c),
+            },
             r: 1.0,
         };
         assert_eq!(

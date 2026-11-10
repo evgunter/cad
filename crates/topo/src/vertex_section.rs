@@ -75,7 +75,7 @@ pub(crate) struct SectionPlane<T: geom_core::Real> {
 }
 
 /// A door's signed offset of the vertex from the plane, as it evaluated
-/// it ([`geom_brep::sector_shape::plane_offset_rounded`]), and the normal it
+/// it ([`geom::plane_offset_rounded`]), and the normal it
 /// evaluated it with.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Offset<T: geom_core::Real> {
@@ -195,7 +195,7 @@ pub(crate) fn read_sections<T: Decide>(
     // A sine within its own rounding of zero bounds no reading: the
     // plane is tangent to the face at the vertex as far as the rounding
     // tells, and a reading past any bound is past `ε/K`.
-    let Some(sine) = sine.divisor() else {
+    let Some(sine) = sine.divisor("vertex_section_sine") else {
         return Ok(on_plane);
     };
     let reading = Rounded {
@@ -249,7 +249,14 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
     let f = body.proven_face(face);
     match *f.surface() {
         geom::Surface::Cone { apex, axis, .. } => !matches!(
-            crate::face_normal::cone_point(apex, axis, at, band),
+            crate::face_normal::cone_point(
+                geom::Line {
+                    origin: apex,
+                    dir: axis
+                },
+                at,
+                band
+            ),
             Ok(crate::face_normal::ConePoint::Apex)
         ),
         geom::Surface::Cylinder { .. }

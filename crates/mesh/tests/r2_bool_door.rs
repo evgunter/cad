@@ -19,7 +19,8 @@ use geom_core::Tol;
 use topo::{BooleanInputs, BooleanOp, boolean_op_with};
 
 fn slab(y0: f64) -> topo::AtRestBody<f64> {
-    let body = sweep::test_support::brick((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness());
+    let body =
+        sweep::test_support::brick::<f64>((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness());
     topo::test_support::finished("the slab", body, Tol::witness())
 }
 
@@ -43,7 +44,8 @@ fn r2_bool_door_near_pole() {
                 // The pinned invariant is the REFUSAL: the shape is
                 // `CurvedPierceUnsupported` at the default band and
                 // an earlier escalation at coarser bands (measured
-                // `plane_crossing_root_in_span` at 1e-6); the door
+                // `plane_crossing_root_in_span` at 1e-6, since read
+                // by the span's `curve_pair_span_end_*`); the door
                 // being shut is band-invariant, its bar is not.
                 lines.push(format!("rho={rho:.3e}: boolean refused {e:?}"));
             }

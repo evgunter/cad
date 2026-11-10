@@ -56,10 +56,7 @@ fn plane_slits(body: &Body<f64>) -> usize {
             let fm = body.face_of_half_edge(e.he_minus);
             fp.is_some()
                 && fp == fm
-                && matches!(
-                    body.get_surface(body.get_face(fp.unwrap()).unwrap().surface),
-                    Some(Surface::Plane { .. })
-                )
+                && matches!(body.face_surface(fp.unwrap()), Some(Surface::Plane { .. }))
         })
         .count()
 }
@@ -67,7 +64,7 @@ fn plane_slits(body: &Body<f64>) -> usize {
 /// Rings carried by plane faces.
 fn plane_rings(body: &Body<f64>) -> usize {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
         .map(|(_, f)| f.rings.len())
         .sum()
 }
@@ -173,7 +170,10 @@ fn revolve_loops(loops: &[Loop]) -> Body<f64> {
         origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, Revolution::Full, tol()).unwrap().body
+    revolve(&vp, axis, Revolution::Full, tol())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 #[test]
@@ -200,8 +200,8 @@ fn every_lamina_full_revolve_has_one_unslit_face_per_plane_wall() {
         assert_eq!(g, genus_sum, "{what}: genus");
         // Every plane wall here is an annulus (or the wire-case disc);
         // each annulus carries exactly one ring.
-        for (_, f) in body.faces() {
-            if let Some(Surface::Plane { .. }) = body.get_surface(f.surface) {
+        for (fk, f) in body.faces() {
+            if let Some(Surface::Plane { .. }) = body.face_surface(fk) {
                 assert!(
                     f.rings.len() <= 1,
                     "{what}: a plane wall carries one ring at most"
@@ -567,7 +567,7 @@ fn a_ruled_band_on_a_plane_support_carrying_the_bore_carves_at_the_closed_form()
         validate_geometric(&body, tol()).expect("fixture tier 3");
         let bottom_rings: usize = body
             .faces()
-            .filter(|(_, f)| match body.get_surface(f.surface) {
+            .filter(|(fk, _)| match body.face_surface(*fk) {
                 Some(Surface::Plane { origin, normal, .. }) => {
                     origin.y.abs() < 1e-12 && normal.y.abs() > 0.5
                 }
@@ -688,8 +688,8 @@ fn a_ruled_band_whose_caps_are_unslit_annuli_carves_at_the_closed_form() {
 
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)

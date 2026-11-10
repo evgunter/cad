@@ -27,7 +27,7 @@ fn region() -> Option<topo::RegionLane<f64>> {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    finished(what, brick(x, y, z, tol()), tol())
+    finished(what, brick::<f64>(x, y, z, tol()), tol())
 }
 
 /// Two unit cubes kissing at the corner `(1, 1, 1)`: one vertex–vertex
@@ -43,9 +43,9 @@ fn kiss() -> BooleanBody<f64> {
 
 fn face_at_x(body: &Body<f64>, x: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.x.abs() == 1.0 && origin.x == x
             )
@@ -543,9 +543,9 @@ fn a_record_whose_cells_map_to_one_cell_is_consumed() {
 
 fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.z.abs() == 1.0 && origin.z == z
             )

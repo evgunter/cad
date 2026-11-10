@@ -288,7 +288,7 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
     ] {
         let a = finished(
             "the box",
-            sweep::test_support::brick((0.5, 3.0), (-2.0, 2.0), z, Tol::witness()),
+            sweep::test_support::brick::<f64>((0.5, 3.0), (-2.0, 2.0), z, Tol::witness()),
             Tol::witness(),
         );
         assert_every_op(
@@ -380,9 +380,9 @@ fn a_flipped_tilted_face_is_refused_by_name() {
     ] {
         let body = run(op, &a, &b).unwrap().body().unwrap().body.clone();
         let mut flipped = 0;
-        for (k, f) in body.faces() {
+        for (k, _) in body.faces() {
             let on_b = matches!(
-                body.get_surface(f.surface),
+                body.face_surface(k),
                 Some(geom::Surface::Sphere { center, .. })
                     if (*center - geom_core::Point3::new(b_centre.x, b_centre.y, b_centre.z)).norm() < 1e-12
             );
@@ -450,7 +450,7 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
     assert_body("A ∪ B", &body, 2.0 * ball_volume(1.0) - shared);
     let mut encoded = 0;
     for (k, f) in body.faces() {
-        let surface = body.get_surface(f.surface).expect("the surface");
+        let surface = body.face_surface(k).expect("the surface");
         if !matches!(surface, geom::Surface::Sphere { .. }) {
             continue;
         }

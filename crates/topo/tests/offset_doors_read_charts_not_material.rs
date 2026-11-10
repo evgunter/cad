@@ -16,7 +16,7 @@ use topo::construction::Construct;
 
 use geom::Surface;
 use geom_core::{Band, Tol};
-use topo::{AtRestBody, Body, ChartMove, FaceKey, ValidationError};
+use topo::{Body, ChartMove, FaceKey, ValidationError};
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw` (`inside_out_operand.rs`'s wedge).
@@ -87,9 +87,9 @@ fn cap_area() -> f64 {
 
 /// The wedge's face on the plane z = 1, whichever way its chart faces.
 fn top(body: &Body<f64>) -> FaceKey {
-    let mut hits = body.faces().filter(|(_, f)| {
+    let mut hits = body.faces().filter(|(fk, _)| {
         matches!(
-            body.get_surface(f.surface),
+            body.face_surface(*fk),
             Some(Surface::Plane { origin, normal, .. })
                 if normal.z.abs() == 1.0 && origin.z == 1.0
         )
@@ -101,8 +101,7 @@ fn top(body: &Body<f64>) -> FaceKey {
 
 /// The top chart's stored normal's z.
 fn top_normal_z(body: &Body<f64>) -> f64 {
-    let f = body.get_face(top(body)).unwrap();
-    match body.get_surface(f.surface) {
+    match body.face_surface(top(body)) {
         Some(Surface::Plane { normal, .. }) => normal.z,
         other => panic!("the top chart is a plane, got {other:?}"),
     }
@@ -114,7 +113,7 @@ fn top_normal_z(body: &Body<f64>) -> f64 {
 fn volume(body: &Body<f64>, right_way: bool) -> f64 {
     if right_way {
         topo::mass_properties(
-            &AtRestBody::validate(body.clone(), Tol::witness()).expect("the body is finished"),
+            &topo::finish(body.clone(), Tol::witness()).expect("the body is finished"),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -134,7 +133,7 @@ fn volume(body: &Body<f64>, right_way: bool) -> f64 {
 /// `body` finishes when `right_way`, and refuses on check 7 alone when
 /// not.
 fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
-    match AtRestBody::validate(body.clone(), Tol::witness()) {
+    match topo::finish(body.clone(), Tol::witness()) {
         Ok(_) => assert!(right_way, "{what}: the inside-out body finished"),
         Err(errors) => assert!(
             !right_way

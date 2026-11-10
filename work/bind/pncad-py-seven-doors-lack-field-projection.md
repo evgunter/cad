@@ -48,6 +48,16 @@ Not one unit: `EditError` alone is ~40 arms, and each door's attribute set is a 
 
 ## Notes
 
+- **The no-corner reason has no Python spelling (evidence added 2026-11-06, ROUND
+  `round/turn-gate-names-its-factors`).** `PathError::NoCornerForFillet`
+  crosses as `no_corner_for_fillet` only. Its `PathNoCornerReason`
+  (`CarriersParallel`, `CarriersDoNotMeet`, and now
+  `TurnWithinTolerance { sin_turn, align, lever, lever_of: TurnLever }`)
+  is SHAPE in `crates/pncad-py/tests/test_binding_census.py`, and
+  `TurnLever` is INTERIOR there. So a Python caller cannot tell tangent carriers from a
+  turn that is zero at tolerance over a short lever except by reading the
+  message. This is part of the `path_err` row above.
+
 - `path_err`'s row is entangled with the `PathError` discriminant question (SMELL scan `D37`/`D39`): the kernel type carries no fieldless discriminant, so `crates/pncad-py/src/tags.rs::path_error_tag` hand-writes one. Projecting that door is worth doing after the discriminant exists, not before.
 - The `variant` tag itself is present and exhaustive at all seven; nothing here is a drift-alarm gap.
 

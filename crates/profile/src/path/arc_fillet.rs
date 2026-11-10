@@ -64,14 +64,14 @@
 //! only thing that can move an ulp is step 1 — hence the squared-radius
 //! rule.
 
-use geom_core::k_stats::decide;
+use crate::gate::{Escalation, Gate, decide};
 use geom_core::{
-    Band, Bounds, Circles, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2,
+    Band, Bounds, Circles, Decide, LengthOutOfFormat, Line2, Margin, Point2, Real, Sign, Tol, Vec2,
 };
 
 use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
-    linear_band,
+    TurnLever, linear_band,
 };
 use crate::fillet_select::{nearest_candidate, nearest_joint};
 use crate::structure::{
@@ -130,7 +130,7 @@ pub(crate) struct ArcFilletTrims<T: Real> {
     /// The incoming side's carrier when it is circular — what the door
     /// re-emits the trimmed piece along (`(centre, winding)`).
     pub in_arc: Option<(Point2<T>, ArcSweep)>,
-    /// The fillet arc's own carrier, for the §4 item 4 identity checks.
+    /// The fillet arc's own carrier.
     pub arc: ArcData<T>,
     /// What the offset construction proved of the centre
     /// ([`crate::sugar::ArcFilletCandidate::centre_facts`]).
@@ -172,9 +172,9 @@ impl<T: Real> SideCarrier<T> {
 impl<T: Real> FilletSide<T> {
     /// The signed distance travelled along THIS side's carrier from
     /// `from` to `to`, in metres (an arc length `R·Δθ` on a circular
-    /// carrier), together with the funnel predicate name that
-    /// classifies it: the shipped linear `path_corner_advance` on a
-    /// straight carrier, `arc_name` on a circular one.
+    /// carrier), together with the gate that classifies it:
+    /// [`Gate::PathCornerAdvance`] on a straight carrier, `arc_gate` on a
+    /// circular one.
     ///
     /// One helper serves both gates because "ahead of the anchor" and
     /// "behind the anchor" are the same signed quantity read in the two
@@ -184,19 +184,26 @@ impl<T: Real> FilletSide<T> {
     ///
     /// So a STRAIGHT side reports `path_corner_advance` for both
     /// windows while [`super::CornerWindow`] distinguishes them, and
-    /// that is right: the predicate names the MARGIN being classified,
+    /// that is right: the gate names the MARGIN being classified,
     /// which is one margin computed one way, whereas the window names
     /// which side's anchor the corner fell outside. The two circular
     /// spellings differ only because the arc gates were new margins,
     /// not because the windows are different questions.
-    fn travel(&self, from: Point2<T>, to: Point2<T>, arc_name: &'static str) -> (&'static str, T) {
+    fn travel(&self, from: Point2<T>, to: Point2<T>, arc_gate: Gate) -> (Gate, T) {
         match self.carrier {
-            SideCarrier::Ray(u) => ("path_corner_advance", (to - from).dot(u)),
+            SideCarrier::Ray(u) => (
+                Gate::PathCornerAdvance,
+                geom_core::Line2 {
+                    origin: from,
+                    dir: u,
+                }
+                .height(to),
+            ),
             SideCarrier::Circle { centre, winding } => {
                 let turn = winding.sign::<T>();
                 let r = (self.anchor - centre).norm_squared().sqrt();
                 (
-                    arc_name,
+                    arc_gate,
                     r * signed_swept(about(from, centre), about(to, centre), turn),
                 )
             }
@@ -209,7 +216,7 @@ impl<T: Real> FilletSide<T> {
 /// Only the PAIR-level conditions reach this: a corner the gates or the
 /// construction refuse is a fact about that corner and rides the
 /// envelope instead, with its point.
-fn no_corner<T: Real>(reason: PathNoCornerReason, radius: T) -> PathError<T> {
+fn no_corner<T: Real>(reason: PathNoCornerReason<T>, radius: T) -> PathError<T> {
     PathError::NoCornerForFillet { reason, radius }
 }
 
@@ -220,7 +227,7 @@ enum GateRefusal {
     /// it becomes an envelope entry beside the corner point.
     Outside(CornerWindow),
     /// The margin escalated; nothing was decided about this corner.
-    Escalated(Indeterminate),
+    Escalated(Escalation),
 }
 
 /// A guided pass's refusal on a consumed decision, in the elaboration's
@@ -231,10 +238,10 @@ fn structure<T: Real>(refusal: StructureRefusal) -> PathError<T> {
 
 /// The corners of a **ray × circle** pair, in increasing ray parameter.
 ///
-/// Squared-radius form: the signed perpendicular offset of the centre
-/// from the ray is exact in metres (`u` is unit), so the discriminant
-/// is `R² − offset²` with `powi(2)` — no `√(R²)²` anywhere on the path
-/// to a coordinate. The metre gate `R − |offset|` is a classification
+/// Squared-radius form, read by [`Line2::circle_heights`]: the
+/// discriminant is `R² − offset²` with `powi(2)`, the offset the
+/// centre's [`Line2::side`] — no `√(R²)²` anywhere on the path to a
+/// coordinate. The metre gate `R − |offset|` is a classification
 /// margin and is allowed its `sqrt`.
 fn ray_circle<T: Decide>(
     origin: Point2<T>,
@@ -244,22 +251,19 @@ fn ray_circle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<[Point2<T>; 2], PathError<T>> {
-    let w = centre - origin;
-    let along = w.dot(u);
-    let offset = w.perp_dot(u);
-    let margin = r_sq.sqrt() - offset.abs();
-    match decide("path_carrier_meet", Margin::of(margin), band) {
+    let ray = Line2 { origin, dir: u };
+    let margin = r_sq.sqrt() - ray.distance(centre);
+    match decide(Gate::PathCarrierMeet, Margin::of(margin), band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero) => {
-            return Err(no_corner(PathNoCornerReason::CarriersParallel, radius));
+            return Err(no_corner(PathNoCornerReason::CarriersTangent, radius));
         }
         Ok(Sign::Negative) => {
             return Err(no_corner(PathNoCornerReason::CarriersDoNotMeet, radius));
         }
-        Err(source) => return Err(PathError::Escalated { source }),
+        Err(source) => return Err(PathError::escalated(source)),
     }
-    let h = (r_sq - offset.powi(2)).sqrt();
-    Ok([origin + u * (along - h), origin + u * (along + h)])
+    Ok(ray.circle_heights(centre, r_sq).map(|t| ray.at(t)))
 }
 
 /// The corners of a **circle × circle** pair, in fixed order (the
@@ -290,7 +294,7 @@ fn circle_circle<T: Decide>(
     // Concentric carriers name no corner (identical ones name every
     // point of the circle, which is worse, not better).
     let gone = PathNoCornerReason::CarriersDoNotMeet;
-    let tangent = PathNoCornerReason::CarriersParallel;
+    let tangent = PathNoCornerReason::CarriersTangent;
     for (margin, on_zero) in [
         // concentric: no transversal crossing at any radius pair
         (carriers.d(), gone),
@@ -299,11 +303,11 @@ fn circle_circle<T: Decide>(
         // internally tangent / one inside the other
         (carriers.internal(), tangent),
     ] {
-        match decide("path_carrier_meet", Margin::of(margin), band) {
+        match decide(Gate::PathCarrierMeet, Margin::of(margin), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero) => return Err(no_corner(on_zero, radius)),
             Ok(Sign::Negative) => return Err(no_corner(gone, radius)),
-            Err(source) => return Err(PathError::Escalated { source }),
+            Err(source) => return Err(PathError::escalated(source)),
         }
     }
     let k = (d_sq + r1_sq - r2_sq) / (T::from_f64(2.0) * d_sq);
@@ -335,8 +339,8 @@ fn advance_gate<T: Decide>(
     corner: Point2<T>,
     band: Band,
 ) -> Result<(), GateRefusal> {
-    let (name, margin) = side.travel(side.anchor, corner, "path_corner_advance_arc");
-    match decide(name, Margin::of(margin), band) {
+    let (gate, margin) = side.travel(side.anchor, corner, Gate::PathCornerAdvanceArc);
+    match decide(gate, Margin::of(margin), band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(GateRefusal::Outside(CornerWindow::BehindIncomingRay)),
         Err(source) => Err(GateRefusal::Escalated(source)),
@@ -355,8 +359,8 @@ fn reach_gate<T: Decide>(
     corner: Point2<T>,
     band: Band,
 ) -> Result<(), GateRefusal> {
-    let (name, margin) = side.travel(corner, side.anchor, "path_corner_reach_arc");
-    match decide(name, Margin::of(margin), band) {
+    let (gate, margin) = side.travel(corner, side.anchor, Gate::PathCornerReachArc);
+    match decide(gate, Margin::of(margin), band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(GateRefusal::Outside(CornerWindow::BehindArrivalAnchor)),
         Err(source) => Err(GateRefusal::Escalated(source)),
@@ -425,9 +429,9 @@ enum CornerOutcome<T: Real> {
     /// A statement about this corner: it becomes an envelope entry,
     /// beside the corner point.
     Reason(CornerReason<T>),
-    /// A refusal that names no corner — the pair is parallel at the
-    /// derived corner, a leg has no length scale, the band failed, or
-    /// the conditioning gate aborted. First one wins, and it OUTRANKS
+    /// A refusal that names no corner — the pair's carriers touch, the
+    /// turn at the derived corner is zero at tolerance, a leg has no
+    /// length scale, the band failed, or the conditioning gate aborted. First one wins, and it OUTRANKS
     /// the envelope: a fact about the pair answers before any fact
     /// about one of its corners does.
     Whole(PathError<T>),
@@ -459,7 +463,7 @@ enum CornerOutcome<T: Real> {
 fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcome<T> {
     match refusal {
         ArcTrimRefusal::Band(source) => CornerOutcome::Whole(PathError::Band(source)),
-        ArcTrimRefusal::Escalated(source) => CornerOutcome::Whole(PathError::Escalated { source }),
+        ArcTrimRefusal::Escalated(source) => CornerOutcome::Whole(PathError::escalated(source)),
         ArcTrimRefusal::LegDegenerate { arm, .. } => {
             CornerOutcome::Whole(PathError::UnderdeterminedLeg {
                 site: if arm.lo() <= 0.0 {
@@ -470,12 +474,21 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> CornerOutcom
             })
         }
         // The corner's turn does not clear the band at the derived
-        // corner: the same situation `path_corner_turn` names on the
-        // straight pair, and a statement about the PAIR rather than
-        // about one crossing.
-        ArcTrimRefusal::TurnInBand { .. } => {
-            CornerOutcome::Whole(no_corner(PathNoCornerReason::CarriersParallel, radius))
-        }
+        // corner: a statement about the PAIR rather than about one
+        // crossing, carrying both factors of the levered margin.
+        ArcTrimRefusal::TurnInBand {
+            sin_turn,
+            align,
+            arm,
+        } => CornerOutcome::Whole(no_corner(
+            PathNoCornerReason::TurnWithinTolerance {
+                sin_turn,
+                align,
+                lever: arm,
+                lever_of: TurnLever::ShorterLeg,
+            },
+            radius,
+        )),
         ArcTrimRefusal::NoCorner { reason, .. } => {
             CornerOutcome::Reason(CornerReason::NoTangentCircle(reason))
         }
@@ -680,9 +693,13 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     // as the joint space going unconfirmed rather than surfacing as a
     // bare band refusal about `path_carrier_meet`.
     let corners = derive(&incoming, &arrival, radius, band).map_err(|e| match (&consumed, &e) {
-        (Some((fillet, _)), PathError::Escalated { source }) => structure(
-            StructureRefusal::indeterminate(Decision::JointSpace { fillet: *fillet }, *source),
-        ),
+        (Some((fillet, _)), PathError::Escalated { gate, source, .. }) => {
+            structure(StructureRefusal::indeterminate(
+                Decision::JointSpace { fillet: *fillet },
+                *gate,
+                *source,
+            ))
+        }
         _ => e,
     })?;
     for (ci, corner) in corners.into_iter().enumerate() {
@@ -721,7 +738,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                     // driver bisecting the parameter box needs to know
                     // which decision went unconfirmed.
                     Err((_, GateRefusal::Escalated(source))) => {
-                        return Err(structure(StructureRefusal::indeterminate(site, *source)));
+                        return Err(structure(StructureRefusal::escalated(site, *source)));
                     }
                     _ if found != recorded => {
                         return Err(structure(StructureRefusal::flipped(
@@ -743,7 +760,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             // honestly ranked. (A guided pass never reaches this arm —
             // it has already refused above, naming the corner.)
             (false, Err((_, GateRefusal::Escalated(source)))) => {
-                return Err(PathError::Escalated { source });
+                return Err(PathError::escalated(source));
             }
             (false, Err((_, GateRefusal::Outside(window)))) => gate_entries.push(CornerRefusal {
                 at: corner,
@@ -789,11 +806,11 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                 // whose construction went unconfirmed, and the payload
                 // carries the predicate that could not be classified.
                 return Err(match &consumed {
-                    Some((fillet, _)) => structure(StructureRefusal::indeterminate(
+                    Some((fillet, _)) => structure(StructureRefusal::escalated(
                         Decision::FilletConstruction { fillet: *fillet },
                         source,
                     )),
-                    None => PathError::Escalated { source },
+                    None => PathError::escalated(source),
                 });
             }
             // The M8 conditioning gate ABORTS the resolve exactly as an
@@ -829,8 +846,8 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     // (4) the lifted ladder over the flattened joint space.
     if joints.is_empty() {
         // A whole-pair refusal OUTRANKS the envelope, as it did before
-        // the envelope existed. It is a fact about the pair — these
-        // carriers are tangent at a derived corner, a leg has no length
+        // the envelope existed. It is a fact about the pair — the turn
+        // at a derived corner is zero at tolerance, a leg has no length
         // scale, the band could not classify — so a per-corner sentence
         // beside it, or instead of it, would be a smaller and weaker
         // claim about a situation the whole pair is in. Nothing is
@@ -1021,17 +1038,14 @@ pub(crate) fn carrier_tangent<T: Decide>(
     band: Band,
 ) -> Result<Dir<T>, PathError<T>> {
     let v = p - centre;
-    let radius = v.norm_squared().sqrt();
-    if !geom_core::is_finite_length(radius) {
-        return Err(PathError::NonFiniteDirection { dx: v.x, dy: v.y });
-    }
-    if geom_core::is_underflowed_length(radius, v.norm_witness()) {
-        return Err(PathError::UnderflowedDirection { dx: v.x, dy: v.y });
-    }
-    match decide("path_arc_center_radius", Margin::of(radius), band) {
+    let radius = v.checked_length().map_err(|e| match e {
+        LengthOutOfFormat::NonFinite => PathError::NonFiniteDirection { dx: v.x, dy: v.y },
+        LengthOutOfFormat::Underflowed => PathError::UnderflowedDirection { dx: v.x, dy: v.y },
+    })?;
+    match decide(Gate::PathArcCenterRadius, Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),
-        Err(source) => return Err(PathError::Escalated { source }),
+        Err(source) => return Err(PathError::escalated(source)),
     }
     let turn = winding.sign::<T>();
     Ok(Dir::from_unit(Vec2::new(-v.y, v.x) * (turn / radius)))

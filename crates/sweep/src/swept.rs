@@ -1117,9 +1117,11 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
             // Margin: perpendicular distance of the next chord's far
             // endpoint from the previous chord's carrier line (meters,
             // direct displacement).
-            let t = (prev.b() - prev.a()).normalize();
-            let d = next.b() - prev.a();
-            let margin = t.perp_dot(d);
+            let margin = geom_core::Line2 {
+                origin: prev.a(),
+                dir: prev.b() - prev.a(),
+            }
+            .side(next.b());
             Ok(matches!(
                 decide(names.lines, Margin::of(margin), band)?,
                 Sign::Zero
@@ -1426,34 +1428,19 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), EulerOpError> {
     let chart = face_surface_key(body, face);
-    let face_data = body
-        .get_face(face)
+    let edges: Vec<topo::EdgeKey> = body
+        .face(face)
         .unwrap_or_else(|| unreachable!("face {face:?} resolved just above"))
-        .clone();
-    let mut edges: Vec<topo::EdgeKey> = Vec::new();
-    for lk in core::iter::once(&face_data.outer).chain(&face_data.rings) {
-        let topo::LoopBoundary::Cycle { first } = body
-            .get_loop(*lk)
-            .unwrap_or_else(|| {
-                unreachable!("loop {lk:?} is listed by live face {face:?} on a tier-1-valid body")
-            })
-            .boundary
-        else {
-            continue;
-        };
-        let cycle = body.loop_cycle(first).unwrap_or_else(|| {
-            unreachable!("loop {lk:?}'s cycle from {first:?} closes on a tier-1-valid body")
-        });
-        for he in cycle {
-            edges.push(
-                body.get_half_edge(he)
-                    .unwrap_or_else(|| {
-                        unreachable!("half-edge {he:?} is on loop {lk:?}'s closed cycle")
-                    })
-                    .edge,
-            );
-        }
-    }
+        .half_edges()
+        .into_iter()
+        .map(|he| {
+            body.get_half_edge(he)
+                .unwrap_or_else(|| {
+                    unreachable!("half-edge {he:?} is on a closed cycle of {face:?}")
+                })
+                .edge
+        })
+        .collect();
     for edge in edges {
         let curve = match body.stored_curve(edge) {
             Ok(curve) => curve,

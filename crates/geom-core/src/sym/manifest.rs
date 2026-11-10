@@ -36,35 +36,29 @@
 //!
 //! **What the census proves, and what the list is.** Two different
 //! claims, kept apart. (1) The EMPIRICAL claim, which covers every
-//! mint site whether named below or not: on the seven measured
+//! mint site whether named below or not: on the eight measured
 //! documents whose nominal replay the shape report can take (the
-//! plate, the annulus, the link, the bracket, R1's segment boss, both
-//! D-tabs), no `copysign` atom from any site stands in a residual the
-//! tier is asked to decide, with rule F on or shut
+//! plate, the bracket, the annulus, the rounded pad, the link, R1's
+//! segment boss, both D-tabs), no `copysign` atom from any site stands
+//! in a residual the tier is asked to decide, with rule F on or shut
 //! (`m10_10_evidence_interval`'s
-//! `sym12_the_copysign_census_at_the_nominal`): the plate renders 8
-//! early forms, the bracket 46, the link 44, the literal D-tab 68 and
-//! the parameter D-tab 72, the annulus and the boss none, and not one
-//! of them carries a `copysign` atom. On the five cheap documents the
+//! `sym12_the_copysign_census_at_the_nominal`). On the five cheap
+//! documents (the plate, the annulus, the boss, both D-tabs) the
 //! gating half
 //! (`sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`)
-//! asserts it. So the reach either arm has MEASURED is still the
-//! orthonormal basis's atoms alone.
-//! `geom-brep/src/quartic.rs`'s second site, the Cardano root's
-//! `(A − B).copysign(−Q)`, is measured directly on the plate, the
-//! bracket and the annulus (0 atoms each; the run is OOM-killed on the
-//! next document on a small box), and covered on the other four by
-//! construction: it runs only inside the one-real-root branch of
-//! `cubic_largest_real_root`, in the same call as `cbrt`'s own
-//! `copysign`, and both flow into the one returned `z`. The census's
-//! measurement of those four documents was taken at a head where
-//! `cbrt`'s arguments in that branch were the signed forms
-//! `−Q/2 ± √(…)`, so every `z` the branch returned carried a `copysign`
-//! atom; none stood in a decided residual, so no `z` from that branch
-//! does, and this site's atom exists only inside one.
+//! asserts it. On the other three (the bracket, the rounded pad, the
+//! link) it is UNGUARDED: only the `#[ignore]`d census reads them, left
+//! out of the gate for their replay's cost, so there it is a
+//! measurement at the head that last ran it and nothing reds when it
+//! stops holding. So the reach either arm has MEASURED is still the
+//! orthonormal basis's atoms alone; `geom-brep/src/quartic.rs`'s
+//! Cardano root's `(A − B).copysign(−Q)` is among the sites so
+//! measured.
 //! (2) The sites the tree holds at
 //! this commit, outside this module and the scalar impls that merely
-//! forward the function: `linalg/svd.rs`'s Householder (`f64`
+//! forward the function. Each `Real::unit_sign` call counts as a site:
+//! the method is a `copysign` of one, so the atom is minted where it is
+//! called. The sites: `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom/src/curves/banded.rs`'s dropped `L` zero, which takes
 //! its pivot's sign (`f64` only); `geom-brep/src/implicit.rs`'s cone
 //! gradient;
@@ -76,7 +70,22 @@
 //! `profile/src/sugar.rs`'s arc-leg fillet tangent point (the offset
 //! radius's sign);
 //! `sweep/src/revolve/axis.rs`'s radial extent;
-//! `sweep/src/blend/arms.rs`'s cone nappe;
+//! `sweep/src/blend/arms.rs`'s cone nappe and the knife-edge rim's two
+//! root sides (the line-and-circle pair's `−b ± √(b² − D)` and the two
+//! circles' half-chord, each signed by the common tangent `toward`,
+//! which is `±1` at a knife and never near zero there);
+//! `geom-core/src/linalg/vec.rs`'s `Vec3::turned_toward`, the one home
+//! of turning a direction to agree with another (`topo`'s cone apex
+//! reads its nappe axis and its rulings through it, and the cone-pair
+//! apex plane its two axes);
+//! `topo/src/sector_face.rs`'s cone apex sweep sense (`±1` against
+//! `axis × d̂`) and its signed turn chord between two rulings;
+//! `geom/src/surfaces.rs`'s `meridian_side`, a revolved circle's
+//! `sgn R`, decided clear of zero at rest;
+//! `geom-brep/src/pair_section/cylinders.rs`'s pinch node, on the side
+//! the fatter wall's axis stands, signed by `gap·(r₁ − r₂)`, both
+//! clear of zero wherever the pose is the pinch (the radii decided
+//! unequal, the gap's magnitude their difference within the band);
 //! `geom-brep/src/intersect.rs`'s plane × cone graze, whose one
 //! generator lies a quarter turn either side of the plane normal's
 //! azimuth by the sign of `c`, the normal's axial component, which the

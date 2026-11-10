@@ -4,6 +4,9 @@ kind: issue
 title: Python's set_param has no word for one list member or loft section, where Rust's SetParam writes one
 status: open
 opened: 2026-10-08
+priority: P3
+cost: E
+design: true
 ---
 
 

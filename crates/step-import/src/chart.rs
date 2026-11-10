@@ -324,13 +324,14 @@ fn boundary_distance(poly: &[Point2<f64>], p: Point2<f64>) -> f64 {
         let a = poly[i];
         let b = poly[(i + 1) % poly.len()];
         let ab = b - a;
-        let len2 = ab.dot(ab);
-        let t = if len2 > 0.0 {
-            ((p - a).dot(ab) / len2).clamp(0.0, 1.0)
+        // An edge of no length is its one point: `Line2` needs a
+        // nonzero direction.
+        let gap = if ab.norm_squared() > 0.0 {
+            geom_core::Line2 { origin: a, dir: ab }.distance_within(p, (0.0, 1.0))
         } else {
-            0.0
+            (p - a).norm()
         };
-        best = best.min((p - (a + ab * t)).norm());
+        best = best.min(gap);
     }
     best
 }

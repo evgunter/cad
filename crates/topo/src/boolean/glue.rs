@@ -30,11 +30,10 @@ use geom_core::{Band, Bounds, Decide};
 
 use super::section_table::SectionTable;
 use super::{
-    BooleanError, DeclarationRead, Glue, GluedPair, InBandPair, Operand, PairUnread,
-    TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
+    BooleanError, CarrierVerdict, DeclarationRead, Glue, GluedPair, InBandPair, Operand,
+    PairUnread, TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
-use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
 /// **Which operand's description a glued pair keeps** (`docs/DESIGN.md`
@@ -85,17 +84,12 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
             continue;
         }
         let glued = match carrier_pair_decided(a, fa, b, fb, band) {
-            Ok(Ok((relation, Some(margin)))) => GlueClass::of_senses(relation)
-                .map(|class| GluedPair::decided(fa, fb, class, margin)),
-            // One carrier on no margin is no decision this door makes:
-            // every rung that reads one carrier reads it on a margin.
-            Ok(Ok((relation, None))) if GlueClass::of_senses(relation).is_some() => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "the glue door: a pair read one carrier on no margin",
-                });
+            Ok(Ok(CarrierVerdict::One { relation, margin })) => {
+                GluedPair::one_carrier(fa, fb, relation, margin)
             }
-            Ok(Ok(_)) | Err(PairUnread::OutsideInventory) => {
-                tangency(a, fa, b, fb, band)?.then(|| GluedPair::new(fa, fb, GlueClass::Tangent))
+            Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
+            | Err(PairUnread::OutsideInventory) => {
+                tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency))
             }
             Ok(Err(reading)) => {
                 in_band.push(InBandPair {
@@ -119,14 +113,15 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
     Ok(Cow::Owned(out))
 }
 
-/// **Whether the witness lane verifies `fa` and `fb` tangent** along a
+/// **What the witness lane certifies of `fa` and `fb` tangent** along a
 /// locus ([`glued_tangency`]), asked only of a pair it has a locus for:
 /// a plane and a cylinder, two cylinders, or two faces ending on one
 /// circle. Along a rim the routing must also read the junction the two
 /// faces make as one the zip builds, the smooth seam.
 ///
-/// Counter-evidence, a pair outside the lane and a junction the routing
-/// places outside what the zip builds are no tangency. A refusal no
+/// A verdict that the pair is not tangent, a pair outside the lane and a
+/// junction the routing places outside what the zip builds are no
+/// tangency (`None`). A refusal no
 /// reading of the pair settles (an in-band margin, an undecidable rim
 /// identity, an unreadable face) is the operation's: a pair the lane has
 /// a locus for never reaches a later stage unglued on a reading the
@@ -145,23 +140,21 @@ fn tangency<T: Decide>(
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> Result<Option<super::Tangency<T>>, BooleanError> {
     let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
     let read = DeclarationRead::Moot;
     if !ruled((kind(a, fa), kind(b, fb)))
         && !super::rim_wedge::rim_exists(a, fa, b, fb, band)
             .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
     {
-        return Ok(false);
+        return Ok(None);
     }
     match glued_tangency(a, fa, b, fb, read, band) {
-        Ok(_) => Ok(true),
+        Ok(tangency) => Ok(Some(tangency)),
         Err(TangencyFailure::Refused(e)) => Err(e),
         Err(
-            TangencyFailure::Contradicted { .. }
-            | TangencyFailure::Unsupported
-            | TangencyFailure::Unrouted(_),
-        ) => Ok(false),
+            TangencyFailure::NotTangent | TangencyFailure::Unsupported | TangencyFailure::Unrouted,
+        ) => Ok(None),
     }
 }
 
@@ -173,16 +166,6 @@ fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
         kinds,
         (Plane, Cylinder) | (Cylinder, Plane) | (Cylinder, Cylinder)
     )
-}
-
-/// **The ball about the overlap of two overlapping boxes**: its centre,
-/// out to its half-diagonal. The boxes are `f64` hulls the face walk
-/// computed, so the ball enters as computed values.
-pub(super) fn overlap_ball<T: geom_core::Real>(
-    a: &bvh::Aabb,
-    b: &bvh::Aabb,
-) -> geom_brep::ExtentBall<T> {
-    geom_brep::ExtentBall::of_overlap(a, b)
 }
 
 /// **The cross pairs whose face boxes overlap**: each face of `a` against
@@ -203,7 +186,7 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
         body.face_views()
             .filter(|face| keep(face.surface()))
-            .map(|face| Ok((face.key(), boxes::face_box(body, face.key(), pad, band)?)))
+            .map(|face| Ok((face.key(), boxes::face_box(body, face.key(), pad, band))))
             .collect()
     };
     pairs_among(&boxed(a)?, &boxed(b)?)
@@ -283,24 +266,36 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         margin,
         discharge: crate::Discharge::of(margin),
     };
-    // The operation's region (C5): the ball about the overlap of the two
-    // operands' boxes, each the hull of its faces' boxes at the sweep's
-    // pad, which holds every section point the operation can use; none
-    // where the boxes do not overlap, so that no face pair does.
-    // Each face's box once: every face's for the region, the served
-    // faces' for the pairs.
+    // The operation's region (C5): where the two operands' covers meet,
+    // each the hull of its faces' covers, within the band's sweep
+    // tolerance ([`crate::cover::meet_within`]), which holds every section
+    // point the operation can use; none where their boxes do not
+    // overlap, so that no face pair does. Each face's cover once: every
+    // face's for the region, the served faces' boxes for the pairs.
     let pad = boxes::sweep_pad(band);
-    let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
-        body.faces()
-            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band)?)))
+    let covered = |body: &Body<T>| -> Vec<(FaceKey, crate::cover::FaceCovered<T>)> {
+        body.face_views()
+            .map(|face| (face.key(), crate::cover::face_cover(body, face.key(), band)))
             .collect()
     };
-    let (a_boxes, b_boxes) = (boxed(a)?, boxed(b)?);
-    let hull = |boxed: &[(FaceKey, bvh::Aabb)]| {
+    let (a_covers, b_covers) = (covered(a), covered(b));
+    let boxed = |covers: &[(FaceKey, crate::cover::FaceCovered<T>)]| -> Vec<(FaceKey, bvh::Aabb)> {
+        covers
+            .iter()
+            .map(|(k, c)| (*k, boxes::cover_box(c, pad)))
+            .collect()
+    };
+    let (a_boxes, b_boxes) = (boxed(&a_covers), boxed(&b_covers));
+    let box_hull = |boxed: &[(FaceKey, bvh::Aabb)]| {
         boxed.iter().map(|&(_, bx)| bx).reduce(|h, bx| h.hull(&bx))
     };
-    let region = match (hull(&a_boxes), hull(&b_boxes)) {
-        (Some(ha), Some(hb)) if ha.overlaps(&hb) => Some(overlap_ball(&ha, &hb)),
+    let hull = |covers: Vec<(FaceKey, crate::cover::FaceCovered<T>)>| {
+        crate::cover::hull_of_covers(covers.into_iter().map(|(_, c)| c))
+    };
+    let region = match (box_hull(&a_boxes), box_hull(&b_boxes)) {
+        (Some(ha), Some(hb)) if ha.overlaps(&hb) => hull(a_covers)
+            .zip(hull(b_covers))
+            .map(|(ca, cb)| crate::cover::meet_within(&ca, &cb, pad)),
         _ => None,
     };
     let served = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
@@ -407,21 +402,7 @@ pub(crate) fn touched<T: geom_core::Real>(
     [a, b]: [&Body<T>; 2],
 ) -> Vec<usize> {
     use crate::{Cell, RowCell};
-    // Each face's closure in its input, read once: the face, its edges
-    // and their ends.
-    let closures = |body: &Body<T>| {
-        let mut out: std::collections::BTreeMap<FaceKey, Vec<Cell>> =
-            std::collections::BTreeMap::new();
-        for (he, h) in body.half_edges() {
-            if let Some(face) = body.face_of_half_edge(he) {
-                out.entry(face)
-                    .or_insert_with(|| vec![Cell::Face(face)])
-                    .extend([Cell::Edge(h.edge), Cell::Vertex(h.start)]);
-            }
-        }
-        out
-    };
-    let (of_a, of_b) = (closures(a), closures(b));
+    let (of_a, of_b) = (face_closures(a), face_closures(b));
     let closure = |input: Operand, face: FaceKey| {
         let of = if input == Operand::A { &of_a } else { &of_b };
         of.get(&face).map_or(&[][..], Vec::as_slice)
@@ -449,6 +430,26 @@ pub(crate) fn touched<T: geom_core::Real>(
         .collect()
 }
 
+/// Each face's closure in `body`, read once: the face, its edges and
+/// its vertices, a lone one included ([`crate::live::BoundaryMember`]).
+fn face_closures<T: geom_core::Real>(
+    body: &Body<T>,
+) -> std::collections::BTreeMap<FaceKey, Vec<crate::Cell>> {
+    use crate::Cell;
+    body.face_views()
+        .map(|view| {
+            let mut cells = vec![Cell::Face(view.key())];
+            for member in view.boundary() {
+                if let crate::live::BoundaryMember::Edge { ek, .. } = member {
+                    cells.push(Cell::Edge(ek));
+                }
+                cells.push(Cell::Vertex(member.vertex()));
+            }
+            (view.key(), cells)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod region_rows {
@@ -456,11 +457,12 @@ mod region_rows {
 
     use crate::test_support_fixtures::brick;
 
-    /// **The operation's region is the ball about the operands' box
-    /// overlap**: two unit-high bricks overlapping in `[0.5, 1]` along
-    /// `x` read a ball about the padded overlap's centre, out to its
-    /// half-diagonal, which holds the overlap and is far short of either
-    /// brick's own ball; bricks apart read none.
+    /// **The operation's region is where the operands' covers meet,
+    /// within the band**: two unit-high bricks overlapping in `[0.5, 1]`
+    /// along `x` read the ball about the overlap's centre, out to its
+    /// half-diagonal widened by the sweep's pad, which holds the overlap
+    /// and is far short of either brick's own ball; bricks apart read
+    /// none. Red where one operand's hull stands in for the meet.
     #[test]
     fn the_region_is_the_ball_about_the_operands_box_overlap() {
         let tol = Tol::witness();
@@ -477,18 +479,40 @@ mod region_rows {
         };
         let got = region(&brick::<f64>((0.5, 3.0), (0.0, 1.0), (0.0, 1.0), tol))
             .expect("the boxes overlap");
-        // Each face box is padded by the sweep's pad, so the overlap is
-        // `[0.5 − p, 1 + p] × [−p, 1 + p]²`.
+        // The meet of the two hulls is the overlap `[0.5, 1] × [0, 1]²`.
         let pad = super::boxes::sweep_pad(band);
         let centre = Point3::new(0.75, 0.5, 0.5);
         assert!((got.center() - centre).norm() < 1e-12, "{got:?}");
-        let half = |w: f64| 0.5 * (w + 2.0 * pad);
-        let radius = (half(0.5).powi(2) + 2.0 * half(1.0).powi(2)).sqrt();
+        let radius = (0.25f64.powi(2) + 2.0 * 0.5f64.powi(2)).sqrt() + pad;
         assert!(
             (got.radius() - radius).abs() < 1e-12,
-            "{got:?} against the padded overlap's half-diagonal {radius}"
+            "{got:?} against the overlap's half-diagonal within the band, {radius}"
         );
         let far = brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), tol);
         assert!(region(&far).is_none(), "apart: no region");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod closure_rows {
+    use geom_core::Tol;
+
+    use crate::Cell;
+    use crate::test_support_fixtures::box_with_a_lone_ring;
+
+    /// **A face's closure holds its lone vertex**: a box's top face that
+    /// bounds a one-vertex ring holds that vertex, so a reduction that
+    /// lands a cell on it is a meeting of the face. Red where the closure
+    /// was read off the face's half-edges, which a lone vertex has none of.
+    #[test]
+    fn a_faces_closure_holds_its_lone_vertex() {
+        let (body, top, lone) = box_with_a_lone_ring(Tol::witness());
+        let closures = super::face_closures(&body);
+        let top_cells = closures.get(&top).expect("the top face's closure");
+        assert!(
+            top_cells.contains(&Cell::Vertex(lone)),
+            "the top face's closure holds its lone vertex: {top_cells:?}"
+        );
     }
 }

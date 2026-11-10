@@ -2,7 +2,7 @@
 id: round
 kind: program
 title: ROUND — the profile fillet family: its doors, its recourse sentences, and where a quarter of it lives
-status: active
+status: ready
 opened: 2026-09-20
 group: kernel/sketch
 prefix: round/
@@ -20,8 +20,9 @@ Its spine is that the subsystem does not live where it runs:
 own docs say `validate.rs` never runs them, which is a quarter of the
 fillet subsystem hosted by a file that is not its home. Around it,
 `arc_carrier` has three spellings under a comment asserting it has one;
-`family.rs`'s `carriers_are_identical` decides a carrier-identity
-question the sixth-round ruling RETIRES at the lattice; and the Fillet
+a carrier-identity decision inside the fillet family's arc extension
+answered a question the sixth-round ruling retires at the lattice (it is
+gone since PR 6682); and the Fillet
 chain step takes six door refusals before a reviewer sees it, which is
 a discoverability defect rather than a bug.
 

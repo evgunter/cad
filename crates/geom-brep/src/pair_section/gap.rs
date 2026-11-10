@@ -110,6 +110,7 @@
 //! held escalation if there is one, without reading the cells left.
 
 use geom::Conic as _;
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3,
@@ -163,8 +164,8 @@ pub(crate) enum Spine<T: Real> {
     Line(geom::Line<T>),
     /// A torus's core circle.
     Circle {
-        center: Point3<T>,
-        axis: Vec3<T>,
+        /// The circle's axis line, through its centre.
+        axis: geom::Line<T>,
         radius: T,
     },
 }
@@ -175,7 +176,7 @@ impl<T: Real> Spine<T> {
     fn anchor(self) -> (Point3<T>, T) {
         match self {
             Self::Line(line) => (line.origin, T::zero()),
-            Self::Circle { center, radius, .. } => (center, radius),
+            Self::Circle { axis, radius } => (axis.origin, radius),
         }
     }
 }
@@ -306,8 +307,11 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
             }
         }
         Spine::Circle {
-            center,
-            axis,
+            axis:
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
             radius,
         } => {
             // `G = |w|² ∓ 2R₂ρ + R₂²`, `ρ = √S` the distance from the
@@ -592,16 +596,19 @@ pub(crate) fn critical_gap<T: Decide>(
     };
     let two = T::from_f64(2.0);
     let piece = T::tau() / T::from_f64(GAP_START as f64);
-    let mut cells: Vec<(T, T)> = (0..GAP_START)
-        .rev()
-        .map(|k| {
-            let lo = piece * T::from_f64(k as f64);
-            (lo, lo + piece)
-        })
-        .collect();
+    let cells = (0..GAP_START).map(|k| {
+        let lo = piece * T::from_f64(k as f64);
+        (lo, lo + piece)
+    });
     let mut spent = 0;
     let mut held: Option<Indeterminate> = None;
-    while let Some((lo, hi)) = cells.pop() {
+    // `GAP_CELLS` is a wall in cells read, but it stays in the visit
+    // (`spent`) rather than being the walk's `Budget`: its refusal carries
+    // the cell's own reading (`floor_refusal(r, ..)`), which an
+    // `Exhausted` cannot. The walk halves only while it has cells left, so
+    // the reads that implies never bind first.
+    let mut reads = Budget::implied_by_halvings(GAP_START, GAP_CELLS);
+    let walked = bisect_within(cells, &mut reads, |(lo, hi)| {
         spent += 1;
         let w = (hi - lo) / two;
         let m = lo + w;
@@ -616,8 +623,8 @@ pub(crate) fn critical_gap<T: Decide>(
                 Cell::Open(r) => Rung::InBand(r),
             }
         }) {
-            Climb::Answered { answer, .. } => return Ok(answer),
-            Climb::Passed => continue,
+            Climb::Answered { answer, .. } => return Step::Stop(Ok(answer)),
+            Climb::Passed => return Step::Settled,
             Climb::Undecided(r) => r,
         };
         let reach = core.circle.radius * w;
@@ -626,14 +633,18 @@ pub(crate) fn critical_gap<T: Decide>(
             Ok(Sign::Zero)
         );
         if spent >= GAP_CELLS {
-            return Err(held.unwrap_or_else(|| sweep.floor_refusal(r, reach)));
+            return Step::Stop(Err(held.unwrap_or_else(|| sweep.floor_refusal(r, reach))));
         }
         if floored {
             held.get_or_insert_with(|| sweep.floor_refusal(r, reach));
-            continue;
+            return Step::Settled;
         }
-        cells.push((m, hi));
-        cells.push((lo, m));
+        Step::Halve([(lo, m), (m, hi)])
+    });
+    match walked {
+        Ok(Some(answer)) => return answer,
+        Ok(None) => {}
+        Err(Exhausted) => unreachable!("a gap's walk spends its cells before its reads"),
     }
     held.map_or(Ok(Gap::Transverse), Err)
 }

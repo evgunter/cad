@@ -1764,8 +1764,8 @@ fn exact_chart_image<T: Decide>(
         });
     }
     let control = knots
-        .runs()
-        .map(|(t, _)| cache.pcurve().eval(t))
+        .breakpoints()
+        .map(|t| cache.pcurve().eval(t))
         .collect::<Vec<_>>();
     let weights = vec![T::one(); control.len()];
     let polyline = NurbsCurve2::new(knots.clone(), control, weights).map_err(|_| {
@@ -2084,7 +2084,7 @@ fn free_residual<T: Decide>(
     let Curve3::Nurbs(net) = carrier else {
         return at(params.0);
     };
-    let breaks: Vec<T> = net.knot_values().runs().map(|(v, _)| v).collect();
+    let breaks: Vec<T> = net.knot_values().breakpoints().collect();
     let spans: Vec<T> = breaks
         .windows(2)
         .map(|w| at((w[0] + w[1]) / (T::one() + T::one())))
@@ -2118,8 +2118,9 @@ fn free_residual<T: Decide>(
 ///
 /// Both ends passing certify the edge (`Some(Ok)`). The ends are an
 /// identity ([`crate::ladder::climb`], `Any`): a miss at either answers
-/// (`Some(Err)`), the other end unread, and with none an escalation
-/// refuses (`Some(Err)`); an end that is only an upper bound
+/// (`Some(Err)`) with the larger of the two ends' misses
+/// ([`MarginDiag::larger`]), whichever end answers, and with none an
+/// escalation refuses (`Some(Err)`); an end that is only an upper bound
 /// past the band, with neither, decides nothing (`None`), and [`limb2`]
 /// lets the composite's own stall stand. No ratio over the net's width
 /// enters, and no round-to-nearest product: at `f64` a dot product at
@@ -2131,19 +2132,30 @@ fn measured_ends(
     band: Band,
 ) -> Option<Result<(), AnalyticRung3Refusal>> {
     use crate::ladder::{Answering, Climb, Rung, climb};
+    // One end's distance from the plane, decided.
+    let decide = |(measure, lever): (geom_core::Interval, geom_core::Interval)| {
+        let distance = measure.abs();
+        let end = geom_core::Margin::over_lever(distance, lever);
+        (
+            distance,
+            crate::dihedral::decide_reported("ssi_hull_value", end, band),
+        )
+    };
+    // An end decided off the plane, and its miss.
+    let off = |decided: &Result<Decided, Indeterminate>| match decided {
+        Ok(Decided { sign, margin }) if *sign != Sign::Zero => Some(*margin),
+        _ => None,
+    };
     // An identity over the two ends: either one decided off the plane
     // says the edge is not on it. An escalation is kept by its margin and
     // a bare end as unsettled (ranked after it), the composite's stall.
-    let climbed = climb(Answering::Any, ends, |(measure, lever)| {
-        let distance = measure.abs();
-        let end = geom_core::Margin::over_lever(distance, lever);
-        match crate::dihedral::decide_reported("ssi_hull_value", end, band) {
-            Ok(Decided {
-                sign: Sign::Zero, ..
-            }) => Rung::Passes,
-            Ok(Decided { margin, .. }) => {
-                Rung::Answers(AnalyticRung3Refusal::Limb { operand, margin })
-            }
+    let climbed = climb(Answering::Any, ends, |end| {
+        let (distance, decided) = decide(end);
+        if let Some(margin) = off(&decided) {
+            return Rung::Answers(margin);
+        }
+        match decided {
+            Ok(_) => Rung::Passes,
             Err(cause) if geom_core::Bounds::lo(distance) > 0.0 => {
                 Rung::kept(cause).map_kept(|cause| {
                     Some(AnalyticRung3Refusal::Escalated {
@@ -2157,7 +2169,21 @@ fn measured_ends(
         }
     });
     match climbed {
-        Climb::Answered { answer, .. } => Some(Err(answer)),
+        Climb::Answered { answer: margin, .. } => {
+            // The refusal reports the larger of the ends' misses, whichever
+            // end the identity met first: at the import door the miss
+            // decides whether "set ε to ε_in" is offered and in which words
+            // (`FileCoincidence::miss_recourse_in_file`). The ends are read
+            // again only to name the refusal the identity made, so the
+            // reading is detached and its recording dropped: the log stays
+            // the identity's own, an end it never reached unread on it.
+            let (margin, _unrecorded) = geom_core::k_stats::detached(|| {
+                ends.into_iter()
+                    .filter_map(|end| off(&decide(end).1))
+                    .fold(margin, geom_core::MarginDiag::larger)
+            });
+            Some(Err(AnalyticRung3Refusal::Limb { operand, margin }))
+        }
         Climb::Undecided(Some(refusal)) => Some(Err(refusal)),
         Climb::Undecided(None) => None,
         Climb::Passed => Some(Ok(())),
@@ -3683,13 +3709,14 @@ mod tests {
         );
     }
 
-    /// **A miss at a line's first end answers without its second being
-    /// read** ([`measured_ends`], an identity on the ladder): either end
-    /// decided off the plane says the edge is not on it, so the far end's
-    /// distance leaves no verdict on the log. Red under a rule that reads
-    /// both ends before it answers.
+    /// **Two ends off a plane report the larger miss, in either order**
+    /// ([`measured_ends`]): at the import door the refusal's miss decides
+    /// whether "set ε to ε_in" is offered and in which words, so it is the
+    /// larger of the two ends' misses, not the one the identity happens to
+    /// meet first. The log is the identity's own: the far end, never
+    /// reached, leaves no verdict on it.
     #[test]
-    fn a_miss_at_the_first_end_leaves_the_second_unread() {
+    fn two_ends_off_a_plane_report_the_worse_miss_in_either_order() {
         use geom::{Curve3, Surface};
         use geom_core::k_stats::Bracket;
         use geom_core::{Interval, Point3, Vec3};
@@ -3701,23 +3728,35 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
         .map_scalar(lift);
-        // Off the wall by 1e-6 at t = 0, on it at t = 1.
+        // Off the wall by 1e-6 at t = 0 and by 3e-6 at t = 1.
         let line =
-            Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, -1e-6, 0.0)).map_scalar(lift);
+            Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, 2e-6, 0.0)).map_scalar(lift);
         let ends = line_plane_ends(&line, (lift(0.0), lift(1.0)), &wall).unwrap();
+        let reach = |got: Option<Result<(), AnalyticRung3Refusal>>| match got {
+            Some(Err(AnalyticRung3Refusal::Limb { margin, .. })) => margin.readable().to_string(),
+            other => panic!("both ends decided off answer a miss: {other:?}"),
+        };
         let bracket = Bracket::open();
-        let got = measured_ends(geom::SurfaceKind::Plane, ends, band);
+        let forward = reach(measured_ends(geom::SurfaceKind::Plane, ends, band));
         let read = bracket.finish();
+        let [first, second] = ends;
+        let backward = reach(measured_ends(
+            geom::SurfaceKind::Plane,
+            [second, first],
+            band,
+        ));
+        // The 3e-6 end's reading, an enclosure about it; the 1e-6 end's
+        // would read 1e-6.
         assert!(
-            matches!(got, Some(Err(AnalyticRung3Refusal::Limb { .. }))),
-            "the first end's miss answers: {got:?}"
+            forward.contains("3.0000000000000005e-6") && forward == backward,
+            "the worse miss, whichever end is met first: {forward} and {backward}"
         );
         let verdicts = read
             .verdicts
             .iter()
             .filter(|v| v.predicate == "ssi_hull_value")
             .count();
-        assert_eq!(verdicts, 1, "only the answering end is read");
+        assert_eq!(verdicts, 1, "only the answering end is on the log");
     }
 
     /// **A line just past ε off its plane does not pass at `f64`**

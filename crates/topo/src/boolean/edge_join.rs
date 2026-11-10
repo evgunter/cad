@@ -315,11 +315,7 @@ pub fn is_conventional_vertex<T: Real>(body: &Body<T>, v: VertexKey) -> bool {
     let Some(he) = body.get_half_edge(first) else {
         return false;
     };
-    let Some(edge) = body.get_edge(he.edge) else {
-        return false;
-    };
-    let ends = [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).map(|h| h.start));
-    ends == [Some(v), Some(v)]
+    body.edge_vertices(he.edge) == Some((v, v))
         && body.vertex_orbit(first).is_some_and(|orbit| {
             orbit
                 .iter()
@@ -413,7 +409,7 @@ pub(super) fn singular_at<T: Decide>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
-        geom::Line { origin, dir: axis }.offset(p).norm()
+        geom::Line { origin, dir: axis }.distance(p)
     };
     let arm = match *s {
         geom::Surface::Cone { apex, .. } => (p - apex).norm(),
@@ -579,6 +575,11 @@ fn joinable<T: Decide>(
             geom_brep::EdgeDescription::OnPair { pair }
                 if sf != sg && *pair == geom_brep::SurfacePair::new(sf, sg) =>
             {
+                // WHICH, not a search a later surface may answer past
+                // ([`geom_brep::ladder::Answering::First`]'s rule, several rungs may answer):
+                // which surface carries the iso (`minus`) is in the locus compared with the
+                // other edge's below, so a class in band on the first surface may be the true
+                // carrier, and its refusal stands.
                 let mut found = None;
                 for (minus, s) in [(false, surf_f), (true, surf_g)] {
                     if let Some(read) =
@@ -1055,9 +1056,25 @@ fn carried_far<T: Decide>(
         return None;
     }
     let past = if backward { tw - gx } else { gx - tw };
-    past.sign_within(Band::least())
-        .is_ok_and(|d| d.sign == Sign::Positive)
-        .then_some(gx)
+    let pick = geom_core::k_stats::choose("edge_join_carried_far", Margin::of(past), "F39");
+    matches!(pick, geom_core::k_stats::Pick::Positive).then_some(gx)
+}
+
+/// **`gone`'s far end read off `kept`'s carrier**: the parameter of
+/// `gone`'s middle near `tw`, then of `far` near that, so the reading
+/// walks from the vertex along `gone`. Where `gone` lies on the very
+/// carrier ([`carried_far`]), this names `gx`'s point, and the two
+/// spellings agree up to rounding (ledger row F39).
+fn read_far<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    gone: &geom::Curve3<T>,
+    (g0, g1): (T, T),
+    far: geom_core::Point3<T>,
+    tw: T,
+) -> Option<T> {
+    carrier
+        .param_near(gone.mid_point(g0, g1), tw)
+        .and_then(|tm| carrier.param_near(far, tm))
 }
 
 /// The joined edge's spec: `kept`'s carrier over its interval run on
@@ -1113,14 +1130,13 @@ fn joined_spec<T: Decide>(
             }
         }
     } else {
-        carrier
-            .param_near(gone.carrier().mid_point(g0, g1), tw)
-            .and_then(|tm| carrier.param_near(far, tm))
-            .ok_or(BooleanError::JoinCarrierUnsupported {
+        read_far(carrier, gone.carrier(), (g0, g1), far, tw).ok_or(
+            BooleanError::JoinCarrierUnsupported {
                 edge: join.kept,
                 carrier: carrier.kind(),
                 closed: false,
-            })?
+            },
+        )?
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
     // A declaration's parameter is affine in the carrier's, so the kept
@@ -1253,7 +1269,7 @@ mod carry {
     use geom::Curve3;
     use geom_core::{Point3, Vec3};
 
-    use super::carried_far;
+    use super::{carried_far, read_far};
 
     /// Each kind's carrier, and its twin with one stated value one ulp
     /// off.
@@ -1350,6 +1366,39 @@ mod carry {
                 "{kind}: a far end on the kept edge's side carries nothing"
             );
         }
+    }
+
+    /// **The carry and the reading off the carrier name one parameter**
+    /// (ledger row F39, the premise `carried_far` is read unlogged on):
+    /// where `gone` lies on `kept`'s very carrier, the parameter
+    /// [`read_far`] reads `gone`'s far point at is `gx` up to rounding,
+    /// on either side, wherever it reads one. A carrier it reads none on
+    /// is listed, and the carry is then the only spelling.
+    #[test]
+    fn the_carried_far_parameter_is_the_one_the_carrier_reads() {
+        let mut unread = Vec::new();
+        for (kind, kept, _) in carriers() {
+            for (tw, (g0, g1)) in [(0.4, (0.4, 0.7)), (0.4, (0.4, 0.2)), (1.1, (1.1, 2.9))] {
+                let backward = g1 < g0;
+                let Some(gx) = carried_far(&kept, tw, backward, &kept, (g0, g1)) else {
+                    panic!("{kind}: [{g0}, {g1}] on the kept carrier carries");
+                };
+                let far = kept.eval(gx);
+                match read_far(&kept, &kept, (g0, g1), far, tw) {
+                    Some(read) => assert!(
+                        (read - gx).abs() <= 1e-12 * (1.0 + gx.abs()),
+                        "{kind}: from {tw} to {gx}, the carrier reads {read}"
+                    ),
+                    None => unread.push(kind),
+                }
+            }
+        }
+        unread.dedup();
+        assert_eq!(
+            unread,
+            ["nurbs"],
+            "the carriers no reading off the carrier serves"
+        );
     }
 
     fn net(knot: f64) -> Curve3<f64> {
@@ -1464,9 +1513,7 @@ mod conventional {
                 "a self-loop's vertex another edge leaves, first {first:?}"
             );
         }
-        let far = body
-            .half_edge_end(body.get_edge(strut.edge).unwrap().he_plus)
-            .unwrap();
+        let (_, far) = crate::query::edge_ends(&body, strut.edge);
         assert!(!is_conventional_vertex(&body, far), "an open edge's end");
     }
 }

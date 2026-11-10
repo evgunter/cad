@@ -43,7 +43,7 @@ fn s3() -> f64 {
 /// error when it is not an escalation).
 fn escalated_predicate(err: &PathError<f64>) -> &'static str {
     match err {
-        PathError::Escalated { source } => source.predicate.unwrap_or("<unnamed>"),
+        PathError::Escalated { source, .. } => source.predicate.unwrap_or("<unnamed>"),
         other => panic!("expected an escalation, got {other:?}"),
     }
 }
@@ -807,7 +807,7 @@ fn an_already_tangent_corner_asks_for_the_tangent_construction_instead() {
         .expect_err("a tangent corner must refuse");
     match err {
         PathError::NoCornerForFillet { reason, radius } => {
-            assert_eq!(reason, PathNoCornerReason::CarriersParallel);
+            assert_eq!(reason, PathNoCornerReason::CarriersTangent);
             assert_eq!(radius, 0.5);
         }
         other => panic!("expected NoCornerForFillet, got {other:?}"),
@@ -914,11 +914,50 @@ fn an_arc_side_with_no_extent_is_refused_the_same_way() {
         ],
         "got {empty_sweep:?}"
     );
+    // The two corners name different levers, so the pair names each
+    // beside its ordinal: the author's corner is theirs to say.
+    let said = empty_sweep.to_string();
     assert!(
-        empty_sweep
-            .to_string()
-            .contains("behind the incoming ray's start"),
-        "recourse: {empty_sweep}"
+        said.ends_with(
+            "Recourse: at the first corner, anchor the arrival side beyond it, within half a \
+             turn on an arc; at the second, start the incoming side short of it"
+        ),
+        "the arc door names each window corner's lever: {said}"
+    );
+    // Following the first corner's lever: the arrival anchored an eighth
+    // of a turn past (2, 0) rounds it. Three quarters of a turn past
+    // reads as a quarter turn behind, which the qualifier says.
+    let arrival_at = |p: Point2<f64>| {
+        Open.at(Point2::new(0.0, 0.0))
+            .toward(2.0, 0.0, Tol::witness())
+            .unwrap()
+            .fillet_arc(
+                0.5,
+                Center {
+                    c: Point2::new(0.0, 0.0),
+                    winding: ArcSweep::Ccw,
+                    p,
+                },
+                Tol::witness(),
+            )
+    };
+    let root_two = core::f64::consts::SQRT_2;
+    assert!(
+        arrival_at(Point2::new(root_two, root_two)).is_ok(),
+        "an arrival anchored beyond (2, 0) within half a turn rounds it"
+    );
+    let three_quarters = arrival_at(Point2::new(0.0, -2.0))
+        .expect_err("an arrival three quarters of a turn past (2, 0) is behind it");
+    assert!(
+        crate::common::corners(&three_quarters).iter().any(|c| {
+            (c.at.x - 2.0).abs() < 1e-9
+                && c.at.y.abs() < 1e-9
+                && matches!(
+                    c.reason,
+                    CornerReason::OutsideAnchors(CornerWindow::BehindArrivalAnchor)
+                )
+        }),
+        "got {three_quarters:?}"
     );
     let zero_radius = Open
         .at(Point2::new(0.0, 0.0))
@@ -1022,11 +1061,11 @@ fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
 
 // ------------------------ the definitely / exactly / in-band predicate trios
 //
-// The exact-order predicates (`fillet_leg_fit`, `fillet_leg_reach`) have
-// no in-band row at `f64` by construction — no representable `f64` lies
-// strictly inside the hairline band — so their in-band rows live in the
-// interval lane (tests/interval_lane.rs), where a straddling enclosure
-// escalates honestly. Everything else has all three rows here.
+// The exact-order predicate `fillet_leg_reach` has no in-band row at
+// `f64` by construction — no representable `f64` lies strictly inside
+// the hairline band. `fillet_leg_fit` reads the run on the linear band;
+// its in-band rows are `fillet_run_fit.rs`'s. Everything else has all
+// three rows here.
 //
 // The algebra gates the DERIVED corner before it reaches the shared
 // construction, so two of the constructor door's gates are shadowed by
@@ -1076,7 +1115,7 @@ fn corner_advance_trio() {
 #[test]
 fn carrier_meet_trio() {
     // definitely: the fixtures — ray and circle cross transversally.
-    // exactly zero: the tangent-carrier row (`CarriersParallel`).
+    // exactly zero: the tangent-carrier row (`CarriersTangent`).
     // in-band: push the circle δ toward the ray so the two meet by a
     // margin R − |offset| = δ inside (ε, K·ε).
     let delta = in_band();

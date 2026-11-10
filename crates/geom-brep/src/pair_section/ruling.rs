@@ -33,6 +33,7 @@
 //! test settles is split, down to a floor; a cell at the floor, or the
 //! cell that spends the budget, escalates on its own reading.
 
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
 use geom_core::{
     Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3, rounding_charge,
@@ -347,7 +348,7 @@ impl<T: Real> Cell<T> {
     }
 
     fn mid(&self) -> f64 {
-        0.5 * (self.lo + self.hi)
+        geom::mid_param(self.lo, self.hi)
     }
 
     fn width(&self) -> f64 {
@@ -997,7 +998,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         let (mut lo, mut hi) = (cell.lo, cell.hi);
         let at = |phi: f64| self.ruled.meeting(&Cell::at(phi), sheet);
         for _ in 0..SETTLE {
-            let mid = 0.5 * (lo + hi);
+            let mid = geom::mid_param(lo, hi);
             let past = self.past(at(mid));
             match (self.reads(Row::Cut, past), entering) {
                 // Outside at `mid`: the root lies on the inside's side.
@@ -1009,7 +1010,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
                 (None, _) => return Ok(at(mid).mid()),
             }
         }
-        Ok(at(0.5 * (lo + hi)).mid())
+        Ok(at(geom::mid_param(lo, hi)).mid())
     }
 
     /// **A leaf as one reading along its loop**, `backward` where the
@@ -1271,10 +1272,17 @@ pub(crate) fn coverage(
     let mut read = Coverage { cells: 0, depth: 0 };
     #[allow(clippy::cast_precision_loss)]
     let cut = |k: i32| core::f64::consts::TAU * f64::from(k) / f64::from(COVERAGE_START);
-    let mut stack: Vec<(f64, f64, u32)> = (0..COVERAGE_START)
-        .map(|k| (cut(k), cut(k + 1), 0))
-        .collect();
-    while let Some((lo, hi, depth)) = stack.pop() {
+    // The last cut first, as the walk has always read them.
+    let roots = (0..COVERAGE_START)
+        .rev()
+        .map(|k| (cut(k), cut(k + 1), 0u32));
+    // `COVERAGE_CELLS` is a wall in cells read, but it stays in the visit
+    // (`read.cells`) rather than being the walk's `Budget`: its refusal
+    // names the cell it stopped in (`[lo, hi]`), which an `Exhausted`
+    // cannot. The walk halves only while it has cells left, so the reads
+    // that implies never bind first.
+    let mut reads = Budget::implied_by_halvings(COVERAGE_START as usize, COVERAGE_CELLS);
+    let walked = bisect_within(roots, &mut reads, |(lo, hi, depth)| {
         read.cells += 1;
         read.depth = read.depth.max(depth);
         let cell = Cell::<Interval>::new(lo, hi);
@@ -1311,16 +1319,19 @@ pub(crate) fn coverage(
                             })
                 });
         if covered {
-            continue;
+            return Step::Settled;
         }
         if depth >= COVERAGE_DEPTH || read.cells >= COVERAGE_CELLS {
-            return Err([lo, hi]);
+            return Step::Stop([lo, hi]);
         }
-        let mid = 0.5 * (lo + hi);
-        stack.push((mid, hi, depth + 1));
-        stack.push((lo, mid, depth + 1));
+        let mid = geom::mid_param(lo, hi);
+        Step::Halve([(lo, mid, depth + 1), (mid, hi, depth + 1)])
+    });
+    match walked {
+        Ok(None) => Ok(read),
+        Ok(Some(cell)) => Err(cell),
+        Err(Exhausted) => unreachable!("a coverage walk spends its cells before its reads"),
     }
-    Ok(read)
 }
 
 #[cfg(test)]

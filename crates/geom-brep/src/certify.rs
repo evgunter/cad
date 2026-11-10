@@ -1210,6 +1210,18 @@ impl CertifyError {
         }
     }
 
+    /// **The chart and carrier kinds this incidence refusal names**,
+    /// beside its read ([`Self::incidence_read`]), as the pcurve layer's
+    /// [`crate::IncidenceRead::kinds_of`] reads them: where the refusal
+    /// carries them, and `None` otherwise.
+    #[must_use]
+    pub fn incidence_kinds(&self) -> Option<(geom::SurfaceKind, geom::CurveKind)> {
+        match self {
+            Self::CarrierOffChart { chart, carrier, .. } => Some((*chart, *carrier)),
+            _ => None,
+        }
+    }
+
     /// The payload and, where its decision gives one, the ending read at
     /// `at` ([`CertifyError::ending`]).
     #[must_use]
@@ -1831,8 +1843,10 @@ impl<T: Real> EdgeCurveSpec<T> {
                 crate::mapped::MappedSource::RevolvedPoint {
                     point: Point2::new(T::zero(), T::zero()),
                     place: Affine3::translation(start - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: axis,
+                    axis: geom::Line {
+                        origin: center,
+                        dir: axis,
+                    },
                     angle: t1 - t0,
                 },
             )),
@@ -2006,8 +2020,10 @@ impl<T: Real> EdgeCurveSpec<T> {
                 crate::mapped::MappedSource::RevolvedPoint {
                     point: Point2::new(T::zero(), T::zero()),
                     place: Affine3::translation(p - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: Vec3::unit_z(),
+                    axis: geom::Line {
+                        origin: center,
+                        dir: Vec3::unit_z(),
+                    },
                     angle: T::tau(),
                 },
             )),
@@ -2677,7 +2693,7 @@ impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         let (lo, hi) = (seed.lo(), seed.hi());
-        carrier.project_from_seed(point, lo + 0.5 * (hi - lo))
+        carrier.project_from_seed(point, geom::bracket_mid((lo, hi)))
     }
 }
 
@@ -3355,7 +3371,7 @@ impl<T: SpanLocate> IntersectionDraft<T> {
             None => {
                 let chord = EdgeCurveSpec::line_between(p0, p1);
                 Self {
-                    witness: p0.lerp(p1, T::from_f64(0.5)),
+                    witness: p0.mid(p1),
                     carrier: chord.carrier,
                     param_start: chord.param_start,
                     param_end: chord.param_end,
@@ -3563,10 +3579,7 @@ fn gap_orientation<T: Decide>(
     let cause = match oriented {
         Ok(sign) => {
             geom_core::k_stats::splice(orientation);
-            return Ok(match sign {
-                geom_core::k_stats::NonzeroSign::Positive => T::from_f64(1.0),
-                geom_core::k_stats::NonzeroSign::Negative => T::from_f64(-1.0),
-            });
+            return Ok(sign.unit());
         }
         Err(cause) => cause,
     };
@@ -7075,8 +7088,10 @@ mod tests {
                 MappedSource::RevolvedPoint {
                     point: Point2::new(2.0, 2.0),
                     place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-                    axis_origin: center,
-                    axis_dir: Vec3::unit_z(),
+                    axis: geom::Line {
+                        origin: center,
+                        dir: Vec3::unit_z(),
+                    },
                     angle: TAU,
                 },
             )),
@@ -8471,7 +8486,7 @@ mod tests {
         let floor = floor_note("length");
         let band = Band::new(1e-9, 1e-8).unwrap();
         let rejected =
-            decide_positive("interval_span_forward", Margin::of(2e-12), band).unwrap_err();
+            decide_positive("interval_span_forward", Margin::of(1.5e-12), band).unwrap_err();
         let in_band = Indeterminate {
             margin: MarginDiag::value(3.0 * EPS_MIN),
             band: Band::new(2.0 * EPS_MIN, 20.0 * EPS_MIN).unwrap(),
@@ -8485,7 +8500,7 @@ mod tests {
                 cause: rejected,
             }
             .render(Reading::Build),
-            "the stored parameter interval's length at sample 0 escalated: margin 2e-12 lies \
+            "the stored parameter interval's length at sample 0 escalated: margin 1.5e-12 lies \
              within the zero band (±1e-9). Recourse: move the geometry so this edge runs \
              forward over a clear length; no tolerance a run admits decides this length",
             "the whole sentence, so a second statement of the floor goes red"

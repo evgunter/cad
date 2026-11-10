@@ -45,7 +45,7 @@ pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
-pub use framed::Framed;
+pub use framed::{Framed, Held, ReadIn};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::DirectionRefusal;
 
@@ -73,7 +73,7 @@ use geom_core::Tol;
 /// per-node result map, with the run's epoch, the id of the document
 /// it is OF, its outcome, and the D4-acceptance recompute counters.
 #[derive(Debug)]
-pub struct Evaluation<T: Decide> {
+pub struct Evaluation<T: topo::AtRestPolicy + Decide> {
     /// This evaluation's identity token (spec D5) — the caller's
     /// stale-result discrimination hook.
     pub epoch: Epoch,
@@ -178,7 +178,7 @@ pub struct Evaluation<T: Decide> {
     resolver: Option<std::panic::AssertUnwindSafe<Arc<dyn crate::part::PartResolver>>>,
 }
 
-impl<T: Decide> Evaluation<T> {
+impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
     /// **Which version of the document this run read**: its content pin,
     /// when the run was asked for one ([`EvalOptions::pin`]), or the
     /// document's refusal to canonicalize; `None` for a run that was not
@@ -667,7 +667,7 @@ impl core::error::Error for NodeStanding {}
 /// input read and the appearance pass. `absent` answers an id the map
 /// has no entry for, because only the caller knows whether that id is
 /// in the run's order.
-pub(crate) fn usable_in<T: Decide>(
+pub(crate) fn usable_in<T: topo::AtRestPolicy + Decide>(
     nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     node: RecipeNodeId,
     absent: impl FnOnce() -> NodeStanding,
@@ -717,7 +717,7 @@ pub enum EvalOutcome {
 
 /// One node's outcome (F2 verbatim, spec D2).
 #[derive(Debug)]
-pub enum NodeResult<T: Decide> {
+pub enum NodeResult<T: topo::AtRestPolicy + Decide> {
     /// The node evaluated to a value.
     Ok(NodeValue<T>),
     /// The node itself failed — the typed root cause.
@@ -733,7 +733,7 @@ pub enum NodeResult<T: Decide> {
     },
 }
 
-impl<T: Decide> NodeResult<T> {
+impl<T: topo::AtRestPolicy + Decide> NodeResult<T> {
     /// The successful value, if this result is `Ok`.
     pub fn value(&self) -> Option<&NodeValue<T>> {
         match self {
@@ -822,7 +822,7 @@ impl OutputNames {
 /// A successful node value (spec D2): the op-appropriate payload plus
 /// the reserved witness slot and the node's content key.
 #[derive(Debug, Clone)]
-pub struct NodeValue<T: Decide> {
+pub struct NodeValue<T: topo::AtRestPolicy + Decide> {
     /// What the node's op produced.
     pub payload: ValuePayload<T>,
     /// **The names each output carries** (NAMES N1, the scope), by
@@ -905,7 +905,7 @@ pub struct NodeValue<T: Decide> {
     pub naming_key: NamingKey,
 }
 
-impl<T: Decide> NodeValue<T> {
+impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     /// **The names output `port` carries**: the one indexer of
     /// [`NodeValue::outputs`], private to the evaluator. Everything
     /// outside it reads a table by the variable that holds its body
@@ -923,7 +923,7 @@ impl<T: Decide> NodeValue<T> {
     }
 }
 
-impl<T: Decide> NodeValue<T> {
+impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
     /// **A value read for one pose and never kept**: an op's output with
     /// no log, no key and no space, which a placement's fold reads its
     /// own copy before placement through and drops.
@@ -1052,7 +1052,7 @@ pub struct WitnessSlot {}
 /// "`Vec<Body<T>>`-shaped output (op-appropriate)", made typed per op
 /// family; spec D3 fixes each node's semantics).
 #[derive(Debug, Clone)]
-pub enum ValuePayload<T: Decide> {
+pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
     /// its naming anchor, and the radius expression each
@@ -1061,7 +1061,7 @@ pub enum ValuePayload<T: Decide> {
     /// A single body: every one-body op (extrude, revolve, the tubes,
     /// loft, sweep, blends, shell, union, assemble, instantiate) and a
     /// `Place` of one body — a placement over one shape has that shape's
-    /// shape, so a placement of a family read whole is
+    /// shape, so a placement of a family of bodies is
     /// [`Self::Instances`].
     Body(Framed<T>),
     /// A boolean's result: a body with its contact records, or the
@@ -1074,20 +1074,23 @@ pub enum ValuePayload<T: Decide> {
         /// Material on the opposite side.
         below: SplitSide<T>,
     },
-    /// **A family's members AS DATA** (D10 `[repetition]`): one body
-    /// per value of the family's indices, outermost index first, the
-    /// value a family's output holds read whole.
+    /// **A family of bodies** (D10 `[repetition]`): one place per value
+    /// of the family's indices, outermost index first, each the
+    /// member's body, `None` at a member that is a boolean's empty
+    /// result. The family's one output names each body at its member's
+    /// place, and names nothing at an empty one.
     ///
     /// **Who takes it, and who refuses.** A reader of the same index
-    /// reads one member, never this value. A reader that reads the
-    /// family whole takes it at a member seat (a union's, an
-    /// intersect's or an assemble's), an indexed read takes one member
-    /// out of it by its tuple, and the product gather takes every
-    /// member in order. Any other body seat that meets it whole takes
-    /// ONE body and refuses it typed (`WrongOperand`): a boolean of N
-    /// bodies is N booleans or one union of them, and the recipe does
-    /// not guess which (D3).
-    Instances(Vec<Framed<T>>),
+    /// reads one member, never this value. A member seat (a union's,
+    /// an intersect's or an assemble's) takes every member, and refuses
+    /// an empty one [`NodeErrorKind::EmptyMember`]; an indexed read
+    /// takes one member out of it by its tuple, the empty value at an
+    /// empty member; the product gather takes every body at its place.
+    /// Any other body seat that meets it whole takes ONE body and
+    /// refuses it typed (`WrongOperand`): a boolean of N bodies is N
+    /// booleans or one union of them, and the recipe does not guess
+    /// which.
+    Instances(Vec<Option<Framed<T>>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
     /// body-denoting — the product gather skips it exactly as it skips
@@ -1104,8 +1107,10 @@ pub enum ValuePayload<T: Decide> {
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
     Assertion(crate::measure::AssertionVerdict<T>),
-    /// **A family of anything but bodies** (D10 `[repetition]`): its
-    /// members are the value's ([`NodeValue::members`]).
+    /// **A family of anything but bodies** (D10 `[repetition]`):
+    /// profiles, measures, splits, assertions, a family of families. Its
+    /// members are the value's ([`NodeValue::members`]); it has no
+    /// output.
     Family,
 }
 
@@ -1227,16 +1232,28 @@ pub(crate) mod phrase {
         concat!(family_word!(body), " or ", family_word!(instances));
 }
 
-impl<T: Decide> ValuePayload<T> {
+impl<T: topo::AtRestPolicy + Decide> ValuePayload<T> {
+    /// **This value as one body**: its body (a `Body` value or a
+    /// boolean's non-empty result), `Some(None)` for a boolean's empty
+    /// result, `None` for a value that is no body. The one rule for
+    /// "is this one body" every reader of one body asks.
+    #[must_use]
+    pub fn one_body(&self) -> Option<Option<&Framed<T>>> {
+        match self {
+            Self::Body(body) | Self::Boolean(BooleanValue::Body { body, .. }) => Some(Some(body)),
+            Self::Boolean(BooleanValue::Empty) => Some(None),
+            _ => None,
+        }
+    }
+
     /// **The body at output `index`**: a one-body value's at 0, a
     /// split's half at its port ([`crate::SplitHalf::output_body`]), a
-    /// family's member at its place. The one answer to "which body does
-    /// a read of this output hold".
+    /// family's member at its place.
     ///
     /// # Errors
     ///
     /// [`crate::InterrogateError::NoSuchBody`] for an index the value
-    /// has no body at (an empty half among them),
+    /// has no body at (an empty half or an empty member among them),
     /// [`crate::InterrogateError::NoBodies`] for a value that holds none.
     pub fn output_body(&self, index: u32) -> Result<&Framed<T>, crate::InterrogateError> {
         crate::names::interrogate::output_body(self, index)
@@ -1260,7 +1277,7 @@ impl<T: Decide> ValuePayload<T> {
 
 /// A boolean node's typed result (F8: ∅ is a value, not an error).
 #[derive(Debug, Clone)]
-pub enum BooleanValue<T: Decide> {
+pub enum BooleanValue<T: topo::AtRestPolicy + Decide> {
     /// The regularized result is empty — typed success.
     Empty,
     /// A real result body.
@@ -1282,7 +1299,7 @@ pub enum BooleanValue<T: Decide> {
 /// piece of a copy ([`crate::VarDef::Pick`]) without the copy being
 /// cut apart.
 #[derive(Debug, Clone)]
-pub struct Pieces<T: Decide> {
+pub struct Pieces<T: topo::AtRestPolicy + Decide> {
     /// The node whose names key them: each piece's names are spelled in
     /// the holder's table under this node, keyed by the piece's read
     /// ([`crate::names::RoleSeg::From`]).
@@ -1293,7 +1310,7 @@ pub struct Pieces<T: Decide> {
 
 /// **One piece of a body** ([`Pieces`]).
 #[derive(Debug, Clone)]
-pub struct Piece<T: Decide> {
+pub struct Piece<T: topo::AtRestPolicy + Decide> {
     /// The variable the `⊔` read it through.
     pub read: crate::VarId,
     /// Its bodies in the holder's space: one, or until patterns are
@@ -1310,7 +1327,7 @@ pub struct Piece<T: Decide> {
     pub carry: Carry<T>,
 }
 
-impl<T: Decide> Pieces<T> {
+impl<T: topo::AtRestPolicy + Decide> Pieces<T> {
     /// The one piece read through `read`; `None` where no piece is, and
     /// where two are (a `⊔` reading one body twice), which a read
     /// cannot tell apart.
@@ -1325,7 +1342,7 @@ impl<T: Decide> Pieces<T> {
 /// One side of a split's output (both parts are the node's output,
 /// role-tagged — spec D3).
 #[derive(Debug, Clone)]
-pub enum SplitSide<T: Decide> {
+pub enum SplitSide<T: topo::AtRestPolicy + Decide> {
     /// No material on this side.
     Empty,
     /// This side's material as an independent body.
@@ -1617,25 +1634,43 @@ pub enum NodeErrorKind {
         found: &'static str,
     },
     /// A body operand evaluated to the typed empty value — the kernel
-    /// ops take real bodies only (v1; ∅-absorbing semantics would be
-    /// invented behavior, spec D3's "wire, don't invent").
+    /// ops take real bodies only: ∅ is a typed result
+    /// (`docs/DESIGN.md` `[topology.conventions]`), and an op that
+    /// absorbed it would answer where it declined (`[loud-failure]`).
     EmptyOperand {
         /// The empty input node.
         input: RecipeNodeId,
     },
-    /// A body operand is not a finished body: the at-rest gate
-    /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
-    /// body its input node built, so a door that takes finished bodies
-    /// (the Boolean, the split, the shell, the blends) cannot take it.
-    /// Every door owes a finished body (`docs/DESIGN.md`, tier 3), and
-    /// not every door gates its own result (the blends do not), so the
-    /// defect is the input's door, not anything an author set on either
-    /// node.
-    UnfinishedOperand {
-        /// The operand node.
+    /// **A family read whole holds a member that is the typed empty
+    /// value** (D10 `[repetition]`): a seat that takes the family's
+    /// bodies refuses it as [`Self::EmptyOperand`] refuses one empty
+    /// operand, naming the member.
+    EmptyMember {
+        /// The family's node.
         input: RecipeNodeId,
-        /// The validator's findings, each naming its entity.
-        errors: Vec<topo::ValidationError>,
+        /// Each index the family reaches, at the empty member's value.
+        at: Vec<(crate::VarId, i64)>,
+    },
+    /// The body this operation produced is not a finished body: an
+    /// operation that maps or assembles a body itself (a placement's
+    /// read into a frame, a mirror, a graft of pieces) finishes it at its
+    /// own end ([`topo::AtRestPolicy::finish`]). Every finding, each read
+    /// through its family.
+    NotFinished {
+        /// The finish's findings.
+        findings: topo::NotFinished,
+    },
+    /// **An operand that does not finish where this operation takes a
+    /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
+    /// tier 2 alone at the box scalars), or a body read into this
+    /// operation's frame through a placement's map, construction state
+    /// ([`super::ReadIn::Mapped`]); the operation that takes it runs
+    /// tier 3 on it ([`super::ReadIn::taken`]).
+    UnfinishedLeaf {
+        /// The operand's node: the node whose value this operation took.
+        input: RecipeNodeId,
+        /// The finish's findings.
+        findings: topo::NotFinished,
     },
     /// A read of a split's port found its half holding no
     /// material — the tool plane missed the target on that side. Its
@@ -1755,18 +1790,16 @@ pub enum NodeErrorKind {
     },
     /// A decided predicate escalated (in-band indeterminacy).
     Escalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered: the decision's name is the one
+        /// its funnel recorded ([`Indeterminate::predicate`]).
         source: Indeterminate,
     },
     /// **A measurement's parallelism read escalated** (D10's Measure
     /// ground): the measure door's own sentence, which [`Self::Escalated`]'s
     /// does not speak for. Its class is [`NodeErrorClass::Escalated`].
     MeasureEscalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A placement frame's rotation axis escalated** (D10's placement
@@ -1774,9 +1807,8 @@ pub enum NodeErrorKind {
     /// [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
     PlacementAxisEscalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A pose's direction escalated** (D10's pose ground): a pose's
@@ -1785,9 +1817,8 @@ pub enum NodeErrorKind {
     /// which [`Self::Escalated`]'s does not speak for. Its class is
     /// [`NodeErrorClass::Escalated`].
     PoseDirectionEscalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered, naming its decision as
+        /// [`Self::Escalated`]'s does.
         source: Indeterminate,
     },
     /// **A pose read off geometry found none of its kind** (D10): a
@@ -2005,6 +2036,15 @@ pub enum NodeErrorKind {
         /// The bound's.
         bound: crate::expr::Dimension,
     },
+}
+
+impl NodeErrorKind {
+    /// **A taker's refusal** ([`ReadIn::taken`], [`Held::finished`]):
+    /// `input`'s body does not finish where a node takes it. A node's
+    /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
+    pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
+        move |findings| Self::UnfinishedLeaf { input, findings }
+    }
 }
 
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
@@ -2239,15 +2279,34 @@ impl crate::spoken::Say for NodeErrorKind {
                 "{} is the empty value — the body ops take real bodies",
                 by.node_as(*input, "input")
             ),
-            Self::UnfinishedOperand { input, errors } => write!(
-                f,
-                "{} shipped a body that does not finish: {}",
-                by.node_as(*input, "input"),
-                // The operand's findings are the at-rest gate's.
-                errors.first().map_or_else(
-                    || "no finding".to_string(),
-                    |e| e.render(geom_brep::recourse::Reading::AtRest)
+            Self::EmptyMember { input, at } => {
+                let at: Vec<String> = at
+                    .iter()
+                    .map(|&(index, value)| format!("{} = {value}", by.read(index)))
+                    .collect();
+                write!(
+                    f,
+                    "the member of {} at {} is the empty value — the body ops take real \
+                     bodies. {}",
+                    by.node_as(*input, "input"),
+                    at.join(", "),
+                    crate::sentence::Recourse(
+                        "read the members that are bodies by index, or change the member's \
+                         operands so it keeps material"
+                    )
                 )
+            }
+            // The findings are the at-rest gate's.
+            Self::NotFinished { findings } => write!(
+                f,
+                "the body this operation produced is not a finished body: {}",
+                findings.render(geom_brep::recourse::Reading::AtRest)
+            ),
+            Self::UnfinishedLeaf { input, findings } => write!(
+                f,
+                "{} does not finish where this operation takes it: {}",
+                by.node_as(*input, "input"),
+                findings.render(geom_brep::recourse::Reading::AtRest)
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
@@ -2340,14 +2399,14 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UnderflowedDirection { role } => write!(
                 f,
                 "the {role} underflowed to zero length, though it still names a \
-                 direction. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 direction. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::NonFiniteDirection { role } => write!(
                 f,
                 "the {role} has no finite length (a component overflows the norm or is \
-                 not a number). Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 not a number). {}",
+                geom_core::RANGE_ENDING
             ),
             Self::Band(e) => write!(
                 f,
@@ -2361,20 +2420,22 @@ impl crate::spoken::Say for NodeErrorKind {
                     geom_core::KERNEL_DEFECT_ENDING
                 )
             }
-            Self::Escalated { predicate, source } => {
+            Self::Escalated { source } => {
                 // What the decision was deciding, in words; the name is
                 // routing and rides `Debug`.
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
                 write!(
                     f,
                     "{}",
-                    source.undecided(what, crate::decision::ending(predicate, source))
+                    source.undecided(
+                        crate::decision::subject(source),
+                        crate::decision::ending(source.predicate, source)
+                    )
                 )
             }
-            Self::MeasureEscalated { predicate, source }
-            | Self::PlacementAxisEscalated { predicate, source }
-            | Self::PoseDirectionEscalated { predicate, source } => {
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+            Self::MeasureEscalated { source }
+            | Self::PlacementAxisEscalated { source }
+            | Self::PoseDirectionEscalated { source } => {
+                let what = crate::decision::subject(source);
                 write!(f, "{what} is too close to call: {source}")
             }
             Self::PoseRead { pose, fault } => write!(
@@ -3370,7 +3431,7 @@ pub trait ProfileLane: profile_lane::Sealed {
         _nominal: &crate::expr::VarEnv<f64>,
     ) -> Option<&'r BTreeMap<RecipeNodeId, NodeResult<f64>>>
     where
-        Self: Decide,
+        Self: Decide + topo::AtRestPolicy,
     {
         None
     }
@@ -3475,7 +3536,7 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
 impl crate::mate::SolveScalar for geom_core::Interval {
     fn quoted(self) -> f64 {
         use geom_core::Bounds;
-        0.5 * self.lo() + 0.5 * self.hi()
+        geom::mid_param(self.lo(), self.hi())
     }
 
     fn upper(self) -> f64 {
@@ -4288,7 +4349,7 @@ fn refuse_tolerance_conflict<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
     let process_eps = tol.eps();
@@ -4314,7 +4375,7 @@ fn refuse_param_box<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::ParamBox {
@@ -4337,7 +4398,7 @@ fn refuse_seed<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::Seed {
@@ -4358,7 +4419,7 @@ fn refuse_every_node<T>(
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+    T: topo::AtRestPolicy + Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let mut order = sched.order;
     order.extend(sched.unschedulable.iter().copied());
@@ -4440,7 +4501,7 @@ fn tolerance_of(tol: Tol) -> geom_core::Tolerance {
 /// every node of `order` — which covers every live node — answers its
 /// name table or its standing through [`usable_in`], so a node the
 /// order does not hold is one the document does not have.
-fn resolve_appearance<T: Decide>(
+fn resolve_appearance<T: topo::AtRestPolicy + Decide>(
     doc: &Doc<ProfileProgram>,
     order: &[RecipeNodeId],
     nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
@@ -4531,13 +4592,13 @@ where
 /// The names' `OWN_BODIES` invariant over a step's value: a body's
 /// tables seat rows at body 0 alone, a family's below its count.
 #[cfg(debug_assertions)]
-fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
+fn own_bodies<T: topo::AtRestPolicy + Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
     let Some(value) = step.result.value() else {
         return;
     };
-    let count = match &value.payload {
-        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. }) => 1,
-        ValuePayload::Instances(bodies) => bodies.len(),
+    let count = match (&value.payload, value.payload.one_body()) {
+        (_, Some(Some(_))) => 1,
+        (ValuePayload::Instances(bodies), _) => bodies.len(),
         _ => return,
     };
     for names in value.outputs.iter() {
@@ -4552,12 +4613,16 @@ fn own_bodies<T: Decide>(id: RecipeNodeId, step: &NodeStep<T>) {
 #[derive(Debug)]
 pub(crate) struct Canceled;
 
-struct NodeStep<T: Decide> {
+struct NodeStep<T: topo::AtRestPolicy + Decide> {
     result: NodeResult<T>,
     reused: bool,
 }
 
-fn bookkeep<T: Decide>(step: &NodeStep<T>, recomputed: &mut usize, reused: &mut usize) {
+fn bookkeep<T: topo::AtRestPolicy + Decide>(
+    step: &NodeStep<T>,
+    recomputed: &mut usize,
+    reused: &mut usize,
+) {
     match &step.result {
         NodeResult::Ok(_) | NodeResult::Failed(_) => {
             if step.reused {

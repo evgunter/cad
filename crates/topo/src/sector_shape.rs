@@ -320,14 +320,6 @@ mod tests {
         sector_shape(own, next, n, full_circle, band())
     }
 
-    /// `Vec3` carries no `PartialEq`; these rows want BIT equality, not
-    /// a tolerance.
-    fn bits_eq(a: Vec3<f64>, b: Vec3<f64>) -> bool {
-        a.x.to_bits() == b.x.to_bits()
-            && a.y.to_bits() == b.y.to_bits()
-            && a.z.to_bits() == b.z.to_bits()
-    }
-
     /// At a cone's apex the window between a slit's two coincident
     /// rulings reads no width: between distinct edges it refuses, at a
     /// slit's tip it is the whole turn, subdivided at both extremal
@@ -378,7 +370,7 @@ mod tests {
                         .rulings
                         .iter()
                         .zip(&tip.rulings)
-                        .all(|(&a, &b)| bits_eq(a, b)),
+                        .all(|(&a, &b)| a.same_bits(b)),
                 "a corner between rulings apart reads alike under either bounds: {distinct:?} \
                  against {tip:?}"
             );

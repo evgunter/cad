@@ -633,22 +633,26 @@ fn spun(c: &Curve3<f64>, at: Point3<f64>, k: Vec3<f64>, t: f64) -> Curve3<f64> {
     }
 }
 
-/// **The needle spun about its shared vertex reads one answer in either
-/// order** (the review of PR 6525). The pair turned whole about the
-/// vertex, about each axis and the shared tangent, at three angles: each
-/// pose stays tangent but for rounding, and decides one meeting, the
-/// same in both orders. And the near-circle alone turned about the
-/// tangent, the long ellipse's normal and their cross, by up to `10⁻⁸`
-/// either way: a crossing or a touch within the band, read alike in both
-/// orders. Tilts of `10⁻⁶` to `10⁻⁴` refuse in both orders, a known
-/// residue (`meet-refuses-a-near-tangent-tilt-in-both-orders`), and are
-/// not read here.
+/// **The needle spun about its shared end reads one answer in either
+/// order** (the review of PR 6525). The pair turned whole about the end,
+/// about each axis and the shared tangent, at three angles: each pose
+/// stays tangent but for rounding, and decides one meeting, the same in
+/// both orders. And the near-circle alone turned about the tangent, the
+/// long ellipse's normal and their cross, by up to `10⁻⁴` either way: the
+/// end stays shared ([`span_gap`] in the zero band), and each pose reads
+/// one meeting in both orders. Turned about the cross by `±10⁻⁵`, the
+/// near-circle's height above the long ellipse's plane dips into the
+/// band's gap: red where an extreme of a height in the gap escalates
+/// rather than placing a touch for its window. Turned about the normal by
+/// `−10⁻⁴`, the long ellipse's plane root lies beside the near-circle's
+/// carrier past its span, within the band's gap of it: red where an arc
+/// no ring bounds is read off the other carrier only, not its span.
 #[test]
-fn the_needle_spun_about_its_vertex_reads_one_answer_in_either_order() {
+fn the_needle_spun_about_its_shared_end_reads_one_answer_in_either_order() {
     let [(a, sa), (b, sb)] = needle_pair();
     let at = needle_band();
-    let vertex = a.eval(sa.0);
-    let (_, tangent) = a.conic().unwrap().jet_at(sa.0);
+    let vertex = a.eval(sa.1);
+    let (_, tangent) = a.conic().unwrap().jet_at(sa.1);
     let tangent = tangent.normalize();
     let normal = a.conic().unwrap().frame().axis;
     let mut bad = Vec::new();
@@ -673,19 +677,181 @@ fn the_needle_spun_about_its_vertex_reads_one_answer_in_either_order() {
         .iter()
         .enumerate()
     {
-        for t in [1e-12, -1e-12, 1e-10, -1e-10, 1e-8, -1e-8] {
+        for t in [
+            1e-12, -1e-12, 1e-10, -1e-10, 1e-8, -1e-8, 1e-7, -1e-7, 1e-6, -1e-6, 1e-5, -1e-5, 1e-4,
+            -1e-4,
+        ] {
             let b = spun(&b, vertex, *k, t);
+            let label = format!("round about axis {n} by {t:e}");
+            let gap = span_gap(&a, sa, &b, sb);
+            if gap > at.zero() {
+                bad.push(format!("{label}: the end parts by {gap:e}"));
+            }
             let (got, back) = (read((&a, sa), (&b, sb), at), read((&b, sb), (&a, sa), at));
-            bad.extend(agree(
-                &format!("round about axis {n} by {t:e}"),
-                (&a, &b),
-                &got,
-                &back,
-                at,
-            ));
+            for (order, r) in [("first first", &got), ("second first", &back)] {
+                if !matches!(r, Ok(m) if m.points.len() == 1) {
+                    bad.push(format!("{label}, {order}: not one meeting: {r:?}"));
+                }
+            }
+            bad.extend(agree(&label, (&a, &b), &got, &back, at));
         }
     }
     assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **A plane root with no meeting found is read through its window**
+/// (`pose`'s module docs, "A crossing of the other's plane"). The
+/// near-circle turned about the long ellipse's far vertex, `3.2·10⁻⁷` off
+/// it, parts the shared end by about `5.5·10⁻⁵` per radian. At three
+/// tilts the parts are past the band's escalation ([`span_gap`]), and the
+/// near-circle's plane root, beside no found meeting, reads off past the
+/// escalation throughout its window: no meeting, in both orders. Red
+/// where a window with no ring is not read, and the root goes to a polish
+/// whose basin the near-parallel tangents leave unproved. Turned about
+/// the normal by `10⁻⁶`, the long ellipse's arc there passes within the
+/// band's gap of the near-circle's carrier past its span ([`span_gap`]
+/// against the whole carrier, `2.5·10⁻¹²`), and reads off only against
+/// the span.
+#[test]
+fn the_needle_tilted_about_its_far_vertex_reads_no_meeting_where_the_window_is_off() {
+    let [(a, sa), (b, sb)] = needle_pair();
+    let at = needle_band();
+    let vertex = a.eval(sa.0);
+    let (_, tangent) = a.conic().unwrap().jet_at(sa.0);
+    let tangent = tangent.normalize();
+    let normal = a.conic().unwrap().frame().axis;
+    let cross = tangent.cross(normal).normalize();
+    let mut bad = Vec::new();
+    for (label, k, t) in [
+        ("about the tangent by -1e-4", tangent, -1e-4),
+        ("about the cross by -1e-6", cross, -1e-6),
+        ("about the cross by -1e-5", cross, -1e-5),
+        ("about the normal by 1e-6", normal, 1e-6),
+    ] {
+        let b = spun(&b, vertex, k, t);
+        let gap = span_gap(&a, sa, &b, sb);
+        if gap <= at.escalate() {
+            bad.push(format!(
+                "{label}: the oracle's gap {gap:e} is not past the band"
+            ));
+        }
+        for (order, r) in [
+            ("first first", read((&a, sa), (&b, sb), at)),
+            ("second first", read((&b, sb), (&a, sa), at)),
+        ] {
+            if !matches!(&r, Ok(m) if m.points.is_empty()) {
+                bad.push(format!("{label}, {order}: not apart: {r:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **A near-miss in the band's gap, beside no found meeting, escalates**
+/// (`pose`'s module docs, "A crossing of the other's plane"). Two unit
+/// circles cross each other's planes square on, `d` apart where each
+/// passes the other ([`span_gap`]). No meeting is found, so each plane
+/// root's window has no ring, and it reads off only past the band's
+/// escalation: within the zero band one meeting, in the gap an
+/// escalation, past it none, in both orders and over arcs and whole
+/// turns. Red where a window with no ring reads off past the zero band,
+/// which decides the gap's poses apart.
+#[test]
+fn a_near_miss_in_the_gap_beside_no_meeting_escalates() {
+    let at = needle_band();
+    let mut bad = Vec::new();
+    for d in [0.0, 5e-13, 3e-12, 5e-12, 8e-12, 2e-11, 1e-10] {
+        let a = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let b = Curve3::circle(
+            Point3::new(2.0 + d, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            1.0,
+            Vec3::new(-1.0, 0.0, 0.0),
+        );
+        for (sa, sb) in [((-0.5, 0.5), (-0.5, 0.5)), ((-PI, PI), (-PI, PI))] {
+            let gap = span_gap(&a, sa, &b, sb);
+            let label = format!("d {d:e} over {sa:?}, gap {gap:e}");
+            for (order, r) in [
+                ("first first", read((&a, sa), (&b, sb), at)),
+                ("second first", read((&b, sb), (&a, sa), at)),
+            ] {
+                let ok = if gap <= at.zero() {
+                    matches!(&r, Ok(m) if m.points.len() == 1)
+                } else if gap <= at.escalate() {
+                    matches!(&r, Err(e) if matches!(e.fault, MeetFault::Escalated(_)))
+                } else {
+                    matches!(&r, Ok(m) if m.points.is_empty())
+                };
+                if !ok {
+                    bad.push(format!("{label}, {order}: {r:?}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **The least of `f` over `(lo, hi)`**, by an oracle that shares no
+/// code with the reader: a grid of 400 pieces, then 90 golden-section
+/// steps about the grid's least. On the poses read here the least lies in
+/// one valley of each grid piece, and it is read to far below the band.
+/// Over a whole turn the domain's ends name one point, so the least's
+/// bracket runs a piece either side of it across the seam.
+fn oracle_least(f: &dyn Fn(f64) -> f64, (lo, hi): (f64, f64)) -> f64 {
+    let n = 400;
+    let step = (hi - lo) / f64::from(n);
+    let at = |i: u32| lo + step * f64::from(i);
+    let best = (0..=n)
+        .min_by(|&i, &j| f(at(i)).total_cmp(&f(at(j))))
+        .unwrap();
+    let (mut l, mut h) = if (hi - lo - TAU).abs() < 1e-12 {
+        (at(best) - step, at(best) + step)
+    } else {
+        (
+            at(best.saturating_sub(1)).max(lo),
+            (at(best) + step).min(hi),
+        )
+    };
+    let g = 0.5 * (5f64.sqrt() - 1.0);
+    for _ in 0..90 {
+        let (x1, x2) = (h - g * (h - l), l + g * (h - l));
+        if f(x1) <= f(x2) {
+            h = x2;
+        } else {
+            l = x1;
+        }
+    }
+    f(0.5 * (l + h)).min(f(at(best)))
+}
+
+/// **The oracle reads a least at a whole turn's seam.** Points of the
+/// unit circle at angles within a grid piece of `±π` (the domain's two
+/// ends, one point): each is on the circle, and the oracle reads it so.
+/// Red where the least's bracket is clamped at the seam, which reads such
+/// a point up to `8·10⁻³` off.
+#[test]
+fn the_oracle_reads_a_least_across_a_whole_turns_seam() {
+    let c = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
+    for theta in [4.6e-3 - PI, 1.6e-3 - PI, PI - 1e-3, PI, -PI, PI - 1.16e-2] {
+        let gap = point_gap(c.eval(theta), &c, (-PI, PI));
+        assert!(gap < 1e-12, "angle {theta}: read {gap:e} off the circle");
+    }
+}
+
+/// **`p`'s least distance from the span `sb` of `b`** ([`oracle_least`]).
+pub(super) fn point_gap(p: Point3<f64>, b: &Curve3<f64>, sb: (f64, f64)) -> f64 {
+    oracle_least(&|t: f64| (p - b.eval(t)).norm(), sb)
+}
+
+/// **The least distance between two spans** ([`oracle_least`], inner and
+/// outer).
+pub(super) fn span_gap(a: &Curve3<f64>, sa: (f64, f64), b: &Curve3<f64>, sb: (f64, f64)) -> f64 {
+    oracle_least(&|s: f64| point_gap(a.eval(s), b, sb), sa)
 }
 
 /// A conic through `at` with unit tangent `t` there at its parameter
@@ -903,4 +1069,351 @@ fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
         );
     }
     assert_eq!(agree("thin", (&small, &long), &got, &back, at), None);
+}
+
+/// **A height's extreme in the band's gap, beside no meeting, reads
+/// apart.** The near-circle turned about the cross by `±10⁻⁵`, its height
+/// above the long ellipse's plane dipping into the band's gap, then moved
+/// back by `10⁻⁶` and `10⁻⁵`, or by `10⁻⁴` and `10⁻³` either way, along the
+/// line the two planes share: each height
+/// above the other's plane is unchanged, so the near-circle is still the
+/// one read across, and the spans part past the band ([`span_gap`]). The touch it
+/// places reads off throughout its window: no meeting, in both orders.
+/// Red where an extreme of a height in the gap escalates.
+#[test]
+fn a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart() {
+    let [(a, sa), (b0, sb)] = needle_pair();
+    let at = needle_band();
+    let vertex = a.eval(sa.1);
+    let (_, tangent) = a.conic().unwrap().jet_at(sa.1);
+    let tangent = tangent.normalize();
+    let normal = a.conic().unwrap().frame().axis;
+    let cross = tangent.cross(normal).normalize();
+    let mut bad = Vec::new();
+    for t in [1e-5, -1e-5] {
+        let turned = spun(&b0, vertex, cross, t);
+        let shared = normal
+            .cross(turned.conic().unwrap().frame().axis)
+            .normalize();
+        for d in [-1e-6, -1e-5, 1e-4, -1e-4, 1e-3, -1e-3] {
+            let b = turned.translated(shared * d).unwrap();
+            let gap = span_gap(&a, sa, &b, sb);
+            let label = format!("turned {t:e}, moved {d:e}, gap {gap:e}");
+            if gap <= at.escalate() {
+                bad.push(format!("{label}: the oracle's gap is not past the band"));
+            }
+            for (order, r) in [
+                ("first first", read((&a, sa), (&b, sb), at)),
+                ("second first", read((&b, sb), (&a, sa), at)),
+            ] {
+                if !matches!(&r, Ok(m) if m.points.is_empty()) {
+                    bad.push(format!("{label}, {order}: not apart: {r:?}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **The needle tilted on a half-decade grid reads its oracle's answer in
+/// either order.** The near-circle turned about the shared end and about
+/// the long ellipse's far vertex, about the tangent there, the long
+/// ellipse's normal and their cross, by `±10⁻⁸` to `±3.2·10⁻⁴` at
+/// half-decade steps: where [`span_gap`] is in the zero band the pose
+/// reads one meeting, past the escalation none, in both orders; in the
+/// band's gap either a refusal or an answer is the band's. Red where the
+/// window reads an arc against the other carrier past its span, or a
+/// height's extreme in the gap escalates.
+#[test]
+fn the_needle_tilted_on_a_half_decade_grid_reads_its_oracle_in_either_order() {
+    let [(a, sa), (b0, sb)] = needle_pair();
+    let at = needle_band();
+    let tilts: Vec<f64> = (0..10)
+        .flat_map(|i| {
+            let m = 1e-8 * 10f64.powf(f64::from(i) / 2.0);
+            [m, -m]
+        })
+        .collect();
+    let mut bad = Vec::new();
+    for (end, pivot) in [("shared end", sa.1), ("far vertex", sa.0)] {
+        let vertex = a.eval(pivot);
+        let (_, tangent) = a.conic().unwrap().jet_at(pivot);
+        let tangent = tangent.normalize();
+        let normal = a.conic().unwrap().frame().axis;
+        for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
+            .iter()
+            .enumerate()
+        {
+            for &t in &tilts {
+                let b = spun(&b0, vertex, *k, t);
+                let gap = span_gap(&a, sa, &b, sb);
+                let want = if gap <= at.zero() {
+                    Some(1)
+                } else if gap > at.escalate() {
+                    Some(0)
+                } else {
+                    None
+                };
+                let Some(want) = want else { continue };
+                for (order, r) in [
+                    ("first first", read((&a, sa), (&b, sb), at)),
+                    ("second first", read((&b, sb), (&a, sa), at)),
+                ] {
+                    if r.as_ref().ok().map(|m| m.points.len()) != Some(want) {
+                        bad.push(format!(
+                            "{end}, axis {n} by {t:e}, gap {gap:e}, {order}: want {want}: {r:?}"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **A long thin ellipse and a small circle touching at its major vertex
+/// meet once, in either order, read on the level about the piece**: a
+/// `100 × 1` ellipse and a unit circle outside its vertex, at the origin
+/// and moved `10²` along `(1, −0.7, 0.3)`, at the needle band. Red where the
+/// circle's distance is read from the ellipse's harmonics posed about the
+/// circle's centre: their rounding charge, `ε·((|w| + a + b)² + r²)` with
+/// `|w| ≈ 10²`, is past the zero band per metre of the unit radius, and
+/// every piece about the touch refuses (`curve_pair_coplanar_sub_side`).
+#[test]
+fn a_thin_ellipse_and_a_small_circle_touching_at_its_vertex_meet_once() {
+    let at = needle_band();
+    let (a, b) = (100.0, 1.0);
+    for off in [0.0, 1e2] {
+        let o = Point3::new(off, -0.7 * off, 0.3 * off);
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(o, normal, Vec3::new(1.0, 0.0, 0.0)),
+            a,
+            b,
+        ));
+        let c = Curve3::circle(
+            o + Vec3::new(a + 1.0, 0.0, 0.0),
+            normal,
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let (se, sc) = ((-0.5, 0.5), (PI - 1.0, PI + 1.0));
+        let (got, back) = (read((&e, se), (&c, sc), at), read((&c, sc), (&e, se), at));
+        for (order, r) in [("ellipse first", &got), ("circle first", &back)] {
+            let met = r
+                .as_ref()
+                .unwrap_or_else(|e| panic!("moved {off}, {order}: refused: {e:?}"));
+            assert!(
+                met.shared.is_none()
+                    && met.points.len() == 1
+                    && (met.points[0].point - (o + Vec3::new(a, 0.0, 0.0))).norm() < 1e-6,
+                "moved {off}, {order}: one meeting, at the vertex: {met:?}"
+            );
+        }
+        assert_eq!(
+            agree(&format!("moved {off}"), (&e, &c), &got, &back, at),
+            None
+        );
+    }
+}
+
+/// **The needle read far from the origin reads as at it.** The near-circle
+/// turned about the shared end, about the tangent, the long ellipse's
+/// normal and their cross, by up to `10⁻⁴` either way, and about the far
+/// vertex's tangent by `3.2·10⁻⁵`, the pair then moved by `10²` and `10³`
+/// along `(1, −0.7, 0.3)`: each pose reads what it reads at the origin, in
+/// both orders. Red where the pose's readings are charged with a rounding
+/// that grows with distance from the origin: the far vertex's pose, apart
+/// at the origin, then refuses at both distances.
+#[test]
+fn the_needle_far_from_the_origin_reads_as_at_it() {
+    let [(a0, sa), (b0, sb)] = needle_pair();
+    let at = needle_band();
+    let vertex = a0.eval(sa.1);
+    let (_, tangent) = a0.conic().unwrap().jet_at(sa.1);
+    let tangent = tangent.normalize();
+    let normal = a0.conic().unwrap().frame().axis;
+    let count = |r: &Read| r.as_ref().map(|m| m.points.len()).ok();
+    let far = a0.eval(sa.0);
+    let (_, far_tangent) = a0.conic().unwrap().jet_at(sa.0);
+    let mut poses = vec![(
+        String::from("far vertex, tangent"),
+        far,
+        far_tangent.normalize(),
+        3.162_277_660_168_379_5e-5,
+    )];
+    for (n, k) in [tangent, normal, tangent.cross(normal).normalize()]
+        .iter()
+        .enumerate()
+    {
+        for t in [0.0, 1e-8, -1e-8, 1e-6, -1e-6, 1e-5, -1e-5, 1e-4, -1e-4] {
+            poses.push((format!("shared end, axis {n}"), vertex, *k, t));
+        }
+    }
+    let mut bad = Vec::new();
+    for (label, pivot, k, t) in poses {
+        let b1 = spun(&b0, pivot, k, t);
+        let home = read((&a0, sa), (&b1, sb), at);
+        for off in [1e2, 1e3] {
+            let v = Vec3::new(off, -0.7 * off, 0.3 * off);
+            let (a, b) = (a0.translated(v).unwrap(), b1.translated(v).unwrap());
+            for (order, r) in [
+                ("first first", read((&a, sa), (&b, sb), at)),
+                ("second first", read((&b, sb), (&a, sa), at)),
+            ] {
+                if count(&r).is_none() || count(&r) != count(&home) {
+                    bad.push(format!(
+                        "{label} by {t:e}, moved {off:e}, {order}: {r:?}, at the origin {home:?}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} poses:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **A line beside a circle, and two lines, read far from the origin read
+/// as at it.** A line tangent to the unit circle in its plane, on it and
+/// `5·10⁻¹³` off it, and two parallel lines `2·10⁻¹¹` apart, each pair
+/// moved by `10²` and `10³` along `(1, −0.7, 0.3)`: each reads what it
+/// reads at the origin, in both orders. Red where the router charges its
+/// screens with a rounding that grows with distance from the origin: at
+/// `10³` the tangent lines escalate and the parallel lines refuse.
+#[test]
+fn a_line_beside_a_circle_or_a_line_far_from_the_origin_reads_as_at_it() {
+    let at = needle_band();
+    let c = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let x = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let pairs = [
+        (
+            "tangent",
+            line([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            (-0.5, 0.5),
+            &c,
+            (-PI, PI),
+        ),
+        (
+            "tangent 5e-13 off",
+            line([1.0 + 5e-13, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            (-0.5, 0.5),
+            &c,
+            (-PI, PI),
+        ),
+        (
+            "parallel lines 2e-11 apart",
+            line([0.0, 2e-11, 0.0], [1.0, 0.0, 0.0]),
+            (-1.0, 1.0),
+            &x,
+            (-1.0, 1.0),
+        ),
+    ];
+    let count = |r: &Read| r.as_ref().map(|m| m.points.len()).ok();
+    let mut bad = Vec::new();
+    for (label, a0, sa, b0, sb) in pairs {
+        let home = read((&a0, sa), (b0, sb), at);
+        if count(&home).is_none() {
+            bad.push(format!("{label}: refused at the origin: {home:?}"));
+        }
+        for off in [1e2, 1e3] {
+            let v = Vec3::new(off, -0.7 * off, 0.3 * off);
+            let (a, b) = (a0.translated(v).unwrap(), b0.translated(v).unwrap());
+            for (order, r) in [
+                ("first first", read((&a, sa), (&b, sb), at)),
+                ("second first", read((&b, sb), (&a, sa), at)),
+            ] {
+                if count(&r) != count(&home) {
+                    bad.push(format!(
+                        "{label}, moved {off:e}, {order}: {r:?}, at the origin {home:?}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} pairs:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **A height in the band's gap beside a definite gap in the plane reads
+/// apart** (`pose`'s module docs, "Two conics" and "The router"). A
+/// circle in a plane parallel to the unit circle's, tilted by `10⁻¹⁴`, at
+/// heights of 3 to 8 zero widths, and a line parallel to the plane at
+/// those heights: where the pair is apart in the plane (centres 2.5 and
+/// 3 m apart, the line 4 m from the centre) it reads apart; where it
+/// touches in the plane (centres 2 m apart, the line over the rim) the
+/// height is the pair's gap and it escalates; at half a zero width it
+/// meets once. In both orders. Red where a height in the gap escalates on
+/// its own, the swing-zero arm's and the router's level offset.
+#[test]
+fn a_height_in_the_gap_beside_a_definite_gap_in_the_plane_reads_apart() {
+    let at = needle_band();
+    let z = at.zero();
+    let c = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let axis = Vec3::new(1e-14, 0.0, 1.0).normalize();
+    let whole = (-PI, PI);
+    let mut bad = Vec::new();
+    for k in [0.5, 3.0, 5.0, 8.0] {
+        let mut pairs: Vec<(String, Curve3<f64>, (f64, f64))> = Vec::new();
+        for d in [2.0, 2.5, 3.0] {
+            let b = Curve3::circle(Point3::new(d, 0.0, k * z), axis, 1.0, u_for(axis));
+            pairs.push((format!("circle {d} m off"), b, whole));
+        }
+        for x in [1.0, 4.0] {
+            let l = line([x, 0.0, k * z], [0.0, 1.0, 0.0]);
+            pairs.push((format!("line {x} m off"), l, (-2.0, 2.0)));
+        }
+        for (label, b, sb) in pairs {
+            let touches = label.starts_with("circle 2 ") || label.starts_with("line 1 ");
+            for (order, r) in [
+                ("first first", read((&c, whole), (&b, sb), at)),
+                ("second first", read((&b, sb), (&c, whole), at)),
+            ] {
+                let ok = match (touches, k < 1.0) {
+                    (true, true) => matches!(&r, Ok(m) if m.points.len() == 1),
+                    (true, false) => {
+                        matches!(&r, Err(e) if matches!(e.fault, MeetFault::Escalated(_)))
+                    }
+                    (false, _) => matches!(&r, Ok(m) if m.points.is_empty()),
+                };
+                if !ok {
+                    bad.push(format!("{label} at {k} zero widths, {order}: {r:?}"));
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} pairs:\n{}", bad.len(), bad.join("\n"));
+}
+
+/// **Two circles in one plane overlapping by a lens read it by its depth**
+/// (`pose`'s module docs, "A first harmonic's roots"). Unit circles whose
+/// centres are `2 − depth` apart: a lens shallower than the zero is one
+/// touch (C5), one in the band's gap escalates, and one past the
+/// escalation is two crossings, in both orders. Red where two definite
+/// crossings are merged whatever their gap. A distance's extreme in the
+/// gap read as a touch escalates too, where its point is read on both
+/// spans.
+#[test]
+fn two_circles_overlapping_by_a_lens_read_it_by_its_depth() {
+    let at = needle_band();
+    let z = at.zero();
+    let a = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let whole = (-PI, PI);
+    let mut bad = Vec::new();
+    for k in [0.5, 3.0, 8.0, 50.0, 1e4] {
+        let b = circle([2.0 - k * z, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+        for (order, r) in [
+            ("first first", read((&a, whole), (&b, whole), at)),
+            ("second first", read((&b, whole), (&a, whole), at)),
+        ] {
+            let ok = if k * z < at.zero() {
+                matches!(&r, Ok(m) if m.points.len() == 1)
+            } else if k * z <= at.escalate() {
+                matches!(&r, Err(e) if matches!(e.fault, MeetFault::Escalated(_)))
+            } else {
+                matches!(&r, Ok(m) if m.points.len() == 2)
+            };
+            if !ok {
+                bad.push(format!("a lens {k}·zero deep, {order}: {r:?}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{} lenses:\n{}", bad.len(), bad.join("\n"));
 }

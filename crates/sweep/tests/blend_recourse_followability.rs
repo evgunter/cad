@@ -277,12 +277,9 @@ fn lune_slit_plate() -> (Body<f64>, EdgeKey, EdgeKey) {
     };
     let on_cylinders = |e: EdgeKey| {
         let (a, b) = topo::readback::edge_sides(&body, e).unwrap().faces();
-        [a, b].iter().all(|&f| {
-            matches!(
-                body.get_surface(body.get_face(f).unwrap().surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        [a, b]
+            .iter()
+            .all(|&f| matches!(body.face_surface(f), Some(geom::Surface::Cylinder { .. })))
     };
     let edges = query::all_edges(&body);
     let kiss = *edges
@@ -889,7 +886,8 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         t,
     )
     .expect("the prism extrudes")
-    .body;
+    .body
+    .into_body();
     merged
         .merge_coplanar_faces(t)
         .expect("the continuation's walls merge");
@@ -1261,7 +1259,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
 
     // Followed: blend first, cut the bore second.
     let blended = fillet_edges(
-        &sweep::test_support::at_rest(&cube(1.0, tol()), tol()),
+        &sweep::test_support::at_rest(&cube::<f64>(1.0, tol()), tol()),
         &outer_box_edges(&cube(1.0, tol())),
         0.1,
         tol(),

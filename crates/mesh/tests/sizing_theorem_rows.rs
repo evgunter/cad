@@ -28,8 +28,7 @@ fn probe(body: &Body<f64>, delta: f64, order: u32) -> Result<(f64, usize), Strin
     let mut worst = 0.0_f64;
     let mut tris = 0;
     for patch in &mesh.patches {
-        let face = body.get_face(patch.face).unwrap();
-        let surface = body.get_surface(face.surface).unwrap();
+        let surface = body.face_surface(patch.face).unwrap();
         if matches!(surface, geom::Surface::Plane { .. }) {
             continue;
         }
@@ -49,7 +48,7 @@ fn probe(body: &Body<f64>, delta: f64, order: u32) -> Result<(f64, usize), Strin
 fn revolve(lp: ProfileLoop<f64>, rev: Revolution<f64>) -> Option<Body<f64>> {
     sweep::revolve(&validated(vec![lp]), axis_y(), rev, Tol::witness())
         .ok()
-        .map(|r| r.body)
+        .map(|r| r.body.into_body())
 }
 
 /// A unit-sphere zone between latitudes `a < b` (radians).
@@ -384,8 +383,8 @@ fn round_inputs_never_refuse() {
 }
 
 /// A unit cylinder (height 1) revolved about an axis `x0` metres from
-/// the origin.
-fn far_cylinder(x0: f64) -> Body<f64> {
+/// the origin: the revolve's own result.
+fn try_far_cylinder(x0: f64) -> Result<Body<f64>, sweep::RevolveError> {
     let lp = ProfileLoop::polygon([
         Point2::new(x0, 0.0),
         Point2::new(x0 + 1.0, 0.0),
@@ -397,27 +396,28 @@ fn far_cylinder(x0: f64) -> Body<f64> {
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     sweep::revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
-        .expect("the far cylinder revolves")
-        .body
+        .map(|built| built.body.into_body())
 }
 
-/// **The rounding allowance is applied only while it is small, and
-/// flagged when it is not** (`mesh::cert::verdict`,
-/// `cert::ALLOWANCE_SHARE`). The n-gon cylinder — δ = 1 − cos(π/n), its
-/// worst triangle on δ to the last bit — certifies at every `n` 1e5 m
-/// from the origin, where the allowance (8 epsilons of 1e5) is still
-/// under a quarter of ε. At 1e6 m the same request lands past δ by its
-/// rounding, and that rounding is no longer small against ε: the face
-/// refuses `RoundingUnresolved`, naming the allowance, at `n = 10`
-/// (one of 49 such `n` in 9..=200), and never `CertificateExceeded`.
-/// At the default ε only; it says so loudly at any other.
+/// [`try_far_cylinder`], which builds.
+fn far_cylinder(x0: f64) -> Body<f64> {
+    try_far_cylinder(x0).expect("the far cylinder revolves")
+}
+
+/// **The rounding allowance is applied only while it is small**
+/// (`mesh::cert::verdict`, `cert::ALLOWANCE_SHARE`). The n-gon cylinder —
+/// δ = 1 − cos(π/n), its worst triangle on δ to the last bit — certifies
+/// at every `n` 900 m from the origin, where the allowance (8 epsilons of
+/// the coordinates) is far under a quarter of ε. The allowance is large
+/// against ε at the default ε only past the 1 km session box — the row
+/// once read it `RoundingUnresolved` at 1e6 m, `n = 10` — and a body
+/// there is refused by the box at its revolve (D4 ¶4), so that arm is not
+/// reached through a door at this ε;
+/// `cert::tests::the_verdict_admits_its_own_rounding_only_while_it_is_small`
+/// holds the verdict's edges at every ε. At the default ε only; it says
+/// so loudly at any other.
 #[test]
 fn a_large_rounding_allowance_is_flagged_not_absorbed() {
-    // The witness is a property of the distance AND ε: the flag needs
-    // the allowance past a quarter of ε, so the same body certifies at
-    // a coarser ε and does not revolve at a much finer one. It is
-    // pinned at the default ε; `cert::tests::the_verdict_admits_its_own_
-    // rounding_only_while_it_is_small` holds the verdict's edges at every ε.
     if common::eps().to_bits() != 1e-9_f64.to_bits() {
         println!(
             "SKIPPED (ε = {}): this row's witness is pinned at the default ε = 1e-9 and \
@@ -426,33 +426,19 @@ fn a_large_rounding_allowance_is_flagged_not_absorbed() {
         );
         return;
     }
-    let near = far_cylinder(1e5);
+    let near = far_cylinder(9e2);
     for n in 9..=200 {
         #[allow(clippy::cast_precision_loss)]
         let d = 1.0 - (PI / n as f64).cos();
         assert!(
             mesh::tessellate(&near, d, Tol::witness()).is_ok(),
-            "1e5 m out, n {n}: the n-gon refuses"
+            "900 m out, n {n}: the n-gon refuses"
         );
     }
-    let far = far_cylinder(1e6);
-    let d = 1.0 - (PI / 10.0).cos();
-    match mesh::tessellate(&far, d, Tol::witness()) {
-        Err(mesh::TessellateError::RoundingUnresolved {
-            bound,
-            requested,
-            allowance,
-            ..
-        }) => {
-            assert!(
-                bound > requested && bound <= requested + allowance,
-                "past δ by its rounding alone: {bound:e} against {requested:e} + {allowance:e}"
-            );
-            assert!(
-                allowance * 4.0 >= common::eps(),
-                "and the allowance {allowance:e} is not small against ε"
-            );
-        }
-        other => panic!("1e6 m out, n 10: expected RoundingUnresolved, got {other:?}"),
-    }
+    let far = try_far_cylinder(1e6);
+    assert!(
+        matches!(&far, Err(e) if format!("{e:?}").contains("OutsideSessionBox")),
+        "1e6 m out: the session box refuses it: {:?}",
+        far.as_ref().err()
+    );
 }

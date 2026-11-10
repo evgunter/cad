@@ -18,7 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, Pcurve, PcurveCertifyError};
+use geom_brep::{EdgeCurveSpec, Pcurve};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Revolution;
@@ -41,7 +41,7 @@ fn band() -> Band {
 fn minted_face(body: &Body<f64>, pick: impl Fn(&Surface<f64>) -> bool) -> (FaceKey, HalfEdgeKey) {
     body.faces()
         .find_map(|(fk, f)| {
-            if !pick(body.get_surface(f.surface).unwrap()) {
+            if !pick(body.face_surface(fk).unwrap()) {
                 return None;
             }
             let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary
@@ -67,6 +67,7 @@ fn lofted_prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[sq(), sq()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body
+        .into_body()
 }
 
 fn start_point(body: &Body<f64>, he: HalfEdgeKey) -> Point3<f64> {
@@ -148,12 +149,13 @@ fn a_tilted_circle_strut_on_a_minted_cone_leaves_the_wall_unminted() {
             *e,
             topo::PcurveMintError::Certify {
                 half_edge,
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Cone,
-                    ..
-                },
+                ref error,
                 ..
-            } if half_edge == made.he_plus || half_edge == made.he_minus
+            } if (half_edge == made.he_plus || half_edge == made.he_minus)
+                && matches!(
+                    geom_brep::IncidenceRead::of(error),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                )
         )
     };
     let findings = validate_pcurves(&body, band());
@@ -252,13 +254,17 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
             topo::PcurveMintError::MissingCache { half_edge } => missing.push(half_edge),
             topo::PcurveMintError::Certify {
                 half_edge,
-                error:
-                    geom_brep::PcurveCertifyError::CarrierOffChart {
-                        carrier: geom::CurveKind::Circle,
-                        ..
-                    },
-                ..
-            } => why.push(half_edge),
+                ref error,
+            } if matches!(
+                geom_brep::IncidenceRead::of(error),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ) && topo::readback::edge_carrier_kind(
+                &body,
+                body.get_half_edge(half_edge).unwrap().edge,
+            ) == Ok(geom::CurveKind::Circle) =>
+            {
+                why.push(half_edge);
+            }
             ref other => panic!("only the gaps and why they are gaps, got {other:?}"),
         }
     }
@@ -309,7 +315,7 @@ fn a_null_edge_described_on_a_spline_wall_leaves_its_rows_as_found() {
 /// and the wall misses the null strut's two rows and the
 /// new strut's two.
 /// The new strut leaves the wall, so the wall's incidence read shows it
-/// off the chart, and its image refuses `CarrierOffChart`.
+/// off the chart, and its image refuses as that read (`IncidenceRead::Off`).
 #[test]
 fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     let mut body = lofted_prism();
@@ -356,17 +362,28 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
     // store it.
     for h in [strut.he_plus, strut.he_minus] {
         let got = topo::pcurve_of(&body, h, band());
+        let kinds = (
+            topo::readback::face_carrier_kind(&body, body.face_of_half_edge(h).unwrap()).unwrap(),
+            topo::readback::edge_carrier_kind(&body, body.get_half_edge(h).unwrap().edge).unwrap(),
+        );
+        assert_eq!(
+            kinds,
+            (geom::SurfaceKind::Nurbs, geom::CurveKind::Line),
+            "{h:?}: the strut is a line on the spline wall"
+        );
         assert!(
             matches!(
-                got,
-                Err(topo::PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Nurbs,
-                        carrier: geom::CurveKind::Line,
-                        ..
-                    },
-                    ..
-                })
+                &got,
+                Err(topo::PcurveMintError::Certify { error, .. })
+                    if geom_brep::IncidenceRead::kinds_of(error) == Some(kinds)
+            ),
+            "{h:?}: the refusal names the strut's chart and carrier: {got:?}"
+        );
+        assert!(
+            matches!(
+                &got,
+                Err(topo::PcurveMintError::Certify { error, .. })
+                    if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
             ),
             "{h:?}: the strut is read off the wall: {got:?}"
         );
@@ -398,8 +415,10 @@ fn a_kill_re_describing_a_certified_member_leaves_its_spline_wall_as_found() {
         b.get_loop(lk).unwrap().face
     };
     let on_spline = |b: &Body<f64>, h: HalfEdgeKey| {
-        let f = b.get_face(face_of(b, h)).unwrap();
-        b.get_surface(f.surface).unwrap().spline_chart().is_some()
+        b.face_surface(face_of(b, h))
+            .unwrap()
+            .spline_chart()
+            .is_some()
     };
     let wall_images = |b: &Body<f64>, killed: &[HalfEdgeKey]| {
         format!(
@@ -508,8 +527,10 @@ fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
     let base = lofted_prism();
     let on_spline = |b: &Body<f64>, h: HalfEdgeKey| {
         let lk = b.get_half_edge(h).unwrap().parent_loop;
-        let f = b.get_face(b.get_loop(lk).unwrap().face).unwrap();
-        b.get_surface(f.surface).unwrap().spline_chart().is_some()
+        b.face_surface(b.get_loop(lk).unwrap().face)
+            .unwrap()
+            .spline_chart()
+            .is_some()
     };
     let wall_images = |b: &Body<f64>| {
         format!(

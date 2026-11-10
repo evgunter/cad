@@ -22,7 +22,7 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::curved::{self, decided};
+use super::curved::{self, decided_as};
 use super::{CensusSubject, CensusUnsupportedCause, FaceContainment, ValidationError, face_holds};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
@@ -60,7 +60,7 @@ enum Locus<T: Real> {
 }
 
 fn surface<T: Real>(body: &Body<T>, f: FaceKey) -> Option<Surface<T>> {
-    match *body.passed_face(f)?.surface() {
+    match *body.face(f)?.surface() {
         geom::Surface::Plane { origin, normal, .. } => Some(Surface::Plane { origin, normal }),
         geom::Surface::Sphere { center, radius, .. } => Some(Surface::Sphere { center, radius }),
         _ => None,
@@ -76,7 +76,7 @@ fn separates<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
     Some(
-        decided(
+        decided_as(
             "pm_census_point_kappa",
             Margin::sagitta(kappa, arm),
             band,
@@ -96,7 +96,7 @@ fn coincident<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
     Some(
-        match decided("pm_census_point_gap", Margin::of(gap - reach), band, errors)? {
+        match decided_as("pm_census_point_gap", Margin::of(gap - reach), band, errors)? {
             Sign::Zero => Touch::At(at),
             _ => Touch::Apart,
         },
@@ -118,7 +118,7 @@ fn on_sphere<T: Decide>(
     let d = w.norm();
     // The touch point is on the sphere along `c → foot`, so a foot at
     // the centre (the carrier through it) crosses.
-    if decided("pm_census_point_centre", Margin::of(d), band, errors)? != Sign::Positive {
+    if decided_as("pm_census_point_centre", Margin::of(d), band, errors)? != Sign::Positive {
         return Some(Touch::Apart);
     }
     coincident(d, r, c + w * (r / d), band, errors)
@@ -135,19 +135,18 @@ fn circle_plane<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Locus<T>> {
     let d = plane_across(a, n);
-    let sin = d.norm();
+    let (toward, sin) = d.direction_and_length();
     let s = n.dot(c - o);
     if !separates(sin / r, r, band, errors)? {
         return Some(
-            match decided("pm_census_point_plane", Margin::of(s), band, errors)? {
+            match decided_as("pm_census_point_plane", Margin::of(s), band, errors)? {
                 Sign::Zero => Locus::Lies,
                 _ => Locus::Touch(Touch::Apart),
             },
         );
     }
-    let toward = d / sin;
     Some(Locus::Touch(
-        match decided("pm_census_point_plane", Margin::of(s), band, errors)? {
+        match decided_as("pm_census_point_plane", Margin::of(s), band, errors)? {
             Sign::Positive => coincident(s, r * sin, c - toward * r, band, errors)?,
             Sign::Negative => coincident(T::zero() - s, r * sin, c + toward * r, band, errors)?,
             Sign::Zero => Touch::Apart,
@@ -190,13 +189,12 @@ fn sphere_sphere<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Touch<T>> {
     let v = c2 - c1;
-    let dist = v.norm();
-    if decided("pm_census_point_centre", Margin::of(dist), band, errors)? != Sign::Positive {
+    let (u, dist) = v.direction_and_length();
+    if decided_as("pm_census_point_centre", Margin::of(dist), band, errors)? != Sign::Positive {
         return Some(Touch::Apart);
     }
-    let u = v / dist;
     let small = r1.min(r2);
-    match decided(
+    match decided_as(
         "pm_census_point_gap",
         Margin::of(dist - (r1 + r2)),
         band,
@@ -216,7 +214,7 @@ fn sphere_sphere<T: Decide>(
         return Some(Touch::Apart);
     }
     // The point is on the big sphere away from the small one's centre.
-    let (cb, out) = match decided("pm_census_point_radii", Margin::of(r1 - r2), band, errors)? {
+    let (cb, out) = match decided_as("pm_census_point_radii", Margin::of(r1 - r2), band, errors)? {
         Sign::Positive => (c1, u),
         Sign::Negative => (c2, -u),
         Sign::Zero => return Some(Touch::Apart),
@@ -344,7 +342,7 @@ pub(super) fn face_face<T: Decide>(
     let touch = match surface(body, a).zip(surface(body, b))? {
         (Plane { origin, normal }, Sphere { center, radius })
         | (Sphere { center, radius }, Plane { origin, normal }) => {
-            let foot = center - normal * normal.dot(center - origin);
+            let foot = center - normal * geom::plane_offset(origin, normal, center);
             on_sphere((center, radius), foot, band, errors)
         }
         (

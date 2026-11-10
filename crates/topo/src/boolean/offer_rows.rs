@@ -446,10 +446,6 @@ cases! {
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
-    // A ray aimed 10° off the normal (`AIM_INCIDENCE`) across two
-    // parallel faces `D·cos 10°` apart meets them `D` apart along it.
-    aimed_ray_across_a_pair_in_band: "ShellRole", D, ROLE_SITE, Valued =>
-        aimed_pair(D * crate::side_reader::AIM_INCIDENCE.0);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
@@ -501,10 +497,6 @@ const RIM_PLANE_SITE: Door = Door::Site(
 );
 const SEAM_SITE: Door = Door::Site(
     "a seam of the result is read as its edges are re-described, on two surfaces set directly",
-);
-const ROLE_SITE: Door = Door::Site(
-    "the side at infinity is read of two faces set directly: no result shell is known whose every \
-     aimed ray meets a pair in band",
 );
 const GATE_SITE: Door = Door::Site(
     "the maximal-faces gate is asked of the operand directly: a solid whose neighbours are bent \
@@ -668,10 +660,14 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
     super::super::solid_contain::line_wall_roots(
-        Point3::new(0.5, 0.0, 0.0),
-        Vec3::new(drift, 0.0, 1.0),
-        Point3::new(0.0, 0.0, 0.0),
-        z,
+        geom::Line {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            dir: Vec3::new(drift, 0.0, 1.0),
+        },
+        geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: z,
+        },
         1.0,
         1.0,
         band(),
@@ -692,16 +688,13 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
     let (edge_key, edge) = x
         .edges()
-        .find(|(_, e)| {
-            let ends = [e.he_plus, e.he_minus].map(|he| x.get_half_edge(he).unwrap().start);
-            ends == [u, v] || ends == [v, u]
+        .find(|&(k, _)| {
+            let ends = crate::query::edge_ends(&x, k);
+            ends == (u, v) || ends == (v, u)
         })
         .map(|(k, e)| (k, e.clone()))
         .unwrap();
-    let (a, c) = (
-        x.get_half_edge(edge.he_plus).unwrap().start,
-        x.get_half_edge(edge.he_minus).unwrap().start,
-    );
+    let (a, c) = crate::query::edge_ends(&x, edge_key);
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
     let wall = cyl_wall_sheet(
         &mut y,
@@ -770,8 +763,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
             )
         })
         .unwrap();
-    let start = |he| x.get_half_edge(he).unwrap().start;
-    let (a, c) = (start(edge.he_plus), start(edge.he_minus));
+    let (a, c) = crate::query::edge_ends(&x, edge_key);
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
     let mut acc = ContactAcc::default();
     curved_face_arm(
@@ -1598,49 +1590,6 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
 }
 
-/// A unit brick's top and the floor of a brick standing `gap` above it,
-/// read as one selection by the reader of the side at infinity
-/// ([`crate::side_reader::side_at_infinity`]): a ray aimed at the top
-/// meets the floor first and the top `gap` over the cosine of its
-/// incidence further on ([`crate::side_reader::AIM_INCIDENCE`]).
-/// An in-band pair is refused as the result gate refuses it.
-fn aimed_pair(gap: f64) -> Result<(), BooleanError> {
-    use super::super::solid_contain::SolidFaces;
-    use crate::side_reader::{SideUnread, side_at_infinity};
-    use crate::test_support_fixtures::brick;
-    let tol = Tol::witness();
-    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let above = brick::<f64>((0.0, 1.0), (0.0, 1.0), (1.0 + gap, 2.0), tol);
-    crate::graft_disjoint_all_keyed(&mut body, &above).unwrap();
-    let solid = body.solids().next().unwrap().0;
-    let level = |z: f64| {
-        body.faces()
-            .map(|(k, _)| k)
-            .find(|&f| {
-                let (o, n) = crate::face_normal::face_plane(&body, f).unwrap();
-                n.z.abs() > 0.99 && (o.z - z).abs() < 1e-12
-            })
-            .unwrap()
-    };
-    let faces = vec![level(1.0), level(1.0 + gap)];
-    let sel = SolidFaces::select(&body, faces).unwrap();
-    match side_at_infinity(&body, &sel, band(), || {
-        Err::<crate::SolidContainment, ()>(())
-    }) {
-        Ok(Ok(_)) => Ok(()),
-        Ok(Err(SideUnread::InBand(pair))) => Err(super::super::ops::finished_body_refusal(vec![
-            crate::ValidationError::ShellRoleUndecided {
-                solid,
-                error: crate::ShellClassifyError::RayInBand {
-                    shell: pair.shell,
-                    pair: Box::new(pair),
-                },
-            },
-        ])),
-        other => panic!("the aimed ray reads the pair: {other:?}"),
-    }
-}
-
 /// A unit prism's top split on its diagonal, one half re-described on
 /// the parallel plane `offset` above: the operand's maximal-faces gate,
 /// whose offset rung reads it.
@@ -1744,7 +1693,7 @@ fn big_block() -> crate::AtRestBody<f64> {
     let tol = Tol::witness();
     finished(
         "the review's big block",
-        crate::test_support_fixtures::brick((-4.0, 4.0), (-4.0, 4.0), (0.0, 1.0), tol),
+        crate::test_support_fixtures::brick::<f64>((-4.0, 4.0), (-4.0, 4.0), (0.0, 1.0), tol),
         tol,
     )
 }
@@ -1818,15 +1767,15 @@ fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
         .collect();
     let edges: Vec<_> = boundary.iter().map(|he| he.edge).collect();
     let vertices: Vec<_> = boundary.iter().map(|he| he.start).collect();
-    let errors = crate::AtRestBody::validate(body, Tol::witness())
-        .expect_err("a stranded body is not a finished body");
+    let errors =
+        crate::finish(body, Tol::witness()).expect_err("a stranded body is not a finished body");
     assert!(
         errors
             .iter()
             .any(|e| matches!(e, crate::ValidationError::PlanarFaceResidual { .. })),
         "the stranded half's vertices lie off its plane: {errors:?}"
     );
-    for e in &errors {
+    for e in errors.iter() {
         let own = match e {
             crate::ValidationError::PlanarFaceResidual { face, vertex } => {
                 *face == stranded && vertices.contains(vertex)
@@ -2195,13 +2144,10 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::RechartedRowUnstated
         | BooleanErrorKind::CarryRefused
-        | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
-        | BooleanErrorKind::UnjoinedOperand
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
-        | BooleanErrorKind::ContactContradicted
         | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::HeldPierceUnbuilt
@@ -2213,6 +2159,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::LineMaterialUnread
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
+        | BooleanErrorKind::TouchesItself
+        | BooleanErrorKind::ToolSeatCrossed
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2579,7 +2527,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("fan.rs", "plane_fan", "Coincide::Sectors", 1),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
-    ("fate.rs", "normal_at", "BooleanDecision::of_normal", 1),
     (
         "fate.rs",
         "ring_winding",
@@ -2636,6 +2583,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
     ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
+    ("mod.rs", "off_ring_torus", "BooleanDecision::Torus", 1),
+    ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
         "mod.rs",
         "decision_words",
@@ -2695,8 +2644,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
-    ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
-    ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
+    ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 1),
+    ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "pair_seam", "BooleanDecision::Sphere", 1),
@@ -2723,8 +2672,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "binding", "BooleanDecision::ShellRole", 2),
-    ("ops.rs", "finding_arm", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -2853,7 +2800,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "landing", "BooleanDecision::Containment", 1),
-    ("reduce.rs", "sheets_part", "BooleanDecision::of_normal", 1),
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
@@ -2984,7 +2930,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "slit.rs",
-        "spiric_on_quadric",
+        "spiric_on_curved",
         "Coincide::EdgeOnCurvedFace",
         1,
     ),
@@ -2993,6 +2939,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
+        "standing_rows.rs",
+        "each_class_and_each_delegate_reads_as_its_doc_states",
+        "Coincide::Sectors",
+        1,
+    ),
+    (
         "torus_frame_rows.rs",
         "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",
         "BooleanDecision::Torus",
@@ -3000,14 +2952,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "BooleanDecision::ConicBend",
         1,
     ),
     ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "Coincide::TangentSide",
         1,
     ),

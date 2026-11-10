@@ -26,6 +26,7 @@ use geom_core::{Affine3, Bounds, Decide, Interval, Point2, Real, Tol, Vec2, Vec3
 use profile::test_support::bulge_loop;
 use profile::{Profile, SketchPlane};
 use sweep::{Revolution, RevolveAxis};
+use topo::LeafBody as _;
 use topo::construction::Construct;
 use topo::{AtRestPolicy, Body, CurveGeom, EdgeKey, EulerOpError, ValidationError};
 
@@ -51,6 +52,7 @@ fn hemisphere<T: Decide + AtRestPolicy>() -> Body<T> {
     sweep::revolve(&profile, axis, Revolution::Full, tol)
         .expect("the quarter disc revolves")
         .body
+        .into_body()
 }
 
 /// The sphere's meridian seam: a circle whose axis is horizontal.
@@ -129,11 +131,8 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
     for refusal in [&declared, &derived] {
         assert!(
             matches!(
-                refusal,
-                CertifyError::CarrierOffChart {
-                    margin: Some(geom_brep::OffMargin::Past(_)),
-                    ..
-                }
+                refusal.incidence_read(),
+                Some(geom_brep::IncidenceRead::Off(Some(_)))
             ),
             "{lane}: {refusal:?}"
         );

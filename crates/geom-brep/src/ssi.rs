@@ -744,7 +744,7 @@ pub enum SsiError {
     /// corner handed in as known ([`PairBoundaryCause`] says which).
     PairBoundaryUnresolved {
         /// The face pieces the walk may examine.
-        pieces: u32,
+        pieces: usize,
         /// Why.
         cause: PairBoundaryCause,
     },
@@ -1558,7 +1558,9 @@ impl SsiError {
             // f64. A chord below the running total's rounding is absorbed,
             // so two parameters tie (`ParamCountMismatch`, its knots
             // `Structure`); a step below an image's resolution repeats a
-            // point (`DegenerateChord`); an image can overflow
+            // point, and two images too far apart or too near for their
+            // distance to be represented leave a chord with no length
+            // (`DegenerateChord`); an image can overflow
             // (`NonFinitePoint`); and the collocation solve meets the
             // parameters as rounded (`Lsq`). Each is the approximation's
             // limit at an extreme scale.

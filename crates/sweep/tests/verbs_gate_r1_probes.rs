@@ -103,6 +103,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// A DONUT: a full circle of radius 0.15 about (0.5, 1.25) in the
@@ -129,6 +130,7 @@ fn donut() -> Body<f64> {
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The vase carries a torus face, minted by the kernel itself.
@@ -137,7 +139,7 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
     let v = vase();
     assert!(
         v.faces()
-            .any(|(_, f)| matches!(v.get_surface(f.surface), Some(geom::Surface::Torus { .. }))),
+            .any(|(fk, _)| matches!(v.face_surface(fk), Some(geom::Surface::Torus { .. }))),
         "the fixture must carry a real torus band"
     );
 }
@@ -169,7 +171,7 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
         let a = finished("the vase", vase_with_caps(sphere_caps), Tol::witness());
         let b = finished(
             "the brick",
-            brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness()),
+            brick::<f64>((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness()),
             Tol::witness(),
         );
         let out = match topo::union(&a, &b, Tol::witness()) {
@@ -233,7 +235,7 @@ fn the_same_union_posed_into_the_torus_band_builds() {
     let a = finished("the vase", vase(), Tol::witness());
     let b = finished(
         "the brick",
-        brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
+        brick::<f64>((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let out = topo::union(&a, &b, Tol::witness()).expect("the union builds");
@@ -281,7 +283,7 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
     let a = finished("the donut", donut(), Tol::witness());
     let b = finished(
         "the brick",
-        brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let out = match topo::union(&a, &b, Tol::witness()) {
@@ -329,7 +331,7 @@ fn brick_with_face(surface: geom::Surface<f64>) -> (Body<f64>, topo::FaceKey) {
     let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let face = b
         .faces()
-        .find(|(_, f)| match b.get_surface(f.surface) {
+        .find(|(fk, _)| match b.face_surface(*fk) {
             Some(geom::Surface::Plane { origin, normal, .. }) => {
                 (origin.x - 3.0).abs() < 1e-9 && normal.x.abs() > 0.5
             }
@@ -360,7 +362,8 @@ fn refused_on_the_relabelled_face(
     b: Body<f64>,
     face: topo::FaceKey,
     mixed: &[geom_brep::MixedStations],
-) -> topo::PcurveMintError {
+) -> (topo::PcurveMintError, (geom::SurfaceKind, geom::CurveKind)) {
+    let kept = b.clone();
     let outer = b.get_face(face).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
         panic!("the relabelled face's outer loop is a cycle")
@@ -372,7 +375,8 @@ fn refused_on_the_relabelled_face(
         .collect();
     edges.sort();
     assert_eq!(edges.len(), 4);
-    let mut errors = topo::AtRestBody::validate(b, Tol::witness())
+    let mut errors = topo::finish(b, Tol::witness())
+        .map_err(topo::NotFinished::into_findings)
         .expect_err("a relabel over a brick's lines does not finish");
     // A boundary line the relabelled surface does not hold can also meet
     // it at a corner whose sign turns along the line: a mixed wedge, on
@@ -429,7 +433,27 @@ fn refused_on_the_relabelled_face(
         hes.contains(&half_edge),
         "the pcurve finding sits on the relabelled face's loop: {errors:?}"
     );
-    finding.clone()
+    (
+        finding.clone(),
+        (
+            topo::readback::face_carrier_kind(&kept, kept.face_of_half_edge(half_edge).unwrap())
+                .unwrap(),
+            topo::readback::edge_carrier_kind(&kept, kept.get_half_edge(half_edge).unwrap().edge)
+                .unwrap(),
+        ),
+    )
+}
+
+/// Whether `finding` is a certification refusal whose incidence read
+/// shows its carrier off the chart (`geom_brep::IncidenceRead::Off`),
+/// naming the chart and carrier `kinds` the body holds.
+fn read_off(finding: &topo::PcurveMintError, kinds: (geom::SurfaceKind, geom::CurveKind)) -> bool {
+    matches!(
+        finding,
+        topo::PcurveMintError::Certify { error, .. }
+            if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
+                && geom_brep::IncidenceRead::kinds_of(error) == Some(kinds)
+    )
 }
 
 /// The tilted cone of rows 4 and 6, relabelled onto the brick's
@@ -447,35 +471,27 @@ fn tilted_cone_brick() -> (Body<f64>, topo::FaceKey) {
 /// does not finish, so no probe meets its face's box at the boolean.
 /// The at-rest gate refuses it on the relabelled face: its four lines
 /// lie off the cone, and the cone's incidence test reads a line off it
-/// before any class reading (`CarrierOffChart`, PCERT E1's P1; before
+/// before any class reading (`IncidenceRead::Off`, PCERT E1's P1; before
 /// it, check 4's map residual refused the line's ruling image). The
 /// loop walk decides each joint's element as integers, so the
 /// derivation, not a chart-space gap, is what refuses it.
 #[test]
 fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
     let (a, face) = tilted_cone_brick();
-    let finding = refused_on_the_relabelled_face(a, face, &[]);
-    assert!(
-        matches!(
-            finding,
-            topo::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Cone,
-                    carrier: geom::CurveKind::Line,
-                    ..
-                },
-                ..
-            }
-        ),
-        "{finding:?}"
+    let (finding, kinds) = refused_on_the_relabelled_face(a, face, &[]);
+    assert!(read_off(&finding, kinds), "{finding:?}");
+    assert_eq!(
+        kinds,
+        (geom::SurfaceKind::Cone, geom::CurveKind::Line),
+        "a line on the relabelled face"
     );
 }
 
 /// **Row 5 — the torus twin**: the brick with a TILTED torus relabelled
 /// onto its face does not finish either. The at-rest gate refuses it
 /// on that face: its four lines lie off the torus, and a line pcurve
-/// cannot be charted on a torus at all (`CarrierOffChart`, torus chart,
-/// line carrier). Two of the lines meet the torus at a corner whose sign
+/// cannot be charted on a torus at all (`IncidenceRead::Off`, torus
+/// chart, line carrier). Two of the lines meet the torus at a corner whose sign
 /// turns along them (`MixedDihedral`, a sign bracket each).
 #[test]
 fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
@@ -487,7 +503,7 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
         minor_radius: 0.2,
         u_ref: axis.orthonormal_basis().0,
     });
-    let finding = refused_on_the_relabelled_face(
+    let (finding, kinds) = refused_on_the_relabelled_face(
         a,
         face,
         &[
@@ -501,19 +517,11 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
             },
         ],
     );
-    assert!(
-        matches!(
-            finding,
-            topo::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Torus,
-                    carrier: geom::CurveKind::Line,
-                    ..
-                },
-                ..
-            }
-        ),
-        "{finding:?}"
+    assert!(read_off(&finding, kinds), "{finding:?}");
+    assert_eq!(
+        kinds,
+        (geom::SurfaceKind::Torus, geom::CurveKind::Line),
+        "a line on the relabelled face"
     );
 }
 
@@ -524,19 +532,11 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
 #[test]
 fn a_cone_relabelled_brick_clear_of_the_probe_is_refused_at_rest() {
     let (a, face) = tilted_cone_brick();
-    let finding = refused_on_the_relabelled_face(a, face, &[]);
-    assert!(
-        matches!(
-            finding,
-            topo::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Cone,
-                    carrier: geom::CurveKind::Line,
-                    ..
-                },
-                ..
-            }
-        ),
-        "{finding:?}"
+    let (finding, kinds) = refused_on_the_relabelled_face(a, face, &[]);
+    assert!(read_off(&finding, kinds), "{finding:?}");
+    assert_eq!(
+        kinds,
+        (geom::SurfaceKind::Cone, geom::CurveKind::Line),
+        "a line on the relabelled face"
     );
 }

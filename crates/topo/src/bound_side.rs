@@ -36,7 +36,7 @@
 //! [`Tie::descend`] too.
 //!
 //! Both orders are decided at the link's metric door
-//! ([`crate::link::metric::settle`]) on the [`Reading`] the caller
+//! ([`crate::link::metric::settle_as`]) on the [`Reading`] the caller
 //! passes: the run band alone about the bound's own vertex, or a cone's
 //! reading over its tie where the side is handed to that cone
 //! ([`crate::link::Cone::reading`]). Over a slack, a side the band decides
@@ -173,7 +173,7 @@ impl<T: Decide> BoundSupport<T> {
     /// conic's bend is [`Tie::descend`]'s.
     pub(crate) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
         match self {
-            Self::Chord { base, far } => geom_brep::sector_shape::plane_offset(base, n, far),
+            Self::Chord { base, far } => geom::plane_offset(base, n, far),
             Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector { arm: l, .. } => {
                 rise(dir, n, l)
             }
@@ -604,7 +604,7 @@ type Settled<T> = Result<(Side, T, &'static str, Decided), Tie<T>>;
 
 /// The first order of [`read`] before its charge: a side with the
 /// bound's displacement off the face's tangent plane in metres, or a tie.
-/// The displacement is decided on `rd` ([`metric::settle`]): a side the
+/// The displacement is decided on `rd` ([`metric::settle_as`]): a side the
 /// band decides and the slack does not is tied, its slack the tie's.
 fn first_order<T: Decide>(
     dir: Vec3<T>,
@@ -687,7 +687,7 @@ fn first_order<T: Decide>(
 /// direction times a lever that is not the bound's own length.
 /// - [`BoundSupport::Chord`] (a line edge): its far vertex's signed distance
 ///   from the plane through the base vertex, in metres
-///   ([`geom_brep::sector_shape::plane_offset`]). The edge is its chord, so
+///   ([`geom::plane_offset`]). The edge is its chord, so
 ///   every point of it lies between the base's distance (`≈ 0`, the
 ///   vertex is On) and the far vertex's: a Zero puts the whole edge
 ///   within the band of the plane.
@@ -762,7 +762,7 @@ pub(crate) fn read<T: Decide>(
     // where the distance is a large fraction of the radius. Dropping
     // the ½ gives `l²/R`, an upper bound unconditionally (`l* ≤ R/2`
     // here, inside the circle's reach).
-    // Over a slack the separation clears it too ([`metric::settle`]), or
+    // Over a slack the separation clears it too ([`metric::settle_as`]), or
     // the side is the slack's tie, read one order down.
     let slope = displacement / length;
     let charge = Distance::departure(
@@ -770,7 +770,7 @@ pub(crate) fn read<T: Decide>(
         face.reference.vec(),
         arm,
     );
-    match metric::settle_reported(CHARGE, charge, rd) {
+    match metric::settle_reported(PIERCE_SECTOR_SIDE_CURVED, charge, rd) {
         Ok(cleared) => match Refused::of(cleared, band) {
             None => Ok(FirstOrder::Off(side)),
             Some(refused) => Err(BoundSideFault::Charge(refused)),
@@ -790,7 +790,7 @@ pub(crate) fn read<T: Decide>(
 
 /// K name: the curvature charge, a bound's tangent ray's least
 /// separation from a curved face within its reach, in metres ([`read`]).
-const CHARGE: &str = "bool_pierce_sector_side_curved";
+const PIERCE_SECTOR_SIDE_CURVED: &str = "bool_pierce_sector_side_curved";
 
 /// [`read`], descended where first order ties ([`Tie::descend`]).
 #[cfg(test)]
@@ -901,7 +901,7 @@ impl<T: Decide> Tie<T> {
     /// a plane rides it.
     ///
     /// The parting is decided on the reading the tie was decided on
-    /// ([`metric::settle`]): one the band decides and the slack does not
+    /// ([`metric::settle_as`]): one the band decides and the slack does not
     /// is [`Unresolved::Slack`]. A tie the slack made
     /// ([`TiedBy::Slack`]) descends by its rise at the arm and its parting
     /// together ([`Departure::Jet`]), its point's displacement to second
@@ -990,7 +990,7 @@ impl<T: Decide> Tie<T> {
             n,
             arm,
         );
-        let leading = match metric::settle("tangent_sector_order2", parting, rd) {
+        let leading = match metric::settle_as("tangent_sector_order2", parting, rd) {
             Ok(Sign::Zero) => return Ok(rides),
             Ok(Sign::Negative) => Some(Side::Below),
             Ok(Sign::Positive) => Some(Side::Above),
@@ -1051,7 +1051,7 @@ impl<T: Decide> Tie<T> {
                 terminal_sliver: false,
             }));
         };
-        let decided = match metric::settle_reported(WITNESS, offset, rd) {
+        let decided = match metric::settle_reported(TANGENT_SECTOR_WITNESS, offset, rd) {
             Ok(decided) => decided,
             Err(Refusal::Slack(_) | Refusal::Moved { .. }) => {
                 return Ok(Descent::Unresolved(Unresolved::Slack));
@@ -1069,7 +1069,7 @@ impl<T: Decide> Tie<T> {
         match leading {
             Some(lead) if lead != side => {
                 Err(ReadFault::Witness(geom_core::k_stats::gate_rejection(
-                    WITNESS,
+                    TANGENT_SECTOR_WITNESS,
                     decided,
                     rd.band,
                     match lead {
@@ -1084,7 +1084,7 @@ impl<T: Decide> Tie<T> {
 }
 
 /// The witness's reading ([`Tie::witnessed`]).
-const WITNESS: &str = "tangent_sector_witness";
+const TANGENT_SECTOR_WITNESS: &str = "tangent_sector_witness";
 
 /// A tied edge with no point for its witness ([`ReadFault::Unwitnessed`]).
 const UNWITNESSED: &str = "tangent_sector_unwitnessed";
@@ -2084,7 +2084,7 @@ mod tests {
                     matches!(
                         descend_on(&cylinder, true, p, arc, b),
                         Err(ReadFault::Witness(Indeterminate {
-                            predicate: Some(WITNESS),
+                            predicate: Some(TANGENT_SECTOR_WITNESS),
                             ..
                         }))
                     ),
@@ -2171,10 +2171,7 @@ mod tests {
                     axis,
                     radius,
                     ..
-                } => {
-                    let v = q - origin;
-                    (v - axis * axis.dot(v)).norm() - radius
-                }
+                } => geom::Line { origin, dir: axis }.distance(q) - radius,
                 _ => unreachable!("a sphere or a cylinder"),
             };
             d * n.dot(geom_brep::implicit_gradient(s, p)).signum()

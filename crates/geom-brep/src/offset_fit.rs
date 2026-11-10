@@ -1376,11 +1376,7 @@ pub fn certify_offset_over_at(
 pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<Point3<f64>> {
     let jet = base.ders(u, v);
     let m = jet.du.cross(jet.dv);
-    let len = m.norm();
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if !(len > 0.0) || !len.is_finite() {
-        return None;
-    }
+    let len = m.checked_nonzero_length().ok()?;
     let p = jet.point + m * (d / len);
     (p.x.is_finite() && p.y.is_finite() && p.z.is_finite()).then_some(p)
 }
@@ -1657,10 +1653,7 @@ fn seed_params(base: &NurbsSurface<f64>) -> (Vec<f64>, Vec<f64>) {
 /// premise where it is used.
 fn seed_direction(kv: &KnotVector) -> Vec<f64> {
     debug_assert_eq!(
-        (
-            kv.knot_runs().next().map(|(t, _)| t),
-            kv.knot_runs().next_back().map(|(t, _)| t)
-        ),
+        (kv.breakpoints().next(), kv.breakpoints().next_back()),
         (Some(kv.domain().0), Some(kv.domain().1)),
         "the distinct knot values do not run from the domain's start to its end"
     );
@@ -1668,7 +1661,7 @@ fn seed_direction(kv: &KnotVector) -> Vec<f64> {
         .into_iter()
         .peekable();
     let mut out = Vec::new();
-    for (end, _) in kv.knot_runs() {
+    for end in kv.breakpoints() {
         while let Some(t) = interior.next_if(|t| *t < end) {
             out.push(t);
         }
@@ -1693,7 +1686,7 @@ fn bisect(params: &[f64], marked: &[bool]) -> Vec<f64> {
     for (i, w) in params.windows(2).enumerate() {
         out.push(w[0]);
         if marked.get(i).copied().unwrap_or(false) {
-            let mid = 0.5 * (w[0] + w[1]);
+            let mid = geom::mid_param(w[0], w[1]);
             if mid > w[0] && mid < w[1] {
                 out.push(mid);
             }
@@ -2175,7 +2168,7 @@ fn recentre_origin(base: &NurbsSurface<f64>) -> Origin {
         // A non-finite or empty net recentres on the origin: the
         // composite's own refusal handling is what reports it, and a
         // NaN centre would silently refuse every cell instead.
-        let m = (lo[c] + hi[c]) * 0.5;
+        let m = geom::mid_param(lo[c], hi[c]);
         out[c] = if m.is_finite() { m } else { 0.0 };
     }
     Origin(out)

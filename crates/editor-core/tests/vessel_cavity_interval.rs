@@ -54,8 +54,7 @@ fn sealed_cavity<T: Scalar>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
     let hollow = topo::shell(&finished("the pot", pot), T::from_f64(vessel::WALL), tol)
         .expect("the pot shells sealed")
         .body;
-    let roles = topo::classify_shells(&finished("the hollow", hollow.clone()), tol)
-        .expect("the hollow classifies");
+    let roles = topo::classify_shells(&hollow, tol).expect("the hollow classifies");
     let [void] = roles
         .iter()
         .filter(|c| c.role == topo::ShellRole::Void)
@@ -69,7 +68,7 @@ fn sealed_cavity<T: Scalar>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
         .filter(|(_, f)| f.shell == void)
         .map(|(k, _)| k)
         .collect();
-    (hollow, faces)
+    (topo::FinishedBody::into_body(hollow), faces)
 }
 
 /// E7's self-intersection question over `faces` of `body`, at the

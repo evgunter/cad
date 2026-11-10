@@ -53,6 +53,7 @@ impl ViewerBehavior<'_> {
             self.display_ui(ui, node);
         }
         self.product_ui(ui);
+        self.placement_ui(ui);
         // The forms whose op takes the selection, under its header and
         // above its rows, where a reader who picked it looks first:
         // nothing at all unless the selection is a profile.
@@ -650,6 +651,25 @@ impl ViewerBehavior<'_> {
                     .get(&space)
                     .map_or([0.0; 3], |frame| frame.translation);
                 free_move_probe(ui, node, current, *self.notation, self.ops);
+            }
+        }
+    }
+
+    /// **The copy the selection is on, and the steps it offers**
+    /// ([`crate::frame::placement_offers`]): the way to the original
+    /// body from a placed copy, and the re-point of a body's placements
+    /// onto a body built on it. Read off the committed document.
+    fn placement_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(node) = self.session.selection().seat_node() else {
+            return;
+        };
+        let (said, offers) = crate::frame::placement_offers(self.session.committed_doc(), node);
+        if let Some(said) = said {
+            crate::widgets::message(ui, said);
+        }
+        for (label, op) in offers {
+            if ui.button(label).clicked() {
+                self.ops.push(op);
             }
         }
     }

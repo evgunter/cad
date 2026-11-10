@@ -78,7 +78,7 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
     let z_facing = |z: f64, sign: f64| {
         let mut found = None;
         for (k, f) in body.faces() {
-            if let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
+            if let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(k) {
                 let out = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
                 if (origin.z - z).abs() < 1e-12 && out.z * sign > 0.5 {
                     found = Some(k);
@@ -146,7 +146,9 @@ fn cyl_at(cy: f64, r: f64) -> Surface<f64> {
 #[test]
 fn probe_tangent_locus_nested_cylinders_are_apart() {
     match tangent_locus(&cyl_at(0.0, 1.0), &cyl_at(0.5, 3.0), metre_patch(), band()) {
-        Err(TangentLocusError::NotTangent { apart, predicate }) => {
+        Err(TangentLocusError::NotTangent {
+            apart, predicate, ..
+        }) => {
             println!("nested cylinders: apart = {apart}");
             assert!(apart, "nested surfaces are definitely APART");
             assert_eq!(

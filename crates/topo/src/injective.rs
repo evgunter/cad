@@ -56,7 +56,7 @@
 //! vertex, or within the band, in metres, of a shared edge's image or
 //! of a corner's other edge:
 //!
-//! - **the sliver** ([`SLIVER`], [`present_chart`],
+//! - **the sliver** ([`SELF_INTERSECTION_SLIVER`], [`present_chart`],
 //!   [`present_line_corner`]): a rectangle within the band of a shared
 //!   line reads as holding nothing off it;
 //! - **the sheet's overlap** ([`sheets`]): a cell overlapping a copy of
@@ -96,43 +96,44 @@ use crate::validate::decide;
 /// cell: the separator over that side, metres. `Zero` is "the side lies
 /// on the separator at the run's tolerance"; anything else fails the
 /// arm.
-pub(crate) const ON_SHARED: &str = "self_intersection_on_shared";
+pub(crate) const SELF_INTERSECTION_ON_SHARED: &str = "self_intersection_on_shared";
 /// The funnel site of a separator's sign over a presented face: its
 /// derivative across the face's shared side times the rectangle's extent
 /// across it, or its value where no side is shared, metres.
-pub(crate) const DEPARTURE: &str = "self_intersection_departure";
+pub(crate) const SELF_INTERSECTION_DEPARTURE: &str = "self_intersection_departure";
 /// The funnel site of the graph arm's monotone edge: the edge's advance
 /// along the projection's first axis over its piece, metres.
-pub(crate) const GRAPH: &str = "self_intersection_graph";
+pub(crate) const SELF_INTERSECTION_GRAPH: &str = "self_intersection_graph";
 /// The funnel site of a planar presentation's reach along its edge:
 /// how far inside the edge's two ends the cell's extent stays, metres.
-pub(crate) const SPAN: &str = "self_intersection_span";
+pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a planar corner's convexity: how far the second
 /// edge's far end stands on the first edge's face side, metres.
-pub(crate) const CORNER: &str = "self_intersection_corner";
+pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
 /// The funnel site of a vertex at a cone's apex: its distance from the
 /// apex, metres. `Zero` is the apex.
-pub(crate) const APEX: &str = "self_intersection_apex";
+pub(crate) const SELF_INTERSECTION_APEX: &str = "self_intersection_apex";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
-pub(crate) const NAPPE: &str = "self_intersection_nappe";
+pub(crate) const SELF_INTERSECTION_NAPPE: &str = "self_intersection_nappe";
 /// The funnel site of a presentation clipped to a shared line: the
 /// rectangle's extent across the line times the chart's speed across it
 /// (an upper bound, `rect_jet`'s), metres. `Zero` reads the strip as
 /// holding no point of the face off the line — one of the presentation's
 /// ε concessions (the module docs list them).
-pub(crate) const SLIVER: &str = "self_intersection_sliver";
+pub(crate) const SELF_INTERSECTION_SLIVER: &str = "self_intersection_sliver";
 /// The funnel site of a wedge-0/2π shared edge: the length of the sum of
 /// the two faces' unit outward normals at the shared side's middle,
 /// times the ball's reach, metres. `Zero` is opposed normals.
-pub(crate) const CUSP: &str = "self_intersection_cusp";
+pub(crate) const SELF_INTERSECTION_CUSP: &str = "self_intersection_cusp";
 /// The funnel site of the monotone arm: the least eigenvalue of the
 /// symmetric part of the projected chart's Jacobian, each column scaled
 /// by the rectangle's span on its axis, metres.
-pub(crate) const MONOTONE: &str = "self_intersection_monotone";
-/// The funnel site of a torus's ring condition: major radius less minor
-/// radius, metres.
-pub(crate) const RING_TORUS: &str = "self_intersection_ring_torus";
+pub(crate) const SELF_INTERSECTION_MONOTONE: &str = "self_intersection_monotone";
+/// The funnel rows of a torus's ring condition
+/// ([`geom::RingTorus::of_at`]): its minor radius, then its major radius
+/// less its minor radius, metres.
+pub(crate) const RING_TORUS: geom::RingSites = geom::RingReader::SelfIntersection.sites();
 
 // ------------------------------------------------- the lifted boundary
 
@@ -513,8 +514,11 @@ pub(crate) enum Outcome {
 ///
 /// # Errors
 ///
-/// The torus that is not decided a ring, and a free-form carrier, which
-/// no kind makes injective: its own pairs go to the monotone arm.
+/// The torus that is not decided a ring, carrying the convention's
+/// refusal ([`geom_brep::TorusRefusal`]): a half decided outside it, or
+/// a half the band cannot decide, which escalates as its own margin and
+/// is never read as the definite miss. A free-form carrier, which no
+/// kind makes injective: its own pairs go to the monotone arm.
 pub(crate) fn by_kind(
     face: FaceKey,
     surface: &Surface<Interval>,
@@ -529,13 +533,13 @@ pub(crate) fn by_kind(
             major_radius,
             minor_radius,
             ..
-        } => match decide(RING_TORUS, Margin::of(*major_radius - *minor_radius), band) {
-            Ok(Sign::Positive) => Ok(()),
-            _ => Err(EngineRefusal::TorusNotRing {
+        } => geom_brep::TorusRefusal::require_at(*major_radius, *minor_radius, RING_TORUS, band)
+            .map(|_| ())
+            .map_err(|refusal| EngineRefusal::TorusNotRing {
                 face,
                 side: Which::First,
+                refusal: Box::new(refusal),
             }),
-        },
         Surface::Nurbs(_) | Surface::Approx(_) => Err(EngineRefusal::Unsupported {
             carrier: "a free-form face, which no carrier kind makes injective",
             face,
@@ -673,8 +677,7 @@ fn rect_jet(
 }
 
 fn unit(v: Vec3<f64>) -> Option<Vec3<f64>> {
-    let n = v.norm();
-    (n.is_finite() && n > 0.0).then(|| v * (1.0 / n))
+    v.checked_direction().ok().map(|(d, _)| d)
 }
 
 fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {
@@ -689,7 +692,7 @@ fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
     unit(unit(perp(hx, t))? - unit(perp(hy, t))?)
 }
 
-fn sign_of(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
+fn interval_sign_as(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
     match decide(row, Margin::of(x), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         _ => None,
@@ -697,7 +700,10 @@ fn sign_of(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
 }
 
 fn is_zero(x: Interval, band: Band) -> bool {
-    matches!(decide(ON_SHARED, Margin::of(x), band), Ok(Sign::Zero))
+    matches!(
+        decide(SELF_INTERSECTION_ON_SHARED, Margin::of(x), band),
+        Ok(Sign::Zero)
+    )
 }
 
 fn flip(s: Sign) -> Sign {
@@ -1445,7 +1451,7 @@ fn nappe(b: &Boundary, apex: Point3<Interval>, axis: Vec3<Interval>, band: Band)
     let mut signs = b
         .vertices
         .values()
-        .filter_map(|&q| sign_of((q - apex).dot(axis), NAPPE, band));
+        .filter_map(|&q| interval_sign_as((q - apex).dot(axis), SELF_INTERSECTION_NAPPE, band));
     let first = signs.next()?;
     signs.all(|s| s == first).then_some(first == Sign::Positive)
 }
@@ -1666,7 +1672,7 @@ fn present_chart<'a>(
                 continue;
             };
             if !matches!(
-                decide(APEX, Margin::of((p - *apex).norm()), band),
+                decide(SELF_INTERSECTION_APEX, Margin::of((p - *apex).norm()), band),
                 Ok(Sign::Zero)
             ) {
                 continue;
@@ -1732,7 +1738,10 @@ fn present_chart<'a>(
             Axis::V => (y.1 - y.0, rect_jet(piece.surface, x, y).1),
         };
         let width = at(across) * lever.norm();
-        if matches!(decide(SLIVER, Margin::of(width), band), Ok(Sign::Zero)) {
+        if matches!(
+            decide(SELF_INTERSECTION_SLIVER, Margin::of(width), band),
+            Ok(Sign::Zero)
+        ) {
             return Ok(Presentation::Vacuous);
         }
     }
@@ -1991,7 +2000,7 @@ fn present_plane<'a>(
             }
             let len = len2.sqrt();
             let inside = (x * len).min((at(1.0) - x) * len);
-            if sign_of(inside, SPAN, band) != Some(Sign::Positive) {
+            if interval_sign_as(inside, SELF_INTERSECTION_SPAN, band) != Some(Sign::Positive) {
                 return Err(Unpresented::Local);
             }
             let zero = if near_edges.contains(e) {
@@ -2048,8 +2057,10 @@ fn present_plane<'a>(
             let lean = |n: [Interval; 2], w: [Interval; 2]| {
                 (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
             };
-            if sign_of(lean(n1, bv), CORNER, band) != Some(Sign::Positive)
-                || sign_of(lean(n2, a), CORNER, band) != Some(Sign::Positive)
+            if interval_sign_as(lean(n1, bv), SELF_INTERSECTION_CORNER, band)
+                != Some(Sign::Positive)
+                || interval_sign_as(lean(n2, a), SELF_INTERSECTION_CORNER, band)
+                    != Some(Sign::Positive)
             {
                 return Err(Unpresented::Local);
             }
@@ -2062,8 +2073,10 @@ fn present_plane<'a>(
             }
             let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
             let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
-            if sign_of((at(1.0) - x) * la, SPAN, band) != Some(Sign::Positive)
-                || sign_of((at(1.0) - y) * lb, SPAN, band) != Some(Sign::Positive)
+            if interval_sign_as((at(1.0) - x) * la, SELF_INTERSECTION_SPAN, band)
+                != Some(Sign::Positive)
+                || interval_sign_as((at(1.0) - y) * lb, SELF_INTERSECTION_SPAN, band)
+                    != Some(Sign::Positive)
             {
                 return Err(Unpresented::Local);
             }
@@ -2101,7 +2114,7 @@ fn present_plane<'a>(
 /// the chart's speed along that axis (an upper bound, `rect_jet`'s),
 /// metres. Only a definite sign, one sign over every piece, reads the
 /// curve as a graph over that axis.
-pub(crate) const COLUMN: &str = "self_intersection_column";
+pub(crate) const SELF_INTERSECTION_COLUMN: &str = "self_intersection_column";
 
 /// How many halvings place a curved presentation's run on its columns'
 /// two ends.
@@ -2203,12 +2216,12 @@ impl Trig {
                 if !(exactly(h.pa[0], 0.0) && exactly(h.pb[0], 0.0) && exactly(h.pl[1], 0.0)) {
                     return None;
                 }
-                let v_ref = axis.cross(u_ref);
-                let (s, c) = h.p0[0].sin_cos();
+                let frame = geom::Frame::new(origin, axis, u_ref);
                 // cos(φ + w·t) = cos φ·cos t − w·sin φ·sin t, and
-                // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t.
-                let at_cos = (u_ref * c + v_ref * s) * radius;
-                let at_sin = (v_ref * c - u_ref * s) * (radius * at(w));
+                // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t: the radial
+                // and its derivative at φ.
+                let at_cos = frame.radial(h.p0[0]) * radius;
+                let at_sin = frame.tangential(h.p0[0]) * (radius * at(w));
                 Some(Self {
                     c: origin + axis * h.p0[1],
                     a: axis * h.pa[1] + at_cos,
@@ -3046,7 +3059,7 @@ fn present_wall<'a>(
 /// bound, `rect_jet`'s), metres. Only a definite `Positive` reads the
 /// corner convex; a definite `Negative` is a reflex corner, which this
 /// presentation never reads.
-pub(crate) const CORNER_DEPARTS: &str = "self_intersection_corner_departs";
+pub(crate) const SELF_INTERSECTION_CORNER_DEPARTS: &str = "self_intersection_corner_departs";
 
 /// The funnel site of a corner's vertex: the chart distance between the
 /// other edge's end and the read edge's point at the vertex, each axis
@@ -3054,10 +3067,10 @@ pub(crate) const CORNER_DEPARTS: &str = "self_intersection_corner_departs";
 /// `rect_jet`'s), metres. Only a definite `Zero` reads them as one
 /// point — one of the presentation's ε concessions (the module docs
 /// list them).
-pub(crate) const CORNER_VERTEX: &str = "self_intersection_corner_vertex";
+pub(crate) const SELF_INTERSECTION_CORNER_VERTEX: &str = "self_intersection_corner_vertex";
 
 /// **The two edges' points at a corner's vertex are one**, decided at
-/// [`CORNER_VERTEX`]: `a` and `b` chart points `[u, v]` on one copy,
+/// [`SELF_INTERSECTION_CORNER_VERTEX`]: `a` and `b` chart points `[u, v]` on one copy,
 /// `speed` the chart's speeds along `[u, v]` over the rectangle.
 ///
 /// **That is an ε concession.** Each edge's step-3 reading takes the
@@ -3079,7 +3092,10 @@ pub(crate) const CORNER_VERTEX: &str = "self_intersection_corner_vertex";
 fn on_vertex(a: [Interval; 2], b: [Interval; 2], speed: [f64; 2], band: Band) -> bool {
     let off = |i: usize| ((a[i] - b[i]) * at(speed[i])).powi(2);
     let gap = (off(0) + off(1)).sqrt();
-    matches!(decide(CORNER_VERTEX, Margin::of(gap), band), Ok(Sign::Zero))
+    matches!(
+        decide(SELF_INTERSECTION_CORNER_VERTEX, Margin::of(gap), band),
+        Ok(Sign::Zero)
+    )
 }
 
 /// How many halvings [`leaves_line`] gives a piece of the other edge it
@@ -3416,7 +3432,7 @@ fn leaves_graph(
     }
     let side = if rising == above { 1.0 } else { -1.0 };
     let rate = (db * tau_a - da * tau_b) * at(side * scale);
-    match decide(CORNER_DEPARTS, Margin::of(rate), band) {
+    match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rate), band) {
         Ok(Sign::Positive) => Some(Ok(())),
         Ok(Sign::Negative) => Some(Err(Unpresented::Structural)),
         _ => None,
@@ -3514,7 +3530,10 @@ fn present_line_corner<'a>(
     // drops lie within the band of it or, by the vertex concession, of
     // the other edge.
     let width = at(across.1 - across.0) * at(speed[held.index()]);
-    if matches!(decide(SLIVER, Margin::of(width), band), Ok(Sign::Zero)) {
+    if matches!(
+        decide(SELF_INTERSECTION_SLIVER, Margin::of(width), band),
+        Ok(Sign::Zero)
+    ) {
         return Ok(Presentation::Vacuous);
     }
     Ok(Presentation::Of(Box::new(Presented {
@@ -3534,7 +3553,7 @@ fn present_line_corner<'a>(
 /// turns, that meets `R` is one of a run of consecutive pieces from the
 /// vertex, on the copy through it, over each of which the curve's
 /// height above the line — zero at the vertex — strictly grows, decided
-/// at [`CORNER_DEPARTS`] off its rate on the held axis times the piece's
+/// at [`SELF_INTERSECTION_CORNER_DEPARTS`] off its rate on the held axis times the piece's
 /// width and `lever`. A piece that is not told is halved, [`LEAVES`]
 /// times at most. A reflex corner, decided at the vertex, is
 /// `Structural`; anything else not read, `Local`.
@@ -3605,7 +3624,7 @@ fn leaves_line(
                 return Err(Unpresented::Local);
             }
             let rise = h.rate(held, t) * at(sigma * away * (z - a) * lever);
-            match decide(CORNER_DEPARTS, Margin::of(rise), band) {
+            match decide(SELF_INTERSECTION_CORNER_DEPARTS, Margin::of(rise), band) {
                 Ok(Sign::Positive) => {}
                 Ok(Sign::Negative) if (if from_start { a } else { z }) == t_v => {
                     return Err(Unpresented::Structural);
@@ -3934,7 +3953,7 @@ fn runs(p: &Pieces<'_>, surface: &Surface<Interval>, (a0, a1): (f64, f64)) -> Op
 
 /// **The run strictly monotone across the columns `a`, passing both
 /// their ends** ([`present_curved`]'s step 1), and whether it rises:
-/// each piece's advance along the column axis decided at [`COLUMN`],
+/// each piece's advance along the column axis decided at [`SELF_INTERSECTION_COLUMN`],
 /// one sign over every piece. `lever` scales an advance into metres; a
 /// sign of the advance is a sign of it times any positive lever, so the
 /// cell's own lever serves the whole run.
@@ -3951,7 +3970,7 @@ fn monotone_run(
 ) -> Option<(Run, bool)> {
     let sign = |t: Interval| {
         let advance = p.chart.rate(p.column, t) * at(t.hi() - t.lo()) * at(lever);
-        sign_of(advance, COLUMN, band)
+        interval_sign_as(advance, SELF_INTERSECTION_COLUMN, band)
     };
     let first = sign(p.params(run.first()?))?;
     // Every piece, not the first alone. On the charts read today — a
@@ -4205,8 +4224,12 @@ impl Psi {
             Self::Linear { n, q } => n.dot(p - q),
             Self::Carrier(Implicit::Plane { o, n }) => n.dot(p - o),
             Self::Carrier(Implicit::Cylinder { o, axis, r }) => {
-                let w = p - o;
-                (w - axis * w.dot(axis)).norm() - r
+                geom::Line {
+                    origin: o,
+                    dir: axis,
+                }
+                .distance(p)
+                    - r
             }
             Self::Carrier(Implicit::Sphere { c, r }) => (p - c).norm() - r,
             Self::Carrier(Implicit::Cone {
@@ -4216,9 +4239,12 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let w = p - apex;
-                let h = w.dot(axis);
-                (w - axis * h).norm() * cos - nappe * h * sin
+                let (h, rho) = geom::Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .height_and_distance(p);
+                rho * cos - nappe * h * sin
             }
             Self::Graph { .. } => return None,
         })
@@ -4229,8 +4255,11 @@ impl Psi {
         match *self {
             Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n,
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
-                let w = p - o;
-                let radial = w - axis * w.dot(axis);
+                let radial = geom::Line {
+                    origin: o,
+                    dir: axis,
+                }
+                .offset(p);
                 radial * (at(1.0) / radial.norm())
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
@@ -4244,8 +4273,11 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let w = p - apex;
-                let radial = w - axis * w.dot(axis);
+                let radial = geom::Line {
+                    origin: apex,
+                    dir: axis,
+                }
+                .offset(p);
                 radial * (cos / radial.norm()) - axis * (nappe * sin)
             }
             Self::Graph { m, t, slope, .. } => m - t * slope,
@@ -4308,7 +4340,7 @@ fn on_side(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
 ///   face's side is the sign of the derivative along the other axis,
 ///   over the whole rectangle ([`present_curved`]).
 ///
-/// A side is zero by decision (`ON_SHARED`), except under the graph
+/// A side is zero by decision (`SELF_INTERSECTION_ON_SHARED`), except under the graph
 /// separator, which vanishes on its one shared edge by construction —
 /// and only there. A zero side's edges are that edge, so a side needs
 /// no reading; a corner POINT is a shared vertex, which need not lie on
@@ -4351,12 +4383,20 @@ fn sign_on(
         Axis::V => grad.dot(fy) * at(p.span(Axis::V)),
     };
     match &p.zero {
-        Zero::None => sign_of(centred(psi, p, p.x, p.y)?, DEPARTURE, band),
+        Zero::None => interval_sign_as(
+            centred(psi, p, p.x, p.y)?,
+            SELF_INTERSECTION_DEPARTURE,
+            band,
+        ),
         &Zero::Side(s) => {
             if !zero_on(s) {
                 return None;
             }
-            sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)
+            interval_sign_as(
+                across(s.axis()) * at(s.into()),
+                SELF_INTERSECTION_DEPARTURE,
+                band,
+            )
         }
         &Zero::Past(s) => {
             let exact = against.is_some_and(|q| !matches!(q.zero, Zero::Past(_)));
@@ -4364,7 +4404,11 @@ fn sign_on(
             if !(exact && checked && analytic && zero_on(s)) {
                 return None;
             }
-            sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)
+            interval_sign_as(
+                across(s.axis()) * at(s.into()),
+                SELF_INTERSECTION_DEPARTURE,
+                band,
+            )
         }
         &Zero::Corner(s, t) => {
             let n = psi.linear()?;
@@ -4372,20 +4416,32 @@ fn sign_on(
                 return None;
             }
             let g = n.dot(fxy) * at(p.span(Axis::U) * p.span(Axis::V) * s.into() * t.into());
-            sign_of(g, DEPARTURE, band)
+            interval_sign_as(g, SELF_INTERSECTION_DEPARTURE, band)
         }
         Zero::Curve(s, c) => {
             if !c.psi(psi).is_some_and(|v| is_zero(v, band)) {
                 return None;
             }
-            sign_of(across(s.axis()) * at((*s).into()), DEPARTURE, band)
+            interval_sign_as(
+                across(s.axis()) * at((*s).into()),
+                SELF_INTERSECTION_DEPARTURE,
+                band,
+            )
         }
         &Zero::Point(s, t) => {
             if !checked || !psi.value(p.corner(s, t)).is_some_and(|v| is_zero(v, band)) {
                 return None;
             }
-            let a = sign_of(across(s.axis()) * at(s.into()), DEPARTURE, band)?;
-            let b = sign_of(across(t.axis()) * at(t.into()), DEPARTURE, band)?;
+            let a = interval_sign_as(
+                across(s.axis()) * at(s.into()),
+                SELF_INTERSECTION_DEPARTURE,
+                band,
+            )?;
+            let b = interval_sign_as(
+                across(t.axis()) * at(t.into()),
+                SELF_INTERSECTION_DEPARTURE,
+                band,
+            )?;
             (a == b).then_some(a)
         }
     }
@@ -4724,7 +4780,12 @@ fn graph_of(
     let (t, m) = (lift(t), lift(m));
     let d = arc_deriv(carrier, piece);
     let advance = t.dot(d);
-    if sign_of(advance * at(piece.1 - piece.0), GRAPH, band) != Some(Sign::Positive) {
+    if interval_sign_as(
+        advance * at(piece.1 - piece.0),
+        SELF_INTERSECTION_GRAPH,
+        band,
+    ) != Some(Sign::Positive)
+    {
         return None;
     }
     Some(Psi::Graph {
@@ -4753,7 +4814,10 @@ fn cusp(
     let nx = px.shared_normal(x.boundary.sense)?;
     let ny = py.shared_normal(y_sense)?;
     let gap = lift(nx + ny).norm() * x.ball.reach();
-    if !matches!(decide(CUSP, Margin::of(gap), band), Ok(Sign::Zero)) {
+    if !matches!(
+        decide(SELF_INTERSECTION_CUSP, Margin::of(gap), band),
+        Ok(Sign::Zero)
+    ) {
         return None;
     }
     Some(SharedCell::Edge(x.boundary.edges.get(*i)?.key))
@@ -4799,7 +4863,7 @@ pub(crate) fn monotone(
     let p12 = (m12 + m21) * half;
     let least = (m11 + m22) * half - (((m11 - m22) * half).powi(2) + p12.powi(2)).sqrt();
     matches!(
-        decide(MONOTONE, Margin::of(least), band),
+        decide(SELF_INTERSECTION_MONOTONE, Margin::of(least), band),
         Ok(Sign::Positive)
     )
 }
@@ -4834,6 +4898,60 @@ mod rows {
     }
 }
 
+/// **`by_kind` keeps the torus convention's verdict** (D3,
+/// escalate-never-guess): a torus whose ring half falls in the band is
+/// refused as that half undecided, never as a torus decided not a ring,
+/// and one whose tube is wider than its ring as the half decided.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod by_kind_rows {
+    use super::{EngineRefusal, by_kind};
+    use geom::Surface;
+    use geom_brep::{TorusConvention, TorusVerdict};
+    use geom_core::interval::Interval;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn torus(major: f64) -> Surface<Interval> {
+        let p = |x: f64| Interval::from_bounds(x, x);
+        Surface::Torus {
+            center: Point3::new(p(0.0), p(0.0), p(0.0)),
+            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+            major_radius: p(major),
+            minor_radius: p(1.0),
+            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
+        }
+    }
+
+    #[test]
+    fn a_torus_the_band_cannot_decide_a_ring_escalates_its_half() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let face = crate::FaceKey::default();
+        let verdict = |major: f64| match by_kind(face, &torus(major), band) {
+            Err(EngineRefusal::TorusNotRing { refusal, .. }) => {
+                assert_eq!(refusal.convention, TorusConvention::Ring, "{major}");
+                refusal.verdict
+            }
+            other => panic!("{major}: a torus not decided a ring: {other:?}"),
+        };
+        assert!(
+            matches!(
+                verdict(1.0 + 0.5 * (band.zero() + band.escalate())),
+                TorusVerdict::Undecided(_)
+            ),
+            "a ring half in band escalates as its own margin"
+        );
+        assert!(
+            matches!(verdict(0.5), TorusVerdict::Refused(_)),
+            "a tube wider than its ring is decided outside the convention"
+        );
+        assert_eq!(
+            by_kind(face, &torus(2.0), band),
+            Ok(()),
+            "a ring is injective"
+        );
+    }
+}
+
 /// **Presentations, read directly**: a face built by hand, its local
 /// edges named, and what [`present_chart`] / [`present_plane`] make of a
 /// cell. Each row names the failure it catches.
@@ -4841,6 +4959,22 @@ mod rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod presentation_rows {
     use super::*;
+
+    /// **`unit` reads a heading as every refusing door does**: an
+    /// overflowed, underflowed or zero vector names no heading, and one
+    /// past the squares' range but in the format names its own.
+    #[test]
+    fn unit_refuses_a_vector_out_of_the_format_or_zero() {
+        for v in [
+            Vec3::new(1e200, 0.0, 0.0),
+            Vec3::new(1e-170, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+        ] {
+            assert!(unit(v).is_none(), "{v:?} names no heading");
+        }
+        let d = unit(Vec3::new(0.0, 3e-160, -4e-160)).expect("in the format");
+        assert_eq!(d.to_array(), [0.0, 0.6, -0.8], "a small heading");
+    }
     use crate::test_support_fixtures::trv;
     use geom_core::Tol;
 
@@ -7164,18 +7298,26 @@ mod presentation_rows {
             crossed.lo() < 0.0 && crossed.hi() > 0.0 && !is_zero(crossed, band()),
             "x + y = 1.2 crosses the iso between its ends, which read -0.2: {crossed:?}"
         );
-        assert_eq!(sign_of(crossed, DEPARTURE, band()), None, "mixed");
+        assert_eq!(
+            interval_sign_as(crossed, SELF_INTERSECTION_DEPARTURE, band()),
+            None,
+            "mixed"
+        );
         let half = plane_psi((1.0, 0.0, 0.0), (0.5, 0.0, 0.0));
         let beside = on_iso(&half, &wall, (0.0, 0.1));
         assert_eq!(
-            sign_of(beside, DEPARTURE, band()),
+            interval_sign_as(beside, SELF_INTERSECTION_DEPARTURE, band()),
             Some(Sign::Positive),
             "the cell's piece of the iso is beyond x = 0.5, which the whole iso crosses: \
              {beside:?}"
         );
         let below = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, -0.01));
         assert_eq!(
-            sign_of(on_iso(&below, &wall, cell), DEPARTURE, band()),
+            interval_sign_as(
+                on_iso(&below, &wall, cell),
+                SELF_INTERSECTION_DEPARTURE,
+                band()
+            ),
             Some(Sign::Positive),
             "the iso 0.01 above z = -0.01"
         );

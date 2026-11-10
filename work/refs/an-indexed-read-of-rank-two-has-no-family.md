@@ -4,6 +4,8 @@ kind: issue
 title: DM3's xs[i, j] is refused: every family a node defines is one flat list, so no read has rank two
 status: open
 opened: 2026-10-10
+priority: P2
+cost: H
 ---
 
 

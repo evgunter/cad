@@ -188,14 +188,25 @@ impl<T: Real> AxisFrame<T> {
         radial_of(self.dir_sk)
     }
 
-    /// The signed radial coordinate of a sketch point (module docs).
-    pub(super) fn r(&self, p: Point2<T>) -> T {
-        (p - self.origin_sk).perp_dot(self.dir_sk)
+    /// The sketch axis as a line.
+    fn line_sk(&self) -> geom_core::Line2<T> {
+        geom_core::Line2 {
+            origin: self.origin_sk,
+            dir: self.dir_sk,
+        }
     }
 
-    /// The axial coordinate of a sketch point.
+    /// The signed radial coordinate of a sketch point (module docs):
+    /// its [`geom_core::Line2::side`] off the axis, negated, positive
+    /// to the axis's right.
+    pub(super) fn r(&self, p: Point2<T>) -> T {
+        T::zero() - self.line_sk().side(p)
+    }
+
+    /// The axial coordinate of a sketch point: its
+    /// [`geom_core::Line2::height`] along the axis.
     pub(super) fn axial(&self, p: Point2<T>) -> T {
-        (p - self.origin_sk).dot(self.dir_sk)
+        self.line_sk().height(p)
     }
 
     /// The placed axis point at a sketch point's axial coordinate —

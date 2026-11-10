@@ -321,7 +321,7 @@ fn die(tol: Tol) -> Die {
     let [copy] = crate::common::drawn_copies(&doc)[..] else {
         panic!("the die is placed once")
     };
-    let composed = viewer::world::seat_of(&doc, copy);
+    let composed = viewer::world::original_of(&doc, copy);
     let box_blend = input_of(&doc, composed);
     let cut = input_of(&doc, box_blend);
     let cube = input_of(&doc, cut);

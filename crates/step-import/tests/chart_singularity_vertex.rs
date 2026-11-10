@@ -131,8 +131,8 @@ fn rows() -> Vec<Row> {
 /// The singular points of every sphere and cone face of `body`.
 fn singular_points(body: &topo::Body<f64>) -> Vec<Point3<f64>> {
     let mut out = Vec::new();
-    for (_, f) in body.faces() {
-        match *body.get_surface(f.surface).unwrap() {
+    for (fk, _) in body.faces() {
+        match *body.face_surface(fk).unwrap() {
             Surface::Sphere {
                 center,
                 radius,
@@ -171,7 +171,7 @@ fn every_chart_singularity_a_file_puts_in_a_face_imports_as_a_pole_form_vertex()
         assert_eq!(found, row.found, "{name}: the reported dispositions");
         // Every record's deltas sum to the body's own counts change, so
         // the census pair is a mapping and not decoration.
-        let b = body.body();
+        let b = &*body;
         let census = (
             b.faces().count(),
             b.edges().count(),
@@ -240,7 +240,7 @@ fn a_singularity_record_maps_the_census_it_changes() {
             sum.1 = sum.1 + n.kernel_census.edges - n.file_census.edges;
             sum.2 = sum.2 + n.kernel_census.vertices - n.file_census.vertices;
         }
-        let b = body.body();
+        let b = &*body;
         assert_eq!(
             sum,
             (

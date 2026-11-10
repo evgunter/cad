@@ -162,7 +162,7 @@ where
 /// Every node of the evaluation, in order, with its full `T` payload.
 fn eval_deep<T>(ev: &Evaluation<T>) -> u64
 where
-    T: Decide + Bounds + geom_core::SpanLocate,
+    T: topo::AtRestPolicy + Decide + Bounds + geom_core::SpanLocate,
 {
     let mut d = D::new();
     for &id in &ev.order {
@@ -223,7 +223,13 @@ where
                         d.u64(18);
                         d.u64(bodies.len() as u64);
                         for b in bodies {
-                            body_deep(&mut d, b.body());
+                            match b {
+                                None => d.u64(0),
+                                Some(b) => {
+                                    d.u64(1);
+                                    body_deep(&mut d, b.body());
+                                }
+                            }
                         }
                     }
                     // The measured quantity IS a lane value, so it is

@@ -3,17 +3,25 @@
 The profile fillet family's doors and refusal sentences. Present state
 only; the story is in `log.md`.
 
-## Units and forks (sitting of 2026-11-06)
+## Waiting on Ev
 
-| what | rows | shape | review tier |
-|---|---|---|---|
-| the turn gate names its factors | `the-levered-turn-margin-conflates-a-short-arm-with-a-small-turn` (P0) | unit, `round/turn-gate-names-its-factors`; phase 1 measure and plan, back to the orchestrator | single, FULL |
-| the path door's escalation carries its gate | `the-path-doors-escalation-carries-its-gate` and its four passengers | unit, `round/escalation-carries-its-gate`; phase 1 plan back to the orchestrator | single, FULL |
-| the Fillet step is discoverable | `fillet-step-discoverability-six-door-refusals` | unit, `round/fillet-step-discoverable`, after a build slot frees | single, STYLE |
-| carrier identity at the arc extension | `carriers-are-identical-reads-carrier-identity-at-the-lattice` | design fork, two designers, then `[ev]` | — |
-| what a refused corner hands the author | `refused-fused-step-reports-no-partial-geometry`, `anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction` | one design fork, three designers, then `[ev]` | — |
+- **The refused corner** — `refused-fused-step-reports-no-partial-geometry`
+  and `anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction`,
+  parked on `[ev]` PR 6547: complete the `replay_drawn` construction record
+  (`FilletConstruction`, recorded as each side is bound) and give the
+  anchor-fit refusal both legs' extents plus the closed-form
+  `radius_at_anchor`. The private `CornerLever` (PR 6556) is where the
+  valued `Recourse` grows. The closed form's measurement probes are on
+  `round/probes` (`crates/profile/tests/round_probe_anchor_radius.rs`).
+  The two P3 refusal-sentence rows below ride with this unit as
+  passengers: they touch the same sentences.
 
-The two code units share `fillet_corner_turn`'s sentence and the
-`map_refusal` arms in `path/arc_fillet.rs`; they run concurrently and
-announce the seam to each other. The escalation unit shares the
-refusal census with PROFILETAIL's `profile-refusals-say-what-they-mean`.
+## The tail (dispatchable, below the sitting's bands)
+
+- P2 `a-fillet-run-just-past-the-band-builds-and-then-escalates-a-span` (M):
+  the window just above Kε where the fit builds a run and validation's
+  span check on the non-adjacent pair escalates (PR 6682's re-review).
+- P3 `an-entry-director-offers-far-end-to-the-path-then-refuses` (M).
+- P3 `a-cusp-fillet-overlap-refusal-names-segments-not-the-run` (E) and
+  `the-turn-refusal-names-no-corner-point` (E), riding with the
+  refused-corner unit.
