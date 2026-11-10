@@ -178,7 +178,6 @@ REGISTER=(
   "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
   "crates/topo/src/live.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_images hands back as no images and the apex closure answers Open; every caller refuses it"
   "crates/topo/src/coherence.rs|traversals||1|audited: answered as Unexaminable::LoneLoop — a lone vertex has no edge, so no chart coordinate to compare"
-  "crates/topo/src/census.rs|sweep_cross_solid_backstop|let Ok(crate::live::UncheckedLoop::Cycle|1|audited: line_bounded answers a lone loop false, as snapshot clears its polygon flag for one: the exact planar sweeps read no ring that is a lone vertex, so the skip they license does not hold"
   "crates/topo/src/link.rs|of_body_face||1|audited: answered as TouchUnread::LoneLoop — a lone vertex is no ring of the polygon reading; FaceSector::cleared, the arm beside it, reads the vertex as a point of the boundary"
   "crates/topo/src/euler.rs|mef_lone||1|unaudited"
   "crates/topo/src/euler.rs|mev_lone_plan||1|unaudited"
