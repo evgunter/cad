@@ -233,6 +233,41 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
             unsettled(geom_brep::roots::Unsettled::Exhausted),
             Ok(Refusal::Unsettled),
         ),
+        (
+            "the apex's table and walk disagree",
+            BooleanError::ApexSection {
+                operand: op,
+                face,
+                reading: crate::splitting::ApexSectionReading::NoRulingInside,
+            },
+            Err(Aborts),
+        ),
+        (
+            "the apex's table refuses a section not built",
+            BooleanError::ApexSection {
+                operand: op,
+                face,
+                reading: crate::splitting::ApexSectionReading::Refused(Box::new(
+                    crate::chord_join::SplitJoinError::SectionUnarmed {
+                        face,
+                        divided: geom::SurfaceKind::Plane,
+                        wall: geom::SurfaceKind::Nurbs,
+                    },
+                )),
+            },
+            Ok(Refusal::Limit),
+        ),
+        (
+            "a germ's spline component walked past its budget",
+            crate::chord_join::SplitJoinError::SectionUnwalked(geom::PieceWalkRefusal::Exhausted)
+                .into(),
+            Ok(Refusal::Unsettled),
+        ),
+        (
+            "a join's mixed cause",
+            crate::chord_join::SplitJoinError::UnpairedLooseEnds { count: 2 }.into(),
+            Err(Aborts),
+        ),
     ];
     for (label, error, want) in more {
         assert_eq!(error.refusal(), want, "{label}");
