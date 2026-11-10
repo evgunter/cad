@@ -3404,65 +3404,9 @@ mod tests {
     /// not `On` by convention.
     #[test]
     fn a_cylinder_graze_divider_reads_its_descended_side_in_both_verbs() {
-        use crate::construction::{FaceSurface, MefSite};
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
         let b = band();
-        // The unit cylinder about z cut by the plane through the origin
-        // tilted by `phi` about y: its rim an ellipse, one closed edge
-        // whose vertex stands at parameter `t0`, where the rim leaves the
-        // vertex across the wall's rulings, not square to them.
-        let (phi, t0) = (0.3f64, 1.0f64);
-        let (sn, c) = phi.sin_cos();
-        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
-            geom::Frame::new(
-                Point3::origin(),
-                Vec3::new(-sn, 0.0, c),
-                Vec3::new(c, 0.0, sn),
-            ),
-            1.0 / c,
-            1.0,
-        ));
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(carrier.eval(t0), true).unwrap();
-        body.set_face_surface(
-            seed.face,
-            FaceSurface::New {
-                surface: geom::Surface::Cylinder {
-                    origin: Point3::origin(),
-                    axis: Vec3::unit_z(),
-                    radius: 1.0,
-                    u_ref: Vec3::unit_x(),
-                },
-                sense: true,
-            },
-        )
-        .unwrap();
-        let cyl = body.get_face(seed.face).unwrap().surface;
-        let cut = body.add_surface(geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::new(-sn, 0.0, c),
-            u_ref: Vec3::new(c, 0.0, sn),
-        });
-        body.mef(
-            MefSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    pair: SurfacePair::new(cyl, cut),
-                    selector: geom_brep::CurveSelector::Witness(
-                        carrier.eval(t0 + core::f64::consts::PI),
-                    ),
-                },
-                carrier,
-                param_start: t0,
-                param_end: t0 + core::f64::consts::TAU,
-            },
-            FaceSurface::Inherit,
-            geom_core::Tol::witness(),
-        )
-        .unwrap();
-        let (wall, vertex) = (seed.face, seed.vertex);
+        let (body, wall, vertex) =
+            crate::test_support_fixtures::oblique_rim_wall_from::<f64>(0.3, 1.0);
         let star =
             crate::star::Star::walk(&body, vertex, &crate::sector_shape::SlitTips::default(), b)
                 .unwrap();
