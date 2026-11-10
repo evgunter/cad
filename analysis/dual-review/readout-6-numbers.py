@@ -182,7 +182,7 @@ def main(root):
     p("\n## population by window, arm, letter (after ARM_FIX)")
     for w, f in win.items():
         c = Counter((r["arm"], r["letter"]) for r in rows if f(r["dr"]))
-        p(f"{w}: " + ", ".join(f"{a}/{l} {n}" for (a, l), n in sorted(c.items())))
+        p(f"{w}: " + ", ".join(f"{a}/{let} {n}" for (a, let), n in sorted(c.items())))
 
     # ---------------------------------------------------------- concurrent tier
     p("\n## concurrent pairs (rule 6 tally; holdouts apart, per the Seams)")
@@ -215,7 +215,7 @@ def main(root):
     # ---------------------------------------------------------- holdouts
     p("\n## holdout pairs (DR-207 folded into DR-208; DR-410 counted; DR-104 counted)")
     hold = [r for r in rows if r["arm"] == "holdout" and r["dr"] not in MERGED_INTO]
-    for w, f in list(win.items())[2:] + [("all arms", lambda d: True)]:
+    for w, f in [*list(win.items())[2:], ("all arms", lambda d: True)]:
         hs = [r for r in hold if f(r["dr"])]
         cls = Counter()
         noMAJ = partner_tal = partner_any = reviews_with_maj = 0
@@ -257,7 +257,7 @@ def main(root):
     # ---------------------------------------------------------- sequential
     p("\n## sequential units")
     seq = [r for r in rows if r["arm"] == "sequential"]
-    for w, f in list(win.items())[2:] + [("all arms", lambda d: True)]:
+    for w, f in [*list(win.items())[2:], ("all arms", lambda d: True)]:
         ss = [r for r in seq if f(r["dr"])]
         first = [r for r in ss if r["major"]]
         ran = [r for r in ss if r["r2"].strip() and not r["r2"].strip().startswith(("—", "-"))
@@ -272,7 +272,7 @@ def main(root):
     p("deviations in second reviews: " + "; ".join(f"DR-{d}: {v}" for d, v in SECOND_DEVIATIONS.items()))
 
     # M-tier reviews per unit
-    for w, f in list(win.items())[2:] + [("all arms", lambda d: True)]:
+    for w, f in [*list(win.items())[2:], ("all arms", lambda d: True)]:
         hs = [r for r in hold if f(r["dr"])]
         ss = [r for r in seq if f(r["dr"])]
         sec = sum(1 for r in ss if r["major"])
@@ -287,7 +287,7 @@ def main(root):
             p(f"DR-{r['dr']} ({r['arm']}, {r['letter']}, tallied {r['tallied']}): {nline[:140]}")
 
     p("\n## escape candidates traced from work items (ESCAPE_CANDIDATES), by arm")
-    for w, f in list(win.items())[2:] + [("all arms", lambda d: d >= ARMS_START)]:
+    for w, f in [*list(win.items())[2:], ("all arms", lambda d: d >= ARMS_START)]:
         for arm in ("concurrent", "holdout", "sequential"):
             units = [r for r in rows if f(r["dr"]) and r["arm"] == arm and r["dr"] not in MERGED_INTO]
             hit = [r["dr"] for r in units if r["dr"] in ESCAPE_CANDIDATES]
@@ -296,7 +296,7 @@ def main(root):
 
     # ---------------------------------------------------------- cost
     p("\n## cost per review, where the R1/R2 cell records it")
-    for w, f in list(win.items())[2:] + [("whole log", lambda d: True)]:
+    for w, f in [*list(win.items())[2:], ("whole log", lambda d: True)]:
         for arm in ("concurrent", "holdout", "sequential", "*"):
             tk, mn, n = [], [], 0
             for r in rows:
@@ -314,8 +314,11 @@ def main(root):
                         mn.append(m)
             if not n:
                 continue
-            q = lambda xs: (f"median {st.median(xs):,.0f}, IQR {st.quantiles(xs, n=4)[0]:,.0f}–{st.quantiles(xs, n=4)[2]:,.0f}"
-                            if len(xs) >= 4 else (f"values {sorted(xs)}" if xs else "none"))
+            def q(xs):
+                if len(xs) >= 4:
+                    qs = st.quantiles(xs, n=4)
+                    return f"median {st.median(xs):,.0f}, IQR {qs[0]:,.0f}–{qs[2]:,.0f}"
+                return f"values {sorted(xs)}" if xs else "none"
             p(f"{w} {arm}: reviews {n}; tokens recorded {len(tk)} ({q(tk)}); minutes recorded {len(mn)} ({q(mn)})")
 
     # ---------------------------------------------------------- variance
@@ -342,7 +345,8 @@ def main(root):
     both = re.compile(r"MAJOR\s*/\s*MAJOR|MAJ\s*/\s*MAJ|MAJOR both|both MAJOR", re.I)
     for w, f in list(win.items())[1:]:
         ps = [r for r in rows if f(r["dr"]) and r["arm"] != "sequential" and not r["excluded"] and r["major"]]
-        txt = lambda r: " ".join([r["corr"], r["tally"], r["fair"]] + r["extra"])
+        def txt(r):
+            return " ".join([r["corr"], r["tally"], r["fair"]] + r["extra"])
         sv = [r for r in ps if sev.search(txt(r))]
         bb = [r for r in ps if both.search(txt(r))]
         p(f"{w}: fair pairs with a MAJOR {len(ps)}; noting a MAJOR met by a MINOR/NOTE {rate(len(sv), len(ps))}; "

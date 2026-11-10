@@ -3,7 +3,9 @@
 
 Stdlib only. Usage: readout-6-rows.py [repo-root]. Imported by
 readout-6-numbers.py; not part of the log's bookkeeping."""
-import os, re, sys
+import os
+import re
+import sys
 
 COLS = ["date", "protocol", "unit", "klass", "head", "r1", "r2", "corr", "tally", "fair", "fix"]
 
@@ -25,7 +27,7 @@ def load(root):
         for ln in fm.splitlines():
             k, _, v = ln.partition(":")
             f[k.strip()] = v.strip()
-        lines = [l for l in body.split("\n") if l.strip()]
+        lines = [ln_ for ln_ in body.split("\n") if ln_.strip()]
         cells = split_cells(lines[0])
         r = dict(name=name, pr=int(name[3:-3]), dr=int(f["dr"]) if f.get("dr") else None,
                  arm=f["arm"], letter=f["letter"], tallied=int(f["tallied"]),
