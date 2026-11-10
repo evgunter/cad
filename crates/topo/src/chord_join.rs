@@ -6608,6 +6608,9 @@ mod tests {
     /// 3. **A copy in another crate.** The count is scoped to
     ///    `topo/src`; `crate::validate::decide` is `pub(crate)`, so a
     ///    foreign crate would have to call `geom_core`'s directly.
+    /// 4. **A `const` decided outside the file that declares it.** A
+    ///    rung's spellings are its literal and the consts its file
+    ///    declares to hold it, read per file.
     #[test]
     fn the_chord_arc_rung_is_decided_in_one_place() {
         let files = crate::source_walk::crate_sources();
@@ -6633,14 +6636,27 @@ mod tests {
             let mut sites = 0;
             for path in &files {
                 let text = std::fs::read_to_string(path).expect("a readable source file");
+                // The rung is spelled as its literal or as a `const` the
+                // file declares to hold it.
+                let mut spellings = vec![rung.clone()];
+                spellings.extend(text.lines().filter_map(|line| {
+                    let decl = line.trim().split_once("const ")?.1;
+                    let (name, value) = decl.split_once(':')?;
+                    value
+                        .contains(&format!("= {rung};"))
+                        .then(|| name.trim().to_owned())
+                }));
                 // DECIDE sites, counted on a whitespace-stripped copy so
                 // a call broken across lines counts the same as an
                 // inline one.
                 let stripped: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-                sites += stripped.matches(&format!("decide({rung}")).count();
-                // A rung chosen from a `match` and decided under a bound
-                // name still counts: its literal lives in its home.
-                sites += stripped.matches(&format!("=>({rung},")).count();
+                for spelling in &spellings {
+                    sites += stripped.matches(&format!("decide({spelling}")).count();
+                    // A rung chosen from a `match` and decided under a
+                    // bound name still counts: its spelling lives in its
+                    // home.
+                    sites += stripped.matches(&format!("=>({spelling},")).count();
+                }
                 assert!(
                     path == &home || !text.contains(rung.as_str()),
                     "{} names {rung}: the chord's arc has been re-forked out of {}, which \

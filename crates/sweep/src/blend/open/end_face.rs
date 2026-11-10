@@ -468,7 +468,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
     pub(in crate::blend) fn clearance(&self, carrier: &Curve3<T>, window: (T, T)) -> Option<T> {
         let whole = self.whole_clearance(carrier, window)?;
         Some(match carrier.as_line() {
-            Some(geom::Line { origin, dir }) => whole.max(self.line_clearance(origin, dir, window)),
+            Some(line) => whole.max(self.line_clearance(line, window)),
             None => whole,
         })
     }
@@ -523,11 +523,11 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// line meets the end curve at most twice, so a segment that meets
     /// `S` has an end in it. The rest of the candidates buy carves, and
     /// only a unit test against a sampled least can see one go missing.
-    fn line_clearance(&self, origin: Point3<T>, dir: Vec3<T>, (ta, tb): (T, T)) -> T {
+    fn line_clearance(&self, line: geom::Line<T>, (ta, tb): (T, T)) -> T {
         let zero = T::zero();
         let one = T::one();
-        let pa = origin + dir * ta;
-        let chord = origin + dir * tb - pa;
+        let pa = line.at(ta);
+        let chord = line.at(tb) - pa;
         // An edge has positive length, so `len` is no divisor of zero.
         let len = chord.norm();
         let e = chord * (one / len);
@@ -1340,11 +1340,18 @@ mod tests {
             let dir = Vec3::new(b.0 - a.0, b.1 - a.1, 0.0);
             let iv = Interval::from_f64;
             (
-                self.sliver::<f64>()
-                    .line_clearance(at(a.0, a.1), dir, (0.0, 1.0)),
+                self.sliver::<f64>().line_clearance(
+                    geom::Line {
+                        origin: at(a.0, a.1),
+                        dir,
+                    },
+                    (0.0, 1.0),
+                ),
                 self.sliver::<Interval>().line_clearance(
-                    Point3::new(iv(a.0), iv(a.1), iv(0.0)),
-                    Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                    geom::Line {
+                        origin: Point3::new(iv(a.0), iv(a.1), iv(0.0)),
+                        dir: Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                    },
                     (iv(0.0), iv(1.0)),
                 ),
             )

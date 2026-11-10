@@ -3,35 +3,20 @@
 //! At one corner the offset carriers admit up to two candidate
 //! circles, and both can round the corner the author named yet push a
 //! tangent point off the far end of a leg. The refusal that follows
-//! (`CornerReason::AnchorOutsideTrimmedExtent { side, carrier, setback,
-//! available }`) names one candidate's numbers on one leg, so the rows
-//! here pin WHICH:
-//!
-//! - the candidate nearest to fitting IN THE SETBACK METRIC —
-//!   `fillet_select::nearest_candidate`'s ladder over the candidates'
-//!   setback pairs, the crate's one home of "the nearest candidate at
-//!   one corner" (a candidate tie is unreachable by geometry: one
-//!   candidate is shallower on both legs);
-//! - on that candidate's WORSE leg — the one whose setback outruns its
-//!   extent by more — ties to the incoming leg.
+//! (`CornerReason::AnchorOutsideTrimmedExtent { legs, radius_at_anchor }`)
+//! carries one candidate's numbers on both legs, so the rows here pin
+//! WHICH: the candidate nearest to fitting —
+//! `fillet_select::nearest_candidate`'s ladder over the candidates'
+//! setback pairs, the crate's one home of "the nearest candidate at
+//! one corner" (a candidate tie is unreachable by geometry: one
+//! candidate is shallower on both legs).
 //!
 //! The pick is `path::arc_fillet::map_refusal`'s, by `f64` enclosure
-//! reads of setbacks and margins `sugar::arc_fillet_trims` already
-//! classified; the construction carries every corner-side overrun out
-//! at the scalar and compares nothing.
-//!
-//! **What the reported number is not.** `setback − available` is the
-//! reported leg's overrun in the setback metric. It is NOT the radius
-//! reduction that would make the corner fit, and the recourse the
-//! sentence ends in ("reduce the radius or move the anchor") is
-//! un-metered on purpose: a setback does not scale 1:1 with the radius
-//! on either leg kind. Followed as a radius reduction over grid A it is
-//! not a request at 469 entries, leaves the same corner refusing at
-//! 2 111 and builds at 605, never tight — the census and its
-//! counter-fixtures are `review_fillet_overrun_nearest_fit_r1_probes`
-//! and `_r2_probes`, and `fillet_recourse_followability`'s fit row is
-//! an unremarked instance of the same class. The residue is
-//! `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
+//! reads of setbacks `sugar::arc_fillet_trims` already classified; the
+//! construction carries every corner-side overrun out at the scalar and
+//! compares nothing. The census's side counts read the candidate's
+//! worse leg (`common::worse_leg`). The radius lever's number is
+//! `fillet_radius_at_anchor`'s subject.
 //!
 //! The fixtures are authorings of FILLET-ATTR's grid A
 //! (`common::grid_a`; `n` names the authoring's ordinal in that
@@ -44,11 +29,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{anchor_fit_at, arc_arc, close, grid_a, line_arc};
+use crate::common::{anchor_fit_at, anchor_fit_payload_at, arc_arc, close, grid_a, line_arc};
 use geom_core::Sign;
 use geom_core::k_stats;
 use profile::path::CornerReason;
-use profile::{ArcSweep, FilletLeg, FilletLegCarrier, PathError, ProfileLoop};
+use profile::{ArcSweep, FilletLeg, FilletLegCarrier, OverrunLegs, PathError, ProfileLoop};
 
 const PI: f64 = core::f64::consts::PI;
 
@@ -140,53 +125,59 @@ fn two_overrunning_candidates_report_the_least_deficit_one() {
     );
 }
 
-/// **The reported leg is the one whose setback outruns its extent by
-/// more.** On authoring 11131's nearer candidate the outgoing leg
-/// overruns by more than the incoming one, so the sentence names the
-/// outgoing leg's numbers — not the incoming leg's, which is the leg
-/// the fit gate classifies first.
+/// **Both legs ride.** On authoring 11131's nearer candidate both legs
+/// overrun, the outgoing one by more; the payload carries both legs'
+/// numbers and calls both overruns, so the sentence can name where each
+/// anchor has to lie.
 #[test]
-fn the_reported_leg_is_the_one_the_deficit_is_on() {
+fn both_overrunning_legs_ride_the_payload() {
     let err = arc_arc(CASE_11131, R_11131).expect_err("r = 0.15 refuses");
-    let (side, _, setback, available) = anchor_fit_at(&err, CORNER_11131);
-    assert_eq!(side, FilletLeg::Outgoing, "the worse leg");
+    let (legs, overrun, _) = anchor_fit_payload_at(&err, CORNER_11131);
+    assert_eq!(overrun, OverrunLegs::Both, "{legs:?}");
     assert!(
-        close(setback, CORNER_11131_WORSE.0) && close(available, CORNER_11131_WORSE.1),
-        "got setback {setback} available {available}"
+        close(legs[1].setback, CORNER_11131_WORSE.0)
+            && close(legs[1].available, CORNER_11131_WORSE.1),
+        "the outgoing leg: {legs:?}"
     );
     assert!(
-        setback - available > CORNER_11131_INCOMING.0 - CORNER_11131_INCOMING.1,
-        "the reported leg's overrun is the candidate's larger one"
+        close(legs[0].setback, CORNER_11131_INCOMING.0)
+            && close(legs[0].available, CORNER_11131_INCOMING.1),
+        "the incoming leg: {legs:?}"
     );
 }
 
-/// The same leg rule on the line×arc channel, where the offset line is
-/// tangent to the offset circle and the ONE candidate overruns both
-/// legs: the straight leg by 0.2 m, the circular one by π − 0.6 m.
+/// The same on the line×arc channel, where the offset line is tangent
+/// to the offset circle and the ONE candidate overruns both legs: the
+/// straight leg by 0.2 m, the circular one by π − 0.6 m.
 #[test]
-fn a_single_candidate_reports_its_worse_leg_on_the_line_arc_channel() {
+fn a_single_candidate_carries_both_legs_on_the_line_arc_channel() {
     let err = line_arc_both_legs_overrun().expect_err("r = 1 overruns both legs");
-    let (side, carrier, setback, available) = anchor_fit_at(&err, (2.0, 0.0));
-    assert_eq!(side, FilletLeg::Outgoing);
+    let (legs, overrun, _) = anchor_fit_payload_at(&err, (2.0, 0.0));
+    assert_eq!(overrun, OverrunLegs::Both, "{legs:?}");
+    assert_eq!(legs[0].carrier, FilletLegCarrier::Line);
     assert!(
-        matches!(carrier, FilletLegCarrier::Arc { radius, .. } if close(radius, 2.0)),
-        "{carrier:?}"
+        close(legs[0].setback, 2.0) && close(legs[0].available, 1.8),
+        "{legs:?}"
     );
     assert!(
-        close(setback, PI) && close(available, 0.6),
-        "got {setback} / {available}"
+        matches!(legs[1].carrier, FilletLegCarrier::Arc { radius, .. } if close(radius, 2.0)),
+        "{legs:?}"
+    );
+    assert!(
+        close(legs[1].setback, PI) && close(legs[1].available, 0.6),
+        "{legs:?}"
     );
 }
 
 /// **The grid-A census.** Over the 3 185 anchor-fit entries grid A
 /// reports: the 19 entries whose CANDIDATE differs from the
 /// first-enumerated one carry the nearest fit's numbers and not the
-/// first's (both measured, per authoring); and the leg rule names the
+/// first's (both measured, per authoring); and the worse leg is the
 /// outgoing side at 230 entries where the incoming leg also overran
 /// (one of them also a candidate change), so the side census is
 /// `Incoming 1555, Outgoing 1630` where naming the incoming leg
-/// whenever it overran gives `1785 / 1400`. Restoring either pick
-/// turns a cell red.
+/// whenever it overran gives `1785 / 1400`. Restoring the
+/// first-enumerated candidate turns a cell red.
 #[test]
 fn grid_a_census_of_the_reports_that_changed() {
     /// One report the rule moves off enumeration order: the authoring,
@@ -361,9 +352,9 @@ fn grid_a_census_of_the_reports_that_changed() {
             return;
         };
         for c in corners {
-            if let CornerReason::AnchorOutsideTrimmedExtent { side, .. } = c.reason {
+            if let CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } = &c.reason {
                 entries += 1;
-                match side {
+                match crate::common::worse_leg(legs, *overrun).0 {
                     FilletLeg::Incoming => incoming += 1,
                     FilletLeg::Outgoing => outgoing += 1,
                 }
@@ -399,7 +390,7 @@ fn grid_a_census_of_the_reports_that_changed() {
     assert_eq!(
         (incoming, outgoing),
         (1_555 - inside_in, 1_630 - inside_out),
-        "the side census under the leg rule"
+        "the worse-leg side census"
     );
 }
 
