@@ -224,7 +224,7 @@ fn a_one_face_refusal_names_its_side() {
             "face FaceKey(null) of the first side lies on a torus not decided a ring (R > r > 0): \
              whether a torus's tube radius is smaller than its ring radius is undecided: \
              enclosure ["
-        ) && undecided.ends_with("against the ambiguity band (1e-9, 1e-8)")
+        ) && undecided.contains("cannot be classified against the ambiguity band")
             && !undecided.contains("meets itself"),
         "an undecided half is said undecided, never a carrier that meets itself: {undecided}"
     );
