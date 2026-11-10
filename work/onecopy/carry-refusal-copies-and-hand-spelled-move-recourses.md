@@ -2,8 +2,9 @@
 id: carry-refusal-copies-and-hand-spelled-move-recourses
 kind: issue
 title: SiteRefusal is a subset of CarryError rebuilt by a map, and NoCarrier spells its move recourse by hand
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-10
 ---
 
 
