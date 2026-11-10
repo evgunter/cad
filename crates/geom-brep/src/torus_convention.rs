@@ -94,6 +94,27 @@ impl TorusConvention {
     }
 }
 
+impl TorusConvention {
+    /// **The decided refusal about `whose` torus, ended by the half's one
+    /// lever** ([`Self::sized`]) read at `at`; the clause alone
+    /// ([`Self::refused`]) where `at` is `None`, as a `Display` writes
+    /// it. Every door that renders a torus decided outside the
+    /// convention says it so.
+    #[must_use]
+    pub fn refused_ended(
+        self,
+        whose: &str,
+        verdict: Refused,
+        at: Option<crate::recourse::ReadAt>,
+    ) -> String {
+        let clause = self.refused(whose, verdict);
+        match at {
+            Some(at) => format!("{clause}. {}", self.sized().recourse(verdict.arm(), at)),
+            None => clause,
+        }
+    }
+}
+
 /// **A torus refused at one half of its ring convention**, in band or
 /// decided: the half and its verdict, carried from the door that decides
 /// it to the one that renders it, whose `Display` ends in the half's one
@@ -163,7 +184,24 @@ impl TorusRefusal {
         minor: T,
         band: Band,
     ) -> Result<geom::RingTorus<T>, Self> {
-        geom::RingTorus::of(major, minor, band).map_err(|not| {
+        Self::require_at(major, minor, geom::RingSites::CONVENTION, band)
+    }
+
+    /// [`Self::require`] under a reader's own funnel rows `sites`
+    /// ([`geom::RingTorus::of_at`]): a reader that decides the
+    /// convention on its own rows reads its refusal here, the half
+    /// undecided kept apart from the half decided outside.
+    ///
+    /// # Errors
+    ///
+    /// The refusing half's [`TorusRefusal`].
+    pub fn require_at<T: geom_core::Decide>(
+        major: T,
+        minor: T,
+        sites: geom::RingSites,
+        band: Band,
+    ) -> Result<geom::RingTorus<T>, Self> {
+        geom::RingTorus::of_at(major, minor, sites, band).map_err(|not| {
             let (convention, verdict) = match not {
                 geom::NotARing::Tube { verdict, .. } => (TorusConvention::Tube, verdict),
                 geom::NotARing::Ring { verdict, .. } => (TorusConvention::Ring, verdict),
@@ -195,11 +233,7 @@ impl TorusRefusal {
                 )
             ),
             (TorusVerdict::Refused(verdict), at) => {
-                f.write_str(&self.convention.refused("a torus's", *verdict))?;
-                match at {
-                    Some(at) => write!(f, ". {}", sized.recourse(verdict.arm(), at)),
-                    None => Ok(()),
-                }
+                f.write_str(&self.convention.refused_ended("a torus's", *verdict, at))
             }
         }
     }

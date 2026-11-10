@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::boolean::region::QueryFoot;
+use crate::boolean::region::refusal_class as class;
 use crate::entity::EdgeKey;
 use core::f64::consts::{PI, TAU};
 use slotmap::KeyData;
@@ -706,5 +707,163 @@ fn a_point_off_the_surface_reads_as_its_foot() {
             Ok(None),
             "off the frustum's rim by {d:e}: on the boundary"
         );
+    }
+}
+
+/// `surface` on each of the frame pins' charts
+/// ([`geom::test_support::CHART_FRAMES`]).
+fn charts(surface: &geom::Surface<f64>) -> Vec<geom::Surface<f64>> {
+    geom::test_support::CHART_FRAMES
+        .iter()
+        .map(|&(t, flip)| geom::test_support::reframed(surface, t, flip))
+        .collect()
+}
+
+/// Every region of `regions` answers each of `queries` as the first does.
+fn agree(what: &str, regions: &[RuledFaceRegion<f64>], queries: &[(String, Point3<f64>)]) {
+    for (at, p) in queries {
+        let first = class(regions[0].contains(*p, b()));
+        for (k, region) in regions.iter().enumerate().skip(1) {
+            assert_eq!(
+                class(region.contains(*p, b())),
+                first,
+                "{what}: frame {k}, {at}"
+            );
+        }
+    }
+}
+
+/// The offsets about the band's zero a frame pin reads a query at.
+const ZERO_OFFSETS: [f64; 6] = [-5e-9, -1e-9, -5e-10, 5e-10, 1e-9, 5e-9];
+
+/// The cone window `us × vs` of [`on_cone`], charted on `surface`.
+fn cone_window(
+    surface: &geom::Surface<f64>,
+    us: (f64, f64),
+    vs: (f64, f64),
+) -> RuledFaceRegion<f64> {
+    let (charted, surface) = on(surface);
+    RuledFaceRegion {
+        charted,
+        surface,
+        sense: true,
+        outer: LoopKey::default(),
+        scale: 2.0,
+        edges: vec![
+            cone_rim(1, vs.0, us, true),
+            segment(2, on_cone(us.1, vs.0), on_cone(us.1, vs.1)),
+            cone_rim(3, vs.1, us, false),
+            segment(4, on_cone(us.0, vs.1), on_cone(us.0, vs.0)),
+        ],
+    }
+}
+
+/// The cone of [`on_cone`], apex at the origin about `+z`.
+fn cone_z() -> geom::Surface<f64> {
+    geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: z_axis(),
+        half_angle: ALPHA,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// **A ruled face's answer about the band's zero depends on no chart
+/// frame.** A window of a cylinder and one of a cone are each read on
+/// the six frames of [`geom::test_support::CHART_FRAMES`], the axis
+/// flipped on one: a flipped axis spans the same locus, and charts it
+/// the other way. Each window is read at 60 stations along each of its
+/// four edges, at `±5e-10`, `±1e-9` and `±5e-9` off it, 1440 queries a
+/// window, and every frame answers as the first. (The measurement on
+/// the row read 2400 queries a window, adding `±1e-8` and `±2e-8`: at
+/// `±1e-8` the cone's legs, built from the chart's coordinates, still
+/// answer by frame, filed.)
+#[test]
+fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
+    let (us, zs) = ((0.4, 2.9), (0.0, 1.5));
+    let cylinder = geom::Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: z_axis(),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinders: Vec<_> = charts(&cylinder)
+        .iter()
+        .map(|surface| {
+            let (charted, surface) = on(surface);
+            RuledFaceRegion {
+                charted,
+                surface,
+                sense: true,
+                outer: LoopKey::default(),
+                scale: 1.0,
+                edges: window(1, us, zs, false),
+            }
+        })
+        .collect();
+    let mut queries = Vec::new();
+    for i in 0..60 {
+        let t = f64::from(i) / 60.0 + 0.004;
+        let (u, z) = (us.0 + t * (us.1 - us.0), zs.0 + t * (zs.1 - zs.0));
+        for o in ZERO_OFFSETS {
+            queries.push((format!("rim z0, u {u}, {o:e} off"), wall(u, zs.0 + o)));
+            queries.push((format!("rim z1, u {u}, {o:e} off"), wall(u, zs.1 + o)));
+            queries.push((format!("ruling u0, z {z}, {o:e} off"), wall(us.0 + o, z)));
+            queries.push((format!("ruling u1, z {z}, {o:e} off"), wall(us.1 + o, z)));
+        }
+    }
+    agree("cylinder window", &cylinders, &queries);
+
+    let (vs, s) = ((1.0, 2.0), ALPHA.sin());
+    let cones: Vec<_> = charts(&cone_z())
+        .iter()
+        .map(|surface| cone_window(surface, us, vs))
+        .collect();
+    let mut queries = Vec::new();
+    for i in 0..60 {
+        let t = f64::from(i) / 60.0 + 0.004;
+        let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
+        for o in ZERO_OFFSETS {
+            queries.push((format!("rim v0, u {u}, {o:e} off"), on_cone(u, vs.0 + o)));
+            queries.push((format!("rim v1, u {u}, {o:e} off"), on_cone(u, vs.1 + o)));
+            let (g0, g1) = (
+                on_cone(us.0 + o / (v * s), v),
+                on_cone(us.1 + o / (v * s), v),
+            );
+            queries.push((format!("generator u0, v {v}, {o:e} off"), g0));
+            queries.push((format!("generator u1, v {v}, {o:e} off"), g1));
+        }
+    }
+    agree("cone window", &cones, &queries);
+}
+
+/// **Within the band of a cone's apex plane, the query's foot is the
+/// chart's**: a point beside the apex plane is as near one nappe as the
+/// other, and the chart names the nappe there (the opening one, the
+/// axis's), so the boundary pre-pass reads the chart's foot rather than
+/// the closed form's, which takes the nappe by the raw sign of the
+/// height. A point at `ρ = 3` beside the cone window, at heights
+/// `−5e-10`, `−1e-10`, `0` and `1e-10`, reads inside the window on every
+/// frame that charts the cone about `+z`; the closed form had read the
+/// two below the plane on the mirror nappe, outside. On the frame that
+/// flips the axis, the chart names the other nappe, and the same points
+/// read outside: the reading within that band is the chart's, by its
+/// axis.
+#[test]
+fn a_query_beside_a_cones_apex_plane_reads_the_charts_nappe() {
+    let (us, vs) = ((0.4, 2.9), (1.0, 2.0));
+    for (k, surface) in charts(&cone_z()).iter().enumerate() {
+        let region = cone_window(surface, us, vs);
+        let opening = !geom::test_support::CHART_FRAMES[k].1;
+        for u in [0.5f64, 1.65, 2.8] {
+            for h in [-5e-10, -1e-10, 0.0, 1e-10] {
+                let p = Point3::new(3.0 * u.cos(), 3.0 * u.sin(), h);
+                assert_eq!(
+                    region.contains(p, b()),
+                    Ok(Some(opening)),
+                    "frame {k}, azimuth {u}, height {h:e}"
+                );
+            }
+        }
     }
 }

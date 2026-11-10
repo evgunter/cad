@@ -1989,7 +1989,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         .map(|decision| Undecided::WitnessTooClose(Some(decision)));
     // Every touch reason the backstop waits on, each edge-tangent reason
     // its own (`Undecided::iter` yields one touch, the default).
-    let touches = crate::link::TouchUnread::iter()
+    let touches = touch_reasons()
         .filter(|why| !matches!(why, crate::link::TouchUnread::Corrupt))
         .chain(
             edge_tangent_reasons()
@@ -2034,7 +2034,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             witness: "(0.0, 0.0, 0.0)".to_owned(),
         },
     ));
-    for why in crate::link::TouchUnread::iter() {
+    for why in touch_reasons() {
         s.push((
             format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
             ValidationError::FaceThroughEdgeWedgeUndecided {
@@ -2074,7 +2074,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             witness: "(0.0, 0.0, 0.0)".to_owned(),
         },
     ));
-    for why in crate::link::TouchUnread::iter() {
+    for why in touch_reasons() {
         s.push((
             format!("BoundaryCrossesItselfUndecided/{why:?}"),
             ValidationError::BoundaryCrossesItselfUndecided {
@@ -2268,6 +2268,16 @@ const fn listed(why: crate::validate::EdgeTangentUnread) {
         | E::NoLength
         | E::Unwalked(geom::PieceWalkRefusal::Exhausted | geom::PieceWalkRefusal::Unbounded) => {}
     }
+}
+
+/// Every touch reason, each normal abort's row among them (the variant
+/// carries no default, so `TouchUnread::iter` passes it over).
+fn touch_reasons() -> impl Iterator<Item = crate::link::TouchUnread> {
+    crate::link::TouchUnread::iter().chain(
+        core::iter::once(crate::face_normal::NormalAbort::KernelFault)
+            .chain(crate::face_normal::NORMAL_INVALID_INPUTS)
+            .map(crate::link::TouchUnread::NormalFault),
+    )
 }
 
 #[cfg(test)]
