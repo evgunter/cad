@@ -73,5 +73,5 @@ ring_path's `span_readings` (`split_ring_path_in_span`, ~`:1668`), read on `Loop
 - **The meters stay each site's own.** span_readings levers a root's side by the slope its piece crosses at, which keeps near-graze roots honest. `Span` reads its side at the carrier's sup speed. So `Span::place_param` is not span_readings' door, and only the copy rule is shared.
 
 **Moves, measured** over topo, sweep, editor-core, step-import and mesh at ε 1e-9 and 1e-12, about 300k readings each, with temporary logging that is not kept:
-- **f64:** 496 and 448 point readings moved bits. Every one is the exact tie, a parameter at the middle's antipode, which is past on either copy. No sign moved. The door's doc states the tie.
+- **f64:** 496 and 448 point readings moved bits. Every one is at or within rounding of the tie, a parameter at the middle's antipode, which is past on either copy. No sign moved. The door's doc states the tie.
 - **Interval:** 2 production box readings moved at 1e-9, one box `[2.48, 3.81]` against `(−0.59, 0.59)`, which is past on both copies, so no sign moved. The rest are the probe's own.
