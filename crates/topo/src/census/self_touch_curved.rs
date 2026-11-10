@@ -837,22 +837,17 @@ fn a_solid_touching_itself_at_a_spline_crease_corner_is_read() {
         let keys = touch_keys(&geo, &ties, &[corner]).expect("the corner's keys");
         let s = census_entity_solid(&body, EntityId::Vertex(corner)).unwrap();
         let verdict = self_touch_verdict(&body, &geo, &ties, s, &keys, geo.vmap[&corner], band());
-        let found: Vec<_> = census_and_certify(
-            &body,
-            &crate::ContactRecords::default(),
-            band(),
-            Tol::witness(),
-            None,
-        )
-        .into_iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::BoundaryCrossesItself { .. }
-                    | ValidationError::BoundaryCrossesItselfUndecided { .. }
-            )
-        })
-        .collect();
+        let found: Vec<_> =
+            census_and_certify(&body, &Default::default(), band(), Tol::witness(), None)
+                .into_iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        ValidationError::BoundaryCrossesItself { .. }
+                            | ValidationError::BoundaryCrossesItselfUndecided { .. }
+                    )
+                })
+                .collect();
         if crosses {
             assert_eq!(
                 verdict,

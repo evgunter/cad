@@ -1505,7 +1505,7 @@ impl<T: SpanLocate> NurbsSurface<T> {
         &self,
         u: T,
         v: T,
-        (beside_u, beside_v): (Option<(usize, bool)>, Option<(usize, bool)>),
+        (beside_u, beside_v): (SpanBeside, SpanBeside),
     ) -> SurfaceJet<T> {
         let spans = |knots: &Knots<T>, t: T, beside: Option<(usize, bool)>| match beside {
             Some((run, above)) => span_beside_run(knots.structure(), run, above).map(|i| (i, i)),
@@ -2024,6 +2024,12 @@ fn hull_vec<T: SpanLocate>(a: Vec3<T>, b: Vec3<T>) -> Vec3<T> {
     )
 }
 
+/// Which span to read a jet on in one parameter direction
+/// ([`NurbsSurface::ders_beside`]): `Some((run, above))` the nonempty span
+/// just above (`true`) or below breakpoint run `run`, `None` the span the
+/// parameter locates.
+pub type SpanBeside = Option<(usize, bool)>;
+
 /// The knot index of the nonempty span just above (`above`) or just below
 /// breakpoint run `run` of `structure`: the run's last knot, or the knot
 /// before its first. `None` past either end of the knots.
@@ -2499,8 +2505,8 @@ mod beside_tests {
         );
         assert!((below.point - above.point).norm() < 1e-12);
         let plain = s.ders_beside(0.25, 0.3, (None, None));
-        assert!((plain.du - s.ders(0.25, 0.3).du).norm() == 0.0);
-        assert!((plain.point - s.ders(0.25, 0.3).point).norm() == 0.0);
+        assert!(plain.du.equals_exactly(s.ders(0.25, 0.3).du));
+        assert!(plain.point.equals_exactly(s.ders(0.25, 0.3).point));
         // The first run's span above is the first span; the last run has
         // none above and the first none below: poison, not a jet.
         let first = s.ders_beside(0.0, 0.3, (Some((0, true)), None));
