@@ -442,10 +442,13 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         var: VarRef,
     },
     /// The explicit name repair (N5, spec D3), addressed by body and
-    /// name (D10): rewrite every selection of `body` that names `from`
-    /// EXACTLY to name `to`; with no body, every site no selection holds
-    /// (an instance's crossings, appearance keys). A name is scoped by the body it is read in (N1), so the
-    /// body says which entity the repair is about.
+    /// name (D10): rewrite every selection whose body read reads the
+    /// variable `body` that names `from` EXACTLY to name `to`; with no
+    /// body, every site no selection holds (an instance's crossings,
+    /// appearance keys). `body` is the address of the variable holding
+    /// the body, not the name's scope: a selection of one member of a
+    /// family (`xs[i]`) reads the family's variable, so a repair at
+    /// `xs` reaches every member's selections that name `from`.
     /// One-shot recorded intent — no alias table persists, nothing
     /// follows automatically afterwards (the ratified EMPTY policy
     /// menu). Validation is the name-carrying edits' carve-out: node
@@ -453,8 +456,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// least have once existed — a never-minted id is a typo);
     /// name-level resolution stays an evaluation-time concern.
     Rebind {
-        /// The body whose selections are repaired, or `None` for the
-        /// sites no selection holds.
+        /// The variable whose selections are repaired, or `None` for
+        /// the sites no selection holds.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         body: Option<VarId>,
         /// The name being repaired (may be stranded — its node may be
@@ -1382,6 +1385,7 @@ fn lower_read<P: crate::ProfilePayload>(
         if let Some(fault) = doc
             .var(var)
             .and_then(|held| crate::var::Select::fault(held.kind(), &select.names))
+            .or_else(|| selection_body_fault(doc, slot, &select.body))
         {
             return Err(EditError::SelectionShape {
                 node: spoken(),
@@ -1389,13 +1393,17 @@ fn lower_read<P: crate::ProfilePayload>(
                 fault,
             });
         }
-        let body = select.body;
+        let body = &select.body;
+        let expected = match body.is_indexed() {
+            true => crate::SlotKind::Is(VarKind::Bodies),
+            false => selection_body_kind(slot),
+        };
         check_read(
             doc,
             spoken,
             slot,
-            body,
-            selection_body_kind(slot),
+            body.read,
+            expected,
             Reader::Observes,
             unresolved,
         )?;
@@ -1568,30 +1576,91 @@ pub(crate) fn selection_body_kind(slot: SlotId) -> crate::SlotKind {
     }
 }
 
+/// **What is wrong with a selection's body read at `slot`**, beyond its
+/// kind: a member read by other than its family's rank of indices
+/// ([`crate::var::SelectionFault::IndexRank`]), or at a mate side an
+/// index that is no written count ([`crate::var::SelectionFault::SideIndex`]).
+/// The edit door asks it of every selection a seat reads, and the load
+/// door of every selection it holds.
+pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    slot: SlotId,
+    body: &crate::BodyRead<VarId>,
+) -> Option<crate::var::SelectionFault> {
+    if !body.is_indexed() {
+        return None;
+    }
+    let rank = doc.var_reach(body.read).chain().map_or(0, <[VarId]>::len);
+    if body.at.len() != rank {
+        return Some(crate::var::SelectionFault::IndexRank {
+            found: body.at.len(),
+            rank,
+        });
+    }
+    if !matches!(slot, SlotId::Operand(crate::OperandSlot::Side { .. })) {
+        return None;
+    }
+    body.at
+        .iter()
+        .position(|&index| written_count(doc, index).is_none())
+        .map(|k| crate::var::SelectionFault::SideIndex { k })
+}
+
+/// **The count `index` holds where it is written in the document**: an
+/// anonymous free count, a literal. `None` for any other variable,
+/// whose value is an evaluation's.
+pub(crate) fn written_count<P>(doc: &Doc<P>, index: VarId) -> Option<i64> {
+    match doc.var(index).map(Var::def) {
+        Some(VarDef::Free(crate::doc::FreeVar::Count { value })) if doc.var_name(index).is_none() => {
+            Some(*value)
+        }
+        _ => None,
+    }
+}
+
 /// **A selection authored at a seat, minted** (D10): the body read
-/// lowered as a `Body` operand, the names checked live and in the
-/// stored form of the seat's selection kind, and one anonymous
-/// selection variable minted for the seat to read. A selection authored
-/// at two seats is two variables.
+/// lowered as a `Body` operand, or a member's as a family's with each
+/// index lowered as a `Count` slot of the selection, the names checked
+/// live and in the stored form of the seat's selection kind, and one
+/// anonymous selection variable minted for the seat to read. A
+/// selection authored at two seats is two variables. A member read
+/// whose indices are exactly its family's own index chain is the plain
+/// read, as a per-member reader reads it: `xs[k]` is stored as `xs`.
 fn mint_selection<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
     slot: SlotId,
-    body: &crate::Operand,
+    body: &crate::BodyRead<Formula>,
     names: &[StableName],
     expected: crate::SlotKind,
 ) -> Result<VarId, EditError> {
     // The selection's body read observes, and may name a world copy:
     // every seat reading the selection is then asked whether it may
     // read that copy (`Doc::read_fault`).
-    let body = lower_read(
+    let read = lower_read(
         doc,
         spoken,
         slot,
-        body,
-        selection_body_kind(slot),
+        &body.read,
+        match body.is_indexed() {
+            true => crate::SlotKind::Is(VarKind::Bodies),
+            false => selection_body_kind(slot),
+        },
         Reader::Observes,
     )?;
+    let mut at = Vec::with_capacity(body.at.len());
+    for (k, formula) in body.rows() {
+        let index = match slot {
+            SlotId::Operand(seat) => SlotId::Index { seat, k },
+            other => other,
+        };
+        at.push(lower_index(doc, &spoken(), index, formula)?);
+    }
+    let own = doc.var_reach(read).chain().is_some_and(|chain| chain == at.as_slice());
+    let body = crate::BodyRead {
+        read,
+        at: if own { Vec::new() } else { at },
+    };
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),
         slot,
@@ -1608,13 +1677,14 @@ fn mint_selection<P: crate::ProfilePayload>(
                 name: doc.spoken_name(name),
             });
         }
-        let on_body = doc.read_operation(body).is_some_and(|at| {
-            at == name.node || crate::doc::strict_ancestors(doc, at).contains(&name.node)
-        });
+        let on_body = !body.is_indexed()
+            && doc.read_operation(body.read).is_some_and(|at| {
+                at == name.node || crate::doc::strict_ancestors(doc, at).contains(&name.node)
+            });
         if !on_body {
             return Err(shape(crate::var::SelectionFault::OtherBody));
         }
-        return Ok(body);
+        return Ok(body.read);
     }
     let entity = selection_entity(expected, names);
     let kind = expected
@@ -1638,7 +1708,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         });
     }
     // Read in a body: "where an instance is" is a body reaching one.
-    let parted = doc.reaches_instance(body);
+    let parted = doc.reaches_instance(body.read);
     for name in names {
         if doc.part_spelled(parted, name) {
             continue;
@@ -1849,7 +1919,7 @@ pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, 
 pub fn selection_into<P>(
     doc: &mut Doc<P>,
     slot: crate::OperandSlot,
-    body: VarId,
+    body: impl Into<crate::BodyRead<VarId>>,
     names: &[StableName],
 ) -> VarId {
     let entity = selection_entity(slot.kind(), names);
@@ -1860,7 +1930,7 @@ pub fn selection_into<P>(
     let def = WrittenDef::Select(
         kind,
         crate::var::Select {
-            body,
+            body: body.into(),
             names: names.to_vec(),
         },
     );
@@ -4189,7 +4259,12 @@ impl EditError {
                         slot.label(),
                         crate::sentence::article(&found.to_string()),
                     )?;
-                    tail.recourse(f, format_args!("read {expected} there"))
+                    // A family where one body is read: one member is.
+                    if *found == VarKind::Bodies && expected.admits_kind(VarKind::Body) {
+                        tail.recourse(f, format_args!("read one member of it, `xs[i]`"))
+                    } else {
+                        tail.recourse(f, format_args!("read {expected} there"))
+                    }
                 }
             },
             Self::SlotUnresolvedVar { var, node, slot } => {
@@ -5349,7 +5424,7 @@ fn body_went<P: crate::ProfilePayload>(
     let body = match carrier {
         NameCarrier::Store { body, .. } => body,
         NameCarrier::Select { var, .. } => match before.selection(var) {
-            Some(select) => select.body,
+            Some(select) => select.body.read,
             None => return false,
         },
         NameCarrier::Payload { .. } => return false,
@@ -5710,7 +5785,7 @@ impl MaintenanceNet {
                 Maintenance::StrandedRead { node, slot, var } => {
                     end.node(node.id()).is_some_and(|reader| {
                         reader.operand_rows().into_iter().any(|(at, read)| {
-                            at == *slot && end.selection(read).map_or(read, |s| s.body) == var.id()
+                            at == *slot && end.selection(read).map_or(read, |s| s.body.read) == var.id()
                         })
                     })
                 }
@@ -9110,7 +9185,7 @@ fn seat_reads<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
         }
         out.push(var);
         match doc.var(var).map(crate::Var::def) {
-            Some(crate::var::VarDef::Select(select)) => walk(doc, select.body, out),
+            Some(crate::var::VarDef::Select(select)) => walk(doc, select.body.read, out),
             Some(crate::var::VarDef::Pose(def)) if doc.var_name(var).is_none() => {
                 for (_, &read, _, _) in def.reads() {
                     walk(doc, read, out);
@@ -9189,10 +9264,6 @@ fn check_profile_after_slot_edit<P: crate::ProfilePayload>(
     Ok(())
 }
 
-/// Shared slot-write path: node exists, slot exists, dimension
-/// matches, the formula lowers and its reads hold — then the slot
-/// stores the variable it lowers to (VR4), its fresh table minted
-/// first.
 /// **One index of an indexed read as the door writes it**
 /// ([`SlotId::Index`]): a `Count` formula, lowered as a slot's is and
 /// held to the reads a slot's are.
@@ -9218,6 +9289,10 @@ fn lower_index<P>(
     Ok(var)
 }
 
+/// Shared slot-write path: node exists, slot exists, dimension
+/// matches, the formula lowers and its reads hold — then the slot
+/// stores the variable it lowers to (VR4), its fresh table minted
+/// first.
 fn set_slot<P: Clone + crate::ProfilePayload>(
     new: &mut Doc<P>,
     before: &Doc<P>,

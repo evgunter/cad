@@ -318,14 +318,46 @@ pub fn head_face<P: crate::ProfilePayload>(
 /// in, was deleted, or it holds a name of another kind. Each is the
 /// mate's evaluation's refusal in its own words (the read's
 /// `UnresolvedRead`, the selection's `SelectKind`).
-pub fn head_of<P>(doc: &Doc<P>, side: crate::VarId) -> Option<crate::node::SitedFace> {
+///
+/// A side reading one member of a family (`xs[i]`, REFERENCES DM3)
+/// names the member's own face; its head is the family's operation, the
+/// face under the `Member` qualifier at the index values the side's
+/// read writes — counts written in the document, never evaluated
+/// (`edit::selection_body_fault`). `None` where an index is no
+/// written count.
+pub fn head_of<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    side: crate::VarId,
+) -> Option<crate::node::SitedFace> {
     let select = doc.selection(side)?;
     let [name] = select.names.as_slice() else {
         return None;
     };
-    let name = crate::FaceName::new(name.clone()).ok()?;
-    Some(crate::node::SitedFace::new(
-        doc.operation_of(select.body)?,
-        name,
-    ))
+    let at = doc.operation_of(select.body.read)?;
+    let name = if select.body.is_indexed() {
+        let chain = doc.var_reach(select.body.read).chain()?.to_vec();
+        if chain.len() != select.body.at.len() {
+            return None;
+        }
+        let values = chain
+            .into_iter()
+            .zip(&select.body.at)
+            .map(|(index, &written)| {
+                let value = crate::edit::written_count(doc, written)?;
+                Some((index, u32::try_from(value).ok()?))
+            })
+            .collect::<Option<crate::names::MemberAt>>()?;
+        crate::names::StableName {
+            kind: name.kind,
+            node: at,
+            path: vec![RoleSeg::Member {
+                at: values,
+                of: crate::names::NameRef::new(name.clone()),
+            }],
+        }
+    } else {
+        name.clone()
+    };
+    let name = crate::FaceName::new(name).ok()?;
+    Some(crate::node::SitedFace::new(at, name))
 }

@@ -131,7 +131,16 @@ pub fn stored_reading(
                 panic!("an operand read as given has no name: {name}")
             }
             crate::Operand::Select { body, names } => {
-                let body = given(doc, slot, body, read);
+                let read = given(doc, slot, &body.read, read);
+                let at = body
+                    .at
+                    .iter()
+                    .map(|index| {
+                        crate::edit::lower_slot_into(&mut doc.borrow_mut(), index)
+                            .expect("an index lowers as given")
+                    })
+                    .collect();
+                let body = crate::BodyRead { read, at };
                 crate::edit::selection_into(&mut doc.borrow_mut(), slot, body, names)
             }
             crate::Operand::Pick { placement, of } => {

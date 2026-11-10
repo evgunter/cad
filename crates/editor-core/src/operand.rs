@@ -39,13 +39,15 @@ pub enum Operand {
     /// A variable, by name.
     Name(VarName),
     /// **A selection authored at this seat** (D10): the entities `names`
-    /// names of the body `body` reads. The door mints one anonymous
-    /// selection variable of the seat's kind ([`crate::VarDef::Select`])
-    /// and the seat reads it, so a selection authored at two seats is
-    /// two variables; a seat shares one by reading it by id or name.
+    /// names of the body `body` reads — a body, or one member of a
+    /// family, `xs[i]`, whose names are the member's own. The door
+    /// mints one anonymous selection variable of the seat's kind
+    /// ([`crate::VarDef::Select`]) and the seat reads it, so a selection
+    /// authored at two seats is two variables; a seat shares one by
+    /// reading it by id or name.
     Select {
         /// The body read.
-        body: Box<Operand>,
+        body: Box<BodyRead<crate::Formula>>,
         /// The entities, by name.
         names: Vec<crate::names::StableName>,
     },
@@ -98,7 +100,7 @@ impl Operand {
     pub fn selected_names(&self) -> Vec<&crate::names::StableName> {
         match self {
             Self::Select { body, names } => {
-                let mut held = body.selected_names();
+                let mut held = body.read.selected_names();
                 held.extend(names);
                 held
             }
@@ -121,9 +123,13 @@ impl Operand {
         }
     }
 
-    /// The selection of `names` in the body `body` reads.
+    /// The selection of `names` in the body `body` reads: a plain read,
+    /// or one member of a family ([`BodyRead::indexed`]).
     #[must_use]
-    pub fn select(body: impl Into<Operand>, names: Vec<crate::names::StableName>) -> Self {
+    pub fn select(
+        body: impl Into<BodyRead<crate::Formula>>,
+        names: Vec<crate::names::StableName>,
+    ) -> Self {
         Self::Select {
             body: Box::new(body.into()),
             names,
@@ -138,9 +144,15 @@ impl core::fmt::Display for Operand {
             Self::Output { node, port } => write!(f, "port {port} of node {node}"),
             Self::Var(var) => write!(f, "{var}"),
             Self::Name(name) => write!(f, "{name}"),
-            Self::Select { body, names } => {
-                write!(f, "the selection of {} names in {body}", names.len())
-            }
+            Self::Select { body, names } => match body.at.len() {
+                0 => write!(f, "the selection of {} names in {}", names.len(), body.read),
+                _ => write!(
+                    f,
+                    "the selection of {} names in a member of {}",
+                    names.len(),
+                    body.read
+                ),
+            },
             Self::Pick { placement, of } => match of.as_slice() {
                 [piece] => write!(f, "the pick of {piece} in {placement}"),
                 _ => write!(f, "the pick of a {}-step path in {placement}", of.len()),
@@ -363,7 +375,12 @@ impl SlotKind {
     /// Whether `var` may sit here, by its kind.
     #[must_use]
     pub fn admits(self, var: &crate::Var) -> bool {
-        let kind = var.kind();
+        self.admits_kind(var.kind())
+    }
+
+    /// Whether a variable of `kind` may sit here.
+    #[must_use]
+    pub fn admits_kind(self, kind: VarKind) -> bool {
         match self {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
@@ -611,6 +628,8 @@ impl<S: crate::expr::Slot> BodyRead<S> {
         })
     }
 }
+
+impl<S: crate::expr::Slot + Eq> Eq for BodyRead<S> where S::Read: Eq {}
 
 impl<S: crate::expr::Slot> core::fmt::Debug for BodyRead<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

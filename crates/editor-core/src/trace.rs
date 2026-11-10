@@ -793,7 +793,7 @@ fn face_pick(
 ) -> Result<(&crate::Operand, &crate::StableName), TracedFrameFault> {
     match pick {
         crate::Operand::Select { body, names } => match names.as_slice() {
-            [name] => Ok((body, name)),
+            [name] if !body.is_indexed() => Ok((&body.read, name)),
             _ => Err(TracedFrameFault::NotAFace),
         },
         _ => Err(TracedFrameFault::NotAFace),

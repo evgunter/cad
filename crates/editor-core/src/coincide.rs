@@ -975,11 +975,11 @@ fn swept_tangent(
             let Some(traced) = leaves_along_a_trace(program, piece)
                 .and_then(|at| on.faces.get(at))
                 .and_then(|&read| {
-                    let select = doc.selection(read)?;
+                    let select = doc.selection(read).filter(|s| !s.body.is_indexed())?;
                     let [name] = select.names.as_slice() else {
                         return None;
                     };
-                    construction(doc, select.body, name, tol).ok()
+                    construction(doc, select.body.read, name, tol).ok()
                 })
             else {
                 return Traced::No;
@@ -1347,8 +1347,8 @@ fn plane<P: crate::ProfilePayload>(
         Some(PoseDef::Flip { pose }) => self::plane(doc, pose, tol),
         Some(PoseDef::Plane { face }) => {
             match doc.selection(*face).map(|s| (s, s.names.as_slice())) {
-                Some((select, [name])) => {
-                    construction(doc, select.body, name, tol).unwrap_or_else(|_| pose())
+                Some((select, [name])) if !select.body.is_indexed() => {
+                    construction(doc, select.body.read, name, tol).unwrap_or_else(|_| pose())
                 }
                 _ => pose(),
             }
@@ -1492,7 +1492,7 @@ pub fn construction<P: crate::ProfilePayload>(
 /// **The half of a split the read `read` reads**: the split's output
 /// port it is, through a selection of it. `None` for any other read.
 fn split_half<P>(doc: &crate::doc::Doc<P>, read: crate::VarId) -> Option<crate::SplitHalf> {
-    let read = doc.selection(read).map_or(read, |select| select.body);
+    let read = doc.selection(read).map_or(read, |select| select.body.read);
     match doc.var(read)?.def() {
         crate::var::VarDef::Output { port, .. } => crate::SplitHalf::ALL
             .into_iter()

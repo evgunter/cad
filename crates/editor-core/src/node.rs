@@ -3503,7 +3503,7 @@ impl<P> Node<P, crate::Formula> {
     /// bits do not depend on the order a user clicked in. The door mints
     /// the selection.
     pub fn fillet(
-        target: impl Into<crate::Operand>,
+        target: impl Into<crate::BodyRead<crate::Formula>>,
         radius: crate::Formula,
         selection: Vec<StableName>,
     ) -> Self {
@@ -3516,7 +3516,7 @@ impl<P> Node<P, crate::Formula> {
     /// Builds a [`Node::Chamfer`] over the selection of `selection` in
     /// the body `target` reads, as [`Node::fillet`] does.
     pub fn chamfer(
-        target: impl Into<crate::Operand>,
+        target: impl Into<crate::BodyRead<crate::Formula>>,
         distance: crate::Formula,
         selection: Vec<StableName>,
     ) -> Self {
@@ -3532,7 +3532,7 @@ impl<P> Node<P, crate::Formula> {
     /// designated face of a chart carries the rim's identity, so the
     /// order is authored data.
     pub fn shell(
-        target: impl Into<crate::Operand>,
+        target: impl Into<crate::BodyRead<crate::Formula>>,
         thickness: crate::Formula,
         open: Vec<StableName>,
     ) -> Self {
@@ -3561,7 +3561,10 @@ impl<P> Node<P, crate::Formula> {
 
 /// The `Edges` selection of `names` in the body `target` reads, in
 /// stored order.
-fn edges_of(target: impl Into<crate::Operand>, names: Vec<StableName>) -> crate::Operand {
+fn edges_of(
+    target: impl Into<crate::BodyRead<crate::Formula>>,
+    names: Vec<StableName>,
+) -> crate::Operand {
     crate::Operand::select(
         target,
         crate::var::Select::canonical(crate::VarKind::Edges, names),

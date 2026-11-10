@@ -1128,7 +1128,7 @@ impl<P> Doc<P> {
             crate::Operand::Output { node, port } => self.space_of(self.output(*node, *port)?),
             crate::Operand::Var(var) => self.space_of(*var),
             crate::Operand::Name(name) => self.space_of(self.var_named(name.as_str())?),
-            crate::Operand::Select { body, .. } => self.operand_space(body),
+            crate::Operand::Select { body, .. } => self.operand_space(&body.read),
             crate::Operand::Pick { placement, .. } => self.operand_space(placement),
             crate::Operand::Pose(def) => def
                 .reads()
@@ -1358,7 +1358,11 @@ impl<P> Doc<P> {
                 index.count.var_reads(&mut reads);
                 reads.extend(index.within.map(|within| (within, Dimension::Count)));
             }
-            Some(VarDef::Select(select)) => return vec![select.body],
+            Some(VarDef::Select(select)) => {
+                return core::iter::once(select.body.read)
+                    .chain(select.body.at.iter().copied())
+                    .collect();
+            }
             Some(VarDef::Pick(pick)) => return vec![pick.placement],
             Some(VarDef::Pose(def)) => {
                 let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
@@ -1988,7 +1992,7 @@ impl<P> Doc<P> {
             let Some(select) = var.select_mut() else {
                 continue;
             };
-            if select.body != body {
+            if select.body.read != body {
                 continue;
             }
             let mut here = 0usize;
@@ -2012,9 +2016,27 @@ impl<P> Doc<P> {
     /// `None` for a read this document does not resolve.
     pub fn read_operation(&self, var: VarId) -> Option<RecipeNodeId> {
         match self.selection(var) {
-            Some(select) => self.operation_of(select.body),
+            Some(select) => self.operation_of(select.body.read),
             None => self.operation_of(var),
         }
+    }
+
+    /// **A selection's body read as it was written, over `read`**: a
+    /// member read's indices each the formula it was written as
+    /// ([`Self::written`]), so a selection authored afresh over another
+    /// read of its body reads the same member.
+    pub(crate) fn written_body(
+        &self,
+        body: &crate::BodyRead<VarId>,
+        read: crate::Operand,
+    ) -> crate::BodyRead<crate::Formula> {
+        crate::BodyRead::indexed(
+            read,
+            body.at
+                .iter()
+                .map(|&index| self.written(&crate::Expr::var(index, Dimension::Count)))
+                .collect(),
+        )
     }
 
     /// **A read as it was written**: an anonymous selection as the
@@ -2027,7 +2049,10 @@ impl<P> Doc<P> {
         }
         match self.vars.get(&var).map(Var::def) {
             Some(VarDef::Select(select)) => {
-                crate::Operand::select(crate::Operand::Var(select.body), select.names.clone())
+                crate::Operand::select(
+                    self.written_body(&select.body, crate::Operand::Var(select.body.read)),
+                    select.names.clone(),
+                )
             }
             Some(VarDef::Pose(def)) => {
                 let written = def.try_map(
@@ -2090,7 +2115,7 @@ impl<P> Doc<P> {
             // alone ([`Self::spaces_read`]).
             _ if space_definer(held).is_some() => None,
             VarDef::Output { node, port } => Some((*node, *port)),
-            VarDef::Select(select) => self.defined_by(select.body),
+            VarDef::Select(select) => self.defined_by(select.body.read),
             VarDef::Pick(pick) => self.defined_by(pick.placement),
             VarDef::Pose(def) => {
                 for (_, &read, _, _) in def.reads() {
@@ -2119,9 +2144,9 @@ impl<P> Doc<P> {
         match held.def() {
             VarDef::Output { .. } => self.operation_of(var).is_none().then_some(var),
             VarDef::Select(select) => self
-                .operation_of(select.body)
+                .operation_of(select.body.read)
                 .is_none()
-                .then_some(select.body),
+                .then_some(select.body.read),
             VarDef::Pick(pick) => self.unresolved_read(pick.placement),
             VarDef::Pose(def) => def
                 .reads()
@@ -2241,7 +2266,7 @@ impl<P> Doc<P> {
                 let read = self
                     .var(var)
                     .and_then(|held| held.def().select())
-                    .map_or(var, |select| select.body);
+                    .map_or(var, |select| select.body.read);
                 let fed = out.entry(read).or_default();
                 for &output in &outputs {
                     if !fed.contains(&output) {
@@ -3411,7 +3436,7 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
         match held.def() {
             _ if space_definer(held).is_some() => None,
             VarDef::Output { node, .. } => self.node(*node),
-            VarDef::Select(select) => self.var(select.body),
+            VarDef::Select(select) => self.var(select.body.read),
             // A piece of a copy is where the copy is.
             VarDef::Pick(pick) => self.var(pick.placement),
             // A pose is in the first space it reaches.

@@ -386,7 +386,7 @@ fn the_door_lowers_names_before_it_mints() {
         panic!("a fillet");
     };
     let picked = doc.selection(selection).cloned().expect("a selection");
-    let (target, selection) = (picked.body, picked.names);
+    let (target, selection) = (picked.body.read, picked.names);
     let by_name = Node::fillet(target, named("w"), selection.clone());
     let by_id = Node::fillet(
         target,

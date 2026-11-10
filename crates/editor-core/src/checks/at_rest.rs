@@ -422,12 +422,14 @@ impl Saying {
         if self.cells.contains(&RowCell::Tool(var)) {
             return Some((RowCell::Tool(var), None));
         }
+        // A member read's names are its member's, which no row's cell
+        // spells: the reference is no cell of a row.
         let selected = |var: VarId| {
-            let select = doc.selection(var)?;
+            let select = doc.selection(var).filter(|select| !select.body.is_indexed())?;
             let [name] = select.names.as_slice() else {
                 return None;
             };
-            Some(RowCell::Entity(select.body, name.clone()))
+            Some(RowCell::Entity(select.body.read, name.clone()))
         };
         if let Some(cell) = selected(var) {
             return Some((cell, None));
@@ -951,16 +953,18 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
         return Vec::new();
     };
     let face_of = |var: VarId, at: &crate::names::MemberAt| -> Option<(usize, FaceKey)> {
-        let select = doc.selection(var)?;
+        // A member read names no copy the product gathers by its read.
+        let select = doc.selection(var).filter(|select| !select.body.is_indexed())?;
+        let body = select.body.read;
         let [name] = select.names.as_slice() else {
             return None;
         };
-        let name = &member_name(doc, select.body, name, at);
+        let name = &member_name(doc, body, name, at);
         // The selection reads the copy, by the copy's own name; the
         // product's `⊔` keys that name by the copy it read.
         let entry = names.lookup(name).or_else(|| {
             names.iter().find_map(|(held, entry)| {
-                (keyed_by(held, select.body) == Some(name)).then_some(entry)
+                (keyed_by(held, body) == Some(name)).then_some(entry)
             })
         });
         let Some(Entry::Unique(EntityRef {
@@ -973,7 +977,7 @@ pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestP
         let solid = aggregate.solid_of_face(*face)?;
         let copy = copies
             .iter()
-            .position(|c| c.var == select.body && c.keys.solids().contains(&solid))?;
+            .position(|c| c.var == body && c.keys.solids().contains(&solid))?;
         Some((copy, *face))
     };
     let mut out = Vec::new();

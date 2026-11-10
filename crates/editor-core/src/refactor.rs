@@ -719,7 +719,7 @@ fn remap_with_selects(
     // the target (or as the one an earlier reader carried).
     let pose = |var: VarId| pose_def(source, var).is_some();
     let rd = |slot: crate::OperandSlot, var: VarId| match source.selection(var) {
-        Some(select) => rd_output(slot, select.body).map(|_| var),
+        Some(select) => rd_output(slot, select.body.read).map(|_| var),
         None if pose(var) => Ok(var),
         None => rd_output(slot, var),
     };
@@ -746,20 +746,49 @@ fn remap_with_selects(
         })
     };
     let mut selects: BTreeMap<VarId, crate::Operand> = BTreeMap::new();
-    // A selection authored afresh over its carried body, its names
+    // A formula re-pointed at the variables the target holds.
+    let mapped = |slot: crate::OperandSlot, var: VarId, formula: Formula| {
+        let mut missed = None;
+        let mapped = formula.substitute_vars(&mut |read| {
+            let dim = kind_of(source, read)?;
+            match vars.map.get(&read) {
+                Some(&held) => Some(Formula::from(&crate::Expr::var(held, dim))),
+                None => {
+                    missed.get_or_insert(read);
+                    None
+                }
+            }
+        });
+        match (mapped, missed) {
+            (Ok(mapped), None) => Ok(mapped),
+            (_, missed) => Err(RemapMiss::Read {
+                slot,
+                var: missed.unwrap_or(var),
+                output: false,
+            }),
+        }
+    };
+    // A selection authored afresh over its carried body, a member read's
+    // indices written as the source wrote them and re-pointed, its names
     // remapped.
     let reselected = |slot: crate::OperandSlot, var: VarId| -> Result<crate::Operand, RemapMiss> {
         let Some(select) = source.selection(var) else {
             unreachable!("asked of a selection")
         };
-        let body = rd_output(slot, select.body)?;
+        let body = rd_output(slot, select.body.read)?;
+        let at = source
+            .written_body(&select.body, crate::Operand::Var(body))
+            .at
+            .into_iter()
+            .map(|index| mapped(slot, var, index))
+            .collect::<Result<Vec<_>, _>>()?;
         let names = select
             .names
             .iter()
-            .map(|n| carried_name(n, select.body))
+            .map(|n| carried_name(n, select.body.read))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(crate::Operand::select(
-            crate::Operand::Var(body),
+            crate::BodyRead::indexed(crate::Operand::Var(body), at),
             crate::var::Select::canonical(selection_kind(source, var), names),
         ))
     };
@@ -782,51 +811,19 @@ fn remap_with_selects(
                 }
                 rd_output(slot, leaf).map(|carried| Some(crate::Operand::Var(carried)))
             };
-            let mut scalar = |formula: Formula| -> Result<Formula, RemapMiss> {
-                let mut missed = None;
-                let mapped = formula.substitute_vars(&mut |read| {
-                    let dim = kind_of(source, read)?;
-                    match vars.map.get(&read) {
-                        Some(&held) => Some(Formula::from(&crate::Expr::var(held, dim))),
-                        None => {
-                            missed.get_or_insert(read);
-                            None
-                        }
-                    }
-                });
-                match (mapped, missed) {
-                    (Ok(mapped), None) => Ok(mapped),
-                    (_, missed) => Err(RemapMiss::Read {
-                        slot,
-                        var: missed.unwrap_or(var),
-                        output: false,
-                    }),
-                }
-            };
+            let mut scalar = |formula: Formula| mapped(slot, var, formula);
             selects.insert(
                 var,
                 rewritten_pose_with(source, var, &mut leaf, &mut scalar, true)?,
             );
             continue;
         }
-        let Some(select) = source.selection(var) else {
+        if source.selection(var).is_none() {
             continue;
-        };
+        }
         let operand = match vars.map.get(&var) {
             Some(&held) => crate::Operand::Var(held),
-            None => {
-                let body = rd_output(slot, select.body)?;
-                let names = select
-                    .names
-                    .iter()
-                    .map(|n| carried_name(n, select.body))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let kind = selection_kind(source, var);
-                crate::Operand::select(
-                    crate::Operand::Var(body),
-                    crate::var::Select::canonical(kind, names),
-                )
-            }
+            None => reselected(slot, var)?,
         };
         selects.insert(var, operand);
     }
@@ -2901,7 +2898,7 @@ pub fn split(
     let carrier_part = |carrier: NameCarrier<'_>| -> Option<RecipeNodeId> {
         let body = match carrier {
             NameCarrier::Store { body, .. } => body,
-            NameCarrier::Select { var, .. } => doc.selection(var)?.body,
+            NameCarrier::Select { var, .. } => doc.selection(var)?.body.read,
             NameCarrier::Payload { .. } => return None,
         };
         (doc.operation_of(body) != Some(carrier.name().node))
@@ -3011,7 +3008,8 @@ pub fn split(
                     let carries = |leaf: VarId| {
                         doc.var_name(leaf).is_none()
                             && doc.selection(leaf).is_some_and(|select| {
-                                doc.operation_of(select.body).is_some_and(|at| {
+                                !select.body.is_indexed()
+                                    && doc.operation_of(select.body.read).is_some_and(|at| {
                                     select.names.iter().all(|name| holds(name, at))
                                 })
                             })
@@ -3025,12 +3023,16 @@ pub fn split(
                     }
                     continue;
                 }
+                // A member read crosses no cut: a copy's part holds no
+                // member read to author it over.
                 let (body, crosses) = match doc.selection(var) {
                     Some(select) => (
-                        select.body,
-                        doc.operation_of(select.body).is_some_and(|at| {
-                            cut.contains(&at) && select.names.iter().all(|name| holds(name, at))
-                        }),
+                        select.body.read,
+                        !select.body.is_indexed()
+                            && doc.operation_of(select.body.read).is_some_and(|at| {
+                                cut.contains(&at)
+                                    && select.names.iter().all(|name| holds(name, at))
+                            }),
                     ),
                     None => match heir_of(node, slot, var) {
                         Ok(Some(heir)) => {
@@ -3098,7 +3100,7 @@ pub fn split(
         let Some(select) = doc.selection(var) else {
             continue;
         };
-        let body = doc.operation_of(select.body);
+        let body = doc.operation_of(select.body.read);
         for name in &select.names {
             if let Some((placement, true)) = home(name, body)
                 && !places_at_identity(placement)
@@ -3644,7 +3646,7 @@ pub fn split(
                     select
                         .names
                         .iter()
-                        .map(|name| in_part(name, doc.operation_of(select.body)))
+                        .map(|name| in_part(name, doc.operation_of(select.body.read)))
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
             )),
@@ -3705,7 +3707,7 @@ pub fn split(
                     select
                         .names
                         .iter()
-                        .map(|name| in_part(name, doc.operation_of(select.body)))
+                        .map(|name| in_part(name, doc.operation_of(select.body.read)))
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
             )))
@@ -4019,13 +4021,13 @@ pub fn inline(
             if let Some(leaves) = pose_leaves(doc, var) {
                 if leaves
                     .iter()
-                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| reads_instance(s.body)))
+                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| reads_instance(s.body.read)))
                 {
                     pose_readers.push((id, slot, var));
                 }
                 continue;
             }
-            let body = doc.selection(var).map_or(var, |select| select.body);
+            let body = doc.selection(var).map_or(var, |select| select.body.read);
             if reads_instance(body) {
                 readers.push((id, slot, var));
             }
@@ -4215,7 +4217,7 @@ pub fn inline(
             continue;
         }
         let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
-            let Some(select) = doc.selection(leaf).filter(|s| s.body == copies) else {
+            let Some(select) = doc.selection(leaf).filter(|s| s.body.read == copies) else {
                 return Ok(None);
             };
             let names = select
@@ -4224,7 +4226,7 @@ pub fn inline(
                 .map(&to_host)
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(Some(crate::Operand::select(
-                crate::Operand::Var(spliced),
+                doc.written_body(&select.body, crate::Operand::Var(spliced)),
                 crate::var::Select::canonical(selection_kind(doc, leaf), names),
             )))
         };
@@ -4310,7 +4312,7 @@ pub fn inline(
     let mut moved: BTreeMap<StableName, StableName> = BTreeMap::new();
     for carrier in doc.name_carriers() {
         let read_in = match carrier {
-            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body),
+            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body.read),
             NameCarrier::Store { body, .. } => Some(body),
             NameCarrier::Payload { .. } => None,
         };
@@ -4357,7 +4359,7 @@ pub fn inline(
             unreachable!("a selection reader reads a selection")
         };
         Ok(crate::Operand::select(
-            host_body(select.body),
+            doc.written_body(&select.body, host_body(select.body.read)),
             crate::var::Select::canonical(
                 selection_kind(doc, var),
                 select
@@ -4405,7 +4407,7 @@ pub fn inline(
         for &(node, slot, var) in &pose_readers {
             let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, InlineError> {
                 match doc.selection(leaf) {
-                    Some(select) if reads_instance(select.body) => reselect(leaf).map(Some),
+                    Some(select) if reads_instance(select.body.read) => reselect(leaf).map(Some),
                     _ => Ok(None),
                 }
             };
@@ -4611,7 +4613,7 @@ pub(crate) fn rebinds_at_sites<P: crate::ProfilePayload>(
     for carrier in doc.name_carriers() {
         let site = match carrier {
             NameCarrier::Select { var, .. } => match doc.selection(var) {
-                Some(select) => Some(select.body),
+                Some(select) => Some(select.body.read),
                 None => continue,
             },
             NameCarrier::Payload { .. } | NameCarrier::Store { .. } => None,
@@ -4783,7 +4785,7 @@ pub fn flatten(
             }
             _ => None,
         };
-        if select.body == copy
+        if select.body == crate::BodyRead::plain(copy)
             && let Some(members) = names.iter().map(member).collect::<Option<Vec<_>>>()
             && let Some(&(read, _)) = members.first()
             && members.iter().all(|(r, _)| *r == read)
@@ -4797,7 +4799,7 @@ pub fn flatten(
             ));
         }
         Ok(crate::Operand::select(
-            in_source(select.body),
+            doc.written_body(&select.body, in_source(select.body.read)),
             crate::var::Select::canonical(selection_kind(doc, var), names),
         ))
     };
@@ -4811,18 +4813,20 @@ pub fn flatten(
             let value = if let Some(leaves) = pose_leaves(doc, var) {
                 if !leaves
                     .iter()
-                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| reads_copy(s.body)))
+                    .any(|&leaf| doc.selection(leaf).is_some_and(|s| reads_copy(s.body.read)))
                 {
                     continue;
                 }
                 let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, FlattenError> {
                     match doc.selection(leaf) {
-                        Some(select) if reads_copy(select.body) => reselect(leaf, id).map(Some),
+                        Some(select) if reads_copy(select.body.read) => {
+                            reselect(leaf, id).map(Some)
+                        }
                         _ => Ok(None),
                     }
                 };
                 crate::SlotValue::Read(rewritten_pose(doc, var, &mut leaf)?)
-            } else if doc.selection(var).is_some_and(|s| reads_copy(s.body)) {
+            } else if doc.selection(var).is_some_and(|s| reads_copy(s.body.read)) {
                 match reauthored.get(&var) {
                     Some(&fresh) => crate::SlotValue::Read(crate::Operand::Var(fresh)),
                     None => crate::SlotValue::Read(reselect(var, id)?),
@@ -4841,7 +4845,7 @@ pub fn flatten(
                     fresh: Vec::new(),
                 },
             )?;
-            if doc.selection(var).is_some_and(|s| reads_copy(s.body))
+            if doc.selection(var).is_some_and(|s| reads_copy(s.body.read))
                 && !reauthored.contains_key(&var)
             {
                 let fresh = read_at(current.doc(), id, slot);
@@ -4914,7 +4918,9 @@ pub fn flatten(
                     node.operand_rows().into_iter().any(|(_, read)| {
                         let reads = |read: VarId| {
                             read == var
-                                || doc.selection(read).is_some_and(|select| select.body == var)
+                                || doc
+                                    .selection(read)
+                                    .is_some_and(|select| select.body.read == var)
                                 || doc.pick(read).is_some_and(|pick| pick.placement == var)
                         };
                         // A pose reads its leaves.

@@ -146,7 +146,13 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
                 }
             }
             Some(VarDef::Output { node, .. }) => out = self.of_node(*node),
-            Some(VarDef::Select(select)) if names_members(doc, select) => {}
+            // A member read takes its family whole: the selection
+            // reaches what its indices reach.
+            Some(VarDef::Select(select)) if select.body.is_indexed() => {
+                for &index in &select.body.at {
+                    out.extend(self.of_var(index));
+                }
+            }
             Some(VarDef::Defined(_) | VarDef::Pose(_) | VarDef::Select(_) | VarDef::Pick(_)) => {
                 for read in doc.definition_reads(var) {
                     out.extend(self.of_var(read));
@@ -252,29 +258,6 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
         }
         false
     }
-}
-
-/// **Whether `select` names members of the family it reads**: every
-/// name headed at the body's operation under a `Member` qualifier, the
-/// family's own spelling of one member's entity. Such a selection reads
-/// the family whole; one whose names are a member's own is read at each
-/// member by a reader evaluated per member.
-pub(crate) fn names_members<P>(doc: &Doc<P>, select: &crate::var::Select) -> bool {
-    let Some(at) = doc.operation_of(select.body) else {
-        return false;
-    };
-    !select.names.is_empty() && select.names.iter().all(|name| names_a_member(name, at))
-}
-
-/// Whether `name` names an entity of one of the members of the family
-/// the operation `at` defines: headed at `at` under a `Member`
-/// qualifier.
-pub(crate) fn names_a_member(name: &crate::names::StableName, at: RecipeNodeId) -> bool {
-    name.node == at
-        && matches!(
-            name.path.first(),
-            Some(crate::names::RoleSeg::Member { .. })
-        )
 }
 
 /// Whether `node` reads the variable at `seat` as a family whole: a

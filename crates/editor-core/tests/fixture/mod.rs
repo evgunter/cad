@@ -268,7 +268,7 @@ pub fn side_placement(doc: &ProfileDoc, side: &editor_core::Operand) -> Option<R
     let editor_core::Operand::Select { body, .. } = side else {
         return None;
     };
-    let at = match body.as_ref() {
+    let at = match &body.read {
         editor_core::Operand::Node(at) | editor_core::Operand::Output { node: at, .. } => *at,
         editor_core::Operand::Var(var) => doc.operation_of(*var)?,
         editor_core::Operand::Name(name) => doc.operation_of(doc.var_named(name.as_str())?)?,
@@ -321,7 +321,7 @@ pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeN
         let editor_core::Operand::Select { body, .. } = select else {
             continue;
         };
-        let read = match body.as_ref() {
+        let read = match &body.read {
             editor_core::Operand::Node(at) | editor_core::Operand::Output { node: at, .. } => {
                 Some(*at)
             }
@@ -928,7 +928,7 @@ pub fn authored_head(side: &editor_core::Operand) -> editor_core::SitedFace {
     let editor_core::Operand::Select { body, names } = side else {
         panic!("an authored side is a selection, got {side:?}")
     };
-    let editor_core::Operand::Node(at) = **body else {
+    let editor_core::Operand::Node(at) = body.read else {
         panic!("an authored side is read at a node, got {body:?}")
     };
     let [name] = names.as_slice() else {
@@ -3849,7 +3849,7 @@ pub fn body_selecting(doc: &ProfileDoc, name: &StableName) -> Option<editor_core
         .values()
         .filter_map(|var| var.def().select())
         .filter(|select| select.names.contains(name))
-        .map(|select| select.body)
+        .map(|select| select.body.read)
         .collect();
     let [one] = bodies.as_slice() else {
         panic!("one selection names {name:?}, not {bodies:?}");
