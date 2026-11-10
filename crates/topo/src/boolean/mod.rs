@@ -8418,10 +8418,8 @@ fn locus_through_both_faces<T: Decide>(
                     face,
                     kind,
                 },
-                FaceUnread::Placement(contain::PlacementError::OnPlane(diag)) => refused(diag),
-                FaceUnread::Placement(contain::PlacementError::Door(e)) => {
-                    reduce::esc(e, operand, face)
-                }
+                FaceUnread::Placement(e) => reduce::esc(e, operand, face),
+                FaceUnread::Fault(what) => BooleanError::ClassificationInvariant { what },
                 FaceUnread::Boundary(refusal) => match refusal {
                     geom_brep::curve_face::BoundaryRefusal::Escalated(diag)
                     | geom_brep::curve_face::BoundaryRefusal::Met(
@@ -8455,13 +8453,17 @@ fn locus_through_both_faces<T: Decide>(
     })
 }
 
+/// [`FaceUnread::Fault`]'s invariant where a station of the locus reads
+/// off a face's carrier.
+pub(crate) const STATION_OFF_CARRIER: &str = "a station of a tangent locus is off a face's carrier";
+
 /// Why one face left a point of a tangent line unread
 /// ([`line_through_both_faces`]).
 pub(crate) enum FaceUnread {
     /// A curved trim the chart door gives no verdict for.
     Trim,
     /// The placement's own refusal.
-    Placement(contain::PlacementError),
+    Placement(contain::ContainError),
     /// The boundary pass's refusal of the locus against the face's
     /// boundary ([`boundary_cuts`]): over a member's window, or over the
     /// whole face where the pass faults, its meetings, so the runs, are
@@ -8470,11 +8472,20 @@ pub(crate) enum FaceUnread {
     /// An edge of the face's boundary holds no certified curve, which the
     /// boundary pass cannot read.
     Uncertified,
+    /// A premise of the caller's broken, the kernel's invariant it names:
+    /// a station of the tangent locus read definitely off a face's
+    /// carrier, which the locus lies on.
+    Fault(&'static str),
 }
 
 /// **Whether a tangent line runs through two faces' interiors**: some
-/// point of it over `overlap` lies strictly inside both faces
-/// ([`contain::face_placement`], a point off a face's carrier out). The
+/// point of it over `overlap` lies strictly inside both faces. The
+/// locus is a tangent line of the pair, on both faces' carriers (the
+/// op's verified touch, the rest pair's derived line), so each station
+/// is held on them ([`crate::held::Held::constructed`]) and placed with
+/// no on-plane decision ([`contain::placement_on_carrier`]); a station
+/// read definitely off a carrier breaks that premise
+/// ([`FaceUnread::Fault`]). The
 /// one reading the op's glue door ([`locus_through_both_faces`]) and
 /// the census's face–face confirm (`census::confirm_face_pair`) make
 /// of it.
@@ -8516,10 +8527,11 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     use contain::CurvedPlacement;
     let inside = |i: usize, p, held: &mut Vec<E>| {
         let (body, face) = faces[i];
-        let why = match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
-            Ok(CurvedPlacement::Trim(Some(at))) => return Some(at == FaceContainment::In),
-            Ok(CurvedPlacement::OffCarrier) => return Some(false),
-            Ok(CurvedPlacement::Trim(None)) => FaceUnread::Trim,
+        let station = crate::held::Held::constructed(p, "a station of a tangent locus");
+        let why = match contain::placement_on_carrier(body, face, station, band) {
+            Ok((CurvedPlacement::Trim(Some(at)), ..)) => return Some(at == FaceContainment::In),
+            Ok((CurvedPlacement::OffCarrier, ..)) => FaceUnread::Fault(STATION_OFF_CARRIER),
+            Ok((CurvedPlacement::Trim(None), ..)) => FaceUnread::Trim,
             Err(e) => FaceUnread::Placement(e),
         };
         unread(i, why, held);
@@ -8911,9 +8923,8 @@ mod tests {
     /// carrier** ([`locus_through_both_faces`]): two cylinder sheets
     /// tangent from outside along the ruling `x = 1, y = 0`. Where both
     /// sheets' trims hold that ruling the line runs through both
-    /// interiors; where one sheet's trim stops short of it, or the line
-    /// is off one sheet's carrier, it does not. A read of plane faces
-    /// alone answers `false` for the first.
+    /// interiors; where one sheet's trim stops short of it, it does not.
+    /// A read of plane faces alone answers `false` for the first.
     #[test]
     fn the_interiors_read_places_a_tangent_line_on_two_curved_faces() {
         use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
@@ -8937,13 +8948,11 @@ mod tests {
         let a = sheet(Point3::origin(), -Vec3::unit_y(), near);
         let b_in = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), near);
         let b_short = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), (2.2, 3.0));
-        let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y(), near);
         let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
         let kind = geom::SurfaceKind::Cylinder;
         for (what, b, want) in [
             ("both trims hold the ruling", &b_in, true),
             ("B's trim stops short of it", &b_short, false),
-            ("the line is off B's carrier", &b_apart, false),
         ] {
             let got = locus_through_both_faces(
                 [(&a.0, a.1, Operand::A, kind), (&b.0, b.1, Operand::B, kind)],
@@ -8954,6 +8963,60 @@ mod tests {
             );
             assert_eq!(got.ok(), Some(want), "{what}");
         }
+    }
+
+    /// **A locus off a face's carrier breaks the read's premise**
+    /// ([`line_through_both_faces`]): its stations are held on both
+    /// faces' carriers, the locus a tangent line of the pair, so a line
+    /// fed 0.5 off B's cylinder is a defect, not a reading. A debug
+    /// build stops at the held point's own check ([`crate::held::Held`]);
+    /// a release build answers the invariant
+    /// ([`STATION_OFF_CARRIER`]).
+    #[test]
+    #[cfg_attr(
+        debug_assertions,
+        should_panic(expected = "constructed as a station of a tangent locus")
+    )]
+    fn a_tangent_locus_off_a_faces_carrier_is_a_defect() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        use geom_core::Vec3;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let sheet = |origin: Point3<f64>, u_ref: Vec3<f64>| {
+            let mut body = Body::<f64>::new();
+            let frame = CylFrame {
+                origin,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref,
+            };
+            let face = cyl_wall_sheet(&mut body, frame, (1.0, 2.1), (0.0, 1.0), tol);
+            crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
+            (body, face)
+        };
+        let a = sheet(Point3::origin(), -Vec3::unit_y());
+        let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let kind = geom::SurfaceKind::Cylinder;
+        let got = locus_through_both_faces(
+            [
+                (&a.0, a.1, Operand::A, kind),
+                (&b_apart.0, b_apart.1, Operand::B, kind),
+            ],
+            &line,
+            (0.2, 0.8),
+            DeclarationRead::Moot,
+            band,
+        );
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::ClassificationInvariant {
+                    what: STATION_OFF_CARRIER
+                })
+            ),
+            "release: the invariant: {got:?}"
+        );
     }
 
     /// **A tangency along a curve gives cover only where it is a global

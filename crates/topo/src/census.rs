@@ -7063,12 +7063,16 @@ fn line_unread(
                        not read",
             },
         )),
-        crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::OnPlane(cause)) => {
-            held.push(ValidationError::CensusEscalated { cause });
-        }
-        crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
+        crate::boolean::FaceUnread::Placement(e) => {
             read_containment([a, b][i], Err::<(), _>(e), held);
         }
+        crate::boolean::FaceUnread::Fault(what) => census_fault(
+            format_args!(
+                "face {:?} of the two-carrier pair ({a:?}, {b:?})",
+                [a, b][i]
+            ),
+            what,
+        ),
         crate::boolean::FaceUnread::Boundary(refusal) => {
             use geom_brep::curve_face::BoundaryRefusal;
             held.push(match refusal {
