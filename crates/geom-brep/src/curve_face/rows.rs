@@ -492,7 +492,10 @@ fn every_door_name_carries_a_listed_prefix() {
         predicate_census(&src.join("curve_face"), &carriers),
     );
     assert!(
-        table.indirect.is_empty() && table.unreadable.is_empty() && table.unwalked.is_empty(),
+        table.indirect.is_empty()
+            && table.consts.is_empty()
+            && table.unreadable.is_empty()
+            && table.unwalked.is_empty(),
         "curve_face.rs holds a site the census could not read: {table:?}"
     );
     assert!(
@@ -512,29 +515,37 @@ fn every_door_name_carries_a_listed_prefix() {
         census.unwalked
     );
     // The sites whose name is not a literal there: `circle_roots`' rows,
-    // which its callers name; the carriers' own bodies (`row`, a
-    // declared const read as such); and `gap(…)` calls that are not the
+    // which its callers name; the carriers' own bodies (`row`); and
+    // `gap(…)` calls that are not the
     // spline door's gap reading. A new one is a name this row cannot
     // see, so it reds until it is read or listed.
     let indirect: Vec<&str> = census.indirect.iter().map(String::as_str).collect();
     assert_eq!(
         indirect,
         [
-            "circle_roots.rs: (c0, a1 + noise, rows.extreme, band)",
-            "circle_roots.rs: (row, value, spread, band)",
+            "circle_roots.rs: c0",
+            "circle_roots.rs: row",
             "circle_roots.rs: rows.coaxial",
             "circle_roots.rs: rows.noise",
             "circle_roots.rs: rows.root_slack",
-            "composite.rs: PAST_THE_BAND",
             "composite.rs: row",
-            "spline_face.rs: (exact(m[0]), w)",
-            "spline_face.rs: (x.interval(0), w)",
+            "spline_face.rs: exact(m[0])",
+            "spline_face.rs: row",
+            "spline_face.rs: x.interval(0)",
+        ],
+        "the census's indirect sites"
+    );
+    // The sites whose name is a declared const, each read out of its
+    // carrier above.
+    assert_eq!(
+        census.consts.iter().map(String::as_str).collect::<Vec<_>>(),
+        [
+            "composite.rs: PAST_THE_BAND",
             "spline_face.rs: AT_THE_END",
             "spline_face.rs: PAST_THE_BAND",
             "spline_face.rs: PAST_THE_END",
-            "spline_face.rs: row",
         ],
-        "the census's indirect sites"
+        "the census's const sites"
     );
     let outside: Vec<&String> = census
         .names

@@ -4,10 +4,12 @@
 //! conic's are the roots of the plane's residual along it, read over the
 //! span; a spiric or a spline has no closed form here.
 
-use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
+use geom_core::NonzeroSign;
+use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
+use crate::curve_pair::{Place, Span};
 use crate::edge_crossing::CrossingDecision;
 
 /// Which lane finds where a carrier's span crosses a plane
@@ -124,25 +126,27 @@ impl ConicRootFault {
 ///    insertion (if in-span) leaves a same-side ON contact for the
 ///    sector classification (the established graze net); in-band ⇒
 ///    typed escalation (F6).
-/// 2. Each root, re-centred on the span's midpoint (retried on `t₀`
-///    where that reading is indeterminate), is classified
-///    against the span by `plane_crossing_root_in_span` — the two
-///    margins `(t − t₀)·meter` and `(t₁ − t)·meter` (meters at the
-///    conservative minor-semi-axis meter): both Positive ⇒ a genuine
-///    interior crossing (returned for insertion); any Zero ⇒ the root
-///    sits at an existing endpoint vertex (the ON-endpoint belly case
-///    — the vertex sweep already recorded it, nothing to insert); any
-///    Negative ⇒ outside the span; in-band ⇒ typed escalation (the
-///    crossing grazes an edge end — an ill-conditioned operand/plane
-///    pair).
-/// 3. Two interior roots are ordered ascending through
-///    `plane_crossing_root_order` (never a raw comparison); ε-close
-///    roots collapse to one insertion (Zero) or escalate (in-band).
+/// 2. Each root, re-centred on the span's midpoint, is classified
+///    against the span by the span's own reading of a parameter
+///    ([`crate::curve_pair::Span::place_param`]): the root's point
+///    within the band of an end's point, by their chord, sits at that
+///    endpoint vertex (the ON-endpoint belly case — the vertex sweep
+///    already recorded it, nothing to insert); otherwise the parameter's
+///    side of each end decides, inside ⇒ a genuine interior crossing
+///    (returned for insertion), past ⇒ outside the span; in-band ⇒
+///    typed escalation (the crossing grazes an edge end — an
+///    ill-conditioned operand/plane pair). A parameter span metered at
+///    one speed would put a root up to the speeds' ratio past the band
+///    at a thin ellipse's fast end.
+/// 3. Two interior roots whose points are within the band of each
+///    other, by their chord (`plane_crossing_roots_apart`), collapse to
+///    one insertion; apart, they are ordered ascending by their
+///    parameters (never a raw comparison); in-band ⇒ escalation.
 ///
 /// **What a caller may assume of a root**: it is the closed form's root
 /// at the scalar's rounding, decided strictly inside `[t0, t1]` (its
-/// distance from each end, metered at the smaller semi-axis, decided
-/// positive), and the roots are ascending and decided apart. It is not a point certified on the
+/// point's chord to each end past the band, and inside by its
+/// parameter), and the roots are ascending and decided apart. It is not a point certified on the
 /// plane, and the door certifies nothing about the edge it lies on: a
 /// caller that splits an edge at one decides that split's own
 /// interiority and certifies the pieces itself.
@@ -157,8 +161,7 @@ pub fn plane_crossing_lane<T: Decide>(
     match (carrier.conic(), carrier) {
         (Some(conic), _) => PlaneCrossingLane::Conic(conic_plane_meet(
             conic,
-            t0,
-            t1,
+            &Span::new(carrier, (t0, t1)),
             plane_origin,
             plane_normal,
             band,
@@ -171,19 +174,18 @@ pub fn plane_crossing_lane<T: Decide>(
 /// The conic arm of [`plane_crossing_lane`].
 fn conic_plane_meet<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    t0: T,
-    t1: T,
+    span: &Span<'_, T>,
     plane_origin: geom_core::Point3<T>,
     plane_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> ConicPlaneMeet<T> {
+    let (t0, t1) = span.params();
     let near = geom::mid_param(t0, t1);
     let candidates = match conic_plane_candidates(conic, plane_origin, plane_normal, near, band) {
         Ok((candidates, _)) => candidates,
         Err(meet) => return meet,
     };
-    let (s_u, s_v) = conic.semi_axes();
-    span_roots(candidates, t0, t1, s_u, s_v, band)
+    span_roots(candidates, span, band)
 }
 
 /// **The carrier half of [`conic_plane_meet`]**: where the whole conic
@@ -277,19 +279,16 @@ fn conic_plane_candidates<T: Decide>(
 /// `[t0, t1]`, ascending.
 fn span_roots<T: Decide>(
     candidates: [Option<T>; 2],
-    t0: T,
-    t1: T,
-    s_u: T,
-    s_v: T,
+    span: &Span<'_, T>,
     band: Band,
 ) -> ConicPlaneMeet<T> {
-    let meter = conic_meter(s_u, s_v);
+    let (t0, t1) = span.params();
     let mut roots: Vec<T> = Vec::with_capacity(2);
     // A root at an endpoint vertex (already swept) or outside the span
     // has nothing to insert; an undecided one is the root's own and
     // escalates (F6).
     for t in near_span(candidates, (t0, t1)) {
-        match span_place(t, (t0, t1), meter, band) {
+        match span_place(span, t, band) {
             Some(RootPlace::Inside) => roots.push(t),
             Some(RootPlace::AtEnd) | None => {}
             Some(RootPlace::Undecided(diag)) => {
@@ -297,21 +296,28 @@ fn span_roots<T: Decide>(
             }
         }
     }
-    // Ascending insertion order, decided through the trilean door
-    // (never a raw scalar comparison).
+    // Two roots whose points are within the band of each other, by their
+    // chord as an end is read, are one: a graze the graze margin called
+    // Positive, inserted once. Otherwise they are ordered ascending by
+    // their parameters, through the trilean door.
     if roots.len() == 2 {
-        match decide(
-            "plane_crossing_root_order",
-            Margin::metered(roots[1] - roots[0], meter),
-            band,
-        ) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Negative) => roots.swap(0, 1),
-            // Coincident-but-both-interior roots: a graze the graze
-            // margin called Positive — insert once.
-            Ok(Sign::Zero) => {
-                roots.truncate(1);
-            }
+        let chord = span.carrier().eval(roots[1]) - span.carrier().eval(roots[0]);
+        match decide("plane_crossing_roots_apart", Margin::norm3(chord), band) {
+            Ok(Sign::Zero) => roots.truncate(1),
+            // Apart past the band by their chord, so by their parameters
+            // at the carrier's greatest speed (a chord is at most its arc).
+            Ok(Sign::Positive | Sign::Negative) => match decide(
+                "plane_crossing_root_order",
+                Margin::metered_sup(roots[1] - roots[0], span.speeds().1),
+                band,
+            ) {
+                Ok(Sign::Negative) => roots.swap(0, 1),
+                Ok(Sign::Positive) => {}
+                Ok(Sign::Zero) => {
+                    unreachable!("roots apart past the band read level along the span")
+                }
+                Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::RootOrder(diag))),
+            },
             Err(diag) => return ConicPlaneMeet::Roots(Err(ConicRootFault::RootOrder(diag))),
         }
     }
@@ -336,8 +342,8 @@ pub struct SpanRoot<T> {
     /// The carrier's parameter, within half a turn of the span's middle
     /// on a periodic carrier.
     pub t: T,
-    /// Where it lies against the span's ends, metered as
-    /// [`plane_crossing_lane`] meters it.
+    /// Where it lies against the span's ends, read as
+    /// [`plane_crossing_lane`] reads it ([`span_place`]).
     pub place: RootPlace,
 }
 
@@ -424,13 +430,12 @@ pub fn span_plane_meet<T: Decide>(
                     unreachable!("the carrier half answers no roots")
                 }
             };
-            let (s_u, s_v) = conic.semi_axes();
-            let meter = conic_meter(s_u, s_v);
+            let span = Span::new(carrier, (t0, t1));
             let mut roots = Vec::with_capacity(2);
             for t in near_span(candidates, (t0, t1)) {
                 let place = match ends {
                     SpanEnds::Endless => Some(RootPlace::Inside),
-                    SpanEnds::Ended => span_place(t, (t0, t1), meter, band),
+                    SpanEnds::Ended => span_place(&span, t, band),
                 };
                 if let Some(place) = place {
                     roots.push(SpanRoot { t, place });
@@ -465,8 +470,7 @@ pub fn span_plane_meet<T: Decide>(
                 Err(diag) => return Err(ConicRootFault::PlaneParallel(diag)),
             }
             let t = (T::zero() - d0) / slope;
-            let meter = geom_core::InfSpeed::new(line.dir.norm());
-            span_place(t, (t0, t1), meter, band)
+            span_place(&Span::new(carrier, (t0, t1)), t, band)
                 .map(|place| SpanRoot { t, place })
                 .into_iter()
                 .collect()
@@ -477,9 +481,9 @@ pub fn span_plane_meet<T: Decide>(
 }
 
 /// **A conic's span meter** (radians → metres): the smaller semi-axis,
-/// in either stored order. An INF bound on the speed by being the
-/// smaller principal rate, which is what an interiority claim needs: a
-/// root this meter proves clear of an end is clear of it in metres.
+/// in either stored order, an INF bound on the speed. A graze's reach
+/// ([`graze_reaches_span`]) reads it, where a reach short of definitely
+/// outside keeps the touch.
 fn conic_meter<T: Decide>(s_u: T, s_v: T) -> geom_core::InfSpeed<T> {
     geom_core::InfSpeed::new(s_u.min(s_v))
 }
@@ -531,29 +535,17 @@ fn graze_reaches_span<T: Decide>(
     })
 }
 
-/// **A parameter against a span's ends**, on the lane's own row
-/// (`plane_crossing_root_in_span`, the two margins `(t − t₀)·meter` and
-/// `(t₁ − t)·meter`, read in that order and no further than the first
-/// that is not positive): where it lies ([`RootPlace`]), or `None` past
-/// an end.
-pub fn span_place<T: Decide>(
-    t: T,
-    (t0, t1): (T, T),
-    meter: geom_core::InfSpeed<T>,
-    band: Band,
-) -> Option<RootPlace> {
-    for margin in [
-        Margin::metered(t - t0, meter),
-        Margin::metered(t1 - t, meter),
-    ] {
-        match decide("plane_crossing_root_in_span", margin, band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => return Some(RootPlace::AtEnd),
-            Ok(Sign::Negative) => return None,
-            Err(diag) => return Some(RootPlace::Undecided(diag)),
-        }
+/// **A parameter of a span's carrier against the span's ends**: the
+/// span's own reading ([`Span::place_param`]), the point's chord to an
+/// end's point deciding the end and the parameter's side the rest, as a
+/// root's place ([`RootPlace`]), or `None` past an end.
+pub fn span_place<T: Decide>(span: &Span<'_, T>, t: T, band: Band) -> Option<RootPlace> {
+    match span.place_param(t, band) {
+        Ok(Place::Inside) => Some(RootPlace::Inside),
+        Ok(Place::End(_)) => Some(RootPlace::AtEnd),
+        Ok(Place::Past) => None,
+        Err(diag) => Some(RootPlace::Undecided(diag)),
     }
-    Some(RootPlace::Inside)
 }
 
 #[cfg(test)]
@@ -561,7 +553,8 @@ pub fn span_place<T: Decide>(
 mod tests {
     //! DIRECT trilean rows for the conic crossing lane (M5 PR 5 fix
     //! pass, review M3): `plane_crossing_belly_graze` and
-    //! `plane_crossing_root_in_span` each get their definite /
+    //! the span's end reading (`curve_pair_span_end_*`, through
+    //! [`span_place`]) each get their definite /
     //! exactly-degenerate / in-band arms against a pure band (the
     //! geom-core test discipline: never `Band::linear` in a lib test).
 
@@ -570,14 +563,14 @@ mod tests {
 
     use super::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
 
-    /// **A crossing's gap from an end is metered at the smaller semi-axis
-    /// MAGNITUDE, in either stored order.** An ellipse stored swapped —
-    /// `major = 0.01` along `u_ref`, `minor = 10` — runs at 0.01 m/rad at
-    /// its `θ = π/2` vertex. A plane crosses it `δ = 5e-8` rad past that
-    /// vertex, an arc of 5e-10 m: inside the zero band, so the crossing
-    /// is the span's own end, not an interior root. Metered at the
-    /// stored `minor` (10 m/rad) the gap read 5e-7 m and the root was
-    /// certified interior, a split 5e-10 m from a vertex.
+    /// **A crossing at a slow end is the span's end.** An ellipse stored
+    /// swapped — `major = 0.01` along `u_ref`, `minor = 10` — runs at
+    /// 0.01 m/rad at its `θ = π/2` vertex. A plane crosses it `δ = 5e-8`
+    /// rad past that vertex, an arc of 5e-10 m: inside the zero band, so
+    /// the crossing is the span's own end, not an interior root. Red
+    /// where the gap from the end is read at the stored `minor` (10
+    /// m/rad), 5e-7 m, which certifies it interior, a split 5e-10 m from
+    /// a vertex.
     #[test]
     fn a_crossing_at_an_end_is_metered_at_the_smaller_semi_axis() {
         let e = Curve3::Ellipse(geom::Ellipse::new(
@@ -601,6 +594,77 @@ mod tests {
             got.is_empty(),
             "a root at the span's own end certified interior: {got:?}"
         );
+    }
+
+    /// **A crossing near a fast end is placed by its chord to the end,
+    /// not by the conic's slowest speed.** The ellipse 0.01 × 10 runs at
+    /// 10 m/rad at `θ = 0`, where its span starts. A plane crosses it
+    /// `δ` in, `10·δ` metres from the end: past the band at `δ = 5·10⁻⁸`
+    /// to `5·10⁻⁹`, a root inside the span; in the gap at `10⁻⁹`, an
+    /// escalation; within the zero band at `5·10⁻¹¹`, the end's own.
+    /// Red where the end is read as `(t − t₀)` metered at the smaller
+    /// semi-axis, which puts every one of these at the end and drops the
+    /// crossing the end's vertex does not hold.
+    #[test]
+    fn a_crossing_near_a_fast_end_is_placed_by_its_chord() {
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            0.01,
+            10.0,
+        ));
+        let lane = |delta: f64| {
+            let y = 10.0 * f64::sin(delta);
+            roots_of(plane_crossing_lane(
+                &e,
+                0.0,
+                0.3,
+                Point3::new(0.0, y, 0.0),
+                Vec3::unit_y(),
+                band(),
+            ))
+        };
+        for delta in [5e-8, 1e-8, 5e-9] {
+            let got = lane(delta).unwrap();
+            assert!(
+                got.len() == 1 && (got[0] - delta).abs() < 1e-12,
+                "a crossing {:e} m in: {got:?}",
+                10.0 * delta
+            );
+        }
+        assert!(lane(1e-9).is_err(), "a crossing in the gap escalates");
+        assert_eq!(lane(5e-11).unwrap(), Vec::<f64>::new(), "at the end");
+    }
+
+    /// **Two roots apart by their chord are two, however close their
+    /// parameters.** An ellipse 10 × 10⁻⁶ (major along `x`) crossed by the
+    /// plane through its points at `φ ± α`, `φ` a few micro-radians off
+    /// the major vertex, where it runs about `10·sin φ` m/rad against its
+    /// 10⁻⁶ floor. The roots' chord is past the band (`Kε` = 10⁻⁸), so
+    /// both are inserted; their parameter gap at the floor, `2α·10⁻⁶`, is
+    /// inside the zero. Red where the pair is collapsed on that gap
+    /// (`(r₁ − r₀)` at the inf speed), which drops a crossing. The window
+    /// is narrow (the floor below `√(Rε/8K)`); these are two poses in it.
+    #[test]
+    fn two_roots_apart_by_their_chord_are_two() {
+        let m = 1e-6_f64;
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            10.0,
+            m,
+        ));
+        for (phi, alpha) in [(2e-6, 4e-4), (5e-6, 4.5e-4)] {
+            let (p, q) = (e.eval(phi - alpha), e.eval(phi + alpha));
+            let d = q - p;
+            assert!(d.norm() > band().escalate() && 2.0 * alpha * m < band().zero());
+            let n = Vec3::new(-d.y, d.x, 0.0).normalize();
+            let got = roots_of(plane_crossing_lane(&e, -0.3, 0.3, p, n, band())).unwrap();
+            assert!(
+                got.len() == 2
+                    && (got[0] - (phi - alpha)).abs() < 1e-9
+                    && (got[1] - (phi + alpha)).abs() < 1e-9,
+                "φ = {phi:e}, α = {alpha:e}: both roots, {got:?}"
+            );
+        }
     }
 
     /// The roots arm's payload; any other arm fails the row.
@@ -708,10 +772,10 @@ mod tests {
         }
     }
 
-    /// `plane_crossing_root_in_span`, all three arms: definitely
-    /// interior (returned), exactly at an endpoint (skipped — the
-    /// vertex sweep owns it), and in-band of an endpoint (typed
-    /// escalation).
+    /// A root against the span's ends ([`super::span_place`]), all three
+    /// arms: definitely interior (returned), exactly at an endpoint
+    /// (skipped — the vertex sweep owns it), and in-band of an endpoint
+    /// (typed escalation, on the end's chord).
     #[test]
     fn crossing_root_trio() {
         let c = circle();
@@ -728,7 +792,7 @@ mod tests {
         // In-band: a root 5e-9 (meters, meter = r = 1) inside the
         // span end — typed escalation, named.
         let diag = roots_of(on_plane(&c, -5e-9, 2.0, &plane_y(0.0), band())).unwrap_err();
-        assert_eq!(diag.predicate, Some("plane_crossing_root_in_span"));
+        assert_eq!(diag.predicate, Some("curve_pair_span_end_chord"));
     }
 
     /// `plane_crossing_plane_parallel`'s `Zero` arm hands back the conic's

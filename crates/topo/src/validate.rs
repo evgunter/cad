@@ -595,7 +595,7 @@ pub(crate) fn decide_nonzero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
-) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
+) -> Result<geom_core::NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
@@ -715,7 +715,7 @@ pub enum EdgeTangentUnread {
     /// The edge's least speed meters no length over its span. A limit.
     NoLength,
     /// A spline edge's piece walk could not run, standing as the walk's
-    /// refusal does ([`geom_brep::ladder::Refusal::of_walk`]).
+    /// refusal does ([`geom::PieceWalkRefusal::refusal`]).
     Unwalked(geom::PieceWalkRefusal),
 }
 
@@ -728,7 +728,7 @@ impl EdgeTangentUnread {
     pub const fn refusal(self) -> geom_brep::ladder::Refusal {
         match self {
             Self::NoCurve | Self::NoReach | Self::NoLength => geom_brep::ladder::Refusal::Limit,
-            Self::Unwalked(why) => geom_brep::ladder::Refusal::of_walk(why),
+            Self::Unwalked(why) => why.refusal(),
         }
     }
 
@@ -4592,11 +4592,8 @@ impl ValidationError {
                  {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
-            Self::DegenerateTorus { verdict, .. } => write!(
-                f,
-                "{}{}",
-                geom_brep::TorusConvention::Ring.refused("a torus face's", *verdict),
-                ended(at.map(|at| RING_TORUS.recourse(verdict.arm(), at)))
+            Self::DegenerateTorus { verdict, .. } => f.write_str(
+                &geom_brep::TorusConvention::Ring.refused_ended("a torus face's", *verdict, at),
             ),
             Self::DegenerateSpindle { miss, .. } => match miss.verdict {
                 Ok(decided) => write!(
@@ -5179,7 +5176,7 @@ impl ValidationError {
                 f,
                 "an edge lies in a face of its own part at {witness}, and whether the face \
                  passes through the material the edge bounds is undecided: {}",
-                why.sentence()
+                why.sentence(at)
             ),
             Self::CoincidentWedgesOverlap { witness, .. } => write!(
                 f,
@@ -5190,7 +5187,7 @@ impl ValidationError {
                 f,
                 "two edges lie along one line at {witness}, and whether the material each \
                  bounds overlaps the other's is undecided: {}",
-                why.sentence_on_line()
+                why.sentence_on_line(at)
             ),
             Self::BoundaryCrossesItself { witness, .. } => write!(
                 f,
@@ -5201,7 +5198,7 @@ impl ValidationError {
                 f,
                 "a part touches itself at {witness}, and whether its faces there bound one \
                  material is undecided: {}",
-                why.sentence()
+                why.sentence(at)
             ),
             Self::InstanceInterference { .. } => write!(
                 f,
@@ -10072,111 +10069,20 @@ fn meet_at<T: Decide>(
     open.map_or(EdgePair::Apart, EdgePair::Unsure)
 }
 
-/// Check 9's rows for [`arc_trim`].
-const RING_OUTER_ARC_TRIM: ArcTrimRows = ArcTrimRows {
-    end: "ring_outer_arc_end",
-    trim: "ring_outer_arc_trim",
-};
-
-/// Check 9's two rows for [`arc_trim`].
-struct ArcTrimRows {
-    /// A point's distance to either end of the arc.
-    end: &'static str,
-    /// The two-term chordal margin: which side of the ends.
-    trim: &'static str,
-}
-
-/// **Whether `p`, a point on a circle, lies inside the arc of it whose
-/// ends are `ends` and whose apex is `apex`** (`anti` the apex's
-/// antipode) — decided as DISTANCES, never as an angle, and the one
-/// home of that rule, beside its one consumer, check 9 (a ray's crossing of
-/// a loop's arc is the plane door's, placed on the arc's span there:
-/// `containment::conic_crossings`). The points are in metres, so every
-/// length is a margin as it stands.
-///
-/// 1. **At an end**: `p` within the band of either end, measured as
-///    `|p − end|`, answers `Zero`. That is the ONLY way an endpoint
-///    neighbourhood counts: an angular window compresses arc length
-///    near an end by `sin(w/2)`, so on a short arc (and by `sin` of the
-///    complement on a near-full one) its `Zero` reaches `ε / sin(w/2)`
-///    along the carrier, a hundred times `ε` at `w = 0.02`.
-/// 2. **Otherwise, which side of the ends**: the sum of two chordal
-///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
-///    is an end, `m` the apex and `m′` its antipode. Chord length is
-///    monotone in angular distance up to a half turn, so each term is
-///    positive exactly on the arc; near an end they move as `cos(w/4)`
-///    and `sin(w/4)` times the arc length, whose sum is at least 1, so
-///    the margin is never compressed below the distance it measures —
-///    on a short arc, a near-full one, or a whole circle (where `m′` is
-///    the end and every point is inside). Its `Zero` is therefore within
-///    the band of an end, which step 1 has already answered.
-///
-/// `Positive` inside, `Negative` past an end, `Zero` at an end or in
-/// the trim's band.
-///
-/// **A DECIDED membership, and so not
-/// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
-/// the one place that says why, for this trim. That door answers "may hold" wherever
-/// exclusion is unproved, which is the sound answer for a caller
-/// selecting between two bounds that each hold either way. A decided
-/// membership has no such free answer: an uncertain one escalates, and
-/// its band is a length — measured along the carrier here, levered by
-/// the radius there — never a bare angle.
-///
-/// # Errors
-///
-/// An in-band end distance with neither end definitely `Zero`, or an
-/// in-band trim margin.
-fn arc_trim<T: Decide>(
-    p: geom_core::Point3<T>,
-    ends: [geom_core::Point3<T>; 2],
-    apex: geom_core::Point3<T>,
-    anti: geom_core::Point3<T>,
-    rows: &ArcTrimRows,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    let [a, b] = ends;
-    let at = [
-        decide(rows.end, Margin::of((p - a).norm()), band),
-        decide(rows.end, Margin::of((p - b).norm()), band),
-    ];
-    if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
-        return Ok(Sign::Zero);
-    }
-    if let Some(diag) = at.into_iter().find_map(Result::err) {
-        return Err(diag);
-    }
-    decide(
-        rows.trim,
-        Margin::of(arc_trim_margin(p, a, apex, anti)),
-        band,
-    )
-}
-
-/// [`arc_trim`]'s step 2, the sum of two chordal defects,
-/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`: positive on the arc,
-/// and never compressed below the angle to the nearer end.
-fn arc_trim_margin<T: Decide>(
-    p: geom_core::Point3<T>,
-    a: geom_core::Point3<T>,
-    apex: geom_core::Point3<T>,
-    anti: geom_core::Point3<T>,
-) -> T {
-    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
-}
-
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
 /// an end included, since arm 5 runs only once no vertex arm has
 /// spoken ([`ring_outer_meeting`]).
 ///
 /// A line's trim is its two signed spans from its ends, each a length
-/// at unit speed. An arc's is decided as DISTANCES, never through the
-/// radial band: `p` is a point on the carrier (or a candidate whose
-/// distance from it the caller has already decided), so its distance
-/// from the circle says nothing about the trim, and deciding it first
-/// let an in-band radius escalate a point half a turn away from the
-/// arc. The rule, and why its margin never compresses near an end, is
-/// [`arc_trim`]'s; an end's neighbourhood reads inside.
+/// at unit speed. An arc's is the span's own reading of where a point
+/// sits against its ends ([`geom_brep::curve_pair::Span::place`]): an
+/// end by the point's chord to it, otherwise the side of each end by the
+/// foot's parameter in metres. It decides no carrier membership: `p` is
+/// a point on the carrier (or a candidate whose distance from it the
+/// caller has already decided), so its distance from the circle says
+/// nothing about the trim, and deciding it first let an in-band radius
+/// escalate a point half a turn away from the arc. An end's
+/// neighbourhood reads inside.
 fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
     match segment {
         MeetSegment::Line { a, b } => {
@@ -10214,18 +10120,15 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 },
                 radius,
             });
-            let mid = geom::mid_param(t0, t1);
-            match arc_trim(
-                p,
-                [carrier.eval(t0), carrier.eval(t1)],
-                carrier.eval(mid),
-                carrier.eval(mid + T::pi()),
-                &RING_OUTER_ARC_TRIM,
-                band,
-            ) {
-                Ok(Sign::Positive | Sign::Zero) => Window::In,
-                Ok(Sign::Negative) => Window::Out,
-                Err(source) => Window::Unsure(source),
+            let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
+            match span.place(p, geom::mid_param(t0, t1), band) {
+                Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::End(_)) => {
+                    Window::In
+                }
+                Ok(geom_brep::curve_pair::Place::Past) => Window::Out,
+                Err(refusal) => Window::Unsure(refusal.escalation().unwrap_or_else(|_| {
+                    unreachable!("a circle's foot is its nearest point: its place walks nothing")
+                })),
             }
         }
     }
@@ -16841,6 +16744,56 @@ mod tests {
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             t0: from.to_radians(),
             t1: to.to_radians(),
+        }
+    }
+
+    /// **An arc's window reads a point off its circle at the point's
+    /// foot** (`work/restfront/check-9-reads-an-internal-tangencys-trims-at-the-radical-foot.md`).
+    /// A decided internal tangency's radical foot stands about `g·r/d`
+    /// off both circles: 0.029·r near-concentric. The window projects it
+    /// onto the circle, so an arc ending 0.01 rad short of the tangency
+    /// direction reads it OUT whether it stands inside or outside the
+    /// circle, and whether the arc's apex is 2.5 rad or 0.3 rad away.
+    /// The old chordal-defect reading put the inside point in at the far
+    /// apex (+0.0063) and the outside one in at the near one (+0.0116).
+    /// An arc holding the tangency reads it in from either side.
+    #[test]
+    fn an_arc_window_reads_an_off_circle_point_at_its_foot() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let short = 0.01_f64.to_degrees();
+        for (name, arc, off, inside) in [
+            (
+                "far apex, point inside",
+                arc_segment(o, 1.0, short, short + 2.0 * 2.49_f64.to_degrees()),
+                0.971,
+                false,
+            ),
+            (
+                "near apex, point outside",
+                arc_segment(o, 1.0, short, short + 2.0 * 0.29_f64.to_degrees()),
+                1.029,
+                false,
+            ),
+            (
+                "holding it, point inside",
+                arc_segment(o, 1.0, -30.0, 30.0),
+                0.971,
+                true,
+            ),
+            (
+                "holding it, point outside",
+                arc_segment(o, 1.0, -30.0, 30.0),
+                1.029,
+                true,
+            ),
+        ] {
+            let got = window(arc, Point3::new(off, 0.0, 0.0), band);
+            assert_eq!(
+                (matches!(got, Window::In), matches!(got, Window::Out)),
+                (inside, !inside),
+                "[{name}]"
+            );
         }
     }
 

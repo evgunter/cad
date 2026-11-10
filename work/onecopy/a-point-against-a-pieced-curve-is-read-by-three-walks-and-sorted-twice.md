@@ -42,7 +42,7 @@ The `Unwalked` arm reaches the same `SplitJoinError::SectionUnwalked` both ways,
 
 **The census's parallel spelling is narrowed, not gone:**
 - `census::curved` pushes `geom::PieceWalkRefusal::sentence()` as its `ContactRefusal::NotCertifiable { what }`, and reads it back with `PieceWalkRefusal::of_sentence`. That parse runs over every variant (`strum::VariantArray`).
-- `link::EdgeTangentUnread`'s `Exhausted`/`Unbounded` arms are now one `Unwalked(geom::PieceWalkRefusal)`. Its ladder standing is `geom_brep::ladder::Refusal::of_walk`, stated once: exhausted is unsettled, unbounded is a limit.
+- `link::EdgeTangentUnread`'s `Exhausted`/`Unbounded` arms are now one `Unwalked(geom::PieceWalkRefusal)`. Its ladder standing is `geom::PieceWalkRefusal::refusal`, stated once: exhausted is unsettled, unbounded is a limit.
 - Pinned by `census::curved::tests::an_unwalked_edge_reads_back_as_its_walk_refusal`, which checks the `what` text and the round trip, and by `census::link_faces_ranking` for both standings.
 - Nothing rendered moved: `NotCertifiable` renders no `what`.
 
