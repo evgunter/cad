@@ -6494,50 +6494,81 @@ mod tests {
         .unwrap();
     }
 
-    /// **A line's span is forward in metres, at its speed `|dir|`**: a
-    /// line of zero direction names one point at every parameter, so its
-    /// span of one parameter unit refuses as the caller's stated interval,
-    /// not forward on the zero side, where a parameter-only read certified
-    /// it; a line at
-    /// speed two certifies a span of half a unit, one metre long.
+    /// **A line's span is forward in metres where its `dir` is the zero
+    /// vector.** A line of zero direction names one point at every
+    /// parameter, so its span of one parameter unit refuses as the caller's
+    /// stated interval, not forward on the zero side, where a
+    /// parameter-only read certified it (this row is red without the
+    /// guard). A line at speed two certifies a span of half a unit: that
+    /// row asks only that the guard over-refuse nothing, and no mutation of
+    /// the guard reddens it.
+    ///
+    /// At the interval scalar the guard reads the same door: an exact
+    /// `[0, 0]` direction refuses as the point's zero does, and a direction
+    /// whose enclosure straddles zero by more than the band is not decided,
+    /// so the metred span escalates rather than certifying.
     #[test]
-    fn a_lines_span_is_forward_in_metres() {
-        use geom_core::{Affine3, Point2};
-        let certify = |spec: EdgeCurveSpec<f64>, p1: Point3<f64>| {
+    fn a_lines_span_is_forward_in_metres_where_its_dir_is_zero() {
+        use geom_core::{Affine3, Interval, Point2};
+        fn along<T: Decide>(dir: Vec3<T>, param_end: T) -> EdgeCurveSpec<T> {
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
+                    crate::mapped::MappedSource::ExtrudedPoint {
+                        point: Point2::new(T::zero(), T::zero()),
+                        place: Affine3::translation(Vec3::new(T::zero(), T::zero(), T::zero())),
+                        vec: dir * param_end,
+                    },
+                )),
+                carrier: Curve3::line(Point3::new(T::zero(), T::zero(), T::zero()), dir),
+                param_start: T::zero(),
+                param_end,
+            }
+        }
+        fn certify<T: Decide + geom_core::CertifiedBounds>(
+            spec: EdgeCurveSpec<T>,
+            p1: Point3<T>,
+        ) -> Result<EdgeCurve<T>, CertifyError> {
             EdgeCurve::certify(
                 spec,
-                Point3::origin(),
+                Point3::new(T::zero(), T::zero(), T::zero()),
                 p1,
                 |_| None,
-                geom_core::test_support::fixture_lever(1.0),
+                geom_core::test_support::fixture_lever(T::one()),
                 band(),
                 NurbsLane::certified(),
             )
-        };
-        let along = |dir: Vec3<f64>, param_end: f64| EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
-                crate::mapped::MappedSource::ExtrudedPoint {
-                    point: Point2::new(0.0, 0.0),
-                    place: Affine3::translation(Vec3::zero()),
-                    vec: dir * param_end,
-                },
-            )),
-            carrier: Curve3::line(Point3::origin(), dir),
-            param_start: 0.0,
-            param_end,
-        };
-        let err = certify(along(Vec3::zero(), 1.0), Point3::origin()).unwrap_err();
-        assert!(
+        }
+        let zero_refusal = |err: &CertifyError| {
             matches!(
                 err,
                 CertifyError::StatedInterval {
                     refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Zero(_)))
                 }
-            ),
-            "{err:?}"
-        );
+            )
+        };
+        let err = certify(along(Vec3::zero(), 1.0), Point3::origin()).unwrap_err();
+        assert!(zero_refusal(&err), "{err:?}");
         let fast = Vec3::new(2.0, 0.0, 0.0);
         assert!(certify(along(fast, 0.5), Point3::new(1.0, 0.0, 0.0)).is_ok());
+
+        let iv = Interval::from_f64;
+        let origin = Point3::new(iv(0.0), iv(0.0), iv(0.0));
+        let flat = Vec3::new(iv(0.0), iv(0.0), iv(0.0));
+        let err = certify(along(flat, iv(1.0)), origin).unwrap_err();
+        assert!(zero_refusal(&err), "[0, 0]: {err:?}");
+        let wide = Interval::from_bounds(-2e-8, 2e-8);
+        let straddling = Vec3::new(wide, iv(0.0), iv(0.0));
+        let err = certify(along(straddling, iv(1.0)), origin).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CertifyError::Escalated {
+                    check: CertCheck::ParamSpan,
+                    ..
+                }
+            ),
+            "straddling: {err:?}"
+        );
     }
 
     #[test]
