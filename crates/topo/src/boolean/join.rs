@@ -8075,6 +8075,195 @@ mod first_pair_rows {
             "the tie refuses before any round reaches first_pair's K gate"
         );
     }
+
+    /// The rounds [`find_match`] runs over conic germs on the ellipse
+    /// `x = 10 cos t, y = sin t` (frame axis `+z`), each germ a parameter
+    /// angle and a sense (`true` counterclockwise), its direction the
+    /// tangent in that sense; partners are the pairs whose rotational
+    /// senses differ ([`Turn::facing`]), ranked by [`germ_arm`] and
+    /// [`along_sign`] as [`partners`] builds them. Each round's pair is
+    /// chosen by `pick` from the germs' nearest partners
+    /// ([`own_nearest`]); the matching as sorted pairs.
+    fn conic_rounds(
+        germs: &[(f64, bool)],
+        band: Band,
+        pick: impl Fn(BTreeMap<Slot, Met<f64>>) -> Result<Option<(Slot, Slot)>, BooleanError>,
+    ) -> Result<Vec<(usize, usize)>, BooleanError> {
+        let frame = geom::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_z(),
+        };
+        let site = |t: f64| Point3::new(10.0 * t.cos(), t.sin(), 0.0);
+        let dir = |(t, ccw): (f64, bool)| {
+            let v = Vec3::new(-10.0 * t.sin(), t.cos(), 0.0);
+            let v = v / v.norm();
+            if ccw { v } else { -v }
+        };
+        let mut used = vec![false; germs.len()];
+        let mut matching = Vec::new();
+        loop {
+            let mut partners: BTreeMap<Slot, Vec<Met<f64>>> = BTreeMap::new();
+            let mut at = 0;
+            for g in 0..germs.len() {
+                for h in 0..germs.len() {
+                    if g == h || used[g] || used[h] {
+                        continue;
+                    }
+                    let (pg, ph) = (site(germs[g].0), site(germs[h].0));
+                    let Some(turn) =
+                        Turn::facing(frame, (pg, dir(germs[g])), (ph, dir(germs[h])), band)?
+                    else {
+                        continue;
+                    };
+                    at += 1;
+                    let reach = PartnerDistance {
+                        arm: germ_arm(Some(turn), band)?,
+                        chord: (ph - pg).norm(),
+                        turn: Some(turn),
+                        along: None,
+                    };
+                    partners
+                        .entry((g, 0))
+                        .or_default()
+                        .push((at, reach, ((h, 0), (g, 0))));
+                }
+            }
+            let Some(((p, _), (g, _))) = pick(own_nearest(partners, band)?)? else {
+                matching.sort_unstable();
+                return Ok(matching);
+            };
+            used[p] = true;
+            used[g] = true;
+            matching.push((p.min(g), p.max(g)));
+        }
+    }
+
+    /// [`first_pair`] with its scan order reversed: an exact tie goes to
+    /// the pair met last.
+    fn last_pick(
+        own: BTreeMap<Slot, Met<f64>>,
+        band: Band,
+    ) -> Result<Option<(Slot, Slot)>, BooleanError> {
+        let reversed = own
+            .into_iter()
+            .map(|(germ, (at, reach, m))| (germ, (usize::MAX - at, reach, m)))
+            .collect();
+        first_pair(reversed, band)
+    }
+
+    /// **An exact tie between two mutual conic pairs can move the
+    /// matching** (the row's conic blocker,
+    /// `work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md`).
+    /// Six germs counterclockwise on an ellipse of aspect 10, senses
+    /// `+ + − + − −`: z+ at −80°, q+ placed so that `(q, p)` and `(h, g)`
+    /// tie exactly, p− at 30°, h+ at 60°, g− at 90°, w− at 150°. The first
+    /// round's nearest partners are z→p, q↔p, h↔g and w→h, so the tied
+    /// pairs are both mutual. Committing `(q, p)` first turns z to its
+    /// next partner by travel, g, whose chord (2.64 m) is shorter than
+    /// the tie's (5.00 m): `(z, g)` then takes g from h. Committing
+    /// `(h, g)` first leaves z to pair with w. Both runs complete.
+    #[test]
+    fn a_tie_between_mutual_conic_pairs_can_move_the_matching() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let d = f64::to_radians;
+        let site = |t: f64| Point3::new(10.0 * t.cos(), t.sin(), 0.0);
+        let (p, h, g) = (d(30.0), d(60.0), d(90.0));
+        let tie = (site(g) - site(h)).norm();
+        // Bisect q's angle on (−75°, −60°) to the chord of the tie.
+        let (mut lo, mut hi) = (d(-75.0), d(-60.0));
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if (site(p) - site(mid)).norm() > tie {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        let q = 0.5 * (lo + hi);
+        // 0 z+, 1 q+, 2 p−, 3 h+, 4 g−, 5 w−: (q, p) is met first.
+        let germs = [
+            (d(-80.0), true),
+            (q, true),
+            (p, false),
+            (h, true),
+            (g, false),
+            (d(150.0), false),
+        ];
+        let incumbent = conic_rounds(&germs, band, |own| first_pair(own, band));
+        let last = conic_rounds(&germs, band, |own| last_pick(own, band));
+        assert_eq!(
+            incumbent.unwrap(),
+            vec![(0, 4), (1, 2), (3, 5)],
+            "(q, p) first: z takes g"
+        );
+        assert_eq!(
+            last.unwrap(),
+            vec![(0, 5), (1, 2), (3, 4)],
+            "(h, g) first: z pairs with w"
+        );
+    }
+
+    /// **An all-mutual round's matching is free of the order its pairs
+    /// are committed in, at any `K`** (the row's mutual-round proof,
+    /// `work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md`):
+    /// the `K = 1.1` fixture, whose first round is all mutual, folded with
+    /// every in-band order kept ([`nearer_or_scan`]) in scan order and in
+    /// reverse, commits the first round's four pairs both ways. Each
+    /// germ's nearest stands while its partner does ([`own_nearest`]'s set
+    /// rule), so `K` has nothing left to bound.
+    #[test]
+    fn an_all_mutual_rounds_matching_is_free_of_the_commit_order() {
+        let points = [
+            (29.917238827326724, 27.87786026681649),
+            (7.4858152912142355, 4.322009183593643),
+            (25.808946745765223, 19.214928804313665),
+            (27.701499409469754, 29.44760472044568),
+            (28.12692824627822, 16.893643512330684),
+            (1.2360764813614777, 13.116606996891312),
+            (12.298989298137148, 0.5569020398678726),
+            (5.528651116976726, 13.530660114789436),
+        ];
+        let edges = [
+            (0, 3),
+            (0, 4),
+            (1, 2),
+            (1, 6),
+            (2, 3),
+            (2, 4),
+            (2, 7),
+            (3, 4),
+            (3, 5),
+            (4, 5),
+            (4, 6),
+            (5, 6),
+            (5, 7),
+        ];
+        let band = Band::new(1.0, 1.1).unwrap();
+        let fold = |own: BTreeMap<Slot, Met<f64>>, reverse: bool| {
+            let mut met: Vec<_> = own.into_values().collect();
+            met.sort_by_key(|&(at, ..)| at);
+            if reverse {
+                met.reverse();
+            }
+            let mut best: Option<(PartnerDistance<f64>, (Slot, Slot))> = None;
+            for (_, reach, m) in met {
+                best = Some(match best {
+                    Some(b) if !nearer_or_scan(reach, b.0, band)? => b,
+                    _ => (reach, m),
+                });
+            }
+            Ok(best.map(|(_, m)| m))
+        };
+        let first_round = vec![(0, 3), (1, 6), (2, 4), (5, 7)];
+        assert_eq!(
+            rounds(&points, &edges, band, |own| fold(own, false)).unwrap(),
+            first_round
+        );
+        assert_eq!(
+            rounds(&points, &edges, band, |own| fold(own, true)).unwrap(),
+            first_round
+        );
+    }
 }
 
 /// **The Boolean's own decision for a join's reading of a section end**
