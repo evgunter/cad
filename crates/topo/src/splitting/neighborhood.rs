@@ -151,17 +151,34 @@ pub(crate) fn bound_side<T: Decide, E>(
     far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
     band: Band,
 ) -> Result<PlaneSide, EntryFault<E>> {
+    bound_reading(body, bound, reference, far, band).map(|(side, _)| side)
+}
+
+/// [`bound_side`], and whether an `On` is a descent that read nothing
+/// past its tie ([`Descent::Unresolved`]) rather than one that rides the
+/// plane: rule (b) reads such a divider as main's first order left it,
+/// by its wall.
+fn bound_reading<T: Decide, E>(
+    body: &Body<T>,
+    bound: &Bound<T>,
+    reference: geom_brep::ReferenceNormal<T>,
+    far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
+    band: Band,
+) -> Result<(PlaneSide, bool), EntryFault<E>> {
     if let BoundSupport::Chord { .. } = bound.reach {
-        return far(body.proven_half_edge_end(bound.he)).map_err(EntryFault::Far);
+        return far(body.proven_half_edge_end(bound.he))
+            .map(|side| (side, false))
+            .map_err(EntryFault::Far);
     }
     match crate::bound_side::read_plane_side(bound.dir, bound.reach, reference, band) {
         Ok(BoundSide::Off(Side::Below) | BoundSide::Tied(Descent::Leaves(Side::Below))) => {
-            Ok(PlaneSide::Below)
+            Ok((PlaneSide::Below, false))
         }
         Ok(BoundSide::Off(Side::Above) | BoundSide::Tied(Descent::Leaves(Side::Above))) => {
-            Ok(PlaneSide::Above)
+            Ok((PlaneSide::Above, false))
         }
-        Ok(BoundSide::Tied(Descent::Rides | Descent::Unresolved(_))) => Ok(PlaneSide::On),
+        Ok(BoundSide::Tied(Descent::Rides)) => Ok((PlaneSide::On, false)),
+        Ok(BoundSide::Tied(Descent::Unresolved(_))) => Ok((PlaneSide::On, true)),
         Err(fault) => Err(EntryFault::Undecided(fault.diag())),
     }
 }
@@ -239,6 +256,7 @@ pub(super) fn classify<T: Decide>(
     let reference = geom_brep::ReferenceNormal::of_split_plane(plane.normal.get());
     let n = star.bounds.len();
     let mut classes = Vec::with_capacity(n);
+    let mut unresolved = Vec::with_capacity(n);
     for (k, bound) in star.bounds.iter().enumerate() {
         let far = |far| {
             sides
@@ -246,19 +264,21 @@ pub(super) fn classify<T: Decide>(
                 .copied()
                 .ok_or(SplitReduceError::UnrecordedSide { vertex: far })
         };
-        let class = bound_side(body, bound, reference, far, band).map_err(|fault| match fault {
-            EntryFault::Far(e) => e,
-            EntryFault::Undecided(diag) => SplitReduceError::SliverSector {
-                vertex,
-                face: star.sectors[k].face,
-                reading: SectorReading::Escalated(diag),
-            },
-        })?;
+        let (class, tie) =
+            bound_reading(body, bound, reference, far, band).map_err(|fault| match fault {
+                EntryFault::Far(e) => e,
+                EntryFault::Undecided(diag) => SplitReduceError::SliverSector {
+                    vertex,
+                    face: star.sectors[k].face,
+                    reading: SectorReading::Escalated(diag),
+                },
+            })?;
         classes.push(class);
+        unresolved.push(tie);
     }
     let in_plane: Vec<bool> = classes.iter().map(|&c| c == PlaneSide::On).collect();
     let readings = rules::apply_rule_a(body, plane, &star, &mut classes, band)?;
-    rules::apply_rule_b(body, &star, &mut classes, &readings, band)?;
+    rules::apply_rule_b(body, &star, (&mut classes, &unresolved), &readings, band)?;
     Ok(Classified {
         star,
         classes,

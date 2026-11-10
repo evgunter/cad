@@ -162,7 +162,7 @@
 
 use geom_brep::{EntersMaterial, NormalAlignment, ParallelSense, WallBend, enters_material};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
-use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::{
     KnifeEdge, KnifeEdgeSite, PlaneSide, SectorReading, SplitPlane, SplitReduceError,
@@ -172,7 +172,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{BoundaryMember, Proven, proven};
 use crate::sector_face::{ConeApex, SectorCarrier};
-use crate::star::{Star, StarFace};
+use crate::star::{Bound, Star, StarFace};
 use crate::validate::decide;
 
 /// Rule (a): reclassify both bounding entries of every
@@ -251,8 +251,8 @@ pub(super) fn apply_rule_a<T: Decide>(
         let n_face = match sector.at {
             StarFace::Tangent(n_face) => n_face,
             StarFace::Apex(apex) => {
-                let rays = [star.bounds[k].ray(), star.start(k).ray()];
-                let reading = apex_reading(plane, &apex, rays, band).map_err(sliver)?;
+                let bounds = [&star.bounds[k], star.start(k)];
+                let reading = apex_reading(plane, &apex, bounds, band).map_err(sliver)?;
                 if let WallReading::Grazed(_) = reading
                     && !apex.material_inside()
                 {
@@ -371,16 +371,16 @@ pub(super) fn apply_rule_a<T: Decide>(
     Ok(readings)
 }
 
-/// Rule (a) at a cone's apex, for the sub-sector between the entry rays
-/// `bounds`: an edge's chord, or an extremal ruling the walk subdivided
-/// at (the star's refinement against the plane). A cone is
-/// never coplanar with the plane, and the apex has no tangent plane: the
-/// plane grazes the face along a ruling where the face's side is
-/// extremal, and every such ruling is an entry's ray. At an extremal
-/// ruling `g` the plane's normal has no component round the axis, so the
-/// sine between it and the outward normal along `g` is `|n·ĝ|`, the
-/// quantity the walk read the entry's side by, levered at the same reach
-/// (the ray's length). So the sub-sector is grazed where the outward
+/// Rule (a) at a cone's apex, for the sub-sector between the star's
+/// `bounds`: an edge, or a ruling the star cut the corner at (its halving
+/// or quarters, or an extremal ruling of the plane, `Star::refine`). A
+/// cone is never coplanar with the plane, and the apex has no tangent
+/// plane: the plane grazes the face along a ruling where the face's side
+/// is extremal, and every such ruling is a bound. At an extremal ruling
+/// `g` the plane's normal has no component round the axis, so the sine
+/// between it and the outward normal along `g` is `|n·ĝ|`, the quantity
+/// the split read the bound's side by, levered at the same reach (the
+/// bound's). So the sub-sector is grazed where the outward
 /// normal along either bounding ray is parallel to the plane's at that
 /// ray's reach (`split_sector_coplanar`) — where the walk read that
 /// entry On — and otherwise clear. The two are not one predicate: the
@@ -394,15 +394,15 @@ pub(super) fn apply_rule_a<T: Decide>(
 fn apex_reading<T: Decide>(
     plane: &SplitPlane<T>,
     apex: &ConeApex<T>,
-    bounds: [Vec3<T>; 2],
+    bounds: [&Bound<T>; 2],
     band: Band,
 ) -> Result<WallReading<T>, Indeterminate> {
-    let [first, second] = bounds.map(|ray| {
+    let [first, second] = bounds.map(|bound| {
         geom_brep::normal_alignment(
             "split_sector_coplanar",
             plane.normal.get(),
-            apex.normal_along(ray),
-            crate::boolean::sectors::departure_arm_lever(ray),
+            apex.normal_along(bound.dir),
+            bound.reach.lever(),
             band,
         )
     });
@@ -475,7 +475,7 @@ fn straight<T: Decide>(body: &Body<T>, edge: EdgeKey) -> bool {
 pub(super) fn apply_rule_b<T: Decide>(
     body: &Body<T>,
     star: &Star<T>,
-    classes: &mut [PlaneSide],
+    (classes, unresolved): (&mut [PlaneSide], &[bool]),
     readings: &[WallReading<T>],
     band: Band,
 ) -> Result<(), SplitReduceError> {
@@ -508,12 +508,16 @@ pub(super) fn apply_rule_b<T: Decide>(
                             side,
                         )?,
                     }
+                } else if unresolved[k] {
+                    // A divider whose descent read nothing past its tie
+                    // has no second-order side: its wall decides, as for a
+                    // smooth edge, and refuses where it disagrees.
+                    wall_graze(body, vertex, &[(star.bounds[k].he, readings[k])], side)?
                 } else {
-                    // A divider lies inside one face's corner, which its
-                    // descended side reads one order down: one still On
-                    // rides the plane, its face on `S` at both of its
-                    // sub-sectors' far bounds and in the plane along it
-                    // at most, so no material across from `S` reaches it.
+                    // A divider still On after its descent rides the
+                    // plane: its face lies on `S` at both of its
+                    // sub-sectors' far bounds and in the plane along it at
+                    // most, so no material across from `S` reaches it.
                     side
                 }
             }
@@ -555,7 +559,7 @@ fn edge_wedge<T: Decide>(
     let sector_surface = |f| body.proven_face(f).surface();
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let along = star.bounds[k].ray();
-    let extent = crate::boolean::sectors::departure_arm_lever(along);
+    let extent = star.bounds[k].reach.lever();
     // Both faces are read along the edge's ray: at the vertex where each
     // has a tangent plane, and out along the ray where either is a cone at
     // its apex, whose normal is constant along the ruling the ray lies on
@@ -1251,6 +1255,59 @@ mod tests {
         }
     }
 
+    /// **A divider whose descent read nothing past its tie goes by its
+    /// wall; one that rides the plane goes with its corner.** On the
+    /// oblique rim's straight wall corner, with the divider On between two
+    /// bounds Above and the wall read clear of a tilted plane, rule (b)
+    /// sends the riding divider Above, with its bounds, and the unresolved
+    /// one by its wall's reading (`wall_graze`), Below: the second order
+    /// it lacks is not supplied by convention.
+    #[test]
+    fn an_unresolved_divider_goes_by_its_wall() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, wall, vertex) =
+            crate::test_support_fixtures::oblique_rim_wall_from::<f64>(0.3, 1.0);
+        let star = Star::walk(
+            &body,
+            vertex,
+            &crate::sector_shape::SlitTips::default(),
+            band,
+        )
+        .unwrap();
+        let k = (0..star.bounds.len())
+            .find(|&k| !star.bounds[k].real && star.sectors[k].face == wall)
+            .expect("the wall's straight corner holds a divider");
+        let StarFace::Tangent(n_wall) = star.sectors[k].at else {
+            panic!("the wall has a tangent plane at the rim")
+        };
+        let plane = corner_plane((1.0, 2.0, 3.0));
+        let readings: Vec<_> = (0..star.bounds.len())
+            .map(|_| reading(&plane, n_wall, 1.0, band))
+            .collect();
+        assert!(
+            matches!(readings[k], WallReading::Clear(_)),
+            "the wall reads clear"
+        );
+        let read = |unresolved: bool| {
+            let mut classes = vec![PlaneSide::Above; star.bounds.len()];
+            classes[k] = PlaneSide::On;
+            let mut ties = vec![false; star.bounds.len()];
+            ties[k] = unresolved;
+            apply_rule_b(&body, &star, (&mut classes, &ties), &readings, band).unwrap();
+            classes[k]
+        };
+        assert_eq!(
+            read(false),
+            PlaneSide::Above,
+            "a riding divider goes with its bounds"
+        );
+        assert_eq!(
+            read(true),
+            PlaneSide::Below,
+            "an unresolved one goes by its wall"
+        );
+    }
+
     /// Consecutive ON entries are the loud invariant failure, never a
     /// silent walk-on.
     #[test]
@@ -1259,7 +1316,7 @@ mod tests {
         let (body, star) = corner_star();
         let band = Band::linear(Tol::witness()).unwrap();
         let readings = vec![WallReading::<f64>::InPlane; e.len()];
-        let err = apply_rule_b(&body, &star, &mut e, &readings, band).unwrap_err();
+        let err = apply_rule_b(&body, &star, (&mut e, &[false; 3]), &readings, band).unwrap_err();
         assert!(matches!(err, SplitReduceError::ConsecutiveOnSectors { .. }));
     }
 

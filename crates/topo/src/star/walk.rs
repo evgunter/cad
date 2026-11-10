@@ -160,6 +160,14 @@ pub(crate) struct Orbit<T: Real> {
     departures: Vec<Vec3<T>>,
 }
 
+/// One corner of a star ([`Orbit::corner`]): its bounds from its own
+/// edge across its dividers, `sectors[j]` the sector after `bounds[j]`.
+#[derive(Clone, Debug)]
+pub(crate) struct Corner<T: Real> {
+    pub bounds: Vec<Bound<T>>,
+    pub sectors: Vec<Sector<T>>,
+}
+
 impl<T: Decide> Orbit<T> {
     /// The orbit of `vertex`.
     ///
@@ -203,7 +211,7 @@ impl<T: Decide> Orbit<T> {
         i: usize,
         tips: &SlitTips,
         band: Band,
-    ) -> Result<(Vec<Bound<T>>, Vec<Sector<T>>), StarFault> {
+    ) -> Result<Corner<T>, StarFault> {
         let (vertex, n) = (self.vertex, self.edges.len());
         let p = body.resolve_vertex_point(vertex, Proven);
         let edge = self.edges[i];
@@ -280,7 +288,7 @@ impl<T: Decide> Orbit<T> {
                 }
             }
         }
-        Ok((bounds, sectors))
+        Ok(Corner { bounds, sectors })
     }
 }
 
@@ -305,9 +313,9 @@ impl<T: Decide> Star<T> {
             sectors: Vec::with_capacity(orbit.edges.len() + 2),
         };
         for i in 0..orbit.edges.len() {
-            let (bounds, sectors) = orbit.corner(body, i, tips, band)?;
-            star.bounds.extend(bounds);
-            star.sectors.extend(sectors);
+            let corner = orbit.corner(body, i, tips, band)?;
+            star.bounds.extend(corner.bounds);
+            star.sectors.extend(corner.sectors);
         }
         Ok(star)
     }

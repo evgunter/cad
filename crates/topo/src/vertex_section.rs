@@ -45,7 +45,7 @@ use crate::chord_join::{SectionCase, WallSection, wall_section};
 use crate::entity::{FaceKey, VertexKey};
 use crate::sector_shape::SlitTips;
 use crate::splitting::{EntryFault, PlaneSide, SplitReduceError, bound_side};
-use crate::star::{Bound, Datum, Orbit, Star, StarFault};
+use crate::star::{Bound, Corner, Datum, Orbit, Star, StarFault};
 use crate::validate::decide_reported;
 
 /// K name: a vertex ON a plane read against the sections the plane cuts
@@ -313,7 +313,10 @@ fn entered_faces<T: Decide>(
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
                 // The corner and the edge after it, refined in the corner
                 // alone.
-                let (mut bounds, mut sectors) = orbit
+                let Corner {
+                    mut bounds,
+                    mut sectors,
+                } = orbit
                     .corner(body, i, tips, band)
                     .map_err(VertexRefusal::Star)?;
                 let pieces = sectors.len();
@@ -468,11 +471,12 @@ mod tests {
         assert_eq!(decided.sign, Sign::Zero, "ON, as the offset reads it");
     }
 
-    /// **The corner refusals keep their kind through both verbs**: a star
-    /// fault the section reading raises reaches each verb as that verb's
-    /// own walk would name it, never as a broken invariant.
+    /// **A corner refusal keeps its kind through the split**: a star fault
+    /// the section reading raises reaches the split as its own walk names
+    /// it (the Boolean's half is
+    /// `boolean::reduce::tests::a_star_fault_in_the_section_reading_is_the_booleans_own`).
     #[test]
-    fn a_star_fault_in_the_section_reading_is_each_verbs_own() {
+    fn a_star_fault_in_the_section_reading_is_the_splits_own() {
         let (_, vertex, _, face) = near_axis_strut();
         let band = Band::new(1e-6, 1e-5).unwrap();
         let split = StarFault::NearAxis(face).split_refusal(vertex, band);
@@ -482,18 +486,6 @@ mod tests {
                 SplitReduceError::VertexNearConeAxis { vertex: v, face: f, .. } if v == vertex && f == face
             ),
             "the split's: {split:?}"
-        );
-        let boolean = crate::boolean::reduce::vertex_refusal_for_tests(
-            VertexRefusal::Star(StarFault::NearAxis(face)),
-            vertex,
-            band,
-        );
-        assert!(
-            matches!(
-                boolean,
-                crate::boolean::BooleanError::VertexNearConeAxis { face: f, .. } if f == face
-            ),
-            "the Boolean's: {boolean:?}"
         );
     }
 }

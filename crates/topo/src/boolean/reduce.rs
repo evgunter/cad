@@ -709,21 +709,6 @@ fn vertex_face_side<T: Decide>(
     )
 }
 
-/// [`vertex_refusal`] of operand A's `vertex`, with no declaration read.
-#[cfg(test)]
-pub(crate) fn vertex_refusal_for_tests(
-    refusal: VertexRefusal,
-    vertex: VertexKey,
-    band: Band,
-) -> BooleanError {
-    vertex_refusal(
-        refusal,
-        (Operand::A, vertex),
-        &|_| DeclarationRead::Moot,
-        band,
-    )
-}
-
 /// The Boolean's refusal of a vertex of operand `x_is` the rule could
 /// not place on a planar face, `read` reading the pair's declaration
 /// ahead of a question: the refusal of the decision that refused it.
@@ -9940,5 +9925,37 @@ mod review_5993_rows {
                 "a legal line with two certified-able roots ends as a kernel defect at ε {eps:e}: {got:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod vertex_refusal_tests {
+    use super::*;
+    use crate::star::StarFault;
+    use crate::vertex_section::VertexRefusal;
+
+    /// **A corner refusal keeps its kind through the Boolean**: a star
+    /// fault the section reading raises at a vertex near a cone's axis is
+    /// the Boolean's own [`BooleanError::VertexNearConeAxis`], naming the
+    /// operand and the face, never a broken invariant (the split's half is
+    /// `vertex_section::tests::a_star_fault_in_the_section_reading_is_the_splits_own`).
+    #[test]
+    fn a_star_fault_in_the_section_reading_is_the_booleans_own() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let face = FaceKey::default();
+        let got = vertex_refusal(
+            VertexRefusal::Star(StarFault::NearAxis(face)),
+            (Operand::B, VertexKey::default()),
+            &|_| DeclarationRead::Moot,
+            band,
+        );
+        assert!(
+            matches!(
+                got,
+                BooleanError::VertexNearConeAxis { operand: Operand::B, face: f, .. } if f == face
+            ),
+            "{got:?}"
+        );
     }
 }

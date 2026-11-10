@@ -5,7 +5,7 @@
 //! A verb supplies its datums, its reading of each bound's side, and which
 //! circle carries its chords; the star reads the orbit.
 //!
-//! The cuts and their germs still live in each verb: `splitting::insert`
+//! The cuts and their germs live in each verb: `splitting::insert`
 //! (`section_chords`, `apex_germ`) and `boolean::vtxfac` and
 //! `boolean::sectors` (`pierce_germ_dir`, `germ_locus`), and the germs'
 //! order in `splitting::insert` and `boolean::vtxfac` (`germ_order`).
@@ -114,7 +114,7 @@
 use geom_core::{Decide, Real};
 
 mod walk;
-pub(crate) use walk::{Bound, Datum, Orbit, Star, StarFace, StarFault, departure};
+pub(crate) use walk::{Bound, Corner, Datum, Orbit, Star, StarFace, StarFault, departure};
 
 use crate::body::{Body, WALKS_CLOSE};
 use crate::entity::{EntityId, HalfEdgeKey, LoopKey, VertexKey};

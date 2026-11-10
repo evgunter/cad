@@ -41,7 +41,7 @@ boolean-names-splitting    16  boolean/join.rs
 boolean-names-splitting     1  boolean/join_walk_order_rows.rs
 boolean-names-splitting     6  boolean/mod.rs
 boolean-names-splitting    16  boolean/ops.rs
-boolean-names-splitting     5  boolean/reduce.rs
+boolean-names-splitting     3  boolean/reduce.rs
 boolean-names-splitting     9  boolean/refusal_routes.rs
 boolean-names-splitting    17  boolean/region.rs
 boolean-names-splitting     3  boolean/ruled_region.rs
@@ -76,7 +76,7 @@ crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
 crate-visible              20  boolean/section_table.rs
-crate-visible              11  boolean/sectors.rs
+crate-visible              10  boolean/sectors.rs
 crate-visible              22  boolean/separating.rs
 crate-visible              52  boolean/solid_contain.rs
 crate-visible               4  boolean/sphere_region.rs
@@ -179,7 +179,7 @@ names-splitting             2  test_support_fixtures.rs
 names-splitting            27  test_support_samples.rs
 names-splitting            13  tier3_tests.rs
 names-splitting            41  validate.rs
-names-splitting            28  vertex_section.rs
+names-splitting            27  vertex_section.rs
 
 refused-binding             2  boolean/contain.rs
 refused-binding             1  boolean/reduce.rs
@@ -198,7 +198,6 @@ splitting-names-boolean    11  splitting/containment.rs
 splitting-names-boolean    41  splitting/finish.rs
 splitting-names-boolean     3  splitting/mod.rs
 splitting-names-boolean     2  splitting/neighborhood.rs
-splitting-names-boolean     2  splitting/rules.rs
 splitting-names-boolean     2  splitting/section.rs
 splitting-names-boolean     1  splitting/section_loops.rs
 

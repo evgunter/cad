@@ -9098,9 +9098,13 @@ fn departure<T: Decide>(
     he: HalfEdgeKey,
 ) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
     let (dir, reach) = crate::star::departure(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
+    use crate::bound_side::BoundSupport;
     Ok(match reach {
-        crate::bound_side::BoundSupport::Conic { bend, .. } => (dir, false, bend.curvature),
-        _ => (dir, true, Vec3::zero()),
+        BoundSupport::Conic { bend, .. } => (dir, false, bend.curvature),
+        BoundSupport::Chord { .. } => (dir, true, Vec3::zero()),
+        BoundSupport::Extent(_) | BoundSupport::Bisector { .. } => {
+            unreachable!("an edge's departure stands on its chord or its curve, never a probe's")
+        }
     })
 }
 

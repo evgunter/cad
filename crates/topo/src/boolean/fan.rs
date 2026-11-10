@@ -24,9 +24,9 @@
 //!
 //! The pair algebra is bound-coded: a sector's side of a partner face is
 //! read off its bounds, which holds where the side is monotone across
-//! the sector. [`super::sectors::build_sectors`] cuts every sector at
-//! its partner faces' extremes ([`super::sectors::Partners`]) so that
-//! it is.
+//! the sector. [`super::sectors::pair_sectors`] refines each vertex's
+//! star at its partner faces' extremes ([`crate::star::Star::refine`]) so
+//! that it is.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 

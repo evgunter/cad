@@ -106,6 +106,7 @@ This applies PR 6359's decision and does not change it. Two designers weighed it
   - the split's divider sides on grazed curved faces, which become descended instead of On by convention;
   - near-axis split vertices, which now refuse;
   - apex cut positions.
+- **`BoolSector` is a by-value view** (the orchestrator's ruling on PR 6725's FULL review, S3): each field is copied from the star's bound and sector by `BoolSector::of_star`, and it reads nothing the star does not. A lifetime would thread through about 260 pair-algebra sites and the planner's `Orbits` for no change in what is read.
 - **How it is built.** Build the star beside both walks and compare geometry only. The probe on `onehome/star-walk` @ `09d17537` is the starting point; its corrected D1′ count showed no disagreement. Then port each verb.
 - **Pins:**
   - a cylinder-graze divider reads its descended side, in both verbs;

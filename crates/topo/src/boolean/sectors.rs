@@ -12,21 +12,19 @@
 //! bound = the next orbit half-edge's departure: a line's chord, a
 //! curved edge's tangent at the vertex), so `sectors[k].start ==
 //! sectors[k+1].end` — the shared-bound chain the reclassification
-//! neighbor propagation walks. Wide (≥ 180°) sectors are convexly
-//! subdivided at an interior direction (PR 2's derivation: the cone
-//! argument needs < 180°), pushed as two chained entries. The arm /
-//! wideness / subdivision-direction rungs themselves are
-//! [`crate::sector_shape`] — one implementation, shared with the
-//! splitting lane, called here under this lane's K names.
+//! neighbor propagation walks. The sectors are the vertex's star's
+//! ([`crate::star::Star`], read by [`BoolSector::of_star`]): a wide
+//! (≥ 180°) corner is cut at an interior direction there (PR 2's
+//! derivation: the cone argument needs < 180°), one walk for both verbs.
 //!
 //! A corner at a cone's APEX has no tangent plane and is no planar
 //! wedge: it is a fan of the cone's rulings, from one bound's ruling
 //! round the axis to the other's ([`StarFace::Apex`]). Its bounds are
 //! still rulings stored as `start`/`end` vectors, chained as above, but
-//! "convex" is read round the axis, not in a plane: the corner is
-//! subdivided at each extremal ruling of the plane it is read against
-//! that lies inside it ([`Partners`], [`crate::sector_shape::apex_corner_shape`]),
-//! so that across each sub-sector the plane's side along its rulings is
+//! "convex" is read round the axis, not in a plane: the star cuts the
+//! corner under a half-turn and at each extremal ruling of the datums it
+//! is refined against that lies inside it ([`crate::star::Star::refine`]),
+//! so that across each sub-sector each datum's side along its rulings is
 //! monotone, and its middle is the ruling halfway round
 //! ([`BoolSector::middle`]), not its bounds' sum. The pierce reads such
 //! a sector through its apex arms; the vertex–vertex lane's pair search
@@ -92,7 +90,7 @@ use crate::sector_face::{ConeApex, SectorFaceError};
 use crate::sector_shape::SlitTips;
 use crate::star::{Datum, Star, StarFace, StarFault};
 use crate::validate::decide;
-use geom_brep::sector_shape::{SectorFault, metering_arm};
+use geom_brep::sector_shape::SectorFault;
 
 use crate::bound_side::Descent;
 use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
@@ -116,7 +114,7 @@ pub(crate) struct BoolSector<T: geom_core::Real> {
     pub end_reach: BoundSupport<T>,
     /// The sector's face.
     pub face: FaceKey,
-    /// What the face is at the base vertex ([`sector_face`]): its
+    /// What the face is at the base vertex ([`crate::sector_face::resolve`]): its
     /// tangent plane's outward unit normal, minted once from the CHART
     /// normal and the face's `sense` bit (S10), or a cone's apex, read
     /// as its rulings. Consumers pair a normal with the stored orbit
@@ -399,12 +397,6 @@ pub(super) fn star_fault(
             BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
         }
     }
-}
-
-/// **A departure vector's norm as a lever**: the one bound's arm
-/// [`metering_arm`] reads, for a reading levered at a single departure.
-pub(crate) fn departure_arm_lever<T: geom_core::Real>(v: Vec3<T>) -> Lever<T> {
-    metering_arm(v.norm())
 }
 
 /// A sector rung's fault at `vertex`'s corner in `face`, as the
