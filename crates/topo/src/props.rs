@@ -1277,7 +1277,7 @@ impl RoleUnread {
 /// a certified enclosure on one side of zero is that role however thin
 /// the body. The margins it records are the volume's own.
 pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) -> RoleRead {
-    let sign = |name, volume| {
+    let sign_as = |name, volume| {
         crate::validate::decide_reported(name, Margin::sign_of(volume), Band::enclosure_sign())
     };
     let role_at = |end, decided: Result<Decided, Indeterminate>| {
@@ -1291,18 +1291,18 @@ pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) ->
     };
     match reading {
         SignReading::Exact { volume, .. } => {
-            let one = sign(names.high, volume);
+            let one = sign_as(names.high, volume);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
                 RoleUnread { lo: one, hi: one },
             )
         }
         SignReading::Bracket(ends) => {
-            let hi = sign(names.high, ends.volume_hi);
+            let hi = sign_as(names.high, ends.volume_hi);
             if let Some(role) = role_at(BracketEnd::High, hi) {
                 return RoleRead::Decided(role);
             }
-            let lo = sign(names.low, ends.volume_lo);
+            let lo = sign_as(names.low, ends.volume_lo);
             read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
         }
     }
@@ -6851,7 +6851,7 @@ pub trait AtRestPolicy: Decide {
     /// the general rung through it ([`geom_brep::PairSection::carry`]).
     /// The ℝ³ march is written at `f64` alone, so that arm answers
     /// `Some`; a join whose germs ride such a section refuses at any
-    /// other scalar by name ([`geom_brep::CarryError::NoLane`]).
+    /// other scalar by name ([`geom_brep::CarryRefusal::NoLane`]).
     fn ssi_lane() -> Option<geom_brep::SsiLane<Self>>;
 
     /// **This scalar's shell door, or `None` where it may not form the

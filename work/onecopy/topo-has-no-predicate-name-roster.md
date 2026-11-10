@@ -2,10 +2,12 @@
 id: topo-has-no-predicate-name-roster
 kind: issue
 title: topo has no predicate-name roster, so no census reader sees the names its decide and read_identity sites pass
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6679
 ---
 
 

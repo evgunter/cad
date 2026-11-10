@@ -648,7 +648,7 @@ fn meridian<T: Real>(c: Point3<T>, a: Vec3<T>, v: Vec3<T>) -> (T, impl Fn(T, T) 
 }
 
 /// A margin's sign, `None` when undecided.
-fn sign<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign> {
+fn sign_as<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign> {
     decide(name, m, band).ok()
 }
 
@@ -976,7 +976,7 @@ fn torus_plane<T: Decide>(
                 -T::one()
             };
             let d = offset(sigma);
-            if sign(
+            if sign_as(
                 "section_torus_plane_touch_elliptic",
                 Margin::of(sigma * d * s),
                 band,
@@ -1309,7 +1309,7 @@ fn cone_cylinder<T: Decide>(
     if let Err(tan) = signs([("section_cone_cylinder_apex", dist - rc)], band) {
         return tan.into();
     }
-    match sign(
+    match sign_as(
         "section_cone_cylinder_aperture",
         Margin::levered(
             d.dot(cone.a).abs() - c,
@@ -1398,7 +1398,7 @@ fn cone_cone<T: Decide>(
         let mut lines = 0;
         for a2 in [two.a, -two.a] {
             let m = geom_brep::cone_cone_apex_meeting((one.a, one.sc.1), (a2, two.sc.1));
-            match sign(RULINGS, Margin::levered(m.disc, lever), band) {
+            match sign_as(RULINGS, Margin::levered(m.disc, lever), band) {
                 Some(Sign::Positive) => lines += 2,
                 Some(Sign::Negative) => {}
                 Some(Sign::Zero) | None => return Section::Tangent(RULINGS),
@@ -1432,7 +1432,7 @@ fn cone_cone<T: Decide>(
             .twice_lever_from(one.apex)
             .max(ball.twice_lever_from(two.apex));
         let gap = one.sc.1.powi(2) - two.sc.1.powi(2);
-        match sign(APERTURE, Margin::levered(gap, lever), band) {
+        match sign_as(APERTURE, Margin::levered(gap, lever), band) {
             Some(Sign::Zero) => return cone_plane_pair(one, two, reach, band),
             Some(Sign::Positive | Sign::Negative) => {}
             None => return Section::Tangent(APERTURE),
@@ -1518,7 +1518,7 @@ fn cone_plane<T: Decide>(
     let (s, _) = cone.sc;
     let lever = reach.ball().lever_from_point_and_plane(cone.apex, (p0, n));
     let na = n.dot(cone.a);
-    match sign(
+    match sign_as(
         "section_cone_plane_aperture",
         Margin::levered(na.abs() - s, lever),
         band,
@@ -1544,7 +1544,7 @@ fn cone_plane<T: Decide>(
             // on the ellipse's range `0 ≤ β < π/2 − α` is at least
             // `min(cos α, sin 2α)`. Only the witness's position divides
             // by it; no margin does.
-            let facing = match sign(
+            let facing = match sign_as(
                 "section_cone_plane_facing",
                 Margin::levered(na, lever),
                 band,
@@ -1554,7 +1554,7 @@ fn cone_plane<T: Decide>(
                 _ => return Section::Tangent("section_cone_plane_facing"),
             };
             let (across, width) = perp_to(facing, cone.a);
-            let r = match sign(
+            let r = match sign_as(
                 "section_cone_plane_meridian",
                 Margin::levered(width, lever),
                 band,
@@ -1604,7 +1604,7 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         Err(tan) => return tan.into(),
     };
     let (across, offset) = perp_to(delta, cone.a);
-    let r = match sign("section_cone_sphere_axis", Margin::of(offset), band) {
+    let r = match sign_as("section_cone_sphere_axis", Margin::of(offset), band) {
         Some(Sign::Positive) => across / offset,
         Some(Sign::Zero) => cone.u_ref,
         _ => return Section::Tangent("section_cone_sphere_axis"),
@@ -1764,7 +1764,7 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
         // apart: the next critical value is `2·dd` away.
         Err(tan)
             if tan.name == NEST
-                && sign("section_sphere_pair_apart", Margin::of(dd), band)
+                && sign_as("section_sphere_pair_apart", Margin::of(dd), band)
                     != Some(Sign::Positive) =>
         {
             tan.into()
@@ -1973,20 +1973,22 @@ fn bounding<'a, T: Decide>(
 pub(super) fn of_carried<T: Decide>(
     carried: Result<&geom_brep::CarriedSection<T>, &geom_brep::CarryError>,
 ) -> Section<T> {
-    use geom_brep::CarryError;
+    use geom_brep::{CarryError, CarryRefusal};
     let section = match carried {
         Ok(section) => section,
-        Err(CarryError::NoLane { scalar }) => return Section::NoLane(scalar),
+        Err(CarryError::Refused(CarryRefusal::NoLane { scalar })) => {
+            return Section::NoLane(scalar);
+        }
         Err(
-            CarryError::Unminted(_)
-            | CarryError::March(_)
-            | CarryError::Winds(_)
-            | CarryError::PadShort { .. }
-            | CarryError::TubeUnread(_)
+            CarryError::Refused(CarryRefusal::Unminted(_))
+            | CarryError::Refused(CarryRefusal::March(_))
+            | CarryError::Refused(CarryRefusal::Winds(_))
+            | CarryError::Refused(CarryRefusal::PadShort { .. })
+            | CarryError::Refused(CarryRefusal::TubeUnread(_))
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
-            | CarryError::Seat(_)
-            | CarryError::Unwalked(_),
+            | CarryError::Refused(CarryRefusal::Seat(_))
+            | CarryError::Refused(CarryRefusal::Unwalked(_)),
         ) => return Section::Unmarched,
     };
     let components = section.components();

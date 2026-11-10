@@ -350,7 +350,7 @@ impl<T: SpanLocate> Knots<T> {
 /// it holds for none, [`SplineError::KnotRunsUndecided`] with the step's
 /// enclosure where it holds for some.
 fn runs_ascend<T: SpanLocate>(a: T, b: T, index: usize) -> Result<(), SplineError> {
-    if super::locate::structure_ascends(a, b) {
+    if crate::structure_ascends(a, b) {
         return Ok(());
     }
     let step = b - a;

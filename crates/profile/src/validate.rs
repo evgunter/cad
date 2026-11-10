@@ -136,7 +136,7 @@
 //! | `ray_advance` | ray parameter | direct |
 //! | `loop_orientation` | 2·area/perimeter (sliver width) | half-perimeter (area → meters) |
 //! | `canonical_order_x` / `_y` | coordinate difference | exact-order band (see below) |
-//! | `fillet_leg_fit` | leg length − tangent setback | exact-order band; fired in the fillet CONSTRUCTORS, not here |
+//! | `fillet_leg_fit` | leg length − tangent setback (the run) | linear band, the one `vertex_separation` reads a segment on; fired in the fillet CONSTRUCTORS, not here |
 //! | `fillet_leg_reach` | tangent setback from the corner | exact-order band; the constructor's corner-side extent test (M5 S2) |
 //! | `fillet_corner_arm` | min leg lever arm | linear band; the collapsed-arm gate (M5 S2) |
 //! | `fillet_corner_turn` | sin φ · arm | linear band; φ the corner's turn, arm = min(leg extents, leg carrier radii) |

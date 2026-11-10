@@ -33,7 +33,7 @@
 
 boolean-names-splitting     2  boolean/carrier_touch.rs
 boolean-names-splitting     1  boolean/carrier_touch_rows.rs
-boolean-names-splitting    72  boolean/contain.rs
+boolean-names-splitting    64  boolean/contain.rs
 boolean-names-splitting    17  boolean/fate.rs
 boolean-names-splitting     7  boolean/finish.rs
 boolean-names-splitting    21  boolean/insert.rs
@@ -99,11 +99,12 @@ crate-visible               9  splitting/rules.rs
 crate-visible              10  splitting/spiric_arc.rs
 crate-visible               3  splitting/spline_arc.rs
 
+names-boolean               2  contain_loop.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               9  cover.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               2  attach.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             434  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
+names-boolean             435  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
 names-boolean               3  census/depth_gap.rs
 names-boolean              18  census/in_plane.rs
@@ -148,7 +149,7 @@ names-boolean              12  separation.rs
 names-boolean              39  shell.rs
 names-boolean              79  side_reader.rs
 names-boolean               1  split.rs
-names-boolean              22  stands.rs
+names-boolean              21  stands.rs
 names-boolean               2  surgery.rs
 names-boolean               2  test_support_fixtures.rs
 names-boolean              28  test_support_holdings.rs
@@ -164,6 +165,7 @@ names-splitting             1  census/self_touch.rs
 names-splitting            46  chord_join.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            16  chord_join/ring_side_rows.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting             7  chord_join/sibling_escalation_rows.rs
+names-splitting             9  contain_loop.rs  # work/onedoor/chord-joins-ring-side-reads-the-splitting-engines-loop-containment
 names-splitting            11  lib.rs
 names-splitting             1  lineage.rs
 names-splitting             1  link.rs

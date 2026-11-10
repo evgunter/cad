@@ -251,16 +251,16 @@ impl core::fmt::Display for FrameError {
             FrameError::NonFiniteLength { input } => write!(
                 f,
                 "the frame's {} has no finite length (a component overflows the norm or \
-                 is not a number). Recourse: {}",
+                 is not a number). {}",
                 input.name(),
-                crate::predicate::RANGE_RECOURSE
+                crate::predicate::RANGE_ENDING
             ),
             FrameError::UnderflowedLength { input } => write!(
                 f,
                 "the frame's {} has a length that underflowed out of the format, though \
-                 it still names a direction. Recourse: {}",
+                 it still names a direction. {}",
                 input.name(),
-                crate::predicate::RANGE_RECOURSE
+                crate::predicate::RANGE_ENDING
             ),
             FrameError::Band(e) => write!(f, "{e}"),
         }

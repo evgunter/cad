@@ -195,7 +195,7 @@ pub(crate) fn read_sections<T: Decide>(
     // A sine within its own rounding of zero bounds no reading: the
     // plane is tangent to the face at the vertex as far as the rounding
     // tells, and a reading past any bound is past `ε/K`.
-    let Some(sine) = sine.divisor() else {
+    let Some(sine) = sine.divisor("vertex_section_sine") else {
         return Ok(on_plane);
     };
     let reading = Rounded {
