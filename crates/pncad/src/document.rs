@@ -340,7 +340,7 @@ pub use editor_core::{
 // `evaluate_recorded` takes the base-scalar evaluation and refuses every
 // node it refused; `evaluate` is the door of a scalar that is its own
 // record (`OwnRecord`), and a dual is `BoundToRecord`.
-pub use editor_core::{BoundToRecord, OwnRecord, evaluate_recorded};
+pub use editor_core::{BoundToRecord, OwnRecord, RecordMispairing, evaluate_recorded};
 // What a body value carries from its source (`NodeValue::carry`), and
 // the pieces it holds: what a `⊔` grafted, each by its read, which a
 // pick reads one of.
