@@ -26,7 +26,7 @@ from matplotlib import font_manager
 from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "demos"))
-from render import read_binary_stl  # noqa: E402
+from render import read_binary_stl
 
 PANEL = 520
 SS = 3
