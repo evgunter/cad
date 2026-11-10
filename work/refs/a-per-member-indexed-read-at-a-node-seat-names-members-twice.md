@@ -9,7 +9,7 @@ cost: M
 ---
 
 
-Found by a designer's probe on fork row 258 (PR 6555) and not pinned by
+Found by a designer's probe on fork row 259 (PR 6555) and not pinned by
 a test. REFERENCES DM3 says a member read answers the member's own
 table, with the index said once: in the read, and in `Member` only where
 the family is read whole or a member's entity is carried.

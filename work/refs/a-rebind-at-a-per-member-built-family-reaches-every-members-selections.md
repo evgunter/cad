@@ -10,7 +10,7 @@ design: true
 ---
 
 
-Filed by PR 6555 (fork row 258), whose design keeps `DocEdit::Rebind`
+Filed by PR 6555 (fork row 259), whose design keeps `DocEdit::Rebind`
 addressed by the variable holding the body (`body: Option<VarId>`,
 `edit.rs` `DocEdit::Rebind`): a repair at `xs` rewrites every selection
 reading `xs` that names `from`, whichever member it reads
