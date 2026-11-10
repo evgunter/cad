@@ -477,11 +477,10 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
     };
     let rim = Curve3::circle(apex + axis * (0.2 * eps()), axis, 0.3, u_ref);
     let check = |got: Result<String, PcurveCertifyError>, lane: &str| match got {
-        Err(PcurveCertifyError::CarrierOffChart {
-            why,
-            margin: Some(geom_brep::OffMargin::InBand(_)),
-            ..
-        }) => {
+        Err(PcurveCertifyError::Incidence(r))
+            if matches!(r.read(), geom_brep::IncidenceRead::AtPose(_)) && r.why().is_some() =>
+        {
+            let why = r.why().unwrap_or_default();
             assert!(
                 why.contains("is not shown away from the apex"),
                 "{lane}: {why}"
@@ -1817,7 +1816,7 @@ fn an_arc_on_its_face_is_read_on_it_by_the_edges_own_read() {
 /// edge's span. That is the mint's imaging, which reads a conic over its
 /// whole turn. On the arc of [`an_arc_on_its_face_is_read_on_it_by_the_edges_own_read`]
 /// (the unit circle tilted `1e3·ε` about `x`, edged over
-/// `t ∈ [−1e-4, 1e-4]`, on `z = 0`) it refuses `CarrierOffChart`, the
+/// `t ∈ [−1e-4, 1e-4]`, on `z = 0`) it refuses, read off its chart (`IncidenceRead::Off`), the
 /// full turn's farthest point (`Past(1.0e-6)` at ε 1e-9). `chart_region`
 /// ends that as `TrimOffFace`, the stored culprit at rest, while the planar
 /// tier's [`geom_brep::read_edge_incidence`] reads the same arc on its

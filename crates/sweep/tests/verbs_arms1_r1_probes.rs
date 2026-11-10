@@ -350,9 +350,8 @@ fn the_unbored_hemisphere_equator_carves_as_one_band() {
     assert_eq!(arcs.len(), 2, "the equator is two half-circle arcs");
     assert!(
         arcs.iter().all(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let start = body.get_half_edge(e.he_plus).unwrap().start;
-            Some(start) != body.half_edge_end(e.he_plus)
+            let (start, end) = body.edge_vertices(*k).unwrap();
+            start != end
         }),
         "an on-axis profile mints no closed rim edge at all"
     );
@@ -421,9 +420,8 @@ fn the_partial_zone_refuses_through_its_own_gates() {
     let open_arc = query::all_edges(&body)
         .into_iter()
         .find(|&k| {
-            let e = body.get_edge(k).unwrap();
-            let closed =
-                Some(body.get_half_edge(e.he_plus).unwrap().start) == body.half_edge_end(e.he_plus);
+            let (start, end) = body.edge_vertices(k).unwrap();
+            let closed = start == end;
             !closed
                 && query::edge_adjacent_matches(
                     &body,

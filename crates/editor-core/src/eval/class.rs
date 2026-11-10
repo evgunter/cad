@@ -89,6 +89,10 @@ pub enum NodeErrorClass {
     ParamBox,
     /// [`NodeErrorKind::Seed`].
     Seed,
+    /// [`NodeErrorKind::RecordRefused`].
+    RecordRefused,
+    /// [`NodeErrorKind::RecordMispaired`].
+    RecordMispaired,
     /// [`NodeErrorKind::WrongOperand`].
     WrongOperand,
     /// [`NodeErrorKind::EmptyOperand`].
@@ -246,6 +250,8 @@ impl NodeErrorKind {
             Self::ToleranceConflict { .. } => C::ToleranceConflict,
             Self::ParamBox { .. } => C::ParamBox,
             Self::Seed { .. } => C::Seed,
+            Self::RecordRefused => C::RecordRefused,
+            Self::RecordMispaired(_) => C::RecordMispaired,
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::EmptyMember { .. } => C::EmptyMember,
@@ -390,6 +396,8 @@ mod tests {
         ToleranceConflict,
         ParamBox,
         Seed,
+        RecordRefused,
+        RecordMispaired,
         WrongOperand,
         EmptyOperand,
         EmptyMember,
@@ -465,6 +473,7 @@ mod tests {
         Indeterminate {
             margin: MarginDiag::value(3.0e-10),
             band: band(),
+            // UNDECIDED-NAME: the in-band cause diag() hands each class row to render
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         }
@@ -598,6 +607,13 @@ mod tests {
                     var: crate::SpokenVar::new(crate::VarId::new(0, 1), None),
                 },
             },
+            C::RecordRefused => K::RecordRefused,
+            C::RecordMispaired => {
+                K::RecordMispaired(crate::RecordMispairing::Document(crate::ident::Mispaired {
+                    expected: crate::ident::DocumentId(1),
+                    found: crate::ident::DocumentId(2),
+                }))
+            }
             C::WrongOperand => K::WrongOperand {
                 input: n(3),
                 expected: "body",

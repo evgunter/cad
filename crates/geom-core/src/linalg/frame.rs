@@ -130,7 +130,9 @@
 //! would cost a layer.
 
 use crate::linalg::{Affine3, Mat3, Point3, RigidMotion, UnitVec3, UnitVec3Error, Vec3};
-use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};
+use crate::predicate::{
+    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, MOVE_RECOURSE,
+};
 
 use crate::real::Real;
 use crate::tolerance::Tol;
@@ -239,7 +241,7 @@ impl core::fmt::Display for FrameError {
                 indeterminate: None,
             } => write!(
                 f,
-                "the frame's {} is degenerate. Recourse: {COINCIDENCE_RECOURSE}",
+                "the frame's {} is degenerate. {MOVE_RECOURSE}",
                 input.name()
             ),
             FrameError::Degenerate {
@@ -984,13 +986,13 @@ mod tests {
         };
         let in_band = render(0.5 * (band.zero() + band.escalate()));
         assert!(
-            in_band.ends_with(&format!(". Recourse: {COINCIDENCE_RECOURSE}")),
+            in_band.ends_with(&format!(". {MOVE_RECOURSE}")),
             "in band: the lever alone: {in_band}"
         );
         let poisoned = render(f64::NAN);
         assert!(
             poisoned.ends_with(&format!(
-                ". Recourse: {COINCIDENCE_RECOURSE}; {}",
+                ". {MOVE_RECOURSE}; {}",
                 crate::predicate::UNREADABLE_MARGIN_NOTE
             )),
             "poisoned: the lever, then the note: {poisoned}"

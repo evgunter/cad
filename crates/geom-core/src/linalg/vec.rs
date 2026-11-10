@@ -2309,7 +2309,7 @@ mod tests {
         let ivb = Interval::from_bounds;
         // The seam's elevation at the azimuths this row sweeps.
         let seam = 0.5 * 2.0 / 5.0f64.sqrt();
-        let bounded = |e: Interval, which: &str, what: &str| {
+        let stays_bounded = |e: Interval, which: &str, what: &str| {
             assert!(
                 e.lo().is_finite() && e.hi().is_finite(),
                 "{which} at {what} is unbounded: [{}, {}]",
@@ -2362,7 +2362,7 @@ mod tests {
                         (b2.y, "b2.y"),
                         (b2.z, "b2.z"),
                     ] {
-                        bounded(e, which, &what);
+                        stays_bounded(e, which, &what);
                     }
                 }
             }
@@ -2396,7 +2396,7 @@ mod tests {
                 (b2.y, "b2.y"),
                 (b2.z, "b2.z"),
             ] {
-                bounded(e, which, name);
+                stays_bounded(e, which, name);
             }
         }
         // A whole meridian at the azimuth whose `e_y` candidate
@@ -2449,7 +2449,7 @@ mod tests {
         );
         // …and the shipped ordering is bounded and certified there.
         let (b1, _) = n.orthonormal_basis();
-        bounded(b1.x, "b1.x", "the straddled seam");
+        stays_bounded(b1.x, "b1.x", "the straddled seam");
     }
 
     /// **The enclosure property over boxes that straddle the seam**: for

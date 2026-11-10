@@ -717,3 +717,59 @@ fn a_thorn_of_its_own_reads_its_horns_one_order_down() {
         );
     }
 }
+
+/// **A solid touching itself at a lone vertex of its curved wall
+/// refuses as a lone loop**: the post's wall holds a one-vertex ring at
+/// the wall seat, and the parallelepiped's corner rests on it, tied
+/// vertex to vertex. The wall is curved, so the planar reading aborts
+/// and the tangent cones read the wall at its corner there: the lone
+/// vertex, which has no tangent sector ([`TouchUnread::LoneLoop`]). Red
+/// where the lone loop read as an unwalkable one ([`TouchUnread::Corrupt`]).
+#[test]
+fn a_self_touch_at_a_lone_vertex_of_a_curved_wall_refuses_as_a_lone_loop() {
+    use crate::euler::MevSite;
+    let tol = Tol::witness();
+    let c = Point3::new(0.3, 0.2, 0.0);
+    let off = [[0.3, 0.1, -0.05], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
+    let (mut body, corner, _) = seat(c, Seat::Wall, off);
+    let p = c + Vec3::new(THETA.cos(), THETA.sin(), 0.0) * R + Vec3::unit_z() * UP;
+    let wall = body
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the wall");
+    let he = body.proven_face(wall).half_edges()[0];
+    let strut = body
+        .mev_line(MevSite::Fan { he1: he, he2: he }, p, tol)
+        .expect("a strut into the wall");
+    let lone = strut.vertex;
+    let ring = body
+        .kemr(strut.he_plus, strut.he_minus)
+        .expect("the strut killed into a ring")
+        .ring;
+    assert_eq!(
+        body.get_loop(ring).expect("the ring").boundary,
+        crate::entity::LoopBoundary::Empty { vertex: lone },
+        "the wall holds a one-vertex ring at the seat"
+    );
+    let ties = Ties {
+        vv: vec![(corner, lone), (lone, corner)],
+        ..Ties::default()
+    };
+    let (planar, verdict) = read(&body, corner, &ties);
+    assert_eq!(
+        planar,
+        TouchUnread::Unreadable,
+        "the curved wall aborts the planar reading"
+    );
+    assert_eq!(
+        verdict,
+        SelfTouch::Read(TouchVerdict::Unread(TouchUnread::LoneLoop)),
+        "the tangent cones refuse the wall's lone vertex as a lone loop"
+    );
+}

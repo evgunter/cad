@@ -196,19 +196,12 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("planar_winding_spiric_refine", &PCURVES),
     ("undecided_mark_row", &PCURVES),
     ("arm", &UNIT_TEST),
-    ("asymptote", &UNIT_TEST),
-    ("clear", &UNIT_TEST),
     ("datum", &UNIT_TEST),
-    ("fold", &UNIT_TEST),
-    ("monotone", &UNIT_TEST),
-    ("precision", &UNIT_TEST),
     // `splitting::finish`'s `escalation_endings` rows.
     ("finish_straddle", &UNIT_TEST),
     ("probe_oracle", &UNIT_TEST),
     ("rh_straddle", &UNIT_TEST),
-    ("side", &UNIT_TEST),
     ("t", &UNIT_TEST),
-    ("width", &UNIT_TEST),
 ];
 
 /// The carriers that hand a name to a funnel from somewhere other than
@@ -272,7 +265,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("FRAME_AXIS"),
     NameCarrier::Const("GAP_WITHIN_EPS"),
     NameCarrier::Const("SELF_INTERSECTION_GRAPH"),
-    NameCarrier::Const("LADDER_NOISE"),
     NameCarrier::Const("LINK_AHEAD"),
     NameCarrier::Const("LINK_BALL"),
     NameCarrier::Const("LINK_PIECE_MEET"),
@@ -300,7 +292,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("RIDER_ON_CURVED"),
     NameCarrier::Const("RIDER_SPIRIC_PLANE"),
     NameCarrier::Const("RIDER_WALL_BEND_ACROSS"),
-    NameCarrier::Const("RIM_ON_PLANE"),
     NameCarrier::Const("ROW"),
     NameCarrier::Const("RULINGS"),
     NameCarrier::Const("SEAM_GERM_ON_PLANE"),
@@ -340,14 +331,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("Parallelism"),
     NameCarrier::Call("ArcRows"),
     NameCarrier::Call("ChartRows"),
-    NameCarrier::Call("FirstHarmonicRows"),
-    NameCarrier::Call("HalfAngleRows"),
     NameCarrier::Call("ParityRows"),
-    NameCarrier::Call("QuarticRows"),
     NameCarrier::Call("RayRows"),
     NameCarrier::Call("RoleNames"),
     NameCarrier::Call("SegmentRows"),
-    NameCarrier::Call("SubdivisionRows"),
     NameCarrier::Call("WedgeNames"),
     // `geom_brep`'s `ConicRows::bounded`, a row and its straddle row.
     NameCarrier::Call("bounded"),
@@ -387,6 +374,18 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("zero_as"),
     NameCarrier::Call("turn_as"),
     NameCarrier::Call("zero_refused"),
+    // The split join's chord-leave rows, picked by a `match` on the datum.
+    NameCarrier::Const("CHORD_LEAVE_GERM"),
+    NameCarrier::Const("CHORD_LEAVE_SECTION"),
+    // The split order's two axis rows, read in a loop.
+    NameCarrier::Const("SPLIT_JOIN_ORDER_U"),
+    NameCarrier::Const("SPLIT_JOIN_ORDER_V"),
+    // A refusal's own row, which no door decides
+    // (`two-boolean-refusals-name-a-row-no-door-decides`).
+    NameCarrier::Const("CARRIER_UNGLUED_COINCIDENCE"),
+    // The funnels the tree-wide reference row found their callers'
+    // names behind.
+    NameCarrier::Call("first_within"),
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
@@ -396,6 +395,8 @@ const NOT_FIRST: &str = "a declared carrier's call whose name is not its first a
                          here by that first argument, so the file's sites that share it are one \
                          entry; its literal names are read";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
+const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name \
+     (`names.straddle()`, a `WedgeNames` row; `.turn()`, a `TurnRows` row), read as that door's call with no first argument";
 const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
 const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
                              `cone_data`, whose names are declared consts";
@@ -415,6 +416,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("boolean/carrier_eq.rs: row", FORWARDS),
     ("boolean/cone_frame_rows.rs: x", NOT_A_NAME),
+    (
+        "boolean/conic_quadric/in_band_sweep.rs: LADDER_ROWS.noise()",
+        ROW_FIELD,
+    ),
     ("boolean/contact_verify.rs: &first", NOT_A_NAME),
     ("boolean/contact_verify.rs: on", FORWARDS),
     ("boolean/contact_verify.rs: row.predicate()", CLOSED_TYPE),
@@ -435,23 +440,32 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("boolean/section_cert.rs: name", FORWARDS),
     ("boolean/section_cert/ruling.rs: row", FORWARDS),
-    ("boolean/section_cert/ruling.rs: rows.asymptote", ROW_FIELD),
-    ("boolean/section_cert/ruling.rs: rows.fold", ROW_FIELD),
-    ("boolean/section_cert/ruling.rs: rows.precision", ROW_FIELD),
+    (
+        "boolean/section_cert/ruling.rs: rows.asymptote()",
+        ROW_FIELD,
+    ),
+    ("boolean/section_cert/ruling.rs: rows.fold()", ROW_FIELD),
+    (
+        "boolean/section_cert/ruling.rs: rows.precision()",
+        ROW_FIELD,
+    ),
     ("boolean/sectors.rs: reading.predicate", FORWARDS),
-    ("boolean/solid_contain.rs: SCHEDULE_ROWS.reaches", ROW_FIELD),
+    (
+        "boolean/solid_contain.rs: SCHEDULE_ROWS.reaches()",
+        ROW_FIELD,
+    ),
     ("boolean/solid_contain.rs: name", FORWARDS),
     ("boolean/solid_contain.rs: order", FORWARDS),
-    ("boolean/solid_contain.rs: rows.beside", ROW_FIELD),
-    ("boolean/solid_contain.rs: rows.clearance", ROW_FIELD),
-    ("boolean/solid_contain.rs: rows.denom", ROW_FIELD),
-    ("boolean/solid_contain.rs: rows.edge", ROW_FIELD),
-    ("boolean/solid_contain.rs: rows.edge_span", ROW_FIELD),
-    ("boolean/solid_contain.rs: rows.reaches", ROW_FIELD),
-    ("boolean/solid_contain.rs: rows.represents", ROW_FIELD),
-    ("boolean/solid_contain.rs: rows.vertex", ROW_FIELD),
+    ("boolean/solid_contain.rs: rows.beside()", ROW_FIELD),
+    ("boolean/solid_contain.rs: rows.clearance()", ROW_FIELD),
+    ("boolean/solid_contain.rs: rows.denom()", ROW_FIELD),
+    ("boolean/solid_contain.rs: rows.edge()", ROW_FIELD),
+    ("boolean/solid_contain.rs: rows.edge_span()", ROW_FIELD),
+    ("boolean/solid_contain.rs: rows.reaches()", ROW_FIELD),
+    ("boolean/solid_contain.rs: rows.represents()", ROW_FIELD),
+    ("boolean/solid_contain.rs: rows.vertex()", ROW_FIELD),
     (
-        "boolean/solid_contain/curved_edges.rs: rows.order",
+        "boolean/solid_contain/curved_edges.rs: rows.order()",
         ROW_FIELD,
     ),
     (
@@ -503,34 +517,38 @@ const INDIRECT: &[(&str, &str)] = &[
     ("props.rs: faces", NOT_A_NAME),
     ("props.rs: items", NOT_A_NAME),
     ("props.rs: name", FORWARDS),
-    ("props.rs: names.high", ROW_FIELD),
-    ("props.rs: names.low", ROW_FIELD),
+    ("props.rs: names.high()", ROW_FIELD),
+    ("props.rs: names.low()", ROW_FIELD),
     ("props/quad_lane.rs: &faces", NOT_A_NAME),
     ("props/settle.rs: e", NOT_FIRST),
     ("props/settle.rs: name", FORWARDS),
     ("ray_walk.rs: order", FORWARDS),
     ("ray_walk.rs: row", FORWARDS),
-    ("ray_walk.rs: rows.advance", ROW_FIELD),
-    ("ray_walk.rs: rows.boundary", ROW_FIELD),
-    ("ray_walk.rs: rows.segment", ROW_FIELD),
-    ("ray_walk.rs: rows.side", ROW_FIELD),
-    ("ray_walk.rs: segment: self.segment", ROW_FIELD),
+    ("ray_walk.rs: rows.advance()", ROW_FIELD),
+    ("ray_walk.rs: rows.boundary()", ROW_FIELD),
+    ("ray_walk.rs: rows.segment()", ROW_FIELD),
+    ("ray_walk.rs: rows.side()", ROW_FIELD),
     ("ring_path.rs: name", FORWARDS),
+    ("rows.rs: ", ACCESSOR_LIKE_A_DOOR),
+    ("rows.rs: segment: self.segment", ROW_FIELD),
+    ("rows.rs: self.line", ROW_FIELD),
+    ("splitting/containment.rs: ", ACCESSOR_LIKE_A_DOOR),
     ("splitting/containment.rs: arm_row", FORWARDS),
     (
         "splitting/containment.rs: read_identity#1(data.iter().map(|&(name, m, _)| (name, m)))",
         IDENTITY,
     ),
-    ("splitting/containment.rs: rows.turn", ROW_FIELD),
+    ("splitting/containment.rs: rows.rows().turn()", ROW_FIELD),
     ("splitting/order.rs: name", FORWARDS),
-    ("splitting/pieced_arc.rs: rows.clear", ROW_FIELD),
-    ("splitting/pieced_arc.rs: rows.end", ROW_FIELD),
-    ("splitting/pieced_arc.rs: rows.leaf", ROW_FIELD),
-    ("splitting/pieced_arc.rs: rows.on", ROW_FIELD),
+    ("splitting/pieced_arc.rs: rows.clear()", ROW_FIELD),
+    ("splitting/pieced_arc.rs: rows.end()", ROW_FIELD),
+    ("splitting/pieced_arc.rs: rows.leaf()", ROW_FIELD),
+    ("splitting/pieced_arc.rs: rows.on()", ROW_FIELD),
     ("splitting/spline_arc.rs: row", FORWARDS),
     ("test_support_samples.rs: predicate", FORWARDS),
+    ("validate.rs: ", ACCESSOR_LIKE_A_DOOR),
     ("validate.rs: $name", FORWARDS),
-    ("validate.rs: (name, names.straddle)", FORWARDS),
+    ("validate.rs: (name, names.straddle())", FORWARDS),
     ("validate.rs: name", FORWARDS),
     ("validate.rs: names", ROW_FIELD),
     ("validate.rs: names.0", ROW_FIELD),

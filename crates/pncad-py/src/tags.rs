@@ -180,6 +180,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err.kind() {
         PathErrorKind::JunctionTangent => "junction_tangent",
         PathErrorKind::JunctionCusp => "junction_cusp",
+        PathErrorKind::CuspDoublesBackOverLeg => "cusp_doubles_back_over_leg",
         PathErrorKind::SeamTangent => "seam_tangent",
         PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
@@ -903,6 +904,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // recourse is "evaluate at a dual scalar, or drop the seed" (or
         // seed a free length, angle or scalar variable), not the box's.
         C::Seed => "seed",
+        C::RecordRefused => "record_refused",
+        C::RecordMispaired => "record_mispaired",
         C::WrongOperand => "wrong_operand",
         // A pick of one piece of a copy: a path naming no piece, and
         // a read at the piece's other shape.
@@ -1051,6 +1054,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ToleranceConflict { .. } => None,
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
+        NodeErrorKind::RecordRefused | NodeErrorKind::RecordMispaired(_) => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::NoSuchPiece { .. } => None,
         NodeErrorKind::PieceShape { .. } => None,
@@ -1528,6 +1532,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::JoinUndecided => "join_undecided",
+        BooleanErrorKind::JoinPartnersTied => "join_partners_tied",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
@@ -1603,6 +1608,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::Band(_) => "band",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcSweepUndecided { .. } => "arc_sweep_undecided",
+        SkinError::ParametersInvalid { .. } => "parameters_invalid",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",

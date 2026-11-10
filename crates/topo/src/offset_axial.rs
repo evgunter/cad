@@ -49,7 +49,7 @@
 //! tier 2 out, where a door whose argument means something about
 //! material takes an [`crate::AtRestBody`] (`crates/topo/README.md`,
 //! "Shell and offset surgery"). Its result becomes finished only
-//! through the scalar's finish ([`crate::finish`]): on an inside-out solid the
+//! through the scalar's finish ([`crate::finish`](fn@crate::finish)): on an inside-out solid the
 //! charts move as they would on any other, and the result refuses
 //! there as the operand would, `NegativeVolume`.
 //!
@@ -2128,10 +2128,7 @@ fn mint_carrier<T: Decide>(
     let (t0_old, _) = old_span;
     let (ca, cb) = charts;
     let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
-    let translate = |delta: Vec3<T>| -> Result<Curve3<T>, ReplaceFaceError<T>> {
-        crate::replace_face::translate_curve(old, delta)
-            .map_err(|error| ReplaceFaceError::Structure { edge, error })
-    };
+    let translate = |delta: Vec3<T>| crate::replace_face::translate_curve(old, delta);
 
     // A SEAM is not an intersection of two surfaces — the two are the
     // same surface — so it moves under that chart's OWN offset map.
@@ -2160,9 +2157,9 @@ fn mint_carrier<T: Decide>(
             // A plane's and a cone's offsets are rigid translations, so
             // their seams translate with them.
             (Surface::Plane { .. } | Surface::Cone { .. }, _) => {
-                translate(ca.rigid.unwrap_or_else(|| {
+                Ok(translate(ca.rigid.unwrap_or_else(|| {
                     unreachable!("a plane's or a cone's offset is a translation of its own kind")
-                }))
+                })))
             }
             // A cylinder's seam is a generator LINE, and the radius
             // change moves it perpendicular to itself, radially — a
@@ -2181,7 +2178,7 @@ fn mint_carrier<T: Decide>(
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                translate(e_hat * ca.distance)
+                Ok(translate(e_hat * ca.distance))
             }
             // A sphere's seam is a GREAT circle about the sphere's own
             // centre, and the offset is concentric: same centre, same

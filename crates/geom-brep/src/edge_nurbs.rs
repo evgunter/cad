@@ -404,14 +404,16 @@ pub struct CarrierDomainRefusal {
     pub fault: CarrierDomainFault,
 }
 
-/// The domain door's refusal of a carrier domain, in the two shapes it
-/// takes on a validated image: `SplineError`'s other arms are about
+/// The domain door's refusal of a carrier domain, in the two faults it
+/// reports on a validated image: `SplineError`'s other arms are about
 /// weights and counts, which the door carries over verbatim.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CarrierDomainFault {
-    /// [`SplineError::DomainInvalid`]: the interval is not a finite
-    /// increasing interval of finite width — for a validated carrier,
-    /// a width that overflows.
+    /// The interval admits no knot vector: [`SplineError::DomainInvalid`],
+    /// not a finite increasing interval of finite width (for a validated
+    /// carrier, a width that overflows), or
+    /// [`KnotVectorIssue::PastHalfMax`](geom_core::spline::KnotVectorIssue::PastHalfMax),
+    /// an end past [`KNOT_MAGNITUDE_MAX`](geom_core::spline::KNOT_MAGNITUDE_MAX).
     Interval,
     /// [`SplineError::KnotRunsNotIncreasing`]: rounding put two of the
     /// image's breakpoints on one value on a domain too narrow for the
@@ -432,7 +434,12 @@ impl CarrierDomainRefusal {
     /// that collide before a clamp clause could.
     fn of(lo: f64, hi: f64, e: &SplineError) -> Self {
         let fault = match e {
-            SplineError::DomainInvalid { .. } => CarrierDomainFault::Interval,
+            // An end past half the largest finite number: no knot
+            // vector admits the domain, which is the interval's fault.
+            SplineError::DomainInvalid { .. }
+            | SplineError::KnotVectorInvalid {
+                reason: geom_core::spline::KnotVectorIssue::PastHalfMax { .. },
+            } => CarrierDomainFault::Interval,
             SplineError::KnotVectorInvalid { .. }
             | SplineError::NonPositiveWeight { .. }
             | SplineError::NonFiniteWeight { .. }
@@ -470,7 +477,7 @@ impl CarrierDomainRefusal {
             CarrierDomainFault::Interval => write!(
                 f,
                 "the carrier's parameter domain [{lo}, {hi}] is not a finite increasing interval \
-                 of finite width"
+                 of finite width within half the largest finite number"
             )?,
             CarrierDomainFault::Merge => write!(
                 f,
@@ -556,10 +563,12 @@ impl PlaneNurbsRefusal {
     /// The ending this refusal's decision gives it, read at `at`
     /// ([`Self::decided`], through the one decision table's
     /// [`Decision::ending`]): a check's refused arm by its routing
-    /// ([`CertCheck::recourse`]), a certificate limb's escalation and
-    /// the one-arc proof as the SSI door ends them, a lane's capability
-    /// gap "not yet", the image producer's own refusal the door's
-    /// defect, and a lever on the input its own.
+    /// ([`CertCheck`]'s
+    /// [`DoorCheck::recourse`](crate::recourse::DoorCheck::recourse)), a
+    /// certificate limb's escalation and the one-arc proof as the SSI
+    /// door ends them, a lane's capability gap "not yet", the image
+    /// producer's own refusal the door's defect, and a lever on the
+    /// input its own.
     ///
     /// `Display` renders the payload alone, as [`crate::CertifyError`]'s
     /// does, and the door that reports the refusal appends this, or
