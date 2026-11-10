@@ -2,10 +2,12 @@
 id: census-span-clear-readers-push-their-refusal-as-they-read
 kind: issue
 title: census::span_clear's readers push their refusal into the error list as they read, so its first-refusal loop cannot keep a reading in band
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-10
+pr: 6739
 ---
 
 

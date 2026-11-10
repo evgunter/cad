@@ -2,10 +2,12 @@
 id: question-mark-ladders-the-gate-registered
 kind: issue
 title: Loops that return a band decision's escalation by ? ahead of a later answer, registered by escalation-question-marks.sh
-status: open
+status: closed
 opened: 2026-11-06
 priority: P2
 cost: H
+closed: 2026-11-10
+pr: 6739
 ---
 
 
