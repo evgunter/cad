@@ -7,7 +7,7 @@ opened: 2026-11-10
 priority: P3
 cost: M
 closed: 2026-11-10
-pr: PRNUM
+pr: 6736
 ---
 
 
@@ -43,7 +43,7 @@ editor-core decides predicate names in its `src`, and no `tests/recourse_roster.
 **Done** when `crates/editor-core/tests/recourse_roster.rs` runs `test_utils::source::roster_violations`, declaring its const carriers and listing its indirect sites, and editor-core's entry is gone from `KNOWN_MISSING`.
 
 **Closed** (2026-11-10, ONECOPY roster-rest). `crates/editor-core/tests/recourse_roster.rs` runs `roster_violations` over editor-core's whole `src`, in the slow set.
-- **Seventeen const carriers declared:**
+- **Eighteen const carriers declared** (`EVAL_DIRECTION_NORM` with them):
   - the twelve the census reported;
   - five it found once the forwarders were declared. These are the replay's `ONE_CYLINDER` and `ONE_CYLINDER_AXIS`, at_rest's two quiet rows, and measure's `AXES_PARALLEL`.
 - **Three forwarders take `_as`:** measure's `parallel_as`, and the `zero_as` closures in at_rest and the replay. Their callers' names are now read.
