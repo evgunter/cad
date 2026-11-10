@@ -2696,9 +2696,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VertexOnVertex",
         1,
     ),
-    ("ops.rs", "piece_reading", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "piece_reading", "BooleanDecision::Containment", 1),
-    ("ops.rs", "piece_reading", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "piece_reads", "BooleanDecision::Containment", 1),
     ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 2),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (

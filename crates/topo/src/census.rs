@@ -497,6 +497,13 @@ struct FaceGeo<T: Real> {
     walked: Result<(), TouchUnread>,
 }
 
+impl<T: Real> FaceGeo<T> {
+    /// The face and its plane's normal, as the planar door reads them.
+    fn plane(&self) -> (FaceKey, Vec3<T>) {
+        (self.key, self.normal)
+    }
+}
+
 /// The census snapshot: the exact planar geometry the vertex-granular
 /// sweeps read, plus the curved inventory the face-granular arms own
 /// (M9-2: the census admits every carrier kind; what changes per kind
@@ -1621,7 +1628,7 @@ fn pair_holds_point<T: Decide>(
             return false;
         }
         if !matches!(
-            contain(body, f, q, band, errors),
+            contain(body, f.plane(), q, band, errors),
             Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
         ) {
             return false;
@@ -1934,27 +1941,43 @@ fn face_cone<T: Decide>(
     }
 }
 
-/// Where `q` lies against `f`, of any kind: `Some(None)` where no door
+/// **Where `held` lies against `f`, of any kind**: the census's held
+/// placement, the point checked on the face's carrier in debug builds
+/// ([`crate::held::Held::check`]) and placed with no on-carrier decision
+/// (a planar face by its plane, [`contfp`]; a curved one by its region,
+/// [`crate::boolean::curved_face_placement`]). A point read definitely
+/// off a curved face's carrier (a planar face's placement never says so)
+/// breaks the caller's premise, the kernel's fault ([`census_fault`]),
+/// as the boolean's held door answers it. `Some(None)` where no door
 /// reads it; `None` where the door refused (pushed).
 fn placed<T: Decide>(
     body: &Body<T>,
-    geo: &Geo<T>,
     f: FaceKey,
     held: crate::held::Held<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    if let Some(view) = body.face(f) {
+    let plane = body.face(f).and_then(|view| {
         held.check(view.surface(), band);
-    }
+        match *view.surface() {
+            geom::Surface::Plane { normal, .. } => Some(normal),
+            _ => None,
+        }
+    });
     let q = held.point();
-    match planar_face(geo, f) {
-        Some(g) => contain(body, g, q, band, errors).map(Some),
-        None => read_containment(
+    match plane {
+        Some(normal) => contain(body, (f, normal), q, band, errors).map(Some),
+        _ => match read_containment(
             f,
-            crate::boolean::curved_face_containment(body, f, q, band),
+            crate::boolean::curved_face_placement(body, f, q, band),
             errors,
-        ),
+        )? {
+            crate::boolean::CurvedPlacement::Trim(at) => Some(at),
+            crate::boolean::CurvedPlacement::OffCarrier => census_fault(
+                format_args!("face {f:?}"),
+                "a point the census holds on the face's carrier reads definitely off it",
+            ),
+        },
     }
 }
 
@@ -2018,13 +2041,13 @@ fn in_overlap_closure<T: Decide>(
     // The touch of the pair's cells lies on both faces' carriers: a
     // confirmed pair is one carrier.
     let touch = crate::held::Held::constructed(q, "the touch of a confirmed pair's cells");
-    let Some(cx) = placed(body, geo, fx, touch, band, errors)? else {
+    let Some(cx) = placed(body, fx, touch, band, errors)? else {
         return unbuilt(errors);
     };
     if cx == FaceContainment::Out {
         return Some(false);
     }
-    let Some(cy) = placed(body, geo, fy, touch, band, errors)? else {
+    let Some(cy) = placed(body, fy, touch, band, errors)? else {
         return unbuilt(errors);
     };
     if cy == FaceContainment::Out {
@@ -3298,12 +3321,12 @@ fn signed_zero_reading<T: Decide>(
 /// already pushed).
 fn contain<T: Decide>(
     body: &Body<T>,
-    f: &FaceGeo<T>,
+    (face, normal): (FaceKey, Vec3<T>),
     q: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<FaceContainment> {
-    read_containment(f.key, contfp(body, f.key, f.normal, q, band), errors)
+    read_containment(face, contfp(body, face, normal, q, band), errors)
 }
 
 /// A containment door's answer about `face`, its refusal pushed
@@ -3432,7 +3455,7 @@ fn pair_vertex_face<T: Decide>(
             // Boundary coincidences are pass-1/2 findings; Out and
             // escalations (pushed) need nothing more here.
             let on_plane = |margin, errors: &mut Vec<ValidationError>| {
-                if contain(body, f, q, band, errors) == Some(FaceContainment::In)
+                if contain(body, f.plane(), q, band, errors) == Some(FaceContainment::In)
                     && !declared.vf.contains(&(vk, f.key))
                 {
                     errors.push(ValidationError::UnrecordedContact {
@@ -4027,8 +4050,8 @@ fn pierce_inside<T: Decide>(
     use FaceContainment::{In, OnEdge, OnVertex, Out};
     let chord = e.p1 - e.p0;
     let [q_lo, q_hi] = [lo, hi].map(|t| e.p0 + chord * t);
-    let at_lo = contain(body, f, q_lo, band, errors)?;
-    let at_hi = contain(body, f, q_hi, band, errors)?;
+    let at_lo = contain(body, f.plane(), q_lo, band, errors)?;
+    let at_hi = contain(body, f.plane(), q_hi, band, errors)?;
     let length = (q_hi - q_lo).norm();
     let short = || {
         let half = [T::zero(), length * T::from_f64(0.5)];
@@ -4579,7 +4602,10 @@ fn curved_overlap_cells<T: Decide>(
             }
         }
         let mid = e.p0 + e.dir * geom::mid_param(pair[0], pair[1]);
-        match face_holds(body, f, mid, band, "pm_census_ef_curved_contain", errors) {
+        // The midpoint is on `f`'s carrier as the edge is: decided there
+        // above (`line_on_quadric_carrier`, at the ends and the
+        // midpoint), with no margin of the point in hand, so held in band.
+        match placed(body, f, crate::held::Held::in_band(mid), band, errors) {
             Some(Some(FaceContainment::In)) => out.push(mid),
             Some(Some(_)) | None => {}
             Some(None) => errors.push(ValidationError::CensusUnsupported {
@@ -4777,7 +4803,7 @@ fn ef_overlap_cells<T: Decide>(
             }
         }
         let mid = e.p0 + e.dir * geom::mid_param(lo.s, hi.s);
-        if contain(body, f, mid, band, errors) != Some(FaceContainment::In) {
+        if contain(body, f.plane(), mid, band, errors) != Some(FaceContainment::In) {
             // Out: no overlap here. OnEdge: a collinear boundary rest —
             // the edge-edge overlap pass's finding. OnVertex: degenerate
             // cell, vertex passes cover it.
@@ -11024,10 +11050,9 @@ pub(crate) fn in_both<E>(
 /// Where `face` holds `q`: the boolean's own placement
 /// ([`crate::boolean::face_placement`]), which decides `q` against the
 /// face's carrier rather than holding it there, a point decided off a
-/// planar face's plane read `Out`. Two callers state that `q` is on the
-/// carrier (`curved_overlap_cells`, `census/point.rs` `in_face`) and are
-/// rowed with the other unheld carrier-held sites
-/// (`work/onecopy/two-ops-placements-state-a-carrier-held-premise-unheld.md`). `Some(None)` where the curved door
+/// planar face's plane read `Out`: the reader for a point no one holds
+/// on the carrier. A point the caller holds there is placed by
+/// [`placed`]. `Some(None)` where the curved door
 /// leaves the point unread; `None` where a decision escalated or the door
 /// refused (pushed).
 pub(crate) fn face_holds<T: Decide>(
@@ -11971,7 +11996,7 @@ fn planar_interiors_meet<T: Decide>(
                 let Some(&p) = geo.vmap.get(&v) else {
                     return Rung::Aborts(Err(InteriorsUnread::Unbuilt));
                 };
-                match contain(body, y, p, band, &mut read) {
+                match contain(body, y.plane(), p, band, &mut read) {
                     None => Err(InteriorsUnread::Undecided),
                     Some(FaceContainment::Out) => Ok(false),
                     Some(at) => {
@@ -12390,7 +12415,7 @@ fn meets_at<T: Decide>(
     // `q` is a point of `x`'s closure, on `y`'s carrier only within Door
     // 1's levered carrier-equality band, which decided the two one carrier:
     // held in band, not by construction.
-    let Some(placed) = placed(body, geo, y, crate::held::Held::in_band(q), band, read) else {
+    let Some(placed) = placed(body, y, crate::held::Held::in_band(q), band, read) else {
         return Err(escalated_since(read, before));
     };
     match placed.ok_or(InteriorsUnread::Unbuilt)? {

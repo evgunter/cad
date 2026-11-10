@@ -104,7 +104,7 @@ names-boolean               9  cover.rs  # work/boxes/the-face-covers-sphere-arm
 names-boolean               2  attach.rs
 names-boolean               4  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             432  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
+names-boolean             434  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
 names-boolean               3  census/depth_gap.rs
 names-boolean              18  census/in_plane.rs
