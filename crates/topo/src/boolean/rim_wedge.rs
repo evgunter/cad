@@ -553,9 +553,11 @@ impl<T: Decide> FaceOnLocus<T> {
             crate::validate::decide("seam_cover_ride", Margin::of(m * scale), band)
                 .map(|sign| sign == geom_core::Sign::Positive)
         };
-        // A start in band is kept without reading the end: on a span
-        // (`lo ≤ hi`) the end then reads at least the start's band short
-        // of inside, so it cannot decide the ride off the point.
+        // A start in band is kept without reading the end. That gives up an
+        // answer: where the span is no longer than the band (`hi − lo ≈
+        // s − lo`), the end could read decided outside, and the ride would
+        // then not cover the point. The ride is kept instead, so it can
+        // refuse where its end alone would have passed it.
         let ride = |&(lo, hi, sign): &(T, T, geom_core::Sign), k: f64| {
             let s = s + tau * T::from_f64(k);
             let covers = inside(s - lo).and_then(|lo_in| Ok(lo_in && inside(hi - s)?));
@@ -568,8 +570,7 @@ impl<T: Decide> FaceOnLocus<T> {
         let seen = match climb_differing(rides, |(r, k)| ride(r, k), |a, b| a != b) {
             Differing::Differ(_) => return Ok(Cover::RidesBothWays),
             Differing::Undecided(cause) => return Err(cause.into()),
-            // No ride aborts: a ride's reading is a margin's alone.
-            Differing::Aborted(sign) => Some(sign),
+            Differing::Aborted(_) => unreachable!("a ride's reading never aborts"),
             Differing::Agreed(signs) => signs.first().copied(),
         };
         Ok(match seen {
