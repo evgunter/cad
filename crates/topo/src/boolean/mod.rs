@@ -3262,9 +3262,10 @@ pub enum BooleanError {
     /// split's refusal of the same reading
     /// ([`crate::SplitReduceError::ApexSection`]).
     ///
-    /// An abort until it is split: it holds two readings of one apex that disagree, a kernel fault,
-    /// and a table refusal of an open conic, a section not built, so the abort is not the class of
-    /// every case it carries, and a ladder that reads one splits it first.
+    /// The vertex-on-face climb reads it (`vtxfac::pierce_apex_germ`), so
+    /// it stands by its reading ([`crate::splitting::ApexSectionReading::refusal`]):
+    /// the table and the walk disagreeing on one apex is a kernel fault,
+    /// and the table's own refusal stands as that refusal does.
     ApexSection {
         /// The operand the cone face belongs to.
         operand: Operand,
@@ -4217,9 +4218,10 @@ pub enum BooleanError {
     /// PR 6 contract; loud rather than shipping uncertified caches,
     /// D4 ¶2).
     ///
-    /// An abort until it is split: the pcurve pass's refusal mixes limits and kernel faults, so the
-    /// abort is not the class of every case it carries, and a ladder that reads one splits it
-    /// first.
+    /// No ladder reads it (raised by the pcurve mint, on the body the join changed, after the
+    /// reduction where every reader of [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`]
+    /// stands in for a class it does not have: the pcurve pass's refusal mixes limits and kernel
+    /// faults. The first ladder that reads one splits it by cause.
     Pcurves {
         /// The typed pcurve-pass refusal, nested whole.
         source: crate::pcurves::PcurveMintError,
@@ -4228,17 +4230,21 @@ pub enum BooleanError {
     /// (`UnpairedLooseEnds`, `SectionLoopMixed`, …): never a lineage row,
     /// which is [`Self::LineageRow`] ([`BooleanJoin`]).
     ///
-    /// An abort until it is split: the join's refusal mixes limits and kernel faults, so the abort
-    /// is not the class of every case it carries, and a ladder that reads one splits it first.
+    /// The vertex-on-face and held-pierce climbs read it, through a pierce
+    /// germ's branch (`join::germ_branch`), so it stands by its cause
+    /// ([`SplitJoinError::refusal`]): a spline component's walk as the
+    /// walk's refusal does, each other cause as its own doc states it, and
+    /// a cause that mixes classes as an abort.
     Join(BooleanJoin),
     /// The output stage's join could not decide whether a valence-2
     /// vertex is a regular point of its edges' carrier: a reading in
     /// the margin band (D4 ¶3).
     ///
-    /// Ranked by its margin where it carries one ([`edge_join::JoinUndecided::diag`], row 1(b)). An
-    /// abort until it is split where the chart image's derivation refused: that refusal mixes
-    /// capability gaps with a body defect, so the abort is not the class of every case it carries,
-    /// and a ladder that reads one splits it first.
+    /// Ranked by its margin where it carries one ([`edge_join::JoinUndecided::diag`], row 1(b)).
+    /// Where the chart image's derivation refused, no ladder reads it (raised by the join's output
+    /// stage, after the reduction where every reader of [`Self::refusal`] runs), so
+    /// [`geom_core::ladder::Aborts`] stands in for a class it does not have: that refusal mixes
+    /// capability gaps with a body defect. The first ladder that reads one splits it by cause.
     JoinUndecided(edge_join::JoinUndecided),
     /// **Two partners of a germ are decided equally near**, where no
     /// proof frees the join's choice of them (`join::find_match`): the
@@ -4272,8 +4278,10 @@ pub enum BooleanError {
     /// images the census cannot read, or a record that lands on no pair
     /// with nothing removed to consume it.
     ///
-    /// An abort until it is split: the carry's refusal mixes limits and kernel faults, so the abort
-    /// is not the class of every case it carries, and a ladder that reads one splits it first.
+    /// No ladder reads it (raised by the carry of records onto the result, after the reduction
+    /// where every reader of [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`] stands in
+    /// for a class it does not have: the carry's refusal mixes limits and kernel faults. The first
+    /// ladder that reads one splits it by cause.
     CarryRefused {
         /// Whose record it is, which says what the refusal's record
         /// index counts.
@@ -4347,9 +4355,10 @@ pub enum BooleanError {
     /// a corner at every station, refuting the smooth reading at its
     /// witness.
     ///
-    /// An abort until it is split: it holds a dihedral in band and a smooth reading refuted, a
-    /// kernel fault, so the abort is not the class of every case it carries, and a ladder that
-    /// reads one splits it first.
+    /// No ladder reads it (raised by the join's output stage and the finish, after the reduction
+    /// where every reader of [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`] stands in
+    /// for a class it does not have: it holds a dihedral in band and a smooth reading refuted, a
+    /// kernel fault. The first ladder that reads one splits it by cause.
     MixedSeam {
         /// The seam, diagnostic only: the result is never returned.
         edge: EdgeKey,
@@ -4398,9 +4407,10 @@ pub enum BooleanError {
     /// pair, its pairs disagree on orientation, or no shell of the
     /// other operand is covered back by it and reads `On` in turn.
     ///
-    /// An abort until it is split: it holds pairs that disagree on orientation, a kernel fault, and
-    /// pairs not settled, a limit, so the abort is not the class of every case it carries, and a
-    /// ladder that reads one splits it first.
+    /// No ladder reads it (raised by the finish's shell classification, after the reduction where
+    /// every reader of [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`] stands in for a
+    /// class it does not have: it holds pairs that disagree on orientation, a kernel fault, and
+    /// pairs not settled, a limit. The first ladder that reads one splits it by cause.
     CoincidentShell {
         /// The operand whose shell was probed.
         operand: Operand,
@@ -4437,8 +4447,10 @@ pub enum BooleanError {
     /// whole: never its re-description of a kept boundary, which refuses
     /// as the Boolean's own description does ([`BooleanMerge`]).
     ///
-    /// An abort until it is split: the merge's refusal mixes limits and kernel faults, so the abort
-    /// is not the class of every case it carries, and a ladder that reads one splits it first.
+    /// No ladder reads it (raised by the finish's coplanar merge, after the reduction where every
+    /// reader of [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`] stands in for a class it
+    /// does not have: the merge's refusal mixes limits and kernel faults. The first ladder that
+    /// reads one splits it by cause.
     Merge(BooleanMerge),
     /// The result is not a finished body ([`crate::AtRestPolicy::finish`]):
     /// every finding, each read through its family. The operands are
@@ -4446,9 +4458,10 @@ pub enum BooleanError {
     /// each is a defect in what the door built, a wrong verdict of the
     /// validator's own, or a reading in band its family's lever reaches.
     ///
-    /// An abort until it is split: its findings mix readings in band and kernel faults, so the
-    /// abort is not the class of every case it carries, and a ladder that reads one splits it
-    /// first.
+    /// No ladder reads it (raised by the result's gate, after the reduction where every reader of
+    /// [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`] stands in for a class it does not
+    /// have: its findings mix readings in band and kernel faults. The first ladder that reads one
+    /// splits it by cause.
     ResultInvalid {
         /// The finish's findings.
         findings: crate::NotFinished,
@@ -4473,9 +4486,10 @@ pub enum BooleanError {
     /// piece, and the result is not handed back under a guessed
     /// grouping.
     ///
-    /// An abort until it is split: the sort's refusal mixes readings in band, limits and kernel
-    /// faults, so the abort is not the class of every case it carries, and a ladder that reads one
-    /// splits it first.
+    /// No ladder reads it (raised by the result's gate, after the reduction where every reader of
+    /// [`Self::refusal`] runs), so [`geom_core::ladder::Aborts`] stands in for a class it does not
+    /// have: the sort's refusal mixes readings in band, limits and kernel faults. The first ladder
+    /// that reads one splits it by cause.
     Pieces(crate::pieces::PieceSortError),
     /// ∖ reverts an operand's kept part, two of whose edges lie on one
     /// line, and nothing joins the reverted part afterwards: the
@@ -5091,10 +5105,20 @@ impl BooleanError {
     /// what is not built, whatever its name. Whether a ladder stops early
     /// never decides the class.
     ///
+    /// **Its readers**, every ladder that keeps or stops on a Boolean
+    /// refusal, all in the reduction (`boolean_reduce_declared_strategy`):
+    /// the sectors' crescent climb (`sectors::crescent`), the slit's piece
+    /// rung (`slit::piece_rung`), the held pierces' climb
+    /// (`vtxfac::faces_holding_pierce`), the vertex-on-face climb, and the
+    /// overlap's boundary and corner refusals (`overlap::OverlapRefusal`).
+    /// A variant raised only after the reduction (the join's output stage,
+    /// the finish and the gates) reaches none of them.
+    ///
     /// # Errors
     ///
     /// [`geom_brep::ladder::Aborts`] for an invalid input, a kernel fault,
-    /// or a payload not yet split; and each payload's own aborts.
+    /// or a payload no ladder reads, which is not split by cause; and each
+    /// payload's own aborts.
     pub fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         match self {
@@ -5104,6 +5128,8 @@ impl BooleanError {
             Self::SplineCrossingUnsettled { why, .. } => why.refusal(),
             Self::PointInFaceRefused { refusal, .. } => refusal.refusal(),
             Self::Containment(e) => e.refusal(),
+            Self::ApexSection { reading, .. } => reading.refusal(),
+            Self::Join(j) => j.error().refusal(),
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
@@ -5189,7 +5215,6 @@ impl BooleanError {
             Self::Band(_)
             | Self::NonManifoldResult { .. }
             | Self::UnrepresentableResult
-            | Self::ApexSection { .. }
             | Self::InsideOutOperand { .. }
             | Self::NonMaximalFaces { .. }
             | Self::PoisonedCarrierDatum { .. }
@@ -5199,7 +5224,6 @@ impl BooleanError {
             | Self::CrossingInsertion { .. }
             | Self::Euler(_)
             | Self::Pcurves { .. }
-            | Self::Join(_)
             | Self::CarryRefused { .. }
             | Self::JoinDesync { .. }
             | Self::LineageRow { .. }

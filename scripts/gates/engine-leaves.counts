@@ -102,7 +102,7 @@ names-boolean               9  cover.rs  # work/boxes/the-face-covers-sphere-arm
 names-boolean               2  attach.rs
 names-boolean               3  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             409  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
+names-boolean             411  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
 names-boolean               7  census/in_plane.rs
 names-boolean               1  census/pierce_fuzz.rs
