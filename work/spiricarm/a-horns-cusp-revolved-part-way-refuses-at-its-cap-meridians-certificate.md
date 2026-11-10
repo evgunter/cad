@@ -15,16 +15,22 @@ cost: H
 The needle tip (a horn reached at its cusp from one side) builds through
 `revolve(Full)`; revolved `Partial(θ)`, it refuses
 `RevolveError::Op` with `AnalyticRung3Refusal::KernelLimit` against the
-`Spindle` operand (bound about `6.6e-8` at the default ε). So does the
-horn's circle drawn as four quarter arcs, a face reaching the cusp from
-each side. Pinned by `crates/sweep/tests/the_football_revolves.rs`
-`a_horns_cusp_revolved_part_way_refuses_at_its_cap_meridians`.
+`Spindle` operand at the default ε and at 1e-12. So does the horn's
+circle drawn as four quarter arcs, a face reaching the cusp from each
+side. At 1e-6 both build; the needle's lune holds its oracles, and the
+four arcs' lune refuses its mesh, `TessellateError::UnsupportedCurvedDomain`
+on a sheet face (20 samples off the face's box, one at `(1.89, −π/2)`
+about `1.0` off; tier 3 and the measure not read there). Pinned by
+`crates/sweep/tests/the_football_revolves.rs`
+`a_horns_cusp_revolved_part_way_holds_or_refuses_at_its_cap_meridians`,
+which holds the lune's oracles where it builds.
 
 A cap meets the horn along a meridian that ends at the cusp. On a lemon or
 an apple the sheet's two sheets cross at an apex, and limb 2 reads a part
 up to it by its certified levers (`geom-brep`'s
 `projected::Meters::certified`), the part at the apex by its distance from
-the apex (`Meters::apex_root`), which halving takes below the band. On the
+the apex (`Meters::apex_root`), held small by breaks graded toward the
+apex (`pcurve_cache::apex_grading`). On the
 horn the two sheets are tangent at the cusp: a point of the sheet at
 distance `t` from it has `ρ ≈ t²/2r`, so the side check
 `|m − r|·|R| ≤ r·ρ` (`Meters::over`) fails over a stretch of length about

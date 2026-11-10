@@ -726,58 +726,98 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
     );
 }
 
-/// **A horn's cusp revolved part way refuses at its cap meridians**: the
-/// needle tip, and the horn's circle as four quarter arcs with a face
-/// reaching the cusp from each side. A cap meets the horn along a
-/// meridian that ends at the cusp, where the horn's two sheets are
-/// tangent, so the sheet's distance bound reads no better than the
-/// distance from the cusp over a stretch near it, and limb 2 stops past
-/// the band
+/// **A horn's cusp revolved part way holds its lune or refuses at its
+/// cap meridians**: the needle tip, and the horn's circle as four quarter
+/// arcs with a face reaching the cusp from each side. A cap meets the
+/// horn along a meridian that ends at the cusp, where the horn's two
+/// sheets are tangent, so the sheet's distance bound reads only the
+/// distance from the cusp over a stretch near it. At a band that stretch
+/// fits inside (`1e-6`) the lune builds: the needle's holds `θ/2π` of
+/// the full revolve plus two caps of the profile, and the four arcs'
+/// refuses its mesh (`UnsupportedCurvedDomain`, on the same row); at a
+/// finer band limb 2 stops past it
 /// (`work/spiricarm/a-horns-cusp-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
 #[test]
-fn a_horns_cusp_revolved_part_way_refuses_at_its_cap_meridians() {
+fn a_horns_cusp_revolved_part_way_holds_or_refuses_at_its_cap_meridians() {
     let quarter = -(PI / 8.0).tan();
-    for (what, lp) in [
+    let theta = 2.0_f64;
+    let share = theta / (2.0 * PI);
+    // The needle: `π∫ρ² dz` and its band and disc, as in the full row;
+    // its profile is the square less a quarter disc. The horn's disc:
+    // Pappus about its centre at `1`.
+    let needle = (
+        PI * (5.0 / 3.0 - PI / 2.0),
+        2.0 * PI * (PI / 2.0 - 1.0),
+        PI,
+        1.0 - PI / 4.0,
+    );
+    let horn = (2.0 * PI * PI, 4.0 * PI * PI, 0.0, PI);
+    for (what, faces, meshes, lp, (volume, sheet, disc, profile)) in [
         (
             "the needle",
+            1,
+            true,
             bulge_loop(vec![
                 (Point2::new(0.0, 0.0), quarter),
                 (Point2::new(1.0, 1.0), 0.0),
                 (Point2::new(0.0, 1.0), 0.0),
             ]),
+            needle,
         ),
         (
             "the horn's circle in quarters",
+            4,
+            false,
             bulge_loop(vec![
                 (Point2::new(0.0, 0.0), quarter),
                 (Point2::new(1.0, 1.0), quarter),
                 (Point2::new(2.0, 0.0), quarter),
                 (Point2::new(1.0, -1.0), quarter),
             ]),
+            horn,
         ),
     ] {
         let got = revolve(
-            &validated(vec![lp]),
+            &validated(vec![lp.clone()]),
             y_axis(),
-            Revolution::Partial(2.0),
+            Revolution::Partial(theta),
             Tol::witness(),
         );
-        assert!(
-            matches!(
-                got,
-                Err(RevolveError::Op {
-                    source: topo::EulerOpError::Certification {
-                        error: geom_brep::CertifyError::AnalyticRung3(
-                            geom_brep::AnalyticRung3Refusal::KernelLimit {
-                                operand: geom::SurfaceKind::Spindle,
-                                ..
-                            }
-                        )
-                    }
-                })
+        match got {
+            Ok(built) if !meshes => {
+                let mesh = mesh::tessellate(&built.body, 1e-2, Tol::witness());
+                assert!(
+                    matches!(
+                        mesh,
+                        Err(mesh::TessellateError::UnsupportedCurvedDomain { .. })
+                    ),
+                    "{what}: {:?}",
+                    mesh.map(|_| ())
+                );
+            }
+            Ok(_) => holds_by(
+                what,
+                lp,
+                Revolution::Partial(theta),
+                (faces, 1.0),
+                (share * volume, share * (sheet + disc) + 2.0 * profile),
             ),
-            "{what}: {:?}",
-            got.map(|_| ())
-        );
+            Err(e) => assert!(
+                matches!(
+                    e,
+                    RevolveError::Op {
+                        source: topo::EulerOpError::Certification {
+                            error: geom_brep::CertifyError::AnalyticRung3(
+                                geom_brep::AnalyticRung3Refusal::KernelLimit {
+                                    operand: geom::SurfaceKind::Spindle,
+                                    ..
+                                }
+                            )
+                        }
+                    }
+                ),
+                "{what}: {e:?}"
+            ),
+        }
     }
 }
