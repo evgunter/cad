@@ -161,3 +161,8 @@
     - Stale prose citing the ladder and `unglued_tilt`; PR-body corrections; HONEONE rows without line numbers; `the-corners-senses…` closed with no `pr:`.
     - The parent's `blocked_on: [6693]` is a lint dodge. The fix pass closes the parent and moves C24 to `the-indeterminate-seal`.
   - **Class finding, mine:** a ruling resting on a sentence I did not check against the code ("the corner goes on only for a coplanar sector", from the lane's option list). The review caught it, which is why the ruling was made its first claim.
+- 2026-11-10 — **Fork `unglued-corner-ending`, round 1: the designers split** (A 225,106 tokens, B 234,595). Both retire the carrier re-read and C22, and both reject step 4's `Off(Decided)` on the far bound: it offers nothing though tightening is measured to build. They differ on the final state:
+  - **A:** the classification is levered at the wrong extent. The verdict is acted on out to the far bounds, so lever it at the farther span; the pose answers as a crossing, which is SECTOR's P3 row. A also offers a bridge: gate-reject the near arm's Zero under a Positive-only pass.
+  - **B:** keep the arm lever and refuse on the corner's own reading, the near arm's Zero, gate-rejected under a new Positive-only `Coincide` row. The offer "tighten below 1e-11" is executed: the generic pose builds at ε 9e-12, while a hinged pose chains to `bool_contact_edge`. B would also retire `door_refusal` and DR-245's precedence. B judges the answer route unsure at the default ε, citing CONTACT-9's odd germ count.
+
+  Round 2 shows each the other's report (transcribed into the scratchpad).
