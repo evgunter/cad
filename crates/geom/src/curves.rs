@@ -960,16 +960,19 @@ impl<T: Real> Curve3<T> {
         }
     }
 
-    /// **Whether the carrier's parameter is an angle**: a circle, an
-    /// ellipse and a spiric oval repeat every turn, so a parameter names
-    /// its point modulo `τ`; a line and a spline do not. The one reading
-    /// of a carrier's period, matched exhaustively so a new kind decides
-    /// here.
+    /// **The carrier's period, where its parameter repeats**: a conic's
+    /// ([`Conic::period`]) and a spiric oval's ([`spiric_period`]), each
+    /// kind's own statement; a line and a spline do not repeat (`None`).
+    /// Matched exhaustively over the kinds. A renaming by whole periods,
+    /// or a reading on a copy a period away ([`Period::span_margins`]),
+    /// reads it.
     #[must_use]
-    pub fn is_periodic(&self) -> bool {
+    pub fn period(&self) -> Option<Period<T>> {
         match self {
-            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
-            Curve3::Line(_) | Curve3::Nurbs(_) => false,
+            Curve3::Circle(c) => Some(c.period()),
+            Curve3::Ellipse(e) => Some(e.period()),
+            Curve3::Spiric { .. } => Some(spiric_period()),
+            Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
     }
 
@@ -1179,11 +1182,7 @@ impl<T: Decide> Curve3<T> {
     /// on an open one.
     #[must_use]
     pub fn branch_near(&self, t: T, reference: T) -> T {
-        if self.is_periodic() {
-            Period::new(T::tau()).near(t, reference)
-        } else {
-            t
-        }
+        self.period().map_or(t, |p| p.near(t, reference))
     }
 
     /// **The direction of `p` about a closed carrier's centre**, whose
@@ -1471,6 +1470,13 @@ impl<T: Real> Curve3<T> {
     pub fn circle_at(frame: &Frame<T>, radius: T, t: T) -> Point3<T> {
         Circle::new(*frame, radius).point_at(t)
     }
+}
+
+/// **A spiric oval's period**, one turn: its parameter is the torus's
+/// minor angle ([`Curve3::Spiric`]), so a parameter names its point
+/// modulo `τ`.
+pub fn spiric_period<T: Real>() -> Period<T> {
+    Period::new(T::tau())
 }
 
 /// The range of a spiric's `f = √(ρ² − offset²)` over one period, as
@@ -1837,6 +1843,45 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **Each kind's period, pinned**: a circle, an ellipse and a spiric
+    /// oval repeat every turn, at `τ` exactly; a line and a spline do not.
+    /// The bits are `τ`'s, so a renaming by whole periods reads the same
+    /// expression at every kind that has one.
+    #[test]
+    fn each_kind_states_its_period() {
+        let frame = Frame::new(
+            Point3::new(1.0, 2.0, 3.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let periodic = [
+            Curve3::Circle(Circle::new(frame, 1.5)),
+            Curve3::Ellipse(Ellipse::new(frame, 2.0, 1.0)),
+            Curve3::Spiric {
+                center: frame.origin,
+                axis: frame.axis,
+                u_ref: frame.u_ref,
+                major_radius: 3.0,
+                minor_radius: 1.0,
+                offset: 0.5,
+            },
+        ];
+        for c in &periodic {
+            let p = c.period().unwrap_or_else(|| panic!("{c:?} repeats"));
+            assert_eq!(p.length().to_bits(), TAU.to_bits(), "{c:?}");
+        }
+        let open = [
+            Curve3::Line(Line {
+                origin: frame.origin,
+                dir: frame.axis,
+            }),
+            Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
+        ];
+        for c in &open {
+            assert!(c.period().is_none(), "{c:?} does not repeat");
+        }
+    }
 
     /// **Two lines' closest approach**: skew lines meet their common
     /// perpendicular at the parameters the closed form reads, whatever the
