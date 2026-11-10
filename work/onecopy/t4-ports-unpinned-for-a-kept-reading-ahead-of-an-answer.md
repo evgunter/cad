@@ -1,7 +1,7 @@
 ---
 id: t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 kind: issue
-title: Seven of QML's Any ports (T4's four, T5's two, T6's one) have no pin for a kept reading ahead of an answer
+title: Eight of QML's Any ports (T4's four, T5's two, T6's one, PR 6750's loop_circle) have no pin for a kept reading ahead of an answer
 status: open
 opened: 2026-11-10
 priority: P3
@@ -31,6 +31,13 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 **QML T6 adds one** (`onecopy/refusal-standing`). The reach probe saw it answer past no kept reading in-suite.
 - **`census::span_clear`** (`crates/topo/src/census.rs`, the edge–face pierce census's clearance). **Fixture:** an edge whose span runs over a face, the face's boundary holding first a side whose end reads in band of the span (`on_edge_interior_reading` escalates), then a side whose interior meets it (`interiors_meet`). `span_clear` answers "not clear" and pushes nothing. A first-refusal loop pushed the first member's escalation and returned `None`.
 
+**PR 6750 adds one** (`onecopy/agreeing-loops`, review F2). A probe with a positive control saw no in-band refusal in the topo, sweep and editor-core `ci` sets at either ε.
+- **`boolean::contain::loop_circle`** (`crates/topo/src/boolean/contain.rs`, a disc-class loop's one circle). **Fixture:** a loop of three arcs:
+  - the first is the reference circle;
+  - the second is a circle off it by a mid-band distance (`bool_face_disc_carrier` escalates);
+  - the third is a circle decided off it, or a line.
+  - `loop_circle` answers `Ok(None)`. The old loop escalated on the second arc.
+
 ## Not yet ported: `vtxfac::partner_side` (filed 2026-11-10, measured)
 
 `topo::boolean::vtxfac::partner_side` reads every bound's side with `?`, so a bound read in band refuses the whole read. It does so even where two other bounds are *decided* on opposite sides, which by itself is `PartnerRead::Across` (a theorem). That is the kept-reading-ahead-of-an-answer shape. It is not a `climb_agreeing` port, since there a disagreement is an answer (PR 6750's site comment). Its port is its own: answer `Across` where two decided bounds differ, else refuse on a kept bound, else the side.
@@ -47,5 +54,5 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 
 ## Done when
 
-- Each of the seven has a pin as described, red under the old first-refusal loop, or a stated reason it cannot be reached.
+- Each of the eight has a pin as described, red under the old first-refusal loop, or a stated reason it cannot be reached.
 - `partner_side` is ported as above, with the fixture as its pin.
