@@ -1671,6 +1671,47 @@ mod tests {
         }
     }
 
+    /// **A decided argmin records an in-band reading live only where it
+    /// refuses on it.** Candidates at `0` and `5e-9` read in band of
+    /// each other (the band's zero is `1e-9`, its escalation `1e-8`).
+    /// Joined by one at `-1`, decided nearer than both, the minimum is
+    /// that one, and the in-band reading is superseded: no live
+    /// escalation is recorded. Alone, the two are contested and the
+    /// reading is live. Red where the in-band run is spliced live
+    /// whatever the outcome, which the subdivision driver would read as
+    /// the reason a node did not decide.
+    #[test]
+    fn a_decided_argmin_records_an_in_band_reading_live_only_where_it_refuses() {
+        use super::{FreeOf, Undecided, Unpicked, argmin_decided};
+        let cmp = |a: &f64, b: &f64| {
+            geom_core::k_stats::decide_reported("argmin_row", Margin::of(*a - *b), band())
+                .map(|d| d.sign)
+                .map_err(Undecided::InBand)
+        };
+        let (got, verdicts, escalations) =
+            recorded(|| argmin_decided([0.0, 5e-9, -1.0], cmp, FreeOf::Nothing));
+        assert_eq!(got, Ok(Some(-1.0)), "the nearer candidate closes the pair");
+        assert!(
+            escalations.is_empty(),
+            "no live escalation: {escalations:?}"
+        );
+        assert_eq!(
+            verdicts.len(),
+            2,
+            "the two decided readings are live: {verdicts:?}"
+        );
+        let (got, _, escalations) = recorded(|| argmin_decided([0.0, 5e-9], cmp, FreeOf::Nothing));
+        assert!(
+            matches!(got, Err(Unpicked::Contested { ref members, in_band: Some(_) }) if members.len() == 2),
+            "the pair alone is contested: {got:?}"
+        );
+        assert_eq!(
+            escalations,
+            vec!["argmin_row"],
+            "the refusal's reading is live"
+        );
+    }
+
     /// **What a decided argmin is free of decides what is left in
     /// contention**: `a` and `b` tied, `c` in band of `a` and decided
     /// farther than `b`. Under `Nothing` the tie is contested with no
