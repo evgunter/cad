@@ -1845,7 +1845,11 @@ fn spread_held<T: Decide>(apart: T, band: Band) -> Result<(), MeetFault> {
 /// `Interval` it is the angle's own enclosure, `θ − θ` its width either
 /// side of zero, so the spread is certified there and charges nothing.
 fn angle_spread<T: Decide>(radius: T, theta: T) -> T {
-    radius * (theta - theta)
+    // The enclosure's own width, as `geom_core::is_finite_length` reads
+    // its residual: zero at a point scalar, the width at `Interval`.
+    #[allow(clippy::eq_op)]
+    let width = theta - theta;
+    radius * width
 }
 
 /// What a first harmonic's extremes and root gap decide.
