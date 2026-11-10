@@ -515,18 +515,22 @@ mod tests {
 }
 
 /// **A crossing past the band of a thin ellipse's fast end refuses at
-/// the split, today** (`work/onecopy/a-plane-crossing-past-the-band-of-a-thin-ellipses-fast-end-read-at-the-end.md`).
+/// the split's child, today** (`work/onecopy/a-plane-crossing-past-the-band-of-a-thin-ellipses-fast-end-read-at-the-end.md`).
 /// A planar cap on the half of a 1000 × 1 ellipse (the unit cylinder cut
 /// by a plane `cos φ = 10⁻³` off its axis) from one minor vertex to the
 /// other, through its major end: its two ends are its fast ends, where it
 /// runs 1000 m/rad. A plane square to the major axis, `s` along it from
 /// the ends, crosses the arc `s` (by chord) from each end. The plane door
 /// places the roots inside past the band for every `s` here (50, 500 and
-/// 5000 zeros); the split's
-/// interiority gate, at the speed floor 1 m/rad, reads `s/1000`, at the
-/// end or in band, and refuses. Main dropped the crossings and split
-/// nothing. A cut 10⁵ zeros in splits, as a control. Flips to a split
-/// with `the-euler-splits-interiority-gate-meters-an-end-gap-at-the-speed-floor`.
+/// 5000 zeros), and so does the split's interiority gate, the span's own
+/// reading (`curve_pair::Span::place_param_read`). The child piece from
+/// the end to the root is then certified: check 2 decides its span
+/// forward at the speed floor 1 m/rad, reads `s/1000`, at the end or in
+/// band, and refuses (`IntervalNotForward`, or escalates). Main dropped the crossings and split
+/// nothing; PR 6687 refused at the split's interiority gate, which this
+/// branch routed. A cut 10⁵ zeros in splits, as a control. Flips to a
+/// split with check 2 read at the child's chord
+/// (`the-euler-splits-interiority-gate-meters-an-end-gap-at-the-speed-floor`).
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod thin_ellipse_rows {
@@ -621,10 +625,15 @@ mod thin_ellipse_rows {
                 Err(crate::SplitReduceError::CrossingInsertion { source, .. }) => assert!(
                     matches!(
                         *source,
-                        EulerOpError::SplitParamNotInterior { .. }
-                            | EulerOpError::SplitParamEscalated { .. }
+                        EulerOpError::Certification {
+                            error: geom_brep::CertifyError::IntervalNotForward { .. }
+                                | geom_brep::CertifyError::Escalated {
+                                    check: geom_brep::CertCheck::ParamSpan,
+                                    ..
+                                },
+                        }
                     ),
-                    "s = {s:e}: the split's interiority refuses, {source:?}"
+                    "s = {s:e}: the child's span refuses at check 2, {source:?}"
                 ),
                 other => panic!("s = {s:e}: a typed refusal at the split, not {other:?}"),
             }
