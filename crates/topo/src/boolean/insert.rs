@@ -2523,7 +2523,7 @@ fn record_germ_dir<T: Decide>(
 /// (`sectors::rays_within` of the un-normalized line), so they single
 /// out the ray they found there. `±(n_a × n_b)` is
 /// a LINE and membership picks the ray, so neither normal's sign
-/// survives into it; they arrive outward from `sectors::sector_face`
+/// survives into it; they arrive outward from `crate::sector_face::resolve`
 /// and nothing is multiplied here. (A pierce germ is signed by its
 /// transition's codes instead, `vtxfac::pierce_germ_dir`, which reads
 /// both normals as outward.)

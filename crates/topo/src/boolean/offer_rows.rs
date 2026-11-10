@@ -2876,7 +2876,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::BisectorSide",
         1,
     ),
-    ("sectors.rs", "extreme_directions", "Coincide::Sectors", 1),
+    ("sectors.rs", "star_fault", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),

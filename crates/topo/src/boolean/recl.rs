@@ -1140,8 +1140,8 @@ pub(super) fn recl_edges<T: Decide>(
             // refuses by name, as the readers with no fan arm do
             // (`BoolSector::plane`), rather than read as the kernel's
             // own fault. No row reaches it: an apex corner's sectors are
-            // cut by the window its shape decides
-            // (`sectors::push_apex_corner`), so a seam's bound is never a
+            // cut by the window its shape decides (`star::Star::walk`),
+            // so a seam's bound is never a
             // collapsed quarter's left `On`; the guard is owned by
             // `work/splitdoor/recl-fan-on-guard-has-no-reaching-row.md`.
             for (operand, s) in [(Operand::A, &a_sectors[r.a]), (Operand::B, &b_sectors[r.b])] {

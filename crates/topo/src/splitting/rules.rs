@@ -43,9 +43,9 @@
 //!
 //! After rule (a), a remaining ON entry is an edge in the plane whose
 //! flanking sectors are not coplanar; its cyclic neighbour entries are
-//! never ON. (A `WideBisector` duplicate whose bisector lies exactly in
-//! the plane also arrives here as On, as the book stores duplicates
-//! indistinguishably in the same array.) The entry goes where the
+//! never ON. (A divider the star cut a corner at arrives here as On only
+//! where its descended side rides the plane, and goes with its corner's
+//! bounds.) The entry goes where the
 //! material at the edge goes, and two facts decide that: the side `S`
 //! of its two neighbours, which are directions into the two flanking
 //! faces, and the edge's wedge (`edge_wedge`): whether the two faces
@@ -443,7 +443,7 @@ impl<T: Decide> ParallelFace<T> {
     ///
     /// Exactly one of the two vectors carries an orientation (S10), and
     /// the types say which. The face's normal is its outward normal,
-    /// minted from chart × sense in `neighborhood::sector_face`, so the
+    /// minted from chart × sense in `crate::sector_face::resolve`, so the
     /// verdict inverts on a reversed face. The split plane's normal
     /// DEFINES the Above/Below convention and carries no sense to thread,
     /// so it travels as a bare vector in the `dir` slot.

@@ -232,8 +232,8 @@ fn skew<T: Decide>(normal: Vec3<T>, plane: SectionPlane<T>, at: Point3<T>) -> T 
 /// axis but not at the apex is read; one whose apex reading escalates
 /// is read, and its sector's resolution refuses it.
 ///
-/// The split's walk refuses a sphere's or a torus's sector
-/// (`neighborhood::sector_face`) because the split's gate refuses those
+/// The split refuses a sphere's or a torus's sector
+/// (`neighborhood::split_star`) because the split's gate refuses those
 /// kinds wherever the plane may meet them; the Boolean serves them, so
 /// this reading resolves sectors through [`crate::sector_face::resolve`],
 /// which has an arm for every kind read here.

@@ -25,8 +25,7 @@ use crate::validate::{decide, decide_positive};
 /// That is tier 3's two coincident distinct edges (`crates/topo/README.md`),
 /// and `face` carries them as a slit of one of its loops or as a ring:
 /// it wraps round the tip, so its corner there between the two edges is
-/// a full turn (the Boolean's `sectors::build_sectors`, the split's
-/// [`crate::splitting::wide_entries`]). A wrap edge's tip
+/// a full turn ([`crate::star::Star::walk`]). A wrap edge's tip
 /// (`validate::wrap_tips`, DESIGN `[topology]`'s seam clause) is the
 /// one-edge form: its face's loop walks the edge out and straight back,
 /// so the face wraps the same full turn round the one edge, at a pole or

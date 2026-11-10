@@ -3069,7 +3069,7 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
 /// tangent rather than a chord.
 ///
 /// Both normals arrive outward already (S10) — `s.normal` from
-/// `sectors::sector_face`, `pierced_normal` from the one door
+/// `crate::sector_face::resolve`, `pierced_normal` from the one door
 /// ([`crate::face_normal`]) — and the sign above reads them as such, so
 /// neither is multiplied again here.
 pub(super) fn pierce_germ_dir<T: Decide>(

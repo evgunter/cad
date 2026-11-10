@@ -205,9 +205,10 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// over a half-turn wide away from it: its middle is the ruling
     /// halfway round from `start` to `end` in the face's sweep, unit.
     /// The two bounds' azimuth is the fan's window because no sector at
-    /// an apex spans a whole turn: [`push_apex_corner`] cuts every whole
-    /// turn by the window the corner's shape decided. So no row holds an
-    /// unsplit whole-turn apex sector; none can be built.
+    /// an apex spans a half-turn: the star quarters every whole turn and
+    /// halves every wider window by the window the corner's shape decided
+    /// ([`crate::star::Star::walk`]). So no row holds an unsplit
+    /// whole-turn apex sector; none can be built.
     pub(super) fn middle(&self) -> Vec3<T>
     where
         T: Decide,
@@ -3365,7 +3366,7 @@ mod tests {
 
     /// A unit-radius quarter arc at the origin, leaving along `+x` in
     /// the plane `z = 0` and bending toward `bend` (unit, normal to
-    /// `+x`): its tangent, and its reach as `orbit_corners` mints it.
+    /// `+x`): its tangent, and its reach as `star::departure` mints it.
     fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, BoundSupport<f64>) {
         let span = core::f64::consts::FRAC_PI_2;
         let carrier = geom::Curve3::circle(
