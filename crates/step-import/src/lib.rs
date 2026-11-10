@@ -426,7 +426,40 @@ pub enum NormalizationKind {
     /// own splits) and the faces it became with every edge and vertex
     /// they use.
     FaceSplitAtC0Knot,
+    /// **An assembly placement whose stated fields `build_axes` moved**
+    /// (`[import]`, `[tolerance.boundary]`): every placement frame is
+    /// minted from its fields by ISO 10303-42's `build_axes` (the axis
+    /// normalized, the reference direction projected perpendicular and
+    /// normalized), and a frame of this `ITEM_DEFINED_TRANSFORMATION`
+    /// whose fields as stated are no rigid frame within their own
+    /// rounding was moved by that construction. A STEP `direction` is a
+    /// ratio vector, so the normalization is the file's own semantics,
+    /// not a heal; it is reported so the move is on record. `moved_by` is
+    /// measured against the frame as the reader adopted its fields,
+    /// unnormalized: its columns the reference direction, the axis
+    /// crossed with it and the axis. The reader adopts a `direction`
+    /// within ε_in of unit verbatim and normalizes any other, and adopts
+    /// a reference within ε_in of perpendicular verbatim and projects any
+    /// other, so the matrix is the file's own fields wherever they lie
+    /// within ε_in and the reader's correction of them elsewhere. Over the
+    /// session box `moved_by` is the farthest a point moves between that
+    /// matrix and the built frame, summed over the pair. A file's ε_in bounds no such move
+    /// (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
+    /// Keyed by the transformation's instance id, not a face; its census
+    /// pair is empty, since no face, edge or vertex changes.
+    PlacementReMinted {
+        /// The `ITEM_DEFINED_TRANSFORMATION` whose frames were moved.
+        transform: u64,
+        /// The move (metres): over the session box, the farthest a point
+        /// moves between a frame's matrix as adopted and its built one,
+        /// summed over the pair.
+        moved_by: f64,
+    },
 }
+
+/// The K row a placement frame's two directions are decided under where
+/// `build_axes` mints it ([`NormalizationKind::PlacementReMinted`]).
+pub const STEP_PLACEMENT_AXES: &str = "step_placement_axes";
 
 /// Where a file put a chart singularity that is not yet a vertex in
 /// the pole form ([`NormalizationKind::ChartSingularityVertex`]).
@@ -458,7 +491,9 @@ pub enum SingularityFound {
 /// with the imported body's.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StructureNormalization {
-    /// The `ADVANCED_FACE` entity instance the file states.
+    /// The `ADVANCED_FACE` entity instance the file states; on
+    /// [`NormalizationKind::PlacementReMinted`], which names no face, the
+    /// `ITEM_DEFINED_TRANSFORMATION`'s.
     pub face: u64,
     /// What was re-minted.
     pub kind: NormalizationKind,
@@ -799,8 +834,9 @@ pub fn import_step(
             // for id.
             //
             // Each instance then goes through the kernel's own
-            // placement doors (M7-4 Leg D): the map is decided rigid at
-            // `RigidMotion::check_rigid`, and `transform_rigid`
+            // placement doors (M7-4 Leg D): the motion its placement pair
+            // minted (`build_axes`, then `B ∘ A⁻¹` composed as motions),
+            // and `transform_rigid`
             // RE-CERTIFIES every carrier against the mapped geometry,
             // so a placed copy is as first-class as an unplaced one —
             // and a map this reader let through that the kernel will
@@ -829,23 +865,14 @@ pub fn import_step(
                 if joined.insert(instance.solid) {
                     normalizations.extend(joins);
                 }
+                let mut applied = None;
                 let one = match instance.placed {
                     Some(entities::Placed {
-                        map: Some(map),
+                        map: Some(motion),
                         transform,
                         ..
                     }) => {
-                        let band = geom_core::Band::linear(tol).map_err(|source| {
-                            StepImportError::Placement {
-                                transform,
-                                source: topo::TransformError::Band(source),
-                                file,
-                            }
-                        })?;
-                        let motion =
-                            geom_core::RigidMotion::check_rigid(&map, band).map_err(|source| {
-                                StepImportError::PlacementMap { transform, source }
-                            })?;
+                        applied = Some(motion.to_affine());
                         topo::transform_rigid(&one, &motion, tol).map_err(|source| {
                             StepImportError::Placement {
                                 transform,
@@ -887,7 +914,7 @@ pub fn import_step(
                     occurrence: instance.placed.and_then(|p| p.occurrence),
                     relationship: instance.placed.map(|p| p.relationship),
                     transform: instance.placed.map(|p| p.transform),
-                    placement: instance.placed.and_then(|p| p.map),
+                    placement: applied,
                 });
             }
             // **The shared at-rest validation gate** (M7-7, the #260
