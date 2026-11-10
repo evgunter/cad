@@ -354,3 +354,16 @@ returned REQUEST-CHANGES.
 - **The cusp passenger's new door refusal is accepted.** The row left
   the choice to the unit, after `.cusp()` the lattice admits only the
   exact reverse, and the reviewer found no valid profile it refuses.
+
+6719's first fix pass named the levers twice the escalation threshold
+past the band (2Kε). The re-review found that this leaves a 2Kε sliver
+at the anchor, and the anchor junction then re-refuses: 355 of 3148
+default-row cases, against the old head's 2. Ruled: aim both levers at
+the exact-fit band instead, with the margin in [0, ε/2] on the fitting
+side. Since PR 6682 the fit gate's Zero arm is an exact fit, so the
+named fillet ends at the anchor. That is the ratified "the fillet that
+ends exactly at the anchor", and it lets the README keep the wording Ev
+approved ("strictly on the fitting side"). The first pass's "past the
+band" rewording would have changed what that clause decides, so it
+comes out. The typed-back rows now pin per-row counts of other-gate
+refusals, and an independent margin ties the bound to the kernel.
