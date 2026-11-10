@@ -1741,10 +1741,9 @@ enum Fold<T> {
 /// are not decided;
 /// [`ChartRegionError::Escalated`] in band, likewise.
 fn period_fold_as<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
-    let tau = T::tau();
     let name = "chart_region_period_fold";
     let meter = |g| Margin::metered(g, InfSpeed::new(radius));
-    let period = geom_brep::Period::new(tau);
+    let period = geom_brep::Period::angle();
     let shift = |k: i32| period.times(k);
     match period.decide(name, gap, meter, band) {
         Ok(k) => Ok(Fold::One(shift(k))),
@@ -1753,7 +1752,7 @@ fn period_fold_as<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, C
                 geom_brep::BranchMiss::Undecided(diag) => ChartRegionError::Escalated(diag),
                 _ => ChartRegionError::PeriodFold,
             };
-            match crate::pcurves::branches_astride_as(name, gap, tau, meter, band) {
+            match crate::pcurves::branches_astride_as(name, gap, period.length(), meter, band) {
                 Ok([lo, hi]) => Ok(Fold::Astride([shift(lo), shift(hi)], decline)),
                 Err(_) => Err(decline),
             }
@@ -3017,7 +3016,7 @@ pub(crate) fn cyl_wrap_whole<T: Decide>(
     band: Band,
 ) -> Result<bool, ChartRegionError> {
     let rows = TurnRows::exact("chart_region_cyl_wrap");
-    Period::new(T::tau())
+    Period::angle()
         .whole_turn(rows, span, Exact::new(radius), band)
         .map_err(|undecided| ChartRegionError::Escalated(undecided.diag))
 }
@@ -3030,7 +3029,7 @@ pub(crate) fn seam_span_over<T: Decide>(
     band: Band,
 ) -> Result<bool, ChartRegionError> {
     let rows = TurnRows::exact("chart_region_seam_span");
-    Period::new(T::tau())
+    Period::angle()
         .not_over(rows, span, Exact::new(radius), band)
         .map(|not_over| !not_over)
         .map_err(|undecided| ChartRegionError::Escalated(undecided.diag))

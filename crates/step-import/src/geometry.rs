@@ -76,8 +76,8 @@ pub(crate) fn endpoint_params(
             // The start angle in [0, τ), the end angle in (t0, t0 + τ]
             // — the increasing-parameter arc, its angle the conic's
             // principal one (an ellipse's eccentric anomaly).
-            let Some(conic) = carrier.conic() else {
-                unreachable!("a circle or an ellipse is a conic")
+            let (Some(conic), Some(turn)) = (carrier.conic(), carrier.period()) else {
+                unreachable!("a circle or an ellipse is a conic, which repeats")
             };
             // Each angle is refused where it is derived, so the
             // self-loop arm's early return cannot outrun the check:
@@ -101,7 +101,6 @@ pub(crate) fn endpoint_params(
                     })
                 }
             };
-            let turn = conic.period();
             let t0 = turn.at_or_above(angle(p_start)?, 0.0);
             if self_loop {
                 return Ok((t0, t0 + turn.length()));

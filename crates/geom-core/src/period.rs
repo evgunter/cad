@@ -138,6 +138,16 @@ impl<T: Real> Period<T> {
         Self { length }
     }
 
+    /// **An angle's period, `τ`**: one turn, as a period. What a conic's,
+    /// a spiric's and an analytic chart's angle channels each state
+    /// (`geom::conic_period`, `geom::spiric_period`,
+    /// `geom::Surface::angle_periods`), and what a channel that is an
+    /// angle by construction reads (an azimuth, a sweep's or a revolve's
+    /// angle).
+    pub fn angle() -> Self {
+        Self::new(T::tau())
+    }
+
     /// The period as a length.
     pub fn length(self) -> T {
         self.length
