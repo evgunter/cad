@@ -1423,3 +1423,14 @@
     - 6696 (span-turns: `Span::ends_place` copy margin, a constructed wrong Past on base) FULL (session_013mPGJ64pPdiTZfCFcHknjc), against 6687.
     - 6676 fix pass (6b738a2d: one foot per query inside singular bands; checked_direction refuses an enclosure holding zero; the S6 radial-leak defect fixed) → delta by its original reviewer. unit-axis resumes.
   - **Merge queue, one at a time:** 6692, 6679, 6691, 6695.
+- 2026-11-10 04:15Z
+  - **Merged PR 6692 (loft-rim-red), 8b0c40df.** 9811/9811.
+  - **Merged PR 6679 (topo-roster), c0a7bb0e.** Delta MERGE; 10601/10601. The roster slow tests were not re-run locally: the disk filled during the build (tgt-m cleared). Hosted CI ran them (the PR adds the file), and so did the lane and the reviewer at this head.
+  - **6684 FULL: MERGE**, with my ending rulings folded before merge:
+    - skin ParameterUndecided/UnboundedAtEnclosure → POINT_SCALAR_LEVER, WeightCollapse → KERNEL_LIMIT;
+    - compose WeightCollapse → KERNEL_LIMIT;
+    - averaged_knot_vector params are caller-built (validate at the door);
+    - holders with no ending get their door's;
+    - SkinError::Fit / PcurveError::Fit route through Built<FitError>;
+    - gate tuple-struct and multi-field blind spots.
+  - 6691 merge check running; then 6695.
