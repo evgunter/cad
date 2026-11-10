@@ -17,15 +17,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::{body_of, eval, failures, vessel};
-use editor_core::{EvalScalar, Node};
+use editor_core::Node;
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Interval, Tol};
 use topo::clearance::{
     BoundReport, BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
 };
 use topo::{Body, FaceKey};
 
-trait Scalar: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy + EvalScalar {}
-impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy + EvalScalar> Scalar for T {}
+trait Scalar:
+    Decide + Bounds + CertifiedBounds + topo::AtRestPolicy + editor_core::test_support::AnyEvaluate
+{
+}
+impl<
+    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy + editor_core::test_support::AnyEvaluate,
+> Scalar for T
+{
+}
 
 /// The pot the vessel shells, and the vessel itself: the revolve node's
 /// body and the document's result, evaluated at `T`.

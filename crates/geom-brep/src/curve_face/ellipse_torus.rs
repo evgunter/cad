@@ -47,12 +47,7 @@ use crate::half_angle::{
 use crate::roots::{Roots, Unsettled};
 use geom_core::rounding_charge;
 /// The torus arm's subdivision rows (module docs).
-const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
-    clear: "ellipse_torus_sub_clear",
-    monotone: "ellipse_torus_sub_monotone",
-    side: "ellipse_torus_sub_side",
-    width: "ellipse_torus_sub_width",
-};
+const TORUS_ROWS: SubdivisionRows = crate::rows::ELLIPSE_TORUS;
 
 /// The certified crossings of the `carrier` ellipse with the `surface`
 /// torus, reported within `π` of the midpoint of `[t0, t1]` (module

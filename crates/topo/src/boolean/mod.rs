@@ -5110,6 +5110,7 @@ impl BooleanError {
             Self::JoinPartnersTied => Ok(Refusal::InBand),
             Self::JoinUndecided(u) => match &u.reading {
                 edge_join::JoinReading::Regularity(diag)
+                | edge_join::JoinReading::Crease(diag)
                 | edge_join::JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(
                     diag,
                 )) => Ok(Refusal::Margin(*diag)),

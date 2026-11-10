@@ -48,7 +48,7 @@
 //!   tilted section and a torus's Villarceau circle take their exact
 //!   focal-section image ([`geom_brep::Pcurve::FocalSection`]). A carrier
 //!   its face's incidence test shows off it
-//!   ([`PcurveCertifyError::CarrierOffChart`]) is refused. A circle on a
+//!   ([`PcurveCertifyError::Incidence`]) is refused. A circle on a
 //!   cone or torus whose class reading is in band takes no general lane
 //!   (none is written for the pair) and refuses as that reading's
 //!   escalation, as does a line or ellipse whose class reading is in
@@ -1360,7 +1360,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         match PcurveCache::certify(rim, t0, t1, &carrier, surface, band) {
             Ok(cache) => Ok(cache),
             Err(
-                PcurveCertifyError::Escalated { .. }
+                PcurveCertifyError::Incidence(_)
+                | PcurveCertifyError::Escalated { .. }
                 | PcurveCertifyError::FittedEscalated { .. }
                 | PcurveCertifyError::ResidualExceeded { .. }
                 | PcurveCertifyError::IsoUnsupported { .. },
@@ -6961,12 +6962,12 @@ mod recourse_tests {
             zero: 1e-8,
             escalate: 1e-9,
         };
-        let certify_error = PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Sphere,
-            carrier: geom::CurveKind::Line,
-            why: "the line's points are not on the chart (its distance from the chart is past the band somewhere in its span)",
-            margin: None,
-        };
+        let certify_error = PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+            geom::SurfaceKind::Sphere,
+            geom::CurveKind::Line,
+            "the line's points are not on the chart (its distance from the chart is past the band somewhere in its span)",
+            None,
+        ));
         let arms = [
             PcurveMintError::Stale {
                 role: "half_edge",

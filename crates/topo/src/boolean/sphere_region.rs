@@ -147,10 +147,7 @@ use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
 
 /// The boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_sphere_region_arc_span",
-    "bool_sphere_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::SPHERE_REGION_CONIC;
 
 /// The fraction of each arc's span [`SphereFaceRegion::aim`] steps from:
 /// the golden section ([`geom_core::GOLDEN_SECTION`]), off the middle a

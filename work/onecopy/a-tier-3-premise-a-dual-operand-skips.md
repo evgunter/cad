@@ -2,10 +2,12 @@
 id: a-tier-3-premise-a-dual-operand-skips
 kind: issue
 title: A reader that leans on a premise tier 3 holds is reached by a dual's operand, a Replay that tier 3 never read
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 refs: [6689]
+closed: 2026-11-10
+pr: 6735
 ---
 
 
@@ -65,3 +67,15 @@ dual reaches (the Boolean, the split, the shell, the product), either
 answer by the error's own row with no premise, or state why a dual
 cannot reach it, the way `crates/topo/src/census.rs` `at_rest_fault`
 does. Then list the hits and their dispositions in the PR.
+
+## Closed (2026-11-10, `onecopy/dual-tier3`): the premise is asserted at the evaluation service
+
+On the orchestrator's ruling (B), the premise is held where DUAL-DESIGN DL3 already places it, now by type.
+- **`editor_core::evaluate`** is bounded on `OwnRecord`, which no dual meets.
+- **`evaluate_recorded`** is a dual's one door. It takes the base-scalar evaluation of record and refuses every node that record refused (`NodeErrorKind::RecordRefused`), before the node runs. A record of another document refuses every node (`RecordMispaired`).
+
+So no topo reading a dual reaches through the service leans on a gate the record failed. The premise sites listed above cite one anchor, `topo::Replay`'s "A tier-3 premise at a dual". 6689's site at `join.rs` cites it too.
+
+**Moved:** three msolve14 rows, two in the default set and `c5` in the slow set. The dual now reports `RecordRefused` where the record refused the mate bundle, and the rows read the record's own refusal there. No measured value's report changed.
+
+**Left:** topo's own doors at a dual, called directly with no record, stay contract-bound: `topos-doors-at-a-dual-take-no-tier-3-evidence-by-type`.

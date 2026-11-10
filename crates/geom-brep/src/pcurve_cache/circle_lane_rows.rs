@@ -497,8 +497,13 @@ fn a_circle_definitely_off_ends_as_its_incidence_read() {
     ] {
         let (at_f64, at_interval) = derived(&carrier, (0.0, 2.0), surface);
         assert!(
-            matches!(at_f64, Err(PcurveCertifyError::CarrierOffChart { .. }))
-                && matches!(at_interval, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            matches!(
+                at_f64.as_ref().err().and_then(IncidenceRead::of),
+                Some(IncidenceRead::Off(_))
+            ) && matches!(
+                at_interval.as_ref().err().and_then(IncidenceRead::of),
+                Some(IncidenceRead::Off(_))
+            ),
             "{what}: ends as its incidence read: {at_f64:?} / {at_interval:?}"
         );
     }
