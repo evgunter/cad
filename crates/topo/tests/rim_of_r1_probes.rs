@@ -116,11 +116,7 @@ fn half_built() -> (Body<f64>, EdgeKey) {
 }
 
 fn ends(body: &Body<f64>, k: EdgeKey) -> (VertexKey, VertexKey) {
-    let e = body.get_edge(k).unwrap();
-    (
-        body.get_half_edge(e.he_plus).unwrap().start,
-        body.half_edge_end(e.he_plus).unwrap(),
-    )
+    body.edge_vertices(k).unwrap()
 }
 
 /// **A double cover of half the circle passes the chain test.** Both

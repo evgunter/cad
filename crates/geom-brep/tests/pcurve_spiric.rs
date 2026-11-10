@@ -251,7 +251,7 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
 /// The author's choice between the adjudication's two options is
 /// taken here and stated: a drift the band ADMITS certifies with a
 /// NONZERO envelope (the number is the honest one), and a drift the
-/// band calls definite refuses `CarrierOffChart` — a non-circular
+/// band calls definite refuses, read off its chart (`IncidenceRead::Off`) — a non-circular
 /// spiric oval lies on no torus but its own and its mirror's
 /// ([`the_mirror_torus_holds_the_oval_and_is_uncovered`]).
 #[test]
@@ -555,7 +555,7 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
 /// that imaged first hands both an image (`Ok`).
 #[test]
 fn a_plane_or_torus_off_the_oval_is_read_off_at_the_mint() {
-    use geom_brep::{IncidenceRead, OffMargin};
+    use geom_brep::IncidenceRead;
     use geom_core::{Interval, Real};
     let moved = Surface::Plane {
         origin: Point3::new(D + 1e-3, 0.0, 0.0),
@@ -591,8 +591,9 @@ fn a_plane_or_torus_off_the_oval_is_read_off_at_the_mint() {
         ] {
             let e = got.unwrap_err_or_else_msg(what);
             assert!(
-                matches!(&e, PcurveCertifyError::CarrierOffChart { why: w, margin, .. }
-                    if w.contains(why) && !matches!(margin, Some(OffMargin::InBand(_))))
+                matches!(&e, PcurveCertifyError::Incidence(r)
+                    if r.why().is_some_and(|w| w.contains(why))
+                        && matches!(r.read(), IncidenceRead::Off(_)))
                     && IncidenceRead::of(&e).is_some_and(IncidenceRead::is_definite),
                 "{what} ({lane}): the incidence read's definite miss: {e:?}"
             );
@@ -657,7 +658,7 @@ fn the_mirror_torus_holds_the_oval_and_mints_its_wall_image() {
 /// so the own-torus image on the mirror and the mirror image
 /// on the own torus are each the wrong image of a carrier the chart
 /// holds (`ImageMismatch`, not off the chart); a torus that is neither
-/// holds no oval of it (`CarrierOffChart`), whichever image it is
+/// holds no oval of it (`IncidenceRead::Off`), whichever image it is
 /// handed.
 #[test]
 fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
@@ -761,11 +762,9 @@ fn a_chart_with_a_datum_apart_is_read_off_before_its_ladder() {
         let got = certify(wall(1.0, 0.0), &surface, band());
         let read_off = matches!(
             &got,
-            Err(PcurveCertifyError::CarrierOffChart {
-                why,
-                margin: Some(geom_brep::OffMargin::Past(_)),
-                ..
-            }) if why.starts_with("the carrier's points are not on the torus")
+            Err(PcurveCertifyError::Incidence(r))
+                if matches!(r.read(), geom_brep::IncidenceRead::Off(Some(_)))
+                    && r.why().is_some_and(|why| why.starts_with("the carrier's points are not on the torus"))
         );
         if !read_off {
             wrong.push(format!("{what}: the read answers off, definitely: {got:?}"));

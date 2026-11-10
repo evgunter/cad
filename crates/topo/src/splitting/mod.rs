@@ -35,16 +35,15 @@
 //! 3. **Crossing insertion**: edges whose cached endpoint verdicts are
 //!    strictly opposite are split by [`crate::Body::split_edge`](crate::construction::Construct::split_edge) at the
 //!    interpolated carrier parameter — the crossing goes through the
-//!    certified lane (the `split_edge_param_interior` trilean plus full
+//!    certified lane (the span's place of the parameter plus full
 //!    child re-certification), never a raw interpolation trusted blind.
 //!    New vertices are ON **by construction** (declared coincidence —
 //!    round-8 ladder), not re-measured.
-//! 4. **Neighborhood classification** per ON vertex: the vertex orbit
-//!    becomes a typed sector array ([`SectorEntry`] — no parallel raw
-//!    arrays), wide/reflex sectors stored twice with a bisector entry
-//!    (`neighborhood` — the convex-subdivision derivation), rule (a)
-//!    via the F3 primitive [`geom_brep::enters_material`] and rule (b)
-//!    per the F4 adjudication ([`rules`] — the derivation lives there).
+//! 4. **Neighborhood classification** per ON vertex: the vertex's star
+//!    ([`crate::star`]) refined against the plane, each bound's side
+//!    read as `neighborhood` says ([`BoundClass`]), rule (a) via the F3
+//!    primitive [`geom_brep::enters_material`] and rule (b) per the F4
+//!    adjudication ([`rules`] — the derivation lives there).
 //! 5. **Null-edge insertion** (`insert`): one
 //!    [`crate::Body::mev_null`](crate::construction::Construct::mev_null) per corner of the section at the
 //!    vertex, hung as the tree the corners make (a star of one per
@@ -68,7 +67,7 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 pub(crate) mod neighborhood;
-pub(crate) use neighborhood::{EntryFault, entry_side, wide_entries};
+pub(crate) use neighborhood::{EntryFault, bound_side};
 // `pub(crate)` for `order::{FRAME_ARM, FRAME_AXIS}`, which
 // `chord_join` reads rather than minting a second copy.
 pub(crate) mod order;
@@ -103,7 +102,7 @@ pub use containment::{
 pub use finish::{
     PlanePieces, SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult,
 };
-pub use neighborhood::classify_neighborhood;
+pub use neighborhood::{BoundClass, classify_neighborhood};
 pub use section::{
     Section, SectionEdge, SectionError, SectionPolygon, SectionRegion, plane_section,
 };
@@ -179,15 +178,29 @@ pub enum ApexSectionReading {
 }
 
 impl ApexSectionReading {
+    /// **The table reads the plane's section of the cone as a conic clear
+    /// of the apex**, which the walk read the plane through: one
+    /// disagreement, open or closed, and its one home. A closed conic is
+    /// the table's section ([`Self::ClosedOffApex`]); an open one is its
+    /// refusal ([`SplitJoinError::OpenConicChord`], [`Self::OpenOffApex`],
+    /// through [`Self::of_table_refusal`]).
+    #[must_use]
+    pub const fn clear_of_apex(open: bool) -> Self {
+        if open {
+            Self::OpenOffApex
+        } else {
+            Self::ClosedOffApex
+        }
+    }
+
     /// **The reading of the table's refusal of the plane against the
-    /// cone**: an open conic is the plane missing the apex
-    /// ([`Self::OpenOffApex`]), the one disagreement a closed conic is too
-    /// ([`Self::ClosedOffApex`]), named here once; any other refusal is
-    /// carried whole ([`Self::Refused`]).
+    /// cone**: an open conic is the plane clear of the apex
+    /// ([`Self::clear_of_apex`]); any other refusal is carried whole
+    /// ([`Self::Refused`]).
     #[must_use]
     pub fn of_table_refusal(section: SplitJoinError) -> Self {
         match section {
-            SplitJoinError::OpenConicChord { .. } => Self::OpenOffApex,
+            SplitJoinError::OpenConicChord { .. } => Self::clear_of_apex(true),
             other => Self::Refused(Box::new(other)),
         }
     }
@@ -203,6 +216,13 @@ impl ApexSectionReading {
     /// refusal's own aborts.
     pub fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
         match self {
+            // An open conic is the disagreement, however it was built
+            // ([`Self::clear_of_apex`]), never the join's limit.
+            Self::Refused(section)
+                if matches!(**section, SplitJoinError::OpenConicChord { .. }) =>
+            {
+                Err(geom_core::ladder::Aborts)
+            }
             Self::Refused(section) => section.refusal(),
             Self::ClosedOffApex
             | Self::OpenOffApex
@@ -291,49 +311,6 @@ impl PlaneSide {
             Self::On => Self::On,
             Self::Above => Self::Below,
         }
-    }
-}
-
-/// What a neighborhood entry stands for (typed, F9-style — never
-/// inferred from array position).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SectorEntryKind {
-    /// A real neighborhood edge, classified by its final vertex.
-    Edge,
-    /// A subdivision entry of one sector, classified by its direction: a
-    /// wide (≥180°) sector's interior bisector (convex subdivision), a slit
-    /// tip's full turn's three quarter directions, or, at a cone's apex,
-    /// each extremal ruling inside the sector, one or two at any width (the
-    /// `neighborhood` module docs). Shares its half-edge with
-    /// the sector's [`SectorEntryKind::Edge`] entry before it.
-    WideBisector,
-}
-
-/// One entry of an ON vertex's typed sector array: a half-edge of the
-/// vertex orbit plus its (re)classification. Entry `k` implicitly names
-/// the sector between entry `k` and entry `k+1` (cyclic); that sector's
-/// face is `face(loop(mate(entries[k].he)))` under our orbit
-/// conventions (derived in the `neighborhood` module docs).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SectorEntry {
-    /// The orbit half-edge (starts at the base vertex).
-    pub he: HalfEdgeKey,
-    /// Edge entry or wide-sector bisector duplicate.
-    pub kind: SectorEntryKind,
-    /// The current classification (initial → after rule (a) → after
-    /// rule (b)).
-    pub class: PlaneSide,
-}
-
-impl crate::star::Member for SectorEntry {
-    fn he(&self) -> HalfEdgeKey {
-        self.he
-    }
-    fn real(&self) -> bool {
-        self.kind == SectorEntryKind::Edge
-    }
-    fn moved(&self) -> bool {
-        self.class == PlaneSide::Above
     }
 }
 
@@ -544,6 +521,17 @@ pub enum SplitReduceError {
         face: FaceKey,
         /// How the table's section disagrees with the walk.
         reading: ApexSectionReading,
+    },
+    /// A vertex of a cone face lies within the band of the cone's axis
+    /// but definitely off its apex: its tangent plane there is read
+    /// ill-conditioned, so the face's corner at the vertex does not read.
+    VertexNearConeAxis {
+        /// The vertex.
+        vertex: VertexKey,
+        /// The cone face.
+        face: FaceKey,
+        /// The band the axis's distance was read in.
+        band: Band,
     },
     /// A vertex of a cone face lies within the band of the cone's axis
     /// ([`crate::face_normal::cone_point`] escalated): whether the
@@ -862,6 +850,13 @@ impl SplitReduceError {
                      {SPLIT_COINCIDENCE_RECOURSE}"
                 )
             }
+            Self::VertexNearConeAxis { .. } => write!(
+                f,
+                "a corner of a cone face lies so near the cone's tip that the face's \
+                 direction there cannot be read at this tolerance. Recourse: move the plane \
+                 or the solid so the corner lies clear of the cone's tip, or tighten the \
+                 tolerance"
+            ),
             Self::ApexUndecided { diag, .. } => write!(
                 f,
                 "a corner of a cone face lies too near the cone's axis to say whether it is \
@@ -1016,9 +1011,9 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut apex_germs = SecondaryMap::new();
     let mut coincidences = Vec::new();
     for &v in &on_vertices {
-        let (entries, rays) =
-            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, &tips, band)?;
-        let runs = crate::star::runs(&entries);
+        let hood = neighborhood::classify(&body, plane, &sides, v, &tips, band)?;
+        let members = hood.star.moved(|k| hood.classes[k] == PlaneSide::Above);
+        let runs = crate::star::runs(&members);
         // An operand vertex decided ON whose neighbourhood leaves two or
         // more runs on a side: pieces of the solid touch there. A
         // crossing's vertex was minted on the plane, so no margin
@@ -1041,8 +1036,9 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         }
         let hood = insert::Neighborhood {
             vertex: v,
-            entries: &entries,
-            rays: &rays,
+            star: &hood.star,
+            classes: &hood.classes,
+            in_plane: &hood.in_plane,
         };
         insert::insert_null_edges(
             &mut body,

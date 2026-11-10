@@ -691,7 +691,7 @@ fn settle<T: Decide>(
     meetings: Vec<Meeting>,
     residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
 ) -> Result<Vec<T>, CompositeRefusal> {
-    let apart =
+    let apart_as =
         |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
             Ok(Sign::Zero) => Ok(false),
             Ok(_) => Ok(true),
@@ -707,7 +707,7 @@ fn settle<T: Decide>(
         let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
         let p = net.eval(T::from_computed(t));
         for &crease in &creases {
-            if !apart("spline_composite_root_at_crease", p, crease)? {
+            if !apart_as("spline_composite_root_at_crease", p, crease)? {
                 return Err(Unsettled::Crease.into());
             }
         }
@@ -724,13 +724,13 @@ fn settle<T: Decide>(
         }
         let mut at_end = false;
         for end in ends {
-            at_end |= !apart("spline_composite_root_at_end", p, end)?;
+            at_end |= !apart_as("spline_composite_root_at_end", p, end)?;
         }
         if at_end {
             continue;
         }
         if let Some(&(_, before)) = roots.last()
-            && !apart("spline_composite_roots_apart", p, before)?
+            && !apart_as("spline_composite_roots_apart", p, before)?
         {
             return Err(Unsettled::Tangency.into());
         }

@@ -78,7 +78,9 @@
 //! other reading takes such a link ([`rest::judge`] and
 //! [`rest::by_round`] refuse it).
 
-use geom_brep::ladder::{Aborts, Answering, Climb, Refusal, Rung, climb};
+use geom_core::ladder::{
+    Aborts, Answering, Climb, FreeOf, Refusal, Rung, Undecided, Unpicked, argmin_decided, climb,
+};
 
 use crate::validate::EdgeTangentUnread;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -341,6 +343,25 @@ pub(crate) mod metric {
         band: Band,
     ) -> Option<Sign> {
         read_as(name, d.0, band)
+    }
+
+    /// **Whether `q` lies ahead of `from` along the unit `dir`**, as the
+    /// K row `name`; `None` in band. This is [`geom::Ray::ahead`]'s
+    /// decision of the parameter `dir·(q − from)`, which over a unit
+    /// `dir` is `q`'s offset in metres, the same margin and the same
+    /// record as [`sign_as`] over [`Distance::of`]. It is kept in the
+    /// door so that every verdict sign of the touch analysis is read
+    /// here.
+    pub(crate) fn ray_ahead<T: Decide>(
+        name: &'static str,
+        q: Point3<T>,
+        from: Point3<T>,
+        dir: Vec3<T>,
+        band: Band,
+    ) -> Option<Sign> {
+        geom::Ray::new(from, dir)
+            .ahead(dir.dot(q - from), name, band)
+            .ok()
     }
 
     /// The distance's sign under `r` ([`Reading`]): Zero as the band
@@ -1195,22 +1216,32 @@ pub(crate) fn face_piece<T: Decide>(
             None => return Err(TouchUnread::PieceInBand),
         })
     };
-    // The order of two points' turns about `p`.
-    let order =
-        |a: (Turn, Point3<T>), b: (Turn, Point3<T>)| -> Result<core::cmp::Ordering, TouchUnread> {
-            if a.0 != b.0 {
-                return Ok(a.0.cmp(&b.0));
-            }
-            if matches!(a.0, Turn::Ahead | Turn::Back) {
-                return Ok(Equal);
-            }
-            Ok(match side(a.1, b.1) {
-                Some(Sign::Positive) => Less,
-                Some(Sign::Negative) => Greater,
-                Some(Sign::Zero) => Equal,
-                None => return Err(TouchUnread::PieceInBand),
-            })
-        };
+    // The order of two points' turns about `p`, keeping why a turn's
+    // side read nothing: the decided argmin below classifies it
+    // ([`Undecided::of`]), so a poisoned reading stops it rather than
+    // being superseded by a candidate that closes the question.
+    let order_kept = |a: (Turn, Point3<T>),
+                      b: (Turn, Point3<T>)|
+     -> Result<core::cmp::Ordering, Undecided<TouchUnread>> {
+        if a.0 != b.0 {
+            return Ok(a.0.cmp(&b.0));
+        }
+        if matches!(a.0, Turn::Ahead | Turn::Back) {
+            return Ok(Equal);
+        }
+        Ok(match wedge_settle(p, m, a.1, b.1, rd) {
+            Ok(Sign::Positive) => Less,
+            Ok(Sign::Negative) => Greater,
+            Ok(Sign::Zero) => Equal,
+            Err(why) => return Err(turn_unread(why)),
+        })
+    };
+    // The same order, as the sort and the sector's ends read it.
+    let order = |a: (Turn, Point3<T>), b: (Turn, Point3<T>)| {
+        order_kept(a, b).map_err(|why| match why {
+            Undecided::InBand(why) | Undecided::Aborts(why) => why,
+        })
+    };
     let mut sorted: Vec<(Turn, Point3<T>)> = Vec::with_capacity(points.len());
     for &q in &points {
         let item = (turn(q)?, q);
@@ -1234,7 +1265,7 @@ pub(crate) fn face_piece<T: Decide>(
     // sector is that full turn.
     let end = match at {
         PieceAt::Corner(..) | PieceAt::Edge(..) => {
-            let mut best: Option<(Turn, Point3<T>)> = None;
+            let mut passes: Vec<(Turn, Point3<T>)> = Vec::new();
             for &pass in core::iter::once(&at).chain(also) {
                 let q = match pass {
                     PieceAt::Corner(rr, kk) => {
@@ -1248,12 +1279,35 @@ pub(crate) fn face_piece<T: Decide>(
                 if item.0 == Turn::Ahead {
                     continue;
                 }
-                best = match best {
-                    Some(b) if order(item, b)? != Less => Some(b),
-                    _ => Some(item),
-                };
+                passes.push(item);
             }
-            best.map(|b| b.1)
+            // The nearest incoming ray by turn. Free of ties: two rays at
+            // one turn end the sector at one place, so either stands for
+            // the other.
+            let cmp = |a: &(Turn, Point3<T>), b: &(Turn, Point3<T>)| {
+                order_kept(*a, *b).map(|o| match o {
+                    Less => Sign::Negative,
+                    Equal => Sign::Zero,
+                    Greater => Sign::Positive,
+                })
+            };
+            match argmin_decided(passes, cmp, FreeOf::Ties) {
+                Ok(best) => best.map(|b| b.1),
+                Err(
+                    Unpicked::Contested {
+                        in_band: Some(why), ..
+                    }
+                    | Unpicked::Aborted(why),
+                ) => {
+                    return Err(why);
+                }
+                Err(Unpicked::Contested { in_band: None, .. }) => {
+                    unreachable!("free of ties, an argmin with no in-band pair picks")
+                }
+                // The turn, then the side within one turn's half-plane:
+                // a total order, which ranks in no cycle.
+                Err(Unpicked::Cyclic) => unreachable!("the turn order ranks in no cycle"),
+            }
         }
         PieceAt::Inside => None,
     };
@@ -1381,6 +1435,23 @@ fn wedge_side<T: Decide>(
     wedge_settle(p, m, r, x, rd).ok()
 }
 
+/// **A turn's side that read nothing, as the decided argmin keeps it**
+/// ([`face_piece`]'s piece-end fold): a distance in band is classified
+/// by its escalation ([`Undecided::of`]), so a poisoned margin or an
+/// enclosure straddling the band's edge stops the argmin rather than
+/// being superseded; the other in-band arms (row 1(b), as each variant
+/// states) are kept, and a contradiction aborts. Each refuses as the
+/// piece's in-band refusal.
+fn turn_unread<T>(why: Unsettled<T>) -> Undecided<TouchUnread> {
+    match why {
+        Unsettled::InBand(diag) => Undecided::of(diag).map(|_| TouchUnread::PieceInBand),
+        Unsettled::Zero(..) | Unsettled::Slack | Unsettled::Unplaced => {
+            Undecided::InBand(TouchUnread::PieceInBand)
+        }
+        Unsettled::Contradicted => Undecided::Aborts(TouchUnread::PieceInBand),
+    }
+}
+
 /// [`wedge_side`], keeping why it read nothing ([`metric::settle_as`]).
 fn wedge_settle<T: Decide>(
     p: Point3<T>,
@@ -1410,6 +1481,26 @@ fn wedge_distance<T: Decide>(
 
 /// Whether `x` lies ahead of `p` along the ray through `r` or behind it,
 /// read no further out than `r` (as [`wedge_side`]).
+///
+/// **The touch analysis's ahead readings against [`geom::Ray::ahead`]**
+/// (the one statement of how they differ; `Ray`'s docs point here).
+/// `Ray::ahead` decides a parameter a reader computed on its own ray, in
+/// units of `|dir|`, against the run band alone. This reading decides a
+/// *point's* offset across the plane through `p` square to the direction
+/// to `r`, in metres (the direction is normalized here), and it is a
+/// different decision in two ways:
+/// - it is decided through [`metric::settle`]'s [`Reading`], whose slack
+///   must hold the sign over every sector within the tie. The ahead line
+///   turns with the ray through the tie ([`Reading::tied`]), and a metre
+///   slack moves only a margin in metres;
+/// - the point is drawn in first to the ray's reach ([`within`]), unless
+///   the reading is the cone's own.
+///
+/// [`FaceSector::chord`]'s `past` closure has neither: on the plain band,
+/// over a unit direction, it is `Ray::ahead`'s decision, and it calls
+/// it, through [`metric::ray_ahead`], so that every verdict sign of the
+/// touch analysis still comes through the module's one door
+/// ([`metric`], whose single `Margin::of` a row pins).
 fn ahead<T: Decide>(p: Point3<T>, r: Point3<T>, x: Point3<T>, rd: Reading<T>) -> Option<Sign> {
     ahead_settle(p, r, x, rd).ok()
 }
@@ -3004,8 +3095,9 @@ impl<T: Decide> FaceSector<T> {
         if let Some(apex) = apex {
             let [a, b] = face.ends;
             let d = unit(b - a);
+            // `Ray::ahead`'s decision, read through the touch door ([`ahead`]).
             let past = |from: Point3<T>, dir: Vec3<T>| {
-                metric::sign_as(LINK_AHEAD, Distance::of(apex, from, dir), band)
+                metric::ray_ahead(LINK_AHEAD, apex, from, dir, band)
             };
             match (past(b, d), past(a, -d)) {
                 (Some(Positive | Zero), _) | (_, Some(Positive | Zero)) => {}
@@ -3781,7 +3873,11 @@ impl<T: Decide> Round<T> {
                 axis,
                 radius,
                 ..
-            } => Some(Self::cylinder(origin, axis, radius, sense)),
+            } => Some(Self::cylinder(
+                geom::Line { origin, dir: axis },
+                radius,
+                sense,
+            )),
             _ => None,
         }
     }
@@ -3795,14 +3891,11 @@ impl<T: Decide> Round<T> {
         }
     }
 
-    /// A cylinder's material about the line through `origin` along
-    /// `axis`, normalised here, `convex` a pin's.
-    pub fn cylinder(origin: Point3<T>, axis: Vec3<T>, radius: T, convex: bool) -> Self {
+    /// A cylinder's material about the line `axis`, its direction
+    /// normalised here, `convex` a pin's.
+    pub fn cylinder(axis: geom::Line<T>, radius: T, convex: bool) -> Self {
         Self {
-            at: Axis::Line(geom::Line {
-                origin,
-                dir: axis.normalize(),
-            }),
+            at: Axis::Line(axis.unit()),
             radius,
             convex,
         }
@@ -6408,6 +6501,52 @@ mod standing_rows {
         assert_eq!(
             Unsettled::<f64>::InBand(diag).refusal(),
             Ok(Refusal::Margin(diag))
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod turn_unread_rows {
+    use geom_core::ladder::Undecided;
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::{TouchUnread, Unsettled, turn_unread};
+
+    /// **A poisoned turn reading stops the piece-end argmin**: the fold
+    /// classifies a side that read nothing by its escalation, so a
+    /// poisoned margin aborts and is never superseded by a candidate that
+    /// closes the question, while a point margin in band is kept. Red
+    /// where every undecided turn maps to in band, as it did before the
+    /// one classifier ([`Undecided::of`]).
+    #[test]
+    fn a_poisoned_turn_reading_escalates_and_an_in_band_one_is_kept() {
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let cause = |margin| Indeterminate {
+            margin,
+            band,
+            predicate: Some("link_wedge"),
+            terminal_sliver: false,
+        };
+        assert_eq!(
+            turn_unread::<f64>(Unsettled::InBand(cause(MarginDiag::INVALID))),
+            Undecided::Aborts(TouchUnread::PieceInBand),
+            "a poisoned margin aborts"
+        );
+        assert_eq!(
+            turn_unread::<f64>(Unsettled::InBand(cause(MarginDiag::value(5e-9)))),
+            Undecided::InBand(TouchUnread::PieceInBand),
+            "a point margin in band is kept"
+        );
+        assert_eq!(
+            turn_unread::<f64>(Unsettled::Slack),
+            Undecided::InBand(TouchUnread::PieceInBand),
+            "the slack's reading is in band"
+        );
+        assert_eq!(
+            turn_unread::<f64>(Unsettled::Contradicted),
+            Undecided::Aborts(TouchUnread::PieceInBand),
+            "a contradiction aborts"
         );
     }
 }

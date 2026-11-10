@@ -272,7 +272,7 @@ pub(crate) const NORMAL_INVALID_INPUTS: [NormalAbort; 2] = [
 impl NormalAbort {
     /// **An invalid input at a touch, said**: a torus face there outside
     /// the ring convention, in the convention's own clause, ended by its
-    /// half's lever read at `at` ([`TorusConvention::refused_ended`]); the
+    /// half's lever read at `at` ([`geom_brep::TorusRefusal::said`]); the
     /// clause alone where `at` is `None`. The census's touch sentences
     /// say an invalid input by this.
     #[must_use]
@@ -283,7 +283,7 @@ impl NormalAbort {
     ) -> String {
         format!(
             "a torus face there breaks the ring convention: {}",
-            convention.refused_ended("its", verdict, at)
+            geom_brep::TorusRefusal::decided(convention, verdict).said("its", at)
         )
     }
 

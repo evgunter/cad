@@ -254,9 +254,8 @@ fn the_annulus_band_carries_two_closed_circles_and_a_doubly_traversed_slit() {
         .map(|he| out.body.get_half_edge(*he).unwrap().edge)
         .collect();
     for (i, e) in edges.iter().enumerate() {
-        let ed = out.body.get_edge(*e).unwrap();
-        let start = out.body.get_half_edge(ed.he_plus).unwrap().start;
-        if Some(start) == out.body.half_edge_end(ed.he_plus) {
+        let (start, end) = out.body.edge_vertices(*e).unwrap();
+        if start == end {
             closed += 1;
         }
         if edges.iter().skip(i + 1).any(|k| k == e) {
@@ -333,8 +332,8 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
         .map(|(k, _)| k)
         .filter(|k| {
             let e = body.get_edge(*k).unwrap();
-            let start = body.get_half_edge(e.he_plus).unwrap().start;
-            if Some(start) == body.half_edge_end(e.he_plus) {
+            let (start, end) = body.edge_vertices(*k).unwrap();
+            if start == end {
                 return false;
             }
             let surf = |he| {

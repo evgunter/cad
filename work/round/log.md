@@ -317,3 +317,78 @@ that unit, since it rewrites the same sentences. ROUND goes back
   renumbered past main's last;
 - refresh its PR body;
 - unpark the two rows.
+
+## 2026-11-10 — the refused corner ruled (PR 6547); picked back up (`active`)
+
+Ev, after two rounds of questions on the PR: "ok, these changes sound
+good then!" The answer carries both decisions with Ev's two wording
+changes:
+- the anchor lever states the target distance, not an increment;
+- the sentence drops the redundant current distance.
+
+The fork's log row is 255 (254 was taken on main) and carries the
+decision and the mapping. Both rows are unparked into one build unit,
+`round/refused-corner`, which gets a single FULL review: the payload
+and record changes reach the viewer and Python, and the closed-form
+radius has branch assignment to get right. The two P3 sentence rows
+ride with it.
+
+PR 6719 (the refused-corner unit) is up, and its single FULL review
+returned REQUEST-CHANGES.
+- **The major (M1).** The rendered X and S sat only ~1e-10 on the
+  fitting side, inside the fit gate's own band. Typed back, they
+  re-tripped `fillet_leg_fit` as an escalation (1215 grid-A cases at
+  ε = 1e-12). The pinning test only looked for the entry kind, so it
+  could not see this. Fix: render outside the band, and have the
+  typed-back row assert no `fillet_leg_fit` refusal of any form.
+- **Minors folded in:**
+  - noisy 10-figure numbers;
+  - the README parenthetical reworded to "each overrunning leg";
+  - `CuspDoublesBackOverLeg` added to PATHS §3's list;
+  - the flip band asserted per ε row;
+  - the real over-budget distribution recorded;
+  - one home for `num`/`num_toward`, and the `Drawing` step check
+    made fail-loud;
+  - the which-legs type made unable to say neither;
+  - the turn refusal's corner drawn.
+- **The cusp passenger's new door refusal is accepted.** The row left
+  the choice to the unit, after `.cusp()` the lattice admits only the
+  exact reverse, and the reviewer found no valid profile it refuses.
+
+6719's first fix pass named the levers twice the escalation threshold
+past the band (2Kε). The re-review found that this leaves a 2Kε sliver
+at the anchor, and the anchor junction then re-refuses: 355 of 3148
+default-row cases, against the old head's 2. Ruled: aim both levers at
+the exact-fit band instead, with the margin in [0, ε/2] on the fitting
+side. Since PR 6682 the fit gate's Zero arm is an exact fit, so the
+named fillet ends at the anchor. That is the ratified "the fillet that
+ends exactly at the anchor", and it lets the README keep the wording Ev
+approved ("strictly on the fitting side"). The first pass's "past the
+band" rewording would have changed what that clause decides, so it
+comes out. The typed-back rows now pin per-row counts of other-gate
+refusals, and an independent margin ties the bound to the kernel.
+
+## 2026-11-10 — the refused corner landed (PR 6719); handed back (`ready`)
+
+PR 6719 merged as `05e7001f94` after one FULL review and two fix
+passes; the four rows (two units, two passengers) are closed.
+- **The rendering rule.** The levers are named within the exact-fit band
+  on the fitting side, so the named radius and anchor distance, typed
+  back, are exact fits at their corner. Other gates still refuse a
+  handful of typed-back levers (4 X and 3 S on grid A at 1e-6, 0
+  elsewhere), pinned per row.
+- **A reading I accepted.** Below the window, a radius in the fit gate's
+  own band escalates there in that gate's words. That is the sliver
+  region the contract leaves to other wording, so the sweep below X
+  counts it rather than failing it.
+- **The cusp passenger** refuses at the door as `CuspDoublesBackOverLeg`.
+- **CI.** The implementer pushed two empty commits to re-run CI after
+  `test (kernel)` tripped the 1.0 s per-test budget on two untouched
+  rows (topo 1.032 s, sweep 1.014 s), since re-runs are refused from
+  here. That is a workaround I would not choose again: those rows sit at
+  the budget's edge and belong to whoever owns the slow-set roster.
+
+No P0/P1 is left. Two new P3 rows came out of the unit: the enclosing
+refusal's rendering, and the over-budget sentences. Both need a
+wording choice, so a successor can take them as cheaply. ROUND goes
+back `ready`.

@@ -180,6 +180,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err.kind() {
         PathErrorKind::JunctionTangent => "junction_tangent",
         PathErrorKind::JunctionCusp => "junction_cusp",
+        PathErrorKind::CuspDoublesBackOverLeg => "cusp_doubles_back_over_leg",
         PathErrorKind::SeamTangent => "seam_tangent",
         PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
@@ -1528,6 +1529,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::JoinUndecided => "join_undecided",
+        BooleanErrorKind::JoinPartnersTied => "join_partners_tied",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
@@ -1603,6 +1605,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::Band(_) => "band",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcSweepUndecided { .. } => "arc_sweep_undecided",
+        SkinError::ParametersInvalid { .. } => "parameters_invalid",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",

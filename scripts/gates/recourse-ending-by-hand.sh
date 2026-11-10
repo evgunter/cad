@@ -9,7 +9,12 @@
 # on the labelled fragment writes `X_ENDING`. Spelling the label beside
 # the fragment is a second copy of the ending, which drifts from it.
 # The pairs are read off `crates/geom-core/src`, so a new `X_ENDING` is
-# held the day it lands. Today: `RANGE_RECOURSE` / `RANGE_ENDING`.
+# held the day it lands. Today: `RANGE_RECOURSE` / `RANGE_ENDING`. One
+# pair is named otherwise and is held by name (`NAMED_PAIRS` below):
+# `COINCIDENCE_RECOURSE` / `MOVE_RECOURSE`, the move-recourse class's
+# fragment and its labelled whole ending. A move a site names more
+# closely is ended through `geom_core::move_recourse!("so …")`, its
+# words after the fragment's.
 #
 # WHAT IS REFUSED, in production code under `crates/*/src` (string
 # literals kept, comments out, `#[cfg(test)]` and test-only mounts out),
@@ -24,17 +29,25 @@
 #   * the label and the fragment across a `;` (a `let` holding the
 #     format string, a helper that prefixes `Recourse: `);
 #   * `Recourse: {}` with `X_RECOURSE` as an argument other than the last;
-#   * a pair not named `X_RECOURSE` / `X_ENDING`: `COINCIDENCE_RECOURSE`
-#     and its labelled form `MOVE_RECOURSE` are not held, and about a dozen
-#     sites write `Recourse: {COINCIDENCE_RECOURSE}` (several continuing
-#     it, "; {note}" or ", or …"). That is the move-recourse class's to
-#     decide (`work/onecopy/carry-refusal-copies-and-hand-spelled-move-recourses.md`);
+#   * a pair named neither `X_RECOURSE` / `X_ENDING` nor in
+#     `NAMED_PAIRS`; and a fragment's words spelled as a literal rather
+#     than through its constant or macro (`"Recourse: move the geometry"`
+#     by hand), which no shape here reads
+#     (`work/onecopy/move-the-geometry-is-spelled-as-a-literal-at-a-hundred-sites.md`);
+#   * the macro forms: `geom_core::move_recourse!("so …")` is the ending
+#     and passes, and so does a hand
+#     `concat!("Recourse: ", geom_core::coincidence_move_arm!(), …)`, which
+#     no shape reads (it names the arm's macro, not a fragment constant);
 #   * a fragment composed mid-sentence after words of the site's own
 #     (`profile::path`'s "Recourse: only the ratio …, {RANGE_RECOURSE}"),
 #     which is the fragment's intended use and is meant to pass.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+# Pairs held by name, `FRAGMENT:ENDING`, each checked to exist in
+# geom-core: a pair that went missing is a gate reading nothing, not a pass.
+NAMED_PAIRS="COINCIDENCE_RECOURSE:MOVE_RECOURSE"
 
 # The stems with both a fragment and an ending in geom-core.
 stems() {
@@ -79,27 +92,64 @@ for path, lines in files.items():
 gate() {
   gate_require_crate_sources
   gate_production_sources
-  local list alt hits
+  local list alt hits pair frag ending named=""
   list=$(stems)
-  if [ -z "$list" ]; then
+  for pair in $NAMED_PAIRS; do
+    frag=${pair%%:*} ending=${pair#*:}
+    for c in "$frag" "$ending"; do
+      if ! grep -rqE "pub const $c: &str" crates/geom-core/src; then
+        gate_error "$(gate_name): the named pair $pair has no \`pub const $c\` in crates/geom-core/src — the gate would read nothing for it, which is not a pass"
+        exit 1
+      fi
+    done
+    named="$named $frag"
+  done
+  if [ -z "$list" ] && [ -z "$named" ]; then
     gate_ok "no geom-core recourse has both a fragment and an ending"
     return
   fi
-  alt=$(printf '%s\n' "$list" | sed 's/$/_RECOURSE/' | paste -sd'|')
+  alt=$( { printf '%s\n' "$list" | sed '/^$/d; s/$/_RECOURSE/'; printf '%s\n' $named; } | paste -sd'|')
   hits=$(gate_rust_code --skip-cfg-test --keep-literals "${GATE_PRODUCTION_FILES[@]}" \
     | python3 -c "$MATCHER" "$alt")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
-    gate_error "a recourse fragment labelled by hand beside its ending: write the X_ENDING constant"
+    gate_error "a recourse fragment labelled by hand beside its ending: write the X_ENDING constant (for COINCIDENCE_RECOURSE, MOVE_RECOURSE or move_recourse!(\"so …\"))"
     exit 1
   fi
-  gate_ok "every recourse fragment with an ending is ended through it ($(printf '%s' "$list" | paste -sd, -))"
+  gate_ok "every recourse fragment with an ending is ended through it ($(printf '%s\n' "$list" | sed 's/$/_RECOURSE/' | paste -sd, -),$named)"
 }
 
 plant_home() {
   mkdir -p "$1/crates/geom-core/src"
+  printf 'pub const RANGE_RECOURSE: &str = "scale it";\npub const RANGE_ENDING: &str = "Recourse: scale it";\npub const COINCIDENCE_RECOURSE: &str = "move it";\npub const MOVE_RECOURSE: &str = "Recourse: move it";\n' \
+    > "$1/crates/geom-core/src/lib.rs"
+}
+
+# The clean fixture carries the constants the gate reads its pairs off.
+gate_plant_clean() {
+  gate_plant_clean_sources "$1"
+  plant_home "$1"
+}
+
+plant_named_pair_missing() {
+  gate_plant_clean_sources "$1"
+  mkdir -p "$1/crates/geom-core/src"
   printf 'pub const RANGE_RECOURSE: &str = "scale it";\npub const RANGE_ENDING: &str = "Recourse: scale it";\n' \
     > "$1/crates/geom-core/src/lib.rs"
+}
+
+plant_named_pair() {
+  plant_home "$1"
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn w(f: &mut F) -> R {\n    write!(f, "too thin. Recourse: {COINCIDENCE_RECOURSE}; {note}")\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_named_pair_ending() {
+  plant_home "$1"
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn w(f: &mut F) -> R {\n    write!(f, "too thin. {MOVE_RECOURSE}; {note}")\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
 }
 
 plant_named() {
@@ -143,9 +193,12 @@ gate_selftest() {
   gate_selftest_case "$want" plant_named
   gate_selftest_case "$want" plant_positional
   gate_selftest_case "$want" plant_wrapped
+  gate_selftest_case "$want" plant_named_pair
+  gate_selftest_passes "the named pair's ending written whole" plant_named_pair_ending
+  gate_selftest_case "the named pair COINCIDENCE_RECOURSE:MOVE_RECOURSE has no" plant_named_pair_missing
   gate_selftest_passes "the ending written whole" plant_ending
   gate_selftest_passes "the fragment composed mid-sentence" plant_mid_sentence
-  printf '%s selftest OK: passes a clean fixture, the ending written whole and the fragment mid-sentence; fires on the fragment named after the label, passed as the last argument after `Recourse: {}`, and wrapped in Recourse(…)\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, the ending written whole and the fragment mid-sentence; fires on the fragment named after the label, passed as the last argument after `Recourse: {}`, and wrapped in Recourse(…), and on the named pair COINCIDENCE_RECOURSE after the label (its MOVE_RECOURSE passes), and on a named pair geom-core no longer defines\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

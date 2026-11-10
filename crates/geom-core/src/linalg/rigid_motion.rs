@@ -830,17 +830,25 @@ impl<T: Decide> RigidMotion<T> {
         }
         let one = T::one();
         // A table of K row names: they reach the funnel through the loop
-        // variable below, so no grep for a literal at the decide site finds
-        // them. A row added here is a roster change (`docs/K-REPORT.md`,
-        // "The inventory method, restated").
+        // variable below, so each is a `const` geom-core's roster declares
+        // a carrier, which is where the census reads it. A row added here
+        // is a roster change (`docs/K-REPORT.md`, "The inventory method,
+        // restated").
+        const COL0_UNIT: &str = "transform_rigid_col0_unit";
+        const COL1_UNIT: &str = "transform_rigid_col1_unit";
+        const COL2_UNIT: &str = "transform_rigid_col2_unit";
+        const COL01_ORTH: &str = "transform_rigid_col01_orth";
+        const COL12_ORTH: &str = "transform_rigid_col12_orth";
+        const COL02_ORTH: &str = "transform_rigid_col02_orth";
+        const DET_PLUS_ONE: &str = "transform_rigid_det_plus_one";
         let checks: [(&'static str, T); 7] = [
-            ("transform_rigid_col0_unit", l.c0.dot(l.c0) - one),
-            ("transform_rigid_col1_unit", l.c1.dot(l.c1) - one),
-            ("transform_rigid_col2_unit", l.c2.dot(l.c2) - one),
-            ("transform_rigid_col01_orth", l.c0.dot(l.c1)),
-            ("transform_rigid_col12_orth", l.c1.dot(l.c2)),
-            ("transform_rigid_col02_orth", l.c0.dot(l.c2)),
-            ("transform_rigid_det_plus_one", l.determinant() - one),
+            (COL0_UNIT, l.c0.dot(l.c0) - one),
+            (COL1_UNIT, l.c1.dot(l.c1) - one),
+            (COL2_UNIT, l.c2.dot(l.c2) - one),
+            (COL01_ORTH, l.c0.dot(l.c1)),
+            (COL12_ORTH, l.c1.dot(l.c2)),
+            (COL02_ORTH, l.c0.dot(l.c2)),
+            (DET_PLUS_ONE, l.determinant() - one),
         ];
         for (check, margin) in checks {
             // Ledger row F10: the rigidity residuals of the linear map are

@@ -345,6 +345,7 @@ fn a_decided_signs_word_rides_the_payload_once() {
         let reported = Indeterminate {
             margin,
             band: b,
+            // UNDECIDED-NAME: a bound reported to the door by hand, to see it pass through unread
             predicate: Some("reported_bound"),
             terminal_sliver: false,
         };
@@ -437,6 +438,7 @@ fn the_measurement_gate_records_only_its_escalation() {
     let poisoned = gate_measured("measured", f64::NAN, b).unwrap_err();
     let recorded = bracket.finish();
     assert_eq!(poisoned.margin, MarginDiag::INVALID);
+    // UNDECIDED-NAME: the row handed gate_measured, a door no census reads a name at
     assert_eq!(poisoned.predicate, Some("measured"));
     assert!(
         recorded.verdicts.is_empty(),
