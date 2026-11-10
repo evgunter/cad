@@ -2,8 +2,11 @@
 id: ring-sites-names-are-not-unique-across-readers
 kind: issue
 title: RingSites::new refuses a shared name within one reader, but nothing stops two readers from sharing row names
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+branch: onecopy/torus-ring-names
+pr: 6695
 ---
 
 
@@ -22,3 +25,14 @@ Any of these could pass another's names and compile. The K stream and `docs/pred
 1. A gate that collects every `RingSites::new(..)` literal and refuses a name used twice.
 2. A roster of reader site names checked at test time.
 3. The same check for the funnel's site names at large, if this is the general case. `SpiricRegimeSites` (PR 6621) has the same shape.
+
+## Closed
+
+PR 6695. `RingSites` and `SpiricRegimeSites` are minted only by their
+reader enums, `geom::RingReader` and `geom::SpiricReader`, whose `new`
+is crate-private. One roster, geom's `reader_rows`, reads every reader's
+rows off the enums' `VARIANTS`. A `const` assertion fails geom's build
+on a name two readers share.
+
+Option C, the funnel's other row bundles, is filed:
+`funnel-row-bundles-have-no-cross-reader-roster`.
