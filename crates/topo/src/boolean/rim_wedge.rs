@@ -1551,11 +1551,11 @@ mod arc_end_rows {
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = beside_the_arc_end(end, zero);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
-        let straddle = |d: &Indeterminate| d.predicate == Some("curve_pair_span_end_straddle");
+        let is_straddle = |d: &Indeterminate| d.predicate == Some("curve_pair_span_end_straddle");
         assert!(
             matches!(
                 contains((&body, cap, PairSide::First), q, narrow),
-                Err(RimUnread::InBand(ref d)) if straddle(d)
+                Err(RimUnread::InBand(ref d)) if is_straddle(d)
             ),
             "the band's parting escalates: {:?}",
             contains((&body, cap, PairSide::First), q, narrow)
@@ -1581,7 +1581,7 @@ mod arc_end_rows {
         });
         let got = departures(&body, cap, &block.body, block.top_face, locus, narrow);
         assert!(
-            matches!(got, Err(RimUnread::InBand(ref d)) if straddle(d)),
+            matches!(got, Err(RimUnread::InBand(ref d)) if is_straddle(d)),
             "the touch piece at the arc's end escalates: {got:?}"
         );
     }

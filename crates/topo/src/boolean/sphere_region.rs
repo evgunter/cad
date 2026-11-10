@@ -495,7 +495,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
 
     const COMPONENT: &'static str = "bool_sphere_region_component";
 
-    const SIDE: (&'static str, &'static str) =
+    const SIDE_ROWS: (&'static str, &'static str) =
         ("bool_sphere_region_order", "bool_sphere_region_cross");
 
     fn lever(&self) -> T {
@@ -588,12 +588,7 @@ mod tests {
             (unit(0.0, 0.0, -1.0), unit(0.0, -1.0, 0.0)),
             (skew, unit(2.0, -1.0, 0.0)),
         ];
-        let read = |r: Result<Option<bool>, RegionRefusal>| {
-            r.map_err(|e| match e {
-                RegionRefusal::Escalated(diag) => diag.predicate,
-                _ => Some("another refusal"),
-            })
-        };
+        let read = crate::boolean::region::refusal_class;
         for forward in [true, false] {
             let regions: Vec<SphereFaceRegion<f64>> = frames
                 .iter()
