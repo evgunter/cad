@@ -2197,7 +2197,14 @@ fn crescent<T: Decide>(
         if !matches!(ra, BoundSupport::Conic { .. }) && !matches!(rb, BoundSupport::Conic { .. }) {
             return Ok(false);
         }
-        if !parallel_same(da, db, arm, BOUNDS_PARALLEL, band)? {
+        // The pair opens a crescent where four readings all hold, none
+        // read off another: the bounds parallel, the sectors across them,
+        // a coincident run's bounds parallel along it too, and the
+        // opening. One decided not to hold answers `false` alone, so each
+        // is read before any refuses, in this order, and the first
+        // refusal stands only where none decides against.
+        let parallel = parallel_same(da, db, arm, BOUNDS_PARALLEL, band);
+        if matches!(parallel, Ok(false)) {
             return Ok(false);
         }
         let d = da.normalize();
@@ -2207,18 +2214,38 @@ fn crescent<T: Decide>(
         // side as overlapping, so a touching pair lies across it;
         // this reads that premise where the claim rests on it.
         let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
-        if decide("bool_sector_crescent_across", across, band).map_err(escalate)? != Sign::Negative
-        {
+        let across = decide("bool_sector_crescent_across", across, band)
+            .map_err(escalate)
+            .map(|s| s == Sign::Negative);
+        if matches!(across, Ok(false)) {
+            if parallel.is_err() { crate::reach_probe("crescent_across_past_parallel"); }
             return Ok(false);
         }
         let l = la.min(lb);
-        if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
-            && !parallel_same(da, db, l, BOUNDS_PARALLEL, band)?
-        {
+        // The run's clause holds off a run, or where the bounds stay
+        // parallel along it: either answers it alone.
+        let run = match coincident_run((ca, a_start), (cb, b_start), contacts, band) {
+            Ok(false) => Ok(true),
+            run => match parallel_same(da, db, l, BOUNDS_PARALLEL, band) {
+                Ok(true) => Ok(true),
+                along => run.and(along),
+            },
+        };
+        if matches!(run, Ok(false)) {
+            if parallel.is_err() || across.is_err() { crate::reach_probe("crescent_run_past"); }
             return Ok(false);
         }
         let opened = geom_brep::parting(kb - ka, u, l.length());
-        Ok(decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive)
+        let opened = decide("bool_sector_crescent", opened, band)
+            .map_err(escalate)
+            .map(|s| s == Sign::Positive);
+        if matches!(opened, Ok(false)) && (parallel.is_err() || across.is_err() || run.is_err()) {
+            crate::reach_probe("crescent_opened_past");
+        }
+        if matches!(opened, Ok(false)) {
+            return Ok(false);
+        }
+        parallel.and(across).and(run).and(opened)
     };
     // A ladder over the four pairs of bounds ([`climb`],
     // [`Answering::Any`]: a theorem, any pair that opens a crescent is an

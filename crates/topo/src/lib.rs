@@ -1541,3 +1541,15 @@ pub use validate::{
     validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };
+
+#[doc(hidden)]
+pub fn reach_probe(tag: &str) {
+    use std::io::Write;
+    let name = std::thread::current().name().unwrap_or("?").to_string();
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(format!(
+        "/tmp/claude-0/-home-user-cad/b6e0c139-d1ac-5d9b-a208-ff9f91c2be5c/scratchpad/reach/{}.log",
+        std::process::id()
+    )) {
+        let _ = writeln!(f, "{tag}\t{name}");
+    }
+}

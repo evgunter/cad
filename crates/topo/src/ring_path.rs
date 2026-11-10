@@ -1270,9 +1270,27 @@ pub(crate) fn path_parity<T: Decide>(
             match (*piece, arc.clone()) {
                 (Piece::Arc(p) | Piece::Meridian(p), LoopArc::Conic(_) | LoopArc::Oval(_)) => {
                     let sec = section(arc);
-                    let Some(roots) =
-                        plane_roots(&p, (sec.origin, sec.normal), arrival, slack, band)?
-                    else {
+                    // A conic decided apart from the piece's circle misses
+                    // it whatever the planes ([`coplanar_apart`]), so it
+                    // answers past a plane meeting read in band.
+                    let roots =
+                        match plane_roots(&p, (sec.origin, sec.normal), arrival, slack, band) {
+                            Ok(roots) => roots,
+                            Err(diag) => {
+                                return match arc {
+                                    LoopArc::Conic(conic)
+                                        if !arrival
+                                            && coplanar_apart(&p, conic, slack, band)
+                                                == Ok(true) =>
+                                    {
+                                        crate::reach_probe("path_parity_apart_past_plane");
+                                        Ok(Some(flip))
+                                    }
+                                    _ => Err(diag),
+                                };
+                            }
+                        };
+                    let Some(roots) = roots else {
                         if let LoopArc::Conic(conic) = arc
                             && !arrival
                             && misses_in_plane(&p, conic, slack, band)?
@@ -1844,21 +1862,12 @@ fn misses_in_plane<T: Decide>(
     slack: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
+    if coplanar_apart(p, arc, slack, band)? {
+        return Ok(true);
+    }
     let conic = arc.conic();
     let (a, b) = conic.semi_axes();
     let apart = (p.circle.frame.origin - conic.frame().origin).norm();
-    let (inner, outer) = (conic.speed_lo(), conic.speed_hi());
-    let gap = (apart - p.circle.radius - outer)
-        .max(inner - p.circle.radius - apart)
-        .max(p.circle.radius - outer - apart);
-    if decide(
-        "split_ring_path_coplanar_apart",
-        Margin::of(charge(gap, slack)),
-        band,
-    )? == Sign::Positive
-    {
-        return Ok(true);
-    }
     let differ = apart
         .max((p.circle.radius - a).abs())
         .max((p.circle.radius - b).abs());
@@ -1891,6 +1900,33 @@ fn misses_in_plane<T: Decide>(
         }
     }
     Ok(true)
+}
+
+/// **Whether the circle piece `p` and `arc`'s conic are decided apart**
+/// (**`split_ring_path_coplanar_apart`**): the annulus about the conic's
+/// centre between its least and greatest radius, which holds the conic,
+/// against the piece's circle, by the centres' distance, charged `slack`
+/// ([`charge`]). A point on both would bound that distance by the
+/// triangle inequality, so the reading holds whatever the two planes:
+/// [`misses_in_plane`]'s first arm, and [`path_parity`]'s answer past a
+/// plane meeting [`plane_roots`] reads in band.
+fn coplanar_apart<T: Decide>(
+    p: &CircleArc<T>,
+    arc: &ConicArc<T>,
+    slack: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let conic = arc.conic();
+    let apart = (p.circle.frame.origin - conic.frame().origin).norm();
+    let (inner, outer) = (conic.speed_lo(), conic.speed_hi());
+    let gap = (apart - p.circle.radius - outer)
+        .max(inner - p.circle.radius - apart)
+        .max(p.circle.radius - outer - apart);
+    Ok(decide(
+        "split_ring_path_coplanar_apart",
+        Margin::of(charge(gap, slack)),
+        band,
+    )? == Sign::Positive)
 }
 
 /// **Where the circle piece `p` meets the plane through `o` with unit

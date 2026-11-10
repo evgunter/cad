@@ -1470,22 +1470,38 @@ fn held_cut<T: Decide>(
     // names the second partner of the `SharedVertexCrossings` refusal it
     // raises where neither way mints. A cut read in
     // band is kept by its standing ([`BooleanError::refusal`]), refusing
-    // only where no other cut is held. Each cut's reads are premises of
-    // one another, so they stay inside its rung.
+    // only where no other cut is held. Within a cut, a strut that nests
+    // is not held, and nor is a cut the walk places off the run, so the
+    // walk is read where the nesting refuses, and answers past it; past
+    // the walk, `tied_held` reads only an end the walk tied.
     let holds = |cut: OtherCut<T>| -> Result<bool, BooleanError> {
         let at = cut.at;
-        Ok(
-            if strut && (secs[at.entry].he != secs[lo.entry].he || nested(secs, own, cut, band)?) {
-                false
-            } else {
-                match on_arc(before, [lo, hi], at)? {
-                    [Some(false), _] | [_, Some(false)] => false,
-                    [None, _] => tied_held(secs, (lo, true), hi, cut, band)?,
-                    [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
-                    [Some(true), Some(true)] => true,
-                }
-            },
-        )
+        let nests = if !strut {
+            Ok(false)
+        } else if secs[at.entry].he != secs[lo.entry].he {
+            Ok(true)
+        } else {
+            nested(secs, own, cut, band)
+        };
+        match nests {
+            Ok(true) => return Ok(false),
+            Ok(false) => {}
+            Err(e) => {
+                return match on_arc(before, [lo, hi], at) {
+                    Ok([Some(false), _] | [_, Some(false)]) => {
+                        crate::reach_probe("held_cut_walk_past_nested");
+                        Ok(false)
+                    }
+                    _ => Err(e),
+                };
+            }
+        }
+        Ok(match on_arc(before, [lo, hi], at)? {
+            [Some(false), _] | [_, Some(false)] => false,
+            [None, _] => tied_held(secs, (lo, true), hi, cut, band)?,
+            [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
+            [Some(true), Some(true)] => true,
+        })
     };
     climb(Answering::Any, cuts.iter().copied(), |cut| {
         Rung::holds(holds(cut), cut.owner, BooleanError::refusal)
