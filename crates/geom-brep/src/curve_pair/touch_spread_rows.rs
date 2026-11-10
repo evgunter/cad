@@ -94,29 +94,90 @@ fn a_well_conditioned_touch_reads_one_meeting_at_the_touch() {
     }
 }
 
-/// **A touch whose spread exceeds the band escalates, and one past it
-/// refuses on its meter.** Each of the three scaled out at ε = 1e-12:
-/// where twice the spread reads in the band's gap the touch escalates,
-/// and where it reads past it the touch refuses on the spread's meter.
-/// Red where the spread is not read: each then reads one meeting. The
-/// scales are each path's own: the closed forms charge the angle's
-/// evaluation at the radius, the subdivision `F′`'s rounding over its
-/// least bend.
+/// **The subdivision's touch whose spread exceeds the band escalates,
+/// and one past it refuses on its meter.** The ellipses scaled out at
+/// ε = 1e-12: at `1e4` twice the spread, `F′`'s rounding over the least
+/// bend at the carrier's top speed, reads in the band's gap and the
+/// touch escalates; at `1e5` it reads past the band and refuses on the
+/// spread's meter. Red where the spread is not read: each then reads one
+/// meeting.
 #[test]
-fn a_touch_whose_spread_exceeds_the_band_escalates() {
+fn the_subdivisions_touch_whose_spread_exceeds_the_band_escalates() {
     let b = band(1e-12);
-    // Per path, a scale whose spread reads in the gap and one past it.
-    let scales = [(1e4, 1e5), (1e3, 1e4), (5e2, 5e3)];
-    for (k, &(gap, beyond)) in scales.iter().enumerate() {
-        for (scale, past) in [(gap, false), (beyond, true)] {
-            let (what, x, tx, y, ty, _) = &touches(scale)[k];
-            let got = read(x, *tx, y, *ty, b);
-            let held = match &got {
-                Err(MeetFault::Escalated(gap)) => !past && gap.predicate == Some(SPREAD),
-                Err(MeetFault::Unsettled(Unsettled::Meter { row })) => past && *row == SPREAD,
+    for (scale, past) in [(1e4, false), (1e5, true)] {
+        let (what, x, tx, y, ty, _) = &touches(scale)[0];
+        let got = read(x, *tx, y, *ty, b);
+        let held = match &got {
+            Err(MeetFault::Escalated(gap)) => !past && gap.predicate == Some(SPREAD),
+            Err(MeetFault::Unsettled(Unsettled::Meter { row })) => past && *row == SPREAD,
+            _ => false,
+        };
+        assert!(held, "scale {scale:e}, {what}: {got:?}");
+    }
+}
+
+/// **A closed form's touch is exact at a point scalar, and its angle's
+/// enclosure is its spread at `Interval`** (`[simple.conditioned]`).
+/// The closed forms' pairs at unit scale, at `f64`, are scaled out to
+/// `1e5` and still read one meeting: the angle is a well-conditioned
+/// reading of the harmonic's coefficients and is not charged. At
+/// `Interval`, every input widened by `w`:
+/// - two circles of radii `1` and `1 − d` touching inside at `(1, 0)`,
+///   their centres `d = 10⁻³` apart, so the angle's enclosure is about
+///   `w/d` wide, at `w = 10⁻¹²` and ε = 1e-9;
+/// - the unit circle beside the line `x = 1`, at `w = 10⁻¹³` and
+///   ε = 1e-12.
+///
+/// The circles escalate on the spread. The line's pose has no
+/// cancellation to widen its angle past its extreme, so it escalates on
+/// the extreme first (`curve_pair_pose_extreme`), and is pinned as
+/// escalating on either. At `w = 10⁻¹⁴` and ε = 1e-9 each reads one
+/// meeting. Red where the spread is not read: the widened circles then
+/// pass the pose and escalate later, on the meeting's own reading of
+/// both spans, not on the spread.
+#[test]
+fn a_closed_forms_touch_is_held_to_its_angles_enclosure() {
+    use geom_core::{Interval, Real};
+    for (what, x, tx, y, ty, at) in touches(1e5).into_iter().skip(1) {
+        let m = read(&x, tx, &y, ty, band(1e-12))
+            .unwrap_or_else(|e| panic!("{what} at f64, far out: {e:?}"));
+        assert!(
+            m.points.len() == 1 && (m.points[0].point - at).norm() < 1e-9,
+            "{what} at f64, far out: one meeting at the touch: {m:?}"
+        );
+    }
+    let iv = |a: f64, b: f64| (Interval::from_f64(a), Interval::from_f64(b));
+    let d = 1e-3;
+    for (w, eps, escalates) in [
+        (1e-12, 1e-9, Some("circles")),
+        (1e-13, 1e-12, Some("line")),
+        (1e-14, 1e-9, None),
+    ] {
+        let widen = |x: f64| Interval::from_bounds(x - w, x + w);
+        let big = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0).map_scalar(widen);
+        let small = circle([d, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0 - d).map_scalar(widen);
+        let beside = line([1.0, -1.0, 0.0], [0.0, 1.0, 0.0]).map_scalar(widen);
+        for (what, other, span) in [
+            ("circles", &small, iv(-1.0, 1.0)),
+            ("line", &beside, iv(0.0, 2.0)),
+        ] {
+            let got = meet(
+                &Span::new(&big, iv(-1.0, 1.0)),
+                &Span::new(other, span),
+                band(eps),
+            )
+            .map_err(|e| e.fault);
+            let held = match (&got, escalates) {
+                (Err(MeetFault::Escalated(gap)), Some(which)) if which == what => {
+                    gap.predicate == Some(SPREAD)
+                        || (what == "line" && gap.predicate == Some("curve_pair_pose_extreme"))
+                }
+                (Ok(m), Some(which)) if which != what => m.points.len() == 1,
+                (Ok(m), None) => m.points.len() == 1,
+                (Err(_), Some(which)) => which != what,
                 _ => false,
             };
-            assert!(held, "scale {scale:e}, {what}: {got:?}");
+            assert!(held, "w {w:e}, ε {eps:e}, {what}: {got:?}");
         }
     }
 }

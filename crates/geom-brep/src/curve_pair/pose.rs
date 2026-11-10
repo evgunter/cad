@@ -223,20 +223,20 @@
 //! `Declared::confine`, the boolean's curved pierce `held_on`), so two
 //! readings of one touch (two spans, two operand orders, two callers)
 //! must place it within the band of each other. Each path bounds how far
-//! its point can lie from the true extreme's, its *spread*, and twice
-//! that is read in the zero band: zero keeps the touch; in the gap it
-//! escalates ([`MeetFault::Escalated`]); decided past the band it
-//! refuses on that row's meter ([`Unsettled::Meter`]).
+//! two readings of its point can lie apart, and that is read in the zero
+//! band: zero keeps the touch; in the gap it escalates
+//! ([`MeetFault::Escalated`]); decided past the band it refuses on that
+//! row's meter ([`Unsettled::Meter`]).
 //! - **The subdivision**: `θ*` is a bisection midpoint on `F′`, and
 //!   `G″ ≥ c` on the piece, read, so it lies within `(|G′(θ*)| + e₁)/c`
 //!   of the extremum; at the carrier's top speed that is its spread
-//!   ([`crate::half_angle::Touch`]).
+//!   ([`crate::half_angle::Touch`]), and two readings lie within twice
+//!   that.
 //! - **The closed forms**: the touch is `C(θ_hi)`, `θ_hi` the angle of the
-//!   first harmonic's coefficients. Their rounding is carried through
-//!   the same operations ([`geom_core::running`]), the angle moves by at
-//!   most its components' error over their length, and the spread is
-//!   that at the carrier's top speed (`circles_spread`,
-//!   `conic_line_spread`).
+//!   first harmonic's coefficients, a well-conditioned reading of them.
+//!   At a point scalar it is exact by `[simple.conditioned]`, so two
+//!   readings are one; at `Interval` the angle's own enclosure is the
+//!   spread, read as `r·(θ − θ)` (`angle_spread`).
 //!
 //! Whether one point may stand for the whole in-band arc, where a
 //! reader's question straddles the arc, is a separate question, open on
@@ -1201,7 +1201,7 @@ fn line_conic<T: Decide>(
     Ok(match owed(&k, &range, &found, band)? {
         Harmonic::Apart => Pose::Apart,
         Harmonic::Touch(theta) => {
-            spread_held(conic_line_spread(&k, m, swing), band)?;
+            spread_held(angle_spread(k.speed_hi(), theta), band)?;
             Pose::Tangent(place(theta))
         }
         Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
@@ -1542,7 +1542,7 @@ fn coplanar_circles<T: Decide>(
     Ok(match owed(ka, &range, &found, band)? {
         Harmonic::Apart => Pose::Apart,
         Harmonic::Touch(theta) => {
-            spread_held(circles_spread(ka, kb, ra, d), band)?;
+            spread_held(angle_spread(ra, theta), band)?;
             Pose::Tangent(place(theta))
         }
         Harmonic::Cross(thetas) => Pose::Generic(thetas.into_iter().map(place).collect()),
@@ -1574,7 +1574,7 @@ fn subdivided<T: Decide>(
         Roots::On(never) => match *never {},
     };
     for touch in &found.touches {
-        spread_held(touch.spread, band)?;
+        spread_held(touch.spread + touch.spread, band)?;
     }
     Ok(match (roots, &found.touches[..]) {
         ([], []) => Pose::Apart,
@@ -1814,8 +1814,8 @@ impl<T: Decide> Range<T> {
 }
 
 /// **Whether a coplanar touch's reported point is one point to its
-/// readers** (module docs, "A touch's spread"): twice `spread`, the
-/// most two readings of the touch can lie apart, read in the zero band
+/// readers** (module docs, "A touch's spread"): `apart`, the most two
+/// readings of the touch can lie apart, read in the zero band
 /// (`curve_pair_pose_touch_spread`). In the band's gap it escalates,
 /// since a narrower enclosure shrinks the spread; decided past the band
 /// it refuses on the meter, as a root's slack past the band does
@@ -1824,8 +1824,8 @@ impl<T: Decide> Range<T> {
 /// # Errors
 ///
 /// [`MeetFault::Escalated`] in the gap, [`Unsettled::Meter`] past it.
-fn spread_held<T: Decide>(spread: T, band: Band) -> Result<(), MeetFault> {
-    match decide(row::TOUCH_SPREAD, Margin::of(spread + spread), band) {
+fn spread_held<T: Decide>(apart: T, band: Band) -> Result<(), MeetFault> {
+    match decide(row::TOUCH_SPREAD, Margin::of(apart), band) {
         Ok(Sign::Zero) => Ok(()),
         Err(gap) => Err(MeetFault::Escalated(gap)),
         Ok(Sign::Positive | Sign::Negative) => Err(MeetFault::Unsettled(Unsettled::Meter {
@@ -1834,58 +1834,18 @@ fn spread_held<T: Decide>(spread: T, band: Band) -> Result<(), MeetFault> {
     }
 }
 
-/// **A coplanar circle pair's touch spread** (module docs, "A touch's
-/// spread"): how far in metres along the first circle its touch at
-/// `θ_hi`, or half a turn on, can lie from the true extreme's. `θ_hi` is
-/// the angle of `w`, the centres' difference square to the axis, read in
-/// the first circle's frame; its rounding is carried through the same
-/// operations ([`geom_core::running`], each correctly rounded operation
-/// charged `u` of its result, so the difference of two near centres is
-/// charged at its own size, not theirs). The angle of a vector moves by
-/// at most its components' error over its length `d`, and the angle's
-/// own evaluation by a few units of roundoff of an angle up to `π`; at
-/// the first radius `r₁` that is the spread.
-fn circles_spread<T: Decide>(ka: &dyn Conic<T>, kb: &dyn Conic<T>, ra: T, d: T) -> T {
-    use geom_core::running::{direction_rounding, dot, exact_vec};
-    let (fa, oa, ob) = (
-        ka.frame(),
-        exact_vec(ka.frame().origin - Point3::origin()),
-        exact_vec(kb.frame().origin - Point3::origin()),
-    );
-    let w = [oa[0] - ob[0], oa[1] - ob[1], oa[2] - ob[2]];
-    let axis = exact_vec(fa.axis);
-    let along = dot(w, axis);
-    let w = [
-        w[0] - axis[0] * along,
-        w[1] - axis[1] * along,
-        w[2] - axis[2] * along,
-    ];
-    let (x, y) = (dot(w, exact_vec(fa.v_ref())), dot(w, exact_vec(fa.u_ref)));
-    ra * ((x.error + y.error) / d + direction_rounding(T::pi()))
-}
-
-/// **A conic's touch spread beside a line in its plane** (module docs,
-/// "A touch's spread"): how far in metres along the conic its touch at
-/// the harmonic's angle can lie from the true extreme's. The harmonic is
-/// `(a·(u_ref·m), b·(v_ref·m))`, `m` the in-plane normal to the line, a
-/// computed unit direction charged as one at each component
-/// ([`geom_core::running::direction_rounding`], twice: the line's unit
-/// direction and the cross product's). Its rounding is carried through
-/// the same operations, and the angle moves by at most the components'
-/// error over the swing, plus its own evaluation's few units of
-/// roundoff of an angle up to `π`; at the conic's top speed that is the
-/// spread.
-fn conic_line_spread<T: Decide>(k: &dyn Conic<T>, m: Vec3<T>, swing: T) -> T {
-    use geom_core::running::{Rounded, direction_rounding, dot, exact_vec};
-    let (f, (a, b)) = (k.frame(), k.semi_axes());
-    let charged = direction_rounding(T::from_f64(2.0));
-    let m = [m.x, m.y, m.z].map(|c| Rounded {
-        value: c,
-        error: charged,
-    });
-    let cp = Rounded::exact(a) * dot(exact_vec(f.u_ref), m);
-    let sp = Rounded::exact(b) * dot(exact_vec(f.v_ref()), m);
-    k.speed_hi() * ((cp.error + sp.error) / swing + direction_rounding(T::pi()))
+/// **A closed-form touch's spread** (module docs, "A touch's spread"):
+/// `radius·(θ − θ)`, how far in metres along the carrier the touch at
+/// `θ` can lie from another reading of it, `radius` the carrier's top
+/// speed. `θ` is the angle of the first harmonic's coefficients, a
+/// well-conditioned reading of them (its rounding is relative to their
+/// length, however near the centres or however close the conic to the
+/// line), so at a point scalar it is treated as exact and the spread is
+/// zero (`[simple.conditioned]`: no site charges rounding). At
+/// `Interval` it is the angle's own enclosure, `θ − θ` its width either
+/// side of zero, so the spread is certified there and charges nothing.
+fn angle_spread<T: Decide>(radius: T, theta: T) -> T {
+    radius * (theta - theta)
 }
 
 /// What a first harmonic's extremes and root gap decide.
