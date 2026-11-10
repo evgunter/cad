@@ -5113,31 +5113,33 @@ const WINDING_TABLE: core::ops::RangeInclusive<i32> = -1..=1;
 /// [`WINDING_TABLE`]: the one place a sign becomes a count. A count
 /// reversed is the reversed sign's (`Sign::flip`), or, on a stored
 /// channel, [`Channel::mapped`]'s.
-/// The sense a cylinder's moving conic turns about the axis, the only
-/// windings its arm admits ([`Derivation::CylinderMoving`]).
-#[derive(Clone, Copy, Debug)]
-enum Turning {
-    /// Counter-clockwise about the axis, winding `1`.
-    Forward,
-    /// Clockwise, winding `−1`.
-    Backward,
-}
-
-impl Turning {
-    /// The winding the image stores.
-    fn winding(self) -> i32 {
-        match self {
-            Self::Forward => 1,
-            Self::Backward => -1,
-        }
-    }
-}
-
 fn winding_of(sign: Sign) -> i32 {
     match sign {
         Sign::Negative => -1,
         Sign::Zero => 0,
         Sign::Positive => 1,
+    }
+}
+
+/// The sense a cylinder's moving conic turns about the axis, the only
+/// windings its arm admits ([`Derivation::CylinderMoving`]): a decided
+/// orientation that is not zero.
+#[derive(Clone, Copy, Debug)]
+enum Turning {
+    /// Counter-clockwise about the axis.
+    Forward,
+    /// Clockwise.
+    Backward,
+}
+
+impl Turning {
+    /// The winding the image stores: its sign's, read through
+    /// [`winding_of`].
+    fn winding(self) -> i32 {
+        winding_of(match self {
+            Self::Forward => Sign::Positive,
+            Self::Backward => Sign::Negative,
+        })
     }
 }
 

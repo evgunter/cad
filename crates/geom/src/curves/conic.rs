@@ -122,9 +122,11 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     fn frame(&self) -> &Frame<T>;
 
     /// `(semi_u, semi_v)` in stored order: a circle's are its radius
-    /// twice. Both are positive: every door builds them so, and the edge
-    /// certificate refuses a record that stores a negative one
-    /// (`geom_brep::CertifyError::SemiAxisNegative`) and a zero one as
+    /// twice. Both are finite and positive: every door builds them so,
+    /// and the edge certificate refuses a record that stores one that is
+    /// not a finite number (`geom_brep::CertifyError::SemiAxisNotFinite`)
+    /// or is definitely negative
+    /// (`geom_brep::CertifyError::SemiAxisNegative`), and a zero one as
     /// the span it leaves no length to, so the speed readers below read
     /// them as lengths, unsigned.
     fn semi_axes(&self) -> (T, T);

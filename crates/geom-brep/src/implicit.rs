@@ -1092,9 +1092,19 @@ pub struct ConicHarmonics<T> {
     /// its form at its own factor, and `λ_ρ`, `λ_h` the levers its
     /// projections' rounding enters at (the magnitudes `d·â`, `u·â`,
     /// `v·â`, `⊥d` and `n × u` are formed at, read per component) — the
-    /// scale their rounding is charged against, read at
-    /// the semi-axes' MAGNITUDES (a signed or ordered read under-charges a
-    /// negative `semi_u`, or a `semi_v` stored larger).
+    /// scale their rounding is charged against.
+    ///
+    /// **Every charge here reads the semi-axes through
+    /// [`Conic::speed_hi`]**, the larger stored one, and that is
+    /// `max(|a|, |b|)` because a conic's semi-axes are positive lengths:
+    /// the edge certificate refuses a stored semi-axis that is not a
+    /// finite number or is definitely negative
+    /// (`CertifyError::SemiAxisNotFinite`, `CertifyError::SemiAxisNegative`)
+    /// before any charge reads it, and its span check reads a zero one
+    /// as a collapsed length (`CertifyError::StatedInterval`). This is
+    /// the invariant's one statement for this module's charges: these
+    /// terms, the cone's reach in [`conic_cone_harmonics`] and
+    /// [`conic_axis_distance_floor`]'s terms each read it.
     pub terms: T,
     /// The length the m² form is divided by to give the polynomial:
     /// `2r` on a sphere or a wall, the carrier's reach from the apex on
@@ -1242,6 +1252,8 @@ pub fn conic_cone_harmonics<T: Real>(
         (hu.powi(2) - c2_hv.powi(2)) * half,
         hu * hv,
     ];
+    // `speed_hi` bounds both semi-axes: the invariant `ConicHarmonics::terms`
+    // states.
     let reach_m = d.norm() + conic.speed_hi();
     let pad = T::from_f64(CEILING_PAD);
     let per = reach_m * pad;
@@ -1442,6 +1454,8 @@ pub(crate) fn conic_axis_distance_floor<T: Real>(conic: &dyn Conic<T>, axis: geo
         perp(conic.frame().v_ref()),
     );
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
+    // `speed_hi` bounds both semi-axes: the invariant `ConicHarmonics::terms`
+    // states.
     let terms = (d.norm() + conic.speed_hi()).powi(2);
     let near_sq = e.norm_squared() + (aa + bb) * half
         - harmonic_sup_scalar(two * a * e.dot(up), two * b * e.dot(vp))

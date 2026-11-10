@@ -70,8 +70,9 @@ carrier renamed `FramedCarrier::Conic`). The audit found no hidden
 `Conic::speed_hi` signed, so a conic stored with a negative semi-axis
 would have been under-charged. Such a record breaks the
 representation's invariant, so the edge certificate now refuses it,
-typed (`CertifyError::SemiAxisNegative`, a defect), before any speed
-reader. A cylinder conic whose orientation reads Zero now takes the
+typed (`CertifyError::SemiAxisNegative`, and
+`CertifyError::SemiAxisNotFinite` for a NaN or infinite one), before
+any speed reader. A cylinder conic whose orientation reads Zero now takes the
 general lane, where it read a winding of `0` and ended as a measured
 miss; the moving arm's winding is typed so a zero cannot be written. The cylinder's "in
 band" orientation is unreachable by a certifiable carrier, and the

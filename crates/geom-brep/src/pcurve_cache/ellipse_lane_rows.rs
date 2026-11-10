@@ -1017,6 +1017,74 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
     }
 }
 
+/// The edge certificate of `carrier` over `t ∈ [0.3, 2.5]`, described on
+/// the unit sphere's chart, at the carrier's scalar `$t`: the door the
+/// semi-axis rows below read. A macro, so each scalar names its own
+/// certificate rather than a compound bound written over both.
+macro_rules! certify_on_the_unit_sphere {
+    ($t:ty, $carrier:expr) => {{
+        use crate::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+        let carrier: &Curve3<$t> = $carrier;
+        let sphere = Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+        .map_scalar(<$t>::from_f64);
+        let mut surfaces: slotmap::SlotMap<SurfaceKey, Surface<$t>> = slotmap::SlotMap::with_key();
+        let key = surfaces.insert(sphere);
+        let (t0, t1) = (<$t>::from_f64(0.3), <$t>::from_f64(2.5));
+        EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart(key),
+                carrier: carrier.clone(),
+                param_start: t0,
+                param_end: t1,
+            },
+            carrier.eval(t0),
+            carrier.eval(t1),
+            |k| surfaces.get(k).cloned(),
+            geom_core::test_support::fixture_lever(<$t>::one()),
+            band(),
+            crate::NurbsLane::certified(),
+        )
+        .map(|_| ())
+    }};
+}
+
+/// The frame of the sphere's parallel at height `0.6` the semi-axis rows
+/// store their conics in.
+fn parallel_frame<T: Real>() -> geom::Frame<T> {
+    geom::Frame::new(
+        Point3::new(T::zero(), T::zero(), T::from_f64(0.6)),
+        Vec3::unit_z(),
+        Vec3::unit_x(),
+    )
+}
+
+/// The three door endings a stored semi-axis refusal renders: the lever
+/// at a build, where the record is the caller's input (the kernel mints
+/// none), the stored culprit's defect at rest and a damaged file at the
+/// import door.
+fn semi_axis_doors(err: &crate::CertifyError, what: &str) {
+    use crate::recourse::{ReadAt, Reading};
+    let lever = geom_core::lever_recourse(crate::certify::SEMI_AXIS_LEVER, None);
+    for (at, culprit) in [
+        (ReadAt::Run(Reading::Build), lever.as_str()),
+        (
+            ReadAt::Run(Reading::AtRest),
+            geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+        ),
+        (
+            ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
+            geom_core::DAMAGED_FILE_ENDING,
+        ),
+    ] {
+        assert_eq!(err.ending(at).as_deref(), Some(culprit), "{what} at {at:?}");
+    }
+}
+
 /// **A conic stored with a negative semi-axis refuses typed at the edge
 /// certificate** (`CertifyError::SemiAxisNegative`), never as a span
 /// that does not run forward: the parallel of the unit sphere at height
@@ -1030,55 +1098,19 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
 /// import door. Red under `semi-axis-unchecked`.
 #[test]
 fn a_conic_stored_with_a_negative_semi_axis_refuses_typed() {
-    use crate::recourse::{ReadAt, Reading};
-    use crate::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
-    let sphere = Surface::Sphere {
-        center: Point3::origin(),
-        radius: 1.0,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
-    };
-    let mut surfaces: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
-    let key = surfaces.insert(sphere);
-    let frame = geom::Frame::new(Point3::new(0.0, 0.0, 0.6), Vec3::unit_z(), Vec3::unit_x());
+    use crate::CertifyError;
+    let frame = parallel_frame::<f64>();
     let ellipse = |a: f64, b: f64| Curve3::Ellipse(geom::Ellipse::new(frame, a, b));
     let circle = |r: f64| Curve3::Circle(geom::Circle::new(frame, r));
     let (rho, squash) = (0.8, 0.8 - 0.25 * zero());
-    let f = Interval::from_f64;
     let certify = |carrier: &Curve3<f64>| {
-        let (t0, t1) = (0.3, 2.5);
-        let at_f64 = EdgeCurve::certify(
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::chart(key),
-                carrier: carrier.clone(),
-                param_start: t0,
-                param_end: t1,
-            },
-            carrier.eval(t0),
-            carrier.eval(t1),
-            |k| surfaces.get(k).cloned(),
-            geom_core::test_support::fixture_lever(1.0),
-            band(),
-            crate::NurbsLane::certified(),
-        )
-        .map(|_| ());
-        let lifted = carrier.map_scalar(f);
-        let at_interval = EdgeCurve::certify(
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::chart(key),
-                carrier: lifted.clone(),
-                param_start: f(t0),
-                param_end: f(t1),
-            },
-            lifted.eval(f(t0)),
-            lifted.eval(f(t1)),
-            |k| surfaces.get(k).map(|s| s.map_scalar(f)),
-            geom_core::test_support::fixture_lever(f(1.0)),
-            band(),
-            crate::NurbsLane::certified(),
-        )
-        .map(|_| ());
-        [("f64", at_f64), ("Interval", at_interval)]
+        [
+            ("f64", certify_on_the_unit_sphere!(f64, carrier)),
+            (
+                "Interval",
+                certify_on_the_unit_sphere!(Interval, &carrier.map_scalar(Interval::from_f64)),
+            ),
+        ]
     };
     for (lane, got) in certify(&circle(0.0)) {
         assert!(
@@ -1092,18 +1124,6 @@ fn a_conic_stored_with_a_negative_semi_axis_refuses_typed() {
             "the positive spelling certifies ({lane}): {got:?}"
         );
     }
-    let lever = geom_core::lever_recourse(crate::certify::SEMI_AXIS_LEVER, None);
-    let doors = [
-        (ReadAt::Run(Reading::Build), lever.as_str()),
-        (
-            ReadAt::Run(Reading::AtRest),
-            geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
-        ),
-        (
-            ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
-            geom_core::DAMAGED_FILE_ENDING,
-        ),
-    ];
     for (what, carrier) in [
         ("the first semi-axis negative", ellipse(-rho, squash)),
         ("the second negative", ellipse(rho, -squash)),
@@ -1114,13 +1134,105 @@ fn a_conic_stored_with_a_negative_semi_axis_refuses_typed() {
             let Err(err @ CertifyError::SemiAxisNegative { .. }) = &got else {
                 panic!("{what} ({lane}): refused as a negative semi-axis: {got:?}")
             };
-            for (at, culprit) in doors {
-                assert_eq!(
-                    err.ending(at).as_deref(),
-                    Some(culprit),
-                    "{what} ({lane}) at {at:?}"
-                );
+            semi_axis_doors(err, &format!("{what} ({lane})"));
+        }
+    }
+}
+
+/// **A conic stored with a semi-axis that is not a finite number refuses
+/// as that** (`CertifyError::SemiAxisNotFinite`), the same ending at
+/// `f64` and at `Interval`: NaN, `+∞` and `−∞` as either semi-axis of an
+/// ellipse and as a circle's radius, on the sphere's chart. None is read
+/// as a sign: `−∞` is no more a negative length than NaN is. Each renders
+/// the semi-axis lever at a build, the stored culprit's defect at rest
+/// and a damaged file at the import door. Red under
+/// `semi-axis-unchecked`.
+#[test]
+fn a_conic_stored_with_a_semi_axis_not_finite_refuses_as_that() {
+    use crate::CertifyError;
+    let frame = parallel_frame::<f64>();
+    let rho = 0.8;
+    for (name, bad) in [
+        ("NaN", f64::NAN),
+        ("+∞", f64::INFINITY),
+        ("−∞", f64::NEG_INFINITY),
+    ] {
+        for (what, carrier) in [
+            (
+                "the first semi-axis",
+                Curve3::Ellipse(geom::Ellipse::new(frame, bad, rho)),
+            ),
+            (
+                "the second",
+                Curve3::Ellipse(geom::Ellipse::new(frame, rho, bad)),
+            ),
+            (
+                "a circle's radius",
+                Curve3::Circle(geom::Circle::new(frame, bad)),
+            ),
+        ] {
+            for (lane, got) in [
+                ("f64", certify_on_the_unit_sphere!(f64, &carrier)),
+                (
+                    "Interval",
+                    certify_on_the_unit_sphere!(Interval, &carrier.map_scalar(Interval::from_f64)),
+                ),
+            ] {
+                let Err(err @ CertifyError::SemiAxisNotFinite { .. }) = &got else {
+                    panic!("{what} {name} ({lane}): refused as not finite: {got:?}")
+                };
+                semi_axis_doors(err, &format!("{what} {name} ({lane})"));
             }
         }
     }
+}
+
+/// **A semi-axis read in band is not a definite defect**: an `Interval`
+/// ellipse on the sphere's parallel whose first semi-axis encloses
+/// `[−1e-20, 0.8]` (its sign undecided) is not refused as a negative
+/// semi-axis, a stored defect at rest; it falls through to the span
+/// meter, which reads its winding in band (`Escalated`), and that ends
+/// in a lever at every door (E1d). The
+/// definite spelling, `[−0.8, −1e-20]`, is the defect.
+#[test]
+fn an_interval_semi_axis_straddling_zero_ends_in_its_lever() {
+    use crate::CertifyError;
+    use crate::recourse::{ReadAt, Reading};
+    let frame = parallel_frame::<Interval>();
+    let f = Interval::from_f64;
+    let ellipse = |a: Interval| Curve3::Ellipse(geom::Ellipse::new(frame, a, f(0.8)));
+    let got = certify_on_the_unit_sphere!(Interval, &ellipse(Interval::from_bounds(-1e-20, 0.8)));
+    let Err(err) = &got else {
+        panic!("a straddling semi-axis is not certified: {got:?}")
+    };
+    assert!(
+        !matches!(
+            err,
+            CertifyError::SemiAxisNegative { .. } | CertifyError::SemiAxisNotFinite { .. }
+        ),
+        "a straddling semi-axis is not a definite stored defect: {err:?}"
+    );
+    assert!(
+        matches!(err, CertifyError::Escalated { .. }),
+        "the span meter reads the straddle in band: {err:?}"
+    );
+    for at in [
+        ReadAt::Run(Reading::Build),
+        ReadAt::Run(Reading::AtRest),
+        ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
+    ] {
+        let ending = err.ending(at).unwrap_or_default();
+        assert!(
+            ending.contains("Recourse: ")
+                && ending != geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                && ending != geom_core::DAMAGED_FILE_ENDING,
+            "a straddling semi-axis ends in its lever at {at:?}: {ending:?} ({err:?})"
+        );
+    }
+    let definite =
+        certify_on_the_unit_sphere!(Interval, &ellipse(Interval::from_bounds(-0.8, -1e-20)));
+    assert!(
+        matches!(definite, Err(CertifyError::SemiAxisNegative { .. })),
+        "a definitely negative enclosure is the defect: {definite:?}"
+    );
 }

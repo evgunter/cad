@@ -57,7 +57,10 @@ the same edge: every door builds positive ones, STEP's are positive
 lengths, and a signed one reverses the traversal. So the edge
 certificate decides it once, typed, at the head of its span check,
 before any reader of the carrier's speed:
-`CertifyError::SemiAxisNegative`. The kernel mints none, so at a
+`CertifyError::SemiAxisNegative` where its sign is definite, and
+`CertifyError::SemiAxisNotFinite` where it is not a finite number
+(review II); an enclosure across zero falls through to the span
+check's band reading. The kernel mints none, so at a
 build it is the caller's input and ends in its own lever; at rest it is
 the stored culprit's defect, and at import a damaged file. Main ended
 such a record as a span that does not run forward.

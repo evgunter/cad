@@ -132,7 +132,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         };
         let text = error.render(geom_brep::recourse::Reading::Build);
         assert!(
-            text.contains("Recourse: store each semi-axis as its positive length")
+            text.contains("Recourse: store each semi-axis as its finite, positive length")
                 && !text.contains("defect"),
             "{row}: {text}"
         );

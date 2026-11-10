@@ -646,6 +646,9 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::SemiAxisNegative {
             carrier: geom::CurveKind::Ellipse,
         },
+        CertifyError::SemiAxisNotFinite {
+            carrier: geom::CurveKind::Ellipse,
+        },
         CertifyError::SpanMeterCollapsed {
             verdict: zero_verdict(0.0),
         },

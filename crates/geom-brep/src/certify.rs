@@ -557,10 +557,23 @@ pub enum CertifyError {
     /// in its lever (store the magnitude, flip the frame's normal to
     /// reverse the traversal); at rest it is the stored culprit's defect,
     /// and at the import door a damaged file. Decided once, at the head of
-    /// the span check, before any reader of the carrier's speed.
-    /// A zero semi-axis is a collapsed length, read by the span check
-    /// itself ([`CertifyError::StatedInterval`]).
+    /// the span check, before any reader of the carrier's speed. Only a
+    /// definite sign is this refusal: an enclosure across zero is read
+    /// by the span check in band, and ends in its lever. A zero
+    /// semi-axis is a collapsed length, read by the span check itself
+    /// ([`CertifyError::StatedInterval`]).
     SemiAxisNegative {
+        /// The carrier's kind.
+        carrier: geom::CurveKind,
+    },
+    /// **A conic carrier stores a semi-axis that is not a finite number**
+    /// (NaN, or infinite, or an enclosure reaching either): no length at
+    /// all, so no speed reader can meter it. Decided exactly
+    /// ([`Real::is_bounded`]), at the head of the span check beside
+    /// [`CertifyError::SemiAxisNegative`], and ended as it is: the
+    /// caller's input at a build, the stored culprit at rest, a damaged
+    /// file at the import door.
+    SemiAxisNotFinite {
         /// The carrier's kind.
         carrier: geom::CurveKind,
     },
@@ -917,6 +930,12 @@ impl core::fmt::Display for CertifyError {
             Self::IntervalNotForward { verdict } => {
                 StatedSpan::Forward(ForwardReading::Decided(*verdict)).tell(STORED_INTERVAL, f)
             }
+            Self::SemiAxisNotFinite { carrier } => write!(
+                f,
+                "the {} carrier stores a semi-axis that is not a finite number, and a conic's \
+                 semi-axes are positive lengths",
+                carrier.name()
+            ),
             Self::SemiAxisNegative { carrier } => write!(
                 f,
                 "the {} carrier stores a negative semi-axis, and a conic's semi-axes are \
@@ -1122,6 +1141,7 @@ impl CertifyError {
             | Self::TangentCertificateUnsupported
             | Self::StatedInterval { .. }
             | Self::SemiAxisNegative { .. }
+            | Self::SemiAxisNotFinite { .. }
             | Self::Band(_) => return None,
         };
         Some(Decision::Check(check, arm))
@@ -1151,10 +1171,11 @@ impl CertifyError {
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
-            // The kernel mints no negative semi-axis, so at a build the
-            // record is its caller's input, which the lever moves; past a
-            // build it is the stored culprit's (`RefusedSide::Unminted`).
-            Self::SemiAxisNegative { .. } => Some(
+            // The kernel mints no negative or non-finite semi-axis, so at
+            // a build the record is its caller's input, which the lever
+            // moves; past a build it is the stored culprit's
+            // (`RefusedSide::Unminted`).
+            Self::SemiAxisNegative { .. } | Self::SemiAxisNotFinite { .. } => Some(
                 SizedDecision {
                     lever: SEMI_AXIS_LEVER,
                     size: length_noun!(),
@@ -1230,10 +1251,11 @@ const TANGENT_PLANES_UNDEFINED: &str = "a surface's gradient is zero or undefine
 /// a cylinder's axis and at a sphere's centre, and an enclosure reaches one
 /// when the point and the surface's axis are enclosed apart by more
 /// than the radius, as two images of one widened map are.
-/// The lever of a [`CertifyError::SemiAxisNegative`] at a build, where
-/// the record is the caller's input.
-pub(crate) const SEMI_AXIS_LEVER: &str = "store each semi-axis as its positive length, and reverse the \
-     traversal by flipping the frame's normal";
+/// The lever of a [`CertifyError::SemiAxisNegative`] and a
+/// [`CertifyError::SemiAxisNotFinite`] at a build, where the record is
+/// the caller's input.
+pub(crate) const SEMI_AXIS_LEVER: &str = "store each semi-axis as its finite, positive length, and \
+     reverse the traversal by flipping the frame's normal";
 
 const TANGENT_PLANES_RECOURSE: &str = "keep the edge clear of each surface's axis or centre; over \
      a parameter box, a narrower box encloses the edge and its surfaces closer to where they are";
@@ -4014,26 +4036,39 @@ fn decide_turn<T: Decide>(
             cause: undecided.diag,
         }),
     };
-    // A conic's semi-axes are positive (`CertifyError::SemiAxisNegative`),
-    // the invariant every reader of its speed (`geom::Conic::speed_lo`)
-    // states, so a negative one is refused here, before the first of
-    // them. It is an exact read of stored data, not a banded decision
-    // ([`Real::select_le_zero`]: `−x ≤ 0` holds for every point unless
-    // `x` is negative). A zero semi-axis is a collapsed length, which
-    // the span meter below reads as the interval it leaves no length to.
+    // A conic's semi-axes are finite, positive lengths, the invariant
+    // every reader of its speed (`geom::Conic::speed_lo`) states, so a
+    // stored one that is not is refused here, before the first of them:
+    // one not a finite number (`CertifyError::SemiAxisNotFinite`), and
+    // one definitely negative (`CertifyError::SemiAxisNegative`). Both
+    // are exact reads of stored data, not banded decisions. `−x` decides
+    // above zero (`Real::select_le_zero` picks its second candidate)
+    // exactly where `x` is negative at every point; an enclosure across
+    // zero hulls both candidates, so the second read, with the poison
+    // first, tells a decided negative from a straddle, which falls
+    // through to the span meter's reading in band. A zero semi-axis is a
+    // collapsed length, which the span meter reads as the interval it
+    // leaves no length to.
     if let Some(conic) = spec.carrier.conic() {
         let (a, b) = conic.semi_axes();
+        let poison = T::from_f64(f64::NAN);
         let negative = |x: T| {
-            (T::zero() - x)
-                .select_le_zero(T::zero(), T::from_f64(f64::NAN))
-                .is_poison()
+            let minus = T::zero() - x;
+            minus.select_le_zero(T::zero(), poison).is_poison()
+                && !minus.select_le_zero(poison, T::zero()).is_poison()
         };
+        let carrier = spec.carrier.kind();
+        #[cfg(not(test))]
+        let unchecked = false;
         #[cfg(test)]
-        let negative = |x: T| !crate::pcurve_cache::mutants::semi_axis_unchecked() && negative(x);
-        if negative(a) || negative(b) {
-            return Err(CertifyError::SemiAxisNegative {
-                carrier: spec.carrier.kind(),
-            });
+        let unchecked = crate::pcurve_cache::mutants::semi_axis_unchecked();
+        if !unchecked {
+            if !(a.is_bounded() && b.is_bounded()) {
+                return Err(CertifyError::SemiAxisNotFinite { carrier });
+            }
+            if negative(a) || negative(b) {
+                return Err(CertifyError::SemiAxisNegative { carrier });
+            }
         }
     }
     // A periodic carrier's span is forward at the carrier's speed floor

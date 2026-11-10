@@ -3465,6 +3465,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::SemiAxisNegative { .. } => {
             "its conic carrier stores a negative semi-axis, which no edge can have"
         }
+        CertifyError::SemiAxisNotFinite { .. } => {
+            "its conic carrier stores a semi-axis that is not a finite number, which no edge can \
+             have"
+        }
         // A row image's escalation reads as its decision's check, routed
         // as an arc rim's is (`RowRefusal::decision`).
         CertifyError::Row {
@@ -3650,6 +3654,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::WindingExceeded
             | CertifyError::StatedInterval { .. }
             | CertifyError::SemiAxisNegative { .. }
+            | CertifyError::SemiAxisNotFinite { .. }
             | CertifyError::NotTransverse { .. }
             | CertifyError::ArmCollapsed { .. }
             | CertifyError::SpanMeterCollapsed { .. }

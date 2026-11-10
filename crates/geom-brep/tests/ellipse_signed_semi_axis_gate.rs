@@ -1,6 +1,6 @@
 //! The certify gate on an ellipse's stored semi-axes: it meters either
 //! ORDER (the smaller semi-axis is the speed floor) and refuses a
-//! non-positive semi-axis, either one, as a record that breaks the
+//! negative semi-axis, either one, as a record that breaks the
 //! representation's invariant.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
@@ -78,7 +78,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_semi_axis() {
         let build = err.ending(geom_brep::recourse::Reading::Build);
         assert!(
             build.as_deref().is_some_and(|ending| ending
-                .contains("store each semi-axis as its positive length")
+                .contains("store each semi-axis as its finite, positive length")
                 && !ending.contains("defect")),
             "{what}: the caller's lever at a build: {build:?}"
         );
