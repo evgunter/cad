@@ -2552,10 +2552,9 @@ mod tests {
         // Direction: he_plus runs target anchor vertex → ring anchor
         // vertex (v1 → v2, the killed e1's direction).
         assert_eq!(
-            body.get_half_edge(restore.he_plus).unwrap().start,
-            e0.vertex
+            body.edge_vertices(restore.edge),
+            Some((e0.vertex, e1.vertex))
         );
-        assert_eq!(body.half_edge_end(restore.he_plus), Some(e1.vertex));
         // Counts + E–P ledger restored: v − e + f − r = 4 − 3 + 1 − 0
         // = 2 = 2(1 − 0), genus 0, one shell.
         assert_eq!(body.vertices().count(), 4);
@@ -2651,10 +2650,9 @@ mod tests {
         );
         // he_plus runs lone target vertex → ring anchor vertex.
         assert_eq!(
-            body.get_half_edge(restore.he_plus).unwrap().start,
-            strut.vertex
+            body.edge_vertices(restore.edge),
+            Some((strut.vertex, seg.vertex))
         );
-        assert_eq!(body.half_edge_end(restore.he_plus), Some(seg.vertex));
     }
 
     #[test]

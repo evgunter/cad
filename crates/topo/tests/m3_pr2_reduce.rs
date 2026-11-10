@@ -241,9 +241,8 @@ fn tangent_edge_aoa_goes_below() {
     let tip_edge_halves: Vec<_> = red
         .body
         .edges()
-        .filter_map(|(_, e)| {
-            let s1 = red.body.get_half_edge(e.he_plus)?.start;
-            let s2 = red.body.get_half_edge(e.he_minus)?.start;
+        .filter_map(|(k, _)| {
+            let (s1, s2) = red.body.edge_vertices(k)?;
             ((s1 == tip_b && s2 == tip_t) || (s1 == tip_t && s2 == tip_b)).then_some(())
         })
         .collect();
@@ -305,9 +304,8 @@ fn touching_wedge_bob_goes_above() {
     let moved: Vec<_> = red
         .body
         .edges()
-        .filter(|(_, e)| {
-            let s1 = red.body.get_half_edge(e.he_plus).unwrap().start;
-            let s2 = red.body.get_half_edge(e.he_minus).unwrap().start;
+        .filter(|&(k, _)| {
+            let (s1, s2) = red.body.edge_vertices(k).unwrap();
             (s1 == tip_b || s1 == tip_t) && (s2 == tip_b || s2 == tip_t)
         })
         .collect();
@@ -474,9 +472,8 @@ fn crossing_split_arrangement() {
         })
         .unwrap();
     let joins = |a: VertexKey, b: VertexKey| {
-        red.body.edges().any(|(_, e)| {
-            let s1 = red.body.get_half_edge(e.he_plus).unwrap().start;
-            let s2 = red.body.get_half_edge(e.he_minus).unwrap().start;
+        red.body.edges().any(|(k, _)| {
+            let (s1, s2) = red.body.edge_vertices(k).unwrap();
             (s1 == a && s2 == b) || (s1 == b && s2 == a)
         })
     };

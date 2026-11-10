@@ -166,8 +166,11 @@ fn exact<T: geom_core::Decide>(depth: Around<T>, x: Point3<T>) -> T {
         Around::Line(line) => line.distance(x),
         Around::Point(center) => (x - center).norm(),
         Around::Circle(Core {
-            center,
-            axis,
+            axis:
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
             radius: major,
         }) => {
             let (off, t) = split(x - center, axis);
@@ -211,8 +214,7 @@ fn draw(r: &mut Rng, i: usize) -> (Around<f64>, Piece<f64>, Vec<Point3<f64>>, f6
         0 => Around::Line(geom::Line { origin, dir: axis }),
         1 => Around::Point(origin),
         _ => Around::Circle(Core {
-            center: origin,
-            axis,
+            axis: geom::Line { origin, dir: axis },
             radius: r.range(0.0, 2.0),
         }),
     };
@@ -287,12 +289,17 @@ fn lift_depth(d: Around<f64>) -> Around<Interval> {
         }),
         Around::Point(center) => Around::Point(ip(center)),
         Around::Circle(Core {
-            center,
-            axis,
+            axis:
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
             radius,
         }) => Around::Circle(Core {
-            center: ip(center),
-            axis: ivec(axis),
+            axis: geom::Line {
+                origin: ip(center),
+                dir: ivec(axis),
+            },
             radius: iv(radius),
         }),
     }
@@ -420,8 +427,10 @@ fn carrier(
             .collect();
         if i.is_multiple_of(4) {
             depth = Around::Circle(Core {
-                center: frame.origin,
-                axis: a,
+                axis: geom::Line {
+                    origin: frame.origin,
+                    dir: a,
+                },
                 radius: major,
             });
         }
