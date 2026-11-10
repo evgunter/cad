@@ -561,7 +561,7 @@ fn roots<T: Decide>(
     for theta in found {
         let mut at = out.len();
         for (i, &o) in out.iter().enumerate() {
-            if !before(o, theta, speed, slacks, walk.row, band)? {
+            if !before_as(o, theta, speed, slacks, walk.row, band)? {
                 at = i;
                 break;
             }
@@ -579,7 +579,7 @@ fn slacks<T: Real>(charged: bool, band: Band) -> T {
 
 /// Whether the root `x` comes before the root `y`, decided as arc length
 /// at `speed`, less both roots' `slacks`.
-fn before<T: Decide>(
+fn before_as<T: Decide>(
     x: T,
     y: T,
     speed: T,
@@ -880,11 +880,11 @@ fn assemble<T: Decide>(
             // The wrapping arc holds what lies past the last fold or
             // short of the first.
             let inside = if i + 1 < count {
-                before(lo, theta, speed, slacks, rows.asymptote(), band)?
-                    && before(theta, hi, speed, slacks, rows.asymptote(), band)?
+                before_as(lo, theta, speed, slacks, rows.asymptote(), band)?
+                    && before_as(theta, hi, speed, slacks, rows.asymptote(), band)?
             } else {
-                before(lo, theta, speed, slacks, rows.asymptote(), band)?
-                    || before(theta, folds[0], speed, slacks, rows.asymptote(), band)?
+                before_as(lo, theta, speed, slacks, rows.asymptote(), band)?
+                    || before_as(theta, folds[0], speed, slacks, rows.asymptote(), band)?
             };
             hits += usize::from(inside);
         }

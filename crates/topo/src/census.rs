@@ -1611,7 +1611,7 @@ fn pair_holds_point<T: Decide>(
 ) -> bool {
     for f in [fa, fb] {
         let residual = geom::plane_offset(f.origin, f.normal, q);
-        if signed_is_zero(
+        if signed_is_zero_as(
             "pm_census_confined_carrier",
             Margin::of(residual),
             band,
@@ -1660,7 +1660,7 @@ fn pair_holds_edges<T: Decide>(
         for e in [ea, eb] {
             for p in [e.p0, e.p1] {
                 let residual = geom::plane_offset(f.origin, f.normal, p);
-                if signed_is_zero(
+                if signed_is_zero_as(
                     "pm_census_confined_carrier",
                     Margin::of(residual),
                     band,
@@ -2929,7 +2929,7 @@ pub(crate) const CONFORMAL_REGION_WITNESS: &str = "their shared region";
 /// Every caller's gap is nonnegative by construction (a norm, an `abs`
 /// over a norm, a norm levered by a chord length), the magnitude door's
 /// precondition.
-fn gap_is_zero<T: Decide>(
+fn gap_is_zero_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -3264,7 +3264,7 @@ fn on_edge_interior_reading<T: Decide>(
 
 /// A signed residual as a trilean on-verdict: `Some(true)` on,
 /// `Some(false)` definitely off, `None` escalated (pushed).
-fn signed_is_zero<T: Decide>(
+fn signed_is_zero_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -3499,12 +3499,12 @@ fn edge_vertex_at<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<VertexKey> {
-    match signed_is_zero("pm_census_bound_end", Margin::of(s), band, errors) {
+    match signed_is_zero_as("pm_census_bound_end", Margin::of(s), band, errors) {
         Some(true) => return Some(e.v0),
         Some(false) => {}
         None => return None,
     }
-    match signed_is_zero("pm_census_bound_end", Margin::of(e.len - s), band, errors) {
+    match signed_is_zero_as("pm_census_bound_end", Margin::of(e.len - s), band, errors) {
         Some(true) => Some(e.v1),
         _ => None,
     }
@@ -3533,7 +3533,7 @@ fn any_boundary_vertex_at<T: Decide>(
         let Some(&pw) = geo.vmap.get(&w) else {
             continue;
         };
-        if gap_is_zero(
+        if gap_is_zero_as(
             "pm_census_bound_vertex",
             Margin::norm3(pw - q),
             band,
@@ -4041,7 +4041,7 @@ fn pierce_inside<T: Decide>(
         (In, In) | (Out, Out) => {
             let half = short();
             if matches!(half, Ok(true))
-                || span_clear(body, geo, e, f, [lo, hi], lever, band, errors)?
+                || span_clear_as(body, geo, e, f, [lo, hi], lever, band, errors)?
             {
                 return (at_lo == In).then(|| e.p0 + chord * geom::mid_param(lo, hi));
             }
@@ -4129,7 +4129,7 @@ fn pierce_inside<T: Decide>(
 /// licenses there needs the curve to approach `S` near head-on, where
 /// the end's own containment reading refuses.
 #[allow(clippy::too_many_arguments)] // the clearance's whole state
-fn span_clear<T: Decide>(
+fn span_clear_as<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     e: &EdgeGeo<T>,
@@ -5314,7 +5314,7 @@ fn parallel_reading<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
     let (a, b) = (a.span(), b.span());
-    gap_is_zero(
+    gap_is_zero_as(
         "pm_census_ee_parallel",
         Margin::levered(
             a.dir.cross(b.dir).norm(),
@@ -10656,7 +10656,7 @@ fn confirm_vertex_vertex<T: Decide>(
         errors.push(stale);
         return;
     };
-    match gap_is_zero("pm_census_confirm_vv", Margin::norm3(pa - pb), band, errors) {
+    match gap_is_zero_as("pm_census_confirm_vv", Margin::norm3(pa - pb), band, errors) {
         Some(true) | None => {}
         Some(false) => errors.push(stale),
     }
@@ -10704,7 +10704,7 @@ fn confirm_edge_face<T: Decide>(
     let plane = planar_face(geo, face);
     if let (Some(e), Some(f)) = (line, plane) {
         for p in [e.p0, e.p1] {
-            match signed_is_zero(
+            match signed_is_zero_as(
                 "pm_census_confirm_ef",
                 Margin::of(geom::plane_offset(f.origin, f.normal, p)),
                 band,

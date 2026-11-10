@@ -245,7 +245,7 @@ fn axis_plane<T: Decide>(n: Vec3<T>, arm: Lever<T>, exact: Band) -> Result<bool,
 /// [`Indeterminate`] only on the interval lane (an enclosure pair
 /// whose difference straddles the hairline without being an exact
 /// tie).
-pub(super) fn lex_cmp<T: Decide>(
+pub(super) fn lex_cmp_as<T: Decide>(
     p: &Point3<T>,
     q: &Point3<T>,
     origin: &Point3<T>,
@@ -298,7 +298,7 @@ pub(super) fn sort_indices_by_point<T: Decide>(
     let mut order: Vec<usize> = (0..points.len()).collect();
     insertion_sort_by(&mut order, |&a, &b| {
         Ok(
-            lex_cmp(&points[b], &points[a], &plane.origin, frame, exact)?
+            lex_cmp_as(&points[b], &points[a], &plane.origin, frame, exact)?
                 == core::cmp::Ordering::Less,
         )
     })?;
@@ -551,7 +551,7 @@ mod tests {
         let frame = in_plane_frame(&plane, fixture_lever(1.0), band, exact).unwrap();
         let a = Point3::new(1.0, 1.0, 0.0);
         let b = Point3::new(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
-        let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();
+        let cmp = |p, q| lex_cmp_as(&p, &q, &plane.origin, frame, exact).unwrap();
         assert_eq!(cmp(a, b), core::cmp::Ordering::Less);
         assert_eq!(cmp(b, a), core::cmp::Ordering::Greater);
         assert_eq!(cmp(a, a), core::cmp::Ordering::Equal);

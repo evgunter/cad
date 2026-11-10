@@ -84,12 +84,12 @@ const INDIRECT: &[(&str, &str)] = &[
          carrier",
     ),
     (
-        "revolve/axis.rs: classify_segment: name",
+        "revolve/axis.rs: classify_segment::classify: name",
         "the axis clearance's funnel, naming the closed `ClearanceDecision` it takes — its \
          names are `ClearanceDecision::ALL`'s",
     ),
     (
-        "revolve/tube.rs: build: name",
+        "revolve/tube.rs: build::classify: name",
         "the tube's funnel, naming the closed `TubeDecision` it takes — its names are \
          `TubeDecision::ALL`'s",
     ),

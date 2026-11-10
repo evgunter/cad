@@ -1254,9 +1254,16 @@ const SCOPE_LEDGER: &[ScopeEntry] = &[
         seen: Seen::Needle,
         disposition: NotScope(
             NotScopeWhy::LexerTables,
-            "the item-head keyword tables, and `funnel_sites`' skip of a `let` declaring the name",
+            "the item-head keyword tables, `funnel_sites`' skip of a `let` declaring the name, and \
+             `closure_bindings`' extent of a `let NAME = |…|` closure, which keys a census site \
+             and resolves no name",
         ),
-        items: &["DECLARERS", "ITEM_KEYWORDS", "funnel_sites"],
+        items: &[
+            "DECLARERS",
+            "ITEM_KEYWORDS",
+            "closure_bindings",
+            "funnel_sites",
+        ],
     },
     ScopeEntry {
         path: "crates/test-utils/tests/hand_written_impl_census.rs",

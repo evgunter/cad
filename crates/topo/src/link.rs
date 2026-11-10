@@ -1070,7 +1070,7 @@ impl<T: Decide> Unread<T> {
     /// so logged only for a reading that refuses as a whole). `None` for
     /// a slack, an unplaced crossing, or no reference: no gate's margin
     /// refused those.
-    pub(crate) fn escalation(&self, band: Band) -> Option<Indeterminate> {
+    pub(crate) fn escalation_as(&self, band: Band) -> Option<Indeterminate> {
         match *self.why()? {
             Unsettled::InBand(why) => Some(why),
             Unsettled::Zero(name, d) => metric::zero_refused(name, d, band),
@@ -1637,7 +1637,7 @@ impl ArcReach {
     /// ends (`[simple.conditioned]`;
     /// `work/onecopy/link-near-clearance-divides-by-a-vanishing-bisector.md`
     /// holds the measurement; `clearance_rows` pins it).
-    fn clears<T: Decide>(
+    fn clears_as<T: Decide>(
         self,
         p: Point3<T>,
         q: Point3<T>,
@@ -2334,7 +2334,7 @@ impl<T: Decide> Cone<T> {
                     Rung::Passes
                 }
             };
-            if let Err(why) = arc.clears(p, q, w, rd) {
+            if let Err(why) = arc.clears_as(p, q, w, rd) {
                 return refused(Unread::Arc { sector: None, why });
             }
             let mut held = base == Sign::Negative;
@@ -2442,7 +2442,7 @@ impl<T: Decide> Cone<T> {
         let p = self.p;
         [ArcReach::Near, ArcReach::Out].into_iter().find_map(|arc| {
             let w = arc.reference(p, q, w - p, (w - p).norm());
-            arc.clears(p, q, w, rd).ok()?;
+            arc.clears_as(p, q, w, rd).ok()?;
             self.winds_from((on, q), (from, w), rd)
         })
     }
@@ -3789,7 +3789,7 @@ impl<T: Decide> Link<T> {
     /// wedge thinner than the band leaves `q`'s place in its face
     /// undecided however far off it `q` stands.
     fn touches(&self, q: Point3<T>, rd: Reading<T>) -> bool {
-        let near = |d: Distance<T>, name| {
+        let near_as = |d: Distance<T>, name| {
             !matches!(
                 metric::sign_as(name, d, rd.band),
                 Some(Sign::Positive | Sign::Negative)
@@ -3798,7 +3798,7 @@ impl<T: Decide> Link<T> {
         self.cone.sectors.iter().any(|s| {
             s.wedges.iter().any(|&(a, b)| {
                 let plane = self.wedge(s, (a, b), q, rd).1 != Some(false)
-                    && near(Distance::of(q, s.apex, s.outward), LINK_PLANE);
+                    && near_as(Distance::of(q, s.apex, s.outward), LINK_PLANE);
                 plane
                     || [a, b].into_iter().any(|r| {
                         !matches!(
@@ -6001,7 +6001,7 @@ mod tests {
             "the floor's side, decided by the band and unsettled by the tie: {unread:?}"
         );
         assert!(
-            unread.escalation(band).is_none(),
+            unread.escalation_as(band).is_none(),
             "a slack escalates nothing"
         );
         assert_eq!(
@@ -6481,7 +6481,7 @@ mod clearance_rows {
                         "ρ {rho}, α {alpha}, δ {delta}: the clearance {read} against {truth}"
                     );
                     for arc in [ArcReach::Near, ArcReach::Out] {
-                        let got = arc.clears(p, q, w, Reading::plain(band));
+                        let got = arc.clears_as(p, q, w, Reading::plain(band));
                         if truth > 2.0 * band.escalate() {
                             assert!(got.is_ok(), "ρ {rho}, δ {delta}: {got:?}");
                             decided += 1;
@@ -6496,7 +6496,7 @@ mod clearance_rows {
             p + geom_core::Vec3::new(1.0, 0.0, 0.0),
             p - geom_core::Vec3::new(1.0, 0.0, 0.0),
         );
-        let got = ArcReach::Near.clears(p, q, w, Reading::plain(band));
+        let got = ArcReach::Near.clears_as(p, q, w, Reading::plain(band));
         assert!(matches!(got, Err(Unsettled::Zero(..))), "{got:?}");
         // Two points apart: their distance, and `0` (not NaN) on one point.
         let r = Point3::new(1.25, 0.5, -2.0);
@@ -6527,7 +6527,7 @@ mod clearance_rows {
                 "{read} against {truth}"
             );
             for arc in [ArcReach::Near, ArcReach::Out] {
-                let got = arc.clears(p, q, w, Reading::plain(band));
+                let got = arc.clears_as(p, q, w, Reading::plain(band));
                 assert!(got.is_ok(), "{w:?}: {got:?}");
             }
         }
@@ -6561,7 +6561,7 @@ mod clearance_rows {
             "{read:?} holds {truth}"
         );
         for arc in [ArcReach::Near, ArcReach::Out] {
-            let got = arc.clears(iv(p), qi, wi, Reading::plain(band));
+            let got = arc.clears_as(iv(p), qi, wi, Reading::plain(band));
             assert!(got.is_ok(), "the straddle: {got:?}");
         }
     }

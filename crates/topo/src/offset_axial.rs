@@ -3154,7 +3154,7 @@ fn reauthor<T: Decide>(
                 })
             };
             let turn_as = |name, theta: Option<T>, s: T, moved: Point3<T>| {
-                azimuth_turn(
+                azimuth_turn_as(
                     name,
                     read(theta, moved).z,
                     axis,
@@ -3212,7 +3212,7 @@ fn reauthor<T: Decide>(
 /// out-of-plane coordinate there, a length, decided under `name`), and
 /// otherwise the signed turn about `axis` from the old corner's
 /// azimuth to the moved one's.
-fn azimuth_turn<T: Decide>(
+fn azimuth_turn_as<T: Decide>(
     name: &'static str,
     off: T,
     geom::Line { origin, dir }: geom::Line<T>,

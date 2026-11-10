@@ -41,11 +41,14 @@ use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, ros
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
+    // geom-brep's public pairing classifier, handed this crate's rows.
+    NameCarrier::Call("classify_material_pairing_as"),
     // A name spelled in a `const` and handed to a funnel by it.
     NameCarrier::Const("ASSERT_BOUND"),
     NameCarrier::Const("AT_REST_QUIET_AXES_PARALLEL"),
     NameCarrier::Const("AT_REST_QUIET_BOUND"),
     NameCarrier::Const("AT_REST_QUIET_CENTRED"),
+    NameCarrier::Const("AT_REST_QUIET_OPPOSED"),
     NameCarrier::Const("AT_REST_QUIET_CONTACT_BOUND"),
     NameCarrier::Const("AXES_PARALLEL"),
     NameCarrier::Const("CHORD_ON_RIM"),

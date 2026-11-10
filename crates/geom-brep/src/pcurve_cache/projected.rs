@@ -1583,7 +1583,7 @@ fn positive_as<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bo
 /// [`positive_as`] as a check-4 verdict: `value` when it decides positive,
 /// `refused` when it does not, an escalation at `check` (its sample the
 /// piece or span `at`) when the band cannot tell.
-fn require_positive<T: Decide>(
+fn require_positive_as<T: Decide>(
     name: &'static str,
     value: T,
     band: Band,
@@ -1610,7 +1610,7 @@ fn holds<T: Decide>(
     piece: usize,
     channel: SectorChannel,
 ) -> Result<(), PcurveCertifyError> {
-    require_positive(
+    require_positive_as(
         "pcurve_projected_sector",
         value,
         band,
@@ -2023,7 +2023,7 @@ pub(super) fn net_incidence<T: Decide>(
         let f = T::from_computed(span.f_sup);
         let disp = meters
             .over(f, (rho, T::from_computed(span.rho_hi)), span.z, |lever| {
-                require_positive(
+                require_positive_as(
                     "pcurve_projected_lever",
                     lever,
                     band,
@@ -2406,7 +2406,7 @@ fn closed_form_meters<T: Decide>(
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
     meters.over_at(f, (rho, rho), axial, (0.0, 0.0), |lever| {
-        require_positive(
+        require_positive_as(
             "pcurve_projected_lever",
             lever,
             band,
@@ -2582,7 +2582,7 @@ pub(super) fn projected_envelope<T: Decide>(
         super::frame_defect(surface, boxed.v_reach()),
     );
     let reach = |x: T| {
-        require_positive(
+        require_positive_as(
             "pcurve_projected_reach",
             x,
             band,

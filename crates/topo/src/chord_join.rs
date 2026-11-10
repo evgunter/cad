@@ -2220,7 +2220,7 @@ impl<T: Real> Leave<T> {
 /// [`SplitJoinError::SectionDepartureGrazes`] where the split's sine reads
 /// Zero along the section; [`SplitJoinError::SectionInvariant`] for a
 /// datum normal to the section; [`SplitJoinError::Escalated`] in the band.
-fn arc_leaving<T: Decide>(
+fn arc_leaving_as<T: Decide>(
     face: FaceKey,
     band: Band,
     conic: &SectionCurve<T>,
@@ -2369,7 +2369,7 @@ fn section_pin_refusal<T: Decide>(
                 _ => return refusal.into(),
             };
             match (
-                crate::validate::resolved(SECTION_PIN_RESOLUTION, rho, band),
+                crate::validate::resolved_as(SECTION_PIN_RESOLUTION, rho, band),
                 typed,
             ) {
                 (Err(resolution), _) => SplitJoinError::SectionUnresolved {
@@ -2631,7 +2631,7 @@ fn chord_spec<T: Decide>(
         )?,
     };
     let p1 = body.resolve_vertex_point(u1, Proven);
-    let ccw = arc_leaving(face, band, &conic, &wall, p1, leave)?;
+    let ccw = arc_leaving_as(face, band, &conic, &wall, p1, leave)?;
     // The aux plane surface (honest u_ref: a direction in the section
     // plane, ⊥ normal by construction), minted once per split.
     let plane_key = match ctx.plane_key {
@@ -2951,7 +2951,7 @@ fn bool_planar_chord_spec<T: Decide>(
         )?,
     };
     let p1 = body.resolve_vertex_point(u1, Proven);
-    let ccw = arc_leaving(face, band, &conic, wall, p1, leave)?;
+    let ccw = arc_leaving_as(face, band, &conic, wall, p1, leave)?;
     let ends = section_end_reading(&conic);
     let (carrier, t_start, t_end) =
         chord_arc(conic, face, p1, far_end(body, face, (u1, u2))?, ccw)?;

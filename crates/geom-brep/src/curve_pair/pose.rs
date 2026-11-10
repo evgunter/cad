@@ -1215,7 +1215,7 @@ fn conic_conic<T: Decide>(
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
     for (swing, (c0, _, _)) in sides {
-        if matches!(constant(row::PARALLEL, c0, swing, band), Ok(true)) {
+        if matches!(constant_as(row::PARALLEL, c0, swing, band), Ok(true)) {
             return Ok(Pose::Apart);
         }
     }
@@ -1451,7 +1451,7 @@ fn transverse<T: Decide>(
 /// # Errors
 ///
 /// An end in the band's gap, or ends that straddle the band.
-fn constant<T: Decide>(
+fn constant_as<T: Decide>(
     row: &'static str,
     value: T,
     spread: T,
@@ -1483,7 +1483,7 @@ fn coplanar_circles<T: Decide>(
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
         // radii whose gap reads zero all round with the centres' are one
         // curve, which the one-curve reading has just denied.
-        return if constant(row::RADII, ra - rb, d + slant, band)? {
+        return if constant_as(row::RADII, ra - rb, d + slant, band)? {
             Ok(Pose::Concentric)
         } else {
             Err(MeetFault::Contradiction {

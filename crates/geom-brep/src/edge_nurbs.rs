@@ -1999,7 +1999,7 @@ fn limb2<T: Decide>(
     } = read.map_err(refused)?;
     let decided = match (T::WITNESS, offset) {
         (geom_core::Witness::Exact, Offset::Bound(_) | Offset::Miss { bound: Ok(_), .. }) => {
-            limb2_enclosure(kind, floor, upper, band, |free| {
+            limb2_enclosure_as(kind, floor, upper, band, |free| {
                 free_residual(carrier, params, operand, free)
             })
         }
@@ -2037,7 +2037,7 @@ fn limb2<T: Decide>(
 /// ([`AnalyticRung3Refusal::Escalated`] on [`Rung3Limb::HullValue`]),
 /// the classifier's terminal bit kept: a distance measured in the
 /// sliver is one no subdivision decides.
-fn limb2_enclosure<T: Decide>(
+fn limb2_enclosure_as<T: Decide>(
     operand: geom::SurfaceKind,
     floor: f64,
     upper: f64,
@@ -3092,7 +3092,7 @@ mod tests {
         let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
         let decide = |b: Interval| {
             let upper = Offset::Bound(b).upper();
-            limb2_enclosure::<Interval>(geom::SurfaceKind::Plane, 0.0, upper, band, |_| b)
+            limb2_enclosure_as::<Interval>(geom::SurfaceKind::Plane, 0.0, upper, band, |_| b)
         };
         assert!(
             decide(Interval::from_bounds(0.0, 0.0)).is_ok(),

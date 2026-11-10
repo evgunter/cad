@@ -28,6 +28,10 @@ use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, ros
 
 /// The funnels whose literal arguments are names.
 const CARRIERS: &[NameCarrier] = &[
+    // The forwarders a `FORWARDS` line names, declared so their callers'
+    // names are read (`roster_violations` holds each line to one).
+    NameCarrier::Call("read_in_as"),
+    NameCarrier::Call("ring_half_as"),
     // A spiric regime's and a ring torus's rows, named at their readers'
     // `sites`.
     NameCarrier::Call("rows_as"),
@@ -41,16 +45,26 @@ const ROW_FIELD: &str = "a field of a row struct, whose names are read at the st
 const CALLERS_CRATE: &str = "a public door whose caller names the row (`Ray::ahead`), read in the \
                              calling crate's own census";
 
+const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
+                            its enclosing function's caller or a binding, named here by the call's \
+                            first argument";
+
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
-    ("azimuth.rs: read_in: row", FORWARDS),
+    ("azimuth.rs: principal_as: Window::Angle", CARRIER_CALL),
+    ("azimuth.rs: read_in_as: row", FORWARDS),
     ("azimuth.rs: stable_azimuth_as: row", FORWARDS),
     ("chart_point.rs: point::off_as: name", FORWARDS),
     ("curves.rs: ahead: site", CALLERS_CRATE),
     ("curves.rs: spiric_regime: sites.off_axis()", ROW_FIELD),
     ("curves.rs: spiric_regime: sites.two_ovals()", ROW_FIELD),
+    ("surfaces.rs: of_at: sites.ring()", CARRIER_CALL),
     ("surfaces.rs: of_at: sites.tube()", ROW_FIELD),
-    ("surfaces.rs: ring_half: name", FORWARDS),
+    ("surfaces.rs: ring_half_as: name", FORWARDS),
+    (
+        "surfaces.rs: ring_torus: RingReader::Convention.sites().ring()",
+        CARRIER_CALL,
+    ),
     ("surfaces.rs: spindle_sheet::read_as: name", FORWARDS),
     (
         "surfaces.rs: torus_tube: RingReader::Convention.sites().tube()",

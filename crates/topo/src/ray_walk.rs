@@ -218,7 +218,7 @@ impl core::fmt::Display for NoRaySettled {
 ///
 /// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
 /// [`Indeterminate`].
-pub(crate) fn advance<T: Decide>(
+pub(crate) fn advance_as<T: Decide>(
     row: &'static str,
     at: Margin<T>,
     band: Band,
@@ -254,7 +254,7 @@ pub(crate) fn crossing_side(
 ///
 /// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
 /// [`Indeterminate`].
-pub(crate) fn apart<T: Decide>(
+pub(crate) fn apart_as<T: Decide>(
     row: &'static str,
     at: Margin<T>,
     band: Band,
@@ -338,16 +338,16 @@ impl<T: Decide, H> Crossings<T, H> {
         band: Band,
         escalate: impl FnOnce(Indeterminate, &H, &H) -> E,
     ) -> Result<Option<H>, RayFault<E>> {
-        let gap =
+        let gap_as =
             |k: usize, b: usize| decide(order, Margin::of(self.ahead[k].0 - self.ahead[b].0), band);
         let mut best = 0;
         for k in 1..self.ahead.len() {
-            if gap(k, best) == Ok(Sign::Negative) {
+            if gap_as(k, best) == Ok(Sign::Negative) {
                 best = k;
             }
         }
         for k in (0..self.ahead.len()).filter(|&k| k != best) {
-            match gap(k, best) {
+            match gap_as(k, best) {
                 Ok(Sign::Positive) => {}
                 // A tie, or a crossing the scan above left behind the
                 // one it kept: the closest is not certain.
@@ -393,7 +393,7 @@ impl<T: Decide, H> Crossings<T, H> {
     /// # Errors
     ///
     /// [`RayFault::Graze`] or [`RayFault::InBand`].
-    pub(crate) fn first_count<E>(
+    pub(crate) fn first_count_as<E>(
         self,
         order: &'static str,
         band: Band,
@@ -743,7 +743,7 @@ mod tests {
             let got = walk(
                 rays.iter().copied(),
                 |ray| match ray {
-                    Some(margin) => advance("test_ray_walk_advance", Margin::of(margin), band())
+                    Some(margin) => advance_as("test_ray_walk_advance", Margin::of(margin), band())
                         .map_err(|fault| fault.map(|_| ())),
                     None => Err(RayFault::Unread),
                 },
@@ -772,7 +772,7 @@ mod tests {
         let got: Result<Sign, &str> = walk(
             [Some(5e-9), None],
             |ray| match ray {
-                Some(m) => advance("test_ray_walk_advance", Margin::of(m), band())
+                Some(m) => advance_as("test_ray_walk_advance", Margin::of(m), band())
                     .map_err(|f| f.map(|_| "in band")),
                 None => Err(RayFault::Fatal("corrupt")),
             },
@@ -1025,7 +1025,7 @@ mod tests {
         for &(at, count, party, sideless) in hits {
             c.push(at, (at, count, party), sideless);
         }
-        c.first_count(
+        c.first_count_as(
             "test_ray_walk_order",
             band(),
             |h| h.1,
@@ -1121,12 +1121,12 @@ mod tests {
     /// is set aside, and only [`advance`] reads a side of `q`.
     #[test]
     fn a_crossing_at_q_grazes() {
-        let a = |m: f64| advance("test_ray_walk_advance", Margin::of(m), band());
+        let a = |m: f64| advance_as("test_ray_walk_advance", Margin::of(m), band());
         assert!(matches!(a(1.0), Ok(Sign::Positive)));
         assert!(matches!(a(-1.0), Ok(Sign::Negative)));
         assert!(matches!(a(5e-10), Err(RayFault::Graze)));
         assert!(matches!(a(5e-9), Err(RayFault::InBand(_))));
-        let p = |m: f64| apart("test_ray_walk_advance", Margin::of(m), band());
+        let p = |m: f64| apart_as("test_ray_walk_advance", Margin::of(m), band());
         assert!(matches!(p(1.0), Ok(())));
         assert!(matches!(p(5e-10), Err(RayFault::Graze)));
         assert!(matches!(p(5e-9), Err(RayFault::InBand(_))));

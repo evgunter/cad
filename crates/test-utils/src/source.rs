@@ -1732,9 +1732,25 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
     // Every `const` the walk declares, so a site whose name is a path to
     // one is told apart from a forwarded expression by what the tree
     // holds, not by how the path is spelled.
+    // Only a `const` that holds a name — a `&str`, or a tuple or array of
+    // them — makes a site a const site: a path that ends in a numeric
+    // `const`'s identifier (`NetChannel::U` beside a `const U: f64`), or
+    // in a row struct's `const`, names no name.
     let declared: std::collections::BTreeSet<String> = files
         .iter()
-        .flat_map(|(_, text)| const_names(&code_only(text)))
+        .flat_map(|(_, text)| {
+            let bare = code_only(text);
+            let code = code_and_literals(text);
+            const_names(&bare)
+                .into_iter()
+                .filter(|name| {
+                    const_decls(&bare, name).into_iter().any(|decl| {
+                        const_literal(&bare[decl..], &code[decl..])
+                            .is_some_and(|names| !names.is_empty())
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
         .collect();
     let mut found = std::collections::BTreeSet::new();
     for (rel, text) in &files {
@@ -1812,9 +1828,25 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                             out.unreadable.insert(format!("{rel}: {token}(… unclosed"));
                             continue;
                         };
-                        let literals = direct_literals(&code[open + 1..end]);
+                        let mut literals = direct_literals(&code[open + 1..end]);
+                        // An argument that is a whole array of names
+                        // (`&["a", "b"]`) hands over every one of them.
+                        for arg in top_level_split(&bare[open + 1..end], ',') {
+                            let at = skip_ws(&bare, open + 1 + arg.start);
+                            let at = if bare[at..].starts_with('&') {
+                                skip_ws(&bare, at + 1)
+                            } else {
+                                at
+                            };
+                            if bare[at..].starts_with('[')
+                                && let Some(names) = literal_tuple(&bare[at..], &code[at..])
+                            {
+                                literals.extend(names);
+                            }
+                        }
                         let consts: Vec<String> = arguments(&bare[open + 1..end])
                             .into_iter()
+                            .map(|arg| arg.trim_start_matches('&').trim().to_string())
                             .filter(|arg| names_a_const(arg, &declared))
                             .collect();
                         if !literals.is_empty() {
@@ -2751,7 +2783,16 @@ fn carrier_groups(code: &str, token: &str) -> Vec<usize> {
         {
             continue;
         }
-        let rest = code[at..].trim_start();
+        let mut rest = code[at..].trim_start();
+        // A turbofish is part of the call (`classify_len_as::<T>(`): read
+        // through it, as a `decide*` site does.
+        if rest.starts_with("::<") {
+            let lt = code.len() - rest.len() + 2;
+            match angle_end(code, lt) {
+                Some(close) => rest = code[close + 1..].trim_start(),
+                None => continue,
+            }
+        }
         let skipped = code[at..].len() - rest.len();
         if rest.starts_with('(') || rest.starts_with('{') {
             out.push(at + skipped);
@@ -3714,6 +3755,35 @@ mod tests {
             .collect();
         assert_eq!(names, ["a", "c"]);
         assert!(super::fn_items("fn d() { {").is_err());
+    }
+
+    /// **A carrier handed a whole array of names reads every one.**
+    #[test]
+    fn a_carrier_reads_an_array_of_names() {
+        let dir = std::env::temp_dir().join(format!("tu-array-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn f() { slots_as(&[\"one\", \"two\"], None); slots_as([\"three\"], None); }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[super::NameCarrier::Call("slots_as")]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.names.iter().collect::<Vec<_>>(),
+            ["one", "three", "two"]
+        );
+        assert!(census.indirect.is_empty(), "{census:?}");
+    }
+
+    /// **A carrier's call reads through a turbofish**, as a `decide*`
+    /// site does.
+    #[test]
+    fn a_carrier_call_reads_through_a_turbofish() {
+        let raw = "fn f() { run_as::<T>(\"row\", m); }";
+        let groups = super::carrier_groups(&code_only(raw), "run_as");
+        assert_eq!(groups.len(), 1, "{groups:?}");
+        assert!(raw[groups[0]..].starts_with("(\"row\""), "{raw}");
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the

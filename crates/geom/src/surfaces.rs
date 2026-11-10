@@ -520,7 +520,7 @@ pub fn ring_torus<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    ring_half(
+    ring_half_as(
         RingReader::Convention.sites().ring(),
         major_radius,
         minor_radius,
@@ -529,7 +529,7 @@ pub fn ring_torus<T: geom_core::Decide>(
 }
 
 /// The ring half's one spelling, `R − r` as a length, under `name`.
-fn ring_half<T: geom_core::Decide>(
+fn ring_half_as<T: geom_core::Decide>(
     name: &'static str,
     major_radius: T,
     minor_radius: T,
@@ -698,7 +698,7 @@ impl<T: geom_core::Decide> RingTorus<T> {
                 verdict: tube,
             });
         }
-        let ring = ring_half(sites.ring(), major_radius, minor_radius, band);
+        let ring = ring_half_as(sites.ring(), major_radius, minor_radius, band);
         if !positive(&ring) {
             return Err(NotARing::Ring {
                 site: sites.ring(),
@@ -815,7 +815,7 @@ pub fn spindle_sheet<T: geom_core::Decide>(
     // The horn end is the ring convention's ring half read from the other
     // side: the sheet holds where `R − r` is not positive.
     held(
-        ring_half("spindle_horn_end", major_radius, minor_radius, band),
+        ring_half_as("spindle_horn_end", major_radius, minor_radius, band),
         SpindleEnd::Horn,
         &[Negative, Zero],
     )

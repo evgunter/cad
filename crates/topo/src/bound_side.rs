@@ -606,7 +606,7 @@ type Settled<T> = Result<(Side, T, &'static str, Decided), Tie<T>>;
 /// bound's displacement off the face's tangent plane in metres, or a tie.
 /// The displacement is decided on `rd` ([`metric::settle_as`]): a side the
 /// band decides and the slack does not is tied, its slack the tie's.
-fn first_order<T: Decide>(
+fn first_order_as<T: Decide>(
     dir: Vec3<T>,
     reach: BoundSupport<T>,
     face: FaceDatum<T>,
@@ -746,7 +746,7 @@ pub(crate) fn read<T: Decide>(
     let band = rd.band;
     let arm = reach.lever();
     let length = arm.length();
-    let (side, displacement, predicate, decided) = match first_order(dir, reach, face, rd) {
+    let (side, displacement, predicate, decided) = match first_order_as(dir, reach, face, rd) {
         Ok(Ok(off)) => off,
         Ok(Err(tie)) => return Ok(FirstOrder::Tied(tie)),
         Err(fault) => return Err(BoundSideFault::Read(fault)),
@@ -822,7 +822,7 @@ pub(crate) fn read_plane_side<T: Decide>(
 ) -> Result<BoundSide, ReadFault<T>> {
     let face = FaceDatum::of_plane(reference);
     let rd = Reading::plain(band);
-    let tie = match first_order(dir, reach, face, rd) {
+    let tie = match first_order_as(dir, reach, face, rd) {
         Ok(Ok((side, ..))) => return Ok(BoundSide::Off(side)),
         Ok(Err(tie)) => tie,
         Err(fault) => Tie::of_unread_reach(dir, reach, face, fault, rd).ok_or(fault)?,

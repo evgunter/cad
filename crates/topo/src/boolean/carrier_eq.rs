@@ -611,12 +611,11 @@ pub(super) fn pair_door_reading<T: Decide>(
 ) -> Result<PairDoorReading, CarrierEqError> {
     match ladder_reading(c1, c2, extent, band)? {
         PairDoorReading::Verdict(CarrierVerdict::One { relation, margin }) => {
-            let margin = coincident_over_extent(c1, c2, extent, (relation, margin), band).map_err(
-                |diag| CarrierEqError::Undecided {
+            let margin = coincident_over_extent_as(c1, c2, extent, (relation, margin), band)
+                .map_err(|diag| CarrierEqError::Undecided {
                     coincidence: CoincidenceMeasure::not_zero(diag),
                     relation,
-                },
-            )?;
+                })?;
             Ok(PairDoorReading::Verdict(CarrierVerdict::One {
                 relation,
                 margin,
@@ -795,7 +794,7 @@ fn at_consumed_extent<T: geom_core::Real>(
 ///   two angles;
 /// - torus — the pair's coincidence already stands on its own bound
 ///   ([`geom_brep::tori_coincide`]), and reads nothing more here.
-fn coincident_over_extent<T: Decide>(
+fn coincident_over_extent_as<T: Decide>(
     c1: &CarrierDesc<T>,
     c2: &CarrierDesc<T>,
     extent: &ConsumedExtent<T>,

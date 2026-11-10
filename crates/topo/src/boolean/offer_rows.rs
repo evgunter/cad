@@ -328,7 +328,7 @@ cases! {
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
-        super::super::sectors::parallel_same(
+        super::super::sectors::parallel_same_as(
             Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), geom_core::test_support::fixture_lever(1.0),
             super::RAY_COLLINEAR, band()
         ).map(|_| ());

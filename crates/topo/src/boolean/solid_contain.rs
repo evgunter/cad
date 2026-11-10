@@ -3000,12 +3000,12 @@ fn cast_ray<T: Decide>(
     reach: Lever<T>,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count(
+    let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count_as(
         SCHEDULE_ROWS.order(),
         band,
         RayHit::count,
         |a, b| {
-            a.pair(body, b, SCHEDULE_ROWS.order(), band)
+            a.pair_as(body, b, SCHEDULE_ROWS.order(), band)
                 .map_err(|f| f.map(|(face, diag, _)| PointInSolidError::Escalated { face, diag }))
         },
         |hits| {
@@ -3129,7 +3129,7 @@ impl<T: Copy> RayHit<T> {
     ///
     /// [`RayFault::InBand`] with the pair's first face, its gap and the
     /// other face; [`RayFault::Graze`] at a tie.
-    pub(crate) fn pair<U: Decide>(
+    pub(crate) fn pair_as<U: Decide>(
         &self,
         body: &Body<U>,
         other: &Self,
@@ -5704,14 +5704,14 @@ mod pair_margin_rows {
         let far = RayHit::crossing(b, 5.0 + 1e-8, 1e-7, -1);
         assert!(
             matches!(
-                near.pair(&body, &far, "bool_point_in_solid_order", band),
+                near.pair_as(&body, &far, "bool_point_in_solid_order", band),
                 Err(RayFault::Graze)
             ),
             "two faces that do not meet, within each other's slack, tie"
         );
         let same = RayHit::crossing(a, 5.0 + 1e-8, 1e-7, -1);
         assert!(
-            near.pair(&body, &same, "bool_point_in_solid_order", band)
+            near.pair_as(&body, &same, "bool_point_in_solid_order", band)
                 .is_ok(),
             "one face's two crossings within each other's slack are summed"
         );

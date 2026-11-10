@@ -120,7 +120,7 @@ const CELL_VISITS: usize = 1 << 12;
 /// some sample is unsettled: in band,
 /// at a straddle, or with an unreadable floor (the cell structure does
 /// not decompose, or a weight not shown positive).
-pub(super) fn spline_incidence<T: Decide>(
+pub(super) fn spline_incidence_as<T: Decide>(
     name: &'static str,
     chart: &NurbsSurface<T>,
     (t0, t1): (T, T),
