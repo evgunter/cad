@@ -384,7 +384,7 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
 /// gap under the band and another over it: no lean refuses at the
 /// join, the unleaned pose answers, and every pose that answers is at
 /// rest. A lean that puts a crossing vertex's sector bisector in the
-/// band refuses at the reduction (`split_bisector_side`), and one the
+/// band refuses at the reduction (the divider's side, `topo::bound_side`), and one the
 /// pcurve mint cannot certify refuses there — stages before and after
 /// the join's order, not this row's subject.
 /// (Review R1's concern.)

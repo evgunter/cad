@@ -1254,10 +1254,9 @@ are cases): a surface pair along a declared tangency and the boolean's
 bound-against-bound readings alike (`topo::boolean::sectors`, `fate`,
 `slit`). An edge bound of a vertex's sector against a face is read
 through the one bound-side reading (`topo::bound_side`), taken by
-`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, and
-so is a bisector bound in the boolean's sector passes; the split's
-subdivision bisectors (`wide_entries`, `split_bisector_side`) read
-their side of the plane outside it. A conic edge against a plane
+`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, over
+one vertex's star (`topo::star`), and so is every divider bound, in
+both verbs. A conic edge against a plane
 descends through `conic_bend_side`, its lift certified from the
 carrier's curvature bounds less the first-order residue. Any other
 tied bound descends by the parting of its bend past the face's normal
