@@ -2041,12 +2041,14 @@ mod undecided_text {
             JoinRefusal::Undecided(JoinUndecided {
                 vertex: crate::VertexKey::default(),
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(
-                    geom_brep::PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Cone,
-                        carrier: geom::CurveKind::Circle,
-                        why: "WHY",
-                        margin,
-                    },
+                    geom_brep::PcurveCertifyError::Incidence(
+                        geom_brep::IncidenceRefusal::off_chart(
+                            geom::SurfaceKind::Cone,
+                            geom::CurveKind::Circle,
+                            "WHY",
+                            margin,
+                        ),
+                    ),
                 )),
             })
         };
