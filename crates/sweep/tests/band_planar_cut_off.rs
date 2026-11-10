@@ -88,10 +88,7 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
         arcs += 1;
         let surfaces = [e.he_plus, e.he_minus].map(|h| {
             let f = out.body.face_of_half_edge(h).expect("an arc's face");
-            out.body
-                .get_surface(out.body.get_face(f).expect("a face").surface)
-                .expect("a stored surface")
-                .clone()
+            out.body.face_surface(f).expect("a stored surface").clone()
         });
         let (t0, t1) = c.params();
         for k in 0..=64 {
@@ -123,7 +120,9 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// quadrature lane's pad (zero on a closed-form `f64` inventory, the
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
-pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn volume_enclosure<
+    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
+>(
     body: &Body<T>,
 ) -> (f64, f64) {
     let p = topo::mass_properties(
@@ -154,9 +153,9 @@ pub(crate) fn edge<T: Real + Bounds>(body: &Body<T>, a: [f64; 3], b: [f64; 3]) -
     query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let ps = point(body.get_half_edge(he).expect("a half").start);
-            let pt = point(body.half_edge_end(he).expect("an end"));
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
+            let ps = point(v0);
+            let pt = point(v1);
             (at(ps, a) && at(pt, b)) || (at(ps, b) && at(pt, a))
         })
         .unwrap_or_else(|| panic!("an edge between {a:?} and {b:?}"))
@@ -551,7 +550,7 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
 
     // Valence four: a chamfered cube's patch vertex, which a trimline of
     // the chamfer ends at.
-    let cube_body = cube(1.0, tol());
+    let cube_body = cube::<f64>(1.0, tol());
     let chamfered = chamfer_edges(
         &sweep::test_support::at_rest(&cube_body, tol()),
         &query::all_edges(&cube_body),
@@ -627,14 +626,13 @@ fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
     let rim: Vec<EdgeKey> = query::all_edges(&body)
         .into_iter()
         .filter(|&e| {
-            let he = body.get_edge(e).expect("e").he_plus;
+            let (v0, v1) = body.edge_vertices(e).expect("e");
             let p = |v| {
                 *body
                     .get_point(body.get_vertex(v).expect("v").point)
                     .expect("p")
             };
-            at(p(body.get_half_edge(he).expect("h").start))
-                && at(p(body.half_edge_end(he).expect("end")))
+            at(p(v0)) && at(p(v1))
         })
         .collect();
     assert_eq!(rim.len(), 3, "two lines and the arc");
@@ -652,7 +650,7 @@ fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
         .get_point(body.get_vertex(turn.vertex).expect("v").point)
         .expect("p");
     assert!(
-        (p - Point3::new(0.0, 0.0, 1.0)).norm() == 0.0,
+        p.equals_exactly(Point3::new(0.0, 0.0, 1.0)),
         "the turn is the teardrop's corner, got {p:?}"
     );
     match Verb::Fillet.run(&body, &rim) {

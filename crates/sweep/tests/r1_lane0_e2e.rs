@@ -59,7 +59,7 @@ fn the_f64_seam_answers_every_public_door() {
 fn the_f64_seam_answers_every_public_door_row() {
     let d = 0.05;
     let (body, face) = box_with_approx_cap(d, 1e-9);
-    let Some(Surface::Approx(_)) = body.get_surface(body.get_face(face).unwrap().surface) else {
+    let Some(Surface::Approx(_)) = body.face_surface(face) else {
         panic!("the cap wears the approximating surface");
     };
 
@@ -103,7 +103,7 @@ fn the_f64_seam_answers_every_public_door_row() {
         Tol::witness(),
     )
     .expect("a rigid map of a certified fit re-certifies at the run's ε");
-    let Some(Surface::Approx(m)) = moved.get_surface(moved.get_face(face).unwrap().surface) else {
+    let Some(Surface::Approx(m)) = moved.face_surface(face) else {
         panic!("the mapped cap is still approximating");
     };
     let spec = m.spec();
@@ -223,12 +223,13 @@ fn the_interval_seam_refuses_at_every_public_door() {
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
-    .body;
+    .body
+    .into_body();
     let face = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if Bounds::lo(normal.z) > 0.5 && Bounds::lo(origin.z) > 0.5
             )
@@ -312,12 +313,13 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
-    .body;
+    .body
+    .into_body();
     let face = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if Bounds::lo(normal.z) > 0.5 && Bounds::lo(origin.z) > 0.5
             )

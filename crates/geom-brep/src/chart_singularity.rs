@@ -60,7 +60,9 @@
 //! face's structure (`topo::surface_boundary`): this home sees no keys.
 
 use geom::{ChartArm, ChartInverse, Curve3, Surface};
-use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
+use geom_core::NonzeroSign;
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
+use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
 
@@ -134,11 +136,14 @@ pub enum Singularity {
 /// its one home). On a horn (`R = r`, or a hair past it in band) the two
 /// are its one cusp, the centre.
 pub fn sheet_apexes<T: Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     major: T,
     minor: T,
 ) -> [(Singularity, Point3<T>); 2] {
+    let geom::Line {
+        origin: center,
+        dir: axis,
+    } = axis;
     let height = geom::sheet_apex(major, minor).height;
     [
         (Singularity::SheetApexUp, center + axis * height),
@@ -149,11 +154,11 @@ pub fn sheet_apexes<T: Real>(
 /// **A sphere's two poles**, north first: its centre plus and minus its
 /// unit `axis` times its radius. The one spelling of them, which
 /// [`singular_points`] states for a sphere's chart.
-pub fn sphere_poles<T: Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-) -> [(Singularity, Point3<T>); 2] {
+pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, Point3<T>); 2] {
+    let geom::Line {
+        origin: center,
+        dir: axis,
+    } = axis;
     [
         (Singularity::North, center + axis * radius),
         (Singularity::South, center - axis * radius),
@@ -165,11 +170,11 @@ pub fn sphere_poles<T: Real>(
 /// ([`sheet_apexes`]), from the chart's own frame; none for any other
 /// kind.
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
-    let (anchor, axis) = (chart.frame().origin, chart.frame().axis);
+    let axis = chart.frame().axis_line();
     match chart.arm() {
-        ChartArm::Sphere { radius } => sphere_poles(anchor, axis, radius).to_vec(),
-        ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
-        ChartArm::Spindle { major, minor } => sheet_apexes(anchor, axis, major, minor).to_vec(),
+        ChartArm::Sphere { radius } => sphere_poles(axis, radius).to_vec(),
+        ChartArm::Cone { .. } => vec![(Singularity::Apex, axis.origin)],
+        ChartArm::Spindle { major, minor } => sheet_apexes(axis, major, minor).to_vec(),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => Vec::new(),
     }
 }
@@ -317,10 +322,9 @@ impl<T> Unread<T> {
         }
     }
 
-    /// This reading as a ladder's rung ([`Refusal::rung`]). No reading
-    /// that does not place a point refuses the whole query.
+    /// This reading as a ladder's rung ([`Refusal::rung`]).
     pub(crate) fn rung<A>(self) -> Rung<A, Self> {
-        self.refusal().rung(self, Rung::Blocked)
+        self.refusal().rung(self)
     }
 }
 
@@ -562,19 +566,15 @@ enum Near<T> {
 
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
 /// [`Curve3::nearest`] seeded at `from`, `None` where the carrier
-/// has none. A periodic carrier's ([`Curve3::is_periodic`]) is brought
-/// into `[from, from + τ]`, the turn at or past `from`: the upper end is
-/// reached only where the reduction rounds, a point a hair behind `from`
-/// reading `from + τ`. A
+/// has none. A periodic carrier's ([`Curve3::period`]) is brought
+/// into `[from, from + τ)`, the turn at or past `from`
+/// ([`geom_core::period::Period::at_or_above`]): a point a hair behind
+/// `from` whose lift rounds onto `from + τ` reads `from`. A
 /// point on a circle's axis, where every point of the circle is nearest,
 /// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     let t = carrier.nearest(x, from)?;
-    Some(if carrier.is_periodic() {
-        from + (t - from).reduce_periodic(T::tau())
-    } else {
-        t
-    })
+    Some(carrier.period().map_or(t, |p| p.at_or_above(t, from)))
 }
 
 /// **The point of `e` nearest `x`**, decided once at `band`
@@ -587,7 +587,12 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
     let Some(t) = foot(&e.carrier, x, t0) else {
         return sampled_near(e, x, band);
     };
-    let speed = e.carrier.deriv(t).norm();
+    let Some(speed) = geom::carrier_speed::speed_at(&e.carrier, t) else {
+        unreachable!(
+            "`foot` places a closed-form foot only on a line or a circle (`Curve3::nearest`), \
+             whose speed `speed_at` reads in closed form"
+        )
+    };
     if !(strictly_inside(t - t0, speed) && strictly_inside(t1 - t, speed)) {
         return Near::Off;
     }
@@ -599,11 +604,7 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
 /// vertices, read before it.
 fn strictly_inside<T: Decide>(m: T, speed: T) -> bool {
     matches!(
-        decide(
-            "chart_singularity_in_span",
-            Margin::of(m * speed),
-            Band::least()
-        ),
+        geom_core::k_stats::prove("chart_singularity_in_span", Margin::of(m * speed)),
         Ok(Sign::Positive)
     )
 }
@@ -666,52 +667,64 @@ fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T>
         (t, e.carrier.eval(t), i != 0 && i != SAMPLED_SPANS)
     };
     type Sample<T> = (T, Point3<T>, bool);
-    let mut pending: Vec<(Sample<T>, Sample<T>, u32)> =
-        (0..SAMPLED_SPANS).map(|i| (at(i), at(i + 1), 0)).collect();
+    // The last span first, and a span's later half before its earlier:
+    // the order the walk has always read in, which `best` rests on.
+    let roots = (0..SAMPLED_SPANS).rev().map(|i| (at(i), at(i + 1), 0u32));
     let mut best: Option<(T, T)> = None;
     let mut budget = SAMPLED_BUDGET;
     let mut unclear = false;
     let mut over_budget = false;
     let resolved = T::from_f64(band.zero() * 0.5);
-    while let Some(((a, pa, ia), (b, pb, ib), depth)) = pending.pop() {
-        for (t, p, interior) in [(a, pa, ia), (b, pb, ib)] {
-            let d = (p - x).norm();
-            if interior && best.is_none_or(|(_, bd)| below(d, bd)) {
-                if let Ok(true) = on_boundary(d, band) {
-                    return Near::On { t };
+    // Past its halvings the walk degrades rather than refusing: each
+    // piece it would halve is settled unread, and `over_budget` says so.
+    let mut reads = Budget::implied_by_halvings(SAMPLED_SPANS as usize, SAMPLED_BUDGET);
+    let walked = bisect_within(
+        roots,
+        &mut reads,
+        |((a, pa, ia), (b, pb, ib), depth): (Sample<T>, Sample<T>, u32)| {
+            for (t, p, interior) in [(a, pa, ia), (b, pb, ib)] {
+                let d = (p - x).norm();
+                if interior && best.is_none_or(|(_, bd)| below(d, bd)) {
+                    if let Ok(true) = on_boundary(d, band) {
+                        return Step::Stop(t);
+                    }
+                    best = Some((t, d));
                 }
-                best = Some((t, d));
             }
-        }
-        let mid = Point3::new(
-            (pa.x + pb.x) * T::from_f64(0.5),
-            (pa.y + pb.y) * T::from_f64(0.5),
-            (pa.z + pb.z) * T::from_f64(0.5),
-        );
-        let reach = speed * (b - a).abs() * T::from_f64(0.5);
-        if matches!(
-            decide(
-                "chart_singularity_sampled_clear",
-                Margin::of((x - mid).norm() - reach),
-                band
-            ),
-            Ok(Sign::Positive)
-        ) {
-            continue;
-        }
-        if depth >= SAMPLED_DEPTH || below(reach, resolved) {
-            unclear = true;
-            continue;
-        }
-        if budget == 0 {
-            over_budget = true;
-            continue;
-        }
-        budget -= 1;
-        let tm = (a + b) * T::from_f64(0.5);
-        let m = (tm, e.carrier.eval(tm), true);
-        pending.push(((a, pa, ia), m, depth + 1));
-        pending.push((m, (b, pb, ib), depth + 1));
+            let mid = Point3::new(
+                (pa.x + pb.x) * T::from_f64(0.5),
+                (pa.y + pb.y) * T::from_f64(0.5),
+                (pa.z + pb.z) * T::from_f64(0.5),
+            );
+            let reach = speed * (b - a).abs() * T::from_f64(0.5);
+            if matches!(
+                decide(
+                    "chart_singularity_sampled_clear",
+                    Margin::of((x - mid).norm() - reach),
+                    band
+                ),
+                Ok(Sign::Positive)
+            ) {
+                return Step::Settled;
+            }
+            if depth >= SAMPLED_DEPTH || below(reach, resolved) {
+                unclear = true;
+                return Step::Settled;
+            }
+            if budget == 0 {
+                over_budget = true;
+                return Step::Settled;
+            }
+            budget -= 1;
+            let tm = geom::mid_param(a, b);
+            let m = (tm, e.carrier.eval(tm), true);
+            Step::Halve([(m, (b, pb, ib), depth + 1), ((a, pa, ia), m, depth + 1)])
+        },
+    );
+    match walked {
+        Ok(Some(t)) => return Near::On { t },
+        Ok(None) => {}
+        Err(Exhausted) => unreachable!("a sampled walk spends its halvings before its reads"),
     }
     if over_budget {
         return Near::Unsettled;
@@ -1045,7 +1058,7 @@ fn bisect<T: Decide>(
         if depth >= WALK_DEPTH || samples.len() >= WALK_BUDGET {
             continue;
         }
-        let Some(m) = read(s.edge, (s.t + q.t) * T::from_f64(0.5), depth + 1, false) else {
+        let Some(m) = read(s.edge, geom::mid_param(s.t, q.t), depth + 1, false) else {
             continue;
         };
         samples.insert(i + 1, m);
@@ -1056,8 +1069,11 @@ fn bisect<T: Decide>(
 
 /// The chart a walk runs on, as its error bound reads it.
 struct Shape<T: Real> {
-    anchor: Point3<T>,
-    axis: Vec3<T>,
+    /// The chart's axis, from its frame. Only [`geom::Line::distance`]
+    /// reads it, which is correct for any nonzero `dir`, so a unit `dir`
+    /// is not a premise here
+    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+    axis: geom::Line<T>,
     kind: ShapeKind<T>,
     /// The singular points on the loop walked.
     on_loop: Vec<Point3<T>>,
@@ -1088,8 +1104,7 @@ impl<T: Decide> Shape<T> {
             }
         };
         Some(Self {
-            anchor: chart.frame().origin,
-            axis: chart.frame().axis,
+            axis: chart.frame().axis_line(),
             kind,
             on_loop,
             escalate,
@@ -1109,8 +1124,7 @@ impl<T: Decide> Shape<T> {
 
     /// A point's distance from the axis.
     fn rho(&self, p: Point3<T>) -> T {
-        let w = p - self.anchor;
-        (w - self.axis * w.dot(self.axis)).norm()
+        self.axis.distance(p)
     }
 }
 
@@ -1168,7 +1182,7 @@ impl<T: Decide> EdgeShape<T> {
             }) => Self {
                 speed,
                 line: false,
-                height: Some(radius * T::from_f64(2.0) * axis.cross(n / n.norm()).norm()),
+                height: Some(radius * T::from_f64(2.0) * axis.cross(n.normalize()).norm()),
             },
             _ => Self {
                 speed,
@@ -1312,7 +1326,7 @@ fn sum_walk<T: Decide>(
     for (j, &(i, uv)) in charted.iter().enumerate() {
         (v_lo, v_hi) = (v_lo.min(uv.y), v_hi.max(uv.y));
         let (k, next) = charted[(j + 1) % m];
-        let step = geom_core::period::Period::new(T::tau()).near(next.x - uv.x, T::zero());
+        let step = geom_core::period::Period::angle().near(next.x - uv.x, T::zero());
         total = total + step;
         let term = -(shape.g(uv.y) + shape.g(next.y)) * T::from_f64(0.5) * step;
         area = area + term;

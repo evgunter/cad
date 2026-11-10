@@ -141,7 +141,7 @@ pub(super) fn composite_by<const N: usize, C>(
     let mut removable = [0.0_f64; N];
     for i in 0..pieces {
         let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
-        let x = p + (q - p) * 0.5;
+        let x = geom::bracket_mid((p, q));
         let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
         // `∫_p^q (t − x)ᵏ dt`, `k = 0..=4`.
         let weight: [Interval; ORDER] = core::array::from_fn(|k| {
@@ -218,8 +218,10 @@ pub(super) fn rate_bound_over<S, C>(
     total
 }
 
-/// The jets of `t`, `cos t` and `sin t` from enclosures of their values.
-pub(super) fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet) {
+/// The jets of `t`, `cos t` and `sin t` over the bracket `t`, the
+/// values read through [`trig_of`], so a refused `t` gives refused jets.
+pub(super) fn trig_jets(t: Interval) -> (Jet, Jet, Jet) {
+    let (c, s) = trig_of(t);
     let z = Interval::zero();
     (
         Jet([t, Interval::one(), z, z, z]),
@@ -234,7 +236,7 @@ pub(super) fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet
 /// enclosure here reads (a parameter bracket, a piece, an edge's span).
 /// Exact for `lo = hi`; the whole circle past a half-width of `1.5`.
 pub(super) fn trig_range(lo: f64, hi: f64) -> (Interval, Interval) {
-    let m = lo + (hi - lo) * 0.5;
+    let m = geom::bracket_mid((lo, hi));
     if !(m.is_finite() && lo <= hi) {
         return (Interval::refused(), Interval::refused());
     }
@@ -270,8 +272,7 @@ pub(super) fn composite<const N: usize>(
         pieces,
         |_, _| (),
         |(), t| {
-            let (c, s) = trig_range(t.lo(), t.hi());
-            let (tj, cj, sj) = trig_jets(t, c, s);
+            let (tj, cj, sj) = trig_jets(t);
             g(tj, cj, sj)
         },
     )
@@ -345,6 +346,33 @@ mod tests {
             "{:?} {:?}",
             sq.0[0],
             mul.0[0]
+        );
+    }
+
+    /// **The trig jets of an uncertified bracket refuse**: `√[−1, 4]` is
+    /// `[0, 2]` with ordinary ends and a clamped domain, and every
+    /// coefficient of its `cos` and `sin` jets refuses, where the same
+    /// ends read bare (`trig_range`) certify.
+    #[test]
+    fn the_trig_jets_of_an_uncertified_bracket_refuse() {
+        let t = Interval::from_bounds(-1.0, 4.0).sqrt();
+        assert!(
+            !t.is_certified() && t.lo().is_finite() && t.hi().is_finite(),
+            "the fixture is an uncertified bracket with ordinary ends: {t:?}"
+        );
+        let (_, cj, sj) = trig_jets(t);
+        for (name, jet) in [("cos", cj), ("sin", sj)] {
+            for (k, c) in jet.0.iter().enumerate() {
+                assert!(
+                    !c.is_certified(),
+                    "{name} jet coefficient {k} certifies: {c:?}"
+                );
+            }
+        }
+        let (c, s) = trig_range(t.lo(), t.hi());
+        assert!(
+            c.is_certified() && s.is_certified(),
+            "the bare ends certify, so the refusal is trig_jets' own: {c:?} {s:?}"
         );
     }
 }

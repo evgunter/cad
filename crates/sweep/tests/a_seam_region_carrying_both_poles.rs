@@ -79,7 +79,7 @@ fn two_faces_whose_region_carries_both_poles_flip_into_a_double_cover() {
     );
     let block = finished(
         "block",
-        brick((-3.0, 0.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        brick::<f64>((-3.0, 0.0), (-2.0, 2.0), (-2.0, 2.0), tol),
         tol,
     );
     let mut body = Body::clone(
@@ -126,7 +126,7 @@ fn a_dimple_beside_its_polar_axis_flips_by_the_run_band() {
     );
     let block = finished(
         "block",
-        brick((-3.0, 2e-11), (-2.0, 2.0), (-2.0, 2.0), tol),
+        brick::<f64>((-3.0, 2e-11), (-2.0, 2.0), (-2.0, 2.0), tol),
         tol,
     );
     let body = Body::clone(

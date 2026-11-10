@@ -737,13 +737,8 @@ fn near_axis_balls_at_scale_every_nappe_class() {
     }
 }
 
-/// **A witness off a plane face's carrier places nowhere.** The plane
-/// door (`contfp`) places a point's projection, so a point `1 cm` above
-/// a brick's top, over its interior, would read `In`; the carrier is
-/// decided first and the point has no verdict. On the carrier it is
-/// `In`. The mutant dropping the carrier check places it `In`: red.
-#[test]
-fn a_witness_off_a_plane_carrier_has_no_verdict() {
+/// The brick's top face, the plane `z = 0.5`.
+fn brick_top() -> (Body<f64>, FaceKey) {
     let b = brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 0.5), Tol::witness());
     let top = b
         .faces()
@@ -756,9 +751,32 @@ fn a_witness_off_a_plane_carrier_has_no_verdict() {
         })
         .map(|(k, _)| k)
         .expect("the brick's top");
-    let at = |q| ops::place_witness(&b, top, q, band());
-    assert_eq!(at(p(0.2, 0.3, 0.5)), IN);
-    assert_eq!(at(p(0.2, 0.3, 0.51)), None);
+    (b, top)
+}
+
+/// **A witness on a plane face's carrier places by the plane door**
+/// (`contfp`): over the brick top's interior it is `In`.
+#[test]
+fn a_witness_on_a_plane_carrier_places_in_it() {
+    let (b, top) = brick_top();
+    assert_eq!(
+        ops::place_witness(&b, top, p(0.2, 0.3, 0.5), band()).expect("no defect"),
+        IN
+    );
+}
+
+/// **A witness off a plane face's carrier breaks the section's premise.**
+/// The witness is held on its carriers in band, so the plane door places
+/// a point's projection with no on-plane decision: `1 cm` above the top
+/// it would read `In`. The held point's own check stops it in a debug
+/// build, as at every held planar site; a release build has no check
+/// there, so this row runs in debug alone.
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(expected = "(read in band) reads")]
+fn a_witness_off_a_plane_carrier_is_a_defect() {
+    let (b, top) = brick_top();
+    let _ = ops::place_witness(&b, top, p(0.2, 0.3, 0.51), band());
 }
 
 /// **A plane a hair off axis-normal, on a tilted axis, is witnessed on

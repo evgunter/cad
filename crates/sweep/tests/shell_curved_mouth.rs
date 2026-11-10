@@ -24,7 +24,7 @@ use topo::{Body, FaceKey, ShellError};
 /// Every face of `body` on a surface of `kind`.
 fn faces_on(body: &Body<f64>, kind: geom::SurfaceKind) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| body.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect()
 }
@@ -344,7 +344,7 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
             "{what}: both half-faces survive as the band, under their keys"
         );
         for &f in &cone {
-            let surface = cup.get_surface(cup.get_face(f).unwrap().surface);
+            let surface = cup.face_surface(f);
             assert!(
                 matches!(surface, Some(geom::Surface::Cone { apex: p, .. })
                     if p.x == 0.0 && p.y == apex && p.z == 0.0),
@@ -678,8 +678,8 @@ fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
 /// stored surface.
 fn walls_of(body: &Body<f64>, radius: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -803,6 +803,35 @@ fn a_tubes_wall_opens_to_two_seamed_bands() {
             assert!(
                 boundaries_of(&cut, band).contains(&rows[0].0),
                 "{what}: each ring's twin circle bounds its own band"
+            );
+        }
+        // The cavity counterpart's seam dies in the band's surgery: a
+        // twin, which the operand never carried, so the lineage, a map
+        // of the operand's cells, states no fate for it.
+        let retired_twins: Vec<topo::EdgeKey> = shelled
+            .naming
+            .dead
+            .edges
+            .iter()
+            .copied()
+            .filter(|&e| {
+                shelled
+                    .naming
+                    .inner_edges
+                    .iter()
+                    .any(|&(twin, _)| twin == e)
+            })
+            .collect();
+        assert!(
+            !retired_twins.is_empty(),
+            "{what}: the counterpart's seam, a twin, is retired"
+        );
+        let lineage = shelled.lineage();
+        for e in retired_twins {
+            assert!(
+                matches!(lineage.fate(topo::Cell::Edge(e)), topo::Fate::Kept { at, .. } if at == topo::Cell::Edge(e)),
+                "{what}: the twin {e:?} is no operand cell and has no fate: {:?}",
+                lineage.fate(topo::Cell::Edge(e))
             );
         }
 
@@ -956,9 +985,8 @@ fn split_tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     .unwrap();
     // The seam now parts two faces, so it is no longer a wrap edge.
     let ends = {
-        let e = body.get_edge(seam).unwrap();
-        let start = |he| body.get_half_edge(he).unwrap().start;
-        (p(&body, start(e.he_plus)), p(&body, start(e.he_minus)))
+        let (a, b) = body.edge_vertices(seam).unwrap();
+        (p(&body, a), p(&body, b))
     };
     body.set_edge_curve(
         seam,

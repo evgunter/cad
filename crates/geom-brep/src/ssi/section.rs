@@ -37,6 +37,7 @@
 
 use geom::NurbsCurve3;
 use geom_core::Bounds;
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
@@ -47,7 +48,7 @@ use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, Sup
 
 use super::SsiError;
 use super::exhaust::{ParamSpan, SweepFloor, isolate_section};
-use super::residual::Curved;
+use super::residual::ImplicitForm;
 use crate::dihedral::decide_reported;
 use crate::recourse::{Refused, RefusedArm};
 
@@ -144,17 +145,18 @@ type Piece = ((f64, f64), Vec<Interval>, Vec<Interval>);
 struct Pieces {
     /// The pieces, ascending.
     pieces: Vec<Piece>,
-    /// How `φ` reads in metres, for a curved partner; `None` for a
-    /// plane, whose `φ` is its distance.
+    /// How `φ` reads in metres, for a partner read by its form; `None`
+    /// for a plane read by its origin and normal ([`boundary_section`]),
+    /// whose `φ` is its distance.
     scale: Option<Scale>,
 }
 
-/// **A curved partner's `φ` in metres along a curve**: `φ` is the
-/// partner's canonical form `f` ([`Curved`]), read against the band
+/// **A partner's `φ` in metres along a curve, read by its form**: `φ` is the
+/// partner's canonical form `f` ([`ImplicitForm`]), read against the band
 /// through its divisor over the curve's control hull in the partner's
 /// frame, which holds every point of the curve.
 struct Scale {
-    curved: Curved,
+    form: ImplicitForm,
     hull: Vec3<Interval>,
 }
 
@@ -173,7 +175,7 @@ impl Pieces {
         Self::enclosed(curve.knots_f64_interim(), &control, curve.weights(), (o, n))
     }
 
-    /// **The curve's pieces against a curved partner**: `φ = f∘C`, the
+    /// **The curve's pieces against a partner's form**: `φ = f∘C`, the
     /// partner's canonical form along the curve, in rational Bernstein
     /// form over the curve's knot spans
     /// ([`geom_core::spline::compose::canonical_composite`], the curve ×
@@ -181,11 +183,27 @@ impl Pieces {
     /// partner's frame in certification arithmetic. Its denominator is a
     /// power of the weight function, of the numerator's degree, and its
     /// coefficients are positive, so `φ = h/W` as on the plane.
-    fn implicit(curve: &NurbsCurve3<f64>, curved: &Curved) -> Option<Self> {
-        let framed: Vec<Vec3<Interval>> = curve
+    fn implicit(curve: &NurbsCurve3<f64>, form: &ImplicitForm) -> Option<Self> {
+        let control: Vec<[Interval; 3]> = curve
             .control()
             .iter()
-            .map(|&p| curved.framed_point(p))
+            .map(|c| [c.x, c.y, c.z].map(Interval::point))
+            .collect();
+        Self::implicit_enclosed(curve.knots_f64_interim(), &control, curve.weights(), form)
+    }
+
+    /// [`Pieces::implicit`] from a curve's parts, its control points
+    /// enclosed: the one arithmetic the boundary pass and limb 3's side
+    /// arm read a side against the partner by ([`SectionReader`]).
+    fn implicit_enclosed(
+        kv: &geom_core::spline::KnotVector,
+        control: &[[Interval; 3]],
+        weights: &[f64],
+        form: &ImplicitForm,
+    ) -> Option<Self> {
+        let framed: Vec<Vec3<Interval>> = control
+            .iter()
+            .map(|&[x, y, z]| form.framed(super::enclose::Box3 { x, y, z }))
             .collect();
         if !framed
             .iter()
@@ -200,15 +218,15 @@ impl Pieces {
         ];
         // The weights at unit scale where that is exact, as on the plane:
         // numerator and denominator carry one power of the factor.
-        let weights: Vec<f64> = unit_scale_exact(curve.weights())
-            .map_or_else(|| curve.weights().to_vec(), |(_, scaled)| scaled);
-        let data = CurveCertData::new(curve.knots_f64_interim(), &weights, &coords).ok()?;
-        let form = canonical_composite(&data, &curved.form().canonical()).ok()?;
-        let pieces: Vec<Piece> = form
+        let weights: Vec<f64> =
+            unit_scale_exact(weights).map_or_else(|| weights.to_vec(), |(_, scaled)| scaled);
+        let data = CurveCertData::new(kv, &weights, &coords).ok()?;
+        let composite = canonical_composite(&data, &form.form().canonical()).ok()?;
+        let pieces: Vec<Piece> = composite
             .num
             .breaks()
             .windows(2)
-            .zip(form.num.spans().iter().zip(form.den.spans()))
+            .zip(composite.num.spans().iter().zip(composite.den.spans()))
             .map(|(k, (h, w))| ((k[0], k[1]), h.clone(), w.clone()))
             .collect();
         if pieces.is_empty() || pieces.iter().any(|(_, h, w)| h.len() != w.len()) {
@@ -218,7 +236,7 @@ impl Pieces {
         Some(Self {
             pieces,
             scale: Some(Scale {
-                curved: curved.clone(),
+                form: form.clone(),
                 hull,
             }),
         })
@@ -229,14 +247,14 @@ impl Pieces {
     fn metres(&self, sup: f64) -> f64 {
         self.scale
             .as_ref()
-            .map_or(sup, |s| s.curved.ceiling_metres(sup, s.hull))
+            .map_or(sup, |s| s.form.ceiling_metres(sup, s.hull))
     }
 
     /// An upper bound on `‖∇f‖` over the curve, which a slope of a
-    /// curved partner's `φ` is divided by to read as a sine; `None` on a
-    /// plane, whose normal is a unit.
+    /// form's `φ` is divided by to read as a sine; `None` on a plane read
+    /// by its origin and normal, whose normal is a unit.
     fn gradient_sup(&self) -> Option<f64> {
-        self.scale.as_ref().map(|s| s.curved.gradient_sup(s.hull))
+        self.scale.as_ref().map(|s| s.form.gradient_sup(s.hull))
     }
 
     /// [`Pieces::of`] from a curve's parts, its control points enclosed:
@@ -277,7 +295,7 @@ impl Pieces {
         let refinement = RingRefinement::new(kv, &add).ok()?;
         let (h, w) = (refinement.refine(&h), refinement.refine(&w));
         let knots = refinement.knots();
-        let breaks: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
+        let breaks: Vec<f64> = knots.breakpoints().collect();
         let mut pieces = Vec::new();
         for (i, pair) in breaks.windows(2).enumerate() {
             let lo = i * p;
@@ -382,6 +400,12 @@ pub(crate) struct SignBudget;
 /// The pieces as given are all read before any is halved, so two of
 /// opposite sign read `None` in any order.
 ///
+/// A refinement over enclosures, not an agreeing ladder
+/// (`geom_core::ladder::climb_agreeing`): no hull is a band decision, and
+/// a piece that straddles is halved and read again, not kept. Which
+/// refusal surfaces can depend on the order the pieces are read, and no
+/// outcome rests on which.
+///
 /// # Errors
 ///
 /// [`SignBudget`] where a halving is due with `budget` spent.
@@ -394,40 +418,43 @@ fn refined_sign(
         return Ok(None);
     }
     let mut found = signs.iter().find_map(|s| *s);
-    for (piece, read) in pieces.into_iter().zip(signs) {
-        if read.is_some() {
-            continue;
+    let unread: Vec<Vec<Interval>> = pieces
+        .into_iter()
+        .zip(signs)
+        .filter_map(|(piece, read)| read.is_none().then_some(piece))
+        .collect();
+    let mut reads = Budget::implied_by_halvings(unread.len(), *budget);
+    let walked = bisect_within(unread, &mut reads, |c| {
+        let h = hull(&c);
+        if let Some(s) = sign(h) {
+            if found.is_some_and(|f| f != s) {
+                return Step::Stop(Ok(None));
+            }
+            found = Some(s);
+            return Step::Settled;
         }
-        let mut stack = vec![piece];
-        while let Some(c) = stack.pop() {
-            let h = hull(&c);
-            if let Some(s) = sign(h) {
-                if found.is_some_and(|f| f != s) {
-                    return Ok(None);
-                }
-                found = Some(s);
-                continue;
-            }
-            let before = Certification::width(h);
-            if before.is_nan() {
-                return Ok(None);
-            }
-            if *budget == 0 {
-                return Err(SignBudget);
-            }
-            *budget -= 1;
-            let (left, right) = (
-                restrict_segment(&c, (0.0, 1.0), (0.0, 0.5)),
-                restrict_segment(&c, (0.0, 1.0), (0.5, 1.0)),
-            );
-            if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
-                return Ok(None);
-            }
-            stack.push(right);
-            stack.push(left);
+        let before = Certification::width(h);
+        if before.is_nan() {
+            return Step::Stop(Ok(None));
         }
+        if *budget == 0 {
+            return Step::Stop(Err(SignBudget));
+        }
+        *budget -= 1;
+        let (left, right) = (
+            restrict_segment(&c, (0.0, 1.0), (0.0, 0.5)),
+            restrict_segment(&c, (0.0, 1.0), (0.5, 1.0)),
+        );
+        if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
+            return Step::Stop(Ok(None));
+        }
+        Step::Halve([left, right])
+    });
+    match walked {
+        Ok(Some(read)) => read,
+        Ok(None) => Ok(found),
+        Err(Exhausted) => unreachable!("a sign read spends its halvings before its reads"),
     }
-    Ok(found)
 }
 
 /// **A side's plane distance, read as [`boundary_section`] reads it**,
@@ -441,23 +468,15 @@ pub(crate) struct SectionReader {
 
 impl SectionReader {
     /// The reader of a curve given by its parts, its control points
-    /// enclosed; `None` where the knot algebra refuses its Bernstein
-    /// form.
-    pub(crate) fn of(
+    /// enclosed, against the partner's form ([`Pieces::implicit_enclosed`]);
+    /// `None` where the composite does not certify.
+    pub(crate) fn implicit_enclosed(
         knots: &geom_core::spline::KnotVector,
         control: &[[Interval; 3]],
         weights: &[f64],
-        (origin, normal): ([Interval; 3], [Interval; 3]),
+        form: &ImplicitForm,
     ) -> Option<Self> {
-        Pieces::enclosed(knots, control, weights, (origin, normal)).map(|pieces| Self { pieces })
-    }
-
-    /// The reader of `curve` against a curved partner: `φ = f∘C`, its
-    /// canonical form along the curve ([`Pieces::implicit`], the
-    /// arithmetic the boundary pass reads a side against it by); `None`
-    /// where the composite does not certify.
-    pub(crate) fn implicit(curve: &NurbsCurve3<f64>, curved: &Curved) -> Option<Self> {
-        Pieces::implicit(curve, curved).map(|pieces| Self { pieces })
+        Pieces::implicit_enclosed(knots, control, weights, form).map(|pieces| Self { pieces })
     }
 
     /// An upper bound in metres on the curve's distance from the
@@ -466,8 +485,8 @@ impl SectionReader {
         self.pieces.metres(sup)
     }
 
-    /// Whether `φ` is the plane's distance, whose slope per metre is a
-    /// sine, never above 1.
+    /// Whether `φ` is the plane's distance read by its origin and normal,
+    /// whose slope per metre is a sine, never above 1.
     pub(crate) fn is_distance(&self) -> bool {
         self.pieces.scale.is_none()
     }
@@ -581,7 +600,7 @@ pub fn boundary_section(
     )
 }
 
-/// [`boundary_section`] of a curved partner: `φ` the partner's form
+/// [`boundary_section`] of an implicit partner: `φ` the partner's form
 /// along the curve ([`Pieces::implicit`]), its sup read against the band
 /// as a ceiling in metres and each root's slope over `‖∇f‖` (module docs
 /// of [`super::residual`]); everything else as on the plane.
@@ -591,13 +610,13 @@ pub fn boundary_section(
 /// As [`boundary_section`].
 pub(crate) fn implicit_section(
     curve: &NurbsCurve3<f64>,
-    curved: &Curved,
+    form: &ImplicitForm,
     speed: SupSpeed<f64>,
     floor_meters: f64,
     arm: f64,
     band: Band,
 ) -> Result<BoundarySection, SsiError> {
-    let pieces = Pieces::implicit(curve, curved).ok_or(UNSUPPORTED)?;
+    let pieces = Pieces::implicit(curve, form).ok_or(UNSUPPORTED)?;
     read_section(
         curve,
         &pieces,
@@ -607,20 +626,21 @@ pub(crate) fn implicit_section(
     )
 }
 
-/// [`boundary_roots`] of a curved partner ([`implicit_section`]).
+/// The roots of the partner's `φ` along `curve`, whatever its sup:
+/// [`implicit_section`]'s pieces, isolated to the floor.
 ///
 /// # Errors
 ///
 /// As [`boundary_section`].
 pub(crate) fn implicit_roots(
     curve: &NurbsCurve3<f64>,
-    curved: &Curved,
+    form: &ImplicitForm,
     speed: SupSpeed<f64>,
     floor_meters: f64,
     arm: f64,
     band: Band,
 ) -> Result<BoundarySection, SsiError> {
-    let pieces = Pieces::implicit(curve, curved).ok_or(UNSUPPORTED)?;
+    let pieces = Pieces::implicit(curve, form).ok_or(UNSUPPORTED)?;
     roots(curve, &pieces, speed, floor_meters, arm, band)
 }
 
@@ -682,31 +702,7 @@ fn read_section(
     roots(curve, pieces, speed, floor_meters, arm, band)
 }
 
-/// **The roots of the plane distance along a curve**, isolated to the
-/// floor and decided as [`boundary_section`] decides them, whatever the
-/// curve's sup distance: for a curve shorter than the band, whose
-/// distance from the plane is in band along its whole length though the
-/// plane crosses it.
-///
-/// # Errors
-///
-/// As [`boundary_section`].
-pub(crate) fn boundary_roots(
-    curve: &NurbsCurve3<f64>,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
-    speed: SupSpeed<f64>,
-    floor_meters: f64,
-    arm: f64,
-    band: Band,
-) -> Result<BoundarySection, SsiError> {
-    let pieces = Pieces::of(curve, origin, normal).ok_or(SsiError::UnsupportedCertificate {
-        what: "a boundary curve's Bernstein form was refused by the knot algebra",
-    })?;
-    roots(curve, &pieces, speed, floor_meters, arm, band)
-}
-
-/// The roots, to the floor ([`boundary_roots`]).
+/// The roots, to the floor ([`implicit_roots`]).
 fn roots(
     curve: &NurbsCurve3<f64>,
     pieces: &Pieces,
@@ -827,44 +823,23 @@ pub(crate) fn decide_crossing(root: SectionRoot, arm: f64, band: Band) -> Result
     })
 }
 
-/// Settles a root of `φ` inside `bracket` to `|φ| ≤ tol` by safeguarded
-/// Newton along the curve: Newton where its step stays inside the
-/// bracket, bisection otherwise, a fixed count (D9). `None` when no
-/// iterate settles; the caller refuses the end it was settling.
-/// `Some(NAN)` when the curve does not evaluate to a finite point at
-/// the bracket's ends.
-pub(crate) fn settle_root(
-    curve: &NurbsCurve3<f64>,
-    origin: Point3<f64>,
-    normal: Vec3<f64>,
-    bracket: (f64, f64),
-    tol: f64,
-) -> Option<f64> {
-    settle_by(
-        |t| normal.dot(curve.eval(t) - origin),
-        |t| normal.dot(curve.deriv(t)),
-        bracket,
-        tol,
-    )
-}
-
-/// [`settle_root`] for a curved partner: the partner's residual in
-/// metres along the curve ([`Curved::residual`]) settled to `tol`.
+/// A root of the partner's `φ` along `curve`, settled: the partner's residual in
+/// metres along the curve ([`ImplicitForm::residual`]) settled to `tol`.
 pub(crate) fn settle_implicit_root(
     curve: &NurbsCurve3<f64>,
-    curved: &Curved,
+    form: &ImplicitForm,
     bracket: (f64, f64),
     tol: f64,
 ) -> Option<f64> {
     settle_by(
-        |t| curved.residual(curve.eval(t)),
-        |t| curved.residual_rate(curve.eval(t), curve.deriv(t)),
+        |t| form.residual(curve.eval(t)),
+        |t| form.residual_rate(curve.eval(t), curve.deriv(t)),
         bracket,
         tol,
     )
 }
 
-/// [`settle_root`]'s safeguarded Newton on `phi`, its rate `dphi`.
+/// [`settle_implicit_root`]'s safeguarded Newton on `phi`, its rate `dphi`.
 fn settle_by(
     phi: impl Fn(f64) -> f64,
     dphi: impl Fn(f64) -> f64,
@@ -882,7 +857,7 @@ fn settle_by(
             return Some(t);
         }
     }
-    let mut t = 0.5 * (lo + hi);
+    let mut t = geom::mid_param(lo, hi);
     for _ in 0..SECTION_SETTLE_ITERS {
         let f = phi(t);
         if !f.is_finite() {
@@ -903,13 +878,13 @@ fn settle_by(
         t = if newton.is_finite() && newton > lo && newton < hi {
             newton
         } else {
-            0.5 * (lo + hi)
+            geom::mid_param(lo, hi)
         };
     }
     (phi(t).abs() <= tol).then_some(t)
 }
 
-/// The fixed iteration count of [`settle_root`] (D9): enough bisections
+/// The fixed iteration count of [`settle_by`] (D9): enough bisections
 /// to cut any `f64` bracket to adjacent floats.
 const SECTION_SETTLE_ITERS: usize = 128;
 

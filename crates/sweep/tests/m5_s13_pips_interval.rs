@@ -104,7 +104,7 @@ mod certified {
     /// its members one at a time.
     #[test]
     fn interval_finding_union_is_bracketed() {
-        let a = finished("the slab", slab(), Tol::witness());
+        let a = finished("the slab", slab::<geom_core::Interval>(), Tol::witness());
         let b = ball_poled_y(iv(1.0), v3(2.0, 2.0, 0.5), Tol::witness());
         let b = finished("the ball", b, Tol::witness());
         let joined = topo::union(&a, &b, Tol::witness());
@@ -186,7 +186,7 @@ mod certified {
     /// The pip ∖/∩ pair at the certified scalar, with additivity.
     #[test]
     fn interval_pip_pair_is_bracketed_and_additive() {
-        let a = finished("the slab", slab(), Tol::witness());
+        let a = finished("the slab", slab::<geom_core::Interval>(), Tol::witness());
         let (r, h) = (0.5, 0.3);
         let b = ball_poled_y(iv(r), v3(2.0, 2.0, 1.0 + r - h), Tol::witness());
         let b = finished("the pip ball", b, Tol::witness());

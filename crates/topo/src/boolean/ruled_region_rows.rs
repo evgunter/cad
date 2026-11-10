@@ -5,6 +5,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
+use crate::boolean::region::QueryFoot;
+use crate::boolean::region::refusal_class as class;
 use crate::entity::EdgeKey;
 use core::f64::consts::{PI, TAU};
 use slotmap::KeyData;
@@ -55,14 +57,25 @@ fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> Edge<f64> {
     edge(k, geom::Curve3::line(a, d / len), (0.0, len), true)
 }
 
+/// The region on `surface`, a cylinder or a cone, under the fixtures'
+/// one record.
+fn on(surface: &geom::Surface<f64>) -> (Charted<f64>, Ruled<f64>) {
+    (
+        Charted::record(Default::default(), surface),
+        Ruled::of(surface).unwrap(),
+    )
+}
+
 fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
+    let (charted, surface) = on(&geom::Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: z_axis(),
+        radius: 1.0,
+        u_ref: x_axis(),
+    });
     RuledFaceRegion {
-        surface: Ruled::Cylinder {
-            origin: Point3::origin(),
-            axis: z_axis(),
-            radius: 1.0,
-            u_ref: x_axis(),
-        },
+        charted,
+        surface,
         sense: true,
         outer: LoopKey::default(),
         scale: 1.0,
@@ -229,13 +242,15 @@ fn a_wall_under_a_tilted_section_reads_its_region() {
 }
 
 fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
+    let (charted, surface) = on(&geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: z_axis(),
+        half_angle: ALPHA,
+        u_ref: x_axis(),
+    });
     RuledFaceRegion {
-        surface: Ruled::Cone {
-            apex: Point3::origin(),
-            axis: z_axis(),
-            half_angle: ALPHA,
-            u_ref: x_axis(),
-        },
+        charted,
+        surface,
         sense: true,
         outer: LoopKey::default(),
         scale,
@@ -473,10 +488,14 @@ fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
         "the far point is between the three: {sampled} {three}"
     );
     let (t0, t1) = (arc.t0, arc.t1);
-    let cover =
-        crate::boolean::boxes::edge_cover_over(&arc.carrier, (t0, t1), (arc.at(t0), arc.at(t1)));
+    let cover = crate::cover::edge_cover_over(&arc.carrier, (t0, t1), (arc.at(t0), arc.at(t1)));
     let scale = reach_bound(&cone_surface(), &[cover]);
     assert!(scale >= sampled, "scale {scale} under the reach {sampled}");
+}
+
+/// `p`'s foot on the region's surface, as the door reads it.
+fn foot(region: &RuledFaceRegion<f64>, p: Point3<f64>) -> QueryFoot<f64> {
+    QueryFoot::read(Legs::charted(region).surface(), p, b())
 }
 
 /// **A generator edge through the apex reaches both nappes**, read at
@@ -500,15 +519,16 @@ fn a_generator_meets_no_conic_on_the_mirror_nappe() {
     let mirror = rim(1, -ALPHA.cos(), ALPHA.sin(), (0.0, TAU), true);
     let own = cone_rim(2, 2.0, (0.0, TAU), true);
     let region = cone(vec![mirror.clone(), own.clone()], 2.0);
-    let leg = region.ruling(on_cone(0.0, 1.0), true, true);
+    let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, true);
     assert!(
-        region
-            .landings(&mirror, &leg, b())
+        crate::boolean::region::landings(&region, &mirror, &leg, b())
             .ok()
             .is_some_and(|l| l.is_empty())
     );
     assert_eq!(
-        region.landings(&own, &leg, b()).ok().map(|l| l.len()),
+        crate::boolean::region::landings(&region, &own, &leg, b())
+            .ok()
+            .map(|l| l.len()),
         Some(1)
     );
 }
@@ -522,7 +542,7 @@ fn a_leg_along_an_edge_grazes() {
     assert!(matches!(
         region::read_path(
             &line,
-            wall(0.0, -0.5),
+            foot(&line, wall(0.0, -0.5)),
             region::Path::Single {
                 parallel: false,
                 forward: true
@@ -535,7 +555,7 @@ fn a_leg_along_an_edge_grazes() {
     assert!(matches!(
         region::read_path(
             &arc,
-            wall(2.0, 0.0),
+            foot(&arc, wall(2.0, 0.0)),
             region::Path::Single {
                 parallel: true,
                 forward: true
@@ -565,7 +585,7 @@ fn an_aimed_paths_first_leg_ends_at_its_corner() {
         then_forward: true,
     };
     assert!(matches!(
-        region::read_path(&region, wall(0.5, 0.0), spec, b()),
+        region::read_path(&region, foot(&region, wall(0.5, 0.0)), spec, b()),
         Ok(true)
     ));
 }
@@ -596,3 +616,300 @@ fn a_generator_from_the_apex_keeps_its_nappe() {
     assert_eq!(quarter.contains(on_cone(0.7, -1.0), b()), Ok(Some(false)));
     assert_eq!(quarter.contains(on_cone(0.7, 1.0), b()), Ok(Some(true)));
 }
+
+/// **A generator toward the apex lands nowhere at the apex.** A ruling
+/// leg run back toward the cone's apex ends there, and every generator
+/// edge through the apex meets its plane at that end: the leg runs up to
+/// the apex and not onto it, so the meeting is no place on it
+/// ([`region::End::open`]). A generator edge clear of the apex is met
+/// nowhere, and the rim the leg crosses short of the apex is its one
+/// crossing.
+#[test]
+fn a_generator_toward_the_apex_lands_nowhere_at_it() {
+    let through = segment(1, on_cone(1.0, 0.0), on_cone(1.0, 2.0));
+    let clear = segment(2, on_cone(2.0, 0.5), on_cone(2.0, 2.0));
+    let below = cone_rim(3, 0.5, (0.0, TAU), true);
+    let region = cone(vec![through.clone(), clear.clone(), below.clone()], 2.0);
+    let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, false);
+    assert!(
+        leg.end.is_some_and(|end| end.open),
+        "the leg ends at the apex"
+    );
+    let at = |e: &Edge<f64>| {
+        let landings = crate::boolean::region::landings(&region, e, &leg, b()).ok()?;
+        let mut placed = 0;
+        for (y, _, _) in landings {
+            if leg
+                .place(y, RuledFaceRegion::<f64>::AT, b())
+                .ok()?
+                .is_some()
+            {
+                placed += 1;
+            }
+        }
+        Some(placed)
+    };
+    assert_eq!(at(&through), Some(0), "the generator through the apex");
+    assert_eq!(at(&clear), Some(0), "a generator clear of the apex");
+    assert_eq!(at(&below), Some(1), "the rim short of the apex");
+}
+
+/// **A point off the surface reads as its foot**, on a cylinder and on a
+/// cone: ten times the band's escalation off along the surface normal,
+/// every lattice point clear of the boundary reads the side its foot
+/// reads, and a point off a rim is on the boundary. The legs and the
+/// boundary pre-pass read the foot (`region::QueryFoot`), never the point.
+#[test]
+fn a_point_off_the_surface_reads_as_its_foot() {
+    let off = 10.0 * b().escalate();
+    let rect = cylinder(window(1, (0.0, 3.0), (0.0, 2.0), false));
+    let normal = |u: f64| Vec3::new(u.cos(), u.sin(), 0.0);
+    for d in [off, -off] {
+        reads(
+            &rect,
+            lattice().map(|(u, z)| {
+                let truth = both(
+                    within(u.rem_euclid(TAU), (0.0, 3.0), 0.01),
+                    within(z, (0.0, 2.0), 0.01),
+                );
+                (wall(u, z) + normal(u) * d, truth)
+            }),
+            "the window, off its wall",
+        );
+        assert_eq!(
+            rect.contains(wall(1.0, 2.0) + normal(1.0) * d, b()),
+            Ok(None),
+            "off the window's top rim by {d:e}: on the boundary"
+        );
+    }
+    let frustum = cone(
+        vec![
+            cone_rim(1, 1.0, (0.0, TAU), true),
+            cone_rim(2, 2.0, (0.0, TAU), false),
+        ],
+        2.0,
+    );
+    let (s, c) = ALPHA.sin_cos();
+    let cone_normal = |u: f64| Vec3::new(c * u.cos(), c * u.sin(), -s);
+    for d in [off, -off] {
+        reads(
+            &frustum,
+            cone_lattice().filter(|&(_, v)| v > 0.01).map(|(u, v)| {
+                (
+                    on_cone(u, v) + cone_normal(u) * d,
+                    within(v, (1.0, 2.0), 0.01),
+                )
+            }),
+            "the frustum, off its cone",
+        );
+        assert_eq!(
+            frustum.contains(on_cone(0.4, 2.0) + cone_normal(0.4) * d, b()),
+            Ok(None),
+            "off the frustum's rim by {d:e}: on the boundary"
+        );
+    }
+}
+
+/// `surface` on each of the frame pins' charts
+/// ([`geom::test_support::CHART_FRAMES`]).
+fn charts(surface: &geom::Surface<f64>) -> Vec<geom::Surface<f64>> {
+    geom::test_support::CHART_FRAMES
+        .iter()
+        .map(|&(t, flip)| geom::test_support::reframed(surface, t, flip))
+        .collect()
+}
+
+/// Every region of `regions` answers each of `queries` as the first does.
+fn agree(what: &str, regions: &[RuledFaceRegion<f64>], queries: &[(String, Point3<f64>)]) {
+    for (at, p) in queries {
+        let first = class(regions[0].contains(*p, b()));
+        for (k, region) in regions.iter().enumerate().skip(1) {
+            assert_eq!(
+                class(region.contains(*p, b())),
+                first,
+                "{what}: frame {k}, {at}"
+            );
+        }
+    }
+}
+
+/// The offsets about the band's zero a frame pin reads a query at.
+const ZERO_OFFSETS: [f64; 6] = [-5e-9, -1e-9, -5e-10, 5e-10, 1e-9, 5e-9];
+
+/// The cone window `us × vs` of [`on_cone`], charted on `surface`.
+fn cone_window(
+    surface: &geom::Surface<f64>,
+    us: (f64, f64),
+    vs: (f64, f64),
+) -> RuledFaceRegion<f64> {
+    let (charted, surface) = on(surface);
+    RuledFaceRegion {
+        charted,
+        surface,
+        sense: true,
+        outer: LoopKey::default(),
+        scale: 2.0,
+        edges: vec![
+            cone_rim(1, vs.0, us, true),
+            segment(2, on_cone(us.1, vs.0), on_cone(us.1, vs.1)),
+            cone_rim(3, vs.1, us, false),
+            segment(4, on_cone(us.0, vs.1), on_cone(us.0, vs.0)),
+        ],
+    }
+}
+
+/// The cone of [`on_cone`], apex at the origin about `+z`.
+fn cone_z() -> geom::Surface<f64> {
+    geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: z_axis(),
+        half_angle: ALPHA,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// **A ruled face's answer about the band's zero depends on no chart
+/// frame.** A window of a cylinder and one of a cone are each read on
+/// the six frames of [`geom::test_support::CHART_FRAMES`], the axis
+/// flipped on one: a flipped axis spans the same locus, and charts it
+/// the other way. Each window is read at 60 stations along each of its
+/// four edges, at `±5e-10`, `±1e-9` and `±5e-9` off it, 1440 queries a
+/// window, and every frame answers as the first. (The measurement on
+/// the row read 2400 queries a window, adding `±1e-8` and `±2e-8`: at
+/// `±1e-8` some still answer by frame:
+/// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`].)
+#[test]
+fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
+    let (us, zs) = ((0.4, 2.9), (0.0, 1.5));
+    let cylinder = geom::Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: z_axis(),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinders: Vec<_> = charts(&cylinder)
+        .iter()
+        .map(|surface| {
+            let (charted, surface) = on(surface);
+            RuledFaceRegion {
+                charted,
+                surface,
+                sense: true,
+                outer: LoopKey::default(),
+                scale: 1.0,
+                edges: window(1, us, zs, false),
+            }
+        })
+        .collect();
+    let mut queries = Vec::new();
+    for i in 0..60 {
+        let t = f64::from(i) / 60.0 + 0.004;
+        let (u, z) = (us.0 + t * (us.1 - us.0), zs.0 + t * (zs.1 - zs.0));
+        for o in ZERO_OFFSETS {
+            queries.push((format!("rim z0, u {u}, {o:e} off"), wall(u, zs.0 + o)));
+            queries.push((format!("rim z1, u {u}, {o:e} off"), wall(u, zs.1 + o)));
+            queries.push((format!("ruling u0, z {z}, {o:e} off"), wall(us.0 + o, z)));
+            queries.push((format!("ruling u1, z {z}, {o:e} off"), wall(us.1 + o, z)));
+        }
+    }
+    agree("cylinder window", &cylinders, &queries);
+
+    let vs = CONE_VS;
+    let cones: Vec<_> = charts(&cone_z())
+        .iter()
+        .map(|surface| cone_window(surface, us, vs))
+        .collect();
+    agree("cone window", &cones, &cone_edge_queries(us, &ZERO_OFFSETS));
+}
+
+/// **Within the band of a cone's apex plane, the query's foot is the
+/// chart's**: a point beside the apex plane is as near one nappe as the
+/// other, and the chart names the nappe there (the opening one, the
+/// axis's), so the boundary pre-pass reads the chart's foot rather than
+/// the closed form's, which takes the nappe by the raw sign of the
+/// height. A point at `ρ = 3` beside the cone window, at heights
+/// `−5e-10`, `−1e-10`, `0` and `1e-10`, reads inside the window on every
+/// frame that charts the cone about `+z`; the closed form had read the
+/// two below the plane on the mirror nappe, outside. On the frame that
+/// flips the axis, the chart names the other nappe, and the same points
+/// read outside: the reading within that band is the chart's, by its
+/// axis.
+#[test]
+fn a_query_beside_a_cones_apex_plane_reads_the_charts_nappe() {
+    let (us, vs) = ((0.4, 2.9), (1.0, 2.0));
+    for (k, surface) in charts(&cone_z()).iter().enumerate() {
+        let region = cone_window(surface, us, vs);
+        let opening = !geom::test_support::CHART_FRAMES[k].1;
+        for u in [0.5f64, 1.65, 2.8] {
+            for h in [-5e-10, -1e-10, 0.0, 1e-10] {
+                let p = Point3::new(3.0 * u.cos(), 3.0 * u.sin(), h);
+                assert_eq!(
+                    region.contains(p, b()),
+                    Ok(Some(opening)),
+                    "frame {k}, azimuth {u}, height {h:e}"
+                );
+            }
+        }
+    }
+}
+
+/// **A cone's circle legs start at the query's closed-form foot, so the
+/// crossing's place along them reads no chart frame in their start.**
+/// The cone window of [`a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame`],
+/// on its five frames, read at the band's escalation, `±1e-8` off each
+/// edge at 60 stations (480 queries). A query counts where any frame
+/// answers otherwise than the first. With the legs started at
+/// `surface.eval(uv)`, the chart's round trip of the foot, 141 do; started
+/// at the foot, 35. What is left is the rulings, whose origin is their
+/// locus, and the frame a curve carries in its section
+/// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
+#[test]
+fn a_cones_circle_legs_read_no_chart_frame_at_the_escalation() {
+    let us = (0.4, 2.9);
+    let cones: Vec<_> = charts(&cone_z())
+        .iter()
+        .map(|surface| cone_window(surface, us, CONE_VS))
+        .collect();
+    let by_frame = cone_edge_queries(us, &[-1e-8, 1e-8])
+        .into_iter()
+        .filter(|&(_, p)| {
+            let first = class(cones[0].contains(p, b()));
+            cones
+                .iter()
+                .skip(1)
+                .any(|r| class(r.contains(p, b())) != first)
+        })
+        .count();
+    assert_eq!(
+        by_frame, KEPT_CONE,
+        "queries a frame answers at the escalation"
+    );
+}
+
+/// The frame pins' cone window's slant range.
+const CONE_VS: (f64, f64) = (1.0, 2.0);
+
+/// Queries `o` off each of the cone window `us × CONE_VS`'s four edges,
+/// for each offset in `offsets`, at 60 stations along them, each named.
+fn cone_edge_queries(us: (f64, f64), offsets: &[f64]) -> Vec<(String, Point3<f64>)> {
+    let (vs, s) = (CONE_VS, ALPHA.sin());
+    let mut queries = Vec::new();
+    for i in 0..60 {
+        let t = f64::from(i) / 60.0 + 0.004;
+        let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
+        for &o in offsets {
+            queries.push((format!("rim v0, u {u}, {o:e} off"), on_cone(u, vs.0 + o)));
+            queries.push((format!("rim v1, u {u}, {o:e} off"), on_cone(u, vs.1 + o)));
+            let (g0, g1) = (
+                on_cone(us.0 + o / (v * s), v),
+                on_cone(us.1 + o / (v * s), v),
+            );
+            queries.push((format!("generator u0, v {v}, {o:e} off"), g0));
+            queries.push((format!("generator u1, v {v}, {o:e} off"), g1));
+        }
+    }
+    queries
+}
+
+/// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`]'s count.
+const KEPT_CONE: usize = 35;

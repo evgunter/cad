@@ -154,6 +154,8 @@ mod a_slit_tip_on_a_curved_face_reads_its_full_turn;
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
 #[path = "a_split_edge_joins_back_on_its_carrier.rs"]
 mod a_split_edge_joins_back_on_its_carrier;
+#[path = "a_split_operand_does_not_finish.rs"]
+mod a_split_operand_does_not_finish;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -432,8 +434,6 @@ mod two_rims_review_probes;
 mod two_tubes_in_the_zero_band;
 #[path = "two_wedge_ends_on_one_line.rs"]
 mod two_wedge_ends_on_one_line;
-#[path = "unjoined_operand_at_a_dual.rs"]
-mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
@@ -1301,6 +1301,9 @@ mod wire_loft_end_profile_lift;
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
 
+#[path = "a_knife_edge_fillet_builds_where_its_ball_is_defined.rs"]
+mod a_knife_edge_fillet_builds_where_its_ball_is_defined;
+
 #[path = "review_4831_probes.rs"]
 mod review_4831_probes;
 
@@ -1331,6 +1334,8 @@ mod pinch_faces_tessellate;
 mod rest_nested_strut;
 #[path = "rest_zip_admission.rs"]
 mod rest_zip_admission;
+#[path = "session_box_reach.rs"]
+mod session_box_reach;
 
 #[path = "a_grazed_rim_never_pinches.rs"]
 mod a_grazed_rim_never_pinches;
@@ -1383,10 +1388,14 @@ mod a_cone_apex_on_a_plane_through_it;
 mod a_cone_apex_on_an_edge;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
+#[path = "a_join_on_one_description_records_nothing.rs"]
+mod a_join_on_one_description_records_nothing;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
 #[path = "a_saddle_cut_by_its_tangent_plane.rs"]
 mod a_saddle_cut_by_its_tangent_plane;
+#[path = "a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read.rs"]
+mod a_tangent_seam_on_a_spline_wall_ends_as_its_incidence_read;
 #[path = "fallback_rows_review_head.rs"]
 mod fallback_rows_review_head;
 #[path = "review_5956_delta_needle.rs"]
@@ -1401,3 +1410,6 @@ mod review_6020_seam_probes;
 mod review_r1_roots_split;
 #[path = "the_football_revolves.rs"]
 mod the_football_revolves;
+
+#[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
+mod a_ball_with_no_room_at_its_rim_refuses_typed;

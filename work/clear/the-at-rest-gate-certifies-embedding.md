@@ -64,3 +64,53 @@ on the Klein loop). If that bites, it is a D5 question of its own.
 
 CARVE's `self-overlapping-spines-build-and-validate` is parked on this
 row.
+
+## Found by ONECOPY's branch-band fork (PR 6625), 2026-11-09
+
+The fork on `a-carriers-branches-within-the-band-of-each-other` (closed
+into this unit by PR 6618) put this gate as the home of "an edge or face
+that comes within the band of itself". Its designers and its lane read
+three defects in the engine this gate runs on. All were read from code
+and none was run.
+
+- **(a) A trimmed analytic face is never paired against itself for
+  distance.** `Sweep::run` discharges a trimmed analytic face against
+  itself by `by_kind` (`topo::clearance`, ~1580; `topo::injective`,
+  ~518–538). That proves the chart `S` one-to-one. It never pairs the
+  face's own non-touching cells for the distance test, which is
+  ERROR-DESIGN's condition (2). The chart decides touching
+  (`injective::rects_meet`), not the trimmed region in M. So two cells
+  either side of a sub-band slit or waist in one face are certified,
+  not measured. Exhibit: a plane cutting a ring torus in a spiric with
+  a sub-band waist; no door builds it today. Two fix shapes:
+  - pair a trimmed face's cells for distance anyway;
+  - or read each face's boundary cycles clear of themselves at the band
+    (tier 3's "simple and disjoint", at the band).
+- **(b) Cross-face touching is decided by edge key over the whole span,
+  not by the shared edge's parameter.** `injective::Local::of` keeps an
+  edge whenever a cell's ball is not `clear_of_arc` over the edge's
+  whole span (`topo::cell_region`). `Near::of` keeps a shared edge
+  wherever neither ball clears it, and SLIVER's `near_edges.contains`
+  then concedes a sub-band strip beside it. A cell beside one branch of
+  a hairpin edge is thereby "near" it through the other branch. This
+  flips no verdict found, but it is where one could be conceded. Fix:
+  `Near` keeps the parameter run of the edge that the ball is not clear
+  of.
+- **(c) Residue:** a same-surface spline split refuses `Uncertified`,
+  because the spline pcurve is unpresentable.
+
+**Named residual.** A closed-form section read on the wrong branch
+mid-op, before its result is gated. No instance is known. If one is
+shown, the remedy is a uniqueness certificate at the section's mint.
+
+**Pins for when this unit lands:**
+- a hairpin edge with a NURBS wall, on a fold whose speed stays above
+  `certify`'s span meter: a semicircle tip of radius below the band,
+  over a short knot span between legs on long ones. The cubic hairpin
+  of `geom`'s on-carrier rows does not serve here: its tip speed is
+  `1.5·h`, and `certify` refuses it `SpanMeterCollapsed`;
+- the torus waist of (a).
+
+**Optional ordering:** run embedding before the census's
+branch-resting reads (`census::curved::edge_tangent_at` and its
+callers).

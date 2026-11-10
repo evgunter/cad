@@ -144,10 +144,9 @@ pub const PROJECT_EPS_COSINE: f64 = 1e-12;
 /// The bracket midpoint of a scalar — the **structure read** both
 /// seeding sweeps and both Newton iterations run on.
 ///
-/// Written `lo + ½(hi − lo)` rather than `½(lo + hi)` so that a finite
-/// bracket cannot overflow at the representable extremes; at `f64`
-/// (where `lo` = `hi` = the value) it is then the identity on every
-/// finite input.
+/// It reads the bracket through [`geom_core::bracket_mid`],
+/// `lo + ½(hi − lo)`, and not through `½(lo + hi)`; at `f64` (where `lo`
+/// = `hi` = the value) it is then the identity on every finite input.
 ///
 /// **It is not the identity on a non-finite one, and that is
 /// load-bearing.** At `x = ±∞` the form is `∞ + 0.5·(∞ − ∞)` = NaN, so
@@ -184,6 +183,5 @@ pub const PROJECT_EPS_COSINE: f64 = 1e-12;
 /// `geom/tests/dual_foot_tangent.rs` pins the reported tangents and goes
 /// red the day #874 moves them.
 pub(crate) fn mid<T: Bounds>(v: T) -> f64 {
-    let (lo, hi) = (v.lo(), v.hi());
-    lo + 0.5 * (hi - lo)
+    geom_core::bracket_mid((v.lo(), v.hi()))
 }

@@ -15,7 +15,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use viewer::matetool::{MateChoice, MateTool};
-use viewer::session::{BundleVerdict, DocSession, SessionOp};
+use viewer::session::{DocSession, SessionOp};
 
 fn authored(
     session: &DocSession,
@@ -177,12 +177,11 @@ fn r2_adding_a_rest_keeps_a_turn_about_its_normal_reading_a_variable() {
     );
 }
 
-/// Claim 6: the verdict on a draft of two rests is what Apply does.
-/// The PR's own row admits either `Refused` or `Faults`; this row
-/// applies the draft and asserts the outcome matches the verdict's
-/// class — a refused verdict refuses, a fault verdict lands.
+/// Claim 6: the door's verdict on a draft of two rests is what the op
+/// does: a refused verdict refuses, nothing recorded, and a passing one
+/// lands.
 #[test]
-fn r2_the_verdict_on_two_rests_is_what_apply_does() {
+fn r2_the_door_on_two_rests_is_what_the_op_does() {
     let tol = Tol::witness();
     let bench = asm::bench("r2-verdict", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -192,32 +191,28 @@ fn r2_the_verdict_on_two_rests_is_what_apply_does() {
     two.pick(session.doc(), post_top);
     two.pick(session.doc(), shelf_bottom);
     let twice = common::proposed(&session, &two, rest()).expect("two rests propose");
-    let verdict = session.bundle_verdict(&twice.op());
+    let verdict = session.bundle_door(&twice.op());
     let before = session.committed_doc().clone();
     let states = session.history().len();
     let outcome = session.perform(twice.op());
     std::fs::remove_dir_all(&bench.dir).expect("removable");
     match verdict {
-        BundleVerdict::Refused(said) => {
+        Err(said) => {
             let got = outcome.refusal.as_ref().map(ToString::to_string);
             assert_eq!(got, Some(said.to_string()), "the same refusal");
             assert_eq!(session.history().len(), states, "nothing recorded");
             assert!(session.committed_doc().bit_eq(&before), "nothing changed");
         }
-        other => {
-            assert!(
-                outcome.refusal.is_none(),
-                "{other:?} but {:?}",
-                outcome.refusal
-            );
+        Ok(()) => {
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         }
     }
 }
 
-/// Claim 1: the Create door's Apply is one undo step that restores the
-/// exact prior document.
+/// Claim 1: Place is one undo step that restores the exact prior
+/// document.
 #[test]
-fn r2_the_create_doors_apply_undoes_to_the_exact_prior_document() {
+fn r2_place_undoes_to_the_exact_prior_document() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(
         pncad::document::Doc::empty_derived("r2-create-undo", tol),
@@ -227,10 +222,7 @@ fn r2_the_create_doors_apply_undoes_to_the_exact_prior_document() {
     session.pump();
     let before = session.committed_doc().clone();
     let states = session.history().len();
-    let tool = MateTool::create(pncad::document::Operand::Node(body));
-    let (doc, ev) = session.landed_pair().expect("landed");
-    let proposal = tool.proposal(doc, ev, tol).expect("no mate proposes");
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(SessionOp::Place { body: body.into() });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert_eq!(session.history().len(), states + 1, "one history state");
@@ -302,11 +294,11 @@ fn r2_turning_a_loaded_rests_sense_keeps_a_slide_reading_a_variable() {
     assert_eq!(row.by.to_string(), px, "{:?}", flushed.values);
 }
 
-/// Claim 8: once the Create door has placed a body, a pick on what the
-/// picture shows there opens that copy's Edit door, never a second
-/// Create.
+/// Claim 8: once Place has placed a body, a pick on what the picture
+/// shows there opens that copy's placement, never a second Place: the
+/// copy is drawn in the body's place.
 #[test]
-fn r2_a_body_seen_through_its_copy_opens_the_copys_edit_door() {
+fn r2_a_pick_where_a_placed_body_stood_edits_its_copy() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(
         pncad::document::Doc::empty_derived("r2-seen-through", tol),
@@ -314,10 +306,7 @@ fn r2_a_body_seen_through_its_copy_opens_the_copys_edit_door() {
     );
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
-    let tool = MateTool::create(pncad::document::Operand::Node(body));
-    let (doc, ev) = session.landed_pair().expect("landed");
-    let proposal = tool.proposal(doc, ev, tol).expect("no mate proposes");
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(SessionOp::Place { body: body.into() });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let doc = session.committed_doc();
@@ -337,19 +326,20 @@ fn r2_a_body_seen_through_its_copy_opens_the_copys_edit_door() {
     let event = fresh.pick(session.doc(), face.clone());
     assert!(event.is_none(), "{event:?}");
     assert!(
-        matches!(fresh.door(), Some(viewer::matetool::PlaceDoor::Edit { placement, .. }) if *placement == copy),
+        fresh.door().is_some_and(|door| door.placement == copy) && fresh.take_place().is_none(),
         "picked {:?}; door {:?}",
         face.node,
         fresh.door()
     );
 }
 
-/// Claims 1, 6 and 8 end to end on two bodies: the Create door on an
-/// unplaced box with a flush plane mate onto a second box's top, its
-/// verdict, its Apply, and then the copy opened again through a pick —
-/// the Edit door on it, whose untouched draft stands and writes nothing.
+/// Claims 1, 6 and 8 end to end on two bodies: Place on an unplaced
+/// box, a flush plane mate onto a second box's top added in the editor
+/// with the copy moved into that box's space, the door's verdict, the
+/// change landing, and then the copy opened again through a pick — its
+/// placement, whose untouched draft stands and writes nothing.
 #[test]
-fn r2_a_created_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
+fn r2_a_placed_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(
         pncad::document::Doc::empty_derived("r2-create-mate", tol),
@@ -360,35 +350,37 @@ fn r2_a_created_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     session.pump();
     let index = common::index_of(&session, asm::delta());
     let top_small = common::displayed_face_at(&session, &index, &common::down_at(0.0, 0.0));
-    let top_wide = common::displayed_face_at(&session, &index, &common::down_at(0.015, 0.02));
     assert_eq!(top_small.node, small, "premise: the small box's top");
     let mut tool = MateTool::new();
     assert!(tool.pick(session.doc(), top_small).is_none());
+    let place = tool
+        .take_place()
+        .expect("a pick on the body asks for Place");
+    let copy = common::placed_by(&mut session, place);
+    tool.placed(session.committed_doc(), copy);
+    let index = common::index_of(&session, asm::delta());
+    let top_copy = common::displayed_face_at(&session, &index, &common::down_at(0.0, 0.0));
+    let top_wide = common::displayed_face_at(&session, &index, &common::down_at(0.015, 0.02));
+    assert_eq!(
+        top_copy.node, copy,
+        "premise: the copy is drawn in the body's place"
+    );
+    assert!(tool.pick(session.doc(), top_copy).is_none());
     assert!(tool.pick(session.doc(), top_wide).is_none());
-    assert!(matches!(
-        tool.door(),
-        Some(viewer::matetool::PlaceDoor::Create { .. })
-    ));
+    tool.set_into_target_space(true);
     let flush = MateChoice {
         kind: VarKind::Plane,
         flip: false,
         values: Vec::new(),
     };
     let proposal = common::proposed(&session, &tool, flush).expect("a flush proposes");
-    let verdict = session.bundle_verdict(&proposal.op());
-    eprintln!("create verdict {verdict:?}; values {:?}", proposal.values);
-    assert!(matches!(verdict, BundleVerdict::Stands(_)), "{verdict:?}");
+    let verdict = session.bundle_door(&proposal.op_into_target_space());
+    assert!(verdict.is_ok(), "{verdict:?}");
     let states = session.history().len();
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     assert_eq!(session.history().len(), states + 1, "one history state");
-    let doc = session.committed_doc();
-    let copy = doc
-        .placements()
-        .into_iter()
-        .find(|&p| matches!(doc.node(p), Some(Node::Place { source, .. }) if Some(source.read) == doc.outputs(small).first().copied()))
-        .expect("the small box's copy");
     // The flush lays the small box's top level with the wide one's, so
     // its underside, at z = -0.005, is what an up ray meets first.
     let index = common::index_of(&session, asm::delta());
@@ -396,8 +388,8 @@ fn r2_a_created_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     let mut edit = MateTool::new();
     assert!(edit.pick(session.doc(), again.clone()).is_none());
     assert!(
-        matches!(edit.door(), Some(viewer::matetool::PlaceDoor::Edit { placement, .. }) if *placement == copy),
-        "the pick ({:?}) opens the copy's Edit door: {:?}",
+        edit.door().is_some_and(|door| door.placement == copy),
+        "the pick ({:?}) opens the copy's placement: {:?}",
         again.node,
         edit.door()
     );
@@ -408,8 +400,8 @@ fn r2_a_created_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     let untouched = edit
         .proposal(doc, ev, tol)
         .expect("the loaded bundle proposes");
-    let verdict = session.bundle_verdict(&untouched.op());
-    assert!(matches!(verdict, BundleVerdict::Stands(_)), "{verdict:?}");
+    let verdict = session.bundle_door(&untouched.op());
+    assert!(verdict.is_ok(), "{verdict:?}");
     let states = session.history().len();
     let outcome = session.perform(untouched.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -423,9 +415,8 @@ fn r2_a_created_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
 /// The panel's value rows (`pane/create.rs`, `mate_tool_ui`) are each a
 /// field showing its formula as the person reads it
 /// (`matetool::value_text`). This row reads that text on the two drafts
-/// a person meets first: the Create door's (a body where it stands) and
-/// the Edit door's over a just-committed rest. No row spells a variable
-/// as its raw id.
+/// a person meets on a just-committed rest. No row spells a variable as
+/// its raw id.
 #[test]
 fn r2_the_panels_value_rows_are_editable_numbers() {
     let tol = Tol::witness();
