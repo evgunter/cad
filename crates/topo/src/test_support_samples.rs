@@ -75,6 +75,7 @@ fn diags() -> [Indeterminate; 3] {
     let with = |margin| Indeterminate {
         margin,
         band: band(),
+        // UNDECIDED-NAME: the in-band cause diags() hands every ValidationError sample
         predicate: Some("side_of_plane"),
         terminal_sliver: false,
     };
@@ -245,7 +246,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v
 }
 
-fn uncrossable() -> crate::splitting::Uncrossable {
+pub(crate) fn uncrossable() -> crate::splitting::Uncrossable {
     crate::splitting::Uncrossable {
         r#loop: LoopKey::default(),
         edge: EdgeKey::default(),
@@ -855,7 +856,10 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             what: "a rational NURBS surface",
         },
         PcurveCertifyError::ChartRow {
-            source: geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+            source: geom_core::spline::Built::new(geom_core::spline::SplineError::DomainInvalid {
+                lo: 1.0,
+                hi: 0.0,
+            }),
         },
         PcurveCertifyError::FittedCertificate {
             limb: Some(geom_brep::SsiLimb::OnLocus),
@@ -1067,10 +1071,9 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             source: diag().with_predicate(Meter::NormalFloor.predicate()),
         }),
         OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { have: 2, need: 4 }),
-        OffsetFitError::Structure(geom_core::spline::SplineError::DomainInvalid {
-            lo: 1.0,
-            hi: 0.0,
-        }),
+        OffsetFitError::Structure(geom_core::spline::Built::new(
+            geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+        )),
         OffsetFitError::InvalidRequest {
             d: 0.0,
             tolerance: 0.0,

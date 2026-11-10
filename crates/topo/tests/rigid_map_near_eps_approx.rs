@@ -291,14 +291,17 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
         let (body, key) = body_with(face.clone());
         let (mut certified, mut refused) = (0_usize, 0_usize);
         for (name, map) in rotations() {
-            let moved =
-                topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
-                    .unwrap_or_else(|e| {
-                        panic!(
-                            "d = {d}, {name}: a sound face must move: {e_at}",
-                            e_at = e.render(geom_brep::recourse::Reading::Build)
-                        )
-                    });
+            // The map the move runs is the admitted one, which the door
+            // re-mints (`RigidMotion::check_rigid`): the image is read
+            // through it.
+            let motion = geom_core::test_support::rigid(&map, tol);
+            let map = motion.to_affine();
+            let moved = topo::transform_rigid(&body, &motion, tol).unwrap_or_else(|e| {
+                panic!(
+                    "d = {d}, {name}: a sound face must move: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
             let after = approx_on(&moved, key);
             let (description, fit) = image(&face, &map);
             let geom::SurfaceDescription::Offset {

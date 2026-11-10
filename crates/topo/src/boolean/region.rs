@@ -69,6 +69,23 @@ pub(crate) enum RegionRefusal {
 }
 
 impl RegionRefusal {
+    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]): its
+    /// image's in the point-in-solid door ([`Self::of_face`],
+    /// [`PointInSolidError::refusal`]), derived, so the two cannot part.
+    /// An escalation by its margin and a walk no path of which settled in
+    /// band (`[failure.taxonomy]` row 1(b)); an edge whose boundary
+    /// reading ran out of depth or budget, a limit, as the door's
+    /// `EdgeCarrierUnsupported` is (row 2, a bound on the work); and an
+    /// arc wound past a turn, a corrupt face, an abort (row 4). The face
+    /// the image names does not move its standing.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for [`Self::WoundPastPeriod`].
+    fn refusal(&self) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        self.of_face(FaceKey::default()).refusal()
+    }
+
     /// The refusal as the point-in-solid door states it, for a point on
     /// `face`'s carrier: a region walk no path of which settled is that
     /// face's loop walk's, as a planar face's is
@@ -183,12 +200,14 @@ pub(crate) fn side_at_closest<T: Decide>(
 pub(crate) type Landing<T> = (Point3<T>, T, bool);
 
 /// **A query read onto its surface**: its chart coordinates and its point
-/// on the surface. A leg or a corner is built from the coordinates and
-/// from nothing else, so every leg lies on the surface wherever the query
-/// lies off it. The boundary pre-pass reads the point
-/// ([`QueryFoot::read`]): off the chart's singular readings, the foot read
-/// in closed form on no chart, which the legs' start at the coordinates
-/// matches only to rounding; on them, the chart's own point.
+/// on the surface. A leg's locus is built from the coordinates (C5), so
+/// every leg lies on the surface wherever the query lies off it; a circle
+/// leg's parametrisation starts at the point
+/// ([`geom_brep::curve_pair::on_surface::SurfaceCurve::starting_at`]), and
+/// a ruling, whose origin is its locus, at the coordinates. The boundary
+/// pre-pass reads the point ([`QueryFoot::read`]): off the chart's singular
+/// readings, the foot read in closed form on no chart; on them, the
+/// chart's own point.
 #[derive(Clone, Copy, Debug)]
 pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
     uv: Point2<T>,
@@ -574,16 +593,24 @@ pub(crate) trait Region<T: Decide> {
     /// path is no measure of `p`'s distance from the edge it crosses, so
     /// the paths never answer it.
     ///
+    /// Any edge holding `p` answers, whatever an earlier edge read
+    /// ([`geom_core::ladder::climb`], [`geom_core::ladder::Answering::Any`]):
+    /// an edge read in band is kept by its standing
+    /// ([`RegionRefusal::refusal`]), refusing only where no edge holds `p`.
+    ///
     /// # Errors
     ///
-    /// The first edge's refusal ([`Region::on_edge`]).
+    /// The kept refusal the ladder ranks first, or an edge's abort.
     fn on_boundary(&self, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        for edge in self.edges() {
-            if self.on_edge(edge, p, band)? {
-                return Ok(true);
-            }
+        use geom_core::ladder::{Answering, Climb, Rung, climb};
+        let on = climb(Answering::Any, self.edges(), |edge| {
+            Rung::holds(self.on_edge(edge, p, band), (), RegionRefusal::refusal)
+        });
+        match on {
+            Climb::Answered { answer, .. } => answer.map(|()| true),
+            Climb::Passed => Ok(false),
+            Climb::Undecided(e) => Err(e),
         }
-        Ok(false)
     }
 }
 
@@ -1313,5 +1340,131 @@ mod tests {
             ),
             "a whole turn"
         );
+    }
+
+    /// A region whose edges read as `read` says, by the edge's cycle:
+    /// the production [`Region::on_boundary`] over stubbed edge readings.
+    struct Stubbed {
+        edges: Vec<RegionEdge<f64>>,
+        read: fn(usize) -> Result<bool, RegionRefusal>,
+    }
+
+    impl Region<f64> for Stubbed {
+        fn edges(&self) -> &[RegionEdge<f64>] {
+            &self.edges
+        }
+        fn edges_mut(&mut self) -> &mut Vec<RegionEdge<f64>> {
+            &mut self.edges
+        }
+        fn outer(&self) -> LoopKey {
+            LoopKey::default()
+        }
+        fn on_edge(
+            &self,
+            edge: &RegionEdge<f64>,
+            _: Point3<f64>,
+            _: Band,
+        ) -> Result<bool, RegionRefusal> {
+            (self.read)(edge.cycle)
+        }
+    }
+
+    fn in_band() -> Indeterminate {
+        Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: b(),
+            // UNDECIDED-NAME: a fixture diag; the pin reads its standing, not the name
+            predicate: Some("test_region_in_band"),
+            terminal_sliver: false,
+        }
+    }
+
+    /// **An edge holding the point answers past an edge in band**
+    /// ([`Region::on_boundary`], `Any`), and an abort stops the climb.
+    /// Two edges, read in order: the first in band, the second holding
+    /// `p`, answers `true`; a first-refusal loop refused with the first's
+    /// escalation. A wound-past-a-period edge ahead aborts whatever
+    /// follows (`RegionRefusal::refusal`'s row 4), and two edges in band
+    /// refuse with the escalation.
+    #[test]
+    fn an_edge_holding_the_point_answers_past_one_in_band() {
+        let two = |read| Stubbed {
+            edges: [0, 1]
+                .map(|cycle| RegionEdge {
+                    cycle,
+                    ..x_segment(0.0, 1.0)
+                })
+                .into(),
+            read,
+        };
+        let p = Point3::new(0.5, 0.0, 0.0);
+        let kept_then_on: fn(usize) -> _ = |i| {
+            if i == 0 {
+                Err(RegionRefusal::Escalated(in_band()))
+            } else {
+                Ok(true)
+            }
+        };
+        assert_eq!(two(kept_then_on).on_boundary(p, b()), Ok(true));
+        let abort_then_on: fn(usize) -> _ = |i| {
+            if i == 0 {
+                Err(RegionRefusal::WoundPastPeriod)
+            } else {
+                Ok(true)
+            }
+        };
+        assert_eq!(
+            two(abort_then_on).on_boundary(p, b()),
+            Err(RegionRefusal::WoundPastPeriod)
+        );
+        let both_kept: fn(usize) -> _ = |_| Err(RegionRefusal::Escalated(in_band()));
+        assert!(matches!(
+            two(both_kept).on_boundary(p, b()),
+            Err(RegionRefusal::Escalated(_))
+        ));
+    }
+}
+
+/// [`RegionRefusal::refusal`] as each variant's image in the point-in-solid
+/// door stands (QML T4).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod standing_rows {
+    use geom_core::ladder::{Aborts, Refusal};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::RegionRefusal;
+    use crate::entity::LoopKey;
+
+    /// **Every variant stands as its point-in-solid image does**
+    /// ([`RegionRefusal::refusal`]), the expected standing a `match` with
+    /// no wildcard: changing a standing, or adding a variant without one
+    /// here, goes red.
+    #[test]
+    fn a_region_refusal_stands_as_its_point_in_loop_image() {
+        let diag = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            // UNDECIDED-NAME: a fixture diag; the pin reads its standing, not the name
+            predicate: Some("test_region_standing"),
+            terminal_sliver: false,
+        };
+        let every = [
+            RegionRefusal::Escalated(diag),
+            RegionRefusal::RayExhausted {
+                outer: LoopKey::default(),
+            },
+            RegionRefusal::WoundPastPeriod,
+            RegionRefusal::Unreadable(crate::test_support_samples::uncrossable()),
+        ];
+        for e in every {
+            let want = match e {
+                RegionRefusal::Escalated(diag) => Ok(Refusal::Margin(diag)),
+                RegionRefusal::RayExhausted { .. } => Ok(Refusal::InBand),
+                RegionRefusal::Unreadable(_) => Ok(Refusal::Limit),
+                RegionRefusal::WoundPastPeriod => Err(Aborts),
+            };
+            assert_eq!(e.refusal(), want, "{e:?}");
+        }
     }
 }

@@ -357,8 +357,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         // line the two moved planes meet in.
         let (carrier, t0, t1) = if pa.old_key == pb.old_key {
             (
-                crate::replace_face::translate_curve(&old_carrier, pa.delta)
-                    .map_err(|error| ReplaceFaceError::Structure { edge, error })?,
+                crate::replace_face::translate_curve(&old_carrier, pa.delta),
                 t0_old,
                 t1_old,
             )

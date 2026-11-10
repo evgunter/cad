@@ -188,15 +188,12 @@ fn bucket_entries(
     .unwrap();
     let (mut to_other, mut edges, mut dups) = (vec![], vec![], vec![]);
     for e in &entries {
-        match e.kind {
-            topo::SectorEntryKind::WideBisector => dups.push(e.class),
-            topo::SectorEntryKind::Edge => {
-                if body.half_edge_end(e.he).unwrap() == other {
-                    to_other.push(e.class);
-                } else {
-                    edges.push(e.class);
-                }
-            }
+        if !e.real {
+            dups.push(e.class);
+        } else if body.half_edge_end(e.he).unwrap() == other {
+            to_other.push(e.class);
+        } else {
+            edges.push(e.class);
         }
     }
     (to_other, edges, dups)
@@ -417,11 +414,7 @@ fn cube_coplanar_top_both_senses() {
         )
         .unwrap();
         assert_eq!(entries.len(), 3);
-        assert!(
-            entries
-                .iter()
-                .all(|e| e.kind == topo::SectorEntryKind::Edge)
-        );
+        assert!(entries.iter().all(|e| e.real));
         for e in &entries {
             let end_side = sides[operand.half_edge_end(e.he).unwrap()];
             if end_side == PlaneSide::On {

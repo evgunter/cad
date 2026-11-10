@@ -1963,7 +1963,8 @@ fn beyond(
         band,
     );
     let origin = match &carrier {
-        Carrier::Plane { origin, .. } | Carrier::Cylinder { origin, .. } => *origin,
+        Carrier::Plane { origin, .. } => *origin,
+        Carrier::Cylinder { axis, .. } => axis.origin,
         _ => return Err("the containment check has no lane for this carrier".to_owned()),
     };
     // The region is sized to hold every face of the overlap: each face's
@@ -1996,13 +1997,8 @@ fn beyond(
         Carrier::Plane {
             origin, outward, ..
         } => (origin, outward, vec![rectangle(span)], span),
-        Carrier::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => {
-            let base = origin - axis * span;
+        Carrier::Cylinder { axis, radius, .. } => {
+            let base = axis.origin - axis.dir * span;
             // A concave face (a bore) has its material outside the
             // carrier, so the region past it is the solid cylinder; a
             // convex one (a pin) the tube around it.
@@ -2011,7 +2007,7 @@ fn beyond(
             } else {
                 vec![circle(radius)]
             };
-            (base, axis, loops, 2.0 * span)
+            (base, axis.dir, loops, 2.0 * span)
         }
         _ => unreachable!("the carrier was matched above"),
     };

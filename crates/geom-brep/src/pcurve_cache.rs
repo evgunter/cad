@@ -179,7 +179,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
+use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError, constant_weight};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
     Vec3, rounding_charge,
@@ -1048,6 +1048,22 @@ impl<T: Real> Pcurve<T> {
                 b: pb.y,
                 l: pl.y,
             },
+        }
+    }
+
+    /// **Which door certifies this kind of image**: the one spelling of
+    /// that routing, for every pass that certifies a row. The match has
+    /// no wildcard, so a new kind states its door before it compiles.
+    #[must_use]
+    pub fn certifying_door(&self) -> CertifyingDoor {
+        match self {
+            Pcurve::Harmonic { .. }
+            | Pcurve::FocalSection(_)
+            | Pcurve::Spiric { .. }
+            | Pcurve::IsoLine { .. }
+            | Pcurve::IsoArc { .. } => CertifyingDoor::ClosedForm,
+            Pcurve::Projected(_) => CertifyingDoor::Either,
+            Pcurve::Fitted(_) | Pcurve::General(_) => CertifyingDoor::Fitted,
         }
     }
 
@@ -2042,8 +2058,8 @@ pub enum PcurveCertifyError {
     /// with the spline layer's own refusal rather than swallowed
     /// (D4 ¶2).
     ChartRow {
-        /// The spline layer's typed refusal.
-        source: SplineError,
+        /// The spline layer's typed refusal of the row read.
+        source: Built<SplineError>,
     },
     /// A certificate limb of the fitted lane refused definitely: which
     /// limb, and what the classifier saw of its value
@@ -2279,8 +2295,7 @@ impl PcurveCertifyError {
             Self::ChartRow { source } => write!(
                 f,
                 "pcurve certification: the chart's control net, or the row or column read \
-                 from it, is not valid spline structure — {}",
-                source.payload()
+                 from it, is not valid spline structure — {source}"
             ),
             Self::FittedCertificate {
                 limb,
@@ -4435,6 +4450,66 @@ pub struct PcurveCache<T: Real> {
     param_start: T,
     param_end: T,
     certificate: PcurveCertificate<T>,
+}
+
+/// **The door that certifies a kind of image** ([`Pcurve::certifying_door`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CertifyingDoor {
+    /// The closed-form door, [`PcurveCache::certify`], at every scalar.
+    ClosedForm,
+    /// The fitted door alone: the closed-form door refuses the image.
+    Fitted,
+    /// The fitted door where a pass holds it, the closed-form door
+    /// otherwise: a projected circle row certifies there at every scalar,
+    /// and a projected net's refuses there for want of the fitted door.
+    Either,
+}
+
+/// **A chart image as its derivation leaves it**: the image over its
+/// carrier interval, or, where the derivation's lane choice already read
+/// the image's certificate, that certificate, which holds the image and
+/// its interval. A reader that certifies the image takes the certificate
+/// rather than asking the same question again, and cannot see an image
+/// beside a certificate that disagrees with it: there is no second copy.
+#[derive(Clone, Debug)]
+pub enum ChartImage<T: Real> {
+    /// The image over the carrier interval `(t0, t1)`, not yet certified.
+    Image {
+        /// The chart image.
+        pcurve: Pcurve<T>,
+        /// The carrier interval's start.
+        t0: T,
+        /// The carrier interval's end.
+        t1: T,
+    },
+    /// The image with the certificate its lane choice read.
+    Certified(PcurveCache<T>),
+}
+
+impl<T: Real> ChartImage<T> {
+    /// The chart image.
+    pub fn pcurve(&self) -> &Pcurve<T> {
+        match self {
+            Self::Image { pcurve, .. } => pcurve,
+            Self::Certified(cache) => cache.pcurve(),
+        }
+    }
+
+    /// The carrier interval the image is over.
+    pub fn window(&self) -> (T, T) {
+        match self {
+            Self::Image { t0, t1, .. } => (*t0, *t1),
+            Self::Certified(cache) => cache.params(),
+        }
+    }
+
+    /// The chart image, its certificate dropped.
+    pub fn into_pcurve(self) -> Pcurve<T> {
+        match self {
+            Self::Image { pcurve, .. } => pcurve,
+            Self::Certified(cache) => cache.pcurve,
+        }
+    }
 }
 
 impl<T: Real> PcurveCache<T> {
@@ -11779,6 +11854,13 @@ mod incidence {
             .map_or((carrier, surface, T::zero(), T::zero()), |(c, s, e, m)| {
                 (c, s, *e, *m)
             });
+        // The chart's incidence row per surface, spelled where the census
+        // reads it.
+        const SPHERE_INCIDENT: &str = "pcurve_sphere_chart_incident";
+        const TORUS_INCIDENT: &str = "pcurve_torus_chart_incident";
+        const SPINDLE_INCIDENT: &str = "pcurve_spindle_chart_incident";
+        const CYLINDER_INCIDENT: &str = "pcurve_cylinder_chart_incident";
+        const PLANE_INCIDENT: &str = "pcurve_plane_chart_incident";
         let (name, off_why) = match (carrier, surface) {
             (Curve3::Circle(..) | Curve3::Ellipse(..), Surface::Cone { .. }) => {
                 let turn = if place.edge_only {
@@ -11794,23 +11876,22 @@ mod incidence {
                     .map(tested);
             }
             (_, Surface::Sphere { .. }) => (
-                "pcurve_sphere_chart_incident",
+                SPHERE_INCIDENT,
                 "the carrier's points are not at the sphere's radius from its centre",
             ),
-            (_, Surface::Torus { .. }) => ("pcurve_torus_chart_incident", super::TORUS_OFF),
+            (_, Surface::Torus { .. }) => (TORUS_INCIDENT, super::TORUS_OFF),
             (_, Surface::Spindle { .. }) => (
-                "pcurve_spindle_chart_incident",
+                SPINDLE_INCIDENT,
                 "the carrier's points are not on the spindle sheet's revolved circle (their \
                  distance from it at a sample is past the band)",
             ),
             (_, Surface::Cylinder { .. }) => (
-                "pcurve_cylinder_chart_incident",
+                CYLINDER_INCIDENT,
                 "the carrier's points are not at the cylinder's radius from its axis",
             ),
-            (_, Surface::Plane { .. }) => (
-                "pcurve_plane_chart_incident",
-                "the carrier's points are not on the plane",
-            ),
+            (_, Surface::Plane { .. }) => {
+                (PLANE_INCIDENT, "the carrier's points are not on the plane")
+            }
             _ => unreachable!(
                 "incident: a spline carrier on an analytic chart takes its own test \
                  (`net_incidence`)"
@@ -14119,7 +14200,7 @@ mod tests {
             margin: geom_core::MarginDiag::value(1e-7),
         };
         let row = PcurveCertifyError::ChartRow {
-            source: SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+            source: Built::new(SplineError::DomainInvalid { lo: 1.0, hi: 0.0 }),
         };
         for at in [Reading::Build, Reading::AtRest] {
             assert_eq!(band.ending(at), BAND_TOLERANCE_RECOURSE, "{at:?}");
