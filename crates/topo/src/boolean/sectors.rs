@@ -4950,19 +4950,21 @@ mod spline_departure_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_refusal_rows {
     use super::*;
-    use crate::sector_face::tests::{planar_chart, sector_of, split_at_half};
+    use crate::sector_face::tests::{planar_chart, sector_of, split_at, split_at_half};
     use geom_core::Tol;
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// A vertex on a crease of a spline face refuses
-    /// `NormalAtSplineCrease`, naming the operand, the face and the band.
+    /// A vertex on a crease of a spline face whose sector's side the band
+    /// does not read (split within the band of the chart's knot)
+    /// refuses `NormalAtSplineCrease`, naming the operand, the face and
+    /// the band.
     #[test]
     fn a_crease_vertex_refuses_normal_at_spline_crease() {
         let creased = planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]);
-        let (body, top, mid) = split_at_half(creased);
+        let (body, top, mid) = split_at(creased, 0.5 + 3.0 * band().zero());
         let got = sector_face(&body, Operand::B, mid, sector_of(&body, mid, top), band());
         assert!(
             matches!(
