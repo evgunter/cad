@@ -273,11 +273,11 @@ fn review_skin_on_refuses_unclamped_params() {
     };
     assert!(matches!(
         skin_on(&compat, 2, &[0.0, 0.5, 2.0]),
-        Err(SkinError::Fit(_))
+        Err(SkinError::ParametersInvalid { .. })
     ));
     assert!(matches!(
         skin_on(&compat, 2, &[0.1, 0.5, 1.0]),
-        Err(SkinError::Fit(_))
+        Err(SkinError::ParametersInvalid { .. })
     ));
 }
 
@@ -489,6 +489,39 @@ fn review_open_chains_are_unrepresentable_and_close_by_construction() {
     let g = sweep::skin::loft_geometry(&sections, &places, 1, &params, Tol::witness())
         .expect("the closed-by-construction pair skins to a tube");
     assert_eq!(g.walls[0].len(), 4, "four vertices, four walls — closed");
+}
+
+/// **The loft door checks the caller's parameterization as the skin door
+/// does**: parameters that misorder, unclamp or miscount the sections
+/// refuse `ParametersInvalid`, the caller's own recourse, rather than
+/// reaching the fit over parameters it would read as the kernel's.
+#[test]
+fn the_loft_door_refuses_a_bad_caller_parameterization() {
+    let quad: sweep::Section = vec![profile::ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ])];
+    let places = [
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
+    ];
+    let sections = [quad.clone(), quad.clone(), quad];
+    for params in [vec![0.0, 0.7, 0.3], vec![0.1, 0.5, 1.0], vec![0.0, 1.0]] {
+        let refused = sweep::skin::loft_geometry(&sections, &places, 1, &params, Tol::witness());
+        let Err(e @ SkinError::ParametersInvalid { .. }) = refused else {
+            panic!(
+                "{params:?}: refused as the caller's parameterization: {:?}",
+                refused.map(|_| ())
+            );
+        };
+        assert!(
+            e.to_string().contains("Recourse: supply that"),
+            "{params:?}: the caller's recourse: {e}"
+        );
+    }
 }
 
 /// **F5 evidence**: ragged column rows get a SHAPED refusal naming the

@@ -81,6 +81,7 @@
 use core::num::NonZeroUsize;
 use geom::{Curve3, NurbsCurve3};
 
+use geom_core::spline::Built;
 use geom_core::{
     Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SplineError, Vec3,
 };
@@ -227,7 +228,7 @@ pub enum ConicArcError {
     /// (an infinite or unreadable `cosh` of its half span).
     SpansUnsettled,
     /// The NURBS constructor refused the minted net.
-    Carrier(SplineError),
+    Carrier(Built<SplineError>),
 }
 
 impl core::fmt::Display for ConicArcError {
@@ -256,7 +257,13 @@ impl core::fmt::Display for ConicArcError {
                 "the open conic's window is too long for its spans' weight to be read: its \
                  half span's cosh is not finite"
             ),
-            Self::Carrier(e) => write!(f, "the open conic's arc refused as a NURBS curve: {e}"),
+            // The net is minted from a window whose weights were read
+            // finite and bounded, so its structure refusing is the kernel's.
+            Self::Carrier(e) => write!(
+                f,
+                "the open conic's arc refused as a NURBS curve: {e}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
         }
     }
 }
@@ -540,8 +547,10 @@ impl<T: Decide> ConicBranch<T> {
         {
             return Err(ConicArcError::NotFinite);
         }
-        let knots = geom_core::spline::Knots::new(runs, 2).map_err(ConicArcError::Carrier)?;
-        let curve = NurbsCurve3::new(knots, control, weights).map_err(ConicArcError::Carrier)?;
+        let knots = geom_core::spline::Knots::new(runs, 2)
+            .map_err(|e| ConicArcError::Carrier(Built::new(e)))?;
+        let curve = NurbsCurve3::new(knots, control, weights)
+            .map_err(|e| ConicArcError::Carrier(Built::new(e)))?;
         Ok(Curve3::Nurbs(std::sync::Arc::new(curve)))
     }
 }
