@@ -2,10 +2,12 @@
 id: a-surface-charts-angular-period-is-answered-twice-and-built-by-hand
 kind: issue
 title: A surface chart's angular period is answered at several doors and built by hand at about forty sites
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: M
+closed: 2026-11-10
+pr: 6776
 ---
 
 
