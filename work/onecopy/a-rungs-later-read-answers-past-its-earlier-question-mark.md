@@ -7,6 +7,7 @@ opened: 2026-11-10
 priority: P3
 cost: M
 closed: 2026-11-10
+pr: 6786
 ---
 
 Found while building the `rung:` register (`scripts/gates/escalation-question-marks-rung.counts`, from `a-question-mark-inside-a-rung-is-registered-nowhere`).
