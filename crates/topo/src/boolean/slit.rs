@@ -4286,8 +4286,8 @@ mod parting_order_rows {
     #[test]
     fn a_parting_order_is_read_at_the_inf_and_one_point_at_the_sup() {
         let line = geom::Curve3::line(Point3::new(1.0, 2.0, 3.0), Vec3::new(0.0, 0.6, 0.8));
-        assert_eq!(read(&line, 1e-6).unwrap(), true);
-        assert_eq!(read(&line, -1e-6).unwrap(), false);
+        assert!(read(&line, 1e-6).unwrap());
+        assert!(!read(&line, -1e-6).unwrap());
         assert!(is_one_point(&read(&line, 1e-10)));
         let thin = geom::Curve3::Ellipse(geom::Ellipse::new(
             geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
@@ -4296,7 +4296,7 @@ mod parting_order_rows {
         ));
         assert!(is_escalated(&read(&thin, 1e-8)), "{:?}", read(&thin, 1e-8));
         assert!(is_escalated(&read(&thin, -1e-8)));
-        assert_eq!(read(&thin, 1e-6).unwrap(), true);
+        assert!(read(&thin, 1e-6).unwrap());
         assert!(is_one_point(&read(&thin, 1e-11)));
     }
 
@@ -4325,8 +4325,8 @@ mod parting_order_rows {
             !geom_core::structure_ascends(0.0, floor),
             "the premise: floor {floor}"
         );
-        assert_eq!(read(&there_and_back, 1e-6).unwrap(), true);
-        assert_eq!(read(&there_and_back, -1e-6).unwrap(), false);
+        assert!(read(&there_and_back, 1e-6).unwrap());
+        assert!(!read(&there_and_back, -1e-6).unwrap());
         assert!(is_one_point(&read(&there_and_back, 1e-11)));
     }
 }
