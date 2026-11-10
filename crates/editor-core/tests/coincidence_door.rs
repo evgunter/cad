@@ -3250,8 +3250,17 @@ fn the_coaxial_stage6_unions_are_green_at_f64_on_their_coaxial_rows() {
 /// pair of bases is proven by the first rung. Its tops and side walls
 /// flush, and its abutting walls opposed, are flush through the cubes'
 /// heights and the slides' values, no mate's statement, and are left
-/// over the budget. The world's `⊔` records the union's base, which the
+/// unproven: the tops over the budget, the rest read whole and not
+/// shown zero. The world's `⊔` records the union's base, which the
 /// union mints from the two, on the floor's top at rest, unproven alike.
+///
+/// Moved with ONEHOME's rigidity re-mint (`RigidMotion::check_rigid`):
+/// with every variable a symbol, the two rests' maps arrive as the
+/// solve's computed values, an unknown each, and are re-minted at that
+/// scalar where they used to be taken verbatim. The re-minted axes build
+/// smaller residuals, so the abutting walls, the second flush pair and
+/// the last two vertex rows are read whole rather than over the budget
+/// (`Budget` → `OneConstruction`). No row is proved or lost by it.
 ///
 /// Red if the scene's rows change in kind, site or proof.
 #[test]
@@ -3259,20 +3268,20 @@ fn two_blocks_resting_on_one_floor_are_one_plane_at_their_bases() {
     let cd = crate::corpus::blocks_on_one_floor::document();
     let (_, lines) = door_lines(&cd);
     let flush = "SameOriented PlaneLadder unproven/Numeric/Budget";
+    let flush_whole = "SameOriented PlaneLadder unproven/Numeric/OneConstruction";
     let on = "OnCarrier VertexFusion unproven/Numeric/OneConstruction";
-    let on_budget = "OnCarrier VertexFusion unproven/Numeric/Budget";
     assert_eq!(
         lines,
         [
             flush,
             "SameOriented PlaneLadder SameConstruction",
-            flush,
-            "SameOpposite PlaneLadder unproven/Numeric/Budget",
-            flush,
+            flush_whole,
+            "SameOpposite PlaneLadder unproven/Numeric/OneConstruction",
+            flush_whole,
             on,
             on,
-            on_budget,
-            on_budget,
+            on,
+            on,
         ]
     );
     let ev = run(&cd.doc);
