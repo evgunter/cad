@@ -1430,8 +1430,7 @@ mod standing_rows {
     use geom_core::{Band, Indeterminate, MarginDiag};
 
     use super::RegionRefusal;
-    use crate::entity::{EdgeKey, LoopKey};
-    use crate::splitting::containment::{Uncrossable, UncrossableCarrier};
+    use crate::entity::LoopKey;
 
     /// **Every variant stands as its point-in-solid image does**
     /// ([`RegionRefusal::refusal`]), the expected standing a `match` with
@@ -1451,11 +1450,7 @@ mod standing_rows {
                 outer: LoopKey::default(),
             },
             RegionRefusal::WoundPastPeriod,
-            RegionRefusal::Unreadable(Uncrossable {
-                r#loop: LoopKey::default(),
-                edge: EdgeKey::default(),
-                carrier: UncrossableCarrier::Spline,
-            }),
+            RegionRefusal::Unreadable(crate::test_support_samples::uncrossable()),
         ];
         for e in every {
             let want = match e {
