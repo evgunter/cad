@@ -45,7 +45,12 @@ fn the_corpus_runs_its_pinned_count_of_finishes() {
     );
 }
 
-/// The count at the default ε. PR 6371 measured 505 by hand over the
-/// same corpus before a finished body's move carried its verdict.
+/// The count at the default ε, measured with this row on one corpus:
+/// main before a finished body's move carried its verdict ran 505;
+/// with the move and no f64 leaf re-finish, 389; with the box-scalar
+/// switch's price, a sweep leaf moved at `f64` finished again on its
+/// image (`topo::LeafBody::moved`), 662. The switch's deletion
+/// (`work/boxfinish/delete-the-box-scalar-sweep-leaf-switch.md`) takes
+/// it back to about 389.
 #[cfg(debug_assertions)]
-const PINNED: u64 = 389;
+const PINNED: u64 = 662;

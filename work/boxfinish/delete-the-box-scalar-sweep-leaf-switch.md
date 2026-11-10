@@ -27,7 +27,11 @@ this final state, but … keep it disabled/selectively disabled for now".
   builders (`crates/sweep/src/loft.rs`, `crates/sweep/src/revolve/mod.rs`),
   which become the doors' finish;
 - `sweep::test_support::taken`;
-- `LeafBody::moved`'s re-finish at f64 goes with the switch;
+- `LeafBody::moved`'s re-finish at f64 goes with the switch. It is
+  the switch's measured price (ONEHOME stage 2,
+  `crates/editor-core/tests/corpus_finish_count.rs`): the corpus runs
+  662 finishes with it, 389 with the move and no f64 leaf re-finish,
+  and 505 on main before a move carried its verdict;
 - the `⊔` graft's `T::leaf` end, which becomes `T::finish`
   (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
   what a value holds (`Held::moved`) and end in no gate;
@@ -60,7 +64,9 @@ scalars' tier 3 read what the box studies build. The `f64` row
 not a blocker: `f64` is not behind the switch.
 
 **The test that says it is done.** The rows each blocker names pass with
-their main-era assertions after the deletion.
+their main-era assertions after the deletion, and the corpus finish
+count (`corpus_finish_count`) falls to the switch-free figure, about
+389.
 
 ## Slate triage (2026-11-08, ONEHOME split)
 
