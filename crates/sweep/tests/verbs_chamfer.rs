@@ -405,13 +405,7 @@ fn concave_edge(body: &Body<f64>) -> EdgeKey {
     let at = |p: Point3<f64>| (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12;
     body.edges()
         .find(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
+            let Some((start, end)) = body.edge_vertices(*k) else {
                 return false;
             };
             let pt = |v| {
@@ -419,7 +413,7 @@ fn concave_edge(body: &Body<f64>) -> EdgeKey {
                     .and_then(|x| body.get_point(x.point))
                     .copied()
             };
-            match (pt(h.start), pt(end)) {
+            match (pt(start), pt(end)) {
                 (Some(a), Some(b)) => at(a) && at(b),
                 _ => false,
             }

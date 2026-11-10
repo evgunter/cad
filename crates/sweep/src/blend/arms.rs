@@ -850,8 +850,12 @@ pub fn sheet_center<T: Real>(
 /// blend already carries the axis, and nothing is fitted or guessed.
 #[derive(Clone, Copy, Debug)]
 pub struct Meridian<T: Real> {
-    /// The common axis (the rim circle's): its origin the rim circle's
-    /// centre, its direction unit.
+    /// The common axis, through the rim circle's centre, its `dir` the
+    /// rim circle's unit axis. The readings below take `dir` as unit
+    /// (each `·dir` is a length along the axis, and `dir × radial` the
+    /// sheet's unit normal), which the type does not carry: a circle's
+    /// axis is unit by convention
+    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
     pub axis: geom::Line<T>,
     /// The rim point the sheet passes through.
     pub rim: Point3<T>,
@@ -938,15 +942,14 @@ impl<T: Real> Meridian<T> {
             // level with the sphere's centre. The departure is the
             // centre's own distance off the axis.
             Surface::Sphere { center, radius, .. } => {
-                let off = center - self.axis.origin;
-                let along = self.axis.dir * off.dot(self.axis.dir);
+                let level = self.axis.foot(center);
                 Some((
                     SupportTrace::Round {
-                        center: self.axis.origin + along,
+                        center: level,
                         radius,
                         side,
                     },
-                    (off - along).norm(),
+                    (center - level).norm(),
                 ))
             }
             _ => None,

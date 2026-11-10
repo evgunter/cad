@@ -2,10 +2,12 @@
 id: main-red-the-rounded-pad-reads-24-more-symbolic-decisions-since-planar-foot
 kind: issue
 title: main red (slow set): m10_9_no_registrant_lies_on_any_measured_document reads r2_rounded_pad at 1684 symbolic against 1660 since PR 6594 (onecopy/planar-foot)
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: E
+closed: 2026-11-10
+pr: 6714
 ---
 
 
@@ -21,4 +23,29 @@ What is owed (ONECOPY, 6594's lane): 24 more decisions on the pad reach the symb
 
 Reproduce: `cargo nextest run -p editor-core --profile ci --ignore-default-filter -E 'test(/m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document/)'`.
 
-**Drifted further** (2026-11-10, found by `onecopy/line-holders`' slow run): on `origin/main` `53ed936f`, `r2_rounded_pad` reads **1704** symbolic against the measured 1660 (`checks_expanded: 1204`, `numeric: 1368`, `frozen: 3751`), 20 more than this row's 1684, at both ε.
+## Closed
+
+Both moves are real and correct, and are re-pinned (`crates/editor-core/tests/m10_9_pins_interval.rs`, the pad's `symbolic`, `without_the_registry` and the rule-F dials receipt). They were measured by logging each symbolic-tier decision's predicate (temporary logging, not kept) at PR 6594's first parent `9ac029c2`, at its merge `38099d0e`, at PR 6682's first parent and merge, and on main.
+
+**1660 → 1684 (PR 6594, `onecopy/planar-foot`).** Four identical blocks of nine decisions appear, at the pad's four near-tangent line/arc junctions:
+- 24 proven: `chord_side` ×2, `line_span`, `circle_side`, `arc_span` and `contact_at_shared_vertex` per block;
+- 12 numeric: `nearer_end`, `chord_side` and `circle_side`.
+
+`profile::seg::line_arc` now reads its candidates' height and half-chord through `Line2::height` / `Line2::half_chord`, which divide by the chord direction's norm. Near tangency the half-chord's root widens that division's few ulps, so the candidate's `arc_span` escalates where it had decided. `candidates` then settles it by `end_in_stretch`, whose decisions are the nine.
+- Reverting `line_arc`'s arithmetic alone, at `38099d0e`, reads 1660 again.
+- The division is the home's ruled form: `Line2::height` is correct for any nonzero direction, and PR 6568 measured the widening at `Interval` as accepted.
+- No verdict moved: no theorem is disputed and no registration refused.
+
+**1684 → 1704 (PR 6682, an extension's run is its own segment, Ev's ruling on PR 6542).** It adds 20 symbolic and 106 numeric decisions (`segment_gap`, `carrier_line_circle`, `line_span`, `chord_side`, `collinear_overlap`, `vertex_separation`, …). Each corner after a straight leg keeps the leg's end as a vertex, so the simplicity pass reads more pairs. PR 6682's body names this move and leaves the re-pin to this row.
+
+**One more pin in the file, not this row's move.** `m10_9_what_the_registry_buys` was red on the bracket as well, with the door shut: (1544, 1224) pinned, (1542, 1226) read.
+- **The cause is PR 6504** (`pcert/one-ruling-reading`). Its first parent `9eead2e516` reads (1544, 1224) and its merge `143d99ec29` reads (1542, 1226).
+  - The cylinder arm reads a line's ruling as its miss over the span plus its standoff from the wall, where it read its radial speed. That standoff is a norm the tier does not reduce with the door shut.
+  - So two `pcurve_chart_radial_moving` decisions the tier proved are numeric. The shipped count does not move.
+- **A correction.** This row first said the (1544, 1224) pin "was never main's reading". That is wrong: it was measured on a build whose worktrees shared one target dir, so another tree's artifacts were read. Measured on clean targets, the pin passes at PCERT E1c's merge (PR 5889) and moves at PR 6504.
+- **The same sweep named the other unbisected moves in the file:**
+  - PR 5728 (limb 2 for every carrier) moved the pad's door-shut receipt and dials, and the link's door-shut refusal.
+  - PR 5811 (an operation computes in a frame of its reads) moved the bracket's (1630, 1383) to (1474, 1228): a copy is no longer rebuilt and re-certified.
+  - PR 6504 moved the pad's `frozen` from 3257 to 3281.
+
+With these re-pins, `m10_9_pins_interval` passes 7/7 at 1e-6, 1e-9 and 1e-12.

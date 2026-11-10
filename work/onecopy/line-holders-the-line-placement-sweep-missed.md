@@ -1,7 +1,7 @@
 ---
 id: line-holders-the-line-placement-sweep-missed
 kind: issue
-title: geom::cover::Core holds its circle's axis as a loose center/axis pair, rebuilt into a Line by cover.rs's private axis_line
+title: Two line holders the line-placement sweep missed: link.rs's forward decision and sweep revolve's AxisFrame (narrowed)
 status: open
 opened: 2026-11-09
 priority: P2
@@ -35,6 +35,14 @@ Items 1 to 3 are settled. What stays open is item 4, BOXES' `geom::cover::Core`,
 - **2, revolve `AxisFrame`:** `o3` / `a3` became one `line3: geom::Line`, and the three hand-built lines read it.
 - **3, blend `Meridian`:** `origin` / `axis` became `axis: geom::Line`. `battery.rs` passes the rim circle's `frame.axis_line()`.
 - Found by the same pass: `sweep::blend::arms::line_meet` took two lines as four loose arguments. It now takes two `Line`s, and its callers pass their trimlines whole.
+
+## Narrowed (2026-11-10, `onecopy/placement-holders`, PR 6713)
+
+Items 3 and 4 are done:
+- **3.** `arms::Meridian` holds its axis as a `geom::Line`, and the hand `Line { origin, dir }` build retires.
+- **4.** `cover::Core` holds `axis: Line` (its origin the circle's centre), and so do `Slab` and `Frustum`, so `cover.rs`'s private `axis_line(center, axis)` retires.
+
+What remains is items 1 (`link.rs`'s forward decision) and 2 (`AxisFrame::axis_line()` at its three hand builds).
 
 ## Review of PR 6699 (2026-11-10)
 

@@ -190,8 +190,9 @@ fn notched_cone() -> Body<f64> {
     // section of its two faces' surfaces.
     let rim_edge = b
         .edges()
-        .find(|(_, e)| {
-            b.get_half_edge(e.he_plus).unwrap().start == b.half_edge_end(e.he_plus).unwrap()
+        .find(|&(k, _)| {
+            let (start, end) = b.edge_vertices(k).unwrap();
+            start == end
         })
         .unwrap()
         .0;
