@@ -1,7 +1,7 @@
 ---
 id: t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 kind: issue
-title: 25 of 44 production Any ladders have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
+title: 26 of 45 production Any ladders have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
 status: open
 opened: 2026-11-10
 priority: P3
@@ -55,9 +55,10 @@ A new `Any` ladder reds until it is named there. So **the register is this row's
 
 A pin's name is checked by the gate (it must be a `#[test]` or `#[rstest]` fn); that it reaches the answer past a kept rung is checked by `scripts/any-first-mutant.sh`, nightly, which runs every pin under `--cfg any_first_mutant` (`climb_evidence` refusing an `Any` ladder at its first kept rung) and reds one that stays green. A new pin is run under it before it is registered.
 
-The 18 beyond the seven above, each with the fixture its pin needs (a kept rung read ahead of an answering one, through the production function):
+The 19 beyond the seven above (18 at filing, and `loop_circle` since), each with the fixture its pin needs (a kept rung read ahead of an answering one, through the production function):
 - `geom-brep` `chart_singularity::holds`: a chart point whose first bounding reading is in band of the singular point, a later one decided outside.
 - `geom-brep` `edge_nurbs::measured_ends`: a spline edge whose first end measures in band, its second decided.
+- `topo` `boolean::contain::loop_circle` (PR 6750, after filing): a loop of three arcs, the second in band of the first's circle and the third decided off it (`None` past the kept arc).
 - `topo` `boolean::fate::rehome`: a ring whose first vertex reads in band of the run's loop, a later one decided.
 - `topo` `boolean::rim_wedge::rim_exists` and `departures` (the abut climb): rim ends, one pair in band ahead of one that abuts.
 - `topo` `boolean::sectors::crescent`: a sector pair whose first bound pair is in band, a later one opening a crescent.
