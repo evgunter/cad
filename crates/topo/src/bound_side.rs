@@ -647,8 +647,12 @@ fn first_order_as<T: Decide>(
 ) -> Result<Settled<T>, ReadFault<T>> {
     let n = face.reference.vec();
     let lever = reach.lever();
+    // The two rows the support picks between, spelled where the census
+    // reads them.
+    const BOOL_CHORD_SIDE: &str = "bool_chord_side";
+    const BOOL_ENTERS_MATERIAL: &str = "enters_material";
     let (predicate, d) = match reach {
-        BoundSupport::Chord { base, far } => ("bool_chord_side", Distance::of(far, base, n)),
+        BoundSupport::Chord { base, far } => (BOOL_CHORD_SIDE, Distance::of(far, base, n)),
         BoundSupport::Extent(_) | BoundSupport::Conic { .. } | BoundSupport::Bisector { .. } => {
             geom_brep::departure_arm(lever, rd.band).map_err(|escalation| {
                 ReadFault::Departure {
@@ -658,7 +662,7 @@ fn first_order_as<T: Decide>(
                 }
             })?;
             (
-                "enters_material",
+                BOOL_ENTERS_MATERIAL,
                 Distance::departure(Departure::Rise(dir), n, lever),
             )
         }

@@ -219,6 +219,10 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
+    // `bound_side::first_order_as`'s two rows, picked by a `match` on the
+    // support.
+    NameCarrier::Const("BOOL_CHORD_SIDE"),
+    NameCarrier::Const("BOOL_ENTERS_MATERIAL"),
     // A unit test's slot names, handed to `slots_as`.
     NameCarrier::Const("NAMES"),
     NameCarrier::Call("gate_as"),

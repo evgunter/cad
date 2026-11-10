@@ -108,6 +108,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("ST_GAP"),
     NameCarrier::Const("SWING"),
     NameCarrier::Const("TILT"),
+    NameCarrier::Const("TOUCH_SPREAD"),
     NameCarrier::Const("TORUS_ROOT_SLACK"),
     NameCarrier::Const("TT_COINCIDENT"),
     NameCarrier::Const("WALL_ROUND_AXIS"),
