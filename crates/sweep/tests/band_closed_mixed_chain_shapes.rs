@@ -14,7 +14,7 @@ use geom_core::{Band, Bounds, CertifiedBounds, Decide, Interval, Point2, Point3,
 use profile::{SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{at_rest, extruded};
-use topo::{Body, EdgeKey, validate_geometric};
+use topo::{Body, EdgeKey, FinishedBody as _, LeafBody as _, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -606,5 +606,151 @@ fn a_creased_corner_refuses_where_definite_and_builds_below_the_band() {
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("δ = {delta}: tier 3, got {e:?}"));
         }
+    }
+}
+
+/// **The rounded rectangle drawn the way a user draws it**: through the
+/// path lattice, each corner a tangent arc and each side a tangent line,
+/// closing on the start's tangent, about `(x0, y0)`. The lattice puts
+/// some vertices a few ulps off the bulge table's.
+fn lattice_rect(x0: f64, y0: f64) -> profile::ConstructedLoop<f64> {
+    use profile::{Open, Start};
+    let (hx, hy, r) = (1.0, 0.6, 0.3);
+    let p = |x: f64, y: f64| Point2::new(x0 + x, y0 + y);
+    Open.at(p(-(hx - r), -hy))
+        .line_to(p(hx - r, -hy), tol())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p(hx, -(hy - r)), tol())
+        .unwrap()
+        .tangent()
+        .line(2.0 * (hy - r), tol())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p(hx - r, hy), tol())
+        .unwrap()
+        .tangent()
+        .line(2.0 * (hx - r), tol())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p(-hx, hy - r), tol())
+        .unwrap()
+        .tangent()
+        .line(2.0 * (hy - r), tol())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(Start.arrives_tangent(), tol())
+        .unwrap()
+        .into()
+}
+
+/// The lattice outline about `(x0, y0)` on the plane `z = z0`, validated
+/// at `f64` as a user's sketch is and lifted onto the scalar, extruded
+/// up `h`.
+fn lattice_slab<T: Decide + topo::AtRestPolicy>(x0: f64, y0: f64, z0: f64, h: f64) -> Body<T> {
+    let pf = profile::ConstructedProfile::new(
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, z0)),
+        vec![lattice_rect(x0, y0)],
+    )
+    .validate(tol())
+    .expect("the lattice outline validates")
+    .lift_onto(SketchPlane::xy_at(Point3::new(
+        T::zero(),
+        T::zero(),
+        T::from_f64(z0),
+    )))
+    .expect("the lattice outline lifts onto the scalar");
+    sweep::extrude(
+        &pf,
+        sweep::Extrusion::Distance {
+            depth: T::from_f64(h),
+            side: sweep::ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the lattice outline extrudes")
+    .body
+    .into_body()
+}
+
+/// **A lattice-drawn rounded plate fillets whole**, at the pin's radius
+/// and near `R/2`, at both scalars, removing Pappus's volume.
+#[test]
+fn a_lattice_drawn_rounded_plate_fillets_whole() {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(what: &str, r: f64) {
+        let body = lattice_slab::<T>(0.0, 0.0, 0.0, 0.5);
+        let out = fillet_edges(
+            &at_rest(&body, tol()),
+            &every_edge(&body),
+            T::from_f64(r),
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: fillets whole, got {:?}", e.error));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
+        let truth = 2.0 * rect(1.0, 0.6, [0.3; 4]).pappus(r, true);
+        let ((va, wa), (vb, wb)) = (volume(&body), volume(&out.body));
+        assert!(
+            wa + wb < 1e-7,
+            "{what}: the enclosure is a claim: ±{}",
+            wa + wb
+        );
+        assert!(
+            ((va - vb) - truth).abs() <= wa + wb + 1e-12,
+            "{what}: ΔV {} is Pappus's {truth}",
+            va - vb
+        );
+    }
+    for r in [0.05, 0.14] {
+        row::<f64>(&format!("lattice plate, r = {r}"), r);
+        row::<Interval>(&format!("lattice plate at Interval, r = {r}"), r);
+    }
+}
+
+/// **A lattice-drawn pocket's mouth off the origin**: a `3 × 2 × 1`
+/// block less the lattice rectangle about `(1.5, 1.0)` from `z = 0.5`;
+/// its mouth removes `A·(P + 2πd)`.
+#[test]
+fn a_lattice_drawn_pockets_mouth_off_the_origin_fillets_whole() {
+    fn row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(what: &str, r: f64) {
+        use topo::boolean::{BooleanInputs, BooleanOp, SweepStrategy, boolean_op_with};
+        let block = sweep::test_support::block::<T>(3.0, 2.0, 1.0, tol());
+        let cut = lattice_slab::<T>(1.5, 1.0, 0.5, 1.0);
+        let pocket = boolean_op_with(
+            BooleanOp::Subtract,
+            &sweep::test_support::finished("the block", block, tol()),
+            &sweep::test_support::finished("the lattice prism", cut, tol()),
+            &BooleanInputs::default(),
+            SweepStrategy::Realized,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the pocket builds: {e:?}"))
+        .body()
+        .expect("the pocket is a body")
+        .body
+        .clone()
+        .into_body();
+        let mouth = rim_where(&pocket, 1.0, |p| {
+            (p.x - 1.5).abs() <= 1.0 + 1e-9 && (p.y - 1.0).abs() <= 0.6 + 1e-9
+        });
+        assert_eq!(mouth.len(), 8, "{what}: the mouth");
+        let out = fillet_edges(&at_rest(&pocket, tol()), &mouth, T::from_f64(r), tol())
+            .unwrap_or_else(|e| panic!("{what}: fillets whole, got {:?}", e.error));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
+        let truth = rect(1.0, 0.6, [0.3; 4]).pappus(r, false);
+        let ((va, wa), (vb, wb)) = (volume(&pocket), volume(&out.body));
+        assert!(
+            wa + wb < 1e-7,
+            "{what}: the enclosure is a claim: ±{}",
+            wa + wb
+        );
+        assert!(
+            ((va - vb) - truth).abs() <= wa + wb + 1e-12,
+            "{what}: ΔV {} is Pappus's {truth}",
+            va - vb
+        );
+    }
+    for r in [0.05, 0.14] {
+        row::<f64>(&format!("lattice mouth, r = {r}"), r);
+        row::<Interval>(&format!("lattice mouth at Interval, r = {r}"), r);
     }
 }
