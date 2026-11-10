@@ -64,3 +64,6 @@ So no in-suite outcome would move. The fixture for `partner_side` is sketched on
   - A ride's rung is its two end readings. A start in band is kept without reading the end: on a span (`lo ≤ hi`) the end then reads at least a band short of inside, so it cannot decide the ride off the point. No inner climb would answer there.
   - Pin: `cover_rows::a_stretch_ridden_both_ways_reads_mixed`, a ride whose end is mid-band of the point ahead of two decided rides of opposite sign → `RidesBothWays`, and beside one ride of the same sign it refuses. Red under the old loop.
 - Both "deviation … scheduled" comments are gone.
+- **Mutated and gated** (PR 6758's review, N2):
+  - Under `--cfg any_first_mutant`, `climb_differing` and `climb_agreeing` refuse at their first kept rung, as `climb_evidence` does under `Any`.
+  - `any-climb-pins` registers each call of an entry point that takes no `Answering`, its list read off `ladder.rs` by `gate_ladder_entry_points` (`scripts/gates/lib.sh`, the one list PR 6763 also reads).
