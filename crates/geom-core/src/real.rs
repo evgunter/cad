@@ -390,7 +390,7 @@ pub trait Real:
     /// through on purpose (an overflowed norm still ENCLOSES the true
     /// length); this one is for a value that must itself be finite to
     /// be what its type claims — a rigid motion's angle and
-    /// translation (`linalg::RigidMotion`'s mints and decided door), and
+    /// translation (`linalg::RigidMotion`'s mints and `f64` door), and
     /// a length every rung of a door levers by (`topo`'s
     /// `chart_region::edge_lengths`), where an enclosure reaching `∞`
     /// would divide a finite height to zero at its lower end.

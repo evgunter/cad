@@ -488,8 +488,9 @@ fn a_curved_carriers_image_bowed_between_samples_refuses_at_the_hull_at_every_sc
 
 /// **A spline image short of the edge refuses.** The bound is over the
 /// image's domain, and a spline carrier evaluated past its knot domain
-/// clamps, so nothing else notices an edge interval that overruns it:
-/// check 4 refuses it, at either end, and certifies one inside.
+/// extends its end span, off the bounded wall: the door's incidence read
+/// ends an edge interval that overruns it, at either end, and certifies
+/// one inside.
 #[test]
 fn a_spline_image_short_of_the_edge_refuses() {
     for ((a, b), certifies) in [
@@ -510,7 +511,7 @@ fn a_spline_image_short_of_the_edge_refuses() {
             assert!(got.is_ok(), "[{a}, {b}] lies in the image: {got:?}");
         } else {
             assert!(
-                matches!(got, Err(PcurveCertifyError::FittedCertificate { .. })),
+                got.as_ref().err().is_some_and(|e| read_off(e, None, None)),
                 "[{a}, {b}] overruns the image's [0, 1]: {got:?}"
             );
         }
@@ -719,4 +720,23 @@ fn ring_wall() -> NurbsSurface<f64> {
         weights,
     )
     .expect("the ring builds")
+}
+
+fn read_off(
+    e: &geom_brep::PcurveCertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::PcurveCertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

@@ -214,14 +214,14 @@ fn a_drum_against_a_moved_donut_passes_the_germ_mint() {
 /// **A ball cutting both tube circles of its meridian** (placement 5):
 /// two curves about the torus axis, counted, which no plane or meridian
 /// tells apart; each germ's component is its site's foot, and the run
-/// stops at the result gate's volume on the ball's sphere face, its trim
-/// a chart with no lane (the refused face's own surface read; the
-/// matcher read the message alone before, and named it the torus's).
-// Pinned red at every ε row, on the sphere face's trim:
-// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md.
+/// stops at the result gate's volume on the donut's torus face, its trim
+/// a chart with no lane (the refused face's own surface read): the
+/// ball's chorded sphere face measures through the rotational lane.
+// Pinned red at every ε row, on the torus face's trim:
+// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
 #[test]
 fn a_ball_round_the_donuts_axis_passes_the_germ_mint() {
-    row(ball, &[5], &[["sphere trim", "sphere trim"]], &[]);
+    row(ball, &[5], &[["torus trim", "torus trim"]], &[]);
 }
 
 /// **Two donuts in general pose** (placements 1, 2, 3): the section the

@@ -2925,8 +2925,13 @@ fn finite_net(operand: &'static str, net: &NurbsSurface<f64>) -> Result<(), SsiE
 /// docs). Shape (iv)'s planted small loop lives here.
 ///
 /// The pair's pose is decided first, once, by the section value's own
-/// reading ([`crate::CylinderSpherePose::decide`]), and the march reads
-/// it ([`march_cylinder_sphere`]).
+/// reading ([`crate::CylinderSpherePose::decide`]); past it, this door
+/// seeds and accounts the caller's slab by the 3-D cell sweeps
+/// ([`implicit_pair_r3`]). No production path reads it: the section
+/// value counts this pair on its ruling sweep and marches from the
+/// count's witnesses. It is the generic ℝ³ implicit-pair door's test
+/// vehicle, a caller's slab cutting the section as the value's ball
+/// never does.
 ///
 /// # Errors
 ///
@@ -2970,34 +2975,67 @@ pub fn cylinder_sphere_ssi(
     )
 }
 
-/// **The ℝ³ march of a decided cylinder × sphere pose** over `domain`,
-/// in the order the pose was asked of.
+/// **The ℝ³ march of a decided cylinder × sphere pose**, from the
+/// `seeds` its ruling sweep states (the counted loops' witnesses), over
+/// `domain`, the cube about the sphere's ball. No seeding or accounting
+/// sweep runs: the pose counted the section, the sphere's ball holds
+/// every loop of it, and the carry matches these branches one to one to
+/// the count's witnesses, each on a closed branch. The section value
+/// marches only a transverse pose, so a tangent pose here is the
+/// caller's defect.
 ///
-/// A tangent pose refuses before any rung ([`SsiError::PairTangent`]):
-/// a tangency is C7's construction, and near one the exhaustiveness
-/// subdivision's surviving set is a three-dimensional shell rather than
-/// a curve, so a marcher that found out later would first exhaust its
-/// cell budget.
+/// Where debug assertions are on the count is re-derived by the ruling
+/// angle's coverage ([`crate::pair_section::ruling::coverage`]).
 ///
 /// # Errors
 ///
-/// [`cylinder_sphere_ssi`]'s, but the pose's own.
-pub fn march_cylinder_sphere(
+/// [`march_seeds`]'s; [`SsiError::WrongLane`] for a tangent pose.
+pub(crate) fn march_cylinder_sphere(
     pose: &crate::CylinderSpherePose<f64>,
+    seeds: &[Point3<f64>],
     domain: SsiDomain,
     band: Band,
-) -> Result<SsiOutcome, SsiError> {
+) -> Result<Vec<SsiBranch>, SsiError> {
+    let (a, b) = pose.operands();
     checked(
         [("sphere", pose.sphere()), ("cylinder", pose.cylinder())],
         domain,
     )?;
-    past_the_gap(
-        TangentPair::CylinderSphere,
-        pose.operands(),
-        pose.tangency(),
-        domain,
-        band,
-    )
+    if pose.tangency().is_some() {
+        return Err(SsiError::WrongLane {
+            expected: "a transverse cylinder × sphere pair, whose tangent poses are never marched",
+        });
+    }
+    let tol = MarchTol::from_band(band, quadric_readout(a, b, domain.slab()))?;
+    let (branches, tubes) = march_seeds(a, b, seeds, &march::SlabExit, domain, tol, band)?;
+    // DESIGN's error taxonomy, row 5, as for two cylinders
+    // ([`march_cylinder_cylinder`]). No meeting lies outside the sphere's
+    // ball, so every cell's meetings must lie in a found branch's tube.
+    //
+    // **Calibration** (2026-11-04): over the ten carries of
+    // `pair_section::wiring::the_cylinder_sphere_coverage_keeps_its_headroom`
+    // (one loop, two, a centre on the wall, a turned wall; both orders),
+    // every coverage closed by its 3rd halving of the first cut's 64 cells
+    // and within 98 cells, at ε 1e-6, 1e-9 and 1e-12, against
+    // `COVERAGE_DEPTH`'s 30 halvings and `COVERAGE_CELLS`'s 2¹⁸; that row
+    // guards the headroom.
+    #[cfg(debug_assertions)]
+    {
+        let covered = crate::pair_section::ruling::coverage(
+            pose.cylinder(),
+            pose.sphere(),
+            pose.ball(),
+            &tubes,
+        );
+        debug_assert!(
+            covered.is_ok(),
+            "the ruling angle's cells {covered:?} hold meetings with the sphere in no found \
+             branch's tube: the count missed a loop, or a tube is not its branch's"
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = tubes;
+    Ok(branches)
 }
 
 /// **sphere × torus** — the ℝ³ implicit-pair arm, as
@@ -3039,8 +3077,8 @@ pub fn sphere_torus_ssi(
 }
 
 /// **The ℝ³ march of a decided sphere × torus pose** over `domain`, in
-/// the order the pose was asked of: only past a transverse gap, as
-/// [`march_cylinder_sphere`].
+/// the order the pose was asked of: only past a transverse gap, a
+/// tangent pose refusing before any rung ([`SsiError::PairTangent`]).
 ///
 /// # Errors
 ///
@@ -3098,8 +3136,8 @@ pub fn cylinder_torus_ssi(
 }
 
 /// **The ℝ³ march of a decided cylinder × torus pose** over `domain`,
-/// in the order the pose was asked of: only past a transverse gap, as
-/// [`march_cylinder_sphere`].
+/// in the order the pose was asked of: only past a transverse gap, a
+/// tangent pose refusing before any rung ([`SsiError::PairTangent`]).
 ///
 /// # Errors
 ///
@@ -3159,8 +3197,8 @@ pub fn torus_torus_ssi(
 }
 
 /// **The ℝ³ march of a decided torus × torus pose** over `domain`, in
-/// the order the pose was asked of: only past a transverse gap, as
-/// [`march_cylinder_sphere`].
+/// the order the pose was asked of: only past a transverse gap, a
+/// tangent pose refusing before any rung ([`SsiError::PairTangent`]).
 ///
 /// # Errors
 ///

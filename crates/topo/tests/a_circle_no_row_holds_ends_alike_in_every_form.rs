@@ -210,19 +210,23 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
     };
     let in_band_push = in_band() * (1.0 + (TURN / 4.0).cos());
     assert!(
-        matches!(
-            row_certificate::<T>(in_band_push),
-            Err(PcurveCertifyError::Escalated { .. })
-        ),
-        "the bent row's certificate reads the bend in band, at {}",
+        row_certificate::<T>(in_band_push)
+            .as_ref()
+            .err()
+            .is_some_and(read_in_band),
+        "the bent row's certificate reads the circle in band of the wall first, at {}",
         T::NAME
     );
     assert!(
-        matches!(
-            row_certificate::<T>(OFF_PUSH),
-            Err(PcurveCertifyError::ResidualExceeded { .. })
-        ),
-        "the bent row's certificate refuses the bend, at {}",
+        row_certificate::<T>(OFF_PUSH)
+            .as_ref()
+            .err()
+            .is_some_and(|e| read_off(
+                e,
+                Some(geom::SurfaceKind::Nurbs),
+                Some(geom::CurveKind::Circle)
+            )),
+        "the bent row's certificate reads the circle off the wall first, at {}",
         T::NAME
     );
     for form in [Form::Intersection, Form::Scaffold] {
@@ -308,4 +312,30 @@ fn a_rim_no_row_holds_ends_alike_in_every_form_at_f64() {
 #[test]
 fn a_rim_no_row_holds_ends_alike_in_every_form_at_interval() {
     rim_image_on_the_ring::<geom_core::Interval>();
+}
+
+fn read_off(
+    e: &geom_brep::PcurveCertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::PcurveCertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn read_in_band(e: &geom_brep::PcurveCertifyError) -> bool {
+    matches!(
+        geom_brep::IncidenceRead::of(e),
+        Some(geom_brep::IncidenceRead::Undecided(_))
+    )
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

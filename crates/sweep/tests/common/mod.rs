@@ -341,7 +341,7 @@ use sweep::{ProfileLoop, Section};
 use topo::Body;
 
 /// **A sketch plane from a placement a suite holds as twelve numbers**,
-/// admitted at the decided door (`geom_core::test_support::rigid`) at
+/// admitted at the suites' door (`geom_core::test_support::rigid`) at
 /// the witness tolerance: a suite that writes its plane as a matrix
 /// asks this before the plane exists. Panics, naming the refusal, when
 /// the map is not rigid.

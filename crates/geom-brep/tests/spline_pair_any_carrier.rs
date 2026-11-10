@@ -217,6 +217,7 @@ fn verdict(name: &str, got: &Limbs) -> (Verdict, f64) {
             iso: None,
             limb,
             bound,
+            ..
         })) => (Verdict::Refused(*limb), upper(*bound)),
         // A miss inside the band refuses undecided, on the bound it read.
         Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
