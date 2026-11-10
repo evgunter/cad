@@ -55,6 +55,12 @@ Two designers (Fable A, Opus B) converged in round 2 on B's position, with no qu
 
 No corner reads a carrier pair. Both `ReadOn` arms end on the sector's own reading, pinned by a scene of the 1 mm / 10 m shape.
 
+## Dispatch (2026-11-09)
+
+Branch `seal/corner-sectors`. Review tier: **single, FULL**. The fork settled the shape: no corner reads a carrier pair, and the precedence stays as it is. What is at risk is correctness on the `ReadOn::Faces` arm, where two readings of one sector over two extents disagree, and whether the retired invariants were ever reachable. A FULL review's claims target that, so the step does not take the dual tier.
+
+Reworked on 2026-11-10 to fork `unglued-corner-ending` after the first review falsified the orchestrator's ruling (b). The rebuild had a fresh single FULL review on `23595a252d`, then a delta review of its fix pass on `9aedca00ce`. The last fix pass merged on the orchestrator's delta read.
+
 ## Closed (2026-11-10)
 
 Built to the fork `unglued-corner-ending` design (PR 6693). The PR body has the per-site table, each ending before and after.
