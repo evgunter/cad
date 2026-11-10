@@ -1073,7 +1073,10 @@ fn bisect<T: Decide>(
 
 /// The chart a walk runs on, as its error bound reads it.
 struct Shape<T: Real> {
-    /// The chart's axis, from its frame.
+    /// The chart's axis, from its frame. Only [`geom::Line::distance`]
+    /// reads it, which is correct for any nonzero `dir`, so a unit `dir`
+    /// is not a premise here
+    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
     axis: geom::Line<T>,
     kind: ShapeKind<T>,
     /// The singular points on the loop walked.

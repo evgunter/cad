@@ -321,10 +321,11 @@ impl<T: Real> OpenConicSection<T> {
         } = self.tilt;
         ConicBranch {
             conic: self.conic,
-            frame: geom::Frame {
-                origin: self.frame.origin + self.frame.u_ref * xi,
-                ..self.frame
-            },
+            frame: geom::Frame::new(
+                self.frame.origin + self.frame.u_ref * xi,
+                self.frame.axis,
+                self.frame.u_ref,
+            ),
             l: side * self.delta_sigma * sin_a * cos_a * T::from_f64(2.0),
             k,
             cos2: cos_a.powi(2),
@@ -349,11 +350,11 @@ impl<T: Decide> OpenConicSection<T> {
         // The near vertex lies on the side `sign(δσ)` of the centre.
         let centre = self.tilt.centre(self.delta);
         // Read on `û` as the section's own frame builds every point on
-        // it (`vertex = foot + û·ξ`), not through `Line::height`'s `/|û|`:
-        // one frame, one convention, until the axis is a typed unit
+        // it (`vertex = foot + û·ξ`, [`geom::Frame::in_plane`]), not
+        // through `Line::height`'s `/|û|`: one frame, one convention,
+        // until the axis is a typed unit
         // (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
-        let side = ((seed - self.frame.origin).dot(self.frame.u_ref) - centre)
-            * self.delta_sigma.unit_sign();
+        let side = (self.frame.in_plane(seed).0 - centre) * self.delta_sigma.unit_sign();
         match decide("pn_conic_branch", Margin::of(side), band).map_err(ConicArcError::Escalated)? {
             Sign::Positive => Ok(self.near()),
             Sign::Negative => Ok(self.far()),
@@ -390,7 +391,7 @@ impl<T: Real> ConicBranch<T> {
     /// sum of like signs for `K ≤ 0`.
     #[must_use]
     pub fn slope_of(&self, p: Point3<T>) -> T {
-        let eta = (p - self.frame.origin).dot(self.frame.v_ref());
+        let eta = self.frame.in_plane(p).1;
         let root = (self.l.powi(2) - T::from_f64(4.0) * self.k * eta.powi(2) * self.cos2).sqrt();
         T::from_f64(2.0) * eta * self.cos2 / (self.l + root.copysign(self.l))
     }
@@ -414,7 +415,7 @@ impl<T: Real> ConicBranch<T> {
     /// `η = (p − V)·v̂ = b·sinh t`: `e^t = S + √(1 + S²)` at `S = η/b ≥ 0`
     /// and `1/(√(1 + S²) − S)` below, each a sum of like signs.
     fn half_exp(&self, p: Point3<T>) -> T {
-        let s = (p - self.frame.origin).dot(self.frame.v_ref()) / self.conjugate();
+        let s = self.frame.in_plane(p).1 / self.conjugate();
         let c = (T::one() + s.powi(2)).sqrt();
         s.select_le_zero(T::one() / (c - s), s + c).sqrt()
     }

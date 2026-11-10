@@ -244,7 +244,16 @@ impl Channel {
                 let (frame, big_r) = (circle.frame, circle.radius);
                 let w = w(frame.origin);
                 let a = lift3(frame.axis);
-                let h = w.dot(a);
+                let lifted = geom::Frame::new(
+                    Point3::new(
+                        lift(frame.origin.x),
+                        lift(frame.origin.y),
+                        lift(frame.origin.z),
+                    ),
+                    a,
+                    lift3(frame.u_ref),
+                );
+                let h = lifted.height(b);
                 let perp = a.cross(w.cross(a));
                 let rho = perp.dot(perp).sqrt();
                 clears(rho - lift(big_r)) || clears(h)

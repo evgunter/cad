@@ -5065,10 +5065,11 @@ struct BoundaryEdge<T: Real> {
 /// What an edge's carrier is, as [`MovedWall::cut`] reads it.
 enum EdgeArc<T: Real> {
     Line,
-    /// A circle or an ellipse, the edge's carrier read as its conic,
-    /// over `from..to` (`from < to`), with the vertex at each end.
+    /// A circle or an ellipse, the edge's carrier, read as its conic
+    /// ([`geom::Curve3::conic`]), over `from..to` (`from < to`), with the
+    /// vertex at each end.
     Conic {
-        conic: Box<dyn geom::Conic<T>>,
+        carrier: geom::Curve3<T>,
         from: (T, VertexKey),
         to: (T, VertexKey),
     },
@@ -5211,19 +5212,21 @@ impl<T: Decide> MovedWall<T> {
         let mut out = Vec::new();
         for edge in &self.edges {
             if let EdgeArc::Conic {
-                ref conic,
+                ref carrier,
                 from,
                 to,
             } = edge.curve
             {
+                let Some(conic) = carrier.conic() else {
+                    unreachable!("a conic edge's carrier is a circle or an ellipse")
+                };
                 // The side of `L` along the conic is the sinusoid
                 // `sc + A·cos θ + B·sin θ`, monotone between its extremes
                 // at `φ` and `φ + π`: split there, and each piece crosses
                 // once exactly when its two ends' sides differ, at the
                 // root of its own half-turn.
-                let (frame, (ru, rv)) = (conic.frame(), conic.semi_axes());
-                let (a, b) = (ru * frame.u_ref.dot(m), rv * frame.v_ref().dot(m));
-                let sc = (frame.origin - line.origin).dot(m);
+                let (a, b) = conic.along(m);
+                let sc = (conic.frame().origin - line.origin).dot(m);
                 let phi = b.atan2(a);
                 let root = (-sc / (a.powi(2) + b.powi(2)).sqrt())
                     .max(-T::one())
@@ -5403,15 +5406,13 @@ fn moved_walls<T: Decide>(
                         } else {
                             (end.0, start.0)
                         };
-                        let conic = |conic: Box<dyn geom::Conic<T>>| EdgeArc::Conic {
-                            conic,
-                            from: (t0, v0),
-                            to: (t1, v1),
-                        };
                         match *curve.carrier() {
                             geom::Curve3::Line(_) => EdgeArc::Line,
-                            geom::Curve3::Circle(c) => conic(Box::new(c)),
-                            geom::Curve3::Ellipse(e) => conic(Box::new(e)),
+                            geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => EdgeArc::Conic {
+                                carrier: curve.carrier().clone(),
+                                from: (t0, v0),
+                                to: (t1, v1),
+                            },
                             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                                 EdgeArc::Arc(ArcPiece::along(
                                     curve.carrier(),
@@ -5786,8 +5787,8 @@ mod tests {
             hi: o,
         };
         let frame = geom::Frame::new(o, z, x);
-        let conic = |conic: Box<dyn geom::Conic<f64>>, from, to| EdgeArc::Conic { conic, from, to };
-        let circle = |radius| Box::new(geom::Circle::new(frame, radius));
+        let conic = |carrier, from, to| EdgeArc::Conic { carrier, from, to };
+        let circle = |radius| geom::Curve3::Circle(geom::Circle::new(frame, radius));
         let close = |got: Vec<(f64, f64)>, want: &[(f64, f64)], what: &str| match want {
             [] => assert!(got.is_empty(), "{what}: got {got:?}"),
             [one] => covers_exactly(&got, *one, 1e-12, what),
@@ -5873,7 +5874,7 @@ mod tests {
             start: tip,
             end: tip,
             curve: conic(
-                Box::new(geom::Ellipse::new(frame, 2.0, 1.0)),
+                geom::Curve3::Ellipse(geom::Ellipse::new(frame, 2.0, 1.0)),
                 (0.0, tip.0),
                 (2.0 * pi, tip.0),
             ),

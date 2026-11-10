@@ -876,7 +876,9 @@ pub(crate) enum LoopSplit<T: Real> {
     },
     /// `p`'s distance from the axis less `radius`.
     Radius {
-        /// The axis.
+        /// The axis. Only [`geom::Line::distance`] reads it, which is
+        /// correct for any nonzero `dir`, so a unit `dir` is not a premise
+        /// here (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
         axis: geom::Line<T>,
         /// The radius between the loops.
         radius: T,

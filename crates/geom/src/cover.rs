@@ -1185,7 +1185,12 @@ impl<T: Real> Tube<T> {
     /// the core's axis, and `|w' − w| ≤ 2·|â × â'|`.
     fn reach_to(&self, other: &Core<T>) -> T {
         let own = self.core();
-        let turn = own.axis.dir.normalize().cross(other.axis.dir.normalize()).norm();
+        let turn = own
+            .axis
+            .dir
+            .normalize()
+            .cross(other.axis.dir.normalize())
+            .norm();
         (other.axis.origin - own.axis.origin).norm()
             + (other.radius.abs() - own.radius).abs()
             + own.radius * turn * T::from_f64(2.0)
