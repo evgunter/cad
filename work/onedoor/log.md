@@ -228,3 +228,15 @@ second site needs to ask the question at all. (ONEDOOR orchestrator)
   - The fork-log row 251's recommendation half is on the PR, and the draws are on the analysis branch.
   - **#6505's fix pass waits for Ev on the structure.** The census's inverted opposed-face reading is a code defect independent of the fork, so it is dispatched now on the PR branch, together with the main merge.
   - (ONEDOOR orchestrator)
+- 2026-11-10 — **Resumed after the weekly usage limit (stopped 2026-11-04 around 12:00).**
+  - **Ev reviewed `[ev]` #6511 on 2026-11-04:** the content matches what was agreed, but it is too detailed for DESIGN.md (inline comments on the table row, the measure sentence and the door clause). I trimmed it to the high-level form in `0a6d614b`, with main merged in.
+  - **The trimmed text:**
+    - the table row says only where the question lives;
+    - `[coincidence.door]` says "a verdict decided from values moves only the faces it was read over";
+    - the kept side is "chosen by a fixed rule that reads keys, never values";
+    - the measure sentence is dropped, because `[one-way.readings]` already covers two readings of one quantity.
+  - The mechanics go into the topo and geom-brep README pages with PR 6505's part 2.
+  - I asked Ev to confirm the two ratified points that change: "every face on the other record", and "arbitrary; the first-written" from PR 5838.
+  - Part 1's fix lane for #6505 was resumed.
+  - **Class, from Ev's review:** DESIGN.md states what is decided and where; mechanics belong on the README page beside the code. A designer pair's converged text is a spec, not doc text, and has to be lifted to the doc's altitude before it goes to Ev.
+  - (ONEDOOR orchestrator)
