@@ -1,15 +1,11 @@
 # Review of PR 6521 (`spiricarm/spindle-partway`): a football revolved part way is its lune
 
-**Frozen head reviewed: `c974bfa84d556d9d49c144cba17c0021569605f9`.** Single FULL reviewer (claims + style lane).
-Probes: branch `spiricarm-rev6521/probes` @ `e90b9086`.
+**Frozen head: `c974bfa84d556d9d49c144cba17c0021569605f9`.** Single FULL reviewer. Probes: `spiricarm-rev6521/probes` @ `e90b9086`.
 
 ## Verdict: APPROVE-WITH-FIXES
 
-No MAJOR. The soundness core holds: the apex reading is this sheet's distance, the certified fallback
-cannot certify an off-sheet carrier, and the cone, the torus and every other kind behave as before.
-The fixes concern the PR's own evidence. One "equivalent" mutant is not equivalent. One witness row is
-blind to the check its doc names. The negative-angle row is blind to the sign of θ. And there is one
-user-drawable residue nobody has filed.
+No MAJOR. The soundness core holds; the fixes concern the PR's evidence: a non-equivalent "equivalent"
+mutant, two rows blind to what they claim to hold, and one unfiled user-drawable residue.
 
 ## Findings
 
@@ -46,9 +42,8 @@ lever refuses before the side check is reached. The row does reach limb 2: M1, M
 it red, and it pins `KernelLimit` against `Spindle`. The side check's only guard is the fuzz. Confidence: **sure**.
 
 **NOTE-2 — `axis.rs:classify_segment`: the claimed precedence over `ApexEndOffSheet` has no row.**
-Mutant S14 moves the pinch guard before `sheet_major`, and every row stays green. It is probably
-unreachable, since an interior `Zero` puts the end at the cusp, where the horn reading holds. Then the
-PR body's sentence describes nothing. Confidence: **likely**.
+Mutant S14 (guard before `sheet_major`) stays green. Probably unreachable (an interior `Zero` puts the
+end at the cusp, where the horn reading holds), so the PR body's sentence describes nothing. **likely**.
 
 **NOTE-3 — the one-segment horn pinch and its four-arc respelling.** These refuse in different classes.
 The solid of a horn disc revolved part way is a manifold: the link at the cusp is a lune with its
@@ -58,10 +53,9 @@ spelling names the face model, while the same solid spelled as four quarter arcs
 that reaches it from both sides pinches, and the existing `NonManifoldAxisContact` refuses it"), and the
 full revolve refuses the same way. Once the P2 lands, the two spellings will diverge further. Confidence: **likely**.
 
-**NOTE-4 — `limb-2s-floor-on-a-sheet-reads-the-whole-torus.md`: "off the sheet by `√3` at `R = −½, r = 1`"
-is the bound, not the distance.** The other sheet's meridian is farthest from the lemon at `(1.5, 0)`,
-which is 1 from the lemon's `(0.5, 0)`. `√3` is that point's distance from the apex `(0, √3/2)`, which is
-the bound limb 2 reads. Confidence: **sure**.
+**NOTE-4 — `limb-2s-floor-…`: "off the sheet by `√3`" is the bound, not the distance.** The other
+meridian's farthest point `(1.5, 0)` is 1 from the lemon's `(0.5, 0)`; `√3` is its distance from the
+apex `(0, √3/2)`, the bound limb 2 reads. Confidence: **sure**.
 
 **NOTE-5 — `a-horns-cusp-…` is banded P2.** `work/README.md` puts "verb breadth beyond the everyday
 shapes" at P1, and its parent row, of the same class, is P1. The needle tip revolved part way is
@@ -75,10 +69,6 @@ span that touches an apex used to read +∞ and end the quick reading. It now re
 halves linearly up to `WORK = 256` spans. This is sound, since it is still a certified upper bound, and
 it is part of the cost. The PR body's list of readers omits it. Confidence: **sure** (the change);
 soundness **likely**.
-
-**NOTE-7 — the `Indeterminate` on the lever.** Under `apex` a sheet part's band escalation
-(`Escalated { check: Sector }`) is now swallowed into the hull's reading. That is the intent, but an
-in-band lever on a sheet is no longer visible in limb 2 at all. Confidence: **sure** (description only).
 
 ## Claims
 
@@ -97,7 +87,7 @@ in-band lever on a sheet is no longer visible in limb 2 at all. Confidence: **su
    and the fallback is then the apex reach, which is ≥ the true distance. Cone (`√|f|` in both paths),
    torus (None → +∞) and plane, cylinder and sphere (never refuse) are unchanged by inspection. One
    remark for Ev: the answer turns on an in-band quantity, which affects how often it refuses but never
-   correctness.
+   correctness. (NOTE-7, **sure**: a sheet's in-band lever escalation is now swallowed under `apex`.)
 3. **Pinch guard: upheld.** S3 (`||`) breaks the needle and two more rows. S4 (no interior test) breaks
    8 football rows. It is consistent with the full revolve: `axis_runs` gives the same variant and
    vertex. The remaining questions are NOTE-2 and NOTE-3.
@@ -107,16 +97,10 @@ in-band lever on a sheet is no longer visible in limb 2 at all. Confidence: **su
 5. **Witness row: upheld that it reaches limb 2; falsified that the side check is held there** (NOTE-1).
    The build-door claim, that limb 1 refuses first, I did not probe independently.
 6. **Mutants.** M1, M2, M4, M5 and M6 are red as stated. M7 is **not equivalent** (MINOR-1). The ninth
-   candidates that survive:
-   - S13: the side check reads `ρ_hi`. No row catches it, and 400k wide-box Python draws found no
-     unsoundness either, so it is probably benign. If so, the check is stricter than it needs to be,
-     or uncovered in a way I could not find. **unsure**
-   - S14 (NOTE-2).
-   - S16: `apex_part` keeps a non-finite reading. This one is equivalent: `certified` always returns
-     `Some` on a sheet.
-   - S8: positivity read off `upper` instead of `lower`. It differs only at the rounding level on point
-     inputs.
-   - S9 (apex reading only) is red.
+   candidates that survive: S13 (the side check reads `ρ_hi`; no row catches it, and 400k wide-box
+   Python draws found no unsoundness, so probably benign, **unsure**); S14 (NOTE-2); S16 (`apex_part`
+   keeps a non-finite reading: equivalent, as `certified` always returns `Some` on a sheet); S8
+   (positivity off `upper`: differs only at rounding on point inputs). S9 (apex reading only) is red.
 7. **Cost: bounded.** Probe `review_6521_probe_lune_cost`, debug, default ε: 56 lunes. Lemon and apple
    from 0.01 to 1 − 1e-6 times r, r from 1e-3 to 1e3, θ ∈ {1e-3, 2, 6.28, −6.28}. Worst build 1.47 s
    (apple, r = 1e3, θ = 1e-3), typical 0.15–0.85 s. `limb2_quick`'s `WORK` and the rounds' budget bound
@@ -134,8 +118,7 @@ Questions exercised: Q1, Q2, Q3, Q4, Q5, Q6, Q7. Q8 only partly: I read `axis.rs
   ("limb 2's apex reading", `envelope_lemma_fuzz/projected.rs`.) The `SpanHull` is built with
   `meters: read.unwrap_or(∞)`, and `apex_part` on a sheet returns exactly that, so the loop checks the
   same number twice. Confidence: **sure**.
-- **Q2/Q7 — `apex_part`'s doc is long.** It argues at length for a two-line arm (about the band at an
-  apex). That argument belongs in the PR body (implementer-discipline §4). Confidence: **likely**.
+- **Q2/Q7** — `apex_part`'s doc argues at length for a two-line arm; that belongs in the PR body (§4). **likely**.
 - **Q1 — `certified` composes `over` and `apex_root`, and limb 2 re-reads the same composition through
   `SpanHull::meters`.** Limb 2's band path then calls `over` again at T. So there are two parallel
   readings of one bound: band-decided, and enclosure-decided. Which wins is decided by whether the band
@@ -151,21 +134,17 @@ Questions exercised: Q1, Q2, Q3, Q4, Q5, Q6, Q7. Q8 only partly: I read `axis.rs
   `a-football-revolved-part-way-…-certificate.md` cites the deleted `a_football_revolved_part_way_refuses_typed`
   and stays `open`. The PR body says the status is left to the orchestrator; the citation is stale on
   merge either way. Confidence: **sure**.
-- **Q6 — the cost measurement.** The ~0.85 s debug figure is unguarded at the claim site. The rows are
-  in the slow set, which re-takes their time nightly, so this is acceptable. Confidence: **likely**.
-- **Q1 — the probe oracle's `√(r² − R²)` cancellation recurs.** The fuzz's `sheet_distance` spells it the
-  cancelling way, while `geom::sheet_apex` spells it `(r − R)(r + R)`. Two spellings of one quantity.
-  Confidence: **sure**.
+- **Q6** — the ~0.85 s cost figure is unguarded at its site, but the slow set re-times it nightly. **likely**.
+- **Q1** — the fuzz's `sheet_distance` spells the apex height `√(r² − R²)` (cancelling); `geom::sheet_apex`
+  spells it `(r − R)(r + R)`. Two spellings of one quantity. **sure**.
 
 ## Disclosures
 
 - I posted nothing to GitHub. I ran everything locally in debug, mostly at the default ε, plus
   `CAD_TOLERANCE_EPS=1e-12` for the near-sphere probe. I did not check the full revolve of the
   near-sphere footballs at 1e-12.
-- Mutants ran on 23–25 rows: the PR's rows, all of `the_football_revolves::` and `closed_form_limb2::`,
-  and my probes. They did not run on all of `sweep::all`. A first S17 run over all of `sweep::all`
-  exceeded 10 minutes. I stopped it, restored the file and confirmed no processes were left, then re-ran
-  S17 on the narrow set.
-- I did not trace the near-sphere refusal or the horn row's `√(2r·d)` mechanism, and I did not probe
-  the build-door claim in claim 5.
-- I did not re-verify the PR's sweep hit list (§5) entry by entry.
+- Mutants ran on 23–25 rows (the PR's, all of `the_football_revolves::` and `closed_form_limb2::`, my
+  probes), not all of `sweep::all`: a first S17 run over it passed 10 minutes, so I stopped it,
+  restored the file, checked no processes remained, and re-ran S17 on the narrow set.
+- Not traced: the near-sphere refusal, the horn row's `√(2r·d)` mechanism, claim 5's build-door claim,
+  and the PR's §5 sweep hit list entry by entry.
