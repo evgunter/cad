@@ -14,8 +14,8 @@
 //! NaI or empty, is not that question.
 //!
 //! This row is the sweep, executed: it walks the certification code by
-//! one rule and pins, per file, how many production lines read an
-//! endpoint and how many of those sit in a function that asks the
+//! one rule and pins, per file, how many production endpoint reads it
+//! holds and how many of those sit in a function that asks the
 //! refusal. **A read added anywhere in that code moves a number here**,
 //! so it cannot land without being dispositioned.
 //!
@@ -74,7 +74,12 @@
 //! 3. **A certification endpoint handed to a helper taking `f64`** is no
 //!    longer an enclosure where the comparison happens, and no text scan
 //!    can follow it.
-//! 4. **A read inside a macro body** is missed the same way.
+//! 4. **Macros are read as text, not expanded.** A read in a macro
+//!    invocation's arguments is counted where it is written; a read in a
+//!    `macro_rules!` body is counted once, at the definition, attributed
+//!    to whatever item encloses the definition (none, at module level,
+//!    so not asking); and no read is attributed per expansion, so a
+//!    macro that expands a read into ten functions counts it once.
 //! 5. The production/test cut is the GATE'S, `scripts/gates/lib.sh`'s,
 //!    so the two instruments cannot disagree on which files are
 //!    importers: a file a test-only `mod x;` mounts is dropped whole
@@ -109,6 +114,13 @@
 //!    ladder's widest rung; `edge_nurbs.rs`'s per-sample lever, a
 //!    refusal's payload) or the type's own body (`interval.rs`'s
 //!    `from_certified` and span locator).
+//! 8. **A const-generic argument written with braces** (`Foo<{ N }>`)
+//!    in a signature is read as the item's body: the walk's terminator
+//!    ([`source::item_body`]) treats `<` as no bracket, so the `{` of
+//!    `{ N }` opens the "body". No production item in the population is
+//!    spelled so today; one that is would attribute its reads to the
+//!    braces and, where its true body follows, red as unterminated or
+//!    mis-attributed.
 //!
 //! # Where it lives, and why here
 //!
@@ -651,8 +663,11 @@ fn repo_root() -> std::path::PathBuf {
 /// Every `crates/*/src` file whose production code reaches certification
 /// arithmetic, and every file in [`HOLDERS`], with its production lines. **The shared lexer's CODE view**, not the raw
 /// text: a `.lo()` or a door inside a doc comment or a string literal is
-/// neither a read nor a call, and blanking keeps the newlines and every
-/// byte in place, so an offset into this view is an offset into the file
+/// neither a read nor a call. Blanking keeps every byte in place, but
+/// [`production`] then drops the lines of test-only items, so an offset
+/// into the joined production lines is an offset into the production
+/// text and NOT into the file; a read is pinned by its count, never by
+/// its place
 /// (`crates/test-utils/tests/reader_census.rs` is the ledger this entry
 /// sits in).
 fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
@@ -904,71 +919,30 @@ fn normalized(path: &str) -> String {
     seg.join("/")
 }
 
-/// The `fn` items of a production text, as byte extents from the `fn`
-/// keyword to the close of its body: a declaration with no body (a
-/// trait's, ending at `;`) has none.
-fn fn_items(text: &str) -> Vec<std::ops::Range<usize>> {
-    let mut out = Vec::new();
-    let mut at = 0usize;
-    while let Some(hit) = text[at..].find("fn ") {
-        let start = at + hit;
-        at = start + 3;
-        if !source::boundary_before(text, start) {
-            continue;
-        }
-        // Past the parameter list, then the first `{` or `;` outside a
-        // bracket: `[Interval; 3]` in a return type holds a `;` that ends
-        // nothing.
-        let Some(params) = text[at..].find('(').map(|i| at + i) else {
-            continue;
-        };
-        let Some(after) = source::balanced_end(text, params) else {
-            continue;
-        };
-        let mut depth = 0i64;
-        let mut open = None;
-        for (i, c) in text[after + 1..].char_indices() {
-            match c {
-                '(' | '[' => depth += 1,
-                ')' | ']' => depth -= 1,
-                '{' | ';' if depth == 0 => {
-                    open = Some((after + 1 + i, c));
-                    break;
-                }
-                _ => {}
-            }
-        }
-        let Some((open, '{')) = open else {
-            continue;
-        };
-        if let Some(close) = source::balanced_end(text, open) {
-            out.push(start..close + 1);
-        }
-    }
-    out
-}
-
 /// **Every endpoint read in a file's production lines, one per site**:
 /// each `.lo()` and each `.hi()` call, with whether the innermost `fn`
 /// item enclosing it asks `is_certified()`. Read off the text, not its
 /// lines, so a read rustfmt reflows onto another line is the same read
-/// and two reads on one line are two.
-fn endpoint_reads(lines: &[String]) -> Vec<(usize, bool)> {
+/// and two reads on one line are two. The items are the shared walk's
+/// ([`source::fn_items`] over [`source::item_body`]), and an item the
+/// walk cannot terminate is an error, not a skip: the reads after it
+/// would otherwise be attributed to nothing with no count moving.
+fn endpoint_reads(lines: &[String]) -> Result<Vec<(usize, bool)>, String> {
     let text = lines.join("\n");
-    let items = fn_items(&text);
+    let items = source::fn_items(&text)?;
     let mut out = Vec::new();
     for needle in [".lo()", ".hi()"] {
         for (at, _) in text.match_indices(needle) {
             let asks = items
                 .iter()
-                .filter(|item| item.contains(&at))
-                .min_by_key(|item| item.len())
-                .is_some_and(|item| text[item.clone()].contains("is_certified()"));
+                .filter(|(_, body)| body.contains(&at))
+                .min_by_key(|(_, body)| body.len())
+                .is_some_and(|(_, body)| text[body.clone()].contains("is_certified()"));
             out.push((at, asks));
         }
     }
     out.sort_unstable();
-    out
+    Ok(out)
 }
 
 #[test]
@@ -976,7 +950,8 @@ fn every_production_endpoint_read_is_counted_and_dispositioned() {
     let root = repo_root();
     let mut found: Vec<(String, usize, usize)> = Vec::new();
     for (name, lines) in population(&root) {
-        let reads = endpoint_reads(&lines);
+        let reads = endpoint_reads(&lines)
+            .unwrap_or_else(|why| panic!("{name}: the census cannot place a read: {why}"));
         if reads.is_empty() {
             continue;
         }
@@ -1022,6 +997,7 @@ fn a_reflowed_read_moves_no_count() {
                  fn g(y: Interval) -> f64 {\n    y.lo()\n}\n";
     let asks = |text: &str| -> Vec<bool> {
         endpoint_reads(&lines(text))
+            .expect("a well-formed fixture")
             .into_iter()
             .map(|(_, asks)| asks)
             .collect()
@@ -1032,6 +1008,24 @@ fn a_reflowed_read_moves_no_count() {
     let typed = "fn h(m: [[Interval; 3]; 3]) -> [f64; 2] {\n    \
                  if !m[0][0].is_certified() { return [0.0; 2]; }\n    [m[0][0].lo(), m[0][0].hi()]\n}\n";
     assert_eq!(asks(typed), [true, true]);
+    // A nested `fn` is its own item: the outer one's refusal is not its.
+    let nested = "fn outer(x: Interval) -> f64 {\n    fn inner(y: Interval) -> f64 { y.lo() }\n    \
+                  if !x.is_certified() { return 0.0; }\n    inner(x) + x.hi()\n}\n";
+    assert_eq!(asks(nested), [false, true]);
+    // A trait's declaration ends at its `;` and takes no body: the
+    // default methods after it are their own items.
+    let defaults = "trait T {\n    fn bare(&self) -> Interval;\n    \
+                    fn asks(&self) -> f64 {\n        let v = self.bare();\n        \
+                    if !v.is_certified() { return 0.0; }\n        v.lo()\n    }\n    \
+                    fn plain(&self) -> f64 { self.bare().hi() }\n}\n";
+    assert_eq!(asks(defaults), [true, false]);
+    // A `where` clause stands between the signature and the body.
+    let bounded = "fn w<T>(x: T) -> f64\nwhere\n    T: Into<Interval>,\n{\n    \
+                   let v: Interval = x.into();\n    \
+                   if !v.is_certified() { return 0.0; }\n    v.lo()\n}\n";
+    assert_eq!(asks(bounded), [true]);
+    // An item that never closes is an error, not a skip.
+    assert!(endpoint_reads(&lines("fn broken(x: Interval) {\n    x.lo()\n")).is_err());
 }
 
 /// [`HOLDERS`] is a list kept by hand, so it is held to the tree: an
