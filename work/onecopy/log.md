@@ -1455,3 +1455,16 @@
     - edge-ends-turns: fix certification check 2 (chord as a second lower bound) if unratified; else land refusal-pinned and send the clause.
     - small-sweeps B item 2: split the names, keep the control.
   - Fork a-row-2-refusal-takes-which-name: round 2. A is back to the type (C) as B amended it; awaiting B.
+- 2026-11-10 05:25Z
+  - **Merged PR 6687 (needle-basin, the P0 fix), f875961f.** 13133/13133 on the merged tree.
+  - **Fork a-row-2-refusal-takes-which-name: converged after 3 rounds** (crossed twice):
+    - row 2 becomes a typed standing; `Refusal::Unbuilt` is stated per variant in one exhaustive standing behind a `Standing` trait;
+    - `Limit` narrows to 1(b) with its own lever;
+    - the cause-field rule;
+    - per-case endings;
+    - no renames;
+    - the inventory is the sites minting `Unbuilt`.
+    - Runner-up: the nested `Unsupported(<Type>Unbuilt)`.
+    - **[ev] PR 6702 opened:** DESIGN edited to the recommended text, fork-log row 255 (recommendation half, labels only), each designer's For Ev verbatim as A and B. Subscribed for Ev's answer.
+  - **edge-ends-turns:** certification check 2 was unratified (born in an M2 fix pass), so it was fixed. `Extent::forward_by_arc` accepts the end chord as a second lower bound on arc; the thin-ellipse e2e now splits at all three cuts and ε. Full runs are going.
+  - **6698 FULL: FIX** (the face_cone arm's stated gate is wrong; the S8 definition is unpinned; "every edge a line" is walked three times).
