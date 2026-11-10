@@ -12478,6 +12478,9 @@ mod cylinder_line_rows;
 mod ellipse_lane_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
+mod review_6524_probe;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
 mod line_incidence;
 #[cfg(test)]
