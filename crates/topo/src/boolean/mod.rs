@@ -1544,6 +1544,7 @@ pub(crate) fn unglued_coincidence(
         Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("carrier_unglued_coincidence"),
             terminal_sliver: false,
         },

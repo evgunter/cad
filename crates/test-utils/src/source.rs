@@ -1711,8 +1711,8 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
             while let Some(hit) = raw[at..].find(needle) {
                 let start = at + hit;
                 at = start + needle.len();
-                out.unwalked
-                    .insert(format!("{rel}:{}", line(raw, start) + 1));
+                let line_no = raw[..start].matches('\n').count() + 1;
+                out.unwalked.insert(format!("{rel}:{line_no}"));
             }
         }
     }
@@ -1806,8 +1806,11 @@ pub fn roster_violations(
     out
 }
 
-/// Whether the unwalked site `<file>:<line>` under `src` is a
-/// `#[path = "…"]` mounting a file under `src`, which the walk reads.
+/// Whether the unwalked site `<file>:<line>` under `src` is one the
+/// walk covers after all: a `#[path = "…"]` mounting a file under
+/// `src`, which the walk reads, or an `include!("…")` of a data file
+/// under `src` — not a `.rs` file, and spelling no `decide` — which
+/// holds no site to read.
 fn mounted_under(src: &std::path::Path, site: &str) -> Result<(), String> {
     let (file, line) = site.rsplit_once(':').ok_or("not `<file>:<line>`")?;
     let line: usize = line.parse().map_err(|_| "not a line number")?;
@@ -1819,17 +1822,37 @@ fn mounted_under(src: &std::path::Path, site: &str) -> Result<(), String> {
         .nth(line.saturating_sub(1))
         .ok_or("no such line")?
         .trim();
-    let target = attr
+    let mount = attr
         .strip_prefix("#[path =")
         .and_then(|rest| rest.trim().strip_suffix(']'))
-        .and_then(plain_string_literal)
-        .ok_or_else(|| format!("not a `#[path = …]` mount: {attr}"))?;
+        .and_then(plain_string_literal);
+    let data = attr.split_once("include!(").and_then(|(_, rest)| {
+        let close = rest.find(')')?;
+        plain_string_literal(rest[..close].trim())
+    });
+    let (target, is_data) = match (mount, data) {
+        (Some(target), _) => (target, false),
+        (None, Some(target)) => (target, true),
+        (None, None) => {
+            return Err(format!(
+                "neither a `#[path = …]` mount nor an `include!` of a data file: {attr}"
+            ));
+        }
+    };
     let mounted = file
         .parent()
         .ok_or("a file with no directory")?
         .join(target);
     if target.contains("..") || !mounted.starts_with(src) || !mounted.is_file() {
         return Err(format!("mounts `{target}`, which is not a file under src"));
+    }
+    if is_data {
+        let body = std::fs::read_to_string(&mounted).map_err(|e| e.to_string())?;
+        if target.ends_with(".rs") || body.contains("decide") {
+            return Err(format!(
+                "includes `{target}`, source the walk does not read rather than data"
+            ));
+        }
     }
     Ok(())
 }
@@ -2132,6 +2155,67 @@ fn literal_tuple(bare: &str, code: &str) -> Option<Vec<String>> {
         .map(|item| plain_string_literal(item).map(str::to_string))
         .collect::<Option<_>>()?;
     (!names.is_empty()).then_some(names)
+}
+
+/// **The carriers a roster file declares**, read off its text: each
+/// `NameCarrier::Const("…")` and `NameCarrier::Call("…")` in code, in
+/// order. The tree-wide coverage row builds each roster crate's census
+/// with its own roster's carriers this way, so the union it resolves
+/// references against is what the rosters read, with no second copy of
+/// their lists.
+#[must_use]
+pub fn declared_carriers(roster: &str) -> Vec<NameCarrier> {
+    let code = code_and_literals(roster);
+    let mut found: Vec<(usize, NameCarrier)> = Vec::new();
+    for (head, call) in [("NameCarrier::Const(", false), ("NameCarrier::Call(", true)] {
+        let mut at = 0usize;
+        while let Some(hit) = code[at..].find(head) {
+            let open = at + hit + head.len();
+            at = open;
+            let Some(close) = code[open..].find(')') else {
+                break;
+            };
+            if let Some(token) = plain_string_literal(code[open..open + close].trim()) {
+                let token: &'static str = Box::leak(token.to_string().into_boxed_str());
+                let carrier = if call {
+                    NameCarrier::Call(token)
+                } else {
+                    NameCarrier::Const(token)
+                };
+                found.push((open, carrier));
+            }
+        }
+    }
+    found.sort_by_key(|(at, _)| *at);
+    found.into_iter().map(|(_, carrier)| carrier).collect()
+}
+
+/// **Every plain string literal spelled in code under `src`** — not in
+/// a comment. What the coverage row asks of a crate that runs no
+/// roster yet: whether a name it cannot resolve is spelled there.
+#[must_use]
+pub fn spelled_literals(src: &std::path::Path) -> std::collections::BTreeSet<String> {
+    let mut out = std::collections::BTreeSet::new();
+    for file in rust_sources(src) {
+        let Ok(text) = std::fs::read_to_string(&file) else {
+            continue;
+        };
+        let code = code_and_literals(&text);
+        let bare = code_only(&text);
+        let (code_b, bare_b) = (code.as_bytes(), bare.as_bytes());
+        let mut i = 0usize;
+        while i < code_b.len() {
+            if code_b[i] == b'"' && bare_b[i] != b'"' && (i == 0 || code_b[i - 1] != b'\'') {
+                if let Some(lit) = first_literal(&code[i..]) {
+                    i += lit.len() + 2;
+                    out.insert(lit);
+                    continue;
+                }
+            }
+            i += 1;
+        }
+    }
+    out
 }
 
 /// The contents of a plain string literal at the head of `text`.
@@ -2806,6 +2890,35 @@ mod tests {
             super::unresolved_references(&census, &decided),
             ["a.rs:3: asserted", "a.rs:4: compared"]
         );
+    }
+
+    /// **An `include!` of a data file is walked; one of source is not**:
+    /// the site is keyed at the line the `include!` stands on, even mid-
+    /// line, and a data file under `src` spelling no `decide` is no
+    /// blind spot, while an included `.rs` file is.
+    #[test]
+    fn an_included_data_file_is_no_blind_spot() {
+        let dir = std::env::temp_dir().join(format!("tu-include-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn f() {\n    let t: [f64; 1] = include!(\"t.in\");\n}\n",
+        )
+        .expect("write");
+        std::fs::write(dir.join("t.in"), "[1.0]\n").expect("write");
+        std::fs::write(
+            dir.join("b.rs"),
+            "fn g() {\n    include!(\"c.rs\");\n}\n",
+        )
+        .expect("write");
+        std::fs::write(dir.join("c.rs"), "fn h() {}\n").expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        let violations = super::roster_violations(&dir, &census, &[], None);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        let unwalked: Vec<&str> = census.unwalked.iter().map(String::as_str).collect();
+        assert_eq!(unwalked, ["a.rs:2", "b.rs:2"], "{census:?}");
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(violations[0].contains("b.rs:2") && violations[0].contains("c.rs"), "{violations:?}");
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the

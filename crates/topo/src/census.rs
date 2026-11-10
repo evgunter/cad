@@ -15906,6 +15906,7 @@ mod tests {
                     !cause.margin.is_invalid()
                         && !matches!(
                             cause.predicate,
+                            // UNDECIDED-NAME: retired escalations, asserted absent
                             Some("pm_census_containment" | "bool_contfp_boundary")
                         ),
                     "a census escalation over a margin nothing metred: {e:?}"

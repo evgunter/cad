@@ -4158,6 +4158,7 @@ mod piece_rung_rows {
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                 predicate: Some("test_piece"),
                 terminal_sliver: false,
             },

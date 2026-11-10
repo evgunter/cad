@@ -6888,6 +6888,7 @@ mod recourse_tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("pcurve_recourse_probe"),
             terminal_sliver: false,
         };

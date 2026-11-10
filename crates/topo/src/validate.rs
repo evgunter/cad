@@ -12624,6 +12624,7 @@ mod tests {
                 source: Indeterminate {
                     margin,
                     band: Band::enclosure_sign(),
+                    // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                     predicate: Some("chk_shell_volume_sign"),
                     terminal_sliver: false,
                 },
@@ -13110,6 +13111,7 @@ mod tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("a_margin"),
             terminal_sliver: false,
         };
@@ -18262,6 +18264,7 @@ mod certify_escalation_rows {
             cause: Indeterminate {
                 margin,
                 band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             },
@@ -18540,6 +18543,7 @@ mod certify_escalation_rows {
                     cause: Indeterminate {
                         margin: MarginDiag::value(5.0e-9),
                         band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                        // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                         predicate: Some("a_probe"),
                         terminal_sliver: false,
                     },

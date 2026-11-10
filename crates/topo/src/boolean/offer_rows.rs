@@ -2217,6 +2217,7 @@ fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
             let diag = Indeterminate {
                 margin: MarginDiag::value(m),
                 band,
+                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                 predicate: Some("census"),
                 terminal_sliver: false,
             };

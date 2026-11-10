@@ -348,9 +348,11 @@ impl<T: Decide> CylinderSpherePose<T> {
         let read_as = |name: &'static str, value: T| {
             geom_core::k_stats::decide_reported(name, Margin::of(value), band)
         };
+        const CYLINDER_RADIUS: &str = "cs_cylinder_radius";
+        const SPHERE_RADIUS: &str = "cs_sphere_radius";
         for (name, value, radius) in [
-            ("cs_cylinder_radius", r, SectionRadius::Cylinder),
-            ("cs_sphere_radius", big_r, SectionRadius::Sphere),
+            (CYLINDER_RADIUS, r, SectionRadius::Cylinder),
+            (SPHERE_RADIUS, big_r, SectionRadius::Sphere),
         ] {
             match read_as(name, value) {
                 Ok(Decided {

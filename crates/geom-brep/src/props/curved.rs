@@ -2096,10 +2096,10 @@ fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsE
         cause,
         check: PropsCheck::Inventory,
     };
-    let net = "props_cone_apex_loop_net";
-    let (_, extent) = Extent::decide_signed(net, total, InfSpeed::new(arm), band).map_err(
+    const NET: &str = "props_cone_apex_loop_net";
+    let (_, extent) = Extent::decide_signed(NET, total, InfSpeed::new(arm), band).map_err(
         |cause: geom_core::Indeterminate| match cause.margin.rejected_sign() {
-            Some(Sign::Zero) => PropsError::ConeLoop { what: net },
+            Some(Sign::Zero) => PropsError::ConeLoop { what: NET },
             _ => escalated(cause),
         },
     )?;

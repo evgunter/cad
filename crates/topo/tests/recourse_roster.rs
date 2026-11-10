@@ -387,6 +387,13 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("zero_as"),
     NameCarrier::Call("turn_as"),
     NameCarrier::Call("zero_refused"),
+    // The split join's chord-leave rows, picked by a `match` on the datum.
+    NameCarrier::Const("CHORD_LEAVE_GERM"),
+    NameCarrier::Const("CHORD_LEAVE_SECTION"),
+    // The funnels and row structs the tree-wide reference row found
+    // their callers' names behind.
+    NameCarrier::Call("first_within"),
+    NameCarrier::Call("OnReading"),
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \

@@ -1286,6 +1286,7 @@ mod tests {
         let IdentityLadder::Undecided(cause) = got else {
             panic!("undecided: {got:?}")
         };
+        // UNDECIDED-NAME: a fixture row read_identity takes in tuples the census does not open
         assert_eq!(cause.predicate, Some("b"));
         assert_eq!(verdicts, ["a", "c"]);
         assert_eq!(escalations, ["b"]);
@@ -1318,6 +1319,7 @@ mod tests {
             let IdentityLadder::Undecided(cause) = got else {
                 panic!("{poison}: undecided: {got:?}")
             };
+            // UNDECIDED-NAME: a fixture row read_identity takes in tuples the census does not open
             assert_eq!(cause.predicate, Some("b"), "{poison}");
             assert!(cause.margin.is_invalid(), "{poison}: {cause:?}");
         }

@@ -4756,6 +4756,7 @@ mod tests {
         assert_eq!(err.predicate, None);
 
         let named = err.with_predicate("side_of_plane");
+        // UNDECIDED-NAME: an arbitrary name the test attaches and reads back; no door raises it
         assert_eq!(named.predicate, Some("side_of_plane"));
         // Margin and band pass through untouched.
         assert_eq!(named.margin, err.margin);
@@ -4764,6 +4765,7 @@ mod tests {
         // Re-attaching replaces: the outermost predicate wins.
         assert_eq!(
             named.with_predicate("transversality").predicate,
+            // UNDECIDED-NAME: an arbitrary name the test attaches and reads back; no door raises it
             Some("transversality")
         );
     }
@@ -4832,6 +4834,7 @@ mod tests {
         let enclosure = Indeterminate {
             margin: MarginDiag::enclosure(-2e-9, 5e-9),
             band,
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         };

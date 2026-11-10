@@ -5446,6 +5446,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(0.0),
             band: band(),
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -5494,6 +5495,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -7172,6 +7174,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8160,6 +8163,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8221,6 +8225,7 @@ mod tests {
         let cause = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8309,6 +8314,7 @@ mod tests {
             let cause = Indeterminate {
                 margin,
                 band,
+                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             };
@@ -8456,6 +8462,7 @@ mod tests {
             cause: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band,
+                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             },
@@ -8556,6 +8563,7 @@ mod tests {
             let cause = Indeterminate {
                 margin,
                 band,
+                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             };
@@ -9044,6 +9052,7 @@ mod tests {
         let undecided = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };

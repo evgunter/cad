@@ -1698,6 +1698,7 @@ pub(in crate::boolean) mod tests {
         Indeterminate {
             margin,
             band: band(),
+            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
             predicate: Some("routing_probe"),
             terminal_sliver: false,
         }
@@ -2634,6 +2635,7 @@ pub(in crate::boolean) mod tests {
                 let diag = Indeterminate {
                     margin,
                     band: band(),
+                    // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
                     predicate: Some("side_of_plane"),
                     terminal_sliver: false,
                 };
