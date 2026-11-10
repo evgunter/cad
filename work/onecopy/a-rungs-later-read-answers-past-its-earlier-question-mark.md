@@ -2,10 +2,11 @@
 id: a-rungs-later-read-answers-past-its-earlier-question-mark
 kind: issue
 title: Three rungs refuse at a ? where a later read of the same rung answers the same way
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: M
+closed: 2026-11-10
 ---
 
 Found while building the `rung:` register (`scripts/gates/escalation-question-marks-rung.counts`, from `a-question-mark-inside-a-rung-is-registered-nowhere`).
@@ -23,3 +24,25 @@ Each port is a refusal that becomes an answer, so each wants a row that reds aga
 ## Done when
 
 Each of the three reads its later conjunct before the earlier refuses, under a row that reds against the old order, and its `rung:` entry is lowered and dispositioned `PREMISE`. Or a reviewer rules that a site's later read does not answer alone, and its entry says why.
+
+## Outcome
+
+Each of the five `SEARCH` `?`s now lets the later read answer past it. The `rung:` register drops in step:
+- `crescent`: 5 → 0, so its entry is retired;
+- `held_cut`: 4 → 3;
+- `path_parity`: 6 → 5.
+
+The ports:
+- **`crescent`** reads its four conjuncts through `all_hold`, lazily and in the old order: parallel bounds, the across reading, the run's clause, then the opening. The first conjunct decided not to hold answers `false`. The first refusal stands only where none decides against.
+  - The run's clause holds off a run, or where the bounds stay parallel along it. So `parallel_same(.., l, ..)` is now read where `coincident_run` is in band; before, it was read only under a run.
+  - Every added read sits on a path that used to refuse. Paths that decided read what they read before.
+- **`held_cut`** reads a cut through `past_nesting`. A nesting in band reads the walk (`on_arc`) and answers `false` where the walk places an end off the run. A nesting that holds still answers without reading the walk.
+- **`path_parity`**: where `plane_roots` is in band for a conic arc off arrival, `coplanar_apart` (split out of `misses_in_plane`'s first arm) answers the pair's miss.
+
+**Pinned**, each red against the old order (measured with all three reverted at once: 0/4 pass):
+- `boolean::sectors::tests::a_conjunction_answers_false_past_an_earlier_refusal`: `all_hold`'s order and laziness.
+- `boolean::sectors::tests::a_crescent_answers_past_bounds_parallel_in_band`: a hand-built pair of plane sectors through `crescent` itself.
+- `boolean::insert::tests::a_walk_off_the_run_answers_past_a_nesting_in_band`: `past_nesting`'s table. `held_cut`'s own wiring is held by the `rung:` register, where a `nested(..)?` would raise the count.
+- `ring_path::tests::a_circle_apart_from_a_conic_misses_it_past_a_plane_meeting_in_band`: a unit circle rising to a conic's plane within the band, against a conic decided apart, through `path_parity`.
+
+**Reach**: no suite reaches a ported path. A probe on each new answer-past branch logged nothing over the topo, sweep and editor-core `ci` sets at default ε, 1e-12 and 1e-6.

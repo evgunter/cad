@@ -7896,21 +7896,30 @@ fn at_rest_fault(why: &crate::face_normal::NormalAtError) -> bool {
 }
 
 impl TouchUnread {
-    /// What arm 2 reads of a touch left unread: its reason, aborting by
-    /// the cause's own standing ([`Self::refusal`]), read here before
-    /// [`Self::undecided`] names it.
-    fn unrest<T: Real>(self) -> Unrest<T> {
+    /// **A touch left unread, as arm 2 keeps it**: its reason, aborting
+    /// by the cause's own standing ([`Self::refusal`]), read here before
+    /// [`Self::undecided`] names it. The one reading of that standing:
+    /// [`Self::unrest`] and [`Self::scan`] are this, carried.
+    fn backstop_standing(self) -> Kept {
         match self.refusal() {
-            Ok(_) => Unrest::Undecided(self.undecided()),
-            Err(Aborts) => Unrest::Aborts(self.undecided()),
+            Ok(_) => Kept::Waits(self.undecided()),
+            Err(Aborts) => Kept::Aborts(self.undecided()),
         }
     }
 
-    /// [`Self::unrest`] as [`blocked`] ranks it.
+    /// What arm 2 reads of a touch left unread ([`Self::backstop_standing`]).
+    fn unrest<T: Real>(self) -> Unrest<T> {
+        match self.backstop_standing() {
+            Kept::Waits(why) => Unrest::Undecided(why),
+            Kept::Aborts(why) => Unrest::Aborts(why),
+        }
+    }
+
+    /// [`Self::backstop_standing`] as [`blocked`] ranks it.
     fn scan<T: Real>(self) -> Scan<T> {
-        match self.refusal() {
-            Ok(_) => Scan::Undecided(self.undecided()),
-            Err(Aborts) => Scan::Aborts(self.undecided()),
+        match self.backstop_standing() {
+            Kept::Waits(why) => Scan::Undecided(why),
+            Kept::Aborts(why) => Scan::Aborts(why),
         }
     }
 
@@ -8177,6 +8186,15 @@ enum Blocked<T: Real> {
     Undecided(Undecided),
 }
 
+/// A reason a touch left unread keeps the pair undecided, with its
+/// standing ([`TouchUnread::backstop_standing`]): it waits for a decided reading, or
+/// it aborts the pair's reading at once.
+#[derive(Clone, Copy, Debug)]
+enum Kept {
+    Waits(Undecided),
+    Aborts(Undecided),
+}
+
 /// One reading [`blocked`] ranks: a touch read as a crossing at the point
 /// carried, a reason whose standing aborts ([`Unrest::Aborts`]), or a
 /// reason the pair stays undecided.
@@ -8238,6 +8256,29 @@ fn between_scan<T: Real>(
     Some(Scan::Undecided(why))
 }
 
+/// **What a recorded or shared site scans as** in [`blocked`], its touch
+/// read as `at`: a crossing, or an abort, wherever it stands; a reason
+/// that waits only where the site is read `strict` (a shared key, or a
+/// record not taken on its word), and nothing where a declaration
+/// vouches for it. No declaration vouches for an abort: a kernel defect,
+/// or two readings of one fact that disagree.
+fn site_scan<T: Real>(site: TouchSite, strict: bool, at: Option<Unrest<T>>) -> Option<Scan<T>> {
+    match at? {
+        Unrest::Crossing(at) => Some(Scan::Crossing(site, at)),
+        Unrest::Aborts(why) => {
+            if !strict {
+                use std::io::Write;
+                let name = std::thread::current().name().unwrap_or("?").to_string();
+                if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(format!("/tmp/claude-0/-home-user-cad/b6e0c139-d1ac-5d9b-a208-ff9f91c2be5c/scratchpad/st2/{}.log", std::process::id())) {
+                    let _ = writeln!(f, "DECLARED_ABORT\t{name}");
+                }
+            }
+            Some(Scan::Aborts(why))
+        }
+        Unrest::Undecided(why) => strict.then_some(Scan::Undecided(why)),
+    }
+}
+
 /// **What blocks a solid pair, from its findings and then its sites**
 /// ([`blocked`]): a pair's standing findings are scanned ahead of its
 /// recorded and shared sites, so a finding that aborts ends the reading
@@ -8253,8 +8294,8 @@ fn pair_blocked<T: Real>(
 #[cfg(test)]
 mod blocked_rows {
     use super::{
-        Blocked, CurvedUnread, Said, Scan, TouchSite, TouchUnread, Undecided, Unrest, between_scan,
-        blocked, pair_blocked,
+        Blocked, CurvedUnread, Kept, Said, Scan, TouchSite, TouchUnread, Undecided, Unrest,
+        between_scan, blocked, pair_blocked, site_scan,
     };
     use crate::entity::{FaceKey, VertexKey};
     use geom_core::Point3;
@@ -8353,12 +8394,10 @@ mod blocked_rows {
                 .map(TouchUnread::NormalFault),
         );
         for why in causes {
-            let aborts = matches!(why.scan::<f64>(), Scan::Aborts(_));
-            assert_eq!(aborts, why.refusal().is_err(), "{why:?}");
             assert_eq!(
-                matches!(why.unrest::<f64>(), Unrest::Aborts(_)),
-                aborts,
-                "{why:?}: unrest and scan agree"
+                matches!(why.backstop_standing(), Kept::Aborts(_)),
+                why.refusal().is_err(),
+                "{why:?}"
             );
         }
         assert!(
@@ -8403,6 +8442,34 @@ mod blocked_rows {
             "a confirmed face pair scans as nothing"
         );
         assert_eq!(Undecided::CurvedTouch.what(), CURVED.what(), "one sentence");
+    }
+
+    /// **A site taken on a declaration's word still aborts**
+    /// ([`site_scan`]): a reading that waits is dropped there, but an
+    /// abort, which no declaration vouches for, ends the pair's reading
+    /// as it does at a site read strictly. Red against dropping every
+    /// reading a non-strict site does not decide.
+    #[test]
+    fn a_declared_site_still_aborts() {
+        let corrupt = Some(Unrest::<f64>::Aborts(Undecided::CorruptInstance));
+        assert!(
+            matches!(
+                site_scan(site(), false, corrupt),
+                Some(Scan::Aborts(Undecided::CorruptInstance))
+            ),
+            "an abort on a declaration's word"
+        );
+        assert!(
+            site_scan(site(), false, Some(Unrest::<f64>::Undecided(WAITS))).is_none(),
+            "a reason that waits, on its word"
+        );
+        assert!(
+            matches!(
+                site_scan(site(), true, Some(Unrest::<f64>::Undecided(WAITS))),
+                Some(Scan::Undecided(_))
+            ),
+            "the same, read strictly"
+        );
     }
 
     /// **A pair's findings are scanned before its sites**
@@ -10552,7 +10619,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     // `records_on_their_word` is the declared-only pair's reading (the
     // loop's argument says why): its records are read only for a
     // decided crossing, and a record the analysis cannot read is taken
-    // on its word. A face-pair record is read by no analysis here: it
+    // on its word, except where the reading aborts: a kernel defect or
+    // two readings of one fact that disagree, which no declaration
+    // vouches for, and which ends the pair's reading at once as anywhere
+    // else ([`blocked`]). A face-pair record is read by no analysis here: it
     // answers for its boundary's events only once confirmed, a rest,
     // and otherwise leaves them standing as findings.
     let blocks = |standing_errors: &[ValidationError],
@@ -10608,12 +10678,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 Recorded::FacePair => None,
             })
             .chain(shared(sa, sb).into_iter().map(|site| (site, true)));
-        let at_sites = sites.filter_map(|(site, strict)| match touch(site) {
-            Some(Unrest::Crossing(at)) => Some(Scan::Crossing(site, at)),
-            Some(Unrest::Aborts(why)) if strict => Some(Scan::Aborts(why)),
-            Some(Unrest::Undecided(why)) if strict => Some(Scan::Undecided(why)),
-            _ => None,
-        });
+        let at_sites = sites.filter_map(|(site, strict)| site_scan(site, strict, touch(site)));
         pair_blocked(findings, at_sites)
     };
     // ---- The material test of one ordering: every vertex of `inner`
