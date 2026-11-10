@@ -296,9 +296,9 @@ impl<'a, T: Decide> Net<'a, T> {
         let (control, weights) = (chart.control(), chart.weights());
         let (lo, hi) = shadow_box(control);
         let centre = Vec3::new(
-            T::from_computed(lo[0] + (hi[0] - lo[0]) * 0.5),
-            T::from_computed(lo[1] + (hi[1] - lo[1]) * 0.5),
-            T::from_computed(lo[2] + (hi[2] - lo[2]) * 0.5),
+            T::from_computed(geom_core::bracket_mid((lo[0], hi[0]))),
+            T::from_computed(geom_core::bracket_mid((lo[1], hi[1]))),
+            T::from_computed(geom_core::bracket_mid((lo[2], hi[2]))),
         );
         // Moved about the centre and out to homogeneous form: the
         // difference and the product round each coordinate by `u` of it.
@@ -432,8 +432,8 @@ impl<'a, T: Decide> Net<'a, T> {
             }
             let [u0, u1, v0, v1] = cell.rect;
             let centre = self.chart.eval(
-                T::from_computed(u0 + (u1 - u0) * 0.5),
-                T::from_computed(v0 + (v1 - v0) * 0.5),
+                T::from_computed(geom::bracket_mid((u0, u1))),
+                T::from_computed(geom::bracket_mid((v0, v1))),
             );
             let distance = (centre - q).norm();
 
@@ -625,10 +625,10 @@ impl<T: Decide> Cell<T> {
         }
         let [u0, u1, v0, v1] = self.rect;
         let (rect_left, rect_right) = if along_u {
-            let mid = u0 + (u1 - u0) * 0.5;
+            let mid = geom::bracket_mid((u0, u1));
             ([u0, mid, v0, v1], [mid, u1, v0, v1])
         } else {
-            let mid = v0 + (v1 - v0) * 0.5;
+            let mid = geom::bracket_mid((v0, v1));
             ([u0, u1, v0, mid], [u0, u1, mid, v1])
         };
         let depth = self.depth + 1;
@@ -663,8 +663,7 @@ fn shadow_box<T: SpanLocate>(control: &[Point3<T>]) -> ([f64; 3], [f64; 3]) {
 /// The middle of a value's bracket: the walk's order, and the value an
 /// `f64` rounding bound is read at. NaN for the poison.
 fn middle<T: SpanLocate>(x: T) -> f64 {
-    x.structure_bracket()
-        .map_or(f64::NAN, |(lo, hi)| lo + (hi - lo) * 0.5)
+    x.structure_bracket().map_or(f64::NAN, geom::bracket_mid)
 }
 
 /// The squared gap from the sample to the cell's box and its squared

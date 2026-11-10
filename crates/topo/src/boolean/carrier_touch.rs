@@ -322,14 +322,9 @@ fn ball_off_face<T: Decide + Bounds>(
             return Ok(false);
         }
     }
-    let placed = match *f.surface() {
-        geom::Surface::Plane { normal, .. } => {
-            super::contain::contfp_decided(y, face, normal, foot, band)
-                .map(|(at, _)| CurvedPlacement::Trim(Some(at)))
-        }
-        _ => super::contain::curved_face_placement(y, face, foot, band),
-    };
-    match placed {
+    // OffCarrier → not clear (the foot is on the carrier by construction).
+    let foot = crate::held::Held::constructed(foot, "the foot of the ball on the face's carrier");
+    match super::contain::placement_on_carrier(y, face, foot, band).map(|(at, _, _)| at) {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
         Ok(_)
         | Err(

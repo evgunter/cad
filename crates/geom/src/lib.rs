@@ -19,6 +19,12 @@
 //! layer, under a placement rule stated and argued in `geom-brep`'s
 //! `nurbs_iso` module docs.
 //!
+//! **One roster of the readers' funnel rows** lives at this root, in the
+//! interior module `reader_rows`: every reader of the ring convention
+//! ([`RingReader`], the only minter of [`RingSites`]) and of the spiric
+//! regime ([`SpiricReader`], the only minter of [`SpiricRegimeSites`]),
+//! read off the two enums and checked distinct when this crate compiles.
+//!
 //! # Conventions (normative, stated once)
 //!
 //! These are the parameterization conventions every consumer — edges,
@@ -152,7 +158,6 @@ mod datum;
 mod frame;
 mod memo;
 mod net;
-mod param;
 mod periodic;
 pub mod pole_form;
 mod projection_policy;
@@ -165,7 +170,7 @@ pub mod surfaces;
 pub mod test_support;
 
 pub use azimuth::{
-    ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Quarter, Window, separation,
+    ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Quarter, Window, radial_of_legs, separation,
 };
 pub use chart_point::{
     ChannelRead, ChartAngle, ChartArm, ChartChannels, ChartInverse, ChartPoint, NoClosedInverse,
@@ -175,27 +180,129 @@ pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_secon
 pub use curves::{
     CarrierEscalation, CarrierRefusal, Circle, Clearance, Collocation, ComposeError, Conic, Curve3,
     CurveData, CurveDatum, CurveKind, CurveWindow2, CurveWindow3, Ellipse, EllipseInvalid,
-    FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, MajorFrame, NurbsCurve2, NurbsCurve3,
-    OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
-    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
-    ellipse_level_clearance, spiric_curvature_sup, spiric_f_range, spiric_period_rate_bounds,
-    spiric_radial, spiric_rate_bounds, spiric_window_rate_bounds,
+    FIT_REMOVAL_BUDGET, FitError, FitOutcome, Foot, Line, LinePair, MajorFrame, NurbsCurve2,
+    NurbsCurve3, OnCarrier, PieceRead, PieceStep, PieceWalkRefusal, Projection2, Projection3,
+    ProjectionInconclusive, Ray, RefitSkip, SeamSide, SpiricInvalid, SpiricReader, SpiricRegime,
+    SpiricRegimeSites, compose_chain, ellipse_level_clearance, spiric_curvature_sup,
+    spiric_f_range, spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_regime,
+    spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use frame::{Frame, plane_offset, plane_offset_rounded};
-pub use param::mid_param;
+pub use geom_core::{bracket_mid, mid_param};
 pub use periodic::periodic_window_may_hold;
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
-// public names both halves' callers have always used, and its bracket
-// midpoint is the one a selection outside this crate reads.
+// public names both halves' callers have always used.
 pub use projection_policy::{
-    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, bracket_mid,
+    PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NurbsSurface, OffsetCertificate,
-    PLACEHOLDER_SURFACE, SheetApex, SpindleEnd, SpindleMiss, Surface, SurfaceData, SurfaceDatum,
-    SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind, SurfacePairing, SurfaceProjection,
-    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow, is_ring_torus, meridian_side,
-    require_ring_torus, ring_torus, sheet_apex, spindle_sheet, torus_tube,
+    AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
+    OffsetCertificate, PLACEHOLDER_SURFACE, RingReader, RingSites, RingTorus, SheetApex,
+    SpindleEnd, SpindleMiss, Surface, SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet,
+    SurfaceJet3, SurfaceKind, SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive,
+    SurfaceSpec, SurfaceWindow, is_ring_torus, meridian_side, require_ring_torus, ring_torus,
+    sheet_apex, spindle_sheet, torus_tube,
 };
+
+/// **Every reader's funnel rows for the ring convention and the spiric
+/// regime, in one roster**, checked distinct when this crate compiles: a
+/// reader's rows key its `k_stats` stream and its ledger row, and two
+/// readers sharing one would merge their samples under it. The roster is
+/// read off the reader enums ([`RingReader`], [`SpiricReader`]), which are
+/// the only minters of [`RingSites`] and [`SpiricRegimeSites`], so a new
+/// reader is in it by construction.
+pub(crate) mod reader_rows {
+    use crate::{RingReader, SpiricReader};
+    use strum::VariantArray as _;
+
+    const RINGS: &[RingReader] = RingReader::VARIANTS;
+    const SPIRICS: &[SpiricReader] = SpiricReader::VARIANTS;
+
+    /// How many rows the roster holds.
+    pub(crate) const COUNT: usize = 2 * RINGS.len() + 3 * SPIRICS.len();
+
+    /// Every reader's rows: each ring reader's tube and ring, then each
+    /// spiric reader's three.
+    pub(crate) const ROWS: [&str; COUNT] = {
+        let mut out = [""; COUNT];
+        let mut i = 0;
+        while i < RINGS.len() {
+            let sites = RINGS[i].sites();
+            out[2 * i] = sites.tube();
+            out[2 * i + 1] = sites.ring();
+            i += 1;
+        }
+        let base = 2 * RINGS.len();
+        let mut j = 0;
+        while j < SPIRICS.len() {
+            let rows = SPIRICS[j].sites().rows();
+            let mut k = 0;
+            while k < 3 {
+                out[base + 3 * j + k] = rows[k];
+                k += 1;
+            }
+            j += 1;
+        }
+        out
+    };
+
+    /// The first two indices of `rows` that name one row, if any.
+    pub(crate) const fn first_shared(rows: &[&str]) -> Option<(usize, usize)> {
+        let mut a = 0;
+        while a < rows.len() {
+            let mut b = a + 1;
+            while b < rows.len() {
+                if crate::str_eq(rows[a], rows[b]) {
+                    return Some((a, b));
+                }
+                b += 1;
+            }
+            a += 1;
+        }
+        None
+    }
+
+    const _: () = assert!(
+        first_shared(&ROWS).is_none(),
+        "two readers of the ring convention or the spiric regime share a row name"
+    );
+
+    #[cfg(test)]
+    mod rows {
+        use super::{COUNT, ROWS, first_shared};
+
+        /// **The roster's check fires on a shared name**, and the roster
+        /// holds every reader's rows, none empty.
+        #[test]
+        fn the_roster_refuses_a_name_two_readers_share() {
+            assert_eq!(first_shared(&["a", "b", "a"]), Some((0, 2)));
+            assert_eq!(first_shared(&["a", "b", "c"]), None);
+            assert_eq!(
+                COUNT,
+                2 * 4 + 3 * 3,
+                "four ring readers, three spiric readers"
+            );
+            assert!(ROWS.iter().all(|r| !r.is_empty()), "{ROWS:?}");
+            assert!(ROWS.contains(&"self_intersection_ring_torus"), "{ROWS:?}");
+            assert!(ROWS.contains(&"pt_spiric_two_ovals_floor"), "{ROWS:?}");
+        }
+    }
+}
+
+/// `a == b`, in a `const` context.
+pub(crate) const fn str_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut k = 0;
+    while k < a.len() {
+        if a[k] != b[k] {
+            return false;
+        }
+        k += 1;
+    }
+    true
+}

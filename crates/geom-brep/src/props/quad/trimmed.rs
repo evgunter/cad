@@ -790,7 +790,7 @@ impl Chord {
     /// EVERY knot and crossing cut is mandatory, and nothing may drop
     /// one: a dropped cut leaves a piece straddling a knot by the width
     /// of whatever guard dropped it, with no term paying for it. That is
-    /// the invariant [`knot_aligned_cuts`] states in capitals for its own
+    /// the invariant [`knot_aligned_cuts`](super::cells::knot_aligned_cuts) states in capitals for its own
     /// mandatory set; this list applies none of that function's SLIVER
     /// guard. A hairline piece is the safe outcome, and a piece of zero
     /// width is removed by the dedup.
@@ -868,10 +868,10 @@ impl Column {
             below: vbreaks
                 .windows(2)
                 .filter(|b| b[1] > b[0] && b[1] <= vk)
-                .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
+                .map(|b| (b[0], b[1], geom::mid_param(b[0], b[1])))
                 .collect(),
             vk,
-            mid_v: vk.midpoint(vk1),
+            mid_v: geom::mid_param(vk, vk1),
         }
     }
 }
@@ -1162,7 +1162,7 @@ fn exact_piece(
     q: f64,
 ) -> Interval {
     let mu = wu.len() - 1;
-    let mid_u = p.midpoint(q);
+    let mid_u = geom::mid_param(p, q);
     let column = Column::under(vbreaks, cell_of(vbreaks, mid(chord.ell(pt(mid_u)))));
     let scale_u = pt(q) - pt(p);
     let mut acc = Interval::zero();
@@ -1212,7 +1212,7 @@ fn composite_piece(
     let (pi, qi) = (pt(p), pt(q));
     let h = qi - pi;
     let band = Interval::hull(chord.ell(pi), chord.ell(qi));
-    let m = p.midpoint(q);
+    let m = geom::mid_param(p, q);
     let in_gap = gaps.iter().any(|&(g0, g1)| p >= g0 && q <= g1);
     let located = (p < m && m < q && !in_gap)
         .then(|| {
@@ -1228,7 +1228,7 @@ fn composite_piece(
         return Some(Piece::Column(h.hi() * ((band - v0) * f).mag()));
     };
     let column = Column::under(vbreaks, cell);
-    let mi = (pi + qi) * pt(0.5);
+    let mi = geom::mid_param(pi, qi);
     let cu = Collapse::AtSpan { mid: m, t: &mi };
     let value = h * column_integral(wv, &column, chord.ell(mi), &|cv| flux_at(s, su, sv, cu, cv));
     // `φ''` over the piece, every term read on the located cells'
@@ -1348,7 +1348,7 @@ fn chord_polygon_area(
                 return Interval::refused();
             };
             let hu = q - p;
-            let um = p.midpoint(q);
+            let um = geom::mid_param(p, q);
             let top = ell(um);
             let Some(column) = ParamRange::spanning(v0, top) else {
                 return Interval::refused();
@@ -1367,7 +1367,7 @@ fn chord_polygon_area(
                     return Interval::refused();
                 };
                 let hv = c1 - c0;
-                let vm = c0.midpoint(c1);
+                let vm = geom::mid_param(c0, c1);
                 let (cell_g, cell_gu, cell_gv) = area_cell(
                     su,
                     sv,

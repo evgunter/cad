@@ -28,7 +28,7 @@ crates/geom-brep/src/curve_face/circle_torus.rs	prod	3	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	prod	1	re-pose
 crates/geom-brep/src/curve_face/ellipse_torus.rs	test	1	oracle
 crates/geom-brep/src/curve_pair/one_curve_rows.rs	test	2	oracle
-crates/geom-brep/src/curve_pair/pose.rs	prod	8	re-pose,far-centre
+crates/geom-brep/src/curve_pair/pose.rs	prod	4	re-pose,far-centre
 crates/geom-brep/src/curve_pair/pose/window.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	test	4	oracle
@@ -201,6 +201,7 @@ crates/topo/src/census/segment_fuzz.rs	test	2	oracle
 crates/topo/src/chord_join.rs	prod	1	far-centre
 crates/topo/src/chord_join/section_end_rows.rs	test	2	oracle
 crates/topo/src/injective.rs	prod	1	re-pose
+crates/topo/src/link.rs	test	1	oracle
 crates/topo/src/offset_axial.rs	test	1	oracle
 crates/topo/src/props.rs	prod	2	re-pose
 crates/topo/src/props.rs	test	2	oracle

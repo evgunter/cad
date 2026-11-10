@@ -145,7 +145,7 @@ use crate::props::AtRestPolicy;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 
 /// How a boolean result body came to be (module docs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1885,7 +1885,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
         .map(|fd| {
             let (face, surface) = (fd.key(), fd.surface().clone());
             let cover = crate::cover::face_cover(body, face, band);
-            let bbox = boxes::cover_box(cover.as_ref().ok(), pad);
+            let bbox = boxes::cover_box(&cover, pad);
             Ok(FaceRow {
                 face,
                 key: fd.record().surface,
@@ -5559,7 +5559,7 @@ impl GluedSurfaces {
                 .pairs
                 .iter()
                 .filter_map(|pair| {
-                    let relation = pair.class.carrier_relation()?;
+                    let relation = pair.class().carrier_relation()?;
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
                     let ka = a.get_face(pair.a)?.surface;
@@ -5779,7 +5779,7 @@ mod refused_faces {
 
 /// **The surface kind of the face whose volume `e` refuses**: where `e`
 /// is the result gate's single volume finding on one face
-/// ([`ValidationError::VolumeUncomputable`] on a face's closed form or
+/// ([`ValidationError::VolumeUncomputable`](crate::ValidationError::VolumeUncomputable) on a face's closed form or
 /// quadrature, or a ring on a curved face), that face's kind as the gate
 /// was handed it. Read it right after the boolean that refused: the
 /// record is this thread's last refusing gate's.
@@ -5823,9 +5823,14 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
                     continue;
                 }
                 let p = body.linked_vertex_point(half.start, EntityId::Face(face), "loop");
-                if let Ok(crate::face_normal::ConePoint::Apex) =
-                    crate::face_normal::cone_point(apex, axis, p, band)
-                {
+                if let Ok(crate::face_normal::ConePoint::Apex) = crate::face_normal::cone_point(
+                    geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    p,
+                    band,
+                ) {
                     return Err(BooleanError::ResultPinchedAtConeApex {
                         apex: crate::census::witness(p),
                     });
@@ -6942,20 +6947,21 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             diag,
         };
         let r = cut.radius;
-        let sign = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
+        let sign_as = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
         let face = body.proven_face(cut.face);
         let sphere = face.record().surface;
         let &geom::Surface::Sphere { axis, .. } = face.surface() else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
+        let record = geom_brep::curve_pair::on_surface::Charted::record(sphere, face.surface());
         let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
         let toward = |d: Vec3<T>| axis.cross(d);
         let mut k = toward(cut.foot - cut.center);
-        if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+        if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
             k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
-            if sign("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
+            if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
                 return Err(refuse_at(
                     cut.face,
                     "the section circle has no meridian of the face's chart",
@@ -6970,12 +6976,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // the meridian's plane on the half-plane `h`
         // ([`geom_brep::curve_pair::on_surface`]).
         let meridian = match geom_brep::curve_pair::on_surface::SurfaceCurve::meridian(
-            &geom::Surface::Sphere {
-                center: cut.center,
-                radius: r,
-                axis,
-                u_ref: h,
-            },
+            &record.turned(h),
             geom_core::Point2::new(T::zero(), T::zero()),
             true,
         ) {
@@ -6987,7 +6988,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let latitude = |p: Point3<T>| (h.dot(p - cut.center), axis.dot(p - cut.center));
         // The circle's two crossings, both on the half-plane `h`.
         let across = cut.normal.cross(k);
-        if sign(
+        if sign_as(
             "bool_sphere_cut_section_meridian",
             Margin::of(across.norm()),
         )? == Sign::Zero
@@ -7000,7 +7001,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let e = across.normalize();
         let crossings = [cut.foot - e * cut.rho, cut.foot + e * cut.rho];
         for p in crossings {
-            if sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive {
+            if sign_as("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))? != Sign::Positive
+            {
                 return Err(refuse_at(
                     cut.face,
                     "the section circle holds a pole of the face's chart",
@@ -7040,10 +7042,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         }
                         _ => unread(),
                     };
-                    let region =
-                        super::sphere_region::sphere_face_region(body, piece, cut.center, r)
-                            .map_err(read)?
-                            .ok_or_else(unread)?;
+                    let region = super::sphere_region::sphere_face_region(body, piece)
+                        .map_err(read)?
+                        .ok_or_else(unread)?;
                     // The region's own refusal: in band of an arc, or no
                     // ray of its walk settled, or an arc that bounds
                     // nothing — each a piece not read against the circle.
@@ -7082,7 +7083,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // arc between them (both lie on the closed half-meridian, so the
         // angle between them is short of π).
         let above = |x: (T, T), y: (T, T)| {
-            sign(
+            sign_as(
                 "bool_sphere_cut_order",
                 Margin::of((x.1 * y.0 - x.0 * y.1) / r),
             )
@@ -7125,21 +7126,35 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                          its roots are not certified",
                     )
                 };
-                let roots =
-                    match geom_brep::curve_pair::on_surface::OnSurface::edge(carrier, (t0, t1))
-                        .across(&meridian, "bool_sphere_cut_in_plane", band)
-                    {
-                        Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
-                        Ok(
-                            geom_brep::curve_pair::on_surface::CoSurface::InPlane
-                            | geom_brep::curve_pair::on_surface::CoSurface::Touch
-                            | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
-                        ) => return Err(uncertified()),
-                        // A rung of the plane door escalated: the cut-in's own
-                        // question, in band.
-                        Err(diag) => return Err(esc(diag)),
-                    };
-                let rising = sign(
+                let roots = match geom_brep::curve_pair::on_surface::OnSurface::edge(
+                    view.record().surface,
+                    carrier,
+                    (t0, t1),
+                )
+                .across(&meridian, "bool_sphere_cut_in_plane", band)
+                {
+                    Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
+                    Ok(
+                        geom_brep::curve_pair::on_surface::CoSurface::InPlane
+                        | geom_brep::curve_pair::on_surface::CoSurface::Touch
+                        | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
+                    ) => return Err(uncertified()),
+                    // A rung of the plane door escalated: the cut-in's own
+                    // question, in band.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::InBand(diag)) => {
+                        return Err(esc(diag));
+                    }
+                    // Every piece inherits the cut face's record (the
+                    // `mef` below): a piece on another is a fault here.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::OffRecord {
+                        edge,
+                        curve,
+                    }) => unreachable!(
+                        "cut-in: a piece of the sphere face on another record than the \
+                         face's: the piece's {edge:?}, the face's {curve:?}"
+                    ),
+                };
+                let rising = sign_as(
                     "bool_sphere_cut_span",
                     Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
                 )? == Sign::Positive;
@@ -7152,7 +7167,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                             return Err(uncertified());
                         }
                     };
-                    let at_pole = sign(
+                    let at_pole = sign_as(
                         "bool_sphere_cut_pole",
                         Margin::of(axis.cross(p - cut.center).norm()),
                     )? == Sign::Zero;
@@ -7169,7 +7184,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         let end = proven(&body.half_edges, hd.next, EntityId::HalfEdge).start;
                         let at = |v| {
                             let q = body.resolve_vertex_point(v, crate::live::Proven);
-                            sign("bool_sphere_cut_vertex", Margin::of((q - p).norm()))
+                            sign_as("bool_sphere_cut_vertex", Margin::of((q - p).norm()))
                         };
                         match (at(start)?, at(end)?) {
                             (Sign::Zero, _) => Some(start),
@@ -7249,7 +7264,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let below_first = match (below_split, over_split) {
             (Some((e1, lo, rising, arm)), Some((e2, hi, _, _))) if e1 == e2 => {
                 let along = if rising { lo - hi } else { hi - lo };
-                sign(
+                sign_as(
                     "bool_sphere_cut_span",
                     Margin::metered(along, geom_core::InfSpeed::new(arm)),
                 )? == Sign::Positive

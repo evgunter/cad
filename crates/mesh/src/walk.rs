@@ -376,9 +376,10 @@ pub(crate) fn overused_identified_edge_in(
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
 /// of a whole number of turns from it; otherwise (`raw` about half a turn
 /// from `prev`) the copy of the two either side nearer `anchor` (module
-/// docs: the wire-band pole junction, meridians exactly π apart). A
-/// two-reference rule [`Period::near`] does not state, so it is not that
-/// door (`work/onecopy/held-angle-renames-the-angle-reads-sweep-left.md`).
+/// docs: the wire-band pole junction, meridians exactly π apart). Not
+/// [`Period::near`], which renames about one reference and breaks only an
+/// exact tie, to the upper copy: here a whole zone, a quarter turn either
+/// side of the tie, is placed by a second reference, `anchor`.
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
     let k = (prev - raw) / TAU;
     if (k - k.round()).abs() < 0.25 {
@@ -855,8 +856,7 @@ fn closing_side(starts: &[bool]) -> usize {
 /// one that keeps every operand at the loop's own scale: a fixed
 /// anchor pays cancellation in proportion to the loop's distance from
 /// it, which the direction-only consumer in [`loop_polygon`] reads as
-/// a rotated — eventually reversed — area vector. Overflow-robust
-/// midpoint, the spelling `validate::signed_volume` uses.
+/// a rotated — eventually reversed — area vector.
 ///
 /// An empty cycle has no anchor and no area.
 fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
@@ -866,7 +866,7 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
     let (lo, hi) = pts
         .iter()
         .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
-    let o = lo + (hi - lo) * 0.5;
+    let o = lo.mid(hi);
     let mut area = Vec3::new(0.0, 0.0, 0.0);
     for (i, p) in pts.iter().enumerate() {
         let q = pts[(i + 1) % pts.len()];

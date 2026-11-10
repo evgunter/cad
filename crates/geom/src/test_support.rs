@@ -150,3 +150,100 @@ pub fn analytic_curves() -> Vec<AnalyticKind<Curve3<f64>>> {
         })
         .collect()
 }
+
+/// **The frames a frame pin charts one surface on**, as `(t, flip)`
+/// for [`reframed`]: the stored frame, the seam turned about the axis
+/// to four other azimuths, and the axis flipped with the seam turned.
+pub const CHART_FRAMES: [(f64, bool); 6] = [
+    (0.0, false),
+    (0.3, false),
+    (1.0, false),
+    (2.5, false),
+    (-2.0, false),
+    (0.7, true),
+];
+
+/// **`surface` on another chart**: its frame's seam turned by `t` about
+/// its axis (or a plane's normal), and the axis flipped when `flip`.
+/// The locus is the same, and only its chart moves. A spline or a
+/// spindle sheet has no frame to turn, and panics.
+#[must_use]
+pub fn reframed(surface: &Surface<f64>, t: f64, flip: bool) -> Surface<f64> {
+    let turn = |axis: Vec3<f64>, u_ref: Vec3<f64>| {
+        let u = u_ref * t.cos() + axis.cross(u_ref) * t.sin();
+        if flip { (-axis, u) } else { (axis, u) }
+    };
+    match *surface {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => {
+            let (normal, u_ref) = turn(normal, u_ref);
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            }
+        }
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let (axis, u_ref) = turn(axis, u_ref);
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            }
+        }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => {
+            let (axis, u_ref) = turn(axis, u_ref);
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            }
+        }
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => {
+            let (axis, u_ref) = turn(axis, u_ref);
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            }
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => {
+            let (axis, u_ref) = turn(axis, u_ref);
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            }
+        }
+        _ => unreachable!("only a framed analytic surface is reframed"),
+    }
+}

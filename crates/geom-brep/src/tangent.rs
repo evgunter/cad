@@ -90,7 +90,7 @@ pub fn tangent_jet<T: Real>(
     // alike so a surface against itself reads κ_rel = 0 exactly;
     // σ₁ = +1 because n̂ is ∇F₁'s own direction.
     let k1 = implicit_hessian_form(s1, p, d_hat) / n1;
-    let k2 = implicit_hessian_form(s2, p, d_hat) / n2 * T::one().copysign(g2.dot(n_hat));
+    let k2 = implicit_hessian_form(s2, p, d_hat) / n2 * g2.dot(n_hat).unit_sign();
     TangentJet {
         sin_theta,
         kappa_rel: k1 - k2,

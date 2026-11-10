@@ -17,8 +17,8 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    CertifyError, EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
-    MappedCurve, MappedSource,
+    EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
+    MappedSource,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -69,15 +69,9 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
     // The mint reads the chord off the wall before it images it, so
     // the refusal is that read, never the residual's meter.
     assert!(
-        matches!(
-            err,
-            CertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cylinder,
-                carrier: geom::CurveKind::Line,
-                ..
-            }
-        ),
-        "a secant must refuse as the mint's incidence read: {err:?}"
+        matches!(err.incidence_read(), Some(geom_brep::IncidenceRead::Off(_)))
+            && err.incidence_kinds() == Some((unit_cylinder().kind(), geom::CurveKind::Line)),
+        "a secant must refuse as the mint's incidence read, of the wall and the chord: {err:?}"
     );
 }
 
@@ -200,11 +194,11 @@ fn r2_the_rest_conversion_moves_only_the_description() {
             }),
         ) => {
             assert!(
-                o0.x == o1.x && o0.y == o1.y && o0.z == o1.z,
+                o0.equals_exactly(*o1),
                 "the carrier origin is bitwise untouched"
             );
             assert!(
-                d0.x == d1.x && d0.y == d1.y && d0.z == d1.z,
+                d0.equals_exactly(*d1),
                 "the carrier direction is bitwise untouched"
             );
         }

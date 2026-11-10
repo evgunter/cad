@@ -660,10 +660,14 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
     super::super::solid_contain::line_wall_roots(
-        Point3::new(0.5, 0.0, 0.0),
-        Vec3::new(drift, 0.0, 1.0),
-        Point3::new(0.0, 0.0, 0.0),
-        z,
+        geom::Line {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            dir: Vec3::new(drift, 0.0, 1.0),
+        },
+        geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: z,
+        },
         1.0,
         1.0,
         band(),
@@ -2144,7 +2148,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
-        | BooleanErrorKind::ContactContradicted
         | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::HeldPierceUnbuilt
@@ -2524,7 +2527,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("fan.rs", "plane_fan", "Coincide::Sectors", 1),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
-    ("fate.rs", "normal_at", "BooleanDecision::of_normal", 1),
     (
         "fate.rs",
         "ring_winding",
@@ -2581,6 +2583,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
     ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
+    ("mod.rs", "off_ring_torus", "BooleanDecision::Torus", 1),
+    ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
         "mod.rs",
         "decision_words",
@@ -2796,7 +2800,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "landing", "BooleanDecision::Containment", 1),
-    ("reduce.rs", "sheets_part", "BooleanDecision::of_normal", 1),
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
@@ -2936,6 +2939,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
+        "standing_rows.rs",
+        "each_class_and_each_delegate_reads_as_its_doc_states",
+        "Coincide::Sectors",
+        1,
+    ),
+    (
         "torus_frame_rows.rs",
         "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",
         "BooleanDecision::Torus",
@@ -2943,14 +2952,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "BooleanDecision::ConicBend",
         1,
     ),
     ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "Coincide::TangentSide",
         1,
     ),

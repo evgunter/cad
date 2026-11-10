@@ -231,17 +231,18 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
                 .unwrap();
         }
         let errors = topo::finish(body, tol).expect_err(what);
-        let off_sheet = |e: &topo::ValidationError| {
-            matches!(
-                e,
-                topo::ValidationError::EdgeCertification {
-                    error: geom_brep::CertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Spindle,
-                        ..
-                    },
-                    ..
-                }
-            )
+        // An edge read off the moved sheet: its incidence read decided
+        // off, on the chart the refusal names a sheet.
+        let off_sheet = |e: &topo::ValidationError| match e {
+            topo::ValidationError::EdgeCertification { error, .. } => {
+                matches!(
+                    error.incidence_read(),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                ) && error
+                    .incidence_kinds()
+                    .is_some_and(|(chart, _)| chart == geom::SurfaceKind::Spindle)
+            }
+            _ => false,
         };
         assert!(
             errors.iter().any(off_sheet)

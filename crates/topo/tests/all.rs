@@ -285,6 +285,8 @@ mod r2_probes;
 mod readback_sense_kind;
 #[path = "records_cite_their_decision.rs"]
 mod records_cite_their_decision;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
 #[path = "review_4996_carry_probes.rs"]
@@ -444,6 +446,8 @@ mod a_meridian_witness_contradicts_only_off_its_locus;
 mod a_reflex_corner_pierced_through_a_plate;
 #[path = "a_ring_crossed_along_its_line_places_its_germs_apart.rs"]
 mod a_ring_crossed_along_its_line_places_its_germs_apart;
+#[path = "a_ring_crossed_at_its_vertices_is_divided_or_refused.rs"]
+mod a_ring_crossed_at_its_vertices_is_divided_or_refused;
 #[path = "a_seamless_pipe_cut_by_an_oblique_plane_measures.rs"]
 mod a_seamless_pipe_cut_by_an_oblique_plane_measures;
 #[path = "a_vertex_read_again_classes_every_edge.rs"]

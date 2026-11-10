@@ -19,14 +19,20 @@
 //! datum is the sine `|a₁ × a₂|`, not the chord: the chord bounds the
 //! move from above, the sine bounds from below how far the far side of
 //! the ring moves, and only a lower bound may read the two apart.
+//!
+//! The bound's tilt term is the larger of the chord and the sine, which
+//! is the chord in exact arithmetic. As computed the sine can round past
+//! the chord, and the larger keeps every term of the bound at least its
+//! datum, so a datum decided past the band leaves the bound past it too
+//! ([`TorusCoincidence::Apart`]'s `upper`).
 
-use geom_core::k_stats::{decide_reported, detached, splice, splice_superseded, straddle};
+use geom_core::k_stats::decide_reported;
 use geom_core::{
     Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
 };
 
-use super::line_tilt;
-use crate::ladder::{IdentityLadder, read_identity};
+use super::{PairSide, line_tilt};
+use crate::ladder::{IdentityLadder, data_beneath_sum, read_identity};
 use crate::torus_convention::TorusRefusal;
 
 /// A torus as its coincidence reads it: the centre, the unit axis and
@@ -95,16 +101,14 @@ impl<T: Real> TorusDisplacement<T> {
             .lever()
             .max(crate::ExtentBall::of_circle(b.center, b.major_radius).lever());
         let apart = a.center - b.center;
+        let sine = a.axis.cross(b.axis).norm();
         let core = apart.norm()
             + (a.major_radius - b.major_radius).abs()
-            + Margin::levered(line_tilt(a.axis, b.axis), arm).value();
+            + Margin::levered(line_tilt(a.axis, b.axis).max(sine), arm).value();
         let tube = (a.minor_radius - b.minor_radius).abs();
         Self {
             data: [
-                (
-                    TorusDatum::AxisTilt,
-                    Margin::levered(a.axis.cross(b.axis).norm(), arm),
-                ),
+                (TorusDatum::AxisTilt, Margin::levered(sine, arm)),
                 (TorusDatum::Centre, Margin::norm3(apart)),
                 (
                     TorusDatum::MajorRadius,
@@ -126,16 +130,31 @@ impl<T: Real> TorusDisplacement<T> {
 pub enum TorusCoincidence {
     /// One surface: the upper bound decided `Zero`, on this margin.
     One(MarginDiag),
-    /// Two surfaces: a datum decided past the band.
-    Apart,
+    /// Two surfaces: a datum decided past the band, beside the upper
+    /// bound, which is never short of a datum (module docs) and so is
+    /// decided past the band too.
+    Apart {
+        /// The datum.
+        datum: TorusDatum,
+        /// Its reading.
+        by: Decided,
+        /// The upper bound's reading.
+        upper: Decided,
+    },
     /// Neither: the data's own refusal ([`read_identity`]), else the
-    /// upper bound in the band, else every datum decided `Zero` beside
-    /// the bound decided past the band (`tt_coincident_straddle`, which
-    /// only an escalation factor under four can reach).
+    /// upper bound in the band, or unreadable beside a datum decided
+    /// apart, else every datum decided `Zero` beside the bound decided
+    /// past the band (`tt_coincident_straddle`, which only an escalation
+    /// factor under four can reach).
     Undecided(Indeterminate),
     /// A torus not shown inside its ring convention, which the bound
-    /// does not hold for.
-    OffRing(TorusRefusal),
+    /// does not hold for: which of the two, and its refusal.
+    OffRing {
+        /// The torus refused, in the order the pair was asked of.
+        torus: PairSide,
+        /// Its refusal.
+        refusal: TorusRefusal,
+    },
 }
 
 /// **Decides whether two tori are one surface** (module docs): one where
@@ -143,46 +162,42 @@ pub enum TorusCoincidence {
 /// band, and otherwise undecided; a torus off its ring convention
 /// refuses first.
 pub fn tori_coincide<T: Decide>(a: TorusData<T>, b: TorusData<T>, band: Band) -> TorusCoincidence {
-    for t in [a, b] {
+    for (torus, t) in [(PairSide::First, a), (PairSide::Second, b)] {
         if let Err(refusal) = TorusRefusal::require(t.major_radius, t.minor_radius, band) {
-            return TorusCoincidence::OffRing(refusal);
+            return TorusCoincidence::OffRing { torus, refusal };
         }
     }
     let d = TorusDisplacement::of(a, b);
-    let (upper, upper_log) = detached(|| decide_reported(TT_COINCIDENT, Margin::of(d.upper), band));
-    let upper = match upper {
-        Ok(Decided {
-            sign: Sign::Zero,
-            margin,
-        }) => {
-            splice(upper_log);
-            return TorusCoincidence::One(margin);
-        }
-        upper => upper,
-    };
-    let (walk, walk_log) =
-        detached(|| read_identity(d.data.map(|(datum, m)| (datum.row(), m)), band));
-    if matches!(walk, IdentityLadder::Apart { .. }) {
-        // The answer rests on the datum alone.
-        splice_superseded(upper_log);
-    } else {
-        splice(upper_log);
+    let upper = decide_reported(TT_COINCIDENT, Margin::of(d.upper), band);
+    if let Ok(Decided {
+        sign: Sign::Zero,
+        margin,
+    }) = upper
+    {
+        return TorusCoincidence::One(margin);
     }
-    splice(walk_log);
-    match (walk, upper) {
-        (IdentityLadder::Apart { .. }, _) => TorusCoincidence::Apart,
-        (IdentityLadder::Undecided(diag), _) | (IdentityLadder::Zero(_), Err(diag)) => {
+    match (
+        read_identity(d.data.map(|(datum, m)| (datum.row(), m)), band),
+        upper,
+    ) {
+        (IdentityLadder::Apart { at, decided }, Ok(upper)) => TorusCoincidence::Apart {
+            datum: d.data[at].0,
+            by: decided,
+            upper,
+        },
+        // A bound never short of the datum decided apart fails to decide
+        // only where another datum reads no number.
+        (IdentityLadder::Undecided(diag), _) | (IdentityLadder::Apart { .. }, Err(diag)) => {
             TorusCoincidence::Undecided(diag)
         }
-        // The bound is a sum of magnitudes, never decided below zero.
-        (IdentityLadder::Zero(lower), Ok(upper)) => TorusCoincidence::Undecided(straddle(
-            "tt_coincident_straddle",
-            Decided {
-                sign: Sign::Zero,
-                margin: lower.unwrap_or(upper.margin),
-            },
-            upper,
-            band,
-        )),
+        (IdentityLadder::Zero(data), upper) => {
+            let data = data.unwrap_or_else(|| unreachable!("two tori are read on four data"));
+            TorusCoincidence::Undecided(data_beneath_sum(
+                "tt_coincident_straddle",
+                data,
+                upper,
+                band,
+            ))
+        }
     }
 }

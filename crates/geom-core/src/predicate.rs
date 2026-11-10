@@ -231,6 +231,62 @@ impl Sign {
     pub fn is_positive(self) -> bool {
         self == Self::Positive
     }
+
+    /// The definite side, or `None` at `Zero`: where a caller that has
+    /// decided a sign states its own refusal of `Zero`.
+    #[must_use]
+    pub fn nonzero(self) -> Option<NonzeroSign> {
+        match self {
+            Self::Negative => Some(NonzeroSign::Negative),
+            Self::Zero => None,
+            Self::Positive => Some(NonzeroSign::Positive),
+        }
+    }
+}
+
+/// **A definite sign**: [`Sign`] without `Zero`, what a
+/// [`crate::k_stats::decide_nonzero`] decision admits and [`Sign::nonzero`]
+/// reads. `Zero` is not one of its values, which is what lets a caller
+/// match the gate's outcome exhaustively without an arm for an answer
+/// the gate escalated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonzeroSign {
+    /// The margin classified definitely positive.
+    Positive,
+    /// The margin classified definitely negative.
+    Negative,
+}
+
+impl NonzeroSign {
+    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
+    /// spelling of a ±1 read off a sign already decided. Its hull twin,
+    /// read off a value rather than a decision, is
+    /// [`crate::Real::unit_sign`].
+    #[must_use]
+    pub fn unit<T: crate::Real>(self) -> T {
+        match self {
+            Self::Positive => T::one(),
+            Self::Negative => -T::one(),
+        }
+    }
+
+    /// The other side.
+    #[must_use]
+    pub fn flip(self) -> Self {
+        match self {
+            Self::Positive => Self::Negative,
+            Self::Negative => Self::Positive,
+        }
+    }
+}
+
+impl From<NonzeroSign> for Sign {
+    fn from(side: NonzeroSign) -> Self {
+        match side {
+            NonzeroSign::Positive => Self::Positive,
+            NonzeroSign::Negative => Self::Negative,
+        }
+    }
 }
 
 impl fmt::Display for Sign {
@@ -500,7 +556,7 @@ impl Band {
     ///   infinity: the run's ε is within a factor K of `f64::MAX`. The
     ///   one arm a run's tolerance reaches, at the top of the range
     ///   [`Tolerance`](crate::tolerance::Tolerance) admits (any finite
-    ///   ε ≥ [`eps_min`](crate::tolerance::eps_min) of its K, any finite
+    ///   ε ≥ [`eps_min`] of its K, any finite
     ///   K > 1), and unreachable for any
     ///   physically meaningful tolerance (D4 ¶4's session box is 1 km,
     ///   ε ≈ 1e-9). The repair is a smaller ε.
@@ -513,7 +569,7 @@ impl Band {
     ///   K = 1 + 2⁻⁵² clears the half-ulp) and a K near 1. **No normal ε
     ///   collapses at any admitted K**, so no run's ε does (every
     ///   admitted ε is at least its K's
-    ///   [`eps_min`](crate::tolerance::eps_min), never below a coordinate's
+    ///   [`eps_min`], never below a coordinate's
     ///   spacing at the box edge, which is normal): this arm is reached only through
     ///   [`Band::linear_at`], at a scale the caller names: a K near 1 is
     ///   admitted only with an ε whose angle over any finite arm is
@@ -619,7 +675,7 @@ impl Band {
     ///     the arm, not ε. θ never rounds to 0 at a run's ε: that needs
     ///     `lever_arm` ≥ ε·2¹⁰⁷⁵, past `f64::MAX` for every ε a run
     ///     admits, each at least its K's
-    ///     [`eps_min`](crate::tolerance::eps_min), never below a
+    ///     [`eps_min`], never below a
     ///     coordinate's spacing at the box edge.
     ///   - [`BandError::InvalidValue`] on `escalate` if θ is finite but
     ///     K·θ overflows — the same overflow residue [`Band::linear`]
@@ -1319,12 +1375,13 @@ enum Reading {
     Invalid,
 }
 
-/// What a gate door adds to the decided reading it rejects: the sign
-/// the classifier decided and the signs the gate passes. Minted only by
-/// [`MarginDiag::rejected_by`], which only `k_stats`' gate doors call.
+/// What a gate door adds to the reading it refuses: the sign the
+/// classifier decided, where it decided one, and the signs the gate
+/// passes. Minted only by [`MarginDiag::rejected_by`] and
+/// [`MarginDiag::undecided_passing`], which only `k_stats`' doors call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Rejection {
-    sign: Sign,
+    sign: Option<Sign>,
     passes: SizedPass,
 }
 
@@ -1903,7 +1960,21 @@ impl MarginDiag {
     /// rejected its decided `sign` — the one mint of the tag
     /// [`MarginDiag::rejected_sign`] reads.
     pub(crate) const fn rejected_by(self, sign: Sign, passes: SizedPass) -> Self {
-        let tag = Some(Rejection { sign, passes });
+        self.tagged(Rejection {
+            sign: Some(sign),
+            passes,
+        })
+    }
+
+    /// This undecided reading, as a decision passing only `passes` left
+    /// it undecided: the pass set its ending reads, with no decided sign
+    /// ([`k_stats::decide_passing`](crate::k_stats::decide_passing)).
+    pub(crate) const fn undecided_passing(self, passes: SizedPass) -> Self {
+        self.tagged(Rejection { sign: None, passes })
+    }
+
+    const fn tagged(self, rejection: Rejection) -> Self {
+        let tag = Some(rejection);
         Self(match self.0 {
             Reading::Value(m, _, zero) => Reading::Value(m, tag, zero),
             Reading::Enclosure { lo, hi, zero, .. } => Reading::Enclosure { lo, hi, tag, zero },
@@ -1997,6 +2068,35 @@ impl MarginDiag {
         }
     }
 
+    /// **The larger of two misses**, each a reading of a distance (a
+    /// quantity never below zero), as one reading of the larger quantity:
+    /// the larger of two values, each within its reading, lies at or above
+    /// the larger of their lower ends and at or below the larger of their
+    /// upper ends. A decision that refuses on either of two misses reports
+    /// this, not either reading alone: `[2, 10]` and `[5, 6]` read
+    /// `[5, 10]`, wholly past `4` as the `[5, 6]` miss is. A poisoned
+    /// reading poisons it. It is untagged: a miss is not a Zero, so no
+    /// proof is carried.
+    #[must_use]
+    pub fn larger(self, other: Self) -> Self {
+        let ends = |m: Self| match m.0 {
+            Reading::Value(v, ..) => Some((v, v)),
+            Reading::Enclosure { lo, hi, .. } => Some((lo, hi)),
+            Reading::Invalid => None,
+        };
+        match (ends(self), ends(other)) {
+            (Some((a_lo, a_hi)), Some((b_lo, b_hi))) => {
+                let (lo, hi) = (a_lo.max(b_lo), a_hi.max(b_hi));
+                if lo == hi {
+                    Self::value(lo)
+                } else {
+                    Self::enclosure(lo, hi)
+                }
+            }
+            _ => Self::INVALID,
+        }
+    }
+
     /// **The enclosure of two readings of one quantity**: from the lower
     /// of their lower ends to the higher of their upper ends, untagged.
     /// `None` where either was poisoned, which bounds nothing.
@@ -2037,7 +2137,10 @@ impl MarginDiag {
     /// number.
     #[must_use]
     pub fn rejected_sign(self) -> Option<Sign> {
-        self.tag().map(|r| r.sign)
+        match self.tag() {
+            Some(r) => r.sign,
+            None => None,
+        }
     }
 
     /// The gate's tag, where a gate rejected this reading.
@@ -2426,13 +2529,31 @@ pub const UNNAMED_PREDICATE: &str = "<unnamed>";
 /// full-string pins that rot.
 pub const COINCIDENCE_RECOURSE: &str = crate::coincidence_move_arm!();
 
+/// [`COINCIDENCE_RECOURSE`] as a whole ending, labelled: the recourse of
+/// a reading in band that no margin sizes.
+pub const MOVE_RECOURSE: &str = crate::move_recourse!();
+
 /// The one recourse for a quantity the floating-point format cannot
 /// hold — a length that overflows the norm or underflows to zero while
 /// its direction is good. No tolerance reaches it, so it never rides
 /// with [`COINCIDENCE_RECOURSE`]; every site that refuses on the
 /// format's range composes this fragment, and message-pinning tests pin
 /// it with `contains`.
-pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
+pub const RANGE_RECOURSE: &str = crate::range_recourse!();
+
+/// [`RANGE_RECOURSE`] labelled as a whole ending, `Recourse: {it}`: the
+/// spelling for a site that returns its recourse as a `&'static str`.
+pub const RANGE_ENDING: &str = concat!("Recourse: ", crate::range_recourse!());
+
+/// [`RANGE_RECOURSE`] as a literal for `concat!`; both constants are
+/// defined through it, so the fragment has one spelling.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! range_recourse {
+    () => {
+        "scale the geometry into the session's range"
+    };
+}
 
 /// What a direction-length decision decides, in words: the one subject
 /// every door that asks whether a direction vector has any length
@@ -2530,10 +2651,7 @@ pub const KERNEL_LIMIT_LAST_RESORT: &str = crate::kernel_limit_last_resort!();
 /// The whole last-resort recourse for a site whose payload gives no
 /// value to size the loosening to: the lever, then
 /// [`KERNEL_LIMIT_LAST_RESORT`].
-pub const KERNEL_LIMIT_RECOURSE: &str = concat!(
-    "Recourse: loosen the tolerance, ",
-    crate::kernel_limit_last_resort!()
-);
+pub const KERNEL_LIMIT_RECOURSE: &str = crate::kernel_limit_recourse!();
 
 /// [`KERNEL_DEFECT_ENDING`] as a literal, for `concat!` at a site
 /// whose prose is a `&'static str` (a constant cannot be spliced into
@@ -2564,6 +2682,29 @@ macro_rules! coincidence_move_arm {
 macro_rules! kernel_limit_last_resort {
     () => {
         "as a last resort; this refusal may indicate a kernel bug worth reporting"
+    };
+}
+
+/// [`KERNEL_LIMIT_RECOURSE`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! kernel_limit_recourse {
+    () => {
+        concat!(
+            "Recourse: loosen the tolerance, ",
+            $crate::kernel_limit_last_resort!()
+        )
+    };
+}
+
+/// [`MOVE_RECOURSE`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! move_recourse {
+    () => {
+        concat!("Recourse: ", $crate::coincidence_move_arm!())
     };
 }
 
@@ -3008,6 +3149,13 @@ impl Indeterminate {
         self.margin.tag().map_or(SizedPass::NonZero, |r| r.passes)
     }
 
+    /// This escalation, its undecided reading tagged as a decision
+    /// passing only `passes` left it ([`MarginDiag::undecided_passing`]).
+    pub(crate) fn undecided_passing(mut self, passes: SizedPass) -> Self {
+        self.margin = self.margin.undecided_passing(passes);
+        self
+    }
+
     /// The word this escalation's payload says after its placement, read
     /// from the gate's tag alone: where a gate rejected a nonzero sign. A
     /// rejected zero's verdict is told by its placement.
@@ -3262,6 +3410,33 @@ mod tests {
     use crate::interval::certification::Certification;
     use crate::tolerance::{EPS_MIN, Tol};
     use proptest::prelude::*;
+
+    /// **The larger of two misses reads the larger quantity**: each end
+    /// the larger of the two readings' ends at that end, so `[2, 10]` and
+    /// `[5, 6]` read `[5, 10]` — wholly past `4`, as the `[5, 6]` miss is,
+    /// where the farther-reaching `[2, 10]` alone reads only partly past
+    /// it. Two equal ends read a value; a poisoned reading poisons it.
+    #[test]
+    fn the_larger_of_two_misses_reads_the_larger_quantity() {
+        let (a, b) = (
+            MarginDiag::enclosure(2.0, 10.0),
+            MarginDiag::enclosure(5.0, 6.0),
+        );
+        for (x, y) in [(a, b), (b, a)] {
+            let larger = x.larger(y);
+            assert_eq!(larger.magnitudes(), Some((5.0, 10.0)), "{larger:?}");
+            assert!(larger.within(4.0).is_none(), "wholly past 4: {larger:?}");
+        }
+        assert_eq!(
+            a.within(4.0),
+            Some(Within::Partly),
+            "the wide miss alone reads partly"
+        );
+        let v = MarginDiag::value(3.0).larger(MarginDiag::value(1.0));
+        assert_eq!(v.magnitudes(), Some((3.0, 3.0)));
+        assert_eq!(v.kind(), MarginKind::Value, "{v:?}");
+        assert!(MarginDiag::INVALID.larger(a).is_invalid());
+    }
 
     /// **The session box's arm is the box's extent, and levers as one.**
     /// A sine of 1e-12 levered at it reads the displacement at the box's

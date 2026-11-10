@@ -8,7 +8,7 @@
 # where a reading it has not read yet would answer definitely:
 # `splitting::pieced_arc::PiecedArc::contact` refused an end in band
 # where a piece placed the point on the arc. The rule is stated once, in
-# `geom_brep::ladder::climb`, which keeps what it passes over and ranks
+# `geom_core::ladder::climb`, which keeps what it passes over and ranks
 # it. `escalation-discards.sh` sees the loop that drops a refusal; this
 # gate sees the loop that returns one early. A new site reds until the
 # register names why its `?` is not a search's kept reading: most are,
@@ -29,7 +29,10 @@
 #     either: a binding or a field (`return found;`, `=> return yes,`,
 #     `return self.yes;`), a method on one (`return hit.map(..)`,
 #     `return self.hit.map(..)`), a call (`return wrap(hit);`), a tuple,
-#     a deref (`*hit`), an index (`hit[0]`), or a `match` or `if`). A
+#     a deref (`*hit`), an index (`hit[0]`), a reference (`&hit`), a
+#     negation (`-hit`, `!hit`), an array (`[hit]`), a block (`{ hit }`),
+#     a `?` on a binding (`hit?`), a cast (`hit as T`), or a `match` or
+#     `if`). A
 #     lowercase call also reads an error helper (`return refuse(..)`) as
 #     an exit, which counts more loops than answer early, never fewer. A loop with no such exit reads every element,
 #     so a `?` in it refuses what every element needs.
@@ -119,6 +122,8 @@ callee_question_marks() {
               if (u ~ /return[[:space:]]+[a-z_][a-z0-9_]*[.][a-z_][a-z0-9_]*[(]/) exits = 1
               if (u ~ /return[[:space:]]+([a-z_][a-z0-9_]*[(]|self[.]|[(]|[*]|(match|if)[[:space:]])/) exits = 1
               if (u ~ /return[[:space:]]+[a-z_][a-z0-9_.]*\[/) exits = 1
+              if (u ~ /return[[:space:]]+([&!-]|\[|[{])/) exits = 1
+              if (u ~ /return[[:space:]]+[a-z_][a-z0-9_.]*([?]|[[:space:]]+as[[:space:]])/) exits = 1
             }
             for (j = st; j <= i; j++) { outer[j] = exits ? 2 : 1 }
           }
@@ -153,7 +158,7 @@ gate() {
     diff=$(diff <(printf '%s\n' "$live" | sed '/^$/d' | sort) <(printf '%s\n' "$want" | sed '/^$/d') || true)
     if [ -n "$diff" ]; then
       printf '%s\n' "$diff"
-      gate_error "early returns on a band reading in a loop differ from ${reg%%:*} ('<' is the tree, '>' the register): port the loop to geom_brep::ladder::climb, or register the site with why its ? is not a search's kept reading"
+      gate_error "early returns on a band reading in a loop differ from ${reg%%:*} ('<' is the tree, '>' the register): port the loop to geom_core::ladder::climb, or register the site with why its ? is not a search's kept reading"
       exit 1
     fi
   done
@@ -188,6 +193,18 @@ plant_callee_returning_a_method() {
 plant_callee_returning_a_call() {
   mkdir -p "$1/crates/planted/src"
   printf 'pub fn f(v: &[f64], band: f64) -> Result<Option<f64>, ()> {\n    for x in v {\n        let hit = pick(*x, band)?;\n        if hit > 0.0 {\n            return wrap(hit);\n        }\n    }\n    Ok(None)\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_callee_returning_a_reference() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(v: &[f64], band: f64) -> Result<Option<f64>, ()> {\n    for x in v {\n        let hit = pick(*x, band)?;\n        if hit > 0.0 {\n            return &hit;\n        }\n    }\n    Ok(None)\n}\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+plant_callee_returning_a_question_mark() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f(v: &[f64], band: f64) -> Result<Option<f64>, ()> {\n    for x in v {\n        let hit = pick(*x, band)?;\n        if hit.is_ok() {\n            return hit?;\n        }\n    }\n    Ok(None)\n}\n' \
     > "$1/crates/planted/src/lib.rs"
 }
 
@@ -247,11 +264,13 @@ gate_selftest() {
   gate_selftest_case "$want" plant_callee_returning_a_binding
   gate_selftest_case "$want" plant_callee_returning_a_method
   gate_selftest_case "$want" plant_callee_returning_a_call
+  gate_selftest_case "$want" plant_callee_returning_a_reference
+  gate_selftest_case "$want" plant_callee_returning_a_question_mark
   gate_selftest_passes "a callee read in a loop that answers nothing early" plant_callee_in_a_fold
   gate_selftest_passes "a registered site" plant_registered
   gate_selftest_passes "a ? outside any loop" plant_outside_a_loop
   gate_selftest_passes "a site inside a #[cfg(test)] module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, a registered site, one outside any loop and one in a test module; fires on an unregistered site in a for, a while or an expression loop body, on a callee read in band inside a loop that answers early (by a value, a binding, a method on one or a call), and on a register entry the tree no longer carries; passes a callee read in a loop that answers nothing early\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, a registered site, one outside any loop and one in a test module; fires on an unregistered site in a for, a while or an expression loop body, on a callee read in band inside a loop that answers early (by a value, a binding, a method on one, a call, a reference or a ?), and on a register entry the tree no longer carries; passes a callee read in a loop that answers nothing early\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

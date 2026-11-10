@@ -1,7 +1,7 @@
 ---
 id: plane-and-line-tuples-restate-the-placement
 kind: issue
-title: (Point3, Vec3) tuples stand for a plane at several doors
+title: A plane travels as a (point, normal) tuple or pair at several doors; waits on stage 3's Plane
 status: open
 opened: 2026-11-03
 priority: P2
@@ -38,3 +38,29 @@ That unit gave a point's offset from a plane one home, `geom::plane_offset{,_rou
 - loose arguments or destructured fields: `topo` `bound_side.rs` (`Chord { base, far }` against `n`), `boolean/reduce.rs`, `vtxfac.rs`, `node.rs`, `contain.rs`, `sectors.rs`, `solid_contain.rs`, `trace.rs`, `ops.rs`, `factored_crossing.rs`, `attach.rs`, `splitting/containment.rs`, `census/point.rs`, `offset_derive.rs`; `geom-brep` `curve_face/plane_crossing.rs` (`plane_origin`, `plane_normal`), `offset.rs`, `implicit.rs`; `editor-core` `eval/measure.rs`; `step-import` `recognize.rs`.
 
 Not ported, and a different reading: the sites that divide by `normal.norm()` or normalize the normal first. These are a plane offset for a non-unit normal: `boolean/slit.rs`, `step-import/src/adopt.rs`, `geom-brep/src/edge_nurbs.rs`, `pcurve_cache.rs`, and `sweep/src/blend/reach.rs` (×2).
+
+## Narrowed to the plane half (2026-11-09, PR 6665)
+
+The line half is done: `onecopy/line-tuples` (PR 6601), then
+`onecopy/line-placement` for the loose pairs filed as
+`a-line-still-travels-as-loose-arguments-or-a-frame-pair`. What remains
+is the plane holders listed above: the `(Point3<T>, Vec3<T>)` tuples, the
+loose `(origin, normal)` pairs and struct fields, and the `f64`-only
+tuples the first sweep could not see.
+
+**They wait on stage 3, the kind-struct sweep.** The placement fork is
+decided on `analytic-surfaces-spell-their-frame-field-by-field`
+("Decided", 2026-11-03): `Surface::Plane(Plane { frame })`, a geom struct
+holding one `Frame`, and no `Plane::origin()` or other re-spelling of
+`frame.origin`. Minting a `Plane { origin, normal }` here would take that
+name with a second meaning, and `Line` read as a plane's normal would give
+`Line` two meanings. So no plane type lands before stage 3. That row
+cross-references this one so stage 3 ports these holders onto the
+`Plane` it mints.
+
+**A question for the stage-3 implementer, not a choice made here.**
+Nearly every holder above is a plane with no seam (a point and a normal,
+no `u_ref`), while `Frame` carries one. Does a seamless plane need its
+own reading (a `Plane` built from a `Frame` whose seam no reader reads,
+or a seam-free placement type)? Or do these holders read a `Frame` with
+a conventional seam?

@@ -28,6 +28,13 @@
 //! unconverted reader, and adding the dev-dependency is the first
 //! step of converting it.
 //!
+//! **Scope is not answered here.** *Which binding does this name reach*
+//! (a `let`, a pattern, a parameter, a `use`) is a question about the
+//! syntax tree, and `crates/source-scope` answers it from a `syn` parse.
+//! The ledger's second half sends scope questions there and refuses a
+//! hand-rolled scope reader. This module keeps lexing and the item- and
+//! brace-level helpers, and stays zero-dependency.
+//!
 //! # One lexer, three views, and why the count is three
 //!
 //! [`keeping`] is the only thing in this module that knows Rust's
@@ -1527,10 +1534,23 @@ pub struct PredicateCensus {
     pub names: std::collections::BTreeSet<String>,
     /// `<file>: <expression>` per call whose name-bearing argument is
     /// not a plain literal, and per declared carrier call that holds no
-    /// literal argument. Each is a site whose carrier the caller must
-    /// declare — declaring it makes that carrier's own call sites part
-    /// of the census, so the chain terminates at literals or stays red.
+    /// literal argument — named by each `const` argument it holds, else
+    /// by its first argument. One entry stands for every site of a file
+    /// that spells the same expression. Each is a site whose carrier the
+    /// caller must declare — declaring it makes that carrier's own call
+    /// sites part of the census, so the chain terminates at literals or
+    /// stays red.
     pub indirect: std::collections::BTreeSet<String>,
+    /// `<file>: <path>` per site whose name is a `const`, in place of an
+    /// `indirect` entry: the path's last segment is a `const` this walk
+    /// found declared under `src`. A roster holds each to a declared
+    /// [`NameCarrier::Const`], which reads the name out of it.
+    pub consts: std::collections::BTreeSet<String>,
+    /// Each declared carrier that matched nothing in the walk — for a
+    /// [`NameCarrier::Const`], no declaration that holds a name; for a
+    /// [`NameCarrier::Call`], no call or literal. A stale carrier reads
+    /// as `Const(NAME)` or `Call(token)`.
+    pub unfound: std::collections::BTreeSet<String>,
     /// `<file>: <text>` per `decide*` occurrence this reader cannot
     /// even find an argument list for — a spelling it does not know.
     pub unreadable: std::collections::BTreeSet<String>,
@@ -1556,31 +1576,59 @@ pub struct PredicateCensus {
 /// spellings: a turbofish, and a one-line wrapper around a declared
 /// carrier. Both are read here; anything still unread is reported, not
 /// dropped.
+///
+/// **`geom_core::ladder::read_identity` is a funnel too**, deciding each
+/// datum under the name it is handed beside it, and its data are an
+/// iterator this reader cannot follow. Every call of it is therefore an
+/// `indirect` site, `<file>: read_identity(<its first argument's head>)`,
+/// so a crate's roster lists each and declares where its data's names
+/// are spelled.
 #[must_use]
 pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> PredicateCensus {
     let mut out = PredicateCensus::default();
-    for path in rust_sources(src) {
-        let text = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("a readable source file {}: {e}", path.display()));
+    let files: Vec<(String, String)> = rust_sources(src)
+        .into_iter()
+        .map(|path| {
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("a readable source file {}: {e}", path.display()));
+            // A walk over one file names its sites by that file's name.
+            let rel = match path.strip_prefix(src) {
+                Ok(rel) if !rel.as_os_str().is_empty() => rel,
+                _ => path
+                    .file_name()
+                    .map_or(path.as_path(), std::path::Path::new),
+            }
+            .to_string_lossy()
+            .replace('\\', "/");
+            (rel, text)
+        })
+        .collect();
+    // Every `const` the walk declares, so a site whose name is a path to
+    // one is told apart from a forwarded expression by what the tree
+    // holds, not by how the path is spelled.
+    let declared: std::collections::BTreeSet<String> = files
+        .iter()
+        .flat_map(|(_, text)| const_names(&code_only(text)))
+        .collect();
+    let mut found = std::collections::BTreeSet::new();
+    for (rel, text) in &files {
         // Comments are blanked in place, so prose that spells `decide (`
         // is not a call site and the offsets still index the file byte
         // for byte.
-        let code = code_and_literals(&text);
+        let code = code_and_literals(text);
         // Tokens are LOCATED in the code-only view, where a literal's
         // bytes are blanked, so prose inside a string that spells
         // `decide(` is not a call site either; they are READ from the
         // view that keeps literals. Both are blanked in place, so one
         // set of offsets indexes both.
-        let bare = code_only(&text);
-        let rel = path
-            .strip_prefix(src)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
+        let bare = code_only(text);
         for (kind, payload) in funnel_sites(&bare, &code) {
             match kind {
                 SiteKind::Name => {
                     out.names.insert(payload);
+                }
+                SiteKind::Indirect if names_a_const(&payload, &declared) => {
+                    out.consts.insert(format!("{rel}: {payload}"));
                 }
                 SiteKind::Indirect => {
                     out.indirect.insert(format!("{rel}: {payload}"));
@@ -1590,28 +1638,50 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 }
             }
         }
+        for (ordinal, (head, literals)) in identity_sites(&bare, &code).into_iter().enumerate() {
+            out.indirect
+                .insert(format!("{rel}: read_identity#{}({head})", ordinal + 1));
+            out.names.extend(literals);
+        }
         for carrier in carriers {
             match *carrier {
                 NameCarrier::Call(token) => {
                     for open in carrier_groups(&bare, token) {
+                        found.insert(format!("Call({token})"));
                         let Some(end) = balanced_end(&bare, open) else {
                             out.unreadable.insert(format!("{rel}: {token}(… unclosed"));
                             continue;
                         };
                         let literals = direct_literals(&code[open + 1..end]);
-                        if literals.is_empty() {
-                            out.indirect
-                                .insert(format!("{rel}: {}", one_line(&code[open..=end])));
-                        } else {
+                        let consts: Vec<String> = arguments(&bare[open + 1..end])
+                            .into_iter()
+                            .filter(|arg| names_a_const(arg, &declared))
+                            .collect();
+                        if !literals.is_empty() {
                             out.names.extend(literals);
+                        } else if !consts.is_empty() {
+                            // A name handed on in a `const`: a const site, as
+                            // a `decide*` call's is, so a roster holds it to
+                            // a declared carrier.
+                            for name in consts {
+                                out.consts.insert(format!("{rel}: {name}"));
+                            }
+                        } else {
+                            // A name handed on from elsewhere, named by the
+                            // group's first argument as a `decide*` site is.
+                            let head = first_argument(&bare[open + 1..end], &code[open + 1..end]);
+                            out.indirect.insert(format!("{rel}: {head}"));
                         }
                     }
                 }
                 NameCarrier::Const(token) => {
-                    if let Some(decl) = find_word(&bare, &format!("const {token}")) {
-                        match const_literal(&code[decl..]) {
-                            Some(name) => {
-                                out.names.insert(name);
+                    for decl in const_decls(&bare, token) {
+                        match const_literal(&bare[decl..], &code[decl..]) {
+                            Some(names) => {
+                                if !names.is_empty() {
+                                    found.insert(format!("Const({token})"));
+                                }
+                                out.names.extend(names);
                             }
                             None => {
                                 out.unreadable.insert(format!("{rel}: const {token}"));
@@ -1621,7 +1691,7 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 }
             }
         }
-        for (needle, raw) in [("include!", &bare), ("#[path", &text)] {
+        for (needle, raw) in [("include!", &bare), ("#[path", &code)] {
             let mut at = 0usize;
             while let Some(hit) = raw[at..].find(needle) {
                 let start = at + hit;
@@ -1631,7 +1701,122 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
             }
         }
     }
+    out.unfound = carriers
+        .iter()
+        .map(|carrier| match carrier {
+            NameCarrier::Call(token) => format!("Call({token})"),
+            NameCarrier::Const(token) => format!("Const({token})"),
+        })
+        .filter(|key| !found.contains(key))
+        .collect();
     out
+}
+
+/// **The checks every predicate-name roster makes of its census**, in
+/// one place: each crate's `recourse_roster` asks this for its
+/// violations and asserts there are none, and holds its own doors'
+/// names on top.
+///
+/// - Nothing is invisible: no spelling the reader cannot read, and no
+///   `include!` or `#[path]` pulling source from outside `src` — a
+///   `#[path = "x.rs"]` naming a file under `src`, which the walk reads
+///   whole, is not a gap.
+/// - No declared carrier is stale: each [`NameCarrier`] matched
+///   something ([`PredicateCensus::unfound`]).
+/// - Every site whose name is a `const` names a declared
+///   [`NameCarrier::Const`], which reads the name out of it.
+/// - Where the roster lists its indirect sites (`listed`, as
+///   `(site, what carries the name there)`), the census's indirect sites
+///   are exactly those. A roster that admits them by a rule of its own
+///   passes `None` and holds them itself.
+#[must_use]
+pub fn roster_violations(
+    src: &std::path::Path,
+    census: &PredicateCensus,
+    carriers: &[NameCarrier],
+    listed: Option<&[(&str, &str)]>,
+) -> Vec<String> {
+    let mut out: Vec<String> = census
+        .unreadable
+        .iter()
+        .map(|site| format!("a spelling the reader cannot read: {site}"))
+        .collect();
+    for site in &census.unwalked {
+        if let Err(why) = mounted_under(src, site) {
+            out.push(format!("source the reader does not walk: {site}: {why}"));
+        }
+    }
+    out.extend(
+        census
+            .unfound
+            .iter()
+            .map(|carrier| format!("a declared carrier matched nothing in src: {carrier}")),
+    );
+    let consts: std::collections::BTreeSet<&str> = carriers
+        .iter()
+        .filter_map(|carrier| match carrier {
+            NameCarrier::Const(name) => Some(*name),
+            NameCarrier::Call(_) => None,
+        })
+        .collect();
+    for site in &census.consts {
+        let (_, path) = site.split_once(": ").expect("`<file>: <path>`");
+        let last = path.rsplit("::").next().unwrap_or(path);
+        if !consts.contains(last) {
+            out.push(format!(
+                "a site names the const `{last}`, not declared a carrier: {site}"
+            ));
+        }
+    }
+    if let Some(listed) = listed {
+        let named: std::collections::BTreeSet<&str> =
+            listed.iter().map(|(site, _)| *site).collect();
+        if named.len() != listed.len() {
+            out.push("an indirect site is listed twice".to_string());
+        }
+        out.extend(
+            census
+                .indirect
+                .iter()
+                .filter(|site| !named.contains(site.as_str()))
+                .map(|site| format!("an indirect site not listed: {site}")),
+        );
+        out.extend(
+            named
+                .iter()
+                .filter(|site| !census.indirect.contains(**site))
+                .map(|site| format!("a listed indirect site the census no longer finds: {site}")),
+        );
+    }
+    out
+}
+
+/// Whether the unwalked site `<file>:<line>` under `src` is a
+/// `#[path = "…"]` mounting a file under `src`, which the walk reads.
+fn mounted_under(src: &std::path::Path, site: &str) -> Result<(), String> {
+    let (file, line) = site.rsplit_once(':').ok_or("not `<file>:<line>`")?;
+    let line: usize = line.parse().map_err(|_| "not a line number")?;
+    let file = src.join(file);
+    let text = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    let code = code_and_literals(&text);
+    let attr = code
+        .lines()
+        .nth(line.saturating_sub(1))
+        .ok_or("no such line")?
+        .trim();
+    let target = attr
+        .strip_prefix("#[path =")
+        .and_then(|rest| rest.trim().strip_suffix(']'))
+        .and_then(plain_string_literal)
+        .ok_or_else(|| format!("not a `#[path = …]` mount: {attr}"))?;
+    let mounted = file
+        .parent()
+        .ok_or("a file with no directory")?
+        .join(target);
+    if target.contains("..") || !mounted.starts_with(src) || !mounted.is_file() {
+        return Err(format!("mounts `{target}`, which is not a file under src"));
+    }
+    Ok(())
 }
 
 /// What a `decide*` occurrence turned out to be.
@@ -1660,6 +1845,12 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         // call of it, and the crate wrapper's own body holds the call.
         let before = bare[..start].trim_end();
         if before.ends_with("fn") && boundary_before(before, before.len() - 2) {
+            continue;
+        }
+        // `let decide_m = |name, m| decide(name, m, band);` binds a local
+        // funnel: the binding is not a call, and the closure's body and
+        // its call sites are read where they stand.
+        if before.ends_with("let") && boundary_before(before, before.len() - 3) {
             continue;
         }
         // The suffixed spellings of the same door (`_flagged`,
@@ -1717,20 +1908,144 @@ fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
         let open = cursor;
         at = open + 1;
         let arg = code[open + 1..].trim_start();
+        if let Some(names) = literal_tuple(&bare[bare.len() - arg.len()..], arg) {
+            out.extend(names.into_iter().map(|name| (SiteKind::Name, name)));
+            continue;
+        }
         match first_literal(arg) {
             Some(name) => out.push((SiteKind::Name, name)),
             None => {
-                let expr: String = arg
-                    .chars()
-                    .take_while(|c| *c != ',' && *c != ')')
-                    .collect::<String>()
-                    .trim()
-                    .to_string();
+                let close = balanced_end(bare, open).unwrap_or(bare.len());
+                let expr = first_argument(&bare[open + 1..close], &code[open + 1..close]);
                 out.push((SiteKind::Indirect, expr));
             }
         }
     }
     out
+}
+
+/// Every `read_identity` call in a blanked view, in order: the head of
+/// its first argument (up to its first top-level comma, on one line),
+/// and every plain literal inside the call — the data's names where
+/// they are spelled at the call.
+fn identity_sites(bare: &str, code: &str) -> Vec<(String, Vec<String>)> {
+    const TOKEN: &str = "read_identity";
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find(TOKEN) {
+        let start = at + hit;
+        at = start + TOKEN.len();
+        if !boundary_before(bare, start) || !boundary_after(bare, at) {
+            continue;
+        }
+        let before = bare[..start].trim_end();
+        if before.ends_with("fn") && boundary_before(before, before.len() - 2) {
+            continue;
+        }
+        let rest = bare[at..].trim_start();
+        if !rest.starts_with('(') {
+            // An import or a doc path, not a call.
+            continue;
+        }
+        let open = bare.len() - rest.len();
+        let Some(close) = balanced_end(bare, open) else {
+            out.push(("… unclosed".to_string(), Vec::new()));
+            continue;
+        };
+        out.push((
+            first_argument(&bare[open + 1..close], &code[open + 1..close]),
+            literals_within(&code[open + 1..close]),
+        ));
+    }
+    out
+}
+
+/// Every plain string literal in `code` (a [`code_and_literals`] view),
+/// at any depth.
+fn literals_within(code: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = code[at..].find('"') {
+        let start = at + hit;
+        match first_literal(&code[start..]) {
+            Some(name) => {
+                at = start + name.len() + 2;
+                out.push(name);
+            }
+            None => at = start + 1,
+        }
+    }
+    out
+}
+
+/// The identifier of every `const NAME` declaration in a blanked view.
+fn const_names(bare: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find("const ") {
+        let start = at + hit;
+        at = start + "const ".len();
+        if !boundary_before(bare, start) {
+            continue;
+        }
+        let name: String = bare[at..]
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if !name.is_empty() && bare[at + name.len()..].trim_start().starts_with(':') {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// Whether `expr` is a path to one of `declared` — `NAME`,
+/// `super::NAME`, `Self::NAME`.
+fn names_a_const(expr: &str, declared: &std::collections::BTreeSet<String>) -> bool {
+    let segments: Vec<&str> = expr.split("::").collect();
+    segments
+        .iter()
+        .all(|seg| !seg.is_empty() && seg.chars().all(|c| c.is_alphanumeric() || c == '_'))
+        && segments.last().is_some_and(|last| declared.contains(*last))
+}
+
+/// The head of a call's first argument, as a site is named by it: the
+/// argument up to its first top-level comma, its first line, with the
+/// whitespace collapsed. `bare` is the call's inner text blanked and
+/// `code` the same bytes with literals kept.
+fn first_argument(bare: &str, code: &str) -> String {
+    let first = top_level_split(bare, ',')
+        .into_iter()
+        .next()
+        .map_or(0..bare.len(), |r| r);
+    one_line(code[first].trim().lines().next().unwrap_or(""))
+}
+
+/// The direct arguments of a bracket group, trimmed, in a blanked view.
+fn arguments(inner: &str) -> Vec<String> {
+    top_level_split(inner, ',')
+        .into_iter()
+        .map(|r| inner[r].trim().to_string())
+        .collect()
+}
+
+/// The names of a tuple of plain string literals at the head of `code`
+/// — a funnel deciding under a row and its straddle row
+/// (`decide_levered(("row", "row_straddle"), …)`) — or `None` where the
+/// head is not such a tuple. `bare` is the same text blanked, so its
+/// brackets are real.
+fn literal_tuple(bare: &str, code: &str) -> Option<Vec<String>> {
+    if !bare.starts_with('(') {
+        return None;
+    }
+    let close = balanced_end(bare, 0)?;
+    let names: Vec<String> = top_level_split(&bare[1..close], ',')
+        .into_iter()
+        .map(|r| code[1 + r.start..1 + r.end].trim())
+        .filter(|item| !item.is_empty())
+        .map(|item| plain_string_literal(item).map(str::to_string))
+        .collect::<Option<_>>()?;
+    (!names.is_empty()).then_some(names)
 }
 
 /// The contents of a plain string literal at the head of `text`.
@@ -1754,9 +2069,11 @@ fn carrier_groups(code: &str, token: &str) -> Vec<usize> {
             continue;
         }
         let before = code[..start].trim_end();
-        if DECLARERS
-            .iter()
-            .any(|kw| before.ends_with(kw) && boundary_before(before, before.len() - kw.len()))
+        // A return type (`-> Rows {`) opens the body, not a literal.
+        if before.ends_with("->")
+            || DECLARERS
+                .iter()
+                .any(|kw| before.ends_with(kw) && boundary_before(before, before.len() - kw.len()))
         {
             continue;
         }
@@ -1793,25 +2110,57 @@ fn direct_literals(inner: &str) -> Vec<String> {
     out
 }
 
-/// The first plain literal of a `const NAME: &str = "…";` declaration
-/// whose head starts at the front of `text`.
-fn const_literal(text: &str) -> Option<String> {
-    let end = text.find(';')?;
-    let open = text[..end].find('"')?;
-    first_literal(&text[open..])
+/// The names a `const NAME: &str = "…";` declaration whose head starts
+/// at the front of `text` holds — one, or each of a tuple of them
+/// (`const SIDE: (&str, &str) = ("row", "row_straddle");`).
+///
+/// `Some` and empty where the declaration is not a name: a `const` of
+/// the same identifier and another type (a number, a struct), or a
+/// trait's declaration with no value, whose implementations carry the
+/// names. `None` where it is a `&str` or a tuple of them this reader
+/// cannot read.
+fn const_literal(bare: &str, code: &str) -> Option<Vec<String>> {
+    const STR: [&str; 2] = ["&str", "&'staticstr"];
+    let end = code.find(';')?;
+    let Some(eq) = code[..end].find('=') else {
+        return Some(Vec::new());
+    };
+    let ty: String = code[..eq]
+        .split_once(':')
+        .map_or("", |(_, ty)| ty)
+        .split_whitespace()
+        .collect();
+    let value = code[eq + 1..end].trim_start();
+    let at = end - value.len();
+    if STR.contains(&ty.as_str()) {
+        return plain_string_literal(value).map(|name| vec![name.to_string()]);
+    }
+    let parts: Option<Vec<&str>> = ty
+        .strip_prefix('(')
+        .and_then(|t| t.strip_suffix(')'))
+        .map(|t| t.split(',').filter(|p| !p.is_empty()).collect());
+    match parts {
+        Some(parts) if !parts.is_empty() && parts.iter().all(|p| STR.contains(p)) => {
+            literal_tuple(&bare[at..end], &code[at..end]).filter(|names| names.len() == parts.len())
+        }
+        _ => Some(Vec::new()),
+    }
 }
 
-/// The offset of `needle` as a whole word, if the view holds one.
-fn find_word(code: &str, needle: &str) -> Option<usize> {
+/// The offset of every `const <token>` declaration, as a whole word, in
+/// a blanked view.
+fn const_decls(code: &str, token: &str) -> Vec<usize> {
+    let needle = format!("const {token}");
+    let mut out = Vec::new();
     let mut at = 0usize;
-    while let Some(hit) = code[at..].find(needle) {
+    while let Some(hit) = code[at..].find(&needle) {
         let start = at + hit;
         at = start + needle.len();
-        if boundary_before(code, start) {
-            return Some(start);
+        if boundary_before(code, start) && boundary_after(code, at) {
+            out.push(start);
         }
     }
-    None
+    out
 }
 
 /// `text` with its whitespace collapsed, for an assertion message.
@@ -2104,6 +2453,225 @@ mod tests {
         assert_eq!(found.len(), 2, "{found:?}");
         assert!(found.iter().any(|p| p.ends_with("hidden.rs")), "{found:?}");
         std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    /// **Every `read_identity` call is an indirect site, keyed by its
+    /// ordinal in its file**, so two calls rustfmt lays out alike are two
+    /// entries; its declaration, an import and a doc mention are not
+    /// calls, and a literal inside a call is read as a name.
+    #[test]
+    fn a_read_identity_call_is_an_indirect_site() {
+        let raw = "use ladder::{read_identity};\n\
+                   /// [`read_identity`] reads data.\n\
+                   pub fn read_identity<T>(d: T) {}\n\
+                   fn f() { geom_core::ladder::read_identity(\n    [(\"lit\", m)], band); \
+                   read_identity(\n    [(\"other\", m)], band); \
+                   read_identity(xs.map(|x| (NAME, x)), band); }\n";
+        let dir = std::env::temp_dir().join(format!("tu-identity-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(dir.join("a.rs"), raw).expect("write");
+        let census = super::predicate_census(&dir, &[]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            [
+                "a.rs: read_identity#1([(\"lit\", m)])",
+                "a.rs: read_identity#2([(\"other\", m)])",
+                "a.rs: read_identity#3(xs.map(|x| (NAME, x)))",
+            ],
+            "{raw}"
+        );
+        assert_eq!(
+            census.names.iter().collect::<Vec<_>>(),
+            ["lit", "other"],
+            "{raw}"
+        );
+    }
+
+    /// **A `Const` carrier reads every `&str` declaration of its name,
+    /// or tuple of them, and only those**: a longer identifier is not
+    /// it, a same-named const of another type or a trait's valueless
+    /// declaration is not a name, and a `&str` whose value is not a
+    /// plain literal is unreadable.
+    #[test]
+    fn a_const_carrier_reads_each_str_declaration_of_its_name() {
+        let raw = "const APEX_DOWN: &str = \"no\";\n\
+                   mod a { pub(crate) const APEX: &str = \"one\"; }\n\
+                   mod b { const APEX: &'static str = \"two\"; }\n\
+                   mod t { const APEX: (f64, f64) = (0.0, 1.0); }\n\
+                   trait R { const APEX: &'static str; }\n\
+                   const APEX: &str = concat!(\"a\", \"b\");\n\
+                   const APEX: (&str, &'static str) = (\"row\", \"row_straddle\");\n\
+                   const APEX: (&str, &str) = (\"row\", other);\n";
+        let (bare, code) = (code_only(raw), code_and_literals(raw));
+        let read: Vec<Option<Vec<String>>> = super::const_decls(&bare, "APEX")
+            .into_iter()
+            .map(|at| super::const_literal(&bare[at..], &code[at..]))
+            .collect();
+        let names = |n: &[&str]| Some(n.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        assert_eq!(
+            read,
+            [
+                names(&["one"]),
+                names(&["two"]),
+                names(&[]),
+                names(&[]),
+                None,
+                names(&["row", "row_straddle"]),
+                None,
+            ],
+            "{raw}"
+        );
+    }
+
+    /// **A tuple of plain literals at a funnel's head is its names**: a
+    /// row and its straddle row are both read, and a tuple holding
+    /// anything but literals is an indirect site.
+    #[test]
+    fn a_funnels_literal_tuple_is_read_as_its_names() {
+        let raw = "decide_levered((\"row\", \"row_straddle\"), x, band); \
+                   decide_levered((\"lone\", s), x, band);";
+        let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
+        let named: Vec<&str> = sites
+            .iter()
+            .filter(|(kind, _)| matches!(kind, super::SiteKind::Name))
+            .map(|(_, name)| name.as_str())
+            .collect();
+        assert_eq!(named, ["row", "row_straddle"], "{raw}");
+        assert!(
+            sites
+                .iter()
+                .any(|(kind, expr)| matches!(kind, super::SiteKind::Indirect)
+                    && expr.starts_with("(\"lone\"")),
+            "a part-literal tuple is indirect: {raw}"
+        );
+    }
+
+    /// **A `let` binding of a local funnel is not a call**: its body and
+    /// its call sites are, each read where it stands.
+    #[test]
+    fn a_let_bound_funnel_is_read_at_its_body_and_its_calls() {
+        let raw = "let decide_m = |name, m| decide(name, m, band); decide_m(\"lit\", m)?;";
+        let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
+        let read: Vec<(bool, &str)> = sites
+            .iter()
+            .map(|(kind, s)| (matches!(kind, super::SiteKind::Name), s.as_str()))
+            .collect();
+        assert_eq!(read, [(false, "name"), (true, "lit")], "{raw}");
+    }
+
+    /// **A declared carrier's call is read for its literals, else is a
+    /// const site where an argument names a `const` the tree declares,
+    /// else is named by its first argument**, so a forwarding hop is
+    /// named as a `decide*` site's is and the same hop twice in one file
+    /// is one entry.
+    #[test]
+    fn a_carrier_call_is_named_by_its_consts_or_its_first_argument() {
+        let dir = std::env::temp_dir().join(format!("tu-carrier-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "const ROW: &str = \"row\";\n\
+             fn f() { sign_as(\"lit\", d); sign_as(super::ROW, d); \
+             sign_as(name, d); sign_as(name, e); }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[super::NameCarrier::Call("sign_as")]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.names.iter().collect::<Vec<_>>(),
+            ["lit"],
+            "{census:?}"
+        );
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            ["a.rs: name"],
+            "{census:?}"
+        );
+        assert_eq!(
+            census.consts.iter().collect::<Vec<_>>(),
+            ["a.rs: super::ROW"],
+            "{census:?}"
+        );
+    }
+
+    /// **The roster harness reports each kind of gap once and passes a
+    /// clean tree**: a `#[path]` to a file under `src` is walked, one
+    /// outside it is not; a stale carrier, an undeclared const site, and
+    /// an indirect site missing from or stale in the list each red.
+    #[test]
+    fn the_roster_harness_names_each_gap() {
+        let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "#[path = \"b.rs\"]\nmod b;\n#[path = \"../c.rs\"]\nmod c;\n\
+             const ROW: &str = \"row\";\nconst OTHER: &str = \"other\";\n\
+             fn f() { decide(ROW, m); decide(OTHER, m); decide(name, m); }\n\
+             /// prose naming a `#[path]` mount is not one\n",
+        )
+        .expect("write");
+        std::fs::write(dir.join("b.rs"), "fn g() {}\n").expect("write");
+        let carriers = [
+            super::NameCarrier::Const("ROW"),
+            super::NameCarrier::Call("gone"),
+        ];
+        let census = super::predicate_census(&dir, &carriers);
+        let said = super::roster_violations(&dir, &census, &carriers, Some(&[("a.rs: stale", "")]));
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.consts.iter().collect::<Vec<_>>(),
+            ["a.rs: OTHER", "a.rs: ROW"]
+        );
+        assert_eq!(
+            census.unwalked.iter().collect::<Vec<_>>(),
+            ["a.rs:1", "a.rs:3"],
+            "a doc comment's `#[path]` is prose"
+        );
+        let expect = [
+            "source the reader does not walk: a.rs:3",
+            "a declared carrier matched nothing in src: Call(gone)",
+            "a site names the const `OTHER`, not declared a carrier: a.rs: OTHER",
+            "an indirect site not listed: a.rs: name",
+            "a listed indirect site the census no longer finds: a.rs: stale",
+        ];
+        assert_eq!(said.len(), expect.len(), "{said:#?}");
+        for (said, expect) in said.iter().zip(expect) {
+            assert!(said.starts_with(expect), "{said} is not `{expect}…`");
+        }
+    }
+
+    /// **A census over one file names its sites by that file's name**,
+    /// as a walk over a directory names them by their path under it.
+    #[test]
+    fn a_one_file_census_names_its_sites_by_the_file() {
+        let dir = std::env::temp_dir().join(format!("tu-onefile-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let file = dir.join("table.rs");
+        std::fs::write(
+            &file,
+            "const ROW: &str = \"row\";\nfn f() { decide(ROW, m); decide(name, m); }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&file, &[]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(census.consts.iter().collect::<Vec<_>>(), ["table.rs: ROW"]);
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            ["table.rs: name"]
+        );
+    }
+
+    /// **A return type is not a struct literal**: `-> Rows {` opens the
+    /// function's body, and only the literal inside it is a carrier
+    /// group.
+    #[test]
+    fn a_return_type_opens_no_carrier_group() {
+        let raw = "fn rows() -> Rows { Rows { a: \"x\" } }";
+        let bare = code_only(raw);
+        let groups = super::carrier_groups(&bare, "Rows");
+        assert_eq!(groups.len(), 1, "{groups:?}");
+        assert!(raw[groups[0]..].starts_with("{ a:"), "{raw}");
     }
 
     /// A required needle answers its offsets, and one that matches

@@ -12,9 +12,10 @@
 //! ([`line_line_fillet_trims`] / [`arc_fillet_trims`]), reified
 //! predicates through the k_stats funnel. The original (#101 review
 //! MAJOR-1) is `fillet_leg_fit`, which refuses a radius whose tangent
-//! points fall outside their legs; M5 S2's arc-leg corners add
-//! `fillet_leg_reach` (the corner-side extent test, same exact-order
-//! band) and, against the run's linear band, `fillet_corner_arm`,
+//! points fall outside their legs, on the run's linear band; M5 S2's
+//! arc-leg corners add `fillet_leg_reach` (the corner-side extent test,
+//! on the exact-order band) and, against the run's linear band,
+//! `fillet_corner_arm`,
 //! `fillet_corner_turn` and the `fillet_offset_*` carrier-intersection
 //! family — the last of which, `fillet_offset_lever` (M8), decides not
 //! whether the offset carriers meet but whether their meeting point is
@@ -28,7 +29,7 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
-use crate::gate::{Escalation, Gate, decide, prove};
+use crate::gate::{Escalation, Gate, decide, decide_passing, prove};
 use geom_core::{Band, BandError, Circles, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use crate::validate::{FilletLeg, NoCornerReason};
@@ -78,11 +79,7 @@ pub(crate) fn turn_sense(turn: Sign) -> Option<ArcSweep> {
 /// A decided turn's side σ as the literal ±1 (`+1` left), or `None`
 /// for a turn decided Zero, which has no side.
 pub(crate) fn turn_side<T: Real>(turn: Sign) -> Option<T> {
-    match turn {
-        Sign::Positive => Some(T::one()),
-        Sign::Negative => Some(-T::one()),
-        Sign::Zero => None,
-    }
+    turn.nonzero().map(geom_core::NonzeroSign::unit)
 }
 
 /// The shape of one leg of a fillet corner
@@ -216,9 +213,9 @@ pub(crate) struct LineFilletTrims<T: Real> {
     /// The fillet arc's bulge tan(φ/4), by the quarter-angle identity on
     /// tan(φ/2) (see [`line_line_fillet_trims`]'s docs).
     pub bulge: T,
-    /// The incoming leg's fit classification (`fillet_leg_fit`,
-    /// exact-order band): `Positive` emits the straight piece + declared
-    /// joint, `Zero` suppresses both (exact fit).
+    /// The incoming leg's fit classification (`fillet_leg_fit`, the
+    /// run's linear band): `Positive` emits the straight piece + declared
+    /// joint, `Zero` suppresses both (a run validation would not keep).
     pub fit_in: Sign,
     /// The outgoing leg's fit classification, same rule.
     pub fit_out: Sign,
@@ -245,12 +242,18 @@ pub(crate) enum TrimRefusal<T: Real> {
     Escalated(Escalation),
 }
 
+/// What `fillet_leg_fit` passes: a run (`Positive`) or none (`Zero`).
+/// A leg the setback overruns refuses, so an overrun in band is no size a
+/// smaller tolerance keeps, and its ending offers none.
+const RUN_PASSES: geom_core::SizedPass = geom_core::SizedPass::NonNegative;
+
 /// The ratified line×line fillet closed form (#101 review MAJOR-1;
 /// docs on the fillet constructor), extracted verbatim so the algebra
 /// lowering and the builder door share one code path: with legs
 /// v₁ = corner − head, v₂ = next − corner, computes tan(φ/2), the arc
-/// bulge, the setback, both `fillet_leg_fit` gates (exact-order band),
-/// and the tangent points.
+/// bulge, the setback, both `fillet_leg_fit` gates (on `band`, the
+/// run's linear band: a run validation would call degenerate is a Zero
+/// fit, and none is built), and the tangent points.
 ///
 /// # Errors
 ///
@@ -260,6 +263,7 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     corner: Point2<T>,
     next: Point2<T>,
     radius: T,
+    band: Band,
 ) -> Result<LineFilletTrims<T>, TrimRefusal<T>> {
     let v1 = corner - head;
     let v2 = next - corner;
@@ -275,7 +279,12 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let len1 = v1.norm_squared().sqrt();
     let len2 = v2.norm_squared().sqrt();
     let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
-        match prove(Gate::FilletLegFit, Margin::of(len - setback)) {
+        match decide_passing(
+            Gate::FilletLegFit,
+            Margin::of(len - setback),
+            band,
+            RUN_PASSES,
+        ) {
             Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
                 leg,
                 setback,
@@ -317,9 +326,8 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     /// The fillet arc's bulge tan(θ/4).
     pub bulge: T,
     /// The fillet arc's own centre — the offset-carrier intersection
-    /// this candidate IS. Carried for the algebra door's §4 item 4
-    /// carrier-identity checks; no emitted coordinate reads it, and the
-    /// builder door ignores it.
+    /// this candidate IS: the algebra door stores the fillet arc on it,
+    /// and the builder door ignores it.
     pub center: Point2<T>,
     /// Whether [`center`](Self::center) lies on both offset carriers by
     /// the intersection's algebra (the crossing branch,
@@ -672,10 +680,10 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             prove(Gate::FilletLegReach, Margin::of(sb_out)).map_err(ArcTrimRefusal::Escalated)?;
         let margin_in = leg_in.len - sb_in;
         let margin_out = leg_out.len - sb_out;
-        let fit_in =
-            prove(Gate::FilletLegFit, Margin::of(margin_in)).map_err(ArcTrimRefusal::Escalated)?;
-        let fit_out =
-            prove(Gate::FilletLegFit, Margin::of(margin_out)).map_err(ArcTrimRefusal::Escalated)?;
+        let fit_in = decide_passing(Gate::FilletLegFit, Margin::of(margin_in), band, RUN_PASSES)
+            .map_err(ArcTrimRefusal::Escalated)?;
+        let fit_out = decide_passing(Gate::FilletLegFit, Margin::of(margin_out), band, RUN_PASSES)
+            .map_err(ArcTrimRefusal::Escalated)?;
         let corner_side = reach_in != Sign::Negative && reach_out != Sign::Negative;
         if corner_side && fit_in != Sign::Negative && fit_out != Sign::Negative {
             survivors.push(ArcFilletCandidate {
@@ -830,8 +838,8 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 ///
 /// # The exact-fit structural zero, and the exact domain it holds on
 ///
-/// The fit gate turns on `extent − setback` being bit-zero when the
-/// tangent point lands on the leg's far end. There both quantities are
+/// An exact fit reads Zero at every ε because `extent − setback` is
+/// bit-zero when the tangent point lands on the leg's far end. There both quantities are
 /// `radius ·` an angle computed from the SAME difference `d`: the
 /// extent takes `d.reduce_periodic(τ)` and the setback takes
 /// `d.reduce_periodic_centred(τ)`. Both floors return zero, both
@@ -1454,9 +1462,7 @@ impl<T: Real> ArcCarrier<T> {
                 centre + spoke * (offset / spoke.norm())
             };
             let (on_self, on_other) = (near(self.center, r1), near(other.center, r2));
-            return Ok(OffsetCentres::tangent(
-                on_self + (on_other - on_self) * T::from_f64(0.5),
-            ));
+            return Ok(OffsetCentres::tangent(on_self.mid(on_other)));
         }
         let half = (rho1.powi(2) - along.powi(2)).sqrt();
         let offset = left_normal(link) * (half / dist);
@@ -1526,7 +1532,7 @@ pub(crate) fn centre_split<T: Real>(
 ) -> (T, T) {
     let chord = b - a;
     let len = chord.norm();
-    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
+    let offset = (centre - a.mid(b)).dot(Vec2::new(-chord.y, chord.x)) / len;
     (sgn * (len * T::from_f64(0.5)), sgn * offset)
 }
 
@@ -1551,6 +1557,11 @@ pub(crate) fn quarter_tan_about<T: Real>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// The witness tolerance's linear band, the one the path's doors read.
+    fn test_band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness tolerance has a band")
+    }
 
     #[test]
     fn bulge_from_via_quarter_circle() {
@@ -1637,7 +1648,7 @@ mod tests {
                 second.to_bits(),
                 "{v2:?}: the two quotients agree to the bit, so this corner pins nothing"
             );
-            let trims = line_line_fillet_trims(head, corner, corner + v2, 0.5)
+            let trims = line_line_fillet_trims(head, corner, corner + v2, 0.5, test_band())
                 .unwrap_or_else(|e| panic!("{v2:?}: the fillet refused: {e:?}"));
             let want = if past { second } else { first };
             assert_eq!(
@@ -1651,7 +1662,7 @@ mod tests {
         // A hairpin, about 1.2e-5 rad short of a half turn, where the
         // first quotient alone is off by about 1.5e-6 relative.
         let (v2, radius) = (Vec2::new(-7.0, -2.9999), 1e-6);
-        let trims = line_line_fillet_trims(head, corner, corner + v2, radius)
+        let trims = line_line_fillet_trims(head, corner, corner + v2, radius, test_band())
             .unwrap_or_else(|e| panic!("the hairpin refused: {e:?}"));
         let half_tan = (v1.perp_dot(v2).atan2(v1.dot(v2)) * 0.5).tan().abs();
         let setback = (trims.t2 - corner).norm() / radius;

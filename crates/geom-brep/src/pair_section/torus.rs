@@ -51,11 +51,12 @@ use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, Sq
 use super::torus_coincidence::{TorusCoincidence, TorusData, tori_coincide};
 use super::{
     ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection, SectionComponent,
-    SectionDecision, TANGENT_COMPONENT, ZeroVerdict, line_tilt, square_part,
+    SectionDecision, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
-use crate::intersect::{SectionError, SectionRadius, decide_across_reported};
+use crate::intersect::{SectionError, SectionRadius};
 use crate::torus_convention::TorusRefusal;
+use geom_core::k_stats::decide_across_reported;
 
 // ---------------------------------------------------------------------
 // The axis pose
@@ -268,7 +269,7 @@ impl<T: Decide> Ring<T> {
         Some(
             TorusRefusal::require(major_radius + defect, minor_radius + defect, band)
                 .map_err(TorusPoseRefusal::Torus)
-                .map(|()| Self {
+                .map(|_| Self {
                     center,
                     axis,
                     u_ref,
@@ -516,7 +517,7 @@ fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> Sec
         shape,
         winds,
         touch,
-        ClassCarrier::Unminted(TANGENT_COMPONENT),
+        ClassCarrier::Unminted(super::NoCarrier::Tangent),
     )
 }
 
@@ -962,7 +963,7 @@ pub(super) fn cylinder_torus<T: Decide>(
 ) -> Result<PairSection<T>, SectionError> {
     let ring = pose.ring;
     let torus_first = !pose.cylinder_first;
-    let (c, a, radii, rc) = (ring.center, ring.axis, ring.radii(), pose.radius);
+    let (axis, radii, rc) = (ring.frame().axis_line(), ring.radii(), pose.radius);
     let mut decided = Vec::new();
     let tangent = |touch| {
         Components::Counted(vec![tangent_component(
@@ -1001,27 +1002,26 @@ pub(super) fn cylinder_torus<T: Decide>(
         }
         (CtStance::Parallel { e, toward, slack }, TorusGap::Transverse) => {
             let parts =
-                torus_arms::parallel_cylinder_arm(c, a, radii, (e, slack), toward, rc, band)
+                torus_arms::parallel_cylinder_arm(axis, radii, (e, slack), toward, rc, band)
                     .map_err(pinched)?;
             Components::Counted(in_order(parts, torus_first))
         }
         (CtStance::Parallel { e, toward, slack }, TorusGap::Tangent { .. }) => {
             let touch = match torus_arms::parallel_cylinder_arm(
-                c,
-                a,
+                axis,
                 radii,
                 (e, slack),
                 toward,
                 rc,
                 band,
             ) {
-                Err(tan) => torus_arms::parallel_cylinder_touch(tan, c, (e, toward), rc),
+                Err(tan) => torus_arms::parallel_cylinder_touch(tan, axis.origin, (e, toward), rc),
                 Ok(_) => None,
             };
             tangent(touch)
         }
         (CtStance::Square(wall), TorusGap::Transverse) => {
-            let parts = torus_arms::square_cylinder_arm(c, a, radii, &wall, rc, band)
+            let parts = torus_arms::square_cylinder_arm(axis, radii, &wall, rc, band)
                 .map_err(arm_refused)?;
             Components::Counted(in_order(parts, torus_first))
         }
@@ -1103,8 +1103,10 @@ impl<T: Decide> TorusTorusPose<T> {
             match tori_coincide(r1.data(), r2.data(), band) {
                 TorusCoincidence::One(_) => return Err(TorusPoseRefusal::Coincident),
                 TorusCoincidence::Undecided(diag) => return Err(undecided_symmetry(diag)),
-                TorusCoincidence::OffRing(t) => return Err(TorusPoseRefusal::Torus(t)),
-                TorusCoincidence::Apart => {}
+                TorusCoincidence::OffRing { refusal, .. } => {
+                    return Err(TorusPoseRefusal::Torus(refusal));
+                }
+                TorusCoincidence::Apart { .. } => {}
             }
             // Both balls hold the section: the smaller is the tighter
             // reach, and where the comparison is not decided either
@@ -1230,8 +1232,7 @@ fn torus_gap<T: Decide>([a, b]: [Ring<T>; 2], band: Band) -> Result<TorusGap<T>,
 
 fn circle<T: Real>(ring: Ring<T>) -> Spine<T> {
     Spine::Circle {
-        center: ring.center,
-        axis: ring.axis,
+        axis: ring.frame().axis_line(),
         radius: ring.big_r,
     }
 }
@@ -1261,8 +1262,7 @@ pub(super) fn torus_torus<T: Decide>(
         (TtStance::Parallel { e, toward, slack }, TorusGap::Transverse) => {
             let h = (r2.center - r1.center).dot(r1.axis);
             let parts = torus_arms::parallel_torus_arm(
-                r1.center,
-                r1.axis,
+                r1.frame().axis_line(),
                 [r1.radii(), r2.radii()],
                 h,
                 (e, slack),

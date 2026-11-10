@@ -252,7 +252,11 @@ fn a_point_of_a_spline_face_is_placed_in_or_out_by_its_trim() {
     let Err(crate::boolean::ContainError::Escalated { diag, .. }) = in_band else {
         panic!("a point in the band of the carrier escalates: {in_band:?}");
     };
-    assert_eq!(diag.predicate, Some(super::CARRIER), "{diag:?}");
+    assert_eq!(
+        diag.predicate,
+        Some(super::SPLINE_REGION_CARRIER),
+        "{diag:?}"
+    );
 }
 
 /// **A point on the trim's boundary within the band** is the boundary
@@ -281,7 +285,7 @@ fn a_point_within_the_band_of_the_trim_is_never_given_a_side() {
     for u in [0.75 - step, 0.75 + step] {
         let near = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
-            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+            matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_REGION_TRIM)),
             "a chart point within the band of the trim at u = {u}: {near:?}"
         );
     }
@@ -717,7 +721,7 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ).unwrap();
     let near = trim.place(&cells, super::Rect::point(0.5, 0.35), b);
     assert!(
-        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::SPLINE_REGION_TRIM)),
         "the way out of the window is in the band: {near:?}"
     );
 }

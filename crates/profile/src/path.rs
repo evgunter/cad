@@ -2294,8 +2294,7 @@ impl<T: Real> std::error::Error for PathError<T> {}
 // unreachable through the surface (PATHS-DESIGN §5).
 // ------------------------------------------------------------------
 
-/// An emitted arc segment's carrier (center + radius), kept for the
-/// §4 item 4 carrier-identity refusals at zero-fit knife edges.
+/// An emitted arc segment's carrier (center + radius).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ArcData<T: Real> {
     center: Point2<T>,
@@ -2436,7 +2435,7 @@ use directed::{Bound, Incoming, Run};
 /// verb can branch on, refuse on, or depend on which representation a
 /// point holds, and the module's privacy is what says so.
 mod directed {
-    use super::{ArcData, Dir, PathError, Point2, Real, Tol, linear_band};
+    use super::{Dir, PathError, Point2, Real, Tol, linear_band};
     use crate::gate::{Gate, decide};
     use geom_core::{Decide, Margin, Sign};
 
@@ -2523,26 +2522,23 @@ mod directed {
 
     /// A directed point's intrinsic incoming data: the arriving leg's
     /// end tangent, the leg's lever arm (extent capped by its carrier
-    /// radius — the junction check's meters lever), its carrier kind,
-    /// and the run its straight continuations ride (private: read only
+    /// radius — the junction check's meters lever), and the run its straight continuations ride (private: read only
     /// by [`Incoming::lands_on_ray`] and handed on by
     /// [`Incoming::run_from`]).
     #[derive(Clone, Copy, Debug)]
     pub(super) struct Incoming<T: Real> {
         pub(super) ang: Dir<T>,
         pub(super) arm: T,
-        pub(super) carrier: Option<ArcData<T>>,
         run: Option<Run<T>>,
     }
 
     impl<T: Real> Incoming<T> {
         /// A point whose direction was bound where it ends: the bare
         /// representation, its run starting at its own position.
-        pub(super) fn fresh(ang: Dir<T>, arm: T, carrier: Option<ArcData<T>>) -> Self {
+        pub(super) fn fresh(ang: Dir<T>, arm: T) -> Self {
             Self {
                 ang,
                 arm,
-                carrier,
                 run: None,
             }
         }
@@ -2553,7 +2549,6 @@ mod directed {
             Self {
                 ang,
                 arm,
-                carrier: None,
                 run: Some(run),
             }
         }
@@ -2677,28 +2672,6 @@ struct PendingJunction<T: Real> {
 struct Tip<T: Real> {
     pos: Option<PosData<T>>,
     ang: Option<Bound<T>>,
-    /// Whether the bound angle was inherited from the incoming end
-    /// tangent, and which way. Only a tip at a leg end with incoming data
-    /// inherits; a fillet opened here copies it into its
-    /// [`PendingMeta::by_tangent`].
-    ang_by_tangent: ByTangent,
-}
-
-/// How a tip's bound angle relates to its incoming end tangent. An
-/// inherited kind is only ever set at a leg end, by the verb that
-/// constructs the joint there (`.tangent()`, `.cusp()`, or the bare
-/// fillet's ray extension); only a [`Forward`](ByTangent::Forward) ray
-/// continues a straight leg's own carrier in its own direction, so only
-/// it may EXTEND that leg ([`PendingMeta::extends_straight_leg`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ByTangent {
-    /// Authored where it is bound.
-    No,
-    /// `.tangent()` (or a bare `fillet(r)` on a leg end): the end
-    /// tangent itself.
-    Forward,
-    /// `.cusp()`: the end tangent reversed.
-    Reversed,
 }
 
 /// The bound position bit: the point plus (directed flavor only) the
@@ -2786,15 +2759,13 @@ enum FirstSeg {
 
 /// Chain-side bookkeeping for an opened fillet: the authored ADDRESS
 /// its radius arguments are recorded at (`bound_at`,
-/// `incoming_radius`) and whether its incoming emission extends the
-/// origin leg (`by_tangent` and `origin_incoming`, read together by
-/// [`PendingMeta::extends_straight_leg`]; `extends_carrier`). This is NOT
+/// `incoming_radius`). This is NOT
 /// part of the kernel's [`verbs::Pending`] state value: the kernel
 /// cannot name it, which is what keeps the verbs pure (§2c round 12).
 /// It is held WITH the pending side it describes ([`Core::pending`]),
 /// so the two cannot be one without the other.
 #[derive(Clone, Debug)]
-struct PendingMeta<T: Real> {
+struct PendingMeta {
     /// **The authored step this fillet was BOUND at**, in program
     /// order. The radius is that step's argument wherever the arc is
     /// finally emitted: a `fillet(r)` binds on one step and its arc is
@@ -2807,34 +2778,6 @@ struct PendingMeta<T: Real> {
     /// through-point or a centre authors the same carrier from no
     /// radius at all, so the arc it emits has no address to record.
     incoming_radius: bool,
-    /// Whether the ray was inherited at its origin, and which way: an
-    /// inherited ray's origin joint is already constructed.
-    by_tangent: ByTangent,
-    /// The ray origin's incoming carrier, if the origin was a leg end.
-    origin_incoming: Option<Incoming<T>>,
-    /// **Arc extension** (§2c): the fused arc incoming CONTINUES the
-    /// origin leg's own carrier, so the incoming run's emission MOVES
-    /// that leg's end vertex to the trim point (the §4 item 4
-    /// exemption, exactly as ray extension) instead of pushing a
-    /// co-carrier neighbour.
-    extends_carrier: bool,
-}
-
-impl<T: Real> PendingMeta<T> {
-    /// **Ray extension of a straight leg**: the ray is the origin leg's
-    /// own FORWARD end tangent and that leg is straight, so the incoming
-    /// run continues the leg and its emission moves the leg's end vertex
-    /// (the §4 item 4 exemption). A `.cusp()` ray runs back from the
-    /// leg's end and is emitted as its own piece. The one test both
-    /// straight-leg merge sites read (`Core::resolve_fillet`'s line×line
-    /// arm and `family::merge_of`).
-    fn extends_straight_leg(&self) -> bool {
-        self.by_tangent == ByTangent::Forward
-            && self
-                .origin_incoming
-                .as_ref()
-                .is_some_and(|i| i.carrier.is_none())
-    }
 }
 
 /// The accumulated lowering state: the vertex chain emitted so far
@@ -2861,7 +2804,7 @@ pub struct Core<T: Real> {
     /// side — is a state no door can leave the chain in because it is
     /// unrepresentable, rather than one [`Core::take_pending`] has to
     /// refuse.
-    pending: Option<(verbs::Pending<T>, PendingMeta<T>)>,
+    pending: Option<(verbs::Pending<T>, PendingMeta)>,
     /// Every fillet arc emitted into the chain, as the index of the
     /// vertex it LEAVES paired with the radius that was asked for —
     /// what [`Core::fillets_carry_their_tangency`] re-reads at the
@@ -3851,37 +3794,6 @@ fn seam_arrival_check<T: Decide>(
     }
 }
 
-/// **§2c arc extension's same-carrier decision**: whether the carrier a
-/// fused `Radius` incoming derives from a directed point IS that
-/// point's own incoming carrier — a d + |Δr| identity margin read as a
-/// DECISION rather than as a refusal (the refusing twin,
-/// `refuse_identical_carriers`, retired with the 2026-09-02 ruling;
-/// this one survives because it CHOOSES A CONSTRUCTION rather than
-/// judging a junction): `Zero` continues
-/// the arriving leg (the vertex-move exemption), definite non-zero is
-/// a new tangent carrier constructed at the tip. Both outcomes are
-/// legal spellings, which is what deletes the old mismatched-r hole
-/// structurally: every authored `r` names a sound construction.
-///
-/// It compares two WHOLE circles. [`PendingRunOut::rides`] asks
-/// whether a segment lies on a circle, and measures its points'
-/// deviations instead: a circle rebuilt from a short chord carries
-/// ~ε·R²/chord in its centre.
-fn carriers_are_identical<T: Decide>(
-    a: &ArcData<T>,
-    b: &ArcData<T>,
-    tol: Tol,
-) -> Result<bool, PathError<T>> {
-    let band = linear_band(tol)?;
-    let d = (a.center - b.center).norm_squared().sqrt();
-    let margin = d + (a.radius - b.radius).abs();
-    match decide(Gate::PathCarrierIdentity, Margin::of(margin), band) {
-        Ok(Sign::Zero) => Ok(true),
-        Ok(_) => Ok(false),
-        Err(source) => Err(PathError::escalated(source)),
-    }
-}
-
 /// **An arc leg's lever arm** from its carrier: [`seg::arc_lever`],
 /// the one home of that choice. Three of its callers are junction
 /// LEVERS, where the choice is a contract rather than an expression.
@@ -4293,7 +4205,7 @@ impl<T: Decide> Core<T> {
     fn take_pending(
         &mut self,
         site: &'static str,
-    ) -> Result<(verbs::Pending<T>, PendingMeta<T>), PathError<T>> {
+    ) -> Result<(verbs::Pending<T>, PendingMeta), PathError<T>> {
         self.pending
             .take()
             .ok_or(PathError::OverdeterminedJunction { site })
@@ -4308,7 +4220,7 @@ impl<T: Decide> Core<T> {
     fn resolve_arc_pending_ray_arrival(
         &mut self,
         arc: verbs::PendingArc<T>,
-        meta: PendingMeta<T>,
+        meta: PendingMeta,
         arr_pos: Point2<T>,
         arr_ang: Dir<T>,
         kind: ArrivalKind,
@@ -4339,7 +4251,7 @@ impl<T: Decide> Core<T> {
             tol,
         )?;
         let run = verbs::Pending::Arc(arc).run();
-        self.emit_fillet_in(&trims, meta.extends_carrier, &meta, run)?;
+        self.emit_fillet_in(&trims, &meta, run)?;
         let ray = ArrivalCarrier::Ray {
             anchor: arr_pos,
             dir: arr_ang,
@@ -4489,8 +4401,9 @@ impl<T: Decide> Core<T> {
         }
         // (4) the shared line×line closed form, anchored: head = the
         // ray's origin, next = the arrival's anchor.
-        let mut trims = line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius)
-            .map_err(|e| map_fillet_err(e, corner, pending.radius))?;
+        let mut trims =
+            line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius, band)
+                .map_err(|e| map_fillet_err(e, corner, pending.radius))?;
         // A straight carrier pair derives ONE corner and its
         // construction admits one candidate, so the fit signs are this
         // resolution's whole discrete content.
@@ -4507,22 +4420,11 @@ impl<T: Decide> Core<T> {
         .sensed(sense);
         register_incoming_tangency(&built, trims.t1, u1, sgn * pending.radius, tol);
         // (5) incoming side emission: Positive fit emits the straight
-        // piece + constructed joint (exactly the raw fillet's rule); Zero
-        // fit springs the arc off the last vertex — if that joint is
-        // constructed (a `.tangent()` ray, or a previous fillet's arc
-        // end), §4 item 4 refuses carrier identity there.
+        // piece + constructed joint (exactly the raw fillet's rule),
+        // whatever leg the ray departs; Zero fit springs the arc off the
+        // last vertex.
         if trims.fit_in == Sign::Positive {
-            if meta.extends_straight_leg() {
-                // Extend the leg itself (see `extend_leg_to`); the joint
-                // declared at the leg's end is the leg→arc tangency.
-                // Otherwise (a `.cusp()` ray among them) the run is its
-                // own piece below.
-                self.extend_leg_to(trims.t1)?;
-            } else {
-                self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
-                self.push_line(trims.t1)?;
-                self.construct_last();
-            }
+            self.push_straight_run_in(meta.bound_at, trims.t1)?;
         }
         // (6) the arc. Interior: emitted, its outgoing joint declared
         // (Positive fit: as the raw fillet; Zero fit: the
@@ -4578,107 +4480,60 @@ impl<T: Decide> Core<T> {
     /// (`arc_to_center(t1, centre, sweep)` / `line_to(t1)`, then the
     /// joint constructed), which is what lets a migrated site reproduce
     /// the hand-authored loop to the bit. A `Zero` fit emits nothing and
-    /// springs the arc off the last vertex, where §4 item 4 refuses
-    /// carrier identity against an already-constructed neighbour.
+    /// springs the arc off the last vertex.
     fn emit_fillet_in(
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
-        merge: bool,
-        meta: &PendingMeta<T>,
+        meta: &PendingMeta,
         run: Option<verbs::SideRun<T>>,
     ) -> Result<(), PathError<T>> {
-        if t.fit_in == Sign::Positive {
-            match t.in_arc {
-                None if merge => self.extend_leg_to(t.t1)?,
-                None => {
-                    self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
-                    self.push_line(t.t1)?;
-                }
-                // An EXTENSION emits no segment — the leg's own end
-                // vertex moves along the carrier it already had — so
-                // the segment keeps the address the leg step gave it
-                // and there is nothing to record here.
-                Some((_, sweep)) if merge => self.extend_arc_to(t.t1, sweep)?,
-                Some((centre, sweep)) => {
-                    let head = self.head()?;
-                    let run = run.ok_or(PathError::UnderdeterminedLeg {
-                        site: "an arc side's run without its opened arc side",
-                    })?;
-                    let arc = side_arc(head, t.t1, centre, run.radius, sweep, run.head_on_circle)
-                        .through(run.through);
-                    // The incoming carrier is the BINDER's own argument
-                    // wherever the arrival finally emits it.
-                    if meta.incoming_radius {
-                        self.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier)?;
-                    }
-                    self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
-                    self.push_arc(t.t1, arc)?;
-                }
-            }
-            if !(t.in_arc.is_none() && merge) {
-                self.construct_last();
+        if t.fit_in != Sign::Positive {
+            return Ok(());
+        }
+        match t.in_arc {
+            None => self.push_straight_run_in(meta.bound_at, t.t1),
+            Some((centre, sweep)) => {
+                let run = run.ok_or(PathError::UnderdeterminedLeg {
+                    site: "an arc side's run without its opened arc side",
+                })?;
+                self.push_arc_run_in(meta, t.t1, centre, sweep, run)
             }
         }
+    }
+
+    /// A fillet's arc run in along its side's carrier about `centre` to
+    /// its tangent point `t1`, credited to the step that bound the fillet
+    /// (its carrier radius too, where a radius argument authored it),
+    /// with the joint at `t1` constructed.
+    fn push_arc_run_in(
+        &mut self,
+        meta: &PendingMeta,
+        t1: Point2<T>,
+        centre: Point2<T>,
+        sweep: ArcSweep,
+        run: verbs::SideRun<T>,
+    ) -> Result<(), PathError<T>> {
+        let head = self.head()?;
+        let arc =
+            side_arc(head, t1, centre, run.radius, sweep, run.head_on_circle).through(run.through);
+        // The incoming carrier is the BINDER's own argument wherever the
+        // arrival finally emits it.
+        if meta.incoming_radius {
+            self.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier)?;
+        }
+        self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
+        self.push_arc(t1, arc)?;
+        self.construct_last();
         Ok(())
     }
 
-    /// **§2c round 10 (ray extension after a STRAIGHT leg)**: the
-    /// surviving ray piece and the leg it extends share one carrier, so
-    /// emitting it as a separate segment would mint the collinear
-    /// neighbor §4 item 4 forbids — instead the leg's own end vertex
-    /// MOVES to the trim point (the §4 exemption, "extends one leg",
-    /// applied at emission). The leg's authored end stays on the final
-    /// path, interior to the extended segment, and the joint the
-    /// extension declared becomes the leg→fillet-arc tangency — exactly
-    /// what a hand author drawing the leg long would have written.
-    fn extend_leg_to(&mut self, t1: Point2<T>) -> Result<(), PathError<T>> {
-        match self.verts.last_mut() {
-            Some((v, _)) => {
-                *v = t1;
-                Ok(())
-            }
-            None => Err(PathError::UnderdeterminedLeg {
-                site: "ray extension on an empty chain",
-            }),
-        }
-    }
-
-    /// **§2c (arc extension after an ARC leg)**: the surviving carrier
-    /// run and the leg it continues share one circle, so emitting it as
-    /// a separate segment would mint the co-carrier neighbour §4 item 4
-    /// forbids — instead the leg's own end vertex MOVES forward along
-    /// the carrier to the trim point (the §4 exemption, exactly as
-    /// [`Self::extend_leg_to`]) and the segment's sweep is re-derived
-    /// on its stored carrier for the longer turn. The leg's authored end stays on the final
-    /// path, interior to the extended segment.
-    fn extend_arc_to(&mut self, t1: Point2<T>, sweep: ArcSweep) -> Result<(), PathError<T>> {
-        let n = self.verts.len();
-        let (from, leg) = n
-            .checked_sub(2)
-            .and_then(|i| self.verts.get(i))
-            .and_then(|&(pos, leaving)| Some((pos, leaving?)))
-            .ok_or(PathError::UnderdeterminedLeg {
-                site: "arc extension without an incoming arc segment",
-            })?;
-        // The leg keeps its own carrier and turns further along it. Its
-        // new end is on the fused side's carrier, which the door
-        // decided identical to this one under ε, not proved so: the
-        // extended arc's endpoint facts are that decision's, not
-        // theorems.
-        let arc = Arc2 {
-            sweep: center_sweep(from, t1, leg.arc.centre, leg.arc.radius, sweep),
-            ..leg.arc
-        };
-        self.verts[n - 2] = (
-            from,
-            Some(BuiltArc {
-                arc,
-                facts: crate::Facts::Decided,
-                sense: Some(sweep),
-                ..leg
-            }),
-        );
-        self.verts[n - 1].0 = t1;
+    /// A fillet's straight run in to its tangent point `t1`, credited
+    /// to the step that bound the fillet, with the joint at `t1`
+    /// constructed — whatever leg the run departs from.
+    fn push_straight_run_in(&mut self, bound_at: usize, t1: Point2<T>) -> Result<(), PathError<T>> {
+        self.claim(bound_at, crate::structure::PieceRole::RunIn);
+        self.push_line(t1)?;
+        self.construct_last();
         Ok(())
     }
 
@@ -4770,8 +4625,8 @@ fn in_state<T: Real, P, A>(core: Core<T>, tip: Tip<T>) -> PartialPath<T, P, A> {
 
 /// A directed-point tip minted by a leg end whose direction was bound
 /// where it ends: the bare representation, starting afresh.
-fn leg_end_tip<T: Real>(at: Point2<T>, ang: Dir<T>, arm: T, carrier: Option<ArcData<T>>) -> Tip<T> {
-    directed_tip(at, Incoming::fresh(ang, arm, carrier))
+fn leg_end_tip<T: Real>(at: Point2<T>, ang: Dir<T>, arm: T) -> Tip<T> {
+    directed_tip(at, Incoming::fresh(ang, arm))
 }
 
 /// A directed-point tip at `at` holding `incoming`.
@@ -4782,7 +4637,6 @@ fn directed_tip<T: Real>(at: Point2<T>, incoming: Incoming<T>) -> Tip<T> {
             incoming: Some(incoming),
         }),
         ang: None,
-        ang_by_tangent: ByTangent::No,
     }
 }
 
@@ -4810,7 +4664,6 @@ impl Open {
                     incoming: None,
                 }),
                 ang: None,
-                ang_by_tangent: ByTangent::No,
             },
         )
     }
@@ -4826,7 +4679,6 @@ impl Open {
             Tip {
                 pos: None,
                 ang: Some(Bound::fresh(dir)),
-                ang_by_tangent: ByTangent::No,
             },
         )
     }
@@ -4887,14 +4739,13 @@ fn unit_from_components<T: Decide>(dx: T, dy: T, tol: Tol) -> Result<Dir<T>, Pat
 /// validated or drawn; a question here would be a second one about the
 /// same length, pre-empting the refusals that name it.
 ///
-/// The chord is divided by its largest component before it is
-/// normalized, so its squares are of order one whatever its scale: no
-/// finite chord overflows them or loses them to the subnormal range, at
-/// a point scalar or in an enclosure. Two chords have no length to
-/// divide by. The zero chord (the authored point IS the tip) names no
-/// ray and stands in `+x` for one; a component past the range (a tip
-/// that overflowed) keeps `atan2`'s reading of its heading, the limit
-/// along its infinite axis.
+/// The chord is normalized through [`Vec2::normalize`]'s exact
+/// power-of-two prescale, so no finite chord overflows its squares or
+/// loses them to the subnormal range, at a point scalar or in an
+/// enclosure. Two chords have no length to divide by. The zero chord
+/// (the authored point IS the tip) names no ray and stands in `+x` for
+/// one; a component past the range (a tip that overflowed) keeps
+/// `atan2`'s reading of its heading, the limit along its infinite axis.
 fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
     let witness = d.norm_witness();
     if !is_finite_length(witness) {
@@ -4903,8 +4754,7 @@ fn chord_director<T: Real>(d: Vec2<T>) -> Dir<T> {
     if geom_core::is_exact_zero(witness) {
         return Dir::from_unit(Vec2::new(T::one(), T::zero()));
     }
-    let scaled = d / witness;
-    Dir::from_unit(scaled.normalize())
+    Dir::from_unit(d.normalize())
 }
 
 /// The vector `v` rotated by `by` radians — the one spelling of a
@@ -5202,9 +5052,6 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
                     incoming: None,
                 }),
                 ang: self.tip.ang,
-                // A tip with no position inherits nothing (only a leg
-                // end does), and the tip at `p` has no incoming data.
-                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -5229,7 +5076,6 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
             }
         }
         self.tip.ang = Some(Bound::fresh(dir));
-        self.tip.ang_by_tangent = ByTangent::No;
         Ok(in_state(self.core, self.tip))
     }
 }
@@ -5253,7 +5099,6 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// is the row's, not the kernel's).
     fn tangent_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self.inherited(false);
-        self.tip.ang_by_tangent = ByTangent::Forward;
         self.core.construct_last();
         in_state(self.core, self.tip)
     }
@@ -5267,7 +5112,6 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// construction.
     fn cusp_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self.inherited(true);
-        self.tip.ang_by_tangent = ByTangent::Reversed;
         self.core.construct_last();
         in_state(self.core, self.tip)
     }
@@ -5287,7 +5131,6 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let theta = turned(inc.ang.unit, delta);
         self.core.pend_junction(&inc, theta, tol)?;
         self.tip.ang = Some(Bound::fresh(theta));
-        self.tip.ang_by_tangent = ByTangent::No;
         Ok(in_state(self.core, self.tip))
     }
 
@@ -5476,7 +5319,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming::fresh(ang, arm, None),
+            &Incoming::fresh(ang, arm),
             start_ang,
             tol,
         )?;
@@ -5546,9 +5389,6 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let meta = PendingMeta {
             bound_at: self.core.current_step()?,
             incoming_radius: false,
-            by_tangent: self.tip.ang_by_tangent,
-            origin_incoming: self.tip.pos.as_ref().and_then(|p| p.incoming),
-            extends_carrier: false,
         };
         self.core.pending = Some((
             verbs::Pending::Ray(verbs::PendingRay {
@@ -5563,7 +5403,6 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Tip {
                 pos: None,
                 ang: None,
-                ang_by_tangent: ByTangent::No,
             },
         ))
     }
@@ -5582,10 +5421,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let g = self.tangent_arc_geom(p, tol)?;
         self.core.push_leg(p, g.arc)?;
         let arm = leg_arm(g.carrier, g.chord);
-        Ok(in_state(
-            self.core,
-            leg_end_tip(p, g.end_ang, arm, g.carrier),
-        ))
+        Ok(in_state(self.core, leg_end_tip(p, g.end_ang, arm)))
     }
 
     /// The tangent-arc seam. The arc is constructed from the DEPARTURE
@@ -5612,7 +5448,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming::fresh(g.end_ang, arm, g.carrier),
+            &Incoming::fresh(g.end_ang, arm),
             start_ang,
             tol,
         )?;
@@ -5655,7 +5491,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let head = self.core.head()?;
         self.core.push_line(p)?;
         let arm = (p - head).norm_squared().sqrt();
-        Ok(in_state(self.core, leg_end_tip(p, gamma, arm, None)))
+        Ok(in_state(self.core, leg_end_tip(p, gamma, arm)))
     }
 
     /// The sharp straight seam. `seam` is what the TARGET said
@@ -5684,7 +5520,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming::fresh(gamma, arm, None),
+            &Incoming::fresh(gamma, arm),
             start_ang,
             tol,
         )?;
@@ -5836,7 +5672,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let carrier = carrier_of(leg);
         self.core.push_leg(p, leg)?;
         let arm = leg_arm(carrier, chord);
-        Ok(in_state(self.core, leg_end_tip(p, end_t, arm, carrier)))
+        Ok(in_state(self.core, leg_end_tip(p, end_t, arm)))
     }
 
     /// The SHARP arc seam. `seam` is what the spec's target said
@@ -5871,7 +5707,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming::fresh(end_t, arm, carrier),
+            &Incoming::fresh(end_t, arm),
             start_ang,
             tol,
         )?;
@@ -5905,7 +5741,7 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
             let head = self.core.head()?;
             let arm = (anchor - head).norm_squared().sqrt();
             self.core.push_line(anchor)?;
-            Ok(in_state(self.core, leg_end_tip(anchor, dir, arm, None)))
+            Ok(in_state(self.core, leg_end_tip(anchor, dir, arm)))
         } else {
             // Exact fit: the trim reached the anchor, so the arc IS the
             // whole side. Two consequences, both handled rather than
@@ -5920,10 +5756,7 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
             // authored anchor is ABSORBED into it rather than emitted
             // twice, exactly as the hand door absorbs its `next`.
             let head = self.core.head()?;
-            Ok(in_state(
-                self.core,
-                leg_end_tip(head, dir, arc.radius, Some(arc)),
-            ))
+            Ok(in_state(self.core, leg_end_tip(head, dir, arc.radius)))
         }
     }
 }
@@ -6165,8 +5998,7 @@ mod tests {
             // The mutation this row exists to kill.
             let via_angle = Dir::from_angle(u.y.atan2(u.x) + core::f64::consts::PI);
             assert!(
-                via_angle.unit.x.to_bits() != reversed.unit.x.to_bits()
-                    || via_angle.unit.y.to_bits() != reversed.unit.y.to_bits(),
+                !via_angle.unit.same_bits(reversed.unit),
                 "`θ + π` must NOT reproduce the negation ({u:?}) — if it does, this \
                  guard is vacuous and the door's promise is untestable here"
             );
@@ -6271,7 +6103,13 @@ mod tests {
         assert_eq!(ray(0.0, 1e-13), (0.0, 1.0), "a sub-ε chord");
         assert_eq!(ray(0.0, 0.0), (1.0, 0.0), "the zero chord");
         assert_eq!(ray(-3e300, 4e300), (-0.6, 0.8), "an overflowed length");
-        assert_eq!(ray(3e-300, -4e-300), (0.6, -0.8), "an underflowed length");
+        // The two doubles' true ray is (0.6000000000000000212…,
+        // −0.7999999999999999840…), which rounds to these, not to −0.8.
+        assert_eq!(
+            ray(3e-300, -4e-300),
+            (0.6, -0.799_999_999_999_999_9),
+            "an underflowed length"
+        );
         assert_eq!(
             ray(f64::NEG_INFINITY, 1e307).0,
             -1.0,
@@ -6291,8 +6129,8 @@ mod tests {
     }
 
     /// **The chord door at the interval scalar is sound, and narrow at
-    /// both ends of the range.** The prescale by the largest component
-    /// is the same arithmetic in an enclosure, so an overflowed or an
+    /// both ends of the range.** The prescale is by an exact power of
+    /// two in an enclosure too, so an overflowed or an
     /// underflowed chord's ray encloses `(−1, 0)` and is as narrow as
     /// one along −x of ordinary length; and a chord on `atan2`'s branch
     /// cut (`x < 0`, `y` straddling zero) reads a narrow ray.

@@ -44,8 +44,8 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
-use crate::validate::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_brep::ladder::read_identity;
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Vec3};
 
 use super::rim_wedge::Rim;
 use super::solid_contain::PointInSolidError;
@@ -65,11 +65,8 @@ pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>
 /// name, because the names are its door's rows: [`WrapRims`]
 /// (`bool_wrap_rim`) and the sphere trim's latitude-rim class
 /// (`bool_sphere_iso_rim`).
-pub(super) fn coaxial_margins<T: Decide>(
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    rim: &Rim<T>,
-) -> [Margin<T>; 2] {
+pub(super) fn coaxial_margins<T: Decide>(axis: geom::Line<T>, rim: &Rim<T>) -> [Margin<T>; 2] {
+    let geom::Line { origin, dir: axis } = axis;
     [
         Margin::levered(
             rim.axis.cross(axis).norm(),
@@ -86,19 +83,21 @@ pub(super) fn coaxial_margins<T: Decide>(
 /// on the axis but not coaxial, so the test is both halves.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct WrapRims<T: geom_core::Real> {
-    pub(super) origin: Point3<T>,
-    pub(super) axis: Vec3<T>,
+    pub(super) axis: geom::Line<T>,
 }
 
+/// The name a rim's coaxial margins are each decided under.
+pub(super) const BOOL_WRAP_RIM: &str = "bool_wrap_rim";
+
 impl<T: Decide> WrapRims<T> {
+    /// Coaxial is an identity: either margin decided apart answers
+    /// "not coaxial", whatever the other read ([`read_identity`]).
     fn holds(self, rim: &Rim<T>, band: Band) -> Result<bool, Indeterminate> {
-        let Self { origin, axis } = self;
-        for margin in coaxial_margins(origin, axis, rim) {
-            if decide("bool_wrap_rim", margin, band)? != Sign::Zero {
-                return Ok(false);
-            }
-        }
-        Ok(true)
+        read_identity(
+            coaxial_margins(self.axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)),
+            band,
+        )
+        .holds()
     }
 }
 
@@ -273,4 +272,45 @@ pub(super) fn wrap_rims<T: Decide>(
     band: Band,
 ) -> Result<Option<Vec<Rim<T>>>, PointInSolidError> {
     wrap_rims_within(body, &[face], rims, band)
+}
+
+/// **A margin decided apart answers "not coaxial" past one in band**
+/// ([`WrapRims::holds`] reads its two margins as one identity): a rim
+/// whose axis tilts by a mid-band width, with its centre a unit off the
+/// carrier's axis, is not coaxial. Read through the production reader.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod wrap_rims_holds_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::WrapRims;
+    use crate::boolean::rim_wedge::Rim;
+
+    #[test]
+    fn a_centre_off_the_axis_answers_past_a_tilt_in_band() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("a valid band");
+        let tilt = 0.5 * (1.0 + tol.k()) * tol.eps();
+        let rims = WrapRims {
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_z(),
+            },
+        };
+        let rim = |center: Point3<f64>| Rim {
+            center,
+            axis: Vec3::new(tilt, 0.0, (1.0 - tilt * tilt).sqrt()),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        assert_eq!(
+            rims.holds(&rim(Point3::new(1.0, 0.0, 0.0)), band),
+            Ok(false),
+            "a centre a unit off the axis is not coaxial, whatever the tilt read"
+        );
+        assert!(
+            rims.holds(&rim(Point3::origin()), band).is_err(),
+            "with the centre on the axis, the tilt in band refuses"
+        );
+    }
 }

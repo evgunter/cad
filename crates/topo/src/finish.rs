@@ -536,7 +536,8 @@ impl ValidationError {
             | Self::CensusLaneUnsupported { .. }
             | Self::CensusUndecidable { .. }
             | Self::ArcEndOffCorner { .. }
-            | Self::CuspEdgesMissing { .. } => F::Census,
+            | Self::CuspEdgesMissing { .. }
+            | Self::MaterialOnBothSides { .. } => F::Census,
             Self::FaceThroughEdgeWedge { .. }
             | Self::FaceThroughEdgeWedgeUndecided { .. }
             | Self::CoincidentWedgesOverlap { .. }

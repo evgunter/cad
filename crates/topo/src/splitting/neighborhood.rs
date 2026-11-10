@@ -66,10 +66,16 @@ use geom_brep::sector_shape::{
 impl SectorFaceError {
     /// The split's refusal of `vertex`, whose sector the walk could not
     /// resolve: a kind the split does not cut, or a cone's apex undecided.
+    /// A crease's reading is not carried: only a spline face has one, and
+    /// the carrier gate ([`super::classify::carrier_gate`]) refuses a
+    /// spline face wherever the plane may meet its padded reach box, which
+    /// holds any of its corners on the plane, before any sector is read.
+    /// So the face's kind is the refusal whatever the reading, a row-2
+    /// "not built" (`[failure.taxonomy]`).
     pub(crate) fn split_refusal(self, vertex: VertexKey) -> SplitReduceError {
         match self {
             Self::Unsupported { face, kind }
-            | Self::Crease { face, kind }
+            | Self::Crease { face, kind, .. }
             | Self::Unplaced { face, kind } => {
                 SplitReduceError::CurvedBooleanUnsupported { face, kind }
             }
@@ -214,7 +220,7 @@ pub(crate) enum EntryFault<E> {
 /// - LINE edges: the far vertex's side (`far`); a straight edge's
 ///   interior is the chord.
 /// - CONIC edges: the bound's side of the plane through the one reading
-///   of a bound's side ([`crate::bound_side::read_side`]): its outgoing
+///   of a bound's side ([`crate::bound_side::read`]): its outgoing
 ///   tangent at first order, levered at the edge's extent (the ray being
 ///   exactly `t̂·extent`). The far vertex misleads on conics: a belly arc
 ///   between ON vertices departs into its own side while both endpoints

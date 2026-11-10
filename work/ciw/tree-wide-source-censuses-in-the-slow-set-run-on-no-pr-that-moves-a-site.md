@@ -47,8 +47,23 @@ All four (with `flagged_census`, PR 6603) were red together on
 
 ## Options
 
-- **A. A slow test whose `gated_to!` names a path the diff touches runs on that PR.** The marker already says which paths move it; the slow set ignores it. For the four censuses, about 10 s on any kernel PR.
+- **A. A slow test whose `gated_to!` names a path the diff touches runs on that PR.** Where a marker exists it already says which paths move the test; the slow set ignores it. But only `certified_endpoint_census.rs` carries a `gated_to!` today. `bounds_census.rs`, `sym_rule_f_rows.rs` and `flagged_census.rs` carry none, so as the tree stands A catches one census of the four. The other three each need a marker added: a hand-kept path list, which a check like `the_suite_is_gated_to_every_crate_it_walks` can hold to the walk. With all four marked, about 10 s on any kernel PR.
 - **B. Make the walks cheap enough for the fast set**: one parsed, code-only view of the tree shared by every census in the `geom-core::all` binary (nextest is process-per-test, so a shared view needs the four in one test, or a cached view on disk).
 - **C. Status quo**, with a lane re-pinning after each nightly.
 
-A is the smallest change and catches each move at its PR.
+A is the smallest change to the gate, and with the three missing markers added it catches each move at its PR.
+
+## A fifth instance: pncad-py's prose census (2026-11-09, `onecopy/prose-census-red`)
+
+`crates/pncad-py/src/prose_census.rs`'s rows read every `crates/*/src` and take about 4–5 s each, so they're in the slow set. They stood red on main from 2026-11-03 to 2026-11-09:
+- the vacuity floor, 138 sites under 200, from PR 6430;
+- the undecided roster, from PRs 6448, 6549 and 6579.
+
+None of those PRs runs a pncad-py slow row (`work/onecopy/main-red-prose-census-reads-no-write-renderer.md`). Under option A, `prose_census.rs` needs a `gated_to!` naming every crate its walk reads, like `certified_endpoint_census`'s. The prose census has gone main-red five times since 2026-10-27 (`work/{bind,clear,contacthold,splice}/main-red-prose-census-*`); every time a PR outside pncad-py moved a renderer.
+
+## The class is wider than censuses (2026-11-09, `onecopy/loft-rim-red`)
+
+A behaviour test in the slow set has the same blind spot: `sweep::all a_loft_computes_its_walls_in_t::a_lofted_arc_wall_is_a_function_of_the_sections_bulge` counts the iso-boundary decisions a loft records.
+- **The mover.** PR 6484 (`bc927bc4b3`, 2026-11-03) changed what `topo::pcurves` certifies at the mint, so the test reads 18 Zeros where it pins 10. The PR neither touches sweep nor spells the test's name, so its CI never ran the test.
+- **How long it stood.** The nightly went red the next day. Two lanes filed it separately on 2026-11-04, and it stood red for six days (`work/green/main-red-a-lofted-arc-walls-rim-zeros-count-eighteen.md`).
+- **What the options above catch.** Option A, as written, does not reach this case: no `gated_to!` marker could name every path that moves the decisions a loft makes, which is most of topo and geom-brep. The gap is the slow set's `is_new` rule for every cross-crate slow test, not only the source walks.

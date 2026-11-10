@@ -865,17 +865,17 @@ impl core::fmt::Display for SsiError {
                 "ssi: the two tori are one surface, a coincidence, so the pair has no section to \
                  trace"
             ),
-            Self::DegenerateTorus(refusal) => match &refusal.verdict {
-                crate::torus_convention::TorusVerdict::Undecided(diag) => write!(
-                    f,
-                    concat!("ssi: {}", geom_core::undecided!(), ": {}"),
-                    refusal.convention.subject(),
-                    diag.payload()
-                ),
-                crate::torus_convention::TorusVerdict::Refused(verdict) => write!(
+            // The refusal's own words (`TorusRefusal::said`); a torus
+            // decided outside the convention adds this door's consequence,
+            // which an undecided half does not yet have.
+            Self::DegenerateTorus(refusal) => match refusal.verdict {
+                crate::torus_convention::TorusVerdict::Undecided(_) => {
+                    write!(f, "ssi: {}", refusal.said("the torus's", None))
+                }
+                crate::torus_convention::TorusVerdict::Refused(_) => write!(
                     f,
                     "ssi: {}, so the pair has no section to trace",
-                    refusal.convention.refused("the torus's", *verdict)
+                    refusal.said("the torus's", None)
                 ),
             },
             Self::OperandNotFinite { operand, datum } => write!(
@@ -1447,15 +1447,7 @@ impl SsiError {
             Self::CoincidentTori => {
                 TORI_COINCIDENT.recourse(RefusedArm::SignCertain(None), reading)
             }
-            Self::DegenerateTorus(refusal) => {
-                let arm = match &refusal.verdict {
-                    crate::torus_convention::TorusVerdict::Undecided(diag) => {
-                        RefusedArm::Undecided(diag)
-                    }
-                    crate::torus_convention::TorusVerdict::Refused(verdict) => verdict.arm(),
-                };
-                refusal.convention.sized().recourse(arm, reading)
-            }
+            Self::DegenerateTorus(refusal) => refusal.recourse(reading),
             Self::Escalated { decision, cause } => {
                 SsiDecision::Trace(*decision).ending(cause, reading)
             }
@@ -1558,7 +1550,9 @@ impl SsiError {
             // f64. A chord below the running total's rounding is absorbed,
             // so two parameters tie (`ParamCountMismatch`, its knots
             // `Structure`); a step below an image's resolution repeats a
-            // point (`DegenerateChord`); an image can overflow
+            // point, and two images too far apart or too near for their
+            // distance to be represented leave a chord with no length
+            // (`DegenerateChord`); an image can overflow
             // (`NonFinitePoint`); and the collocation solve meets the
             // parameters as rounded (`Lsq`). Each is the approximation's
             // limit at an extreme scale.
@@ -3196,7 +3190,7 @@ pub fn march_torus_torus(
 /// defect.
 ///
 /// In a debug build the count is re-derived by the ruling angle's
-/// coverage ([`ruling_coverage`]).
+/// coverage ([`coverage`](crate::pair_section::ruling::coverage)).
 ///
 /// # Errors
 ///
