@@ -63,13 +63,13 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
 use super::plane_eq::PlaneDesc;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
 use super::{BooleanError, EfContact, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
 use crate::boxes;
 use crate::coincidence::{Cited, Cites};
+use crate::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_decided};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::offset_nappe::NappeRefusal;
@@ -1997,7 +1997,7 @@ fn edge_covers<T: Decide>(
 /// which is split there ([`interior`]). Each
 /// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
-/// ([`super::contain::curved_face_containment`] — the boundary walk,
+/// ([`crate::contain::curved_face_containment`] — the boundary walk,
 /// and behind it the face's region), producing the same v-v record
 /// family, or the v-f record when the region places the endpoint
 /// strictly inside.
@@ -2044,15 +2044,15 @@ fn edge_covers<T: Decide>(
 /// inside that face's trim is no longer the frontier. Its crossing
 /// parameters are the same certified roots the ray lane has always
 /// solved — the quadratic on a wall
-/// ([`super::solid_contain::line_wall_roots`]) and on a sphere
-/// ([`super::solid_contain::line_sphere_roots`]), the quartic on a
-/// torus ([`super::solid_contain::line_torus_roots`]), the cone's
+/// ([`crate::solid_contain::line_wall_roots`]) and on a sphere
+/// ([`crate::solid_contain::line_sphere_roots`]), the quartic on a
+/// torus ([`crate::solid_contain::line_torus_roots`]), the cone's
 /// quadric form ([`line_cone_roots`], on the ray lane's quadratic) —
 /// taken over the edge's own span instead of a ray's forward half; on
 /// a torus or a cone the roots are consulted for every endpoint-sign
 /// pattern, since the residual is not convex along a line and no
 /// endpoint datum bounds a crossing between; the landing point is
-/// placed by [`super::contain::curved_face_containment`]; the
+/// placed by [`crate::contain::curved_face_containment`]; the
 /// split/record triple is the planar conic lane's, verbatim. Still the
 /// frontier is everything the roots do not cover: a TANGENCY (an
 /// in-band discriminant, or a torus root count the quartic cannot
@@ -3167,7 +3167,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
             held,
         })) => {
             let p = curve.carrier().eval(t);
-            match super::contain::curved_boundary_containment(y, face, p, band)
+            match crate::contain::curved_boundary_containment(y, face, p, band)
                 .map_err(|e| esc(e, x_is.other(), face))?
             {
                 Some((at, margin)) => Ok(CurvedEvent::Pierce {
@@ -3209,7 +3209,7 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
             }
             let mut recorded = false;
             for (w, pw) in ends {
-                match super::contain::curved_boundary_containment(y, face, pw, band)
+                match crate::contain::curved_boundary_containment(y, face, pw, band)
                     .map_err(|e| esc(e, x_is.other(), face))?
                 {
                     Some((FaceContainment::OnVertex(vy), margin)) => {
@@ -3244,11 +3244,11 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
 ///
 /// - A meeting on the face's boundary, by the boundary pre-pass, or
 ///   inside its trim at the chart point it was found at
-///   ([`super::spline_region::spline_chart_placement`]), is a
+///   ([`crate::spline_region::spline_chart_placement`]), is a
 ///   [`CurvedEvent::Pierce`]: the first, the sweep reading the fragments
 ///   again. A meeting outside the trim is no event of this face.
 /// - With no meeting on the face, each end is placed on it
-///   ([`super::contain::placement_on_carrier`]) and recorded
+///   ([`crate::contain::placement_on_carrier`]) and recorded
 ///   where it lies: on a vertex, on an edge (split there), or inside.
 ///
 /// # Errors
@@ -3308,7 +3308,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     for m in found {
         let esc_y = |e| esc(e, x_is.other(), face);
         if let Some((at, margin)) =
-            super::contain::curved_boundary_containment(y, face, m.point, band).map_err(esc_y)?
+            crate::contain::curved_boundary_containment(y, face, m.point, band).map_err(esc_y)?
         {
             return Ok(CurvedEvent::Pierce {
                 t: m.t,
@@ -3320,7 +3320,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                 on_edge: None,
             });
         }
-        match super::spline_region::spline_chart_placement(y, face, m.uv, band).map_err(esc_y)? {
+        match crate::spline_region::spline_chart_placement(y, face, m.uv, band).map_err(esc_y)? {
             Some(FaceContainment::In) => {
                 return Ok(CurvedEvent::Pierce {
                     t: m.t,
@@ -3343,7 +3343,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
     }
     let mut recorded = false;
     for (w, pw) in ends {
-        let (placement, on, chart) = super::contain::placement_unheld(y, face, pw, band)
+        let (placement, on, chart) = crate::contain::placement_unheld(y, face, pw, band)
             .map_err(|e| esc(e, x_is.other(), face))?;
         match placement {
             CurvedPlacement::Trim(Some(FaceContainment::OnVertex(vy))) => {
@@ -3502,7 +3502,7 @@ fn along_boundary<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), BooleanError> {
-    let on = super::contain::curved_boundary_containment(y, face, pw, band)
+    let on = crate::contain::curved_boundary_containment(y, face, pw, band)
         .map_err(|e| esc(e, x_is.other(), face))?;
     let (wy, margin) = match on {
         Some((FaceContainment::OnVertex(vy), margin)) => (vy, margin),
@@ -4925,7 +4925,7 @@ fn wall_crossing<T: Decide + Bounds>(
     // parameter runs `|dir|` metres per unit, a `Circle`'s `radius`, an
     // `Ellipse`'s `|C′(t)|`, which varies over `[b, a]` (`geom::Conic`).
     // The wall and sphere quadratics take any non-zero `dir`; the torus
-    // quartic ([`super::solid_contain::line_torus_roots`]) assumes it UNIT,
+    // quartic ([`crate::solid_contain::line_torus_roots`]) assumes it UNIT,
     // the `Line` carrier's convention, which nothing checks.
     // `None`: a kind pair with no root lane (a spiric or a spline
     // against any carrier), which takes the refusals' path below, as a
@@ -5135,7 +5135,7 @@ enum Landing {
 }
 
 /// **Where the crossing point `p`, certified on `face`'s carrier, lands
-/// in the face's trim** ([`super::contain::placement_on_carrier`]).
+/// in the face's trim** ([`crate::contain::placement_on_carrier`]).
 ///
 /// `Unplaced` is the chart door's honest remainder (a ringed face, a
 /// boundary outside its outline classes, a full-period window outside
@@ -5154,14 +5154,14 @@ fn landing<T: Decide>(
     band: Band,
 ) -> Result<Landing, BooleanError> {
     let crossing = crate::held::Held::constructed(p, "a crossing certified on the face's carrier");
-    match super::contain::placement_on_carrier(y, face, crossing, band) {
+    match crate::contain::placement_on_carrier(y, face, crossing, band) {
         // OffCarrier → Unplaced (contradicts the crossing's certificate).
         Ok((CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None), _, _)) => {
             Ok(Landing::Unplaced)
         }
         Ok((CurvedPlacement::Trim(Some(FaceContainment::Out)), _, _)) => Ok(Landing::Out),
         Ok((CurvedPlacement::Trim(Some(at)), on, _)) => Ok(Landing::At(at, on)),
-        Err(super::contain::ContainError::Escalated {
+        Err(crate::contain::ContainError::Escalated {
             decision,
             escalation,
             diag,
@@ -5172,16 +5172,16 @@ fn landing<T: Decide>(
             },
             diag,
         }),
-        Err(super::contain::ContainError::StaleFace(face)) => {
-            super::contain::driver_face_stale(face)
+        Err(crate::contain::ContainError::StaleFace(face)) => {
+            crate::contain::driver_face_stale(face)
         }
         Err(
-            super::contain::ContainError::EmptyLoop(_)
-            | super::contain::ContainError::LoopUnreadable(_)
-            | super::contain::ContainError::Curved(_)
-            | super::contain::ContainError::RayExhausted
-            | super::contain::ContainError::Uncrossable(_)
-            | super::contain::ContainError::ArcEndClearOfCorners(_),
+            crate::contain::ContainError::EmptyLoop(_)
+            | crate::contain::ContainError::LoopUnreadable(_)
+            | crate::contain::ContainError::Curved(_)
+            | crate::contain::ContainError::RayExhausted
+            | crate::contain::ContainError::Uncrossable(_)
+            | crate::contain::ContainError::ArcEndClearOfCorners(_),
         ) => Ok(Landing::Unplaced),
     }
 }
@@ -5207,7 +5207,7 @@ pub(super) fn line_wall_roots_of<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<LineWallRoots<T>, BooleanError> {
-    use super::solid_contain::WallRoots;
+    use crate::solid_contain::WallRoots;
     let span = (t1 - t0).abs();
     let two = |ts: [T; 2]| Ok(Roots::<T, 2>::all(ts).widen());
     // The certified roots, per kind. Every lane answers the same three
@@ -5224,7 +5224,7 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             axis,
             radius,
             ..
-        } => match super::solid_contain::line_wall_roots(
+        } => match crate::solid_contain::line_wall_roots(
             line,
             geom::Line {
                 origin: c_origin,
@@ -5233,7 +5233,7 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             radius,
             span,
             band,
-            super::solid_contain::About::Start,
+            crate::solid_contain::About::Start,
         )
         .map_err(|fault| BooleanError::Escalated {
             decision: BooleanDecision::WallRoots(fault.rung),
@@ -5254,7 +5254,7 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } => door_refusal(super::solid_contain::line_torus_roots(
+        } => door_refusal(crate::solid_contain::line_torus_roots(
             line,
             geom::Line {
                 origin: center,
@@ -5269,12 +5269,12 @@ pub(super) fn line_wall_roots_of<T: Decide>(
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
         geom::Surface::Sphere { center, radius, .. } => {
-            match super::solid_contain::line_sphere_roots(
+            match crate::solid_contain::line_sphere_roots(
                 line,
                 center,
                 radius,
                 band,
-                super::solid_contain::About::Start,
+                crate::solid_contain::About::Start,
             )
             .map_err(|diag| BooleanError::Escalated {
                 decision: BooleanDecision::SphereRoots,
@@ -5344,7 +5344,7 @@ fn apex_root_spread<T: Decide>(
 
 /// **The certified roots of the LINE `origin + dir·t` against a CONE**:
 /// the cone's quadric form along it, the quadratic
-/// [`super::solid_contain::line_cone_quadratic`] `G = A t² + 2B t + C`
+/// [`crate::solid_contain::line_cone_quadratic`] `G = A t² + 2B t + C`
 /// (`G = −Q`, `Q = cos²α·ρ² − sin²α·h²`), whose zero set is the double
 /// cone. Its rungs, each a length:
 ///
@@ -5400,11 +5400,11 @@ fn line_cone_roots<T: Decide>(
     let dd = dir.norm_squared();
     let at = |t: T| w0 + dir * t;
     let foot = line.param_within(apex, (t0.min(t1), t0.max(t1)));
-    let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
+    let [a2, b2, c2] = crate::solid_contain::line_cone_quadratic(
         line,
         cone,
         half_angle,
-        super::solid_contain::About::Start,
+        crate::solid_contain::About::Start,
     )
     .coeffs;
     // Unsourced lever: a length read off the parameter span, not the
@@ -5489,7 +5489,7 @@ fn line_cone_roots<T: Decide>(
     for t in roots {
         let terms = (w0.norm() + speed * t.abs()).powi(2);
         let slack =
-            super::solid_contain::over_root_slope(speed * geom_core::rounding_charge(terms), disc);
+            crate::solid_contain::over_root_slope(speed * geom_core::rounding_charge(terms), disc);
         let outside = speed * (lo - t).max(t - hi).max(T::zero());
         match decide(
             "bool_line_cone_root_slack",
@@ -5742,7 +5742,7 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
             crate::held::Held::constructed(px, "an end of an arc read lying on the face's carrier")
         }
     };
-    let (placement, on, chart) = super::contain::placement_on_carrier(y, face, held, band)
+    let (placement, on, chart) = crate::contain::placement_on_carrier(y, face, held, band)
         .map_err(|e| esc(e, x_is.other(), face))?;
     let verdict = match placement {
         CurvedPlacement::Trim(v) => v,
@@ -5845,7 +5845,7 @@ pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanEr
         ContainError::Uncrossable(cause) => {
             BooleanError::ArcLoopContainmentUnsupported { operand, cause }
         }
-        ContainError::StaleFace(face) => super::contain::driver_face_stale(face),
+        ContainError::StaleFace(face) => crate::contain::driver_face_stale(face),
         refusal @ (ContainError::RayExhausted
         | ContainError::EmptyLoop(_)
         | ContainError::LoopUnreadable(_)
@@ -5924,7 +5924,7 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<bool, BooleanError> {
-    let (placement, on, _) = super::contain::placement_on_carrier(
+    let (placement, on, _) = crate::contain::placement_on_carrier(
         y,
         face,
         crate::held::Held::decided(px, on_plane),
@@ -8366,9 +8366,9 @@ mod neighbour_extent_rows {
 mod esc_tests {
     use super::{BooleanError, ContactAcc, Operand, esc, vertex_on_face};
     use crate::Body;
-    use crate::boolean::contain::ContainError;
-    use crate::boolean::solid_contain::PointInSolidError;
+    use crate::contain::ContainError;
     use crate::entity::{FaceKey, LoopKey, VertexKey};
+    use crate::solid_contain::PointInSolidError;
     use geom_core::{Band, Point3, Tol};
 
     /// **The reduction answers `ContainError`'s refusals typed on a
@@ -9225,7 +9225,7 @@ mod spline_face_rows {
     /// carried to the chord, the split refuses.
     #[test]
     fn a_meeting_on_a_spline_boundary_edge_splits_it_at_the_meetings_parameter() {
-        use crate::boolean::contain::FaceContainment;
+        use crate::contain::FaceContainment;
         let tol = Tol::witness();
         let (mut y, face, arc, chord) = parabola_sheet();
         let (x, ek) = line_in_plane([1.0, 0.25], [1.0, 1.25]);
@@ -9301,7 +9301,7 @@ mod spline_face_rows {
     /// takes the held parameter too.
     #[test]
     fn a_meeting_on_a_spline_faces_line_edge_holds_the_read_back_parameter() {
-        use crate::boolean::contain::FaceContainment;
+        use crate::contain::FaceContainment;
         let (y, face, _, chord) = parabola_sheet();
         let cases: &[([f64; 2], [f64; 2])] = &[
             ([0.7, 0.5], [0.7, -0.5]),
@@ -9346,7 +9346,7 @@ mod spline_face_rows {
     /// parameter to an end of the edge.
     #[test]
     fn a_meeting_eps_from_a_boundary_edges_end_refuses_or_splits_at_its_parameter() {
-        use crate::boolean::contain::FaceContainment;
+        use crate::contain::FaceContainment;
         let tol = Tol::witness();
         let eps = tol.eps();
         let (y, face, _, chord) = parabola_sheet();
@@ -9403,7 +9403,7 @@ mod spline_face_rows {
         p: Point3<f64>,
         q: Point3<f64>,
     ) -> (Body<f64>, FaceKey, Body<f64>, EdgeKey) {
-        use crate::boolean::spline_region::rows::{rect, sheet, twisted};
+        use crate::spline_region::rows::{rect, sheet, twisted};
         let tol = Tol::witness();
         let chart = twisted(0.6);
         let (y, face) = sheet(&chart, &rect((0.25, 0.75), (0.25, 0.75)));
@@ -9433,8 +9433,8 @@ mod spline_face_rows {
     /// pierce is the second.
     #[test]
     fn a_meeting_is_placed_on_the_sheet_it_was_found_on() {
-        use crate::boolean::contain::FaceContainment;
-        use crate::boolean::spline_region::rows::{rect, ruled, sheet};
+        use crate::contain::FaceContainment;
+        use crate::spline_region::rows::{rect, ruled, sheet};
         let tol = Tol::witness();
         let b = band();
         let d = 0.5 * b.zero();
@@ -9474,7 +9474,7 @@ mod spline_face_rows {
     /// carrier recording nothing.
     #[test]
     fn a_line_pierces_a_spline_face_inside_its_trim_and_passes_it_outside() {
-        use crate::boolean::contain::FaceContainment;
+        use crate::contain::FaceContainment;
         let up = |x: f64, y: f64| (Point3::new(x, y, -1.0), Point3::new(x, y, 1.0));
         let (p, q) = up(0.5, 0.5);
         let (mut y, face, x, ek) = twisted_and_a_line(p, q);
@@ -9510,10 +9510,10 @@ mod spline_face_rows {
     /// pierce point. The pierce pass reads the face's normal there.
     #[test]
     fn a_pierce_at_a_spline_meeting_carries_its_chart_point() {
-        use crate::boolean::contain::FaceContainment;
+        use crate::contain::FaceContainment;
         let (p, q) = (Point3::new(0.5, 0.5, -1.0), Point3::new(0.5, 0.5, 1.0));
         let (mut y, face, x, ek) = twisted_and_a_line(p, q);
-        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let chart = crate::spline_region::rows::twisted(0.6);
         let mut acc = ContactAcc::default();
         match arm(&x, ek, &mut y, face, &mut acc) {
             Ok(CurvedEvent::Pierce {
@@ -9539,7 +9539,7 @@ mod spline_face_rows {
     /// the face, `S` there within the band of the end.
     #[test]
     fn a_vertex_placed_in_a_spline_face_records_its_chart_point() {
-        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let chart = crate::spline_region::rows::twisted(0.6);
         let end = chart.eval(0.5, 0.5);
         let (mut y, face, x, ek) = twisted_and_a_line(Point3::new(0.5, 0.5, -1.0), end);
         let mut acc = ContactAcc::default();
@@ -9568,7 +9568,7 @@ mod spline_face_rows {
     /// vertex and the face, `S` there within the band of the vertex.
     #[test]
     fn the_endpoint_treatment_records_a_spline_faces_chart_point() {
-        let chart = crate::boolean::spline_region::rows::twisted(0.6);
+        let chart = crate::spline_region::rows::twisted(0.6);
         let at = chart.eval(0.5, 0.5);
         let (mut y, face, x, _) = twisted_and_a_line(at, Point3::new(0.5, 0.5, 1.0));
         let w = x
@@ -9608,7 +9608,7 @@ mod spline_face_rows {
     /// `S(0.9, 0.9)`, past the trim, then at `S(½, ½)`, inside it.
     #[test]
     fn review_r2_a_meeting_past_the_trim_then_one_inside_it_pierces_at_the_second() {
-        use crate::boolean::contain::FaceContainment;
+        use crate::contain::FaceContainment;
         let at = |s: f64| {
             let x = 0.9 - 0.4 * s;
             Point3::new(x, x, 0.486 - 0.336 * s)
@@ -9637,7 +9637,7 @@ mod spline_face_rows {
         q: Point3<f64>,
         bow: f64,
     ) -> (Body<f64>, FaceKey, Body<f64>, EdgeKey) {
-        use crate::boolean::spline_region::rows::{rect, sheet, twisted};
+        use crate::spline_region::rows::{rect, sheet, twisted};
         let tol = Tol::witness();
         let (y, face) = sheet(&twisted(0.6), &rect((0.25, 0.75), (0.25, 0.75)));
         let mut x = Body::<f64>::new();
@@ -9703,7 +9703,7 @@ mod spline_face_rows {
     /// the face.
     #[test]
     fn a_nurbs_edge_pierces_a_spline_face_inside_its_trim_and_passes_it_outside() {
-        use crate::boolean::contain::FaceContainment;
+        use crate::contain::FaceContainment;
         let up = |x: f64, y: f64| (Point3::new(x, y, -1.0), Point3::new(x, y, 1.0));
         let (p, q) = up(0.5, 0.5);
         let (mut y, face, x, ek) = twisted_and_a_spline(p, q, 0.1);

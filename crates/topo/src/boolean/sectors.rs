@@ -1719,7 +1719,7 @@ enum PlaneRead {
 
 /// **Where `p` lies against the planar `face` of `body`**: its height
 /// over the face's plane decided first (`bool_germ_tie_plane`), then its
-/// place in the face's trim ([`super::solid_contain::point_in_face`]).
+/// place in the face's trim ([`crate::solid_contain::point_in_face`]).
 /// A trim the walk cannot read is refused.
 fn on_planar_face<T: Decide>(
     body: &Body<T>,
@@ -1741,7 +1741,7 @@ fn on_planar_face<T: Decide>(
 }
 
 /// **Where `p`, on the plane of `face`, sits in its trim**
-/// ([`super::solid_contain::point_in_face`]); `None` where the face is
+/// ([`crate::solid_contain::point_in_face`]); `None` where the face is
 /// not a plane. A trim the walk cannot read is refused.
 fn in_trim<T: Decide>(
     body: &Body<T>,
@@ -1764,7 +1764,7 @@ fn trim_read<T: Decide>(
     band: Band,
 ) -> Result<PlaneRead, BooleanError> {
     Ok(
-        match super::solid_contain::point_in_face(body, face, normal, p, band)
+        match crate::solid_contain::point_in_face(body, face, normal, p, band)
             .map_err(BooleanError::Containment)?
         {
             Some(true) => PlaneRead::Inside,

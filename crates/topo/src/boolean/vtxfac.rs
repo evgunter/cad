@@ -92,9 +92,9 @@ use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
 use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::contain::FaceContainment;
 use super::plane_eq::PlaneEqError;
 use super::reduce::plane_desc;
+use crate::contain::FaceContainment;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::sectors::{
@@ -2321,35 +2321,35 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // Held where the residual above decided it (`Zero`, or in
                 // band); a spline face's trim decides its own carrier.
                 let placed = match &side {
-                    Some(Ok(d)) => super::contain::placement_on_carrier(
+                    Some(Ok(d)) => crate::contain::placement_on_carrier(
                         piercing_body,
                         face,
                         crate::held::Held::decided(p, d.margin),
                         band,
                     ),
-                    Some(Err(_)) => super::contain::placement_on_carrier(
+                    Some(Err(_)) => crate::contain::placement_on_carrier(
                         piercing_body,
                         face,
                         crate::held::Held::in_band(p),
                         band,
                     ),
-                    None => super::contain::placement_unheld(piercing_body, face, p, band),
+                    None => crate::contain::placement_unheld(piercing_body, face, p, band),
                 };
                 let (placement, _, _) =
                     placed.map_err(|e| super::reduce::esc(e, piercing, face))?;
                 let kind = kind_of(piercing_body, face);
                 match placement {
-                    super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {}
+                    crate::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {}
                     // Where the trim cannot say, nothing is guessed: the
                     // face may hold the point (D4).
-                    super::contain::CurvedPlacement::Trim(None) => {
+                    crate::contain::CurvedPlacement::Trim(None) => {
                         return Err(unbuilt(face, kind, false));
                     }
                     // Off the face, or on its boundary, which the sweep's
                     // pierces and splits hold. OffCarrier → not held (the
                     // residual above decided `p` on the carrier).
-                    super::contain::CurvedPlacement::OffCarrier
-                    | super::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
+                    crate::contain::CurvedPlacement::OffCarrier
+                    | crate::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
                 }
                 // A spline face read In has no residual to put the point on
                 // its carrier, and no arm reads its normal: no operand
@@ -2390,10 +2390,10 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                     Err(_) => crate::held::Held::in_band(p),
                 };
                 let (at, _, _) =
-                    super::contain::placement_on_carrier(piercing_body, face, held, band)
+                    crate::contain::placement_on_carrier(piercing_body, face, held, band)
                         .map_err(|e| super::reduce::esc(e, piercing, face))?;
                 // OffCarrier → not held (the side above decided `p` on the plane).
-                if at != super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
+                if at != crate::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
                     return Ok(None);
                 }
                 (plane.normal, None, side)

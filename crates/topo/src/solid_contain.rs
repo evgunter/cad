@@ -226,12 +226,12 @@ use crate::validate::decide;
 use geom_brep::quartic::{QuarticRoots, QuarticRows, depressed_quartic_roots, quadratic_roots};
 use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
-use super::region::RegionRefusal;
-use super::rim_wedge::Rim;
-use super::ruled_region::{RuledFaceRegion, ruled_face_region};
-use super::sphere_region::{SphereFaceRegion, sphere_face_region};
-use super::surface_group::{WrapRims, coaxial_margins, surface_group, wrap_rims};
-use super::torus_region::{TorusFaceRegion, torus_face_region};
+use crate::region::RegionRefusal;
+use crate::rim_wedge::Rim;
+use crate::ruled_region::{RuledFaceRegion, ruled_face_region};
+use crate::sphere_region::{SphereFaceRegion, sphere_face_region};
+use crate::surface_group::{WrapRims, coaxial_margins, surface_group, wrap_rims};
+use crate::torus_region::{TorusFaceRegion, torus_face_region};
 use geom::Surface;
 use geom_core::Tol;
 
@@ -617,8 +617,13 @@ impl PointInSolidError {
                 "cannot tell what is inside the solid: {}",
                 geom_brep::recourse::undecided_at(
                     diag,
-                    super::placement_subject(None),
-                    at.map(|at| super::placement_ending(None, Escalation::Margin, diag, at)),
+                    crate::contain::placement_subject(None),
+                    at.map(|at| crate::contain::placement_ending(
+                        None,
+                        Escalation::Margin,
+                        diag,
+                        at
+                    )),
                 )
             ),
             Self::RayExhausted => write!(
@@ -653,7 +658,7 @@ impl PointInSolidError {
                  surface, which the inside/outside test has no way yet to cross. The \
                  solid itself is fine. Recourse: build the solid so no spline (NURBS) \
                  face bounds it",
-                super::kind_word(*kind)
+                crate::contain::kind_word(*kind)
             ),
             Self::VolumeUncertified => write!(
                 f,
@@ -6035,7 +6040,7 @@ mod escalated_ending_rows {
     use geom_core::{MarginDiag, UNREADABLE_MARGIN_NOTE};
 
     use super::*;
-    use crate::boolean::ContainError;
+    use crate::contain::ContainError;
 
     /// **A solid door's escalation ends as the unnamed placement does**
     /// (D4 ¶1 (i): one recourse per decision): the containment door

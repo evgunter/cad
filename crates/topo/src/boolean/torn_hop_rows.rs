@@ -167,7 +167,7 @@ fn point_in_face_panics_on_a_torn_outer_loop() {
     };
     let p = corner(members[0]).lerp(corner(members[2]), 0.5);
     assert_eq!(
-        super::solid_contain::point_in_face(&body, face, normal, p, band()).unwrap(),
+        crate::solid_contain::point_in_face(&body, face, normal, p, band()).unwrap(),
         Some(true),
         "the face's centre is in it"
     );
@@ -177,14 +177,14 @@ fn point_in_face_panics_on_a_torn_outer_loop() {
         "point_in_face",
         &mut torn,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::solid_contain::point_in_face(b, face, normal, p, band()),
+        |b| crate::solid_contain::point_in_face(b, face, normal, p, band()),
     );
     let named = tear_ring(&mut body, face);
     assert_torn_op_panics(
         "point_in_face (ring)",
         &mut body,
         &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-        |b| super::solid_contain::point_in_face(b, face, normal, p, band()),
+        |b| crate::solid_contain::point_in_face(b, face, normal, p, band()),
     );
 }
 
@@ -196,7 +196,7 @@ fn point_in_face_panics_on_a_torn_outer_loop() {
 fn the_sphere_trim_panics_on_a_torn_curve() {
     let (mut body, face) = cyl_sheet();
     let ask = |b: &Body<f64>| {
-        super::solid_contain::sphere_chart_trim(
+        crate::solid_contain::sphere_chart_trim(
             b,
             face,
             Point3::origin(),
@@ -223,7 +223,7 @@ fn the_sphere_trim_panics_on_a_torn_curve() {
 /// the sphere, so a cylinder sheet's boundary reaches the read.
 #[test]
 fn the_sphere_region_panics_on_a_torn_curve() {
-    use super::sphere_region::sphere_face_region;
+    use crate::sphere_region::sphere_face_region;
     let (mut body, face) = cyl_sheet();
     let ask = |b: &Body<f64>| sphere_face_region(b, face).map(|r| r.is_some());
     assert!(ask(&body).is_ok(), "the sound sheet answers");
@@ -241,7 +241,7 @@ fn the_sphere_region_panics_on_a_torn_curve() {
 /// was left out as null scaffolding; a stale face reads no arcs.
 #[test]
 fn the_boundary_arcs_panic_on_a_torn_curve() {
-    use super::rim_wedge::face_boundary_arcs;
+    use crate::rim_wedge::face_boundary_arcs;
     let (mut body, face) = cyl_sheet();
     assert_eq!(face_boundary_arcs(&body, face).len(), 4, "four sides");
     let mut stale = body.clone();
@@ -261,7 +261,7 @@ fn the_boundary_arcs_panic_on_a_torn_curve() {
 /// resolve panics, where it was stepped over.
 #[test]
 fn the_boundary_arcs_panic_on_a_torn_ring_link() {
-    use super::rim_wedge::face_boundary_arcs;
+    use crate::rim_wedge::face_boundary_arcs;
     let (mut body, face) = cyl_sheet();
     assert_eq!(face_boundary_arcs(&body, face).len(), 4, "four sides");
     let named = tear_ring(&mut body, face);
@@ -278,7 +278,7 @@ fn the_boundary_arcs_panic_on_a_torn_ring_link() {
 /// outline that is not a cycle.
 #[test]
 fn the_wrap_scan_panics_on_a_torn_outer_link() {
-    use super::surface_group::{WrapRims, wrap_rims};
+    use crate::surface_group::{WrapRims, wrap_rims};
     let (mut body, face) = cyl_sheet();
     let rims = WrapRims {
         axis: geom::Line {
@@ -304,7 +304,7 @@ fn the_wrap_scan_panics_on_a_torn_outer_link() {
 /// not a circle and answered "does not wrap".
 #[test]
 fn the_wrap_scan_panics_on_a_torn_curve() {
-    use super::surface_group::{WrapRims, wrap_rims};
+    use crate::surface_group::{WrapRims, wrap_rims};
     let (mut body, face) = cyl_sheet();
     let rims = WrapRims {
         axis: geom::Line {

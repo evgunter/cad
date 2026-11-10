@@ -127,7 +127,7 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 ///   reads (`topo::loop_winding`).
 /// - the point-in-solid walk's planar family — check 10 (shell winding)
 ///   probes a vertex of each shell of a multi-shell solid against the
-///   other shells through `topo::boolean::solid_contain::point_in_solid_faces`,
+///   other shells through `topo::solid_contain::point_in_solid_faces`,
 ///   the boolean's containment fallback, and on these planar fixtures that walk
 ///   decides only its planar predicates, listed below. It is a
 ///   containment read, never a crossing.

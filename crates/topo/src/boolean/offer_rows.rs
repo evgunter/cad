@@ -659,7 +659,7 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
 /// by `drift` over the unit run its edge covers.
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
-    super::super::solid_contain::line_wall_roots(
+    crate::solid_contain::line_wall_roots(
         geom::Line {
             origin: Point3::new(0.5, 0.0, 0.0),
             dir: Vec3::new(drift, 0.0, 1.0),
@@ -671,7 +671,7 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
         1.0,
         1.0,
         band(),
-        super::super::solid_contain::About::Start,
+        crate::solid_contain::About::Start,
     )
     .map(|_| ())
     .map_err(|fault| BooleanError::Escalated {

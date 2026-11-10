@@ -401,9 +401,9 @@ use slotmap::{Key, SecondaryMap};
 
 use crate::attach::Named;
 use crate::body::{Body, Walk};
-use crate::boolean::ContainError;
 use crate::chart_region::ChartRegionError;
 use crate::contact::{ContactPair, ContactRefusal};
+use crate::contain::ContainError;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
@@ -929,7 +929,7 @@ pub enum CensusUnsupportedCause {
     /// The point-in-face door refused typed: its own arm, whole.
     ///
     /// **Carried because the alternative was a FABRICATED margin.**
-    /// The census asks [`contfp`](crate::boolean::contfp) whether a
+    /// The census asks [`contfp`](crate::contain::contfp) whether a
     /// vertex, an edge midpoint or a crossing point lies inside a
     /// planar face. Three of that door's arms carry no measured
     /// quantity at all — an edge the walk could not cross within the
@@ -1046,7 +1046,7 @@ pub enum OrientationUnread {
         set_aside: Vec<crate::side_reader::SetAside>,
     },
     /// An aimed ray's walk refused on a face that does not walk.
-    Ray(crate::boolean::PointInSolidError),
+    Ray(crate::solid_contain::PointInSolidError),
 }
 
 /// **The tier-3 contact MARK** (OQ7's two-level shape, level (i);
@@ -2032,7 +2032,7 @@ pub enum ValidationError {
     /// face ([`crate::surface_boundary::surface_cycles`]) lies off the
     /// face's side of another, read at a vertex of the first by the face's
     /// point-in-face door with its boundary cut to the second cycle alone
-    /// ([`crate::boolean::cycle_side`]). A ring outside its outer loop, a
+    /// ([`crate::contain::cycle_side`]). A ring outside its outer loop, a
     /// ring inside another ring and an outer loop inside a ring are each
     /// one. A planar face's ring outside its outer loop is
     /// [`Self::RingOutsideOuter`].
@@ -2424,7 +2424,7 @@ pub enum ValidationError {
         /// The face whose boundary the census read.
         face: FaceKey,
         /// The arc's ends against its edge's corners.
-        gaps: Box<crate::boolean::ArcEndGaps>,
+        gaps: Box<crate::contain::ArcEndGaps>,
     },
     /// Tier 3′ (the census's instance-containment arm): one instance's
     /// material contains a vertex of another's — an interference fit,
@@ -4141,7 +4141,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
 /// otherwise the band alone parted the two passes (`K < 2`), and the arc
 /// end's own lever is the way through.
 fn arc_end_clear_of_corners(
-    gaps: &crate::boolean::ArcEndGaps,
+    gaps: &crate::contain::ArcEndGaps,
 ) -> (Cow<'static, str>, Cow<'static, str>) {
     use crate::boolean::{ContainDecision, placement_lever};
     (
@@ -4171,17 +4171,17 @@ const GRAZED: &str = "a point the check read is off the boundary, but no test ra
 /// gives it at rest, or in the unnamed lever where it names none
 /// (`boolean::placement_ending`).
 fn close_to_boundary(
-    decision: Option<crate::boolean::ContainDecision>,
+    decision: Option<crate::contain::ContainDecision>,
     escalation: crate::splitting::Escalation,
     diag: &Indeterminate,
 ) -> (Cow<'static, str>, Cow<'static, str>) {
     (
         format!(
             "{} is undecided at this tolerance",
-            crate::boolean::placement_subject(decision)
+            crate::contain::placement_subject(decision)
         )
         .into(),
-        crate::boolean::placement_ending(decision, escalation, diag, Reading::AtRest).into(),
+        crate::contain::placement_ending(decision, escalation, diag, Reading::AtRest).into(),
     )
 }
 
@@ -4204,9 +4204,9 @@ fn uncrossable(u: &crate::splitting::Uncrossable) -> Cow<'static, str> {
 /// passed tier 2, so an arena claim (`CorruptFace`, `NoSuchSolid`, a
 /// corrupt or off-plane loop) is the producer's defect.
 pub(crate) fn classify_point_in_solid(
-    e: &crate::boolean::PointInSolidError,
+    e: &crate::solid_contain::PointInSolidError,
 ) -> (Cow<'static, str>, Cow<'static, str>) {
-    use crate::boolean::PointInSolidError as S;
+    use crate::solid_contain::PointInSolidError as S;
     use crate::splitting::{OffPlaneCause, PointInLoopError as L};
     match e {
         S::Escalated { diag, .. } => {
@@ -4225,7 +4225,7 @@ pub(crate) fn classify_point_in_solid(
             format!(
                 "{}; {}",
                 geom_core::MOVE_RECOURSE,
-                crate::boolean::solid_contain::KERNEL_BUG_NOTE
+                crate::solid_contain::KERNEL_BUG_NOTE
             )
             .into(),
         ),
@@ -4282,7 +4282,7 @@ pub(crate) fn classify_point_in_solid(
         S::KindUnsupported { kind, .. } => (
             format!(
                 "a face the check read is a {} surface, which it has no way yet to cross",
-                crate::boolean::kind_word(*kind)
+                crate::contain::kind_word(*kind)
             )
             .into(),
             NOT_YET_ENDING.into(),
@@ -4882,7 +4882,7 @@ impl ValidationError {
                 f,
                 "a solid is inside-out: a ray from outside it crosses into its material. \
                  Recourse: {}",
-                crate::boolean::PointInSolidError::INSIDE_OUT_RECOURSE
+                crate::solid_contain::PointInSolidError::INSIDE_OUT_RECOURSE
             ),
             Self::VolumeUncomputable { source, .. } => {
                 let MassPropsReading { why, recourse, .. } = classify_mass_props(source);
@@ -5446,7 +5446,7 @@ pub enum RingContact {
         ring_edge: EdgeKey,
     },
     /// The ring and the outer loop are two WHOLE circles — each read
-    /// by [`crate::boolean::loop_circle`] — that cross or
+    /// by [`crate::contain::loop_circle`] — that cross or
     /// touch: their centre distance lies between the difference of
     /// their radii and the sum, both ends included. Named by LOOP,
     /// because a crossing need not put a ring vertex outside, or
@@ -6957,9 +6957,9 @@ fn plus_v_errors<T: Decide>(
     walked: Option<&PlusVVerdict>,
     band: Band,
 ) -> Vec<ValidationError> {
-    use crate::boolean::SolidContainment;
-    use crate::boolean::solid_contain::SolidFaces;
     use crate::side_reader::{SideUnread, side_at_infinity};
+    use crate::solid_contain::SolidContainment;
+    use crate::solid_contain::SolidFaces;
     let mut errors = Vec::new();
     if let Some(PlusVVerdict::Uncomputable(source)) = walked {
         errors.push(ValidationError::VolumeUncomputable {
@@ -9562,7 +9562,7 @@ fn edge_trim<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: 
 /// end it sits at, so a candidate within the band of an edge's
 /// ACTUAL end, measured as a distance, counts as inside that trim.
 ///
-/// - **Arm 4, both loops whole circles** ([`crate::boolean::loop_circle`]
+/// - **Arm 4, both loops whole circles** ([`crate::contain::loop_circle`]
 ///   on each): [`circle_pair`], exact without any trim.
 /// - **Arm 5, every other pair of `Line` and `Circle` edges**
 ///   ([`segments_meet`]): the carriers' meeting points, each tested
@@ -9594,8 +9594,8 @@ fn ring_outer_meeting<T: Decide>(
 
     // ---- Arm 4: two whole circles. ----
     if let (Ok(Some(o)), Ok(Some(r))) = (
-        crate::boolean::loop_circle(body, outer, band),
-        crate::boolean::loop_circle(body, ring, band),
+        crate::contain::loop_circle(body, outer, band),
+        crate::contain::loop_circle(body, ring, band),
     ) {
         return match circle_pair(
             circles_of(o.frame.origin, o.radius, r.frame.origin, r.radius),
@@ -10684,7 +10684,7 @@ pub const SCAFFOLDING_RECOURSE: &str = "finish that edit first";
 pub const INSIDE_OUT_REFUSAL: &str = concat!(
     "is inside-out, as a whole or in one of its shells, so faces there point into its \
      material and bound negative volume, and it is refused. Recourse: ",
-    crate::boolean::solid_contain::inside_out_recourse!()
+    crate::solid_contain::inside_out_recourse!()
 );
 
 impl<T: geom_core::Decide> fmt::Debug for AtRestBody<T> {
@@ -12645,7 +12645,7 @@ mod tests {
     /// has no arm for is not yet.
     #[test]
     fn carried_curved_refusals_read_by_their_own_kind() {
-        use crate::boolean::PointInSolidError as S;
+        use crate::solid_contain::PointInSolidError as S;
         use crate::splitting::{PointInLoopError as L, Uncrossable, UncrossableCarrier};
         use geom_core::MarginDiag;
         let diag = Indeterminate {
@@ -15826,7 +15826,7 @@ mod tests {
         recarry_loop(&mut body, outer_loop, Point3::new(0.0, 0.0, 0.0), tol);
         assert!(
             matches!(
-                crate::boolean::loop_circle(&body, outer_loop, band),
+                crate::contain::loop_circle(&body, outer_loop, band),
                 Ok(Some(_))
             ),
             "three arcs of one circle are the disc class"
@@ -15916,7 +15916,7 @@ mod tests {
         let f = body.get_face(face).unwrap();
         assert!(
             matches!(
-                crate::boolean::loop_circle(&body, f.outer, band),
+                crate::contain::loop_circle(&body, f.outer, band),
                 Ok(Some(_))
             ),
             "one circle on every outer edge is the disc class"

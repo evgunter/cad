@@ -77,7 +77,7 @@
 //! loop bearing any other edge, its walk and the one boundary reading
 //! of an edge on its carrier ([`LoopEdge::contact`]) carry their own
 //! rows, each caller naming them through a [`BoundaryRows`] value
-//! (the walk's are `WALK_ROWS`; `boolean::contain`'s pre-pass passes
+//! (the walk's are `WALK_ROWS`; `contain`'s pre-pass passes
 //! `bool_contact_*` names):
 //!
 //! - **`point_in_arc_loop_{segment,boundary,side,advance}`**: the four
@@ -506,7 +506,7 @@ impl PointInLoopError {
                 "{doing}: {}",
                 diag.undecided(
                     decision.subject(),
-                    crate::boolean::ContainDecision::Loop(*decision)
+                    crate::contain::ContainDecision::Loop(*decision)
                         .lever_ending(*escalation, diag),
                 )
             ),
@@ -610,8 +610,8 @@ impl PointInLoopError {
 /// skips the near-parallel members), [`crate::splitting::order`]'s
 /// point ordering (whose frame takes the three axes for an axis plane
 /// and the members after them for any other, so the axes stay first),
-/// [`crate::boolean::solid_contain`]'s containment sweep (which
-/// normalizes the raw triple), and [`crate::boolean::sphere_region`]'s
+/// [`crate::solid_contain`]'s containment sweep (which
+/// normalizes the raw triple), and [`crate::sphere_region`]'s
 /// ray directions. They do not
 /// sweep the same directions. What each needs is only that its own
 /// schedule is a `const` in a fixed order every run, which holds per
@@ -1722,7 +1722,7 @@ pub fn point_in_loop<T: Decide>(
 }
 
 /// [`point_in_loop`] with no precondition certified: the loop is read
-/// as its projection along `normal`. For `boolean::solid_contain`'s
+/// as its projection along `normal`. For `solid_contain`'s
 /// in-face test alone, which reads a face's trim at the face's OWN
 /// surface plane, `q` a ray's hit on that plane: an operand the
 /// boolean's gates admit may hold a vertex off that plane by more than
@@ -1994,7 +1994,7 @@ pub(crate) fn loop_reach<T: Decide>(
 /// `normal`, and each way in holds it differently:
 /// - [`point_in_loop`] certifies it ([`certify_plane`]).
 /// - On the projected read it is that read's own premise, above.
-/// - [`contfp`](crate::boolean::contfp), through
+/// - [`contfp`](crate::contain::contfp), through
 ///   [`carrier_loop_side`], takes it unchecked from its caller: "`q`
 ///   already on the plane of `face`, with unit plane normal `normal`".
 ///
@@ -3090,7 +3090,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_cap_rows {
     use super::*;
-    use crate::boolean::FaceContainment;
+    use crate::contain::FaceContainment;
     use crate::entity::FaceKey;
     use crate::euler::{MefSite, MevSite};
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
@@ -3222,7 +3222,7 @@ mod spline_cap_rows {
                 "{name}: the walk"
             );
             assert_eq!(
-                crate::boolean::contfp(&body, face, z, q, band),
+                crate::contain::contfp(&body, face, z, q, band),
                 Ok(face_wise),
                 "{name}: the face's containment"
             );

@@ -41,7 +41,7 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 
-use super::contain::{ContainError, CurvedPlacement, FaceContainment, placement_on_carrier};
+use crate::contain::{ContainError, CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::{Body, FaceKey};
 use geom_brep::PairSide;
 use geom_brep::ladder::{Answering, IdentityLadder, Rung, climb, read_identity};
@@ -154,7 +154,7 @@ pub(crate) fn shared_rim<T: Decide>(
 /// # Errors
 ///
 /// As [`shared_rim`].
-pub(in crate::boolean) fn rim_exists<T: Decide>(
+pub(crate) fn rim_exists<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
@@ -272,7 +272,7 @@ pub(crate) enum Departure {
 /// piece's midpoint on no margin; or a reading that contradicts the
 /// construction it was asked about, a fault.
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::boolean) enum RimUnread {
+pub(crate) enum RimUnread {
     /// A margin the band does not decide.
     InBand(Indeterminate),
     /// A face's containment door gave a piece's midpoint no verdict and
@@ -290,7 +290,7 @@ pub(in crate::boolean) enum RimUnread {
 /// Why a face's containment door placed a piece's midpoint nowhere, on
 /// no margin ([`RimUnread::Unplaced`]).
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::boolean) enum Unplaced {
+pub(crate) enum Unplaced {
     /// The face's curved trim is one the chart door does not read.
     Trim,
     /// The door's own refusal, carried whole.
@@ -633,7 +633,7 @@ fn contains<T: Decide>(
         // band: the read does not place the point, as it does not place a
         // boundary curve outside its envelope.
         Err(ContainError::ArcEndClearOfCorners(_)) => return Ok(None),
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
         // Any other refusal, by its standing ([`ContainError::refusal`]):
         // a margin is the escalation, the rest leave the piece unread.
         Err(e) => {
@@ -1547,8 +1547,8 @@ mod arc_end_rows {
         let fine = Band::new(off / 50.0, off / 5.0).unwrap();
         assert!(
             matches!(
-                crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine),
-                Err(crate::boolean::ContainError::ArcEndClearOfCorners(ref g)) if g.off_corner()
+                crate::contain::contfp(&body, cap, Vec3::unit_z(), end, fine),
+                Err(crate::contain::ContainError::ArcEndClearOfCorners(ref g)) if g.off_corner()
             ),
             "the end lies off both corners at the finer band"
         );
@@ -1765,8 +1765,8 @@ mod boundary_midpoint_rows {
             for (body, face, which) in [(&a.body, a.top_face, "A"), (&b.body, b.top_face, "B")] {
                 assert!(
                     matches!(
-                        crate::boolean::contfp(body, face, Vec3::unit_z(), mid, narrow),
-                        Ok(crate::boolean::FaceContainment::OnVertex(_))
+                        crate::contain::contfp(body, face, Vec3::unit_z(), mid, narrow),
+                        Ok(crate::contain::FaceContainment::OnVertex(_))
                     ),
                     "theta {theta}: {which}'s door reads the midpoint at its corner"
                 );

@@ -16,10 +16,10 @@ use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, SizedPass};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
-use super::region::RegionRefusal;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
+use crate::region::RegionRefusal;
 use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
     BoundaryRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
@@ -114,20 +114,19 @@ pub const fn placement_lever(decision: Option<ContainDecision>) -> &'static str 
 /// way its sites' readings can stand, and `None` for a refusal that names
 /// no decision. A pair not here is raised nowhere.
 pub const CONTAINMENT_RAISED: [(Option<ContainDecision>, Escalation); 10] = {
-    use ContainDecision as C;
     use Escalation::{Margin, Straddle};
-    use LoopDecision as L;
+    use LoopDecision::{ArcSpan, Boundary, Plane, Ray};
     [
         (None, Margin),
-        (Some(C::Loop(L::Boundary)), Margin),
-        (Some(C::Loop(L::Boundary)), Straddle),
-        (Some(C::Loop(L::Ray)), Margin),
-        (Some(C::Loop(L::ArcSpan)), Margin),
-        (Some(C::Loop(L::ArcSpan)), Straddle),
-        (Some(C::Loop(L::Plane)), Margin),
-        (Some(C::ArcEnd), Margin),
-        (Some(C::OneCircle), Margin),
-        (Some(C::Carrier), Margin),
+        (Some(ContainDecision::Loop(Boundary)), Margin),
+        (Some(ContainDecision::Loop(Boundary)), Straddle),
+        (Some(ContainDecision::Loop(Ray)), Margin),
+        (Some(ContainDecision::Loop(ArcSpan)), Margin),
+        (Some(ContainDecision::Loop(ArcSpan)), Straddle),
+        (Some(ContainDecision::Loop(Plane)), Margin),
+        (Some(ContainDecision::ArcEnd), Margin),
+        (Some(ContainDecision::OneCircle), Margin),
+        (Some(ContainDecision::Carrier), Margin),
     ]
 };
 
@@ -252,7 +251,7 @@ pub enum ContainError {
     Uncrossable(Uncrossable),
     /// A curved face's chart read refused. The reads are the solid
     /// door's own, so the refusal is its, carried whole.
-    Curved(super::solid_contain::PointInSolidError),
+    Curved(crate::solid_contain::PointInSolidError),
     /// The point lies in the band of an arc's end, and the vertex pass
     /// placed it definitely clear of both of the edge's stored corners
     /// ([`ContainDecision::ArcEnd`]'s definite arm, D4 ¶1 (iv)). Two
@@ -269,9 +268,7 @@ impl ContainError {
     /// solid door states it; a face that does not resolve, or two
     /// definite readings of an arc's end that disagree, a refusal of the
     /// whole query ([`geom_brep::ladder::Aborts`]).
-    pub(in crate::boolean) fn refusal(
-        &self,
-    ) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+    pub(crate) fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
         use geom_brep::ladder::{Aborts, Refusal};
         match self {
             Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
@@ -486,7 +483,7 @@ pub(crate) fn contfp_decided<T: Decide>(
     // each read on its edges' own carriers by a walk that trusts the
     // pre-pass above — `q` is definitely off every edge — so it answers
     // inside or outside.
-    let inside = |(lk, read): &ReadLoop<T>| -> Result<bool, ContainError> {
+    let inside = |(lk, read): &(LoopKey, OffLoop<T>)| -> Result<bool, ContainError> {
         Ok(carrier_loop_side(*lk, read, normal, q, band)?)
     };
     let Some((outer, rings)) = read.split_first() else {
@@ -639,7 +636,7 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            if let Some(margin) = super::one_vertex_at(q, *p, band)
+            if let Some(margin) = crate::contain::one_vertex_at(q, *p, band)
                 .map_err(|diag| ContainError::on(LoopDecision::Boundary, diag))?
             {
                 return Ok(PrePass::On(FaceContainment::OnVertex(*v), margin));
@@ -702,15 +699,14 @@ fn boundary_pre_pass<T: Decide>(
     Ok(PrePass::Off(read))
 }
 
-/// A loop the boundary pass read `q` off every edge of.
-type ReadLoop<T> = (LoopKey, OffLoop<T>);
-
 /// What [`boundary_pre_pass`] found: a boundary verdict, or every loop
 /// read on its carriers — with `q` definitely off each of their edges —
 /// for the walk that follows.
 enum PrePass<T: geom_core::Real> {
     On(FaceContainment, MarginDiag),
-    Off(Vec<ReadLoop<T>>),
+    /// Every loop read on its carriers, with the read that put `q` off
+    /// each of its edges.
+    Off(Vec<(LoopKey, OffLoop<T>)>),
 }
 
 /// The distance from a curved edge's carrier end to one of the edge's
@@ -830,7 +826,7 @@ pub(crate) fn face_placement<T: Decide>(
 ///
 /// The containment door's own refusal.
 #[track_caller]
-pub(in crate::boolean) fn placement_on_carrier<T: Decide>(
+pub(crate) fn placement_on_carrier<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     held: crate::held::Held<T>,
@@ -852,7 +848,7 @@ pub(in crate::boolean) fn placement_on_carrier<T: Decide>(
 /// # Errors
 ///
 /// The containment door's own refusal.
-pub(in crate::boolean) fn placement_unheld<T: Decide>(
+pub(crate) fn placement_unheld<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
@@ -989,7 +985,7 @@ fn curved_interior_placement<T: Decide>(
             Ok(CurvedPlacement::Trim(None))
         }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            return super::spline_region::spline_face_placement(body, face, q, band);
+            return crate::spline_region::spline_face_placement(body, face, q, band);
         }
         geom::Surface::Plane { .. } | geom::Surface::Spindle { .. } => {
             Ok(CurvedPlacement::Trim(None))
@@ -1032,7 +1028,7 @@ fn sphere_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match super::sphere_region::sphere_face_region(body, face) {
+    let region = match crate::sphere_region::sphere_face_region(body, face) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
@@ -1099,7 +1095,7 @@ fn torus_face_containment<T: Decide>(
         major_radius,
         minor_radius,
     } = carrier;
-    let elevation = super::solid_contain::torus_elevation(axis, major_radius, minor_radius, q);
+    let elevation = crate::solid_contain::torus_elevation(axis, major_radius, minor_radius, q);
     if cut.is_none() {
         match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
             Ok(Sign::Zero) => {}
@@ -1107,7 +1103,7 @@ fn torus_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match super::torus_region::torus_face_region(body, face) {
+    let region = match crate::torus_region::torus_face_region(body, face) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
@@ -1144,7 +1140,7 @@ fn ruled_face_containment<T: Decide>(
             Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
         }
     }
-    let region = match super::ruled_region::ruled_face_region(body, face) {
+    let region = match crate::ruled_region::ruled_face_region(body, face) {
         Ok(Some(region)) => region,
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
@@ -1180,16 +1176,16 @@ pub(crate) fn cycle_side<T: Decide>(
 }
 
 /// `region` cut to the surface cycles `cut`, or whole.
-fn cut_to<T: Decide, R: super::region::Region<T>>(region: R, cut: Option<&[usize]>) -> R {
+fn cut_to<T: Decide, R: crate::region::Region<T>>(region: R, cut: Option<&[usize]>) -> R {
     match cut {
         Some(keep) => region.keep_cycles(keep),
         None => region,
     }
 }
 
-pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
+pub(super) fn solid_err(e: crate::solid_contain::PointInSolidError) -> ContainError {
     match e {
-        super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
+        crate::solid_contain::PointInSolidError::Escalated { diag, .. } => {
             ContainError::Escalated {
                 decision: None,
                 escalation: Escalation::Margin,
@@ -1222,6 +1218,32 @@ fn loop_cycle_points<T: Decide>(
             (start, he, p)
         })
         .collect())
+}
+
+/// **Whether two points are one vertex** (`bool_contact_vertex`, the
+/// distance between them): the margin that decided them one, `None`
+/// decided apart, the escalation when the band cannot say. A distance
+/// has no negative side: a magnitude.
+pub(crate) fn one_vertex_at<T: Decide>(
+    p: Point3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<MarginDiag>, Indeterminate> {
+    let distance = geom_core::Margin::norm3(p - q);
+    let (magnitude, margin) =
+        geom_core::k_stats::decide_magnitude_reported("bool_contact_vertex", distance, band)?;
+    Ok((magnitude == geom_core::k_stats::Magnitude::Zero).then_some(margin))
+}
+
+/// A surface kind as the person holding the mouse reads it. The
+/// spline kinds get one spelling everywhere a Boolean refusal names
+/// them; every other kind is its own name.
+pub(crate) fn kind_word(kind: geom::SurfaceKind) -> &'static str {
+    match kind {
+        geom::SurfaceKind::Nurbs => "spline (NURBS)",
+        geom::SurfaceKind::Approx => "approximated spline",
+        other => other.name(),
+    }
 }
 
 #[cfg(test)]
@@ -1592,7 +1614,8 @@ mod tests {
     ///   of zero `off/50`. The finding leads with the gap to the end's own
     ///   corner, `off`. It logs no escalation, each end is decided once
     ///   against each corner, and it ends in the arc end's lever at a
-    ///   build and through the Boolean.
+    ///   build (through the Boolean too:
+    ///   `boolean::standing_rows::a_point_in_face_refusal_ends_on_the_containment_findings_lever`).
     /// - **The band's own parting no longer parts them**: on a cap whose
     ///   corner is its arc's end, the boundary reading puts a point at the
     ///   end only on its raw chord to the end's point, the distance the
@@ -1604,7 +1627,6 @@ mod tests {
     ///   same point is the vertex reading's escalation.
     #[test]
     fn a_point_at_an_arc_end_clear_of_its_corners_is_a_finding() {
-        use crate::boolean::{BooleanError, Operand};
         use crate::test_support_fixtures::half_disc_cap;
         use geom_core::{ErrorTextReading, k_stats::Bracket};
         let tol = Tol::witness();
@@ -1636,13 +1658,6 @@ mod tests {
                 .unwrap_err()
                 .render(geom_brep::recourse::Reading::Build);
             assert!(built.ends_with(lever), "{what}: {built}");
-            let boolean = BooleanError::PointInFaceRefused {
-                operand: Operand::A,
-                face,
-                refusal: got.as_ref().unwrap_err().clone(),
-            }
-            .render(geom_brep::recourse::Reading::Build);
-            assert!(boolean.ends_with(lever), "{what}: {boolean}");
             **gaps
         };
         let off = zero / 2.0;

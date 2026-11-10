@@ -12,10 +12,10 @@
 #
 # solid_contain: ray_crossings's denominator, a crossing count, which
 # needs every face (point_in_faces's on-face reads climb).
-crates/topo/src/boolean/solid_contain.rs 1
+crates/topo/src/solid_contain.rs 1
 # rim_wedge: sort_params, a sort, needs every comparison; reach reads
 # every arc's traversal. (departures's abut and rides climb.)
-crates/topo/src/boolean/rim_wedge.rs 2
+crates/topo/src/rim_wedge.rs 2
 # containment: conic_crossings, a crossing count, needs both roots.
 # (certify_plane reads its data as one identity.)
 crates/topo/src/splitting/containment.rs 1

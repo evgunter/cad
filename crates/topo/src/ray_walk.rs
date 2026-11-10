@@ -37,8 +37,8 @@
 //!   (`chart_region`).
 //! - **The closest crossing** ([`Crossings`], [`advance`]): keep the
 //!   crossing nearest `q` and read the material side from the ray's
-//!   heading there — the 3-D sweep (`boolean::solid_contain`) and a
-//!   trimmed sphere face's great circles (`boolean::sphere_region`).
+//!   heading there — the 3-D sweep (`solid_contain`) and a
+//!   trimmed sphere face's great circles (`sphere_region`).
 //!
 //! Each reader keeps what genuinely differs: its schedule and the frame
 //! it builds from each member, its crossing arithmetic, what a ray that

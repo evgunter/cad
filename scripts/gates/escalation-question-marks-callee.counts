@@ -38,7 +38,7 @@ crates/geom-brep/src/ssi/refine.rs 1
 # attach: unvouched reads every edge: NOT A SEARCH.
 crates/topo/src/attach.rs 1
 # contain: boundary_pre_pass's per-loop place_off: WHICH (its doc says so).
-crates/topo/src/boolean/contain.rs 1
+crates/topo/src/contain.rs 1
 # edge_join: joinable's regularity read over the two surfaces: HAND-ROLLED
 # (with its decide site in escalation-question-marks.counts); join_all's
 # two reads, a fixpoint where each join is read on the body the last one
@@ -73,7 +73,7 @@ crates/topo/src/boolean/reduce.rs 5
 # covers settle the kind (EdgeKindUnread, Mixed, NoEdge) answers, and
 # pieces can answer different kinds (QML T4; the site says so); reach's
 # four reads, every arc's: NOT A SEARCH.
-crates/topo/src/boolean/rim_wedge.rs 6
+crates/topo/src/rim_wedge.rs 6
 # section_cert ruling: roots walks sorted roots to the first past the
 # window: NOT A SEARCH.
 crates/topo/src/boolean/section_cert/ruling.rs 1

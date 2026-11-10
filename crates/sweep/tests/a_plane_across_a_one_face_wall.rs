@@ -225,7 +225,7 @@ fn a_tilted_plane_across_a_one_segment_cylinder() {
 /// ray aimed at the piece**: every ray from `(50, 50, 50)` misses the
 /// piece, so the side is the side at infinity, and a ray aimed at one of
 /// the piece's faces reads it: the wall is read from its boundary edges
-/// (`topo::boolean::ruled_region`), so a ray crossing it is answered and
+/// (`topo::ruled_region`), so a ray crossing it is answered and
 /// the volume's sign is never asked. The enclosure that sign is
 /// certified on (`bool_point_in_solid_infinity_enclosure`) is then not
 /// read at all.

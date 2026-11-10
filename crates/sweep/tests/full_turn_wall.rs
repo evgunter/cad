@@ -420,7 +420,7 @@ fn a_washers_full_turn_walls_are_height_bands() {
 /// carry a self-mated seam at azimuth 0. The face door places a point on
 /// the seam on that edge (`OnEdge`), as on any edge of the face; the
 /// region the seam runs through, which leaves the seam out, is
-/// `topo::boolean::ruled_region`'s row on a built wall's strut.
+/// `topo::ruled_region`'s row on a built wall's strut.
 #[test]
 fn a_point_on_a_full_turn_walls_seam_is_on_its_edge() {
     let b = band();

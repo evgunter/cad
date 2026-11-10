@@ -8,9 +8,9 @@
 use geom_brep::ladder::{Aborts, Refusal};
 use geom_core::{Band, Indeterminate, MarginDiag};
 
-use super::solid_contain::PointInSolidError;
 use super::{BooleanError, Coincide, DeclarationRead, EdgeInBand, LineUnread, Operand, SectorRead};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, ShellKey, VertexKey};
+use crate::solid_contain::PointInSolidError;
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -564,4 +564,32 @@ fn a_line_wedge_on_an_invalid_torus_ends_on_its_half() {
             "{convention:?}: {text}"
         );
     }
+}
+
+/// **A face door refusal ends on its containment finding's own lever**: a
+/// point at a cap's arc end clear of its corners, at a band finer than
+/// the gap, is the containment door's finding
+/// (`contain::tests::a_point_at_an_arc_end_clear_of_its_corners_is_a_finding`),
+/// and the Boolean's `PointInFaceRefused` carrying it reads the arc end's
+/// recourse at a build, as the finding itself does.
+#[test]
+fn a_point_in_face_refusal_ends_on_the_containment_findings_lever() {
+    let tol = geom_core::Tol::witness();
+    let off = Band::linear(tol).unwrap().zero() / 2.0;
+    let fine = Band::new(off / 50.0, off / 5.0).unwrap();
+    let (body, cap, end) = crate::test_support_fixtures::half_disc_cap(off, tol);
+    let got = crate::contain::contfp(&body, cap, geom_core::Vec3::unit_z(), end, fine);
+    let Err(refusal @ crate::contain::ContainError::ArcEndClearOfCorners(_)) = got else {
+        panic!("the finding: {got:?}");
+    };
+    let text = BooleanError::PointInFaceRefused {
+        operand: Operand::A,
+        face: cap,
+        refusal,
+    }
+    .render(geom_brep::recourse::Reading::Build);
+    assert!(
+        text.ends_with("Recourse: move the point clear of the arc's end"),
+        "{text}"
+    );
 }

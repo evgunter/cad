@@ -10,24 +10,24 @@
 //!   role gate ([`crate::census`]) and `classify_shells` read;
 //! - a solid's orientation, check 7 ([`fn@crate::validate`]);
 //! - the side of a point no schedule ray reaches, point containment's
-//!   missed-ray side ([`crate::boolean::solid_contain`]).
+//!   missed-ray side ([`crate::solid_contain`]).
 //!
 //! The rays it casts are point containment's
-//! ([`crate::boolean::solid_contain`]'s crossing walk), logged under their
+//! ([`crate::solid_contain`]'s crossing walk), logged under their
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::SolidContainment;
-use crate::boolean::solid_contain::{
-    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, ray_crossings,
-    selection_reach, side_before, uncrossable,
-};
 use crate::entity::{EntityId, FaceKey};
 use crate::live::proven;
 use crate::ray_walk::RayFault;
+use crate::solid_contain::SolidContainment;
+use crate::solid_contain::{
+    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, ray_crossings,
+    selection_reach, side_before, uncrossable,
+};
 
 /// An aimed ray's rows ([`side_at_infinity`]).
 pub(crate) const AIMED_ROWS: RayRows = crate::rows::AIMED_RAY;
@@ -222,7 +222,7 @@ impl core::fmt::Display for UnreadRays<'_> {
                     f,
                     ", {} is a {} surface, which no ray can cross yet",
                     EntityId::Face(*face),
-                    crate::boolean::kind_word(*kind)
+                    crate::contain::kind_word(*kind)
                 )?,
                 SetAsideWhy::Limit(e) => write!(f, ", {}", e.summary())?,
             }
@@ -341,7 +341,7 @@ fn aim_at<T: Decide>(
 /// ([`geom_core::GOLDEN_SECTION`]), stepped into the face along
 /// `normal × τ` ([`crate::stands::inward`]) by half a lower bound on `m`'s
 /// distance from every other edge of every loop
-/// ([`crate::boolean::solid_contain::edge_clearance`]), and
+/// ([`crate::solid_contain::edge_clearance`]), and
 /// by at most half its own arc's radius. The step's path meets no edge,
 /// so the aim lies in the face, off its middles and its boundary; a face
 /// narrower than the rounding there steps nowhere, and its aim only
@@ -360,11 +360,8 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
             .certified()
     };
-    let (m, tau) = crate::boolean::solid_contain::along_half(
-        body,
-        first.half,
-        1.0 - geom_core::GOLDEN_SECTION,
-    )?;
+    let (m, tau) =
+        crate::solid_contain::along_half(body, first.half, 1.0 - geom_core::GOLDEN_SECTION)?;
     let half = T::from_f64(0.5);
     let mut step = match *curve(first.edge)?.carrier() {
         geom::Curve3::Line(_) => None,
@@ -375,7 +372,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey, normal: Vec3<T>) -> Option
         if e.edge == first.edge || e.across == face {
             continue;
         }
-        let room = crate::boolean::solid_contain::edge_clearance(body, e, m)? * half;
+        let room = crate::solid_contain::edge_clearance(body, e, m)? * half;
         step = Some(step.map_or(room, |s: T| s.min(room)));
     }
     let into = crate::stands::inward(normal, tau);
@@ -517,7 +514,7 @@ fn aim_turn() -> (f64, f64) {
 /// the side: a selection all of whose faces are cylinders or cones whose
 /// region cannot be read, or whose rays all grazed, met a limit, a
 /// corner or a wedge. A selection holding a face the ray test has no
-/// arm for ([`crate::boolean::solid_contain::ray_crosses`]: a spline) casts no ray at all: every ray
+/// arm for ([`crate::solid_contain::ray_crosses`]: a spline) casts no ray at all: every ray
 /// would fault on that face, whatever it aimed at, so the volume reads
 /// with it as the limit.
 /// An aimed ray read in band on two faces that do not meet refuses on

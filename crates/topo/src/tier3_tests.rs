@@ -3310,8 +3310,8 @@ fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
 /// ENCLOSED region would flip both void rows below.
 #[test]
 fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
-    use crate::boolean::SolidContainment::{In, Out};
-    use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
+    use crate::solid_contain::SolidContainment::{In, Out};
+    use crate::solid_contain::{SolidFaces, point_in_solid_faces};
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
@@ -3393,8 +3393,8 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
 /// nothing, and one of them refuses the body.
 #[test]
 fn check_10_reads_past_a_witness_where_two_shells_touch() {
-    use crate::boolean::SolidContainment;
-    use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
+    use crate::solid_contain::SolidContainment;
+    use crate::solid_contain::{SolidFaces, point_in_solid_faces};
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cube_solid(&mut body, (0.0, 0.0, 0.0), 3.0, false, tol);
@@ -3545,7 +3545,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     }
     // Point containment's side at infinity reads the same sign: inside
     // and beside the slab, both ways round.
-    use crate::boolean::SolidContainment::{In, Out};
+    use crate::solid_contain::SolidContainment::{In, Out};
     let band = geom_core::Band::linear(tol).expect("a band");
     let (inside, beside) = (Point3::new(5e-4, 5e-4, 5e-8), Point3::new(5e-3, 5e-4, 5e-8));
     for (body, name, want) in [
@@ -3553,7 +3553,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
         (&inverted, "inside out", [Out, In]),
     ] {
         let got = [inside, beside].map(|p| {
-            crate::boolean::point_in_solid(body, p, band, tol).expect("containment answers")
+            crate::solid_contain::point_in_solid(body, p, band, tol).expect("containment answers")
         });
         assert_eq!(got, want, "{name}: inside and beside the slab");
     }

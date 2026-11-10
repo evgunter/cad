@@ -95,8 +95,8 @@ use geom_core::{
     rounding_charge,
 };
 
-use super::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::body::Body;
+use crate::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::joint::Winding;
 use crate::live::proven;

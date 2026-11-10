@@ -41,7 +41,7 @@ pub(super) fn assert_in_face(
     let band = Band::linear(Tol::witness()).expect("the witness band");
     for p in points {
         use crate::boolean::{ContainError, FaceContainment};
-        let at = crate::boolean::curved_face_containment(&outer_only, face, p, band);
+        let at = crate::contain::curved_face_containment(&outer_only, face, p, band);
         let near = matches!(
             at,
             Ok(Some(

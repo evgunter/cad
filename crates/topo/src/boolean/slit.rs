@@ -126,13 +126,13 @@ use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, Span, SpanEnd, meet};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 
-use super::contain::ContainError;
 use super::ops::{DoorInBand, PieceRead, piece_reading};
 use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
 use crate::Cell;
 use crate::body::Body;
 use crate::boolean::records::{Contact, ContactKind, ContactPairError, ContactRecords};
 use crate::coincidence::Cited;
+use crate::contain::ContainError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::lineage::{Fusions, LineageRows};
@@ -2084,7 +2084,7 @@ fn walls_inside<T: Decide>(
 }
 
 /// **A spline face `f`'s outward normal at the in-trim foot its placement
-/// reads `p` at** ([`super::spline_region::spline_face_placement`],
+/// reads `p` at** ([`crate::spline_region::spline_face_placement`],
 /// [`crate::face_normal::spline_outward_normal_at`]): `None` where `p`
 /// reads at no in-trim foot, or where the placement or the normal
 /// refuses as a refusal that keeps its query ([`ContainError::refusal`],
@@ -2102,7 +2102,7 @@ fn walls_inside<T: Decide>(
 /// # Panics
 ///
 /// Where the door answers that `f`, read out of `body`, does not
-/// resolve ([`super::contain::driver_face_stale`]).
+/// resolve ([`crate::contain::driver_face_stale`]).
 fn spline_floor<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -2114,7 +2114,7 @@ fn spline_floor<T: Decide>(
     if chart.spline_chart().is_none() {
         return Ok(None);
     }
-    let uv = match super::spline_region::spline_face_placement(body, f, p, band) {
+    let uv = match crate::spline_region::spline_face_placement(body, f, p, band) {
         Ok((_, Some(uv))) => uv,
         Ok((_, None)) => return Ok(None),
         Err(ContainError::Escalated {
@@ -2130,7 +2130,7 @@ fn spline_floor<T: Decide>(
                 diag,
             });
         }
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
         Err(why) => {
             return match why.refusal() {
                 Ok(_) => Ok(None),
@@ -2148,7 +2148,7 @@ fn spline_floor<T: Decide>(
                 diag,
             })
         }
-        Err(SplineNormalError::StaleFace) => super::contain::driver_face_stale(f),
+        Err(SplineNormalError::StaleFace) => crate::contain::driver_face_stale(f),
         // The chart was read as a spline above, so the point door's arm
         // and the placeholder's are a chart with no one normal here.
         Err(SplineNormalError::NotSpline | SplineNormalError::PlaceholderChart) => Ok(None),

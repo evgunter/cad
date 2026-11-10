@@ -24,7 +24,7 @@
 //! them this lane's and none of them this module's to unify:
 //! `geom-brep/src/pcurve_cache.rs` (`pcurve_cone_chart_nappe`, per
 //! point), `geom-brep/src/props/curved.rs` (`props_cone_nappe`, over a
-//! window) and `topo/src/boolean/solid_contain.rs` (three predicates
+//! window) and `topo/src/solid_contain.rs` (three predicates
 //! over a slant window). That class is filed as
 //! `work/honeone/cone-nappe-is-decided-in-five-places.md`.
 //!

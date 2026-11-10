@@ -17,7 +17,7 @@
 use geom_core::{Band, Margin, Point3, Sign, Tol, Vec3};
 
 use super::{CurvedPlacement, curved_face_placement};
-use crate::boolean::solid_contain::{line_torus_roots, torus_elevation};
+use crate::solid_contain::{line_torus_roots, torus_elevation};
 use crate::validate::decide;
 use geom_brep::quartic::QuarticRoots;
 

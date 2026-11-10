@@ -180,7 +180,7 @@ crates/topo/src/boolean/conic_quadric/circle_wall_rows.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/cone_rows.rs	test	2	oracle
 crates/topo/src/boolean/conic_quadric/in_band_sweep.rs	test	1	oracle
 crates/topo/src/boolean/conic_quadric/mod.rs	prod	3	re-pose
-crates/topo/src/boolean/contain.rs	test	1	oracle
+crates/topo/src/contain.rs	test	1	oracle
 crates/topo/src/boolean/fan.rs	prod	1	pose
 crates/topo/src/boolean/fan.rs	test	1	oracle
 crates/topo/src/boolean/reduce.rs	prod	2	re-pose
@@ -191,9 +191,9 @@ crates/topo/src/boolean/section_cert/ruling.rs	prod	25	re-pose
 crates/topo/src/boolean/section_cert/square_search.rs	test	2	oracle
 crates/topo/src/boolean/section_cert_rows.rs	test	3	oracle
 crates/topo/src/separating.rs	test	1	oracle
-crates/topo/src/boolean/solid_contain.rs	prod	10	re-pose
-crates/topo/src/boolean/spline_region.rs	prod	8	re-pose
-crates/topo/src/boolean/spline_region_rows.rs	test	1	oracle
+crates/topo/src/solid_contain.rs	prod	10	re-pose
+crates/topo/src/spline_region.rs	prod	8	re-pose
+crates/topo/src/spline_region_rows.rs	test	1	oracle
 crates/topo/src/boolean/vtxfac.rs	test	1	oracle
 crates/topo/src/census.rs	prod	8	re-pose
 crates/topo/src/census/pierce_fuzz.rs	test	2	oracle

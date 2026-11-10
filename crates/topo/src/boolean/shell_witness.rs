@@ -86,14 +86,14 @@
 use geom_core::{Band, Decide, Tol};
 use std::collections::BTreeSet;
 
-use super::solid_contain::{
-    PointInSolidError, SolidContainment, operand_faces, point_in_solid, point_in_solid_faces,
-};
 use super::{
     BooleanError, BooleanOp, CarrierRelation, Operand, ReductionContacts, SettledPair, SideCode,
 };
 use crate::body::Body;
 use crate::entity::{FaceKey, ShellKey, VertexKey};
+use crate::solid_contain::{
+    PointInSolidError, SolidContainment, operand_faces, point_in_solid, point_in_solid_faces,
+};
 use crate::stands::{LadderRefusal, Strict, Witness, ladder};
 use geom_brep::ladder::Ranked;
 
@@ -113,7 +113,7 @@ impl From<LadderRefusal> for BooleanError {
 /// The side of `other` the cell complex `faces` of `body` lies on,
 /// read off its first decisive witness ([`crate::stands::ladder`]).
 /// `other` is the operand `other_operand` as its caller handed it in,
-/// read as given ([`super::solid_contain::operand_faces`]), selected
+/// read as given ([`crate::solid_contain::operand_faces`]), selected
 /// once for every witness.
 ///
 /// # Errors
@@ -170,7 +170,7 @@ pub(super) fn inside_out_operand<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> BooleanError {
-    use super::solid_contain::{SolidFaces, point_in_solid_faces};
+    use crate::solid_contain::{SolidFaces, point_in_solid_faces};
     let mut errors = Vec::new();
     for (solid, _) in body.solids() {
         let sel = match SolidFaces::of(body, solid) {

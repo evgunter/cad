@@ -5682,7 +5682,7 @@ const SEAM_GERM_SIDE: &str = "bool_join_seam_germ_side";
 const SEAM_GERM_ON_PLANE: &str = "bool_join_seam_germ_on_plane";
 
 /// The outward normal at `q` of the one face of `other` that holds `q`
-/// strictly inside ([`super::contain::face_placement`]); `Ok(None)`
+/// strictly inside ([`crate::contain::face_placement`]); `Ok(None)`
 /// where no face does, or two do, or `q` lies on a face's boundary; and
 /// the refusal, carried ([`HoldingUnread`]), where a placement or the
 /// holding face's normal did not read.
@@ -5700,10 +5700,10 @@ fn holding_face_normal<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<Result<Option<Vec3<T>>, HoldingUnread>, BooleanError> {
-    use super::contain::{CurvedPlacement, FaceContainment, PlacementError};
+    use crate::contain::{CurvedPlacement, FaceContainment, PlacementError};
     let mut held = None;
     for (f, _) in other.faces() {
-        match super::contain::face_placement(other, f, q, band, SEAM_GERM_ON_PLANE) {
+        match crate::contain::face_placement(other, f, q, band, SEAM_GERM_ON_PLANE) {
             Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => {
                 if held.replace(f).is_some() {
                     return Ok(Ok(None));
@@ -5716,7 +5716,7 @@ fn holding_face_normal<T: Decide>(
             ))) => return Ok(Ok(None)),
             Ok(CurvedPlacement::Trim(None)) => return Ok(Err(HoldingUnread::Trim)),
             Err(PlacementError::Door(super::ContainError::StaleFace(face))) => {
-                super::contain::driver_face_stale(face)
+                crate::contain::driver_face_stale(face)
             }
             Err(why) => {
                 return Ok(Err(HoldingUnread::Placement {
@@ -5760,7 +5760,7 @@ enum HoldingUnread {
         /// The face.
         face: FaceKey,
         /// The placement's refusal.
-        why: super::contain::PlacementError,
+        why: crate::contain::PlacementError,
     },
     /// A curved face's trim the door does not read. A limit.
     Trim,
@@ -5781,7 +5781,7 @@ impl HoldingUnread {
     /// the door states it ([`super::ContainError::refusal`]), the normal's
     /// as its own ([`NormalAtError::refusal`]).
     fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
-        use super::contain::PlacementError;
+        use crate::contain::PlacementError;
         match self {
             Self::Placement {
                 why: PlacementError::OnPlane(diag),
@@ -5801,7 +5801,7 @@ impl HoldingUnread {
     /// was read on, or a holding face that reads the point off the
     /// surface it was placed on.
     fn aborted(self) -> BooleanError {
-        use super::contain::PlacementError;
+        use crate::contain::PlacementError;
         match self {
             Self::Placement {
                 operand,
@@ -5946,8 +5946,8 @@ mod holding_rows {
     /// abort is answered on another operand.
     #[test]
     fn a_holding_faces_placement_refusal_stands_as_the_door_states_it() {
-        use super::super::contain::PlacementError;
         use super::super::{BooleanError, ContainError, Operand};
+        use crate::contain::PlacementError;
         use crate::test_support_fixtures::half_disc_cap;
         let tol = Tol::witness();
         let zero = Band::linear(tol).unwrap().zero();

@@ -369,7 +369,7 @@ fn vf_reading(
 /// from the wall past the band's escalation edge read it stale; a cube
 /// set in by half the band confirms it. A record on a spline face (a
 /// swept elbow's NURBS wall) of a vertex off it reads stale too, its trim
-/// read on its chart (`topo::boolean::spline_region`).
+/// read on its chart (`topo::spline_region`).
 #[test]
 fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
     let tol = Tol::witness();

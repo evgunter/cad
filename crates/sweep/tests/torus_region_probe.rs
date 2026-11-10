@@ -36,10 +36,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::gated_to!(
-    "crates/topo/src/boolean/torus_region.rs",
-    "crates/topo/src/boolean/region.rs",
-    "crates/topo/src/boolean/solid_contain.rs",
-    "crates/topo/src/boolean/contain.rs",
+    "crates/topo/src/torus_region.rs",
+    "crates/topo/src/region.rs",
+    "crates/topo/src/solid_contain.rs",
+    "crates/topo/src/contain.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/topo/src/splitting/",
     "crates/sweep/tests/germ_plane_torus_chord.rs",

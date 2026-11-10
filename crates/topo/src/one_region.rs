@@ -2,7 +2,7 @@
 //! tier 3): a curved face's surface cycles
 //! ([`crate::surface_boundary::surface_cycles`]) each lie on the face's
 //! side of every other, read by the point-in-face doors with their
-//! boundary cut to the other cycles ([`crate::boolean::cycle_side`]).
+//! boundary cut to the other cycles ([`crate::contain::cycle_side`]).
 //!
 //! - **What each cycle is read against.** A cycle on a sphere, a cylinder
 //!   or a cone separates its surface, so each is read against each other
@@ -36,7 +36,7 @@
 //!   its side and which is reported once. A plane is check 9's nesting
 //!   arm. The vertices read are the body's own, which check 3 holds to
 //!   the face's carrier, so no carrier decision is read here
-//!   ([`crate::boolean::cycle_side`]).
+//!   ([`crate::contain::cycle_side`]).
 //!
 //! **An open surface's ends lie off the face** (the same clause) is
 //! decided by check 6: a planar face's loop windings against its outward
@@ -49,10 +49,10 @@ use geom_brep::ladder::Kept;
 use geom_core::{Band, Decide};
 
 use crate::body::Body;
-use crate::boolean::solid_contain::PointInSolidError;
 use crate::boolean::{ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::loop_side::{EveryVertex, inside_at_every_vertex};
+use crate::solid_contain::PointInSolidError;
 use crate::surface_boundary::WoundCycle;
 use crate::validate::ValidationError;
 
@@ -173,7 +173,7 @@ enum Read {
 }
 
 /// **The face's door at `q`, its surface cycles `cut` kept**
-/// ([`crate::boolean::cycle_side`]): `Ok(Some(true))` on the face's side
+/// ([`crate::contain::cycle_side`]): `Ok(Some(true))` on the face's side
 /// of them, `Ok(Some(false))` off it, `Ok(None)` unplaced. The one mapping
 /// of the door's answer both of tier 3's region readings take: this
 /// module's cycles, and a chart singularity's side (`crate::validate`'s
@@ -199,7 +199,7 @@ pub(crate) fn door_side<T: Decide>(
     q: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Option<bool>, geom_core::Indeterminate> {
-    match crate::boolean::cycle_side(body, face, cut, q, band) {
+    match crate::contain::cycle_side(body, face, cut, q, band) {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(Some(true)),
         Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(Some(false)),
         Ok(CurvedPlacement::Trim(None)) => Ok(None),
