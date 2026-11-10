@@ -59,9 +59,10 @@
 //! (a curved bound's code reads the edge, `within` its tangent) a
 //! crossing pair sides with the codes, because they are what the germ
 //! machinery consumes. The coplanar test reads the normals at the
-//! sector's arm, because a coplanar pair never reads its codes and goes
-//! to the carrier ladder, which certifies the coincidence over the
-//! whole sector. Coplanar pairs
+//! sector's arm, because a coplanar pair never reads its codes: it goes
+//! to the coincidence lump (`recl`), which reads a glued pair through
+//! its record and refuses an unglued one on the sector's own bounds.
+//! Coplanar pairs
 //! (`n_a × n_b` ≈ 0) go to `sector_overlap` — the unprinted procedure,
 //! designed here: overlap iff some bound of one lies strictly within
 //! the other, or the two sectors' bounds are pairwise parallel (the
@@ -276,35 +277,6 @@ impl<T: geom_core::Real> BoolSector<T> {
             StarFace::Apex(apex) => Some(apex),
             StarFace::Tangent(_) => None,
         }
-    }
-}
-
-impl<T: Decide> BoolSector<T> {
-    /// **Whether the sector's bounds read off the plane through its
-    /// vertex with unit normal `n`** (`bool_sector_coplanar`), on the
-    /// steeper bound's first-order departure ([`BoundSupport::departure`]):
-    /// what a smaller tolerance reads off the plane first, and the
-    /// sector with it: the reading that decided it off, and `Err` where
-    /// it does not decide off, with that margin.
-    pub(super) fn bounds_off(
-        &self,
-        n: Vec3<T>,
-        band: Band,
-    ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-        let steeper = self
-            .start_reach
-            .departure(self.start, n)
-            .abs()
-            .max(self.end_reach.departure(self.end, n).abs());
-        let (sign, margin) = geom_core::k_stats::decide_nonzero_reported(
-            "bool_sector_coplanar",
-            Margin::of(steeper),
-            band,
-        )?;
-        Ok(geom_core::Decided {
-            sign: sign.into(),
-            margin,
-        })
     }
 }
 
@@ -527,13 +499,13 @@ pub(super) fn side_code<T: Decide>(
 }
 
 /// **A bound's side of a pierced face, as the vertex-on-face pass reads
-/// it** ([`super::vtxfac`]): [`bound_read`] on the reading `rd`, keeping
-/// `tied` (the first order tied), which is what the pass's whole-sector
-/// lump keys on: a sector tangent to the face lumps whole, and its
-/// second order is the lump's, read off the two carriers. Beside it the
-/// first-order Zero of a bound that tied: what a caller that cannot use
-/// its `On` refuses through the gate ([`bisector_zero_refusal`]); `None`
-/// beside a side decided at first order.
+/// it** ([`super::vtxfac`]): [`bound_read`] on the reading `rd`, its
+/// side code beside its first-order tie where it tied, which is what the
+/// pass's whole-sector lump keys on: a sector tangent to the face lumps
+/// whole, and its second order is the lump's, read off the two carriers.
+/// The tie is what a caller that cannot use its `On` refuses through the
+/// gate ([`bisector_zero_refusal`]); `None` for a side decided at first
+/// order.
 pub(super) fn pierce_side<T: Decide>(
     dir: Vec3<T>,
     reach: BoundSupport<T>,
@@ -541,15 +513,9 @@ pub(super) fn pierce_side<T: Decide>(
     bend: FaceBend<T>,
     lever: T,
     rd: Reading<T>,
-) -> Result<(PierceSide, Option<OnReading>), BooleanError> {
+) -> Result<(SideCode, Option<OnReading>), BooleanError> {
     let read = bound_read(dir, reach, FaceDatum::of_face(face_normal, bend, lever), rd)?;
-    Ok((
-        PierceSide {
-            code: read.code,
-            tied: read.tie.is_some(),
-        },
-        read.tie.map(|tie| tie.on),
-    ))
+    Ok((read.code, read.tie.map(|tie| tie.on)))
 }
 
 /// **A bound's side of a face, read through the one bound-side reading**
@@ -600,6 +566,7 @@ pub(super) fn bound_read<T: Decide>(
                     on: OnReading {
                         predicate: tie.predicate,
                         decided: tie.decided,
+                        by: tie.by,
                     },
                 }),
             })
@@ -628,22 +595,66 @@ pub(crate) fn given_side<T: Decide>(
     rd: Reading<T>,
     unparted: Unparted,
 ) -> Option<Sign> {
+    given_side_read(dir, reach, face, rd, unparted).0
+}
+
+/// [`given_side`], with what read the bound against the face where it
+/// tied or read no side ([`SheetRead`]): what a corner the side puts on
+/// the face refuses on where no glue backs it. `None` only for a bound
+/// read off the face at first order, whose side is given.
+pub(super) fn given_side_read<T: Decide>(
+    dir: Vec3<T>,
+    reach: BoundSupport<T>,
+    face: FaceDatum<T>,
+    rd: Reading<T>,
+    unparted: Unparted,
+) -> (Option<Sign>, Option<SheetRead<T>>) {
     let on_face = match unparted {
         Unparted::OnTheFace => Some(Sign::Zero),
         Unparted::Nothing => None,
     };
-    let side = match crate::bound_side::read(dir, reach, face, rd) {
-        Ok(FirstOrder::Off(side)) => side,
-        Ok(FirstOrder::Tied(tie)) => match tie.descend() {
-            Ok(Descent::Leaves(side)) => side,
-            Ok(Descent::Rides) => return Some(Sign::Zero),
-            Ok(Descent::Unresolved(_)) | Err(ReadFault::Bend(_)) => return on_face,
-            Err(_) => return None,
-        },
-        Err(BoundSideFault::Read(ReadFault::Bend(_))) => return on_face,
-        Err(_) => return None,
+    let (side, on) = match crate::bound_side::read(dir, reach, face, rd) {
+        Ok(FirstOrder::Off(side)) => (side, None),
+        Ok(FirstOrder::Tied(tie)) => {
+            let on = Some(SheetRead::Tie(OnReading {
+                predicate: tie.predicate,
+                decided: tie.decided,
+                by: tie.by,
+            }));
+            match tie.descend() {
+                Ok(Descent::Leaves(side)) => (side, on),
+                Ok(Descent::Rides) => return (Some(Sign::Zero), on),
+                Ok(Descent::Unresolved(_)) | Err(ReadFault::Bend(_)) => return (on_face, on),
+                Err(_) => return (None, on),
+            }
+        }
+        Err(fault @ BoundSideFault::Read(ReadFault::Bend(_))) => {
+            return (on_face, Some(SheetRead::Fault(fault)));
+        }
+        Err(fault) => return (None, Some(SheetRead::Fault(fault))),
     };
-    Some(code_of(side).plane_side())
+    (Some(code_of(side).plane_side()), on)
+}
+
+/// **What read a bound against a face where it tied or read no side**
+/// ([`given_side_read`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum SheetRead<T: geom_core::Real> {
+    /// Its first-order tie.
+    Tie(OnReading),
+    /// The reading's refusal: it read no side.
+    Fault(BoundSideFault<T>),
+}
+
+impl<T: Decide> SheetRead<T> {
+    /// What put the corner on the face, as [`super::unglued_corner`]
+    /// refuses on it.
+    pub(super) fn corner_on(self, band: Band) -> super::CornerOn {
+        match self {
+            Self::Tie(on) => super::CornerOn::Tie(on),
+            Self::Fault(fault) => super::CornerOn::Refused(bound_refusal(fault, band)),
+        }
+    }
 }
 
 /// **What a cone site hands for a bound tied with a face that parts from
@@ -719,16 +730,9 @@ pub(super) struct OnReading {
     /// reading's slack made, the sign the band decided and the slack
     /// refused ([`crate::bound_side::Tie::decided`]).
     pub(super) decided: Decided,
-}
-
-/// What [`pierce_side`] read of a bound.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct PierceSide {
-    /// The bound's side code.
-    pub code: SideCode,
-    /// Whether its first-order reading tied: a `Zero`, or a side the
-    /// reading's slack refused.
-    pub tied: bool,
+    /// What made the tie: the band, or a reading's slack, with what it
+    /// hid ([`crate::bound_side::Tie::by`]).
+    pub(super) by: crate::bound_side::TiedBy,
 }
 
 /// **The lever a pierced face's side verdicts charge** (`side_code`'s
@@ -996,6 +1000,50 @@ pub(super) fn tangent_relative_side<T: Decide>(
     }
 }
 
+/// **A sector built by hand at the origin**, for rows that read sectors
+/// with no body behind them: from `start` to `end` on the tangent plane
+/// with outward normal `normal`, its bounds chords `arm` long, its arm
+/// `arm`, its half-edge and face the `n`th key, bending as `bend`.
+#[cfg(test)]
+pub(super) fn hand_sector(
+    (start, end): (Vec3<f64>, Vec3<f64>),
+    normal: Vec3<f64>,
+    arm: f64,
+    n: u64,
+    bend: FaceBend<f64>,
+) -> BoolSector<f64> {
+    let key = slotmap::KeyData::from_ffi((1 << 32) | n);
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let chord = |d: Vec3<f64>| BoundSupport::Chord {
+        base: o,
+        far: o + d * arm,
+    };
+    BoolSector {
+        he: HalfEdgeKey::from(key),
+        start,
+        end,
+        start_reach: chord(start),
+        end_reach: chord(end),
+        face: FaceKey::from(key),
+        at_vertex: StarFace::Tangent(OutwardNormal::from_chart(normal, true)),
+        arm: geom_core::test_support::fixture_lever(arm),
+        bend,
+    }
+}
+
+/// A quarter-turn [`hand_sector`] on the plane through the origin with
+/// unit normal `normal`.
+#[cfg(test)]
+pub(super) fn flat_corner(
+    normal: Vec3<f64>,
+    arm: f64,
+    n: u64,
+    bend: FaceBend<f64>,
+) -> BoolSector<f64> {
+    let start = normal.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
+    hand_sector((start, normal.cross(start)), normal, arm, n, bend)
+}
+
 /// One potentially-intersecting sector pair with its four side codes
 /// (the `sectors[]` record, typed).
 #[derive(Clone, Copy, Debug)]
@@ -1010,12 +1058,16 @@ pub(super) struct PairRecord {
     pub sb: (SideCode, SideCode),
     /// Whether the pair still generates intersection geometry.
     pub intersect: bool,
+    /// Why the pair is one coincidence, where it is: the record
+    /// [`Self::coincident`] makes, every code `On`.
+    pub coincident: Option<super::fan::Coincident>,
 }
 
 impl PairRecord {
     /// The record of a coplanar pair that overlaps: every code `On`,
-    /// which sends it to the carrier ladder as a coincidence.
-    pub(super) const fn coincident(a: usize, b: usize) -> Self {
+    /// which sends it to the coincidence lump (`recl`), with why it is
+    /// one coincidence.
+    pub(super) const fn coincident(a: usize, b: usize, by: super::fan::Coincident) -> Self {
         let on = (SideCode::On, SideCode::On);
         Self {
             a,
@@ -1023,6 +1075,7 @@ impl PairRecord {
             sa: on,
             sb: on,
             intersect: true,
+            coincident: Some(by),
         }
     }
 
@@ -2432,7 +2485,10 @@ pub(super) type PairSites<'a, T> = ([&'a Body<T>; 2], [VertexKey; 2]);
 /// pair becomes a [`PairRecord`] with its four side codes, in
 /// deterministic A-major order. Where the two faces meet at the vertex
 /// is [`super::fan::meeting`]'s: two planes in their line, or a
-/// coincidence where they are parallel; a fan of a cone's apex against a
+/// coincidence where they are parallel and `glued(a face, b face)` is the
+/// relation the glue door glued them one carrier under (an unglued plane
+/// pair parallel there refuses where its sectors overlap, and is no
+/// record where they only touch); a fan of a cone's apex against a
 /// plane or another fan in the rulings both hold, or a coincidence where
 /// the two fans are one cone's. A pair meeting along a ray within both
 /// sectors is a crossing; a coincident pair overlaps or only touches
@@ -2441,6 +2497,7 @@ pub(super) fn pair_search<T: Decide>(
     (bodies, vertices): PairSites<'_, T>,
     sectors: [&[BoolSector<T>]; 2],
     contacts: &super::ReductionContacts,
+    glued: impl Fn(FaceKey, FaceKey) -> Option<super::PlaneRelation>,
     band: Band,
 ) -> Result<Vec<PairRecord>, BooleanError> {
     let mut records = Vec::new();
@@ -2456,21 +2513,34 @@ pub(super) fn pair_search<T: Decide>(
             // near-coincidence at this vertex: the bound that sets the
             // arm reads at most `arm·|n_a × n_b|` off the other plane, so
             // it is On (or in band, which escalates), whatever a farther
-            // bound does. Such a pair goes to the carrier ladder as a
-            // coincidence, every code On: undeclared, the ladder
-            // refuses it; declared, the door has verified it. Its bounds'
-            // readings are not consulted — a far bound reading off would
+            // bound does. A glued pair goes to the coincidence lump, every
+            // code On, the door having verified it; an unglued plane pair
+            // is parallel at the meeting, and refuses here on that tilt
+            // where its sectors overlap. Its bounds' readings are not
+            // consulted — a far bound reading off would
             // make the record half a crossing, which no germ pairing
             // closes. Two fans of one cone are the same coincidence.
-            match super::fan::meeting((Operand::A, site(0), sa), (Operand::B, site(1), sb), band)? {
-                super::fan::Meeting::Coincident => {
+            let meeting = super::fan::meeting(
+                (Operand::A, site(0), sa),
+                (Operand::B, site(1), sb),
+                glued(sa.face, sb.face),
+                band,
+            )?;
+            match meeting {
+                super::fan::Meeting::Coincident(by) => {
                     let overlap = if sa.apex().is_some() {
                         super::fan::fans_overlap(sa, sb, band)?
                     } else {
                         sector_overlap(corner(0, sa), corner(1, sb), contacts, band)?
                     };
                     if overlap {
-                        records.push(PairRecord::coincident(i, j));
+                        records.push(PairRecord::coincident(i, j, by));
+                    }
+                    continue;
+                }
+                super::fan::Meeting::Parallel(zero) => {
+                    if sector_overlap(corner(0, sa), corner(1, sb), contacts, band)? {
+                        return Err(super::fan::unglued_parallel(zero, band));
                     }
                     continue;
                 }
@@ -2516,6 +2586,7 @@ pub(super) fn pair_search<T: Decide>(
                 sa: sa_codes,
                 sb: sb_codes,
                 intersect: true,
+                coincident: None,
             });
         }
     }
@@ -2688,9 +2759,19 @@ mod tests {
             geom_core::Sign::Positive,
             "the band decides it"
         );
+        let moved = crate::validate::decide_reported(
+            "enters_material",
+            geom_core::Margin::of(-0.3 * zero),
+            band,
+        )
+        .unwrap();
         let on = OnReading {
             predicate: "enters_material",
             decided,
+            by: crate::bound_side::TiedBy::Slack(crate::bound_side::Hidden::Across {
+                lower: moved,
+                upper: decided,
+            }),
         };
         assert!(
             matches!(
@@ -2718,7 +2799,66 @@ mod tests {
         let body = Body::new();
         let contacts = super::super::ReductionContacts::default();
         let vertex = crate::entity::VertexKey::default();
-        pair_search(([&body, &body], [vertex, vertex]), [a, b], &contacts, band)
+        pair_search(
+            ([&body, &body], [vertex, vertex]),
+            [a, b],
+            &contacts,
+            |_, _| Some(super::super::PlaneRelation::SameOpposite),
+            band,
+        )
+    }
+
+    /// **An unglued plane pair parallel at the arm refuses only where
+    /// its sectors overlap** ([`pair_search`], [`super::super::fan::Meeting::Parallel`]):
+    /// A's quarter on `z = 0` facing up, and B's on it facing down, no
+    /// glue between them. Over A's quarter, the corner refuses on the
+    /// tilt (`Coincide::CornerCrossing`); on the opposite quarter, the
+    /// two touch at the vertex alone and the pair is no record.
+    #[test]
+    fn an_unglued_parallel_pair_refuses_only_where_its_sectors_overlap() {
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, normal: Vec3<f64>, n: u64| {
+            hand_sector(
+                (start, end),
+                normal,
+                1.0,
+                n,
+                crate::bound_side::FaceBend::Plane,
+            )
+        };
+        let a = [sector(x, y, z, 1)];
+        let body = Body::new();
+        let contacts = super::super::ReductionContacts::default();
+        let vertex = crate::entity::VertexKey::default();
+        let unglued = |b: &[BoolSector<f64>]| {
+            pair_search(
+                ([&body, &body], [vertex, vertex]),
+                [&a, b],
+                &contacts,
+                |_, _| None,
+                band(),
+            )
+        };
+        let over = unglued(&[sector(y, x, -z, 2)]);
+        assert!(
+            matches!(
+                &over,
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::Coincidence(Coincide::CornerCrossing, _),
+                    diag,
+                }) if diag.predicate == Some("bool_faces_parallel")
+            ),
+            "overlapping, the corner's tilt: {over:?}"
+        );
+        let touching = unglued(&[sector(-y, -x, -z, 2)]);
+        assert!(
+            matches!(&touching, Ok(records) if records.is_empty()),
+            "touching at the vertex alone, no record: {touching:?}"
+        );
     }
 
     /// **A sector at a cone's apex has its middle on the cone**: the
@@ -3427,7 +3567,7 @@ mod tests {
         };
         let divider = &star.bounds[k];
         for (n, want) in [(normal.vec(), SideCode::In), (-normal.vec(), SideCode::Out)] {
-            let (read, _) = pierce_side(
+            let (code, tie) = pierce_side(
                 divider.dir,
                 divider.reach,
                 OutwardNormal::from_chart(n, true),
@@ -3436,8 +3576,8 @@ mod tests {
                 Reading::plain(b),
             )
             .unwrap();
-            assert!(read.tied, "n = {n:?}: the divider ties at first order");
-            assert_eq!(read.code, want, "n = {n:?}: descended");
+            assert!(tie.is_some(), "n = {n:?}: the divider ties at first order");
+            assert_eq!(code, want, "n = {n:?}: descended");
         }
     }
 
@@ -3478,7 +3618,6 @@ mod tests {
                         NO_CURVATURE(),
                         Reading::plain(b),
                     )
-                    .map(|(side, _)| side)
                     .unwrap();
                     let want = match split {
                         crate::splitting::PlaneSide::Below => SideCode::In,
@@ -3486,12 +3625,12 @@ mod tests {
                         crate::splitting::PlaneSide::On => SideCode::On,
                     };
                     assert_eq!(
-                        boolean.code, want,
+                        boolean.0, want,
                         "n = {n:?}, departure {dir:?}: the boolean reads {boolean:?}, \
                          the split {split:?}"
                     );
                     read += 1;
-                    if boolean.tied && boolean.code != SideCode::On {
+                    if boolean.1.is_some() && boolean.0 != SideCode::On {
                         descended += 1;
                     }
                 }
@@ -3537,12 +3676,9 @@ mod tests {
                     NO_CURVATURE(),
                     Reading::plain(b)
                 )
-                .map(|(side, _)| side)
+                .map(|(code, on)| (code, on.is_some()))
                 .unwrap(),
-                PierceSide {
-                    code: want,
-                    tied: true
-                },
+                (want, true),
                 "the arc bending toward {bend:?} reads its side"
             );
         }
@@ -3556,9 +3692,8 @@ mod tests {
                 NO_CURVATURE(),
                 Reading::plain(b)
             )
-            .map(|(side, _)| side)
-            .unwrap()
-            .code,
+            .map(|(code, _)| code)
+            .unwrap(),
             SideCode::On,
             "an arc in the face's plane is On"
         );
@@ -3713,30 +3848,23 @@ mod tests {
                             NO_CURVATURE(),
                             Reading::plain(b),
                         )
-                        .map(|(side, _)| side)
+                        .map(|(code, _)| code)
                         {
-                            Ok(PierceSide {
-                                code: SideCode::In, ..
-                            }) => {
+                            Ok(SideCode::In) => {
                                 ins += 1;
                                 assert!(
                                     h_l < -cleared,
                                     "In, but the witness is not past the band below: {what}"
                                 );
                             }
-                            Ok(PierceSide {
-                                code: SideCode::Out,
-                                ..
-                            }) => {
+                            Ok(SideCode::Out) => {
                                 outs += 1;
                                 assert!(
                                     h_l > cleared,
                                     "Out, but the witness is not past the band above: {what}"
                                 );
                             }
-                            Ok(PierceSide {
-                                code: SideCode::On, ..
-                            }) => {
+                            Ok(SideCode::On) => {
                                 ons += 1;
                                 assert!(
                                     lo.abs().max(hi.abs()) <= b.escalate(),
@@ -3798,9 +3926,8 @@ mod tests {
                 NO_CURVATURE(),
                 Reading::plain(b)
             )
-            .map(|(side, _)| side)
-            .unwrap()
-            .code,
+            .map(|(code, _)| code)
+            .unwrap(),
             SideCode::On,
             "the whole arc lies within the band of the plane"
         );
@@ -3815,7 +3942,7 @@ mod tests {
     fn a_conic_tie_refuses_where_its_bend_certifies_nothing() {
         let b = band();
         let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
-        let conic_bend = |r: &Result<PierceSide, BooleanError>| {
+        let conic_bend = |r: &Result<SideCode, BooleanError>| {
             matches!(
                 r,
                 Err(BooleanError::Escalated {
@@ -3834,9 +3961,8 @@ mod tests {
                 1.0,
                 Reading::plain(b)
             )
-            .map(|(side, _)| side)
-            .unwrap()
-            .code,
+            .map(|(code, _)| code)
+            .unwrap(),
             SideCode::On,
             "a great arc of a hollow sphere rides it"
         );
@@ -3879,7 +4005,7 @@ mod tests {
             NO_CURVATURE(),
             Reading::plain(b),
         )
-        .map(|(side, _)| side);
+        .map(|(code, _)| code);
         assert!(conic_bend(&got), "a lift inside the band: {got:?}");
         let spiric = BoundSupport::Conic {
             extent,
@@ -3897,7 +4023,7 @@ mod tests {
             NO_CURVATURE(),
             Reading::plain(b),
         )
-        .map(|(side, _)| side);
+        .map(|(code, _)| code);
         assert!(conic_bend(&got), "a spiric tie: {got:?}");
     }
 
@@ -4205,7 +4331,7 @@ mod tests {
     }
 
     /// A pair whose normals agree at the shorter arm is a
-    /// near-coincidence, and goes to the carrier ladder as one, every
+    /// near-coincidence, and goes to the coincidence lump as one, every
     /// code On: a face with a 1 mm edge on the other face's plane and a
     /// 10 m edge dipping `500·ε` below it. Read at its far vertex, the
     /// long edge is In, and a record carrying that code beside the short
@@ -4213,7 +4339,7 @@ mod tests {
     /// corner witness in `tests/contact9_side_codes.rs` refused as an
     /// invariant that way).
     #[test]
-    fn a_pair_parallel_at_a_short_arm_goes_to_the_ladder_as_a_coincidence() {
+    fn a_pair_parallel_at_a_short_arm_goes_to_the_lump_as_a_coincidence() {
         let dip = 500.0 * Tol::witness().eps();
         let o = Point3::new(0.0, 0.0, 0.0);
         let chord = |v: [f64; 3]| BoundSupport::Chord {
