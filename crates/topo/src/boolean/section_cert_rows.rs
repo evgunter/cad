@@ -2688,14 +2688,9 @@ fn a_gap_in_the_torus_boundary_refuses() {
     let mut bad = Vec::new();
     for (i, &he) in cycle.iter().enumerate() {
         let mut gapped = body.clone();
-        let edge = gapped
-            .get_edge(gapped.get_half_edge(he).unwrap().edge)
-            .unwrap();
-        let (curve, he_plus, he_minus) = (edge.curve, edge.he_plus, edge.he_minus);
-        let ends = (
-            gapped.get_half_edge(he_plus).unwrap().start,
-            gapped.get_half_edge(he_minus).unwrap().start,
-        );
+        let key = gapped.get_half_edge(he).unwrap().edge;
+        let curve = gapped.get_edge(key).unwrap().curve;
+        let ends = gapped.edge_vertices(key).unwrap();
         gapped.curves[curve] = CurveGeom::NullScaffold(NullEdge {
             below_end: ends.0,
             above_end: ends.1,
