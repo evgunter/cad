@@ -352,8 +352,8 @@ fn the_meridian_rung_at_any_pose_scale_and_band() {
 /// **A torus off D3's ring convention reaches no meridian rung**: on a
 /// spindle torus (`r = 1.2R`, `1.5R`) the meridian bound does not hold
 /// (`R − r` is negative, and so is its `η`). The door asks the
-/// convention's ring before the rung ([`DoorRefusal::ring`]) and refuses
-/// the torus as one it does not read. So neither the meridian nor a
+/// convention for the ring before any pose, and refuses the torus with
+/// the convention's own refusal ([`DoorRefusal::Torus`]). So neither the meridian nor a
 /// tilted one reads `On` from the rung, and neither reaches the
 /// negative-deviation invariant. The tilted one is off the spindle torus
 /// by the oracle.
@@ -379,7 +379,7 @@ fn a_spindle_torus_takes_no_meridian_rung() {
         for (label, circle) in [("plain", plain), ("tilted", tilted)] {
             let got = door(circle, torus, band);
             assert!(
-                matches!(got, Err(DoorRefusal::Invariant(why)) if why.contains("ring convention")),
+                matches!(got, Err(DoorRefusal::Torus(_))),
                 "r/R {ratio}, {label}: read {got:?}"
             );
         }

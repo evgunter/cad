@@ -1614,19 +1614,7 @@ fn off_ring_torus(
     refusal: geom_brep::TorusRefusal,
     pair: [(Operand, FaceKey); 2],
 ) -> BooleanError {
-    let (operand, face) = torus.of(pair);
-    match refusal.verdict {
-        geom_brep::TorusVerdict::Refused(verdict) => BooleanError::DegenerateTorus {
-            operand,
-            face,
-            convention: refusal.convention,
-            verdict,
-        },
-        geom_brep::TorusVerdict::Undecided(diag) => BooleanError::Escalated {
-            decision: BooleanDecision::Torus(refusal.convention),
-            diag,
-        },
-    }
+    BooleanError::of_torus_refusal(refusal, torus.of(pair))
 }
 
 /// A face tagged with the operand it belongs to, ordered A before B;
@@ -4758,6 +4746,49 @@ impl BooleanError {
         move |refusal| match refusal {
             DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
             DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
+            DoorRefusal::Torus(_) => {
+                unreachable!("only a torus door refuses a torus, and it ends at its face")
+            }
+        }
+    }
+
+    /// A torus root door's refusal at the torus face `at`: the torus
+    /// outside the ring convention at its face
+    /// ([`Self::of_torus_refusal`]), every other refusal as
+    /// [`Self::of_door_refusal`] ends it.
+    pub(in crate::boolean) fn of_torus_door_refusal(
+        decision: BooleanDecision,
+        at: (Operand, FaceKey),
+    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
+        use geom_brep::curve_face::circle_roots::DoorRefusal;
+        move |refusal| match refusal {
+            DoorRefusal::Torus(refusal) => Self::of_torus_refusal(refusal, at),
+            other => Self::of_door_refusal(decision)(other),
+        }
+    }
+
+    /// **A torus face outside its ring convention**, as the convention
+    /// refused it ([`geom_brep::TorusRefusal`]), at the face `at`: decided,
+    /// the shape the kernel has no representation for
+    /// ([`Self::DegenerateTorus`], an abort as
+    /// [`geom_brep::TorusRefusal::refusal`] states it); in band, the
+    /// convention half's escalation ([`BooleanDecision::Torus`]). Both end
+    /// in the half's lever.
+    pub(in crate::boolean) fn of_torus_refusal(
+        refusal: geom_brep::TorusRefusal,
+        (operand, face): (Operand, FaceKey),
+    ) -> Self {
+        match refusal.verdict {
+            geom_brep::TorusVerdict::Refused(verdict) => Self::DegenerateTorus {
+                operand,
+                face,
+                convention: refusal.convention,
+                verdict,
+            },
+            geom_brep::TorusVerdict::Undecided(diag) => Self::Escalated {
+                decision: BooleanDecision::Torus(refusal.convention),
+                diag,
+            },
         }
     }
 

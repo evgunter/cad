@@ -57,8 +57,9 @@ const TORUS_ROWS: SubdivisionRows = crate::rows::ELLIPSE_TORUS;
 ///
 /// [`DoorRefusal::Invariant`] when `carrier` is not an
 /// ellipse or `surface` not a torus — the caller dispatched on those
-/// kinds, so a mismatch is a desync, never an answer. The subdivision's
-/// sign in band is [`DoorRefusal::Escalated`], its
+/// kinds, so a mismatch is a desync, never an answer.
+/// [`DoorRefusal::Torus`] for a torus outside the ring convention. The
+/// subdivision's sign in band is [`DoorRefusal::Escalated`], its
 /// fault is the kernel's, and its limit is the inner [`Unsettled`].
 pub fn ellipse_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
@@ -110,9 +111,9 @@ fn torus_walk<T: Decide>(
     slack: Option<&'static str>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
-    // The walk's floor on `|F|` per metre leans on the ring: asked of
-    // the convention, once ([`DoorRefusal::ring`]).
-    DoorRefusal::ring(torus.2, torus.3, band)?;
+    // The walk reads only a ring: its harmonics take the convention's
+    // witness, whose floor on `|F|` per metre leans on `R − r > 0`.
+    let ring = crate::TorusRefusal::require(torus.2, torus.3, band).map_err(DoorRefusal::Torus)?;
     let (center, axis, major_radius, minor_radius) = torus;
     let h = crate::conic_torus_harmonics(
         conic,
@@ -152,7 +153,7 @@ fn torus_walk<T: Decide>(
             t1,
             speed_hi: conic.speed_hi(),
             noise: rounding_charge(h.terms),
-            f_per_metre: h.f_per_metre_lo,
+            f_per_metre: crate::ring_floor(ring),
             f_per_metre_hi: h.f_per_metre_surface,
             residual_reach: Some(minor_radius / T::from_f64(2.0)),
         },
@@ -290,7 +291,10 @@ mod tests {
                     major_radius,
                     minor_radius,
                 );
-                let noise = rounding_charge(h.terms) / h.f_per_metre_lo;
+                let noise = rounding_charge(h.terms)
+                    / crate::ring_floor(
+                        geom::RingTorus::of(major_radius, minor_radius, band).unwrap(),
+                    );
                 let slope = truth
                     .iter()
                     .map(|&r| {
@@ -1107,13 +1111,18 @@ mod torus_rows {
         print!("{out}");
     }
 
-    /// **Both torus doors read the ring of the convention's one home**
-    /// ([`DoorRefusal::ring`]). A spindle (`r > R`), a horn (`r = R`), a
-    /// horn within the band (`R − r` under its zero) and a torus of no
-    /// tube are decided outside the convention, and each door refuses
-    /// them as a torus it does not read. A ring whose `R − r` falls in the
-    /// band's escalation gap escalates. A ring certifies as before, the
-    /// circle and the ellipse each across the tube.
+    /// **Both torus doors read only a ring, asked before any pose**, and
+    /// refuse every other torus with the convention's own refusal
+    /// ([`DoorRefusal::Torus`]). A spindle (`r > R`), a horn (`r = R`), a
+    /// horn within the band (`R − r` under its zero), a torus of no tube
+    /// and one of negative minor radius are decided outside the convention.
+    /// Each door refuses them so at every pose: the circle door's coaxial
+    /// and parallel poses as much as its ladder, and the ellipse door's
+    /// walk. Before, the parallel pose answered the negative-minor torus
+    /// `Miss` (`R` 2, `r` −0.5, a circle of radius 2.4 about (0.2, 0.1, 0.1),
+    /// which crosses the `r` 0.5 torus twice). A ring whose `R − r` falls
+    /// in the band's escalation gap is the convention's undecided half. A
+    /// ring certifies as before.
     #[test]
     fn the_torus_doors_read_the_conventions_ring() {
         use core::f64::consts::TAU;
@@ -1122,15 +1131,35 @@ mod torus_rows {
         let axis = Vec3::new(0.0, 0.0, 1.0);
         let c = Point3::new(0.0, 0.0, 0.0);
         let (n, u) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
-        let circle = geom::Curve3::circle(Point3::new(2.3, 0.0, 0.0), n, 0.5, u);
+        let circles = [
+            (
+                "across",
+                geom::Curve3::circle(Point3::new(2.3, 0.0, 0.0), n, 0.5, u),
+            ),
+            (
+                "coaxial",
+                geom::Curve3::circle(Point3::new(0.0, 0.0, 0.1), axis, 2.4, u),
+            ),
+            (
+                "parallel",
+                geom::Curve3::circle(Point3::new(0.2, 0.1, 0.1), axis, 2.4, u),
+            ),
+        ];
         let ellipse =
             geom::Curve3::ellipse(Point3::new(2.0, 0.0, 0.0), n, 0.6, 0.4, u, band).unwrap();
-        let doors = |big: f64, small: f64| {
+        let read = |big: f64, small: f64| {
             let s = crate::curve_face::conic_oracle::torus(c, axis, big, small);
-            (
-                crate::curve_face::circle_torus::circle_torus_roots(&circle, 0.0, TAU, &s, band),
-                ellipse_torus_roots(&ellipse, 0.0, TAU, &s, band),
-            )
+            let mut got: Vec<(&str, _)> = circles
+                .iter()
+                .map(|(pose, circle)| {
+                    let r = crate::curve_face::circle_torus::circle_torus_roots(
+                        circle, 0.0, TAU, &s, band,
+                    );
+                    (*pose, r)
+                })
+                .collect();
+            got.push(("ellipse", ellipse_torus_roots(&ellipse, 0.0, TAU, &s, band)));
+            got
         };
         let gap = (band.zero() + band.escalate()) / 2.0;
         for (what, big, small) in [
@@ -1138,25 +1167,45 @@ mod torus_rows {
             ("a horn", 1.5, 1.5),
             ("a horn within the band", 1.5, 1.5 - band.zero() / 2.0),
             ("a torus of no tube", 2.0, 0.0),
+            ("a negative minor radius", 2.0, -0.5),
         ] {
-            let (circle, ellipse) = doors(big, small);
+            for (pose, got) in read(big, small) {
+                assert!(
+                    matches!(
+                        got,
+                        Err(DoorRefusal::Torus(crate::TorusRefusal {
+                            verdict: crate::TorusVerdict::Refused(_),
+                            ..
+                        }))
+                    ),
+                    "{what}, {pose}: {got:?}"
+                );
+            }
+        }
+        for (pose, got) in read(1.5, 1.5 - gap) {
             assert!(
-                matches!(circle, Err(DoorRefusal::Invariant(_)))
-                    && matches!(ellipse, Err(DoorRefusal::Invariant(_))),
-                "{what}: {circle:?} {ellipse:?}"
+                matches!(
+                    got,
+                    Err(DoorRefusal::Torus(crate::TorusRefusal {
+                        verdict: crate::TorusVerdict::Undecided(_),
+                        ..
+                    }))
+                ),
+                "a ring in the gap, {pose}: {got:?}"
             );
         }
-        let (circle, ellipse) = doors(1.5, 1.5 - gap);
-        assert!(
-            matches!(circle, Err(DoorRefusal::Escalated(_)))
-                && matches!(ellipse, Err(DoorRefusal::Escalated(_))),
-            "a ring in the gap: {circle:?} {ellipse:?}"
-        );
-        let (circle, ellipse) = doors(2.0, 0.5);
-        assert!(
-            matches!(circle, Ok(Ok(crate::roots::Roots::Certified(_))))
-                && matches!(ellipse, Ok(Ok(crate::roots::Roots::Certified(_)))),
-            "a ring: {circle:?} {ellipse:?}"
-        );
+        // The ring: the coaxial circle runs inside the tube (0.41 from the
+        // core circle), and every other carrier crosses it.
+        for (pose, got) in read(2.0, 0.5) {
+            let crossing = pose != "coaxial";
+            assert!(
+                match got {
+                    Ok(Ok(crate::roots::Roots::Certified(_))) => crossing,
+                    Ok(Ok(crate::roots::Roots::Miss)) => !crossing,
+                    _ => false,
+                },
+                "a ring, {pose}: {got:?}"
+            );
+        }
     }
 }

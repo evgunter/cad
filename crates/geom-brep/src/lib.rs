@@ -176,6 +176,7 @@ pub use implicit::{
     implicit_graph_acceleration, implicit_hessian, implicit_hessian_form,
     implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
     implicit_section_acceleration, min_radius_of_curvature, min_radius_of_curvature_toward,
+    ring_floor,
 };
 pub use intersect::{
     ApexFansMeeting, ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection,
