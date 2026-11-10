@@ -63,24 +63,20 @@ does not rest on it). Ported, with no outcome moved over the `ci` sets:
 - join `own_nearest` (was `keep_own`) and `loose_partners`: `Nothing`;
   a tie refuses as `BooleanError::JoinPartnersTied` (standing `InBand`).
 
-## What remains: `first_pair`
+## `first_pair` ported (`onecopy/first-pair-all-mutual`)
 
-`first_pair` stays on its old fold, which keeps the incumbent on an
-exact tie in both lanes. Ported at `Band` in its free lane and `Nothing`
-otherwise, it refused 759 calls over 525 `ci` test processes that build
-today, every one an exact tie (no in-band reading) between mutual pairs.
+`first_pair` reads the door on the prover's theorem below, in two lanes:
+- **free of `Band` where the round is all mutual**, at any `K`, and for straight, conic and along-edge germs alike;
+- **free of `Nothing` elsewhere.** There a tie between two pairs refuses (`BooleanError::JoinPairsTied`, standing `InBand`), and an in-band reading left in contention refuses on its margin.
 
-**Measured: a tie with a conic germ in the round.** 663 of 751 tied
-sets have conic tied pairs, and the other 88 have straight tied pairs
-beside another conic germ. **Not measured:** ties in a round that is
-not all mutual, and ties at `K ≤ 2`; the 525 processes are the `ci`
-sets at the default band, whose `K` exceeds 2. Freeing it needs a proof that, where a
-germ ranks its partners by travel rather than by chord, committing any
-one of a tied set of mutual pairs first gives one matching.
+**The old gate is gone.** It asked for straight germs and `K > 2`. Those premises bounded the per-germ incumbent scan that `own_nearest` replaced, and the theorem reads no chord, travel or `K`. The incumbent fold (`nearer`, `nearer_or_scan`) is gone too.
 
-**Draft proof for straight germs** (not a live declaration). Every germ
-straight, `K > 2`, and `T` the pairs tied at the round's minimum, each
-mutual; commit `P = (g, h)`.
+**Measured over the whole workspace `ci` set, both ε:**
+- about 31 000 `first_pair` calls read an exact tie, every one in an all-mutual round;
+- the 525 conic-tie processes (526 at default ε, 519 at `1e-12`) are all among them;
+- no production round that is not all mutual meets a tie or an in-band reading. Only the counterexample's pin and the premises row do.
+
+**Draft proof for straight germs** (written against the old scan, not a live declaration, and not needed by any measured round). It would free a tie in a round that is not all mutual, where every germ whose nearest lies in a committed pair ranks by chord at `K > 2`. Every germ straight, `K > 2`, and `T` the pairs tied at the round's minimum, each mutual; commit `P = (g, h)`.
 - A germ's nearest partner is decided apart from every other
   (`own_nearest` is free of nothing). On a straight germ the order
   along its line is the chord's, so for a mutual `Q = (p, q)` in `T`,
@@ -97,16 +93,8 @@ mutual; commit `P = (g, h)`.
   germs, and reach one state: the matching is free of which goes first,
   though not the run.
 
-A conic germ ranks by travel, so the first step does not hold for it.
-
-**`K > 2` in the gate.** The K-gate row
-(`at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs`) pins
-that the gate is read: on its seed-3118 fixture every rotation of the
-scan builds the same matching. The gate's `K > 2` premise bounded the
-per-germ incumbent scan that `own_nearest` replaced. Whether an
-all-mutual round needs it at all is the follow-up's to settle, on the
-prover's theorem that such a round's matching is free of the commit
-order at any `K`.
+A conic germ ranks by travel, so the first step does not hold for it
+(the counterexample below).
 
 ## The tie with a conic germ in the round (`onecopy/first-pair-conic-counterexample`, 2026-11-10)
 
@@ -142,8 +130,8 @@ Along a conic it ranks past it by travel, and the chord can be shorter.
 **Premise.** Every germ that has a nearest partner in the round is that
 partner's nearest partner: the map from each germ to its nearest
 (`own_nearest`'s result, `first_pair`'s `own`) is an involution. Call
-its pairs `S`. This is the mutual test `first_pair` already makes on
-`own` (`join.rs:2417`).
+its pairs `S`. This is the mutual test `first_pair` makes on `own` to
+choose its lane.
 
 **Theorem.** Every run from such a round that completes commits exactly
 `S`, in some order. This holds whichever pair `first_pair` commits on a
@@ -207,19 +195,20 @@ an edge (ranked by foot travel).
   lemma's "or it refuses" can hold for a germ whose dominators leave
   before its own pair is committed. The order still picks which pair
   the surgery joins first.
-- **Nothing here reads chords, travel or `K`.** So for an all-mutual
-  round, the free lane's conditions `turn.is_none()`,
-  `along.is_none()` and `band.escalate() > 2·zero` (`join.rs:2407`)
-  carry nothing.
-  - The `K > 2` step of the doc at `first_pair` bounded the old
-    incumbent scan in `keep_own`. The set rule's lemma replaces it.
+- **Nothing here reads chords, travel or `K`.** So an all-mutual round
+  is free whatever its germs and band, and `first_pair`'s free lane asks
+  no more than the involution: the old gate's straight-germ and
+  `K > 2` premises are dropped.
+  - The `K > 2` step bounded the old incumbent scan in `keep_own`. The
+    set rule's lemma replaces it.
   - The row
     `first_pair_rows::an_all_mutual_rounds_matching_is_free_of_the_commit_order`
-    shows this on the `K = 1.1` fixture. Its first round is all mutual,
-    and folded with every in-band order kept, in scan order and in
-    reverse, it commits that round's four pairs both ways.
-  - `at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs`
-    still pins today's gate, which escalates there.
+    shows this on the `K = 1.1` fixture: its first round is all mutual,
+    and `first_pair`, in scan order and in reverse, commits that round's
+    four pairs both ways.
+  - `first_pair_rows::an_in_band_order_is_free_exactly_where_the_round_is_all_mutual`
+    pins the lane: free at `K = 2` and on conic germs, escalating where a
+    germ's nearest is not mutual.
 - **Rounds that are not all mutual** (a tie among mutual pairs beside a
   germ whose nearest lies in one of them) are outside the theorem.
   - The counterexample above is one, with conic germs.
