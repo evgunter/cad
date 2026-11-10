@@ -2416,7 +2416,7 @@ fn check_4_and_the_rim_read_the_wedge_through_the_one_fold() {
         &reads,
     );
     scan(
-        "src/boolean/rim_wedge.rs",
+        "src/rim_wedge.rs",
         &[
             ("edge_wedge_over(", 1),
             ("WedgeWalk::around_circle(", 1),
