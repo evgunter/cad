@@ -66,8 +66,10 @@ crates/topo/src/splitting/finish.rs shell_side 1 pin an_in_band_edge_refuses_typ
 crates/topo/src/splitting/pieced_arc.rs contact 1 pin an_end_in_band_blocks_the_walk_but_not_the_other_end
 crates/topo/src/stands.rs insides_at 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 # ladder, the witness ladder: sweep's integration row reads it through
-# the production Boolean with a corner in band ahead of an answering one.
-crates/topo/src/stands.rs ladder 1 pin a_box_edge_resting_on_a_rim_answers_past_its_in_band_corner
+# the production Boolean. `witness_ladder::a_box_edge_resting_on_a_rim_…`,
+# its first pin, stayed green under the site-restricted mutant (red only
+# for another site); this one is red at the ladder itself.
+crates/topo/src/stands.rs ladder 1 pin a_cylinder_wall_turned_off_the_ruling_is_no_tangency
 # The entry points that take no `Answering` (`climb_agreeing`,
 # `climb_differing`): every answer supersedes the kept rungs, so each call
 # is a site. Pins found by the mutant run with only those two mutated.

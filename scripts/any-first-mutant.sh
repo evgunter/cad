@@ -12,8 +12,9 @@
 # `geom_core::ladder::climb_evidence` refuses an `Any` ladder at its first
 # kept rung (as `climb_agreeing` and `climb_differing` do), runs every
 # registered pin with the mutant restricted to that pin's own registered
-# functions (`AFM_ONLY=<file>:<lo>-<hi>`, the climb's caller read through
-# `#[track_caller]`), and fails on each one that passes (it does not pin
+# functions (the plan `AFM_PLAN`, `<pin>=<file>:<lo>-<hi>,…`, compiled into
+# the mutant build; the climb's caller read through `#[track_caller]`, the
+# running test through its thread's name), and fails on each one that passes (it does not pin
 # its site; a pin red only for another site it passes through stays green
 # here) or that no package ran (it names no test). A control run of the
 # same pins without the mutant comes first, and a pin red there fails too:
@@ -46,8 +47,7 @@ for pin in pins:
                 with open("/".join(p.split("/")[:2]) + "/Cargo.toml", "rb") as m:
                     packages.add(tomllib.load(m)["package"]["name"])
 # Each pin's sites: the line range of every registered function that
-# names it, `<file>:<lo>-<hi>`, comma-separated (`AFM_ONLY`, read by the
-# mutant in `geom_core::ladder`).
+# names it, `<file>:<lo>-<hi>`, comma-separated (the plan, `AFM_PLAN`).
 FN = re.compile(r"^(\s*)(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?fn\s+([A-Za-z_0-9]+)")
 sites = {}
 with open(sys.argv[1]) as fh:
@@ -101,25 +101,13 @@ run() { # run LOG [RUSTFLAGS…]: every pin, its outcomes to LOG
 # some other reason (a main red), so its red under the mutant says
 # nothing about the mutant; it fails here instead.
 run "$control"
-# The mutant, in its own target dir so it does not rebuild the plain one:
-# each pin run alone, with the mutant firing only at its own registered
-# sites (`AFM_ONLY`), so a pin red only for another site it passes through
-# stays green and fails.
-mutant_target="${CARGO_TARGET_DIR:-target}/any-first-mutant"
-: >"$mutant"
-for entry in $sites; do
-  pin=${entry%%=*}
-  only=${entry#*=}
-  one=$(mktemp)
-  set +e
-  AFM_ONLY="$only" RUSTFLAGS="${RUSTFLAGS:-} --cfg any_first_mutant" CARGO_TARGET_DIR="$mutant_target" \
-    cargo nextest run "${args[@]}" --no-fail-fast --run-ignored all --ignore-default-filter \
-    --success-output never --failure-output never \
-    -E "test(/::$pin\$/)" >"$one" 2>&1
-  set -e
-  cat "$one" >>"$mutant"
-  rm -f "$one"
-done
+# The mutant, in its own target dir so it does not rebuild the plain one,
+# built with the plan (`AFM_PLAN`, read by `geom_core::ladder` at compile
+# time): each pin's own registered sites, so a pin fires the mutant only
+# there, and one red only for another site it passes through stays green
+# and fails.
+plan=$(tr ' ' ';' <<<"$sites")
+AFM_PLAN="$plan" CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-target}/any-first-mutant" run "$mutant" --cfg any_first_mutant
 
 python3 - "$control" "$mutant" $pins <<'PY'
 import re, sys

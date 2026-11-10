@@ -610,15 +610,22 @@ fn next_rung<I, A, E>(
 }
 
 /// **Where the first-refusal mutant fires** (`scripts/any-first-mutant.sh`):
-/// everywhere, or, where `AFM_ONLY` lists `<file>:<lo>-<hi>` ranges
-/// (comma-separated), only at a climb whose caller lies in one, so a pin
-/// is run against its own site's ladders alone.
+/// everywhere, unless the mutant build was given a plan (`AFM_PLAN`, read
+/// at compile time: `<pin>=<file>:<lo>-<hi>,…;…`). Then only at a climb
+/// whose caller lies in a range the running test's own entry lists, the
+/// test named by its thread (libtest names it after the test), so a pin
+/// is run against its own site's ladders alone. A climb on another thread
+/// does not fire, which reads as a pin that does not pin: loud, not silent.
 #[cfg(any_first_mutant)]
 fn mutant_fires(caller: &std::panic::Location<'_>) -> bool {
-    let Ok(only) = std::env::var("AFM_ONLY") else {
+    let Some(plan) = option_env!("AFM_PLAN") else {
         return true;
     };
-    only.split(',').any(|range| {
+    let thread = std::thread::current();
+    let Some(test) = thread.name().and_then(|name| name.rsplit("::").next()) else {
+        return false;
+    };
+    let within = |range: &str| {
         let Some((file, lines)) = range.rsplit_once(':') else {
             return false;
         };
@@ -629,7 +636,11 @@ fn mutant_fires(caller: &std::panic::Location<'_>) -> bool {
             return false;
         };
         caller.file() == file && (lo..=hi).contains(&caller.line())
-    })
+    };
+    plan.split(';')
+        .filter_map(|entry| entry.split_once('='))
+        .filter(|&(pin, _)| pin == test)
+        .any(|(_, ranges)| ranges.split(',').any(within))
 }
 
 /// **The runs a ladder has read, held in rung order** until its outcome

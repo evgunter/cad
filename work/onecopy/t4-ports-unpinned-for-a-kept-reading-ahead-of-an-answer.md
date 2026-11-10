@@ -81,7 +81,7 @@ The 19 beyond the seven above (18 at filing, and `loop_circle` since), each with
 
 ## Pinned in batch 1 (`onecopy/refusal-standing`, after PR 6774)
 
-Seven sites, each checked under `scripts/any-first-mutant.sh` (green plain, red mutated). The two found by a probe were also checked under a mutant restricted to their own call site (not committed): `#[track_caller]` on the entry points and an `AFM_ONLY=<file>:<line>:` filter, so the mutant fires only where the climb's caller is that line.
+Seven sites, each checked under `scripts/any-first-mutant.sh` (green plain, red mutated). Since PR 6783's review the script runs every pin with the mutant restricted to its own registered sites (the plan `AFM_PLAN`, compiled in; the caller read through `#[track_caller]`), so a test red only for another site it passes through fails as a pin.
 - `chord_join::ring_side`: `sibling_escalation_rows::a_planar_ring_vertex_escalating_hands_re_homing_to_the_next`, red under its own site's mutant.
 - `splitting::finish::shell_side`: `whole_body_side_rows::an_in_band_edge_refuses_typed_only_where_no_edge_decides`, red under its own site's mutant.
 - `slit::holding`'s ladder is `pieces_hold` (its pieces' readings, lazily), pinned by `piece_rung_rows::an_unread_piece_refuses_ahead_of_an_earlier_in_band_one`, which now calls it.
