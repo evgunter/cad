@@ -1004,6 +1004,29 @@ pub enum Undecided<E> {
     Aborts(E),
 }
 
+impl<C, E> Unpicked<C, E> {
+    /// **The one refusal a caller makes of a minimum not picked**, where
+    /// its tie is a refusal of the same kind as its readings': the first
+    /// in-band reading, or the abort, carried; a tie among the members
+    /// `tied`, the caller's own cause; a cycle `cyclic`, the caller's
+    /// fault. A caller whose tie answers otherwise (a `None`, a verdict
+    /// of its own) or that tells an in-band reading from an abort reads
+    /// [`Unpicked`] itself.
+    pub fn refusal(self, tied: impl FnOnce(Vec<C>) -> E, cyclic: impl FnOnce() -> E) -> E {
+        match self {
+            Self::Contested {
+                in_band: Some(e), ..
+            }
+            | Self::Aborted(e) => e,
+            Self::Contested {
+                members,
+                in_band: None,
+            } => tied(members),
+            Self::Cyclic => cyclic(),
+        }
+    }
+}
+
 impl Undecided<Indeterminate> {
     /// **The one classifier of an undecided reading for
     /// [`argmin_decided`]**: in band ([`in_band`]) is kept, and a later

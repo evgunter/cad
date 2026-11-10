@@ -107,3 +107,5 @@ per-germ incumbent scan that `own_nearest` replaced. Whether an
 all-mutual round needs it at all is the follow-up's to settle, on the
 prover's theorem that such a round's matching is free of the commit
 order at any `K`.
+
+**The folds left outside the door** are registered in `scripts/gates/argmin-folds.tsv`, each with its class and its proof at the site (`onecopy/argmin-one-home`). The gate reds a new fold, and a stale row. One class, `lex-total` (`profile::validate::lex_min_index`), is a minimum under a strict total order on what the fold reads, where n − 1 reads find the door's answer. **When a second site has that premise, it ports into a strict-total-order mode of the door, not a second register row.**

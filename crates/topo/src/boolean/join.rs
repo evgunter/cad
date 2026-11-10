@@ -176,7 +176,7 @@ use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
 use geom_core::Tol;
-use geom_core::ladder::{Climb, FreeOf, Rung, Undecided, Unpicked, argmin_decided, climb_agreeing};
+use geom_core::ladder::{Climb, FreeOf, Rung, Undecided, argmin_decided, climb_agreeing};
 
 /// The K funnel name of a germ plane's normal-length decision: the
 /// boolean reads a plane carrier's normal into the section lanes, and
@@ -2049,19 +2049,18 @@ fn nearest_of<T: Decide, C>(
     cands: Vec<(PartnerDistance<T>, C)>,
     sign: impl Fn(PartnerDistance<T>, PartnerDistance<T>) -> Result<Sign, BooleanError>,
 ) -> Result<Option<(PartnerDistance<T>, C)>, BooleanError> {
-    match argmin_decided(cands, |a, b| sign(a.0, b.0).map_err(kept), FreeOf::Nothing) {
-        Ok(nearest) => Ok(nearest),
-        Err(
-            Unpicked::Contested {
-                in_band: Some(e), ..
-            }
-            | Unpicked::Aborted(e),
-        ) => Err(*e),
-        Err(Unpicked::Contested { in_band: None, .. }) => Err(BooleanError::JoinPartnersTied),
-        Err(Unpicked::Cyclic) => Err(BooleanError::ClassificationInvariant {
-            what: "the join's nearest-partner comparison ranks in a cycle",
-        }),
-    }
+    argmin_decided(cands, |a, b| sign(a.0, b.0).map_err(kept), FreeOf::Nothing).map_err(
+        |unpicked| {
+            *unpicked.refusal(
+                |_| Box::new(BooleanError::JoinPartnersTied),
+                || {
+                    Box::new(BooleanError::ClassificationInvariant {
+                        what: "the join's nearest-partner comparison ranks in a cycle",
+                    })
+                },
+            )
+        },
+    )
 }
 
 /// **Which of two germs' nearest partners [`first_pair`] commits

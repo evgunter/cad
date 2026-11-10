@@ -385,9 +385,7 @@
 
 use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
-use geom_core::ladder::{
-    Answering, Climb, FreeOf, Rung, Undecided, Unpicked, argmin_decided, climb,
-};
+use geom_core::ladder::{Answering, Climb, FreeOf, Rung, Undecided, argmin_decided, climb};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, NOT_YET_ENDING, Real,
     Sign, Tol,
@@ -5389,15 +5387,14 @@ impl<T: Decide> MovedWall<T> {
                 )
                 .map_err(Undecided::of)
             };
-            let least = match argmin_decided(i..crossings.len(), cmp, FreeOf::Band) {
-                Ok(Some(least)) => least,
-                Ok(None) => unreachable!("a pass over a non-empty rest has a candidate"),
-                Err(Unpicked::Aborted(diag)) => return Err(diag),
-                Err(Unpicked::Contested { .. }) => {
-                    unreachable!("free of ties and in-band readings, an argmin picks")
-                }
-                Err(Unpicked::Cyclic) => unreachable!("one height's difference ranks in no cycle"),
-            };
+            let least = argmin_decided(i..crossings.len(), cmp, FreeOf::Band)
+                .map_err(|unpicked| {
+                    unpicked.refusal(
+                        |_| unreachable!("free of ties and in-band readings, an argmin picks"),
+                        || unreachable!("one height's difference ranks in no cycle"),
+                    )
+                })?
+                .unwrap_or_else(|| unreachable!("a pass over a non-empty rest has a candidate"));
             crossings.swap(i, least);
         }
         // Parity over closed loops: every vertex has one side, so each
