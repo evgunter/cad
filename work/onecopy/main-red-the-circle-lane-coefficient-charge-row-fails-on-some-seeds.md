@@ -2,8 +2,9 @@
 id: main-red-the-circle-lane-coefficient-charge-row-fails-on-some-seeds
 kind: issue
 title: geom-brep's circle_lane_rows coefficient-charge fuzz row fails on some seeds, on main and every PR's ci
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-10
 ---
 
 
