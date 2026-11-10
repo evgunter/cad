@@ -5182,6 +5182,40 @@ mod tests {
             "a sphere's lever does not depend on the reach"
         );
     }
+
+    /// **A sector not holding the line answers past one in band**
+    /// ([`rays_within`], `Any`). The quarter sector from `−y` to `x`, and
+    /// the line `5e-9` past its `x` bound: both rays read in band of it,
+    /// the bound being a line. Then the eighth from `y` toward `−x`, off
+    /// the line both ways, which both rays are clearly outside. Both
+    /// read `false`, each answering at the second sector past the first
+    /// in band. A first-refusal loop refused at
+    /// the first sector.
+    #[test]
+    fn a_sector_not_holding_the_line_answers_past_one_in_band() {
+        let b = band();
+        let z = [0.0, 0.0, 1.0];
+        let first = sector([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], z);
+        let h = core::f64::consts::FRAC_1_SQRT_2;
+        let second = sector([0.0, 1.0, 0.0], [-h, h, 0.0], z);
+        let m = Vec3::new(1.0, 5e-9, 0.0);
+        for d in [m, -m] {
+            assert!(
+                within(&first, d, false, DeclarationRead::Moot, b).is_err(),
+                "each ray reads in band of the first sector"
+            );
+        }
+        assert_eq!(
+            rays_within(
+                Leaned::of_line(m),
+                &[&first, &second],
+                DeclarationRead::Moot,
+                b
+            )
+            .unwrap(),
+            (false, false)
+        );
+    }
 }
 
 /// **A spline leaves a vertex along its tangent, not its chord.** The

@@ -1343,6 +1343,87 @@ mod tests {
             "a whole turn"
         );
     }
+
+    /// A region whose edges read as `read` says, by the edge's cycle:
+    /// the production [`Region::on_boundary`] over stubbed edge readings.
+    struct Stubbed {
+        edges: Vec<RegionEdge<f64>>,
+        read: fn(usize) -> Result<bool, RegionRefusal>,
+    }
+
+    impl Region<f64> for Stubbed {
+        fn edges(&self) -> &[RegionEdge<f64>] {
+            &self.edges
+        }
+        fn edges_mut(&mut self) -> &mut Vec<RegionEdge<f64>> {
+            &mut self.edges
+        }
+        fn outer(&self) -> LoopKey {
+            LoopKey::default()
+        }
+        fn on_edge(
+            &self,
+            edge: &RegionEdge<f64>,
+            _: Point3<f64>,
+            _: Band,
+        ) -> Result<bool, RegionRefusal> {
+            (self.read)(edge.cycle)
+        }
+    }
+
+    fn in_band() -> Indeterminate {
+        Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: b(),
+            predicate: Some("test_region_in_band"),
+            terminal_sliver: false,
+        }
+    }
+
+    /// **An edge holding the point answers past an edge in band**
+    /// ([`Region::on_boundary`], `Any`), and an abort stops the climb.
+    /// Two edges, read in order: the first in band, the second holding
+    /// `p`, answers `true`; a first-refusal loop refused with the first's
+    /// escalation. A wound-past-a-period edge ahead aborts whatever
+    /// follows (`RegionRefusal::refusal`'s row 4), and two edges in band
+    /// refuse with the escalation.
+    #[test]
+    fn an_edge_holding_the_point_answers_past_one_in_band() {
+        let two = |read| Stubbed {
+            edges: [0, 1]
+                .map(|cycle| RegionEdge {
+                    cycle,
+                    ..x_segment(0.0, 1.0)
+                })
+                .into(),
+            read,
+        };
+        let p = Point3::new(0.5, 0.0, 0.0);
+        let kept_then_on: fn(usize) -> _ = |i| {
+            if i == 0 {
+                Err(RegionRefusal::Escalated(in_band()))
+            } else {
+                Ok(true)
+            }
+        };
+        assert_eq!(two(kept_then_on).on_boundary(p, b()), Ok(true));
+        let abort_then_on: fn(usize) -> _ = |i| {
+            if i == 0 {
+                Err(RegionRefusal::WoundPastPeriod)
+            } else {
+                Ok(true)
+            }
+        };
+        assert_eq!(
+            two(abort_then_on).on_boundary(p, b()),
+            Err(RegionRefusal::WoundPastPeriod)
+        );
+        let both_kept: fn(usize) -> _ = |_| Err(RegionRefusal::Escalated(in_band()));
+        assert!(matches!(
+            two(both_kept).on_boundary(p, b()),
+            Err(RegionRefusal::Escalated(_))
+        ));
+    }
 }
 
 /// [`RegionRefusal::refusal`] as each variant's image in the point-in-loop

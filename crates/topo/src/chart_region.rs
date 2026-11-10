@@ -5393,6 +5393,33 @@ mod tests {
             }
         }
     }
+
+    /// **A vertex inside answers past a vertex in band**
+    /// ([`polygon_relation`], `First`, under its boundaries-do-not-cross
+    /// premise). The unit square, and a polygon whose first vertex lies
+    /// `5e-9` off the square's right edge (in band) and whose next vertex
+    /// is inside: the relation is `In`. A first-refusal loop escalated at
+    /// the first vertex.
+    #[test]
+    fn a_vertex_inside_answers_past_a_vertex_in_band() {
+        let sq = rect(0.0, 0.0, 1.0, 1.0);
+        let of = [
+            Point2::new(1.0 + 5e-9, 0.5),
+            Point2::new(0.5, 0.5),
+            Point2::new(0.5, 0.25),
+        ];
+        assert!(
+            matches!(
+                point_in_polygon(&sq, of[0], band()),
+                Err(ChartRegionError::Escalated(_))
+            ),
+            "the first vertex reads in band"
+        );
+        assert_eq!(
+            polygon_relation(&of, &sq, band()).unwrap(),
+            Some(PolyContainment::In)
+        );
+    }
 }
 
 /// The certified INF-arm rows: the per-kind lower stretch bounds the
