@@ -192,7 +192,7 @@ fn thorn<T: Decide>(p: Point3<T>, keys: [EdgeKey; 3], void: bool) -> Vec<Tangent
 /// read, a ring is closed that does not close, or two thorns are taken
 /// apart that lie along one ray.
 fn a_ring_of_horns_reads_as_its_thorn<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let rest = |v: &TouchVerdict| matches!(v, TouchVerdict::Rest(_));
     for p in apexes::<T>() {
         let k = edges(6);
@@ -388,7 +388,7 @@ fn a_grooves_mouth<T: Decide>(p: Point3<T>) -> Vec<TangentPiece<T>> {
 /// read apart that meet, a half-line's direction or anchor is read the
 /// other way, or a whole cusp is read as a horn.
 fn sheets_along_one_ray_part_by_their_bends<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let rest = |v: &TouchVerdict| matches!(v, TouchVerdict::Rest(_));
     for p in apexes::<T>() {
         assert!(
@@ -482,7 +482,7 @@ fn thin_thorn<T: Decide>(
 /// plane is read as one of the picture, or a vertex on a side's line is
 /// passed.
 fn a_thorn_is_read_with_its_first_order_charged<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let (zero, escalate) = (band().zero(), band().escalate());
     // `B` stands `β` across: at the arm `l = 2` its parting is `2β`.
     let beta = (escalate + 0.5 * zero) / 2.0;
@@ -575,7 +575,7 @@ fn a_sheet_along_anothers_line_is_read_with_its_lean_charged<T: Decide>() {
         );
         assert_eq!(
             read(p, two_wedges_tilted(p, rise, 0.45 * zero)),
-            TouchVerdict::Unread(TouchUnread::Unreadable),
+            TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable)),
             "two wedges, one leaning toward the other's line, at {p:?}"
         );
     }
@@ -656,7 +656,7 @@ fn a_fin_on_a_plane<T: Decide>(p: Point3<T>) -> Vec<TangentPiece<T>> {
 /// charge is witnessed near the origin: a kilometre off, on `Interval` at
 /// the finest band, the leaning arc refuses with or without it.
 fn what_one_order_down_leaves_unread_stays_unread<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let (zero, escalate) = (band().zero(), band().escalate());
     let up = (escalate + 0.5 * zero) / 2.0;
     for p in apexes::<T>() {
@@ -724,7 +724,7 @@ fn ring<T: Decide>(p: Point3<T>, pts: &[[f64; 2]]) -> Option<Vec<TangentPiece<T>
 /// Red where a vertex's side of one face is not held to the side read
 /// for the others.
 fn a_ring_of_horns_is_read_only_as_a_convex_thorn<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     for p in apexes::<T>() {
         // Clockwise in (y, z): left normals point out, a thorn of material.
         let cw = |pts: &[[f64; 2]]| pts.iter().rev().copied().collect::<Vec<_>>();
@@ -876,7 +876,7 @@ fn a_cusp_is_parted_only_past_the_escalation_interval() {
 /// longer clears it: it refuses, alone and beside the plane. Red where a
 /// horn's vertex is left out of the cone's tie.
 fn a_thorn_is_read_over_the_tie_of_its_horns<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let (zero, escalate) = (band().zero(), band().escalate());
     let beta = (escalate + 0.5 * zero) / 2.0;
     let rest = |v: &TouchVerdict| matches!(v, TouchVerdict::Rest(_));

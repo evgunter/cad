@@ -2268,14 +2268,21 @@ const fn listed(why: crate::validate::EdgeTangentUnread) {
     }
 }
 
-/// Every touch reason, each normal abort's row among them (the variant
-/// carries no default, so `TouchUnread::iter` passes it over).
+/// Every touch reason, each normal abort's row and each curved cause
+/// among them (`TouchUnread::iter` takes a payload's default only, so it
+/// passes the rest over).
 fn touch_reasons() -> impl Iterator<Item = crate::link::TouchUnread> {
-    crate::link::TouchUnread::iter().chain(
-        core::iter::once(crate::face_normal::NormalAbort::KernelFault)
-            .chain(crate::face_normal::NORMAL_INVALID_INPUTS)
-            .map(crate::link::TouchUnread::NormalFault),
-    )
+    crate::link::TouchUnread::iter()
+        .chain(
+            core::iter::once(crate::face_normal::NormalAbort::KernelFault)
+                .chain(crate::face_normal::NORMAL_INVALID_INPUTS)
+                .map(crate::link::TouchUnread::NormalFault),
+        )
+        .chain(
+            crate::link::CurvedUnread::iter()
+                .filter(|&c| c != crate::link::CurvedUnread::default())
+                .map(crate::link::TouchUnread::Curved),
+        )
 }
 
 #[cfg(test)]
