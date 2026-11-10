@@ -48,7 +48,6 @@ use pncad::geom_core::{Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::AtRestBody;
 use pncad::topo::Body;
 
 /// The scene's meridian, in units of `1/64` m before scaling: foot
@@ -81,6 +80,7 @@ fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// The scene's vessel at `scale`, about `centre_rho·scale`. `scale` is
@@ -173,7 +173,7 @@ fn sense_of(centre_rho: f64) -> f64 {
 fn stored_minors(body: &Body<f64>) -> Vec<u64> {
     let mut out: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
@@ -221,7 +221,7 @@ fn sense_row(centre_rho: f64, winding: ArcSweep, scale: f64, what: &str) {
     for k in [1.0_f64, 2.0, 3.0, 4.0] {
         let t = scale * k / 128.0;
         let hollow = pncad::topo::shell(
-            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
             t,
             tol,
         )
@@ -320,7 +320,7 @@ fn one_body_carrying_both_senses_moves_each_chart_its_own_way() {
 
     let t = 1.0 / 128.0;
     let hollow = pncad::topo::shell(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
         t,
         tol,
     )

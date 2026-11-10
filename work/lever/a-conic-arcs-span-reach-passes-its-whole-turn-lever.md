@@ -2,8 +2,9 @@
 id: a-conic-arcs-span-reach-passes-its-whole-turn-lever
 kind: issue
 title: span_reach_hunt finds a thin ellipse arc of nearly two turns whose span reach passes its whole-turn lever (Reach::span_reach_from > Reach::lever_from)
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-09
 priority: P3
 cost: E
 ---
@@ -53,6 +54,13 @@ Moved from `work/issues/` to `work/lever/` on 2026-11-03, when the `work/issues/
 
 **A witness, an ellipse of equal semi-axes (ONECOPY frame-readings lane, PR 6463).** Seed `CAD_FUZZ_SEED=0x8b7ff4d7a91c64d1 CAD_FUZZ_EFFORT=1`: an ellipse with equal semi-axes `1000` over `[8.5169, 17.5946]` (more than a turn), read from its own centre. `span_reach_from` gives `1000.0000000000002`, one ulp past `lever_from`'s `1000`. It reproduces on main with the same numbers, so the defect is not a thin ellipse's alone. Over a turn or more the two covers read the whole conic from different window starts, and their rounding differs by an ulp. Once fixed, pin this seed as a deterministic row.
 
+**Folded in from SCALAR's `a-unit-ellipse-arcs-span-reach-passes-its-whole-turn-by-an-ulp` (2026-11-04, `onecopy/foot-certificate`, PR 6483's review).** That row read the same third assertion of the same test, so it is deleted and its evidence lives here:
+- Its first witness (ONEDOOR's wedge-fold lane, `cargo nextest run -p geom-brep --all-features`): a unit circle (an ellipse, `semi_u = semi_v = 1`) about the origin, axis `(-0.03969, 0.75295, 0.65688)`, over `[3.660488584391903, 3.6604896604454873]` (about 1e-6 wide), read from its centre. `span_reach_from` gives `1.0000000000000002` against `lever_from`'s `1.0`. Reproduce with `CAD_FUZZ_SEED=0xc543ab8c865d550e CAD_FUZZ_EFFORT=1`. That row noted that the test's other two assertions carry a `16·ε·scale` tolerance and this one carries none.
+- A circle of radius 1000 (`semi_u = semi_v = 1000`), over `[-9.77, 0.935]`, more than a turn, read from its centre: `1000.0000000000002`. `CAD_FUZZ_SEED=0x638e2db0bd762c87`.
+- An ellipse `semi_u = 1000`, `semi_v = 44.71`, over `[9.6126, 12.3840]`, under half a turn: `1000.0000000000001` passes the whole turn. `CAD_FUZZ_SEED=0x13cb24d6ae40c408`, reproduced here.
+- `CAD_FUZZ_SEED=0xb00ab0bb194042ff` (PR 6483's fix-pass `geom-brep` run): `1.0000000000000002` passes the whole turn.
+- `CAD_FUZZ_SEED=0x1d0f25bef65ecd3b` (the same run's rerun on `5a524e418`): `1000.0000000000001` passes the whole turn.
+
 **A second seed** (ONECOPY `onecopy/angle-reads`, 2026-11-03), found by a
 local full geom-brep run and reproducible with `CAD_FUZZ_SEED=0xd54786f7cb0d235c
 CAD_FUZZ_EFFORT=1` (`--features test-support`): a thin ellipse
@@ -62,3 +70,23 @@ CAD_FUZZ_EFFORT=1` (`--features test-support`): a thin ellipse
 over `[6.778616771278262, 18.0108665539107]`, from the origin, fails the
 same third assertion. Neither side of the comparison reads anything that
 branch changed.
+
+## Another seed (2026-11-09, `onecopy/typed-reasons`)
+
+Red on `onecopy/typed-reasons` at main `0c540ab8` plus a diff that touches
+neither `extent` nor `cover`: `span_reach_hunt`'s
+`a_conic_arcs_span_reach_is_never_short_of_its_farthest_point`
+(`span_reach_hunt.rs:133`, "1 passes the whole turn"). The unit
+circle again (an `Ellipse` with `semi_u = semi_v = 1`), over
+`[3.051601505932741, 9.97795873936163]` (past a whole turn), pivot its
+centre `(0.8639433538009402, 0.47549612493460675, 0.1658472688812101)`.
+
+```
+CAD_FUZZ_SEED=0x2c1c182ae01fe745 CAD_FUZZ_EFFORT=1 \
+  cargo test -p geom-brep --all-features --test all -- \
+  span_reach_hunt::a_conic_arcs_span_reach_is_never_short_of_its_farthest_point
+```
+
+## Closed (BOXES, `boxes/nightly-reds`, 2026-11-09)
+
+Caused by BOXES' PR 6399 (`boxes/cover-edge-doors`). It made `Reach::span_reach` read the span's cover (`cover_far`) and dropped the clamp to the whole turn's reach (`.min(|c − p| + r)`) that the circle and ellipse arms had held, and with it the doc's "never past `lever_from`". At `c036d7ae88^1` the hunt is green on 400 of 400 seeds; at `c036d7ae88` it is red on 400 of 400. `span_reach` now takes the lesser of the span's cover and the whole conic's (`reach_from`), both sound upper bounds of the arc's far distance. The hunt is green on 400 of 400 seeds and on every seed recorded in these rows, `0x2c1c182ae01fe745` included. Two witnesses from the 11-09 nightly are pinned as `span_reach_hunt::an_arc_read_from_its_centre_is_never_past_the_whole_turn`, red without the clamp.

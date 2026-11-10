@@ -2,7 +2,9 @@
 id: blend-sheet-clip-picks-its-coaxial-arm-on-a-bracket
 kind: issue
 title: sweep::blend::reach::sheet_clip picks its sphere and cone arms by reading a bracket's hi() against the band zero, so a bracket decides which construction runs
-status: open
+status: closed
+closed: 2026-11-09
+pr: 6588
 opened: 2026-11-02
 priority: P3
 cost: E
@@ -29,3 +31,10 @@ the cone's apex on it and its axis along it), or retiring the per-kind
 match altogether if BOXES' extent home lands (`work/boxes/log.md`,
 2026-11-02): `sheet_clip`'s edge match is one of the per-kind doors that
 design folds into one cover per face.
+
+## Closed (2026-11-09, PR 6588)
+
+Retired with the per-kind match: `sheet_clip` reads topo's face cover
+along the sheet axis (`topo::face_cover_toward`, `topo::face_nearest`),
+so no arm is chosen and no bracket decides a lane (BOXES
+`cover-app-readers`).

@@ -50,6 +50,14 @@ pub struct KnotSpan<'a, T> {
 }
 
 impl<T: SpanLocate> Knots<T> {
+    /// **The breakpoints as `f64`s** ([`Self::breakpoints`] on the value
+    /// channel), or `None` where one is no finite point: the cuts a caller
+    /// that walks pieces in `f64` reads.
+    pub fn breakpoint_values(&self) -> Option<Vec<f64>> {
+        let out: Vec<f64> = self.breakpoints().map(SpanLocate::value_channel).collect();
+        out.iter().all(|x| x.is_finite()).then_some(out)
+    }
+
     /// **The vector a knot-algebra plan is decided against** (C6 S5b):
     /// each run's value where it is a point, so at point knots it is
     /// the knots' own `f64` vector, bit for bit, borrowed; and where a
@@ -76,7 +84,7 @@ impl<T: SpanLocate> Knots<T> {
             let (lo, hi) = value
                 .structure_bracket()
                 .ok_or(SplineError::KnotIsPoison { index })?;
-            knots.extend(core::iter::repeat_n(f64::midpoint(lo, hi), m));
+            knots.extend(core::iter::repeat_n(crate::mid_param(lo, hi), m));
         }
         Ok(Cow::Owned(KnotVector::from_algebra(knots, self.degree())))
     }
@@ -150,8 +158,9 @@ impl<T: SpanLocate> Knots<T> {
     /// # Errors
     ///
     /// [`SplineError::DomainInvalid`] as [`KnotVector::on_domain`];
-    /// otherwise [`Self::new`]'s refusals. Two breakpoints that
-    /// rounding collapses onto one value refuse
+    /// otherwise [`Self::new`]'s refusals, among them `PastHalfMax` for
+    /// an end past [`KNOT_MAGNITUDE_MAX`](super::KNOT_MAGNITUDE_MAX).
+    /// Two breakpoints that rounding collapses onto one value refuse
     /// ([`SplineError::KnotRunsNotIncreasing`]) rather than merge, and
     /// at an enclosure scalar two whose mapped enclosures overlap
     /// refuse undecided ([`SplineError::KnotRunsUndecided`]).
@@ -195,7 +204,10 @@ impl<T: SpanLocate> Knots<T> {
     ///   is poison;
     /// - [`SplineError::KnotVectorInvalid`] (`NonFinite`, at the run's
     ///   first knot) for one that reaches past the finite numbers, as
-    ///   [`KnotVector::clamped`] refuses a non-finite knot;
+    ///   [`KnotVector::clamped`] refuses a non-finite knot, and
+    ///   (`PastHalfMax`, there too) for one whose bracket reaches past
+    ///   [`KNOT_MAGNITUDE_MAX`](super::KNOT_MAGNITUDE_MAX), the clause
+    ///   `clamped` reads;
     /// - [`SplineError::KnotRunsNotIncreasing`] for the first run that
     ///   is not above its predecessor for any value they stand for: two
     ///   breakpoints that read as one number would merge into one run,
@@ -220,6 +232,14 @@ impl<T: SpanLocate> Knots<T> {
             if !value.is_bounded() {
                 return Err(SplineError::KnotVectorInvalid {
                     reason: super::knots::KnotVectorIssue::NonFinite { index: at },
+                });
+            }
+            if value
+                .structure_bracket()
+                .is_some_and(super::knots::bracket_past_half_max)
+            {
+                return Err(SplineError::KnotVectorInvalid {
+                    reason: super::knots::KnotVectorIssue::PastHalfMax { index: at },
                 });
             }
             at += multiplicity;
@@ -342,7 +362,7 @@ impl<T: SpanLocate> Knots<T> {
 /// it holds for none, [`SplineError::KnotRunsUndecided`] with the step's
 /// enclosure where it holds for some.
 fn runs_ascend<T: SpanLocate>(a: T, b: T, index: usize) -> Result<(), SplineError> {
-    if super::locate::structure_ascends(a, b) {
+    if crate::structure_ascends(a, b) {
         return Ok(());
     }
     let step = b - a;
@@ -460,13 +480,21 @@ impl<T: Real> Knots<T> {
         })
     }
 
+    /// **The distinct breakpoints, ascending, clamps included**: where the
+    /// spline's Bézier pieces begin and end, each once. The one statement
+    /// of a piece boundary; a split at [`Self::values`] (every knot,
+    /// repeated) doubles a boundary at a multiple knot.
+    pub fn breakpoints(&self) -> impl Iterator<Item = T> + '_ {
+        self.runs().map(|(v, _)| v)
+    }
+
     /// **The creases as held**: the value of each interior run of
     /// multiplicity at least the degree
     /// ([`KnotStructure::crease_runs`](super::KnotStructure::crease_runs)),
     /// ascending. The one statement of where a spline has no derivative
     /// inside its domain, read as values.
     pub fn crease_values(&self) -> Vec<T> {
-        let values: Vec<T> = self.runs().map(|(v, _)| v).collect();
+        let values: Vec<T> = self.breakpoints().collect();
         self.structure.crease_runs().map(|r| values[r]).collect()
     }
 

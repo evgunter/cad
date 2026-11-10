@@ -44,7 +44,7 @@ use topo::{Body, FaceKey, ValidationError, validate_geometric};
 fn faces_where(body: &Body<f64>, pred: fn(&Surface<f64>) -> bool) -> Vec<(FaceKey, bool)> {
     body.faces()
         .filter_map(|(k, f)| {
-            let s = body.get_surface(f.surface)?;
+            let s = body.face_surface(k)?;
             pred(s).then_some((k, f.sense))
         })
         .collect()
@@ -102,6 +102,7 @@ fn countersink() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Cylinder, both directions: the washer's outer wall (T→F) and its

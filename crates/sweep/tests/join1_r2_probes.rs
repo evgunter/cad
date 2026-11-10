@@ -40,6 +40,7 @@ fn prism(origin: Point3<f64>, x: Vec3<f64>, y: Vec3<f64>, pts: &[(f64, f64)], h:
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn zprism(pts: &[(f64, f64)], z: (f64, f64)) -> Body<f64> {
@@ -68,6 +69,7 @@ fn rod() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn seg(d: f64) -> f64 {

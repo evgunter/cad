@@ -23,7 +23,7 @@ use crate::m10_p_fence::{Outcome, Seen, walk};
 
 /// Print the fence's walk at `T`, tagging every line with `lane`.
 /// `coord` prints one body point, `scalar` one fixture scalar.
-fn dump<T: editor_core::EvalScalar>(
+fn dump<T: editor_core::test_support::AnyEvaluate>(
     lane: &str,
     coord: impl Fn(&str, &geom_core::Point3<T>),
     scalar: impl Fn(&str, T),

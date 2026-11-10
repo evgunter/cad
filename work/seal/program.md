@@ -2,7 +2,7 @@
 id: seal
 kind: program
 title: SEAL — only the funnel mints an Indeterminate, and the declared-contact contradictions in the seal's way
-status: ready
+status: active
 opened: 2026-11-01
 group: kernel/boolean/split
 prefix: seal/

@@ -68,6 +68,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .expect("the prism extrudes")
     .body
+    .into_body()
 }
 
 /// **The material oracle**: on a CONVEX body, every face's sensed
@@ -86,7 +87,7 @@ fn assert_every_face_outward(body: &Body<f64>) {
     );
     for (fk, _) in body.faces() {
         let f = body.get_face(fk).expect("a face");
-        let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+        let Some(Surface::Plane { origin, normal, .. }) = body.face_surface(fk) else {
             panic!("face {fk:?}: every face of these fixtures is a plane");
         };
         let outward = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
@@ -123,9 +124,8 @@ fn assert_chamfer_shape(body: &Body<f64>, census: (usize, usize, usize)) {
         "Euler–Poincaré: one closed shell, no rings, genus 0"
     );
     for (k, _) in body.faces() {
-        let fd = body.get_face(k).expect("a face");
         assert!(
-            matches!(body.get_surface(fd.surface), Some(Surface::Plane { .. })),
+            matches!(body.face_surface(k), Some(Surface::Plane { .. })),
             "face {k:?} is not a plane"
         );
     }
@@ -577,16 +577,14 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
     );
     // Every edge except the concave one over the reflex corner (1,1).
     let concave = |k: EdgeKey| {
-        let e = bracket.get_edge(k).unwrap();
-        let h = bracket.get_half_edge(e.he_plus).unwrap();
-        let end = bracket.half_edge_end(e.he_plus).unwrap();
+        let (start, end) = bracket.edge_vertices(k).unwrap();
         let at = |v| {
             let p = bracket
                 .get_point(bracket.get_vertex(v).unwrap().point)
                 .unwrap();
             (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12
         };
-        at(h.start) && at(end)
+        at(start) && at(end)
     };
     let edges: Vec<EdgeKey> = bracket
         .edges()

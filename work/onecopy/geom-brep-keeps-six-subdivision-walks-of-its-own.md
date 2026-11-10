@@ -2,10 +2,14 @@
 id: geom-brep-keeps-six-subdivision-walks-of-its-own
 kind: issue
 title: geom-brep keeps six subdivision walks with their own stacks and depth caps beside topo's one bisection core
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: M
+closed: 2026-11-06
+branch: onecopy/spline-walks
+refs: [geom-brep-keeps-eight-more-subdivision-walks-of-its-own]
+pr: 6563
 ---
 
 Found by FUSE's sweep for `the-localization-core-is-half-unified`

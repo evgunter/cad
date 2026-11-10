@@ -30,3 +30,11 @@ escalates in band. Found by the `linalg/decided-not-minted` sweep for
 the hand Gram–Schmidt shape (`- a * a.dot(x)).normalize()`); the
 `linalg` branch fixed the same shape in `geom-brep`'s
 `torus_meridian_orient`.
+
+## Callers (2026-11-04)
+
+`onecopy/p0-sheared-fillet` adds one: `open::end_face`'s perpendicular
+cap lays the band cylinder's `u_ref` into the cap plane with it. There
+the residual is about 1 (the cap's normal is the band's axis, decided
+`Zero` apart by the battery's `EndSection::Circle`), so it is not the
+short-residual case this row is about, but the row's fix reaches it.

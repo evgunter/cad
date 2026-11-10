@@ -19,7 +19,7 @@
 //! an [`UncutFace`](super::UncutFace) row, says it holds. That last read
 //! is checked against the geometry: the dropped face must lie on the
 //! kept face's carrier, and meet its region in area
-//! ([`super::overlap`]). Where the kept face is the only face the result
+//! ([`super::overlap`](fn@super::overlap)). Where the kept face is the only face the result
 //! holds of its operand face, a row whose dropped face fails either
 //! check contradicts the geometry it records, and the face refuses
 //! ([`HeldRefusal::NotUnder`]) rather than name a face lying elsewhere;

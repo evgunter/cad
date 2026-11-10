@@ -492,7 +492,7 @@ fn a_near_square_rod_minus_a_box_builds() {
     for r in SCALES {
         let cutter = finished(
             "the box",
-            brick(
+            brick::<f64>(
                 (-2.0 * r, 2.0 * r),
                 (-2.0 * r, 2.0 * r),
                 (0.5 * r, 2.0 * r),
@@ -524,10 +524,9 @@ fn a_near_square_rod_minus_a_box_builds() {
 /// The frustum of scale `S`: radius `r0 = S/2 + S/2` at `y = 0` and
 /// `r1 = S/2` at `y = S`, half-angle `atan ½`, apex above on `y`.
 struct Frustum {
-    /// `None` where the body is pinned to refuse as limb 2's kernel
-    /// limit: at 1 km and ε = 1e-12, where its cone's rim rounds at its
-    /// own extent past the band
-    /// (`work/shell/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+    /// `None` at 1 km, where the frustum's largest coordinate is the
+    /// session box's own edge: the section rows read only its cone there,
+    /// and no body is built.
     body: Option<Body<f64>>,
     cone: Surface<f64>,
     r0: f64,
@@ -540,18 +539,29 @@ fn frustum(scale: f64) -> Frustum {
     let alpha = 0.5_f64.atan();
     let (h, r1) = (scale, 0.5 * scale);
     let r0 = r1 + h * alpha.tan();
-    let body = sweep::test_support::try_revolved_about_y_at(
-        vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(r0, 0.0), 0.0),
-            (Point2::new(r1, h), 0.0),
-            (Point2::new(0.0, h), 0.0),
-        ],
-        sweep::Revolution::Full,
-        tol(),
-    );
-    let pinned: &[f64] = if scale >= 1e3 { &[1e-12] } else { &[] };
-    let body = test_utils::kernel_limit::pinned(body, tol().eps(), pinned, "the frustum");
+    // The session box bounds each coordinate (`[tolerance.units]`), and
+    // the frustum's largest is `max(r0, h) = S`. At the kilometre scale
+    // that is the box's own edge, decided by rounding, so the body is
+    // built only at the scales well inside it; the kilometre rows read
+    // the cone alone.
+    let body = (r0.max(h) <= 0.5 * geom_core::tolerance::SESSION_BOX_EXTENT).then(|| {
+        test_utils::kernel_limit::pinned(
+            sweep::test_support::try_revolved_about_y_at(
+                vec![
+                    (Point2::new(0.0, 0.0), 0.0),
+                    (Point2::new(r0, 0.0), 0.0),
+                    (Point2::new(r1, h), 0.0),
+                    (Point2::new(0.0, h), 0.0),
+                ],
+                sweep::Revolution::Full,
+                tol(),
+            ),
+            tol().eps(),
+            &[],
+            "the frustum",
+        )
+        .expect("a frustum well inside the box builds")
+    });
     let apex = h + r1 / alpha.tan();
     Frustum {
         body,
@@ -708,7 +718,7 @@ fn a_near_square_frustum_minus_a_box_builds() {
         let y0 = 0.5 * scale;
         let cutter = finished(
             "the box",
-            brick(
+            brick::<f64>(
                 (-4.0 * scale, 4.0 * scale),
                 (y0, 4.0 * scale),
                 (-4.0 * scale, 4.0 * scale),

@@ -2075,12 +2075,14 @@ class TestRocker(unittest.TestCase):
         )
         self.assertEqual(self.census(doc, rocker), (38, 57, 21))
 
-    def test_the_outline_is_ten_vertices_and_no_authored_corner(self):
-        """The LB5 topology, positively: the hub arc is ONE segment,
-        so the outline carries ten vertices — five fillet arcs, each
-        with a trim point ahead of it — and the seam sits on the keel,
-        where `.to(Start)` retrims the entry anchor away."""
-        self.assertEqual(self.outline().vertex_count, 10)
+    def test_the_outline_is_twelve_vertices_and_no_authored_corner(self):
+        """The LB5 topology, positively: twelve vertices — five fillet
+        arcs, each with a trim point ahead of it, and the boss's and the
+        hub's authored entry points, where each `arc_fillet(Radius)`
+        starts its run on the same circle as a segment of its own — and
+        the seam sits on the keel, where `.to(Start)` retrims the entry
+        anchor away."""
+        self.assertEqual(self.outline().vertex_count, 12)
         self.assertEqual(self.outline().step_count, 12)
 
 

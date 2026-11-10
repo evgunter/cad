@@ -34,6 +34,7 @@ fn zprism(pts: &[(f64, f64, f64)], z: (f64, f64)) -> topo::Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn minus(a: topo::Body<f64>, b: topo::Body<f64>) -> topo::Body<f64> {

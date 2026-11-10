@@ -1,7 +1,7 @@
 //! **A plate on the support plane of a curved solid, at the exact
 //! support**: the row that makes the narrow phase's soundness red-able.
 //!
-//! `boolean::separating::apart` clears a pair when, along some
+//! `separating::apart` clears a pair when, along some
 //! direction, the gap between two items' reaches decides positive. A
 //! reach that under-covers its item by a hair clears a pair that
 //! touches, and only a pair that touches can show it: every clear pair
@@ -77,9 +77,8 @@ fn pose(s: f64, seed: u64) -> Affine3<f64> {
 /// the move or the gate cannot certify the moved body (a pose the row
 /// skips: the question is the boolean's, not the move's).
 fn posed(body: &Body<f64>, map: &Affine3<f64>) -> Option<AtRestBody<f64>> {
-    use topo::AtRestPolicy;
     let b = topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol()), tol()).ok()?;
-    f64::gate_at_rest_kept(b, tol()).ok()
+    topo::finish(b, tol()).ok()
 }
 
 #[derive(Clone, Copy, PartialEq)]

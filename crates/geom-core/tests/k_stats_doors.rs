@@ -29,9 +29,10 @@
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
+use geom_core::NonzeroSign;
 use geom_core::Tol;
 use geom_core::k_stats::{
-    Bracket, Escalation, Magnitude, NonzeroSign, Verdict, decide, decide_flagged, decide_magnitude,
+    Bracket, Escalation, Magnitude, Verdict, decide, decide_flagged, decide_magnitude,
     decide_negative, decide_nonzero, decide_positive, decide_reported, gate_measured,
 };
 use geom_core::{
@@ -344,6 +345,7 @@ fn a_decided_signs_word_rides_the_payload_once() {
         let reported = Indeterminate {
             margin,
             band: b,
+            // UNDECIDED-NAME: a bound reported to the door by hand, to see it pass through unread
             predicate: Some("reported_bound"),
             terminal_sliver: false,
         };
@@ -436,6 +438,7 @@ fn the_measurement_gate_records_only_its_escalation() {
     let poisoned = gate_measured("measured", f64::NAN, b).unwrap_err();
     let recorded = bracket.finish();
     assert_eq!(poisoned.margin, MarginDiag::INVALID);
+    // UNDECIDED-NAME: the row handed gate_measured, a door no census reads a name at
     assert_eq!(poisoned.predicate, Some("measured"));
     assert!(
         recorded.verdicts.is_empty(),

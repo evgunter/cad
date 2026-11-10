@@ -123,12 +123,12 @@ fn pick(loops: &SectionLoops<f64>, p: Point3<f64>) -> (usize, SectionLoop<f64>) 
 fn assert_frame(got: SectionLoop<f64>, centre: Point3<f64>, axis: Vec3<f64>, what: &str) {
     let eps = band().escalate();
     assert!(
-        (got.center - centre).norm() <= eps,
+        (got.axis.origin - centre).norm() <= eps,
         "{what}: centre {:?}, want {centre:?}",
-        got.center
+        got.axis.origin
     );
     assert!(
-        got.axis.normalize().cross(axis.normalize()).norm() <= eps,
+        got.axis.dir.normalize().cross(axis.normalize()).norm() <= eps,
         "{what}: axis {:?}, want {axis:?}",
         got.axis
     );
@@ -242,9 +242,9 @@ fn on_oval(d: f64, sigma: f64, v: f64) -> (Point3<f64>, Vec3<f64>) {
     (Point3::new(d, y, 0.0) + w * t, w * dt + Vec3::unit_y() * dy)
 }
 
-/// The turn of `tangent` at `p` about `(centre, axis)`.
-fn turn(centre: Point3<f64>, axis: Vec3<f64>, p: Point3<f64>, tangent: Vec3<f64>) -> f64 {
-    axis.dot((p - centre).cross(tangent))
+/// The turn of `tangent` at `p` about `axis`.
+fn turn(axis: geom::Line<f64>, p: Point3<f64>, tangent: Vec3<f64>) -> f64 {
+    axis.dir.dot((p - axis.origin).cross(tangent))
 }
 
 /// **The spiric ovals turn about where the core circle crosses the
@@ -279,13 +279,23 @@ fn a_spiric_oval_turns_about_the_core_circles_crossing() {
                     (p - ball.center()).norm() <= ball.radius() + b.escalate(),
                     "{what}: {p:?} lies in the oval's ball"
                 );
-                let sense = turn(lp.center, lp.axis, p, tangent.normalize());
+                let sense = turn(lp.axis, p, tangent.normalize());
                 assert!(
                     sense.abs() > b.escalate(),
                     "{what}: a definite sense at {p:?}, got {sense}"
                 );
                 senses.push(sense.signum());
-                about_foot.push(turn(foot, lp.axis, p, tangent.normalize()).signum());
+                about_foot.push(
+                    turn(
+                        geom::Line {
+                            origin: foot,
+                            dir: lp.axis.dir,
+                        },
+                        p,
+                        tangent.normalize(),
+                    )
+                    .signum(),
+                );
             }
             assert!(
                 senses.iter().all(|&s| s == senses[0]),

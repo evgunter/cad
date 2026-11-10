@@ -253,12 +253,12 @@ fn door_refuses_a_hollow_cavity() {
     let hollow = match subtract(
         &finished(
             "the block",
-            brick((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
+            brick::<f64>((1.0, 5.0), (1.0, 5.0), (1.0, 5.0), Tol::witness()),
             Tol::witness(),
         ),
         &finished(
             "the cavity",
-            brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+            brick::<f64>((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -304,7 +304,7 @@ fn reading(body: &Body<f64>) -> Vec<String> {
             "face {k:?} shell={:?} sense={} surface={:?}",
             f.shell,
             f.sense,
-            body.get_surface(f.surface)
+            body.face_surface(k)
         ));
     }
     for (k, p) in body.vertex_points() {

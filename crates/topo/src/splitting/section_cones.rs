@@ -47,13 +47,7 @@ use crate::validate::{
 };
 
 /// The split's cone-corner names ([`wedge_holds_named`]).
-const CONE_CORNER: WedgeNames = WedgeNames {
-    after_leaving: "split_cone_corner_after_leaving",
-    before_arriving: "split_cone_corner_before_arriving",
-    turn: "split_cone_corner_turn",
-    straight: "split_cone_corner_straight",
-    straddle: "split_cone_corner_straddle",
-};
+const CONE_CORNER: WedgeNames = crate::rows::CONE_CORNER;
 
 /// A fusion read: the leaving half-edges of two corners, at two
 /// vertices of one point, of a loop of `face`.

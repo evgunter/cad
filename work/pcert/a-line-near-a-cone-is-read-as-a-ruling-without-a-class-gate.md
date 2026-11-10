@@ -2,10 +2,12 @@
 id: a-line-near-a-cone-is-read-as-a-ruling-without-a-class-gate
 kind: issue
 title: A line within the band of a cone that is no ruling takes the ruling's closed form and refuses at check 4, rather than taking the general lane
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: M
+pr: 6504
+closed: 2026-11-04
 ---
 
 
@@ -65,3 +67,25 @@ guard to `projected::has_lane`, so a cone line shown off its rulings,
 once the cone arm reads them as a lane choice, already answers no
 family. The fix widens the in-band arm to the cone's ruling predicate.
 
+
+## Closed
+
+PR 6504. The cone's line arm reads `pcurve_cone_chart_ruling`: the
+line's greatest distance, over the span, from the generator its anchor
+names, through the apex (`ruling_miss`). The reading is exact: it is
+the closed form's own miss. Zero takes the closed form; in band or
+definite, the general lane. `chart_iso_family`'s in-band arm reads it
+too.
+
+The rows are in `ruling_reading_rows`:
+- E4's probe takes the general lane and certifies at ε 1e-9, 1e-6 and
+  1e-12. It is red under the `cone-ruling-gate` mutant.
+- A line read across the apex that is no generator ends "not yet"
+  through the lane's own sector refusal (`NoGeneralLane { Pose }`), at
+  both scalars.
+
+A line passing the apex off the cone by more than the band, which the
+sampled incidence test reads on, still ends at check 4. That is the
+incidence read's gap, not the class gate's:
+`a-line-passing-a-cones-apex-off-the-cone-reads-on-to-the-sampled-incidence`
+(P1).

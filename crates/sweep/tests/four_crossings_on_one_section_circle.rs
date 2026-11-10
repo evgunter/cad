@@ -15,7 +15,7 @@
 //! (`boolean::join`'s `nearer_along`, `bool_join_arc_travel`) — so the
 //! partner it takes is the neighbour along the walk, and each chord
 //! then takes the arc the paired germs leave along (`chord_join`'s
-//! `arc_leaving`). What the row holds is that arc: it goes red when a
+//! `arc_leaving_as`). What the row holds is that arc: it goes red when a
 //! chord reads its germ's direction reversed, or its partner's, or
 //! takes one arc regardless, and a chord that asked the divided face
 //! for its arc would find no window on this tilted section. The ranking
@@ -103,7 +103,7 @@ fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
         );
         let slab = finished(
             "the slab",
-            brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
+            brick::<f64>((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
             Tol::witness(),
         );
         let slab_volume = (3.0 - c) * 6.0 * (zb - za);
@@ -181,7 +181,7 @@ fn four_crossings_above_the_centre_wind_the_sphere_ring() {
     );
     let slab = finished(
         "the slab",
-        brick((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
+        brick::<f64>((c, 3.0), (-3.0, 3.0), (za, zb), Tol::witness()),
         Tol::witness(),
     );
     let shared = slab_share(c, za, zb);

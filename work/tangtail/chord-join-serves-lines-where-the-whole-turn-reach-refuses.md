@@ -86,3 +86,11 @@ chord_join: head serves lines where main reads refused
  sin β = 0.00000000000025822144679227736)
 CAD_FUZZ_SEED=0x90ac89fbe5ecb537 CAD_FUZZ_EFFORT=1
 ```
+
+## Another seed, at the default ε (2026-11-04, `onecopy/foot-certificate`, PR 6483's CI)
+
+The PR's CI drew it, and it reproduces on `origin/main` at `db9d067c3` in its own worktree and target dir. PR 6483 touches neither `boolean/join.rs` nor this row's chord_join path.
+
+> chord_join: head serves lines where main reads refused (0.0000012846031421817552 rad × 3042.9110584424757 on r = 1000, sin β = 0.00000000000032863036497662434); reproduce with CAD_FUZZ_SEED=0x2f0fd61622a9f617 CAD_FUZZ_EFFORT=1
+
+So the class is not the 1e-12 row's alone.

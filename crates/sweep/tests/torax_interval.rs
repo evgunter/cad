@@ -74,6 +74,7 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// **The torus barrel at `T = Interval`** — `torax_axial`'s own first
@@ -141,7 +142,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
 
     let hollow = match topo::shell(&finished("the operand", body.clone(), tol), iv(T), tol) {
         Ok(hollow) => hollow.body,
-        Err(ShellError::NotValid { errors }) if tol.eps() < DEFAULT_EPS => {
+        Err(ShellError::NotValid { findings: errors }) if tol.eps() < DEFAULT_EPS => {
             let [ValidationError::SliverDihedral { edge, check, cause }] = errors.as_slice() else {
                 panic!(
                     "at ε = {:e} the hollow refused with something other than ONE sliver \
@@ -289,7 +290,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     .body;
 
     let moves = hollow_moves(&body, iv(0.05));
-    let mut cavity = body.clone();
+    let mut cavity = body.clone().into_body();
     let band = geom_core::Band::linear(tol).expect("band");
     match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
         Ok(_) => {}

@@ -148,33 +148,14 @@ use super::circle_roots::{
     CircleRoots, DoorRefusal, constant_residual_roots, door_half_angle_roots, door_refusal,
 };
 use crate::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame,
 };
-use crate::quartic::QuarticRows;
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
-const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
-    pole: "circle_torus_pole",
-    conditioning: "circle_torus_pole_conditioning",
-    noise: "circle_torus_noise",
-    quartic: QuarticRows {
-        disc: "circle_torus_disc",
-        shape: "circle_torus_shape",
-        depth: "circle_torus_depth",
-        odd: "circle_torus_odd",
-        split: "circle_torus_split",
-        split_lead: "circle_torus_split_lead",
-    },
-    verify: SubdivisionRows {
-        clear: "circle_torus_sub_clear",
-        monotone: "circle_torus_sub_monotone",
-        side: "circle_torus_sub_side",
-        width: "circle_torus_sub_width",
-    },
-};
+const CIRCLE_TORUS_ROWS: HalfAngleRows = crate::rows::CIRCLE_TORUS;
 
 /// The general arm's root-slack row (module docs, "The root slack").
 const ROOT_SLACK: &str = "circle_torus_sub_root_slack";
@@ -229,7 +210,6 @@ pub fn circle_torus_roots<T: Decide>(
     };
     let two = T::from_f64(2.0);
     let v_ref = axis.cross(u_ref);
-    let w0 = center - t_center;
     let point_at = |theta: T| {
         let (s, c) = theta.sin_cos();
         center + u_ref * (radius * c) + v_ref * (radius * s)
@@ -241,8 +221,11 @@ pub fn circle_torus_roots<T: Decide>(
     // centre's distance from that axis separates coaxial from merely
     // parallel.
     let tilt = radius * axis.cross(t_axis).norm();
-    let h0 = w0.dot(t_axis);
-    let w_perp = w0 - t_axis * h0;
+    let (h0, w_perp) = geom::Line {
+        origin: t_center,
+        dir: t_axis,
+    }
+    .param_and_offset(center);
     let offset = w_perp.norm();
     let parallel = matches!(
         decide("circle_torus_coaxial_tilt", Margin::of(tilt), band),
@@ -344,7 +327,15 @@ pub fn circle_torus_roots<T: Decide>(
     // `F` the jet reads: the exact third and fourth harmonics against the
     // computed ones, and the jet's exact `v̂ = n̂ × û` against the rounded
     // `v_ref` the harmonics are built from.
-    let h = crate::conic_torus_harmonics(&circle, t_center, t_axis, major_radius, minor_radius);
+    let h = crate::conic_torus_harmonics(
+        &circle,
+        geom::Line {
+            origin: t_center,
+            dir: t_axis,
+        },
+        major_radius,
+        minor_radius,
+    );
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
     let harmonics = DegreeTwo::new(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
@@ -353,8 +344,18 @@ pub fn circle_torus_roots<T: Decide>(
     // The walk's Taylor terms, read at the point (module docs, "The
     // harmonics' noise, and the jet").
     let jet = |theta| {
-        crate::conic_torus_jet(&circle, t_center, t_axis, major_radius, minor_radius, theta)
+        crate::conic_torus_jet(
+            &circle,
+            geom::Line {
+                origin: t_center,
+                dir: t_axis,
+            },
+            major_radius,
+            minor_radius,
+            theta,
+        )
     };
+    let noise = rounding_charge(h.terms) + T::from_f64(16.0) * dropped;
     door_half_angle_roots(
         &harmonics,
         |theta| crate::implicit_residual(torus, point_at(theta)),
@@ -363,14 +364,20 @@ pub fn circle_torus_roots<T: Decide>(
                 t0,
                 t1,
                 speed_hi: radius,
-                noise: rounding_charge(h.terms) + T::from_f64(16.0) * dropped,
+                noise,
                 f_per_metre: h.f_per_metre_lo,
-                // The clear margin is read through the FLOOR, which
-                // overstates it (`work/hone/circle-torus-clear-margin-reads-the-floor.md`).
-                f_per_metre_hi: h.f_per_metre_lo,
-                residual_reach: None,
-                jet: Some(&jet),
+                // The clear margin is read through the torus's ceiling on
+                // `|F|` per metre, as the ellipse × torus door reads it:
+                // a lower bound on the residual, so a piece reads clear
+                // only past the band.
+                f_per_metre_hi: h.f_per_metre_surface,
+                residual_reach: Some(minor_radius / two),
             },
+            jet: Some(Local {
+                at: &jet,
+                fourth: harmonics.poly().fourth_bound(noise),
+                degree: 2,
+            }),
             speed_lo: radius,
             lever,
         },
@@ -380,8 +387,10 @@ pub fn circle_torus_roots<T: Decide>(
             residual: &|theta| {
                 crate::conic_torus_implicit(
                     &circle,
-                    t_center,
-                    t_axis,
+                    geom::Line {
+                        origin: t_center,
+                        dir: t_axis,
+                    },
                     major_radius,
                     minor_radius,
                     theta,
@@ -513,10 +522,14 @@ enum Band3 {
 ///
 /// The remaining decisions are the plane's depth into the tube,
 /// `(r² − h₀²)/2r` — the residual of the tube's centre circle at that
-/// height, negated (`circle_torus_plane_height`) — and which side
-/// of the tube's centre circle an extreme outside the tube lies
-/// (`circle_torus_contour_side`, `ρ − R`, which is at least
-/// `√(r² − h₀²)` from zero there).
+/// height, negated (`circle_torus_plane_height`), a screen: definitely
+/// negative is a miss, and a graze (zero or in the gap) defers to the
+/// extremes — and which side of the tube's centre circle an extreme
+/// outside the tube lies (`circle_torus_contour_side`, `ρ − R`, which is
+/// at least `√(r² − h₀²)` from zero there). At a graze both extremes
+/// outside the tube on one side of the centre circle are a miss, since
+/// the residual grows away from the ring the plane touches; otherwise the
+/// graze's refusal stands.
 fn parallel_axes_roots<T: Decide>(
     pose: &ParallelPose<T>,
     torus: &geom::Surface<T>,
@@ -546,12 +559,18 @@ fn parallel_axes_roots<T: Decide>(
     let two = T::from_f64(2.0);
     let charge_h = tilt * (two * h0.abs() + tilt) / (two * minor_radius);
     let depth = (minor_radius.powi(2) - h0.powi(2)) / (two * minor_radius);
-    match crate::roots::spread_signs("circle_torus_plane_height", depth, charge_h, band)? {
-        (Sign::Positive, _) => {}
-        // Definitely past the top or bottom of the tube, even charged.
-        (_, Sign::Negative) => return Ok(CircleRoots::Miss),
-        _ => return Err(Unsettled::Tangency.into()),
-    }
+    // A plane that grazes the tube meets it only about the ring of its
+    // top or bottom, of radius `R`: the depth is a screen, and the
+    // extremes' placements below say whether the carrier comes near that
+    // ring. The graze's own refusal stands only where it does.
+    let graze: Option<RootRefusal> =
+        match crate::roots::spread_signs("circle_torus_plane_height", depth, charge_h, band) {
+            Ok((Sign::Positive, _)) => None,
+            // Definitely past the top or bottom of the tube, even charged.
+            Ok((_, Sign::Negative)) => return Ok(CircleRoots::Miss),
+            Ok(_) => Some(Unsettled::Tangency.into()),
+            Err(gap) => Some(gap.into()),
+        };
     let rho_max = radius + offset;
     let rho_min = (radius - offset).abs();
     // Doubled: the bound above is for a point whose height and in-plane
@@ -589,6 +608,16 @@ fn parallel_axes_roots<T: Decide>(
     else {
         return Err(Unsettled::Tangency.into());
     };
+    // At a graze both extremes outside the tube on one side of the ring
+    // keep the whole carrier there, where the residual grows away from
+    // the ring: no point of it meets the torus.
+    if let Some(refusal) = graze {
+        return if far == near && far != Band3::Tube {
+            Ok(CircleRoots::Miss)
+        } else {
+            Err(refusal)
+        };
+    }
     let half = ((minor_radius.powi(2) - h0.powi(2)).max(T::zero())).sqrt();
     // Contour ρ− lies between the extremes iff the near one is in the
     // hole and the far one is not; ρ+ iff the far one is beyond and the
@@ -630,11 +659,21 @@ fn parallel_axes_roots<T: Decide>(
             / (two * radius * offset);
         let slack = radius * (charge / slope + rounding / sin_spread);
         match decide("circle_torus_root_slack", Margin::of(slack), band) {
-            Ok(Sign::Positive) => return Err(Unsettled::Meter.into()),
+            Ok(Sign::Positive) => {
+                return Err(Unsettled::Meter {
+                    row: "circle_torus_root_slack",
+                }
+                .into());
+            }
             // A NaN slack (a zero slope, which the placements above have
             // already refused as a graze) is `Err` and refuses too.
             Ok(Sign::Zero | Sign::Negative) => {}
-            Err(_) => return Err(Unsettled::Meter.into()),
+            Err(_) => {
+                return Err(Unsettled::Meter {
+                    row: "circle_torus_root_slack",
+                }
+                .into());
+            }
         }
         // Each root within half a turn of the span's middle, by
         // `Period::near`'s span argument. What a caller may assume: the
@@ -645,7 +684,7 @@ fn parallel_axes_roots<T: Decide>(
         // span's ends (or as the point it names), never as an identity
         // between two calls.
         for theta in [theta0 + spread, theta0 - spread] {
-            thetas[count] = geom_core::period::Period::new(T::tau()).near(theta, middle);
+            thetas[count] = geom_core::period::Period::angle().near(theta, middle);
             count += 1;
         }
     }
@@ -1305,6 +1344,95 @@ mod tests {
         assert!(matches!(door(pose, -3.0, 3.0), Ok(CircleRoots::Miss)));
     }
 
+    /// **A plane grazing the tube is a miss where the circle keeps off
+    /// its ring.** A parallel circle in a plane at the tube's top or
+    /// bottom, to within the band's zero or in its gap: the plane meets
+    /// the torus only about the ring of radius `R` there. A circle whose
+    /// in-plane radii stay on one side of that ring is a miss; one that
+    /// straddles it keeps the graze's refusal, `Tangency` in the zero band
+    /// and the band's escalation in its gap. Red where the plane's depth
+    /// refuses the graze before the carrier's extremes are read.
+    #[test]
+    fn a_plane_grazing_the_tube_is_a_miss_off_its_ring() {
+        let z = band().zero();
+        for k in [0.0, 0.3, 3.0, 8.0] {
+            for sign in [1.0, -1.0] {
+                let h = RT + sign * k * z;
+                let at = |c: [f64; 2], rho| Pose {
+                    c: [c[0], c[1], h],
+                    n: [0.0, 0.0, 1.0],
+                    rho,
+                    u: [1.0, 0.0, 0.0],
+                };
+                for (label, pose) in [
+                    ("inside the ring", at([0.1, 0.0], 0.2)),
+                    ("outside the ring", at([2.5, 0.0], 0.3)),
+                ] {
+                    let got = door(pose, -3.0, 3.0);
+                    assert!(
+                        matches!(got, Ok(CircleRoots::Miss)),
+                        "{label} at {k}·zero, side {sign}: {got:?}"
+                    );
+                }
+                let got = door(at([0.5, 0.0], 0.5), -3.0, 3.0);
+                let want_refusal = if k < 1.0 {
+                    matches!(got, Err(Some(Unsettled::Tangency)))
+                } else {
+                    matches!(got, Err(None))
+                };
+                assert!(
+                    want_refusal,
+                    "across the ring at {k}·zero, side {sign}: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **A circle passing the tube within the band's gap is no miss.**
+    /// Circles tangent to the torus's tube at points round it, bending
+    /// away from it, set off along the surface's normal by 7 and 9
+    /// zero widths at ε = 10⁻¹²: their least distance from the torus is
+    /// in the band's gap, which the band escalates. Red where the clear
+    /// margin is read through the floor on `|F|` per metre, which
+    /// overstates the residual and certifies them a miss.
+    #[test]
+    fn a_circle_passing_the_tube_in_the_bands_gap_is_no_miss() {
+        let b = Band::new(1e-12, 1e-11).unwrap();
+        let mut bad = Vec::new();
+        for (u, v) in [(0.3, 0.4), (1.7, 1.2), (2.9, -0.8), (4.4, 2.5), (5.6, 0.1)] {
+            let (cu, su, cv, sv) = (f64::cos(u), f64::sin(u), f64::cos(v), f64::sin(v));
+            let normal = Vec3::new(cv * cu, cv * su, sv);
+            let foot = Point3::new((R + RT * cv) * cu, (R + RT * cv) * su, RT * sv);
+            let along = Vec3::new(-su, cu, 0.0);
+            for gap in [7e-12, 9e-12] {
+                for rho in [0.3, 1.0] {
+                    let q = foot + normal * gap;
+                    let c = q + normal * rho;
+                    let axis = along.cross(normal).normalize();
+                    let got = door_answer(roots_of(
+                        c,
+                        axis,
+                        rho,
+                        (q - c).normalize(),
+                        -3.2,
+                        3.2,
+                        &torus(),
+                        b,
+                    ));
+                    if matches!(got, Ok(CircleRoots::Miss)) {
+                        bad.push(format!("at ({u}, {v}), {gap:e} off, radius {rho}"));
+                    }
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{} misses in the gap:\n{}",
+            bad.len(),
+            bad.join("\n")
+        );
+    }
+
     /// **The tilt a parallel pose was admitted with is charged.** The far
     /// point's residual is 1.05e-8 m — past the band's escalation
     /// threshold on its own — but the carrier is tilted 9e-10 m, and the
@@ -1599,7 +1727,8 @@ mod tests {
                 assert!(
                     refused
                         .iter()
-                        .all(|&(d, why)| d == -1.6e-8 && why == Some(Unsettled::Meter)),
+                        .all(|&(d, why)| d == -1.6e-8
+                            && matches!(why, Some(Unsettled::Meter { .. }))),
                     "ρ {rho}: refused {refused:?}"
                 );
             }
@@ -1622,7 +1751,7 @@ mod tests {
             assert!(
                 refused
                     .iter()
-                    .all(|&(d, why)| d < 0.0 && why == Some(Unsettled::Meter)),
+                    .all(|&(d, why)| d < 0.0 && matches!(why, Some(Unsettled::Meter { .. }))),
                 "ρ {rho}: refused {refused:?}"
             );
         }

@@ -457,18 +457,17 @@ impl<'a> Resolver<'a> {
         // the same argument, the assembly pass already spends on a
         // direction field: dimensionless, but a unit vector's slack is
         // bounded by it just as tightly.
-        let norm = ratios.norm();
-        if !(norm.is_finite() && norm > 0.0) {
+        let Some((unit, norm)) = ratios.checked_direction().ok() else {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "three direction ratios that are not all zero and are finite \
                            (a zero triple names no direction)",
             });
-        }
+        };
         Ok(if (norm - 1.0).abs() <= self.eps_in {
             ratios
         } else {
-            ratios / norm
+            unit
         })
     }
 
@@ -537,19 +536,18 @@ impl<'a> Resolver<'a> {
         // two DIFFERENT vectors, and this crate is f64-only besides).
         let along = axis.dot(candidate);
         let perpendicular = candidate - axis * along;
-        let norm = perpendicular.norm();
-        if !(norm.is_finite() && norm > 0.0) {
+        let Some((unit, norm)) = perpendicular.checked_direction().ok() else {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
                            whose reference direction is not parallel to its axis (a \
                            parallel pair states no frame)",
             });
-        }
+        };
         let u_ref = if (norm - 1.0).abs() <= self.eps_in {
             perpendicular
         } else {
-            perpendicular / norm
+            unit
         };
         Ok(geom::Frame::new(origin, axis, u_ref))
     }
@@ -1135,7 +1133,8 @@ impl<'a> Resolver<'a> {
         KnotVector::clamped(flat, degree).map_err(|_| StepImportError::MalformedRecord {
             id,
             expected: "a clamped knot vector (degree+1 end multiplicities, \
-                       nondecreasing interior knots)",
+                       nondecreasing interior knots, each within half the largest \
+                       finite number)",
         })
     }
 
@@ -1585,8 +1584,13 @@ impl<'a> Resolver<'a> {
         // meridians (`geom::pole_form`), through u = 0 and u = π, each
         // starting AT the north pole (angle 0) and reaching the south
         // at angle π.
-        let [(_, north), (_, south)] =
-            geom_brep::chart_singularity::sphere_poles(center, axis, radius);
+        let [(_, north), (_, south)] = geom_brep::chart_singularity::sphere_poles(
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            radius,
+        );
         let (north, south) = (
             signed_zero::plus_zero_point(north),
             signed_zero::plus_zero_point(south),
@@ -2069,7 +2073,7 @@ fn loop_u_wrap(
     edges: &BTreeMap<u64, EdgeSpec>,
     band: Option<geom_core::Band>,
 ) -> Option<f64> {
-    use core::f64::consts::{PI, TAU};
+    use core::f64::consts::PI;
     // 16 divisions per edge put adjacent samples of a full-period
     // rim ~0.39 rad apart — far inside the unwrap threshold below.
     const DIVISIONS: usize = 16;
@@ -2083,7 +2087,7 @@ fn loop_u_wrap(
             let t = spec.t0 + (spec.t1 - spec.t0) * f;
             let u = chart::uv_of(surface, spec.carrier.eval(t), band)?.x;
             if let Some(p) = prev {
-                let d = geom_core::period::Period::new(TAU).near(u - p, 0.0);
+                let d = geom_core::period::Period::<f64>::angle().near(u - p, 0.0);
                 if d.abs() > PI / 2.0 {
                     return None;
                 }
@@ -2407,11 +2411,9 @@ impl Resolver<'_> {
             // tripwire watches for — no square is taken here).
             let along = z.dot(f.u_ref);
             let x = f.u_ref - z * along;
-            let n = x.norm();
-            (n.is_finite() && n > 0.0).then(|| {
-                let x = x / n;
-                Mat3::from_cols(x, z.cross(x), z)
-            })
+            x.checked_direction()
+                .ok()
+                .map(|(x, _)| Mat3::from_cols(x, z.cross(x), z))
         };
         let refuse = |what: &'static str| StepImportError::Structure { id, what };
         let (ba, bb) = (
