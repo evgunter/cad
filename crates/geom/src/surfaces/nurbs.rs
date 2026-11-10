@@ -1453,46 +1453,12 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// spans outer, v spans inner). A poison parameter locates no span,
     /// and its jet is poison in every channel.
     pub fn ders(&self, u: T, v: T) -> SurfaceJet<T> {
-        let (Some(su), Some(sv)) = (self.knots_u.locate(u), self.knots_v.locate(v)) else {
-            return poison_jet(u + v);
-        };
-        // The seed cell's window comes straight from the located
-        // spans, which ARE proofs — no re-validation.
-        let (su_first, su_last) = (su.0.span().index(), su.1.span().index());
-        let (sv_first, sv_last) = (sv.0.span().index(), sv.1.span().index());
-        let mut acc = self.window_of(su.0, sv.0).ders_in_span(u, v);
-        for cu in su_first..=su_last {
-            for cv in sv_first..=sv_last {
-                if cu == su_first && cv == sv_first {
-                    continue;
-                }
-                // Empty spans (interior multiplicity) have no window,
-                // so the skip and the validation are one operation:
-                // span_at assigns every parameter — a repeated knot
-                // value included — to the nonempty span starting at
-                // it, which the rectangle always covers, so nothing
-                // is discarded (containment preserved); an empty span
-                // would only contribute poison (zero denominators).
-                let Some(win) = self.window(cu, cv) else {
-                    continue;
-                };
-                let jet = win.ders_in_span(u, v);
-                acc = SurfaceJet {
-                    point: hull_point(acc.point, jet.point),
-                    du: hull_vec(acc.du, jet.du),
-                    dv: hull_vec(acc.dv, jet.dv),
-                    duu: hull_vec(acc.duu, jet.duu),
-                    duv: hull_vec(acc.duv, jet.duv),
-                    dvv: hull_vec(acc.dvv, jet.dvv),
-                };
-            }
-        }
-        acc
+        self.ders_beside(u, v, (None, None))
     }
 
     /// **The jet at `(u, v)` read beside a breakpoint**: in a direction
-    /// given `Some((run, above))`, on the nonempty span just above (or just
-    /// below) breakpoint run `run` of that direction's knots, whatever span
+    /// given `Some((run, side))`, on the nonempty span on `side` of
+    /// breakpoint run `run` of that direction's knots, whatever span
     /// `(u, v)` lies in; in a direction given `None`, located as
     /// [`Self::ders`] locates it, its cells hulled. Across an interior run
     /// of multiplicity at least the degree the surface is only continuous,
@@ -1501,14 +1467,20 @@ impl<T: SpanLocate> NurbsSurface<T> {
     /// last run below its last, the two sides of a closed chart's seam.
     /// Poison where a run names no span on that side, or a parameter
     /// locates none.
+    ///
+    /// The side is the caller's, named. `geom_brep`'s
+    /// `ssi::enclose::NurbsBoxes::deriv_box_closed` reads the nearest
+    /// question for a box: a parameter rectangle ending on a knot read
+    /// through the span inside it, found by a float overlap test rather
+    /// than named.
     pub fn ders_beside(
         &self,
         u: T,
         v: T,
         (beside_u, beside_v): (SpanBeside, SpanBeside),
     ) -> SurfaceJet<T> {
-        let spans = |knots: &Knots<T>, t: T, beside: Option<(usize, bool)>| match beside {
-            Some((run, above)) => span_beside_run(knots.structure(), run, above).map(|i| (i, i)),
+        let spans = |knots: &Knots<T>, t: T, beside: SpanBeside| match beside {
+            Some((run, side)) => span_beside_run(knots.structure(), run, side).map(|i| (i, i)),
             None => knots
                 .locate(t)
                 .map(|(a, b)| (a.span().index(), b.span().index())),
@@ -1522,6 +1494,13 @@ impl<T: SpanLocate> NurbsSurface<T> {
         let mut acc: Option<SurfaceJet<T>> = None;
         for cu in u0..=u1 {
             for cv in v0..=v1 {
+                // Empty spans (interior multiplicity) have no window,
+                // so the skip and the validation are one operation:
+                // span_at assigns every parameter — a repeated knot
+                // value included — to the nonempty span starting at
+                // it, which the rectangle always covers, so nothing
+                // is discarded (containment preserved); an empty span
+                // would only contribute poison (zero denominators).
                 let Some(win) = self.window(cu, cv) else {
                     continue;
                 };
@@ -2024,22 +2003,31 @@ fn hull_vec<T: SpanLocate>(a: Vec3<T>, b: Vec3<T>) -> Vec3<T> {
     )
 }
 
+/// Which side of a breakpoint run a span lies on: the nonempty span
+/// just above it in parameter, or just below.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunSide {
+    /// The span starting at the run.
+    Above,
+    /// The span ending at it.
+    Below,
+}
+
 /// Which span to read a jet on in one parameter direction
-/// ([`NurbsSurface::ders_beside`]): `Some((run, above))` the nonempty span
-/// just above (`true`) or below breakpoint run `run`, `None` the span the
-/// parameter locates.
-pub type SpanBeside = Option<(usize, bool)>;
+/// ([`NurbsSurface::ders_beside`]): `Some((run, side))` the nonempty span
+/// on `side` of breakpoint run `run`, `None` the span the parameter
+/// locates, its cells hulled at a breakpoint.
+pub type SpanBeside = Option<(usize, RunSide)>;
 
 /// The knot index of the nonempty span just above (`above`) or just below
 /// breakpoint run `run` of `structure`: the run's last knot, or the knot
 /// before its first. `None` past either end of the knots.
-fn span_beside_run(structure: &spline::KnotStructure, run: usize, above: bool) -> Option<usize> {
+fn span_beside_run(structure: &spline::KnotStructure, run: usize, side: RunSide) -> Option<usize> {
     let mult = structure.multiplicities();
     let first: usize = mult.get(..run)?.iter().sum();
-    if above {
-        Some(first + mult.get(run)? - 1)
-    } else {
-        first.checked_sub(1)
+    match side {
+        RunSide::Above => Some(first + mult.get(run)? - 1),
+        RunSide::Below => first.checked_sub(1),
     }
 }
 
@@ -2491,8 +2479,8 @@ mod beside_tests {
     #[test]
     fn the_jet_beside_a_run_reads_that_spans_derivatives() {
         let s = roof();
-        let below = s.ders_beside(0.5, 0.3, (Some((1, false)), None));
-        let above = s.ders_beside(0.5, 0.3, (Some((1, true)), None));
+        let below = s.ders_beside(0.5, 0.3, (Some((1, RunSide::Below)), None));
+        let above = s.ders_beside(0.5, 0.3, (Some((1, RunSide::Above)), None));
         assert!(
             (below.du - Vec3::new(1.0, 0.0, 2.0)).norm() < 1e-12,
             "{:?}",
@@ -2509,20 +2497,20 @@ mod beside_tests {
         assert!(plain.point.equals_exactly(s.ders(0.25, 0.3).point));
         // The first run's span above is the first span; the last run has
         // none above and the first none below: poison, not a jet.
-        let first = s.ders_beside(0.0, 0.3, (Some((0, true)), None));
+        let first = s.ders_beside(0.0, 0.3, (Some((0, RunSide::Above)), None));
         assert!(
             (first.du - Vec3::new(1.0, 0.0, 2.0)).norm() < 1e-12,
             "{:?}",
             first.du
         );
         assert!(
-            s.ders_beside(0.0, 0.3, (Some((0, false)), None))
+            s.ders_beside(0.0, 0.3, (Some((0, RunSide::Below)), None))
                 .du
                 .x
                 .is_nan()
         );
         assert!(
-            s.ders_beside(1.0, 0.3, (Some((2, true)), None))
+            s.ders_beside(1.0, 0.3, (Some((2, RunSide::Above)), None))
                 .du
                 .x
                 .is_nan()

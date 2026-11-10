@@ -363,14 +363,7 @@ pub(crate) fn resolve<T: Decide>(
     let surface = view.surface();
     if let Some(chart) = surface.spline_chart() {
         let kind = surface.kind();
-        let normal = spline_normal(
-            body,
-            point(),
-            (he, into),
-            (face, sense),
-            (chart, kind),
-            band,
-        )?;
+        let normal = spline_normal(body, point(), into, (face, sense), (chart, kind), band)?;
         return Ok(SectorFace {
             face,
             at_vertex: VertexFace::Tangent(normal),
@@ -454,25 +447,28 @@ pub(crate) fn resolve<T: Decide>(
 }
 
 /// A spline face's outward normal at the vertex `at`, which ends the
-/// face's half-edge `into`, the mate of the orbit half-edge `he`.
+/// face's half-edge `into`.
 ///
 /// The vertex's chart parameters are that half-edge's pcurve (C4) at the
 /// edge's parameter of the vertex, not a projection foot: the pcurve is
 /// the edge's image in this face's own chart, so the parameters are on
 /// the face's sheet by construction, where a foot of the point could
 /// land on another sheet of the carrier that passes within the band.
-/// The normal is read only where the chart has one there
-/// ([`geom_brep::regular_jet`]), over the carrier's farthest reach from
-/// the vertex, its control net's (the face is a trim of the carrier, so it
-/// reaches no farther). On a line the chart's normal is not continuous
-/// across (a crease run, a closed chart's seam) it is the normal on the
-/// side the sector lies on, the side the edge's half at the vertex lies
-/// on in this chart ([`geom_brep::chart_normal_beside`]); a side the band
-/// cannot read, and an irregular point, refuse as a crease.
+/// The normal is read where the chart has one there, over the carrier's
+/// farthest reach from the vertex, its control net's (the face is a trim
+/// of the carrier, so it reaches no farther). On a line the chart's
+/// normal is not continuous across (a crease run, a closed chart's seam)
+/// it is the normal on the side the face's corner lies on, read off its
+/// two bounding edges in this face's loop, `into` and the half-edge
+/// after it, each by its pcurve's box over its edge's half at the vertex,
+/// and read only where the corner is convex there, by the chords the two
+/// edges leave along ([`geom_brep::chart_normal_beside`]). A corner that
+/// may hold both sides of a fold (straddling it, or reflex), a side the
+/// band cannot read, and an irregular point refuse as a crease.
 fn spline_normal<T: Decide>(
     body: &Body<T>,
     at: geom_core::Point3<T>,
-    (he, into): (HalfEdgeKey, HalfEdgeKey),
+    into: HalfEdgeKey,
     (face, sense): (FaceKey, bool),
     (chart, kind): (&geom::NurbsSurface<T>, SurfaceKind),
     band: Band,
@@ -481,43 +477,65 @@ fn spline_normal<T: Decide>(
         return Err(SectorFaceError::Unsupported { face, kind });
     }
     let unplaced = SectorFaceError::Unplaced { face, kind };
-    let he_data = crate::live::proven(&body.half_edges, he, EntityId::HalfEdge);
-    let edge = crate::live::linked(
-        &body.edges,
-        he_data.edge,
-        EntityId::Edge,
-        EntityId::HalfEdge(he),
-        "edge",
-    );
-    let curve = body
-        .edge_curve_linked(he_data.edge, edge)
-        .certified()
-        .ok_or(unplaced)?;
-    // `he` leaves the vertex, so the vertex is where it starts: the
-    // carrier's first end where `he` walks it forward.
-    let (t0, t1) = curve.params();
-    let t = if he == edge.he_plus { t0 } else { t1 };
-    let pcurve = body.pcurve(into).ok_or(unplaced)?.pcurve();
-    let uv = pcurve.eval(t);
-    let uv = (uv.x, uv.y);
-    // The half of the edge at the vertex, in this face's chart: the side
-    // of a crease the face's sector at the vertex lies on.
-    let mid = geom::mid_param(t0, t1);
-    let leaving = if he == edge.he_plus {
-        pcurve.chart_box(t0, mid)
-    } else {
-        pcurve.chart_box(mid, t1)
+    // The sector's two bounding edges in this face's loop: `into`,
+    // ending at the vertex, and the half-edge after it, leaving it. Each
+    // as the vertex's chart parameters off its own pcurve, and its
+    // pcurve's chart box over its edge's half at the vertex.
+    let bound = |half: HalfEdgeKey, leaves: bool| {
+        let data = crate::live::proven(&body.half_edges, half, EntityId::HalfEdge);
+        let edge = crate::live::linked(
+            &body.edges,
+            data.edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(half),
+            "edge",
+        );
+        let curve = body
+            .edge_curve_linked(data.edge, edge)
+            .certified()
+            .ok_or(unplaced)?;
+        let pcurve = body.pcurve(half).ok_or(unplaced)?.pcurve();
+        let (t0, t1) = curve.params();
+        // A half-edge walking its carrier forward starts at the carrier's
+        // first end.
+        let at_first = (half == edge.he_plus) == leaves;
+        let (t, near) = if at_first {
+            (t0, (t0, geom::mid_param(t0, t1)))
+        } else {
+            (t1, (geom::mid_param(t0, t1), t1))
+        };
+        let uv = pcurve.eval(t);
+        // The chord the edge leaves the vertex along, scaled to its
+        // extent, as the sector predicates take it: a line's chord, a
+        // curved edge's departure.
+        let other = curve.carrier().eval(if at_first { t1 } else { t0 });
+        let chord = match curve.carrier() {
+            geom::Curve3::Line(_) => other - at,
+            _ => geom_brep::ConicDeparture::of(curve, at_first, (other, at)).dir,
+        };
+        Ok(((uv.x, uv.y), pcurve.chart_box(near.0, near.1), chord))
     };
+    let out = crate::live::proven(&body.half_edges, into, EntityId::HalfEdge).next;
+    let (uv, arriving, own) = bound(into, false)?;
+    let (_, leaving, next) = bound(out, true)?;
     let reach = geom_brep::ExtentBall::of_control_net_from(chart.control(), at).lever();
-    let crease = |reading| SectorFaceError::Crease {
+    // The face's corner sweeps counter-clockwise about its outward
+    // normal from the edge leaving the vertex to the one arriving.
+    geom_brep::chart_normal_beside(
+        chart,
+        sense,
+        uv,
+        [&arriving, &leaving],
+        (own, next),
+        reach,
+        band,
+    )
+    .map(|(normal, _)| normal)
+    .map_err(|reading| SectorFaceError::Crease {
         face,
         kind,
         reading,
-    };
-    let jet = geom_brep::regular_jet(chart, uv, reach.length(), band).map_err(crease)?;
-    geom_brep::chart_normal_beside(chart, sense, &jet, uv, &leaving, reach, band)
-        .map(|(normal, _)| normal)
-        .map_err(crease)
+    })
 }
 
 #[cfg(test)]
@@ -780,6 +798,15 @@ pub(crate) mod tests {
     /// [`spline_topped_cube`] with the top face's `y = 0` edge split at
     /// `x = ½`: the body, the top face and the new vertex.
     pub(crate) fn split_at_half(chart: geom::NurbsSurface<f64>) -> (Body<f64>, FaceKey, VertexKey) {
+        split_at(chart, 0.5)
+    }
+
+    /// [`spline_topped_cube`] with the top face's `y = 0` edge split at
+    /// `x`: the body, the top face and the new vertex.
+    pub(crate) fn split_at(
+        chart: geom::NurbsSurface<f64>,
+        x: f64,
+    ) -> (Body<f64>, FaceKey, VertexKey) {
         let (mut body, top) = spline_topped_cube(chart, true);
         let edge = body
             .edges()
@@ -791,52 +818,130 @@ pub(crate) mod tests {
                 a.z == 1.0 && b.z == 1.0 && a.y == 0.0 && b.y == 0.0
             })
             .expect("the top face's y = 0 edge");
-        let (t0, t1) = body.stored_curve(edge).unwrap().params();
-        let mid = body
-            .split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
-            .unwrap()
-            .vertex;
+        let c = body.stored_curve(edge).unwrap();
+        let (t0, t1) = c.params();
+        // The edge's parameter is affine in `x` along it, either way.
+        let x0 = c.carrier().eval(t0).x;
+        let t = t0 + (x - x0) / (c.carrier().eval(t1).x - x0) * (t1 - t0);
+        let mid = body.split_edge(edge, t, Tol::witness()).unwrap().vertex;
         (body, top, mid)
     }
 
-    /// [`spline_topped_cube`] on a degree-1 chart over `x ∈ [−1, 1]`
-    /// creased at its knot `u = ½`, where `x = 0`: the top face's `x = 0`
-    /// edge runs along the crease, and is split at its middle. The body,
-    /// the top face and the new vertex, whose sectors' edges leave it
-    /// along the crease, so neither side of it is theirs.
-    pub(crate) fn split_along_crease() -> (Body<f64>, FaceKey, VertexKey) {
-        let chart = planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[-1.0, 0.0, 1.0]);
-        let (mut body, top) = spline_topped_cube(chart, true);
-        let edge = body
+    /// **A house-shaped prism whose roof is one face, folded along its
+    /// ridge**: the profile `(0,0) (1,0) (1,1) (½,1½) (0,1)` extruded up
+    /// `z ∈ [0, 1]`, its vertical ridge edge at `(½, 1½)` killed so the
+    /// two roof slopes are one face, carried on a degree-1 chart creased
+    /// at `u = ½` along the ridge: `u` runs down the roof from `(1, 1)`
+    /// over the ridge to `(0, 1)`, `v` up `z`. The body, the roof and the
+    /// ridge's bottom vertex `(½, 1½, 0)`, where the roof's corner runs
+    /// down both slopes: the normal is `(1, 1, 0)/√2` on one side of the
+    /// fold and `(−1, 1, 0)/√2` on the other.
+    pub(crate) fn roof_ridge() -> (Body<f64>, FaceKey, VertexKey) {
+        let house = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.5), (0.0, 1.0)];
+        // Built undescribed: the kill below merges two faces, which a
+        // described edge's description would outlive.
+        let mut body = Body::<f64>::new();
+        let ops = crate::test_support_fixtures::prism_ops(
+            &mut body,
+            &house,
+            (0.0, 1.0),
+            geom_core::Point3::new,
+            crate::test_support_fixtures::FaceGeometry::Certified,
+            Tol::witness(),
+        );
+        let side_faces: Vec<FaceKey> = ops.sides.iter().map(|f| f.face).collect();
+        let ridge_bottom = ops.chain[2].vertex;
+        let ridge_top = ops.struts[3].vertex;
+        let ridge = body
             .edges()
-            .map(|(e, _)| e)
-            .find(|&e| {
-                let c = body.stored_curve(e).unwrap();
-                let (t0, t1) = c.params();
-                let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
-                a.z == 1.0 && b.z == 1.0 && a.x == 0.0 && b.x == 0.0
+            .find(|(_, edge)| {
+                let ends = |he: HalfEdgeKey| body.half_edges[he].start;
+                let v = [ends(edge.he_plus), ends(edge.he_minus)];
+                v.contains(&ridge_bottom) && v.contains(&ridge_top)
             })
-            .expect("the top face's x = 0 edge");
-        let (t0, t1) = body.stored_curve(edge).unwrap().params();
-        let mid = body
-            .split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
-            .unwrap()
-            .vertex;
-        (body, top, mid)
+            .map(|(e, _)| e)
+            .expect("the ridge edge");
+        let he = body.edges[ridge].he_plus;
+        let killed = body.kef(he).unwrap();
+        let roof = [side_faces[2], side_faces[3]]
+            .into_iter()
+            .find(|&f| f != killed.killed_face)
+            .unwrap();
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control: Vec<_> = [(1.0, 1.0), (0.5, 1.5), (0.0, 1.0)]
+            .into_iter()
+            .flat_map(|(x, y)| [0.0, 1.0].map(|z| geom_core::Point3::new(x, y, z)))
+            .collect();
+        let chart = geom::NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
+        body.set_face_surface_unvouched_for_tests(
+            roof,
+            crate::construction::FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
+                sense: true,
+            },
+        )
+        .unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, roof, ridge_bottom)
     }
 
-    /// **A vertex whose edge runs along a crease refuses typed**: the
-    /// edge's half at the vertex lies on the crease line, reaching past it
-    /// on neither side, so the sector's side is not read
-    /// ([`geom_brep::chart_normal_beside`]).
+    /// **A vertex within the band of a crease refuses in band**: the top
+    /// face's `y = 0` edge split three of the band's zero past the
+    /// degree-1 chart's knot `u = ½`. The edge's half toward `x = 0`
+    /// reaches past the crease by an in-band distance, so its side is not
+    /// read, and the refusal is the side decision's own, a margin.
     #[test]
-    fn a_vertex_whose_edge_runs_along_a_crease_refuses() {
-        let (body, top, mid) = split_along_crease();
-        let got = resolve(&body, mid, sector_of(&body, mid, top), band());
+    fn a_vertex_within_the_band_of_a_crease_refuses_in_band() {
+        let creased = planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]);
+        let (body, top, v) = split_at(creased, 0.5 + 3.0 * band().zero());
+        let got = resolve(&body, v, sector_of(&body, v, top), band());
         assert!(
-            matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs, .. }) if face == top),
+            matches!(
+                got,
+                Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs, reading: Err(_) }) if face == top
+            ),
             "{got:?}"
         );
+    }
+
+    /// **A corner on a fold's ridge whose edges run down both slopes
+    /// refuses typed** (review of 6749, M2): the roof's corner at the
+    /// ridge's foot holds both sides of the crease, whose normals differ,
+    /// so it has no one normal there ([`geom_brep::chart_normal_beside`]).
+    /// Each other corner of the roof lies on one slope and reads it.
+    #[test]
+    #[ignore = "disabled red: work/onecopy/an-edge-ending-on-a-degree-one-crease-mints-no-pcurve"]
+    fn a_corner_on_a_folds_ridge_with_edges_down_both_slopes_refuses() {
+        let (body, roof, ridge) = roof_ridge();
+        let got = resolve(&body, ridge, sector_of(&body, ridge, roof), band());
+        assert!(
+            matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs, .. }) if face == roof),
+            "{got:?}"
+        );
+        let s = 0.5f64.sqrt();
+        for (corner, want) in [
+            (
+                geom_core::Point3::new(1.0, 1.0, 0.0),
+                geom_core::Vec3::new(s, s, 0.0),
+            ),
+            (
+                geom_core::Point3::new(0.0, 1.0, 1.0),
+                geom_core::Vec3::new(-s, s, 0.0),
+            ),
+        ] {
+            let v = body
+                .vertex_points()
+                .find(|(_, p)| (*p - corner).norm() < 1e-12)
+                .map(|(k, _)| k)
+                .unwrap();
+            let n = resolve(&body, v, sector_of(&body, v, roof), band())
+                .unwrap_or_else(|e| panic!("{corner:?}: {e:?}"))
+                .at_vertex
+                .tangent();
+            assert!((n - want).norm() < 1e-12, "{corner:?}: {n:?}");
+        }
     }
 
     /// The orbit half-edge at `vertex` whose sector is a corner of `face`.
