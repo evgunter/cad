@@ -1,0 +1,5 @@
+fork: an-argmin-keeps-which-reading (ONECOPY, an-argmin-by-decided-comparison-is-spelled-three-ways)
+drawn: 2026-11-10T00:32:38Z, od -An -tu1 -N2 /dev/urandom
+bytes: 211 137 (arm: two; labels: odd)
+mapping: A = Fable designer, B = Opus designer
+protocol: 7f7c233d86
