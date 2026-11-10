@@ -52,3 +52,12 @@ One candidate: read each end's distance along the wedge's own in-plane normal, o
 - `link::foot`, which only the far reach read, is gone.
 
 **Pinned** by `link::clearance_rows::nearly_opposite_ends_read_the_segments_own_clearance`: `δ` down to `0` at five radii and five turns. It is red under the bisector reading ("an arc decided to meet the apex"). The six witnesses pass at both ε with the pin live.
+
+## Follow-up (2026-11-10, `onecopy/link-norms`, from PR 6703's review)
+
+- The class's two siblings are re-posed through `Distance::apart(p, q)`, a sixth constructor that is `|p − q|` with no direction read off it. They read a norm as `Distance::of(x, f, normalize(x − f))`, which is NaN at the very configuration they decide:
+  - `Link::lowest_on`'s `meets`;
+  - `Cone::touches`' ray tie.
+- A sweep of `topo` for `Distance::of(a, b, (a − b).normalize())` in any spelling finds no other. The remaining normalized directions are a ray's own (`r − p`), which do not vanish.
+- `ArcReach::clears` returns `Result<(), Unsettled>`, so the impossible "does not clear" cannot be written. In release a clearance decided negative refuses as a zero does; it no longer passes silently. The dead `Ok(false) => Rung::Passes` arm and its doc line are gone.
+- The measurement narrative lives here (above), no longer in `clears`' doc.

@@ -145,10 +145,11 @@ const LINK_NORMAL: &str = "link_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
 /// through**, and the bound-side reading's ([`crate::bound_side`]). A
-/// [`Distance`] has a private field and five constructors, from a point
-/// and a plane, from a point and a segment (its clearance), from a
-/// bound's departure off a plane at its reach, and from a point or a
-/// segment and a sphere's or a cylinder's carrier, so
+/// [`Distance`] has a private field and six constructors, from a point
+/// and a plane, from a point and a segment (its clearance), from two
+/// points (their distance apart), from a bound's departure off a plane at
+/// its reach, and from a point or a segment and a sphere's or a
+/// cylinder's carrier, so
 /// a quantity none of them builds cannot be decided here as a verdict.
 /// Two of them are not a point's exact distance: a round carrier's is its
 /// lowest point's along the segment, and a bound's departure one order
@@ -185,6 +186,20 @@ pub(crate) mod metric {
         /// zero.
         pub(crate) fn clearance(p: Point3<T>, seg: (Point3<T>, Point3<T>)) -> Self {
             Self(super::to_segment(p, seg))
+        }
+
+        /// **Two points' distance apart**, `|p − q|`, never negative: a
+        /// norm of their difference, with no direction read off it, so
+        /// two coincident points read `0`, not the NaN of a normalized
+        /// zero.
+        pub(crate) fn apart(p: Point3<T>, q: Point3<T>) -> Self {
+            Self((p - q).norm())
+        }
+
+        /// The distance itself, for rows that pin a constructor's value.
+        #[cfg(test)]
+        pub(crate) fn metres(self) -> T {
+            self.0
         }
     }
 
@@ -1438,7 +1453,7 @@ impl ArcReach {
         p + c * (at / c.norm())
     }
 
-    /// **Whether the arc from `q` to `w` reads**: the segment `q`–`w`
+    /// **That the arc from `q` to `w` reads**: the segment `q`–`w`
     /// clear of `p`, so seen from `p` it is the minor arc between its
     /// ends' directions, and parity along it is the arc's. Any segment
     /// not through `p` is; what the reading guards is a move of `p` by
@@ -1446,41 +1461,39 @@ impl ArcReach {
     /// a segment passing nearer `p` than that could cross, turning the
     /// arc the other way round. Both reaches read that clearance, the
     /// distance from `p` to the segment's nearest point
-    /// ([`metric::Distance::clearance`]), under their own rows. The
-    /// escalation where it is in band, and [`Unsettled::Zero`] where the
-    /// band reads it zero (in band: a tighter band may part it from the
-    /// apex). A clearance is a distance, so it is never decided negative,
-    /// and `Ok(false)` is not reached: a `debug_assert` pins that.
+    /// ([`metric::Distance::clearance`]), under their own rows. A
+    /// clearance is a distance, so the arc either reads (`Ok`) or does
+    /// not decide: there is no decided "does not clear" to return.
     ///
-    /// **Re-posed** (`[simple.conditioned]`). The near arc's ends stand
-    /// at one distance, and its clearance was read as both ends' distances
-    /// along their directions' bisector `normalize(q̂ + ŵ)`. Where the ends
-    /// are nearly opposite, `q̂ + ŵ` vanishes and the bisector is rounding
-    /// noise. Measured on the six witnesses of
-    /// `work/onecopy/link-near-clearance-divides-by-a-vanishing-bisector.md`:
-    /// `|q̂ + ŵ|` reached `0` exactly (the bisector NaN) and `8e-17` to
-    /// `7e-16`, where the ends read `±0.04` to `±1.9` m along it against a
-    /// true clearance of `1e-16` m, decided negative 123 times at default
-    /// ε and 142 at 1e-12. The segment's distance has no such direction:
-    /// at one distance it is the midpoint's, `ρ·|q̂ + ŵ|/2`, to the
-    /// coordinates' rounding (`clearance_rows`).
+    /// # Errors
+    ///
+    /// The escalation where the clearance is in band, and
+    /// [`Unsettled::Zero`] where the band reads it zero (in band: a tighter
+    /// band may part it from the apex). A clearance decided negative
+    /// cannot be: a `debug_assert` pins it, and in release it refuses as a
+    /// zero does rather than reading the arc.
+    ///
+    /// Re-posed from a bisector reading that vanished for nearly opposite
+    /// ends (`[simple.conditioned]`;
+    /// `work/onecopy/link-near-clearance-divides-by-a-vanishing-bisector.md`
+    /// holds the measurement; `clearance_rows` pins it).
     fn clears<T: Decide>(
         self,
         p: Point3<T>,
         q: Point3<T>,
         w: Point3<T>,
         rd: Reading<T>,
-    ) -> Result<bool, Unsettled<T>> {
+    ) -> Result<(), Unsettled<T>> {
         let name = match self {
             Self::Near => LINK_ARC,
             Self::Out => LINK_ARC_REACH,
         };
         let d = Distance::clearance(p, (q, w));
         match metric::settle_as(name, d, rd)? {
-            Sign::Positive => Ok(true),
+            Sign::Positive => Ok(()),
             Sign::Negative => {
                 debug_assert!(false, "a clearance is a distance, never negative: {d:?}");
-                Ok(false)
+                Err(Unsettled::Zero(name, d))
             }
             Sign::Zero => Err(Unsettled::Zero(name, d)),
         }
@@ -2123,7 +2136,7 @@ impl<T: Decide> Cone<T> {
         // refused at `q`'s distance is kept by its standing
         // ([`Unread::refusal`]) and ranked ([`Evidence`]); one refused out
         // at its reach passes, so a refusal names a reading at `q`'s
-        // distance. An arc decided to meet the apex passes.
+        // distance.
         let (sides_at, own_at) = (&sides, &own);
         let references = [ArcReach::Near, ArcReach::Out]
             .into_iter()
@@ -2157,10 +2170,8 @@ impl<T: Decide> Cone<T> {
                     Rung::Passes
                 }
             };
-            match arc.clears(p, q, w, rd) {
-                Ok(true) => {}
-                Ok(false) => return Rung::Passes,
-                Err(why) => return refused(Unread::Arc { sector: None, why }),
+            if let Err(why) = arc.clears(p, q, w, rd) {
+                return refused(Unread::Arc { sector: None, why });
             }
             let mut held = base == Sign::Negative;
             for (k, s) in self.sectors.iter().enumerate() {
@@ -2267,7 +2278,7 @@ impl<T: Decide> Cone<T> {
         let p = self.p;
         [ArcReach::Near, ArcReach::Out].into_iter().find_map(|arc| {
             let w = arc.reference(p, q, w - p, (w - p).norm());
-            arc.clears(p, q, w, rd).ok()?.then_some(())?;
+            arc.clears(p, q, w, rd).ok()?;
             self.winds_from((on, q), (from, w), rd)
         })
     }
@@ -3405,7 +3416,7 @@ impl<T: Decide> Link<T> {
         let meets = |t: T, foot: &dyn Fn(Point3<T>) -> Point3<T>| {
             let x = x0 + e * t.max(T::zero()).min(T::one());
             let f = foot(x);
-            joined(Distance::of(x, f, (x - f).normalize())).then_some(x)
+            joined(Distance::apart(x, f)).then_some(x)
         };
         // Each ray once: an edge's ray is a bound of both its faces'
         // sectors.
@@ -3627,7 +3638,7 @@ impl<T: Decide> Link<T> {
                             dir: r - s.apex,
                         };
                         let foot = ray.foot_from(q, T::zero());
-                        near(Distance::of(q, foot, (q - foot).normalize()), LINK_TIE)
+                        near(Distance::apart(q, foot), LINK_TIE)
                     })
             })
         })
@@ -6131,15 +6142,16 @@ mod tests {
         );
         let of = body("\n        pub(crate) fn of(");
         let clearance = body("\n        pub(crate) fn clearance(");
+        let apart = body("\n        pub(crate) fn apart(");
         let departure = body("\n        pub(crate) fn departure(");
         let off = body("\n        pub(crate) fn off(");
         let at = body("\n        pub(crate) fn at(");
         assert!(
-            [&of, &clearance, &departure, &off, &at]
+            [&of, &clearance, &apart, &departure, &off, &at]
                 .iter()
                 .all(|r| metric.contains(&r.start)),
-            "`Distance::of`, `Distance::clearance`, `Distance::departure`, `Distance::off` and \
-             `Distance::at` are in `mod metric`"
+            "`Distance::of`, `Distance::clearance`, `Distance::apart`, `Distance::departure`, \
+             `Distance::off` and `Distance::at` are in `mod metric`"
         );
         let builds: Vec<usize> = module
             .match_indices("Self(")
@@ -6148,16 +6160,17 @@ mod tests {
             .filter(|i| metric.contains(i))
             .collect();
         assert!(
-            builds.len() == 5
+            builds.len() == 6
                 && of.contains(&builds[0])
                 && clearance.contains(&builds[1])
-                && departure.contains(&builds[2])
-                && off.contains(&builds[3])
-                && at.contains(&builds[4]),
-            "`Distance` is built five times, inside `Distance::of` from a plane, inside \
-             `Distance::clearance` from a segment, inside `Distance::departure` from a bound's \
-             departure off a plane, and inside `Distance::off` and `Distance::at` from a round \
-             carrier: {} builds",
+                && apart.contains(&builds[2])
+                && departure.contains(&builds[3])
+                && off.contains(&builds[4])
+                && at.contains(&builds[5]),
+            "`Distance` is built six times, inside `Distance::of` from a plane, inside \
+             `Distance::clearance` from a segment, inside `Distance::apart` from two points, \
+             inside `Distance::departure` from a bound's departure off a plane, and inside \
+             `Distance::off` and `Distance::at` from a round carrier: {} builds",
             builds.len()
         );
         assert!(
@@ -6215,9 +6228,10 @@ mod tests {
             door.matches("-> Self").count()
                 + door.matches("-> Option<Self>").count()
                 + door.matches("-> Distance").count(),
-            5,
-            "`Distance::of`, `Distance::clearance`, `Distance::departure`, `Distance::off` and \
-             `Distance::at` are `mod metric`'s only functions returning a `Distance`"
+            6,
+            "`Distance::of`, `Distance::clearance`, `Distance::apart`, `Distance::departure`, \
+             `Distance::off` and `Distance::at` are `mod metric`'s only functions returning a \
+             `Distance`"
         );
     }
 }
@@ -6229,17 +6243,17 @@ mod tests {
 /// `δ = 0`, where the old bisector `normalize(q̂ + ŵ)` was a 0/0 NaN and,
 /// just above it, rounding noise that read the ends up to `±ρ` along it,
 /// the clearance reads that distance to the coordinates' rounding
-/// (a few ulps of their magnitude, `|p| + ρ`), is
-/// never decided negative (so `clears` never answers "does not clear"),
-/// and reads `Zero`, not a NaN's escalation, on the apex itself. Red
-/// under the bisector reading (a `Some(false)`, or the NaN's escalation
-/// at `δ = 0`).
+/// (a few ulps of their magnitude, `|p| + ρ`), the arc reads wherever
+/// that clears the band, and the apex itself reads `Zero`, not a NaN's
+/// escalation. Two coincident points read `0` apart, not NaN
+/// ([`super::metric::Distance::apart`]). Red under the bisector reading
+/// (a clear arc refused, or the NaN's escalation at `δ = 0`).
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod clearance_rows {
     use geom_core::{Band, Point3, Tol};
 
-    use super::{ArcReach, Reading, Unsettled, to_segment};
+    use super::{ArcReach, Reading, Unsettled, metric::Distance};
 
     #[test]
     fn nearly_opposite_ends_read_the_segments_own_clearance() {
@@ -6252,22 +6266,16 @@ mod clearance_rows {
                     let at = |a: f64| p + geom_core::Vec3::new(a.cos(), a.sin(), 0.0) * rho;
                     let (q, w) = (at(alpha), at(alpha + core::f64::consts::PI + delta));
                     let truth = rho * (0.5 * delta).sin();
-                    // `Distance::clearance` is this distance (its one line).
-                    let read = to_segment(p, (q, w));
+                    let read = Distance::clearance(p, (q, w)).metres();
                     assert!(
-                        read >= 0.0
-                            && (read - truth).abs()
-                                <= 8.0 * f64::EPSILON * (rho + (p - Point3::origin()).norm()),
+                        (read - truth).abs()
+                            <= 8.0 * f64::EPSILON * (rho + (p - Point3::origin()).norm()),
                         "ρ {rho}, α {alpha}, δ {delta}: the clearance {read} against {truth}"
                     );
                     for arc in [ArcReach::Near, ArcReach::Out] {
                         let got = arc.clears(p, q, w, Reading::plain(band));
-                        assert!(
-                            !matches!(got, Ok(false)),
-                            "ρ {rho}, α {alpha}, δ {delta}: an arc decided to meet the apex"
-                        );
                         if truth > 2.0 * band.escalate() {
-                            assert!(matches!(got, Ok(true)), "ρ {rho}, δ {delta}: {got:?}");
+                            assert!(got.is_ok(), "ρ {rho}, δ {delta}: {got:?}");
                             decided += 1;
                         }
                     }
@@ -6282,6 +6290,10 @@ mod clearance_rows {
         );
         let got = ArcReach::Near.clears(p, q, w, Reading::plain(band));
         assert!(matches!(got, Err(Unsettled::Zero(..))), "{got:?}");
+        // Two points apart: their distance, and `0` (not NaN) on one point.
+        let r = Point3::new(1.25, 0.5, -2.0);
+        assert_eq!(Distance::apart(p, p).metres(), 0.0);
+        assert_eq!(Distance::apart(r, p).metres(), (r - p).norm());
     }
 }
 
