@@ -266,3 +266,18 @@ The minors are folded in too:
 - the two duplicate emit lines get one home.
 The DOCTAIL strand row goes to P0, since this unit widens it to an
 ordinary fillet insert. Fix pass to the implementer.
+
+2026-11-10: 6682's fix pass is green on `9ebbf2ce90`.
+- **Fit gate.** `fillet_leg_fit` now decides a run on validation's
+  linear band: below the band it is a Zero fit, in the band it
+  escalates as `Sized`.
+- **Ripple.** At 1e-6, six grid-A anchor-fit overruns fall inside the
+  band and no longer refuse; the censuses are now keyed per ε.
+- **Rows.** The fit-gate row closes in the PR. The DOCTAIL strand row
+  is now at P0.
+- **The in-band arc-extension escalation stays.** The escalation sits
+  in `seg::arc_arc`, the check that decides whether the run lowers as
+  one wall or two. It is now documented.
+
+The fix changed the fit gate's band, which is new correctness surface,
+so the fix-pass delta gets a second FULL review before merge.
