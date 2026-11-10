@@ -2796,7 +2796,8 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         };
         let mut boundary = BTreeSet::new();
         let mut loops = Vec::new();
-        let polygon = line_loops(body, face) == Some(false);
+        let lines = line_loops(body, face);
+        let polygon = lines == Some(false);
         let mut walked = Ok(());
         // A loop this cannot walk contributes no boundary vertex, and
         // the face is no polygon the touch analysis reads.
@@ -2826,6 +2827,14 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             }
             loops.push(ring);
         }
+        // The walk above and `line_loops` read one boundary: a polygon is
+        // a walked face, and a lines-alone face with a lone loop is one
+        // whose walk refuses it as a lone loop, not as torn.
+        debug_assert!(!polygon || walked.is_ok(), "a polygon walks");
+        debug_assert!(
+            lines != Some(true) || walked == Err(TouchUnread::LoneLoop),
+            "a lines-alone face with a lone loop walks to the lone loop"
+        );
         // Incidence for the face-granularity backing rung — EVERY
         // face, curved included (a curved declared face's boundary
         // vertices are exactly the ones its record must back).
@@ -9647,8 +9656,8 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         boxed: Option<(Point3<T>, Point3<T>)>,
         verts: BTreeSet<VertexKey>,
         planar: bool,
-        /// Planar AND bounded entirely by line edges, so the exact
-        /// sweeps hold this face's whole boundary.
+        /// Planar, bounded entirely by line edges, and with no lone loop,
+        /// so the exact sweeps hold this face's whole boundary.
         line_bounded: bool,
         /// Planar, every edge a line, and holding a lone-vertex loop:
         /// the lone loop, which the exact sweeps read no ring of, is the
@@ -22279,12 +22288,22 @@ mod lone_vertex_rows {
     /// many of the lone-loop pairs had `face`'s lone loop in them.
     fn pairs_named_by_cause(body: &crate::Body<f64>, face: crate::FaceKey) -> ([usize; 2], usize) {
         use crate::{EntityId, ValidationError};
+        // An oracle of its own, not `line_loops`: the face's half-edges
+        // read edge by edge, and its boundary members for a lone vertex.
         let lines = |f| {
             let view = body.face(f).expect("a face");
-            if !matches!(view.surface(), geom::Surface::Plane { .. }) {
+            if !matches!(view.surface(), geom::Surface::Plane { .. })
+                || !view
+                    .half_edges()
+                    .iter()
+                    .all(|&he| super::edge_is_line(body, body.half_edges[he].edge))
+            {
                 return None;
             }
-            super::line_loops(body, view.record())
+            Some(
+                view.boundary()
+                    .any(|m| matches!(m, crate::live::BoundaryMember::Isolated { .. })),
+            )
         };
         let mut read = [0, 0];
         let mut at_face = 0;
@@ -22375,9 +22394,10 @@ mod lone_vertex_rows {
             keys.face(cap).expect("the cap grafted"),
         );
         let (read, at_chord) = pairs_named_by_cause(&body, chord);
+        let curve = super::Undecided::CurvedWithinReach.what();
         let cap_met = census(&body).iter().any(|e| {
-            matches!(e, crate::ValidationError::CensusUndecidable { a, b, .. }
-                if [*a, *b].contains(&crate::EntityId::Face(cap)))
+            matches!(e, crate::ValidationError::CensusUndecidable { a, b, what, .. }
+                if [*a, *b].contains(&crate::EntityId::Face(cap)) && *what == curve)
         });
         assert!(
             read[0] > 0 && at_chord > 0 && cap_met,
