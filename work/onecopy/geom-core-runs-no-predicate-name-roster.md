@@ -7,7 +7,7 @@ opened: 2026-11-10
 priority: P3
 cost: M
 closed: 2026-11-10
-pr: PRNUM
+pr: 6715
 ---
 
 
@@ -55,7 +55,7 @@ Neither is a token the census reads here. A geom-core roster declares `straddle`
 
 **Done** when `crates/geom-core/tests/recourse_roster.rs` runs `test_utils::source::roster_violations`, and geom-core's entry is gone from `KNOWN_MISSING`.
 
-**Closed** (2026-11-10, ONECOPY roster-rest). `crates/geom-core/tests/recourse_roster.rs` runs `roster_violations` over geom-core's whole `src`, in the slow set.
+**Closed** (2026-11-10, ONECOPY roster-reach, at its review). `crates/geom-core/tests/recourse_roster.rs` runs `roster_violations` over geom-core's whole `src`, in the slow set.
 - **Declared carriers:**
   - `UNIT_DIRECTION_ARM`;
   - the two direction doors whose name is not their first argument (`decide_unit_direction`, `decide_direction_by`);

@@ -465,7 +465,7 @@ mod tests {
         Indeterminate {
             margin: MarginDiag::value(3.0e-10),
             band: band(),
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the in-band cause diag() hands each class row to render
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         }

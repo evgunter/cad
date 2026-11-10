@@ -228,8 +228,10 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
     use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
     let r = 0.05;
     let sheet = Meridian {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        axis: geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        },
         rim: Point3::new(RIM_R, 0.0, 0.0),
     };
     let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {

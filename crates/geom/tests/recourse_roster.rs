@@ -49,7 +49,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curves.rs: site", CALLERS_CRATE),
     ("curves.rs: sites.off_axis", ROW_FIELD),
     ("curves.rs: sites.two_ovals", ROW_FIELD),
-    ("surfaces.rs: RingSites::CONVENTION.tube", ROW_FIELD),
+    (
+        "surfaces.rs: RingReader::Convention.sites().tube",
+        ROW_FIELD,
+    ),
     ("surfaces.rs: name", FORWARDS),
     ("surfaces.rs: sites.tube", ROW_FIELD),
 ];

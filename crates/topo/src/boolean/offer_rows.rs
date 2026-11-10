@@ -2096,6 +2096,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
                 verdict,
             })
             .collect(),
+        BooleanErrorKind::JoinPartnersTied => vec![BooleanError::JoinPartnersTied],
         // Every regularity reading is a magnitude: a distance from a
         // singularity, a wedge, a sagitta. It refuses on no negative.
         BooleanErrorKind::JoinUndecided => [BooleanError::JoinUndecided(crate::JoinUndecided {
@@ -2217,7 +2218,7 @@ fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
             let diag = Indeterminate {
                 margin: MarginDiag::value(m),
                 band,
-                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+                // UNDECIDED-NAME: the cause every BooleanErrorKind is quoted on to read its offers
                 predicate: Some("census"),
                 terminal_sliver: false,
             };

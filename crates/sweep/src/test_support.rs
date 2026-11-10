@@ -2559,11 +2559,8 @@ fn turn_readings_of<T: Decide>(
     links: [Result<Resolved<T>, crate::blend::BlendError>; 2],
 ) -> (T, [T; 2]) {
     let ends = |e: EdgeKey| {
-        let he = body.get_edge(e).expect("an edge").he_plus;
-        [
-            body.get_half_edge(he).expect("a half-edge").start,
-            body.half_edge_end(he).expect("an end"),
-        ]
+        let (v0, v1) = body.edge_vertices(e).expect("an edge");
+        [v0, v1]
     };
     let vertex = ends(edges[0])
         .into_iter()

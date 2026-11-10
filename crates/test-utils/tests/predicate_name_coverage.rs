@@ -14,18 +14,30 @@
 //! so the list only shrinks, and an entry cites a row that exists.
 //!
 //! **References.** A literal a `predicate` field or comparison names
-//! (`predicate: Some("…")`, `d.predicate == Some("…")`) is a second
-//! spelling of a name some door decides. It has to resolve against the
-//! union of every crate's census, each roster crate's built with its own
-//! roster's carriers (`test_utils::source::crate_roster`), so a
-//! fixture that outlives a rename is red here. A deliberate negative — a
-//! hand-built cause, a name asserted absent — says so at the site with
-//! `// UNDECIDED-NAME: <why>` on the line above, not in a list. A name
-//! only a listed crate spells is held by that crate's entry: its roster
-//! is what will read it, and once it runs one the name has to resolve.
-//! A crate that runs a roster but spells its names in a closed type's
-//! table the census does not read (profile's `Gate`) is an entry too,
-//! [`Missing::ClosedTable`], red once it holds no reference.
+//! (`predicate: Some("…")`, `d.predicate == Some("…")`, every
+//! alternative of a `Some("a" | "b")` pattern), in a crate's `src` or
+//! its `tests/`, is a second spelling of a name some door decides. It
+//! has to resolve against the union of every crate's census (its `src`,
+//! each roster crate's built with its own roster's carriers via
+//! `test_utils::source::crate_roster`, and the names its `tests/`
+//! decide), so a fixture that outlives a rename is red here.
+//!
+//! - **A deliberate negative** — a hand-built cause, a name asserted
+//!   absent — says so with `// UNDECIDED-NAME: <why>` on the line above,
+//!   its why its own. The marker belongs to test code alone (a
+//!   `#[cfg(test)]` item, a file a test-only `mod` mounts, or `tests/`):
+//!   one in production code is red, since a production name nothing
+//!   decides needs a home, not a marker. And it ratchets the other way
+//!   too: a marked name some census decides is red ("drop the marker").
+//! - **A hold.** A listed crate holds a name only where it spells it as
+//!   decided — a `const` of it, or, for a [`Missing::ClosedTable`]
+//!   entry, its table's `Variant => "lit"` arm
+//!   (`test_utils::source::held_spellings`) — never at a reference or an
+//!   arbitrary literal. Once the crate's roster reads it, the name
+//!   resolves on its own. A crate that runs a roster but spells names in
+//!   a closed type's table the census does not read (profile's `Gate`,
+//!   sweep's blend decisions, geom-brep's pose and pair decisions) is a
+//!   `ClosedTable` entry, red once it holds no reference.
 //!
 //! **When it runs.** It walks the whole tree, so it is in the slow set:
 //! a PR runs it only when the PR names it, and the nightly every night.
@@ -34,8 +46,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use test_utils::source::{
-    PredicateCensus, crate_roster, predicate_census, repo_root, spelled_literals,
-    unresolved_references,
+    PredicateCensus, SiteNames, crate_roster, held_spellings, holds_rust_sources, predicate_census,
+    repo_root, test_references,
 };
 
 /// Why a crate's decided names are not all in the census union yet.
@@ -51,16 +63,39 @@ enum Missing {
 /// The crates whose decided names the union does not yet hold, each
 /// with why and the row that closes it. A reference only such a crate
 /// spells is held by its entry.
-const KNOWN_MISSING: &[(&str, Missing, &str)] = &[(
-    "profile",
-    Missing::ClosedTable,
-    "work/onecopy/the-census-reads-no-closed-type-name-table.md",
-)];
+const KNOWN_MISSING: &[(&str, Missing, &str)] = &[
+    (
+        "editor-core",
+        Missing::Roster,
+        "work/onecopy/editor-core-runs-no-predicate-name-roster.md",
+    ),
+    (
+        "profile",
+        Missing::ClosedTable,
+        "work/onecopy/the-census-reads-no-closed-type-name-table.md",
+    ),
+    (
+        "geom-brep",
+        Missing::ClosedTable,
+        "work/onecopy/the-census-reads-no-closed-type-name-table.md",
+    ),
+    (
+        "sweep",
+        Missing::ClosedTable,
+        "work/onecopy/the-census-reads-no-closed-type-name-table.md",
+    ),
+];
 
 /// A crate as this row reads it.
 struct Crate {
     census: PredicateCensus,
     runs_roster: bool,
+    /// The names its `tests/` decide, which a suite's own reference may
+    /// name.
+    test_names: BTreeSet<String>,
+    /// The references its `tests/` hold, found and marked, each
+    /// `(name, <file>:<line>)` relative to `tests`.
+    test_refs: (SiteNames, SiteNames),
 }
 
 /// Every crate under `crates/` with a `src`, read once.
@@ -77,11 +112,19 @@ fn crates() -> BTreeMap<String, Crate> {
         let runs_roster = roster.is_some();
         let carriers = roster.unwrap_or_default();
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let tests = dir.join("tests");
+        let test_names = if holds_rust_sources(&tests) {
+            predicate_census(&tests, &[]).names
+        } else {
+            BTreeSet::new()
+        };
         out.insert(
             name,
             Crate {
                 census: predicate_census(&src, &carriers),
                 runs_roster,
+                test_names,
+                test_refs: test_references(&tests),
             },
         );
     }
@@ -138,31 +181,77 @@ fn every_deciding_crate_runs_a_roster_and_every_referenced_name_is_decided() {
     }
     let union: BTreeSet<String> = crates
         .values()
-        .flat_map(|c| c.census.names.iter().cloned())
+        .flat_map(|c| c.census.names.iter().chain(&c.test_names).cloned())
         .collect();
     assert!(!union.is_empty(), "the census read no name anywhere");
     let crates_dir = root.join("crates");
-    let spelled: BTreeMap<&str, BTreeSet<String>> = KNOWN_MISSING
+    // A listed crate holds a name only where it spells it as decided:
+    // a `const` of it, or, for a closed table, its `Variant => "lit"`
+    // arm — never at a reference and never at an arbitrary literal.
+    let held: BTreeMap<&str, BTreeSet<String>> = KNOWN_MISSING
         .iter()
-        .map(|(name, _, _)| (*name, spelled_literals(&crates_dir.join(name).join("src"))))
+        .map(|(name, why, _)| {
+            let src = crates_dir.join(name).join("src");
+            (*name, held_spellings(&src, *why == Missing::ClosedTable))
+        })
         .collect();
     let mut holding: BTreeSet<&str> = BTreeSet::new();
     for (name, c) in &crates {
-        for site in unresolved_references(&c.census, &union) {
-            let referenced = site.rsplit(": ").next().unwrap_or(&site);
-            let holders: Vec<&str> = spelled
+        let sites = c
+            .census
+            .references
+            .iter()
+            .map(|(r, site)| (r, format!("crates/{name}/src/{site}")))
+            .chain(
+                c.test_refs
+                    .0
+                    .iter()
+                    .map(|(r, site)| (r, format!("crates/{name}/tests/{site}"))),
+            );
+        for (referenced, site) in sites {
+            if union.contains(referenced) {
+                continue;
+            }
+            let holders: Vec<&str> = held
                 .iter()
-                .filter(|(_, literals)| literals.contains(referenced))
+                .filter(|(_, names)| names.contains(referenced))
                 .map(|(holder, _)| *holder)
                 .collect();
             if holders.is_empty() {
                 out.push(format!(
-                    "crates/{name}/src/{site} — a predicate literal no crate decides: \
-                     spell it as the door does, route it through the door's const, or mark \
+                    "{site}: {referenced} — a predicate literal no crate decides: spell it as \
+                     the door does, route it through the door's const, or, in test code, mark \
                      a deliberate negative `// UNDECIDED-NAME: <why>` on the line above"
                 ));
             }
             holding.extend(holders);
+        }
+        // The other half of the marker's ratchet: a marked name some
+        // census decides is a reference, and the marker a stale claim.
+        let marked = c
+            .census
+            .marked_references
+            .iter()
+            .map(|(r, site)| (r, format!("crates/{name}/src/{site}")))
+            .chain(
+                c.test_refs
+                    .1
+                    .iter()
+                    .map(|(r, site)| (r, format!("crates/{name}/tests/{site}"))),
+            );
+        for (referenced, site) in marked {
+            if union.contains(referenced) || held.values().any(|names| names.contains(referenced)) {
+                out.push(format!(
+                    "{site}: {referenced} is decided now — drop its `UNDECIDED-NAME` marker"
+                ));
+            }
+        }
+        for site in &c.census.misplaced_markers {
+            out.push(format!(
+                "crates/{name}/src/{site}: an `UNDECIDED-NAME` marker outside test code — a \
+                 production name nothing decides needs a home (a door, or the door's const), \
+                 not a marker"
+            ));
         }
     }
     for (name, why, _) in KNOWN_MISSING {

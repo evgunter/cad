@@ -29,12 +29,23 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 const CARRIERS: &[NameCarrier] = &[
     // The unit-direction row the normalising doors read at.
     NameCarrier::Const("UNIT_DIRECTION_ARM"),
+    // The rigidity check's table of rows, read in a loop.
+    NameCarrier::Const("COL0_UNIT"),
+    NameCarrier::Const("COL1_UNIT"),
+    NameCarrier::Const("COL2_UNIT"),
+    NameCarrier::Const("COL01_ORTH"),
+    NameCarrier::Const("COL12_ORTH"),
+    NameCarrier::Const("COL02_ORTH"),
+    NameCarrier::Const("DET_PLUS_ONE"),
     // Doors whose name is not their first argument.
     NameCarrier::Call("decide_unit_direction"),
     NameCarrier::Call("decide_direction_by"),
     // The straddle row a door mints, and a turn rule's two rows.
     NameCarrier::Call("straddle"),
     NameCarrier::Call("bounded"),
+    // `Extent::forward_by_arc`'s name triple, its callers' rows.
+    NameCarrier::Call("forward_by_arc"),
+    NameCarrier::Const("ARC_ROWS"),
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
@@ -69,7 +80,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("linalg/unit_vec.rs: v", NOT_FIRST),
     ("linalg/unit_vec.rs: v * scale", NOT_FIRST),
     ("line2.rs: det", NOT_A_NAME),
+    ("period.rs: chord_name", FORWARDS),
     ("period.rs: name", FORWARDS),
+    ("period.rs: sense_name", FORWARDS),
     ("period.rs: rows.straddle", ROW_FIELD),
     ("period.rs: rows.turn", ROW_FIELD),
     ("running.rs: name", FORWARDS),

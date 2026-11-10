@@ -80,6 +80,15 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("WALL_ROUND_AXIS"),
     NameCarrier::Const("NET"),
     NameCarrier::Const("STRADDLE"),
+    NameCarrier::Const("PN_APERTURE_SIN"),
+    NameCarrier::Const("PN_APERTURE_COS"),
+    NameCarrier::Const("PN_SEAM_OFF_AXIS"),
+    NameCarrier::Const("COC_APERTURE_SIN"),
+    NameCarrier::Const("COC_APERTURE_COS"),
+    NameCarrier::Const("COC_SEAM_OFF_AXIS"),
+    NameCarrier::Const("PN_APEX_PAIR_REACH"),
+    NameCarrier::Const("PN_APEX_TANGENT_REACH"),
+    NameCarrier::Const("PN_APEX_POINT_REACH"),
     NameCarrier::Const("SPHERE_INCIDENT"),
     NameCarrier::Const("TORUS_INCIDENT"),
     NameCarrier::Const("SPINDLE_INCIDENT"),
@@ -120,6 +129,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("mean_width_side"),
     NameCarrier::Call("HullArm"),
     NameCarrier::Call("bounded"),
+    NameCarrier::Call("require_on_loop"),
+    NameCarrier::Call("data_beneath_sum"),
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \

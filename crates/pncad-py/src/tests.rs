@@ -3957,7 +3957,7 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             source: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
-                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+                // UNDECIDED-NAME: the cause a ring-contact arm carries to Python (first)
                 predicate: Some("ring_contact"),
                 terminal_sliver: false,
             },
@@ -3973,7 +3973,7 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             source: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
-                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+                // UNDECIDED-NAME: the cause a ring-contact arm carries to Python (second)
                 predicate: Some("ring_contact"),
                 terminal_sliver: false,
             },
@@ -4433,6 +4433,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join",
             "join_carrier_unsupported",
             "join_desync",
+            "join_partners_tied",
             "join_undecided",
             "line_material_unread",
             "line_wedges",

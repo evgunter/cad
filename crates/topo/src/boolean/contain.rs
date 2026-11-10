@@ -1279,7 +1279,7 @@ mod tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the margin's cause an escalation's ending is read for
             predicate: Some("a_margin"),
             terminal_sliver: false,
         };

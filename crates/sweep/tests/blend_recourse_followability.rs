@@ -149,9 +149,8 @@ fn edges_at_first_vertex(body: &Body<f64>) -> Vec<EdgeKey> {
     query::all_edges(body)
         .into_iter()
         .filter(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let s = body.get_half_edge(e.he_plus).unwrap().start;
-            s == v0 || body.half_edge_end(e.he_plus) == Some(v0)
+            let (s, t) = body.edge_vertices(*k).unwrap();
+            s == v0 || t == v0
         })
         .collect()
 }
@@ -269,11 +268,8 @@ fn lune_slit_plate() -> (Body<f64>, EdgeKey, EdgeKey) {
     );
     let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     let ends = |e: EdgeKey| {
-        let he = body.get_edge(e).unwrap().he_plus;
-        [
-            point(body.get_half_edge(he).unwrap().start),
-            point(body.half_edge_end(he).unwrap()),
-        ]
+        let (v0, v1) = body.edge_vertices(e).unwrap();
+        [point(v0), point(v1)]
     };
     let on_cylinders = |e: EdgeKey| {
         let (a, b) = topo::readback::edge_sides(&body, e).unwrap().faces();
@@ -626,10 +622,8 @@ fn fillet_turn_recourse() {
     let third = query::all_edges(&skewed)
         .into_iter()
         .find(|e| {
-            let he = skewed.get_edge(*e).unwrap().he_plus;
-            !bands.contains(e)
-                && (at_origin(skewed.get_half_edge(he).unwrap().start)
-                    || at_origin(skewed.half_edge_end(he).unwrap()))
+            let (v0, v1) = skewed.edge_vertices(*e).unwrap();
+            !bands.contains(e) && (at_origin(v0) || at_origin(v1))
         })
         .expect("the corner's third edge");
     builds(
