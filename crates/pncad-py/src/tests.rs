@@ -6070,7 +6070,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "unexaminable_tag",
-        values: &["corrupt", "non_iso_carrier", "null_scaffold_edge"],
+        values: &[
+            "corrupt",
+            "empty_loop",
+            "non_iso_carrier",
+            "null_scaffold_edge",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -6329,10 +6334,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge_edge_point", 2),
     ("empty", 2),
     ("empty_boolean", 2),
-    // Coincidence, not one fact: a profile loop authored with no vertex,
-    // refused at validation, and a body face's empty (scaffolding) loop,
-    // refused by the tessellator.
-    ("empty_loop", 2),
+    // Shared by coincidence: the profile validator's word for a loop
+    // authored with no vertex. Shared as one fact: the tessellator and the
+    // coherence check each name a body face's lone-vertex (scaffolding)
+    // loop with it.
+    ("empty_loop", 3),
     // One fact: the extrude, the revolve and the loft or path sweep each
     // refuse a profile with no loops at their own door;
     // `an_empty_profile_is_one_word_at_every_sweep` pins them.

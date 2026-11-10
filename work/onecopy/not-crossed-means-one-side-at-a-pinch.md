@@ -160,3 +160,14 @@ intersect and split. Measured and not shipped:
   every cut above.
 
 Every one read its closed-form volume, or refused in band.
+
+### The sibling ladders that cite `paths_rung`'s premise (review of PR 6658)
+
+PR 6658 moved `IslandReading::read_paths` onto `climb_agreeing`: its premise, an island lying in its face, has no gate mid-operation. Its siblings in `crates/topo/src/chord_join.rs` still climb `climb(Answering::Any, ..)` and cite `paths_rung`'s premise, "the loop does not cross the curve it is read against". All are construction-time, so their premise is the division's, and they wait here on 6592's `Alike` with the rest:
+- `path_ring_side` (~`:4119`);
+- the lone ring's outer side, in `lone_ring`'s reading (~`:4864`);
+- `ring_side` (~`:5497`), the `rehome_rings` site named above.
+
+Two other `Answering::Any` climbs nearby are not premise sites:
+- `paths_rung` itself (~`:4075`) reads one point's paths, where the premise holds by construction;
+- `side_ladder_rows` (~`:5591`) is the ladder's own unit test.

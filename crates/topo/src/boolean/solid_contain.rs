@@ -3476,7 +3476,7 @@ impl<T: Decide> EdgeMeets<T> {
             }))?;
         let ray = geom::Line { origin: q, dir: d };
         let along = ray.param(at);
-        let distance = (at - ray.foot_within(at, (T::zero(), top))).norm();
+        let distance = ray.distance_within(at, (T::zero(), top));
         match geom_core::k_stats::decide_magnitude(
             rows.vertex,
             Margin::of(distance.max(T::zero())),
