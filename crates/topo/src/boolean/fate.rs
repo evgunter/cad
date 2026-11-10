@@ -775,7 +775,7 @@ fn places<T: Decide>(
                 .half_edge_start_point(h)
                 .ok_or_else(|| desync("a fate cut's corner has no point"))?;
             let normal = normal_at(
-                (body, f, at_point),
+                ((body, operand), f, at_point),
                 "a fate cut's corner face has no normal at its vertex",
                 band,
             )?;
@@ -808,22 +808,25 @@ fn places<T: Decide>(
     Ok(held.then_some((found, tied)))
 }
 
-/// Face `f`'s outward normal at `p`, where a corner is read: an
-/// escalation where it reads in band, else `what`.
+/// Face `f`'s outward normal at `p`, where a corner is read: a
+/// refusal by its own standing ([`crate::face_normal::NormalAtError::standing`]),
+/// a kept one in the Boolean's words on `operand`'s face
+/// ([`BooleanError::of_pierced_normal`]: an escalation, an apex or a
+/// crease) and an abort by its row ([`BooleanError::of_aborted_normal`]:
+/// a torus outside the ring convention, or `what`); a face that no
+/// longer resolves is `what` too.
 fn normal_at<T: Decide>(
-    (body, f, p): (&Body<T>, FaceKey, Point3<T>),
+    ((body, operand), f, p): ((&Body<T>, Operand), FaceKey, Point3<T>),
     what: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     match crate::face_normal::face_outward_normal_at(body, f, p, band) {
         Ok(Some(n)) => Ok(n.vec()),
-        Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
-            Err(BooleanError::Escalated {
-                decision: super::BooleanDecision::of_normal(decision),
-                diag,
-            })
-        }
-        Ok(None) | Err(_) => Err(BooleanError::ClassificationInvariant { what }),
+        Ok(None) => Err(BooleanError::ClassificationInvariant { what }),
+        Err(why) => Err(match why.standing() {
+            Ok(_) => BooleanError::of_pierced_normal(why, operand, f),
+            Err(abort) => BooleanError::of_aborted_normal(abort, (operand, f), what),
+        }),
     }
 }
 
@@ -1246,7 +1249,7 @@ fn piece_holding<T: Decide>(
 /// coincidence), and a piece with no normal at `p` refuses as
 /// [`normal_at`] does.
 fn piece_beside<T: Decide>(
-    body: &Body<T>,
+    (body, operand): (&Body<T>, Operand),
     sides: &[(FaceKey, EdgeKey)],
     p: Point3<T>,
     d: Vec3<T>,
@@ -1263,7 +1266,7 @@ fn piece_beside<T: Decide>(
             .ok_or_else(|| desync("a division edge no longer resolves"))?
             .he_plus;
         let normal = normal_at(
-            (body, f, p),
+            ((body, operand), f, p),
             "a piece of a fate cut's kept face has no normal on its division's edge",
             band,
         )?;
@@ -2101,7 +2104,9 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                                 d,
                                 band,
                             )?,
-                            Lies::OnEdge(sides) => piece_beside(kept_body, &sides, p, d, band)?,
+                            Lies::OnEdge(sides) => {
+                                piece_beside((kept_body, fc.holder), &sides, p, d, band)?
+                            }
                             Lies::Nowhere(unplaced) => return Err(unplaced.refused().into()),
                         }
                     }
