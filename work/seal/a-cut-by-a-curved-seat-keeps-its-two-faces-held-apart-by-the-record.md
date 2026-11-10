@@ -2,7 +2,8 @@
 id: a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record
 kind: issue
 title: A cut whose tool's seat is curved, crossed by faces alone, keeps the seat's two faces inside one shell held apart by the record: a silent wrong body
-status: open
+status: dispatched
+branch: seal/curved-seat
 opened: 2026-11-09
 priority: P1
 cost: M
@@ -46,3 +47,7 @@ from a block that crosses the seat by faces alone either builds the
 op's body or refuses typed. The gate must tell a curved area record
 from a tangency without re-deciding the carriers (the carry's lineage,
 or the record's own backing), and a row must pin the outcome.
+
+## Dispatch (2026-11-10)
+
+Branch `seal/curved-seat`. Review tier: **single, FULL**. The fix closes a silent wrong body, so correctness is at risk: a gate that refuses too much would refuse a rod resting on a plate, and one that refuses too little leaves the wrong body in place. The direction is the row's own ("the record's own backing"): the carried record's class says whether it holds two pieces apart over an area (`Rest`, one carrier) or along a tangent locus (`Tangent`, distinct carriers), with no carrier re-decided. The lane executes the coaxial fixture before anything else, since the defect was found by inspection.
