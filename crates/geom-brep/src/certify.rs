@@ -4313,7 +4313,7 @@ fn sampled_checks<T: Decide + geom_core::CertifiedBounds>(
     (resolved, turn, mut max_residual): (&Resolved<T>, Option<CertifiedTurn<T>>, T),
 ) -> Result<Checked<T>, CertifyError> {
     let (t0, t1) = (spec.param_start, spec.param_end);
-    let canonical = canonical_of(spec, &resolved, band)?;
+    let canonical = canonical_of(spec, resolved, band)?;
 
     // ---- Check 4: per-sample description residuals. ----
     // Jet-schedule accumulators (TangentIntersection only): the worst

@@ -391,16 +391,23 @@ fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
     else {
         panic!("the stated image's certificate reads the rim off the wall: {refused:?}");
     };
+    // The read's margin is a lower bound on the rim's distance from the
+    // wall, `off`, kept with the exact image's check.
+    let read = match e.decision() {
+        Some((
+            geom_brep::CertCheck::PlaneNurbsHullValue,
+            geom_brep::recourse::RefusedArm::SignCertain(Some(read)),
+        )) => read
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("an f64 read is a point margin"),
+        other => {
+            panic!("the refusal reads as the exact image's check, by the read's margin: {other:?}")
+        }
+    };
     assert!(
-        matches!(
-            e.decision(),
-            Some((
-                geom_brep::CertCheck::PlaneNurbsHullValue,
-                geom_brep::recourse::RefusedArm::SignCertain(None)
-            ))
-        ),
-        "the refusal reads as the exact image's check: {:?}",
-        e.decision()
+        read > 0.5 * off && read <= off,
+        "the read's margin {read:e} is the rim's distance {off:e} from below"
     );
     assert!(
         e.to_string()
