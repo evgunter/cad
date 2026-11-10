@@ -378,6 +378,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // this census, literal view
     },
     Entry {
+        path: "crates/test-utils/tests/torus_verdict_matches.rs",
+        disposition: Shared, // every crate's production code, code view
+    },
+    Entry {
         path: "crates/topo/src/boxes.rs",
         disposition: Unconverted(
             "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \

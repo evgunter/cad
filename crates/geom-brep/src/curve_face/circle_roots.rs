@@ -99,9 +99,12 @@ use geom_core::Indeterminate;
 use geom_core::k_stats::decide;
 
 /// **Why a conic root door refused**, in the door's own words: the
-/// caller names the decision an escalation is.
+/// caller names the decision an escalation is. `X` is what a torus door
+/// refuses its torus with ([`Self::Torus`]): a door that reads no torus
+/// leaves it [`core::convert::Infallible`], so the arm cannot be built, and
+/// a reader of that door's refusal need not, and cannot, end a torus.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum DoorRefusal {
+pub enum DoorRefusal<X = core::convert::Infallible> {
     /// A classifying sign the door needed, or a touch it read, fell in
     /// the band's escalation gap.
     Escalated(Indeterminate),
@@ -116,7 +119,7 @@ pub enum DoorRefusal {
     /// convention's own ([`crate::TorusRefusal::refusal`]): an undecided
     /// half is ranked by its margin, and a torus decided outside it is
     /// invalid input.
-    Torus(crate::TorusRefusal),
+    Torus(X),
 }
 
 /// What the certified roots of a circle against a surface say about the
@@ -137,14 +140,14 @@ pub type CircleRoots<T> = Roots<T, { 2 * MAX_DEGREE }, OnCarrier>;
 /// # Errors
 ///
 /// As above.
-pub fn door_half_angle_roots<T: Decide>(
+pub fn door_half_angle_roots<T: Decide, X>(
     f: &DegreeTwo<T>,
     residual: impl Fn(T) -> T,
     frame: HalfAngleFrame<T>,
     rows: &HalfAngleRows,
     slack: &RootSlack<'_, T>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
+) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<X>> {
     Ok(door_refusal(half_angle_roots(f, residual, frame, rows, slack, band))?.map(Roots::widen))
 }
 
@@ -156,7 +159,9 @@ pub fn door_half_angle_roots<T: Decide>(
 ///
 /// [`DoorRefusal::Escalated`], as above, and [`DoorRefusal::Invariant`]
 /// for a fault.
-pub fn door_refusal<V>(found: Result<V, RootRefusal>) -> Result<Result<V, Unsettled>, DoorRefusal> {
+pub fn door_refusal<V, X>(
+    found: Result<V, RootRefusal>,
+) -> Result<Result<V, Unsettled>, DoorRefusal<X>> {
     match found {
         Ok(roots) => Ok(Ok(roots)),
         Err(RootRefusal::Unsettled(why)) => Ok(Err(why)),
@@ -387,8 +392,8 @@ fn harmonic_roots<T: Decide>(
 /// On any other refusal.
 #[cfg(test)]
 #[allow(clippy::panic)]
-pub fn door_answer<T: geom_core::Real>(
-    got: Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal>,
+pub fn door_answer<T: geom_core::Real, X: core::fmt::Debug>(
+    got: Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<X>>,
 ) -> Result<CircleRoots<T>, Option<Unsettled>> {
     match got {
         Ok(found) => found.map_err(Some),

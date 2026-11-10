@@ -1665,12 +1665,19 @@ pub fn conic_torus_harmonics<T: Real>(
 /// rounding is relative.
 #[must_use]
 pub fn ring_floor<T: Real>(ring: geom::RingTorus<T>) -> T {
-    ring_floor_of(ring.major_radius(), ring.minor_radius())
+    floor_formula(ring.major_radius(), ring.minor_radius())
 }
 
 /// [`ring_floor`]'s formula on radii no witness holds: the floor rows'
-/// reading of radii the band does not certify.
+/// reading of radii the band does not certify. Test builds only, so in
+/// production the floor is read through the witness alone.
+#[cfg(test)]
 pub(crate) fn ring_floor_of<T: Real>(major_radius: T, minor_radius: T) -> T {
+    floor_formula(major_radius, minor_radius)
+}
+
+/// The floor's one formula ([`ring_floor`]).
+fn floor_formula<T: Real>(major_radius: T, minor_radius: T) -> T {
     T::from_f64(2.0)
         * minor_radius
         * ((major_radius - minor_radius) * (major_radius + minor_radius))

@@ -1623,14 +1623,14 @@ fn torus_refusal_at(
     refusal: geom_brep::TorusRefusal,
     (operand, face): (Operand, FaceKey),
 ) -> BooleanError {
-    match refusal.verdict {
-        geom_brep::TorusVerdict::Refused(verdict) => BooleanError::DegenerateTorus {
+    match refusal.standing() {
+        geom_brep::TorusStanding::InvalidInput(verdict) => BooleanError::DegenerateTorus {
             operand,
             face,
             convention: refusal.convention,
             verdict,
         },
-        geom_brep::TorusVerdict::Undecided(diag) => BooleanError::Escalated {
+        geom_brep::TorusStanding::Ranked(diag) => BooleanError::Escalated {
             decision: BooleanDecision::Torus(refusal.convention),
             diag,
         },
@@ -4766,9 +4766,6 @@ impl BooleanError {
         move |refusal| match refusal {
             DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
             DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
-            DoorRefusal::Torus(_) => {
-                unreachable!("only a torus door refuses a torus, and it ends at its face")
-            }
         }
     }
 
@@ -4779,11 +4776,13 @@ impl BooleanError {
     pub(in crate::boolean) fn of_torus_door_refusal(
         decision: BooleanDecision,
         at: (Operand, FaceKey),
-    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal) -> Self {
+    ) -> impl Fn(geom_brep::curve_face::circle_roots::DoorRefusal<geom_brep::TorusRefusal>) -> Self
+    {
         use geom_brep::curve_face::circle_roots::DoorRefusal;
         move |refusal| match refusal {
+            DoorRefusal::Escalated(diag) => Self::Escalated { decision, diag },
+            DoorRefusal::Invariant(what) => Self::ClassificationInvariant { what },
             DoorRefusal::Torus(refusal) => Self::of_torus_refusal(refusal, at),
-            other => Self::of_door_refusal(decision)(other),
         }
     }
 

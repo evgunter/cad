@@ -868,11 +868,11 @@ impl core::fmt::Display for SsiError {
             // The refusal's own words (`TorusRefusal::said`); a torus
             // decided outside the convention adds this door's consequence,
             // which an undecided half does not yet have.
-            Self::DegenerateTorus(refusal) => match refusal.verdict {
-                crate::torus_convention::TorusVerdict::Undecided(_) => {
+            Self::DegenerateTorus(refusal) => match refusal.standing() {
+                crate::torus_convention::TorusStanding::Ranked(_) => {
                     write!(f, "ssi: {}", refusal.said("the torus's", None))
                 }
-                crate::torus_convention::TorusVerdict::Refused(_) => write!(
+                crate::torus_convention::TorusStanding::InvalidInput(_) => write!(
                     f,
                     "ssi: {}, so the pair has no section to trace",
                     refusal.said("the torus's", None)

@@ -116,21 +116,44 @@ pub enum TorusVerdict {
     Refused(Refused),
 }
 
+/// **A torus refusal's standing, with what each class carries**
+/// ([`TorusRefusal::standing`], the one place it is decided).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TorusStanding {
+    /// A half the band left undecided, ranked by its margin (row 1(b)):
+    /// its escalation.
+    Ranked(Indeterminate),
+    /// A torus decided outside the convention, a shape the kernel's model
+    /// never represents: invalid input (row 1(a)), which aborts, with the
+    /// half's decided verdict.
+    InvalidInput(Refused),
+}
+
 impl TorusRefusal {
-    /// **This refusal's standing** ([`crate::ladder::Refusal`]), the one
-    /// home of a torus convention's class, which the normal door, the
-    /// Boolean and the face replacement read: an undecided half is ranked
-    /// by its margin (row 1(b)), and a torus decided outside the
-    /// convention is a shape the kernel's model never represents, an
-    /// invalid input (row 1(a)), so it aborts.
+    /// **This refusal's standing**, the one home of a torus convention's
+    /// class, which every reader of a torus refusal reads, ending it in its
+    /// own type: the normal door, the Boolean, the face replacement, the
+    /// frame and contact readers, the section's words. No reader matches
+    /// [`Self::verdict`] itself (`test-utils`'s `torus_verdict_matches` row).
+    #[must_use]
+    pub const fn standing(&self) -> TorusStanding {
+        match self.verdict {
+            TorusVerdict::Undecided(diag) => TorusStanding::Ranked(diag),
+            TorusVerdict::Refused(verdict) => TorusStanding::InvalidInput(verdict),
+        }
+    }
+
+    /// **This refusal's standing on the ladder** ([`crate::ladder::Refusal`]),
+    /// read off [`Self::standing`]: an undecided half is ranked by its
+    /// margin, and a torus decided outside the convention aborts.
     ///
     /// # Errors
     ///
     /// [`crate::ladder::Aborts`] for a torus decided outside the convention.
     pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
-        match self.verdict {
-            TorusVerdict::Undecided(diag) => Ok(crate::ladder::Refusal::Margin(diag)),
-            TorusVerdict::Refused(_) => Err(crate::ladder::Aborts),
+        match self.standing() {
+            TorusStanding::Ranked(diag) => Ok(crate::ladder::Refusal::Margin(diag)),
+            TorusStanding::InvalidInput(_) => Err(crate::ladder::Aborts),
         }
     }
 

@@ -119,11 +119,13 @@ fn door(
     circle: Circle,
     torus: Torus,
     band: Band,
-) -> Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal> {
+) -> Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
     circle_torus_roots(&circle.carrier(), 0.3, 2.1, &torus.surface(), band)
 }
 
-fn meridian_escalation(got: &Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal>) -> bool {
+fn meridian_escalation(
+    got: &Result<Result<CircleRoots<f64>, Unsettled>, DoorRefusal<crate::TorusRefusal>>,
+) -> bool {
     matches!(
         got,
         Err(DoorRefusal::Escalated(diag))
