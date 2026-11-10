@@ -1668,9 +1668,15 @@ fn overconstrained_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
     }
     // A dual lane is bound to its build of record (DUAL-DESIGN DL3): a
     // bundle the record refused is refused at the dual by that refusal,
-    // which the `f64` lane beside it asserts.
+    // and the record's own refusal there is the overconstraint.
     if matches!(error.kind, editor_core::NodeErrorKind::RecordRefused) {
-        return false;
+        let nominal = EvalOptions {
+            seed: None,
+            param_box: None,
+            ..s.opts.clone()
+        };
+        let record = run_at::<f64>(&s.doc, &nominal, None);
+        return overconstrained_or_escalates(&record, s, kind, &format!("{what}, its record"));
     }
     assert!(
         matches!(

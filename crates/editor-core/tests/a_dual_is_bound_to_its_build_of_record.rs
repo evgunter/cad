@@ -5,6 +5,8 @@
 //! reading a dual reaches leans on a gate the record failed
 //! (`topo::Replay`'s "A tier-3 premise at a dual").
 
+#![allow(clippy::panic, clippy::expect_used)]
+
 use crate::corpus;
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, NodeError, NodeErrorKind, NodeResult, evaluate,
