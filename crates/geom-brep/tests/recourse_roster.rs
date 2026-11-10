@@ -46,6 +46,19 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 /// the call: the `const`s names are spelled in, then the calls (row
 /// structs and `*_as` forwarders) whose literal arguments are names.
 const CARRIERS: &[NameCarrier] = &[
+    NameCarrier::Const("SQUARE_FOLD_HALF"),
+    NameCarrier::Const("SQUARE_EDGE_OVER"),
+    NameCarrier::Const("SPHERE_NEAR"),
+    NameCarrier::Const("SPHERE_FAR"),
+    // The closed decision types' name tables (`fn name/floor/straddle/
+    // row/predicate`), read as the census reads them. A type whose
+    // `fn name` spells a label (`PcurveKind`, `SsiLimb`, `FloorKind`) is
+    // no name table and is not declared.
+    NameCarrier::Table("CsDecision"),
+    NameCarrier::Table("CcDecision"),
+    NameCarrier::Table("Row"),
+    NameCarrier::Table("TorusDatum"),
+    NameCarrier::Table("Meter"),
     NameCarrier::Const("AT_THE_END"),
     NameCarrier::Const("CENTRES"),
     NameCarrier::Const("CLEAR"),
@@ -132,6 +145,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("mean_width_side"),
     NameCarrier::Call("HullArm"),
     NameCarrier::Call("bounded"),
+    // Takes its rows as `(name, value)` pairs, opened by the census.
+    NameCarrier::Call("signs_as"),
     NameCarrier::Call("require_on_loop"),
     NameCarrier::Call("data_beneath_sum"),
 ];
@@ -145,8 +160,9 @@ const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's nam
 const IDENTITY: &str = "a `read_identity` call over data whose names are read where it is built";
 const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
                       forwards its caller's name";
-const CLOSED_TYPE: &str = "a closed type's `name()` or `predicate()`, whose names are spelled in \
-                           its own match, which the census does not read";
+const CLOSED_TYPE: &str = "a closed type's `name()`, `floor()`, `straddle()` or `predicate()`, whose \
+                           names the census reads at the type's own table, a declared \
+                           `NameCarrier::Table`";
 const STRUCT_UPDATE: &str = "a row struct built from another's literal (`..CHART_HULL`), whose names \
                              are read there";
 const SAME_NAMED: &str = "a call sharing a declared carrier's token that takes no name first: a \
@@ -157,6 +173,10 @@ const NOT_A_NAME: &str = "another `decide*` or `check*` call, whose first argume
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
+    (
+        "pair_section/torus_arms.rs: reaches_edge: [(name, m)]",
+        FORWARDS,
+    ),
     ("certify.rs: check_residual: name", FORWARDS),
     ("certify.rs: mint_checks: spec", NOT_A_NAME),
     ("certify.rs: run_checks: spec", NOT_A_NAME),
@@ -320,7 +340,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pair_section/torus.rs: radius_guard: name", FORWARDS),
     ("pair_section/torus_arms.rs: apart_in_order: name", FORWARDS),
     ("pair_section/torus_arms.rs: sign_as: name", FORWARDS),
-    ("pair_section/torus_arms.rs: signs: name", FORWARDS),
+    ("pair_section/torus_arms.rs: signs_as: name", FORWARDS),
     (
         "pair_section/torus_arms.rs: signs_across: [far, floor]",
         PAIRED,

@@ -1210,7 +1210,7 @@ mod tests {
     }
 
     /// The identity ladder over `data`, recorded.
-    fn read(
+    fn read_as(
         data: &[(&'static str, f64)],
     ) -> (IdentityLadder, Vec<&'static str>, Vec<&'static str>) {
         recorded(|| read_identity(data.iter().map(|&(n, m)| (n, Margin::of(m))), band()))
@@ -1468,7 +1468,8 @@ mod tests {
     /// answer does not rest on it.
     #[test]
     fn a_later_definite_datum_answers_past_an_in_band_one() {
-        let (got, verdicts, escalations) = read(&[("a", 0.0), ("b", 5e-9), ("c", 0.0), ("d", 1.0)]);
+        let (got, verdicts, escalations) =
+            read_as(&[("a", 0.0), ("b", 5e-9), ("c", 0.0), ("d", 1.0)]);
         let IdentityLadder::Apart { at: 3, decided } = got else {
             panic!("the last datum answers: {got:?}")
         };
@@ -1494,11 +1495,10 @@ mod tests {
     /// one is what the outcome rests on.
     #[test]
     fn an_in_band_datum_refuses_where_no_later_one_decides() {
-        let (got, verdicts, escalations) = read(&[("a", 0.0), ("b", 5e-9), ("c", 0.0)]);
+        let (got, verdicts, escalations) = read_as(&[("a", 0.0), ("b", 5e-9), ("c", 0.0)]);
         let IdentityLadder::Undecided(cause) = got else {
             panic!("undecided: {got:?}")
         };
-        // UNDECIDED-NAME: datum b of this ladder's fixture, read through read_identity's tuples
         assert_eq!(cause.predicate, Some("b"));
         assert_eq!(verdicts, ["a", "c"]);
         assert_eq!(escalations, ["b"]);
@@ -1508,16 +1508,16 @@ mod tests {
     /// read**; all Zero is the identity, its margins joined.
     #[test]
     fn the_first_definite_datum_answers_and_all_zero_holds() {
-        let (got, verdicts, _) = read(&[("a", -1.0), ("b", 5e-9), ("c", 1.0)]);
+        let (got, verdicts, _) = read_as(&[("a", -1.0), ("b", 5e-9), ("c", 1.0)]);
         let IdentityLadder::Apart { at: 0, decided } = got else {
             panic!("the first datum answers: {got:?}")
         };
         assert_eq!(decided.sign, Sign::Negative);
         assert_eq!(decided.margin, crate::MarginDiag::value(-1.0));
         assert_eq!(verdicts, ["a"], "nothing past the answer is read");
-        let (got, _, _) = read(&[("a", 0.0), ("b", 5e-10)]);
+        let (got, _, _) = read_as(&[("a", 0.0), ("b", 5e-10)]);
         assert!(matches!(got, IdentityLadder::Zero(Some(_))), "{got:?}");
-        let (got, _, _) = read(&[]);
+        let (got, _, _) = read_as(&[]);
         assert_eq!(got, IdentityLadder::Zero(None));
     }
 
@@ -1527,11 +1527,10 @@ mod tests {
     #[test]
     fn an_unreadable_datum_refuses_ahead_of_an_in_band_one() {
         for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
-            let (got, _, _) = read(&[("a", 5e-9), ("b", poison), ("c", 0.0)]);
+            let (got, _, _) = read_as(&[("a", 5e-9), ("b", poison), ("c", 0.0)]);
             let IdentityLadder::Undecided(cause) = got else {
                 panic!("{poison}: undecided: {got:?}")
             };
-            // UNDECIDED-NAME: datum b, the in-band one an unreadable datum refuses ahead of
             assert_eq!(cause.predicate, Some("b"), "{poison}");
             assert!(cause.margin.is_invalid(), "{poison}: {cause:?}");
         }

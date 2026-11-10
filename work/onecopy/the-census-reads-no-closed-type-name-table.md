@@ -2,10 +2,12 @@
 id: the-census-reads-no-closed-type-name-table
 kind: issue
 title: The predicate census reads no closed type's name table: profile's Gate macro, CcDecision, Row::name and meter.predicate are invisible to it
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: M
+closed: 2026-11-10
+pr: 0
 ---
 
 
@@ -34,3 +36,24 @@ sweep's blend decisions (`blend/mod.rs`: `Self::RingClearance => "fillet3_ring_c
 
   A held label can only make a reference resolve that should not. A fixture naming "Harmonic" as a predicate would be green, which is the permissive direction. Reading the tables by what they are, not by the fn's name, fixes it with the rest of this row.
 
+**Closed** (2026-11-10, ONECOPY census-tables).
+
+**The decision: a closed type's table is a carrier its roster declares (`NameCarrier::Table`), not a shape the census or the coverage row finds.**
+- `Table("Type")` reads every `Variant => "lit"` arm in the `fn name/predicate/straddle/floor/row` bodies of each `impl` naming the type. `Table("mac!")` reads the arms of a `mac! { … }` invocation, not its `macro_rules!` body.
+- Declared per type, a label table (`PcurveKind`'s, `SsiLimb`'s, `FloorKind`'s, `BlendArm`'s `fn name`) is no name table and is not read. That ends the hold's over-hold.
+
+**The declarations:**
+- profile: `Table("gates!")`. A new row, `the_census_reads_the_gate_table_as_the_type_does`, holds the read names equal to `Gate::ALL`'s predicates.
+- sweep: `BlendDecision`, `ClearanceDecision`, `TubeDecision`. The new row `the_census_reads_the_decision_tables_as_the_types_do` holds the same against the three `ALL`s. The literal-site row reads a census without the tables.
+- geom-brep: `CsDecision`, `CcDecision`, ruling's `Row`, `TorusDatum`, `Meter`.
+- topo: `TangentRow`, and `ClearanceBound`'s arm consts `CLEARANCE_MARGIN`/`SELF_INTERSECTION_GAP` as `Const` carriers.
+- editor-core: `Table("decisions!")`, so `revolve_full_vs_partial` is read.
+
+**What moved because of it:**
+- The rosters' `CLOSED_TYPE` entries stay as indirect sites, since the call still hands on a closed value. Their reason now says where the census reads the names, not that it cannot.
+- `KNOWN_MISSING` is empty. The `ClosedTable` kind and its hold (`held_spellings`'s arm reading) are gone, and a listed crate holds only at a `const`.
+
+**Plants:**
+- `revolve_full_vs_partial` (editor-core) was red and is green.
+- `collinear_overlap` was green only through profile's hold, and is green now through the declared table.
+- `Harmonic`, a `PcurveKind` label, was wrongly green through the over-hold and is red now.

@@ -155,7 +155,7 @@ pub fn rest_pair_verdict<T: Decide>(
 /// - **must-verify-DEFINITE**: the two surfaces touch, their
 ///   separation along the shared normal within ε (`touching`, and the
 ///   span line after the loop); the witness lies within ε of each
-///   surface (`on_surface`); and the two outward normals are parallel
+///   surface (`on_surface_as`); and the two outward normals are parallel
 ///   within the derived angle at lever arm `1/κ_rel`, the C7 threshold
 ///   verbatim, and definitely OPPOSED;
 /// - **rules out** ([`TangentVerdict::Ruled`]): definite separation or
@@ -485,14 +485,14 @@ fn tangent_pass<T: Decide>(
         let separation = touching(r1, sense1, r2, sense2 != agree, band)?;
         gap_max = gap_max.max(separation.abs());
         // The witness on both surfaces, read across the spans each
-        // sample bounds ([`on_surface`]).
+        // sample bounds ([`on_surface_as`]).
         for (side, r) in [(PairSide::First, r1), (PairSide::Second, r2)] {
             let on = match side {
                 PairSide::First => CONTACT_TANGENT_ON_1,
                 PairSide::Second => CONTACT_TANGENT_ON_2,
             };
             let (read, log) = geom_core::k_stats::detached(|| {
-                on_surface((on, side), r, bounds.residual_sag, band)
+                on_surface_as((on, side), r, bounds.residual_sag, band)
             });
             match read {
                 Err(Unsettled::Sag(reading)) => {
@@ -736,7 +736,7 @@ fn span_touch<T: Decide>(
     }
 }
 
-/// The names the witness is decided on each surface under ([`on_surface`]).
+/// The names the witness is decided on each surface under ([`on_surface_as`]).
 const CONTACT_TANGENT_ON_1: &str = "contact_tangent_on_1";
 const CONTACT_TANGENT_ON_2: &str = "contact_tangent_on_2";
 
@@ -761,7 +761,7 @@ const CONTACT_TANGENT_ON_2: &str = "contact_tangent_on_2";
 ///
 /// MUST-VERIFY-DEFINITE (C4): "the witness within ε of each surface".
 /// An in-band residual escalates.
-fn on_surface<T: Decide>(
+fn on_surface_as<T: Decide>(
     (on, side): (&'static str, PairSide),
     r: T,
     sag: T,
@@ -959,7 +959,7 @@ mod tests {
             ),
         ] {
             let off = TangentRow::Off(PairSide::Second);
-            let got = match on_surface(("probe_on", PairSide::Second), r, sag, b) {
+            let got = match on_surface_as(("probe_on", PairSide::Second), r, sag, b) {
                 Ok(()) => Want::On,
                 Err(Unsettled::InBand(diag)) => {
                     assert_eq!(
@@ -984,7 +984,6 @@ mod tests {
                     Want::Off
                 }
                 Err(Unsettled::Sag(Some(diag))) => {
-                    // UNDECIDED-NAME: a row on_surface takes in a tuple the census does not open
                     assert_eq!(diag.predicate, Some("probe_on"), "{why}: the far side's");
                     Want::SagInBand
                 }

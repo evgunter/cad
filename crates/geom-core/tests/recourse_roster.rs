@@ -45,6 +45,8 @@ const CARRIERS: &[NameCarrier] = &[
     // The straddle row a door mints, and a turn rule's two rows.
     NameCarrier::Call("straddle"),
     NameCarrier::Call("bounded"),
+    // The identity ladder's unit-test reader, handed `(name, value)` rows.
+    NameCarrier::Call("read_as"),
     // `Extent::forward_by_arc`'s name triple, its callers' rows.
     NameCarrier::Call("forward_by_arc"),
     NameCarrier::Const("ARC_ROWS"),
@@ -61,6 +63,10 @@ const NOT_A_NAME: &str = "another `decide*` call, whose first argument is not a 
 
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
+    (
+        "ladder.rs: the_first_definite_datum_answers_and_all_zero_holds: &[]",
+        NOT_A_NAME,
+    ),
     ("k_stats.rs: decide_across: names", FORWARDS),
     ("k_stats.rs: decide_across_reported: far", FORWARDS),
     ("k_stats.rs: decide_across_reported: floor", FORWARDS),

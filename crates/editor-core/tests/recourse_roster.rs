@@ -1,6 +1,6 @@
-//! **The roster: every predicate name this crate decides at a call is
-//! read, and every site the reader cannot read is listed with what
-//! carries its name.**
+//! **The roster: every predicate name this crate decides is read, and
+//! every site the reader cannot read is listed with what carries its
+//! name.**
 //!
 //! The reader is `test_utils::source::predicate_census`, the tree's one
 //! home for this walk, and the checks every roster makes of it are
@@ -25,11 +25,10 @@
 //! `stretches_as`, `holds_as`, `cover_as`, `runs_with_as`,
 //! `edge_holds_as`), whose name is not their first argument.
 //!
-//! **Not yet complete.** editor-core's own closed `decisions!` table
-//! (`decision.rs`) is decided through `.name()` ([`CLOSED_TYPE`]); a row
-//! spelled only there (`revolve_full_vs_partial`) is read by no census
-//! until `work/onecopy/the-census-reads-no-closed-type-name-table.md`
-//! lands.
+//! editor-core's own closed `decisions!` table (`decision.rs`), decided
+//! through `.name()` ([`CLOSED_TYPE`]), is a declared
+//! `NameCarrier::Table("decisions!")`: a row spelled only there
+//! (`revolve_full_vs_partial`) is read where the table spells it.
 //!
 //! No door table: editor-core's names reach the user through its own
 //! refusal sentences, not a door's error type.
@@ -41,6 +40,8 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
+    // The layer's closed decision table, whose literal rows are names.
+    NameCarrier::Table("decisions!"),
     // A name spelled in a `const` and handed to a funnel by it.
     NameCarrier::Const("ASSERT_BOUND"),
     NameCarrier::Const("AT_REST_QUIET_AXES_PARALLEL"),
@@ -84,8 +85,8 @@ const CARRIERS: &[NameCarrier] = &[
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
                         call a declared carrier; each forwarding `fn` is its own entry, so a new \
                         forwarder reds until it is declared here or as a carrier";
-const CLOSED_TYPE: &str = "a closed type's `name()`, whose names are spelled in its own match, \
-                           which the census does not read";
+const CLOSED_TYPE: &str = "a closed type's `name()`, whose names the census reads where the type \
+                           spells them: the `decisions!` table, a declared `NameCarrier::Table`";
 const OTHER_CRATE: &str = "a `const` another crate declares, read by that crate's roster";
 const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
                          here by that first argument: a forwarder handing on its caller's name, \

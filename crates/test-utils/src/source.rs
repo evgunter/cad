@@ -1549,9 +1549,24 @@ pub enum NameCarrier {
     /// bracket group the token opens. A literal nested deeper — inside
     /// a closure body, inside another call — is not an argument of this
     /// one and is not read as a name.
+    ///
+    /// A tuple among them (`("name", value)`), or an array of such
+    /// tuples (`[("a", x), ("b", y)]`, behind an `&` or not), is opened
+    /// to its FIRST element: the `(name, value)` pairs a funnel takes a
+    /// batch of. A tuple whose first element is not a literal is not
+    /// read, and the call stays a site for what it does not spell.
     Call(&'static str),
     /// A `const NAME: &str = "…";` whose value is the name.
     Const(&'static str),
+    /// **A closed type's name table, declared by the type or the macro
+    /// that spells it.** `Table("CcDecision")` reads every `Variant =>
+    /// "lit"` arm in the `fn name/predicate/straddle/floor/row` bodies of
+    /// each `impl` naming `CcDecision`; `Table("gates!")` reads every such
+    /// arm in a `gates! { … }` invocation. Declared per type, not found by
+    /// shape: a type that spells human labels in a `fn name` is not a
+    /// name table, and the roster that does not declare it does not read
+    /// it.
+    Table(&'static str),
 }
 
 /// What [`predicate_census`] found.
@@ -1728,9 +1743,13 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                             out.unreadable.insert(format!("{rel}: {token}(… unclosed"));
                             continue;
                         };
-                        let literals = direct_literals(&code[open + 1..end]);
+                        let (heads, head_idents) =
+                            tuple_heads(&bare[open + 1..end], &code[open + 1..end]);
+                        let mut literals = direct_literals(&code[open + 1..end]);
+                        literals.extend(heads);
                         let consts: Vec<String> = arguments(&bare[open + 1..end])
                             .into_iter()
+                            .chain(head_idents)
                             .filter(|arg| names_a_const(arg, &declared))
                             .collect();
                         if !literals.is_empty() {
@@ -1750,6 +1769,16 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                                 .insert(format!("{rel}: {}: {head}", enclosing(open)));
                         }
                     }
+                }
+                NameCarrier::Table(token) => {
+                    let names: Vec<String> = table_bodies(&bare, token)
+                        .into_iter()
+                        .flat_map(|body| variant_arms(&bare[body.clone()], &code[body]))
+                        .collect();
+                    if !names.is_empty() {
+                        found.insert(format!("Table({token})"));
+                    }
+                    out.names.extend(names);
                 }
                 NameCarrier::Const(token) => {
                     for decl in const_decls(&bare, token) {
@@ -1786,6 +1815,7 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
         .map(|carrier| match carrier {
             NameCarrier::Call(token) => format!("Call({token})"),
             NameCarrier::Const(token) => format!("Const({token})"),
+            NameCarrier::Table(token) => format!("Table({token})"),
         })
         .filter(|key| !found.contains(key))
         .collect();
@@ -1836,7 +1866,7 @@ pub fn roster_violations(
         .iter()
         .filter_map(|carrier| match carrier {
             NameCarrier::Const(name) => Some(*name),
-            NameCarrier::Call(_) => None,
+            NameCarrier::Call(_) | NameCarrier::Table(_) => None,
         })
         .collect();
     for site in &census.consts {
@@ -2438,7 +2468,8 @@ fn literal_tuple(bare: &str, code: &str) -> Option<Vec<String>> {
 }
 
 /// **The carriers a roster file declares**, read off its text: each
-/// `NameCarrier::Const("…")` and `NameCarrier::Call("…")` in code, in
+/// `NameCarrier::Const("…")`, `NameCarrier::Call("…")` and
+/// `NameCarrier::Table("…")` in code, in
 /// order. The tree-wide coverage row builds each roster crate's census
 /// with its own roster's carriers this way, so the union it resolves
 /// references against is what the rosters read, with no second copy of
@@ -2447,7 +2478,11 @@ fn literal_tuple(bare: &str, code: &str) -> Option<Vec<String>> {
 pub fn declared_carriers(roster: &str) -> Vec<NameCarrier> {
     let code = code_and_literals(roster);
     let mut found: Vec<(usize, NameCarrier)> = Vec::new();
-    for (head, call) in [("NameCarrier::Const(", false), ("NameCarrier::Call(", true)] {
+    for (head, kind) in [
+        ("NameCarrier::Const(", 0),
+        ("NameCarrier::Call(", 1),
+        ("NameCarrier::Table(", 2),
+    ] {
         let mut at = 0usize;
         while let Some(hit) = code[at..].find(head) {
             let open = at + hit + head.len();
@@ -2457,10 +2492,10 @@ pub fn declared_carriers(roster: &str) -> Vec<NameCarrier> {
             };
             if let Some(token) = plain_string_literal(code[open..open + close].trim()) {
                 let token: &'static str = Box::leak(token.to_string().into_boxed_str());
-                let carrier = if call {
-                    NameCarrier::Call(token)
-                } else {
-                    NameCarrier::Const(token)
+                let carrier = match kind {
+                    0 => NameCarrier::Const(token),
+                    1 => NameCarrier::Call(token),
+                    _ => NameCarrier::Table(token),
                 };
                 found.push((open, carrier));
             }
@@ -2484,15 +2519,12 @@ pub fn crate_roster(crate_dir: &std::path::Path) -> Option<Vec<NameCarrier>> {
 
 /// **The names a crate that runs no roster yet spells where a name is
 /// decided**: each `const NAME: &str` (or tuple or array of them) it
-/// declares and, for a crate whose names live in a closed type's table
-/// (`closed_table`), each `Variant => "lit"` arm. Never a reference site
-/// and never an arbitrary literal, so a hold is only ever a decide-shaped
-/// spelling of the name (the coverage row's `KNOWN_MISSING`).
+/// declares. Never a reference site and never an arbitrary literal, so a
+/// hold is only ever a decide-shaped spelling of the name (the coverage
+/// row's `KNOWN_MISSING`). A closed type's table is not held: a roster
+/// declares it ([`NameCarrier::Table`]) and the census reads it.
 #[must_use]
-pub fn held_spellings(
-    src: &std::path::Path,
-    closed_table: bool,
-) -> std::collections::BTreeSet<String> {
+pub fn held_spellings(src: &std::path::Path) -> std::collections::BTreeSet<String> {
     let mut out = std::collections::BTreeSet::new();
     for file in rust_sources(src) {
         let Ok(text) = std::fs::read_to_string(&file) else {
@@ -2507,11 +2539,6 @@ pub fn held_spellings(
                 }
             }
         }
-        if closed_table {
-            for body in closed_table_bodies(&bare) {
-                out.extend(variant_arms(&bare[body.clone()], &code[body]));
-            }
-        }
     }
     out
 }
@@ -2520,52 +2547,116 @@ pub fn held_spellings(
 /// row, its straddle and its floor.
 const TABLE_FNS: [&str; 5] = ["name", "predicate", "straddle", "floor", "row"];
 
-/// **The bodies a closed type spells its names in**, in a blanked view:
-/// each `fn name/predicate/straddle/floor/row` body, and each braced
-/// macro invocation (`gates! { … }`, the gate table's) — the only places
-/// a `Variant => "lit"` arm is a decided name rather than a label.
-fn closed_table_bodies(bare: &str) -> Vec<std::ops::Range<usize>> {
+/// **The bodies a declared [`NameCarrier::Table`] spells its names in**,
+/// in a blanked view. For a `macro!` token, each braced invocation of that
+/// macro (not its `macro_rules!` definition); for a type, each
+/// `fn name/predicate/straddle/floor/row` body inside an `impl` block
+/// whose head names the type.
+fn table_bodies(bare: &str, token: &str) -> Vec<std::ops::Range<usize>> {
     let mut out = Vec::new();
-    for name in TABLE_FNS {
-        let needle = format!("fn {name}(");
+    if let Some(mac) = token.strip_suffix('!') {
+        let needle = format!("{mac}!");
         let mut at = 0usize;
         while let Some(hit) = bare[at..].find(&needle) {
             let start = at + hit;
             at = start + needle.len();
-            if !boundary_before(bare, start) {
+            if !boundary_before(bare, start) || bare[..start].trim_end().ends_with("macro_rules!") {
                 continue;
             }
-            let Some(open) = bare[at..].find('{').map(|i| at + i) else {
-                continue;
-            };
-            if bare[at..open].contains(';') {
-                continue; // a trait's declaration, no body
-            }
-            if let Some(close) = balanced_end(bare, open) {
+            let open = skip_ws(bare, at);
+            if bare[open..].starts_with('{')
+                && let Some(close) = balanced_end(bare, open)
+            {
                 out.push(open..close);
             }
         }
+        return out;
     }
     let mut at = 0usize;
-    while let Some(hit) = bare[at..].find('!') {
-        let bang = at + hit;
-        at = bang + 1;
-        let head = bare[..bang].trim_end();
-        let ident_start = head
-            .rfind(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-            .map_or(0, |i| i + 1);
-        let ident = &head[ident_start..];
-        if ident.is_empty() || ident == "macro_rules" {
+    while let Some(hit) = bare[at..].find("impl") {
+        let start = at + hit;
+        at = start + 4;
+        if !boundary_before(bare, start) || !boundary_after(bare, at) {
             continue;
         }
-        let open = skip_ws(bare, at);
-        if bare[open..].starts_with('{')
-            && let Some(close) = balanced_end(bare, open)
-        {
-            out.push(open..close);
+        let Some(open) = bare[at..].find(['{', ';']).map(|i| at + i) else {
+            continue;
+        };
+        if bare.as_bytes()[open] != b'{' {
+            continue;
+        }
+        let head = &bare[at..open];
+        let names_it = head
+            .match_indices(token)
+            .any(|(i, _)| boundary_before(head, i) && boundary_after(head, i + token.len()));
+        if !names_it {
+            continue;
+        }
+        let Some(close) = balanced_end(bare, open) else {
+            continue;
+        };
+        let block = &bare[open..close];
+        for (name, body) in fn_items(block).unwrap_or_default() {
+            if TABLE_FNS.contains(&name.as_str()) {
+                out.push(open + body.start..open + body.end);
+            }
         }
     }
     out
+}
+
+/// The first element of each tuple among a group's top-level arguments,
+/// and of each tuple in an array among them (`("a", x)`, `[("a", x),
+/// ("b", y)]`, `&[…]`) — the `(name, value)` pairs a funnel takes: the
+/// plain literals, and the other first elements as written (so a caller
+/// can tell a `const` from a forwarded binding).
+fn tuple_heads(bare: &str, code: &str) -> (Vec<String>, Vec<String>) {
+    let mut out = Vec::new();
+    let mut others = Vec::new();
+    let mut head_of = |start: usize, out: &mut Vec<String>| {
+        // `start` indexes a `(`: its first element.
+        let inner = skip_ws(code, start + 1);
+        if let Some(name) = first_literal(&code[inner..]) {
+            let after = skip_ws(bare, inner + name.len() + 2);
+            if bare[after..].starts_with(',') {
+                out.push(name);
+            }
+        } else if let Some(close) = balanced_end(bare, start)
+            && let Some(first) = top_level_split(&bare[start + 1..close], ',').first()
+        {
+            let head = bare[start + 1 + first.start..start + 1 + first.end].trim();
+            if !head.is_empty() {
+                others.push(head.to_string());
+            }
+        }
+    };
+    for arg in top_level_split(bare, ',') {
+        let at = skip_ws(bare, arg.start);
+        let at = if bare[at..].starts_with('&') {
+            skip_ws(bare, at + 1)
+        } else {
+            at
+        };
+        if at >= arg.end {
+            continue;
+        }
+        match bare.as_bytes()[at] {
+            b'(' => head_of(at, &mut out),
+            b'[' => {
+                let Some(close) = balanced_end(bare, at) else {
+                    continue;
+                };
+                for element in top_level_split(&bare[at + 1..close], ',') {
+                    let e = skip_ws(bare, at + 1 + element.start);
+                    if e < at + 1 + element.end && bare.as_bytes()[e] == b'(' {
+                        head_of(e, &mut out);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    (out, others)
 }
 
 /// The literal of every `Variant => "lit"` arm: a `=>` whose left side
@@ -3389,10 +3480,8 @@ mod tests {
     }
 
     /// **A hold is a decide-shaped spelling alone**: a `const` of a
-    /// name, and for a closed table a `Variant => "lit"` arm of its name
-    /// table (a `fn name`-shaped body, or a braced macro invocation) —
-    /// never a label arm elsewhere (`Low => "low"`), a reference, an
-    /// argument or prose.
+    /// name — never a table's arm (a roster declares the table), a
+    /// reference, an argument or prose.
     #[test]
     fn a_listed_crate_holds_a_name_only_where_it_is_spelled_as_decided() {
         let dir = std::env::temp_dir().join(format!("tu-held-{}", std::process::id()));
@@ -3405,23 +3494,65 @@ mod tests {
              fn f() {\n\
                  shape(\"circle\");\n\
                  assert_eq!(d.predicate, Some(\"self_held\"));\n\
-                 match g { Level::Low => \"low\", _ => \"fallback\" }\n\
              }\n\
-             impl Gate { fn name(self) -> &'static str { match self { Gate::Overlap => \"arm_row\" } } }\n\
-             gates! { Gated => \"macro_row\", Sized(1), \"its prose\"; }\n",
+             impl Gate { fn name(self) -> &'static str { match self { Gate::Overlap => \"arm_row\" } } }\n",
         )
         .expect("write");
-        let roster = super::held_spellings(&dir, false);
-        let table = super::held_spellings(&dir, true);
+        let held = super::held_spellings(&dir);
         std::fs::remove_dir_all(&dir).expect("cleanup");
         assert_eq!(
-            roster.into_iter().collect::<Vec<_>>(),
+            held.into_iter().collect::<Vec<_>>(),
             ["const_row", "pair_a", "pair_b"]
         );
+    }
+
+    /// **A declared table is read; an undeclared one is not; a carrier
+    /// opens its tuples.** `Table("Gate")` reads `Gate`'s `fn name` arms
+    /// and not a label table's (`Kind::label`, `Shape`'s `fn name`) that
+    /// no roster declares; `Table("gates!")` reads the macro's arms, and
+    /// not its `macro_rules!` body; a `Call` carrier reads the first
+    /// literal of each `(name, value)` tuple it is handed, alone or in an
+    /// array, and not a tuple that opens with a value.
+    #[test]
+    fn a_declared_table_and_a_carriers_tuples_are_read() {
+        let dir = std::env::temp_dir().join(format!("tu-table-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "impl Gate { fn name(self) -> &'static str { match self { Gate::Overlap => \"gate_row\" } } }\n\
+             impl Shape { fn name(self) -> &'static str { match self { Shape::Disc => \"Disc label\" } } }\n\
+             impl Kind { fn label(self) -> &'static str { match self { Kind::A => \"a label\" } } }\n\
+             macro_rules! gates { ($($v:ident => $n:literal),*) => {}; }\n\
+             gates! { Gated => \"macro_row\", Sized(1), \"its prose\"; }\n\
+             fn f() {\n\
+                 signs_as([(\"tuple_a\", m), (\"tuple_b\", n)], band);\n\
+                 signs_as(&[(\"behind_ref\", m)], band);\n\
+                 one_as((\"lone_tuple\", side), band);\n\
+                 one_as((x, \"not_first\"), band);\n\
+             }\n",
+        )
+        .expect("write");
+        let carriers = [
+            super::NameCarrier::Table("Gate"),
+            super::NameCarrier::Table("gates!"),
+            super::NameCarrier::Call("signs_as"),
+            super::NameCarrier::Call("one_as"),
+        ];
+        let census = super::predicate_census(&dir, &carriers);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
         assert_eq!(
-            table.into_iter().collect::<Vec<_>>(),
-            ["arm_row", "const_row", "macro_row", "pair_a", "pair_b"]
+            census.names.iter().collect::<Vec<_>>(),
+            [
+                "behind_ref",
+                "gate_row",
+                "lone_tuple",
+                "macro_row",
+                "tuple_a",
+                "tuple_b"
+            ],
+            "{census:?}"
         );
+        assert!(census.unfound.is_empty(), "{census:?}");
     }
 
     /// **Every alternative of an or-pattern is a reference**, and a

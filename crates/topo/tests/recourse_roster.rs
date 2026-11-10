@@ -203,6 +203,8 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("datum", &UNIT_TEST),
     // `splitting::finish`'s `escalation_endings` rows.
     ("finish_straddle", &UNIT_TEST),
+    // `on_surface_as`'s unit test's `(name, side)` row.
+    ("probe_on", &UNIT_TEST),
     ("probe_oracle", &UNIT_TEST),
     ("rh_straddle", &UNIT_TEST),
     ("t", &UNIT_TEST),
@@ -211,6 +213,19 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
+    NameCarrier::Const("REACH"),
+    NameCarrier::Const("NEST"),
+    NameCarrier::Const("NEAR"),
+    NameCarrier::Const("FAR"),
+    // The tangent rows' closed table (`TangentRow::predicate`).
+    NameCarrier::Table("TangentRow"),
+    // The consts `ClearanceBound::predicate` returns, per arm.
+    NameCarrier::Const("CLEARANCE_MARGIN"),
+    NameCarrier::Const("SELF_INTERSECTION_GAP"),
+    // `(name, value)` pairs, opened by the census: the pair section's
+    // sign batch and the tangent witness's `(name, side)`.
+    NameCarrier::Call("signs_as"),
+    NameCarrier::Call("on_surface_as"),
     // The identity data's names ([`IDENTITY`], [`IDENTITY_DATA`]).
     NameCarrier::Const("BOOL_WRAP_RIM"),
     NameCarrier::Const("CARRIER_CONE_APEX"),
@@ -403,8 +418,9 @@ const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's nam
 const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
 const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
                              `cone_data`, whose names are declared consts";
-const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names are spelled in its own \
-                           match, which the census does not read";
+const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names the census reads where the \
+                           type spells them: `TangentRow`'s table, a declared `NameCarrier::Table`, \
+                           or the consts `ClearanceBound`'s arms return, declared carriers";
 const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
 const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the declared \
                           `ConicRows::bounded` carrier's token and takes no name";
@@ -412,6 +428,14 @@ const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the d
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
+    (
+        "boolean/section_cert.rs: cone_sphere: [(name, b)]",
+        FORWARDS,
+    ),
+    (
+        "boolean/contact_verify.rs: tangent_pass: (on, side)",
+        FORWARDS,
+    ),
     (
         "boolean/carrier_eq.rs: coincident_over_extent: row",
         FORWARDS,
@@ -436,9 +460,9 @@ const INDIRECT: &[(&str, &str)] = &[
         "boolean/contact_verify.rs: a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim: &first",
         NOT_A_NAME,
     ),
-    ("boolean/contact_verify.rs: on_surface: on", FORWARDS),
+    ("boolean/contact_verify.rs: on_surface_as: on", FORWARDS),
     (
-        "boolean/contact_verify.rs: on_surface: row.predicate()",
+        "boolean/contact_verify.rs: on_surface_as: row.predicate()",
         CLOSED_TYPE,
     ),
     ("boolean/contain.rs: face_placement: on_plane", FORWARDS),
