@@ -961,7 +961,7 @@ impl<T: Real> Curve3<T> {
     }
 
     /// **The carrier's period, where its parameter repeats**: a conic's
-    /// ([`Conic::period`]) and a spiric oval's ([`spiric_period`]), each
+    /// ([`conic_period`]) and a spiric oval's ([`spiric_period`]), each
     /// kind's own statement; a line and a spline do not repeat (`None`).
     /// Matched exhaustively over the kinds. A renaming by whole periods,
     /// or a reading on a copy a period away ([`Period::span_margins`]),
@@ -969,8 +969,7 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn period(&self) -> Option<Period<T>> {
         match self {
-            Curve3::Circle(c) => Some(c.period()),
-            Curve3::Ellipse(e) => Some(e.period()),
+            Curve3::Circle(_) | Curve3::Ellipse(_) => Some(conic_period()),
             Curve3::Spiric { .. } => Some(spiric_period()),
             Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
@@ -1472,11 +1471,18 @@ impl<T: Real> Curve3<T> {
     }
 }
 
+/// **A conic's period**, one turn: a circle's or an ellipse's parameter
+/// is an angle ([`Conic`]), so a parameter names its point modulo `τ`. A
+/// free function, not a [`Conic`] method, so no implementor restates it.
+pub fn conic_period<T: Real>() -> Period<T> {
+    Period::angle()
+}
+
 /// **A spiric oval's period**, one turn: its parameter is the torus's
 /// minor angle ([`Curve3::Spiric`]), so a parameter names its point
 /// modulo `τ`.
 pub fn spiric_period<T: Real>() -> Period<T> {
-    Period::new(T::tau())
+    Period::angle()
 }
 
 /// The range of a spiric's `f = √(ρ² − offset²)` over one period, as
