@@ -179,7 +179,7 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
         axis: geom::Line<T>,
         /// The radius, positive by the surface's own convention.
         radius: T,
-        /// An UPPER bound on the distance from `origin` to any point of
+        /// An UPPER bound on the distance from `axis.origin` to any point of
         /// the face — the face's own extent, and the lever [`arm`] is
         /// built from ([`reach_of`]).
         reach: T,
