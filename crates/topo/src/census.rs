@@ -7768,7 +7768,7 @@ mod normal_fault_rows {
 
     /// The fault ends on the kernel's defect at every reader. An invalid
     /// input names its torus through the convention's own clause and
-    /// lever ([`geom_brep::TorusConvention::refused_ended`]), each half
+    /// lever ([`geom_brep::TorusRefusal::said`]), each half
     /// its own: a tube below zero is told so, not that it is a horn. The
     /// backstop, which runs at rest alone, reads it as the kernel's
     /// ([`at_rest_fault`]).
@@ -7795,7 +7795,7 @@ mod normal_fault_rows {
                 panic!("{abort:?} is an invalid input")
             };
             let input = TouchUnread::NormalFault(abort);
-            let lever = convention.sized().recourse(verdict.arm(), at);
+            let lever = geom_brep::TorusRefusal::decided(convention, verdict).recourse(at);
             let clause = convention.refused("its", verdict);
             for (what, text) in [
                 ("a touch", input.sentence(Some(at))),

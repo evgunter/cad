@@ -94,31 +94,11 @@ impl TorusConvention {
     }
 }
 
-impl TorusConvention {
-    /// **The decided refusal about `whose` torus, ended by the half's one
-    /// lever** ([`Self::sized`]) read at `at`; the clause alone
-    /// ([`Self::refused`]) where `at` is `None`, as a `Display` writes
-    /// it. Every door that renders a torus decided outside the
-    /// convention says it so.
-    #[must_use]
-    pub fn refused_ended(
-        self,
-        whose: &str,
-        verdict: Refused,
-        at: Option<crate::recourse::ReadAt>,
-    ) -> String {
-        let clause = self.refused(whose, verdict);
-        match at {
-            Some(at) => format!("{clause}. {}", self.sized().recourse(verdict.arm(), at)),
-            None => clause,
-        }
-    }
-}
-
 /// **A torus refused at one half of its ring convention**, in band or
 /// decided: the half and its verdict, carried from the door that decides
-/// it to the one that renders it, whose `Display` ends in the half's one
-/// lever ([`TorusConvention::sized`]) read at a build.
+/// it to the one that renders it. Its `Display` is the payload alone, the
+/// half's clause or undecided read ([`Self::said`]); read at a door it
+/// ends in the half's one lever ([`Self::recourse`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TorusRefusal {
     /// The half that refused.
@@ -184,7 +164,7 @@ impl TorusRefusal {
         minor: T,
         band: Band,
     ) -> Result<geom::RingTorus<T>, Self> {
-        Self::require_at(major, minor, geom::RingSites::CONVENTION, band)
+        Self::require_at(major, minor, geom::RingReader::Convention.sites(), band)
     }
 
     /// [`Self::require`] under a reader's own funnel rows `sites`
@@ -213,29 +193,69 @@ impl TorusRefusal {
     }
 }
 
-/// `at` ends the refusal by its convention's sized decision at the door
-/// that reads it; `None` writes the payload alone, as `Display` does.
 impl TorusRefusal {
+    /// The refused arm the verdict carries: the undecided margin, or the
+    /// decided one's arm.
+    #[must_use]
+    pub fn arm(&self) -> RefusedArm<'_> {
+        match &self.verdict {
+            TorusVerdict::Undecided(diag) => RefusedArm::Undecided(diag),
+            TorusVerdict::Refused(verdict) => verdict.arm(),
+        }
+    }
+
+    /// **The refusal's one ending at the door `at` reads it**: its half's
+    /// sized decision on its arm ([`TorusConvention::sized`]), in band or
+    /// decided alike. A holder that ends a torus refusal in its own words
+    /// reads its ending here.
+    #[must_use]
+    pub fn recourse(&self, at: impl Into<crate::recourse::ReadAt>) -> String {
+        self.convention.sized().recourse(self.arm(), at)
+    }
+}
+
+impl TorusRefusal {
+    /// A torus decided outside `convention`'s half on `verdict`.
+    #[must_use]
+    pub const fn decided(convention: TorusConvention, verdict: Refused) -> Self {
+        Self {
+            convention,
+            verdict: TorusVerdict::Refused(verdict),
+        }
+    }
+
+    /// **The refusal said about `whose` torus, ended at the door `at`
+    /// reads it**: a half decided outside the convention in the half's own
+    /// words ([`TorusConvention::refused`]), a half in band as its
+    /// undecided read, each ended by [`Self::recourse`]; the clause alone
+    /// where `at` is `None`, as a `Display` writes it. Every door that
+    /// renders a torus refusal says it so, naming the torus its own way
+    /// (`whose`, which an undecided read does not use).
+    #[must_use]
+    pub fn said(&self, whose: &str, at: Option<crate::recourse::ReadAt>) -> String {
+        match &self.verdict {
+            TorusVerdict::Undecided(diag) => crate::recourse::undecided_at(
+                diag,
+                self.convention.subject(),
+                at.map(|at| self.recourse(at)),
+            )
+            .to_string(),
+            TorusVerdict::Refused(verdict) => {
+                let clause = self.convention.refused(whose, *verdict);
+                match at {
+                    Some(at) => format!("{clause}. {}", self.recourse(at)),
+                    None => clause,
+                }
+            }
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         at: Option<crate::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        let sized = self.convention.sized();
-        match (&self.verdict, at) {
-            (TorusVerdict::Undecided(diag), at) => write!(
-                f,
-                "{}",
-                crate::recourse::undecided_at(
-                    diag,
-                    self.convention.subject(),
-                    at.map(|at| sized.recourse(RefusedArm::Undecided(diag), at)),
-                )
-            ),
-            (TorusVerdict::Refused(verdict), at) => {
-                f.write_str(&self.convention.refused_ended("a torus's", *verdict, at))
-            }
-        }
+        f.write_str(&self.said("a torus's", at))
     }
 }
 

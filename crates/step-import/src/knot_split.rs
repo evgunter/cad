@@ -1,4 +1,4 @@
-//! **The split at each interior C⁰ knot** (`docs/DESIGN.md` [topology]:
+//! **The split at each interior C⁰ knot** (`docs/DESIGN.md` `[topology]`:
 //! every face chart and edge carrier is C¹ by its knot structure
 //! strictly inside its cell, and import splits at its door).
 //!
