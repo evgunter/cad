@@ -256,9 +256,13 @@ impl Refusal {
     }
 }
 
-/// The rung a reading refused with `e` stands as, for a refusal that
+/// **The rung a reading refused with `e` stands as**, for a refusal that
 /// may abort: kept by its kind ([`Refusal::rung`]), or, where it
-/// refuses the whole query, stopping the ladder with `abort(e)`.
+/// refuses the whole query, stopping the ladder with `abort(e)`. The one
+/// home of the rule. Its standing is read already, so the reading kept
+/// may be another value than the one the standing was read off (a
+/// refusal wrapped in its caller's answer, say). Where the two are one
+/// value, [`Rung::refused`] says it, reading the standing off `e`.
 pub fn rung_or_abort<A, E>(
     standing: Result<Refusal, Aborts>,
     e: E,
@@ -431,10 +435,12 @@ impl<A, E> Rung<A, E> {
     /// **The rung a reading refused with `e` stands as**, its standing
     /// read off `e` itself: kept by its kind, or, where it refuses the
     /// whole query, stopping the ladder with `abort(e)`
-    /// ([`rung_or_abort`]). The one home of a rung whose kept reading
-    /// and whose standing are one value; `abort` is `Err` for a ladder
-    /// answering `Result`, the identity for one whose abort is the
-    /// refusal itself.
+    /// ([`rung_or_abort`], the rule's one home, which this reads). The
+    /// shape for a rung whose kept reading and whose standing are one
+    /// value; a caller that keeps another value than the one its
+    /// standing is read off calls [`rung_or_abort`] itself. `abort` is
+    /// `Err` for a ladder answering `Result`, the identity for one whose
+    /// abort is the refusal itself.
     pub fn refused(
         e: E,
         standing: impl FnOnce(&E) -> Result<Refusal, Aborts>,
@@ -1296,7 +1302,12 @@ mod tests {
         assert_eq!(
             Rung::<&str, &str>::refused("limit", standing, core::convert::identity),
             Rung::Blocked("limit"),
-            "a limit is kept, under either map"
+            "a limit is kept under the identity"
+        );
+        assert_eq!(
+            Rung::<Result<(), &str>, &str>::refused("limit", standing, Err),
+            Rung::Blocked("limit"),
+            "a limit is kept under Err"
         );
         assert_eq!(
             Rung::<Result<(), &str>, &str>::refused("near", standing, Err),
@@ -1482,6 +1493,7 @@ mod tests {
         let IdentityLadder::Undecided(cause) = got else {
             panic!("undecided: {got:?}")
         };
+        // UNDECIDED-NAME: datum b of this ladder's fixture, read through read_identity's tuples
         assert_eq!(cause.predicate, Some("b"));
         assert_eq!(verdicts, ["a", "c"]);
         assert_eq!(escalations, ["b"]);
@@ -1514,6 +1526,7 @@ mod tests {
             let IdentityLadder::Undecided(cause) = got else {
                 panic!("{poison}: undecided: {got:?}")
             };
+            // UNDECIDED-NAME: datum b, the in-band one an unreadable datum refuses ahead of
             assert_eq!(cause.predicate, Some("b"), "{poison}");
             assert!(cause.margin.is_invalid(), "{poison}: {cause:?}");
         }

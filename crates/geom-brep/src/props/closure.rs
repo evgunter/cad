@@ -441,19 +441,19 @@ pub(super) fn require_gap_closed<T: Decide>(gap: T, band: Band) -> Result<(), Pr
 /// number, so the loop does not close. Whether `W` is that whole number
 /// is the caller's decision ([`closed_form_windings`]).
 fn loop_turns<T: Decide>(w: T, lever: T, band: Band) -> Result<i64, PropsError> {
-    let classify = |name, margin| decide(name, margin, band).map_err(escalated);
+    let classify_as = |name, margin| decide(name, margin, band).map_err(escalated);
     let half = |halves: T| Margin::metered(T::pi() * halves - w.abs(), InfSpeed::new(lever));
-    match classify("props_chart_loop_turns", half(T::one()))? {
+    match classify_as("props_chart_loop_turns", half(T::one()))? {
         Sign::Positive => return Ok(0),
         Sign::Zero => return Err(PropsError::ChartLoopOpen),
         Sign::Negative => {}
     }
-    let k = match classify("props_chart_loop_turns", half(T::from_f64(3.0)))? {
+    let k = match classify_as("props_chart_loop_turns", half(T::from_f64(3.0)))? {
         Sign::Positive => 1,
         Sign::Negative => 2,
         Sign::Zero => return Err(PropsError::ChartLoopOpen),
     };
-    match classify(
+    match classify_as(
         "props_chart_loop_sense",
         Margin::metered(w, InfSpeed::new(lever)),
     )? {

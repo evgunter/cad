@@ -1,7 +1,13 @@
-//! The ON-vertex neighborhood: orbit → typed sector array, with
-//! wide/reflex sectors handled by **convex subdivision** (store twice,
-//! classify the duplicate by the interior bisector — the book's device,
-//! adopted by derivation, not by copy).
+//! The ON-vertex neighbourhood: the vertex's [`Star`] read against the
+//! split plane, each bound's side before rules (a) and (b).
+//!
+//! The walk, its convex sectors and their refinement are the star's
+//! ([`crate::star`]); the plane is the datum it is refined against. What
+//! is the split's here is its reading of each bound's side: a line edge's
+//! from its far vertex's record (a straight edge's interior is its
+//! chord), every other bound's through the one bound-side reading
+//! ([`crate::bound_side::read_plane_side`], with its descent), its error
+//! vocabulary, and the carriers it cuts (plane, cylinder, cone).
 //!
 //! # Sector geometry under OUR conventions (derived, mirror-checked)
 //!
@@ -11,61 +17,29 @@
 //! between them is the corner of the face traversed
 //! `… mate(he_i) → he_{i+1} …` — so the **sector's face is
 //! `face(loop(mate(he_i)))`** (equivalently `face(loop(he_{i+1}))`),
-//! uniform for duplicate entries because they share `he_i`. By the
-//! interior-left rule the sector's interior directions sweep **from
-//! `dir(he_{i+1}) counterclockwise (around the face's outward normal
-//! `n`) to `dir(he_i)`** — the corner between the loop's incoming
-//! direction reversed and its outgoing direction.
-//!
-//! # Convex subdivision
-//!
-//! A wide or reflex sector is stored twice, its duplicate classified by
-//! an interior direction that cuts it into two convex sectors: the
-//! corner reading, its derivation and why its wideness verdict has no
-//! escalation cliff are [`geom_brep::sector_shape`]'s. What it buys the
-//! split (derived, §14.6): the duplicate entry is what makes dangling
-//! null edges fall out of the generic run scan.
-//!
-//! # At a cone's apex
-//!
-//! A cone face has no tangent plane at its apex
-//! ([`crate::sector_face::VertexFace::Apex`]). Its sector's interior
-//! directions are the rulings between its bounds, round the axis, not
-//! positive combinations of them, so a plane through the apex can cross
-//! such a sector twice at any width and the convex argument does
-//! not hold. The plane's side along the rulings is monotone between its
-//! two extremal rulings, so the sector is subdivided at each extremal
-//! ruling strictly inside it instead ([`crate::sector_shape::apex_corner_shape`]):
-//! between consecutive entries the side then changes at most once, which
-//! is what the run scan reads. Those entries are the walk's
-//! `WideBisector` duplicates, up to two in one sector (a window over a
-//! half-turn holds both extrema), where a tangent plane's wide sector
-//! holds one and a slit tip's full turn three, at its quarters
-//! ([`geom_brep::sector_shape::FullTurn`]). Every reader of the array takes
-//! several in a sector (rule (b)'s duplicate rows); the plane's side
-//! changes sign at most twice in a sector (a plane through the vertex
-//! meets a full turn along one line, two rays), so at most one stretch of
-//! duplicates alone lies apart from its bounds (`insert`'s dangling
-//! strut).
+//! uniform for a divider because it shares `he_i`. By the interior-left
+//! rule the sector's interior directions sweep **from `dir(he_{i+1})`
+//! counterclockwise (around the face's outward normal `n`) to
+//! `dir(he_i)`** — the corner between the loop's incoming direction
+//! reversed and its outgoing direction.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate};
 use slotmap::SecondaryMap;
 
 use super::rules;
-use super::{PlaneSide, SectorEntry, SectorEntryKind, SectorReading, SplitPlane, SplitReduceError};
+use super::{PlaneSide, SectorReading, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::live::{Proven, linked, proven};
-use crate::sector_face::{SectorCarrier, SectorFaceError, VertexFace};
-use crate::sector_shape::{ApexShape, SlitTips, apex_corner_shape};
-use crate::validate::decide;
-use geom_brep::sector_shape::{
-    CornerBounds, CornerShape, SectorFault, SectorShape, TurnOrder, corner_shape,
-};
+use crate::bound_side::{BoundSide, BoundSupport, Descent, Side};
+use crate::entity::{HalfEdgeKey, VertexKey};
+use crate::sector_face::{SectorCarrier, SectorFaceError};
+use crate::sector_shape::SlitTips;
+use crate::star::{Bound, Datum, Star, StarFault};
+use geom_brep::sector_shape::SectorFault;
 
 impl SectorFaceError {
     /// The split's refusal of `vertex`, whose sector the walk could not
     /// resolve: a kind the split does not cut, or a cone's apex undecided.
+    ///
     /// A crease's reading is not carried: only a spline face has one, and
     /// the carrier gate ([`super::classify::carrier_gate`]) refuses a
     /// spline face wherever the plane may meet its padded reach box, which
@@ -86,397 +60,321 @@ impl SectorFaceError {
     }
 }
 
-/// Resolves the sector face for the sector CW-after `he` (module docs:
-/// `face(loop(mate(he)))`) together with its outward normal **at the
-/// base vertex** and whether the surface is a plane.
-///
-/// The walk and the normals are [`crate::sector_face`] — ONE
-/// implementation, called from here and from the boolean lane's sector
-/// walk. What stays here is this lane's adaptation of
-/// it, and only that: the split lane's error type, the planar flag
-/// `rules::apply_rule_a` branches on, and the `Sphere`, `Torus` and
-/// `Spline` refusals.
-///
-/// **`Sphere` refuses here rather than there**, as `Torus` and `Spline`
-/// do. The shared walk has a wired arm for each — the boolean lane
-/// executes it — and this lane does not, so the refusal is typed here
-/// (C12.1, per arm) rather than left to the gate.
-///
-/// It is worth being exact about WHY the arm is unreachable, because
-/// the obvious answer is wrong: it is not that the F5 carrier gate
-/// ([`super::classify`]) runs first. [`super::classify_neighborhood`]
-/// is public, deliberately, so tests and the joining step can inspect
-/// classification on their own, and on that path no gate runs at all.
-/// What makes a sphere-carried sector unreachable through the public
-/// door is that the operand cannot have one: `split_reduce` gates, and
-/// the only other way in hands the caller a body it built through the
-/// Euler ops, where the surface a face carries comes from
-/// `set_face_surface`. A sphere-carried face therefore reaches this
-/// arm only from INSIDE the crate — which is exactly where its test
-/// row lives.
-///
-/// The normal arrives as an [`OutwardNormal`](geom_brep::enters::OutwardNormal) with the face's `sense`
-/// folded in (S10), minted at the shared chokepoint. Everything
-/// downstream of it here — `rules::apply_rule_a`'s `enters_material`
-/// call, the sector-shape rungs, the departure trileans — is
-/// sense-invariant GIVEN that value and must not multiply again: those
-/// sites pair it with the STORED orbit order, which `revert` reverses
-/// together with the sense bit, so a second sense fold would
-/// cancel this one.
-pub(super) fn sector_face<T: Decide>(
-    body: &Body<T>,
-    vertex: VertexKey,
-    he: HalfEdgeKey,
-    band: Band,
-) -> Result<(FaceKey, VertexFace<T>, bool), SplitReduceError> {
-    let resolved =
-        crate::sector_face::resolve(body, vertex, he, band).map_err(|e| e.split_refusal(vertex))?;
-    match resolved.carrier {
-        SectorCarrier::Plane => Ok((resolved.face, resolved.at_vertex, true)),
-        SectorCarrier::Cylinder | SectorCarrier::Cone => {
-            Ok((resolved.face, resolved.at_vertex, false))
-        }
-        SectorCarrier::Sphere => Err(SplitReduceError::CurvedBooleanUnsupported {
-            face: resolved.face,
-            kind: geom::SurfaceKind::Sphere,
-        }),
-        SectorCarrier::Torus => Err(SplitReduceError::CurvedBooleanUnsupported {
-            face: resolved.face,
-            kind: geom::SurfaceKind::Torus,
-        }),
-        SectorCarrier::Spline(kind) => Err(SplitReduceError::CurvedBooleanUnsupported {
-            face: resolved.face,
-            kind,
-        }),
-    }
-}
-
-/// The outgoing direction of orbit half-edge `he` out of the base
-/// vertex, scaled to the edge's extent from below (its `.norm()` is the
-/// sector predicates' lever arm, its `.normalize()` the direction):
-///
-/// - **Line** carriers: the chord `p(final) − p(base)` — the M3 path,
-///   bit-identical (the chord IS the direction, and its length the
-///   extent).
-/// - **Curved** carriers (a conic, a spiric or a spline): the departure
-///   [`geom_brep::ConicDeparture`] reads, the outgoing unit tangent
-///   scaled by [`geom_brep::edge_extent_inf`] (the chord collapses on
-///   near-closed arcs, and is not a spline's direction), with the
-///   edge's [`geom_brep::ConicBend`] there.
-#[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic bend) — one internal tuple
-pub(crate) fn chord<T: Decide>(
-    body: &Body<T>,
-    vertex: VertexKey,
-    he: HalfEdgeKey,
-) -> Result<(VertexKey, Vec3<T>, Option<geom_brep::ConicBend<T>>), SplitReduceError> {
-    let final_vertex = body.proven_half_edge_end(he);
-    let p_base = body.resolve_vertex_point(vertex, Proven);
-    let p_final = body.resolve_vertex_point(final_vertex, Proven);
-    let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-    let edge = linked(
-        &body.edges,
-        edge_key,
-        EntityId::Edge,
-        EntityId::HalfEdge(he),
-        "edge",
-    );
-    let curve = body.edge_curve_linked(edge_key, edge).certified().ok_or(
-        SplitReduceError::NullEdgeAtVertex {
+impl StarFault {
+    /// The split's refusal of `vertex`, whose star the walk did not read.
+    pub(crate) fn split_refusal(self, vertex: VertexKey, band: Band) -> SplitReduceError {
+        let sliver = |face, diag| SplitReduceError::SliverSector {
             vertex,
-            edge: edge_key,
-        },
-    )?;
-    match curve.carrier() {
-        geom::Curve3::Line(_) => Ok((final_vertex, p_final - p_base, None)),
-        geom::Curve3::Circle(..)
-        | geom::Curve3::Ellipse(..)
-        | geom::Curve3::Spiric { .. }
-        | geom::Curve3::Nurbs(_) => {
-            let departure =
-                geom_brep::ConicDeparture::of(curve, he == edge.he_plus, (p_final, p_base));
-            Ok((final_vertex, departure.dir, Some(departure.bend)))
+            face,
+            reading: SectorReading::Escalated(diag),
+        };
+        match self {
+            Self::Lone => SplitReduceError::LoneVertex { vertex },
+            Self::NullEdge(edge) => SplitReduceError::NullEdgeAtVertex { vertex, edge },
+            Self::Face(e) => e.split_refusal(vertex),
+            Self::NearAxis(face) => SplitReduceError::VertexNearConeAxis { vertex, face, band },
+            Self::Shape(face, SectorFault::NonFiniteChord) => {
+                SplitReduceError::NonFiniteSectorChord { vertex, face }
+            }
+            Self::Shape(face, SectorFault::UnderflowedChord) => {
+                SplitReduceError::UnderflowedSectorChord { vertex, face }
+            }
+            Self::Shape(face, SectorFault::Rung { diag, .. }) | Self::Cut(face, diag) => {
+                sliver(face, diag)
+            }
         }
     }
 }
 
-/// Why [`entry_side`] read no side: the walk's own refusal, the far
-/// vertex's (`far`'s), or an escalated reading of a conic's departure,
-/// which the caller names its sector for.
+/// **The split's star of `vertex`**: its walk refined against the
+/// plane, every sector's carrier one the split cuts (a sphere, a torus
+/// and a spline refuse here, C12.1, per arm: the shared walk serves the
+/// Boolean's carriers, and the split's gate refuses those kinds wherever
+/// the plane may meet them).
+///
+/// # Errors
+///
+/// [`StarFault::split_refusal`]'s, and the carrier refusals.
+pub(super) fn split_star<T: Decide>(
+    body: &Body<T>,
+    normal: geom_core::Vec3<T>,
+    vertex: VertexKey,
+    tips: &SlitTips,
+    band: Band,
+) -> Result<Star<T>, SplitReduceError> {
+    let refused = |fault: StarFault| fault.split_refusal(vertex, band);
+    let mut star = Star::walk(body, vertex, tips, band).map_err(refused)?;
+    for s in &star.sectors {
+        let kind = match s.carrier {
+            SectorCarrier::Plane | SectorCarrier::Cylinder | SectorCarrier::Cone => continue,
+            SectorCarrier::Sphere => geom::SurfaceKind::Sphere,
+            SectorCarrier::Torus => geom::SurfaceKind::Torus,
+            SectorCarrier::Spline(kind) => kind,
+        };
+        return Err(SplitReduceError::CurvedBooleanUnsupported { face: s.face, kind });
+    }
+    star.refine(&[Datum::Plane(normal)], band)
+        .map_err(refused)?;
+    Ok(star)
+}
+
+/// Why [`bound_side`] read no side: the far vertex's (`far`'s), or an
+/// escalated reading, which the caller names its sector for.
 #[derive(Debug)]
 pub(crate) enum EntryFault<E> {
-    /// [`chord`]'s refusal.
-    Walk(SplitReduceError),
     /// The far vertex's side did not read.
     Far(E),
-    /// A conic's departure or bend lies in the band.
+    /// A curved edge's or a divider's reading lies in the band.
     Undecided(Indeterminate),
 }
 
-/// **Which side of the plane orbit half-edge `he` leaves `vertex`
-/// into**: the walk's entry class before rules (a) and (b), the one
-/// reading the walk below and [`crate::vertex_section`] both take.
-/// Returns the edge's ray ([`chord`]) with the side.
+/// **Which side of the plane a bound of `vertex`'s star leaves into**:
+/// its class before rules (a) and (b), the one reading the split's
+/// neighbourhood and [`crate::vertex_section`] both take.
 ///
-/// - LINE edges: the far vertex's side (`far`); a straight edge's
+/// - A LINE edge: its far vertex's side (`far`); a straight edge's
 ///   interior is the chord.
-/// - CONIC edges: the bound's side of the plane through the one reading
-///   of a bound's side ([`crate::bound_side::read`]): its outgoing
-///   tangent at first order, levered at the edge's extent (the ray being
-///   exactly `t̂·extent`). The far vertex misleads on conics: a belly arc
-///   between ON vertices departs into its own side while both endpoints
-///   read On. Post-root-insertion the interior is sign-constant (every
-///   interior crossing was split out), so the departure IS the interior
-///   side ([`crate::bound_side::read_plane_side`]). An in-plane departure
-///   ties at first order, and the arc then reads by which side it BENDS
-///   to against `reference`, certified
-///   ([`geom_brep::conic_bend_side`]). A whole edge within the band of
-///   the plane reads On, an edge whose extent the band does not read as
-///   a length among them; a bend the band does
-///   not separate from the first-order residue escalates (F6).
-pub(crate) fn entry_side<T: Decide, E>(
+/// - Every other bound, a curved edge or a divider: through the one
+///   reading of a bound's side ([`crate::bound_side::read_plane_side`]),
+///   at first order levered at its reach, and one order down where that
+///   ties: a curved edge by which side it bends to, a divider by its
+///   face's normal section along it. The far vertex misleads on conics:
+///   a belly arc between ON vertices departs into its own side while
+///   both endpoints read On. Post-root-insertion the interior is
+///   sign-constant (every interior crossing was split out), so the
+///   departure IS the interior side. A bound that rides the plane, or
+///   whose descent reads nothing past its tie, reads On.
+pub(crate) fn bound_side<T: Decide, E>(
     body: &Body<T>,
-    vertex: VertexKey,
-    he: HalfEdgeKey,
+    bound: &Bound<T>,
     reference: geom_brep::ReferenceNormal<T>,
     far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
     band: Band,
-) -> Result<(Vec3<T>, PlaneSide), EntryFault<E>> {
-    use crate::bound_side::{BoundSide, BoundSupport, Descent, Side};
-    let (final_vertex, dir, conic_bend) = chord(body, vertex, he).map_err(EntryFault::Walk)?;
-    let Some(bend) = conic_bend else {
-        return far(final_vertex)
-            .map(|side| (dir, side))
+) -> Result<PlaneSide, EntryFault<E>> {
+    bound_reading(body, bound, reference, far, band).map(|(side, _)| side)
+}
+
+/// [`bound_side`], and whether an `On` is a descent that read nothing
+/// past its tie ([`Descent::Unresolved`]) rather than one that rides the
+/// plane: rule (b) reads such a divider as main's first order left it,
+/// by its wall.
+fn bound_reading<T: Decide, E>(
+    body: &Body<T>,
+    bound: &Bound<T>,
+    reference: geom_brep::ReferenceNormal<T>,
+    far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
+    band: Band,
+) -> Result<(PlaneSide, bool), EntryFault<E>> {
+    if let BoundSupport::Chord { .. } = bound.reach {
+        return far(body.proven_half_edge_end(bound.he))
+            .map(|side| (side, false))
             .map_err(EntryFault::Far);
-    };
-    let reach = BoundSupport::Conic {
-        extent: crate::boolean::sectors::departure_arm_lever(dir),
-        bend,
-        arc: None,
-    };
-    let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
+    }
+    match crate::bound_side::read_plane_side(bound.dir, bound.reach, reference, band) {
         Ok(BoundSide::Off(Side::Below) | BoundSide::Tied(Descent::Leaves(Side::Below))) => {
-            PlaneSide::Below
+            Ok((PlaneSide::Below, false))
         }
         Ok(BoundSide::Off(Side::Above) | BoundSide::Tied(Descent::Leaves(Side::Above))) => {
-            PlaneSide::Above
+            Ok((PlaneSide::Above, false))
         }
-        Ok(BoundSide::Tied(Descent::Rides | Descent::Unresolved(_))) => PlaneSide::On,
-        Err(fault) => return Err(EntryFault::Undecided(fault.diag())),
-    };
-    Ok((dir, side))
+        Ok(BoundSide::Tied(Descent::Rides)) => Ok((PlaneSide::On, false)),
+        Ok(BoundSide::Tied(Descent::Unresolved(_))) => Ok((PlaneSide::On, true)),
+        Err(fault) => Err(EntryFault::Undecided(fault.diag())),
+    }
 }
 
-/// **A sector's subdivision entries**: the sector after an orbit
-/// half-edge, bounded by the rays `(dir_a, dir_b)` in `face`, which is
-/// `at_vertex` there, its bounds as `bounds` says. With a tangent plane,
-/// [`corner_shape`] reads it: a wide sector gets one entry at its
-/// subdivision direction, and a slit tip's full turn three, at its
-/// quarters. At a cone's apex, [`apex_corner_shape`] reads it against the
-/// plane, and it gets one at each extremal ruling inside it (module
-/// docs). Each entry is its direction, the sector's arm, and the side of
-/// the plane along `normal` that direction points to, levered at the arm
-/// (`split_bisector_side`), in orbit order; none for a convex sector or
-/// an apex sector the plane's side is monotone across. The walk's
-/// duplicate entries, and [`crate::vertex_section`]'s reading of the
-/// same sector. Faults and escalations are the split's refusals at
-/// `(vertex, face)`.
-pub(crate) fn wide_entries<T: Decide>(
-    (vertex, face): (VertexKey, FaceKey),
-    (dir_a, dir_b): (Vec3<T>, Vec3<T>),
-    at_vertex: VertexFace<T>,
-    bounds: CornerBounds,
-    normal: Vec3<T>,
-    band: Band,
-) -> Result<Vec<(Vec3<T>, T, PlaneSide)>, SplitReduceError> {
-    let sliver = |diag| SplitReduceError::SliverSector {
-        vertex,
-        face,
-        reading: SectorReading::Escalated(diag),
-    };
-    let fault = |fault| match fault {
-        SectorFault::NonFiniteChord => SplitReduceError::NonFiniteSectorChord { vertex, face },
-        SectorFault::UnderflowedChord => SplitReduceError::UnderflowedSectorChord { vertex, face },
-        SectorFault::Rung { diag, .. } => sliver(diag),
-    };
-    let (arm, directions) = match at_vertex {
-        VertexFace::Tangent(n_face) | VertexFace::NearAxis(n_face) => {
-            match corner_shape(dir_a, dir_b, n_face, bounds, band).map_err(fault)? {
-                CornerShape::Sector(SectorShape { arm, bisector, .. }) => {
-                    (arm, bisector.into_iter().collect())
-                }
-                CornerShape::FullTurn(turn) => (turn.arm, turn.quarters(TurnOrder::FromOwn).into()),
-            }
-        }
-        VertexFace::Apex(apex) => {
-            let ApexShape { arm, rulings, .. } =
-                apex_corner_shape((dir_a, dir_b), &apex, bounds, normal, band).map_err(fault)?;
-            (arm, rulings)
-        }
-    };
-    directions
-        .into_iter()
-        .map(|d: Vec3<T>| {
-            let side = match decide(
-                "split_bisector_side",
-                Margin::levered(d.dot(normal), geom_brep::sector_shape::metering_arm(arm)),
-                band,
-            )
-            .map_err(sliver)?
-            {
-                Sign::Negative => PlaneSide::Below,
-                Sign::Positive => PlaneSide::Above,
-                Sign::Zero => PlaneSide::On,
-            };
-            Ok((d, arm, side))
-        })
-        .collect()
+/// One ON vertex's classified neighbourhood: its star, each bound's side
+/// (after rules (a) and (b)), and whether the plane held it before the
+/// rules sent it to one.
+pub(super) struct Classified<T: geom_core::Real> {
+    pub star: Star<T>,
+    pub classes: Vec<PlaneSide>,
+    pub in_plane: Vec<bool>,
 }
 
-/// Builds and fully classifies the typed sector array of ON vertex
-/// `vertex`: orbit walk (initial classes from the per-vertex cache),
-/// wide-sector duplicates (module docs), then rule (a) and rule (b)
-/// ([`rules`]). Public so tests and the PR 3 joining step can inspect
-/// classification independently of insertion.
+/// One bound of a classified neighbourhood: its orbit half-edge, whether
+/// it is a real edge or a divider, and its side after rules (a) and (b).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BoundClass {
+    /// The orbit half-edge (starts at the base vertex): the bound's own
+    /// edge, or the edge a divider's corner follows.
+    pub he: HalfEdgeKey,
+    /// Whether the bound is a real edge of the orbit, not a divider the
+    /// walk cut a sector at.
+    pub real: bool,
+    /// The bound's side after rules (a) and (b).
+    pub class: PlaneSide,
+}
+
+/// Builds and fully classifies ON vertex `vertex`'s neighbourhood: its
+/// star against the plane, each bound's side ([`bound_side`]), then rule
+/// (a) and rule (b) ([`rules`]). Public so tests and the joining step
+/// can inspect classification independently of insertion.
 ///
 /// # Errors
 ///
 /// [`SplitReduceError`] — sliver escalations, the consecutive-ON
 /// invariant, a `vertex` that does not resolve or is a lone vertex, a
-/// far vertex `sides` holds no verdict for, or a null edge at `vertex`
-/// ([`SplitReduceError::NullEdgeAtVertex`]).
+/// far vertex `sides` holds no verdict for, a null edge at `vertex`
+/// ([`SplitReduceError::NullEdgeAtVertex`]), or a vertex near a cone's
+/// axis ([`SplitReduceError::VertexNearConeAxis`]).
 pub fn classify_neighborhood<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     vertex: VertexKey,
     band: Band,
-) -> Result<Vec<SectorEntry>, SplitReduceError> {
-    classify_neighborhood_rays(body, plane, sides, vertex, &SlitTips::of(body), band)
-        .map(|(entries, _)| entries)
+) -> Result<Vec<BoundClass>, SplitReduceError> {
+    let hood = classify(body, plane, sides, vertex, &SlitTips::of(body), band)?;
+    Ok(hood
+        .star
+        .bounds
+        .iter()
+        .zip(&hood.classes)
+        .map(|(b, &class)| BoundClass {
+            he: b.he,
+            real: b.real,
+            class,
+        })
+        .collect())
 }
 
-/// One entry's ray out of the vertex: its direction scaled to its
-/// reach (an edge entry's [`chord`], a duplicate's bisector at its
-/// sector's arm), and whether the plane holds it (its side read On,
-/// before rules (a) and (b) send it to one), and the cone apex the
-/// sector after it is read at, where its face is one there.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct EntryRay<T: geom_core::Real> {
-    pub dir: Vec3<T>,
-    pub in_plane: bool,
-    pub apex: Option<crate::sector_face::ConeApex<T>>,
-}
-
-/// [`classify_neighborhood`], with each entry's [`EntryRay`] beside it,
-/// `tips` the body's slit tips.
-pub(super) fn classify_neighborhood_rays<T: Decide>(
+/// [`classify_neighborhood`], keeping the star, `tips` the body's slit
+/// tips.
+pub(super) fn classify<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     vertex: VertexKey,
     tips: &SlitTips,
     band: Band,
-) -> Result<(Vec<SectorEntry>, Vec<EntryRay<T>>), SplitReduceError> {
+) -> Result<Classified<T>, SplitReduceError> {
     if body.get_vertex(vertex).is_none() {
         return Err(SplitReduceError::StaleVertex { vertex });
     }
-    let orbit = body.vertex_orbit_linked(vertex);
-    if orbit.is_empty() {
-        return Err(SplitReduceError::LoneVertex { vertex });
-    }
-
-    let mut entries = Vec::with_capacity(orbit.len());
-    let mut dirs = Vec::with_capacity(orbit.len());
-    let mut apexes = Vec::with_capacity(orbit.len());
-    for (i, &he) in orbit.iter().enumerate() {
-        let (dir_a, class) = entry_side(
-            body,
-            vertex,
-            he,
-            geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
-            |far| {
-                sides
-                    .get(far)
-                    .copied()
-                    .ok_or(SplitReduceError::UnrecordedSide { vertex: far })
-            },
-            band,
-        )
-        .map_err(|fault| match fault {
-            EntryFault::Walk(e) | EntryFault::Far(e) => e,
-            EntryFault::Undecided(diag) => match sector_face(body, vertex, he, band) {
-                Ok((face, _, _)) => SplitReduceError::SliverSector {
+    let star = split_star(body, plane.normal.get(), vertex, tips, band)?;
+    let reference = geom_brep::ReferenceNormal::of_split_plane(plane.normal.get());
+    let n = star.bounds.len();
+    let mut classes = Vec::with_capacity(n);
+    let mut unresolved = Vec::with_capacity(n);
+    for (k, bound) in star.bounds.iter().enumerate() {
+        let far = |far| {
+            sides
+                .get(far)
+                .copied()
+                .ok_or(SplitReduceError::UnrecordedSide { vertex: far })
+        };
+        let (class, tie) =
+            bound_reading(body, bound, reference, far, band).map_err(|fault| match fault {
+                EntryFault::Far(e) => e,
+                EntryFault::Undecided(diag) => SplitReduceError::SliverSector {
                     vertex,
-                    face,
+                    face: star.sectors[k].face,
                     reading: SectorReading::Escalated(diag),
                 },
-                Err(e) => e,
-            },
-        })?;
-        entries.push(SectorEntry {
-            he,
-            kind: SectorEntryKind::Edge,
-            class,
-        });
-        dirs.push(dir_a);
-
-        // Wideness of the sector CW-after `he` (bounded by `he` and the
-        // next orbit edge), and the subdivision direction it implies:
-        // the three rungs and a slit tip's full turn are
-        // [`corner_shape`] — ONE implementation, called from here and from the boolean lane's
-        // sector walk, under the one pooled set of K names (pooled in
-        // #652). This is a call, not a copy. The derivation the
-        // module docs above carry — why convex subdivision, why the
-        // wideness trilean has no escalation cliff — is what that
-        // shared body implements.
-        let next_he = orbit[(i + 1) % orbit.len()];
-        let (_, dir_b, _) = chord(body, vertex, next_he)?;
-        let (face, at_vertex, _) = sector_face(body, vertex, he, band)?;
-        let apex = match at_vertex {
-            VertexFace::Tangent(_) | VertexFace::NearAxis(_) => None,
-            VertexFace::Apex(apex) => Some(apex),
-        };
-        apexes.push(apex);
-        let wide = wide_entries(
-            (vertex, face),
-            (dir_a, dir_b),
-            at_vertex,
-            tips.bounds(vertex, face, he == next_he),
-            plane.normal.get(),
-            band,
-        )?;
-        for (bisector, arm, class) in wide {
-            entries.push(SectorEntry {
-                he,
-                kind: SectorEntryKind::WideBisector,
-                class,
-            });
-            dirs.push(bisector * arm);
-            apexes.push(apex);
-        }
+            })?;
+        classes.push(class);
+        unresolved.push(tie);
     }
-
-    let rays: Vec<EntryRay<T>> = dirs
-        .iter()
-        .zip(&entries)
-        .zip(apexes)
-        .map(|((&dir, e), apex)| EntryRay {
-            dir,
-            in_plane: e.class == PlaneSide::On,
-            apex,
-        })
-        .collect();
-    let readings = rules::apply_rule_a(body, plane, vertex, &mut entries, &dirs, band)?;
-    rules::apply_rule_b(body, vertex, &mut entries, &readings, band)?;
-    Ok((entries, rays))
+    let in_plane: Vec<bool> = classes.iter().map(|&c| c == PlaneSide::On).collect();
+    let readings = rules::apply_rule_a(body, plane, &star, &mut classes, band)?;
+    rules::apply_rule_b(body, &star, (&mut classes, &unresolved), &readings, band)?;
+    Ok(Classified {
+        star,
+        classes,
+        in_plane,
+    })
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::fixtures::raw_prism;
-    use geom_core::Tol;
+    use geom_core::{Tol, Vec3};
+
+    /// **A cylinder-graze divider reads its descended side, in the
+    /// split** (the pierce's half is
+    /// `boolean::sectors::tests::a_cylinder_graze_divider_reads_its_descended_side`):
+    /// the oblique rim's straight corner on the wall holds a divider, and a
+    /// plane tangent to the wall there reads it one order down, Below
+    /// against the wall's outward normal and Above against its reverse,
+    /// not `On` by convention.
+    #[test]
+    fn a_cylinder_graze_divider_reads_its_descended_side() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, wall, vertex) =
+            crate::test_support_fixtures::oblique_rim_wall_from::<f64>(0.3, 1.0);
+        let star = Star::walk(&body, vertex, &SlitTips::default(), band).unwrap();
+        let k = (0..star.bounds.len())
+            .find(|&k| !star.bounds[k].real && star.sectors[k].face == wall)
+            .expect("the wall's straight corner holds a divider");
+        let crate::star::StarFace::Tangent(normal) = star.sectors[k].at else {
+            panic!("the wall has a tangent plane at the rim")
+        };
+        for (n, want) in [
+            (normal.vec(), PlaneSide::Below),
+            (-normal.vec(), PlaneSide::Above),
+        ] {
+            let side = bound_side(
+                &body,
+                &star.bounds[k],
+                geom_brep::ReferenceNormal::of_split_plane(n),
+                |_| Err::<PlaneSide, ()>(()),
+                band,
+            )
+            .unwrap();
+            assert_eq!(side, want, "n = {n:?}: descended");
+        }
+    }
+
+    /// **A vertex near a cone's axis refuses, typed**: on a needle cone,
+    /// a vertex a band's width off the axis and well off the apex has no
+    /// tangent plane the split reads, and the star's fault is the split's
+    /// [`SplitReduceError::VertexNearConeAxis`], naming the vertex, the
+    /// face and the band.
+    #[test]
+    fn a_vertex_near_a_cones_axis_refuses_typed() {
+        use crate::construction::{FaceSurface, MevSite};
+        use geom_core::Point3;
+        let alpha: f64 = 0.01;
+        let at = |z: f64| Point3::new(z * alpha.tan(), 0.0, z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(1e-5), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Cone {
+                    apex: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    half_angle: alpha,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            at(1.0),
+            Tol::witness(),
+        )
+        .unwrap();
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let normal = Vec3::new(0.0, 1.0, 0.0);
+        match split_star(&body, normal, seed.vertex, &SlitTips::of(&body), band) {
+            Err(SplitReduceError::VertexNearConeAxis {
+                vertex,
+                face,
+                band: b,
+            }) => {
+                assert_eq!((vertex, face), (seed.vertex, seed.face));
+                assert_eq!(b, band);
+            }
+            other => panic!("expected the typed near-axis refusal, got {other:?}"),
+        }
+    }
 
     /// The split lane has no sphere arm and says so BY NAME, on the
     /// shared walk's report rather than by re-matching the surface —
@@ -484,15 +382,23 @@ mod tests {
     /// row.
     #[test]
     fn a_sphere_carried_sector_refuses_by_name() {
-        let p = raw_prism(3, Tol::witness());
-        let face = p.face_side[0];
-        let mut body = p.body;
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let vertex = body
+            .vertices()
+            .map(|(k, _)| k)
+            .find(|&v| {
+                body.resolve_vertex_point(v, crate::live::Proven)
+                    .equals_exactly(geom_core::Point3::origin())
+            })
+            .unwrap();
+        let orbit_he = body.vertex_orbit_linked(vertex)[0];
+        let face = crate::sector_face::face_of(&body, vertex, orbit_he);
         body.set_face_surface(
             face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Sphere {
-                    center: geom_core::Point3::new(0.0, 0.0, 0.0),
-                    radius: 2.0,
+                    center: geom_core::Point3::new(2.0, 2.0, 2.0),
+                    radius: 12f64.sqrt(),
                     axis: Vec3::new(0.0, 0.0, 1.0),
                     u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
@@ -500,19 +406,9 @@ mod tests {
             },
         )
         .unwrap();
-        let outer = body.get_face(face).unwrap().outer;
-        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
-        else {
-            panic!("the side face's outer loop is a cycle");
-        };
-        let orbit_he = body.mate(first).unwrap();
-        let vertex = body.get_half_edge(orbit_he).unwrap().start;
-        match sector_face(
-            &body,
-            vertex,
-            orbit_he,
-            Band::linear(Tol::witness()).unwrap(),
-        ) {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        match split_star(&body, normal, vertex, &SlitTips::of(&body), band) {
             Err(SplitReduceError::CurvedBooleanUnsupported { face: f, kind }) => {
                 assert_eq!(f, face);
                 assert_eq!(kind, geom::SurfaceKind::Sphere);
@@ -537,7 +433,7 @@ mod spline_departure_rows {
         let (body, edge) = arc_sheet(1.0, 1.0);
         let he = body.get_edge(edge).unwrap().he_plus;
         let vertex = body.get_half_edge(he).unwrap().start;
-        let (_, dir, bend) = super::chord(&body, vertex, he).unwrap();
+        let (dir, reach) = crate::star::departure(&body, vertex, he).unwrap();
         let tangent = Vec3::new(1.0, 2.0, 0.0).normalize();
         assert!(
             (dir.normalize() - tangent).norm() < 1e-12,
@@ -547,6 +443,9 @@ mod spline_departure_rows {
             (dir.norm() - 2.0).abs() < 1e-12,
             "levered at its extent, the chord's length 2: {dir:?}"
         );
-        assert!(bend.is_some(), "a curved edge carries its bend");
+        assert!(
+            matches!(reach, crate::bound_side::BoundSupport::Conic { .. }),
+            "a curved edge carries its bend: {reach:?}"
+        );
     }
 }

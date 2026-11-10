@@ -100,6 +100,8 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `step-import/src/adopt.rs`: `mapped_self_description`
 - `step-import/src/entities.rs`: `as_bool`
 - `step-import/src/normalize/singularity.rs`: `meridian_rays`, `strut_tip`
+- `sweep/src/blend/battery.rs`: `turn_reading` (the mitre plane's cylinder pair, for `line_meet`; `onecopy/line-holders`)
+- `sweep/src/blend/reach.rs`: `circular_reach` (the torus band's axis, for `canonical_axis`; `onecopy/line-holders`)
 - `sweep/src/revolve/full.rs`: `build_wire`
 - `sweep/src/revolve/surfaces.rs`: `revolved_strut_spec`
 - `sweep/src/revolve/turn.rs`: `sweep_turn`
@@ -114,6 +116,7 @@ PR 6665 gave the doors and holders below a `geom::Line`. Where the line came fro
 - `topo/src/boolean/surface_group.rs`: `wrap_rims`
 - `topo/src/census/depth_gap.rs`: `across` (its `carrier_depth` ×2 left with main's BOXES redesign, which reads a carrier's site through `geom::cover`'s `Cover::about`)
 - `topo/src/face_normal.rs`: `face_outward_normal_at` ×2, `face_outward_normal_at_foot`
+- `topo/src/link.rs`: `Round::of` (the cylinder's axis, for `Round::cylinder`; `onecopy/line-holders`)
 - `topo/src/offset_axial.rs`: `clamp_unit` ×3, `surface_residual`
 - `topo/src/offset_nappe.rs`: `corner_stations`
 - `topo/src/replace_face.rs`: `apex_shift`, `group_cone_v_window`, `offset_charts_staged` ×2, `transport_curve`

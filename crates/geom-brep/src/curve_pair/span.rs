@@ -78,6 +78,7 @@
 use geom::cover::Cover;
 use geom::{CarrierEscalation, CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{self, decide_reported, straddle};
+use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
 
@@ -466,28 +467,28 @@ impl<'a, T: Decide> Span<'a, T> {
         if !self.ended {
             return Ok(EndsPlace::Inside);
         }
-        let ends = [(SpanEnd::Start, t - self.t0), (SpanEnd::Stop, self.t1 - t)];
         // On a closed carrier each end's side is also read on the copy a
-        // turn away, against the other end: past the stop end only where
-        // the copy a turn back is also before the start (module docs, "A
-        // parameter a turn away"). At `f64` the copy is no nearer.
-        // Through this span's own naming (`Self::branch`) only the stop
-        // arm moves anything: a box needs its copy only where it straddles
-        // the middle's antipode, and there `Period::near`'s mark is
-        // undecided and takes the upper copy, past the stop end. Every
-        // reading here is so named (`place_param` and `place_at` both read
-        // `branch`), so the start arm moves nothing today: it is the same
-        // reading for a parameter on the lower copy, kept so the side does
-        // not rest on which copy the tie takes.
-        let ends = if self.carrier.is_periodic() {
-            let tau = T::tau();
-            [
-                (SpanEnd::Start, ends[0].1.max(self.t1 - (t + tau))),
-                (SpanEnd::Stop, ends[1].1.max((t - tau) - self.t0)),
-            ]
+        // turn away, against the other end ([`Period::span_margins`]):
+        // past the stop end only where the copy a turn back is also before
+        // the start (module docs, "A parameter a turn away"). At `f64` the
+        // copy is no nearer. Through this span's own naming
+        // (`Self::branch`) only the stop arm moves anything: a box needs
+        // its copy only where it straddles the middle's antipode, and
+        // there `Period::near`'s mark is undecided and takes the upper
+        // copy, past the stop end. Every reading here is so named
+        // (`place_param` and `place_at` both read `branch`), so the start
+        // arm moves nothing today: it is the same reading for a parameter
+        // on the lower copy, kept so the side does not rest on which copy
+        // the tie takes. The meter is this door's own (each side at the
+        // carrier's sup speed, [`Self::side`]): the copy rule is the one
+        // question it shares with `topo`'s ring lane, which meters a
+        // root's side by the slope its piece crosses at.
+        let (start, stop) = if self.carrier.is_periodic() {
+            Period::new(T::tau()).span_margins(t, (self.t0, self.t1))
         } else {
-            ends
+            (t - self.t0, self.t1 - t)
         };
+        let ends = [(SpanEnd::Start, start), (SpanEnd::Stop, stop)];
         // An end at the point first, on its raw chord: no side matters
         // beside it.
         let mut chords = Vec::with_capacity(2);

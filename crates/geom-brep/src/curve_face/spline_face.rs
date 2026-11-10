@@ -1126,7 +1126,7 @@ pub fn settle<T: Decide>(
     band: Band,
 ) -> Result<Vec<ChartMeeting<T>>, SplineFaceRefusal> {
     let (a, b) = isolated.span;
-    let gap = |row, p: Point3<T>, q: Point3<T>| {
+    let gap_as = |row, p: Point3<T>, q: Point3<T>| {
         decide(row, Margin::of((p - q).norm()), band).map_err(SplineFaceRefusal::Escalated)
     };
     let ends = [a, b].map(|t| carrier.eval(T::from_computed(t)));
@@ -1141,7 +1141,7 @@ pub fn settle<T: Decide>(
         let foot = chart.eval(T::from_computed(um), T::from_computed(vm));
         // Definitely off at the located meeting: the enclosure's point
         // is not resolved to the band.
-        if gap("spline_face_root_on", point, foot)? != Sign::Zero {
+        if gap_as("spline_face_root_on", point, foot)? != Sign::Zero {
             return Err(Unsettled::Meter {
                 row: "spline_face_root_on",
             }
@@ -1149,7 +1149,7 @@ pub fn settle<T: Decide>(
         }
         let mut at_end = false;
         for end in ends {
-            at_end |= gap("spline_face_root_at_end", point, end)? == Sign::Zero;
+            at_end |= gap_as("spline_face_root_at_end", point, end)? == Sign::Zero;
         }
         if at_end {
             continue;
@@ -1163,7 +1163,7 @@ pub fn settle<T: Decide>(
             .into());
         }
         if let Some(before) = out.last()
-            && gap("spline_face_roots_apart", point, before.point)? == Sign::Zero
+            && gap_as("spline_face_roots_apart", point, before.point)? == Sign::Zero
         {
             return Err(Unsettled::Tangency.into());
         }
