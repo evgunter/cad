@@ -73,7 +73,9 @@ use crate::frame::Frame;
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
-pub use nurbs::{NetState, NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
+pub use nurbs::{
+    NetState, NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow,
+};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
 /// An analytic surface — a **complete locus**. Units, the

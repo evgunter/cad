@@ -96,8 +96,11 @@
 //!   [`SelfTouch::SecondOrder`]) — a cone's apex or a vertex in the band
 //!   of its axis, a cusp corner whose edges' bends do not part it, a horn
 //!   beside a sheet along its ray or a ring of horns that reads as no
-//!   thorn, a spline face held off a corner, a face whose foot normal,
-//!   reach or corner face does not read, a curved edge with no certified
+//!   thorn, a spline face held off a corner, a face whose foot normal
+//!   or reach does not read, a spline corner face on a placeholder chart
+//!   or with no certified curve or pcurve there (a spline corner on a
+//!   crease reads its sector's side, or refuses by the crease's
+//!   standing; it is not left here), a curved edge with no certified
 //!   curve, sheets along a tied ray that one order down meet or do not
 //!   part, a curved sheet holding a tied ray inside it, two whole tangent
 //!   planes on one plane, or sectors read lying on each other (two
@@ -7937,13 +7940,6 @@ impl TouchUnread {
                 "; otherwise ",
                 until_apart!()
             ),
-            Self::Curved(CurvedUnread::Crease) => concat!(
-                "they touch at a corner of a spline face that sits on a crease of its \
-                 surface, and the check cannot yet tell which side each is on. ",
-                designed_contact!(),
-                "; otherwise ",
-                until_apart!()
-            ),
             Self::Curved(CurvedUnread::NoSectorArm) => concat!(
                 "they touch at a corner of a face whose kind of surface the check cannot \
                  yet read at a corner. ",
@@ -8057,12 +8053,6 @@ impl TouchUnread {
             Self::Curved(CurvedUnread::NoTangentPlane) => concat!(
                 "a face meeting the point has no tangent plane there (a cone's apex, or a \
                  point on a surface's axis), so no side reads. ",
-                geom_core::not_yet_ending!(),
-                " for this shape"
-            ),
-            Self::Curved(CurvedUnread::Crease) => concat!(
-                "the point is a corner of a spline face on a crease of its surface, where \
-                 the check cannot yet read which side material lies on. ",
                 geom_core::not_yet_ending!(),
                 " for this shape"
             ),
@@ -8652,9 +8642,11 @@ enum SelfTouch {
     /// its ray or a ring of horns that reads as no thorn, a spline face
     /// held off a corner, a face whose normal at the foot or whose reach
     /// does not read, a corner face [`crate::sector_face::resolve`]
-    /// refuses (a crease, a surface with no sector arm, a spline edge not
-    /// placed: [`crate::CurvedUnread::Crease`], [`crate::CurvedUnread::NoSectorArm`],
-    /// [`crate::CurvedUnread::Unplaced`]), a curved edge with no certified curve, sheets along a
+    /// refuses (a surface with no sector arm, a spline edge not placed:
+    /// [`crate::CurvedUnread::NoSectorArm`], [`crate::CurvedUnread::Unplaced`];
+    /// a spline corner on a crease reads the normal on its sector's side,
+    /// and one the band cannot read refuses the reading by the crease's
+    /// standing, not here), a curved edge with no certified curve, sheets along a
     /// tied ray that one order down meet or do not part, a curved sheet
     /// holding such a ray inside it, or two whole tangent planes on one
     /// plane (two kissing balls at any pose included). A sign one order
@@ -8977,11 +8969,12 @@ impl<T: Decide> Link<T> {
     /// the link keeps beside its sectors ([`Link::of_tangent`]). A face
     /// with no tangent plane at the point (a cone's apex, or a vertex in
     /// the band of its axis: [`crate::CurvedUnread::NoTangentPlane`]), a corner
-    /// face [`crate::sector_face::resolve`] refuses (its named cause), a
-    /// cusp corner its bends do not part, a spline face held anywhere but
-    /// a corner, a curved edge with no certified curve, or a face whose
-    /// normal or reach does not read is [`crate::CurvedUnread::Unreadable`] or
-    /// that named cause, one control ([`TouchUnread::curved_unread`]); a
+    /// face [`crate::sector_face::resolve`] refuses (its named cause; a
+    /// corner on a crease is read on its sector's side), a cusp corner its
+    /// bends do not part, a spline face held anywhere but a corner, a
+    /// curved edge with no certified curve, or a face whose normal or reach
+    /// does not read is [`crate::CurvedUnread::Unreadable`] or that named
+    /// cause, one control ([`TouchUnread::curved_unread`]); a
     /// reading of it in band, [`TouchUnread::InBand`].
     fn tangent_of(
         body: &Body<T>,
@@ -9175,11 +9168,12 @@ fn corner_cause(why: &crate::sector_face::SectorFaceError) -> TouchUnread {
     use crate::sector_face::SectorFaceError;
     match why {
         SectorFaceError::ApexUndecided { .. } => TouchUnread::kept(Refusal::of_apex()),
-        // A corner on a spline crease is unread whatever its reading: the
-        // touch at it goes undetected (module docs), which
-        // `work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`
-        // weighs against refusing it by the crease's own standing.
-        SectorFaceError::Crease { .. } => TouchUnread::Curved(CurvedUnread::Crease),
+        // A corner on a spline crease reads the normal on its sector's
+        // side (`sector_face`); a crease that refuses still is an
+        // irregular point, a side the band cannot read or a corner that
+        // may hold both sides of a fold, and refuses by the crease's own
+        // standing: in band, or a limit where decided.
+        SectorFaceError::Crease { reading, .. } => TouchUnread::kept(Refusal::of_crease(*reading)),
         SectorFaceError::Unsupported { .. } => TouchUnread::Curved(CurvedUnread::NoSectorArm),
         SectorFaceError::Unplaced { .. } => TouchUnread::Curved(CurvedUnread::Unplaced),
     }
@@ -22689,9 +22683,10 @@ mod corner_cause_rows {
     use crate::sector_face::{ConeApex, SectorFaceError, VertexFace};
 
     /// **[`corner_normal`](super::corner_normal) names each cause of a
-    /// corner left unread**: a cone's apex no tangent plane, a crease a
-    /// crease, a surface with no sector arm and a spline edge not placed
-    /// their own, each the curved reading's abort ([`TouchUnread::Curved`]).
+    /// corner left unread**: a cone's apex no tangent plane, a surface with
+    /// no sector arm and a spline edge not placed their own, each the
+    /// curved reading's abort ([`TouchUnread::Curved`]); a crease refuses
+    /// by its own standing instead.
     /// Red where an arm reverts to another name.
     #[test]
     fn each_corner_cause_is_named_apart() {
@@ -22710,15 +22705,19 @@ mod corner_cause_rows {
             ),
             "a cone's apex"
         );
+        // A crease is no abort: it refuses by its own standing, a limit
+        // where decided and in band where the band cannot read it.
+        let crease = |reading| SectorFaceError::Crease {
+            face,
+            kind: SurfaceKind::Nurbs,
+            reading,
+        };
+        assert_eq!(
+            corner_cause(&crease(Ok(MarginDiag::value(0.0)))),
+            TouchUnread::Unanalysed,
+            "a crease decided"
+        );
         let causes = [
-            (
-                SectorFaceError::Crease {
-                    face,
-                    kind: SurfaceKind::Nurbs,
-                    reading: Ok(MarginDiag::value(0.0)),
-                },
-                CurvedUnread::Crease,
-            ),
             (
                 SectorFaceError::Unsupported {
                     face,
