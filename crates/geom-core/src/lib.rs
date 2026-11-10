@@ -22,6 +22,7 @@ pub mod dual;
 pub mod exact;
 pub mod interval;
 pub mod k_stats;
+pub mod ladder;
 pub mod linalg;
 pub mod line2;
 pub mod one_line;
