@@ -115,19 +115,45 @@ impl<T: Real> Deref for Replay<T> {
 }
 
 impl<T: AtRestPolicy> Replay<T> {
-    /// **This replay under an isometry**: its data mapped. A replay
-    /// carries no verdict and its tier 2 is topology, which no map
-    /// moves, so nothing is asked.
+    /// **This replay under an isometry**: its data mapped, and every
+    /// family not up to isometry asked again of the image, as a finished
+    /// body's move asks it ([`asked_after_isometry`]). A replay carries
+    /// no verdict and its tier 2 is topology, which no map moves; the box
+    /// is asked so that a leaf's move decides at every lane what it
+    /// decides at `f64`, where the leaf is the finished body.
     ///
     /// # Errors
     ///
-    /// [`NotFinished`] where the data map meets a state tier 2 refuses,
-    /// which a replay never holds, or a mirror's re-minted row refuses
-    /// ([`moved_body`]).
+    /// [`NotFinished`]: the session box's finding, the band's, or a
+    /// state the data map refuses ([`moved_body`]).
     pub fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
-        Ok(Self {
-            body: moved_body(&self.body, iso, tol)?,
-        })
+        let body = moved_body(&self.body, iso, tol)?;
+        asked_after_isometry(&body, tol)?;
+        Ok(Self { body })
+    }
+}
+
+/// **Every family not up to isometry, asked of `image`**
+/// ([`FindingFamily::up_to_isometry`]): what a move asks again.
+///
+/// # Errors
+///
+/// [`NotFinished`] holding each such family's finding, or the band's.
+pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
+    image: &Body<T>,
+    tol: Tol,
+) -> Result<(), NotFinished> {
+    let band = geom_core::Band::linear(tol)
+        .map_err(|error| NotFinished::new(vec![ValidationError::Band { error }]))?;
+    let findings: Vec<ValidationError> = FindingFamily::ALL
+        .into_iter()
+        .filter(|family| !family.up_to_isometry())
+        .filter_map(|family| family.asked_again(image, band).err())
+        .collect();
+    if findings.is_empty() {
+        Ok(())
+    } else {
+        Err(NotFinished::new(findings))
     }
 }
 

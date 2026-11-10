@@ -10665,17 +10665,8 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let band = Band::linear(tol)
-            .map_err(|error| crate::NotFinished::new(vec![ValidationError::Band { error }]))?;
         let body = crate::finish::moved_body(&self.body, iso, tol)?;
-        let findings: Vec<ValidationError> = crate::FindingFamily::ALL
-            .into_iter()
-            .filter(|family| !family.up_to_isometry())
-            .filter_map(|family| family.asked_again(&body, band).err())
-            .collect();
-        if !findings.is_empty() {
-            return Err(crate::NotFinished::new(findings));
-        }
+        crate::finish::asked_after_isometry(&body, tol)?;
         Ok(Self {
             body,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),

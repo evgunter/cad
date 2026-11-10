@@ -27,23 +27,20 @@ this final state, but … keep it disabled/selectively disabled for now".
   builders (`crates/sweep/src/loft.rs`, `crates/sweep/src/revolve/mod.rs`),
   which become the doors' finish;
 - `sweep::test_support::taken`;
-- the three evaluator doors' `T::leaf` ends, which become `T::finish`:
-  the computing frame's twist, the mirror and the `⊔` graft
-  (`crates/editor-core/src/eval/wire.rs`);
-- `NodeErrorKind::UnfinishedLeaf`'s leaf half: it stays, renamed to what
-  it then is, a body read through a placement's map that does not finish
-  where an operation takes it (`ReadIn::Mapped`, `ReadIn::taken`), with
-  its `input`, class, tags and rendered rows
-  (`crates/editor-core/src/eval/mod.rs`, `crates/pncad-py`);
+- the `⊔` graft's `T::leaf` end, which becomes `T::finish`
+  (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
+  what a value holds (`Held::moved`) and end in no gate;
+- `NodeErrorKind::UnfinishedLeaf`: with no leaf, every held body is
+  finished and a moved one stays finished, so nothing refuses where an
+  operation takes it; the arm goes with its `input`, class, tags and
+  rendered rows (`crates/editor-core/src/eval/mod.rs`, `crates/pncad-py`);
 - `Held`'s leaf arm, `Held::finished` and `Held::at_f64`/`arc`
   (`crates/editor-core/src/eval/framed.rs`), and `Framed::own_leaf` and
-  `in_frame_leaf`: a value holds a finished body again, and `ReadIn::Held`
-  holds that body. `Framed::read_in` and `ReadIn` stay: a body mapped
-  into another frame is construction state with or without the switch;
+  `in_frame_leaf`: a value holds a finished body again, and
+  `Framed::read_in` moves it (`FinishedBody::moved`);
 - the `MemberRead::taken_in` and `distribute::Operand::taken`/`taken_in`
   takes of a held body (`crates/editor-core/src/eval/wire.rs`,
-  `wire/distribute.rs`): a held body is taken as it is, a mapped one
-  still finishes there;
+  `wire/distribute.rs`): a held body is taken as it is;
 - the connectedness check's take of a held body
   (`crates/editor-core/src/checks.rs`);
 - the bindings' `HostBody` held arm, which holds the finished body
@@ -67,3 +64,4 @@ their main-era assertions after the deletion.
 ## Slate triage (2026-11-08, ONEHOME split)
 
 - Moved to BOXFINISH (`work/boxfinish/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows that let the box scalars finish their sweep leaves at tier 3 and so retire Ev's switch (PR 6371) went to BOXFINISH.
+- 2026-11-10 — the twist, the mirror and `ReadIn` left the list: a finished body moved by an isometry stays finished (fork 256, the rigid-motion unit). (ONEHOME rigid-motion lane)
