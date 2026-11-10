@@ -75,8 +75,8 @@ fn agree(
     for p in &got.points {
         let partner = back.points.iter().any(|q| {
             (p.point - q.point).norm() <= e
-                && same_hit(&p.on_a, &q.on_b, a.is_periodic(), slack)
-                && same_hit(&p.on_b, &q.on_a, b.is_periodic(), slack)
+                && same_hit(&p.on_a, &q.on_b, a.period().is_some(), slack)
+                && same_hit(&p.on_b, &q.on_a, b.period().is_some(), slack)
         });
         if !partner {
             return Some(format!("{label}: {p:?} has no swapped partner in {back:?}"));

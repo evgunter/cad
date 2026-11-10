@@ -254,7 +254,7 @@ impl Channel {
                 // the offset from the lifted centre.
                 let h = w.dot(a);
                 let perp = a.cross(w.cross(a));
-                let rho = perp.dot(perp).sqrt();
+                let rho = perp.norm();
                 clears(rho - lift(big_r)) || clears(h)
             }
         }

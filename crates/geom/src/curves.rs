@@ -1047,16 +1047,20 @@ impl<T: Real> Curve3<T> {
         }
     }
 
-    /// **Whether the carrier's parameter is an angle**: a circle, an
-    /// ellipse and a spiric oval repeat every turn, so a parameter names
-    /// its point modulo `τ`; a line and a spline do not. The one reading
-    /// of a carrier's period, matched exhaustively so a new kind decides
-    /// here.
+    /// **The carrier's period, where its parameter repeats**: a circle,
+    /// an ellipse and a spiric oval repeat every turn, so a parameter
+    /// names its point modulo `τ`; a line and a spline do not (`None`).
+    /// The one answer to a carrier's period, matched exhaustively so a
+    /// new kind decides here: every reader that renames a parameter by
+    /// whole periods, or reads it on its copy a period away
+    /// ([`Period::span_margins`]), asks the carrier this.
     #[must_use]
-    pub fn is_periodic(&self) -> bool {
+    pub fn period(&self) -> Option<Period<T>> {
         match self {
-            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
-            Curve3::Line(_) | Curve3::Nurbs(_) => false,
+            Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
+                Some(Period::new(T::tau()))
+            }
+            Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
     }
 
@@ -1266,11 +1270,7 @@ impl<T: Decide> Curve3<T> {
     /// on an open one.
     #[must_use]
     pub fn branch_near(&self, t: T, reference: T) -> T {
-        if self.is_periodic() {
-            Period::new(T::tau()).near(t, reference)
-        } else {
-            t
-        }
+        self.period().map_or(t, |p| p.near(t, reference))
     }
 
     /// **The direction of `p` about a closed carrier's centre**, whose
