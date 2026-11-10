@@ -365,7 +365,8 @@ pub(crate) fn departures<T: Decide>(
     locus: Locus<T>,
     band: Band,
 ) -> Result<Departure, RimUnread> {
-    let (Some(ra), Some(rb)) = (reach(a, fa, locus, band)?, reach(b, fb, locus, band)?) else {
+    let (Some(ra), Some(rb)) = (reach_as(a, fa, locus, band)?, reach_as(b, fb, locus, band)?)
+    else {
         return Ok(Departure::EdgeKindUnread);
     };
     let tau = T::from_f64(core::f64::consts::TAU);
@@ -674,7 +675,7 @@ fn contains<T: Decide>(
 /// The face's reach along `locus`; `None` when one of its boundary
 /// edges is a curve the read does not place (neither a line nor a
 /// circle).
-fn reach<T: Decide>(
+fn reach_as<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     locus: Locus<T>,
