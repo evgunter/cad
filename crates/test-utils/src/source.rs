@@ -1584,11 +1584,15 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
         .map(|path| {
             let text = std::fs::read_to_string(&path)
                 .unwrap_or_else(|e| panic!("a readable source file {}: {e}", path.display()));
-            let rel = path
-                .strip_prefix(src)
-                .unwrap_or(&path)
-                .to_string_lossy()
-                .replace('\\', "/");
+            // A walk over one file names its sites by that file's name.
+            let rel = match path.strip_prefix(src) {
+                Ok(rel) if !rel.as_os_str().is_empty() => rel,
+                _ => path
+                    .file_name()
+                    .map_or(path.as_path(), std::path::Path::new),
+            }
+            .to_string_lossy()
+            .replace('\\', "/");
             (rel, text)
         })
         .collect();

@@ -492,7 +492,10 @@ fn every_door_name_carries_a_listed_prefix() {
         predicate_census(&src.join("curve_face"), &carriers),
     );
     assert!(
-        table.indirect.is_empty() && table.unreadable.is_empty() && table.unwalked.is_empty(),
+        table.indirect.is_empty()
+            && table.consts.is_empty()
+            && table.unreadable.is_empty()
+            && table.unwalked.is_empty(),
         "curve_face.rs holds a site the census could not read: {table:?}"
     );
     assert!(
