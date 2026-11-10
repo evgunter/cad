@@ -9553,12 +9553,21 @@ fn read_shown<T: Decide>(
 ///   read's witness for check 4's re-derivation ([`read_shown`]).
 /// - **A spline chart** reads on refusal: `door` runs first, and the read
 ///   ends its refusal where the read refuses, a carrier shown off its
-///   wall as `CarrierOffChart` and one in band of it in the read's lever,
-///   never as the image's own bound. A certificate that holds bounds the
-///   carrier within the band of the wall over `certified` (its envelope
-///   is a sup over the span), so where `certified` is shown to cover
-///   `asked` the read is skipped; anywhere else it is taken over `asked`
-///   first, whatever the door answered.
+///   wall as an [`IncidenceRefusal`] read off and one in band of it in the
+///   read's lever, never as the image's own bound. Where `certified` is
+///   shown to cover `asked` a door that holds is taken as it stands;
+///   anywhere else the read is taken over `asked`, whatever the door
+///   answered.
+///
+/// That skip is sound for the pcurve certificate doors (`certify`,
+/// `recertify`, `certify_fitted`, `certify_general`), whose certificate
+/// that holds bounds the carrier within the band of the wall over
+/// `certified`: its envelope is a sup over the span. It is not for a
+/// door whose meter is sampled, such as the edge certificate's stated
+/// image ([`incidence_ended_unwitnessed`] from `certify.rs`
+/// `stated_door`), where a carrier off its wall only between both sets of
+/// samples passes
+/// (`work/pcert/a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter.md`).
 ///
 /// `refused` carries the read's refusal into the door's own vocabulary.
 fn incidence_ended<T: Decide, R, E>(
@@ -9581,9 +9590,19 @@ fn incidence_ended<T: Decide, R, E>(
     got
 }
 
-/// [`incidence_ended`] for a door that takes no witness: the edge
-/// certificate's stated chart image (`certify.rs` `stated_door`).
-pub(crate) fn incidence_ended_unwitnessed<T: Decide, R, E>(
+/// **A certificate door, ended by the carrier's incidence read** (D3),
+/// for a door that takes no witness: the one home's rule
+/// (`incidence_ended`), which reads an analytic chart before `door` and a
+/// spline chart where `door` refuses or where `certified` is not shown to
+/// cover `asked`. Its callers are the edge certificate's stated chart image
+/// (`certify.rs` `stated_door`), whose meter is sampled, and `topo`'s
+/// restatement of a stored fitted image at a scalar with no fitted door.
+///
+/// # Errors
+///
+/// `door`'s refusal, or the read's carried into `door`'s vocabulary by
+/// `refused`.
+pub fn incidence_ended_unwitnessed<T: Decide, R, E>(
     carrier: &Curve3<T>,
     asked: (T, T),
     certified: (T, T),
@@ -9597,11 +9616,12 @@ pub(crate) fn incidence_ended_unwitnessed<T: Decide, R, E>(
     })
 }
 
-/// Whether `certified` is shown to hold `asked`: both ends read in exact
-/// order ([`geom_core::k_stats::param_order`]). An order that does not
-/// decide, as an enclosure straddling an end reads, is not shown.
+/// Whether `certified` is shown to hold `asked`: `c0 ≤ a0 ≤ a1 ≤ c1`, each
+/// step read in exact order ([`geom_core::k_stats::param_order`]), so a
+/// reversed span asked about is not held by a forward one. An order that
+/// does not decide, as an enclosure straddling an end reads, is not shown.
 fn covers<T: Decide>((c0, c1): (T, T), (a0, a1): (T, T)) -> bool {
-    [(a0, c0), (c1, a1)].into_iter().all(|(s, t)| {
+    [(a0, c0), (a1, a0), (c1, a1)].into_iter().all(|(s, t)| {
         matches!(
             geom_core::k_stats::param_order("pcurve_span_covered", s, t),
             Ok(Sign::Positive | Sign::Zero)
@@ -12597,7 +12617,7 @@ mod radial_pair_rows;
 mod ruling_reading_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod spline_door_rows;
+pub(crate) mod spline_door_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

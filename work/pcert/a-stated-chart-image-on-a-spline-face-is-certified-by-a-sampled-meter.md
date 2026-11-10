@@ -65,7 +65,14 @@ Traced at `pcert/spline-certificate-door` (the review's open question):
   - `mesh::tessellate` and `topo::pcurve_of` act on such a body with no
     envelope check.
   - pncad does not re-export the construction tier (`pncad/src/topo.rs`),
-    so no outside caller of pncad reaches it.
+    so no outside caller of pncad can store such an edge in a body.
+- pncad does re-export `geom_brep` whole (`pncad/src/lib.rs`,
+  `pub use geom_brep`), so any pncad caller can obtain the sampled
+  certificate itself for R2's off carrier, through
+  `pncad::geom_brep::EdgeCurve::certify` (or `certify_stated`). That is a
+  kernel-issued edge certificate for a carrier 1 mm off its wall, handed to an
+  outside caller; no public door installs it in a body, which is why the row
+  is P1 and not P0.
 
 ## Fix
 

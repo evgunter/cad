@@ -56,12 +56,12 @@ struct Lanes<T: geom_core::Real> {
 /// The ruling's angle, the wall's knot `u = ½`.
 const RULING: f64 = 0.6;
 
-fn band() -> Band {
+pub(crate) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
 /// A distance inside the band: past `zero()`, short of `escalate()`.
-fn in_band() -> f64 {
+pub(crate) fn in_band() -> f64 {
     let b = band();
     0.5 * (b.zero() + b.escalate())
 }
@@ -85,7 +85,7 @@ impl Place {
 }
 
 /// The wall (module docs).
-fn ring<T: Decide>() -> Surface<T> {
+pub(crate) fn ring<T: Decide>() -> Surface<T> {
     let h = 1.2 / 2.0;
     let mut ku = vec![0.0; 3];
     ku.extend([0.5; 2]);
@@ -351,6 +351,37 @@ fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: Decide>(lane: FittedLane
         "over the edge, past the patch, at {}: {over_edge:?}",
         T::NAME
     );
+}
+
+/// **A reversed span asked about is read, not taken as covered**
+/// (`covers`): the row certified over `t ∈ [0, 1]` holds no span that runs
+/// backwards, so `recertify` over `(1.5, 0)` or `(1, −0.5)`, each reaching
+/// past the patch, reads the carrier there and ends it off the chart.
+fn a_reversed_edge_span_is_read<T: Decide>(lane: FittedLane<T>) {
+    let (c, b) = (T::from_f64, band());
+    let (wall, carrier) = (ring::<T>(), ruling::<T>(Place::On));
+    let row = PcurveCache::certify(column(), c(0.0), c(1.0), &carrier, &wall, b)
+        .expect("the row certifies over its own span");
+    for (a0, a1) in [(1.5, 0.0), (1.0, -0.5)] {
+        let got = row.recertify(&carrier, (c(a0), c(a1)), &wall, b, Some(lane));
+        assert!(
+            got.as_ref()
+                .err()
+                .is_some_and(|e| read_off(e, Some(geom::SurfaceKind::Nurbs), None)),
+            "over the reversed span ({a0}, {a1}), past the patch, at {}: {got:?}",
+            T::NAME
+        );
+    }
+}
+
+#[test]
+fn a_reversed_edge_span_is_read_at_f64() {
+    a_reversed_edge_span_is_read::<f64>(FittedLane::certified());
+}
+
+#[test]
+fn a_reversed_edge_span_is_read_at_interval() {
+    a_reversed_edge_span_is_read::<Interval>(FittedLane::certified());
 }
 
 #[test]

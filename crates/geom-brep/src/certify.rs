@@ -795,6 +795,15 @@ fn row_image_refusal(surface: SurfaceKey, refusal: PcurveCertifyError) -> Certif
         PcurveCertifyError::Escalated { check, cause, .. } => {
             RowRefusal::ImageEscalated { check, cause }
         }
+        // The carrier's incidence read in band ends the row's refusal in
+        // band too, never as a definite refusal.
+        PcurveCertifyError::Incidence(read) => match read.read() {
+            crate::IncidenceRead::Undecided(cause) => RowRefusal::ImageEscalated {
+                check: crate::pcurve_cache::PcurveCheck::ChartIncidence,
+                cause,
+            },
+            _ => RowRefusal::Image(Some(crate::pcurve_cache::PcurveCheck::ChartIncidence)),
+        },
         refused => RowRefusal::Image(refused.refused_check()),
     };
     CertifyError::Row { surface, refusal }
