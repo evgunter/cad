@@ -3510,8 +3510,8 @@ date too** (PR 6734).
   signs stand for nothing in the new population.
 - `link_offset_ball` read a point's side of a ball's tangent plane toward
   it, `n·(y − x − n·d)` with `n = normalize(y − x)`. It now reads its
-  signed distance from the sphere, `|y − x| − d`
-  (`Distance::from_sphere`).
+  signed distance from the sphere, `|y − x| − d`, the ball read as a round
+  carrier (`Round::sphere`, `Round::offset`, through `Distance::at`).
   - Off the centre, that is the same quantity to rounding.
   - At the centre, the old sample was a NaN, unread, and the new one is
     `−d`, inside.
