@@ -270,11 +270,7 @@ fn nurbs_edge() -> (Body<f64>, EdgeKey) {
         surface_of(&body, edge.he_plus),
         surface_of(&body, edge.he_minus),
     );
-    let start = body
-        .get_half_edge(edge.he_plus)
-        .expect("a live half-edge")
-        .start;
-    let end = body.half_edge_end(edge.he_plus).expect("a live half-edge");
+    let (start, end) = body.edge_vertices(edge_key).expect("a live edge");
     let p0 = *body
         .get_point(body.get_vertex(start).expect("live").point)
         .expect("live");

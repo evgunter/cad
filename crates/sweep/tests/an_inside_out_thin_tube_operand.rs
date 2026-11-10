@@ -11,7 +11,7 @@
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{AtRestBody, Body, ValidationError};
+use topo::{Body, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -33,7 +33,9 @@ fn an_inside_out_thin_tube_refuses_at_rest() {
         let rev = tube(r, t).revert().unwrap();
         let solid = rev.solids().next().expect("one solid").0;
         assert_eq!(
-            AtRestBody::validate(rev, tol()).map(|_| ()),
+            topo::finish(rev, tol())
+                .map(|_| ())
+                .map_err(topo::NotFinished::into_findings),
             Err(vec![ValidationError::NegativeVolume { solid }]),
             "r {r}: the reverted tube refuses at rest"
         );

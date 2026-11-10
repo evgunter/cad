@@ -453,6 +453,28 @@ pub enum MergeCoplanarError {
         /// The refusing operator's error.
         error: EulerOpError,
     },
+    /// A face either side of a shared edge has no extent to compare the
+    /// pair's carriers over: its box has no claim to make, or its
+    /// boundary cannot be walked. Tier 2 does not read either, and the
+    /// merge's own entry gate is tier 2. It ends in the defect ending,
+    /// and whether only the kernel can build such a face, or a stored
+    /// body can carry one, is open
+    /// (`work/topo/merge-faces-undescribed-ending-is-a-typed-kernel-defect.md`).
+    PairExtentUnread {
+        /// The face whose extent does not read.
+        face: FaceKey,
+    },
+    /// A face either side of a shared edge is on a torus outside the
+    /// ring convention (a horn or spindle torus, or one with no tube),
+    /// which no carrier is compared on. Tier 3 refuses it at rest
+    /// (`ValidationError::DegenerateTorus`); the merge's entry gate is
+    /// tier 2, so it refuses the face here, in the convention's lever.
+    DegenerateTorus {
+        /// The face.
+        face: FaceKey,
+        /// The convention's refusal.
+        refusal: geom_brep::TorusRefusal,
+    },
     /// After absorbing a group, the survivor's loops admit no unique
     /// positively-wound outline, so the outer/ring roles cannot be
     /// assigned; refused rather than guessed. The intra-face `kemr`
@@ -836,7 +858,7 @@ impl DescribeRefusal {
 /// The recourse of the decision whether the faces at a kept face's
 /// boundary edge cross or meet smoothly, shared by its refused arms.
 const CROSS_OR_SMOOTH: &str =
-    "Recourse: move the geometry so the faces at that edge clearly cross or are clearly smooth";
+    geom_core::move_recourse!("so the faces at that edge clearly cross or are clearly smooth");
 
 impl MergeCoplanarError {
     /// The door's refusal for `refusal` at one of `boundary`'s edges,
@@ -920,12 +942,13 @@ impl MergeCoplanarError {
     }
 }
 
-/// What the merge does with the ladder's `verdict` on an unglued
-/// pair meeting at a shared edge: it glues one carrier facing the same
-/// way, leaves two carriers and a slit (one carrier, opposed) as they
-/// are, and refuses a reading the band does not decide.
+/// What the merge does with the ladder's `verdict` on the unglued
+/// pair `faces` meeting at a shared edge: it glues one carrier facing
+/// the same way, leaves two carriers and a slit (one carrier, opposed)
+/// as they are, and refuses a reading the band does not decide.
 fn unglued_pair_verdict(
     verdict: Result<PlaneRelation, PlaneEqError>,
+    faces: [FaceKey; 2],
 ) -> Result<bool, MergeCoplanarError> {
     match verdict {
         Ok(PlaneRelation::SameOriented) => Ok(true),
@@ -937,6 +960,10 @@ fn unglued_pair_verdict(
         Err(PlaneEqError::Escalated { rung, diag }) => Err(MergeCoplanarError::Escalated {
             decision: MergeDecision::Neighbours(rung),
             diag,
+        }),
+        Err(PlaneEqError::OffRing { torus, refusal }) => Err(MergeCoplanarError::DegenerateTorus {
+            face: torus.of(faces),
+            refusal,
         }),
     }
 }
@@ -975,10 +1002,6 @@ pub enum OutlineVerdict {
 /// Which decision [`MergeCoplanarError::Escalated`] could not take.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MergeDecision {
-    /// Whether a pair's extent reads, the reach its rung reads the two
-    /// carriers over: a face whose extent does not read has no reach to
-    /// settle.
-    PairReach,
     /// A rung of the plane identity reading two unglued planar
     /// faces either side of an edge, as the Boolean's maximal-faces
     /// gate reads an operand's
@@ -999,7 +1022,6 @@ impl MergeDecision {
     #[must_use]
     pub const fn subject(self) -> &'static str {
         match self {
-            Self::PairReach => "whether the two faces' extent reads, to compare them across it",
             Self::Neighbours(_) => "whether the two faces either side of an edge lie on one plane",
             Self::NeighbourCoincidence => {
                 "whether the two faces either side of an edge lie on one surface"
@@ -1013,8 +1035,6 @@ impl MergeDecision {
     fn ending(self, diag: &Indeterminate, at: geom_brep::recourse::ReadAt) -> String {
         let arm = RefusedArm::Undecided(diag);
         match self {
-            // An extent that does not read carries no margin.
-            Self::PairReach => Unsized::Defect.recourse(arm, at),
             Self::Neighbours(rung) => {
                 crate::boolean::BooleanDecision::Neighbours(rung).recourse(diag)
             }
@@ -1106,6 +1126,24 @@ impl MergeCoplanarError {
                  cut-carrying canonical form and are recorded as a loud skip"
             ),
             Self::Op { error } => write!(f, "merge_coplanar_faces: {}", read_at(error, at)),
+            Self::PairExtentUnread { face } => write!(
+                f,
+                "merge_coplanar_faces: face {face:?} has no extent to compare its carrier with \
+                 its neighbour's over (its box has no claim to make, or its boundary cannot be \
+                 walked){}",
+                at.map(|at| format!(
+                    ". {}",
+                    Unsized::Defect.recourse(RefusedArm::SignCertain(None), at)
+                ))
+                .unwrap_or_default()
+            ),
+            Self::DegenerateTorus { face, refusal } => {
+                write!(
+                    f,
+                    "merge_coplanar_faces: face {face:?}: {}",
+                    read_at(refusal, at)
+                )
+            }
             Self::MergedFaceRoleAmbiguous { face, verdict } => match verdict {
                 OutlineVerdict::SeveralPositive { loops } => write!(
                     f,
@@ -2481,7 +2519,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// A pair's in-band reading
     /// ([`MergeDecision::Neighbours`], [`MergeDecision::NeighbourCoincidence`]);
-    /// a pair whose extent does not read ([`MergeDecision::PairReach`]).
+    /// a pair whose extent does not read ([`MergeCoplanarError::PairExtentUnread`]).
     ///
     /// # Panics
     ///
@@ -2543,11 +2581,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // holds at every point of both. A face whose extent does not
         // read has no reach to settle, which the reach decision names.
         let extent = self.pair_reach(f1, f2, band)?;
-        unglued_pair_verdict(oriented_plane_eq(&p1, &p2, &extent, band))
+        unglued_pair_verdict(oriented_plane_eq(&p1, &p2, &extent, band), [f1, f2])
     }
 
-    /// The consumed extent of the face pair `(f1, f2)`, or the reach
-    /// decision's refusal where a face's extent does not read.
+    /// The consumed extent of the face pair `(f1, f2)`, or the face
+    /// whose extent does not read ([`MergeCoplanarError::PairExtentUnread`]).
     fn pair_reach(
         &self,
         f1: FaceKey,
@@ -2556,14 +2594,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ) -> Result<crate::boolean::ConsumedExtent<T>, MergeCoplanarError> {
         crate::boolean::carrier_pair::pair_extent(self, f1, self, f2, band)
             .map(|extent| extent.consumed())
-            .map_err(|_| MergeCoplanarError::Escalated {
-                decision: MergeDecision::PairReach,
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some("merge_pair_extent"),
-                    terminal_sliver: false,
-                },
+            .map_err(|side| MergeCoplanarError::PairExtentUnread {
+                face: side.of([f1, f2]),
             })
     }
 
@@ -2577,17 +2609,13 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         band: Band,
     ) -> Result<bool, MergeCoplanarError> {
         match crate::boolean::carrier_pair_relation(self, f1, self, f2, band) {
-            Ok(verdict) => unglued_pair_verdict(verdict),
+            Ok(verdict) => unglued_pair_verdict(verdict, [f1, f2]),
             Err(crate::boolean::PairUnread::OutsideInventory) => Ok(false),
-            Err(crate::boolean::PairUnread::Extent(_)) => Err(MergeCoplanarError::Escalated {
-                decision: MergeDecision::PairReach,
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some("merge_pair_extent"),
-                    terminal_sliver: false,
-                },
-            }),
+            Err(crate::boolean::PairUnread::Extent(side)) => {
+                Err(MergeCoplanarError::PairExtentUnread {
+                    face: side.of([f1, f2]),
+                })
+            }
         }
     }
 
@@ -3316,7 +3344,7 @@ mod tests {
                 let p = body
                     .get_point(body.get_vertex(v).expect("live").point)
                     .expect("live");
-                p.to_array() == at
+                p.equals_exactly(geom_core::Point3::from_array(at))
             })
             .expect("a half-edge starts there")
     }
@@ -3453,8 +3481,7 @@ mod tests {
             };
             let (edge_key, edge) = body.edges().next().expect("an edge");
             let (hp, hm) = body.edge_halves(edge_key, edge);
-            let starts =
-                [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).expect("live").start);
+            let starts = <[_; 2]>::from(crate::query::edge_ends(&body, edge_key));
             let want = tear(&mut body, hp, hm, starts);
             let mut got = None;
             let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
@@ -4534,6 +4561,98 @@ mod tests {
         assert!(outcome.groups.is_empty() && outcome.skipped.is_empty());
         assert_eq!(outcome.placeholders, vec![cap]);
         assert_eq!(crate::fixtures::deep_snapshot(&body), before);
+    }
+
+    /// **A pair the merge cannot compare refuses as the fact it is**: a
+    /// face with no extent ends in the defect ending, on no margin (it
+    /// read none), and a torus off its ring convention ends in its
+    /// half's lever, never in an escalation's.
+    #[test]
+    fn an_unread_pair_refuses_on_its_structural_arm() {
+        use geom_brep::recourse::{Reading, defect_ending};
+        let face = FaceKey::default();
+        let unread = MergeCoplanarError::PairExtentUnread { face }.render(Reading::Build);
+        assert!(
+            unread.contains("has no extent") && unread.ends_with(defect_ending(Reading::Build)),
+            "the face with no extent, a kernel defect: {unread}"
+        );
+        assert!(!unread.contains("margin"), "no margin was read: {unread}");
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let spindle = geom_brep::TorusRefusal::require(1.0, 2.0, band)
+            .expect_err("a spindle is off the ring convention");
+        let torus = MergeCoplanarError::DegenerateTorus {
+            face,
+            refusal: spindle,
+        }
+        .render(Reading::Build);
+        assert!(
+            torus.contains("make the tube radius clearly smaller than the ring radius"),
+            "the ring half's lever: {torus}"
+        );
+    }
+
+    /// **The merge names the face a pair's refusal is about, in either
+    /// order.** Two faces of a brick whose surfaces are swapped for
+    /// spheres, one with a centre that is not finite, so its extent does
+    /// not read (`PairExtentUnread`), then for two tori, one a spindle,
+    /// so the ladder refuses its convention (`DegenerateTorus`). Tier 2
+    /// reads neither, so the brick passes the merge's gate either way;
+    /// the rows read the two comparisons directly.
+    #[test]
+    fn the_merge_names_the_face_a_pair_refusal_is_about() {
+        let tol = geom_core::Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let keys: Vec<FaceKey> = body.faces().map(|(k, _)| k).take(2).collect();
+        let (bad, good) = (keys[0], keys[1]);
+        let mut set = |f: FaceKey, surface: Surface<f64>| {
+            let key = body.faces[f].surface;
+            body.surfaces[key] = surface;
+        };
+        let sphere = |x: f64| Surface::Sphere {
+            center: geom_core::Point3::new(x, 0.0, 0.0),
+            radius: 1.0,
+            axis: geom_core::Vec3::unit_z(),
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        set(bad, sphere(f64::NAN));
+        set(good, sphere(0.0));
+        for (f1, f2) in [(bad, good), (good, bad)] {
+            assert_eq!(
+                body.pair_reach(f1, f2, band).err(),
+                Some(MergeCoplanarError::PairExtentUnread { face: bad }),
+                "the reach of ({f1:?}, {f2:?})"
+            );
+            assert_eq!(
+                body.carriers_continue(f1, f2, band),
+                Err(MergeCoplanarError::PairExtentUnread { face: bad }),
+                "the carriers of ({f1:?}, {f2:?})"
+            );
+        }
+        let torus = |major: f64, minor: f64| Surface::Torus {
+            center: geom_core::Point3::origin(),
+            axis: geom_core::Vec3::unit_z(),
+            major_radius: major,
+            minor_radius: minor,
+            u_ref: geom_core::Vec3::unit_x(),
+        };
+        let mut set = |f: FaceKey, surface: Surface<f64>| {
+            let key = body.faces[f].surface;
+            body.surfaces[key] = surface;
+        };
+        set(bad, torus(1.0, 2.0));
+        set(good, torus(2.0, 0.5));
+        for (f1, f2) in [(bad, good), (good, bad)] {
+            assert!(
+                matches!(
+                    body.carriers_continue(f1, f2, band),
+                    Err(MergeCoplanarError::DegenerateTorus { face, .. }) if face == bad
+                ),
+                "the tori ({f1:?}, {f2:?}): {:?}",
+                body.carriers_continue(f1, f2, band)
+            );
+        }
     }
 
     /// The crate's one executable pin on this door's rendered

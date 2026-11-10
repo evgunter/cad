@@ -60,6 +60,7 @@ fn tube(major: f64, sweep: Revolution<f64>) -> Body<f64> {
     revolve(&validated(vec![lp]), axis_y(), sweep, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The derivation's steps, re-derived: `h_u = √(4δ/((1+β)(R+r)))`,
@@ -118,8 +119,7 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
     let mut worst: f64 = 0.0;
     let mut torus_patches = 0;
     for patch in &mesh.patches {
-        let face = body.get_face(patch.face).unwrap();
-        let surface = body.get_surface(face.surface).unwrap();
+        let surface = body.face_surface(patch.face).unwrap();
         let Surface::Torus { .. } = surface else {
             continue;
         };
@@ -193,9 +193,7 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
         for hek in [edge.he_plus, edge.he_minus] {
             let lp = body.get_half_edge(hek).unwrap().parent_loop;
             let fk = body.get_loop(lp).unwrap().face;
-            let surface = body
-                .get_surface(body.get_face(fk).unwrap().surface)
-                .unwrap();
+            let surface = body.face_surface(fk).unwrap();
             if let Surface::Torus { axis: taxis, .. } = *surface {
                 on_torus = Some(taxis);
             }

@@ -102,9 +102,7 @@ fn twins<T: Real + SpanLocate + AtRestPolicy + Bounds>(body: &Body<T>) -> usize 
             panic!("a certified edge")
         };
         let face = body.face_of_half_edge(he).unwrap();
-        let sphere = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap();
+        let sphere = body.face_surface(face).unwrap();
         let (t0, t1) = row.params();
         let derived = chart_pcurve_over(curve.carrier(), t0, t1, sphere, band).unwrap();
         let (Some((d, ..)), Some((s, ..))) =
@@ -169,7 +167,7 @@ fn tight_k<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str, eps: f64) {
                 return None;
             };
             let face = body.face_of_half_edge(he)?;
-            let sphere = body.get_surface(body.get_face(face)?.surface)?.clone();
+            let sphere = body.face_surface(face)?.clone();
             row.pcurve().harmonic_form()?;
             let twin = body.joint(he)?.deck().twin;
             twin.then(|| {
@@ -201,6 +199,8 @@ fn a_turned_half_cap_at_a_tight_k_keeps_its_twin() {
         .and_then(|e| e.parse::<f64>().ok())
         .unwrap_or(geom_core::tolerance::DEFAULT_EPS);
     let k = 1.5;
+    // K = 1.5 admits no ε below its own floor: a finer row commits that.
+    let eps = eps.max(geom_core::tolerance::eps_min(k));
     if geom_core::Tolerance::init(geom_core::Tolerance { eps, k }).is_err() {
         assert_eq!(
             Tol::witness().k(),
@@ -366,8 +366,8 @@ fn near_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
             vec![],
             "{lane} c = {c}: the split cap reads clean"
         );
-        for (face, record) in body.faces() {
-            let chart = body.get_surface(record.surface).unwrap().clone();
+        for (face, _) in body.faces() {
+            let chart = body.face_surface(face).unwrap().clone();
             let read = topo::pcurves::loop_windings(&body, face, &chart, band);
             let got = match read {
                 Ok(ref loops) if loops.iter().any(|w| w.singular) => "singular",

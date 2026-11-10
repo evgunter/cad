@@ -57,7 +57,7 @@ fn outcome<T: profile::ArcCarrierScalar>(leg: ArcData<f64>) -> Result<Outcome, S
             ReplayErrorKind::Path(PathError::ArcSweepNotShortOfFullTurn { .. }) => {
                 Ok(Outcome::NotShortOfFullTurn)
             }
-            ReplayErrorKind::Path(PathError::Escalated { source })
+            ReplayErrorKind::Path(PathError::Escalated { source, .. })
                 if source.predicate == Some("path_arc_sweep_full") =>
             {
                 Ok(Outcome::EscalatesAtTheGate)

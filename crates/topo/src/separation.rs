@@ -27,7 +27,7 @@
 //!
 //! The certificate is **sufficient, not necessary**. Every face of the
 //! prototype gets a conservative axis-aligned box (the boolean sweep's own
-//! [`crate::boolean::boxes::face_box`], padded); a pair of placements is
+//! [`crate::boxes::face_box`], padded); a pair of placements is
 //! CERTIFIED SEPARATED when no box of one placement's copy can meet any
 //! box of the other's. Boxes are supersets of what they enclose and an
 //! affine image of a superset is a superset of the affine image, so a
@@ -50,7 +50,7 @@
 //! pin.
 //!
 //! **This door needs no surface-kind gate of its own.** It shares the one
-//! [`crate::boolean::boxes::FaceBoxRule`]; what differs is only what a
+//! reading of a face, [`crate::cover::face_cover`]; what differs is only what a
 //! POISON box MEANS at each door, and that difference is what lets the
 //! rule be shared. In the sweep, poison prunes nothing, so an unboxable
 //! face reaches the exact predicates. Here, poison overlaps everything, so
@@ -114,7 +114,7 @@ use geom_core::{Affine3, Band, Bounds, Decide, Tol};
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
-use crate::boolean::boxes::{face_box, sweep_pad};
+use crate::boxes::{face_box, sweep_pad};
 use crate::entity::SolidKey;
 
 /// The prototype's separation certificate machinery: its padded face
@@ -149,7 +149,7 @@ impl Separation {
         let pad = sweep_pad(band);
         let mut boxes = Vec::new();
         for (f, _) in proto.faces() {
-            boxes.push(face_box(proto, f, pad, band)?);
+            boxes.push(face_box(proto, f, pad, band));
         }
         // A face-less prototype encloses nothing; the hull of nothing is
         // the poison box, which overlaps everything — so a face-less
@@ -402,7 +402,7 @@ impl SolidSeparation {
                             what: "solid separation: a solid names a shell the body lost",
                         })?;
                 for &face in &shell.faces {
-                    boxes.push(face_box(body, face, pad, band)?);
+                    boxes.push(face_box(body, face, pad, band));
                 }
             }
             // A face-less solid encloses nothing, and the hull of

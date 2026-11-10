@@ -189,8 +189,8 @@ pub fn loop_probe_points(body: &Body<f64>, r#loop: LoopKey) -> Vec<Point3<f64>> 
 /// the world origin.
 pub fn probe_anchor(body: &Body<f64>) -> Point3<f64> {
     let mut bbox: Option<(Point3<f64>, Point3<f64>)> = None;
-    for (_, face) in body.faces() {
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for face in body.face_views() {
+        for (lk, _, _) in face.loops() {
             for p in loop_probe_points(body, lk) {
                 bbox = Some(match bbox {
                     None => (p, p),
@@ -211,8 +211,8 @@ pub fn probe_anchor(body: &Body<f64>) -> Point3<f64> {
 pub fn signed_volume(body: &Body<f64>) -> f64 {
     let o = probe_anchor(body);
     let mut six_v = 0.0;
-    for (_, face) in body.faces() {
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for face in body.face_views() {
+        for (lk, _, _) in face.loops() {
             let pts = loop_probe_points(body, lk);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {
@@ -260,9 +260,12 @@ pub fn signed_volume(body: &Body<f64>) -> f64 {
 pub fn signed_volume_lifted(body: &Body<f64>, lifts: &[(topo::FaceKey, Point3<f64>)]) -> f64 {
     let o = probe_anchor(body);
     let mut six_v = 0.0;
-    for (fk, face) in body.faces() {
-        let lift = lifts.iter().find(|(k, _)| *k == fk).map(|(_, q)| *q);
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for face in body.face_views() {
+        let lift = lifts
+            .iter()
+            .find(|(k, _)| *k == face.key())
+            .map(|(_, q)| *q);
+        for (lk, _, _) in face.loops() {
             let pts = loop_probe_points(body, lk);
             match lift {
                 Some(q) => {

@@ -278,3 +278,13 @@ INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
 above as blocked by the D10 hold (#3–#7, #15–#19, #21, #22) no longer
 wait on it. Stage 4 has retired declared pairs, so a unit re-reads
 those sites against main before it fixes them; some may be gone.
+
+2026-11-09 (SEAL, `carrier-readings-keep-the-margins-they-decided-on`'s sweep): #20 still stands on main, `chart_region.rs`'s `chart_region_cyl_axis_sense` arm, a decided Zero minted `INVALID` by hand. It is the gate shape that PR routed `rim_wedge`'s `seam_traversal_unread` through (`decide_nonzero`). #13 (`plane_eq::unreadable_norm`) also stands, and TOPO's row owns its ending.
+
+**Retired by PR 6634:**
+- #3 (`seam_cover_unread`): the `ContainError` is carried whole (`RimUnread::Unplaced`), and it ends as the tangent line's placement does.
+- #4 (`seam_traversal_unread`): it goes through `decide_nonzero`.
+
+## Row 19 retired (SEAL PR 6693, 2026-11-10)
+
+Row 19 (`boolean/vtxfac.rs:550`, the `bool_sector_coplanar` read) is retired by PR 6693 (SEAL's `a-corner-reads-only-its-own-sectors`). The tilt is deleted, and a flat sector of an unglued pair refuses on its steeper bound's tie (`vtxfac::unglued_flat_sector`, `Coincide::CornerBound`).

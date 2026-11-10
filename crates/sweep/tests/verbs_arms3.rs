@@ -128,9 +128,7 @@ fn supports(body: &Body<f64>, edge: EdgeKey) -> (SurfaceKey, SurfaceKey) {
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (Point3<f64>, f64, f64) {
-    let s = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap();
+    let s = body.face_surface(face).unwrap();
     match s {
         &Surface::Torus {
             center,
@@ -227,11 +225,13 @@ fn the_equator_takes_the_sphere_sphere_arm_at_zero_departure() {
 /// are written out here, independently of the arm.
 #[test]
 fn the_sphere_sphere_arm_folds_both_sense_bits() {
-    use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
+    use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
     let r = 0.05;
     let sheet = Meridian {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        axis: geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        },
         rim: Point3::new(RIM_R, 0.0, 0.0),
     };
     let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
@@ -252,6 +252,7 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
             trace(-HALF_SEP, side_a),
             trace(HALF_SEP, side_b),
             r,
+            Branch::Rim,
         );
         // The two offset radii, and the crossing they imply: the axial
         // station falls out of the two circles' own radical plane and

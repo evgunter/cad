@@ -54,6 +54,9 @@ num-bigint = { workspace = true }
 geom-core = { path = "../geom-core", features = ["test-support", "sym-revalue-testing"] }
 # `geom::test_support::held_arc`, the NURBS weights-in-`T` pin's arc.
 geom = { path = "../geom", features = ["test-support"] }
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# integration tests under `cargo test -p` (scripts/gates/test-support-self-edge.sh).
+geom-brep = { path = ".", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

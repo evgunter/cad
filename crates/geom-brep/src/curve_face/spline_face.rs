@@ -50,7 +50,10 @@
 //!   [`END_REACH`]), as far as it runs smoothly (to its domain's end or
 //!   the nearest crease beyond the end), so a meeting at an end is
 //!   isolated like any other; one within the band of an end, or past it,
-//!   is not reported. At every end, of every kind of span, the walk also
+//!   is not reported. So a box at the floor wholly past an end, its
+//!   carrier decided past the band of the end's point, holds no answer
+//!   of the span's and settles; one within the band of an end refuses
+//!   like any other. At every end, of every kind of span, the walk also
 //!   tries an **end's box**: a box it reads, or one of the floor growths
 //!   it tries a proof on, that holds the end's state (the end's parameter
 //!   and its foot on the chart) and on which every solution lies within
@@ -59,8 +62,9 @@
 //!   it needs no reading past either domain: it is what reads an end
 //!   the walk cannot read past (a NURBS span ending at its domain's end
 //!   or on a crease of its own) and an end on the chart's domain edge.
-//!   Any other meeting on the chart's domain edge is isolated by no box
-//!   inside the domain, so it refuses like any other unaccounted box,
+//!   Any other meeting on the chart's domain edge, inside the span or
+//!   within a box at the floor that straddles an end, is isolated by no
+//!   box inside the domain, so it refuses like any other unaccounted box,
 //!   an open chart's edge and a closed chart's seam alike.
 //! - **The sector at an end.** An end whose foot lies on an edge of the
 //!   chart's domain, the face's rim, is read first by its departure
@@ -106,7 +110,8 @@ pub enum SplineFaceRefusal {
     /// The walk reached a limit: [`Unsettled::Floor`] (a box at the floor
     /// not read past the band that no meeting accounts for: a pass within
     /// the band, a tangency, two meetings the band cannot part, or a
-    /// meeting on the chart's domain edge), [`Unsettled::Crease`] (such a
+    /// meeting on the chart's domain edge inside the span or in a box
+    /// straddling an end), [`Unsettled::Crease`] (such a
     /// box within its floor reach of a crease among its block's sides, as
     /// a meeting within the band of a crease leaves one),
     /// [`Unsettled::Tangency`] (two meetings decided at one point),
@@ -147,6 +152,10 @@ const PAST_THE_BAND: &str = "spline_face_past_the_band";
 /// K name: how far a solution in an end's box can lie from the end, read
 /// against the band.
 const AT_THE_END: &str = "spline_face_at_the_end";
+
+/// K name: whether a box past an end of the span stands past the band
+/// of that end's point.
+const PAST_THE_END: &str = "spline_face_past_the_end";
 
 /// How far past each end of the span that no sector holds the walk reads
 /// the carrier, in escalation lengths at the span's pace (a lower bound
@@ -189,7 +198,7 @@ struct Cell([(f64, f64); 3]);
 
 impl Cell {
     fn mid(self) -> [f64; 3] {
-        self.0.map(|(a, b)| a + (b - a) * 0.5)
+        self.0.map(geom::bracket_mid)
     }
 
     fn interval(self, k: usize) -> Interval {
@@ -219,8 +228,7 @@ impl Cell {
 
     /// The halves along coordinate `k`, lower first.
     fn halves(self, k: usize) -> [Self; 2] {
-        let (a, b) = self.0[k];
-        let c = a + (b - a) * 0.5;
+        let c = geom::bracket_mid(self.0[k]);
         let (mut lo, mut hi) = (self, self);
         lo.0[k].1 = c;
         hi.0[k].0 = c;
@@ -531,6 +539,27 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         None
     }
 
+    /// Whether `x` lies past an end of the span `(a, b)` and past the band
+    /// of that end's point: its `t` side lies wholly above `b` or wholly
+    /// below `a`, and the carrier over it is decided past the band from
+    /// the carrier's point at that end.
+    fn past_an_end(&self, x: Cell, (a, b): (f64, f64), band: Band) -> bool {
+        let (lo, hi) = x.0[0];
+        let end = if lo > b {
+            b
+        } else if hi < a {
+            a
+        } else {
+            return false;
+        };
+        let (c, e) = (self.path.at(x.interval(0)), self.path.at(exact(end)));
+        let gap = norm(core::array::from_fn(|k| c[k] - e[k]));
+        matches!(
+            decide(PAST_THE_END, Margin::of(gap), band),
+            Ok(Sign::Positive)
+        )
+    }
+
     /// The state of the span's end at the parameter `end`: `end` and the
     /// foot on `chart` of the carrier's point there, with an enclosure of
     /// `F` at that state. The point's enclosure only seeds the foot, so its
@@ -614,10 +643,7 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         }
         let pt = |v: Vec3<f64>| [exact(v.x), exact(v.y), exact(v.z)];
         let v3 = |v: [f64; 3]| Vec3::new(v[0], v[1], v[2]);
-        let unit = |v: Vec3<f64>| {
-            let n = v.norm();
-            (n > 0.0 && n.is_finite()).then(|| v / n)
-        };
+        let unit = |v: Vec3<f64>| v.checked_direction().ok().map(|(d, _)| d);
         for reach in SECTOR_REACHES {
             let r = rho * reach;
             let dt = (r / self.speeds[0]).min(domain.0[0].1 - domain.0[0].0);
@@ -977,6 +1003,12 @@ pub fn isolate<T: CertifiedBounds>(
             let [lo, hi] = x.halves(k);
             return Step::Halve([(lo, block), (hi, block)]);
         }
+        // Past an end, and past the band of it, at the floor: no meeting
+        // past an end is reported, so this box holds none of the span's
+        // answers, and its floor is no refusal of the span's.
+        if pair.past_an_end(x, (a, b), band) {
+            return Step::Settled;
+        }
         // Within the band at the floor, and no meeting holds it: a pass
         // within the band, a tangency, a meeting on the chart's edge, or
         // one on a crease.
@@ -1094,7 +1126,7 @@ pub fn settle<T: Decide>(
     band: Band,
 ) -> Result<Vec<ChartMeeting<T>>, SplineFaceRefusal> {
     let (a, b) = isolated.span;
-    let gap = |row, p: Point3<T>, q: Point3<T>| {
+    let gap_as = |row, p: Point3<T>, q: Point3<T>| {
         decide(row, Margin::of((p - q).norm()), band).map_err(SplineFaceRefusal::Escalated)
     };
     let ends = [a, b].map(|t| carrier.eval(T::from_computed(t)));
@@ -1109,12 +1141,15 @@ pub fn settle<T: Decide>(
         let foot = chart.eval(T::from_computed(um), T::from_computed(vm));
         // Definitely off at the located meeting: the enclosure's point
         // is not resolved to the band.
-        if gap("spline_face_root_on", point, foot)? != Sign::Zero {
-            return Err(Unsettled::Meter.into());
+        if gap_as("spline_face_root_on", point, foot)? != Sign::Zero {
+            return Err(Unsettled::Meter {
+                row: "spline_face_root_on",
+            }
+            .into());
         }
         let mut at_end = false;
         for end in ends {
-            at_end |= gap("spline_face_root_at_end", point, end)? == Sign::Zero;
+            at_end |= gap_as("spline_face_root_at_end", point, end)? == Sign::Zero;
         }
         if at_end {
             continue;
@@ -1122,10 +1157,13 @@ pub fn settle<T: Decide>(
         // An enclosure reaching past an end its point is definitely
         // apart from is not resolved to the band.
         if !(a < root.0[0].0 && root.0[0].1 < b) {
-            return Err(Unsettled::Meter.into());
+            return Err(Unsettled::Meter {
+                row: "spline_face_root_at_end",
+            }
+            .into());
         }
         if let Some(before) = out.last()
-            && gap("spline_face_roots_apart", point, before.point)? == Sign::Zero
+            && gap_as("spline_face_roots_apart", point, before.point)? == Sign::Zero
         {
             return Err(Unsettled::Tangency.into());
         }
@@ -1149,3 +1187,6 @@ mod review_6157_rows;
 
 #[cfg(test)]
 mod review_r2_rows;
+
+#[cfg(test)]
+mod past_end_rows;

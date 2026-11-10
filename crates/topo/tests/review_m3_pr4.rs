@@ -33,10 +33,10 @@ fn dump<T: Decide>(b: &Body<T>) -> String {
     s
 }
 
-fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     op: BooleanOp,
-    a: &AtRestBody<T>,
-    b: &AtRestBody<T>,
+    a: &topo::AtRestBody<T>,
+    b: &topo::AtRestBody<T>,
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
     let red = topo::boolean_reduce(op, a, b, Tol::witness()).unwrap();
@@ -706,15 +706,12 @@ fn not_adjacent_edges(errors: &[topo::ValidationError]) -> Vec<topo::EdgeKey> {
 /// face's first owed one (`topo::pcurves::validate_pcurves`, step 1).
 fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     assert!(
-        matches!(
-            b.get_surface(b.get_face(face).unwrap().surface),
-            Some(geom::Surface::Cone { .. })
-        ),
+        matches!(b.face_surface(face), Some(geom::Surface::Cone { .. })),
         "the relabelled face carries the cone"
     );
     let (edges, hes) = face_boundary(&b, face);
     assert_eq!(edges.len(), 4);
-    let errors = AtRestBody::validate(b, Tol::witness())
+    let errors = topo::finish(b, Tol::witness())
         .expect_err("a cone face over a brick's lines does not finish");
     assert_eq!(errors.len(), 5, "four edges and one pcurve: {errors:?}");
     assert_eq!(not_adjacent_edges(&errors), edges, "{errors:?}");
@@ -724,15 +721,15 @@ fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
             topo::ValidationError::Pcurve {
                 finding:
                     topo::PcurveMintError::Certify {
-                        half_edge,
-                        error:
-                            geom_brep::PcurveCertifyError::CarrierOffChart {
-                                chart: geom::SurfaceKind::Cone,
-                                ..
-                            },
-                        ..
+                        half_edge, error, ..
                     },
-            } => Some(*half_edge),
+            } if matches!(
+                geom_brep::IncidenceRead::of(error),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ) =>
+            {
+                Some(*half_edge)
+            }
             _ => None,
         })
         .collect();
@@ -785,8 +782,8 @@ fn a_placeholder_nurbs_wall_is_refused_at_rest() {
     .unwrap();
     let (edges, _) = face_boundary(&b, face);
     assert_eq!(edges.len(), 4);
-    let errors = AtRestBody::validate(b, Tol::witness())
-        .expect_err("a placeholder NURBS wall does not finish");
+    let errors =
+        topo::finish(b, Tol::witness()).expect_err("a placeholder NURBS wall does not finish");
     assert_eq!(errors.len(), 5, "one surface and four edges: {errors:?}");
     assert_eq!(
         errors[0],

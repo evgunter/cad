@@ -65,6 +65,7 @@ fn cube(l: f64) -> Body<f64> {
     )
     .expect("the square extrudes")
     .body
+    .into_body()
 }
 
 fn scaffold_descriptions(body: &Body<f64>) -> usize {
@@ -84,7 +85,7 @@ fn main() {
     // MAJOR-1's premise, measured on the blank the die is filleted from.
     let faces: Vec<bool> = blank
         .faces()
-        .map(|(_, f)| matches!(blank.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .map(|(fk, _)| matches!(blank.face_surface(fk), Some(Surface::Plane { .. })))
         .collect();
     println!(
         "[AB] die blank: {} faces, {} planes, {} edges",

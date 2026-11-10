@@ -280,13 +280,14 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     )
     .expect("a circular prism")
     .body
+    .into_body()
 }
 
 /// Every refusal the shipped fixtures reach through EITHER door, each
 /// labelled. Used by the verb-neutrality invariant.
 fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
     let mut out = chamfer_refusals();
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let t = Tol::witness();
 
@@ -320,7 +321,7 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
 
 /// Every refusal the shipped fixtures reach through the CHAMFER door.
 fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let t = Tol::witness();
     let mut out = vec![(
@@ -426,6 +427,7 @@ fn l_bracket() -> Body<f64> {
     )
     .expect("an L-bracket extrudes")
     .body
+    .into_body()
 }
 
 /// The bracket's one concave edge — the vertical through (0.5, 0.5).
@@ -436,13 +438,7 @@ fn l_bracket() -> Body<f64> {
 fn concave_edge(body: &Body<f64>) -> EdgeKey {
     let near = |p: geom_core::Point3<f64>| (p.x - 0.5).abs() < 1e-9 && (p.y - 0.5).abs() < 1e-9;
     let vertical = |e: EdgeKey| -> bool {
-        let Some(edge) = body.get_edge(e) else {
-            return false;
-        };
-        let (Some(start), Some(end)) = (
-            body.get_half_edge(edge.he_plus).map(|h| h.start),
-            body.half_edge_end(edge.he_plus),
-        ) else {
+        let Some((start, end)) = body.edge_vertices(e) else {
             return false;
         };
         [start, end].into_iter().all(|v| {

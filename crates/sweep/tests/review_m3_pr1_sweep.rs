@@ -172,7 +172,7 @@ fn split_circle_carrier_intersection_edge() {
         Tol::witness(),
     )
     .unwrap();
-    let mut body: Body<f64> = out.body;
+    let mut body: Body<f64> = out.body.into_body();
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let (edge, parent) = body
         .edges()
@@ -344,12 +344,7 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
         .faces()
-        .filter(|(_, f)| {
-            !matches!(
-                body.get_surface(f.surface).unwrap(),
-                topo::Surface::Plane { .. }
-            )
-        })
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk).unwrap(), topo::Surface::Plane { .. }))
         .map(|(k, f)| (k, f.sense))
         .collect();
     assert!(!curved.is_empty(), "the D-body has a cylinder wall");
@@ -408,7 +403,7 @@ fn split_then_null_lifecycle_on_prism() {
         Tol::witness(),
     )
     .unwrap();
-    let mut body: Body<f64> = out.body;
+    let mut body: Body<f64> = out.body.into_body();
     let vol0 = topo::test_support::pinned_volume(
         "the measured body",
         &topo::test_support::finished(

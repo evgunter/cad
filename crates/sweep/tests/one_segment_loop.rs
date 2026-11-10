@@ -147,11 +147,7 @@ fn an_extruded_one_segment_circle_is_one_wall_with_a_seam_strut() {
                 "{what}: the strut is the wall's seam"
             );
             for rim in [&wall.top_rim, &wall.bottom_rim] {
-                let e = t.body.get_edge(*rim).unwrap();
-                let (a, b) = (
-                    t.body.get_half_edge(e.he_plus).unwrap().start,
-                    t.body.get_half_edge(e.he_minus).unwrap().start,
-                );
+                let (a, b) = t.body.edge_vertices(*rim).unwrap();
                 assert_eq!(a, b, "{what}: a rim is a self-loop");
             }
             close(volume(&t.body), PI * 1.5 * 1.5 * 2.0, &what);
@@ -455,8 +451,7 @@ fn a_revolved_one_segment_circle_is_one_torus_wall_with_a_wrap_strut() {
             let wall = walls[0][0].expect("the circle sweeps a wall");
             assert!(
                 matches!(
-                    one.body
-                        .get_surface(one.body.get_face(wall).unwrap().surface),
+                    one.body.face_surface(wall),
                     Some(geom::Surface::Torus { .. })
                 ),
                 "{what}: the wall is a torus"
@@ -854,7 +849,7 @@ fn an_edge_bounding_one_face_without_the_wrap_flag_is_refused() {
     )
     .body;
     let full = revolved(
-        vec![circle(3.0, 0.0, 0.5, TAU)],
+        vec![circle::<f64>(3.0, 0.0, 0.5, TAU)],
         sweep::Revolution::Full,
         "the full turn",
     )
@@ -867,7 +862,7 @@ fn an_edge_bounding_one_face_without_the_wrap_flag_is_refused() {
         let edges = wrap_edges(&body);
         assert_eq!(edges.len(), wraps, "{what}: its wrap edges");
         for (_, edge) in edges {
-            let mut forged = body.clone();
+            let mut forged = body.clone().into_body();
             unflag(&mut forged, edge);
             assert_eq!(validate(&forged), Ok(()), "{what}: tier 1");
             assert_eq!(validate_closed(&forged), Ok(()), "{what}: tier 2");
@@ -898,13 +893,17 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
             "{what}: {got:?}"
         );
     };
-    let apex = |what: &str, got: &E| {
+    // A horn's circle through its cusp, revolved part way, refuses at
+    // the attachment gate on a stated interval decided zero
+    // (`work/spiricarm/a-football-revolved-part-way-refuses-at-its-cap-meridians-certificate.md`).
+    let pinched_part_way = |what: &str, got: &E| {
         assert!(
             matches!(
                 got,
-                E::SheetApex {
-                    loop_index: 0,
-                    segment_index: 0
+                E::Op {
+                    source: topo::EulerOpError::Certification {
+                        error: geom_brep::CertifyError::StatedInterval { .. }
+                    }
                 }
             ),
             "{what}: {got:?}"
@@ -930,11 +929,12 @@ fn a_one_segment_circle_on_or_against_the_axis_refuses() {
         // The sheet classes: the carrier reaches the axis off-centre,
         // and a full turn holds the point where it reaches furthest.
         ("crossing the axis", circle(0.5, 0.0, 1.0, TAU), arc),
-        // A horn's cusp at the vertex is the sheet's apex.
+        // A horn's cusp at the vertex: the sheet's apex, reached from
+        // both sides.
         (
             "tangent to the axis at its vertex",
             circle_at(1.0, 0.0, 1.0, PI, TAU),
-            apex,
+            pinched_part_way,
         ),
         (
             "tangent to the axis away from its vertex",
@@ -1158,7 +1158,8 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
     let section = vec![circle(0.0, 0.0, 1.0, TAU)];
     let mut body = sweep::loft_body::<f64>(&[section.clone(), section], &places, 1, tol())
         .expect("the cylinder lofts")
-        .body;
+        .body
+        .into_body();
     let [(wall, strut)] = wrap_edges(&body)[..] else {
         panic!("one wrap edge");
     };
@@ -1305,10 +1306,7 @@ fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
             let geom::Curve3::Nurbs(carrier) = c.carrier() else {
                 panic!("{z:?}: the strut is a spline")
             };
-            let Some(geom::Surface::Nurbs(chart)) = lofted
-                .body
-                .get_surface(lofted.body.get_face(wall).unwrap().surface)
-            else {
+            let Some(geom::Surface::Nurbs(chart)) = lofted.body.face_surface(wall) else {
                 panic!("{z:?}: the wall is a spline chart")
             };
             assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");

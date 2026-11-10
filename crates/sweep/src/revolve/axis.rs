@@ -25,7 +25,7 @@ use profile::SegmentKind;
 pub(super) const REVOLVE_AXIS_DIRECTION: &str = "revolve_axis_direction";
 
 /// The classified axis in both coordinate systems: the sketch-plane
-/// line plus its placed 3-D frame. `a3`/`u3` are the **shared
+/// line plus its placed 3-D frame. `axis`/`u3` are the **shared
 /// azimuthal frame** every revolution surface of this call uses
 /// (module docs): `u3` points at the angle-0 (seam) meridian
 /// half-plane.
@@ -37,13 +37,12 @@ pub(super) struct AxisFrame<T: Real> {
     pub(super) dir_sk: Vec2<T>,
     /// The sketch placement (carried for convenience).
     pub(super) place: Affine3<T>,
-    /// Placed axis origin.
-    pub(super) o3: Point3<T>,
-    /// Placed unit axis direction.
-    pub(super) a3: Vec3<T>,
-    /// [`Self::a3`] as the witness it is: the sketch axis's decided
-    /// direction turned by the sketch frame, the axis the revolve
-    /// turns about.
+    /// The sketch axis's origin, placed.
+    pub(super) origin3: Point3<T>,
+    /// The placed axis direction as the witness it is: the sketch axis's
+    /// decided direction turned by the sketch frame, the axis the
+    /// revolve turns about. The frame's one copy of it; the axis line
+    /// reads it ([`Self::line3`]).
     pub(super) axis: UnitVec3<T>,
     /// Placed unit radial direction (the seam meridian; `u_ref` of
     /// every revolution surface).
@@ -139,8 +138,7 @@ impl<T: Decide> AxisFrame<T> {
             origin_sk: axis.origin,
             dir_sk,
             place,
-            o3: place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero())),
-            a3: turn_axis.get(),
+            origin3: place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero())),
             axis: turn_axis,
             u3: place.linear * Vec3::new(e_r.x, e_r.y, T::zero()),
             n3: place.linear.c2,
@@ -183,19 +181,40 @@ pub(super) fn turn_past<T: Real>(start: Point2<T>, arc: Arc2<T>, turn: Sign, tow
 }
 
 impl<T: Real> AxisFrame<T> {
+    /// **The placed axis line**: [`Self::origin3`] along the decided unit
+    /// [`Self::axis`]. Read off the frame's two fields, so the direction
+    /// is held once.
+    pub(super) fn line3(&self) -> geom::Line<T> {
+        geom::Line {
+            origin: self.origin3,
+            dir: self.axis.get(),
+        }
+    }
+
     /// The unit radial direction `ê_r` in sketch coordinates.
     pub(super) fn e_r(&self) -> Vec2<T> {
         radial_of(self.dir_sk)
     }
 
-    /// The signed radial coordinate of a sketch point (module docs).
-    pub(super) fn r(&self, p: Point2<T>) -> T {
-        (p - self.origin_sk).perp_dot(self.dir_sk)
+    /// The sketch axis as a line.
+    fn line_sk(&self) -> geom_core::Line2<T> {
+        geom_core::Line2 {
+            origin: self.origin_sk,
+            dir: self.dir_sk,
+        }
     }
 
-    /// The axial coordinate of a sketch point.
+    /// The signed radial coordinate of a sketch point (module docs):
+    /// its [`geom_core::Line2::side`] off the axis, negated, positive
+    /// to the axis's right.
+    pub(super) fn r(&self, p: Point2<T>) -> T {
+        T::zero() - self.line_sk().side(p)
+    }
+
+    /// The axial coordinate of a sketch point: its
+    /// [`geom_core::Line2::height`] along the axis.
     pub(super) fn axial(&self, p: Point2<T>) -> T {
-        (p - self.origin_sk).dot(self.dir_sk)
+        self.line_sk().height(p)
     }
 
     /// The placed axis point at a sketch point's axial coordinate —
@@ -553,10 +572,8 @@ pub(super) fn classify_segment<T: Decide>(
             // circle clear of the axis sweeps a ring torus, one that
             // reaches it (a horn at zero) one sheet of a spindle torus,
             // the side of the axis the arc lies on, with `R = rc`.
-            if matches!(
-                classify(ClearanceDecision::ArcReach, Margin::of(rc - radius))?,
-                Sign::Positive
-            ) {
+            let reach = classify(ClearanceDecision::ArcReach, Margin::of(rc - radius))?;
+            if matches!(reach, Sign::Positive) {
                 return Ok(WallClass::Wall {
                     kind: WallKind::Torus {
                         center_sk: centre,
@@ -567,33 +584,101 @@ pub(super) fn classify_segment<T: Decide>(
                 });
             }
             // The interior first (the arc rule): an arc that passes `m`
-            // crosses the axis whatever its ends. Then the ends: every
+            // crosses the axis whatever its ends. `m` at an end is a
+            // horn's cusp, which only an end on the axis reaches. Every
             // point the circle shares with the axis is an apex of the
-            // sheet, `m` among them on a horn, so `m` at an end is an
-            // end on the axis.
+            // sheet, a vertex in the pole form; one the loop touches
+            // outside an on-axis run is the full revolve's pinch.
             let interior = interior()?;
             if matches!(interior, Sign::Negative) {
                 return Err(crosses());
             }
-            if va.pinned || vb.pinned {
-                return Err(RevolveError::SheetApex {
-                    loop_index,
-                    segment_index: s.canonical_segment,
-                });
-            }
-            if matches!(interior, Sign::Zero) {
+            if matches!(interior, Sign::Zero) && !(va.pinned || vb.pinned) {
                 return Err(crosses());
             }
+            let major = sheet_major(
+                s,
+                (va, vb),
+                frame,
+                (rc, radius),
+                reach,
+                loop_index,
+                &classify,
+            )?;
             Ok(WallClass::Wall {
                 kind: WallKind::Spindle {
                     center_sk: centre,
-                    major: rc,
+                    major,
                     minor: radius,
                 },
                 sense,
             })
         }
     }
+}
+
+/// **The sheet's major radius, read where the arc ends on the axis.**
+/// The circle meets the axis at the sheet's apexes, `±√(r² − R²)` along
+/// it from the centre's foot, so an end on the axis is an apex. A reach
+/// decided zero has two readings: the horn (`R = r`), whose one cusp is
+/// the centre's foot, and the drawn circle (`R = rc`). Their apexes part
+/// by `√(2r·|rc − r|)` along the axis, far more than `|rc − r|`, so the
+/// band asks which reading holds every end on the axis at an apex
+/// (`axis_arc_apex_end`), not the reach:
+/// - the horn first: where it holds, the drawn apexes, if any, are
+///   within the band of its cusp and of each other, and a sheet whose
+///   two apexes the band cannot part is the horn (the needle, a circle a
+///   hair off tangency drawn to its foot);
+/// - then the drawn circle, the one reading a clear reach has (an apple
+///   near the horn drawn to where it crosses the axis is its own sheet);
+/// - an end neither holds lies on the stretch where a circle near
+///   tangency runs within the band of the axis: `ApexEndOffSheet`.
+///
+/// With no end on the axis the drawn circle stands. The horn moves the
+/// circle by `|rc − r|` everywhere, inside the band the reach was
+/// decided zero in, so its volume and area move by at most that times
+/// the area and the length of the meridian.
+fn sheet_major<T: Decide>(
+    s: &SweptSeg<T>,
+    (va, vb): (&VertexClass<T>, &VertexClass<T>),
+    frame: &AxisFrame<T>,
+    (rc, radius): (T, T),
+    reach: Sign,
+    loop_index: usize,
+    classify: &impl Fn(ClearanceDecision, Margin<T>) -> Result<Sign, RevolveError>,
+) -> Result<T, RevolveError> {
+    let SegmentKind::Arc { arc, .. } = s.kind.get() else {
+        unreachable!("sheet_major: only an arc sweeps a sheet")
+    };
+    let foot = frame.axial(arc.centre);
+    let ends: Vec<T> = [(va, s.a), (vb, s.b)]
+        .into_iter()
+        .filter(|(v, _)| v.pinned)
+        .map(|(_, p)| (frame.axial(p) - foot).abs())
+        .collect();
+    if ends.is_empty() {
+        return Ok(rc);
+    }
+    // The farthest end from its nearest apex on the reading.
+    let off = |major: T| {
+        let height = geom::sheet_apex(major, radius).height;
+        ends.iter()
+            .map(|&a| (a - height).abs())
+            .fold(T::zero(), |m, d| m.max(d))
+    };
+    let holds = |major: T| {
+        classify(ClearanceDecision::ApexEnd, Margin::of(off(major))).map(|s| s == Sign::Zero)
+    };
+    if reach == Sign::Zero && holds(radius)? {
+        return Ok(radius);
+    }
+    if holds(rc)? {
+        return Ok(rc);
+    }
+    Err(RevolveError::ApexEndOffSheet {
+        loop_index,
+        segment_index: s.canonical_segment,
+    })
 }
 
 /// One of a full revolve's axis-contact runs: a maximal cyclic run of

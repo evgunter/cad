@@ -394,9 +394,9 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             .count();
         let nurbs_faces = body
             .faces()
-            .filter(|(_, f)| {
+            .filter(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface).expect("surface resolves"),
+                    body.face_surface(*fk).expect("surface resolves"),
                     Surface::Nurbs(_)
                 )
             })
@@ -495,7 +495,7 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             let face_args = &recs[face_id].1;
             let surface_id = *refs(face_args).last().expect("surface ref");
             let (kw, args) = &recs[&surface_id];
-            let surface = body.get_surface(face.surface).expect("surface");
+            let surface = body.face_surface(*face_key).expect("surface");
             let a = top_args(args);
             // a[0] is the name, a[1] the placement ref.
             let place = |recs: &HashMap<u64, (String, String)>| {
@@ -831,7 +831,9 @@ fn an_inside_out_ball_cannot_reach_the_writer() {
     let reverted = common::ball().revert().unwrap();
     let solid = reverted.solids().next().expect("one solid").0;
     assert_eq!(
-        topo::AtRestBody::validate(reverted, Tol::witness()).err(),
+        topo::finish(reverted, Tol::witness())
+            .err()
+            .map(topo::NotFinished::into_findings),
         Some(vec![topo::ValidationError::NegativeVolume { solid }]),
         "the gate's reason"
     );
@@ -954,7 +956,7 @@ fn hollow_ring_refuses_as_a_void() {
     .unwrap();
     assert_eq!(ring.body.shells().count(), 2, "the ring is two-shell");
     let cavity = ring.body.shells().nth(1).expect("two shells").0;
-    let ring = topo::AtRestBody::validate(ring.body, tol).expect("the ring is at rest");
+    let ring = ring.body;
     match step_string(&ring, &StepOptions::default(), tol) {
         Err(StepExportError::VoidShellUnsupported {
             shell,

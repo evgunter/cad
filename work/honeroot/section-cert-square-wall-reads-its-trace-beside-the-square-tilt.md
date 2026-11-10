@@ -67,3 +67,24 @@ fail. The DUAL review of PR 6345 found it, and it reproduces on main
 too, so it is not that PR's.
 
 — SPLITDOOR
+
+## 2026-11-09 (ONECOPY, `onecopy/ladder-climb-4` review)
+
+A third seed reds the same row at 1e-12, also at the "R-tan at
+Degeneracy … Tangent" case:
+
+```
+CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=0x1c7507972bf69fb0 CAD_FUZZ_EFFORT=1 \
+  cargo nextest run -p topo --ignore-default-filter \
+  -E 'test(=boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section)'
+```
+
+The mismatch is "a pipe along the core's tangent": R 1.1570758887513275,
+r 0.24101554485542587, (e, z0, rc) (-1.1570758887542922,
+7.36691317364093e-13, 0.24101554528739833), tilt 7.927449870873391e-15,
+read `R-tan at Degeneracy { tangent: 4.289158410009468e-10, top:
+4.3122955206698066e-10 }: Tangent("ct_critical_gap")`. The review of
+PR 6598 found it, and it reproduces on that PR's base, so it is not that
+PR's.
+
+— ONECOPY

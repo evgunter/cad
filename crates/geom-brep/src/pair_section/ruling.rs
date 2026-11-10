@@ -33,6 +33,7 @@
 //! test settles is split, down to a floor; a cell at the floor, or the
 //! cell that spends the budget, escalates on its own reading.
 
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
 use geom_core::{
     Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3, rounding_charge,
@@ -347,7 +348,7 @@ impl<T: Real> Cell<T> {
     }
 
     fn mid(&self) -> f64 {
-        0.5 * (self.lo + self.hi)
+        geom::mid_param(self.lo, self.hi)
     }
 
     fn width(&self) -> f64 {
@@ -392,8 +393,9 @@ pub(crate) trait Ruled<T: Real> {
 }
 
 /// **The thinner of two cylinders swept against the other.** The ruled
-/// wall is `foot + ρ(cos φ·n + sin φ·v) + t·axis`, `n` square to both axes
-/// and `v = axis × n`; the partner's axis runs through `foot + gap·n`
+/// wall is `foot + ρ(cos φ·n + sin φ·v) + t·axis` in the pose's `frame`
+/// (`foot` its origin, `n` its `u_ref`, square to both axes, and `v` its
+/// `v_ref`, `axis × n`); the partner's axis runs through `foot + gap·n`
 /// along `axis′`, with `cos = axis·axis′` and `beta = axis′·v`
 /// (`cos² + beta² = 1`, `beta ≠ 0` for crossing axes). A ruling meets the
 /// partner where `β²t² − 2β·ρ sin φ cos·t + C = 0`, whose discriminant is
@@ -403,10 +405,9 @@ pub(crate) trait Ruled<T: Real> {
 /// `r − ρ − e` (the nest level).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RuledCylinders<T: Real> {
-    pub(crate) foot: Point3<T>,
-    pub(crate) n: Vec3<T>,
-    pub(crate) v: Vec3<T>,
-    pub(crate) axis: Vec3<T>,
+    /// The ruled wall's axis through the common perpendicular's foot on
+    /// it, `u_ref` that perpendicular's unit direction.
+    pub(crate) frame: geom::Frame<T>,
     /// The ruled wall's radius.
     pub(crate) rho: T,
     /// The partner's.
@@ -443,7 +444,8 @@ impl<T: Real> RuledCylinders<T> {
     /// a root's numerator of `ρ + r`, divided by `β`; a ruling nearly
     /// parallel to the partner's axis levers both by `1/|β|`.
     fn charge(&self) -> (T, T) {
-        let size = (self.foot - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
+        let size =
+            (self.frame.origin - Point3::origin()).norm() + self.rho + self.r + self.gap.abs();
         let t = rounding_charge(size + self.rho + self.r) * self.tilt().abs();
         (rounding_charge(size), t)
     }
@@ -475,10 +477,11 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
             .plus(self.root(cell).scale(sheet.sign()))
             .scale(self.tilt())
             .widen(along);
-        V3::at(self.foot)
-            .plus(V3::along(self.n, cell.cos.scale(self.rho)))
-            .plus(V3::along(self.v, cell.sin.scale(self.rho)))
-            .plus(V3::along(self.axis, t))
+        let f = &self.frame;
+        V3::at(f.origin)
+            .plus(V3::along(f.u_ref, cell.cos.scale(self.rho)))
+            .plus(V3::along(f.v_ref(), cell.sin.scale(self.rho)))
+            .plus(V3::along(f.axis, t))
             .widen(point)
     }
 
@@ -496,9 +499,10 @@ impl<T: Real> Ruled<T> for RuledCylinders<T> {
             .plus(ds.scale(sheet.sign()))
             .scale(self.tilt())
             .widen(along * (T::one() + self.rho / root.lo));
-        V3::along(self.n, cell.sin.scale(T::zero() - self.rho))
-            .plus(V3::along(self.v, cell.cos.scale(self.rho)))
-            .plus(V3::along(self.axis, dt))
+        let f = &self.frame;
+        V3::along(f.u_ref, cell.sin.scale(T::zero() - self.rho))
+            .plus(V3::along(f.v_ref(), cell.cos.scale(self.rho)))
+            .plus(V3::along(f.axis, dt))
     }
 }
 
@@ -700,8 +704,8 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     /// side passes.
     fn escalate(&self, row: Row, reading: Iv<T>) -> SweepRefusal {
         let name = row.name();
-        let bound = |m: T| decide_reported(name, Margin::of(m), self.band);
-        SweepRefusal::Escalated(match (bound(reading.lo), bound(reading.hi)) {
+        let bound_as = |m: T| decide_reported(name, Margin::of(m), self.band);
+        SweepRefusal::Escalated(match (bound_as(reading.lo), bound_as(reading.hi)) {
             (Err(e), _) | (_, Err(e)) => e,
             (Ok(lower), Ok(upper)) if lower.sign < upper.sign => {
                 straddle(row.straddle(), lower, upper, self.band)
@@ -997,7 +1001,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         let (mut lo, mut hi) = (cell.lo, cell.hi);
         let at = |phi: f64| self.ruled.meeting(&Cell::at(phi), sheet);
         for _ in 0..SETTLE {
-            let mid = 0.5 * (lo + hi);
+            let mid = geom::mid_param(lo, hi);
             let past = self.past(at(mid));
             match (self.reads(Row::Cut, past), entering) {
                 // Outside at `mid`: the root lies on the inside's side.
@@ -1009,7 +1013,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
                 (None, _) => return Ok(at(mid).mid()),
             }
         }
-        Ok(at(0.5 * (lo + hi)).mid())
+        Ok(at(geom::mid_param(lo, hi)).mid())
     }
 
     /// **A leaf as one reading along its loop**, `backward` where the
@@ -1271,10 +1275,17 @@ pub(crate) fn coverage(
     let mut read = Coverage { cells: 0, depth: 0 };
     #[allow(clippy::cast_precision_loss)]
     let cut = |k: i32| core::f64::consts::TAU * f64::from(k) / f64::from(COVERAGE_START);
-    let mut stack: Vec<(f64, f64, u32)> = (0..COVERAGE_START)
-        .map(|k| (cut(k), cut(k + 1), 0))
-        .collect();
-    while let Some((lo, hi, depth)) = stack.pop() {
+    // The last cut first, as the walk has always read them.
+    let roots = (0..COVERAGE_START)
+        .rev()
+        .map(|k| (cut(k), cut(k + 1), 0u32));
+    // `COVERAGE_CELLS` is a wall in cells read, but it stays in the visit
+    // (`read.cells`) rather than being the walk's `Budget`: its refusal
+    // names the cell it stopped in (`[lo, hi]`), which an `Exhausted`
+    // cannot. The walk halves only while it has cells left, so the reads
+    // that implies never bind first.
+    let mut reads = Budget::implied_by_halvings(COVERAGE_START as usize, COVERAGE_CELLS);
+    let walked = bisect_within(roots, &mut reads, |(lo, hi, depth)| {
         read.cells += 1;
         read.depth = read.depth.max(depth);
         let cell = Cell::<Interval>::new(lo, hi);
@@ -1311,16 +1322,19 @@ pub(crate) fn coverage(
                             })
                 });
         if covered {
-            continue;
+            return Step::Settled;
         }
         if depth >= COVERAGE_DEPTH || read.cells >= COVERAGE_CELLS {
-            return Err([lo, hi]);
+            return Step::Stop([lo, hi]);
         }
-        let mid = 0.5 * (lo + hi);
-        stack.push((mid, hi, depth + 1));
-        stack.push((lo, mid, depth + 1));
+        let mid = geom::mid_param(lo, hi);
+        Step::Halve([(lo, mid, depth + 1), (mid, hi, depth + 1)])
+    });
+    match walked {
+        Ok(None) => Ok(read),
+        Ok(Some(cell)) => Err(cell),
+        Err(Exhausted) => unreachable!("a coverage walk spends its cells before its reads"),
     }
-    Ok(read)
 }
 
 #[cfg(test)]

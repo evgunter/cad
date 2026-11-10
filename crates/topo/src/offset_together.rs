@@ -211,7 +211,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
     for (of_move, m) in moves.iter().enumerate() {
         for &face in &m.faces {
             let data = body
-                .passed_face(face)
+                .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
             let surface = data.surface();
             let Surface::Plane { origin, normal, .. } = surface else {
@@ -345,15 +345,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             plane_of(fa).unwrap_or_else(|| unmoved_in_scope(fa)),
             plane_of(fb).unwrap_or_else(|| unmoved_in_scope(fb)),
         );
-        let start = linked(
-            &body.half_edges,
-            edge_data.he_plus,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            "he_plus",
-        )
-        .start;
-        let end = body.proven_half_edge_end(edge_data.he_plus);
+        let (start, end) = crate::query::edge_ends(body, edge);
         let (p_start, p_end) = (
             point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
             point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),
@@ -376,8 +368,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         // line the two moved planes meet in.
         let (carrier, t0, t1) = if pa.old_key == pb.old_key {
             (
-                crate::replace_face::translate_curve(&old_carrier, pa.delta)
-                    .map_err(|error| ReplaceFaceError::Structure { edge, error })?,
+                crate::replace_face::translate_curve(&old_carrier, pa.delta),
                 t0_old,
                 t1_old,
             )

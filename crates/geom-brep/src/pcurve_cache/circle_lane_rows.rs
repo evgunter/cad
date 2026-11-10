@@ -309,7 +309,8 @@ fn a_torus_crest_circle_certifies_through_the_projected_lane() {
             let carrier = crest_circle(&surface, delta, phi);
             let what = format!("R {major}, r {minor}, φ {phi}");
             assert_eq!(
-                chart_iso_family(&carrier, &surface, band()),
+                chart_iso_family(&carrier, (0.0, TAU), &surface, band())
+                    .map(|r| r.map(|r| r.family)),
                 Ok(None),
                 "{what}: a crest circle's image is the general one, on no family"
             );
@@ -496,8 +497,13 @@ fn a_circle_definitely_off_ends_as_its_incidence_read() {
     ] {
         let (at_f64, at_interval) = derived(&carrier, (0.0, 2.0), surface);
         assert!(
-            matches!(at_f64, Err(PcurveCertifyError::CarrierOffChart { .. }))
-                && matches!(at_interval, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            matches!(
+                at_f64.as_ref().err().and_then(IncidenceRead::of),
+                Some(IncidenceRead::Off(_))
+            ) && matches!(
+                at_interval.as_ref().err().and_then(IncidenceRead::of),
+                Some(IncidenceRead::Off(_))
+            ),
             "{what}: ends as its incidence read: {at_f64:?} / {at_interval:?}"
         );
     }
@@ -705,7 +711,14 @@ fn cone_coefficient_excess(surface: &Surface<f64>, carrier: &Curve3<f64>) -> (bo
     let Some(conic) = carrier.conic() else {
         unreachable!("a circle row")
     };
-    let h = crate::implicit::conic_cone_harmonics(conic, apex, axis, half_angle);
+    let h = crate::implicit::conic_cone_harmonics(
+        conic,
+        geom::Line {
+            origin: apex,
+            dir: axis,
+        },
+        half_angle,
+    );
     let frame = conic.frame();
     let (a, b) = conic.semi_axes();
     let q = |v: Vec3<f64>| [Q::of(v.x), Q::of(v.y), Q::of(v.z)];
@@ -1524,6 +1537,278 @@ fn a_foreign_stored_row_never_ends_not_yet() {
     }
 }
 
+/// Whether [`crate::implicit::conic_torus_harmonics`]' stored
+/// coefficients of `conic` against the torus `(at, axis, big, small)`
+/// lie within `rounding_charge(terms)`, in sum, of the exact ones of the
+/// stored inputs. The torus: `(|w|² + R² − r²)² − 4R²(|w|² − (w·â)²)`,
+/// `w = C − o`.
+fn torus_coefficients_within(
+    conic: &dyn geom::Conic<f64>,
+    at: Point3<f64>,
+    axis: Vec3<f64>,
+    big: f64,
+    small: f64,
+) -> bool {
+    let (excess, h) = torus_coefficients_excess(conic, at, axis, big, small);
+    excess.le(&crate::exact_q::Q::of(geom_core::rounding_charge(h.terms)))
+}
+
+/// The exact excess, in sum, of [`crate::implicit::conic_torus_harmonics`]'
+/// stored coefficients over the exact ones of the stored inputs, and the
+/// harmonics themselves ([`torus_coefficients_within`]).
+fn torus_coefficients_excess(
+    conic: &dyn geom::Conic<f64>,
+    at: Point3<f64>,
+    axis: Vec3<f64>,
+    big: f64,
+    small: f64,
+) -> (crate::exact_q::Q, crate::implicit::ConicTorusHarmonics<f64>) {
+    use crate::exact_q::Q;
+    let (two, half) = (Q::of(2.0), Q::of(0.5));
+    let frame = conic.frame();
+    let (a, b) = conic.semi_axes();
+    let (o, c) = (
+        q3(at - Point3::origin()),
+        q3(frame.origin - Point3::origin()),
+    );
+    let d = q_sub(&c, &o);
+    let (uq, ax) = (q3(frame.u_ref), q3(axis));
+    let vq = q_cross(&q3(frame.axis), &uq);
+    let (aq, bq) = (Q::of(a), Q::of(b));
+    let z = || Q::of(0.0);
+    let aa = aq.mul(&aq).mul(&q_dot(&uq, &uq));
+    let bb = bq.mul(&bq).mul(&q_dot(&vq, &vq));
+    let sq = (
+        [
+            q_dot(&d, &d).add(&aa.add(&bb).mul(&half)),
+            two.mul(&aq).mul(&q_dot(&d, &uq)),
+            aa.sub(&bb).mul(&half),
+            z(),
+            z(),
+        ],
+        [
+            z(),
+            two.mul(&bq).mul(&q_dot(&d, &vq)),
+            aq.mul(&bq).mul(&q_dot(&uq, &vq)),
+            z(),
+            z(),
+        ],
+    );
+    let hq = (
+        [q_dot(&d, &ax), aq.mul(&q_dot(&uq, &ax)), z(), z(), z()],
+        [z(), bq.mul(&q_dot(&vq, &ax)), z(), z(), z()],
+    );
+    let (bigq, tube) = (Q::of(big), Q::of(small));
+    let mut pq = sq.clone();
+    pq.0[0] = pq.0[0].add(&bigq.mul(&bigq).sub(&tube.mul(&tube)));
+    let (pp, hh) = (q_trig_product(&pq, &pq), q_trig_product(&hq, &hq));
+    let four_rr = Q::of(4.0).mul(&bigq).mul(&bigq);
+    let exact: Vec<Q> = (0..5)
+        .map(|j| pp.0[j].sub(&four_rr.mul(&sq.0[j].sub(&hh.0[j]))))
+        .chain((0..5).map(|j| pp.1[j].sub(&four_rr.mul(&sq.1[j].sub(&hh.1[j])))))
+        .collect();
+    let h = crate::implicit::conic_torus_harmonics(
+        conic,
+        geom::Line {
+            origin: at,
+            dir: axis,
+        },
+        big,
+        small,
+    );
+    let stored: Vec<f64> = h.cos.iter().chain(h.sin.iter()).copied().collect();
+    let excess = stored
+        .iter()
+        .zip(&exact)
+        .fold(Q::of(0.0), |sum, (&x, e)| sum.add(&Q::of(x).sub(e).abs()));
+    (excess, h)
+}
+
+/// **A fat torus's charge is linear in its radii's rounding.** Draw 367
+/// of [`the_other_charts_circle_coefficients_stay_within_their_charge`]
+/// at `CAD_FUZZ_SEED=0xbb6048d2e37fd735`: a circle of radius 0.055 near
+/// the axis of a torus with `R` 605.5 and `r` 589.1. `R² − r²`, about
+/// 19613, cancels about 18 to 1, and `p₀ = |w|² + R² − r²` carries the
+/// rounding of `R²` and `r²` into `p ⊗ p` once. Charged at
+/// `|p|·(|S| + R² + r²)`, the excess is 0.048 of the charge. The window
+/// `[1/32, 1]` fails a charge three times looser.
+#[test]
+fn a_fat_toruss_coefficients_charge_its_radii_whole() {
+    let carrier = Curve3::circle(
+        Point3::new(6.645320747587753, -5.888510562998156, 2.2816750242865442),
+        Vec3::new(0.5998506490606371, -0.4998430390616577, -0.6247688653599335),
+        0.05530282542288743,
+        Vec3::new(0.6935363963776837, -0.0645562489373641, 0.7175233498797051),
+    );
+    let Some(conic) = carrier.conic() else {
+        unreachable!("a circle")
+    };
+    let (excess, h) = torus_coefficients_excess(
+        conic,
+        Point3::new(0.3, -0.7, 0.2),
+        Vec3::new(0.7503459161728594, -0.6135055041311948, 0.24615442812072436),
+        605.5159837781142,
+        589.0976035691452,
+    );
+    let tight = excess.ratio(&crate::exact_q::Q::of(geom_core::rounding_charge(h.terms)));
+    assert!(
+        (1.0 / 32.0..=1.0).contains(&tight),
+        "the fat torus's coefficients' exact excess is {tight} of their charge"
+    );
+}
+
+/// **A thin torus's charge is its coefficients' scale, squared.** A
+/// circle of radius 10, centred 10 m from the centre of a torus of `R` 10
+/// and `r` 0.01 and tilted to its axis. `R² − r²` cancels nothing, and
+/// `|p|` is `|S| + R² + r²` to within `2r²`, so the charge is that
+/// square. The excess is 0.065 of it, and the window `[1/32, 1]` fails a
+/// charge three times looser.
+#[test]
+fn a_thin_toruss_coefficients_charge_their_scale() {
+    let (at, axis) = (Point3::new(0.3, -0.7, 0.2), Vec3::new(0.48, 0.6, 0.64));
+    let radial = Vec3::new(0.8, -0.64, 0.0).normalize();
+    let n = Vec3::new(0.0, 0.64, -0.6).normalize();
+    let carrier = Curve3::circle(at + radial * 10.0, n, 10.0, radial.cross(n).normalize());
+    let Some(conic) = carrier.conic() else {
+        unreachable!("a circle")
+    };
+    let (excess, h) = torus_coefficients_excess(conic, at, axis, 10.0, 0.01);
+    let tight = excess.ratio(&crate::exact_q::Q::of(geom_core::rounding_charge(h.terms)));
+    assert!(
+        (1.0 / 32.0..=1.0).contains(&tight),
+        "the thin torus's coefficients' exact excess is {tight} of their charge"
+    );
+}
+
+/// **A ring a float from fat keeps a floor.** `R` 1000, `r` the float
+/// below it: `R² − r²` is 2.27e-10, and formed as a difference it rounds
+/// to 2.33e-10, 2.4% above it, so `2r(R² − r²)` read that way is no
+/// floor. Formed as `2r(R − r)(R + r)`, padded, it is at or below the
+/// exact value, and above zero.
+#[test]
+fn a_ring_a_float_from_fat_keeps_its_floor() {
+    use crate::exact_q::Q;
+    let (big, small) = (1000.0_f64, 1000.0_f64.next_down());
+    let carrier = Curve3::circle(
+        Point3::new(3.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let Some(conic) = carrier.conic() else {
+        unreachable!("a circle")
+    };
+    let h = crate::implicit::conic_torus_harmonics(
+        conic,
+        geom::Line {
+            origin: Point3::origin(),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        },
+        big,
+        small,
+    );
+    let (bq, sq) = (Q::of(big), Q::of(small));
+    let exact = Q::of(2.0).mul(&sq).mul(&bq.mul(&bq).sub(&sq.mul(&sq)));
+    let difference = Q::of(2.0 * small * (big * big - small * small));
+    assert!(
+        exact.le(&difference) && !difference.le(&exact),
+        "the difference's floor stands above the exact one"
+    );
+    let floor = Q::of(h.f_per_metre_lo);
+    assert!(
+        h.f_per_metre_lo > 0.0 && floor.le(&exact),
+        "the floor {} is not a positive floor under {}",
+        h.f_per_metre_lo,
+        exact.ratio(&Q::of(1.0))
+    );
+}
+
+/// **The torus's charge holds on every family the suites build.** Thin
+/// tori (`r/R` up to 0.1), ordinary ones and fat ones (`r/R` from 0.9 to
+/// within 1e-5 of one), against circles and ellipses placed near the axis
+/// (within `0.2R` of it), along the axis (anywhere on it) and on the core
+/// circle (within `r` of it), near and far from the origin: the exact
+/// excess of the stored coefficients is within `rounding_charge(terms)`.
+/// A scratch sweep of 6000 such draws, measured once on 2026-11-10 and
+/// not kept, put the excess at most 0.48 of the charge in every family;
+/// this row guards only that each draw is within.
+#[test]
+fn the_torus_charge_holds_on_every_family() {
+    let mut s = fuzz::start("pcurve_cache::circle_lane_rows::torus_families");
+    let unit = |s: &mut fuzz::Rng| {
+        Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0)).normalize()
+    };
+    let (mut ellipses, mut refused) = (0, 0);
+    for i in 0..90 {
+        let far = if s.below(2) == 0 {
+            0.0
+        } else {
+            s.log_uniform(1.0, 1e5)
+        };
+        let at = Point3::new(0.3 + far, -0.7 - 0.6 * far, 0.2 + 0.5 * far);
+        let axis = unit(&mut s);
+        let scale = s.log_uniform(1e-3, 1e3);
+        let big = scale * s.log_uniform(0.1, 3.0);
+        let (family, small) = match i % 3 {
+            0 => ("thin", big * s.log_uniform(1e-4, 0.1)),
+            1 => ("ordinary", big * s.range(0.1, 0.9)),
+            _ => ("fat", big * (1.0 - s.log_uniform(1e-5, 0.1))),
+        };
+        let n = if s.below(3) == 0 { axis } else { unit(&mut s) };
+        let u = n.cross(Vec3::new(0.3, 1.0, -0.2)).normalize();
+        let (place, centre) = match (i / 3) % 3 {
+            0 => (
+                "near the axis",
+                at + axis * (s.range(-1.0, 1.0) * small) + unit(&mut s) * big * s.range(0.0, 0.2),
+            ),
+            1 => (
+                "along the axis",
+                at + axis * s.range(-3.0, 3.0) * scale
+                    + unit(&mut s) * scale * s.log_uniform(1e-6, 2.0),
+            ),
+            _ => {
+                let radial = unit(&mut s).cross(axis).normalize();
+                (
+                    "on the core circle",
+                    at + radial * big + axis * small * s.range(-1.0, 1.0),
+                )
+            }
+        };
+        let radius = scale * s.log_uniform(1e-4, 3.0);
+        let carrier = if (i / 9) % 2 == 0 {
+            Curve3::circle(centre, n, radius, u)
+        } else {
+            ellipses += 1;
+            // The mint decides the minor semi-axis against the band in
+            // force, so at a coarse ε a small draw's is no ellipse: it is
+            // skipped and counted, and most still are.
+            let Ok(c) = Curve3::ellipse(
+                centre,
+                n,
+                radius,
+                radius * s.log_uniform(0.05, 1.0),
+                u,
+                band(),
+            ) else {
+                refused += 1;
+                continue;
+            };
+            c
+        };
+        let Some(conic) = carrier.conic() else {
+            unreachable!("draw {i}: a conic")
+        };
+        assert!(
+            torus_coefficients_within(conic, at, axis, big, small),
+            "draw {i} ({family} torus, conic {place}): the coefficients' exact excess is over their charge"
+        );
+    }
+    assert!(
+        2 * refused < ellipses,
+        "{refused} of {ellipses} ellipse draws the band refused: the sweep reads too few ellipses"
+    );
+}
+
 /// Exact-rational vectors for the coefficient rows.
 type Q3 = [crate::exact_q::Q; 3];
 
@@ -1663,7 +1948,14 @@ fn the_other_charts_circle_coefficients_stay_within_their_charge() {
                 aq.mul(&bq).mul(&q_dot(&up, &vp)),
             ];
             let h = if wall {
-                crate::implicit::conic_cylinder_harmonics(conic, at, axis, r)
+                crate::implicit::conic_cylinder_harmonics(
+                    conic,
+                    geom::Line {
+                        origin: at,
+                        dir: axis,
+                    },
+                    r,
+                )
             } else {
                 crate::implicit::conic_sphere_harmonics(conic, at, r)
             };
@@ -1677,43 +1969,8 @@ fn the_other_charts_circle_coefficients_stay_within_their_charge() {
                 "draw {i}: the {what}'s coefficients' exact excess is over their charge"
             );
         }
-        // The torus: `(|w|² + R² − r²)² − 4R²(|w|² − (w·â)²)`, `w = C − o`.
-        let z = || Q::of(0.0);
-        let aa = aq.mul(&aq).mul(&q_dot(&uq, &uq));
-        let bb = bq.mul(&bq).mul(&q_dot(&vq, &vq));
-        let sq = (
-            [
-                q_dot(&d, &d).add(&aa.add(&bb).mul(&half)),
-                two.mul(&aq).mul(&q_dot(&d, &uq)),
-                aa.sub(&bb).mul(&half),
-                z(),
-                z(),
-            ],
-            [
-                z(),
-                two.mul(&bq).mul(&q_dot(&d, &vq)),
-                aq.mul(&bq).mul(&q_dot(&uq, &vq)),
-                z(),
-                z(),
-            ],
-        );
-        let hq = (
-            [q_dot(&d, &ax), aq.mul(&q_dot(&uq, &ax)), z(), z(), z()],
-            [z(), bq.mul(&q_dot(&vq, &ax)), z(), z(), z()],
-        );
-        let (big, tube) = (Q::of(r), Q::of(small));
-        let mut pq = sq.clone();
-        pq.0[0] = pq.0[0].add(&big.mul(&big).sub(&tube.mul(&tube)));
-        let (pp, hh) = (q_trig_product(&pq, &pq), q_trig_product(&hq, &hq));
-        let four_rr = Q::of(4.0).mul(&big).mul(&big);
-        let exact: Vec<Q> = (0..5)
-            .map(|j| pp.0[j].sub(&four_rr.mul(&sq.0[j].sub(&hh.0[j]))))
-            .chain((0..5).map(|j| pp.1[j].sub(&four_rr.mul(&sq.1[j].sub(&hh.1[j])))))
-            .collect();
-        let h = crate::implicit::conic_torus_harmonics(conic, at, axis, r, small);
-        let stored: Vec<f64> = h.cos.iter().chain(h.sin.iter()).copied().collect();
         assert!(
-            q_within(&stored, &exact, 1.0, geom_core::rounding_charge(h.terms)),
+            torus_coefficients_within(conic, at, axis, r, small),
             "draw {i}: the torus's coefficients' exact excess is over their charge"
         );
     }

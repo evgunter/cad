@@ -19,9 +19,11 @@ use topo::{Body, ContactRecords};
 /// finished body reads the typed doors; a twin reads the raw ones.
 fn finish<T>(name: &str, body: &Body<T>, tol: Tol) -> Option<topo::AtRestBody<T>>
 where
-    T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy,
+    T: geom_core::Decide
+        + geom_core::CertifiedBounds
+        + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>,
 {
-    match topo::AtRestBody::validate(Body::clone(body), tol) {
+    match topo::finish(Body::clone(body), tol) {
         Ok(finished) => Some(finished),
         Err(errors) => {
             assert!(

@@ -1,0 +1,37 @@
+---
+id: the-session-box-reach-misses-a-curved-faces-bulge
+kind: issue
+title: The session box reads a body's vertices and edges, so a curved face's far side no edge rides is missed
+status: open
+opened: 2026-11-02
+priority: P1
+cost: M
+---
+
+
+`crates/geom-core/README.md` ("Float rounding") defines a body's reach for the session-box predicate at the finished-body gate as read over its vertices, its edges' spans and its faces' boundaries. PR 6380's `topo::session_box` (rework: through `geom_brep::extent::edge_reach_bounds`) reads exactly that. A curved face's interior can reach farther than any edge on it, and the definition misses that.
+
+**Example (from PR 6380's FULL review; likely, not run).**
+- The body is the `bulge_loop` torus (latitude seams at radius R), with r = 400 and R = 450.
+- It is turned so its meridian faces the origin, and centred at 250 m.
+- The gate reads about 806 m; the true reach is about 1100 m.
+
+So a body that leaves the 1 km box is admitted, and the floor premise of the admission rule is false for it.
+
+**Shape of the fix.** A face's reach comes from its surface over the face's own region, not from its boundary:
+- a sphere or torus: the farthest point of the surface patch;
+- a NURBS face: its control net clipped to the face.
+
+That reach should come from the one extent home (`work/onehome/reach-names-eight-unrelated-types.md`, the `onehome/one-extent` lane), not from a new walk in topo. The README's sentence then names faces' regions, not their boundaries. That is a change to ratified text, so it goes to Ev.
+
+## Slate triage (2026-11-08, ONEHOME split)
+
+- Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
+
+## A second example, measured (2026-11-09, `onecopy/main-reds-stations`)
+
+A sphere of `r = 50` centred at `(0, 0, 975)` has a true largest `|coordinate|` of 1025, at its top.
+- **Poled on `y`** (`sweep::test_support::ball_poled_y`): the finished-body gate admits it (`validate_geometric` is `Ok`). Its top is interior to a face, on no vertex or edge.
+- **Poled on `z`** (`ball_poled_z`): the gate refuses it, `OutsideSessionBox` at margin −25, because its pole is a vertex at the top.
+
+The box reads the cube since PR 6608 (`[tolerance.units]` bounds each coordinate). It still reads only vertices and edges, so whether a curved face's extreme is caught depends on where the body's seams fall.

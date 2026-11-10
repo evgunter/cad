@@ -38,6 +38,7 @@ pub fn cyl(r: f64, h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 pub fn spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -96,17 +97,17 @@ pub fn seams_off_the_pinch(h: f64, phi: f64) -> (Body<f64>, Body<f64>) {
 /// **Whether two refusals of one configuration in two poses are one
 /// door** — the re-pose rows' comparison, for both scalar lanes. Their
 /// `Debug` agrees, except where a refusal carries a decided margin
-/// (the pierce curvature's, `CurvedSectorSideUnsupported`, and a
-/// coincidence a corner decided for a pair the glue door did not glue,
-/// `carrier_unglued_coincidence`): each pose
-/// reads it off its own coordinates, so the twins' margins agree to
-/// within the zero band the verdict was classified against rather than
-/// bit for bit. The arm is matched first: a verdict of the other sign,
-/// a coincidence decided zero against one in band, or a margin a
-/// band-width away, is another door.
+/// (the pierce curvature's, `CurvedSectorSideUnsupported`, and a gate's
+/// rejection of a decided sign, such as a corner's far bound read off
+/// the plane its near arm lies on): each pose reads it off its own
+/// coordinates, so the twins' margins agree to within the zero band
+/// rather than bit for bit. Everything else of the reading is matched
+/// exactly: the decision, the predicate, the band, whether it is a
+/// terminal sliver, and the gate's tag (the sign it rejected and the
+/// signs it passes); a margin a band-width away is another door.
 pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
     use geom_brep::recourse::Refused;
-    use geom_core::{ErrorTextReading, Indeterminate, MarginDiag};
+    use geom_core::{ErrorTextReading, MarginDiag};
     let zero = geom_core::Band::linear(Tol::witness())
         .expect("a linear band")
         .zero();
@@ -121,18 +122,8 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
         ) => (l1 - l2).abs() <= zero && (h1 - h2).abs() <= zero,
         _ => false,
     };
-    // The arm an unglued coincidence's margin was refused on, read
-    // off the band its diag carries: decided zero, in band, or past it.
-    let arm = |d: &Indeterminate| {
-        let (z, e) = (d.band.zero(), d.band.escalate());
-        match d.margin.diagnostic_f64_for_error_text() {
-            ErrorTextReading::Value(m) if m.abs() <= z => Some(0),
-            ErrorTextReading::Enclosure { lo, hi } if -z <= lo && hi <= z => Some(0),
-            ErrorTextReading::Value(m) if m.abs() >= e => Some(2),
-            ErrorTextReading::Value(_) | ErrorTextReading::Enclosure { .. } => Some(1),
-            ErrorTextReading::Invalid => None,
-        }
-    };
+    // The gate's tag: the sign it rejected and the signs it passes.
+    let rejection = |m: MarginDiag| (m.rejected_sign(), m.rejected_passing());
     match (a, b) {
         (
             topo::BooleanError::CurvedSectorSideUnsupported { verdict: va },
@@ -151,11 +142,12 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
                 decision: db,
                 diag: y,
             },
-        ) if x.predicate == Some("carrier_unglued_coincidence") => {
+        ) if x.margin.rejected_sign().is_some() => {
             da == db
                 && x.predicate == y.predicate
-                && arm(x).is_some()
-                && arm(x) == arm(y)
+                && x.band == y.band
+                && x.terminal_sliver == y.terminal_sliver
+                && rejection(x.margin) == rejection(y.margin)
                 && near(x.margin, y.margin)
         }
         _ => format!("{a:?}") == format!("{b:?}"),

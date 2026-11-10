@@ -654,7 +654,7 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let read = match ev.value(below).map(|v| &v.payload) {
         Some(ValuePayload::Body(body)) => body,
         Some(ValuePayload::Instances(copies)) => {
-            let [read] = &copies[..] else {
+            let [Some(read)] = &copies[..] else {
                 panic!("one copy of the half: {}", copies.len());
             };
             read

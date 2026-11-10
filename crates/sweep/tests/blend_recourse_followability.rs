@@ -64,15 +64,15 @@ use sweep::blend::battery::corner_config;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
     ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
-    FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
-    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
-    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TURN_RECOURSE,
-    FILLET3_WEDGE_RECOURSE,
+    FILLET3_ASSEMBLY_RECOURSE, FILLET3_BALL_ROOM_RECOURSE, FILLET3_CHAIN_RECOURSE,
+    FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE,
+    FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_KNIFE_RECOURSE,
+    FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
+    FILLET3_SPINE_RECOURSE, FILLET3_TURN_RECOURSE, KnifeRefusal,
 };
 use sweep::test_support::{
-    ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
-    rod_with_flat, spool, waisted,
+    ROD_FILLET, circle_arcs_at_z, cube, disc_of_arcs, dome, one_edge_rim_at, prism, realized,
+    rim_arcs_at, rod_creases, rod_with_flat, spool, waisted,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::BooleanOp;
@@ -149,9 +149,8 @@ fn edges_at_first_vertex(body: &Body<f64>) -> Vec<EdgeKey> {
     query::all_edges(body)
         .into_iter()
         .filter(|k| {
-            let e = body.get_edge(*k).unwrap();
-            let s = body.get_half_edge(e.he_plus).unwrap().start;
-            s == v0 || body.half_edge_end(e.he_plus) == Some(v0)
+            let (s, t) = body.edge_vertices(*k).unwrap();
+            s == v0 || t == v0
         })
         .collect()
 }
@@ -201,18 +200,18 @@ fn carries(err: &BlendError, recourse: &str, what: &str) {
 
 /// **`FILLET3_RADIUS_RECOURSE` — "reduce the fillet radius".**
 ///
-/// The dome's equator is a plane–sphere rim with a unit sphere's
-/// curvature headroom; `r = 2` exhausts it. The reduced radius the
-/// sentence endorses then builds on the SAME request.
+/// The unit disc's base rim is a plane–cylinder rim with a unit
+/// cylinder's curvature headroom; `r = 2` exhausts it. The reduced
+/// radius the sentence endorses then builds on the SAME request.
 ///
 /// The sentence's other clause — "blend a support with more curvature
 /// headroom" — names a different body, not a second request against
 /// this one, and is not pinned here.
 #[test]
 fn the_radius_recourse_reduces_to_a_radius_that_builds() {
-    let body = dome(1.0, tol());
-    let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
-    let err = refusal(&body, &rim, 2.0, "r = 2 on a unit sphere's rim", false);
+    let body = disc_of_arcs(2, 1.0, 1.0, tol());
+    let rim = circle_arcs_at_z(&body, 0.0);
+    let err = refusal(&body, &rim, 2.0, "r = 2 on a unit cylinder's rim", false);
     assert!(
         matches!(err, BlendError::RadiusHeadroom { .. }),
         "the curvature headroom is what refuses, got {err:?}"
@@ -250,16 +249,11 @@ fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
     builds(&body, &rim, 0.05, "the reduced blend size");
 }
 
-/// **`FILLET3_WEDGE_RECOURSE` — "blend an edge whose supports meet
-/// at a definite angle".**
-///
-/// A slit — a plate bored by a declared-cusp lune, whose kiss is a strut
-/// where the plate's material meets itself across one tangent plane —
-/// decides Zero with the outward normals opposed. The definite-angle
-/// edge the sentence names is on the SAME body: one of the plate's own
-/// vertical corners.
-#[test]
-fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
+/// The plate bored by a declared-cusp lune: its kiss is a slit, a strut
+/// where the plate's material meets itself across one tangent plane.
+/// Returns the body, the kiss, and one of the plate's own vertical
+/// corners, a definite-angle edge.
+fn lune_slit_plate() -> (Body<f64>, EdgeKey, EdgeKey) {
     let plate = bulge_loop(sweep::test_support::corners(&[
         (-1.0, -1.0),
         (3.0, -1.0),
@@ -274,20 +268,14 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
     );
     let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     let ends = |e: EdgeKey| {
-        let he = body.get_edge(e).unwrap().he_plus;
-        [
-            point(body.get_half_edge(he).unwrap().start),
-            point(body.half_edge_end(he).unwrap()),
-        ]
+        let (v0, v1) = body.edge_vertices(e).unwrap();
+        [point(v0), point(v1)]
     };
     let on_cylinders = |e: EdgeKey| {
         let (a, b) = topo::readback::edge_sides(&body, e).unwrap().faces();
-        [a, b].iter().all(|&f| {
-            matches!(
-                body.get_surface(body.get_face(f).unwrap().surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        [a, b]
+            .iter()
+            .all(|&f| matches!(body.face_surface(f), Some(geom::Surface::Cylinder { .. })))
     };
     let edges = query::all_edges(&body);
     let kiss = *edges
@@ -302,16 +290,74 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
                 .all(|p| (p.x - 3.0).abs() < 1e-9 && (p.y - 5.0).abs() < 1e-9)
         })
         .expect("the plate's vertical corner at (3, 5)");
-    let err = refusal(&body, &[kiss], 0.05, "a slit strut", false);
+    (body, kiss, corner)
+}
+
+/// **`FILLET3_BALL_ROOM_RECOURSE` — "reduce the fillet radius until a
+/// ball of it rolls along the edge touching both faces".**
+///
+/// The dome's equator is a plane through the centre of a unit sphere,
+/// and the ball rests inside the sphere: no ball of `R/2` or more rolls
+/// along the rim touching both (`fillet3_ball_room`, room `R − 2r`). At `r = 0.6` it
+/// refuses so, and the reduced radius builds and validates.
+#[test]
+fn the_ball_room_recourse_is_followed_by_a_ball_that_fits() {
+    let body = dome(1.0, tol());
+    let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
+    let err = refusal(&body, &rim, 0.6, "a ball past half the sphere", false);
     assert!(
         matches!(
             err,
-            BlendError::KnifeEdge { margin, .. }
-                if margin.predicate == "fillet3_convexity_sign" && margin.sign == Sign::Zero
+            BlendError::BallDoesNotFit { margin, .. }
+                if margin.predicate == "fillet3_ball_room" && margin.sign == Sign::Negative
         ),
-        "a slit is the zero-margin wedge, got {err:?}"
+        "a ball past half the sphere does not fit, got {err:?}"
     );
-    carries(&err, FILLET3_WEDGE_RECOURSE, "knife edge");
+    carries(&err, FILLET3_BALL_ROOM_RECOURSE, "ball room");
+    builds(&body, &rim, 0.1, "the ball that fits");
+}
+
+/// **`FILLET3_KNIFE_RECOURSE` — "reduce the fillet radius until the
+/// ball fits in the crescent".**
+///
+/// The lune's crescent opens to `R_big − R_small = 1`, so the slit's
+/// ball does not exist at `r = 1.2` (`fillet3_knife_room`), and the
+/// reduced radius the sentence names builds and validates.
+#[test]
+fn the_knife_recourse_is_followed_by_a_ball_that_fits_the_crescent() {
+    let (body, kiss, _) = lune_slit_plate();
+    let err = refusal(&body, &[kiss], 1.2, "a slit wider than its crescent", false);
+    assert!(
+        matches!(
+            err,
+            BlendError::KnifeEdge {
+                margin,
+                refusal: KnifeRefusal::NoRoom { .. },
+                ..
+            } if margin.predicate == "fillet3_knife_room" && margin.sign == Sign::Negative
+        ),
+        "a ball wider than the crescent has no room, got {err:?}"
+    );
+    carries(&err, FILLET3_KNIFE_RECOURSE, "knife room");
+    builds(&body, &[kiss], 0.3, "the ball that fits the crescent");
+}
+
+/// **No fixture in this suite reaches `FILLET3_WEDGE_RECOURSE`** —
+/// "blend an edge whose supports meet at a definite angle or definitely
+/// tangent".
+///
+/// It is the lever of an in-band convexity sign only: an edge whose
+/// dihedral is neither definite nor definitely zero at its arm. The
+/// slit this row used to witness decides Zero, and a knife now builds
+/// where its ball is defined, so the caller meets a band, not the
+/// sentence. **The premise:** no door here authors an edge whose wedge
+/// lands within the band of tangency, and this row goes red where the
+/// slit stops building. The missing witness is its own row,
+/// `work/band/the-in-band-wedge-recourse-has-no-witness.md`.
+#[test]
+fn the_wedge_recourse_has_no_witness_in_this_suite() {
+    let (body, kiss, corner) = lune_slit_plate();
+    builds(&body, &[kiss], 0.05, "the slit's own fillet");
     builds(&body, &[corner], 0.05, "the definite-angle edge");
 }
 
@@ -600,10 +646,8 @@ fn fillet_turn_recourse() {
     let third = query::all_edges(&skewed)
         .into_iter()
         .find(|e| {
-            let he = skewed.get_edge(*e).unwrap().he_plus;
-            !bands.contains(e)
-                && (at_origin(skewed.get_half_edge(he).unwrap().start)
-                    || at_origin(skewed.half_edge_end(he).unwrap()))
+            let (v0, v1) = skewed.edge_vertices(*e).unwrap();
+            !bands.contains(e) && (at_origin(v0) || at_origin(v1))
         })
         .expect("the corner's third edge");
     builds(
@@ -860,7 +904,8 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         t,
     )
     .expect("the prism extrudes")
-    .body;
+    .body
+    .into_body();
     merged
         .merge_coplanar_faces(t)
         .expect("the continuation's walls merge");
@@ -1083,14 +1128,17 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 /// radius", which presumes the caller was told the spine folded. On the
 /// one closed-form curved spine these fixtures can build — a
 /// plane–sphere rim — the clearance screen answers at every radius from
-/// the one that builds to the one that poisons, so `SpineIrregular` is
-/// not what this caller reads.
+/// the one that builds to `R/2`, and past it the ball does not fit
+/// (`fillet3_ball_room`), so `SpineIrregular` is not what this caller
+/// reads.
 ///
 /// **The premise, stated as one:** on a plane–sphere rim the spine's
-/// curvature limit and the face's clearance limit are the same
-/// geometry, so the screen cannot be outrun. A body whose spine folds
-/// while clearance stays ample would be handed the sentence; this row
-/// does not claim there is none, and the suite builds no such body.
+/// curvature limit, the face's clearance limit and the ball's room are
+/// the same geometry, so the screen cannot be outrun. A body whose
+/// spine folds while clearance stays ample is handed the sentence: the
+/// lantern's sphere–cone shoulder is one, outside this suite
+/// (`a_ball_with_no_room_at_its_rim_refuses_typed`), and its row is
+/// filed.
 /// That is the shape of witness to look for, and the two flipped
 /// verdicts above are what makes the distinction worth writing down.
 ///
@@ -1103,16 +1151,15 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first() {
     let body = sweep::test_support::finished("body", dome(1.0, tol()), tol());
     let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
-    let (mut built, mut clearance) = (0, 0);
+    let (mut built, mut clearance, mut no_room) = (0, 0, 0);
     for r in [0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7] {
         match fillet_edges(&body, &rim, r, tol()).map_err(|e| e.error) {
             Ok(_) => built += 1,
             Err(BlendError::SpineIrregular { .. }) => panic!(
                 "r = {r} reaches the spine gate — {FILLET3_SPINE_RECOURSE} is followable now"
             ),
-            Err(BlendError::FaceClearanceUncertified { .. } | BlendError::Escalated { .. }) => {
-                clearance += 1;
-            }
+            Err(BlendError::FaceClearanceUncertified { .. }) => clearance += 1,
+            Err(BlendError::BallDoesNotFit { .. }) => no_room += 1,
             Err(other) => panic!(
                 "r = {r}: unexpected outcome {other_at}",
                 other_at = other.render(geom_brep::recourse::Reading::Build)
@@ -1120,9 +1167,9 @@ fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_
         }
     }
     assert!(
-        built >= 1 && clearance >= 5,
+        built >= 1 && clearance >= 2 && no_room >= 3,
         "the ladder must cross from building to refusing: {built} built, \
-         {clearance} met the clearance screen"
+         {clearance} met the clearance screen, {no_room} found no room for the ball"
     );
 }
 
@@ -1232,7 +1279,7 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
 
     // Followed: blend first, cut the bore second.
     let blended = fillet_edges(
-        &sweep::test_support::at_rest(&cube(1.0, tol()), tol()),
+        &sweep::test_support::at_rest(&cube::<f64>(1.0, tol()), tol()),
         &outer_box_edges(&cube(1.0, tol())),
         0.1,
         tol(),

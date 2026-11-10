@@ -40,6 +40,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .expect("a polygon extrudes")
     .body
+    .into_body()
 }
 
 /// Shoelace area of a CCW polygon.
@@ -94,8 +95,8 @@ type PlaneFrame = (Point3<f64>, Vec3<f64>);
 /// Every distinct plane (origin, unit normal) of a body's faces.
 fn planes(body: &Body<f64>) -> Vec<PlaneFrame> {
     let mut out: Vec<PlaneFrame> = Vec::new();
-    for (_, f) in body.faces() {
-        if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface)
+    for (fk, _) in body.faces() {
+        if let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(fk)
             && !out
                 .iter()
                 .any(|(o, n)| (*n - *normal).norm() < 1e-12 && (n.dot(*o - *origin)).abs() < 1e-12)
@@ -166,7 +167,7 @@ fn r1a_hexagon_cavity_corners_sit_at_minus_t_on_all_three_planes() {
             t,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     ) else {
         return;
     };
@@ -273,7 +274,7 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
 
 #[test]
 fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
-    let body = sweep::test_support::cube(1.0, Tol::witness());
+    let body = sweep::test_support::cube::<f64>(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let chamfered = sweep::chamfer::chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -294,8 +295,7 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     for (vk, _) in chamfered.vertices() {
         let mut ns: Vec<Vec3<f64>> = Vec::new();
         for fk in chamfered.faces_of_vertex(vk).expect("orbit") {
-            let f = chamfered.get_face(fk).unwrap();
-            if let Some(geom::Surface::Plane { normal, .. }) = chamfered.get_surface(f.surface)
+            if let Some(geom::Surface::Plane { normal, .. }) = chamfered.face_surface(fk)
                 && !ns.iter().any(|n| (*n - *normal).norm() < 1e-12)
             {
                 ns.push(*normal);
@@ -328,7 +328,7 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
             0.05,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     );
 }
 
@@ -355,7 +355,7 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
             t,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     ) {
         let got = topo::test_support::pinned_volume(
             "props",
@@ -457,7 +457,7 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 // IN-BAND ARM. The corner is a genuine sliver at this
                 // ε: the fixture cannot be built, and the door must say
                 // so by name rather than build something arbitrary.
-                let Some(ProfileError::Escalated { site, source }) = refusal else {
+                let Some(ProfileError::Escalated { site, source, .. }) = refusal else {
                     panic!(
                         "delta={delta:e}: chord_side margin {margin:e} is in band \
                          ({:e}, {:e}) — the profile door must escalate, got {refusal:?}",
@@ -570,12 +570,7 @@ fn r1f_one_curved_face_among_planars() {
     .body;
     let curved = body
         .faces()
-        .filter(|(_, f)| {
-            !matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Plane { .. })
-            )
-        })
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(geom::Surface::Plane { .. })))
         .count();
     println!(
         "[r1f] bulged hexagon: {curved} non-planar face(s) of {}",
@@ -588,7 +583,7 @@ fn r1f_one_curved_face_among_planars() {
             0.02,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     );
 }
 
@@ -609,7 +604,7 @@ fn r1g_box_control() {
             0.25,
             Tol::witness(),
         )
-        .map(|shelled| shelled.body),
+        .map(|shelled| shelled.body.into_body()),
     ) {
         let got = topo::test_support::pinned_volume(
             "props",
@@ -662,7 +657,7 @@ fn wide_dump(body: &Body<f64>) -> String {
     }
     for (k, f) in body.faces() {
         let surf = body
-            .get_surface(f.surface)
+            .face_surface(k)
             .map(|x| format!("{x:?}"))
             .unwrap_or_else(|| "?".into());
         let _ = writeln!(
@@ -729,9 +724,9 @@ fn r1h_widened_bit_identity_dump() {
     let body = prism(&[(0.0, 0.0), (w, 0.0), (w, d), (0.0, d)], h);
     let plane_face_at_z = |body: &Body<f64>, z: f64| {
         body.faces()
-            .find(|(_, f)| {
+            .find(|(fk, _)| {
                 matches!(
-                    body.get_surface(f.surface),
+                    body.face_surface(*fk),
                     Some(geom::Surface::Plane { origin, normal, .. })
                         if (origin.z - z).abs() < 1e-9
                             && normal.x.abs() < 1e-9

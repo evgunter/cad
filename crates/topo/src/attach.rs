@@ -667,7 +667,7 @@ impl<T: Decide> Body<T> {
     ) -> Result<(), EulerOpError> {
         let on_plane = |p: Point3<T>, on: EntityId| match decide(
             "rechart_boundary_residual",
-            Margin::of((p - origin).dot(normal)),
+            Margin::of(geom::plane_offset(origin, normal, p)),
             band,
         ) {
             Ok(Sign::Zero) => Ok(()),
@@ -1090,33 +1090,11 @@ impl<T: Decide> Body<T> {
     /// `edge`'s two end vertices and their points, `he_plus` forward
     /// order. `edge` is one the caller resolved.
     fn edge_ends(&self, edge: EdgeKey) -> [(VertexKey, Point3<T>); 2] {
+        let (start, end) = crate::query::edge_ends(self, edge);
         let he_plus = proven(&self.edges, edge, EntityId::Edge).he_plus;
-        let plus = linked(
-            &self.half_edges,
-            he_plus,
-            EntityId::HalfEdge,
-            EntityId::Edge(edge),
-            "he_plus",
-        );
-        let next = plus.next;
-        let end = linked(
-            &self.half_edges,
-            next,
-            EntityId::HalfEdge,
-            EntityId::HalfEdge(he_plus),
-            "next",
-        )
-        .start;
-        [
-            (
-                plus.start,
-                self.linked_vertex_point(plus.start, EntityId::HalfEdge(he_plus), "start"),
-            ),
-            (
-                end,
-                self.linked_vertex_point(end, EntityId::HalfEdge(next), "start"),
-            ),
-        ]
+        let next = proven(&self.half_edges, he_plus, EntityId::HalfEdge).next;
+        let point = |v, he| self.linked_vertex_point(v, EntityId::HalfEdge(he), "start");
+        [(start, point(start, he_plus)), (end, point(end, next))]
     }
 
     /// The door [`Construct::set_face_sense`](crate::construction::Construct::set_face_sense) forwards to;

@@ -52,12 +52,13 @@ that what you need belongs at the root or below.
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `glued_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
-| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_images`, `face_azimuth_window`, `face_loop_azimuth_windows`): the hull of a face's boundary images on its chart, each edge's branch pinned to the previous exit, by the face's orientation at a sphere pole, refused at a cone apex |
+| The region a face or an edge can occupy | `src/cover.rs` (`face_cover`, `face_cover_toward`, `edge_cover`, `face_nearest`, `meet_within`): a face's carrier cover met with the trim constraints its one arm per kind proves, an edge's carrier cover over its span hulled with its ends, the ball where two covers meet within the band |
+| A face's azimuth window on its chart | `src/chart_window.rs` (`face_azimuth_images`, `face_azimuth_window`, `face_loop_azimuth_travels`): the hull of a face's boundary images on its chart and each loop's net azimuth travel, each edge's branch pinned to the previous exit, by the face's orientation at a sphere pole, refused at a cone apex |
 | Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
 | The clearance engine's body-level half | `src/clearance.rs` (`Side`, `Sweep`, `Candidate`, `Enclosure`, `EngineRefusal`, `min_separation`): carrier windows and the cell subdivision between two sets of faces, one fused sweep reading a pair against a lower bound, an upper bound or both (a band) with a caller's pair verifier, and the certified minimum-separation bracket the sweep suites read beside it |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
-| Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, a glued slit's two edges merged across the sliver between them, and a face closed across the strut a slit's two edges leave where the result drops both walls), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
+| Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/boxes.rs` (the certified-conservative boxes of faces and edges, `sweep_pad`), `src/separating.rs` (the narrow phase's separating axes, `apart`), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
 
@@ -152,15 +153,15 @@ side clears only
   chord in its conic's plane on either face's boundary, and the line
   between the two faces' carrier axes or centres
   (`census::depth_gap::across`). Along these turned
-  directions only (`boolean::separating::apart_by`), not the world axes,
+  directions only (`separating::apart_by`), not the world axes,
   a sphere face is taken to reach no further than its boundary at an
   end whose pole the face places definitely `Out`
-  (`census::held_reach_in`); or
+  (`cover::face_cover_toward`, the sphere arm's pole-side cut); or
 - on a definitely-positive gap in depth (the distance from an axis
   line, a centre or a circle that either face's carrier or a conic on
   its boundary proposes) between one face's least depth and the
-  other's greatest, each bounded through rings and segments that cover
-  the face or its convex hull (`census::depth_gap`): the nested walls,
+  other's greatest, each bounded through the face's cover, and on a
+  plane its boundary's (`census::depth_gap`): the nested walls,
   bores and plugs no direction separates, or
 - for two planar faces, where each meets the other's plane, read in
   that plane to the band's Zero (`census::in_plane`): on one carrier
@@ -993,9 +994,17 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   one regular curve at their shared vertex: the surfaces are transverse
   there (tangent arms one order up), or the chart is regular there.
   Distinct components of one locus never share a point, so the vertex
-  decides the branch, and nothing is compared between the two edges. A
-  pole, a cone's apex or any point where the locus is not one curve is
-  never joinable; a reading of the vertex in the margin band refuses
+  decides the branch, and nothing is compared between the two edges.
+  The iso-family arm is a class reading of each carrier, so a boolean
+  whose join makes two of its input edges one on it records that
+  reading's Zero, the most either carrier misses its family by, as one
+  coincidence row naming the two (`DecisionSite::IsoJoin`, one carrier
+  continuing) for the `unproven-coincidence` lint ([coincidence]); a
+  join of two pieces of one input edge is that edge read twice, and a
+  join of two edges whose descriptions name one surface pair is that
+  pair's locus read twice, so neither records anything. A pole, a
+  cone's apex or any point where the locus is not one curve is never
+  joinable; a reading of the vertex in the margin band refuses
   typed. A closed edge the join makes keeps one *conventional vertex*:
   a vertex whose only edge is that one closed edge, at both its ends.
   Its position, and the edge's parameter origin and witness that hang
@@ -1040,39 +1049,73 @@ face pair at its glue door (`boolean::glue`) on a margin decided Zero
 over both faces, under the class its senses make it (`GlueClass`:
 `Rest` one carrier opposed, a continuation one carrier aligned), or on
 the witness lane's tangency along a locus (`Tangent`). The declaration
-door records the decision once (`crate::coincidence`), a one-carrier
-pair on the margin the glue door decided it on. The pair's class is
+door records the decision once (`crate::coincidence`), as the glue door
+decided it (`boolean::Glued`): a one-carrier pair on the margin it was
+decided one on, a tangency on what the witness lane certified along its
+locus. The pair's class is
 its record (`GlueClass::relation`): every consuming site — the corner
 sites (`recl`, `vtxfac`) and a fold step — reads the glued relation
 from it and measures the pair nowhere again (`[coincidence.booleans]`),
 and a one-carrier pair's faces are left on one surface record before
 the result's merge (`Body::unify_surfaces`, `[coincidence.door]`), which
 reads them by key.
-An unglued pair is read at a corner by the ladder over the corner's own
-arm, where every verdict but `Distinct` refuses.
+A corner reads only a glued pair as one surface; an unglued pair that
+reaches its coplanar branch refuses on the corner's own reading: two
+plane faces read parallel at a vertex pair's arm
+(`boolean::fan::meeting`), their sectors overlapping, on that tilt
+(`boolean::fan::unglued_parallel`, from the pair search,
+`Coincidence(CornerCrossing)`; sectors that only touch there are no
+record), and a corner
+lying on a plane face by its bounds, on the reading that put it there,
+carried from where it was read: a flank's or a line cone's
+representative's own tie, or the steeper of a flat sector's two ties
+(`boolean::unglued_corner`, `Coincidence(CornerBound)`).
 
 At rest a record is read as the glue door reads a pair: nothing is
 bridged. Each class states the facts that must verify DEFINITE and the
-triggers that contradict it, and a margin in band on either escalates
-(`ContactRefusal::{Contradicted, Escalated, NotCertifiable}`).
+rulings that rule it out. Its door returns a verdict (`RestVerdict`,
+`TangentVerdict`): the class on its margin, a ruling (`RestRuling`,
+`TangentRuling`) on its closed row with the reading that decided it, or
+a reading in band, which escalates (`ContactRefusal::{Escalated,
+NotCertifiable}`). Only a record is contradicted: a ruling against one
+is `ValidationError::ContactContradicted { record, verdict }`, a defect
+of what wrote the record or its geometry. A pair the census discovers
+with no record contradicts nothing. Where the line shows it apart or
+crossing it is no touch; where it touches with its sides wrong the
+defect is the body's: a crescent both materials hold
+(`CuspEdgesMissing`), or outward normals that agree, or agree at one
+tangent sample and oppose at another, the solid's material on both
+sides of a face (`MaterialOnBothSides`).
 
 - *`Rest`.* Must verify: one carrier through the face-pair door
   (`carrier_eq::INVENTORY`), each datum and the pair's displacement over
   the consumed extent — position data at a pivot, plus the angular data
   levered from it to the extent's far reach, plus the radius differences
   — decided Zero; senses opposed as an exact bit; overlap definitely
-  positive on C3's chart authority. Contradicted by two carriers, by
-  aligned senses, or by definite separation on the patch. Escalated
-  between.
+  positive on C3's chart authority. Ruled out by two carriers
+  (`TwoCarriers`, on the datum decided apart where one was), by aligned
+  senses (`SensesAligned`), or by definite separation on the patch.
+  Escalated between.
 - *`Tangent`.* Must verify: the two surfaces' separation along the
   shared normal within ε at every sample (the touch), first-order
   tangency along the witnessed locus, the witness within ε of each
   surface (C7's jet readings), and a definite second-order κ_rel.
   Definite separation and definite crossing are read on the separation;
-  a witness off a surface is a bad witness, not a gap. Contradicted by
-  definite normal independence, definite crossing (as far as the sampled
-  κ_rel sees it, C1), or definite separation. An in-band κ_rel, or an
-  exact zero at an isolated point, escalates.
+  a witness off a surface is a bad witness, not a gap. Ruled out
+  (`TangentRow`) by definite normal independence, definite crossing (as
+  far as the sampled κ_rel sees it, C1), definite separation, a witness
+  off a surface, and, for a contact, aligned senses or a crescent both
+  materials hold. Two samples read tangent whose outward normals agree
+  at one and oppose at the other are a definite crossing between them
+  (`TangentRuling::SidesMixed`). The senses are read against the claim,
+  and compared between samples, only once a sample is parallel, so a
+  sample that is not tangent ends on perpendicular normals, its gap, its
+  witness or its parallelism, never on agreeing or mixed senses. Along
+  a line of curvature of
+  both surfaces, which every ruling the lane reads and every latitude
+  circle of two coaxial surfaces of revolution is, `n₁·n₂` is constant,
+  so neither reaches it; a Villarceau circle two tori share can. An
+  in-band κ_rel, or an exact zero at an isolated point, escalates.
 
 The two doors are coupled: Door 2 receives the band Door 1's reading
 leaves its premise (`glued_pair_overlap`'s `premise`) — the run's own
@@ -1094,8 +1137,7 @@ in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
 
 Failures, all typed: `UnrecordedContact` (the census);
-`ContactContradicted` (a glued tangency read again at use, and a record
-at rest); `StaleContactDeclaration`; `CensusEscalated`. Invariant: a
+`ContactContradicted` (a record at rest); `StaleContactDeclaration`; `CensusEscalated`. Invariant: a
 pair is decided once, where it is glued, and every later read of it is
 that decision.
 

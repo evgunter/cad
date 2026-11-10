@@ -104,7 +104,7 @@ impl Shape {
 }
 
 fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"))
+    topo::finish(body, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"))
 }
 
 /// The wedge of `[−2, 2]²` between the rays at 0 and `alpha` degrees

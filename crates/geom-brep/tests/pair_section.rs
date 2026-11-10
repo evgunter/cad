@@ -6,8 +6,8 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CarryError, ClassCarrier, Coincident, ComponentShape, PairSection, SectionError, SectionRead,
-    SsiError, SsiLane, ZeroKind,
+    CarryError, CarryRefusal, ClassCarrier, Coincident, ComponentShape, PairSection, SectionError,
+    SectionRead, SsiError, SsiLane, ZeroKind,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -167,7 +167,10 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
             );
         }
         assert!(
-            matches!(section.carry(None, band()), Err(CarryError::Unminted(_))),
+            matches!(
+                section.carry(None, band()),
+                Err(CarryError::Refused(CarryRefusal::Unminted(_)))
+            ),
             "{label}: a tangency does not carry"
         );
     }
@@ -335,7 +338,7 @@ fn the_general_rung_carries_through_its_door() {
     assert!(
         matches!(
             section.carry(None, band()),
-            Err(CarryError::NoLane { scalar: "f64" })
+            Err(CarryError::Refused(CarryRefusal::NoLane { scalar: "f64" }))
         ),
         "no door, no march"
     );
@@ -360,7 +363,7 @@ fn the_general_rung_carries_through_its_door() {
     assert!(
         matches!(
             section.seat(None, c, at, band()),
-            Err(CarryError::NoLane { scalar: "f64" })
+            Err(CarryError::Refused(CarryRefusal::NoLane { scalar: "f64" }))
         ),
         "no door, no seat"
     );
@@ -383,9 +386,8 @@ fn the_general_rung_carries_through_its_door() {
     );
     for k in 1..64 {
         let p = seated.carrier.eval(s0 + (s1 - s0) * f64::from(k) / 64.0);
-        let foot = c.carrier.foot(p, at);
         assert!(
-            (c.carrier.eval(foot.t()) - p).norm() < band().zero(),
+            c.carrier.foot(p, at).gap() < band().zero(),
             "the seated loop's point {k} lies on the loop"
         );
     }
@@ -938,7 +940,7 @@ fn a_closed_form_is_seated_by_its_span() {
                 .unwrap_or_else(|e| panic!("seat {at}: {e:?}"));
             assert_eq!(seated.span, (at, at + (hi - lo)), "seated at {at}");
             assert!(
-                (seated.carrier.eval(at) - c.carrier.eval(at)).norm() == 0.0,
+                seated.carrier.eval(at).equals_exactly(c.carrier.eval(at)),
                 "seat {at}: the carrier is as it was"
             );
         }

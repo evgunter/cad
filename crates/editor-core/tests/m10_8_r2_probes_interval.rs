@@ -239,7 +239,7 @@ fn r2_the_shape_report_attributes_each_decision_to_its_own_door() {
             if s.predicate == "assert_bound" {
                 n += 1;
             }
-            if s.predicate == "<unnamed>" {
+            if s.predicate == geom_core::UNNAMED_PREDICATE {
                 unnamed += 1;
             }
         }
