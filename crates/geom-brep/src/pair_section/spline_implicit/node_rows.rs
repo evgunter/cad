@@ -300,6 +300,20 @@ fn an_oblique_nodes_lines_are_its_null_lines() {
 /// from its seeds.
 #[test]
 fn a_loop_through_a_node_names_both_its_ends() {
+    // Pinned red at 1e-12: the chart accounting runs out of cells
+    // (`work/sectarms/the-lemniscate-node-row-exceeds-the-accounting-budget-at-1e-12.md`).
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-12],
+        "the lemniscate's node",
+        &["the exhaustiveness subdivision exceeded its 200000-cell budget"],
+        a_loop_through_a_node_names_both_its_ends_row,
+    );
+}
+
+/// The row [`a_loop_through_a_node_names_both_its_ends`] runs, under its
+/// pin.
+fn a_loop_through_a_node_names_both_its_ends_row() {
     let wall = separable(
         &[0.0, 0.0, -1.0, 0.0, 1.0],
         (-1.2, 2.4),

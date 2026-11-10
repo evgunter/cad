@@ -2840,16 +2840,15 @@ impl<T: Decide> CarriedComponent<T> {
         }
     }
 
-    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]),
-    /// the one leaving along `ray` where the germ reading it names one
-    /// (its line and sense, [`NodeEnd`]): an arc with both ends at one
-    /// node is read at it by the end its germ leaves along.
+    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]):
+    /// its one end there, or, for an arc with both ends at one node, the
+    /// end leaving along `ray`, the line and sense the germ reading it
+    /// names ([`NodeEnd`]).
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Desync`] where it has no end at `n`; where both are
-    /// at `n` and `ray` names neither, or none is named; and where `ray`
-    /// is named and the one end at `n` leaves along another.
+    /// [`SiteRefusal::Desync`] where it has no end at `n`, and where both
+    /// are at `n` and `ray` names neither, or none is named.
     pub fn end_at(
         &self,
         n: usize,
@@ -2879,11 +2878,8 @@ impl<T: Decide> CarriedComponent<T> {
                      leaves along, and the germ names neither",
                 )),
             },
-            (Some(a), None) if named(a) => Ok(start),
-            (None, Some(b)) if named(b) => Ok(finish),
-            (Some(_), None) | (None, Some(_)) => Err(SiteRefusal::Desync(
-                "a site at a node is read off the end its germ does not leave along",
-            )),
+            (Some(_), None) => Ok(start),
+            (None, Some(_)) => Ok(finish),
             (None, None) => Err(SiteRefusal::Desync(
                 "a site at a node lies on a component with no end there",
             )),
@@ -3912,7 +3908,7 @@ mod wiring {
             &[1e-6],
             "the close rings",
             &[
-                "δ 3e-4, counted: March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 206 })",
+                "δ 3e-4, counted: Refused(March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 206 }))",
             ],
             close_rings_carry_counted_and_marched_row,
         );
@@ -4026,8 +4022,9 @@ mod end_at_rows {
 
     /// **An arc with both ends at one node is read by the end its germ
     /// names** (D2): the ray `(First, Along)` reads the start, `(Second,
-    /// Along)` the end, no ray or another ray neither. Red against the
-    /// start read whatever the ray.
+    /// Along)` the end, no ray or another ray neither; an arc with one end
+    /// there is read at it whatever the ray. Red against the start read
+    /// whatever the ray.
     #[test]
     fn an_arc_with_both_ends_at_one_node_is_read_by_its_ray() {
         let c = loop_at_node();
@@ -4052,5 +4049,21 @@ mod end_at_rows {
             );
         }
         assert!(matches!(c.end_at(1, None), Err(SiteRefusal::Desync(_))));
+        let mut one = c;
+        if let ComponentShape::Open { ends } = &mut one.shape {
+            ends.nodes.start = None;
+        }
+        for ray in [None, Some((NodeLine::First, RaySense::Along))] {
+            assert!(
+                matches!(
+                    one.end_at(0, ray),
+                    Ok(ArcPlace::AtEnd {
+                        end: SpanEnd::End,
+                        ..
+                    })
+                ),
+                "{ray:?}"
+            );
+        }
     }
 }

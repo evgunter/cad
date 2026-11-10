@@ -366,8 +366,11 @@ pub(super) fn decide(
 }
 
 /// The most times a proved box is doubled about its middle (D9, a fixed
-/// rule).
-const GROW_ROUNDS: u32 = 24;
+/// rule): enough to carry a box a few ulps of a unit chart wide (the
+/// first box `K` proves at ε 1e-12 is about 1e-12 wide) to the cap, so
+/// the box a march enters is the cap's at every ε, not one that narrows
+/// with it.
+const GROW_ROUNDS: u32 = 64;
 
 /// The widest a proved box grows, as a fraction of its piece's narrower
 /// side, so the boxes of two points in one piece stay apart.

@@ -22,8 +22,8 @@ use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, V
 use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
     ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeEnd, NodeEnds,
-    NodeLine, NodeSet, PairPose, PairSection, PairSide, RaySense, SectionComponent,
-    SectionDecision, SectionNode, ZeroVerdict, node_joined,
+    NodeLine, PairPose, PairSection, PairSide, RaySense, SectionComponent, SectionDecision,
+    SectionNode, ZeroVerdict, node_joined,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
