@@ -4032,7 +4032,7 @@ fn boundary_meets_circle_only_at<T: Decide>(
     use geom_brep::curve_face::{BoundaryRefusal, OnBoundary};
     use geom_brep::curve_pair::MeetKind;
     use geom_brep::curve_pair::{Hit, Span, SpanEnd};
-    let Some(boundary) = super::carrier_cross::face_boundary(y, face)? else {
+    let Some(boundary) = crate::face_boundary::face_boundary(y, face)? else {
         return Ok(false);
     };
     let whole = Span::new(circle, (T::zero(), T::tau())).endless();
