@@ -725,10 +725,11 @@ fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
 
 /// **A spindle sheet's bound is this sheet's distance**: wherever
 /// [`Meters::certified`] reads a box in a sheet's meridian half-plane
-/// ([`Meters::over`], or the apex reading where that refuses), the
-/// distance of every point of the box from THIS sheet (not the torus's
-/// other sheet, and not its circle past the apexes) is at most the
-/// bound. Lemons and apples of every proportion, the box seeded on the
+/// (the least of [`Meters::over`], the reading at the box's height and
+/// the apex reading), the distance of every point of the box from THIS
+/// sheet (not the torus's other sheet, and not its circle past the
+/// apexes) is at most the bound. Lemons, apples of every proportion and
+/// the horn (one draw in eight), the box seeded on the
 /// sheet, on the other sheet, at an apex, on the axis or anywhere near,
 /// at scales from `1e-9` to `1e-1`, as a point or a small box; `|f|`'s
 /// sup is read on a grid of the box and doubled, so a miss is the
@@ -829,7 +830,8 @@ fn a_spindle_bound_is_this_sheets_distance() {
 /// apexes**, as `spans_of` reads it (each lever certified positive when
 /// its enclosure's lower end is): boxes seeded on this sheet, on the
 /// other, or at an apex, at scales `1e-12` to `1e-3`, on sheets from a
-/// fat lemon or apple to within `1e-9` of the horn. The bound's upper
+/// fat lemon or apple to within `1e-9` of the horn, and on the horn
+/// itself (one draw in eight), beside its cusp. The bound's upper
 /// end bounds every sampled point's distance from this sheet.
 #[test]
 fn a_spindle_bound_is_this_sheets_distance_at_interval() {
@@ -921,7 +923,8 @@ fn a_spindle_bound_is_this_sheets_distance_at_interval() {
 /// stretch of its meridian a net with `f64` rounding encloses (the sheet
 /// runs at `ρ ≈ z²/2 ≈ 3·10⁻²¹` there). The lever `(ρ + R)² + z² − r²`
 /// is only `z² ≈ 5·10⁻²¹` at the box's least, so `|f|` over it reads
-/// about `10⁻¹⁰`; the sheet's point at each height, `ρ_s(z)`, puts every
+/// about `10⁻¹⁰` where the side check lets it read at all; the sheet's
+/// point at each height, `ρ_s(z)`, puts every
 /// point of the box within its width, `4.4·10⁻¹⁶`, which is what
 /// [`Meters::certified`] reads.
 ///
@@ -939,8 +942,8 @@ fn a_part_beside_a_horns_cusp_is_read_at_its_own_height() {
     let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
     let lever = Meters::Spindle { major, minor }.over(f_sup, rho, z, positive);
     assert!(
-        lever.is_ok_and(|d| d > 1e-11),
-        "the lever's reading is the rounding over z²: {lever:?}"
+        !lever.is_ok_and(|d| d <= 1e-11),
+        "the lever's reading is refused or the rounding over z²: {lever:?}"
     );
     let pt = |x: f64| Interval::from_bounds(x, x);
     let read = Meters::Spindle {
@@ -965,6 +968,40 @@ fn a_part_beside_a_horns_cusp_is_read_at_its_own_height() {
             "({a}, {b}) is {d} from the horn, past {}",
             read.hi()
         );
+    }
+}
+
+/// **A sheet's reading is the least that reads**: on the horn
+/// `R = r = 1`, the box `ρ ∈ [0.04, 0.06]`, `z ∈ [0.3, 0.3001]` across
+/// the sheet (at `ρ_s(0.3) ≈ 0.046`). The lever and the side check both
+/// clear, and `|f|` over the lever reads about `0.017`; the sheet's point
+/// at the box's height reads `0.014`, which [`Meters::certified`] takes.
+///
+/// [`Meters::certified`]: super::super::projected::Meters::certified
+#[test]
+fn a_sheets_reading_is_the_least_that_reads() {
+    use super::super::projected::Meters;
+    let (major, minor) = (1.0_f64, 1.0_f64);
+    let (rho, z) = ((0.04, 0.06), (0.3, 0.3001));
+    let mut f_sup = 0.0_f64;
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        f_sup = f_sup.max(sheet_form(major, minor, a, b).abs());
+    }
+    let meters = Meters::Spindle { major, minor };
+    let positive = |x: f64, _| if x > 0.0 { Ok(x) } else { Err(()) };
+    let Ok(over) = meters.over(f_sup, rho, z, positive) else {
+        panic!("the lever and the side check clear")
+    };
+    let Some(read) = meters.certified(f_sup, rho, z, |x| x > 0.0) else {
+        panic!("the part reads")
+    };
+    assert!(
+        read < 0.015 && read < over,
+        "{read} is not the least of {over} and the height's"
+    );
+    for (a, b) in [(rho.0, z.0), (rho.0, z.1), (rho.1, z.0), (rho.1, z.1)] {
+        let d = sheet_distance(major, minor, a, b);
+        assert!(d <= read, "({a}, {b}) is {d} from the horn, past {read}");
     }
 }
 

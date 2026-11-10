@@ -209,7 +209,8 @@ impl Chart<f64> {
         };
         // A horn (`geom::sheet_apex` closes its height at zero) has one
         // cusp, both of its apexes: listed once, as the upper, at
-        // `v* = π`, where the sheet's latitude window reads it.
+        // `v* = π`, where a read about zero names it; a face reaching it
+        // from below names `−π` (`mesh`'s walk).
         let horn = match self.kind {
             ChartKind::Spindle { major, minor } => geom::sheet_apex(major, minor).height == 0.0,
             ChartKind::Cylinder { .. }
