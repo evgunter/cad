@@ -143,10 +143,10 @@ impl<T: Real> From<Site<T>> for Around<T> {
 /// A point `ρ` from the axis line and `t` along it stands
 /// `√((ρ − |radius|)² + t²)` from it.
 ///
-/// It is not a [`crate::Circle`], whose axis is unit, whose radius is
-/// positive and which reads a seam: a core is measured about, so no seam
-/// is read, and it is read on a placement whose axis need not be unit,
-/// which a [`Line`] reads (any nonzero direction).
+/// It is not a [`crate::Circle`], whose axis is unit and whose radius is
+/// positive: a core is read on a placement whose axis need not be unit,
+/// which a [`Line`] reads (any nonzero direction), and its radius is read
+/// by its magnitude.
 #[derive(Clone, Copy, Debug)]
 pub struct Core<T: Real> {
     /// Its axis line: its origin the circle's centre, its direction the

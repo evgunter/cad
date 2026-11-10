@@ -5022,7 +5022,7 @@ mod cone_window {
     /// or if the wall's window ends anywhere but at its rims.
     #[test]
     fn a_cone_window_ends_at_the_face_unless_the_face_holds_the_apex() {
-        let (mut body, face) = crate::boolean::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
+        let (mut body, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let w = window_of(&body, face, Which::First).unwrap();
         assert!(
