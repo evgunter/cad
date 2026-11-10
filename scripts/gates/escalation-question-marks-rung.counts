@@ -20,6 +20,10 @@
 # `Some(false)` does on its own: SEARCH. `on_arc`, then `tied_held` only
 # on the end `on_arc` tied: PREMISE.
 rung:crates/topo/src/boolean/insert.rs:held_cut 4
+# FaceOnLocus::at's ride (climb_differing): the end (`hi - s`) is read
+# only where the start decided inside, and is the rung's last read; the
+# start's own refusal is an `and_then`, not a `?`: PREMISE.
+rung:crates/topo/src/boolean/rim_wedge.rs:at 1
 # crescent's pair of bounds. The opening (`bool_sector_crescent`) reads
 # none of the reads before it, and decided off `Positive` it answers
 # `false` alone. So the first `parallel_same`, the across reading and
