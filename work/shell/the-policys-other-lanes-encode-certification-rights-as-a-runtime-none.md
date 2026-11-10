@@ -42,7 +42,7 @@ rights (`crates/topo/src/props.rs`, the `Dual` arm of `AtRestPolicy`):
 - `quad_lane` — not a refusal but a second reading: at `None` the
   construction-time decisions read the closed form only
   (`crates/topo/src/loop_winding.rs` `Unwound::Uncertified`,
-  `crates/topo/src/boolean/solid_contain.rs` the `VolumeUncertified`
+  `crates/topo/src/solid_contain.rs` the `VolumeUncertified`
   arm that escalates to `Measure::Quadrature` only where the lane is
   held, `crates/topo/src/shell.rs` and `crates/topo/src/pieces.rs`'s
   shell roles), so a dual can refuse where `f64` escalated; see

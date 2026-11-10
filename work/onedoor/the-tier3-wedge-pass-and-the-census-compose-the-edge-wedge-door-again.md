@@ -27,7 +27,7 @@ What converging would take: the door taking the station's walk direction and a s
 
 ## Re-read (ONEDOOR, 2026-11-03)
 
-All three composition sites are confirmed at `d1ac6881`. There is a fourth, which the row does not list: `boolean/rim_wedge.rs`. It spells its own first-order `classify_dihedral` loop, then runs check 4's `MaterialStations` inside `second_order_walk`. A related half-composer is `splitting/rules.rs` `edge_wedge`: `classify_dihedral`, then the convex/concave sign via `enters_material`, with no pairing. The census's population is two planar faces at an edge–edge crossing point, not one edge's own pair. Banded P1 (one logic composed at several sites), priced M, with `design` set because the signed and unsigned first-order reads are a real choice.
+All three composition sites are confirmed at `d1ac6881`. There is a fourth, which the row does not list: `rim_wedge.rs`. It spells its own first-order `classify_dihedral` loop, then runs check 4's `MaterialStations` inside `second_order_walk`. A related half-composer is `splitting/rules.rs` `edge_wedge`: `classify_dihedral`, then the convex/concave sign via `enters_material`, with no pairing. The census's population is two planar faces at an edge–edge crossing point, not one edge's own pair. Banded P1 (one logic composed at several sites), priced M, with `design` set because the signed and unsigned first-order reads are a real choice.
 
 ## Design (two designers, converged after three rounds, 2026-11-03)
 
@@ -43,7 +43,7 @@ Weighed under the design-fork protocol. The designers converged, and nothing rat
   - It reads the class at every station and the convexity at every corner station. A sign flip, or a corner/tangent mix between adjacent stations, gives `Mixed(MixedStations)`.
   - When every station is tangent, it runs the second-order walk over the `Tangency` tokens, reading side and end at each station.
   - The verdict is one of `Crease(Convexity) | Seam { bend } | Cusp | Slit | Lamina | Split { rung } | Mixed | InBand(WedgeEscalation)`.
-  - It absorbs check 4's loop (`validate.rs`), `MaterialStations` and `material_arm_outcome`, `boolean/rim_wedge.rs`'s loop, and `must_carry_over_edge`'s first-order pass.
+  - It absorbs check 4's loop (`validate.rs`), `MaterialStations` and `material_arm_outcome`, `rim_wedge.rs`'s loop, and `must_carry_over_edge`'s first-order pass.
   - Its readers: check 4, rim routing, the constructors (extrude, revolve, `edge_join`) and the split finish, whose knife refusal then agrees with tier 3 station by station.
   - The point readers, the blend and `splitting/rules.rs` `edge_wedge`, call `classify_dihedral` and then the token methods.
 - **A crate-visibility fence.** `second_order_walk`, `StationHook`, `material_kappa_rel` and the fold's parts are `pub(crate)`. `interior_stations` stays public, because check 5 shares the schedule.

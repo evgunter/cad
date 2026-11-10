@@ -165,7 +165,7 @@ point each is handed; none beyond the above is handed a tangency foot.
 
 `work/cleave/a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles.md` asked for every closed-form arm to be swept for a generic formula evaluated at data a `Zero` reading has just called degenerate. Its `carrier_cross` arm is retired. Two arms of the shape remain, and this row holds them:
 - `splitting::conic_plane_candidates` (`crates/topo/src/splitting/classify.rs`): its graze row's `Zero` places the double root by the generic root formula.
-- `rim_wedge::crossings` (`crates/topo/src/boolean/rim_wedge.rs`): its line and circle closed forms are lenient in the band, and place a touch the same way.
+- `rim_wedge::crossings` (`crates/topo/src/rim_wedge.rs`): its line and circle closed forms are lenient in the band, and place a touch the same way.
 Not measured on a body. Both were found by reading, in the review of PR 5154.
 
 ## 2026-11-02: a cited site retired (SECTARMS stage 3)

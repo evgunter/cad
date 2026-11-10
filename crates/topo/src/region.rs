@@ -1,6 +1,6 @@
 //! **What the region readings share**: the skeleton
-//! [`super::sphere_region`], [`super::torus_region`] and
-//! [`super::ruled_region`] read a trimmed curved face with. The skeleton
+//! [`crate::sphere_region`], [`crate::torus_region`] and
+//! [`crate::ruled_region`] read a trimmed curved face with. The skeleton
 //! gathers the boundary, reads the point against it first, walks the
 //! paths and reads each leg to its closest crossing; a door supplies only
 //! its surface's legs ([`Legs`], and [`Paths`] for a roster of them) and
@@ -560,7 +560,7 @@ pub(crate) trait Region<T: Decide> {
     /// **The region the surface cycles `keep` bound alone**: the boundary
     /// less every edge of another cycle ([`RegionEdge::cycle`]), the one
     /// cut a reading of a face against some of its cycles takes
-    /// ([`super::contain::cycle_side`]).
+    /// ([`crate::contain::cycle_side`]).
     #[must_use]
     fn keep_cycles(mut self, keep: &[usize]) -> Self
     where

@@ -10,7 +10,7 @@ cost: M
 
 ## What
 
-`topo::boolean::rim_wedge`'s `same_circle` (`crates/topo/src/boolean/rim_wedge.rs:160`,
+`topo::rim_wedge`'s `same_circle` (`crates/topo/src/rim_wedge.rs:160`,
 mirrored by the test helper `rim_identity` near 1192) decides
 `rim_circle_radius`, `rim_circle_center` and `rim_circle_axis_parallel`
 (levered at `ra.radius + rb.radius`) as three rows, and reads "one rim"

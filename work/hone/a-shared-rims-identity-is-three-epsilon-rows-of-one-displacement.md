@@ -11,7 +11,7 @@ cost: M
 
 ## What
 
-`crates/topo/src/boolean/rim_wedge.rs::same_circle` matches two faces'
+`crates/topo/src/rim_wedge.rs::same_circle` matches two faces'
 boundary circles by deciding `rim_circle_radius`, `rim_circle_center`
 and `rim_circle_axis_parallel` (tilt levered at the diameter) each
 within ε on its own. The three terms displace one circle in the same

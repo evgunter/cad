@@ -18,7 +18,7 @@ sweep's shape — *a refusal whose subject is a set, carrying one member
 the arena's ordering picked* — has one other hit in the kernel, and it
 is a payload-doc falsehood rather than an attribution defect.
 
-Three sites in `crates/topo/src/boolean/solid_contain.rs` build a
+Three sites in `crates/topo/src/solid_contain.rs` build a
 `PointInSolidError` naming `faces[0]`, where the refusal's subject is
 the whole body:
 
@@ -50,7 +50,7 @@ program.
 
 ## Home
 
-`crates/topo/src/boolean/solid_contain.rs` — S-BOOL territory.
+`crates/topo/src/solid_contain.rs` — S-BOOL territory.
 
 ## Re-homed (2026-09-04)
 

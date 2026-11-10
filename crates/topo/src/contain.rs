@@ -1,6 +1,8 @@
 //! `contfp` — point-in-face with typed ON verdicts (ch. 13's `contfv`
 //! extern-out-parameter idiom as a proper sum type): the second-level
-//! case codes of the reduction sweep. The point is assumed on the
+//! case codes the Boolean's reduction sweep reads, and the face
+//! placement every other reader of a point against a face takes (the
+//! census, tier 3, the chord join). The point is assumed on the
 //! face's plane (the caller's crossing/on-plane decision precedes).
 //!
 //! Ladder: an ON verdict fires only at a trilean **Zero** (exact within
@@ -235,7 +237,7 @@ pub enum ContainError {
     },
     /// No ray of the walk's schedule settled — each grazed or gave
     /// nothing to read ([`crate::ray_walk::NoRaySettled`]) — a planar
-    /// loop's, or a sphere face's region ([`super::sphere_region`]).
+    /// loop's, or a sphere face's region ([`crate::sphere_region`]).
     RayExhausted,
     /// The face the caller passed does not resolve in this body.
     StaleFace(FaceKey),
@@ -654,7 +656,7 @@ fn boundary_pre_pass<T: Decide>(
     for &lk in loops {
         let cycle = loop_cycle_points(body, lk)?;
         for (v, _, p) in &cycle {
-            if let Some(margin) = crate::contain::one_vertex_at(q, *p, band)
+            if let Some(margin) = one_vertex_at(q, *p, band)
                 .map_err(|diag| ContainError::on(LoopDecision::Boundary, diag))?
             {
                 return Ok(PrePass::On(FaceContainment::OnVertex(*v), margin));
@@ -749,13 +751,13 @@ const ROWS: BoundaryRows = crate::rows::CONTACT;
 ///
 /// Only then does this ask the interior question, of the face's region
 /// read from its boundary edges, rings included, by the one reading the
-/// ray lane takes too: [`super::sphere_region`], [`super::torus_region`]
-/// and, for a cylinder or a cone, [`super::ruled_region`]
+/// ray lane takes too: [`crate::sphere_region`], [`crate::torus_region`]
+/// and, for a cylinder or a cone, [`crate::ruled_region`]
 /// ([`sphere_face_containment`], [`torus_face_containment`],
 /// [`ruled_face_containment`]). Nothing is read in a chart there. A
 /// spline face has neither an implicit carrier nor a closed-form region,
 /// so its carrier and its trim are both read on its chart
-/// ([`super::spline_region`]).
+/// ([`crate::spline_region`]).
 ///
 /// `None` is therefore the honest remainder — a boundary edge the
 /// reading has no closed form for, a spline face whose reading did not
@@ -912,7 +914,7 @@ pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<
 /// verdict (`OnEdge`, `OnVertex`), as [`contfp_decided`] keeps it, and
 /// the chart point a spline face's `In` placement was decided at: the
 /// in-trim foot of `q` on the face's own sheet
-/// ([`super::spline_region::spline_face_placement`]), `None` for every
+/// ([`crate::spline_region::spline_face_placement`]), `None` for every
 /// other placement and every other kind.
 ///
 /// # Errors
@@ -933,7 +935,7 @@ fn curved_face_placement_decided<T: Decide>(
 /// [`curved_face_placement`] past the boundary pre-pass, with a spline
 /// face's in-trim foot ([`curved_face_placement_decided`]). With `cut`,
 /// the face's region is the one its surface cycles `cut` bound alone
-/// ([`super::region::Region::keep_cycles`]), read with no carrier
+/// ([`crate::region::Region::keep_cycles`]), read with no carrier
 /// decision ([`cycle_side`]); a spline face has no such region and
 /// answers `Trim(None)`.
 fn curved_interior_placement<T: Decide>(
@@ -1018,7 +1020,7 @@ fn curved_interior_placement<T: Decide>(
 /// The CARRIER first, as on every chart (a face is a subset of its
 /// surface, so a point definitely off the sphere is definitely outside
 /// the face), then the face's region, read from its boundary arcs by the
-/// one reading the ray lane takes too ([`super::sphere_region`]). A face
+/// one reading the ray lane takes too ([`crate::sphere_region`]). A face
 /// closed on its own surface is handed to this door as a trimmed one and
 /// read the same way: every edge of it is a seam, so its region is the
 /// whole sphere.
@@ -1054,8 +1056,8 @@ fn sphere_face_containment<T: Decide>(
     region_placement(face, cut_to(region, cut).contains(q, band))
 }
 
-/// A region reading's verdict ([`super::sphere_region`],
-/// [`super::torus_region`]) as this door states it: `None` on the
+/// A region reading's verdict ([`crate::sphere_region`],
+/// [`crate::torus_region`]) as this door states it: `None` on the
 /// region's boundary, which the boundary walk did not place.
 fn region_placement(
     face: FaceKey,
@@ -1091,7 +1093,7 @@ struct TorusCarrier<T: geom_core::Real> {
 /// reasons: the CARRIER first (the point's elevation off the tube,
 /// `√((ρ − R)² + h²) − r`, which is exact distance to a ring torus), then
 /// the face's region, read from its boundary edges by the one reading the
-/// ray lane takes too ([`super::torus_region`]). This door is asked about
+/// ray lane takes too ([`crate::torus_region`]). This door is asked about
 /// ONE face, so it reads that face's own region whatever group it sits
 /// in: a donut's two faces are each bounded by the parallels they share,
 /// and a face closed on its own surface has only seams, so its region is
@@ -1136,7 +1138,7 @@ fn torus_face_containment<T: Decide>(
 /// reasons: the CARRIER first (`elevation`, the point's distance off the
 /// wall or the double cone), then the face's region, read from its
 /// boundary edges by the one reading the ray lane takes too
-/// ([`super::ruled_region`]). A cone's apex is read like any other point
+/// ([`crate::ruled_region`]). A cone's apex is read like any other point
 /// of it.
 ///
 /// `None` is the honest remainder: a boundary edge that is not a line, a
@@ -1169,7 +1171,7 @@ fn ruled_face_containment<T: Decide>(
 /// **Where `q` lies against `face`'s surface cycles `keep` alone**: the
 /// face's region reading for its kind ([`curved_interior_placement`],
 /// the one dispatch), its boundary cut to those cycles
-/// ([`super::region::Region::keep_cycles`]), so a cycle is read alone or
+/// ([`crate::region::Region::keep_cycles`]), so a cycle is read alone or
 /// against a torus's essential pair. `q` is a vertex of the body, which
 /// tier 3's check 3 holds to the face's carrier (at a dual, [`crate::Replay`]'s "A tier-3 premise
 /// at a dual"), or a chart singularity of the face's own surface (a sphere's pole, a cone's apex),
@@ -1650,7 +1652,10 @@ mod tests {
         let tol = Tol::witness();
         let run = Band::linear(tol).unwrap();
         let zero = run.zero();
-        let lever = "Recourse: move the point clear of the arc's end";
+        let lever = format!(
+            "Recourse: {}",
+            placement_lever(Some(ContainDecision::ArcEnd))
+        );
         let read = |m: MarginDiag| match m.diagnostic_f64_for_error_text() {
             ErrorTextReading::Value(v) => v,
             other => panic!("a point reading: {other:?}"),
@@ -1675,7 +1680,7 @@ mod tests {
                 .as_ref()
                 .unwrap_err()
                 .render(geom_brep::recourse::Reading::Build);
-            assert!(built.ends_with(lever), "{what}: {built}");
+            assert!(built.ends_with(lever.as_str()), "{what}: {built}");
             **gaps
         };
         let off = zero / 2.0;

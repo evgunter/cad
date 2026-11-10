@@ -9,7 +9,7 @@ cost: M
 refs: [the-side-readers-aims-decide-exact-ties-at-a-documents-nominal]
 ---
 
-`crates/topo/src/boolean/ruled_region.rs` `RuledFaceRegion::aim` steps
+`crates/topo/src/ruled_region.rs` `RuledFaceRegion::aim` steps
 from its edges' middles, carries their mean onto the surface along its
 parallel, and falls back to the surface's reference azimuth where that
 mean is on the axis. The fallback is an evaluation, not a decision

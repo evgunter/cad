@@ -19,7 +19,7 @@ in-band variant, so the solid door reports it as
 pre-pass raises for `q` itself in band of a face. Its `Display` says
 "one of its faces is too close to call at this tolerance … Recourse:
 declare the coincidence, or move the geometry"
-(`crates/topo/src/boolean/solid_contain.rs`, `impl Display`).
+(`crates/topo/src/solid_contain.rs`, `impl Display`).
 
 For the pre-pass that is one story. For a ray's reading it is not: the
 decision refused is where one test ray meets the boundary, which nobody

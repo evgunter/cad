@@ -1131,4 +1131,41 @@ mod tests {
         assert!(matches!(p(5e-10), Err(RayFault::Graze)));
         assert!(matches!(p(5e-9), Err(RayFault::InBand(_))));
     }
+
+    /// **A ray that decides answers past rays set aside ahead of it**
+    /// ([`walk`], `Any`), and the kept rays rank where none decides. Rays
+    /// read as the test says:
+    /// - in band, then deciding → the verdict;
+    /// - in band, then at a limit, then grazing → the limit, ranked ahead
+    ///   of the earlier in-band ray;
+    /// - in band, then fatal, then deciding → the fatal error;
+    /// - grazing only → the exhaustion.
+    ///
+    /// The first-refusal loop refused at the first ray of each.
+    #[test]
+    fn a_deciding_ray_answers_past_one_in_band_and_a_limit_outranks_it() {
+        let run = |rays: &[(&'static str, char)]| {
+            walk(
+                rays.iter().copied(),
+                |(name, kind)| match kind {
+                    'v' => Ok(name),
+                    'i' => Err(RayFault::InBand(name)),
+                    'b' => Err(RayFault::Blocked(name)),
+                    'f' => Err(RayFault::Fatal(name)),
+                    _ => Err(RayFault::Graze),
+                },
+                || "exhausted",
+            )
+        };
+        assert_eq!(run(&[("in band", 'i'), ("decides", 'v')]), Ok("decides"));
+        assert_eq!(
+            run(&[("in band", 'i'), ("limit", 'b'), ("graze", 'g')]),
+            Err("limit")
+        );
+        assert_eq!(
+            run(&[("in band", 'i'), ("fatal", 'f'), ("decides", 'v')]),
+            Err("fatal")
+        );
+        assert_eq!(run(&[("graze", 'g')]), Err("exhausted"));
+    }
 }

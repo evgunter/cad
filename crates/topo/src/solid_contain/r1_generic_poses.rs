@@ -40,7 +40,7 @@ use super::r1_probes::{SHAPES, Tally};
 #[test]
 fn r1_generic_poses_agree_with_the_geometric_oracle() {
     use test_utils::fuzz;
-    let mut rng = fuzz::start("solid_contain::r1_generic_poses");
+    let mut rng = fuzz::start("boolean::solid_contain::r1_generic_poses");
     let per_shape = fuzz::scaled(4);
     let mut tally = Tally::new();
     for (rr, r) in SHAPES {

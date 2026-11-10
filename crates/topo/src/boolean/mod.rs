@@ -222,11 +222,10 @@ pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
     ConsumedExtent, carrier_eq,
 };
-// Crate-internal: tier 3's check 9 decides two whole-circle loops
-// against each other (its contact arm 4) on the same loop
-// classification this module's own walk dispatches on, and the census
-// places a record's point in its face through the boolean's own read.
-pub(crate) use crate::contain::{CurvedPlacement, PlacementError, face_placement};
+// The engine's own readers of a curved face placement, and of the two
+// helpers the containment component reads (`contain`, at the crate
+// root), under their bare names.
+use crate::contain::CurvedPlacement;
 use crate::contain::{kind_word, one_vertex_at};
 pub use discard::DiscardRow;
 pub use fate::{SubstitutedFace, UncutFace};
@@ -8146,7 +8145,7 @@ fn rim_unread<T: Real>(
 /// **The rim routing of a tangency along a circle** (C7): the material
 /// wedge of the junction the two faces make, read off the operands'
 /// outward normals and which way each face leaves the rim
-/// ([`rim_wedge::departures`]). Wedge π with the faces leaving on
+/// ([`crate::rim_wedge::departures`]). Wedge π with the faces leaving on
 /// opposite sides is the smooth seam, which the zip mints, and the only
 /// rim the glue door glues; a cusp (the cusp family has no locus arm for
 /// a circle) and a junction the routing cannot place are not glued
@@ -8482,7 +8481,7 @@ pub(crate) enum FaceUnread {
 /// within the band: the op's touch verified within ε, a given pair's
 /// line its deciding operation's, the rest pair's derived line. So each
 /// station is held on them in band ([`crate::held::Held::in_band`]) and
-/// placed with no on-plane decision ([`contain::placement_on_carrier`]);
+/// placed with no on-plane decision ([`crate::contain::placement_on_carrier`]);
 /// a station read definitely off a curved face's carrier breaks that
 /// premise ([`station_reads`], [`FaceUnread::Fault`]). The
 /// one reading the op's glue door ([`locus_through_both_faces`]) and

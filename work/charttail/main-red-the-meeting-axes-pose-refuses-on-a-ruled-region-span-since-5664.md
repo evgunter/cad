@@ -24,7 +24,7 @@ which suspected PR 5728. The bisect says otherwise.
       predicate: Some("bool_ruled_region_span") } })
 
 The margin is `bool_ruled_region_span` — a root's parameter against its
-edge's span (`topo::boolean::ruled_region`, the `span(...)` closure near
+edge's span (`topo::ruled_region`, the `span(...)` closure near
 line 797) — and its enclosure is `[−π/2, 3π/2]`: the root's angle on the
 circle carrier is a whole turn wide at `Interval`, so the containment
 cannot decide. The `f64` twin (`verbs_germarms2`) is not affected.

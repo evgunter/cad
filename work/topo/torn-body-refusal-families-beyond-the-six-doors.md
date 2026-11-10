@@ -30,7 +30,7 @@ answer a torn record typed. Counts are `::Variant` occurrences in
 
 | Variant | Home | Count | Door argument? | Shape of the fix |
 |---|---|---|---|---|
-| `PointInSolidError::CorruptFace` | `boolean/solid_contain.rs` | 67 | yes: `point_in_solid_of`'s solid, `SolidFaces::of` | split: stale solid typed, record misses panic; it is also used for non-corruption cases mapped to `Trim(None)`, which need their own variant first. `contfp`'s curved doors carry it whole as `ContainError::Curved` |
+| `PointInSolidError::CorruptFace` | `solid_contain.rs` | 67 | yes: `point_in_solid_of`'s solid, `SolidFaces::of` | split: stale solid typed, record misses panic; it is also used for non-corruption cases mapped to `Trim(None)`, which need their own variant first. `contfp`'s curved doors carry it whole as `ContainError::Curved` |
 | `ChartRegionError::Corrupt` | `chart_region.rs` | 42 | yes: `chart_region_overlap`'s faces | split |
 | `StepExportError::Corrupt` | `step-export/src/{lib,writer,volume}.rs` | 26 | no (whole body) | panic; the "shell carries no faces" arm is a schema fact and may stay |
 | `SplitFinishError::Corrupt`, `::TornComponent` | `splitting/finish.rs` | 22 | no (driver) | panic |
@@ -166,7 +166,7 @@ premise panics, and kept each one over a key the caller carries:
   `cone_apex_closure`'s member half-edge (`Corrupt`), now `proven` /
   `linked`. So `face_azimuth_window`, `face_azimuth_images` and
   `cone_apex_closure` answer `Corrupt` only for a face that does not
-  resolve, and every caller in `boolean/solid_contain.rs` resolved
+  resolve, and every caller in `solid_contain.rs` resolved
   that face first.
 - `chord_join.rs` `along_edge_spec`: the circle arm's `Corrupt` for the
   segment edge's `he_plus` and its end; the segment edge itself keeps

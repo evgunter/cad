@@ -15,7 +15,7 @@ whose spline step it is the residue of.
 
 ## What
 
-`boolean/solid_contain.rs` `ray_crosses` lists the surface kinds the
+`solid_contain.rs` `ray_crosses` lists the surface kinds the
 ray test has an arm for; `SurfaceKind::Nurbs` and `SurfaceKind::Approx`
 are not among them, so `face_geo` refuses such a face
 `KindUnsupported` through `uncrossable` on every ray. The side

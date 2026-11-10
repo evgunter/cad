@@ -1,9 +1,9 @@
 //! **A torus face's region, read from its boundary edges** — the one
 //! reading both point doors take of a torus face outside a closed group:
 //! the ray lane's hit test and boundary pre-pass
-//! ([`super::solid_contain`]) and the pierce arm's landing test
-//! ([`super::contain::curved_face_containment`]). It is
-//! [`super::sphere_region`]'s method on the torus.
+//! ([`crate::solid_contain`]) and the pierce arm's landing test
+//! ([`crate::contain::curved_face_containment`]). It is
+//! [`crate::sphere_region`]'s method on the torus.
 //!
 //! # Method: the closest crossing along a path of circles
 //!
@@ -1127,7 +1127,7 @@ mod tests {
         };
         let (body, face) = wall();
         let (mut nulled, nulled_face) = wall();
-        super::region::with_null_edge(&mut nulled, nulled_face);
+        crate::region::with_null_edge(&mut nulled, nulled_face);
         let plain = torus_face_region(&body, face).unwrap().unwrap();
         // The null edge stepped over, not refused.
         let held = torus_face_region(&nulled, nulled_face).unwrap().unwrap();

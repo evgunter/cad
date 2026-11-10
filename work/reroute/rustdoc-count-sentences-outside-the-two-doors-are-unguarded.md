@@ -139,10 +139,10 @@ closing section); the rest are unread.
   crates/test-utils/src/vacuity.rs:95: third spelling
   crates/topo/src/boolean/boxes.rs:1888: 16 in three places
   crates/topo/src/boolean/boxes.rs:1888: three places
-  crates/topo/src/boolean/contain.rs:578: three of its sites
+  crates/topo/src/contain.rs:578: three of its sites
   crates/topo/src/boolean/join.rs:1339: three sites
   crates/topo/src/boolean/mod.rs:2570: three places
-  crates/topo/src/boolean/solid_contain.rs:1426: fourth spelling
+  crates/topo/src/solid_contain.rs:1426: fourth spelling
   crates/topo/src/census.rs:93: three sites
   crates/topo/src/census.rs:869: THIRD spelling
   crates/topo/src/census.rs:873: three sites

@@ -49,7 +49,7 @@ use geom_brep::ladder::Kept;
 use geom_core::{Band, Decide};
 
 use crate::body::Body;
-use crate::boolean::{ContainError, CurvedPlacement, FaceContainment};
+use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::loop_side::{EveryVertex, inside_at_every_vertex};
 use crate::solid_contain::PointInSolidError;

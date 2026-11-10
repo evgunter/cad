@@ -40,12 +40,12 @@ halves' faces) that answers its miss as absent — `None`, `continue`,
   `edge_covers`, `on_declared_shared_carrier` (`face_of_half_edge` +
   `flatten`), `parents_distinct_from` (`all(is_some_and)`),
   `boundary_meets_circle_only_at` (a torn curve answers `Ok(false)`);
-- `boolean/rim_wedge.rs` `face_boundary_arcs` (loops, walk, halves,
+- `rim_wedge.rs` `face_boundary_arcs` (loops, walk, halves,
   edges: `continue`; a torn curve reads as null);
-- `boolean/solid_contain.rs` `wall_outline` (a torn curve refuses as a
+- `solid_contain.rs` `wall_outline` (a torn curve refuses as a
   capability), `torus_chart_windows`, `sphere_chart_trim` (`continue`),
   `point_in_face` (a torn outer loop answers `Ok(Some(false))`);
-- `boolean/surface_group.rs` `unmated_boundary` (a torn outer loop or
+- `surface_group.rs` `unmated_boundary` (a torn outer loop or
   curve answers `Ok(None)`);
 - `boolean/vtxfac.rs` `classify_vertex_on_face` (a torn surface gives no
   curvature lever), the sector/contact `surface` closure (tangent read

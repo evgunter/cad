@@ -8,7 +8,7 @@ opened: 2026-10-31
 
 
 Found by FLUSH's `flush/aimed-ray-reach`. That branch gives
-`line_wall_roots` and `line_sphere_roots` (`boolean/solid_contain.rs`)
+`line_wall_roots` and `line_sphere_roots` (`solid_contain.rs`)
 a first-order bound on each root's rounding, `WallRoots::Two(roots, slack)`.
 It also lets them read the quadratic about the line's closest approach
 (`About::Nearest`, the rays' form). The edge sweep reads it about the edge

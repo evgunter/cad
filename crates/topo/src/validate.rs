@@ -4145,7 +4145,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
 fn arc_end_clear_of_corners(
     gaps: &crate::contain::ArcEndGaps,
 ) -> (Cow<'static, str>, Cow<'static, str>) {
-    use crate::boolean::{ContainDecision, placement_lever};
+    use crate::contain::{ContainDecision, placement_lever};
     (
         format!("a point lies at an arc's end clear of its corners: {gaps}").into(),
         if gaps.off_corner() {

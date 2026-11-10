@@ -589,7 +589,10 @@ fn a_point_in_face_refusal_ends_on_the_containment_findings_lever() {
     }
     .render(geom_brep::recourse::Reading::Build);
     assert!(
-        text.ends_with("Recourse: move the point clear of the arc's end"),
+        text.ends_with(&format!(
+            "Recourse: {}",
+            crate::contain::placement_lever(Some(crate::contain::ContainDecision::ArcEnd))
+        )),
         "{text}"
     );
 }

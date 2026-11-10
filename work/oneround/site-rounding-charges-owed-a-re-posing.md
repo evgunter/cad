@@ -49,7 +49,7 @@ re-posing that empties a file lowers or drops its row in the same change.
   `rounding_charge(|p₀| + len·|t|)`, a world-origin term that grows with
   the edge's distance from the origin rather than with what it sums
   (PR 6638's review).
-- `topo::boolean::solid_contain`: the ray–plane crossing's `slack`, over
+- `topo::solid_contain`: the ray–plane crossing's `slack`, over
   `denom` (a near-grazing ray), the wall roots' `over_root_slope`, and the
   torus roots' slack.
 - `topo::boolean::conic_quadric::mod`, `ellipse_torus`, `circle_torus`,
@@ -141,7 +141,7 @@ re-posing that empties a file lowers or drops its row in the same change.
   `Rounded` difference is now `geom::frame::plane_offset_rounded`.
   **New on main since the gate was seeded**, each a `re-pose` row, owed
   the same re-posing as the squared and cancelling forms above:
-  `topo::boolean::spline_region` (`floor`, `blend`, `point_rounding`,
+  `topo::spline_region` (`floor`, `blend`, `point_rounding`,
   `bezier_cells`: a spline enclosure's per-control rounding),
   `geom_brep::pcurve_cache::spline_incidence`, `pcurve_cache` itself and
   `pcurve_cache::projected`, and one more site each in

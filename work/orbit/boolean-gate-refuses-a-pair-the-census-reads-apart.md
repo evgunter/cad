@@ -27,7 +27,7 @@ Three pair doors refuse on reach alone:
   (`gate_face_reach`) clears the plane (`reach_clears`).
 
 A fourth refuses a point, not a pair, on reach: point-in-solid
-(`boolean/solid_contain.rs` `past_every_reach`) keeps its
+(`solid_contain.rs` `past_every_reach`) keeps its
 `KindUnsupported` refusal for a selection holding a NURBS or Approx face
 unless the point lies past every face's reach along a turned direction
 (`separating::support_along`). A sphere face beside the spline one is
