@@ -723,13 +723,14 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
         // Each seat reading it, directly or through a pose, holds its
         // body read to the edit door's rule beyond kind
         // (`edit::selection_body_fault`).
-        // A pose read at a seat reads the selections it reaches there
-        // (`edit::seat_reads`): a mate side's plane is its face's.
+        // A pose read at a seat, named or written in place, reads the
+        // selections it reaches there (`edit::seat_selections`): a mate
+        // side's plane is its face's.
         let seats: Vec<crate::OperandSlot> = snapshot
             .nodes
             .values()
             .flat_map(|node| node.operand_rows())
-            .filter(|&(_, read)| crate::edit::seat_reads(snapshot, read).contains(&id))
+            .filter(|&(_, read)| crate::edit::seat_selections(snapshot, read).contains(&id))
             .map(|(slot, _)| slot)
             .collect();
         if let Some(fault) = seats.iter().find_map(|&slot| {

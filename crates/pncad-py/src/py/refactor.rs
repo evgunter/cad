@@ -500,7 +500,8 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         // subject: why it cannot be spliced is the variant.
         E::UnknownNode { id: n }
         | E::NotAnInstance { node: n }
-        | E::UnplaceablePart { instance: n } => (id(n), none(), none(), none(), none(), none()),
+        | E::UnplaceablePart { instance: n }
+        | E::SelectionSpansMembers { reader: n } => (id(n), none(), none(), none(), none(), none()),
         E::Unresolved { failure } => (
             none(),
             none(),
@@ -713,7 +714,9 @@ fn flatten_err(py: Python<'_>, err: &d::FlattenError) -> PyErr {
         | E::NotANewSpace { placement: n } => (id(n), none(), none(), none()),
         // The other placement reading out of the space rides `by`.
         E::SpaceShared { placement, other } => (id(placement), id(other), none(), none()),
-        E::ReadUncarried { reader } => (none(), id(reader), none(), none()),
+        E::ReadUncarried { reader } | E::SelectionSpansMembers { reader } => {
+            (none(), id(reader), none(), none())
+        }
         // The copy's name, and the name the shape it copies holds.
         E::BothNamed { name, held } => (none(), none(), text(name.as_str()), text(held.as_str())),
         E::Edit { .. } => (none(), none(), none(), none()),

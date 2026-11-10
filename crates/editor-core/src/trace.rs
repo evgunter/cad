@@ -814,7 +814,8 @@ fn face_pick(
 /// frame reads it: a plane, square to the axis, with a vertex off it.
 /// `plane` and `traced` are face selections (`Operand::select` of one
 /// name), each of a body or of one member of a family, `xs[i]` at counts
-/// written as numbers, by the member's own name.
+/// the document holds (a count, or a free count), by the member's own
+/// name.
 ///
 /// # Errors
 ///

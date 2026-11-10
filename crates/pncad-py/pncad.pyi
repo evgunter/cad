@@ -747,7 +747,11 @@ class InlineError(PncadError):
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
     """`unplaceable_part`: `node` is the instance whose part has no
-    product: its slot reads nothing, or a body that is gone."""
+    product: its slot reads nothing, or a body that is gone.
+    `selection_spans_members`: `node` reads a selection of the
+    instance's copy whose entities lie in two members of the family the
+    copy was built from; spliced, the family is no one body to select
+    them in."""
 
 class FlattenError(PncadError):
     """The `flatten` refactoring refused: `not_a_placement`,
@@ -755,7 +759,9 @@ class FlattenError(PncadError):
     `not_a_new_space` (the source is not in one `Doc.new_space()`),
     `space_shared` (`by` another placement reading out of the space),
     `read_uncarried` (`by` a read of the copy naming no one shape it
-    copies), `both_named` (`name` the copy's, `param` the shape's),
+    copies), `selection_spans_members` (`by` a read of the copy whose
+    entities lie in two members of the family a `⊔` member of it is),
+    `both_named` (`name` the copy's, `param` the shape's),
     `unknown_node`, or `flatten_edit`."""
 
     variant: str
@@ -5615,7 +5621,8 @@ class Evaluation:
         alphabet `Node.fillet` reads. Empty when nothing matches.
 
         A selection reads one body. One member of a family is read as
-        `xs[i]`, each index a count written as a number, and answers
+        `xs[i]`, each index a count the document holds (a count, or a
+        free count), and answers
         that member's own names, the ones a selection of `xs[i]`
         holds; no member at those counts raises `SelectRefusal`
         (`reason="no_member"`). A family
@@ -5663,7 +5670,7 @@ class Evaluation:
         evaluation. The forward twin of the materializers: they hand
         out names, this asks one where it is, and `name` is one of
         their opaque texts handed back unread. One member of a family,
-        `xs[i]` at counts written as numbers, is asked by the member's
+        `xs[i]` at counts the document holds, is asked by the member's
         own name, as `select(xs[i], ...)` answers it.
 
         The answer is the CARRIER's frame copied out of stored

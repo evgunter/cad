@@ -218,7 +218,8 @@ impl MeasurePrimitive {
     }
 
     /// A hash of what equal primitives share: the verb, and each
-    /// reference's kind and, for a cell, the node it is read at. Coarser
+    /// reference's kind and, for a cell, the node it is read at, or for
+    /// a member's cell the family's read. Coarser
     /// than `==`, never finer, so equal primitives hash alike.
     fn __hash__(&self) -> u64 {
         use std::hash::{Hash, Hasher};
@@ -227,7 +228,10 @@ impl MeasurePrimitive {
         for r in &self.refs {
             match r {
                 MeasureRef::Cell((CellAt::Plain(node), _)) => (0u8, node.0).hash(&mut hasher),
-                MeasureRef::Cell((CellAt::Member(_), _)) => 3u8.hash(&mut hasher),
+                MeasureRef::Cell((CellAt::Member(read), _)) => match read.family() {
+                    super::doc::AtArg::Node(node) => (3u8, 0u8, node.0).hash(&mut hasher),
+                    super::doc::AtArg::Var(var) => (3u8, 1u8, var.0).hash(&mut hasher),
+                },
                 MeasureRef::Pose(_) => 1u8.hash(&mut hasher),
                 MeasureRef::Var(var) => (2u8, var.0).hash(&mut hasher),
             }

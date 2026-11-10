@@ -492,12 +492,25 @@ pub fn member_table<'e, T: topo::AtRestPolicy + Decide>(
     at: impl Into<crate::At>,
     member: &[u32],
 ) -> Option<(crate::VarId, u32, &'e super::NameTable)> {
+    let (var, place, own) = member_value(ev, at, member)?;
+    Some((var, place, own.output(0)?.table()))
+}
+
+/// **The value of one member of the family `at` names, at the index
+/// values `member`**: the family's variable, the member's place among
+/// its bodies, and the member's value — its body, its own table, its
+/// motion. The one lookup of a member read (`xs[i]`); `None` where `at`
+/// names no family, or no member stands at `member`.
+pub(crate) fn member_value<'e, T: topo::AtRestPolicy + Decide>(
+    ev: &'e Evaluation<T>,
+    at: impl Into<crate::At>,
+    member: &[u32],
+) -> Option<(crate::VarId, u32, &'e crate::eval::NodeValue<T>)> {
     let (var, _) = table_at(ev, at).ok()?;
     let value = ev.usable(ev.read_port(var)?.0).ok()?;
     let members = value.members.as_ref()?;
     let place = members.position(member)?;
-    let own = members.members[place].1.output(0)?;
-    Some((var, u32::try_from(place).ok()?, own.table()))
+    Some((var, u32::try_from(place).ok()?, &members.members[place].1))
 }
 
 /// **The member of the family `at` names that an entity of its table

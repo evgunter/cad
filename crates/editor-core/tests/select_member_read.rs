@@ -492,3 +492,179 @@ fn the_load_door_holds_a_side_read_through_a_pose() {
         "a side whose family gained an index refuses at the load door"
     );
 }
+
+/// The member-read selection a document holds and the plane pose that
+/// reads it.
+fn plane_of_member(doc: &ProfileDoc) -> (VarId, VarId) {
+    let sel = doc
+        .var_ids()
+        .into_iter()
+        .find(|&id| doc.selection(id).is_some_and(|s| s.body.is_indexed()))
+        .expect("the member read selection");
+    let pose = doc
+        .var_ids()
+        .into_iter()
+        .find(|&id| {
+            matches!(
+                doc.var(id).map(editor_core::Var::def),
+                Some(editor_core::VarDef::Pose(editor_core::pose::PoseDef::Plane { face })) if *face == sel
+            )
+        })
+        .expect("the plane pose reading it");
+    (sel, pose)
+}
+
+/// **A side read through a NAMED pose is held to the side's rules at
+/// load** (REFERENCES DM3; the reviewer's probe A). The pinned
+/// [`the_load_door_holds_a_side_read_through_a_pose`] scene, its side's
+/// plane pose named `p` first: an index then defined as `k mod 2`
+/// refuses `SideIndex` at the load door, as it does written in place.
+///
+/// *Breaks if* the load door walks a seat's poses written in place only
+/// (`edit::seat_selections`).
+#[test]
+fn the_load_door_holds_a_side_read_through_a_named_pose() {
+    let (doc, k, _, index, _) = side_on_member("select-side-named-load");
+    let (_, pose) = plane_of_member(&doc);
+    let doc = doc
+        .apply(
+            &DocEdit::RenameVar {
+                var: pose.into(),
+                name: Some(editor_core::VarName::new("p").expect("a name")),
+            },
+            Tol::witness(),
+        )
+        .expect("the pose is named")
+        .doc;
+    editor_core::persist::save(&doc, &[], Tol::witness()).expect("a written index saves");
+    let defined = doc
+        .apply(
+            &DocEdit::DefineVar {
+                var: editor_core::VarRef::Id(index),
+                def: editor_core::VarDecl::Defined(
+                    Formula::modulo(Formula::var(k, Dimension::Count), Formula::count(2))
+                        .expect("a count"),
+                ),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect(
+            "the redefinition is admitted (work/refs/a-rank-change-leaves-readers-unsaveable.md)",
+        )
+        .doc;
+    assert!(
+        matches!(
+            editor_core::persist::save(&defined, &[], Tol::witness()),
+            Err(editor_core::PersistError::Snapshot(
+                SnapshotError::SelectionShape {
+                    fault: editor_core::SelectionFault::SideIndex { k: 0 },
+                    ..
+                }
+            ))
+        ),
+        "a side read through a named pose refuses its expression index at the load door"
+    );
+}
+
+/// **A side read through a NAMED pose is held to the side's rules at the
+/// edit door** (REFERENCES DM3; the reviewer's probe B). A split's tool
+/// reads the face of `pattern[3 mod 2]` (an expression, which a split's
+/// tool may read), its plane pose is named `q`, and a mate then reads
+/// `flip(q)` at a side: the side reads that selection, whose index is no
+/// written count, so the door refuses `SideIndex` rather than seat the
+/// top on whichever member an evaluation gives.
+///
+/// *Breaks if* the edit door walks a seat's poses written in place only
+/// (`edit::seat_selections`).
+#[test]
+fn the_edit_door_holds_a_side_read_through_a_named_pose() {
+    use fixture::resolver::{PartStore, in_part, with_resolver};
+    let block = |label: &str| {
+        let doc = ProfileDoc::empty(editor_core::DocumentId::derive(label), Tol::witness());
+        let (doc, p) = fixture::on_frame(
+            doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: p.into(),
+                distance: len(1.0),
+            },
+        )
+    };
+    let mut store = PartStore::default();
+    let (leg_ref, leg_body) = store.insert_part(block("select-named-leg"), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(block("select-named-top"), Tol::witness());
+    let (spare_ref, _) = store.insert_part(block("select-named-spare"), Tol::witness());
+    let o = with_resolver(store);
+    let doc = ProfileDoc::empty(
+        editor_core::DocumentId::derive("select-named"),
+        Tol::witness(),
+    );
+    let (doc, legs) = fixture::insert_pinned(doc, fixture::mated_instance(leg_ref), &o);
+    let (doc, _k, pattern) = fixture::linear(doc, legs, [1.0, 0.0, 0.0], 2.0, 2);
+    let (doc, spare) = fixture::insert_pinned(doc, fixture::mated_instance(spare_ref), &o);
+    let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
+    let cap = fixture::member_head(
+        pattern,
+        &[1],
+        in_part(legs, leg_body, editor_core::CapEnd::End),
+    );
+    let face = Operand::select(
+        BodyRead::indexed(
+            Operand::Node(pattern),
+            vec![Formula::modulo(Formula::count(3), Formula::count(2)).expect("a count")],
+        ),
+        vec![cap.name.into_name()],
+    );
+    let (doc, _split) = insert(
+        doc,
+        Node::Split {
+            target: BodyRead::plain(Operand::Node(spare)),
+            tool: editor_core::pose::RoleRead::plain(fixture::plane(face)),
+        },
+    );
+    let (_, q) = plane_of_member(&doc);
+    let doc = doc
+        .apply(
+            &DocEdit::RenameVar {
+                var: q.into(),
+                name: Some(editor_core::VarName::new("q").expect("a name")),
+            },
+            Tol::witness(),
+        )
+        .expect("the pose is named")
+        .doc;
+    let mate = fixture::mate(
+        fixture::plane(fixture::head(in_part(
+            top,
+            top_body,
+            editor_core::CapEnd::Start,
+        ))),
+        fixture::flip(Operand::Var(q)),
+    );
+    let refused = doc.apply(
+        &DocEdit::AddConstraint {
+            placement: top,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            refused,
+            Err(EditError::SelectionShape {
+                fault: editor_core::SelectionFault::SideIndex { k: 0 },
+                ..
+            })
+        ),
+        "a side read through a named pose refuses an index no written count: {:?}",
+        refused.map(|_| ())
+    );
+}

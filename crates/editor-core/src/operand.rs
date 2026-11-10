@@ -640,18 +640,16 @@ impl BodyRead<crate::Formula> {
         )
     }
 
-    /// **The index values this read writes as numbers**, one per index:
-    /// `Some(vec![])` for a plain read, `None` where an index is a
-    /// formula no number spells, or a count no `u32` holds.
+    /// **The index values this read writes as counts `doc` holds**, one
+    /// per index: `Some(vec![])` for a plain read, `None` where an index
+    /// is an expression an evaluation would value, or a count no `u32`
+    /// holds. One rule with a stored read's ([`crate::edit::written_index`]):
+    /// a count literal, or a read of a free count.
     #[must_use]
-    pub fn written_member(&self) -> Option<Vec<u32>> {
+    pub fn written_member<P>(&self, doc: &crate::doc::Doc<P>) -> Option<Vec<u32>> {
         self.at
             .iter()
-            .map(|index| {
-                index
-                    .as_integer()
-                    .and_then(|value| u32::try_from(value).ok())
-            })
+            .map(|index| crate::edit::written_index(doc, index))
             .collect()
     }
 }

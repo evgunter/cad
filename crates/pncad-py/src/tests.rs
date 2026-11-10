@@ -4883,6 +4883,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_placement",
             "not_the_identity",
             "read_uncarried",
+            "selection_spans_members",
             "space_shared",
             "unknown_node",
         ],
@@ -4934,6 +4935,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
+            "selection_spans_members",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -5424,9 +5426,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "pin_already_placed",
             "pin_no_frame",
+            "pin_no_member",
             "pin_no_node",
             "pin_not_a_body",
             "pin_unevaluated",
+            "pin_unwritten_index",
         ],
         delegates: &[],
     },
@@ -6459,6 +6463,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),
+    // One fact (REFERENCES DM3: a selection reads one body) at inline
+    // and flatten: a selection a body built from a family carried names
+    // entities of two members, and unwound to the family no one body
+    // holds them.
+    ("selection_spans_members", 2),
     // One fact (VR2) at the edit and load doors: a variable with no
     // name that more than one reader reads.
     ("shared_var_needs_name", 2),

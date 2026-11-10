@@ -1381,9 +1381,9 @@ fn lower_read<P: crate::ProfilePayload>(
     // stored document to the same rule). And it is in its kind's stored
     // form, however it was minted: a selection read by id is held to
     // `Select::fault` as one authored here is.
-    // A selection a pose read here reaches is read at this seat too: a
-    // mate side's plane is its face's.
-    if let Some(fault) = seat_reads(doc, var).into_iter().find_map(|leaf| {
+    // A selection a pose read here reaches, named or written in place,
+    // is read at this seat too: a mate side's plane is its face's.
+    if let Some(fault) = seat_selections(doc, var).into_iter().find_map(|leaf| {
         let select = doc.selection(leaf)?;
         selection_body_fault(doc, slot, &select.body)
     }) {
@@ -1601,6 +1601,10 @@ pub(crate) fn selection_body_fault<P: crate::ProfilePayload>(
     if !body.is_indexed() {
         return None;
     }
+    // Only an operand seat reads a selection or a pose: every other slot
+    // holds a scalar, a count or a profile expression, whose kind no
+    // selection or pose has, and `check_read` refuses the read there by
+    // kind. So no rank goes unchecked here.
     let seat = match slot {
         SlotId::Operand(seat) | SlotId::Index { seat, .. } => seat,
         _ => return None,
@@ -1634,6 +1638,22 @@ pub(crate) fn written_count<P>(doc: &Doc<P>, index: VarId) -> Option<i64> {
         VarDef::Defined(expr) if doc.var_name(index).is_none() => expr.as_integer(),
         _ => None,
     }
+}
+
+/// **The count an authored index holds where it is written in the
+/// document**, by [`written_count`]'s rule: a count literal, or a read
+/// of a variable, by id or by name, holding its count in the document.
+/// `None` for an expression, or a count no `u32` holds.
+pub(crate) fn written_index<P>(doc: &Doc<P>, index: &Formula) -> Option<u32> {
+    let value = match index.kind() {
+        crate::expr::ExprKind::Integer(value) => *value,
+        crate::expr::ExprKind::Var(var) => written_count(doc, *var)?,
+        crate::expr::ExprKind::Leaf(crate::expr::AuthoredLeaf::Name(name)) => {
+            written_count(doc, doc.var_named(name.as_str())?)?
+        }
+        _ => return None,
+    };
+    u32::try_from(value).ok()
 }
 
 /// **The index values a stored member read writes**
@@ -7251,7 +7271,7 @@ impl Recording<'_, crate::ProfileProgram> {
         let family_name;
         let face = if body.is_indexed() {
             let Some(name) = body
-                .written_member()
+                .written_member(doc)
                 .and_then(|member| crate::names::family_entity(&ev, at, &member, face))
             else {
                 return crate::Orientation::IDENTITY;
@@ -9220,25 +9240,43 @@ fn selections_going<P: crate::ProfilePayload>(doc: &Doc<P>) -> std::collections:
 /// **What a read at a seat reaches**: the read itself, a selection's
 /// body, and through a pose written in place (an anonymous definition)
 /// every read inside it, in read order. A named pose is a read of its
-/// own and is not walked.
+/// own and is not walked: removing what it reads strands the pose, not
+/// the seat ([`stranded_reads`]).
 pub(crate) fn seat_reads<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
-    fn walk<P>(doc: &Doc<P>, var: VarId, out: &mut Vec<VarId>) {
+    reached(doc, var, false)
+}
+
+/// **What a read at a seat reads, through every pose**: [`seat_reads`],
+/// walking a named pose as one written in place. The seat's rules on
+/// the selections it reads ([`selection_body_fault`]) hold however the
+/// pose reaching them is spelled: a mate side reading `flip(q)` reads
+/// `q`'s face at the side. The edit door and the load door gather the
+/// selections they hold to those rules here.
+pub(crate) fn seat_selections<P>(doc: &Doc<P>, var: VarId) -> Vec<VarId> {
+    reached(doc, var, true)
+        .into_iter()
+        .filter(|&leaf| doc.selection(leaf).is_some())
+        .collect()
+}
+
+fn reached<P>(doc: &Doc<P>, var: VarId, named: bool) -> Vec<VarId> {
+    fn walk<P>(doc: &Doc<P>, var: VarId, named: bool, out: &mut Vec<VarId>) {
         if out.contains(&var) {
             return;
         }
         out.push(var);
         match doc.var(var).map(crate::Var::def) {
-            Some(crate::var::VarDef::Select(select)) => walk(doc, select.body.read, out),
-            Some(crate::var::VarDef::Pose(def)) if doc.var_name(var).is_none() => {
+            Some(crate::var::VarDef::Select(select)) => walk(doc, select.body.read, named, out),
+            Some(crate::var::VarDef::Pose(def)) if named || doc.var_name(var).is_none() => {
                 for (_, &read, _, _) in def.reads() {
-                    walk(doc, read, out);
+                    walk(doc, read, named, out);
                 }
             }
             _ => {}
         }
     }
     let mut out = Vec::new();
-    walk(doc, var, &mut out);
+    walk(doc, var, named, &mut out);
     out
 }
 

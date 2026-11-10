@@ -336,30 +336,37 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
         panic!("the seat's target reads a face");
     };
     let a = editor_core::head_of(&out.part, a).expect("the moved head resolves");
+    assert_eq!(
+        a,
+        // The side's head, natively: the family, the member's value, and
+        // the member's own face.
+        crate::fixture::member_head(
+            new_pattern,
+            &[COPY],
+            in_part(new_leg, leg_body, CapEnd::End)
+        ),
+        "ids remap through the recorded map; the member's value does not"
+    );
+    // The walk reads it under the family's spelling, at the part's index.
     let new_k = out
         .part
         .var_named("k")
         .expect("the index crosses with its family");
     assert_eq!(
-        a,
-        // The walk's head: the family's spelling of the member's face.
-        crate::fixture::head_at(
-            new_pattern,
-            crate::fixture::in_copy(
+        editor_core::member_of(&out.part, &a).map(|m| m.chain),
+        editor_core::member_of(
+            &out.part,
+            &crate::fixture::head_at(
                 new_pattern,
-                new_k,
-                COPY,
-                in_part(new_leg, leg_body, CapEnd::End)
+                crate::fixture::in_copy(
+                    new_pattern,
+                    new_k,
+                    COPY,
+                    in_part(new_leg, leg_body, CapEnd::End)
+                )
             )
-        ),
-        "ids remap through the recorded map; the member's value does not"
-    );
-    let RoleSeg::Member { ref at, .. } = a.name.path[0] else {
-        panic!("the head keeps its Member qualifier");
-    };
-    assert_eq!(
-        at.as_slice(),
-        [(new_k, COPY)],
+        )
+        .map(|m| m.chain),
         "the index is the part's, its value the member's"
     );
 }

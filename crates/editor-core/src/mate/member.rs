@@ -390,11 +390,13 @@ pub(crate) fn member_spelling<P: crate::ProfilePayload>(
 /// `UnresolvedRead`, the selection's `SelectKind`).
 ///
 /// A side reading one member of a family (`xs[i]`, REFERENCES DM3)
-/// names the member's own face; its head is the family's operation, the
-/// face under the `Member` qualifier at the index values the side's
-/// read writes — counts written in the document, never evaluated
-/// (`edit::selection_body_fault`). `None` where an index is no
-/// written count.
+/// names the member's own face, and its head says so natively: the
+/// family's operation, the index values the side's read writes, and
+/// that own face ([`crate::node::SitedFace::in_member`]) — counts
+/// written in the document, never evaluated (`edit::selection_body_fault`).
+/// The walk reads it under the family's spelling ([`Headed::member`]);
+/// it lowers back to the side's own read, `xs[i]` by the own name.
+/// `None` where an index is no written count.
 pub fn head_of<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     side: crate::VarId,
@@ -404,7 +406,28 @@ pub fn head_of<P: crate::ProfilePayload>(
         return None;
     };
     let at = doc.operation_of(select.body.read)?;
-    let name = spelled_whole(doc, &select.body, name)?;
-    let name = crate::FaceName::new(name).ok()?;
-    Some(crate::node::SitedFace::new(at, name))
+    let name = crate::FaceName::new(name.clone()).ok()?;
+    match select.body.is_indexed() {
+        false => Some(crate::node::SitedFace::new(at, name)),
+        true => {
+            let member = crate::edit::written_member(doc, &select.body)?;
+            Some(crate::node::SitedFace::in_member(at, member, name))
+        }
+    }
+}
+
+/// **A head's face as the table of the node it is read at spells it**:
+/// its own name for a body's head; for a member's, [`member_spelling`] —
+/// the family's name for that member's face, which a body built from
+/// the family (an instance's copy) carries. A name, never a side to
+/// author: a split's crossing records it. `None` where the member is
+/// not one value per index of the family.
+pub(crate) fn spelled_head<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    head: &crate::node::SitedFace,
+) -> Option<crate::names::StableName> {
+    match head.member.as_slice() {
+        [] => Some((*head.name).clone()),
+        member => member_spelling(doc, head.at, member, &head.name),
+    }
 }

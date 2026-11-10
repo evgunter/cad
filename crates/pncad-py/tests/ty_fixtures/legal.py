@@ -844,7 +844,7 @@ table: dict[VarName, FreeVar] = doc.params
 
 # Authoring a measurement. The verb vocabulary is a value class over
 # its two references — each a node or a member read `xs[i]`, and a
-# name, the pair `Node.mate` already takes each of its two sides as —
+# name, the body and face `PoseDef.plane` reads a mate side's face by —
 # and its arithmetic is an ordinary formula over the measures' outputs.
 reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb

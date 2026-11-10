@@ -1665,3 +1665,101 @@ fn member_k(
     let var = doc.output(family, 0).expect("the family's output");
     pncad::document::BodyRead::indexed(Operand::Var(var), vec![Formula::count(k)])
 }
+
+/// `family`'s lateral edges as its own table names them, in member
+/// `value`: `Member { (k, value), e }`.
+fn family_edges(session: &DocSession, family: RecipeNodeId, value: u32) -> Vec<StableName> {
+    pncad::select::all_edges(session.evaluation().expect("landed"), family)
+        .into_iter()
+        .filter(|name| match name.path.as_slice() {
+            [RoleSeg::Member { at, of }] => {
+                at.iter().map(|&(_, v)| v).eq([value])
+                    && matches!(of.path.as_slice(), [RoleSeg::LateralEdge(_)])
+            }
+            _ => false,
+        })
+        .collect()
+}
+
+/// **A pick no one member reads is refused, typed, and authors
+/// nothing** (REFERENCES DM3: a selection reads one body;
+/// `session.rs` `picked_selection`). A fillet over a family picked:
+/// - on two drawn members (`Member { (k, 0), e }` and `Member { (k, 1),
+///   e }`);
+/// - on a drawn member and by a name every member holds (the
+///   prototype's own);
+/// - on a drawn member before any evaluation has landed, where no
+///   member can be found;
+///
+/// each refuses `Refusal::PickedMember` naming the family, and the
+/// document is unchanged.
+///
+/// *Breaks if* a pick falls back to the family read whole with the
+/// family's names, the form-1 shape every member refuses at evaluation.
+#[test]
+fn a_pick_no_one_member_reads_is_refused() {
+    let tol = Tol::witness();
+    let (session, body, family, _copy) = family_and_copy(tol);
+    let m0 = family_edges(&session, family, 0);
+    let m1 = family_edges(&session, family, 1);
+    let own = lateral_edges(&session, body);
+    let refused = |mut session: DocSession, selection: Vec<StableName>, what: &str| {
+        let before = session.committed_doc().clone();
+        let out = session.perform(SessionOp::AddFillet {
+            target: family,
+            radius: len(0.001),
+            selection,
+        });
+        assert!(
+            matches!(&out.refusal, Some(viewer::Refusal::PickedMember { node }) if node.id() == family),
+            "{what}: {:?}",
+            out.refusal
+        );
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "{what}: nothing authored"
+        );
+    };
+    let landed = || {
+        let mut session = common::inline_without_door(session.committed_doc().clone(), tol);
+        session.pump();
+        session
+    };
+    refused(landed(), vec![m0[0].clone(), m1[0].clone()], "two members");
+    refused(
+        landed(),
+        vec![m0[0].clone(), own[0].clone()],
+        "mixed spellings",
+    );
+    refused(
+        common::inline_without_door(session.committed_doc().clone(), tol),
+        vec![m0[0].clone()],
+        "no evaluation",
+    );
+
+    // One member's picks are that member read, by its own names.
+    let mut session = landed();
+    let fillet = common::session_insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target: family,
+            radius: len(0.001),
+            selection: vec![m1[0].clone()],
+        },
+    );
+    let doc = session.committed_doc();
+    let Some(Node::Fillet { selection, .. }) = doc.node(fillet).map(|node| node.written(doc))
+    else {
+        panic!("a fillet")
+    };
+    let Operand::Select { body: read, names } = selection else {
+        panic!("a selection: {selection:?}")
+    };
+    assert!(
+        read.is_indexed()
+            && names
+                .iter()
+                .all(|n| !matches!(n.path.first(), Some(RoleSeg::Member { .. }))),
+        "member 1 read by its own names: {read:?} {names:?}"
+    );
+}

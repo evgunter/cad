@@ -1944,6 +1944,8 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
+        PinRefusal::UnwrittenIndex => "pin_unwritten_index",
+        PinRefusal::NoMember { .. } => "pin_no_member",
     }
 }
 
@@ -2565,6 +2567,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::VarNameConflict { .. } => "var_name_conflict",
         InlineError::UnreadPose { .. } => "unread_pose",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
+        InlineError::SelectionSpansMembers { .. } => "selection_spans_members",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
@@ -2583,6 +2586,7 @@ pub fn flatten_error_tag(err: &FlattenError) -> &'static str {
         FlattenError::NotANewSpace { .. } => "not_a_new_space",
         FlattenError::SpaceShared { .. } => "space_shared",
         FlattenError::ReadUncarried { .. } => "read_uncarried",
+        FlattenError::SelectionSpansMembers { .. } => "selection_spans_members",
         FlattenError::BothNamed { .. } => "both_named",
         FlattenError::Edit { .. } => "flatten_edit",
     }

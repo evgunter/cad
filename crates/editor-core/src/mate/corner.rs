@@ -40,6 +40,17 @@ pub enum PinRefusal {
         /// The node.
         node: RecipeNodeId,
     },
+    /// A member read's index is an expression: a frame is read at
+    /// counts written in the document (a count literal, or a free
+    /// count), never at a value an evaluation gives.
+    UnwrittenIndex,
+    /// The family has no member at the index values read (`xs[i]`).
+    NoMember {
+        /// The family's node.
+        node: RecipeNodeId,
+        /// The index values.
+        member: Vec<u32>,
+    },
 }
 
 impl core::fmt::Display for PinRefusal {
@@ -57,6 +68,14 @@ impl core::fmt::Display for PinRefusal {
                 "{node} has no line edge between the corners named and no vertex at the \
                  third, so no frame is read off it there; read a frame off corners it has"
             ),
+            Self::UnwrittenIndex => f.write_str(
+                "the member is read at an index written as an expression, and a frame is \
+                 read at counts the document holds; write the index as a count or a free \
+                 count",
+            ),
+            Self::NoMember { node, member } => {
+                write!(f, "{node} has no member at {member:?}")
+            }
         }
     }
 }
@@ -105,9 +124,11 @@ pub(crate) fn read_of(
     read_in(doc, evaluation, body, None)
 }
 
-/// [`read_of`] of one member of a family, `xs[i]` at counts written as
-/// numbers (REFERENCES DM3): that member's body, in its own names, and
-/// its motion. A plain read is [`read_of`]'s.
+/// [`read_of`] of one member of a family, `xs[i]` at counts the
+/// document holds (REFERENCES DM3): that member's body, in its own
+/// names, and its motion. A plain read is [`read_of`]'s. An index
+/// written as an expression refuses `UnwrittenIndex`; a member the
+/// family does not have, `NoMember`.
 pub(crate) fn read_of_member(
     doc: &crate::ProfileDoc,
     evaluation: &Evaluation<f64>,
@@ -116,7 +137,7 @@ pub(crate) fn read_of_member(
     if !body.is_indexed() {
         return read_of(doc, evaluation, &body.read);
     }
-    let member = body.written_member().ok_or(PinRefusal::NoNode)?;
+    let member = body.written_member(doc).ok_or(PinRefusal::UnwrittenIndex)?;
     read_in(doc, evaluation, &body.read, Some(&member))
 }
 
@@ -136,11 +157,12 @@ fn read_in(
         return Err(PinRefusal::Unevaluated { node });
     };
     if let Some(member) = member {
-        let own = value
-            .members
-            .as_ref()
-            .and_then(|members| members.at(member))
-            .ok_or(PinRefusal::NotABody { node })?;
+        let (_, _, own) =
+            crate::names::interrogate::member_value(evaluation, crate::At::Node(node), member)
+                .ok_or_else(|| PinRefusal::NoMember {
+                    node,
+                    member: member.to_vec(),
+                })?;
         let solid = own
             .payload
             .one_body()

@@ -797,3 +797,186 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
         "the top sits on the high base's cap: {on_high:?}"
     );
 }
+
+/// **A selection naming entities of two members of a family refuses at
+/// flatten** (REFERENCES DM3: a selection reads one body). Split leaves
+/// the leg and its `pattern` in the part, whose product is their `⊔`; a
+/// fillet of the instance's copy names one rim edge of member 0 and one
+/// of member 1, as the `⊔` spells them (`From { pattern, Member { (k, i),
+/// e } }`). Inline keeps that selection of the new placement's copy,
+/// the `⊔` it is. Flatten unwraps the `⊔` to the family the names are
+/// read in, and no one body of it holds both: it refuses rather than
+/// fall back to the family read whole with those names.
+///
+/// *Breaks if* flatten stores `Select { body: xs, names: [Member { (k,
+/// 0), e }, Member { (k, 1), e }] }`, the shape every member refuses at
+/// evaluation.
+#[test]
+fn a_selection_of_two_members_of_a_grouped_family_refuses_at_flatten() {
+    let label = "p2-face-two-members";
+    let p = parts(label);
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, k) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.top), &o);
+    let (doc, _kk, pattern) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 3);
+    let copy_cap = member_head(pattern, &[2], p.top_upper_cap(leg));
+    let (doc, _m) = face_mate(doc, k, head(p.top_cap(k)), copy_cap);
+    let out = split(&doc, &[leg, pattern], label, &o);
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let with_part = with_resolver(store.clone());
+    let ev = run(&out.remainder, &with_part);
+    // One edge of member 0 and one of member 1, as the `⊔` names them.
+    let in_member = |name: &StableName, value: u32| match name.path.as_slice() {
+        [editor_core::RoleSeg::From { of, .. }] => matches!(
+            of.path.as_slice(),
+            [editor_core::RoleSeg::Member { at, .. }] if at.iter().map(|&(_, v)| v).eq([value])
+        ),
+        _ => false,
+    };
+    let edges = editor_core::all_edges(&ev, out.instance);
+    let picked: Vec<StableName> = [0, 1]
+        .into_iter()
+        .map(|value| {
+            edges
+                .iter()
+                .find(|name| in_member(name, value))
+                .unwrap_or_else(|| panic!("the copy names an edge of member {value}"))
+                .clone()
+        })
+        .collect();
+    let (rem, fillet) = insert(
+        out.remainder.clone(),
+        Node::fillet(
+            editor_core::BodyRead::plain(editor_core::Operand::Node(out.instance)),
+            len(0.01),
+            picked,
+        ),
+    );
+    let back = editor_core::inline(&rem, out.instance, &resolver(&store), Tol::witness())
+        .unwrap_or_else(|e| panic!("inline keeps a selection of the `⊔`: {e}"));
+    let reader = back.doc.spoken(fillet);
+    match editor_core::flatten(&back.doc, back.placement, Tol::witness()) {
+        Err(editor_core::FlattenError::SelectionSpansMembers { reader: said }) => {
+            assert_eq!(said, reader, "the refusal names the fillet");
+        }
+        other => panic!(
+            "flatten refuses names in two members: {:?}",
+            other.map(|out| {
+                out.doc
+                    .var_ids()
+                    .into_iter()
+                    .filter_map(|id| {
+                        out.doc
+                            .selection(id)
+                            .map(|s| (s.body.clone(), s.names.clone()))
+                    })
+                    .collect::<Vec<_>>()
+            })
+        ),
+    }
+}
+
+/// **A selection of an instance's copy naming entities of two members
+/// of the family it copies refuses at inline; of one member it is that
+/// member read** (REFERENCES DM3: a selection reads one body). The
+/// part's product is a placed `pattern`, so the instance's copy names a
+/// member's edge as the family's table does, `Member { (k, i), e }`.
+/// Spliced, the copy is the family again: names in member 1 alone are
+/// the member read `xs[1]` by the member's own name, and names in
+/// members 0 and 1 are no one body's, so inline refuses rather than
+/// fall back to the family read whole with those names.
+///
+/// *Breaks if* inline stores `Select { body: xs, names: [Member { (k,
+/// 0), e }, Member { (k, 1), e }] }`, the shape every member refuses at
+/// evaluation.
+#[test]
+fn a_selection_of_two_members_of_the_copy_refuses_at_inline() {
+    let label = "p2-face-inline-two-members";
+    let part = ProfileDoc::empty(DocumentId::derive(&format!("{label}-part")), Tol::witness());
+    let (part, prof) = fixture::on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (part, block) = insert(
+        part,
+        Node::Extrude {
+            profile: prof.into(),
+            distance: len(1.0),
+        },
+    );
+    let (part, _k, pattern) = fixture::linear(part, block, [2.0, 0.0, 0.0], 2.0, 3);
+    let mut store = PartStore::default();
+    let (part_ref, _) = store.insert_part((part, pattern), Tol::witness());
+    let o = with_resolver(store.clone());
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, inst) = fixture::insert_pinned(doc, fixture::mated_instance(part_ref), &o);
+    let edges = editor_core::all_edges(&run(&doc, &o), inst);
+    let in_member = |value: u32| {
+        edges
+            .iter()
+            .find(|name| {
+                matches!(
+                    name.path.as_slice(),
+                    [editor_core::RoleSeg::Member { at, .. }]
+                        if at.iter().map(|&(_, v)| v).eq([value])
+                )
+            })
+            .unwrap_or_else(|| panic!("the copy names an edge of member {value}"))
+            .clone()
+    };
+    let filleted = |names: Vec<StableName>| {
+        insert(
+            doc.clone(),
+            Node::fillet(
+                editor_core::BodyRead::plain(editor_core::Operand::Node(inst)),
+                len(0.01),
+                names,
+            ),
+        )
+    };
+
+    // One member: the member read, by the member's own name.
+    let (one, _) = filleted(vec![in_member(1)]);
+    let back = editor_core::inline(&one, inst, &resolver(&store), Tol::witness())
+        .unwrap_or_else(|e| panic!("inline reads one member's names in the member: {e}"));
+    let selections: Vec<_> = back
+        .doc
+        .var_ids()
+        .into_iter()
+        .filter_map(|id| back.doc.selection(id).cloned())
+        .collect();
+    let [selection] = selections.as_slice() else {
+        panic!("the fillet's one selection: {selections:?}")
+    };
+    assert!(
+        selection.body.is_indexed()
+            && selection.names.iter().all(|name| !matches!(
+                name.path.first(),
+                Some(editor_core::RoleSeg::Member { .. })
+            )),
+        "the member read by its own names: {selection:?}"
+    );
+
+    // Two members: no one body holds the names.
+    let (two, fillet) = filleted(vec![in_member(0), in_member(1)]);
+    match editor_core::inline(&two, inst, &resolver(&store), Tol::witness()) {
+        Err(editor_core::InlineError::SelectionSpansMembers { reader }) => {
+            assert_eq!(reader, two.spoken(fillet), "the refusal names the fillet");
+        }
+        other => panic!(
+            "inline refuses names in two members: {:?}",
+            other.map(|back| {
+                back.doc
+                    .var_ids()
+                    .into_iter()
+                    .filter_map(|id| back.doc.selection(id).cloned())
+                    .collect::<Vec<_>>()
+            })
+        ),
+    }
+}

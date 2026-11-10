@@ -966,13 +966,15 @@ impl IndexedRead {
 
 impl IndexedRead {
     /// **The member this read names, as a materializer reads it**: the
-    /// family's read and the member's index values, each a count written
-    /// as a number — a materializer answers for the evaluation in hand,
-    /// so it reads no index an expression would have to evaluate.
-    pub(crate) fn member(&self) -> PyResult<(pncad::select::At, Vec<u32>)> {
-        let member = self.body().written_member().ok_or_else(|| {
+    /// family's read and the member's index values, each a count `doc`
+    /// holds — a count literal or a free count, the rule a mate side's
+    /// index keeps. A materializer reads no index an expression would
+    /// have to evaluate.
+    pub(crate) fn member(&self, doc: &d::ProfileDoc) -> PyResult<(pncad::select::At, Vec<u32>)> {
+        let member = self.body().written_member(doc).ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
-                "a member read here is at counts written as numbers, not {}",
+                "a member read here is at counts the document holds (a count, or a free \
+                 count), not {}",
                 self.at
                     .iter()
                     .map(ToString::to_string)
@@ -981,6 +983,11 @@ impl IndexedRead {
             ))
         })?;
         Ok((self.read.at(), member))
+    }
+
+    /// The family's read, a node or a variable.
+    pub(crate) fn family(&self) -> AtArg {
+        self.read
     }
 
     /// The authored read.

@@ -1429,7 +1429,7 @@ impl Evaluation {
         match node {
             super::doc::SelectAt::Plain(at) => Ok((at.at(), name)),
             super::doc::SelectAt::Member(read) => {
-                let (at, member) = read.member()?;
+                let (at, member) = read.member(&self.doc)?;
                 let whole = pncad::select::family_entity(&self.inner, at, &member, &name)
                     .ok_or_else(|| {
                         super::readback::readback_err(
@@ -1700,7 +1700,7 @@ impl Evaluation {
     ) -> PyResult<Vec<String>> {
         let found = match node {
             super::doc::SelectAt::Member(read) => {
-                let (at, member) = read.member()?;
+                let (at, member) = read.member(&self.doc)?;
                 pncad::select::select_member(&self.inner, at, &member, &selector.0).map_err(
                     |refusal| super::select::select_refusal(py, &refusal, &self.doc, &self.inner),
                 )?
@@ -1749,7 +1749,7 @@ impl Evaluation {
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
         let found = match node {
             super::doc::SelectAt::Member(read) => {
-                let (at, member) = read.member()?;
+                let (at, member) = read.member(&self.doc)?;
                 pncad::select::select_where_member(
                     &self.inner,
                     at,

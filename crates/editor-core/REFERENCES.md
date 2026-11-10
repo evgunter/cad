@@ -172,12 +172,12 @@ so D10's per-copy `gap(c[k].r, c[(k + 1) mod N].l)` is a selection of
 are exactly the family's own index chain is the plain read: `xs[k]` is
 stored as `xs`. A selection reads one body: its body is a body seat. A
 member is reached by an indexed read, never through the family's table,
-and the index is never stored twice. At a mate side, each index is a
-written count or absent, since the mate's member walk reads the member
-from the document, never from an evaluated value: a side reads `xs[i]`
-at written counts by the member's own name; the mate's member walk
-derives its head from the side (`head_of`), the family's spelling of
-that entity, never authored. A member is not a named alias:
+and the index is never stored twice. At a mate side, each index is absent
+or a written count — a count literal, or a free `Count` variable, each
+holding its value in the document — since the mate's member walk reads
+the member from the document, never from an evaluated value; an index
+defined by an expression refuses (`SideIndex`) at the door that authors
+the side and at load, wherever the side reads its selection. A member is not a named alias:
 two readers wanting one member share the family and a named `Count`. A
 name is scoped by the variable that holds its body (N1), so a split half's names do not spell the half: its variable says it,
 and a selection of `split.above` states its body once. A body seat
