@@ -144,6 +144,7 @@ fn a_chord_across_the_wall_holds_its_area() {
                 closed: Interval::zero(),
                 lever: [Interval::zero(); 3],
                 rationals: Vec::new(),
+                spirics: Vec::new(),
                 ribbon: 0.0,
             },
             loops: vec![vec![

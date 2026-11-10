@@ -1,5 +1,5 @@
-//! **A projected cylinder or sphere image as the rotational lane reads
-//! it** ([`ProjectedEdgeQ::of_image`]): the image's carrier and deck map
+//! **A projected cylinder, sphere or torus image as the rotational lane
+//! reads it** ([`ProjectedEdgeQ::of_image`]): the image's carrier and deck map
 //! crossed into certification arithmetic, by the caller's lift, at any
 //! scalar the image holds.
 
@@ -26,7 +26,9 @@ impl ProjectedEdgeQ {
     ///
     /// [`PropsError::QuadratureUnsupported`] for an image whose inverse is
     /// not `chart`'s, a deck sign other than exactly `±1`, on the sphere a
-    /// deck level that is not a name of the latitude, inexact
+    /// deck level that is not a name of the latitude, on the torus one
+    /// that is not a name of the tube angle or a torus other than the
+    /// chart's, inexact
     /// carrier interval ends, or a net the curved rims' rule cannot
     /// decompose ([`crate::props::rational_rim::rational_edge_q_split`]).
     pub fn of_image<T: Real>(
@@ -42,6 +44,20 @@ impl ProjectedEdgeQ {
         let sphere = match (image.chart(), chart) {
             (ProjectedChart::Cylinder, RotationalChartQ::Cylinder { .. }) => false,
             (ProjectedChart::Sphere, RotationalChartQ::Sphere { .. }) => true,
+            (ProjectedChart::Torus { major }, RotationalChartQ::Torus { major: own, .. }) => {
+                // The tube angle's terms read the frame point about the
+                // chart's own core, so the image's inverse must name it.
+                let major = iv(*major);
+                if !(major.is_certified() && own.is_certified())
+                    || major.lo() != own.lo()
+                    || major.hi() != own.hi()
+                {
+                    return Err(unsupported(
+                        "a projected torus image whose major radius is not exactly its chart's",
+                    ));
+                }
+                false
+            }
             _ => {
                 return Err(unsupported(
                     "a projected image on the rotational lane whose inverse is another chart's",
@@ -63,6 +79,16 @@ impl ProjectedEdgeQ {
         if sphere && !latitude_name(iv(v_off), v_sign) {
             return Err(unsupported(
                 "a projected sphere image whose deck map's level is not a name of the latitude",
+            ));
+        }
+        // The torus's terms read the tube angle's cosine and sine off the
+        // frame point, and its rate, which are a name's only for whole
+        // turns of the level: the torus has no twin.
+        if matches!(chart, RotationalChartQ::Torus { .. })
+            && !(v_sign > 0.0 && turns_name(iv(v_off), 0.0))
+        {
+            return Err(unsupported(
+                "a projected torus image whose deck map's level is not a name of the tube angle",
             ));
         }
         let (Some(lo), Some(hi)) = (exact(t0), exact(t1)) else {
@@ -142,9 +168,14 @@ impl ProjectedEdgeQ {
 /// chart map other than those could carry (`1e-9` rad already
 /// refuses, `the_spheres_arm_refuses_what_it_cannot_read`).
 fn latitude_name(v_off: Interval, v_sign: f64) -> bool {
+    turns_name(v_off, if v_sign > 0.0 { 0.0 } else { 0.5 })
+}
+
+/// Whether `v_off` is `base` turns past a whole number of turns, to
+/// within the deck's own rounding ([`latitude_name`]).
+fn turns_name(v_off: Interval, base: f64) -> bool {
     let tau = tau_bracket();
-    let base = if v_sign > 0.0 { pt(0.0) } else { pt(0.5) * tau };
-    let turns = (v_off - base) / tau;
+    let turns = (v_off - pt(base) * tau) / tau;
     let k = mid(turns).round();
     let off = (turns - pt(k)).abs_enclosure();
     off.is_certified() && off.hi() <= 1e-12 * (1.0 + k.abs())
