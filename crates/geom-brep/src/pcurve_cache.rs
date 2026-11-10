@@ -3670,7 +3670,26 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
         }
     };
-    grid.extend(apex_grading(carrier, window, surface));
+    // On a sheet, an end within `10⁻⁶ r` of the axis (read in `f64`, a
+    // schedule's reading) is graded toward ([`apex_grading`]).
+    if let Surface::Spindle {
+        center,
+        axis,
+        minor_radius,
+        ..
+    } = *surface
+    {
+        let mid = |x: T| geom_core::mid_param(x.lo(), x.hi());
+        let on_axis = |t: T| {
+            let d = carrier.eval(t) - center;
+            let rho2 = mid(d.dot(d)) - mid(d.dot(axis).powi(2)) / mid(axis.dot(axis));
+            rho2 <= (1e-6 * mid(minor_radius)).powi(2)
+        };
+        grid.extend(apex_grading(
+            crate::carrier_net::outer_ends(window),
+            [on_axis(window.0), on_axis(window.1)],
+        ));
+    }
     let round_over =
         |grid: &[f64],
          cuts: &[f64]|
@@ -4187,41 +4206,19 @@ mod limb2_quick {
     }
 }
 
-/// **Breaks graded toward a sheet's apexes**: on a spindle sheet, at
-/// `2⁻ᵏ` of the window from each of its ends that lies on the axis
-/// (within `10⁻⁶ r` of it, read in `f64`). Only the part at an apex reads
-/// its distance from the apex ([`projected::Meters::apex_root`]), which
-/// falls only as that part shrinks; with these breaks the first round
-/// holds it at the window's `2⁻⁶⁰`, where the rounds' halving would take
-/// one round per level. A schedule of cuts, not a decision: any cuts
-/// give a sound bound. Empty off a sheet.
-fn apex_grading<T: Decide + geom_core::Bounds>(
-    carrier: &Curve3<T>,
-    window: (T, T),
-    surface: &Surface<T>,
-) -> Vec<f64> {
+/// **Breaks graded toward a sheet's apexes**: at `2⁻ᵏ` of `[lo, hi]`
+/// from each end `at_apex` marks. Only the part at an apex reads its
+/// distance from the apex ([`projected::Meters::apex_root`]), which falls
+/// only as that part shrinks; with these breaks the first round holds it
+/// at `f64`'s spacing there, where the rounds' halving would take one
+/// round per level. A schedule of cuts, not a decision: any cuts give a
+/// sound bound.
+fn apex_grading((lo, hi): (f64, f64), at_apex: [bool; 2]) -> Vec<f64> {
     const LEVELS: i32 = 60;
-    let Surface::Spindle {
-        center,
-        axis,
-        minor_radius,
-        ..
-    } = *surface
-    else {
-        return Vec::new();
-    };
-    let mid = |x: T| 0.5 * (x.lo() + x.hi());
-    let on_axis = |t: T| {
-        let d = carrier.eval(t) - center;
-        let along = d.dot(axis);
-        let rho2 = mid(d.dot(d)) - mid(along * along) / mid(axis.dot(axis));
-        rho2 <= (1e-6 * mid(minor_radius)).powi(2)
-    };
-    let (lo, hi) = crate::carrier_net::outer_ends(window);
     let length = hi - lo;
-    let ends = [(window.0, lo, 1.0), (window.1, hi, -1.0)];
-    ends.into_iter()
-        .filter(|&(t, _, _)| on_axis(t))
+    [(at_apex[0], lo, 1.0), (at_apex[1], hi, -1.0)]
+        .into_iter()
+        .filter(|&(at, _, _)| at)
         .flat_map(|(_, end, toward)| {
             (1..=LEVELS).map(move |k| end + toward * length * 2f64.powi(-k))
         })
