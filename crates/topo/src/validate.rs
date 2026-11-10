@@ -715,7 +715,7 @@ pub enum EdgeTangentUnread {
     /// The edge's least speed meters no length over its span. A limit.
     NoLength,
     /// A spline edge's piece walk could not run, standing as the walk's
-    /// refusal does ([`geom_brep::ladder::Refusal::of_walk`]).
+    /// refusal does ([`geom::PieceWalkRefusal::refusal`]).
     Unwalked(geom::PieceWalkRefusal),
 }
 
@@ -728,7 +728,7 @@ impl EdgeTangentUnread {
     pub const fn refusal(self) -> geom_brep::ladder::Refusal {
         match self {
             Self::NoCurve | Self::NoReach | Self::NoLength => geom_brep::ladder::Refusal::Limit,
-            Self::Unwalked(why) => geom_brep::ladder::Refusal::of_walk(why),
+            Self::Unwalked(why) => why.refusal(),
         }
     }
 

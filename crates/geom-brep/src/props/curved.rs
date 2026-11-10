@@ -37,7 +37,7 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
-use crate::ladder::{Climb, Rung, climb_agreeing};
+use crate::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
 use geom_core::NonzeroSign;
 
@@ -4139,12 +4139,29 @@ pub fn sphere_region_material_sign<T: Decide>(
     };
     agreed_side(axis, |pole| {
         let p = center + pole * radius;
-        for arc in region.members.iter().flat_map(|m| &m.arcs) {
-            if pole_against_arc(arc, p, band)?.1 {
-                return Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip));
+        // A pole on any member's arc ([`climb`], [`Answering::Any`]: a
+        // theorem, the boundary holds that pole whichever arc it lies on),
+        // so an arc read in band is kept and refuses only where no other
+        // arc holds the pole.
+        let held = climb(
+            Answering::Any,
+            region.members.iter().flat_map(|m| &m.arcs),
+            |arc| {
+                Rung::holds(
+                    pole_against_arc(arc, p, band).map(|(_, on)| on),
+                    (),
+                    PropsError::refusal,
+                )
+            },
+        );
+        match held {
+            Climb::Answered { answer, .. } => {
+                answer?;
+                Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip))
             }
+            Climb::Passed => Ok(None),
+            Climb::Undecided(e) => Err(e),
         }
-        Ok(None)
     })
 }
 
@@ -4364,12 +4381,23 @@ fn pole_side<T: Decide>(
 ) -> Result<Option<Sign>, PropsError> {
     let p = center + pole * radius;
     let mut circulations = Vec::with_capacity(lp.arcs.len());
-    for arc in &lp.arcs {
-        let (plane, on) = pole_against_arc(arc, p, band)?;
-        if on {
-            return Ok(None);
-        }
-        circulations.push(Some(circulation(arc, plane)));
+    // The pole on any arc leaves its side unread ([`climb`],
+    // [`Answering::Any`]: a theorem, whichever arc holds it), so an arc
+    // read in band is kept and refuses only where no other arc holds the
+    // pole; every arc off it adds its circulation.
+    let on_an_arc = climb(Answering::Any, &lp.arcs, |arc| {
+        let on = pole_against_arc(arc, p, band).map(|(plane, on)| {
+            if !on {
+                circulations.push(Some(circulation(arc, plane)));
+            }
+            on
+        });
+        Rung::holds(on, (), PropsError::refusal)
+    });
+    match on_an_arc {
+        Climb::Answered { answer, .. } => return answer.map(|()| None),
+        Climb::Undecided(e) => return Err(e),
+        Climb::Passed => {}
     }
     let Some(turning) = pole_turning(center, pole, lp, &circulations, band)? else {
         unreachable!("every circulation is read, so the turning is")
@@ -6664,5 +6692,113 @@ mod ruling_scale_rows {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod pole_climb_rows {
+    use super::*;
+
+    /// An arc of the unit sphere's circle on `axis` through `centre`,
+    /// from `start` over `extent` rad, forward; its traversal ends are
+    /// not read by the pole's climb, and are set to its start.
+    fn arc(
+        centre: Point3<f64>,
+        axis: Vec3<f64>,
+        start: Point3<f64>,
+        extent: f64,
+    ) -> SphereArc<f64> {
+        let radius = (start - centre).norm();
+        let tangent = axis.cross(start - centre).normalize();
+        SphereArc {
+            centre,
+            axis,
+            radius,
+            start,
+            extent: Extent::between(0.0, extent),
+            forward: true,
+            from: start,
+            depart: tangent,
+            at: start,
+            arrive: tangent,
+        }
+    }
+
+    fn sphere_loop(arcs: Vec<SphereArc<f64>>) -> SphereLoop<f64> {
+        SphereLoop {
+            arcs,
+            curvature: 0.0,
+            corners: 0.0,
+            vector_area: Vec3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    /// The north pole `(0, 0, 1)` against two arcs: a small circle whose
+    /// plane is `3e-9` below it (read first: in band), then the great
+    /// circle in the `xz` plane from `(−1, 0, 0)` over half a turn,
+    /// through the pole (on it).
+    fn in_band_then_through_the_pole() -> SphereLoop<f64> {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let c = 1.0 - 3e-9;
+        let r = (1.0 - c * c).sqrt();
+        sphere_loop(vec![
+            arc(Point3::new(0.0, 0.0, c), z, Point3::new(r, 0.0, c), 1.0),
+            arc(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.0),
+                Point3::new(-1.0, 0.0, 0.0),
+                core::f64::consts::PI,
+            ),
+        ])
+    }
+
+    /// **An arc holding the pole answers past an arc in band**
+    /// ([`pole_side`]'s climb, `Any`): the pole is on the loop, so its
+    /// side is unread (`None`). The arc in band alone refuses; a
+    /// first-refusal loop refused with its escalation.
+    #[test]
+    fn an_arc_holding_the_pole_answers_past_an_arc_in_band() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let lp = in_band_then_through_the_pole();
+        assert_eq!(pole_side(o, 1.0, z, &lp, band), Ok(None));
+        let alone = sphere_loop(vec![in_band_then_through_the_pole().arcs.remove(0)]);
+        assert!(
+            matches!(
+                pole_side(o, 1.0, z, &alone, band),
+                Err(PropsError::Escalated { .. })
+            ),
+            "the arc in band alone refuses"
+        );
+    }
+
+    /// **A member arc holding the pole answers past one in band**
+    /// ([`sphere_region_material_sign`]'s climb, `Any`). The members'
+    /// arcs are [`in_band_then_through_the_pole`]'s, so the north pole is
+    /// read, and the boundary is the equator, read forward, which puts
+    /// the pole on one definite side: the region's side is encoded. A
+    /// first-refusal loop escalated at the arc in band, which reads as
+    /// no pole read (`agreed_side`), and the south pole is on no member's
+    /// arc, so the side was `Unencoded`.
+    #[test]
+    fn a_member_arc_holding_the_pole_answers_past_one_in_band() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (o, z) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let equator = sphere_loop(vec![arc(
+            o,
+            z,
+            Point3::new(1.0, 0.0, 0.0),
+            core::f64::consts::TAU,
+        )]);
+        let region = SeamLoops {
+            center: o,
+            radius: 1.0,
+            axis: z,
+            boundary: vec![equator],
+            members: vec![in_band_then_through_the_pole()],
+        };
+        let got = sphere_region_material_sign(&region, band);
+        assert!(matches!(got, Ok(MaterialSign::Encoded(_))), "{got:?}");
     }
 }

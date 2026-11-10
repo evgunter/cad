@@ -1470,7 +1470,7 @@ pub enum SiteRefusal {
     Desync(&'static str),
     /// A spline component's piece walk could not run: not a fault. It
     /// stands as the walk's refusal does
-    /// ([`crate::ladder::Refusal::of_walk`]): unsettled past its budget,
+    /// ([`geom::PieceWalkRefusal::refusal`]): unsettled past its budget,
     /// a limit where the spline bounds no speed.
     Unwalked(geom::PieceWalkRefusal),
 }
@@ -2457,7 +2457,8 @@ pub enum CarryRefusal {
     /// A fitted loop's uniqueness tube could not be read ([`Tube::of`]).
     TubeUnread(LoopTubeRefusal),
     /// A spline component's piece walk could not run
-    /// ([`SiteRefusal::Unwalked`]).
+    /// ([`SiteRefusal::Unwalked`]), standing as the walk's refusal does
+    /// ([`geom::PieceWalkRefusal::refusal`]).
     Unwalked(geom::PieceWalkRefusal),
     /// A closed fitted component could not be opened at its first site
     /// ([`PairSection::seat`]): the knot edit refused.

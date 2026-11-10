@@ -428,6 +428,7 @@ use super::{Arm, MeetFault, Method};
 use crate::half_angle::{
     Local, SubdivisionFrame, SubdivisionRows, Terms, TouchRows, certified_subdivision_touching,
 };
+use crate::ladder::read_identity;
 use crate::roots::{Roots, Unsettled, arc_past};
 use geom::Conic;
 
@@ -996,14 +997,15 @@ fn one_line<T: Decide>(
     (b, lb): (Ends<T>, geom::Line<T>),
     band: Band,
 ) -> Result<bool, MeetFault> {
-    for ((p0, p1), other) in [(a, lb), (b, la)] {
-        for q in [p0, p1] {
-            if definite_as(row::OFFSET, Margin::of(other.distance(q)), band)? {
-                return Ok(false);
-            }
-        }
-    }
-    Ok(true)
+    // One line is an identity: any end decided off the other's line
+    // answers "not one line", whatever an earlier end read
+    // ([`read_identity`]).
+    let offsets = [(a, lb), (b, la)]
+        .into_iter()
+        .flat_map(|((p0, p1), other)| {
+            [p0, p1].map(|q| (row::OFFSET, Margin::of(other.distance(q))))
+        });
+    Ok(read_identity(offsets, band).holds()?)
 }
 
 /// Two lines (module docs).
@@ -1924,5 +1926,40 @@ mod polish_rows {
             ),
             "{got:?}"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod one_line_rows {
+    use super::*;
+
+    /// **An end in band does not hide a later end decided off the line**
+    /// ([`one_line`]'s [`read_identity`], `Any`). Line `a` runs from the
+    /// origin along `x`; line `b` starts `3e-9` above the origin and
+    /// rises at 45°. `a`'s first end is read first, a mid-band distance
+    /// from `b`; its second end is about `0.7` off `b`, decided apart,
+    /// so the lines are not one. A first-refusal loop escalated at the
+    /// first end.
+    #[test]
+    fn an_end_decided_off_answers_past_an_end_in_band() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let a = (p(0.0, 0.0), p(1.0, 0.0));
+        let la = geom::Line {
+            origin: a.0,
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let b = (p(0.0, 3e-9), p(1.0, 1.0 + 3e-9));
+        let lb = geom::Line {
+            origin: b.0,
+            dir: (b.1 - b.0).normalize(),
+        };
+        let first = lb.distance(a.0);
+        assert!(
+            first > 1e-9 && first < 1e-8,
+            "the first end is in band: {first}"
+        );
+        assert_eq!(one_line((a, la), (b, lb), band), Ok(false));
     }
 }
