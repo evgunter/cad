@@ -1147,7 +1147,9 @@ fn every_site_that_asks_a_scope_question_is_in_the_scope_ledger() {
                 return None;
             }
             let text = std::fs::read_to_string(path).expect("a readable source file");
-            asks_a_scope_question(&code_and_literals(&text))
+            // The lexed view only blanks comments, so a needle it holds is
+            // in the raw text too: screen on the raw text, lex the hits.
+            (asks_a_scope_question(&text) && asks_a_scope_question(&code_and_literals(&text)))
                 .then(|| relative.to_string_lossy().replace('\\', "/"))
         })
         .collect();
