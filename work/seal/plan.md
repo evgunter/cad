@@ -20,7 +20,7 @@ with a dated `## Slate triage` note. Nothing is dispatched.
 | pri | status | item | cost | title |
 |---|---|---|---|---|
 | P1 | open | `a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections` | H | a cut across its tool's declared seat leaves a sliver between the seat's two sections |
-| P1 | dispatched | `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` | M | a cut whose tool's seat is curved, crossed by faces alone, keeps the seat's two faces held apart |
+| P2 | open | `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` | M | a cut whose tool's seat is curved, crossed by faces alone, keeps the seat's two faces held apart |
 | P2 | open | `a-declared-wall-is-read-only-by-a-vertex-crossing-it` | H | a declared wall is read as one only by a vertex crossing it |
 | P3 | open | `the-torus-floor-row-and-across-have-no-reader` | E | filed by PR 6646 |
 | P3 | open | `a-torus-refusals-ending-is-dispatched-by-hand-at-four-doors` | E | filed by PR 6634's review |
@@ -28,6 +28,7 @@ with a dated `## Slate triage` note. Nothing is dispatched.
 | P3 | open | `plane-only-readers-hold-a-dead-off-ring-arm` | E | filed by PR 6634's review |
 | P3 | open | `three-escalation-endings-route-by-the-predicate-name` | E | filed by PR 6673 |
 | P3 | open | `an-all-on-crossing-record-ends-as-an-invariant` | M | filed by PR 6693's delta review |
+| P3 | open | `a-seat-held-apart-across-two-shells-of-one-solid-passes-the-gate` | E | filed by the curved-seat lane |
 | P1 | parked | `the-indeterminate-seal` | M | only the funnel builds an Indeterminate: non_exhaustive, MarginDiag::INVALID crate-private, a test-support constructor, invalid_margin.rs deleted (mints step 5) |
 | P1 | parked | `topo-mints-indeterminates-outside-the-funnel` | M | topo mints Indeterminates outside the funnel after a definite sign, in two spellings, at eleven shipped sites |
 
