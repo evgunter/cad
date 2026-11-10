@@ -35,7 +35,6 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CapEnd, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
