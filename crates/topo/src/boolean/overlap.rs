@@ -390,8 +390,9 @@ fn normal_at<T: Decide>(
 /// its carrier by the verdict that put both faces on one carrier, within
 /// that verdict's band ([`crate::held::Held::in_band`], as the census's
 /// `meets_at` holds its probe), so the placement reads no on-plane
-/// margin again, and a reading definitely off the carrier contradicts
-/// the verdict ([`OverlapUnread::OffCarrier`], an abort).
+/// margin again, and a reading definitely off a curved face's carrier (a
+/// planar face's placement never says so) contradicts the verdict
+/// ([`OverlapUnread::OffCarrier`], an abort).
 fn place<T: Decide>(
     (body, face): (&Body<T>, FaceKey),
     q: Point3<T>,

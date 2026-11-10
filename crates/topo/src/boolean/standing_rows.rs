@@ -437,6 +437,31 @@ fn the_pierce_pass_ranks_a_then_b() {
         .is_ok(),
         "nothing kept: the pass goes on"
     );
+    // At the pass's call ([`super::pierces_refused_after`]): after A's
+    // reads kept a refusal, B's are read, and only B's; after B's, none.
+    let kept_in_band = || climb(vec![in_band()]).expect("A's reads abort nothing");
+    let asked = core::cell::RefCell::new(Vec::new());
+    let read = |later: Operand| {
+        asked.borrow_mut().push(later);
+        climb(vec![limit()])
+    };
+    assert!(
+        matches!(
+            super::pierces_refused_after(Operand::A, kept_in_band(), read),
+            Err(BooleanError::TangencyUnsupported)
+        ),
+        "after A's reads, B's limit outranks A's reading in band"
+    );
+    assert_eq!(*asked.borrow(), [Operand::B], "B's reads, once");
+    assert!(
+        matches!(
+            super::pierces_refused_after(Operand::B, kept_in_band(), |_| -> Result<_, _> {
+                panic!("nothing is read after B's pierces")
+            }),
+            Err(BooleanError::CrossingAtConeApex { .. })
+        ),
+        "after B's reads, its own refusal"
+    );
 }
 /// **A face's normal that aborted a Boolean reading is answered by its
 /// row** ([`BooleanError::of_aborted_normal`], which takes the abort

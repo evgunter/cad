@@ -10798,9 +10798,13 @@ pub(crate) fn in_both<E>(
     }
 }
 
-/// Where `face` holds `q`, a point on its carrier: the boolean's own
-/// placement ([`crate::boolean::face_placement`]), a point decided off a
-/// planar face's plane read `Out`. `Some(None)` where the curved door
+/// Where `face` holds `q`: the boolean's own placement
+/// ([`crate::boolean::face_placement`]), which decides `q` against the
+/// face's carrier rather than holding it there, a point decided off a
+/// planar face's plane read `Out`. Two callers state that `q` is on the
+/// carrier (`curved_overlap_cells`, `census/point.rs` `in_face`) and are
+/// rowed with the other unheld carrier-held sites
+/// (`work/onecopy/two-ops-placements-state-a-carrier-held-premise-unheld.md`). `Some(None)` where the curved door
 /// leaves the point unread; `None` where a decision escalated or the door
 /// refused (pushed).
 pub(crate) fn face_holds<T: Decide>(

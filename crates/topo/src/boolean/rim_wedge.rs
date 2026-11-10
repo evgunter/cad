@@ -592,11 +592,14 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
 }
 
 /// Whether the face holds `p`, a piece's midpoint on its carrier, as
-/// the held placement reads it ([`placement_on_carrier`]: the midpoint
-/// is on the carrier by construction, [`crate::held::Held::constructed`],
-/// so no on-plane margin is decided again): `In` is `true`, `Out` is
-/// `false`, and a point the read does not place is `None`. A reading off
-/// the carrier contradicts the construction, a fault.
+/// the held placement reads it ([`placement_on_carrier`]): `In` is
+/// `true`, `Out` is `false`, and a point the read does not place is
+/// `None`. The locus was decided one with the face's boundary carrier
+/// (a decision on the carriers' data, not a construction, and no margin
+/// of the point itself is in hand), so the midpoint is held in band
+/// ([`crate::held::Held::in_band`]) and no on-plane margin is decided
+/// again. A reading definitely off a curved face's carrier (a planar
+/// face's placement never says so) contradicts that decision, a fault.
 ///
 /// **A midpoint on the face's boundary is not placed.** The cut walk
 /// puts every point where the face's boundary meets the locus at a cut,
@@ -613,10 +616,7 @@ fn contains<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, RimUnread> {
     let unread = |why| RimUnread::Unplaced { side, why };
-    let held = crate::held::Held::constructed(
-        p,
-        "a piece's midpoint on the locus, which runs on the face's carrier",
-    );
+    let held = crate::held::Held::in_band(p);
     let read = match placement_on_carrier(body, face, held, band).map(|(at, _, _)| at) {
         Ok(read) => read,
         // The boundary pass placed the point at an arc's end and clear of

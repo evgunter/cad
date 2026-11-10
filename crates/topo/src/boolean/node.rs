@@ -27,18 +27,19 @@ enum Placed {
 }
 
 /// [`Placed`] of `node` in `face` of the unmutated operand `body`, the
-/// held placement's read ([`super::contain::placement_on_carrier`]): the
-/// node lies on both walls of the equal pair by its construction
-/// ([`crate::held::Held::constructed`]), so a reading off the wall is a
-/// desync.
+/// held placement's read ([`super::contain::placement_on_carrier`]). The
+/// section puts the node on both walls of the equal pair only to within
+/// the band (each wall's outward radial there is the node's normal to
+/// within `band.escalate()`, as `geom_brep`'s bisector pose asserts), so
+/// it is held in band ([`crate::held::Held::in_band`]). A reading off a
+/// wall is a desync.
 fn placed<T: Decide>(
     (operand, body): (Operand, &Body<T>),
     face: crate::entity::FaceKey,
     node: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    let held =
-        crate::held::Held::constructed(node, "a node of an equal cylinder pair, on both walls");
+    let held = crate::held::Held::in_band(node);
     match super::contain::placement_on_carrier(body, face, held, band)
         .map(|(at, _, _)| at)
         .map_err(|e| super::reduce::esc(e, operand, face))?
