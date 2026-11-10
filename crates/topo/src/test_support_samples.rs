@@ -75,7 +75,7 @@ fn diags() -> [Indeterminate; 3] {
     let with = |margin| Indeterminate {
         margin,
         band: band(),
-        // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+        // UNDECIDED-NAME: the in-band cause diags() hands every ValidationError sample
         predicate: Some("side_of_plane"),
         terminal_sliver: false,
     };

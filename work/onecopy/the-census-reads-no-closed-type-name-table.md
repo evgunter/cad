@@ -17,8 +17,8 @@ Found by ONECOPY's roster-reach unit, at the tree-wide reference check (`crates/
 - geom-brep's `offset_meters.rs: meter.predicate()`.
 - topo's `CLOSED_TYPE` sites: `boolean/contact_verify.rs: row.predicate()`, `clearance.rs: bound.predicate()`, `self.as_bound().predicate()`.
 
-So a reference to one of these names cannot resolve against the census union. `collinear_overlap`, referenced at `crates/profile/src/seg.rs` in two unit tests, is the instance the coverage row meets today, and profile's entry holds it.
+sweep's blend decisions (`blend/mod.rs`: `Self::RingClearance => "fillet3_ring_clearance"`, …) are the same shape. So a reference to one of these names cannot resolve against the census union. profile, sweep and geom-brep each carry a `ClosedTable` entry in `KNOWN_MISSING` citing this row, and each holds its table's arms. The references held today are `collinear_overlap` (profile), the `fillet3_*` rows (sweep's suites) and `cs_coaxial`, `cs_wall_reach`, `cc_coaxial` and `carrier_torus_minor_radius` (geom-brep's suites). `collinear_overlap`, referenced at `crates/profile/src/seg.rs` in two unit tests, is the instance the coverage row meets today, and profile's entry holds it.
 
 **The shape to read**: `Variant => "lit"` arms inside a `fn name`/`fn predicate`/`fn straddle`/`fn floor` body returning `&'static str`, plus profile's gate macro, whose rows put the name first after `=>`. Reading them makes each roster's `CLOSED_TYPE` entries read sites rather than listed ones, and moves what topo's and geom-brep's rosters see. That is why it is its own row and not part of roster-reach.
 
-**Done** when the census reads those tables, the rosters' `CLOSED_TYPE` entries are gone, and profile's entry is gone from `KNOWN_MISSING`.
+**Done** when the census reads those tables, the rosters' `CLOSED_TYPE` entries are gone, and the three entries are gone from `KNOWN_MISSING`.

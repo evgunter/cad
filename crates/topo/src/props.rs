@@ -8392,7 +8392,7 @@ mod shell_role_refusal_tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the bracket's cause read at each decided end
             predicate: Some("chk_shell_volume_sign"),
             terminal_sliver: false,
         };

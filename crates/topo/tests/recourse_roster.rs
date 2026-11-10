@@ -390,10 +390,15 @@ const CARRIERS: &[NameCarrier] = &[
     // The split join's chord-leave rows, picked by a `match` on the datum.
     NameCarrier::Const("CHORD_LEAVE_GERM"),
     NameCarrier::Const("CHORD_LEAVE_SECTION"),
-    // The funnels and row structs the tree-wide reference row found
-    // their callers' names behind.
+    // The split order's two axis rows, read in a loop.
+    NameCarrier::Const("SPLIT_JOIN_ORDER_U"),
+    NameCarrier::Const("SPLIT_JOIN_ORDER_V"),
+    // A refusal's own row, which no door decides
+    // (`two-boolean-refusals-name-a-row-no-door-decides`).
+    NameCarrier::Const("CARRIER_UNGLUED_COINCIDENCE"),
+    // The funnels the tree-wide reference row found their callers'
+    // names behind.
     NameCarrier::Call("first_within"),
-    NameCarrier::Call("OnReading"),
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
@@ -445,7 +450,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("boolean/section_cert/ruling.rs: rows.asymptote", ROW_FIELD),
     ("boolean/section_cert/ruling.rs: rows.fold", ROW_FIELD),
     ("boolean/section_cert/ruling.rs: rows.precision", ROW_FIELD),
-    ("boolean/sectors.rs: predicate: tie.predicate", FORWARDS),
     ("boolean/sectors.rs: reading.predicate", FORWARDS),
     ("boolean/solid_contain.rs: SCHEDULE_ROWS.reaches", ROW_FIELD),
     ("boolean/solid_contain.rs: name", FORWARDS),

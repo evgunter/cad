@@ -5446,7 +5446,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(0.0),
             band: band(),
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the stand-in cause whose check, not name, a refusal sentence words
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -5495,7 +5495,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the cause each decision's noun is read under
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -7174,7 +7174,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the cause a two-tolerance pair's recourse is read for, any name
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8163,7 +8163,7 @@ mod tests {
         let cause = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band,
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the cause each residual pair's ending is read for; the pair routes it
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8225,7 +8225,7 @@ mod tests {
         let cause = |margin| Indeterminate {
             margin,
             band,
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the cause a certificate escalation carries to its limb
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };
@@ -8314,7 +8314,7 @@ mod tests {
             let cause = Indeterminate {
                 margin,
                 band,
-                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+                // UNDECIDED-NAME: the cause a decision family's sentence routes (first)
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             };
@@ -8462,7 +8462,7 @@ mod tests {
             cause: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band,
-                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+                // UNDECIDED-NAME: the cause a decision family's sentence routes (second)
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             },
@@ -8563,7 +8563,7 @@ mod tests {
             let cause = Indeterminate {
                 margin,
                 band,
-                // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+                // UNDECIDED-NAME: the cause the import door's at-rest wording is read under
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
             };
@@ -9052,7 +9052,7 @@ mod tests {
         let undecided = |margin| Indeterminate {
             margin,
             band,
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
+            // UNDECIDED-NAME: the cause a certified-bound refusal reports as its limit
             predicate: Some("a_probe"),
             terminal_sliver: false,
         };

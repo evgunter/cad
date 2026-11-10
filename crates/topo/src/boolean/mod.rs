@@ -1538,14 +1538,17 @@ pub(crate) fn unglued_coincidence(
     read: DeclarationRead,
     band: Band,
 ) -> BooleanError {
+    // The refusal's own row: no `k_stats` door decides it, the margin is
+    // the glue reading's, handed on
+    // (`work/onecopy/two-boolean-refusals-name-a-row-no-door-decides.md`).
+    const CARRIER_UNGLUED_COINCIDENCE: &str = "carrier_unglued_coincidence";
     BooleanError::coincidence(
         Coincide::Carriers,
         read,
         Indeterminate {
             margin,
             band,
-            // UNDECIDED-NAME: a hand-built cause the test reads back; no door raises it
-            predicate: Some("carrier_unglued_coincidence"),
+            predicate: Some(CARRIER_UNGLUED_COINCIDENCE),
             terminal_sliver: false,
         },
     )
