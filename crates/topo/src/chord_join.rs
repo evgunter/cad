@@ -616,64 +616,77 @@ pub enum SplitJoinError {
 }
 
 impl SplitJoinError {
-    /// **What this refusal is to a ladder that reads it**, per cause.
+    /// **What this refusal is to a ladder** ([`Refusal`]), per cause and
+    /// exhaustive, so a cause added here states its standing before it
+    /// compiles. Each is its doc's class: an escalation by its margin, a
+    /// cause the band may part in band, a lane or row not built a limit,
+    /// and a kernel fault or corruption an abort.
+    ///
+    /// **A cause that mixes classes stands as an abort**, since a ladder
+    /// must never read past what may be a fault or an in-band coincidence:
+    /// [`Self::UnpairedLooseEnds`], [`Self::SectionLoopUndecided`],
+    /// [`Self::SectionInvariant`], [`Self::RunImageIncidence`] (its ending is
+    /// rendered, not typed) and [`Self::Section`] (the table's refusal, which
+    /// states no standing of its own:
+    /// `work/onecopy/the-section-tables-refusal-states-no-standing.md`).
     ///
     /// A ladder reads a join refusal in two places, both over the
     /// Boolean's pierce germs ([`crate::BooleanError::refusal`]'s readers):
-    /// - through a pierce germ's branch (`boolean::join::germ_branch`),
-    ///   whose only join refusal is a site's spline component that could
-    ///   not be walked ([`Self::SectionUnwalked`], standing as the walk's
-    ///   refusal does);
-    /// - through the apex section's table refusal
-    ///   ([`ApexSectionReading::Refused`], `wall_section` on a cone): an
-    ///   open conic's chord, which the split does not carry
-    ///   ([`Self::OpenConicChord`], a limit: row 2); a face that does not
-    ///   resolve ([`Self::Corrupt`]) or a section the table meets only at
-    ///   the apex the walk read crossed ([`Self::SectionInvariant`]), each
-    ///   a kernel fault; and the table's own refusal ([`Self::Section`]),
-    ///   which mixes classes and is not split.
+    /// through a pierce germ's branch (`boolean::join::germ_branch`, whose
+    /// one join refusal is [`Self::SectionUnwalked`]), and through the apex
+    /// section's table refusal ([`ApexSectionReading::Refused`]).
     ///
     /// # Errors
     ///
-    /// [`Aborts`] for a kernel fault, for [`Self::Section`], and for every
-    /// cause no ladder reads, where the abort stands in for a class it
-    /// does not have: the first ladder that reads one states its standing
-    /// here.
-    pub(crate) const fn read_refusal(&self) -> Result<Refusal, Aborts> {
+    /// [`Aborts`] for a kernel fault, corruption or a mixed cause, and each
+    /// payload's own aborts.
+    pub(crate) fn refusal(&self) -> Result<Refusal, Aborts> {
         match self {
+            Self::OrderEscalated { diag }
+            | Self::Escalated { diag, .. }
+            | Self::SectionEndEscalated { diag, .. }
+            | Self::TangentChordEscalated { diag, .. }
+            | Self::TangentChordBendEscalated { diag, .. } => Ok(Refusal::Margin(*diag)),
             Self::SectionUnwalked(why) => Ok(why.refusal()),
-            Self::OpenConicChord { .. } => Ok(Refusal::Limit),
-            Self::OrderEscalated { .. }
-            | Self::Escalated { .. }
-            | Self::DegenerateSection { .. }
-            | Self::CurvedSlitTrace { .. }
-            | Self::RingHoming(_)
+            Self::RingHoming(why) => why.refusal(),
+            // A tighter band may part each.
+            Self::PoleEdgesCoincide { .. }
+            | Self::SectionDepartureGrazes { .. }
             | Self::RingHomingAmbiguous { .. }
-            | Self::UnpairedLooseEnds { .. }
+            | Self::SectionCrossings {
+                case: ConicCrossingsCase::Grazing,
+                ..
+            } => Ok(Refusal::InBand),
+            // A lane or row not built (row 2).
+            Self::SectionUnarmed { .. }
+            | Self::RingIslandUnread { .. }
+            | Self::RunImageNotYet { .. }
+            | Self::SectionUnresolved { .. }
+            | Self::OpenConicChord { .. }
+            | Self::RunEdgeCarrierUnsupported { .. }
+            | Self::CurvedSlitTrace { .. }
             | Self::SingleSiteSectionLoop { .. }
-            | Self::SectionLoopMixed { .. }
-            | Self::SectionLoopUndecided { .. }
+            | Self::DegenerateSection { .. }
+            | Self::ApexUnlifted { .. } => Ok(Refusal::Limit),
+            // A kernel fault, a corruption, two readings that disagree.
+            Self::SectionLoopMixed { .. }
             | Self::CutInvariant { .. }
             | Self::Corrupt { .. }
             | Self::LineageRow(_)
             | Self::Band(_)
             | Self::Euler(_)
-            | Self::SectionEndEscalated { .. }
-            | Self::SectionUnresolved { .. }
-            | Self::Section { .. }
-            | Self::ApexUnlifted { .. }
-            | Self::PoleEdgesCoincide { .. }
+            | Self::TangentChordRefuted { .. } => Err(Aborts),
+            // Mixed: a zero gap the band may part beside senses that
+            // disagree with the geometry.
+            Self::SectionCrossings {
+                case: ConicCrossingsCase::NotAlternating,
+                ..
+            }
+            | Self::UnpairedLooseEnds { .. }
+            | Self::SectionLoopUndecided { .. }
             | Self::SectionInvariant { .. }
-            | Self::SectionUnarmed { .. }
-            | Self::RunImageNotYet { .. }
             | Self::RunImageIncidence { .. }
-            | Self::RingIslandUnread { .. }
-            | Self::RunEdgeCarrierUnsupported { .. }
-            | Self::TangentChordEscalated { .. }
-            | Self::TangentChordBendEscalated { .. }
-            | Self::TangentChordRefuted { .. }
-            | Self::SectionCrossings { .. }
-            | Self::SectionDepartureGrazes { .. } => Err(Aborts),
+            | Self::Section { .. } => Err(Aborts),
         }
     }
 }

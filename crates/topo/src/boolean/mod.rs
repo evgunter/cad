@@ -4182,9 +4182,9 @@ pub enum BooleanError {
     ///
     /// The vertex-on-face and held-pierce climbs read it, through a pierce
     /// germ's branch (`join::germ_branch`), so it stands by its cause
-    /// ([`SplitJoinError::read_refusal`]): a spline component's walk as the
-    /// walk's refusal does, and every cause no ladder reads as an abort
-    /// that stands in for its class.
+    /// ([`SplitJoinError::refusal`]): a spline component's walk as the
+    /// walk's refusal does, each other cause as its own doc states it, and
+    /// a cause that mixes classes as an abort.
     Join(BooleanJoin),
     /// The output stage's join could not decide whether a valence-2
     /// vertex is a regular point of its edges' carrier: a reading in
@@ -5069,7 +5069,7 @@ impl BooleanError {
             Self::PointInFaceRefused { refusal, .. } => refusal.refusal(),
             Self::Containment(e) => e.refusal(),
             Self::ApexSection { reading, .. } => reading.refusal(),
-            Self::Join(j) => j.error().read_refusal(),
+            Self::Join(j) => j.error().refusal(),
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
