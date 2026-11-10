@@ -6,6 +6,7 @@ status: closed
 opened: 2026-11-09
 closed: 2026-11-10
 priority: P0
+pr: 6799
 ---
 
 Nightly run 42567046151 (sha `836426e07e`), job `k-lint (release-budget)`: `tess-lint: GATE FAILED — 8 finding(s)` against `docs/tess-budget-data/tess-budget-baseline.csv` (cut at `4809ce56162e`):
