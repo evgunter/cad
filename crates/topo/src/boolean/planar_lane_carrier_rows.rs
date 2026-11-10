@@ -242,7 +242,7 @@ pub(super) fn sweep_a(
         &super::SweepKnobs::default(),
         None,
         &mut Vec::new(),
-        &crate::boolean::separating::OperandAxes::new(crate::boolean::boxes::axis_key),
+        &crate::separating::OperandAxes::new(crate::boxes::axis_key),
         Tol::witness(),
     )?;
     Ok((x, acc.finish().0))

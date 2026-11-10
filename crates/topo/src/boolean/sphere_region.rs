@@ -894,7 +894,7 @@ mod tests {
     #[test]
     fn a_zones_null_edge_leaves_no_region() {
         let sheet = || {
-            crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet(
+            crate::boxes::sphere_rect_rows::sphere_zone_sheet(
                 (0.2, 1.0),
                 (-0.3, 0.4),
                 geom_core::Tol::witness(),

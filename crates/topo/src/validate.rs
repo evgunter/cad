@@ -3215,7 +3215,7 @@ impl WedgeCheck {
 /// crease (positive) and on a smooth join (zero), and refuses only in
 /// band.
 const WEDGE: SizedDecision = SizedDecision {
-    lever: "move the geometry so the faces meet either clearly creased or clearly smooth",
+    lever: geom_core::move_lever!("so the faces meet either clearly creased or clearly smooth"),
     size: "angle",
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
@@ -3226,8 +3226,10 @@ const WEDGE: SizedDecision = SizedDecision {
 /// they curve apart (positive) and when they do not (zero), and refuses
 /// only in band.
 const SEPARATION: SizedDecision = SizedDecision {
-    lever: "move the geometry so the faces either clearly curve apart where they touch or \
-            clearly share their curvature there",
+    lever: geom_core::move_lever!(
+        "so the faces either clearly curve apart where they touch or \
+            clearly share their curvature there"
+    ),
     size: "curvature difference",
     passes: SizedPass::NonNegative,
     side: RefusedSide::Lever,
@@ -4776,9 +4778,11 @@ impl ValidationError {
                 f,
                 "two faces lie flat against each other from opposite sides at an edge, \
                  which no contact declaration can make valid: either the body has zero \
-                 thickness here, or one face is inside-out. Recourse: move the geometry so \
-                 the body has thickness here; if it already has, report the inside-out face \
-                 as a kernel defect"
+                 thickness here, or one face is inside-out. {}",
+                geom_core::move_recourse!(
+                    "so the body has thickness here; if it already has, report the \
+                     inside-out face as a kernel defect"
+                )
             ),
             Self::LoopRoleInverted { .. } => write!(
                 f,
@@ -8788,7 +8792,7 @@ pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
 /// every pair reads them in, less the pairs the boxes clear (D9).
 ///
 /// A ring's box is the hull of its edges' boxes
-/// ([`crate::boolean::boxes::edge_box`]: a superset of each edge's
+/// ([`crate::boxes::edge_box`]: a superset of each edge's
 /// locus, the poison box where an edge has none), padded by the
 /// sweep's own pad, `escalate + 2·zero`. A pair is cleared only when
 /// the two boxes are strictly disjoint on some axis, so the rings are
@@ -8810,7 +8814,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     if rings.len() < 2 {
         return Vec::new();
     }
-    let pad = crate::boolean::boxes::sweep_pad(band);
+    let pad = crate::boxes::sweep_pad(band);
     let (index, boxes): (Vec<usize>, Vec<bvh::Aabb>) = rings
         .iter()
         .enumerate()
@@ -8819,7 +8823,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
             let ring_box = cycle
                 .iter()
                 .filter_map(|&he| body.half_edges.get(he))
-                .map(|h| crate::boolean::boxes::edge_box(body, h.edge, pad))
+                .map(|h| crate::boxes::edge_box(body, h.edge, pad))
                 .reduce(|a, b| a.hull(&b))?;
             Some((i, ring_box))
         })

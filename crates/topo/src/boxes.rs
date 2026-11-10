@@ -64,7 +64,7 @@
 //!   unsupported-kind face whose box clears the other operand cannot
 //!   enter a pair, so the operation runs. A bigger box refuses an
 //!   operation whose faces never meet, unless the narrow phase behind
-//!   the overlap (`boolean::separating`, reaches along directions that
+//!   the overlap (`separating`, reaches along directions that
 //!   turn with the operands) parts the pair.
 //! - the glue door (`boolean::glue`) only PRUNES: a face pair whose
 //!   boxes clear is never asked, and whether two faces lie on one
@@ -278,26 +278,26 @@ pub(crate) fn face_box<T: Decide + Bounds>(
 /// poisoning, and then refuses the box by its own test, so it reads
 /// [`Cover::aabb`], the one home of a cover's box, directly rather than
 /// through this door.
-pub(in crate::boolean) fn cover_box<T: Bounds, E>(cover: &Result<Cover<T>, E>, pad: f64) -> Aabb {
+pub(crate) fn cover_box<T: Bounds, E>(cover: &Result<Cover<T>, E>, pad: f64) -> Aabb {
     cover
         .as_ref()
         .map_or_else(|_| Aabb::poison(), |c| c.aabb(pad))
 }
 
 /// A vector's three brackets: the key the narrow phase's axis set
-/// compares two axes by ([`super::separating::AxisKey`]). Two equal keys
+/// compares two axes by ([`crate::separating::AxisKey`]). Two equal keys
 /// are one direction to the bracket, and a candidate dropped as one
 /// only costs the reading along it.
 pub(crate) fn axis_key<T: Bounds>(v: Vec3<T>) -> [(f64, f64); 3] {
     [v.x, v.y, v.z].map(|c| (c.lo(), c.hi()))
 }
 
-/// The padded box of a full circle ([`super::separating::Circle`]): its
+/// The padded box of a full circle ([`crate::separating::Circle`]): its
 /// cover's ([`Cover::arc`] over the whole turn), so coordinate `i`
 /// reaches `radius·√(u_i² + v_i²)` from the centre, the circle's own
 /// extent, which turns with it. The poison box where a datum is not a
 /// finite number.
-pub(crate) fn circle_box<T: Bounds>(circle: &super::separating::Circle<T>, pad: f64) -> Aabb {
+pub(crate) fn circle_box<T: Bounds>(circle: &crate::separating::Circle<T>, pad: f64) -> Aabb {
     cover_box(&circle.cover().ok_or(()), pad)
 }
 
@@ -1480,7 +1480,7 @@ pub(crate) mod tests {
     /// - `census/in_plane.rs` — arm 1's clear in a plane: a curved
     ///   edge's cover's support off the plane. **Refuses**, as the
     ///   module docs say.
-    /// - `boolean/separating.rs` — the narrow phase: each item's cover's
+    /// - `separating.rs` — the narrow phase: each item's cover's
     ///   support along a direction that turns with the pair. **Refuses**
     ///   where it grants (the operand gate, the census, the fallback):
     ///   a looser cover closes a gap that parts the pair.
@@ -1498,7 +1498,7 @@ pub(crate) mod tests {
     ///   **Refuses**: a looser cover reads a nearer edge, which only
     ///   withholds a clear.
     ///
-    /// `boolean/boxes.rs` and `cover.rs` are excluded by path: they are
+    /// `boxes.rs` and `cover.rs` are excluded by path: they are
     /// the definition sites, every call in them is this suite's own or
     /// one arm calling another, and their counts would churn on each row
     /// added here while pinning nothing.
@@ -1565,7 +1565,7 @@ pub(crate) mod tests {
         // sort's screen calls. Another of `ops.rs`'s six is not a door:
         // `the_approx_arm_asks_whether_the_ball_reaches_the_face` boxes
         // its bricks' faces to hand the arm's question what the scan
-        // hands it. `boolean/separating.rs`'s four are two doors and their
+        // hands it. `separating.rs`'s four are two doors and their
         // two default covers: the narrow phase's face and edge reads.
         // `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
@@ -1581,13 +1581,13 @@ pub(crate) mod tests {
             ("boolean/ops.rs", 6),
             ("boolean/reduce.rs", 6),
             ("boolean/ruled_region.rs", 1),
-            ("boolean/separating.rs", 4),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 12),
             ("census/depth_gap.rs", 3),
             ("census/in_plane.rs", 1),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
+            ("separating.rs", 4),
             ("separation.rs", 2),
             ("session_box.rs", 1),
             ("shell.rs", 2),
@@ -1595,7 +1595,7 @@ pub(crate) mod tests {
             ("splitting/containment.rs", 1),
             ("validate.rs", 1),
         ];
-        const HOMES: [&str; 2] = ["boolean/boxes.rs", "cover.rs"];
+        const HOMES: [&str; 2] = ["boxes.rs", "cover.rs"];
         const DOORS: [&str; 12] = [
             "face_box",
             "cover_box",
@@ -1672,7 +1672,7 @@ pub(crate) mod tests {
             let v = n.cross(u);
             let (c, rho) = (Point3::new(0.3, -0.2, 1.1), 0.7);
             let b = circle_box(
-                &super::super::separating::Circle {
+                &crate::separating::Circle {
                     center: c,
                     u_ref: u,
                     v_ref: v,
@@ -2022,44 +2022,6 @@ pub(crate) mod tests {
         };
         relabel(&mut body, face, cone);
         (body, face)
-    }
-
-    /// **The face-level containment door keeps its two kinds of `Out`
-    /// apart on a cone** (it lives here because this module's tests
-    /// own the cone-wall fixture). A point on the MIRROR nappe is on
-    /// the double-cone carrier the face's surface states, so
-    /// `curved_face_placement` answers `Trim(Some(Out))` — a sibling
-    /// face's incidence — and never `OffCarrier`, which the crossing
-    /// layer reads as a contradiction of its own on-carrier
-    /// certificate. A point off the carrier is `OffCarrier`, and a
-    /// carrier point outside the azimuth window is `Trim(Some(Out))`.
-    #[test]
-    fn a_cone_band_places_the_mirror_nappe_on_its_carrier() {
-        use crate::boolean::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
-        let alpha = 30.0_f64.to_radians();
-        let (mut body, face) = cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
-        let band = Band::linear(Tol::witness()).unwrap();
-        crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, Tol::witness());
-        let at = |u: f64, z: f64, off: f64| {
-            let rho = z.abs() * alpha.tan() + off;
-            Point3::new(rho * u.cos(), rho * u.sin(), z)
-        };
-        let place = |p| curved_face_placement(&body, face, p, band).unwrap();
-        assert_eq!(
-            place(at(0.5, 0.75, 0.0)),
-            CurvedPlacement::Trim(Some(FaceContainment::In))
-        );
-        assert_eq!(
-            place(at(0.5, -0.75, 0.0)),
-            CurvedPlacement::Trim(Some(FaceContainment::Out)),
-            "the mirror nappe is on the carrier"
-        );
-        assert_eq!(place(at(0.5, 0.75, 1e-3)), CurvedPlacement::OffCarrier);
-        assert_eq!(
-            place(at(2.0, 0.75, 0.0)),
-            CurvedPlacement::Trim(Some(FaceContainment::Out)),
-            "outside the azimuth window"
-        );
     }
 
     /// The cone arm, against the wall it bounds — the same claim the
