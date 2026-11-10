@@ -76,8 +76,10 @@ fn ball<T: Real>(c: Point3<T>, r: T) -> Cover<T> {
 /// The circle of radius `radius` about `center` normal to `axis`.
 fn core_about(center: Point3<f64>, axis: Vec3<f64>, radius: f64) -> Around<f64> {
     Around::Circle(Core {
-        center,
-        axis,
+        axis: crate::Line {
+            origin: center,
+            dir: axis,
+        },
         radius,
     })
 }
@@ -1797,8 +1799,10 @@ fn a_shell_reads_a_nearby_core_no_nearer_than_its_points() {
     let frame = Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
     let torus = Cover::torus(&frame, 1.0, 0.25).unwrap();
     let other = Core {
-        center: Point3::new(0.3, 0.0, 0.0),
-        axis: Vec3::unit_z(),
+        axis: crate::Line {
+            origin: Point3::new(0.3, 0.0, 0.0),
+            dir: Vec3::unit_z(),
+        },
         radius: 1.0,
     };
     let (near, far) = torus.range_about(&Around::Circle(other));
