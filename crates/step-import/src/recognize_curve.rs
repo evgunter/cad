@@ -175,7 +175,7 @@
 
 use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::compose::{self, CurveCertData, ImplicitSurface};
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Vec2, Vec3};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -630,11 +630,10 @@ fn covers_one_full_turn(
             sx += x;
             sy += y;
         }
-        let norm = sx.hypot(sy);
-        if !(norm.is_finite() && norm > 0.0) {
+        let Some((d, _)) = Vec2::new(sx, sy).checked_direction().ok() else {
             return false;
-        }
-        let (dx, dy) = (sx / norm, sy / norm);
+        };
+        let (dx, dy) = (d.x, d.y);
         for p in &control[j - degree..=j] {
             let (x, y) = plane(*p);
             let radial = x.hypot(y);

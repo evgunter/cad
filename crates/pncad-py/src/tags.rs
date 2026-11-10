@@ -3024,13 +3024,14 @@ pub fn coherence_condition_tag(condition: CoherenceCondition) -> &'static str {
 ///
 /// **A word about the DATA, never about the configuration.** A check
 /// a caller turned off is `ChecksReport.skipped` and is not a finding
-/// at all; these three are loops the body itself put out of reach, and
+/// at all; these are loops the body itself put out of reach, and
 /// no configuration makes them examinable. The alphabets are disjoint
 /// from [`coherence_condition_tag`]'s, which is what lets both ride
 /// one attribute.
 pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
     match why {
         Unexaminable::Corrupt { .. } => "corrupt",
+        Unexaminable::LoneLoop { .. } => "empty_loop",
         Unexaminable::NullScaffoldEdge { .. } => "null_scaffold_edge",
         Unexaminable::NonIsoCarrier { .. } => "non_iso_carrier",
     }
