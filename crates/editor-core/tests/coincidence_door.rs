@@ -463,9 +463,9 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
         .find_map(|(n, entry)| match entry {
             Entry::Unique(r) => match r.key {
                 EntityKey::Edge(e) => {
-                    let he = body.get_edge(e).unwrap().he_plus;
-                    let s = point(body.get_half_edge(he).unwrap().start);
-                    let t = point(body.half_edge_end(he).unwrap());
+                    let (v0, v1) = body.edge_vertices(e).unwrap();
+                    let s = point(v0);
+                    let t = point(v1);
                     ((at(s, a) && at(t, b)) || (at(s, b) && at(t, a))).then(|| n.clone())
                 }
                 _ => None,
@@ -1453,11 +1453,8 @@ fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName
         .filter_map(|(n, entry)| match entry {
             Entry::Unique(r) => match r.key {
                 EntityKey::Edge(e) => {
-                    let he = body.get_edge(e).unwrap().he_plus;
-                    let ends = [
-                        body.get_half_edge(he).unwrap().start,
-                        body.half_edge_end(he).unwrap(),
-                    ];
+                    let (v0, v1) = body.edge_vertices(e).unwrap();
+                    let ends = [v0, v1];
                     ends.iter()
                         .all(|&v| (height(v) - z).abs() < 1e-12)
                         .then(|| n.clone())

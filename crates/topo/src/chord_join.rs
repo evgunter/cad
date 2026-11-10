@@ -1943,7 +1943,7 @@ enum ArcEnd<T> {
 /// The candidate arc of `conic` from `th1` (the exact conic parameter
 /// of the chord's start) to `to`, running forward from the start: the
 /// ccw arc as it stands, the cw arc on the axis-flipped carrier.
-fn oriented_arc<T: Real>(
+fn oriented_arc<T: Decide>(
     conic: &SectionCurve<T>,
     face: FaceKey,
     th1: T,
@@ -1962,14 +1962,14 @@ fn oriented_arc<T: Real>(
     // less the other's, which would carry `ulp(τ)` in a short arc.
     if ccw {
         let span = match to {
-            ArcEnd::At(th2) => (th2 - th1).reduce_periodic(tau),
+            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th1, th2),
             ArcEnd::WholeTurn => tau,
         };
         Ok((conic.carrier().clone(), th1, th1 + span))
     } else {
         // The cw arc: the carrier run back runs forward from p1.
         let span = match to {
-            ArcEnd::At(th2) => (th1 - th2).reduce_periodic(tau),
+            ArcEnd::At(th2) => geom_core::period::Period::new(tau).run_from(th2, th1),
             ArcEnd::WholeTurn => tau,
         };
         let flipped = conic
@@ -2005,8 +2005,12 @@ fn chord_arc<T: Decide>(
             let th1 = conic.param(p1);
             let middle = match p2 {
                 None => th1,
-                Some(p2) if ccw => th1 + (conic.param(p2) - th1).reduce_periodic(tau) * half,
-                Some(p2) => th1 - (th1 - conic.param(p2)).reduce_periodic(tau) * half,
+                Some(p2) if ccw => {
+                    th1 + geom_core::period::Period::new(tau).run_from(th1, conic.param(p2)) * half
+                }
+                Some(p2) => {
+                    th1 - geom_core::period::Period::new(tau).run_from(conic.param(p2), th1) * half
+                }
             };
             SectionCurve::Conic(conic.seamed_near(middle))
         }
@@ -2972,7 +2976,7 @@ fn carried_chord_spec<T: Decide>(
     let place = |p: Point3<T>| -> Result<geom_brep::ArcPlace<T>, SplitJoinError> {
         match component.place(&ctx.nodes, p, band) {
             Ok(geom_brep::ArcPlace::At(t)) => Ok(geom_brep::ArcPlace::At(match turn {
-                Some(turn) => lo + (t - lo).reduce_periodic(turn),
+                Some(turn) => geom_core::period::Period::new(turn).at_or_above(t, lo),
                 None => t,
             })),
             Ok(end) => Ok(end),
@@ -7388,8 +7392,7 @@ mod torn_hop_rows {
             })
             .unwrap();
         let he = body.get_edge(edge).unwrap().he_plus;
-        let u1 = body.get_half_edge(he).unwrap().start;
-        let u2 = body.half_edge_end(he).unwrap();
+        let (u1, u2) = body.edge_vertices(edge).unwrap();
         let spec = |b: &Body<f64>| {
             super::along_edge_spec(b, &JoinLane::AlongEdge, Some(edge), face, u1, u2)
                 .map(|s| s.is_some())

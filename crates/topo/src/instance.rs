@@ -676,11 +676,8 @@ mod tests {
     fn distinct_dead_parents_keep_distinct_dead_roots_per_copy() {
         let mut src = cube();
         let ends = |b: &Body<f64>, e: EdgeKey| {
-            let he = b.get_edge(e).unwrap().he_plus;
-            [
-                b.get_half_edge(he).unwrap().start,
-                b.half_edge_end(he).unwrap(),
-            ]
+            let (v0, v1) = b.edge_vertices(e).unwrap();
+            [v0, v1]
         };
         let a0 = src.edges().next().unwrap().0;
         let a_ends = ends(&src, a0);

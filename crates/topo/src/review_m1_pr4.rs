@@ -1531,7 +1531,8 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                     let ed = body.get_edge(e).expect("a split candidate resolves");
                     let (hp, hm) = (ed.he_plus, ed.he_minus);
                     let plus = body.get_half_edge(hp).expect("a half resolves");
-                    if plus.start == body.half_edge_end(hp).expect("an end resolves") {
+                    let (start, end) = body.edge_vertices(e).expect("an end resolves");
+                    if start == end {
                         "split_edge_self_loop"
                     } else if plus.next == hm {
                         "split_edge_strut"

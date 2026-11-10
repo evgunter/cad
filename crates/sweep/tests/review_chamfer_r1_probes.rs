@@ -577,16 +577,14 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
     );
     // Every edge except the concave one over the reflex corner (1,1).
     let concave = |k: EdgeKey| {
-        let e = bracket.get_edge(k).unwrap();
-        let h = bracket.get_half_edge(e.he_plus).unwrap();
-        let end = bracket.half_edge_end(e.he_plus).unwrap();
+        let (start, end) = bracket.edge_vertices(k).unwrap();
         let at = |v| {
             let p = bracket
                 .get_point(bracket.get_vertex(v).unwrap().point)
                 .unwrap();
             (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12
         };
-        at(h.start) && at(end)
+        at(start) && at(end)
     };
     let edges: Vec<EdgeKey> = bracket
         .edges()
