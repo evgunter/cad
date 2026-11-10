@@ -12655,6 +12655,9 @@ mod iso_arc_weight_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod iso_arc_weight_search;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rev6801_probes;
 mod line_incidence;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
