@@ -1679,7 +1679,7 @@ mod tests {
     fn a_decided_argmin_records_an_in_band_reading_live_only_where_it_refuses() {
         use super::{FreeOf, Undecided, Unpicked, argmin_decided};
         let cmp = |a: &f64, b: &f64| {
-            geom_core::k_stats::decide_reported("argmin_row", Margin::of(*a - *b), band())
+            crate::k_stats::decide_reported("argmin_row", Margin::of(*a - *b), band())
                 .map(|d| d.sign)
                 .map_err(Undecided::InBand)
         };

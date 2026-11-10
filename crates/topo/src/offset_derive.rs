@@ -23,10 +23,10 @@ use std::collections::BTreeMap;
 
 use geom_brep::ChartedNurbs;
 use geom_brep::SectionReading;
-use geom_brep::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
 use geom_brep::ssi::{
     BoundarySection, ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain, SsiError,
 };
+use geom_core::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
 
 use crate::SurfaceKey;
 use geom_core::k_stats::decide;
