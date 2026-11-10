@@ -279,7 +279,8 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     // origin's radial standoff. On the copied body the standoff is the
     // wall-incidence identity, a value identity at the shipped rules, as
     // `pcurve_*_chart_incident` decides four carriers at the witness:
-    // [22, 20] -> [18, 24].
+    // [22, 20] -> [18, 24]
+    // (`work/sym/a-rigidly-copied-cylinder-walls-incidence-identity-has-no-sym-rule.md`).
     ("pcurve_chart_radial_moving", [18, 24]),
     // PCERT E1c (every mint reads incidence first, PR 5889):
     // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]

@@ -85,7 +85,7 @@ reds 21 sweep rows that pass without the features. Narrowed on
 under `--features topo/per-op-postcondition` alone, at `mfkrh`'s
 postcondition (`OrphanGeometry { Surface(SurfaceKey(1v3)) }`), and green
 under `topo/door-tier3-meter` and under `geom-core/identity-pass-testing`.
-The 22 rows are the `a_closed_conic_in_the_partners_face`,
+The 21 rows are the `a_closed_conic_in_the_partners_face`,
 `a_plane_across_a_one_face_wall` and `an_annular_tube_through_a_plate`
 families, plus `pi_seam_and_kiss_through_the_boolean`,
 `section_end_poses::a_torus_section_read_square_…`, `ray_wall_margin_twins`,
