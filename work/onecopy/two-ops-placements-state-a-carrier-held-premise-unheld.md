@@ -5,7 +5,7 @@ title: Four placements (ops.rs place_witness and piece_reading, census curved_ov
 status: closed
 opened: 2026-11-10
 priority: P3
-refs: [6669, 6705, carrier-held-points-are-trusted-not-decided]
+refs: [6669, 6705, 6741, carrier-held-points-are-trusted-not-decided]
 closed: 2026-11-10
 pr: 6741
 ---
