@@ -1524,3 +1524,4 @@
 - 03:54Z PR 6712 torus-charge follow-up (17ef9d14, docs+row; stacked on 6711) → merge after 6711. S3 (f_per_metre_lo floor on rounded k) left as a decision on the new P3 row.
 - 03:56Z PR 6713 placement-holders (c0b4d0ed; 8 holders ported, 2 kept, rows parked on stage 3) → FULL review. Bracket lane idle.
 - 03:58Z argmin split: one keep_own move (first_pair_rows K-gate fixture now refuses JoinPartnersTied). Ruled 1+3: new non-tying fixture for the K-gate claim, old fixture re-pinned as the tie-refuses row. Open now; tie-last probe running independently.
+- 04:05Z Merged 6698 (5b2bb0dc; merged main incl 6690 → f9d919d2, check+gates clean, disjoint from 6690). [ev] 6702: 6589 took fork row 256 → renumbered 258; dropped a stale duplicate star row the merge left; body updated.
