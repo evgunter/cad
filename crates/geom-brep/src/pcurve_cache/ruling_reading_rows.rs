@@ -640,7 +640,7 @@ fn a_line_across_the_apex_that_is_no_generator_ends_not_yet() {
 /// farthest from the cone there, `s·cos α` off it, over a stretch about
 /// `s` wide that a sampled read steps over. Past the band (`1e-7` at ε
 /// up to `1e-9`, and `30`–`300·zero` at every ε) the mint refuses
-/// `CarrierOffChart` at both scalars, and so does the incidence door
+/// a read off the chart (`IncidenceRead::Off`) at both scalars, and so does the incidence door
 /// alone ([`read_incidence`]); in band (`3` and `10·zero`) both escalate
 /// the incidence read (the lever); inside the zero band (`0.5·zero`, and
 /// `1e-7` at ε 1e-6) the door passes it and the mint does not refuse it
@@ -656,15 +656,12 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
     let f = Interval::from_f64;
     let (zero, escalate) = (zero(), band().escalate());
     let off_chart = |r: Option<&PcurveCertifyError>| {
-        matches!(r, Some(PcurveCertifyError::CarrierOffChart { .. }))
+        matches!(r.and_then(IncidenceRead::of), Some(IncidenceRead::Off(_)))
     };
     let lever = |r: Option<&PcurveCertifyError>| {
         matches!(
-            r,
-            Some(PcurveCertifyError::Escalated {
-                check: PcurveCheck::ChartIncidence,
-                ..
-            })
+            r.and_then(IncidenceRead::of),
+            Some(IncidenceRead::Undecided(_))
         )
     };
     let (mut definite, mut inside) = (0, 0);
@@ -691,13 +688,13 @@ fn a_line_passing_the_apex_off_the_cone_ends_as_its_incidence_read() {
                         definite += 1;
                         assert!(
                             off_chart(mint.0.as_ref().err()) && off_chart(mint.1.as_ref().err()),
-                            "{what}: the mint refuses CarrierOffChart at both scalars: {:?} / {:?}",
+                            "{what}: the mint reads it off the chart at both scalars: {:?} / {:?}",
                             mint.0,
                             mint.1
                         );
                         assert!(
                             off_chart(door.0.as_ref().err()) && off_chart(door.1.as_ref().err()),
-                            "{what}: the incidence door refuses CarrierOffChart at both scalars: \
+                            "{what}: the incidence door reads it off the chart at both scalars: \
                              {:?} / {:?}",
                             door.0,
                             door.1

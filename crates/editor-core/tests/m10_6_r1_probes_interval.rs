@@ -59,7 +59,7 @@ use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, CapEnd, ClearanceBounds, Dimension,
     Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
     NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnitSym, ValuePayload,
-    VarName, evaluate,
+    VarName,
 };
 use geom_core::Tol;
 use topo::clearance::{Budgets, Side, min_separation};
@@ -79,7 +79,7 @@ fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
 
-fn eval_over<T: editor_core::EvalScalar>(
+fn eval_over<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     box_: Option<ParamBox>,
 ) -> editor_core::Evaluation<T> {
@@ -87,7 +87,7 @@ fn eval_over<T: editor_core::EvalScalar>(
         param_box: box_.map(std::sync::Arc::new),
         ..EvalOptions::default()
     };
-    evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
+    editor_core::test_support::evaluate_any(doc, None, &CancelToken::new(), &opts, Tol::witness())
 }
 
 /// The assertion's verdict over a certified leaf, replayed on the lane

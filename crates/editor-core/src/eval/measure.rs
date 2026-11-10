@@ -548,7 +548,7 @@ fn unsupported<T: geom_core::Real, X>(
 /// and stopped being true when E3's amendment landed: there is no
 /// fallback constant here any more, and separation is one of three
 /// terms rather than the whole of it.
-fn parallel<T: Decide>(
+fn parallel_as<T: Decide>(
     predicate: &'static str,
     u: Vec3<T>,
     v: Vec3<T>,
@@ -717,7 +717,7 @@ fn distance<T: Decide>(
                 ..
             },
         ) => {
-            if !parallel("bool_plane_parallel", *na, *nb, arm(a, b), band)? {
+            if !parallel_as("bool_plane_parallel", *na, *nb, arm(a, b), band)? {
                 return not_parallel("distance", "bool_plane_parallel", a, b);
             }
             Ok(magnitude((*ob - *oa).dot(*na)))
@@ -729,7 +729,7 @@ fn distance<T: Decide>(
         // this formula computes but a common perpendicular no wall
         // pair shares, which is `gap`'s refusal for the same reason.
         (Carrier::Cylinder { axis: la, .. }, Carrier::Cylinder { axis: lb, .. }) => {
-            if !parallel("carrier_cyl_axis_parallel", la.dir, lb.dir, arm(a, b), band)? {
+            if !parallel_as("carrier_cyl_axis_parallel", la.dir, lb.dir, arm(a, b), band)? {
                 return not_parallel("distance", "carrier_cyl_axis_parallel", a, b);
             }
             Ok(la.distance(lb.origin))
@@ -782,7 +782,7 @@ fn pose_distance<T: Decide>(
     if ra.is_none() || rb.is_none() {
         return unsupported_as("distance", NO_LEVER, b.class());
     }
-    if parallel(AXES_PARALLEL, da, db, arm(a, b), band)? {
+    if parallel_as(AXES_PARALLEL, da, db, arm(a, b), band)? {
         return Ok(la.line().distance(ob));
     }
     let across = da.cross(db);
@@ -814,7 +814,7 @@ pub(crate) fn axes_parallel<T: Decide>(
     else {
         return None;
     };
-    parallel(
+    parallel_as(
         AXES_PARALLEL,
         la.dir().get(),
         lb.dir().get(),
@@ -940,7 +940,7 @@ fn gap<T: Decide>(
                 ..
             },
         ) => {
-            if !parallel("bool_plane_parallel", *wo, *wi, arm(outer, inner), band)? {
+            if !parallel_as("bool_plane_parallel", *wo, *wi, arm(outer, inner), band)? {
                 return not_parallel("gap", "bool_plane_parallel", outer, inner);
             }
             Ok((*oi - *oo).dot(*wo))
@@ -975,7 +975,7 @@ fn gap<T: Decide>(
                 ..
             },
         ) => {
-            if !parallel(
+            if !parallel_as(
                 "carrier_cyl_axis_parallel",
                 lo.dir,
                 li.dir,

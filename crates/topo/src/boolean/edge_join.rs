@@ -61,7 +61,16 @@
 //! is never joined, whatever arm their faces take: every face chart and
 //! edge carrier is C¹ by its knot structure strictly inside its cell
 //! (Ev's PR 5913 ruling), so it is the vertex the knot structure puts
-//! there.
+//! there. Whether an end lies on a crease is two parameters compared
+//! exactly ([`crease_read`]). It is decided as a crease or as none, which
+//! picks the kept edge ([`kept_edge`]: the edge with none, the second
+//! where neither has one, no join where both have one). An enclosure of
+//! the parameter that straddles a crease is undecided. A vertex otherwise
+//! joinable is then neither joined nor left: it refuses typed, as every
+//! reading in the band does ([`JoinUndecided`], [`JoinReading::Crease`]),
+//! at the join and at tier 3's check 11 alike ([`joinable_at_rest`]). A
+//! vertex the structural tests reject is rejected whatever its crease
+//! reads.
 //!
 //! Where the joined edge's far parameter comes from, rung by rung, is
 //! [`joined_spec`]'s.
@@ -219,6 +228,7 @@ impl JoinUndecided {
     pub fn diag(&self) -> Option<&Indeterminate> {
         match &self.reading {
             JoinReading::Regularity(diag)
+            | JoinReading::Crease(diag)
             | JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)) => Some(diag),
             JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(_)) => None,
         }
@@ -240,6 +250,10 @@ pub enum JoinReading {
     Regularity(Indeterminate),
     /// The class arm of an edge's chart image.
     ChartClass(geom_brep::IsoFamilyRefusal),
+    /// Whether an edge's end parameter lies on one of its spline
+    /// carrier's creases ([`crease_at`]): an enclosure of the parameter
+    /// straddles a crease.
+    Crease(Indeterminate),
 }
 
 /// The whole refusal: a regularity reading asks [`JOIN_SUBJECT`], a
@@ -258,7 +272,7 @@ impl JoinUndecided {
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
         match &self.reading {
-            JoinReading::Regularity(diag) => write!(
+            JoinReading::Regularity(diag) | JoinReading::Crease(diag) => write!(
                 f,
                 "{}",
                 diag.undecided(JOIN_SUBJECT, diag.ending(geom_core::COINCIDENCE_RECOURSE))
@@ -423,33 +437,94 @@ pub(super) fn singular_at<T: Decide>(
         .map(|sign| sign != Sign::Positive)
 }
 
+/// What `e`'s carrier holds at its end `w`, decided ([`crease_at`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Crease {
+    /// The end's parameter is decided equal to one of the carrier's
+    /// creases.
+    Decided,
+    /// Decided apart from every crease, or the carrier is no spline.
+    No,
+}
+
 /// Whether `e`'s carrier holds a crease run at its end `w`: a spline
 /// carrier whose parameter there is one point and is its own clamped
 /// end, or an interior knot of multiplicity at least its degree. A
 /// carrier run on through `w` would carry a knot of that multiplicity,
 /// so `w` is the vertex the knot structure puts there, not one a join
-/// takes back (module docs). Structural: the parameter's exact equality
-/// with one of the carrier's own knots, no margin.
-fn crease_at<T: Decide>(body: &Body<T>, e: EdgeKey, d: &crate::entity::Edge, w: VertexKey) -> bool {
+/// takes back (module docs). The parameter's exact equality with one of
+/// the carrier's own knots ([`crease_read`]).
+///
+/// # Errors
+///
+/// The undecided channel's escalation, where an enclosure of the
+/// parameter straddles a crease and none is decided equal.
+fn crease_at<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    d: &crate::entity::Edge,
+    w: VertexKey,
+) -> Result<Crease, Indeterminate> {
     let Some(c) = body.edge_curve_linked(e, d).certified() else {
-        return false;
+        return Ok(Crease::No);
     };
     let geom::Curve3::Nurbs(n) = c.carrier() else {
-        return false;
+        return Ok(Crease::No);
     };
     let (t0, t1) = c.params();
     let starts_at_w = body.get_half_edge(d.he_plus).map(|h| h.start) == Some(w);
     let t = if starts_at_w { t0 } else { t1 };
     let knots = n.knot_values();
     let (a, b) = knots.domain();
-    // Equal as an exact comparison reads it: the least band, where only
-    // a zero difference is Zero and an enclosure straddling it is no
-    // answer, so no crease.
-    [a, b].into_iter().chain(knots.crease_values()).any(|k| {
-        (t - k)
-            .sign_within(Band::least())
-            .is_ok_and(|d| d.sign == Sign::Zero)
-    })
+    crease_read(t, [a, b].into_iter().chain(knots.crease_values()))
+}
+
+/// **`t` against a carrier's creases** ([`crease_at`]): equal as two
+/// parameters compared exactly read it ([`geom_core::k_stats::param_order`]),
+/// where only a zero difference is Zero and only an enclosure straddling
+/// it is undecided. A decided crease answers whatever the others read.
+///
+/// # Errors
+///
+/// The first straddle's escalation, where no crease is decided equal.
+fn crease_read<T: Decide>(
+    t: T,
+    creases: impl IntoIterator<Item = T>,
+) -> Result<Crease, Indeterminate> {
+    let mut undecided = None;
+    for k in creases {
+        match geom_core::k_stats::param_order("edge_join_crease_at", t, k) {
+            Ok(Sign::Zero) => return Ok(Crease::Decided),
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Err(why) => {
+                undecided.get_or_insert(why);
+            }
+        }
+    }
+    undecided.map_or(Ok(Crease::No), Err)
+}
+
+/// Which of a join's two edges is kept ([`kept_edge`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kept {
+    /// The first edge is kept, the second goes.
+    First,
+    /// The second edge is kept, the first goes.
+    Second,
+}
+
+/// **Which edge a join keeps, by the two edges' decided creases at the
+/// vertex** (module docs): the edge whose carrier has no crease there,
+/// the second where neither has one, and `None` where both have one, the
+/// vertex the knot structure puts there. The two readings are decided:
+/// an undecided one never reaches here, since it is the join's undecided
+/// reading ([`JoinReading::Crease`]).
+fn kept_edge(first: Crease, second: Crease) -> Option<Kept> {
+    match (first, second) {
+        (Crease::Decided, Crease::Decided) => None,
+        (Crease::No, Crease::Decided) => Some(Kept::First),
+        (Crease::Decided | Crease::No, Crease::No) => Some(Kept::Second),
+    }
 }
 
 /// `w`'s join, if `w` is joinable (module docs). The half-edges in
@@ -488,16 +563,30 @@ fn joinable<T: Decide>(
             "edge",
         )
     };
-    // The joined edge runs on the kept carrier through `w`, so `kept`
-    // is an edge whose carrier has no crease there; where both have
-    // one, `w` is the vertex the knot structure puts there.
-    let (h1, h2, e1, e2) = match (
-        crease_at(body, e1, link(e1, *h1), w),
-        crease_at(body, e2, link(e2, *h2), w),
-    ) {
-        (true, true) => return Ok(None),
-        (false, true) => (h2, h1, e2, e1),
+    // The joined edge runs on the kept carrier through `w` (module docs,
+    // [`kept_edge`]): two decided creases pick the kept edge, or that `w`
+    // is not joined. A crease the band leaves undecided is the join's
+    // undecided reading, as every other one is, but only for a vertex
+    // otherwise joinable: the tests below run in arena order, and the
+    // refusal stands where a join would be built (`join`, below).
+    let crease = |e, h| {
+        crease_at(body, e, link(e, h), w).map_err(|diag| JoinUndecided {
+            vertex: w,
+            reading: JoinReading::Crease(diag),
+        })
+    };
+    let creases = (crease(e1, *h1), crease(e2, *h2));
+    let (h1, h2, e1, e2) = match &creases {
+        (Ok(c1), Ok(c2)) => match kept_edge(*c1, *c2) {
+            None => return Ok(None),
+            Some(Kept::First) => (h2, h1, e2, e1),
+            Some(Kept::Second) => (h1, h2, e1, e2),
+        },
         _ => (h1, h2, e1, e2),
+    };
+    let undecided_crease = || match &creases {
+        (Err(why), _) | (_, Err(why)) => Err(why.clone()),
+        _ => Ok(()),
     };
     let (d1, d2) = (link(e1, *h1), link(e2, *h2));
     let (s1, s2) = (edge_sides_of(body, e1, d1), edge_sides_of(body, e2, d2));
@@ -519,14 +608,18 @@ fn joinable<T: Decide>(
     let (Some(far), Some(far2)) = (far_of(*h1), far_of(*h2)) else {
         return Ok(None);
     };
-    let join = |planar, class| Join {
-        he,
-        gone: e1,
-        kept: e2,
-        far,
-        closed: far == far2,
-        planar,
-        class,
+    // Where a join would be built: an undecided crease refuses it here.
+    let join = |planar, class| {
+        undecided_crease()?;
+        Ok(Some(Join {
+            he,
+            gone: e1,
+            kept: e2,
+            far,
+            closed: far == far2,
+            planar,
+            class,
+        }))
     };
     let (sf, sg) = s1.surfaces();
     let surface = |side: crate::readback::EdgeSide| {
@@ -549,7 +642,7 @@ fn joinable<T: Decide>(
             })
         };
         let joins = sf != sg && on_the_pair(e1, d1) && on_the_pair(e2, d2);
-        return Ok(joins.then(|| join(true, None)));
+        return if joins { join(true, None) } else { Ok(None) };
     }
     let undecided = |reading| JoinUndecided { vertex: w, reading };
     let locus_of = |e: EdgeKey, d| {
@@ -619,7 +712,7 @@ fn joinable<T: Decide>(
     }
     if matches!(locus, Locus::Iso(_) | Locus::PairIso(..)) {
         let zero = kept_zero.zip(gone_zero).map(|(k, g)| k.worst(g));
-        return Ok(Some(join(false, zero)));
+        return join(false, zero);
     }
     // The pair's reading at `w`, levered at the two faces' extent as
     // every reader of their wedge is (`crate::wedge_reach`), read from
@@ -647,7 +740,7 @@ fn joinable<T: Decide>(
         }
         _ => false,
     };
-    Ok(regular.then(|| join(false, None)))
+    if regular { join(false, None) } else { Ok(None) }
 }
 
 /// `e`'s carrier tangent at its end `w`.
@@ -856,7 +949,7 @@ impl JoinRefusal {
              that did not derive";
         match self {
             Self::Undecided(JoinUndecided {
-                reading: JoinReading::Regularity(diag),
+                reading: JoinReading::Regularity(diag) | JoinReading::Crease(diag),
                 ..
             })
             | Self::Undecided(JoinUndecided {
@@ -1250,6 +1343,200 @@ fn join_one<T: Decide + crate::props::AtRestPolicy>(
         band,
         tol,
     )
+}
+
+/// **An undecided crease is the join's undecided reading**
+/// (orchestrator's revised ruling on PR 6709's review): an enclosure of
+/// an edge's end parameter straddling a crease of its spline carrier
+/// refuses the join through [`JoinUndecided`], the channel every
+/// undecided join reading takes, so tier 3's check 11 sees it too. Only
+/// a decided pair picks the kept edge. Red where a straddle is read as
+/// "no crease" (the reading before PR 6709), as "a crease" (no join, a
+/// silent guess either way), or where the undecided channel is dropped
+/// at `joinable`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod crease {
+    use geom_core::{Band, Interval, Point3, Tol, Vec3};
+
+    use super::{Crease, JoinReading, JoinUndecided, Kept, Pass, crease_read, joinable, kept_edge};
+    use crate::body::Body;
+    use crate::euler::{FaceSurface, MevSite};
+    use crate::test_support_fixtures::fresh_keyed_body;
+
+    #[test]
+    fn a_crease_is_read_decided_or_its_straddle_escalates() {
+        let knots = [0.0, 0.5, 1.0];
+        let at = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let creases = || knots.map(|k| at(k, k));
+        assert_eq!(crease_read(at(0.5, 0.5), creases()), Ok(Crease::Decided));
+        assert_eq!(crease_read(at(0.25, 0.26), creases()), Ok(Crease::No));
+        assert!(crease_read(at(0.49, 0.51), creases()).is_err());
+        assert_eq!(crease_read(0.5, knots), Ok(Crease::Decided));
+        assert_eq!(crease_read(0.5 + 1e-15, knots), Ok(Crease::No));
+        assert_eq!(kept_edge(Crease::Decided, Crease::Decided), None);
+        assert_eq!(kept_edge(Crease::No, Crease::Decided), Some(Kept::First));
+        assert_eq!(kept_edge(Crease::Decided, Crease::No), Some(Kept::Second));
+        assert_eq!(kept_edge(Crease::No, Crease::No), Some(Kept::Second));
+    }
+
+    /// A hemisphere capped by its equator's disc: the sphere face and the
+    /// plane face meet along the equator, read as their intersection. The
+    /// equator's upper half is a rational degree-2 spline, two quarter
+    /// arcs with a double knot (a crease) at `0.5`, and its lower half a
+    /// circle arc. The spline half is split at `t`, and the new vertex is
+    /// returned: a vertex on a transverse locus of two faces, the join's
+    /// own case. Uncapped (`capped` false), the spline half is a lone wire
+    /// on the sphere face, both its sides on that face, which no join
+    /// takes.
+    fn split_equator<T: geom_core::Decide + crate::props::AtRestPolicy>(
+        t: T,
+        capped: bool,
+    ) -> (Body<T>, crate::VertexKey) {
+        let tol = Tol::witness();
+        let c = T::from_f64;
+        let p3 = |x: f64, y: f64| Point3::new(c(x), c(y), c(0.0));
+        let half = core::f64::consts::FRAC_1_SQRT_2;
+        let kv =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2)
+                .unwrap();
+        let upper = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                geom_core::spline::Knots::from(kv).lift(c),
+                vec![
+                    p3(1.0, 0.0),
+                    p3(1.0, 1.0),
+                    p3(0.0, 1.0),
+                    p3(-1.0, 1.0),
+                    p3(-1.0, 0.0),
+                ],
+                [1.0, half, 1.0, half, 1.0].map(c).to_vec(),
+            )
+            .unwrap(),
+        ));
+        let lower = geom::Curve3::circle(
+            p3(0.0, 0.0),
+            Vec3::new(c(0.0), c(0.0), c(1.0)),
+            c(1.0),
+            Vec3::new(c(1.0), c(0.0), c(0.0)),
+        );
+        let mut body = fresh_keyed_body::<T>();
+        let seed = body.mvfs(p3(1.0, 0.0), true).unwrap();
+        let sphere = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: geom::Surface::Sphere {
+                        center: p3(0.0, 0.0),
+                        radius: c(1.0),
+                        axis: Vec3::new(c(0.0), c(0.0), c(1.0)),
+                        u_ref: Vec3::new(c(1.0), c(0.0), c(0.0)),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let plane = body.add_surface(geom::Surface::Plane {
+            origin: p3(0.0, 0.0),
+            normal: Vec3::new(c(0.0), c(0.0), c(-1.0)),
+            u_ref: Vec3::new(c(1.0), c(0.0), c(0.0)),
+        });
+        let on_both = |carrier, (t0, t1): (f64, f64), at: (f64, f64)| geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(sphere, plane),
+                selector: geom_brep::CurveSelector::Witness(p3(at.0, at.1)),
+            },
+            carrier,
+            param_start: c(t0),
+            param_end: c(t1),
+        };
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p3(-1.0, 0.0),
+                on_both(upper.clone(), (0.0, 1.0), (0.0, 1.0)),
+                tol,
+            )
+            .unwrap();
+        if capped {
+            body.mef(
+                crate::euler::MefSite::Chords {
+                    he1: arc.he_minus,
+                    he2: arc.he_plus,
+                },
+                on_both(
+                    lower,
+                    (core::f64::consts::PI, core::f64::consts::TAU),
+                    (0.0, -1.0),
+                ),
+                FaceSurface::Shared {
+                    key: plane,
+                    sense: true,
+                },
+                tol,
+            )
+            .unwrap();
+        }
+        let made = body.split_edge(arc.edge, t, tol).unwrap();
+        (body, made.vertex)
+    }
+
+    fn reading_of<T: geom_core::Decide + crate::props::AtRestPolicy>(
+        t: T,
+        capped: bool,
+    ) -> Result<bool, JoinUndecided> {
+        let (body, w) = split_equator(t, capped);
+        let none = std::collections::BTreeSet::new();
+        let pass = Pass::of(&body, &none);
+        let band = Band::linear(Tol::witness()).unwrap();
+        joinable(&body, w, &pass, band).map(|join| join.is_some())
+    }
+
+    fn reading<T: geom_core::Decide + crate::props::AtRestPolicy>(
+        t: T,
+    ) -> Result<bool, JoinUndecided> {
+        reading_of(t, true)
+    }
+
+    #[test]
+    fn a_split_straddling_a_crease_refuses_the_join_undecided() {
+        // Off the crease: the two pieces join back, at f64 and at a point
+        // interval, so the vertex is one the join takes.
+        assert!(reading(0.25).unwrap(), "f64 off the crease joins");
+        assert!(
+            reading(Interval::from_bounds(0.25, 0.25)).unwrap(),
+            "a point interval off the crease joins"
+        );
+        // On the crease, decided: both pieces crease there, no join.
+        assert!(!reading(0.5).unwrap(), "f64 on the crease");
+        assert!(
+            !reading(Interval::from_bounds(0.5, 0.5)).unwrap(),
+            "a point interval on the crease"
+        );
+        // Straddling it: the join's undecided reading, not a guess.
+        // Narrow against the band, so the split's point certifies: the
+        // straddle is in the parameter, not in the point's place.
+        let half = 1e-4 * Band::linear(Tol::witness()).unwrap().zero();
+        let got = reading(Interval::from_bounds(0.5 - half, 0.5 + half));
+        assert!(
+            matches!(
+                got,
+                Err(JoinUndecided {
+                    reading: JoinReading::Crease(_),
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
+        // A vertex no join could take is rejected whatever its crease
+        // reads: the lone wire straddling its crease is no join, not a
+        // refusal (the crease is read where a join would be built).
+        assert!(!reading_of(0.25, false).unwrap(), "a wire off the crease");
+        let wire = reading_of(Interval::from_bounds(0.5 - half, 0.5 + half), false);
+        assert!(matches!(wire, Ok(false)), "{wire:?}");
+    }
 }
 
 #[cfg(test)]
@@ -1754,12 +2041,14 @@ mod undecided_text {
             JoinRefusal::Undecided(JoinUndecided {
                 vertex: crate::VertexKey::default(),
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(
-                    geom_brep::PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Cone,
-                        carrier: geom::CurveKind::Circle,
-                        why: "WHY",
-                        margin,
-                    },
+                    geom_brep::PcurveCertifyError::Incidence(
+                        geom_brep::IncidenceRefusal::off_chart(
+                            geom::SurfaceKind::Cone,
+                            geom::CurveKind::Circle,
+                            "WHY",
+                            margin,
+                        ),
+                    ),
                 )),
             })
         };

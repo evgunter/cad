@@ -139,8 +139,7 @@ fn probe_apex_level_rim_refuses() {
     let refusal = got.as_ref().err();
     assert!(
         refusal.and_then(geom_brep::IncidenceRead::of).is_some()
-            && refusal.and_then(geom_brep::IncidenceRead::kinds_of)
-                == Some((cone.kind(), carrier.kind())),
+            && refusal.and_then(|e| e.chart_carrier_kinds()) == Some((cone.kind(), carrier.kind())),
         "expected the cone's incidence refusal of the circle, got {got:?}"
     );
 }

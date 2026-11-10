@@ -1,7 +1,7 @@
 ---
 id: t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 kind: issue
-title: Four of QML T4's Any ports have no pin for a kept reading ahead of an answer
+title: Seven of QML's Any ports (T4's four, T5's two, T6's one) have no pin for a kept reading ahead of an answer
 status: open
 opened: 2026-11-10
 priority: P3
@@ -24,6 +24,13 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 - **`shell::band_seam`** (`crates/topo/src/shell.rs`). **Fixture:** a band face on a periodic chart whose two seam sides are half-edge runs, one read in band by `winds_once`, the other decided not to wind once. `winds_once` refuses where its first point's radial lever is in band of the chart's axis (`shell_chart_lever`) or its winding is in band of half a turn (`shell_chart_winds`); the lever is the cheaper, a side starting within the band of the axis.
 - **`shell::wraps_its_period`** (same file). **Fixture:** a face with two boundary cycles on a periodic chart, the first read in band by `winds_once` (as above, starting within the band of the axis) and the second winding once.
 
+**QML T5 adds two** (`onecopy/refusal-standing`, after PR 6722). The reach probe saw neither answer past a kept reading in-suite.
+- **`stands::insides_at`** (`crates/topo/src/stands.rs`, `witness_insides`' reading). **Fixture:** a body of three shells. One witness of the first lies in band of the second (a `point_in_solid_faces` refusal the walk reads in band) and on the third's surface: the witness reads `On` past the kept shell. A first-refusal loop returned the in-band reading. A second witness, at a limit on one shell and in band of another in that order, would pin the ranking change (a limit before an in-band reading, where the old loop returned the first).
+- **`boolean::insert::held_cut`** (`crates/topo/src/boolean/insert.rs`). A cut refuses in band only where `walks_before`, `cut_order` or `nested`'s `holds_whole` reads two germ lines in one entry in band of each other. **Fixture:** an orbit's sectors whose first other cut lies in band of the run's end germ, and whose second cut the run holds: the second's owner answers. The `an_in_band_germ_line_is_the_kernels_own_check` sectors are the nearest existing fixture.
+
+**QML T6 adds one** (`onecopy/refusal-standing`). The reach probe saw it answer past no kept reading in-suite.
+- **`census::span_clear`** (`crates/topo/src/census.rs`, the edge–face pierce census's clearance). **Fixture:** an edge whose span runs over a face, the face's boundary holding first a side whose end reads in band of the span (`on_edge_interior_reading` escalates), then a side whose interior meets it (`interiors_meet`). `span_clear` answers "not clear" and pushes nothing. A first-refusal loop pushed the first member's escalation and returned `None`.
+
 ## Done when
 
-Each of the four has a pin as described, red under the old first-refusal loop, or a stated reason it cannot be reached.
+Each of the seven has a pin as described, red under the old first-refusal loop, or a stated reason it cannot be reached.

@@ -74,34 +74,49 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
     };
     let built_at_b1 = arc_wall(&loft::<f64>(b1));
     let at_b1 = |s: ParamSymbol| (s == symbol).then_some(b1);
-    let (((weights, corner, rim_theorems), distinct), _) = with_session(budget, || {
-        let (lofted, decisions) = record(|| loft::<S>(S::param(symbol, b0)));
-        let wall = arc_wall(&lofted);
-        let weights: Vec<Option<u64>> = wall
-            .weights()
-            .iter()
-            .map(|w| revalue(w.node(), &at_b1).map(f64::to_bits))
-            .collect();
-        // The arc's tangent-intersection pole in the wall's bottom row.
-        let corner = revalue(wall.control()[pole(&wall, 1, 0)].x.node(), &at_b1).map(f64::to_bits);
-        // The iso-boundary checks' `Zero`s whose margin reads the bulge
-        // (a constant re-values with no parameter bound): the arc rims'
-        // weight margins and the class's other checks over the arc.
-        let none = |_: ParamSymbol| None::<f64>;
-        let rim_zeros: Vec<_> = decisions
-            .iter()
-            .filter(|d| d.predicate == "pcurve_iso_boundary")
-            .filter(|d| d.sign == Some(geom_core::Sign::Zero))
-            .filter(|d| revalue(d.node, &none).is_none())
-            .collect();
-        let rim_theorems: Vec<bool> = rim_zeros.iter().map(|d| d.proven).collect();
-        let distinct = rim_zeros
-            .iter()
-            .map(|d| d.node)
-            .collect::<std::collections::BTreeSet<_>>()
-            .len();
-        ((weights, corner, rim_theorems), distinct)
-    });
+    let (((weights, corner, rim_theorems), distinct, winding_zeros), _) =
+        with_session(budget, || {
+            let (lofted, decisions) = record(|| loft::<S>(S::param(symbol, b0)));
+            let wall = arc_wall(&lofted);
+            let weights: Vec<Option<u64>> = wall
+                .weights()
+                .iter()
+                .map(|w| revalue(w.node(), &at_b1).map(f64::to_bits))
+                .collect();
+            // The arc's tangent-intersection pole in the wall's bottom row.
+            let corner =
+                revalue(wall.control()[pole(&wall, 1, 0)].x.node(), &at_b1).map(f64::to_bits);
+            // The iso-boundary checks' `Zero`s whose margin reads the bulge
+            // (a constant re-values with no parameter bound): the arc rims'
+            // weight margins and the class's other checks over the arc.
+            let none = |_: ParamSymbol| None::<f64>;
+            let rim_zeros: Vec<_> = decisions
+                .iter()
+                .filter(|d| d.predicate == "pcurve_iso_boundary")
+                .filter(|d| d.sign == Some(geom_core::Sign::Zero))
+                .filter(|d| revalue(d.node, &none).is_none())
+                .collect();
+            let rim_theorems: Vec<bool> = rim_zeros.iter().map(|d| d.proven).collect();
+            let distinct = rim_zeros
+                .iter()
+                .map(|d| d.node)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len();
+            // The `loop_windings` door walks the wall's loop again: its
+            // rows the arc-rim lane choice certified are not certified twice.
+            let face = lofted.side_faces[0][1][0];
+            let chart = lofted.body.face_surface(face).expect("a described face");
+            let band = geom_core::Band::linear(Tol::witness()).expect("a witness band forms");
+            let (windings, read) = record(|| topo::loop_windings(&lofted.body, face, chart, band));
+            windings.expect("the arc wall's loop winds");
+            let winding_zeros = read
+                .iter()
+                .filter(|d| d.predicate == "pcurve_iso_boundary")
+                .filter(|d| d.sign == Some(geom_core::Sign::Zero))
+                .filter(|d| revalue(d.node, &none).is_none())
+                .count();
+            ((weights, corner, rim_theorems), distinct, winding_zeros)
+        });
     let want: Vec<Option<u64>> = built_at_b1
         .weights()
         .iter()
@@ -121,6 +136,10 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
         vec![true; 10],
         "every Zero the arc rims' checks answer over the bulge, the weight margin `w − cos(h/2)` \
          among them, is a symbolic Zero, and each check is read once per build"
+    );
+    assert_eq!(
+        winding_zeros, 10,
+        "the loop-winding door reads each arc rim's checks once, in the walk's lane choice"
     );
     assert_eq!(
         distinct, 7,
