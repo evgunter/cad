@@ -3496,6 +3496,19 @@ NOT_BOUND = {
     # would add a name to import for no question it answers, which is
     # `Point2`'s argument at the top of this roster.
     "OffsetInterval": SHAPE,
+    # A dual's build-of-record door (DUAL-DESIGN DL3) and its plumbing:
+    # `evaluate_recorded` answers only at a dual, the two marker traits
+    # say which scalar takes which door, and `RecordMispairing` is the
+    # payload of a refusal only that door raises. Python evaluates at
+    # `f64` alone, which is its own record, so none of the four is a
+    # door a caller can reach; the refusal's class still crosses as its
+    # tag (`record_mispaired`), with its sentence, should one ever
+    # arrive. The same day as the certified half above: a Python surface
+    # that evaluates at a dual owes each a spelling.
+    "evaluate_recorded": SHAPE,
+    "BoundToRecord": SHAPE,
+    "OwnRecord": SHAPE,
+    "RecordMispairing": SHAPE,
 }
 
 
@@ -3794,6 +3807,7 @@ MEMBERS_BOUND_AS = {
     "ParseError::Dimension": "ParseError.variant",
     "PathError::JunctionTangent": "PathError.variant",
     "PathError::JunctionCusp": "PathError.variant",
+    "PathError::CuspDoublesBackOverLeg": "PathError.variant",
     "PathError::SeamTangent": "PathError.variant",
     "PathError::SeamArrivalOffDirection": "PathError.variant",
     "PathError::SeamArrivalLeverTooShort": "PathError.variant",

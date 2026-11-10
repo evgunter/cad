@@ -518,7 +518,7 @@ fn a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly() {
     let c = tangent_circle(1.0, rho, -1e-6, 1.1, 0.7);
     let noise = noise_reading(&c, 1.0);
     assert!(
-        decide(LADDER_NOISE, Margin::of(noise), band).is_err(),
+        decide(LADDER_ROWS.noise(), Margin::of(noise), band).is_err(),
         "the noise reading {noise:e} m lies in the gap of the band [1e-9, 1e-8]"
     );
     let truth = exact::truth(&c, &wall(1.0));

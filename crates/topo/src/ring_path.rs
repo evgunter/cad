@@ -1230,9 +1230,8 @@ pub(crate) fn path_parity<T: Decide>(
     // one decided out of span passes the crossing over whatever the
     // others read.
     // Every in-span reading but a line's is of a closed carrier's
-    // parameter named about its span's middle ([`span_readings`]).
-    let turn = Some(Period::new(T::tau()));
-    let in_span = |t: T, span: (T, T), arm: T| span_readings(t, span, turn, arm, slack, band);
+    // parameter named about its span's middle ([`arc_span_readings`]).
+    let in_span = |t: T, span: (T, T), arm: T| arc_span_readings(t, span, arm, slack, band);
     let in_line = |s: T, span: (T, T), arm: T| span_readings(s, span, None, arm, slack, band);
     let inside = Ok(Sign::Positive);
     // A crossing of a torus arc's plane on the plane's other loop is no
@@ -1698,8 +1697,22 @@ fn span_readings<T: Decide>(
         )
     };
     let (start, stop) = period.map_or((t - lo, hi - t), |p| p.span_margins(t, (lo, hi)));
-
     [read(start), read(stop)]
+}
+
+/// **[`span_readings`] of a closed carrier's parameter**, its copies read
+/// a turn apart: a circle's, a conic's or an oval's, every one named
+/// about its span's middle. The one place this lane builds its turn, so
+/// the periodic arms of [`path_parity`] and the coplanar miss read their
+/// copies alike (`span_turn_rows` pins it).
+fn arc_span_readings<T: Decide>(
+    t: T,
+    span: (T, T),
+    arm: T,
+    slack: T,
+    band: Band,
+) -> [Result<Sign, Indeterminate>; 2] {
+    span_readings(t, span, Some(Period::new(T::tau())), arm, slack, band)
 }
 
 /// **`m` shrunk toward zero by `slack`**, to zero inside it: a margin
@@ -1846,7 +1859,7 @@ fn misses_in_plane<T: Decide>(
     // An end lies outside a span when either of its two readings is
     // decided outside; an escalation counts only where neither is.
     let outside = |t: T, span: (T, T), arm: T| -> Result<bool, Indeterminate> {
-        let readings = span_readings(t, span, Some(Period::new(T::tau())), arm, slack, band);
+        let readings = arc_span_readings(t, span, arm, slack, band);
         if readings.contains(&Ok(Sign::Negative)) {
             return Ok(true);
         }

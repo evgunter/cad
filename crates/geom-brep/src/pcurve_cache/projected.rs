@@ -1245,11 +1245,10 @@ pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bo
 
 /// The period gate's row, and the straddle of a bounded channel's two
 /// readings.
-const PERIOD_ROWS: TurnRows<&str> =
-    TurnRows::bounded("pcurve_azimuth_period", "pcurve_azimuth_period_straddle");
+const PERIOD_ROWS: TurnRows<&str> = crate::rows::PCURVE_AZIMUTH_PERIOD.rows();
 
 /// The period gate's row at an exact channel.
-const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn);
+const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn());
 
 /// Check 2's disposition of one channel's "not over": a sweep over a
 /// turn refuses as `exceeded`, an undecided one escalates under `check`.
@@ -1262,7 +1261,7 @@ fn period_gate(
         Ok(true) => Ok(()),
         Ok(false) => Err(exceeded),
         Err(undecided) => Err(PcurveCertifyError::Escalated {
-            check,
+            check: super::general(check),
             sample: 0,
             cause: undecided.diag,
         }),
@@ -1596,7 +1595,7 @@ fn require_positive<T: Decide>(
         Ok(true) => Ok(value),
         Ok(false) => Err(refused),
         Err(cause) => Err(PcurveCertifyError::Escalated {
-            check,
+            check: super::general(check),
             sample: u32::try_from(at).unwrap_or(u32::MAX),
             cause,
         }),

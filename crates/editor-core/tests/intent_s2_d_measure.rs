@@ -153,7 +153,7 @@ fn measure_arithmetic_is_a_definition_the_assertion_reads() {
         },
     )
     .0;
-    let seeded = editor_core::evaluate::<geom_core::Dual64>(
+    let seeded = editor_core::test_support::evaluate_bound::<geom_core::Dual64>(
         &doc,
         None,
         &editor_core::CancelToken::new(),

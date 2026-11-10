@@ -493,7 +493,7 @@ fn a_face_read_under_an_analysis_evaluation_resolves() {
             (v, [p.x, p.y, p.z])
         })
         .collect();
-    let dual = editor_core::evaluate::<geom_core::Dual64>(
+    let dual = editor_core::test_support::evaluate_bound::<geom_core::Dual64>(
         &s.doc,
         None,
         &CancelToken::new(),

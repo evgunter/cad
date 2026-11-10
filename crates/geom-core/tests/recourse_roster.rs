@@ -83,6 +83,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("period.rs: chord_name", FORWARDS),
     ("period.rs: name", FORWARDS),
     ("period.rs: sense_name", FORWARDS),
+    // `TurnRows::registered`, a registry's door to the crate-private
+    // `bounded`, hands its caller's row on.
+    ("period.rs: turn", FORWARDS),
     ("period.rs: rows.straddle", ROW_FIELD),
     ("period.rs: rows.turn", ROW_FIELD),
     ("running.rs: name", FORWARDS),

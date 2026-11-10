@@ -363,25 +363,9 @@ fn radius_guard<T: Decide>(
 }
 
 /// The cylinder × torus gap's rows.
-pub(super) const CT_GAP: GapRows = GapRows {
-    gap: "ct_critical_gap",
-    clear: "ct_critical_gap_clear",
-    monotone: "ct_critical_gap_monotone",
-    smooth: "ct_critical_gap_smooth",
-    turn: "ct_critical_gap_turn",
-    floor: "ct_critical_gap_floor",
-    straddle: "ct_critical_gap_straddle",
-};
+pub(super) const CT_GAP: GapRows = crate::rows::CT_GAP;
 /// The torus × torus gap's rows.
-pub(super) const TT_GAP: GapRows = GapRows {
-    gap: "tt_critical_gap",
-    clear: "tt_critical_gap_clear",
-    monotone: "tt_critical_gap_monotone",
-    smooth: "tt_critical_gap_smooth",
-    turn: "tt_critical_gap_turn",
-    floor: "tt_critical_gap_floor",
-    straddle: "tt_critical_gap_straddle",
-};
+pub(super) const TT_GAP: GapRows = crate::rows::TT_GAP;
 /// The sphere × torus gap's row: the closed form's, read across its
 /// rounding.
 const ST_GAP: [&str; 2] = ["st_critical_gap", "st_critical_gap_floor"];
@@ -397,7 +381,7 @@ fn swept<T: Decide>(
     match critical_gap(ring.core(), spine, radii, rows, band) {
         Ok(Gap::Transverse) => Ok(TorusGap::Transverse),
         Ok(Gap::Tangent { margin, at }) => Ok(TorusGap::Tangent {
-            row: rows.gap,
+            row: rows.gap(),
             margin,
             at: Some(at),
         }),
