@@ -8983,7 +8983,7 @@ impl<T: Decide> Placement<T> {
             // no length) still has its carrier's direction: the reach of
             // the carrier over its own interval. Only a carrier wholly on
             // the axis has none.
-            if (T::one() / over_span).is_bounded() {
+            if geom_core::structure_nonzero(over_span) {
                 over_span
             } else {
                 at(own_interval(carrier))
@@ -9085,11 +9085,11 @@ impl<T: Decide> Placement<T> {
             Along::Tube => self.levers.tube,
             Along::Latitude => self.levers.latitude,
         };
-        // A zero lever (or an enclosure reaching zero: no bounded
-        // reciprocal, at every scalar alike) is an angle that moves
+        // A zero lever (or an enclosure reaching zero, the structure
+        // decision of `structure_nonzero`) is an angle that moves
         // nothing, a pole's zero-radius parallel: every copy names the same
         // points, and the angle as read is the copy (D9's tie-break).
-        if !(T::one() / lever).is_bounded() {
+        if !geom_core::structure_nonzero(lever) {
             return Ok(0);
         }
         let centre = window.centre::<T>();
@@ -10059,7 +10059,7 @@ fn derive_class_zero<T: Decide>(
                     // An anchor on the axis off the apex names no
                     // generator: the only ruling through an axis point is
                     // the apex's, so the line is no ruling.
-                    if !(T::one() / r_dir.norm()).is_bounded() {
+                    if r_dir.checked_direction().is_err() {
                         return Err(incidence::general_lane(shown, None));
                     }
                     let g = ruling_generator(axis, half_angle, r_dir);
