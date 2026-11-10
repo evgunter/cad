@@ -2187,32 +2187,52 @@ fn point_in_loop<T: Decide>(
     })
 }
 
-/// Compares two points in the canonical lexicographic order (least x,
-/// then least y) through the exact-order band (module docs) — the
-/// **`canonical_order_x`** / **`canonical_order_y`** predicates.
-fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>) -> Result<bool, Escalation> {
+/// The sign of `p` less `q` in the canonical lexicographic order: x, then
+/// y where x decides `Zero` — the **`canonical_order_x`** /
+/// **`canonical_order_y`** predicates, through the exact-order band
+/// (module docs).
+fn lex_sign<T: Decide>(p: Point2<T>, q: Point2<T>) -> Result<Sign, Escalation> {
     match prove(Gate::CanonicalOrderX, Margin::of(p.x - q.x))? {
-        Sign::Negative => Ok(true),
-        Sign::Positive => Ok(false),
-        Sign::Zero => Ok(prove(Gate::CanonicalOrderY, Margin::of(p.y - q.y))? == Sign::Negative),
+        Sign::Zero => prove(Gate::CanonicalOrderY, Margin::of(p.y - q.y)),
+        decided => Ok(decided),
     }
 }
 
 /// The index of a chain's lexicographically minimal vertex — the
-/// containment representative point.
+/// containment representative point — through the decided argmin, free
+/// of nothing ([`geom_core::ladder::argmin_decided`]).
+///
+/// **No two vertices tie**: validation's simplicity pass (every segment
+/// pair, adjacency discounted only at the shared vertex) runs before this,
+/// and two vertices of one loop reading `Zero` in both x and y lie within
+/// `√2·zero` of each other, which that pass refuses as a contact or
+/// escalates. A tie left in contention is therefore unreachable.
 fn lex_min_index<T: Decide>(
     vertices: &[Point2<T>],
     loop_index: usize,
 ) -> Result<usize, ProfileError> {
-    let mut best = 0;
-    for i in 1..vertices.len() {
-        if lex_less(vertices[i], vertices[best]).map_err(|source| {
-            ProfileError::escalated(EscalationSite::Loop { loop_index }, source)
-        })? {
-            best = i;
+    use geom_core::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
+    let escalated = |source| ProfileError::escalated(EscalationSite::Loop { loop_index }, source);
+    let cmp = |&i: &usize, &j: &usize| {
+        lex_sign(vertices[i], vertices[j]).map_err(|e: Escalation| {
+            let kept = Undecided::of(*e.source());
+            kept.map(|_| e)
+        })
+    };
+    match argmin_decided(0..vertices.len(), cmp, FreeOf::Nothing) {
+        Ok(Some(best)) => Ok(best),
+        Ok(None) => Ok(0),
+        Err(
+            Unpicked::Contested {
+                in_band: Some(e), ..
+            }
+            | Unpicked::Aborted(e),
+        ) => Err(escalated(e)),
+        Err(Unpicked::Contested { in_band: None, .. }) => {
+            unreachable!("simplicity refuses two vertices of one loop tied in x and y")
         }
+        Err(Unpicked::Cyclic) => unreachable!("the lexicographic order ranks in no cycle"),
     }
-    Ok(best)
 }
 
 /// Orients and re-derives one loop into its canonical form.

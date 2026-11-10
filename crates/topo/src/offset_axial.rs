@@ -296,6 +296,7 @@ use geom_brep::EdgeCurveSpec;
 use geom_brep::ExtentBall;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::k_stats::decide;
+use geom_core::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
 use geom_core::{
     Arc2, Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, SpanLocate,
     SupSpeed, Tol, Vec3,
@@ -2043,19 +2044,24 @@ fn nearest<T: Decide>(
     let far = |r: (T, T)| Vec3::new(r.0 - rho, r.1 - h, T::zero()).norm();
     // Both callers hand over a line pair's one root or a line–circle
     // pair's two, whose transversality they certified first.
-    let Some(&first) = roots.first() else {
-        unreachable!("a certified-transversal profile pair has a root")
+    // The decided argmin, free of nothing: two roots no root is decided
+    // nearer than are a tie, whatever order they come in.
+    let cmp = |a: &(T, T), b: &(T, T)| {
+        decide("offset_axial_branch", Margin::of(far(*a) - far(*b)), band).map_err(Undecided::of)
     };
-    let mut best = first;
-    for &r in &roots[1..] {
-        match decide("offset_axial_branch", Margin::of(far(r) - far(best)), band) {
-            Ok(Sign::Negative) => best = r,
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => return Ok(None),
-            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-        }
+    match argmin_decided(roots.iter().copied(), cmp, FreeOf::Nothing) {
+        Ok(Some(root)) => Ok(Some(root)),
+        Ok(None) => unreachable!("a certified-transversal profile pair has a root"),
+        Err(Unpicked::Contested { in_band: None, .. }) => Ok(None),
+        Err(
+            Unpicked::Contested {
+                in_band: Some(source),
+                ..
+            }
+            | Unpicked::Aborted(source),
+        ) => Err(ReplaceFaceError::Escalated { source }),
+        Err(Unpicked::Cyclic) => unreachable!("one distance's difference ranks in no cycle"),
     }
-    Ok(Some(best))
 }
 
 /// The branch a small offset keeps on a profile pair whose
