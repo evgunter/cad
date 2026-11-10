@@ -58,7 +58,6 @@
 //!
 //! [`speed_floor`]: crate::carrier_speed::speed_floor
 
-use geom_core::period::Period;
 use geom_core::{Decide, Point3, Real, Rounded, Vec3};
 
 use crate::azimuth::{self, Azimuth};
@@ -162,12 +161,6 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     /// The principal frame with the larger semi-axis first, whichever the
     /// seam is at; a tie, and a circle, keep the seam's own axis.
     fn major_frame(&self) -> MajorFrame<T>;
-
-    /// **The parameter's period**, one turn: a conic's parameter is an
-    /// angle, so a parameter names its point modulo `τ`.
-    fn period(&self) -> Period<T> {
-        Period::new(T::tau())
-    }
 
     /// **The point at `θ` with a first-order running bound on its
     /// rounding** ([`Rounded`]), from `sin θ` and `cos θ` already charged:
