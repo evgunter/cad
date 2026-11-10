@@ -779,32 +779,10 @@ fn before<T: Decide>(s: T, t: T) -> bool {
     compare("curve_pair_meet_order", s, t) == Some(geom_core::Sign::Negative)
 }
 
-/// **Two parameters compared, read exactly** under `row`, a proof's
-/// inequality ([`geom_core::k_stats::prove`]): the sign of `s − t`. A
-/// parameter is no distance the band resolves, so the band plays no
-/// part, and only an enclosure that straddles fails to decide. The one
-/// home of the question, read by the curve pair's walks ([`compare`])
-/// and by `topo`'s join (whether an edge's end lies on its spline's
-/// crease).
-///
-/// The difference is wrapped as `Margin::of`, whose doc promises metres,
-/// though a parameter is not one
-/// (`work/onecopy/a-parameter-difference-is-decided-through-the-metres-margin-door.md`).
-///
-/// # Errors
-///
-/// The proof's escalation, where an enclosure of `s − t` holds zero.
-pub fn param_order<T: Decide>(
-    row: &'static str,
-    s: T,
-    t: T,
-) -> Result<geom_core::Sign, geom_core::Indeterminate> {
-    geom_core::k_stats::prove(row, geom_core::Margin::of(s - t))
-}
-
-/// [`param_order`], `None` where an enclosure straddles.
+/// [`geom_core::k_stats::param_order`], `None` where an enclosure
+/// straddles.
 pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_core::Sign> {
-    param_order(row, s, t).ok()
+    geom_core::k_stats::param_order(row, s, t).ok()
 }
 
 impl From<geom::CarrierRefusal> for MeetFault {

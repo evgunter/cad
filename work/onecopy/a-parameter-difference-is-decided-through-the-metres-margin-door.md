@@ -12,7 +12,7 @@ cost: M
 Found by PR 6709's FULL review (S2). Not fixed there.
 
 `geom_core::Margin::of` (`geom-core/src/predicate.rs:907`) is the door for a quantity that "IS metres": a length, a signed projection of a metre vector onto a unit direction, a difference of lengths, and so on. A curve's parameter is no length. On a spline it is a knot coordinate, on a circle an angle. Yet two sites decide a parameter difference through it:
-- `geom-brep/src/curve_pair.rs:802` `param_order`, which `compare` reads, `prove(row, Margin::of(s − t))`: the curve pair's walks order two parameters, and test two for the same foot;
+- `geom-core/src/k_stats.rs` `param_order`, `prove(row, Margin::of(s − t))`, read by `geom-brep`'s `curve_pair::compare`: the curve pair's walks order two parameters, and test two for the same foot;
 - `topo/src/boolean/edge_join.rs:494` `crease_read`, through `param_order`: whether a join edge's end parameter lies on its spline's crease.
 
 Both read at the least band (`prove`), so no band's metres meaning enters the sign. But the recorded margin goes to the K stream labelled as metres, and the dimension audit's convention (D4, clause (i)) is that every recorded margin is a length.
