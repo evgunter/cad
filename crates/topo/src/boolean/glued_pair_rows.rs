@@ -157,7 +157,7 @@ fn a_glued_sector_with_an_in_band_tilt_at_its_arm_lumps_as_glued() {
     };
     assert!(
         crate::validate::decide(
-            "bool_sector_coplanar",
+            "bool_faces_parallel",
             Margin::levered(
                 na.cross(nb).norm(),
                 geom_core::test_support::fixture_lever(1.0)

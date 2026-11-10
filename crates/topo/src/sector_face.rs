@@ -24,7 +24,7 @@
 //!    tangent plane at its apex, and is read there as its circle of
 //!    rulings ([`VertexFace::Apex`]), each with its own normal: a
 //!    reader takes the normal along the ruling it means
-//!    ([`VertexFace::normal_along`]), and none is NaN.
+//!    ([`ConeApex::normal_along`]), and none is NaN.
 //!
 //! **Every arm folds in the face's `sense` bit** (S10) by minting an
 //! [`OutwardNormal`]: each reads a CHART normal and returns it as the
