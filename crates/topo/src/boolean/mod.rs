@@ -79,6 +79,57 @@ pub mod carrier_eq;
 pub(crate) mod carrier_pair;
 mod carrier_touch;
 pub(crate) mod combine;
+/// **A pierce's refusal as a rung of the pierce pass's ladder**, by its
+/// own standing ([`BooleanError::refusal`]): kept by its kind, or, where
+/// it refuses the whole query, stopping the pass with the refusal itself.
+fn pierce_rung(e: BooleanError) -> Rung<BooleanError, BooleanError> {
+    Rung::refused(e, BooleanError::refusal, core::convert::identity)
+}
+
+/// **The pierce pass's refusal after `operand`'s reads** (`boolean_reduce`'s
+/// vertex-on-face pass, at its call): A's kept readings are ranked with
+/// B's, read by `read` ([`pierces_refused`]); B's are the last run, ranked
+/// alone. `read` is asked only for B, and only where A kept a refusal.
+///
+/// # Errors
+///
+/// As [`pierces_refused`].
+fn pierces_refused_after(
+    operand: Operand,
+    kept: Evidence<BooleanError>,
+    read: impl FnOnce(Operand) -> Result<Evidence<BooleanError>, BooleanError>,
+) -> Result<(), BooleanError> {
+    pierces_refused(kept, || match operand {
+        Operand::A => read(Operand::B),
+        Operand::B => Ok(Evidence::default()),
+    })
+}
+
+/// **The pierce pass's refusal, A's pierces ranked with B's after
+/// them** (`boolean_reduce`'s vertex-on-face pass): where one operand's
+/// reads kept a refusal, the other's are read too before the pass
+/// refuses, so an abort in them (`read_later`'s `Err`) ends the pass
+/// first, and otherwise the pass refuses on the ranked one of both runs,
+/// the earlier run's on a tie ([`Evidence::then`]). Where nothing was
+/// kept the pass goes on, and `read_later` is not read: B's pierces are
+/// read after A's are minted.
+///
+/// # Errors
+///
+/// The later run's abort, or the ranked kept refusal.
+fn pierces_refused(
+    kept: Evidence<BooleanError>,
+    read_later: impl FnOnce() -> Result<Evidence<BooleanError>, BooleanError>,
+) -> Result<(), BooleanError> {
+    if kept.is_empty() {
+        return Ok(());
+    }
+    match kept.then(read_later()?).refusal() {
+        Some(refused) => Err(refused),
+        None => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod cone_frame_rows;
 mod conic_quadric;
@@ -276,7 +327,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
     }
     Some(match predicate {
         "bool_point_in_solid_plane" => "which side of a face's plane a point lies on",
-        "bool_overlap_on_plane" => "whether a point of one face lies on the other face's plane",
         "bool_overlap_cut_order" => "where along an edge its meetings with a face's boundary lie",
         "bool_overlap_senses" => "whether two faces on one carrier face one way",
         "bool_point_in_solid_sphere" => "how far a point lies off a sphere face's carrier",
@@ -370,9 +420,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "split_edge_param_interior" | "bool_wall_root_in_span" => {
-            CrossingDecision::OnEdge.subject()
-        }
+        "bool_wall_root_in_span" => CrossingDecision::OnEdge.subject(),
         "plane_crossing_root_order"
         | "plane_crossing_roots_apart"
         | "spline_composite_roots_apart"
@@ -1538,13 +1586,17 @@ pub(crate) fn unglued_coincidence(
     read: DeclarationRead,
     band: Band,
 ) -> BooleanError {
+    // The refusal's own row: no `k_stats` door decides it, the margin is
+    // the glue reading's, handed on
+    // (`work/onecopy/two-boolean-refusals-name-a-row-no-door-decides.md`).
+    const CARRIER_UNGLUED_COINCIDENCE: &str = "carrier_unglued_coincidence";
     BooleanError::coincidence(
         Coincide::Carriers,
         read,
         Indeterminate {
             margin,
             band,
-            predicate: Some("carrier_unglued_coincidence"),
+            predicate: Some(CARRIER_UNGLUED_COINCIDENCE),
             terminal_sliver: false,
         },
     )
@@ -4190,6 +4242,13 @@ pub enum BooleanError {
     /// capability gaps with a body defect, so the abort is not the class of every case it carries,
     /// and a ladder that reads one splits it first.
     JoinUndecided(edge_join::JoinUndecided),
+    /// **Two partners of a germ are decided equally near**, where no
+    /// proof frees the join's choice of them (`join::find_match`): the
+    /// join does not pick one by scan order. A precision limit (row
+    /// 1(b)): the two lie within the band's zero along the germ line
+    /// (`bool_join_nearest`, `bool_join_foot_travel`,
+    /// `bool_join_arc_travel`), so a tighter tolerance may part them.
+    JoinPartnersTied,
     /// **A curved join on a carrier the stage cannot run on.** The join
     /// restates the kept edge over both edges' span on its own carrier
     /// (`edge_join::joined_spec` says where the far parameter comes
@@ -4711,6 +4770,8 @@ pub enum BooleanErrorKind {
     Join,
     /// [`BooleanError::JoinUndecided`].
     JoinUndecided,
+    /// [`BooleanError::JoinPartnersTied`].
+    JoinPartnersTied,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
     /// [`BooleanError::CarryRefused`].
@@ -4987,6 +5048,7 @@ impl BooleanError {
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
+            Self::JoinPartnersTied => BooleanErrorKind::JoinPartnersTied,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
@@ -5047,6 +5109,7 @@ impl BooleanError {
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
+            Self::JoinPartnersTied => Ok(Refusal::InBand),
             Self::JoinUndecided(u) => match &u.reading {
                 edge_join::JoinReading::Regularity(diag)
                 | edge_join::JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(
@@ -5862,6 +5925,11 @@ impl BooleanError {
                 read_at(e.error(), at)
             ),
             Self::JoinUndecided(e) => write!(f, "{}", read_at(e, at)),
+            Self::JoinPartnersTied => f.write_str(
+                "the operands' sections meet where two of their ends lie equally near one \
+                 another, so the Boolean cannot tell which to join. Recourse: move the parts \
+                 so the sections' ends clearly part",
+            ),
             Self::JoinCarrierUnsupported {
                 edge,
                 carrier,
@@ -6718,7 +6786,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                         if wall.is_some_and(|w| w.faces[0] == c.face) {
                             refused_firsts.insert(c.vertex);
                         }
-                        Rung::refused(e, BooleanError::refusal, core::convert::identity)
+                        pierce_rung(e)
                     }
                 }
             });
@@ -6732,14 +6800,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         (Operand::B, &contacts.b_on_a),
     ] {
         let (reads, kept) = read_pierces(operand, &a, &b)?;
-        let kept = if operand == Operand::A && !kept.is_empty() {
-            kept.then(read_pierces(Operand::B, &a, &b)?.1)
-        } else {
-            kept
-        };
-        if let Some(escalated) = kept.refusal() {
-            return Err(escalated);
-        }
+        pierces_refused_after(operand, kept, |later| {
+            read_pierces(later, &a, &b).map(|(_, kept)| kept)
+        })?;
         let mut minted = Vec::with_capacity(pierced.len());
         // Each wall's first face's moved halves and edge classes, which
         // its second face's classes gather.
@@ -8404,38 +8467,7 @@ fn locus_through_both_faces<T: Decide>(
         band,
         |i, why, held: &mut Vec<BooleanError>| {
             let (_, face, operand, kind) = faces[i];
-            held.push(match why {
-                FaceUnread::Trim => BooleanError::CurvedBooleanUnsupported {
-                    operand,
-                    face,
-                    kind,
-                },
-                FaceUnread::Placement(contain::PlacementError::OnPlane(diag)) => refused(diag),
-                FaceUnread::Placement(contain::PlacementError::Door(e)) => {
-                    reduce::esc(e, operand, face)
-                }
-                FaceUnread::Boundary(refusal) => match refusal {
-                    geom_brep::curve_face::BoundaryRefusal::Escalated(diag)
-                    | geom_brep::curve_face::BoundaryRefusal::Met(
-                        geom_brep::curve_pair::MeetKind::Escalated(diag)
-                        | geom_brep::curve_pair::MeetKind::Touch(diag),
-                    ) => refused(diag),
-                    geom_brep::curve_face::BoundaryRefusal::Met(
-                        geom_brep::curve_pair::MeetKind::Unread(_),
-                    ) => BooleanError::CurvedBooleanUnsupported {
-                        operand,
-                        face,
-                        kind,
-                    },
-                    geom_brep::curve_face::BoundaryRefusal::Met(
-                        geom_brep::curve_pair::MeetKind::Fault { what },
-                    ) => BooleanError::ClassificationInvariant { what },
-                },
-                // The operand gate certified every curve.
-                FaceUnread::Uncertified => BooleanError::ClassificationInvariant {
-                    what: "a tangent face's boundary edge holds no certified curve",
-                },
-            });
+            held.push(face_unread_refusal(why, (operand, face, kind), refused));
         },
     )
     .map_err(|held| {
@@ -8447,26 +8479,96 @@ fn locus_through_both_faces<T: Decide>(
     })
 }
 
+/// **The op's refusal for a face that left a tangent line unread**
+/// ([`locus_through_both_faces`]): a coincidence `refused` where the
+/// boundary pass met the locus in band, a limit where a curved trim or
+/// meeting has no reading, the door's own refusal, and the invariant a
+/// broken premise names.
+fn face_unread_refusal(
+    why: FaceUnread,
+    (operand, face, kind): (Operand, FaceKey, geom::SurfaceKind),
+    refused: impl Fn(Indeterminate) -> BooleanError,
+) -> BooleanError {
+    use geom_brep::curve_face::BoundaryRefusal;
+    use geom_brep::curve_pair::MeetKind;
+    let unsupported = BooleanError::CurvedBooleanUnsupported {
+        operand,
+        face,
+        kind,
+    };
+    match why {
+        FaceUnread::Trim | FaceUnread::Boundary(BoundaryRefusal::Met(MeetKind::Unread(_))) => {
+            unsupported
+        }
+        FaceUnread::Placement(e) => reduce::esc(e, operand, face),
+        FaceUnread::Fault(what)
+        | FaceUnread::Boundary(BoundaryRefusal::Met(MeetKind::Fault { what })) => {
+            BooleanError::ClassificationInvariant { what }
+        }
+        FaceUnread::Boundary(
+            BoundaryRefusal::Escalated(diag)
+            | BoundaryRefusal::Met(MeetKind::Escalated(diag) | MeetKind::Touch(diag)),
+        ) => refused(diag),
+    }
+}
+
+/// **A station's placement, read** ([`line_through_both_faces`]): `In`
+/// is `true`, every other place `false`; a curved trim with no verdict
+/// is [`FaceUnread::Trim`], the door's refusal its own. A station read
+/// definitely off a curved face's carrier (a planar face's placement
+/// never says so) breaks the read's premise ([`FaceUnread::Fault`]).
+///
+/// # Errors
+///
+/// Why the face left the station unread.
+fn station_reads(
+    read: Result<contain::CurvedPlacement, contain::ContainError>,
+) -> Result<bool, FaceUnread> {
+    match read {
+        Ok(contain::CurvedPlacement::Trim(Some(at))) => Ok(at == FaceContainment::In),
+        Ok(contain::CurvedPlacement::OffCarrier) => Err(FaceUnread::Fault(STATION_OFF_CARRIER)),
+        Ok(contain::CurvedPlacement::Trim(None)) => Err(FaceUnread::Trim),
+        Err(e) => Err(FaceUnread::Placement(e)),
+    }
+}
+
+/// [`FaceUnread::Fault`]'s invariant where a station of the locus reads
+/// off a face's carrier.
+const STATION_OFF_CARRIER: &str = "a station of a tangent locus is off a face's carrier";
+
+/// [`FaceUnread::Fault`]'s invariant where a face's boundary holds an edge
+/// with no certified curve: the op's operand gate and tier 2 at rest
+/// (`NullEdgeAtRest`) admit none.
+const UNCERTIFIED_BOUNDARY: &str = "a face's boundary holds an edge with no certified \
+     curve, which the operand gate and tier 2 (`NullEdgeAtRest`) refuse";
+
 /// Why one face left a point of a tangent line unread
 /// ([`line_through_both_faces`]).
 pub(crate) enum FaceUnread {
     /// A curved trim the chart door gives no verdict for.
     Trim,
     /// The placement's own refusal.
-    Placement(contain::PlacementError),
+    Placement(contain::ContainError),
     /// The boundary pass's refusal of the locus against the face's
     /// boundary ([`boundary_cuts`]): over a member's window, or over the
     /// whole face where the pass faults, its meetings, so the runs, are
     /// unknown.
     Boundary(geom_brep::curve_face::BoundaryRefusal),
-    /// An edge of the face's boundary holds no certified curve, which the
-    /// boundary pass cannot read.
-    Uncertified,
+    /// A premise of the caller's broken, the kernel's invariant it names
+    /// ([`UNCERTIFIED_BOUNDARY`], [`STATION_OFF_CARRIER`]), which each
+    /// mapper raises as its invariant.
+    Fault(&'static str),
 }
 
 /// **Whether a tangent line runs through two faces' interiors**: some
-/// point of it over `overlap` lies strictly inside both faces
-/// ([`contain::face_placement`], a point off a face's carrier out). The
+/// point of it over `overlap` lies strictly inside both faces. The
+/// locus is a tangent line of the pair, on both faces' carriers to
+/// within the band: the op's touch verified within ε, a given pair's
+/// line its deciding operation's, the rest pair's derived line. So each
+/// station is held on them in band ([`crate::held::Held::in_band`]) and
+/// placed with no on-plane decision ([`contain::placement_on_carrier`]);
+/// a station read definitely off a curved face's carrier breaks that
+/// premise ([`station_reads`], [`FaceUnread::Fault`]). The
 /// one reading the op's glue door ([`locus_through_both_faces`]) and
 /// the census's face–face confirm (`census::confirm_face_pair`) make
 /// of it.
@@ -8505,17 +8607,17 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     band: Band,
     unread: impl Fn(usize, FaceUnread, &mut Vec<E>),
 ) -> Result<bool, Vec<E>> {
-    use contain::CurvedPlacement;
     let inside = |i: usize, p, held: &mut Vec<E>| {
         let (body, face) = faces[i];
-        let why = match contain::face_placement(body, face, p, band, "bool_tangent_line_in_face") {
-            Ok(CurvedPlacement::Trim(Some(at))) => return Some(at == FaceContainment::In),
-            Ok(CurvedPlacement::OffCarrier) => return Some(false),
-            Ok(CurvedPlacement::Trim(None)) => FaceUnread::Trim,
-            Err(e) => FaceUnread::Placement(e),
-        };
-        unread(i, why, held);
-        None
+        let station = crate::held::Held::in_band(p);
+        let read = contain::placement_on_carrier(body, face, station, band).map(|(at, ..)| at);
+        match station_reads(read) {
+            Ok(inside) => Some(inside),
+            Err(why) => {
+                unread(i, why, held);
+                None
+            }
+        }
     };
     // Each face's located boundary pass, or why its cuts are unknown.
     let read = faces.map(|(body, face)| boundary_cuts(body, face, locus, overlap, band));
@@ -8617,8 +8719,9 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
 /// # Errors
 ///
 /// [`FaceUnread::Boundary`] where a member's reading faults, and as a
-/// fault where `face` does not resolve; [`FaceUnread::Uncertified`]
-/// where a boundary edge holds no certified curve.
+/// fault where `face` does not resolve; [`FaceUnread::Fault`]
+/// ([`UNCERTIFIED_BOUNDARY`]) where a boundary edge holds no certified
+/// curve.
 ///
 /// # Panics
 ///
@@ -8644,7 +8747,7 @@ fn boundary_cuts<T: Decide>(
                 geom_brep::curve_pair::MeetKind::Fault { what },
             ))
         })?
-        .ok_or(FaceUnread::Uncertified)?;
+        .ok_or(FaceUnread::Fault(UNCERTIFIED_BOUNDARY))?;
     let swept = geom_brep::curve_pair::Span::new(locus, span);
     let located = boundary.located(&swept, band);
     match located.fault() {
@@ -8903,9 +9006,8 @@ mod tests {
     /// carrier** ([`locus_through_both_faces`]): two cylinder sheets
     /// tangent from outside along the ruling `x = 1, y = 0`. Where both
     /// sheets' trims hold that ruling the line runs through both
-    /// interiors; where one sheet's trim stops short of it, or the line
-    /// is off one sheet's carrier, it does not. A read of plane faces
-    /// alone answers `false` for the first.
+    /// interiors; where one sheet's trim stops short of it, it does not.
+    /// A read of plane faces alone answers `false` for the first.
     #[test]
     fn the_interiors_read_places_a_tangent_line_on_two_curved_faces() {
         use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
@@ -8929,13 +9031,11 @@ mod tests {
         let a = sheet(Point3::origin(), -Vec3::unit_y(), near);
         let b_in = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), near);
         let b_short = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), (2.2, 3.0));
-        let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y(), near);
         let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
         let kind = geom::SurfaceKind::Cylinder;
         for (what, b, want) in [
             ("both trims hold the ruling", &b_in, true),
             ("B's trim stops short of it", &b_short, false),
-            ("the line is off B's carrier", &b_apart, false),
         ] {
             let got = locus_through_both_faces(
                 [(&a.0, a.1, Operand::A, kind), (&b.0, b.1, Operand::B, kind)],
@@ -8946,6 +9046,105 @@ mod tests {
             );
             assert_eq!(got.ok(), Some(want), "{what}");
         }
+    }
+
+    /// **A locus off a face's carrier breaks the read's premise**
+    /// ([`line_through_both_faces`]): its stations are held on both
+    /// faces' carriers, the locus a tangent line of the pair, so a line
+    /// fed 0.5 off B's cylinder is a defect, not a reading. A debug
+    /// build stops at the held point's own check ([`crate::held::Held`]);
+    /// a release build answers the invariant
+    /// ([`STATION_OFF_CARRIER`]), which
+    /// [`a_station_off_a_curved_carrier_reads_as_the_invariant`] pins in
+    /// every build.
+    #[test]
+    #[cfg_attr(debug_assertions, should_panic(expected = "(read in band) reads"))]
+    fn a_tangent_locus_off_a_faces_carrier_is_a_defect() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        use geom_core::Vec3;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let sheet = |origin: Point3<f64>, u_ref: Vec3<f64>| {
+            let mut body = Body::<f64>::new();
+            let frame = CylFrame {
+                origin,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref,
+            };
+            let face = cyl_wall_sheet(&mut body, frame, (1.0, 2.1), (0.0, 1.0), tol);
+            crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
+            (body, face)
+        };
+        let a = sheet(Point3::origin(), -Vec3::unit_y());
+        let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let kind = geom::SurfaceKind::Cylinder;
+        let got = locus_through_both_faces(
+            [
+                (&a.0, a.1, Operand::A, kind),
+                (&b_apart.0, b_apart.1, Operand::B, kind),
+            ],
+            &line,
+            (0.2, 0.8),
+            DeclarationRead::Moot,
+            band,
+        );
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::ClassificationInvariant {
+                    what: STATION_OFF_CARRIER
+                })
+            ),
+            "release: the invariant: {got:?}"
+        );
+    }
+
+    /// **A station off a curved face's carrier reads as the op's
+    /// invariant**, in every build: the station's reading
+    /// ([`station_reads`]) given the door's `OffCarrier`, mapped as the
+    /// op maps a face that left the line unread
+    /// ([`face_unread_refusal`]), with no held point to check first.
+    #[test]
+    fn a_station_off_a_curved_carrier_reads_as_the_invariant() {
+        let why = station_reads(Ok(contain::CurvedPlacement::OffCarrier))
+            .expect_err("a station off the carrier is unread");
+        assert!(
+            matches!(why, FaceUnread::Fault(STATION_OFF_CARRIER)),
+            "the premise's fault"
+        );
+        let refusal = face_unread_refusal(
+            why,
+            (Operand::B, FaceKey::default(), geom::SurfaceKind::Cylinder),
+            |diag| BooleanError::coincidence(Coincide::TangentLocus, DeclarationRead::Moot, diag),
+        );
+        assert!(
+            matches!(
+                refusal,
+                BooleanError::ClassificationInvariant {
+                    what: STATION_OFF_CARRIER
+                }
+            ),
+            "the op's invariant: {refusal:?}"
+        );
+        assert!(
+            matches!(
+                face_unread_refusal(
+                    FaceUnread::Fault(UNCERTIFIED_BOUNDARY),
+                    (Operand::A, FaceKey::default(), geom::SurfaceKind::Plane),
+                    |diag| BooleanError::coincidence(
+                        Coincide::TangentLocus,
+                        DeclarationRead::Moot,
+                        diag
+                    ),
+                ),
+                BooleanError::ClassificationInvariant {
+                    what: UNCERTIFIED_BOUNDARY
+                }
+            ),
+            "an uncertified boundary is the same invariant arm"
+        );
     }
 
     /// **A tangency along a curve gives cover only where it is a global
@@ -9972,6 +10171,7 @@ mod tests {
                 BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
+                BooleanErrorKind::JoinPartnersTied => "JoinPartnersTied",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",

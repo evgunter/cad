@@ -58,11 +58,8 @@ pub(crate) fn point_at(body: &Body<f64>, v: VertexKey) -> V {
 }
 
 pub(crate) fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
-    let he = body.get_edge(e).expect("an edge").he_plus;
-    [
-        body.get_half_edge(he).expect("a half-edge").start,
-        body.half_edge_end(he).expect("an end"),
-    ]
+    let (v0, v1) = body.edge_vertices(e).expect("an edge");
+    [v0, v1]
 }
 
 /// **A convex body's half-spaces**, read off its stored planes, each
@@ -441,12 +438,8 @@ fn the_overrun_carves_at_the_certified_scalar() {
 
 /// An `Interval` edge's two ends, at their midpoints.
 pub(crate) fn ends_iv(body: &Body<Interval>, e: EdgeKey) -> [[f64; 3]; 2] {
-    let he = body.get_edge(e).expect("an edge").he_plus;
-    [
-        body.get_half_edge(he).expect("a half-edge").start,
-        body.half_edge_end(he).expect("an end"),
-    ]
-    .map(|v| {
+    let (v0, v1) = body.edge_vertices(e).expect("an edge");
+    [v0, v1].map(|v| {
         let p = body
             .get_point(body.get_vertex(v).expect("a vertex").point)
             .expect("a point");

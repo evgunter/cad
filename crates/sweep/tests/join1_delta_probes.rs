@@ -275,12 +275,9 @@ fn an_apex_edge_in_the_partners_face_is_recorded() {
         let bb = r.body().unwrap();
         let body = &bb.body;
         let ends = |e| {
-            let d = body.get_edge(e).unwrap();
+            let (start, end) = body.edge_vertices(e).unwrap();
             let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            (
-                p(body.get_half_edge(d.he_plus).unwrap().start),
-                p(body.half_edge_end(d.he_plus).unwrap()),
-            )
+            (p(start), p(end))
         };
         let apex = |e| {
             let (p, q) = ends(e);

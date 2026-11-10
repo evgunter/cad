@@ -43,8 +43,8 @@ fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
 
 /// Whether an edge is closed: its `he_plus` returns to its own start.
 fn closed_edge(body: &Body<f64>, edge: EdgeKey) -> bool {
-    let e = body.get_edge(edge).unwrap();
-    Some(body.get_half_edge(e.he_plus).unwrap().start) == body.half_edge_end(e.he_plus)
+    let (start, end) = body.edge_vertices(edge).unwrap();
+    start == end
 }
 
 /// The one OPEN arc at radius `rim_r` and station `rim_y`, which a
@@ -153,13 +153,13 @@ fn a_co_surface_seam_meridian_reads_smooth_at_exactly_zero() {
     // The fixture-side witness that the edge is nowhere near
     // degenerate: its two poles sit the ball's diameter apart (plain
     // geometry — the kernel's lever is never restated here).
-    let e = ball.get_edge(seam).unwrap();
+    let (start, end) = ball.edge_vertices(seam).unwrap();
     let vp = |v| {
         let vx = ball.get_vertex(v).unwrap();
         *ball.get_point(vx.point).unwrap()
     };
-    let p0 = vp(ball.get_half_edge(e.he_plus).unwrap().start);
-    let p1 = vp(ball.half_edge_end(e.he_plus).unwrap());
+    let p0 = vp(start);
+    let p1 = vp(end);
     assert!(
         (p1 - p0).norm() > 1.9,
         "the seam meridian's endpoints span ~the ball's diameter"

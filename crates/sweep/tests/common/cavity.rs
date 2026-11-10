@@ -168,13 +168,7 @@ pub fn edges_with_corners<T: Real>(body: &Body<T>, on: impl Fn(Point3<T>) -> boo
     let mut found: Vec<EdgeKey> = body
         .edges()
         .filter(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
+            let Some((start, end)) = body.edge_vertices(*k) else {
                 return false;
             };
             let pt = |v| {
@@ -182,7 +176,7 @@ pub fn edges_with_corners<T: Real>(body: &Body<T>, on: impl Fn(Point3<T>) -> boo
                     .and_then(|x| body.get_point(x.point))
                     .copied()
             };
-            match (pt(h.start), pt(end)) {
+            match (pt(start), pt(end)) {
                 (Some(a), Some(b)) => on(a) && on(b),
                 _ => false,
             }

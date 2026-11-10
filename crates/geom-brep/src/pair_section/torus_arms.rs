@@ -55,7 +55,7 @@ impl Pinch {
     }
 }
 
-fn sign<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign> {
+fn sign_as<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign> {
     decide(name, m, band).ok()
 }
 
@@ -284,8 +284,8 @@ pub(super) fn sphere_touch<T: Decide>(
     } else {
         (-T::one(), d_far, d_near)
     };
-    let positive = |name, v: T| sign(name, Margin::of(v), band) == Some(Sign::Positive);
-    if !positive("section_torus_sphere_touch_offset", d) {
+    let positive_as = |name, v: T| sign_as(name, Margin::of(v), band) == Some(Sign::Positive);
+    if !positive_as("section_torus_sphere_touch_offset", d) {
         return None;
     }
     // The midpoint of T_σ's two values is max(d_σ, r); `kappa` is +1 at
@@ -303,8 +303,8 @@ pub(super) fn sphere_touch<T: Decide>(
     // T_σ's point along ±(cs − C_σ), C_σ = (σR, 0).
     let (ux, uy) = ((m.s - sigma * big_r) / d, m.ca / d);
     let (x, y) = (sigma * big_r + kappa * r * ux, kappa * r * uy);
-    (positive("section_torus_sphere_touch_extreme", o1.min(o2).min(o3))
-        && positive("section_torus_sphere_touch_elliptic", sigma * x - big_r))
+    (positive_as("section_torus_sphere_touch_extreme", o1.min(o2).min(o3))
+        && positive_as("section_torus_sphere_touch_elliptic", sigma * x - big_r))
     .then(|| m.at(x, y))
 }
 
@@ -378,7 +378,7 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
             // null. `|ρc − e| = ρ_min` stands past `R − r` by the inner
             // row just read, so its sign is decided.
             (true, true, true, true) => {
-                let round_axis = match sign(WALL_ROUND_AXIS, Margin::of(rc - e), band) {
+                let round_axis = match sign_as(WALL_ROUND_AXIS, Margin::of(rc - e), band) {
                     Some(Sign::Positive) => true,
                     Some(Sign::Negative) => false,
                     _ => return Err(Pinch::named(WALL_ROUND_AXIS)),
@@ -635,12 +635,15 @@ pub(super) fn parallel_torus_arm<T: Decide>(
                 // the span by the same floors), where its two strands
                 // meet and read one station: either sheet places the
                 // point there.
-                let outer =
-                    |off: T, owns: bool| match sign(PARALLEL_TORI_ORDER, Margin::of(off), band) {
-                        Some(Sign::Positive) => Some(true),
-                        Some(Sign::Negative) => Some(false),
-                        _ => owns.then_some(true),
-                    };
+                let outer = |off: T, owns: bool| match sign_as(
+                    PARALLEL_TORI_ORDER,
+                    Margin::of(off),
+                    band,
+                ) {
+                    Some(Sign::Positive) => Some(true),
+                    Some(Sign::Negative) => Some(false),
+                    _ => owns.then_some(true),
+                };
                 let (Some(s1), Some(s2)) = (
                     outer(if far1 { xa - x } else { x - xa }, own_top || own_bottom),
                     outer(if far2 { xb - x } else { x - xb }, !own_top || !own_bottom),
@@ -726,7 +729,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
 fn along_w<T: Decide>(xs: &mut [(T, Point3<T>)], cycle: T, band: Band) -> Result<(), Pinch> {
     apart_in_order(xs, PARALLEL_TORI_ORDER, Margin::of, band)?;
     if let [first, .., last] = xs
-        && sign(
+        && sign_as(
             PARALLEL_TORI_ORDER,
             Margin::of(first.0 + cycle - last.0),
             band,
@@ -746,7 +749,7 @@ fn apart_in_order<T: Decide, X>(
     margin: impl Fn(T) -> Margin<T>,
     band: Band,
 ) -> Result<(), Pinch> {
-    crate::order::insertion_sort_by(xs, |a, b| match sign(name, margin(a.0 - b.0), band) {
+    crate::order::insertion_sort_by(xs, |a, b| match sign_as(name, margin(a.0 - b.0), band) {
         Some(Sign::Positive) => Ok(true),
         Some(Sign::Negative) => Ok(false),
         _ => Err(Pinch::named(name)),
@@ -785,7 +788,7 @@ pub(super) fn square_pose<T: Decide>(
     ball: crate::ExtentBall<T>,
     band: Band,
 ) -> Option<SquareWall<T>> {
-    if sign(
+    if sign_as(
         "section_torus_square_wall_tilt",
         Margin::levered(a.dot(d), super::torus::lever(ball.foot_on(partner), ball)),
         band,
@@ -950,7 +953,7 @@ fn square_folds<T: Decide>(
             * r
             * rc
             / (dist * half);
-        if sign(
+        if sign_as(
             "section_torus_square_wall_fold_drift",
             Margin::of(drift),
             band,
@@ -982,7 +985,7 @@ fn reaches_edge<T: Decide>(
     match signs([(name, m)], band) {
         Ok([past]) => Ok(past),
         Err(_)
-            if sign(
+            if sign_as(
                 "section_torus_square_wall_edge_clear",
                 Margin::of(e.abs() - big_r),
                 band,

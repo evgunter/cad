@@ -35,7 +35,7 @@
 //! 3. **Crossing insertion**: edges whose cached endpoint verdicts are
 //!    strictly opposite are split by [`crate::Body::split_edge`](crate::construction::Construct::split_edge) at the
 //!    interpolated carrier parameter — the crossing goes through the
-//!    certified lane (the `split_edge_param_interior` trilean plus full
+//!    certified lane (the span's place of the parameter plus full
 //!    child re-certification), never a raw interpolation trusted blind.
 //!    New vertices are ON **by construction** (declared coincidence —
 //!    round-8 ladder), not re-measured.

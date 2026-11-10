@@ -83,6 +83,7 @@
 
 use geom::Conic;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Lever, Margin, Point3, Real, Sign, Vec3};
 
 use crate::validate::decide;
@@ -874,13 +875,12 @@ pub(crate) enum LoopSplit<T: Real> {
         /// That plane's unit normal.
         dir: Vec3<T>,
     },
-    /// `p`'s distance from the axis `(origin, axis)` less `radius`,
-    /// `axis` unit.
+    /// `p`'s distance from the axis less `radius`.
     Radius {
-        /// A point of the axis.
-        origin: Point3<T>,
-        /// The axis.
-        axis: Vec3<T>,
+        /// The axis. Only [`geom::Line::distance`] reads it, which is
+        /// correct for any nonzero `dir`, so a unit `dir` is not a premise
+        /// here (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+        axis: geom::Line<T>,
         /// The radius between the loops.
         radius: T,
     },
@@ -891,11 +891,7 @@ impl<T: Real> LoopSplit<T> {
     pub(crate) fn margin(&self, p: Point3<T>) -> T {
         match *self {
             Self::Side { origin, dir } => geom::plane_offset(origin, dir, p),
-            Self::Radius {
-                origin,
-                axis,
-                radius,
-            } => geom::Line { origin, dir: axis }.distance(p) - radius,
+            Self::Radius { axis, radius } => axis.distance(p) - radius,
         }
     }
 
@@ -935,8 +931,10 @@ impl<T: Real> LoopSplit<T> {
                 dir: axis.cross(n).normalize(),
             }),
             geom_brep::PlaneTorusSection::ConcentricCircles { .. } => Some(Self::Radius {
-                origin: centre,
-                axis: axis.normalize(),
+                axis: geom::Line {
+                    origin: centre,
+                    dir: axis.normalize(),
+                },
                 radius: major,
             }),
             geom_brep::PlaneTorusSection::MeridianCircles { .. }
@@ -1142,8 +1140,10 @@ impl<T: Decide> Quadric<T> {
         };
         Ok(Some(arc(ArcLoop {
             split: LoopSplit::Radius {
-                origin: centre,
-                axis,
+                axis: geom::Line {
+                    origin: centre,
+                    dir: axis,
+                },
                 radius: major,
             },
             positive,
@@ -1229,7 +1229,11 @@ pub(crate) fn path_parity<T: Decide>(
     // A crossing's in-span readings are kept whole, escalations included:
     // one decided out of span passes the crossing over whatever the
     // others read.
-    let in_span = |t: T, span: (T, T), arm: T| span_readings(t, span, arm, slack, band);
+    // Every in-span reading but a line's is of a closed carrier's
+    // parameter named about its span's middle ([`span_readings`]).
+    let turn = Some(Period::new(T::tau()));
+    let in_span = |t: T, span: (T, T), arm: T| span_readings(t, span, turn, arm, slack, band);
+    let in_line = |s: T, span: (T, T), arm: T| span_readings(s, span, None, arm, slack, band);
     let inside = Ok(Sign::Positive);
     // A crossing of a torus arc's plane on the plane's other loop is no
     // crossing of the arc: its side is one more reading of the crossing.
@@ -1384,7 +1388,7 @@ pub(crate) fn path_parity<T: Decide>(
                     // slope the ruling crosses it at, `|m̂·d̂|`.
                     let slope = across.abs();
                     let [p0, p1] = in_span(t, p.span, p.circle.radius * slope);
-                    let [a0, a1] = in_span(s, span, slope);
+                    let [a0, a1] = in_line(s, span, slope);
                     readings.push([p0, p1, a0, a1, inside]);
                 }
                 (
@@ -1665,9 +1669,23 @@ impl<T: Decide> ConicArc<T> {
 /// end, metered at the rate `arm`, charged `slack` metres: `slack / arm`
 /// in the parameter, [`charge`]), each reading kept whole, escalations
 /// included.
+///
+/// On a closed carrier (`period` its turn) each end's distance is also
+/// read on `t`'s copy a turn away ([`Period::span_margins`], the same
+/// reading `curve_pair::Span` takes of its ends): every periodic `t`
+/// read here is named about its span's middle (`plane_roots`,
+/// `CircleArc::param`, `Conic::param_in`, `Oval::param`), and a box
+/// across the middle's antipode is named whole on one copy, so on a
+/// near-full arc its other copy can reach into the span past the start
+/// (`span_turn_rows`). At `f64` the copy is no nearer. A line's
+/// parameter has no copy (`None`). The meter stays this lane's own: a
+/// root's distance from an end is levered by the slope its piece
+/// crosses the other's plane at ([`path_parity`]), which `Span`'s
+/// sup-speed side does not read.
 fn span_readings<T: Decide>(
     t: T,
     (lo, hi): (T, T),
+    period: Option<Period<T>>,
     arm: T,
     slack: T,
     band: Band,
@@ -1679,7 +1697,9 @@ fn span_readings<T: Decide>(
             band,
         )
     };
-    [read(t - lo), read(hi - t)]
+    let (start, stop) = period.map_or((t - lo, hi - t), |p| p.span_margins(t, (lo, hi)));
+
+    [read(start), read(stop)]
 }
 
 /// **`m` shrunk toward zero by `slack`**, to zero inside it: a margin
@@ -1826,7 +1846,7 @@ fn misses_in_plane<T: Decide>(
     // An end lies outside a span when either of its two readings is
     // decided outside; an escalation counts only where neither is.
     let outside = |t: T, span: (T, T), arm: T| -> Result<bool, Indeterminate> {
-        let readings = span_readings(t, span, arm, slack, band);
+        let readings = span_readings(t, span, Some(Period::new(T::tau())), arm, slack, band);
         if readings.contains(&Ok(Sign::Negative)) {
             return Ok(true);
         }
@@ -1951,6 +1971,10 @@ mod graze_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_fuzz;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod span_turn_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
