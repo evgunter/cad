@@ -216,13 +216,32 @@ fn section_net(
 /// factors is constant.
 #[test]
 fn a_swapped_plane_section_holds_the_closed_form() {
-    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
-    for (label, (u0, u1), (c, k), v0, segs) in [
+    sections_hold(&[
         ("short", (0.3, 1.4), (1.1, 0.6), 0.1, 1),
         ("past a quarter turn", (0.2, 2.9), (1.4, 0.7), -0.2, 2),
         ("across the seam", (-1.0, 0.8), (1.3, -0.5), 0.0, 2),
         ("winding most of a turn", (-2.8, 2.8), (2.0, 0.9), 0.0, 3),
-    ] {
+    ]);
+}
+
+/// **A section net of more spans than a round's pieces holds the closed
+/// form at one piece a span**, which is what it reads at round 0
+/// ([`span_pieces`]).
+#[test]
+fn a_section_net_of_many_spans_holds_the_closed_form() {
+    sections_hold(&[
+        ("winding most of a turn", (-2.8, 2.8), (2.0, 0.9), 0.0, 24),
+        ("short", (0.3, 1.4), (1.1, 0.6), 0.1, 20),
+    ]);
+}
+
+/// Each `(label, (u₀, u₁), (c, k), v₀, segments)`: the face between the
+/// level `v₀` and the plane section `v = c + k·r·cos u` over `[u₀, u₁]`,
+/// the section swapped onto a net of `segments`, holds its closed form.
+#[allow(clippy::type_complexity)]
+fn sections_hold(rows: &[(&str, (f64, f64), (f64, f64), f64, usize)]) {
+    let chart = Chart::tilted(Point3::new(0.4, -0.2, 0.3), 0.8);
+    for &(label, (u0, u1), (c, k), v0, segs) in rows {
         let r = chart.r;
         let v_at = |u: f64| c + k * r * u.cos();
         let top_harmonic = TrimEdgeQ {

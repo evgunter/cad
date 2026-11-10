@@ -147,27 +147,47 @@ pub(super) fn round_cost(edges: usize, round: usize) -> usize {
 
 /// The work of round `round` on `face`: a harmonic edge's pieces at
 /// [`W_CYLINDER`], a projected net's and a rational chart term's at a
-/// rational rim's weight per span ([`w_rational`]: the same piece forms,
-/// read by Horner), a projected circle's at a spiric's per interval
-/// ([`W_SPIRIC`]: the same trig jets and one reciprocal), and a projected
-/// line's at a degree-1 rim's per interval.
+/// rational rim's weight per piece ([`w_rational`]: the same piece forms,
+/// read by Horner), a projected circle's at a spiric's ([`W_SPIRIC`]: the
+/// same trig jets and one reciprocal), and a projected line's at a
+/// degree-1 rim's; each spread over its spans or cut intervals
+/// ([`span_pieces`]).
 fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
-    let rational = |e: &RationalEdgeQ| w_rational(e.degree()) * e.span_count();
+    let pieces = EDGE_INIT_PIECES << round;
+    let spread = |weight: usize, spans: usize| weight * spans * span_pieces(pieces, spans);
+    let rational = |e: &RationalEdgeQ| spread(w_rational(e.degree()), e.span_count());
     let edges: usize = face
         .loops
         .iter()
         .flatten()
         .map(|e| match e {
-            EdgeTermQ::Harmonic(_) => W_CYLINDER,
+            EdgeTermQ::Harmonic(_) => W_CYLINDER * pieces,
             EdgeTermQ::Projected(p) => match &p.carrier {
                 FramedQ::Net(net) => rational(net),
-                FramedQ::Circle { cuts, .. } => W_SPIRIC * cuts.len().saturating_sub(1),
-                FramedQ::Line { cuts, .. } => w_rational(1) * cuts.len().saturating_sub(1),
+                FramedQ::Circle { cuts, .. } => spread(W_SPIRIC, cuts.len().saturating_sub(1)),
+                FramedQ::Line { cuts, .. } => spread(w_rational(1), cuts.len().saturating_sub(1)),
             },
         })
         .sum();
     let terms: usize = face.chart_term.rationals.iter().map(rational).sum();
-    (edges + terms) * (EDGE_INIT_PIECES << round)
+    edges + terms
+}
+
+/// **Pieces per span or cut interval** of a carrier of `spans` at a round
+/// whose harmonic edges read `pieces`: the round's count spread over the
+/// spans, and never fewer than `pieces / EDGE_INIT_PIECES` per span, so
+/// every span halves its pieces' width each round. A carrier of
+/// [`EDGE_INIT_PIECES`] spans or more reads one piece a span at round 0.
+fn span_pieces(pieces: usize, spans: usize) -> usize {
+    (pieces / EDGE_INIT_PIECES).max(1) * EDGE_INIT_PIECES.div_ceil(spans.max(1))
+}
+
+/// The spans or cut intervals a projected carrier's rule reads.
+fn framed_spans(carrier: &FramedQ) -> usize {
+    match carrier {
+        FramedQ::Net(net) => net.span_count(),
+        FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => cuts.len().saturating_sub(1),
+    }
 }
 
 /// One harmonic chart channel `c₀ + c_a·cos t + c_b·sin t + c_l·t`
@@ -679,7 +699,7 @@ fn edge_entry(e: &EdgeTermQ, chart: RotationalChartQ) -> Result<EdgeEntry, Props
         },
         EdgeTermQ::Projected(p) => {
             let length = projected_metric_length(p, lever);
-            let ([_, _, turn], _) = projected_integrals(p, chart, 0.0, PROJECTED_ENTRY_PIECES);
+            let ([turn], _) = framed_integrals(&p.carrier, PROJECTED_ENTRY_PIECES, |du, _| [du]);
             if !(length.is_finite() && turn.is_certified()) {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a projected edge whose chart speed or turn reads no enclosure — its \
@@ -709,7 +729,8 @@ fn edge_terms(
             (chart.of_level(level), rem * chart.level_flux_scale(), h.env)
         }
         EdgeTermQ::Projected(p) => {
-            let ([f, g, _], [rf, _, _]) = projected_integrals(p, chart, anchor, pieces);
+            let per_span = span_pieces(pieces, framed_spans(&p.carrier));
+            let ([f, g, _], [rf, _, _]) = projected_integrals(p, chart, anchor, per_span);
             let terms = if p.forward { [f, g] } else { [-f, -g] };
             (terms, rf, p.env)
         }
@@ -782,7 +803,7 @@ fn chart_term_at(term: &ChartTermQ, pieces: usize) -> (Interval, f64) {
     term.rationals
         .iter()
         .fold((term.closed, 0.0), |(acc, removable), e| {
-            let (va, rem) = rational_vector_area_split(e, pieces);
+            let (va, rem) = rational_vector_area_split(e, span_pieces(pieces, e.span_count()));
             let flux = (0..3).fold(acc, |a, k| a + term.lever[k] * va[k]);
             let rem: f64 = (0..3).map(|k| term.lever[k].mag() * rem[k]).sum();
             (flux, removable + rem)
@@ -1086,6 +1107,53 @@ mod tests {
     use crate::props::PropsCheck;
     use crate::props::quad::test_target::{self, met, to_target};
     use geom_core::Tol;
+
+    /// **A round's pieces spread over a carrier's spans**: a carrier of
+    /// fewer spans than [`EDGE_INIT_PIECES`] reads at least that many in
+    /// all, one of more reads one a span at round 0, and every span's
+    /// count doubles each round.
+    #[test]
+    fn a_rounds_pieces_spread_over_a_carriers_spans() {
+        for (spans, at_zero) in [(0, 16), (1, 16), (3, 6), (5, 4), (15, 2), (16, 1), (625, 1)] {
+            for round in 0..5 {
+                assert_eq!(
+                    span_pieces(EDGE_INIT_PIECES << round, spans),
+                    at_zero << round,
+                    "{spans} spans at round {round}"
+                );
+            }
+        }
+        for spans in 1..64 {
+            assert!(
+                spans * span_pieces(EDGE_INIT_PIECES, spans) >= EDGE_INIT_PIECES,
+                "{spans} spans read fewer pieces in all than a harmonic edge"
+            );
+        }
+    }
+
+    /// **A harmonic face's work is its edges' pieces**, whatever the
+    /// projected arms spread.
+    #[test]
+    fn a_harmonic_faces_work_is_its_edges_pieces() {
+        let edge = TrimEdgeQ {
+            u: chan(0.0, 0.0, 0.0, 1.0),
+            v: chan(0.0, 0.0, 0.0, 0.0),
+            t0: pt(0.0),
+            t1: pt(1.0),
+            forward: true,
+            trig0: (pt(1.0), pt(0.0)),
+            trig1: None,
+            env: pt(0.0),
+        };
+        let face = unit_face(&[&[edge; 4]]);
+        for round in 0..6 {
+            assert_eq!(
+                face_cost(&face, round),
+                round_cost(4, round),
+                "round {round}"
+            );
+        }
+    }
 
     /// The face of harmonic `loops` on the unit cylinder, its chart term
     /// zero.
