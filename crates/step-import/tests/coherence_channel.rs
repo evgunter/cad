@@ -91,7 +91,9 @@ fn census(report: &CoherenceReport) -> Row {
     for u in &report.unexamined {
         match u.why {
             Unexaminable::NonIsoCarrier { .. } => row.non_iso += 1,
-            Unexaminable::NullScaffoldEdge { .. } => row.scaffold += 1,
+            Unexaminable::NullScaffoldEdge { .. } | Unexaminable::LoneLoop { .. } => {
+                row.scaffold += 1
+            }
             Unexaminable::Corrupt { .. } => row.corrupt += 1,
         }
     }

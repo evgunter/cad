@@ -60,8 +60,9 @@
 //! face's structure (`topo::surface_boundary`): this home sees no keys.
 
 use geom::{ChartArm, ChartInverse, Curve3, Surface};
+use geom_core::NonzeroSign;
 use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
-use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
+use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
 

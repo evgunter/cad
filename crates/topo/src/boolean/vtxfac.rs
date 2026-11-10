@@ -89,7 +89,7 @@
 
 use geom_brep::OutwardNormal;
 use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::contain::FaceContainment;

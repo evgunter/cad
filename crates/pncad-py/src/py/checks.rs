@@ -464,7 +464,7 @@ impl CheckEvidence {
     /// measured on `chart_coherence` (`meridian_closure`,
     /// `rim_continuation`, `meridian_continuation`), and why a loop
     /// was out of reach on `chart_coherence_unexamined` (`corrupt`,
-    /// `null_scaffold_edge`, `non_iso_carrier`).
+    /// `empty_loop`, `null_scaffold_edge`, `non_iso_carrier`).
     ///
     /// One attribute for two alphabets, which `boolean_variant`
     /// refuses — and for that field's own stated reason, which does
