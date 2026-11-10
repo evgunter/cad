@@ -425,8 +425,8 @@ fn edge_surfaces(
     edge: EdgeKey,
 ) -> Option<(geom::Surface<f64>, geom::Surface<f64>)> {
     let e = body.get_edge(edge)?;
-    let start = body.get_half_edge(e.he_plus)?.start;
-    if Some(start) == body.half_edge_end(e.he_plus) {
+    let (start, end) = body.edge_vertices(edge)?;
+    if start == end {
         return None; // closed rim, not the open-arc family
     }
     let face_of = |he: topo::HalfEdgeKey| -> Option<geom::Surface<f64>> {
@@ -477,13 +477,7 @@ fn l_bracket() -> Body<f64> {
 fn concave_edge(body: &Body<f64>) -> EdgeKey {
     let near = |p: geom_core::Point3<f64>| (p.x - 0.5).abs() < 1e-9 && (p.y - 0.5).abs() < 1e-9;
     let vertical = |e: EdgeKey| -> bool {
-        let Some(edge) = body.get_edge(e) else {
-            return false;
-        };
-        let (Some(start), Some(end)) = (
-            body.get_half_edge(edge.he_plus).map(|h| h.start),
-            body.half_edge_end(edge.he_plus),
-        ) else {
+        let Some((start, end)) = body.edge_vertices(e) else {
             return false;
         };
         [start, end].into_iter().all(|v| {

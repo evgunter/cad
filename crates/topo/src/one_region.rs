@@ -291,8 +291,8 @@ mod tests {
                 let key = body.get_vertex(v).expect("a vertex").point;
                 *body.points.get(key).expect("its point")
             };
-            let s = end(body.get_half_edge(e.he_plus).expect("he+").start);
-            let t = end(body.half_edge_end(e.he_plus).expect("he+'s end"));
+            let (s, t) = body.edge_vertices(edge).expect("the edge");
+            let (s, t) = (end(s), end(t));
             let curve = geom_brep::EdgeCurve::certify(
                 geom_brep::EdgeCurveSpec::line_between(s, t),
                 s,

@@ -2781,7 +2781,7 @@ impl<T: Decide> CarriedComponent<T> {
             ));
         }
         let (lo, hi) = self.span;
-        let t = lo + (t - lo).reduce_periodic(T::pi() * T::from_f64(2.0));
+        let t = geom_core::period::Period::new(T::tau()).at_or_above(t, lo);
         let speed = self.carrier.ders1(t).1.norm();
         use geom_core::NonzeroSign;
         use geom_core::k_stats::decide_nonzero;

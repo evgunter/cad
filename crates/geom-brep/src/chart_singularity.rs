@@ -170,26 +170,11 @@ pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, P
 /// ([`sheet_apexes`]), from the chart's own frame; none for any other
 /// kind.
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
-    let (anchor, axis) = (chart.frame().origin, chart.frame().axis);
+    let axis = chart.frame().axis_line();
     match chart.arm() {
-        ChartArm::Sphere { radius } => sphere_poles(
-            geom::Line {
-                origin: anchor,
-                dir: axis,
-            },
-            radius,
-        )
-        .to_vec(),
-        ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
-        ChartArm::Spindle { major, minor } => sheet_apexes(
-            geom::Line {
-                origin: anchor,
-                dir: axis,
-            },
-            major,
-            minor,
-        )
-        .to_vec(),
+        ChartArm::Sphere { radius } => sphere_poles(axis, radius).to_vec(),
+        ChartArm::Cone { .. } => vec![(Singularity::Apex, axis.origin)],
+        ChartArm::Spindle { major, minor } => sheet_apexes(axis, major, minor).to_vec(),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => Vec::new(),
     }
 }
@@ -582,15 +567,15 @@ enum Near<T> {
 /// **The carrier parameter of the point of `carrier` nearest `x`**: its
 /// [`Curve3::nearest`] seeded at `from`, `None` where the carrier
 /// has none. A periodic carrier's ([`Curve3::is_periodic`]) is brought
-/// into `[from, from + τ]`, the turn at or past `from`: the upper end is
-/// reached only where the reduction rounds, a point a hair behind `from`
-/// reading `from + τ`. A
+/// into `[from, from + τ)`, the turn at or past `from`
+/// ([`geom_core::period::Period::at_or_above`]): a point a hair behind
+/// `from` whose lift rounds onto `from + τ` reads `from`. A
 /// point on a circle's axis, where every point of the circle is nearest,
 /// reads `from`.
 pub fn foot<T: Decide>(carrier: &Curve3<T>, x: Point3<T>, from: T) -> Option<T> {
     let t = carrier.nearest(x, from)?;
     Some(if carrier.is_periodic() {
-        from + (t - from).reduce_periodic(T::tau())
+        geom_core::period::Period::new(T::tau()).at_or_above(t, from)
     } else {
         t
     })
@@ -1088,8 +1073,11 @@ fn bisect<T: Decide>(
 
 /// The chart a walk runs on, as its error bound reads it.
 struct Shape<T: Real> {
-    anchor: Point3<T>,
-    axis: Vec3<T>,
+    /// The chart's axis, from its frame. Only [`geom::Line::distance`]
+    /// reads it, which is correct for any nonzero `dir`, so a unit `dir`
+    /// is not a premise here
+    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+    axis: geom::Line<T>,
     kind: ShapeKind<T>,
     /// The singular points on the loop walked.
     on_loop: Vec<Point3<T>>,
@@ -1120,8 +1108,7 @@ impl<T: Decide> Shape<T> {
             }
         };
         Some(Self {
-            anchor: chart.frame().origin,
-            axis: chart.frame().axis,
+            axis: chart.frame().axis_line(),
             kind,
             on_loop,
             escalate,
@@ -1141,11 +1128,7 @@ impl<T: Decide> Shape<T> {
 
     /// A point's distance from the axis.
     fn rho(&self, p: Point3<T>) -> T {
-        geom::Line {
-            origin: self.anchor,
-            dir: self.axis,
-        }
-        .distance(p)
+        self.axis.distance(p)
     }
 }
 
