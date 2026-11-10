@@ -9,7 +9,6 @@
 
 #![allow(clippy::panic, clippy::expect_used)]
 
-use crate::corpus;
 use editor_core::{
     CancelToken, EvalOptions, EvalOutcome, Evaluation, NodeError, NodeErrorKind, NodeResult,
     RecordMispairing, evaluate, evaluate_recorded,
@@ -37,21 +36,43 @@ fn dual(doc: &editor_core::ProfileDoc, record: &Evaluation<f64>) -> Evaluation<D
     )
 }
 
-/// A corpus document whose build has a node with another node
-/// downstream of it: the record's refusal there must reach both.
-fn a_chain() -> (editor_core::ProfileDoc, editor_core::RecipeNodeId) {
-    for d in corpus::documents() {
-        let record = nominal(&d.doc);
-        if record.order.len() >= 2
+/// A two-node chain, `label`'s: a square profile and its extrusion,
+/// which reads it. The record's refusal at the profile must reach both.
+/// Built here rather than found in the corpus, so each row evaluates one
+/// small document.
+fn a_chain_of(label: &str) -> (editor_core::ProfileDoc, editor_core::RecipeNodeId) {
+    use crate::fixture::{insert, len, on_frame, square};
+    let doc =
+        editor_core::ProfileDoc::empty(editor_core::DocumentId::derive(label), Tol::witness());
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (doc, _) = insert(
+        doc,
+        editor_core::Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let record = nominal(&doc);
+    assert!(
+        record.order.len() >= 2
             && record
                 .nodes
                 .values()
-                .all(|r| matches!(r, NodeResult::Ok(_)))
-        {
-            return (d.doc, record.order[0]);
-        }
-    }
-    unreachable!("the corpus holds a document of two nodes that builds")
+                .all(|r| matches!(r, NodeResult::Ok(_))),
+        "the chain builds"
+    );
+    let first = record.order[0];
+    (doc, first)
+}
+
+fn a_chain() -> (editor_core::ProfileDoc, editor_core::RecipeNodeId) {
+    a_chain_of("a-dual-is-bound-chain")
 }
 
 /// **A node the record refused is refused at the dual by the record**,
@@ -118,13 +139,9 @@ fn a_node_the_record_refused_is_refused_at_the_dual() {
 /// node refuses, before any runs (DI3).
 #[test]
 fn a_record_of_another_document_refuses_every_node() {
-    let docs = corpus::documents();
-    let a = &docs[0].doc;
-    let b = &docs
-        .iter()
-        .find(|d| d.doc.id() != a.id())
-        .expect("the corpus holds two documents")
-        .doc;
+    let (a, _) = a_chain();
+    let (b, _) = a_chain_of("a-dual-is-bound-foreign");
+    let (a, b) = (&a, &b);
     let foreign = nominal(b);
     let bound = dual(a, &foreign);
     assert!(!bound.nodes.is_empty(), "the document has nodes");
