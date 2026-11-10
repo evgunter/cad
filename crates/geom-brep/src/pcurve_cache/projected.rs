@@ -1816,7 +1816,7 @@ impl<S: Real> Meters<S> {
     /// `(z² − h²)/(R + √(r² − z²))`, which keeps its digits at the cusp.
     /// `None` on a lemon, or where `positive` does not certify the part
     /// inside those heights.
-    fn at_height(
+    pub(crate) fn at_height(
         self,
         (rho_lo, rho_hi): (S, S),
         z: (f64, f64),

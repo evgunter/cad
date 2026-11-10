@@ -2677,3 +2677,100 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// R2 probe (review of PR 6806): dumps `at_height` and `certified` on
+/// boxes beside a horn's cusp, straddling `h`, near `|z| → r` and on the
+/// other sheet, for an independent Decimal oracle. Run with
+/// `R2_DUMP=<path>`.
+#[test]
+#[ignore = "r2 probe"]
+fn r2_probe_dump_at_height() {
+    use super::super::projected::Meters;
+    use std::io::Write;
+    let path = std::env::var("R2_DUMP").expect("R2_DUMP");
+    let mut out = std::io::BufWriter::new(std::fs::File::create(path).unwrap());
+    let mut s = fuzz::pinned("r2", 0x6806);
+    let n: usize = std::env::var("R2_N").map_or(40_000, |v| v.parse().unwrap());
+    for i in 0..n {
+        let minor = s.range(0.2, 2.0);
+        let kind = i % 6;
+        let gap = match kind {
+            0 | 1 => 0.0,
+            2 => s.log_uniform(1e-14, 1e-6),
+            _ => s.log_uniform(1e-9, 0.9),
+        };
+        let sign = if kind == 5 && s.unit() < 0.5 { -1.0 } else { 1.0 };
+        let major = sign * minor * (1.0 - gap);
+        let h = geom::sheet_apex(major, minor).height;
+        let scale = s.log_uniform(1e-15, 1e-2) * minor;
+        let up = if s.unit() < 0.5 { 1.0 } else { -1.0 };
+        let rho_s = |z: f64| major - (minor * minor - z * z).max(0.0).sqrt();
+        let (rho_c, z_c) = match kind {
+            // beside the cusp / apex
+            0 | 2 => {
+                let z = h + s.log_uniform(1e-14, 1e-2) * minor;
+                (rho_s(z).max(0.0) + scale * s.range(-1.0, 1.0), up * z)
+            }
+            // anywhere on the horn's inner branch, or near the top
+            1 => {
+                let z = if s.unit() < 0.5 {
+                    minor - s.log_uniform(1e-15, 1e-1) * minor
+                } else {
+                    s.range(0.0, minor)
+                };
+                (rho_s(z).max(0.0) + scale * s.range(-1.0, 1.0), up * z)
+            }
+            // straddling h
+            3 => (s.range(0.0, 2.0 * scale), up * (h + scale * s.range(-1.0, 1.0))),
+            // the other sheet (lemon branch at |z| < h), or near the top
+            4 => {
+                if s.unit() < 0.5 {
+                    let z = s.range(0.0, h);
+                    (-major + (minor * minor - z * z).sqrt(), up * z)
+                } else {
+                    let z = minor - s.log_uniform(1e-15, 1e-1) * minor;
+                    (rho_s(z).max(0.0) + scale * s.range(-1.0, 1.0), up * z)
+                }
+            }
+            _ => (s.range(0.0, 2.0 * minor), up * s.range(0.0, minor)),
+        };
+        let rho_c = rho_c.max(0.0);
+        let (dr, dz) = if s.unit() < 0.2 {
+            (0.0, 0.0)
+        } else {
+            (scale * s.unit(), scale * s.unit())
+        };
+        let (rho_lo, rho_hi) = ((rho_c - dr).max(0.0), rho_c + dr);
+        let (z_lo, z_hi) = (z_c - dz, z_c + dz);
+        let pt = |x: f64| Interval::from_bounds(x, x);
+        let mi = Meters::Spindle {
+            major: pt(major),
+            minor: pt(minor),
+        };
+        let pos = |l: Interval| l.is_certified() && l.lo() > 0.0;
+        let ah = mi.at_height((pt(rho_lo), pt(rho_hi)), (z_lo, z_hi), pos);
+        let mf = Meters::Spindle { major, minor };
+        let ahf = mf.at_height((rho_lo, rho_hi), (z_lo, z_hi), |x| x > 0.0);
+        // `f`'s sup over a grid, doubled, as the fuzz takes it.
+        let mut f_sup = 0.0_f64;
+        for a in 0..=6 {
+            for b in 0..=6 {
+                let r = rho_lo + (rho_hi - rho_lo) * f64::from(a) / 6.0;
+                let z = z_lo + (z_hi - z_lo) * f64::from(b) / 6.0;
+                f_sup = f_sup.max(sheet_form(major, minor, r, z).abs());
+            }
+        }
+        let f_sup = 2.0 * f_sup + 1e-300;
+        let cert = mi.certified(pt(f_sup), (pt(rho_lo), pt(rho_hi)), (z_lo, z_hi), pos);
+        let f = |o: Option<Interval>| o.map_or("none".to_string(), |v| format!("{:e}", v.hi()));
+        let g = |o: Option<f64>| o.map_or("none".to_string(), |v| format!("{v:e}"));
+        writeln!(
+            out,
+            "{kind} {major:e} {minor:e} {rho_lo:e} {rho_hi:e} {z_lo:e} {z_hi:e} {} {} {}",
+            f(ah),
+            g(ahf),
+            f(cert)
+        )
+        .unwrap();
+    }
+}
