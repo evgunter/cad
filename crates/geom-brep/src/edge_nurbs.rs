@@ -2971,7 +2971,7 @@ where
     KnotVector::unit_segment(NonZeroUsize::MIN)
         .on_domain(t0, t1)
         .map_err(domain_refusal)?;
-    let mid = |x: T| 0.5 * (x.lo() + x.hi());
+    let mid = |x: T| geom::mid_param(x.lo(), x.hi());
     // A foot at a schedule fraction, and its refusal named by the first
     // rung's nearest sample.
     let station = |at: f64| {
@@ -3106,7 +3106,7 @@ fn knot_lines<T: Bounds>(wall: &NurbsSurface<T>, degree: usize) -> Vec<KnotLine>
             let p = knots.degree();
             let runs: Vec<(f64, usize)> = knots
                 .runs()
-                .map(|(k, m)| (0.5 * (k.lo() + k.hi()), m))
+                .map(|(k, m)| (geom::mid_param(k.lo(), k.hi()), m))
                 .collect();
             let interior = runs
                 .get(1..runs.len().saturating_sub(1))
