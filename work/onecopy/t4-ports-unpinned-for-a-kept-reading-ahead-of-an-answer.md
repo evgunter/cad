@@ -31,7 +31,9 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 **QML T6 adds one** (`onecopy/refusal-standing`). The reach probe saw it answer past no kept reading in-suite.
 - **`census::span_clear`** (`crates/topo/src/census.rs`, the edge–face pierce census's clearance). **Fixture:** an edge whose span runs over a face, the face's boundary holding first a side whose end reads in band of the span (`on_edge_interior_reading` escalates), then a side whose interior meets it (`interiors_meet`). `span_clear` answers "not clear" and pushes nothing. A first-refusal loop pushed the first member's escalation and returned `None`.
 
-## Not yet ported: `vtxfac::partner_side` (filed 2026-11-10, measured)
+## Ported: `vtxfac::partner_side` (filed 2026-11-10, measured; ported on `the-ladder-has-no-climb-for-a-disagreement-that-answers`)
+
+**Ported** onto `geom_core::ladder::climb_differing`, with the fixture below as its pin (in `a_partners_side_of_a_face_is_read_off_its_bounds`, `h = 3 · band.zero()`, a lift that test already shows in band). What follows is the row as filed.
 
 `topo::boolean::vtxfac::partner_side` reads every bound's side with `?`, so a bound read in band refuses the whole read. It does so even where two other bounds are *decided* on opposite sides, which by itself is `PartnerRead::Across` (a theorem). That is the kept-reading-ahead-of-an-answer shape. It is not a `climb_agreeing` port, since there a disagreement is an answer (PR 6750's site comment). Its port is its own: answer `Across` where two decided bounds differ, else refuse on a kept bound, else the side.
 
@@ -48,4 +50,3 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 ## Done when
 
 - Each of the seven has a pin as described, red under the old first-refusal loop, or a stated reason it cannot be reached.
-- `partner_side` is ported as above, with the fixture as its pin.

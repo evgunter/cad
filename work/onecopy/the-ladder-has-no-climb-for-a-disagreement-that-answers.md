@@ -2,8 +2,9 @@
 id: the-ladder-has-no-climb-for-a-disagreement-that-answers
 kind: issue
 title: The ladder has no climb for a disagreement that answers: two loops hand-roll it and refuse on a kept reading ahead of a decided disagreement
-status: open
+status: closed
 opened: 2026-11-10
+closed: 2026-11-10
 priority: P3
 cost: M
 ---
@@ -49,3 +50,17 @@ So no in-suite outcome would move. The fixture for `partner_side` is sketched on
 - The combinator exists in `geom_core::ladder`, with its own rows.
 - Both sites climb it, each with a pin: a reading kept in band ahead of a decided disagreement, red under today's first-refusal loop.
 - Their "deviation scheduled" comments go.
+
+## Closed (2026-11-10, `onecopy/refusal-standing`)
+
+- **The combinator** is `geom_core::ladder::climb_differing`, beside `climb_agreeing`. It reads `Differing::{Differ, Agreed, Aborted, Undecided}`:
+  - The first decided pair that `differ` says differ answers. Each answer is read against every earlier one, since `differ` need not be an equivalence's complement (`On` differs from neither side). Every kept rung's run is spliced superseded.
+  - Where every rung decided and none differ, it gives `Agreed`, with each answer in rung order.
+  - It gives `Aborted` where a rung aborts. Otherwise the kept readings rank (`Undecided`), as `Evidence` ranks them.
+  - Its rows are `ladder::tests::a_differing_ladder_answers_on_two_decided_answers_that_differ`, including the recording: superseded on a difference, live where it refuses.
+- **`vtxfac::partner_side`** climbs it over the bounds' side codes, with a refusal standing by `BooleanError::refusal`.
+  - Pin: `a_partners_side_of_a_face_is_read_off_its_bounds`, rays `[[1, 0, 3z], [0, 1, 1], [-1, -1, -1]]` → `Across` in every rotation. Red under the old loop (the escalation).
+- **`rim_wedge` `FaceOnLocus::at`** climbs it over every (ride, wrap).
+  - A ride's rung is its two end readings. A start in band is kept without reading the end: on a span (`lo ≤ hi`) the end then reads at least a band short of inside, so it cannot decide the ride off the point. No inner climb would answer there.
+  - Pin: `cover_rows::a_stretch_ridden_both_ways_reads_mixed`, a ride whose end is mid-band of the point ahead of two decided rides of opposite sign → `RidesBothWays`, and beside one ride of the same sign it refuses. Red under the old loop.
+- Both "deviation … scheduled" comments are gone.
