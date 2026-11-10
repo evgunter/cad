@@ -26,6 +26,7 @@ use geom_brep::SectionReading;
 use geom_brep::ssi::{
     BoundarySection, ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain, SsiError,
 };
+use geom_core::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
 
 use crate::SurfaceKey;
 use geom_core::k_stats::decide;
@@ -45,6 +46,10 @@ pub enum SectionVerdict {
     /// The section has no branch near the edge: the moved surface no
     /// longer meets the neighbour there.
     NoBranch,
+    /// Two branches of the section are decided equally near the edge: a
+    /// precision limit (row 1), whose lever is `offset_section_branch`'s
+    /// distance between them.
+    BranchesTied,
     /// The section near the edge is a tangency, which is classification
     /// data rather than a curve an edge can carry.
     Tangent,
@@ -87,6 +92,9 @@ impl SectionVerdict {
                  trace's seed): {e}"
             ),
             Self::NoBranch => f.write_str("the moved surface no longer meets the neighbour there"),
+            Self::BranchesTied => {
+                f.write_str("two branches of the section lie equally near the edge")
+            }
             Self::Tangent => f.write_str("the moved surface only touches the neighbour there"),
             Self::Corner { corner } => write!(
                 f,
@@ -596,8 +604,10 @@ fn running_with<T: Decide>(
     )
 }
 
-/// Of `candidates`, the one passing nearest the old carrier's middle;
-/// a tie inside the band is refused rather than picked.
+/// Of `candidates`, the one passing nearest the old carrier's middle
+/// ([`argmin_decided`], free of nothing): two left in contention refuse,
+/// a decided tie as [`SectionVerdict::BranchesTied`] and an in-band pair
+/// on its margin.
 fn nearest<T: Decide>(
     candidates: Vec<Curve3<T>>,
     old: &Curve3<T>,
@@ -609,27 +619,31 @@ fn nearest<T: Decide>(
     // angle alone reads an ellipse's point up to `(1 + a/b)` times
     // farther off. A carrier with no closed-form parameter is refused.
     let reach = |c: &Curve3<T>| c.param_near(mid, T::zero()).map(|t| c.foot(mid, t).gap());
-    let mut best: Option<(Curve3<T>, T)> = None;
+    let mut reached = Vec::with_capacity(candidates.len());
     for c in candidates {
         let Some(r) = reach(&c) else {
             return Ok(Err(SectionVerdict::Unsupported {
                 what: "a closed-form section whose carrier has no closed-form parameter",
             }));
         };
-        best = match best {
-            None => Some((c, r)),
-            Some((b, rb)) => match decide("offset_section_branch", Margin::of(rb - r), band)? {
-                Sign::Positive => Some((c, r)),
-                Sign::Negative => Some((b, rb)),
-                Sign::Zero => {
-                    return Ok(Err(SectionVerdict::Unsupported {
-                        what: "two branches of the section lie equally near the edge",
-                    }));
-                }
-            },
-        };
+        reached.push((c, r));
     }
-    Ok(best.map(|(c, _)| c).ok_or(SectionVerdict::NoBranch))
+    let cmp = |a: &(Curve3<T>, T), b: &(Curve3<T>, T)| {
+        decide("offset_section_branch", Margin::of(a.1 - b.1), band).map_err(Undecided::of)
+    };
+    match argmin_decided(reached, cmp, FreeOf::Nothing) {
+        Ok(best) => Ok(best.map(|(c, _)| c).ok_or(SectionVerdict::NoBranch)),
+        Err(Unpicked::Contested { in_band: None, .. }) => Ok(Err(SectionVerdict::BranchesTied)),
+        // One scalar's difference ranks in no cycle.
+        Err(Unpicked::Cyclic) => unreachable!("a branch's reach ranks in no cycle"),
+        Err(
+            Unpicked::Contested {
+                in_band: Some(diag),
+                ..
+            }
+            | Unpicked::Aborted(diag),
+        ) => Err(diag),
+    }
 }
 
 /// **The closed-form section** of the moved analytic surface `new` and

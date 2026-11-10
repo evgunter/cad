@@ -2,11 +2,12 @@
 id: placement-holders-the-frame-sweep-found
 kind: issue
 title: Types holding a carrier's placement field by field, found by the frame-readings sweep, owed to the kind-struct stage
-status: open
+status: parked
 opened: 2026-11-03
 priority: P2
 cost: M
 refs: [analytic-surfaces-spell-their-frame-field-by-field]
+blocked_on: [analytic-surfaces-spell-their-frame-field-by-field]
 ---
 
 
@@ -34,3 +35,46 @@ Found by the second pass of the frame-readings unit's sweep (`the-frame-carries-
 Blind spot of the field grep: it matched a placement-point field by name, so it missed holders whose fields are named otherwise (`c`, `o`, `n`, `a`, `e1`, `e2`) and struct-like enum variants whose header it did not read as a type. Those are the review's list above, which swept by type. It also misses a tuple (`plane-and-line-tuples-restate-the-placement`) and a struct split over more than eight lines between its point and its axis. The pass read eight lines either side of every point-typed field named for a placement point; a second pass on single-letter point fields (`c: Point3`, `o: Point3`) beside a `Vec3` finds the pair-section poses (`PlaneCylinder { q, n, o, a, r }`), which are a pose's decided data rather than a carrier's.
 
 Fix: with the kind structs (`analytic-surfaces-spell-their-frame-field-by-field`), each holds the kind's struct, a `Frame` or a `geom::Line` beside what it adds.
+
+## Narrowed to the stage-3 residue (2026-11-09, `onecopy/placement-holders`)
+
+Every holder above that needed no new type now holds the one it restated:
+
+- **Ported by this unit:**
+  - sweep `arms::Meridian` holds its axis as a `geom::Line`, and a circle carrier's Meridian reads `Frame::axis_line`.
+  - geom-brep `chart_singularity::Shape` holds `Frame::axis_line()`, and so does `singular_points`.
+  - geom-brep `ruling::RuledCylinders` holds the pose's `geom::Frame` (`foot` its origin, `n` its `u_ref`, `v` its `v_ref`).
+  - topo `shell::EdgeArc::Conic` holds its carrier's `Curve3` and reads it through `Curve3::conic`: its point, its harmonic (`Conic::along`), its frame and its speed. Before, it restated the conic's evaluator. Its points can move in the last place: `Circle::point_at` is `centre + radial·r` and `Ellipse::point_at` is `origin + (u·a cos + v·b sin)`, where the hand form was `(c + u·a cos) + v·b sin`, so both a circle's and an ellipse's points re-associate.
+  - geom-brep `winds::Channel` holds `Axis(Frame)` and `Core(geom::Circle)`, built from `Surface::frame`.
+  - topo `ring_path::LoopSplit::Radius` holds a `geom::Line`.
+  - editor-core `measure::Pose::Axis` holds the pose value's own `AxisLine`. Before, it re-spelled `AxisLine` as `{ through, dir }`.
+  - geom-brep `intersect/conic_arc.rs` `OpenConicSection` and `ConicBranch` hold a `geom::Frame` (a conic's frame held loose).
+- **Ported earlier** (`onecopy/line-tuples`, PR 6601; `onecopy/line-placement`, PR 6665): `offset::ConeOffset`, `offset_axial::Frame`, `join::Turn` and `SectionLoop`, `surface_group::WrapRims`, `gap::Spine::Circle`, `contain::TorusCarrier`, `MappedSource::RevolvedPoint` and `reach::Bound`. `census/depth_gap.rs` `Ring` no longer exists.
+- **Kept, each with its reason at the type:**
+  - sweep `swept::Turn` holds a decided unit axis (`UnitVec3`), the value its rotation takes; `Line` reads any nonzero direction.
+- **Ported in the review's fix pass:** geom `cover::Core`, `Slab` and `Frustum` hold their axis as a `geom::Line`, so `cover.rs`'s private `axis_line(center, axis)` rebuild retires (`line-holders-the-line-placement-sweep-missed` item 4). `Core` is not a `geom::Circle`, as its doc says: it reads no seam, and its axis need not be unit, which a `Line` reads.
+- **Kept, not placement copies:**
+  - editor-core `mate::coset` `Cylindrical` and `Revolute`: decided unit axes, the same ruling as `Turn`.
+  - `pose::AxisLine`: the editor's typed line, its foot normalized.
+  - `bvh::Ray`: bvh depends on geom-core alone.
+  - topo `census` `EdgeGeo` and `Span`: a chord derived from its vertices.
+  - geom-brep `intersect::ParallelAxes` and `cylinders::CcStance`: a pose's decided data.
+- **Tracked elsewhere:** sweep `revolve/axis.rs` `AxisFrame` (`o3`/`a3` beside `u3`, a full frame), on `line-holders-the-line-placement-sweep-missed` item 2.
+
+What remains waits on stage 3 (`analytic-surfaces-spell-their-frame-field-by-field`, parked), the kind structs:
+
+- the full-frame holders (cause 1) listed above;
+- the conic frames, which wait on their rows: `ring_path` and `spiric_arc` `Oval` (the spiric row), `validate::Arc`, and `rim_wedge::Rim` (`circle-frame-structs-re-spell-geom-circle`, parked on stage 3);
+- the seamless planes listed above (`PlaneSite`, `PlaneDesc`, `SplitPlane`, `SectionPlane`, `InPlane`, `census::FaceGeo`, `ring_path::SectionArc` and `LoopSplit::Side`, `reach`'s sheet), and two the review found: topo `shell::MovedWall { origin, normal }` and editor-core `measure::Pose::Plane { through, normal }`. No plane type exists to port them to before stage 3; the seamless-plane question is `plane-and-line-tuples-restate-the-placement`'s;
+- **carrier fields found by this unit's type sweep** (cause 1):
+  - editor-core `measure::Carrier`'s `Cylinder` and `Plane`;
+  - mesh `trimmed::Lane::Cylinder`;
+  - topo `carrier_eq`'s `Plane`, `Cylinder`, `Torus` and `Cone`;
+  - topo `injective`'s `Plane`, `Cylinder` and `Cone`;
+  - topo `ops::SphereRecut`, a sphere's centre, radius and stored axis.
+- **Seamless circles found by this unit's sweep, not decided here:** geom-brep `props/curved.rs` `SphereArc` (centre, axis, radius and its start point), `TorusMeridian` and `TorusArc` (a minor circle's axis and centre). Each is a loop arc's circle with no seam read, so each needs its own decision against `geom::Circle`.
+- **A torus's core circle as a `(centre, axis, major)` tuple**: `ring_path`'s `LoopArc::Crest.core` and `LoopSplit::plane_torus`'s argument. They are named on the parent row and not taken here.
+
+Sweep of this unit: a struct, or a struct-like enum variant, whose header ends a line in `{`, holding a field typed `Point3<…>` and one typed `Vec3<…>` or `UnitVec3<…>`, over `crates/*/src/**/*.rs`. It found 92 hits; the dispositions are above, and the rest are kinds' own fields (`Surface`'s variants, `Frame`, `Line`, `RigidMotion`), jets and samples (a point with its tangent or normal: `SurfaceJet`, `Station`, `SeamEnd`, `SectionNode`, `Crossing`, `EdgeFrame`, `HeldRead`, `Ruling`), and test fixtures.
+
+Blind spots: a header split over lines or carrying `(` or `=`; a field whose type is spelled through an alias; a tuple; a holder that keeps its point and axis as two scalars or two arrays; and a pair passed as two arguments rather than held.

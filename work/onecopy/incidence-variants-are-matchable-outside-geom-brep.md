@@ -2,9 +2,10 @@
 id: incidence-variants-are-matchable-outside-geom-brep
 kind: issue
 title: The incidence refusal's variants are public and matchable everywhere; a typed payload behind accessors would make a pin by variant impossible
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
+closed: 2026-11-10
 ---
 
 
@@ -67,3 +68,32 @@ Both were found by the FULL review of PR 6688 (S5, S6).
   incidence read. Under a typed payload the incidence check would be the
   payload's, not a field of the general `Escalated` arm, so such a pin
   could no longer stand for an incidence read.
+- **Other refusals carry chart and carrier kinds with no accessor**
+  (the delta review of PR 6688, D4). `PcurveCertifyError::NoGeneralLane
+  { chart, carrier, .. }` (`crates/geom-brep/src/pcurve_cache.rs:1945`) and
+  `CertifyError::ChartImageUnavailable { chart, carrier }`
+  (`crates/geom-brep/src/certify.rs:459`) name the kinds too. A test reads them only by
+  matching the variant: the "not yet" pin in
+  `a_circle_not_shown_on_a_spline_row_refuses_alike_in_every_form`, and
+  `a_wall_row_read_in_band_takes_the_lane_a_miss_takes`'s `not_yet`.
+  `IncidenceRead::kinds_of` covers the incidence refusal alone. The
+  typed payload would give the kinds one accessor across every refusal
+  that names them.
+
+## Closed (2026-11-10, `onecopy/incidence-sealed`)
+
+The incidence refusal is one variant in each enum: `PcurveCertifyError::Incidence(IncidenceRefusal)` and `CertifyError::Incidence(IncidenceRefusal)`.
+
+- **One payload.** It holds the three ways the test refuses: a closed-form arm's decided read, the sampled residual, and a read in band. Its fields are private. Readers ask:
+  - `read()`, the `IncidenceRead`;
+  - `kinds()`, the chart and carrier kinds;
+  - `why()`, the arm's words.
+- **Fixture constructors.** `off_chart`, `exceeded` and `undecided`.
+- **Fail-loud invariant.** Neither enum's general `Escalated` or `ResidualExceeded` arm carries `ChartIncidence`; every mint builds the payload instead. `pcurve_cache::general` asserts it where a general arm is minted from a check held in a variable: the five builders (two in `pcurve_cache.rs`, two in `projected.rs`, certify's `check_residual`) and certify's limb lift. It asserts it again in each enum's decision table. A classifier that reads `IncidenceRead::of` without reaching `decided()` is covered by the mint-time guard. One `should_panic` row per door drives a builder with the incidence check and sees the guard fire.
+- **One home per door.** The guard and the payload's text dispatch are written once, over `pcurve_cache::IncidenceDoor`. `PcurveCheck` and `CertCheck` implement it with their own words for an escalation, a residual past the band and a closed-form arm's read.
+- **The gate is retired.** `scripts/gates/incidence-variant-sites.sh` and its table are deleted: outside geom-brep, nothing can tell a miss from an in-band read by the refusal's shape.
+
+The three review findings:
+- **S5.** `walk_certify_refusal` and validate's reason map each read `Incidence` by its read, in its own arm. There is no pre-check and no `unreachable!` or `Torn` arm for exhaustiveness.
+- **S6.** A bare `Escalated { .. }` can no longer stand for an incidence read. The port caught a trap of exactly that kind in `validate`'s planar face and boundary checks. They matched `Err(Escalated { cause, .. })` on `read_point_incidence` / `read_edge_incidence` and read every other refusal as a definite residual. That was right on main, where the in-band read was that `Escalated`. Under the payload it would have turned an in-band read into a residual, and two sweep rows caught it on the first run. Both checks now read `IncidenceRead::of`.
+- **D4.** `PcurveCertifyError::chart_carrier_kinds()` and `CertifyError::chart_carrier_kinds()` cover every refusal that names the kinds: incidence, `NoGeneralLane`, `ChartImageUnavailable`. They replace `IncidenceRead::kinds_of` and `CertifyError::incidence_kinds`. The two "not yet" pins read them.

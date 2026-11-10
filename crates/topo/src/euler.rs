@@ -1159,9 +1159,9 @@ pub enum EulerOpError {
         curve: CurveKey,
     },
     /// [`Body::split_edge`](crate::construction::Construct::split_edge)'s parameter is **definitely not interior**
-    /// to the edge's certified interval: one of the two sub-spans
-    /// `t − t₀` / `t₁ − t` classified non-positive (metered in meters,
-    /// like the certification span gate). Splitting at an endpoint (or
+    /// to the edge's certified interval: the span's reading of it
+    /// (`geom_brep::curve_pair::Span::place_param_read`) puts it at an end,
+    /// by its chord, or past one. Splitting at an endpoint (or
     /// outside the interval) is refused — the split point must be a
     /// genuinely interior locus point.
     SplitParamNotInterior {
@@ -1890,7 +1890,7 @@ pub(crate) fn every_euler_op_error_once()
             diag: geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("split_edge_param_interior"),
+                predicate: Some("curve_pair_span_end_chord"),
                 terminal_sliver: false,
             },
         },
@@ -1960,14 +1960,16 @@ pub(crate) fn every_euler_op_error_once()
             // Read in band at a pose: the geometry's lever. A definite miss
             // names the kernel's defect, the one exception
             // `no_refusal_names_a_defect` pins.
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "the circle sits at the apex's height",
-                margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
-                    5e-10,
-                ))),
-            },
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Cone,
+                    geom::CurveKind::Circle,
+                    "the circle sits at the apex's height",
+                    Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                        5e-10,
+                    ))),
+                ),
+            ),
         },
         EulerOpError::PcurveMint {
             face: fc,
@@ -5380,13 +5382,9 @@ mod tests {
             circle.he_minus
         };
         body.kev_ungated(kill).unwrap();
-        let e = body.get_edge(nul.edge).unwrap();
-        let (hp, hm) = (e.he_plus, e.he_minus);
-        assert_eq!(
-            body.get_half_edge(hp).unwrap().start,
-            body.get_half_edge(hm).unwrap().start,
-            "the null edge is a self-loop"
-        );
+        let hp = body.get_edge(nul.edge).unwrap().he_plus;
+        let (s, t) = body.edge_vertices(nul.edge).unwrap();
+        assert_eq!(s, t, "the null edge is a self-loop");
         let strut = body
             .mev_line(
                 MevSite::Fan { he1: hp, he2: hp },
@@ -6085,8 +6083,7 @@ mod tests {
             Some(vec![seg.he_plus, circ.he_plus, seg.he_minus])
         );
         let w = seg.vertex;
-        assert_eq!(body.get_half_edge(circ.he_plus).unwrap().start, w);
-        assert_eq!(body.half_edge_end(circ.he_plus), Some(w));
+        assert_eq!(body.edge_vertices(circ.edge), Some((w, w)));
         // New face shares the old face's surface (M1 geometry policy).
         assert_eq!(body.get_face(circ.face).unwrap().surface, seed.surface);
         // Chords never touches emanating.
@@ -6327,10 +6324,9 @@ mod tests {
         // The new edge joins start(he1) = v3 to start(he2) = v2, plus
         // half in the old loop.
         assert_eq!(
-            t.body.get_half_edge(split.he_plus).unwrap().start,
-            island.v3
+            t.body.edge_vertices(split.edge),
+            Some((island.v3, island.v2))
         );
-        assert_eq!(t.body.half_edge_end(split.he_plus), Some(island.v2));
         // Shared surface with face A (the split face), same shell.
         assert_eq!(
             t.body.get_face(split.face).unwrap().surface,
@@ -7091,12 +7087,14 @@ mod tests {
         let split = EulerOpError::PcurveSplit {
             edge: EdgeKey::default(),
             half_edge: HalfEdgeKey::default(),
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Spiric,
-                why: "the spiric lies on neither its own torus nor that torus's mirror",
-                margin: None,
-            },
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Torus,
+                    geom::CurveKind::Spiric,
+                    "the spiric lies on neither its own torus nor that torus's mirror",
+                    None,
+                ),
+            ),
         };
         assert!(
             split

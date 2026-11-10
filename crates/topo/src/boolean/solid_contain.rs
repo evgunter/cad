@@ -206,6 +206,7 @@
 //!   ([`past_every_reach`]). **`bool_point_axis`**: the offset from the
 //!   faces' anchor to `q`, before it is read as one of those directions.
 
+pub(crate) use crate::rows::RayRows;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
@@ -777,7 +778,8 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         /// a sense; asking the representative is asking the group, and
         /// it is the representative that the arms act for. (Agreement
         /// across the group is a tier-3 obligation, not re-checked
-        /// here.) `false` swaps the near/far crossing pair below.
+        /// here (at a dual, [`crate::Replay`]'s "A tier-3 premise at a dual").) `false` swaps the
+        /// near/far crossing pair below.
         sense: bool,
     },
     /// A cone face: the ray/double-cone quadratic's roots, each tested
@@ -825,7 +827,8 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         /// The major radius `R` (centre to tube centre).
         major_radius: T,
         /// The minor radius `r` (the tube), `R > r` by the ring-torus
-        /// convention tier-3 check 1 enforces at rest.
+        /// convention tier-3 check 1 enforces at rest (at a dual, [`crate::Replay`]'s "A tier-3
+        /// premise at a dual").
         minor_radius: T,
         /// The group's first face in the selection's order. Arms no-op
         /// on every other member.
@@ -2882,14 +2885,7 @@ pub(super) fn line_torus_roots<T: Decide>(
 }
 
 /// The ray × torus lane's rows ([`line_torus_roots`]).
-const RAY_TORUS_ROWS: QuarticRows = QuarticRows {
-    disc: "bool_ray_torus_disc",
-    shape: "bool_ray_torus_shape",
-    depth: "bool_ray_torus_depth",
-    odd: "bool_ray_torus_odd",
-    split: "bool_ray_torus_split",
-    split_lead: "bool_ray_torus_split_lead",
-};
+const RAY_TORUS_ROWS: QuarticRows = geom_brep::rows::RAY_TORUS;
 
 /// **What the torus arm reads off a ray's quartic** ([`line_torus_roots`]):
 /// `None` a certified miss, `Some` the certified crossings. An uncertain
@@ -2931,7 +2927,7 @@ fn clear_of_carrier<T: Decide>(
     band: Band,
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
-    match decide(rows.clearance, Margin::of(elev.abs()), band) {
+    match decide(rows.clearance(), Margin::of(elev.abs()), band) {
         Ok(Sign::Zero) => Ok(false),
         Ok(_) => Ok(true),
         Err(diag) => Err(RayFault::InBand(PointInSolidError::Escalated {
@@ -2986,44 +2982,13 @@ fn ray_passes_beside<T: Decide>(
     let (Some(above), Some(below)) = (above, below) else {
         return Ok(true); // no vertex: the loop bounds no region
     };
-    Ok(decide(rows.beside, Margin::of(above.max(below)), band)
+    Ok(decide(rows.beside(), Margin::of(above.max(below)), band)
         .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
         == Sign::Positive)
 }
 
-/// **The names a ray's planar crossings are decided under**: a schedule
-/// ray's ([`SCHEDULE_ROWS`]) or a ray aimed at the boundary from beyond
-/// it ([`crate::side_reader::AIMED_ROWS`]), so the reader of the side at infinity, which
-/// every at-rest gate runs, logs apart from point containment.
-#[derive(Clone, Copy)]
-pub(crate) struct RayRows {
-    pub(crate) advance: &'static str,
-    pub(crate) denom: &'static str,
-    pub(crate) clearance: &'static str,
-    pub(crate) beside: &'static str,
-    pub(crate) order: &'static str,
-    pub(crate) vertex: &'static str,
-    pub(crate) edge: &'static str,
-    pub(crate) edge_span: &'static str,
-    pub(crate) winding: &'static str,
-    pub(crate) represents: &'static str,
-    pub(crate) reaches: &'static str,
-}
-
 /// A schedule ray's rows (module docs).
-const SCHEDULE_ROWS: RayRows = RayRows {
-    advance: "bool_point_in_solid_advance",
-    denom: "bool_point_in_solid_denom",
-    clearance: "bool_point_in_solid_clearance",
-    beside: "bool_point_in_solid_beside",
-    order: "bool_point_in_solid_order",
-    vertex: "bool_point_in_solid_vertex",
-    edge: "bool_point_in_solid_edge",
-    edge_span: "bool_point_in_solid_edge_span",
-    winding: "bool_point_in_solid_winding",
-    represents: "bool_point_in_solid_met_edge_represents",
-    reaches: "bool_point_in_solid_met_edge_reaches",
-};
+const SCHEDULE_ROWS: RayRows = crate::rows::SCHEDULE_RAY;
 
 /// One ray of the sweep: the side its running count reads
 /// ([`Crossings::first_count`]), or `None` where it crosses nothing
@@ -3036,11 +3001,11 @@ fn cast_ray<T: Decide>(
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
     let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count(
-        SCHEDULE_ROWS.order,
+        SCHEDULE_ROWS.order(),
         band,
         RayHit::count,
         |a, b| {
-            a.pair(body, b, SCHEDULE_ROWS.order, band)
+            a.pair(body, b, SCHEDULE_ROWS.order(), band)
                 .map_err(|f| f.map(|(face, diag, _)| PointInSolidError::Escalated { face, diag }))
         },
         |hits| {
@@ -3400,12 +3365,15 @@ fn edge_meets<T: Decide>(
         meets.lines.insert(pass.edge);
         meets.read.insert(pass.edge);
         meets.clear.insert(pass.edge);
-        let gap =
-            match geom_core::k_stats::decide_magnitude(rows.edge, Margin::of(pass.gap[0]), band) {
-                Ok(geom_core::k_stats::Magnitude::Positive) => continue,
-                Ok(geom_core::k_stats::Magnitude::Zero) => Gap::Zero,
-                Err(gap) => Gap::InBand(gap),
-            };
+        let gap = match geom_core::k_stats::decide_magnitude(
+            rows.edge(),
+            Margin::of(pass.gap[0]),
+            band,
+        ) {
+            Ok(geom_core::k_stats::Magnitude::Positive) => continue,
+            Ok(geom_core::k_stats::Magnitude::Zero) => Gap::Zero,
+            Err(gap) => Gap::InBand(gap),
+        };
         let faces = [pass.faces.0, pass.faces.1];
         let [lo, hi] = pass.along;
         let at = geom::mid_param(lo, hi);
@@ -3413,7 +3381,7 @@ fn edge_meets<T: Decide>(
         // edge's line behind `q`, the ray itself is nearest the edge at
         // `q`, and the boundary pre-pass holds `q` clear of both the
         // edge's faces, so of the edge.
-        if ray.ahead(at, rows.advance, band) == Ok(Sign::Negative) {
+        if ray.ahead(at, rows.advance(), band) == Ok(Sign::Negative) {
             continue;
         }
         // Where the lines come closest, against each end of the edge:
@@ -3421,11 +3389,11 @@ fn edge_meets<T: Decide>(
         // end, its vertex read above), or in band of it.
         let mut inside = true;
         for [lo, hi] in pass.reach {
-            if decide(rows.edge_span, Margin::of(lo), band) == Ok(Sign::Positive) {
+            if decide(rows.edge_span(), Margin::of(lo), band) == Ok(Sign::Positive) {
                 continue;
             }
             inside = false;
-            if decide(rows.edge_span, Margin::of(hi), band) != Ok(Sign::Negative) {
+            if decide(rows.edge_span(), Margin::of(hi), band) != Ok(Sign::Negative) {
                 meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
             }
             break;
@@ -3478,7 +3446,7 @@ impl<T: Decide> EdgeMeets<T> {
         let along = ray.param(at);
         let distance = ray.distance_within(at, (T::zero(), top));
         match geom_core::k_stats::decide_magnitude(
-            rows.vertex,
+            rows.vertex(),
             Margin::of(distance.max(T::zero())),
             band,
         ) {
@@ -3669,7 +3637,7 @@ fn turned_inside<T: Decide>(
     ray: TurnRay,
 ) -> Result<bool, RayFault<PointInSolidError>> {
     Ok(geom_core::k_stats::check_unlogged(
-        ray.rows.winding,
+        ray.rows.winding(),
         (turn.abs() - T::pi()) * reach,
         ray.band,
         "F23",
@@ -4243,7 +4211,7 @@ fn reaches_root_in_band<T: Decide>(
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
     let margin = reach_margin(body, face, ray, m, root)?;
-    match decide(rows.reaches, Margin::of(margin), band) {
+    match decide(rows.reaches(), Margin::of(margin), band) {
         Ok(sign) => Ok(sign != Sign::Positive),
         Err(diag) if crate::validate::in_band(&diag) => Ok(false),
         Err(diag) => Err(RayFault::InBand(PointInSolidError::Escalated {
@@ -4338,7 +4306,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             face: hit.face,
             diag,
         };
-        let ahead = ray_walk::crossing_side(ray.ahead(hit.at, rows.advance, band))
+        let ahead = ray_walk::crossing_side(ray.ahead(hit.at, rows.advance(), band))
             .map_err(|f| f.map(escalate))?;
         if ahead == Sign::Positive {
             crossings.push_span(hit.at, span, hit, sideless);
@@ -4366,7 +4334,7 @@ pub(crate) fn ray_crossings<T: Decide>(
         // The cosine levered by the selection's reach: how far the ray
         // rises off the plane over every length at which it could meet
         // the face ([`selection_reach`]).
-        let outward = decide(rows.denom, Margin::levered(denom, arm), band).map_err(escalate)?;
+        let outward = decide(rows.denom(), Margin::levered(denom, arm), band).map_err(escalate)?;
         if outward == Sign::Zero {
             // A ray parallel to the plane within the band rises off it
             // by at most the band's zero over the reach. The pre-pass
@@ -4482,7 +4450,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             if stands && !every_edge_read(body, f, &meets.lines) {
                 let off = (m.span.0 - t).max(t - m.span.1).max(T::zero());
                 let near =
-                    geom_core::k_stats::decide_magnitude(rows.represents, Margin::of(off), band)
+                    geom_core::k_stats::decide_magnitude(rows.represents(), Margin::of(off), band)
                         != Ok(geom_core::k_stats::Magnitude::Positive);
                 let held = match (c, plane) {
                     _ if near => Ok(Some(true)),
@@ -4514,7 +4482,7 @@ pub(crate) fn ray_crossings<T: Decide>(
         // ray can pass the face's edge ahead and its carrier behind.
         let ahead = [ta, tb]
             .iter()
-            .all(|&t| ray.ahead(t, rows.advance, band) == Ok(Sign::Positive));
+            .all(|&t| ray.ahead(t, rows.advance(), band) == Ok(Sign::Positive));
         if !stands || !ahead || sa == 0 || sb == 0 {
             for at in [m.at, ta, tb] {
                 offer(RayHit::marked([a, b], at, Mark::Graze), (at, at), true)?;
@@ -4701,7 +4669,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     Sign::Positive => {}
                 }
                 for t in centred.roots(disc).0 {
-                    let ahead = ray_walk::crossing_side(ray.ahead(t, rows.advance, band))
+                    let ahead = ray_walk::crossing_side(ray.ahead(t, rows.advance(), band))
                         .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
                     if ahead == Sign::Negative {
                         continue;
@@ -4746,7 +4714,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     WallRoots::Two(ts, _) => ts,
                 };
                 for t in ts {
-                    let ahead = ray_walk::crossing_side(ray.ahead(t, rows.advance, band))
+                    let ahead = ray_walk::crossing_side(ray.ahead(t, rows.advance(), band))
                         .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
                     if ahead == Sign::Negative {
                         continue;
@@ -5539,7 +5507,7 @@ mod per_solid_entry_tests {
                 !matches!(
                     &got,
                     Err(RayFault::InBand(PointInSolidError::Escalated { diag, .. }))
-                        if diag.predicate == Some(SCHEDULE_ROWS.order)
+                        if diag.predicate == Some(SCHEDULE_ROWS.order())
                 ),
                 "cubes {m}ε apart: the ray refuses on a pair, {got:?}"
             );
@@ -5587,7 +5555,7 @@ mod per_solid_entry_tests {
                 let pair = matches!(
                     &got,
                     Err(RayFault::InBand(PointInSolidError::Escalated { diag, .. }))
-                        if diag.predicate == Some(SCHEDULE_ROWS.order)
+                        if diag.predicate == Some(SCHEDULE_ROWS.order())
                 );
                 assert!(
                     !pair && !matches!(got, Ok(Some(SolidContainment::Out))),
@@ -6489,7 +6457,7 @@ mod reach_tests {
                 SCHEDULE_ROWS,
             )
             .ok();
-            match decide(SCHEDULE_ROWS.reaches, Margin::of(margin), band) {
+            match decide(SCHEDULE_ROWS.reaches(), Margin::of(margin), band) {
                 Ok(Sign::Positive) => assert_eq!(reached, Some(false), "off {off:e}"),
                 Ok(_) => {
                     decided += 1;

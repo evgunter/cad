@@ -2,8 +2,10 @@
 id: skin-renders-a-knot-api-recourse-to-the-loft-user
 kind: issue
 title: SkinError::KnotAlgebra renders KnotAlgebraError's caller-facing recourse to the loft's user
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-09
+pr: 6684
 ---
 
 
@@ -33,3 +35,9 @@ Do not pass the knot-API sentence through.
 `geom_core::spline::KnotAlgebraError::fact` renders the refusal without
 its caller-facing recourse (PR 6622 added it for `SectionUnbuilt::Seat`),
 so a holder can keep the diagnostics and end on its own recourse.
+
+## Closed
+
+Closed by ONECOPY's kernel-built-recourse lane (PR 6684), on the ONECOPY orchestrator's ruling, option (a). `SkinError::KnotAlgebra` holds `geom_core::spline::Built<KnotAlgebraError>` and decides its ending on the payload:
+- a knot or weight that is no point ends in "evaluate the loft at a point scalar";
+- every other arm ends in `KERNEL_DEFECT_ENDING`.

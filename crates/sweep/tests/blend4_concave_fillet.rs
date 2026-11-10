@@ -409,7 +409,7 @@ fn the_corner_recourse_is_followable_on_both_sides() {
     let reflex: Vec<EdgeKey> = bracket
         .edges()
         .filter(|(k, _)| {
-            let Some(e) = bracket.get_edge(*k) else {
+            let Some((start, end)) = bracket.edge_vertices(*k) else {
                 return false;
             };
             let pt = |vk| {
@@ -418,13 +418,7 @@ fn the_corner_recourse_is_followable_on_both_sides() {
                     .and_then(|x| bracket.get_point(x.point))
                     .copied()
             };
-            let (Some(a), Some(b)) = (
-                bracket
-                    .get_half_edge(e.he_plus)
-                    .map(|h| h.start)
-                    .and_then(pt),
-                bracket.half_edge_end(e.he_plus).and_then(pt),
-            ) else {
+            let (Some(a), Some(b)) = (pt(start), pt(end)) else {
                 return false;
             };
             on_reflex(a) && on_reflex(b)

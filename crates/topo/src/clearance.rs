@@ -542,11 +542,12 @@ pub enum EngineRefusal {
         /// The vertex of the face's body the chart collapses to.
         vertex: VertexKey,
     },
-    /// A face on a torus not decided a ring (`R > r`): decided outside
-    /// the convention, the carrier meets itself, so the face is not
-    /// injective by its kind; undecided, the convention's half escalates
-    /// as its own margin. The convention's one refusal carries which
-    /// ([`geom_brep::TorusRefusal`]).
+    /// A face on a torus not decided a ring (`R > r > 0`), so not
+    /// injective by its kind: a half of the convention decided outside it
+    /// (a tube not shown thicker than zero, or not shown thinner than its
+    /// ring), or one the band cannot decide, which escalates as its own
+    /// margin. The convention's one refusal carries which, and says it in
+    /// the half's own words ([`geom_brep::TorusRefusal`]).
     TorusNotRing {
         /// The face.
         face: FaceKey,
@@ -722,19 +723,11 @@ impl EngineRefusal {
                 face,
                 side,
                 refusal,
-            } => match refusal.verdict {
-                geom_brep::TorusVerdict::Refused(_) => write!(
-                    f,
-                    "face {face:?} of {} lies on a torus not decided a ring (R > r), so its \
-                     carrier meets itself: {refusal}",
-                    side.of(sides)
-                ),
-                geom_brep::TorusVerdict::Undecided(_) => write!(
-                    f,
-                    "face {face:?} of {} lies on a torus not decided a ring (R > r): {refusal}",
-                    side.of(sides)
-                ),
-            },
+            } => write!(
+                f,
+                "face {face:?} of {} lies on a torus not decided a ring (R > r > 0): {refusal}",
+                side.of(sides)
+            ),
         }
     }
 }

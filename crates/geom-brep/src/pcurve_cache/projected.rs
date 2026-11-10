@@ -1027,12 +1027,12 @@ fn piece_sector<T: Decide>(
         return Ok(None);
     }
     let b = image.frame_box(k, t0, t1);
-    if !positive("pcurve_projected_sector", b.x.0, band)? {
+    if !positive_as("pcurve_projected_sector", b.x.0, band)? {
         return Ok(Some(SectorChannel::Azimuth));
     }
     if let ProjectedChart::Torus { major } = image.chart {
         let (tx, _) = image.tube_box(k, &b, major);
-        if !positive("pcurve_projected_sector", tx.0, band)? {
+        if !positive_as("pcurve_projected_sector", tx.0, band)? {
             return Ok(Some(SectorChannel::Tube));
         }
     }
@@ -1046,7 +1046,7 @@ fn piece_sector<T: Decide>(
 /// ([`piece_sector`]).
 fn choose_quarters<T: Decide>(image: &mut ProjectedImage<T>, k: usize, t0: T, t1: T, band: Band) {
     let clear = |x: T| {
-        geom_core::k_stats::detached(|| positive("pcurve_projected_sector", x, band))
+        geom_core::k_stats::detached(|| positive_as("pcurve_projected_sector", x, band))
             .0
             .unwrap_or(false)
     };
@@ -1245,11 +1245,10 @@ pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bo
 
 /// The period gate's row, and the straddle of a bounded channel's two
 /// readings.
-const PERIOD_ROWS: TurnRows<&str> =
-    TurnRows::bounded("pcurve_azimuth_period", "pcurve_azimuth_period_straddle");
+const PERIOD_ROWS: TurnRows<&str> = crate::rows::PCURVE_AZIMUTH_PERIOD.rows();
 
 /// The period gate's row at an exact channel.
-const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn);
+const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn());
 
 /// Check 2's disposition of one channel's "not over": a sweep over a
 /// turn refuses as `exceeded`, an undecided one escalates under `check`.
@@ -1262,7 +1261,7 @@ fn period_gate(
         Ok(true) => Ok(()),
         Ok(false) => Err(exceeded),
         Err(undecided) => Err(PcurveCertifyError::Escalated {
-            check,
+            check: super::general(check),
             sample: 0,
             cause: undecided.diag,
         }),
@@ -1423,7 +1422,7 @@ fn outside<T: Decide>((a, b): (T, T), edge: Option<(T, T)>, band: Band) -> bool 
         return false;
     };
     let clear = |x: T| {
-        geom_core::k_stats::detached(|| positive("pcurve_projected_outside", x, band))
+        geom_core::k_stats::detached(|| positive_as("pcurve_projected_outside", x, band))
             .0
             .unwrap_or(false)
     };
@@ -1577,11 +1576,11 @@ pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T), T
 /// The one decision every condition of this module reads: whether
 /// `value` decides positive. Not positive (zero or negative) is
 /// `Ok(false)`; the band's undecided answer escalates.
-fn positive<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Indeterminate> {
+fn positive_as<T: Decide>(name: &'static str, value: T, band: Band) -> Result<bool, Indeterminate> {
     Ok(decide(name, Margin::of(value), band)? == Sign::Positive)
 }
 
-/// [`positive`] as a check-4 verdict: `value` when it decides positive,
+/// [`positive_as`] as a check-4 verdict: `value` when it decides positive,
 /// `refused` when it does not, an escalation at `check` (its sample the
 /// piece or span `at`) when the band cannot tell.
 fn require_positive<T: Decide>(
@@ -1592,11 +1591,11 @@ fn require_positive<T: Decide>(
     at: usize,
     refused: PcurveCertifyError,
 ) -> Result<T, PcurveCertifyError> {
-    match positive(name, value, band) {
+    match positive_as(name, value, band) {
         Ok(true) => Ok(value),
         Ok(false) => Err(refused),
         Err(cause) => Err(PcurveCertifyError::Escalated {
-            check,
+            check: super::general(check),
             sample: u32::try_from(at).unwrap_or(u32::MAX),
             cause,
         }),
@@ -2365,7 +2364,7 @@ fn met_floors<T: Decide>(
             None => (rho, b.z, k),
             Some((r, (lo, hi), at)) => {
                 let lower = geom_core::k_stats::detached(|| {
-                    positive("pcurve_projected_floor_pick", r - rho, band)
+                    positive_as("pcurve_projected_floor_pick", r - rho, band)
                 })
                 .0
                 .unwrap_or(false);
@@ -2464,8 +2463,8 @@ fn line_off_cone_sup<T: Decide>(
         let floor = rho * cos + axial * sin;
         geom_core::k_stats::detached(|| {
             Ok::<bool, Indeterminate>(
-                !positive("pcurve_projected_lever_ceiling", ceiling, band)?
-                    || positive(
+                !positive_as("pcurve_projected_lever_ceiling", ceiling, band)?
+                    || positive_as(
                         "pcurve_projected_lever_spread_ratio",
                         (ceiling - floor * T::from_f64(LEVER_SPREAD)) / ceiling,
                         band,

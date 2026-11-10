@@ -1207,27 +1207,7 @@ impl<T: Real> MassProperties<T> {
     }
 }
 
-/// The predicate names a role read decides under: the bracket's high
-/// end (and an exact volume) under `high`, its low end under `low`.
-#[derive(Clone, Copy, Debug)]
-pub struct RoleNames {
-    /// The name the high end, and an exact volume, are decided under.
-    pub high: &'static str,
-    /// The name the low end is decided under.
-    pub low: &'static str,
-}
-
-impl RoleNames {
-    /// One name for both ends — every decision but check 7's, which keeps
-    /// its two historical names.
-    #[must_use]
-    pub const fn one(name: &'static str) -> Self {
-        Self {
-            high: name,
-            low: name,
-        }
-    }
-}
+pub use crate::rows::RoleNames;
 
 /// A role read that decided no role: the two ends' decisions (one and
 /// the same for an exact volume).
@@ -1291,18 +1271,18 @@ pub(crate) fn read_sign<U: Decide>(reading: SignReading<U>, names: RoleNames) ->
     };
     match reading {
         SignReading::Exact { volume, .. } => {
-            let one = sign_as(names.high, volume);
+            let one = sign_as(names.high(), volume);
             read(
                 role_at(BracketEnd::Low, one).or_else(|| role_at(BracketEnd::High, one)),
                 RoleUnread { lo: one, hi: one },
             )
         }
         SignReading::Bracket(ends) => {
-            let hi = sign_as(names.high, ends.volume_hi);
+            let hi = sign_as(names.high(), ends.volume_hi);
             if let Some(role) = role_at(BracketEnd::High, hi) {
                 return RoleRead::Decided(role);
             }
-            let lo = sign_as(names.low, ends.volume_lo);
+            let lo = sign_as(names.low(), ends.volume_lo);
             read(role_at(BracketEnd::Low, lo), RoleUnread { lo, hi })
         }
     }
@@ -8392,6 +8372,7 @@ mod shell_role_refusal_tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: the bracket's cause read at each decided end
             predicate: Some("chk_shell_volume_sign"),
             terminal_sliver: false,
         };

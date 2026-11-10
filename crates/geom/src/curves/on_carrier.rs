@@ -538,6 +538,12 @@ impl<T: Decide> Curve3<T> {
     /// **A lower bound on `q`'s distance from the whole carrier**, in
     /// closed form (module docs); `None` on a spline, whose bound is its
     /// piece walk ([`Self::clear_of`]).
+    ///
+    /// A line reads [`crate::Line::distance`], whose `dir` must be nonzero, as an
+    /// axis's must for the conics' arms. That is the carrier's, decided
+    /// nowhere here: at rest `topo`'s tier-3 check 1 refuses a zero
+    /// direction, and a section's line is minted along a stored axis or a
+    /// cone's ruling, neither of them zero.
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
             Self::Line(line) => line.distance(q),
