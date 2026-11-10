@@ -6,6 +6,7 @@ status: review
 opened: 2026-11-04
 priority: P0
 cost: H
+pr: 6810
 branch: band/open-mixed-chain
 refs: [a-rounded-outline-is-a-closed-chain-of-mixed-links-the-blend-refuses, a-boss-on-a-plate-meets-it-at-a-mixed-convexity-corner-no-run-out-rounds]
 ---
