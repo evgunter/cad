@@ -1539,9 +1539,9 @@ pub struct ConicTorusHarmonics<T> {
     /// A ring the band certifies is clear of that: [`geom::RingTorus::of`]
     /// decides `r` and `R − r` against a band whose ε is at least
     /// `geom_core::tolerance::COORDINATE_FLOOR` (about 1.1e-13 m), so the
-    /// floor there is at least `4ε³`. The doors that read this floor
-    /// without that decision are filed as
-    /// `work/onecopy/the-torus-floor-is-read-by-doors-no-ring-gate-guards.md`.
+    /// floor there is at least `4ε³`. The doors that read the floor, the
+    /// circle and ellipse × torus doors, ask that decision first
+    /// ([`crate::curve_face::circle_roots::DoorRefusal::ring`]).
     pub f_per_metre_lo: T,
     /// A ceiling on `|F| / |res|` along the whole carrier:
     /// `2r(|C₀ − c| + ‖C − C₀‖ + R)²` (`(ρ + R)² + h² ≤ (|q| + R)²`), the

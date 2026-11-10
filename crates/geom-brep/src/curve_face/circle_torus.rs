@@ -283,14 +283,13 @@ pub fn circle_torus_roots<T: Decide>(
         };
     }
 
+    // The meridian's bound and the ladder's floor on `|F|` per metre
+    // both lean on the ring (`R − r > 0`): asked of the convention, once.
+    DoorRefusal::ring(major_radius, minor_radius, band)?;
+
     // A meridian: `F ≡ 0`, which the ladder cannot answer, decided on
-    // its point deviation (module docs, "The special poses"). Its bound
-    // leans on the ring (`R − r > 0`); a torus off D3's convention takes
-    // the ladder.
-    if matches!(
-        geom::ring_torus(major_radius, minor_radius, band).map(|d| d.sign),
-        Ok(Sign::Positive)
-    ) {
+    // its point deviation (module docs, "The special poses").
+    {
         // The centre term's rounding: `w₀` and its split along the axis
         // are read off coordinates as large as `|C| + |c|`.
         let origin = Point3::new(T::zero(), T::zero(), T::zero());

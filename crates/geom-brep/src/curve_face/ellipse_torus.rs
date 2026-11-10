@@ -110,6 +110,9 @@ fn torus_walk<T: Decide>(
     slack: Option<&'static str>,
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
+    // The walk's floor on `|F|` per metre leans on the ring: asked of
+    // the convention, once ([`DoorRefusal::ring`]).
+    DoorRefusal::ring(torus.2, torus.3, band)?;
     let (center, axis, major_radius, minor_radius) = torus;
     let h = crate::conic_torus_harmonics(
         conic,
@@ -1102,5 +1105,58 @@ mod torus_rows {
             }
         }
         print!("{out}");
+    }
+
+    /// **Both torus doors read the ring of the convention's one home**
+    /// ([`DoorRefusal::ring`]). A spindle (`r > R`), a horn (`r = R`), a
+    /// horn within the band (`R − r` under its zero) and a torus of no
+    /// tube are decided outside the convention, and each door refuses
+    /// them as a torus it does not read. A ring whose `R − r` falls in the
+    /// band's escalation gap escalates. A ring certifies as before, the
+    /// circle and the ellipse each across the tube.
+    #[test]
+    fn the_torus_doors_read_the_conventions_ring() {
+        use core::f64::consts::TAU;
+        use geom_core::{Band, Point3, Tol, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        let axis = Vec3::new(0.0, 0.0, 1.0);
+        let c = Point3::new(0.0, 0.0, 0.0);
+        let (n, u) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let circle = geom::Curve3::circle(Point3::new(2.3, 0.0, 0.0), n, 0.5, u);
+        let ellipse =
+            geom::Curve3::ellipse(Point3::new(2.0, 0.0, 0.0), n, 0.6, 0.4, u, band).unwrap();
+        let doors = |big: f64, small: f64| {
+            let s = crate::curve_face::conic_oracle::torus(c, axis, big, small);
+            (
+                crate::curve_face::circle_torus::circle_torus_roots(&circle, 0.0, TAU, &s, band),
+                ellipse_torus_roots(&ellipse, 0.0, TAU, &s, band),
+            )
+        };
+        let gap = (band.zero() + band.escalate()) / 2.0;
+        for (what, big, small) in [
+            ("a spindle", 1.0, 1.5),
+            ("a horn", 1.5, 1.5),
+            ("a horn within the band", 1.5, 1.5 - band.zero() / 2.0),
+            ("a torus of no tube", 2.0, 0.0),
+        ] {
+            let (circle, ellipse) = doors(big, small);
+            assert!(
+                matches!(circle, Err(DoorRefusal::Invariant(_)))
+                    && matches!(ellipse, Err(DoorRefusal::Invariant(_))),
+                "{what}: {circle:?} {ellipse:?}"
+            );
+        }
+        let (circle, ellipse) = doors(1.5, 1.5 - gap);
+        assert!(
+            matches!(circle, Err(DoorRefusal::Escalated(_)))
+                && matches!(ellipse, Err(DoorRefusal::Escalated(_))),
+            "a ring in the gap: {circle:?} {ellipse:?}"
+        );
+        let (circle, ellipse) = doors(2.0, 0.5);
+        assert!(
+            matches!(circle, Ok(Ok(crate::roots::Roots::Certified(_))))
+                && matches!(ellipse, Ok(Ok(crate::roots::Roots::Certified(_)))),
+            "a ring: {circle:?} {ellipse:?}"
+        );
     }
 }

@@ -106,8 +106,43 @@ pub enum DoorRefusal {
     /// the band's escalation gap.
     Escalated(Indeterminate),
     /// The door's readings contradict, or it was handed a carrier or a
-    /// surface of a kind it does not read: a kernel defect.
+    /// surface of a kind it does not read: a kernel defect. A torus the
+    /// convention decides is no ring is one ([`Self::ring`]).
     Invariant(&'static str),
+}
+
+impl DoorRefusal {
+    /// **The ring a torus door reads on**, asked of the convention's one
+    /// home ([`crate::TorusRefusal::require`], which reads
+    /// [`geom::RingTorus::of`]), never decided again at the door. A torus
+    /// door's floor on `|F| / |res|` and its meridian bound both lean on
+    /// the ring ([`crate::ConicTorusHarmonics::f_per_metre_lo`]). A half
+    /// the band cannot decide is the door's escalation, under the
+    /// convention's own row. A half decided outside is a torus the door
+    /// does not read: production callers hand it rings that tier 3 has
+    /// validated, and a mid-operation mint refuses a non-ring before any
+    /// door reads it (`geom_brep::offset::offset_surface`'s `TorusRing`,
+    /// the blend's `SpineIrregular`).
+    ///
+    /// # Errors
+    ///
+    /// [`Self::Escalated`] for an undecided half, [`Self::Invariant`] for
+    /// a torus decided outside the convention.
+    pub fn ring<T: Decide>(
+        major_radius: T,
+        minor_radius: T,
+        band: Band,
+    ) -> Result<geom::RingTorus<T>, Self> {
+        crate::TorusRefusal::require(major_radius, minor_radius, band).map_err(|refusal| {
+            match refusal.verdict {
+                crate::TorusVerdict::Undecided(diag) => Self::Escalated(diag),
+                crate::TorusVerdict::Refused(_) => Self::Invariant(
+                    "a torus root door was handed a torus outside the ring convention, whose \
+                     floor on |F| per metre of residual is no floor",
+                ),
+            }
+        })
+    }
 }
 
 /// What the certified roots of a circle against a surface say about the
