@@ -571,12 +571,12 @@ fn tangs_tube_on_a_latitude_builds_its_true_body() {
     );
 }
 
-/// The slab on a plane through the donut's axis at `(0, h, 0)`, its
-/// normal turned off `y` toward `x` by `theta`, extruded 2 m along it:
-/// in the plane, `u` turned off `x` by `theta` runs `−3..2s + 3` and `z`
-/// runs `−3..3`, so its cap's stored origin, the profile's centroid,
-/// stands `s` off the axis.
-fn tilted_slab(h: f64, theta: f64, s: f64) -> Solid {
+/// The extrude door's answer on [`tilted_slab`]'s slab.
+fn tilted_slab_extruded(
+    h: f64,
+    theta: f64,
+    s: f64,
+) -> Result<sweep::Extruded<f64>, sweep::ExtrudeError> {
     let d = Vec3::new(theta.sin(), theta.cos(), 0.0);
     let u = Vec3::new(theta.cos(), -theta.sin(), 0.0);
     let v = d.cross(u);
@@ -595,7 +595,7 @@ fn tilted_slab(h: f64, theta: f64, s: f64) -> Solid {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the slab's profile validates");
-    let body = sweep::extrude(
+    sweep::extrude(
         &vp,
         sweep::Extrusion::Distance {
             depth: 2.0,
@@ -603,8 +603,22 @@ fn tilted_slab(h: f64, theta: f64, s: f64) -> Solid {
         },
         Tol::witness(),
     )
-    .expect("the slab extrudes")
-    .body;
+}
+
+/// The slab on a plane through the donut's axis at `(0, h, 0)`, its
+/// normal turned off `y` toward `x` by `theta`, extruded 2 m along it:
+/// in the plane, `u` turned off `x` by `theta` runs `−3..2s + 3` and `z`
+/// runs `−3..3`, so its cap's stored origin, the profile's centroid,
+/// stands `s` off the axis.
+fn tilted_slab(h: f64, theta: f64, s: f64) -> Solid {
+    let d = Vec3::new(theta.sin(), theta.cos(), 0.0);
+    let u = Vec3::new(theta.cos(), -theta.sin(), 0.0);
+    let v = d.cross(u);
+    let at = Point3::new(0.0, h, 0.0);
+    let (u_span, v_span) = ((-3.0, 2.0 * s + 3.0), (-3.0, 3.0));
+    let body = tilted_slab_extruded(h, theta, s)
+        .expect("the slab extrudes")
+        .body;
     Solid {
         body: sweep::test_support::finished("the slab", body, Tol::witness()),
         volume: (u_span.1 - u_span.0) * (v_span.1 - v_span.0) * 2.0,
@@ -623,7 +637,9 @@ fn tilted_slab(h: f64, theta: f64, s: f64) -> Solid {
 /// plane's origin is stored**: the slab on `y = 0.2` against the donut,
 /// its normal off the axis by `0.9` of the band over `R + r` (decided
 /// square to the axis), its cap's origin stored on the axis and 5 m,
-/// 50 m and 500 m off it. The concentric circles are read where the
+/// 50 m and 495 m off it, the last with the slab's far end at 993 m, in
+/// the 1 km session box (`[tolerance.units]`; at 500 m it is past it,
+/// [`a_tilted_cap_past_the_session_box_is_refused_by_it`]). The concentric circles are read where the
 /// plane crosses the axis; read at the stored origin they stood off the
 /// cut by that distance times the tilt, and every op refused at
 /// certification. The tilt moves the meeting's volume at second order
@@ -633,7 +649,7 @@ fn a_tilted_cap_builds_its_true_body_wherever_its_origin_is_stored() {
     let (big_r, r, h) = (2.0, 0.5, 0.2);
     let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
     let theta = 0.9 * band.zero() / (big_r + r);
-    for s in [0.0, 5.0, 50.0, 500.0] {
+    for s in [0.0, 5.0, 50.0, 495.0] {
         let t = ring(torus(big_r, r), (big_r, r));
         let p = tilted_slab(h, theta, s);
         holds_to_the_truth(
@@ -644,6 +660,18 @@ fn a_tilted_cap_builds_its_true_body_wherever_its_origin_is_stored() {
             about_the_tube(big_r, r),
         );
     }
+}
+
+/// **A tilted cap past the session box is refused by it**: the slab of
+/// [`a_tilted_cap_builds_its_true_body_wherever_its_origin_is_stored`]
+/// with its origin stored 500 m off the axis reaches 1003 m.
+#[test]
+fn a_tilted_cap_past_the_session_box_is_refused_by_it() {
+    let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+    crate::common::refused_by_the_session_box(
+        "the slab reaching 1003 m",
+        tilted_slab_extruded(0.2, 0.9 * band.zero() / 2.5, 500.0),
+    );
 }
 
 /// **A box edge piercing a torus face leaves a ring the join homes**,
