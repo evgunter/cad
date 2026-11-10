@@ -910,13 +910,14 @@ impl<T: Decide> RigidMotion<T> {
         })();
         match linear {
             Some(linear) => {
-                let turn =
-                    RigidMotion::<f64>::re_minted(&Affine3::from_parts(linear, Vec3::zero()), band)?;
+                let turn = RigidMotion::<f64>::re_minted(
+                    &Affine3::from_parts(linear, Vec3::zero()),
+                    band,
+                )?;
                 // The turn is a constant of the model: entered as one
                 // (`Real::from_f64`), a literal at `Sym`, so a written
                 // turn cancels as the literals it was written as.
-                let axis =
-                    |a: UnitVec3<f64>| UnitVec3::by_construction(a.get().map(T::from_f64));
+                let axis = |a: UnitVec3<f64>| UnitVec3::by_construction(a.get().map(T::from_f64));
                 Ok(Self {
                     origin: finite(at(map.translation), MotionPart::Translation)?,
                     u: axis(turn.u),
