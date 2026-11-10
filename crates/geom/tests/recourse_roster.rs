@@ -49,12 +49,17 @@ const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: t
                             its enclosing function's caller or a binding, named here by the call's \
                             first argument";
 
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
+
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
     ("azimuth.rs: principal_as: Window::Angle", CARRIER_CALL),
     ("azimuth.rs: read_in_as: row", FORWARDS),
     ("azimuth.rs: stable_azimuth_as: row", FORWARDS),
-    ("chart_point.rs: point::off_as: name", FORWARDS),
+    ("chart_point.rs: point: name", CLOSURE_FORWARDS),
     ("curves.rs: ahead: site", CALLERS_CRATE),
     ("curves.rs: spiric_regime: sites.off_axis()", ROW_FIELD),
     ("curves.rs: spiric_regime: sites.two_ovals()", ROW_FIELD),
@@ -65,7 +70,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "surfaces.rs: ring_torus: RingReader::Convention.sites().ring()",
         CARRIER_CALL,
     ),
-    ("surfaces.rs: spindle_sheet::read_as: name", FORWARDS),
+    ("surfaces.rs: spindle_sheet: name", CLOSURE_FORWARDS),
     (
         "surfaces.rs: torus_tube: RingReader::Convention.sites().tube()",
         ROW_FIELD,

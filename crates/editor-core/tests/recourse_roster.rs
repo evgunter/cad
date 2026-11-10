@@ -92,18 +92,23 @@ const NOT_FIRST: &str = "a declared carrier's call whose name is not its first a
                          or a caller whose literal is read";
 const NOT_A_NAME: &str = "another `decide*` call, whose first argument is not a name";
 
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
+
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
     (
-        "checks/at_rest.rs: constant_pairing::zero_as: name",
-        FORWARDS,
+        "checks/at_rest.rs: constant_pairing: name",
+        CLOSURE_FORWARDS,
     ),
     (
         "checks/at_rest.rs: gap_sign_as: crate::measure::MeasureVerb::Gap",
         NOT_FIRST,
     ),
     ("checks/at_rest.rs: measure_sign_as: site", FORWARDS),
-    ("coincide/replay.rs: one_cylinder::zero_as: name", FORWARDS),
+    ("coincide/replay.rs: one_cylinder: name", CLOSURE_FORWARDS),
     ("eval/measure.rs: parallel_as: predicate", FORWARDS),
     ("eval/wire.rs: turns_off: decision.name()", CLOSED_TYPE),
     ("eval/wire.rs: wire_assertion: value", NOT_A_NAME),
@@ -127,10 +132,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("names/emit_topo.rs: holds_as: per - u", NOT_FIRST),
     ("names/emit_topo.rs: holds_as: self.len - u", NOT_FIRST),
     ("names/emit_topo.rs: holds_as: u", NOT_FIRST),
-    ("names/emit_topo.rs: offset_as::gap: predicate", FORWARDS),
+    ("names/emit_topo.rs: offset_as: predicate", FORWARDS),
     ("names/emit_topo.rs: on_line_as: predicate", FORWARDS),
     ("names/emit_topo.rs: place_as: p", NOT_FIRST),
-    ("names/emit_topo.rs: place_as::sign: predicate", FORWARDS),
+    ("names/emit_topo.rs: place_as: predicate", FORWARDS),
     ("names/emit_topo.rs: runs_with_as: ahead", NOT_FIRST),
     ("names/emit_topo.rs: runs_with_as: b", NOT_FIRST),
     (

@@ -75,6 +75,11 @@ const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: t
                             first argument";
 const NOT_A_NAME: &str = "another `decide*` call, whose first argument is not a name";
 
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
+
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
     ("k_stats.rs: decide_across: names", FORWARDS),
@@ -104,12 +109,12 @@ const INDIRECT: &[(&str, &str)] = &[
         CARRIER_CALL,
     ),
     (
-        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: f64::NAN",
-        CARRIER_CALL,
+        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: check",
+        CLOSURE_FORWARDS,
     ),
     (
-        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin::render_as: check",
-        FORWARDS,
+        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: f64::NAN",
+        CARRIER_CALL,
     ),
     ("linalg/rigid_motion.rs: check_rigid: check", ROW_TABLE),
     ("linalg/rigid_motion.rs: turned_between: site", FORWARDS),
@@ -124,12 +129,11 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_FIRST,
     ),
     (
-        "linalg/unit_vec.rs: the_direction_door_tells_an_underflowed_length_from_a_zero_one::ask: v",
+        "linalg/unit_vec.rs: the_direction_door_tells_an_underflowed_length_from_a_zero_one: v",
         NOT_FIRST,
     ),
     ("line2.rs: meet: det", NOT_A_NAME),
-    ("period.rs: decide::mark: name", FORWARDS),
-    ("period.rs: decide::unnamed: name", FORWARDS),
+    ("period.rs: decide: name", FORWARDS),
     ("period.rs: decide_signed: name", FORWARDS),
     ("period.rs: forward: name", FORWARDS),
     ("period.rs: forward_by_arc: chord_name", FORWARDS),

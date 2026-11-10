@@ -642,62 +642,11 @@ pub fn item_body(blanked: &str, from: usize) -> ItemBody {
     }
 }
 
-/// **Every closure bound to a name in a blanked view** (`let NAME = |…|`,
-/// `let NAME = move |…|`), with its extent from the `let` to the end of
-/// the closure's body: the close of a `{ … }` body, or the `;` ending an
-/// expression body at bracket depth zero.
-fn closure_bindings(bare: &str) -> Vec<(String, std::ops::Range<usize>)> {
-    let mut out = Vec::new();
-    for (at, _) in bare.match_indices("let ") {
-        if !boundary_before(bare, at) {
-            continue;
-        }
-        let name_at = skip_ws(bare, at + 4);
-        let name = ident(bare, name_at);
-        if name.is_empty() {
-            continue;
-        }
-        let mut cursor = skip_ws(bare, name_at + name.len());
-        if !bare[cursor..].starts_with('=') || bare[cursor..].starts_with("==") {
-            continue;
-        }
-        cursor = skip_ws(bare, cursor + 1);
-        if bare[cursor..].starts_with("move") && boundary_after(bare, cursor + 4) {
-            cursor = skip_ws(bare, cursor + 4);
-        }
-        if !bare[cursor..].starts_with('|') {
-            continue;
-        }
-        let Some(params_end) = bare[cursor + 1..].find('|').map(|i| cursor + 1 + i) else {
-            continue;
-        };
-        let body = skip_ws(bare, params_end + 1);
-        let end = if bare[body..].starts_with('{') {
-            balanced_end(bare, body).map(|close| close + 1)
-        } else {
-            let mut depth = 0i64;
-            bare[body..].char_indices().find_map(|(i, c)| {
-                match c {
-                    '(' | '[' | '{' => depth += 1,
-                    ')' | ']' | '}' => depth -= 1,
-                    ';' if depth == 0 => return Some(body + i + 1),
-                    _ => {}
-                }
-                (depth < 0).then_some(body + i)
-            })
-        };
-        if let Some(end) = end {
-            out.push((name.to_string(), at..end));
-        }
-    }
-    out
-}
-
 /// **An indirect site's key, parsed**: `<file>: <scope>: <head>`, the
 /// one spelling [`predicate_census`] writes ([`PredicateCensus::indirect`]),
 /// read back here and nowhere else. `<scope>` is the innermost `fn` the
-/// site stands in, `<fn>::<closure>` for a closure bound to a name inside
-/// it, or `-`; a `read_identity` key has no scope and answers `None`.
+/// site stands in, or `-`; a `read_identity` key has no scope and answers
+/// `None`.
 #[must_use]
 pub fn indirect_key(key: &str) -> Option<(&str, &str, &str)> {
     let (file, rest) = key.split_once(": ")?;
@@ -1634,8 +1583,7 @@ pub struct PredicateCensus {
     /// `<file>: <fn>: <expression>` per call whose name-bearing argument
     /// is not a plain literal, and per declared carrier call that holds
     /// no literal argument — named by its first argument — where `<fn>`
-    /// is the innermost `fn` item it stands in ([`fn_items`]), with
-    /// `::<binding>` for a closure bound to a name inside it, and `-`
+    /// is the innermost `fn` item it stands in ([`fn_items`]), and `-`
     /// outside any `fn`: a `static`'s or a `const`'s initializer, and a
     /// `fn` a macro writes, which the walk cannot see as an item — all of
     /// a file's such sites that spell one head share the `-` key. One entry stands for every site of ONE function that spells
@@ -1775,27 +1723,12 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 Vec::new()
             }
         };
-        // A closure bound to a name (`let zero_as = |name, m| …`) is a
-        // forwarder too, keyed by its binding inside its `fn`, so a second
-        // one beside it is its own entry rather than folding into the
-        // `fn`'s.
-        let closures = closure_bindings(&bare);
-        let enclosing = |at: usize| -> String {
-            let item = items
+        let enclosing = |at: usize| -> &str {
+            items
                 .iter()
                 .filter(|(_, body)| body.contains(&at))
-                .min_by_key(|(_, body)| body.len());
-            let closure = closures
-                .iter()
-                .filter(|(_, extent)| extent.contains(&at))
-                .filter(|(_, extent)| item.is_none_or(|(_, body)| body.start <= extent.start))
-                .min_by_key(|(_, extent)| extent.len());
-            match (item, closure) {
-                (Some((f, _)), Some((c, _))) => format!("{f}::{c}"),
-                (Some((f, _)), None) => f.clone(),
-                (None, Some((c, _))) => format!("-::{c}"),
-                (None, None) => "-".to_string(),
-            }
+                .min_by_key(|(_, body)| body.len())
+                .map_or("-", |(name, _)| name.as_str())
         };
         for (kind, payload, at) in funnel_sites(&bare, &code) {
             match kind {
@@ -2025,9 +1958,8 @@ pub fn roster_violations(
 /// a forwarder its roster declares a `Call` carrier, so a line can only
 /// answer a site whose callers' names the census reads.
 pub const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its \
-                            callers call it, a declared carrier; each forwarding `fn` (or closure \
-                            bound in one) is its own entry, so a new forwarder reds until it is \
-                            declared";
+                            callers call it, a declared carrier; each forwarding `fn` is its own \
+                            entry, so a new forwarder reds until it is declared";
 
 /// Whether the unwalked site `<file>:<line>` under `src` is one the
 /// walk covers after all: a `#[path = "…"]` mounting a file under
@@ -3368,44 +3300,35 @@ mod tests {
         );
     }
 
-    /// **A closure bound to a name is its own forwarder, and a `FORWARDS`
-    /// line answers only a declared one**: two closures in one `fn` handing
-    /// on `name` are two keys (`<fn>::<binding>`), and a `FORWARDS` line for
-    /// the one no roster declares a `Call` carrier reds, since its callers'
-    /// literals are never read.
+    /// **A `FORWARDS` line answers only a declared forwarder**: one for a
+    /// forwarder no roster declares a `Call` carrier reds, since its
+    /// callers' literals are never read; and the key parses back to its
+    /// three parts.
     #[test]
-    fn a_closure_forwarder_is_keyed_by_its_binding_and_must_be_declared() {
-        let dir = std::env::temp_dir().join(format!("tu-closure-{}", std::process::id()));
+    fn a_forwards_line_must_name_a_declared_carrier() {
+        let dir = std::env::temp_dir().join(format!("tu-fwd-check-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         std::fs::write(
             dir.join("a.rs"),
-            "fn constant_pairing() {\n    \
-             let zero_as = |name, margin| decide(name, margin, band) == Ok(Sign::Zero);\n    \
-             let pos_planted = |name, margin| { decide(name, margin, band) };\n    \
-             zero_as(\"row\", m);\n    pos_planted(\"planted\", m);\n}\n",
+            "fn zero_as(name: &'static str) { decide(name, m, band); }\n\
+             fn planted(name: &'static str) { decide(name, m, band); }\n\
+             fn f() { zero_as(\"row\"); planted(\"hidden\"); }\n",
         )
         .expect("write");
         let carriers = [super::NameCarrier::Call("zero_as")];
         let census = super::predicate_census(&dir, &carriers);
         let listed = [
-            ("a.rs: constant_pairing::pos_planted: name", super::FORWARDS),
-            ("a.rs: constant_pairing::zero_as: name", super::FORWARDS),
+            ("a.rs: planted: name", super::FORWARDS),
+            ("a.rs: zero_as: name", super::FORWARDS),
         ];
         let said = super::roster_violations(&dir, &census, &carriers, Some(&listed));
         std::fs::remove_dir_all(&dir).expect("cleanup");
-        assert_eq!(
-            census.indirect.iter().collect::<Vec<_>>(),
-            [
-                "a.rs: constant_pairing::pos_planted: name",
-                "a.rs: constant_pairing::zero_as: name"
-            ]
-        );
-        assert!(census.names.contains("row") && !census.names.contains("planted"));
+        assert!(census.names.contains("row") && !census.names.contains("hidden"));
         assert_eq!(said.len(), 1, "{said:#?}");
-        assert!(said[0].contains("`pos_planted`"), "{said:#?}");
+        assert!(said[0].contains("`planted`"), "{said:#?}");
         assert_eq!(
-            super::indirect_key("a.rs: f::g: name"),
-            Some(("a.rs", "f::g", "name"))
+            super::indirect_key("a.rs: f: name"),
+            Some(("a.rs", "f", "name"))
         );
         assert_eq!(super::indirect_key("a.rs: read_identity#1(x)"), None);
     }

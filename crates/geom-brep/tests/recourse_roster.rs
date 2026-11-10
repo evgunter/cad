@@ -189,6 +189,11 @@ const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census do
                            (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
 const NOT_A_NAME: &str = "another `decide*` or `check*` call, whose first argument is not a name";
 
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
+
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
@@ -229,8 +234,8 @@ const INDIRECT: &[(&str, &str)] = &[
         "curve_face/circle_roots.rs: harmonic_crossing: rows.root_slack()",
         ROW_FIELD,
     ),
-    ("curve_face/composite.rs: settle::apart_as: row", FORWARDS),
-    ("curve_face/spline_face.rs: settle::gap_as: row", FORWARDS),
+    ("curve_face/composite.rs: settle: row", CLOSURE_FORWARDS),
+    ("curve_face/spline_face.rs: settle: row", CLOSURE_FORWARDS),
     ("curve_pair/on_surface.rs: decided: row", FORWARDS),
     ("curve_pair/on_surface.rs: section_of: row", FORWARDS),
     ("curve_pair/pose.rs: constant_as: row", FORWARDS),
@@ -238,7 +243,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_pair/pose.rs: read_identity#1(offsets)", IDENTITY),
     ("curve_pair/walk.rs: stops: reach", CARRIER_CALL),
     ("curve_pair/walk.rs: stops: reach - f", CARRIER_CALL),
-    ("curve_pair/walk.rs: stops::within_as: row", FORWARDS),
+    ("curve_pair/walk.rs: stops: row", CLOSURE_FORWARDS),
     ("curve_pair/walk.rs: surely: name", FORWARDS),
     ("dihedral.rs: classify_edge_wedge: name", CROSS_CRATE),
     (
@@ -262,12 +267,12 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two: geom_core::test_support::refused_point(0.0)",
-        NOT_A_NAME,
+        "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two: geom::SurfaceKind::Plane",
+        CARRIER_CALL,
     ),
     (
-        "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two::decide: geom::SurfaceKind::Plane",
-        CARRIER_CALL,
+        "edge_nurbs.rs: a_refused_offset_bound_stalls_limb_two: geom_core::test_support::refused_point(0.0)",
+        NOT_A_NAME,
     ),
     ("edge_nurbs.rs: first_within: name", FORWARDS),
     ("edge_nurbs.rs: limb2: kind", CARRIER_CALL),
@@ -298,14 +303,12 @@ const INDIRECT: &[(&str, &str)] = &[
     ("half_angle.rs: dropped: ROWS.side()", ROW_FIELD),
     ("half_angle.rs: ladder_roots: rows.noise()", ROW_FIELD),
     ("half_angle.rs: subdivision: meter.row", ROW_FIELD),
+    ("half_angle.rs: subdivision: row", CLOSURE_FORWARDS),
     ("half_angle.rs: subdivision: rows.clear()", CARRIER_CALL),
     ("half_angle.rs: subdivision: rows.monotone()", CARRIER_CALL),
     ("half_angle.rs: subdivision: rows.side()", ROW_FIELD),
     ("half_angle.rs: subdivision: rows.width()", CARRIER_CALL),
     ("half_angle.rs: subdivision: touch.stretch()", ROW_FIELD),
-    ("half_angle.rs: subdivision::definitely_as: row", FORWARDS),
-    ("half_angle.rs: subdivision::on: rows.side()", ROW_FIELD),
-    ("half_angle.rs: subdivision::side: rows.side()", ROW_FIELD),
     ("intersect.rs: cone_cylinder_section: name", FORWARDS),
     ("intersect.rs: cylinder_cylinder_section: c1", NOT_A_NAME),
     ("intersect.rs: plane_cone_section: name", FORWARDS),
@@ -327,12 +330,11 @@ const INDIRECT: &[(&str, &str)] = &[
         "pair_section.rs: decide: geom::Line { origin, dir: axis }",
         NOT_A_NAME,
     ),
-    ("pair_section.rs: decide_stance: name", FORWARDS),
     (
-        "pair_section.rs: decide_stance::pose: decision.name()",
+        "pair_section.rs: decide_stance: decision.name()",
         CLOSED_TYPE,
     ),
-    ("pair_section.rs: decide_stance::read_as: name", FORWARDS),
+    ("pair_section.rs: decide_stance: name", FORWARDS),
     ("pair_section.rs: pair_section: a", NOT_A_NAME),
     ("pair_section/cylinders.rs: decide: lines", NOT_A_NAME),
     (
@@ -340,7 +342,7 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     (
-        "pair_section/cylinders.rs: decide_stance::across: [decision.name(), decision.floor()]",
+        "pair_section/cylinders.rs: decide_stance: [decision.name(), decision.floor()]",
         PAIRED,
     ),
     (
@@ -353,11 +355,11 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pair_section/gap.rs: critical_gap: rows.floor()", ROW_FIELD),
     ("pair_section/gap.rs: floor_refusal: ", ACCESSOR_LIKE_A_DOOR),
     (
-        "pair_section/gap.rs: floor_refusal: self.rows.straddle()",
+        "pair_section/gap.rs: floor_refusal: self.rows.gap()",
         ROW_FIELD,
     ),
     (
-        "pair_section/gap.rs: floor_refusal::bound: self.rows.gap()",
+        "pair_section/gap.rs: floor_refusal: self.rows.straddle()",
         ROW_FIELD,
     ),
     ("pair_section/gap.rs: positive_as: name", FORWARDS),
@@ -368,13 +370,13 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     ("pair_section/ruling.rs: escalate: ", SAME_NAMED),
+    ("pair_section/ruling.rs: escalate: name", CLOSURE_FORWARDS),
     ("pair_section/ruling.rs: escalate: reading.hi", CARRIER_CALL),
     ("pair_section/ruling.rs: escalate: reading.lo", CARRIER_CALL),
     (
         "pair_section/ruling.rs: escalate: row.straddle()",
         CLOSED_TYPE,
     ),
-    ("pair_section/ruling.rs: escalate::bound_as: name", FORWARDS),
     ("pair_section/ruling.rs: positive: row.name()", CLOSED_TYPE),
     ("pair_section/ruling.rs: ruled: a", NOT_A_NAME),
     (
@@ -382,8 +384,8 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pair_section/spline_implicit/sweep.rs: sweep::off_as: name",
-        FORWARDS,
+        "pair_section/spline_implicit/sweep.rs: sweep: name",
+        CLOSURE_FORWARDS,
     ),
     (
         "pair_section/torus.rs: axis_pose: [OFFSET, \"section_axes_offset_floor\"]",
@@ -430,8 +432,8 @@ const INDIRECT: &[(&str, &str)] = &[
         TUPLE_PAIRS,
     ),
     (
-        "pair_section/torus_arms.rs: sphere_touch::positive_as: name",
-        FORWARDS,
+        "pair_section/torus_arms.rs: sphere_touch: name",
+        CLOSURE_FORWARDS,
     ),
     (
         "pair_section/torus_arms.rs: square_folds: [(\"section_torus_square_wall_tube\", tubes.secant())]",
@@ -473,8 +475,8 @@ const INDIRECT: &[(&str, &str)] = &[
         CARRIER_CALL,
     ),
     (
-        "pcurve_cache.rs: torus_oblique_circle::decided_sense: name",
-        FORWARDS,
+        "pcurve_cache.rs: torus_oblique_circle: name",
+        CLOSURE_FORWARDS,
     ),
     (
         "pcurve_cache/envelope_lemma_fuzz.rs: cone_section: &plane",
@@ -497,7 +499,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "pcurve_cache/spline_incidence.rs: spline_incidence_as: name",
         FORWARDS,
     ),
-    ("props/closure.rs: loop_turns::classify_as: name", FORWARDS),
+    ("props/closure.rs: loop_turns: name", CLOSURE_FORWARDS),
     (
         "props/curved.rs: a_pair_inside_the_band_by_its_chord_is_one_level: RimLevel::Unit(0.0, 0.0)",
         CARRIER_CALL,
@@ -507,7 +509,7 @@ const INDIRECT: &[(&str, &str)] = &[
         CARRIER_CALL,
     ),
     ("props/curved.rs: classify_as: name", FORWARDS),
-    ("props/curved.rs: cone_loop_winding::off_as: name", FORWARDS),
+    ("props/curved.rs: cone_loop_winding: name", CLOSURE_FORWARDS),
     ("props/curved.rs: level_coincides_as: name", FORWARDS),
     ("props/curved.rs: mean_width_side: name", FORWARDS),
     (

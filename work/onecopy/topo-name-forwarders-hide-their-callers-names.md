@@ -32,5 +32,14 @@ A carrier call with no literal and no const is keyed by its first argument even 
     - on the tree, the review's plant: a `fn fresh_forward(x, predicate, bnd)` added to `editor-core/src/names/emit_topo.rs` and called with a literal now reds editor-core's roster (`names/emit_topo.rs: fresh_forward: predicate`). It was green under the file-level key.
   - `Segment::ahead` is renamed `ahead_as` and declared a carrier, and the stale `Track::cover` doc in `names/discriminate.rs` reads `Track::cover_as`.
 - **Item 1**, the closed type's `predicate()` match, is the same question as `the-census-reads-no-closed-type-name-table`, which carries it.
-- **The `NOT_FIRST` note** (a carrier call keyed by an argument that is not its name) narrows to one function: two such calls in different `fn`s are now distinct entries. Within one `fn` they still share a key. A `NameCarrier::CallAt(token, n)` that names the name argument's position would part them, and nothing needs that today.
+- **The `NOT_FIRST` note** (a carrier call keyed by an argument that is not its name) narrows to one function: two such calls in different `fn`s are now distinct entries. Within one `fn` they still share a key. That is `the-census-keys-carrier-calls-in-one-fn-by-their-first-argument`, with its plant.
+
+**At review** (#6755):
+- **Each `FORWARDS` line is held to a declared `Call` carrier** (`roster_violations`; `FORWARDS` is one shared reason, `test_utils::source::FORWARDS`). The sweep found 76 forwarders whose callers' names no census read. All are declared in this PR:
+  - 59 crate-private ones renamed `_as`;
+  - the public ones under their names;
+  - those whose callers are in another crate declared by that crate's roster (`CROSS_CRATE`).
+- **Three lines were not forwarders:** `check_rigid` (`ROW_TABLE`), a geom-core test loop (`LOOP_ROWS`), and `k_stats::prove` (`PROVE_DOOR`, row `the-census-reads-no-prove-or-choose-call`).
+- **A `fn` holding a forwarding closure** is listed `CLOSURE_FORWARDS` until `the-census-keys-no-closure-forwarder-by-its-binding`.
+- **The key has one parser**, `source::indirect_key`, which profile's row reads through.
 
