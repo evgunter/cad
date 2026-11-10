@@ -12287,7 +12287,7 @@ mod incidence {
             if super::mutants::spline_shown_unread() {
                 return Ok(Incidence::On(None));
             }
-            return super::spline_incidence::spline_point_incidence(
+            return super::spline_incidence::spline_point_incidence_as(
                 "pcurve_spline_point_incident",
                 chart,
                 point,
