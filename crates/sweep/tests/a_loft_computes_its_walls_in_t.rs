@@ -74,7 +74,7 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
     };
     let built_at_b1 = arc_wall(&loft::<f64>(b1));
     let at_b1 = |s: ParamSymbol| (s == symbol).then_some(b1);
-    let ((weights, corner, rim_theorems), _) = with_session(budget, || {
+    let (((weights, corner, rim_theorems), distinct), _) = with_session(budget, || {
         let (lofted, decisions) = record(|| loft::<S>(S::param(symbol, b0)));
         let wall = arc_wall(&lofted);
         let weights: Vec<Option<u64>> = wall
@@ -88,14 +88,19 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
         // (a constant re-values with no parameter bound): the arc rims'
         // weight margins and the class's other checks over the arc.
         let none = |_: ParamSymbol| None::<f64>;
-        let rim_theorems: Vec<bool> = decisions
+        let rim_zeros: Vec<_> = decisions
             .iter()
             .filter(|d| d.predicate == "pcurve_iso_boundary")
             .filter(|d| d.sign == Some(geom_core::Sign::Zero))
             .filter(|d| revalue(d.node, &none).is_none())
-            .map(|d| d.proven)
             .collect();
-        (weights, corner, rim_theorems)
+        let rim_theorems: Vec<bool> = rim_zeros.iter().map(|d| d.proven).collect();
+        let distinct = rim_zeros
+            .iter()
+            .map(|d| d.node)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
+        ((weights, corner, rim_theorems), distinct)
     });
     let want: Vec<Option<u64>> = built_at_b1
         .weights()
@@ -115,7 +120,12 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
         rim_theorems,
         vec![true; 10],
         "every Zero the arc rims' checks answer over the bulge, the weight margin `w − cos(h/2)` \
-         among them, is a symbolic Zero"
+         among them, is a symbolic Zero, and each check is read once per build"
+    );
+    assert_eq!(
+        distinct, 7,
+        "the 10 Zeros are 7 distinct theorems (a node is content-addressed, so a check read \
+         again moves the count above, not this)"
     );
 }
 
