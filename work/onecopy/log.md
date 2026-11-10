@@ -1528,3 +1528,4 @@
 - 04:10Z 6706 delta: MERGE → merged main (703501eb), check+gates clean, gating. PR 6714 main-reds (4c6e1e23; pad re-pinned 1704 with causes 6594+6682, registry pin never main's, aims fixed by 6666) → FULL review.
 - 04:12Z census lane → onecopy/leg-chart-frame (a-cone-or-torus-leg-carries-its-charts-frame…).
 - 04:16Z 6713 FULL: FIX (cover::Core kept for the wrong alternative → port to Line incl Slab/Frustum; stale line-holders row; ellipse bits move too; 3 missed holders; re-spelled readings S1/S2/S4) → bracket lane before turn-place. turn-place: probe span_readings from main, route via Span::place_param.
+- 04:20Z Merged 6711 (df6e92b0; gate green d1156f3f, merged main → e7a7e62b disjoint, check+gates clean) and 6712 (docs+rows only, read by orchestrator; lint/fmt clean).
