@@ -239,7 +239,7 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
                     error.incidence_read(),
                     Some(geom_brep::IncidenceRead::Off(_))
                 ) && error
-                    .incidence_kinds()
+                    .chart_carrier_kinds()
                     .is_some_and(|(chart, _)| chart == geom::SurfaceKind::Spindle)
             }
             _ => false,
