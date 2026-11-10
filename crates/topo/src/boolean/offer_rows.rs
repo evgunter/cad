@@ -2554,6 +2554,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("fan.rs", "fan_meeting", "Coincide::Sectors", 1),
     ("fan.rs", "meeting", "Coincide::CornerCrossing", 1),
     ("fan.rs", "meeting", "Coincide::Sectors", 1),
+    ("fan.rs", "unglued_parallel", "Coincide::CornerCrossing", 1),
     ("fan.rs", "nappe_classes", "Coincide::Sectors", 1),
     ("fan.rs", "one_cone", "Coincide::Sectors", 1),
     ("fan.rs", "plane_fan", "Coincide::Sectors", 1),

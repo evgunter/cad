@@ -137,10 +137,20 @@ fn assert_corner_crossing(
 
 /// The generic and hinged corner poses and the needle pose, at two tilts
 /// scaled to the run's band, through every op in both orders: each the
-/// corner's crossing refusal on the arm's tilt.
+/// corner's crossing refusal on the arm's tilt. Measured at ε 1e-9 and
+/// 1e-12; at ε 1e-6 the tilt `100ε` is `1e-4`, and the generic pose's
+/// containment of its 10 m edge reads in band first (`bool_contact_edge`,
+/// `θ/|a| ≈ 10ε`).
 #[test]
 fn an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt() {
     let tol = Tol::witness();
+    if tol.eps() > 1e-7 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-7",
+            "the corner poses' 10 m edges tilt by 100ε, which reads in band at their containment",
+        );
+        return;
+    }
     let band = Band::linear(tol).expect("the witness band");
     for k in [100.0, 300.0] {
         let theta = k * band.zero();

@@ -1059,8 +1059,10 @@ only the Boolean builds) and a fold step — reads the glued relation
 from it and measures the pair nowhere again (`[coincidence.booleans]`).
 A corner reads only a glued pair as one surface; an unglued pair that
 reaches its coplanar branch refuses on the corner's own reading: two
-plane faces read parallel at a vertex pair's arm, on that tilt
-(`boolean::fan::meeting`, `Coincidence(CornerCrossing)`), and a corner
+plane faces read parallel at a vertex pair's arm, their sectors
+overlapping, on that tilt (`boolean::fan::meeting`,
+`Coincidence(CornerCrossing)`; sectors that only touch there are no
+record), and a corner
 lying on a plane face by its bounds, on the reading that put it there,
 carried from where it was read: a flank's or a line cone's
 representative's own tie, or the steeper of a flat sector's two ties

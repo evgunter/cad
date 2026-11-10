@@ -64,6 +64,7 @@ Built to the fork `unglued-corner-ending` design (PR 6693). The PR body has the 
 **Vertex pairs** (`fan::meeting`):
 - Two plane faces parallel at the corner's arm open the coplanar branch only for a pair the glue door glued.
 - Unglued, the corner refuses on that reading: `Coincide::CornerCrossing`, the `bool_faces_parallel` Zero rejected by `gate_rejection(.., SizedPass::Positive)`. It carries θ·arm and offers θ·arm/K, the same in both operand orders.
+- It refuses only where the two sectors overlap (`fan::Meeting::Parallel`, `fan::unglued_parallel`); sectors that only touch at the vertex are no record, as on main. The fix pass found this through sweep's slow `short_arcs_at_a_crescents_tip`, whose `one side` union refused `CornerCrossing` at `23595a252d`.
 - A curved face keeps C8's frontier refusal.
 
 **A corner lying on a plane face by its bounds** (recl's flanks and line cones, vtxfac's flat sector):

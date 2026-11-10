@@ -2933,7 +2933,8 @@ pub(super) type PairSites<'a, T> = ([&'a Body<T>; 2], [VertexKey; 2]);
 /// is [`super::fan::meeting`]'s: two planes in their line, or a
 /// coincidence where they are parallel and `glued(a face, b face)` is the
 /// relation the glue door glued them one carrier under (an unglued plane
-/// pair parallel there refuses); a fan of a cone's apex against a
+/// pair parallel there refuses where its sectors overlap, and is no
+/// record where they only touch); a fan of a cone's apex against a
 /// plane or another fan in the rulings both hold, or a coincidence where
 /// the two fans are one cone's. A pair meeting along a ray within both
 /// sectors is a crossing; a coincident pair overlaps or only touches
@@ -2979,6 +2980,12 @@ pub(super) fn pair_search<T: Decide>(
                     };
                     if overlap {
                         records.push(PairRecord::coincident(i, j, by));
+                    }
+                    continue;
+                }
+                super::fan::Meeting::Parallel(zero) => {
+                    if sector_overlap(corner(0, sa), corner(1, sb), contacts, band)? {
+                        return Err(super::fan::unglued_parallel(zero, band));
                     }
                     continue;
                 }
@@ -3219,6 +3226,69 @@ mod tests {
             |_, _| Some(super::super::PlaneRelation::SameOpposite),
             band,
         )
+    }
+
+    /// **An unglued plane pair parallel at the arm refuses only where
+    /// its sectors overlap** ([`pair_search`], [`super::super::fan::Meeting::Parallel`]):
+    /// A's quarter on `z = 0` facing up, and B's on it facing down, no
+    /// glue between them. Over A's quarter, the corner refuses on the
+    /// tilt (`Coincide::CornerCrossing`); on the opposite quarter, the
+    /// two touch at the vertex alone and the pair is no record.
+    #[test]
+    fn an_unglued_parallel_pair_refuses_only_where_its_sectors_overlap() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let sector = |start: Vec3<f64>, end: Vec3<f64>, normal: Vec3<f64>, n: u64| BoolSector {
+            he: HalfEdgeKey::from(key(n)),
+            start,
+            end,
+            start_reach: BoundSupport::Chord {
+                base: o,
+                far: o + start,
+            },
+            end_reach: BoundSupport::Chord {
+                base: o,
+                far: o + end,
+            },
+            face: FaceKey::from(key(n)),
+            at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(normal, true)),
+            arm: geom_core::test_support::fixture_lever(1.0),
+            bend: crate::bound_side::FaceBend::Plane,
+        };
+        let a = [sector(x, y, z, 1)];
+        let body = Body::new();
+        let contacts = super::super::ReductionContacts::default();
+        let vertex = crate::entity::VertexKey::default();
+        let unglued = |b: &[BoolSector<f64>]| {
+            pair_search(
+                ([&body, &body], [vertex, vertex]),
+                [&a, b],
+                &contacts,
+                |_, _| None,
+                band(),
+            )
+        };
+        let over = unglued(&[sector(y, x, -z, 2)]);
+        assert!(
+            matches!(
+                &over,
+                Err(BooleanError::Escalated {
+                    decision: BooleanDecision::Coincidence(Coincide::CornerCrossing, _),
+                    diag,
+                }) if diag.predicate == Some("bool_faces_parallel")
+            ),
+            "overlapping, the corner's tilt: {over:?}"
+        );
+        let touching = unglued(&[sector(-y, -x, -z, 2)]);
+        assert!(
+            matches!(&touching, Ok(records) if records.is_empty()),
+            "touching at the vertex alone, no record: {touching:?}"
+        );
     }
 
     /// **A sector at a cone's apex has its middle on the cone**: the

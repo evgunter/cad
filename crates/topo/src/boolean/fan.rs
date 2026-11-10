@@ -144,6 +144,12 @@ pub(super) enum Meeting<T: geom_core::Real> {
     /// door glued or of a curved face, or two fans of one cone's nappe.
     /// The pair goes to the coincidence lump (`recl`).
     Coincident(Coincident),
+    /// Two plane faces the glue door did not glue, parallel at the
+    /// shorter arm: the tilt, decided Zero. Where the two sectors
+    /// overlap, the coplanar branch a lump would open, the corner
+    /// refuses on it ([`unglued_parallel`]); touching at the vertex
+    /// alone, they meet over no extent and the pair is no record.
+    Parallel(geom_core::Decided),
     /// They meet along these directions from the vertex, each a ray
     /// (none: they meet at the vertex alone). Two planes' line is both
     /// its rays.
@@ -200,9 +206,11 @@ impl<'s, T: geom_core::Real> Fan<'s, T> {
 ///   coincidence where the glue door glued the pair one carrier (`glued`,
 ///   the relation it recorded) or a face is curved (whose unglued
 ///   coincidence is the frontier's, C8); two plane faces the door did
-///   not glue refuse there on that reading ([`Coincide::CornerCrossing`],
-///   which only a definite tilt passes): an unglued Zero acts over no
-///   extent, and a coplanar lump speaks for both faces' whole spans.
+///   not glue are [`Meeting::Parallel`] on that reading, which refuses
+///   where their sectors overlap ([`unglued_parallel`]): an unglued Zero
+///   acts over no extent, and a coplanar lump speaks for both faces'
+///   whole spans. In band, two plane faces the door did not glue refuse
+///   on that reading ([`Coincide::CornerCrossing`]).
 /// - A fan ([`fan_meeting`]): one cone's fans glued one carrier read as
 ///   the glue door recorded them.
 /// - A plane and a fan: the plane's section of the cone through its
@@ -229,7 +237,7 @@ pub(super) fn meeting<T: Decide>(
     band: Band,
 ) -> Result<Meeting<T>, BooleanError> {
     use crate::bound_side::FaceShape;
-    use geom_core::k_stats::{Magnitude, decide_magnitude_reported, gate_rejection};
+    use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
     if let Some(fan) = Fan::of(a, b) {
         return Ok(
             match fan_meeting((a_op, a_site, a), (b_op, b_site, b), fan, band)? {
@@ -258,18 +266,30 @@ pub(super) fn meeting<T: Decide>(
         Ok((Magnitude::Zero, margin)) => match (glued, curved) {
             (Some(relation), _) => Ok(Meeting::Coincident(Coincident::Glued(relation))),
             (None, Some(op)) => Ok(Meeting::Coincident(Coincident::Frontier(op))),
-            (None, None) => Err(refuse(gate_rejection(
-                "bool_faces_parallel",
-                geom_core::Decided {
-                    sign: Sign::Zero,
-                    margin,
-                },
-                band,
-                geom_core::SizedPass::Positive,
-            ))),
+            (None, None) => Ok(Meeting::Parallel(geom_core::Decided {
+                sign: Sign::Zero,
+                margin,
+            })),
         },
         Err(diag) => Err(refuse(diag)),
     }
+}
+
+/// **An unglued plane pair's corner, its sectors overlapping where the
+/// two faces read parallel at its arm** ([`Meeting::Parallel`]): it
+/// refuses on that tilt, `zero`, rejected by the question only a
+/// definite tilt passes ([`Coincide::CornerCrossing`]).
+pub(super) fn unglued_parallel(zero: geom_core::Decided, band: Band) -> BooleanError {
+    BooleanError::coincidence(
+        Coincide::CornerCrossing,
+        DeclarationRead::Moot,
+        geom_core::k_stats::gate_rejection(
+            "bool_faces_parallel",
+            zero,
+            band,
+            geom_core::SizedPass::Positive,
+        ),
+    )
 }
 
 /// **Where a fan of a cone's apex meets the other side's face at the
@@ -761,9 +781,10 @@ mod rows {
     /// **A corner opens the coplanar branch only from a glued pair's
     /// record** ([`meeting`]): two faces tilted `0.1·zero` over the 1 mm
     /// arm read parallel there. Two planes the glue door glued meet as a
-    /// coincidence by their recorded relation; unglued, they refuse on
-    /// that tilt, rejected by the question only a definite tilt passes
-    /// ([`Coincide::CornerCrossing`]); a curved face's tangent plane is
+    /// coincidence by their recorded relation; unglued, they are parallel
+    /// on that tilt, which refuses where their sectors overlap, rejected
+    /// by the question only a definite tilt passes
+    /// ([`Coincide::CornerCrossing`], [`unglued_parallel`]); a curved face's tangent plane is
     /// the coincidence the frontier refuses (C8). Tilted `1.2·zero`, in
     /// band, an unglued plane pair refuses on that reading under the same
     /// question, offering the tolerance that decides it. Tilted past the
@@ -814,7 +835,14 @@ mod rows {
             ),
             "a curved face"
         );
-        let decided = crossing(&meet(zero, plane, None));
+        let Ok(Meeting::Parallel(tilt)) = meet(zero, plane, None) else {
+            panic!(
+                "unglued planes parallel at the arm: {:?}",
+                meet(zero, plane, None)
+            );
+        };
+        assert_eq!(tilt.sign, Sign::Zero);
+        let decided = crossing(&Err(unglued_parallel(tilt, b)));
         assert_eq!(decided.margin.rejected_sign(), Some(Sign::Zero));
         assert_eq!(
             decided.margin.rejected_passing(),
