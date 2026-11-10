@@ -1,7 +1,7 @@
 # Every production `?` on a band decision inside a loop body, counted per
 # file (scripts/gates/escalation-question-marks.sh). A loop that returns
 # its first undecided reading refuses where a later reading would answer
-# definitely: that is `geom_brep::ladder::climb`'s job. A new site reds
+# definitely: that is `geom_core::ladder::climb`'s job. A new site reds
 # until it is registered here with why its `?` is not a search's kept
 # reading; a count that falls reds until it is lowered.
 #

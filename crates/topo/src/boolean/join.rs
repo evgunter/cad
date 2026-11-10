@@ -3539,7 +3539,7 @@ pub(super) fn line_of<T: Decide>(
     band: Band,
 ) -> Result<super::Branch, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let on = |name: &'static str, margin: Margin<T>| {
+    let on_as = |name: &'static str, margin: Margin<T>| {
         decide(name, margin, band)
             .map(|s| s == Sign::Zero)
             .map_err(join_escalate)
@@ -3551,7 +3551,7 @@ pub(super) fn line_of<T: Decide>(
             dir: *d,
         }
         .distance(site);
-        at_site[k] = on("bool_germ_apex_line", Margin::of(off))?;
+        at_site[k] = on_as("bool_germ_apex_line", Margin::of(off))?;
     }
     let along = match at_site {
         [true, false] => return Ok(super::Branch::Line(0)),
@@ -3565,7 +3565,7 @@ pub(super) fn line_of<T: Decide>(
             let mut along = [false; 2];
             for (k, d) in lines.dirs.iter().enumerate() {
                 let sine = dir.cross(*d).norm() / (dir.norm() * d.norm());
-                along[k] = on("bool_germ_apex_heading", Margin::levered(sine, lines.lever))?;
+                along[k] = on_as("bool_germ_apex_heading", Margin::levered(sine, lines.lever))?;
             }
             along
         }
@@ -5555,10 +5555,11 @@ fn sliver_along_a_slit<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] where two chords read the
 /// loop's regions on opposite sides: they flank one crossing, so that is
-/// a kernel defect; where a chord's point reads definitely off the
-/// surface of the region it bounds; and where the region is a torus
-/// decided outside the ring convention, which the chord's germ pair's
-/// frame refuses first ([`section_refusal`]). [`BooleanError::JoinDesync`] where
+/// a kernel defect; and where a chord's point reads definitely off the
+/// surface of the region it bounds. [`BooleanError::DegenerateTorus`]
+/// where the region is a torus decided outside the ring convention, the
+/// operand's invalid input ([`BooleanError::of_aborted_normal`]).
+/// [`BooleanError::JoinDesync`] where
 /// the chord's edge, curve or region no longer resolves. And the walk's
 /// and [`holding_face_normal`]'s own.
 fn seam_germ_side<T: Decide>(
@@ -5614,28 +5615,23 @@ fn seam_germ_side<T: Decide>(
                         "a section chord's region no longer resolves",
                     )));
                 }
-                // A normal refused in band or at a limit is kept. A point off
-                // the region's own surface is a kernel defect, and so is a
-                // region on a torus decided outside the ring convention: the
-                // operands are finished bodies, which tier 3 refuses for such
-                // a torus (`ValidationError::DegenerateTorus`), and a section
-                // chord's germ pair's frame reads the convention again
-                // (`section_refusal`) before the join mints the chord.
+                // A normal refused in band or at a limit is kept; an abort
+                // is answered by its own row. No row is assumed away:
+                // "tier 3 refuses a degenerate torus first" holds only at
+                // a certifying scalar, and at a dual the operand is a
+                // `Replay`, tier 2 alone, which can carry a horn or
+                // spindle torus here. That face is the operand's invalid
+                // input, not a kernel fault.
                 Err(why) => {
-                    return rung_or_abort(why.refusal(), why, |why| {
-                        Err(BooleanError::ClassificationInvariant {
-                            what: match why {
-                                NormalAtError::DegenerateTorus { .. } => {
-                                    "a section chord's region is a torus outside the ring \
-                                     convention, which the germ pair's frame refuses first"
-                                }
-                                _ => {
-                                    "a section chord's point reads off the surface of the \
-                                      region it bounds"
-                                }
-                            },
-                        })
-                    })
+                    return match why.standing() {
+                        Ok(standing) => standing.rung(why),
+                        Err(abort) => Rung::Aborts(Err(BooleanError::of_aborted_normal(
+                            abort,
+                            (other_is.other(), region),
+                            "a section chord's point reads off the surface of the region it \
+                             bounds",
+                        ))),
+                    }
                     .map_kept(|_| ());
                 }
             };
@@ -5744,9 +5740,17 @@ fn holding_face_normal<T: Decide>(
         Ok(None) => Err(BooleanError::JoinDesync {
             what: "the face holding a section chord no longer resolves",
         }),
-        Err(why) => Ok(Err(HoldingUnread::Normal(why))),
+        Err(why) => Ok(Err(HoldingUnread::Normal {
+            operand: other_is,
+            face: held,
+            why,
+        })),
     }
 }
+
+/// [`HoldingUnread::aborted`]'s kernel-defect answer.
+const HOLDING_OFF_SURFACE: &str =
+    "a section chord's holding face reads it off the surface it was placed on";
 
 /// **Why [`holding_face_normal`] read no holding face's normal**: a
 /// placement of the point in a face of the other operand, or that
@@ -5766,7 +5770,14 @@ enum HoldingUnread {
     /// A curved face's trim the door does not read. A limit.
     Trim,
     /// The holding face's normal at the point refused.
-    Normal(NormalAtError),
+    Normal {
+        /// The operand the face is of.
+        operand: Operand,
+        /// The holding face.
+        face: FaceKey,
+        /// The normal's refusal.
+        why: NormalAtError,
+    },
 }
 
 impl HoldingUnread {
@@ -5786,7 +5797,7 @@ impl HoldingUnread {
                 ..
             } => e.refusal(),
             Self::Trim => Ok(geom_brep::ladder::Refusal::Limit),
-            Self::Normal(why) => why.refusal(),
+            Self::Normal { why, .. } => why.refusal(),
         }
     }
 
@@ -5806,16 +5817,20 @@ impl HoldingUnread {
                 face,
                 refusal,
             },
+            Self::Normal { operand, face, why } => match why.standing() {
+                Err(abort) => {
+                    BooleanError::of_aborted_normal(abort, (operand, face), HOLDING_OFF_SURFACE)
+                }
+                Ok(_) => BooleanError::ClassificationInvariant {
+                    what: HOLDING_OFF_SURFACE,
+                },
+            },
             Self::Placement {
                 why: PlacementError::OnPlane(_),
                 ..
             }
-            | Self::Trim
-            // Gap: `NormalAtError::DegenerateTorus` aborts too, an invalid
-            // input, and reads here as a kernel defect. The ending an abort
-            // carries is not yet stated by `NormalAtError` itself.
-            | Self::Normal(_) => BooleanError::ClassificationInvariant {
-                what: "a section chord's holding face reads it off the surface it was placed on",
+            | Self::Trim => BooleanError::ClassificationInvariant {
+                what: HOLDING_OFF_SURFACE,
             },
         }
     }
@@ -5903,7 +5918,10 @@ mod holding_rows {
         assert!(
             matches!(
                 held,
-                Ok(Err(HoldingUnread::Normal(NormalAtError::AtConeApex { .. })))
+                Ok(Err(HoldingUnread::Normal {
+                    why: NormalAtError::AtConeApex { .. },
+                    ..
+                }))
             ),
             "the apex's holding face: {held:?}"
         );
@@ -8160,7 +8178,7 @@ mod of_join_rows {
             );
             let text = got.to_string();
             assert!(
-                text.contains(&why.to_string()) && text.ends_with(why.recourse()),
+                text.contains(&why.to_string()) && text.ends_with(&*why.recourse()),
                 "{why:?}: the walk's refusal and its recourse: {text}"
             );
         }

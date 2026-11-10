@@ -6313,8 +6313,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("definition_var_kind", 2),
     // Overlapping, not one fact: at rest the word is the ring half's
     // decided refusal alone (a nonpositive tube is
-    // `unrepresentable_surface_datum` there); at the Boolean's pierce
-    // it is either half's (`topo::TorusConvention`).
+    // `unrepresentable_surface_datum` there); in the Boolean, wherever
+    // an operand's face normal is asked (the pierce, a section chord's
+    // region or holding face), it is either half's
+    // (`topo::TorusConvention`).
     ("degenerate_torus", 2),
     // Three, and ALL THREE are one fact: `parse_error_tag`,
     // `persist_error_tag` and `edit_error_tag` each mean "the document

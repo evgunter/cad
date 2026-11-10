@@ -92,10 +92,10 @@ already implements exactly once per face (plane arm: negate stored
 normal, and re-state every `Chart` image and every stored pcurve row
 on that plane under the chart reflection `(u, v) ↦ (u, −v)` the
 negation is, certificates verbatim — `Pcurve::mirror_v`; curved arm:
-flip `sense`) + re-certify carriers and re-mint witnesses per the
-transform layer's existing discipline. The +V
-tier-3 invariant is the acceptance instrument: a reflection without
-the flip produces `NegativeVolume`, and the correct door must not.
+flip `sense`) + carry every certificate, re-minting witnesses from
+the mapped carrier as data. The +V tier-3 invariant is the acceptance
+instrument, as a test: a reflection without the flip produces
+`NegativeVolume`, and the correct door must not.
 One claim the survey flags as **checkable, not assumable** (conv. 4
 verbatim): whether reflection's loop-orientation reversal and the
 normal flip cancel so that no half-edge reversal is needed — the

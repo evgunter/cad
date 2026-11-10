@@ -78,3 +78,25 @@ fn a_knot_run_past_the_degree_refuses_typed() {
         refused.err()
     );
 }
+
+/// A knot past half the largest finite number (`1.5E308`, where a span
+/// reaching it has no finite middle) is refused where the carrier is
+/// read, typed, as the file's defect: the knot vector's admission door
+/// is the only one, and nothing reads the parameter before it.
+#[test]
+fn a_knot_past_half_the_largest_finite_number_refuses_typed() {
+    let text = fixture("mixed_lower.step").replace(
+        "B_SPLINE_CURVE_WITH_KNOTS('',1,(#49,#54),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,10.)",
+        "B_SPLINE_CURVE_WITH_KNOTS('',1,(#49,#54),.UNSPECIFIED.,.F.,.F.,(2,2),(0.,1.5E308)",
+    );
+    assert!(text.contains("1.5E308"), "the knot is stated");
+    let refused = import_step(&text, &ImportOptions::default(), Tol::witness());
+    assert!(
+        matches!(
+            refused,
+            Err(step_import::StepImportError::MalformedRecord { id: 52, .. })
+        ),
+        "the spline's own record refuses: {:?}",
+        refused.err()
+    );
+}

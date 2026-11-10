@@ -3458,6 +3458,24 @@ quantity is new: the segment `q`–`w`'s nearest point's distance from
 (`LINK_ARC_REACH`), `link_arc_reach`, and does not pool with
 `link_arc` (`docs/predicate-dimension-audit.md`'s row of that name).
 
+## ONECOPY addendum (2026-11-10): `link_arc` re-posed as the segment's clearance
+
+**No roster change; one name's sample changes.** `link::ArcReach::clears`
+read a near arc (two ends at `q`'s distance) as both ends' distances
+along their directions' bisector `normalize(q̂ + ŵ)`: two `link_arc`
+samples per arc. Where the ends are nearly opposite, `q̂ + ŵ` vanishes and
+those samples were rounding noise. On six witnesses, `|q̂ + ŵ|` reached
+`0` (a NaN sample) and `8e-17`, where the ends read up to `±1.9` m against
+a clearance of `1e-16` m, decided negative 123 times at default ε and 142
+at 1e-12. `link_arc` now records **one** sample per near arc: the
+segment's clearance of `p`, `link::metric::Distance::clearance` (the
+distance to its nearest point, `link::to_segment`), as `link_arc_reach`
+does for the far arc. On a well-conditioned arc the two old samples and
+the new one are the same quantity to rounding (`ρ·cos(θ/2)`), so
+`link_arc` keeps pooling with `census_touch_arc`. The count halves, and
+the noise samples near opposite ends are gone
+(`work/onecopy/link-near-clearance-divides-by-a-vanishing-bisector.md`).
+
 ## ONEREAD addendum (2026-11-02): a bound's side decided at the link's metric door
 
 **Roster: no name joins or leaves; three names change their door.** The
@@ -3671,3 +3689,22 @@ an extremum just off the span answers a touch, not a miss
 unit ray (the old `s/dn`, the same quantity). `plane_crossing_belly_graze`,
 `_plane_parallel`, `_graze_side` and `_root_in_span` gain the walk's
 population.
+
+## ONECOPY addendum (2026-11-09): span membership reads `curve_pair::Span`
+
+**Roster change: three names leave; one joins.** A point's or a
+parameter's place on a curve span has one reading, `geom_brep::curve_pair::Span`'s:
+an end by the raw chord to its point (`curve_pair_span_end_chord`), else the
+side by the parameter metered at the span's greatest speed
+(`curve_pair_span_end_side`). These leave the roster:
+- `plane_crossing_root_in_span`: the plane door's root place, which metered the
+  gap at the smaller semi-axis (an inf speed). Its population joins
+  `curve_pair_span_end_chord`/`_side` (the door, its region landings, the
+  loop walk's ray, `torus_region`'s arc).
+- `ring_outer_arc_end` and `ring_outer_arc_trim`: check 9's `arc_trim` rows.
+  Check 9's arc window reads `Span::place`, and `arc_trim` is retired.
+
+**One joins:** `plane_crossing_roots_apart`, the chord between two roots'
+points: Zero collapses them to one root. `plane_crossing_root_order` stays and
+changes its quantity: the roots' parameter gap metered at the span's greatest
+speed, read only where their chord is past the band.
