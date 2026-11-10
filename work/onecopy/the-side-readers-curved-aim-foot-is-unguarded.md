@@ -2,10 +2,11 @@
 id: the-side-readers-curved-aim-foot-is-unguarded
 kind: issue
 title: side_reader_aims_ask_nothing no longer sees a curved aim's foot: curve_foot_branch is unlogged (F31)
-status: open
+status: closed
 opened: 2026-11-03
 priority: P3
 cost: E
+closed: 2026-11-09
 ---
 
 
@@ -14,3 +15,16 @@ Filed by `onecopy/foot-and-angle` (PR 6449). That PR moved `geom::curves::on_car
 What the row no longer sees: an aim at the rod's cylinder wall (or a cone wall) that takes a closed-form circle foot. The remaining entries (`point_in_loop`, `point_in_arc_loop`, `bool_ruled_region`, `bool_pierce_normal_on`) are not shown to fire on that path.
 
 Fix, the cheap way: read the path's samples, which still reach the sink under `curve_foot_branch` (`geom_core::k_stats` under the `probe` feature), and assert none are taken by the aims. Alternatively, name a logged predicate on the foot path the aims must not take.
+
+**Names moved** (`onecopy/angle-reads`): `angle_near` is retired into
+`geom::Azimuth::near`, so the foot's samples now reach the sink under
+`azimuth_near_cut_side` (the window's cut side) and `period_near_mark`
+(the rename's half-period marks), both F31; `curve_foot_branch` is no
+longer recorded.
+
+Closed (`onecopy/face-holds`): `side_reader_aims_ask_nothing`'s
+`the_aims_at_cylinder_walls_take_no_circle_foot` (`probe`) runs the aims at the rod and the plate it drills at
+`Probe` and asserts that no sample reaches the sink under
+`azimuth_near_cut_side` or `period_near_mark`. Its witness is a point
+inside each body, which does take them, and every wall face is asserted aimed at. A foot injected into the
+cylinder arm of `aim_at` turns it red. A cone wall is not in the row.

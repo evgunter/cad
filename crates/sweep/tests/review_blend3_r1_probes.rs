@@ -156,10 +156,8 @@ fn r1_a_pockets_concave_edges_carve_ending_at_the_rims_mixed_corners() {
     let all = cavity_edges_of(&body, &poly, 2.0, 4.0);
     assert_eq!(all.len(), 12, "floor, walls and rim");
     let z_of = |k: &EdgeKey| -> Vec<f64> {
-        let e = body.get_edge(*k).expect("an edge");
-        let h = body.get_half_edge(e.he_plus).expect("a half-edge");
-        let end = body.half_edge_end(e.he_plus).expect("an end");
-        [h.start, end]
+        let (start, end) = body.edge_vertices(*k).expect("an edge's ends");
+        [start, end]
             .iter()
             .map(|v| {
                 body.get_vertex(*v)
@@ -333,7 +331,7 @@ fn r1_the_ring_gate_still_meters_on_the_concave_side() {
             D,
             Tol::witness(),
         )
-        .map(|o| o.body)
+        .map(|o| o.body.into_body())
     };
 
     // The fixture's own clearance: the ring at 2.5 against a trimline
@@ -370,7 +368,7 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     let a = 2.0_f64;
 
     // (i) What the same chamfer REMOVES from a cube of side a.
-    let cube_body = cube(a, Tol::witness());
+    let cube_body = cube::<f64>(a, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let chamfered_cube = topo::test_support::finished(
         "chamfered_cube",

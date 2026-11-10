@@ -31,7 +31,7 @@ fn p() -> VarName {
 }
 
 /// The probe's one variable in `doc`.
-fn var(doc: &ProfileDoc) -> editor_core::VarId {
+pub(crate) fn var(doc: &ProfileDoc) -> editor_core::VarId {
     doc.var_named("p").expect("the probe declares p")
 }
 
@@ -53,7 +53,7 @@ fn loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
 /// [`loft_doc`] with rectangles for circles: the lower section
 /// `[0, p] × [0, 1]`, the upper the unit square. Every value is a line
 /// endpoint, so at `Interval` with no box the sections are points.
-fn square_loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn square_loft_doc(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
     let rect = |w: Formula| {
         let at = |x: Formula, y: f64| {
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
@@ -198,7 +198,7 @@ fn loft_digest(ev: &editor_core::Evaluation<f64>, loft: RecipeNodeId) -> Vec<u64
 fn a_seed_on_a_section_radius_moves_the_lofted_wall() {
     use geom_core::Dual64;
     let (doc, loft) = loft_doc(0.5);
-    let ev = editor_core::evaluate::<Dual64>(
+    let ev = editor_core::test_support::evaluate_bound::<Dual64>(
         &doc,
         None,
         &editor_core::CancelToken::new(),

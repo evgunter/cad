@@ -43,7 +43,7 @@ fn rows(label: &str, body: &Body<f64>) {
 fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[FaceKey]) {
     // A hand-split operand is construction state (tier 3's check 11):
     // the gate's refusal is the dump's line for it.
-    let operand = match topo::AtRestBody::validate(body.clone(), tol()) {
+    let operand = match topo::finish(body.clone(), tol()) {
         Ok(operand) => operand,
         Err(e) => {
             println!("[r2rows] {label}: not at rest {e:?}");
@@ -89,9 +89,9 @@ fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
 
 fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.y - y).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.z.abs() < 1e-9
             )

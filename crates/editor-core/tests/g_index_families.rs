@@ -98,12 +98,13 @@ fn a_ring_is_one_placement_whose_spin_reads_the_index() {
     let ValuePayload::Instances(copies) = &ev.value(ring).unwrap().payload else {
         unreachable!()
     };
+    let copies = fixture::every_body(copies);
     let ValuePayload::Body(source) = &ev.value(the_block).unwrap().payload else {
         panic!("the block is a body")
     };
     for (k, copy) in copies.iter().enumerate() {
         assert!(
-            std::sync::Arc::ptr_eq(copy.shared(), source.shared()),
+            std::sync::Arc::ptr_eq(copy.holding().arc(), source.holding().arc()),
             "member {k} shares the block's one body"
         );
     }
@@ -125,7 +126,7 @@ fn a_ring_is_one_placement_whose_spin_reads_the_index() {
     assert_eq!(at, (0..12).collect::<Vec<u32>>(), "every member named");
     // Member 3 is a quarter turn, exactly: the block's span in x is
     // member 3's span in y.
-    let three = fixture::in_space(&copies[3]);
+    let three = fixture::in_space(copies[3]);
     for (v, _) in three.vertices() {
         let p = fixture::point(&three, v);
         assert!((4.0..=5.0).contains(&p.y), "member 3 stands on +y: {p:?}");

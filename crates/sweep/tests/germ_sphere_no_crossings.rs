@@ -230,10 +230,7 @@ fn a_ball_scraping_the_tube_refuses_as_an_interior_loop() {
                 assert_eq!(o, operand);
                 let torus = if operand == topo::Operand::A { x } else { y };
                 assert!(
-                    matches!(
-                        torus.get_surface(torus.get_face(face).unwrap().surface),
-                        Some(geom::Surface::Torus { .. })
-                    ),
+                    matches!(torus.face_surface(face), Some(geom::Surface::Torus { .. })),
                     "the refusal names the torus face"
                 );
                 assert!(
@@ -269,6 +266,7 @@ fn quarter_cone() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The path's certificates refuse, naming the cone face, with the
@@ -287,10 +285,7 @@ fn refused_by_the_pass_on_the_cone(cone: &Body<f64>, ball: &Body<f64>, what: &st
             }) => {
                 assert_eq!(o, operand, "{what}");
                 assert!(
-                    matches!(
-                        cone.get_surface(cone.get_face(face).unwrap().surface),
-                        Some(geom::Surface::Cone { .. })
-                    ),
+                    matches!(cone.face_surface(face), Some(geom::Surface::Cone { .. })),
                     "{what}: the refusal names the cone face"
                 );
                 assert!(why.contains(why_has), "{what}: {why}");
@@ -320,12 +315,8 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
             "the ball inside is apart"
         );
     }
-    let cone_face = |f: topo::FaceKey| {
-        matches!(
-            cone.get_surface(cone.get_face(f).unwrap().surface),
-            Some(geom::Surface::Cone { .. })
-        )
-    };
+    let cone_face =
+        |f: topo::FaceKey| matches!(cone.face_surface(f), Some(geom::Surface::Cone { .. }));
     let pairs: Vec<String> = topo::test_support::no_crossings_section_report(
         BooleanOp::Union,
         &cone,

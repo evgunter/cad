@@ -817,12 +817,12 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }
         | SessionOp::SetProduct { .. }
-        | SessionOp::AddToProduct { .. } => true,
+        | SessionOp::AddToProduct { .. }
+        | SessionOp::RepointPlacements { .. } => true,
         SessionOp::CreateLabelled { creation, .. } => acts(creation.op()),
     }
 }
@@ -2198,7 +2198,6 @@ pub fn tool_notice(
             | MateToolEvent::Reloaded { .. }
             | MateToolEvent::PlacementGone { .. }
             | MateToolEvent::NotPlaceable { .. }
-            | MateToolEvent::SeenThroughSeveral { .. }
             | MateToolEvent::HalfUnchosen { .. }
             | MateToolEvent::PatternFamily { .. },
         ) => Retold::Never,
@@ -2389,7 +2388,7 @@ pub fn pending_line(report: &ChecksReport) -> Option<String> {
 pub struct CheckRow {
     /// What the button selects: the node the finding is about (for a
     /// copy's finding the operation defining the body its placement
-    /// places, [`crate::world::seat_of`]; the deciding node of an
+    /// places, [`crate::world::original_of`]; the deciding node of an
     /// unproven coincidence), or the variable an unused finding names.
     pub select: Selection,
     /// That node or variable, spoken.
@@ -2491,7 +2490,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     };
                 }
                 FindingSubject::Output { placement, .. } => {
-                    crate::world::seat_of(landed, placement)
+                    crate::world::original_of(landed, placement)
                 }
                 FindingSubject::Node(node) => node,
                 // An overlap's row is the earlier copy's, as a contact's
@@ -2505,7 +2504,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     let node = landed.operation_of(at).unwrap_or_else(|| {
                         unreachable!("a census is taken over an operation's output")
                     });
-                    crate::world::seat_of(landed, node)
+                    crate::world::original_of(landed, node)
                 }
                 // The earlier copy's placement: the row's cells name both.
                 FindingSubject::Copies { a, .. } => landed
@@ -2569,6 +2568,63 @@ pub fn product_recourse(
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// **What the selection says about the copy it is on, and the steps it
+/// offers** (Ev, PR 6353), read off the committed document:
+/// - a pick on a placed copy, or a body built on one, is said to be on
+///   that placed copy, with a button to its original body
+///   ([`crate::world::built_on_copy`]);
+/// - a body built on a body picked as itself, where placements read that
+///   body, offers to re-point them onto it, as one explicit step
+///   ([`crate::world::repoint_offer`], [`SessionOp::RepointPlacements`]).
+///
+/// The sentence, where there is one, then each button's label and op.
+pub fn placement_offers(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> (Option<String>, Vec<(String, SessionOp)>) {
+    let by = Speaker::of(doc);
+    let mut said = None;
+    let mut offers = Vec::new();
+    let on_copy = crate::world::copy_source(doc, node, 0)
+        .is_some()
+        .then(|| (node, crate::world::original_of(doc, node)))
+        .or_else(|| crate::world::built_on_copy(doc, node));
+    if let Some((copy, original)) = on_copy {
+        said = Some(if copy == node {
+            format!(
+                "a placed copy of {}: a feature on it belongs to this copy alone",
+                by.node(original)
+            )
+        } else {
+            format!(
+                "on the placed copy {} of {}: it belongs to that copy alone",
+                by.node(copy),
+                by.node(original)
+            )
+        });
+        offers.push((
+            format!("Go to the original body, {}", by.node(original)),
+            SessionOp::Select(crate::session::Selection::Node(original)),
+        ));
+    }
+    if let Some(offer) = crate::world::repoint_offer(doc, node) {
+        let count = offer.placements.len();
+        let plural = if count == 1 { "" } else { "s" };
+        offers.push((
+            format!(
+                "Re-point the {count} placement{plural} of {} onto {}",
+                by.read(offer.body),
+                by.node(node)
+            ),
+            SessionOp::RepointPlacements {
+                body: pncad::document::Operand::Var(offer.body),
+                onto: node,
+            },
+        ));
+    }
+    (said, offers)
 }
 
 /// **What the chrome badges about the δ the display budget chose**,
@@ -2688,7 +2744,6 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::ProductOutsideWorld
         | ProductErrorKind::Frame
         | ProductErrorKind::Graft
-        | ProductErrorKind::PieceInvalid
         | ProductErrorKind::ProductInvalid
         | ProductErrorKind::ContactLineage => {
             if kind.means_no_body() {
@@ -3655,7 +3710,6 @@ mod tests {
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::Graft,
-            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ] {
@@ -3712,7 +3766,6 @@ mod tests {
             ProductErrorKind::StrandedProduct,
             ProductErrorKind::ProductOutsideWorld,
             ProductErrorKind::Graft,
-            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ]

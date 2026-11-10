@@ -97,17 +97,16 @@ pub(crate) fn m7_8_cube() -> (
             },
         )
         .unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
     let mut lane_edges = Vec::new();
-    for (edge_key, edge) in edges {
+    for edge_key in edges {
         let (s1, s2) = crate::readback::edge_sides(&body, edge_key)
             .unwrap()
             .surfaces();
         if s1 != wall && s2 != wall {
             continue;
         }
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = crate::query::edge_ends(&body, edge_key);
         let p0 = *body
             .get_point(body.get_vertex(start).unwrap().point)
             .unwrap();
@@ -251,7 +250,14 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_at_f64() {
 #[test]
 fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else() {
     let (mut body, wall, lane_edges) = m7_8_cube();
-    body.surfaces[wall] = nurbs_wall(0.05);
+    let bow = 0.05;
+    body.surfaces[wall] = nurbs_wall(bow);
+    // The bowed wall's height over y = 0 is `bow · B(u) · B(v)` with
+    // `B(t) = 2t(1 − t)`, and the cube's edges lie at u or v = 1/3 or
+    // 2/3 (`x = 3u − 1`), where B = 4/9, the other parameter in
+    // [1/3, 2/3], where B ≤ 1/2. A sample's distance from the wall is at
+    // most that height, so an off read's margin lies in (0, bow · 2/9].
+    let off_bound = bow * (4.0 / 9.0) * 0.5;
     let tol = Tol::witness();
     let records = ContactRecords::default();
     let verdicts: [(&str, Result<(), Vec<ValidationError>>); 3] = [
@@ -288,16 +294,27 @@ fn m3_the_plain_names_report_the_corrupt_m7_8_wall_edge_by_edge_and_nothing_else
             .iter()
             .filter_map(|e| match e {
                 ValidationError::EdgeCertification { edge, .. } => Some(*edge),
-                // The rowless wall is re-derived at tier 3, and the
-                // corrupt surface refuses its own boundary.
+                // The rowless wall is re-derived at tier 3, and its
+                // derivation reads the corrupt surface off its own
+                // boundary: the chart's incidence read, read by its one
+                // classifier, at a margin the bow can account for.
                 ValidationError::Pcurve {
                     finding:
                         crate::pcurves::PcurveMintError::Certify {
-                            half_edge,
-                            error: geom_brep::PcurveCertifyError::ResidualExceeded { .. },
-                            ..
+                            half_edge, error, ..
                         },
-                } if on_wall(*half_edge) => None,
+                } if on_wall(*half_edge)
+                    && let Some(geom_brep::IncidenceRead::Off(Some(m))) =
+                        geom_brep::IncidenceRead::of(error) =>
+                {
+                    let margin = m.diagnostic_f64_for_error_text().value();
+                    assert!(
+                        margin.is_some_and(|m| m > 0.0 && m <= off_bound),
+                        "{door}: the off read's margin {margin:?} is in (0, {off_bound:e}], \
+                         the bow's height over the wall's edges"
+                    );
+                    None
+                }
                 other => panic!(
                     "{door}: reports {other:?} beside the edge findings — a `VolumeUncomputable` \
                      here is the lane-keeping body's answer, which this name no longer gives"

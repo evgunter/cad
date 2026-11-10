@@ -56,10 +56,7 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
-    matches!(
-        body.get_surface(body.get_face(f).unwrap().surface).unwrap(),
-        Surface::Plane { .. }
-    )
+    matches!(body.face_surface(f).unwrap(), Surface::Plane { .. })
 }
 
 /// The distinct planar supports of a rim's arcs.
@@ -543,7 +540,8 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
             let arcs = rim_arcs_at(&body, rim_r, rim_y);
             body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
                 .unwrap_or_else(|e| panic!("the ({rim_r}, {rim_y}) rim carves alone, got {e:?}"))
-                .body;
+                .body
+                .into_body();
         }
         validate_geometric(&body, tol()).expect("the sequential result is tier-3 valid");
         let seq = topo::mass_properties(

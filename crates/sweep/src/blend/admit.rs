@@ -660,7 +660,7 @@ impl<T: Decide> RequestedBoundary<T> {
         outward_of(body, face)
             .ok_or_else(|| unbuilt_geometry(EntityId::Face(face), CORNER_SUPPORT_NOT_PLANAR))?;
         let fd = body
-            .get_face(face)
+            .face(face)
             .ok_or_else(|| unresolved(EntityId::Face(face), "a support face"))?;
         let station = |he: HalfEdgeKey, v: VertexKey| -> Result<BoundaryStation<T>, BlendError> {
             let corner = corners
@@ -729,7 +729,7 @@ impl<T: Decide> RequestedBoundary<T> {
         let mut stations: Vec<BoundaryStation<T>> = Vec::new();
         let mut chords = Vec::new();
         let mut rings = Vec::new();
-        for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+        for (lp, _, role) in fd.loops() {
             let walk = loop_cycle_of(body, lp).ok_or_else(|| {
                 unwalked(
                     EntityId::Loop(lp),
@@ -763,7 +763,7 @@ impl<T: Decide> RequestedBoundary<T> {
                     to: next.start,
                     feet,
                 });
-                if lp != fd.outer && rings.last() != Some(&lp) {
+                if !role.is_outer() && rings.last() != Some(&lp) {
                     rings.push(lp);
                 }
             }

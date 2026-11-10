@@ -47,6 +47,25 @@
 //!    argument). A macro BODY written out in the file is matched — the
 //!    `geom` projection impls below are inside one.
 //!
+//! 5. **A bracket read through another door**:
+//!    `SpanLocate::structure_bracket`, which every `Decide` scalar
+//!    carries, reads the same bracket with no `Bounds` bound to match.
+//!    One such read is a selection that moves with the inputs, #874's
+//!    class, outside the locally-constant condition a `Selection` line
+//!    rests on: `geom_brep::curve_pair::polish`'s `pair` takes a
+//!    Gauss–Newton step whose value is an enclosure as `f64` structure,
+//!    moving the iterate by the step's bracket midpoint
+//!    (`geom::bracket_mid`) and entering it again through
+//!    `from_computed`. So at `Dual` or `Sym` over an enclosure the pair
+//!    carries no tangent of its own, or is a literal, as
+//!    `geom::projection_policy`'s `mid` freeze below does; its
+//!    disposition is that freeze's `Selection`, the pair a place and what
+//!    a consumer reads there evaluated at `T`. A step whose value is a
+//!    point is taken at `T`, so over `f64` the pair keeps its symbols and
+//!    its tangent: `editor-core`'s coincidence door reads the symbols. The
+//!    walk cannot see it, so it has no roster line; it is recorded here
+//!    instead.
+//!
 //! Closing (2) and (3) for the tree needs a walk of every generic
 //! parameter's RESOLVED bound set — a `rustc` driver or a
 //! `rust-analyzer` query, not a bigger regex — which is the standing
@@ -244,7 +263,7 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",
-        subject: "fn lifted<T: Bounds>",
+        subject: "lifted",
         why: Payload("`lift` over a conic carrier, before its readings"),
     },
     Site {
@@ -346,28 +365,6 @@ const ROSTER: &[Site] = &[
              boundary the whole neighbourhood takes the same branch, and the branch it \
              takes when refusing carries no geometry, only the low end as an f64 payload \
              in `BlendError::NonpositiveSize`",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/open/end_face.rs",
-        subject: "impl<T: Bounds> CapSliver<T>",
-        why: Selection(
-            "the cut-off's end-face sliver meter `clearance`. It reads no bracket itself — its \
-             reads are `ArcReads::arc_misses`' and the on-axis guards', reached through \
-             `piece_distance` and `piece_along` in `surgery.rs` — and its result is the \
-             margin `ring_clearance` decides, so it inherits that door's DL5(b) \
-             disposition and no other",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/open/end_face.rs",
-        subject: "apart",
-        why: Selection(
-            "a lower bound on two end-plane pieces' distance, for the sliver's inside \
-             reading. It reads no bracket itself (its reads are `piece_distance`'s and \
-             `piece_along`'s in `surgery.rs`), and its result is one term of \
-             `CapSliver::inside_point` or `ring_inside`, which only `sure` decides, so it \
-             inherits that door's disposition and no other",
         ),
     },
     Site {
@@ -481,29 +478,11 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
-        subject: "impl<T: Bounds> ArcReads<T> for geom::Circle<T>",
-        why: Selection(
-            "an arc's closed-form extremes (`arc_distance`, `arc_along`). `arc_misses` reads the \
-             stored window's and the angle's brackets, asking `geom::periodic_window_may_hold`, \
-             to SELECT, per extreme, between the arc's two ends \
-             and the whole circle's value; the result is a margin `ring_clearance` \
-             decides, and the branch is the value channel's (a dual's bracket is its \
-             value's). The branch is locally constant everywhere off the switch, and AT \
-             the switch the two candidates agree in value and first-order tangent (the \
-             end is the point realising the whole circle's extreme, where that extreme \
-             is stationary), so no seed's tangent depends on the branch. An uncertain \
-             bracket takes the whole circle's value, a sound bound wherever the truth \
-             lies. The on-axis `lo() <= 0` guards select the whole-circle pair, which \
-             bounds the arc's wherever `c` is and equals the ends' pair where a point \
-             scalar takes it",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/surgery.rs",
         subject: "past_misses",
         why: Selection(
             "`ArcReads::arc_misses`' bracket read on the angle already taken, the selection \
-             whose DL5(b) disposition is the entry above",
+             whose DL5(b) disposition is beside `bounds-allowlist.sh`'s surgery.rs pin \
+             (`impl ArcReads for geom::Circle`, which gained `Decide`)",
         ),
     },
     Site {
@@ -519,55 +498,6 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
-        subject: "piece_along",
-        why: Selection(
-            "an edge's extent along a direction over its own window: a segment's ends \
-             read no bracket, and a circle's reads are `ArcReads`' above, whose \
-             DL5(b) disposition this inherits",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/surgery.rs",
-        subject: "strip_reading",
-        why: Selection(
-            "a support ring's three-way reading against the strip a plane–plane band \
-             takes off its support, as `CapSliver::read_cycle` reads an end-face cycle \
-             against its sliver: `piece_along`'s closed-form extents and the witnesses' \
-             projections are read through `sure` to SELECT inside, crossing or neither. \
-             An inside ring joins the request's verdict, whose faces the reach must still \
-             read inside, and the screen's stand-down on a decided ring only leaves that \
-             ring to the ring pass, which meters it whole; any reading not certain is \
-             neither, metered as before, so it inherits `ring_clearance`'s DL5(b) \
-             disposition and the reach's",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/surgery.rs",
-        subject: "piece_distance",
-        why: Selection(
-            "an edge's near and far distance from a point over its own window: a \
-             segment's clamped foot is `max`/`min` arithmetic with no bracket read, and a \
-             circle's reads are `ArcReads`' above, whose DL5(b) disposition this \
-             inherits",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/surgery.rs",
-        subject: "boxed_reach",
-        why: Selection(
-            "a certified latitude range over an ellipse, spiric or NURBS piece. Its only \
-             bracket reads are the `boxes` constructors' above, whose f64 endpoints it \
-             lifts back by `from_f64` — so at a dual the box corners carry no tangent, \
-             though the true range moves with the carrier's seeds: the #874 shape, were \
-             the range ever built on. It is not: its sole consumer \
-             `support_boundary_clearance` turns it into the margin `ring_clearance` \
-             decides, whose passing branch builds nothing from the margin and whose \
-             refusing branch carries it as a payload, so it inherits that door's DL5(b) \
-             disposition and no other",
-        ),
-    },
-    Site {
-        path: "crates/sweep/src/blend/surgery.rs",
         subject: "old_misses",
         why: Payload(
             "a test-side ORACLE inside `misses_is_the_relative_bracket_read`, generic so \
@@ -577,22 +507,7 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracket_point",
-        why: Payload("the C10 span-box reader: brackets into an f64 `SpanBox`"),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracket_vector",
-        why: Payload("as `bracket_point`, over a vector"),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracketed",
-        why: Payload("as `bracket_vector`, over a decided unit direction (`UnitSpanBox`)"),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
+        path: "crates/topo/src/boxes.rs",
         subject: "axis_key",
         why: Payload(
             "the narrow phase's axis key: a vector's three brackets, compared for equality to \
@@ -600,15 +515,23 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "circle_box",
+        path: "crates/topo/src/boxes.rs",
+        subject: "cover_box",
         why: Payload(
-            "the extent scan's section-circle box: a centre's, a frame's and a radius's \
-             brackets into an f64 `bvh::Aabb` through `conic_extent`, padded, and stop",
+            "a held cover's padded box, the one home `face_box`, `edge_box`, `circle_box` and \
+             the callers holding a face's cover read: its bracketed world box \
+             (`Cover::aabb`), or the poison box where there is no cover, and stop",
         ),
     },
     Site {
-        path: "crates/topo/src/boolean/boxes.rs",
+        path: "crates/topo/src/boxes.rs",
+        subject: "circle_box",
+        why: Payload(
+            "the extent scan's section-circle box: its cover's box (`cover_box`), and stop",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/boxes.rs",
         subject: "centred_box",
         why: Payload(
             "a ball's box, for the extent scan and the crossing layer's touch reading: a \

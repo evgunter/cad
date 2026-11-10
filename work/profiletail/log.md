@@ -19,3 +19,4 @@ At Interval, a lower `apart()` can turn a definite Zero into an in-band
 escalation, which `editor-core`'s driver charges even on an Ok node.
 That question, and the range-width cost, are on
 `work/cpair/a-line-pairs-gap-reading-is-a-range-boundary-where-no-contact-changes.md`.
+- 2026-11-06 — (ROUND orchestrator) Claimed `profile-endings-say-lower-the-tolerance-and-route-by-name` from `profile-refusals-say-what-they-mean` onto ROUND's P1 unit `the-path-doors-escalation-carries-its-gate` (same arms, same closed-type repair). The carrier keeps its other three passengers.

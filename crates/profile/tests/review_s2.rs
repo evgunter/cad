@@ -743,7 +743,7 @@ fn check_at_both_scalars(
     let (lp, lp_interval) = match (at_f64, at_interval) {
         (Ok(lp), Ok(lp_interval)) => (lp, lp_interval),
         (Err(_), Err(_)) => return false,
-        (Ok(lp), Err(PathError::Escalated { source })) => {
+        (Ok(lp), Err(PathError::Escalated { source, .. })) => {
             let predicate = source.predicate.unwrap_or("<unnamed>");
             let ErrorTextReading::Enclosure { lo, hi } =
                 source.margin.diagnostic_f64_for_error_text()
@@ -2449,13 +2449,13 @@ fn an_ill_conditioned_corner_lands_its_tangent_point_on_the_carrier() {
 /// themselves are within |ρ| of mutual tangency — a hairline lens. The
 /// raw builder, handed the AUTHORED corner, sailed past that and hit
 /// the lever gate. The lattice DERIVES the corner, and on a hairline
-/// lens the corner-turn classification is band-keyed:
+/// lens the carrier classification is band-keyed:
 ///
-/// - at ε = 1e-6 and 1e-9 the derived corner's turn margin lands in
-///   the tangent band, so the pair refuses one gate earlier as
-///   `NoCornerForFillet { CarriersParallel }` — the same degeneracy,
+/// - at ε = 1e-6 and 1e-9 the carriers' own tangency margin lands in
+///   the band, so the pair refuses before any corner is derived, as
+///   `NoCornerForFillet { CarriersTangent }` — the same degeneracy,
 ///   classified at the carriers;
-/// - at ε = 1e-12 the turn is definite, the construction reaches the
+/// - at ε = 1e-12 the carriers definitely cross, the construction reaches the
 ///   M8 conditioning gate, and `FilletOffsetLeverTooShort` fires its
 ///   DEFINITE arm — and, per the resolve doctrine, ABORTS the whole
 ///   resolve rather than being outranked by the hairline pair's twin
@@ -2529,15 +2529,15 @@ fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
             );
         }
         Err(PathError::NoCornerForFillet {
-            reason: PathNoCornerReason::CarriersParallel,
+            reason: PathNoCornerReason::CarriersTangent,
             ..
         }) => {
             // The carrier-level tangency classification (ε = 1e-9 and
-            // looser): the hairline lens's turn margin is in-band, so
-            // the funnel refuses one gate earlier.
+            // looser): the hairline lens's carriers touch at tolerance,
+            // so the pair refuses before any corner is derived.
             assert!(
                 eps >= 1e-10,
-                "at eps = {eps:e} the turn is definite, so the lever gate — not the \
+                "at eps = {eps:e} the carriers cross definitely, so the lever gate — not the \
                  carrier classification — must speak"
             );
         }

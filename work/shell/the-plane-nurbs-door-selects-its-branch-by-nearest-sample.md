@@ -65,3 +65,11 @@ and 1e-12). The door rows that moved:
   read `FromMiddle`, and `NoBranch` where they read `SeedOffDomain`.
 
 Filed: `work/ssiedge/all-depends-on-the-branch-at-calls-before-it.md`.
+
+## The handle moved (2026-11-03)
+
+`PlaneSection` is retired: plane × NURBS is read by
+`geom_brep::ssi::ImplicitSection` (`crates/geom-brep/src/ssi/implicit_chart.rs`),
+the plane folded onto the 1×2 residual × chart trace (SECTARMS stage 4).
+Its `of`, `branch_at` and `all` keep the contract this row reads, and
+`plane_nurbs_ssi` is `ImplicitSection::of(..)?.all()`.

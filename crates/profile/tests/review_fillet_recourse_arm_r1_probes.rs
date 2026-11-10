@@ -15,10 +15,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
+use profile::path::PathNoCornerReason;
 use profile::{
     ArcSweep, Center, FILLET_ENCLOSING_RECOURSE, FILLET_NO_CORNER_RECOURSE,
     FILLET_OFFSET_LEVER_RECOURSE, FILLET_TURN_INBAND_RECOURSE, Open, PathError, Profile,
-    ProfileLoop, SketchPlane, Start, Step, replay_guided, replay_recording,
+    ProfileLoop, SketchPlane, Start, Step, TurnLever, replay_guided, replay_recording,
 };
 
 fn tol() -> Tol {
@@ -30,7 +31,7 @@ type Built = Result<ProfileLoop<f64>, PathError<f64>>;
 /// The escalation's predicate, or a panic naming what came instead.
 fn escalates_under(err: &PathError<f64>, what: &str) -> &'static str {
     match err {
-        PathError::Escalated { source } => source.predicate.expect("a named predicate"),
+        PathError::Escalated { source, .. } => source.predicate.expect("a named predicate"),
         other => panic!("{what}: expected an in-band escalation, got {other:?}"),
     }
 }
@@ -57,6 +58,20 @@ fn builds_and_validates(lp: Built, what: &str) {
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap_or_else(|e| panic!("{what}: must validate, got {e:?}"));
+}
+
+/// The number the sentence renders right after `label`, parsed back.
+fn rendered_after(shown: &str, label: &str) -> f64 {
+    let rest = &shown[shown
+        .find(label)
+        .unwrap_or_else(|| panic!("no {label:?} in: {shown}"))
+        + label.len()..];
+    let end = rest
+        .find(|ch: char| !(ch.is_ascii_digit() || matches!(ch, '.' | '-' | 'e' | '+')))
+        .unwrap_or(rest.len());
+    rest[..end]
+        .parse()
+        .unwrap_or_else(|_| panic!("{label:?} renders no number in: {shown}"))
 }
 
 // ------------------------------------------------------------ fixtures
@@ -240,34 +255,87 @@ fn the_four_reachable_gates_render_their_own_sentence_on_other_fixtures() {
 /// definitely (margin `1e-4`), the advance gate passes (margin `500ε`),
 /// and the turn gate's levered margin `500ε · 0.01 = 5ε` is in band.
 ///
-/// The sentence it then renders says the corner is degenerate. It is
-/// not: the legs meet at `asin(0.01)`, and the same corner with a leg
-/// long enough for the setback builds — the lever the caller has is the
-/// leg's extent, which the sentence never names. The definite sibling
-/// has the same shape: at `a = 50ε` the margin `0.5ε` classifies Zero
-/// and the door refuses the corner as ALREADY TANGENT.
+/// The legs meet at `asin(0.01)` off a doubling back, and the same
+/// corner with a leg long enough for the setback builds, so the lever
+/// the caller has is the leg's extent. Below the band (`a = 50ε`, margin
+/// `0.5ε`) the definite arm tells the in-band arm's story: the turn is
+/// zero at tolerance, with both factors in the payload and the same
+/// recourse sentence — never the carriers-tangent class, which is false
+/// of these carriers.
 #[test]
 fn the_turn_gate_is_reachable_in_band_with_a_short_leg_and_a_real_angle() {
     let eps = tol().eps();
     let err = short_leg_at_angle(500.0 * eps, 1e-4, 0.05).expect_err("the turn margin is in band");
     assert_eq!(escalates_under(&err, "short leg"), "fillet_corner_turn");
     reads_its_own_sentence(&err, FILLET_TURN_INBAND_RECOURSE, "short leg");
-    // The corner is real: the identical carriers with a leg long enough
-    // to take the setback build and validate.
     builds_and_validates(short_leg_at_angle(1.0, 1e-4, 0.05), "the longer leg");
-    // The definite sibling below the band: the same real corner refused
-    // as tangent.
     let zero =
         short_leg_at_angle(50.0 * eps, 1e-4, 0.05).expect_err("the turn margin is below zero");
+    let PathError::NoCornerForFillet {
+        reason:
+            PathNoCornerReason::TurnWithinTolerance {
+                sin_turn,
+                align,
+                lever,
+                lever_of,
+                corner,
+            },
+        ..
+    } = zero
+    else {
+        panic!("expected the turn-within-tolerance reason, got {zero:?}")
+    };
+    assert_eq!(lever_of, TurnLever::ShorterLeg, "the arc door's lever");
+    // The arc door derives the corner before its turn gate, and names
+    // it: the ray's crossing with the circle, ahead of its start.
+    let y = 2.0_f64 - 1e-4;
+    let ahead = Point2::new(-(4.0 - y * y).sqrt(), y);
     assert!(
-        matches!(&zero, PathError::NoCornerOfPair { .. })
-            || !matches!(&zero, PathError::Escalated { .. }),
-        "expected a definite refusal, got {zero:?}"
+        corner.is_some_and(|at| at.distance(ahead) < 1e-9),
+        "the corner whose turn it is: {corner:?}"
+    );
+    assert!(
+        zero.to_string().contains("its turn at corner ("),
+        "the sentence names it: {zero}"
+    );
+    // At y = 2 − δ on the radius-2 circle the tangent leans off the
+    // reversed ray by sin θ = √(4δ − δ²) / 2.
+    let sin_theta = (4.0e-4_f64 - 1.0e-8).sqrt() / 2.0;
+    // The incoming leg runs +x and the outgoing tangent heads −x leaning
+    // to −y: a clockwise turn, so the sine is negative — it is the turn
+    // SIDE, not only its size.
+    assert!(
+        (sin_turn + sin_theta).abs() < 1e-9,
+        "the payload's sine is the corner's, not the margin: {sin_turn:e}"
+    );
+    assert!(align < -0.99, "the legs double back: align {align}");
+    assert!(
+        (lever - 50.0 * eps).abs() <= eps,
+        "the lever is the 50ε leg: {lever:e}"
     );
     let shown = zero.to_string();
+    for (label, want) in [
+        ("sin φ = ", sin_turn),
+        ("(cos φ = ", align),
+        (" of ", lever),
+    ] {
+        let got = rendered_after(&shown, label);
+        assert!(
+            (got - want).abs() <= 1e-8 * want.abs(),
+            "{label:?} renders {got:e}, the payload holds {want:e}: {shown}"
+        );
+    }
     assert!(
-        !shown.contains(FILLET_TURN_INBAND_RECOURSE),
-        "definite arm: {shown}"
+        shown.contains(FILLET_TURN_INBAND_RECOURSE),
+        "the definite arm ends in its in-band sibling's recourse: {shown}"
+    );
+    assert!(
+        shown.contains("over the shorter leg of") && shown.contains("sin φ = "),
+        "the sentence names both factors: {shown}"
+    );
+    assert!(
+        !shown.contains("tangentially at tolerance") && !shown.contains("parallel"),
+        "the definite arm names no carrier tangency: {shown}"
     );
 }
 
@@ -308,14 +376,14 @@ fn the_lever_gate_is_reachable_in_band_on_the_lens_and_renders_its_sentence() {
     builds_and_validates(lever_lens(big, big / 10.0), "the radius moved clearly away");
 }
 
-/// **The guided replay door renders the shared coincidence recourse for
-/// an in-band fillet gate.** `StructureRefusal`'s indeterminate arm
-/// prints the `Indeterminate` whole, and that Display ends in
-/// `COINCIDENCE_RECOURSE` — so through `replay_guided` the caller
-/// reads the shared recourse at a fillet they asked for, and the gate's
-/// own sentence is nowhere in the text. A characterization.
+/// **The guided replay door ends a fillet gate as the gate ends.** Under
+/// `replay_guided` an in-band fillet gate surfaces as a structure
+/// refusal carrying its gate, and the caller reads what the reading is
+/// and the gate's own ending: its lever, and on this value reading the
+/// conditional tighten (`gate_kinds_followed` follows it). The shared
+/// coincidence recourse is nowhere in it.
 #[test]
-fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
+fn a_guided_replay_ends_the_fillet_gate_as_the_gate_ends() {
     let eps = tol().eps();
     let closed = Open
         .at(Point2::new(0.0, 3.0))
@@ -343,15 +411,14 @@ fn a_guided_replay_still_renders_the_coincidence_recourse_for_a_fillet_gate() {
     let err = replay_guided(&steps, &structure, tol()).expect_err("in band under guidance");
     let shown = err.to_string();
     assert!(
-        format!("{err:?}").contains("\"fillet_offset_line_circle\""),
-        "names the gate: {err:?}"
+        format!("{err:?}").contains("FilletOffsetLineCircle"),
+        "carries the gate: {err:?}"
     );
     assert!(
-        shown.contains(geom_core::COINCIDENCE_RECOURSE),
-        "the guided door has stopped rendering the shared recourse — flip this row to a pin: {shown}"
-    );
-    assert!(
-        !shown.contains(FILLET_NO_CORNER_RECOURSE),
-        "the guided door has started rendering the gate's sentence — flip this row to a pin: {shown}"
+        shown.contains(&format!(
+            "— a near-coincidence; Recourse: {FILLET_NO_CORNER_RECOURSE}, or, if this size is \
+             intended, tighten the tolerance below "
+        )),
+        "the reading, then the gate's own ending: {shown}"
     );
 }

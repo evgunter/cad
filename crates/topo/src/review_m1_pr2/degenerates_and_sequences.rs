@@ -77,10 +77,9 @@ fn degenerate_ladder_with_euler_poincare_ledger() {
     assert_eq!(body.loop_cycle(circ.he_minus), Some(vec![circ.he_minus]));
     // The circular edge starts and ends at the strut tip.
     assert_eq!(
-        body.get_half_edge(circ.he_plus).unwrap().start,
-        strut.vertex
+        body.edge_vertices(circ.edge),
+        Some((strut.vertex, strut.vertex))
     );
-    assert_eq!(body.half_edge_end(circ.he_plus), Some(strut.vertex));
 
     // Emanating probe: the strut tip's emanating must still start there.
     let em = body.get_vertex(strut.vertex).unwrap().emanating.unwrap();
@@ -211,8 +210,10 @@ fn self_loop_chord_between_distinct_half_edges() {
     assert_eq!(validate(&body), Ok(()));
     assert!(euler_poincare_holds(&body, 1, 0));
     // New edge is a self-loop at v.
-    assert_eq!(body.get_half_edge(cut.he_plus).unwrap().start, seed.vertex);
-    assert_eq!(body.half_edge_end(cut.he_plus), Some(seed.vertex));
+    assert_eq!(
+        body.edge_vertices(cut.edge),
+        Some((seed.vertex, seed.vertex))
+    );
     // New loop = he1's side [g+, g-] plus he_minus.
     assert_eq!(
         body.loop_cycle(cut.he_minus),

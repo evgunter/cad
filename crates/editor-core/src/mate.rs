@@ -900,8 +900,8 @@ impl crate::spoken::Say for LeverRefusal {
                 length(f, *datum, "its datum")?;
                 write!(
                     f,
-                    ", is too long for a tilt to be decided over it. Recourse: {}",
-                    geom_core::RANGE_RECOURSE
+                    ", is too long for a tilt to be decided over it. {}",
+                    geom_core::RANGE_ENDING
                 )
             }
             Self::BelowZeroBand { arm, zero } => write!(

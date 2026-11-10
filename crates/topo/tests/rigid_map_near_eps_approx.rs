@@ -217,7 +217,7 @@ fn body_with(face: geom::ApproxSurface<f64>) -> (Body<f64>, FaceKey) {
 }
 
 fn approx_on(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurface<f64>> {
-    match body.get_surface(body.get_face(face).unwrap().surface) {
+    match body.face_surface(face) {
         Some(Surface::Approx(a)) => Arc::clone(a),
         other => panic!("{face:?} must wear an approximating surface, got {other:?}"),
     }
@@ -229,11 +229,10 @@ fn same_net(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>) -> bool {
         && a.knots_u_f64_interim().knots() == b.knots_u_f64_interim().knots()
         && a.knots_v_f64_interim().knots() == b.knots_v_f64_interim().knots()
         && a.control().len() == b.control().len()
-        && a.control().iter().zip(b.control()).all(|(p, q)| {
-            p.x.to_bits() == q.x.to_bits()
-                && p.y.to_bits() == q.y.to_bits()
-                && p.z.to_bits() == q.z.to_bits()
-        })
+        && a.control()
+            .iter()
+            .zip(b.control())
+            .all(|(p, q)| p.same_bits(*q))
 }
 
 /// **The reproduction.** The face certifies at the run's ε where it

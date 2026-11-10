@@ -82,9 +82,8 @@ fn carried_through(what: &str, source: &Body<f64>, out: &Blended<f64>, kept: She
         "{what}: the carried shell owns the same faces"
     );
     let ends = |b: &Body<f64>, e: EdgeKey| {
-        let edge = b.get_edge(e)?;
-        let start = b.get_half_edge(edge.he_plus)?.start;
-        let end = b.half_edge_end(edge.he_plus)?;
+        let _ = b.get_edge(e)?;
+        let (start, end) = b.edge_vertices(e)?;
         let pt = |v| b.get_vertex(v).and_then(|x| b.get_point(x.point)).copied();
         Some((pt(start)?.to_array(), pt(end)?.to_array()))
     };
@@ -112,7 +111,7 @@ fn carried_through(what: &str, source: &Body<f64>, out: &Blended<f64>, kept: She
 
 fn volume(what: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
-    AtRestBody::validate(body.clone(), tol)
+    topo::finish(body.clone(), tol)
         .unwrap_or_else(|e| panic!("{what}: the result is a finished body: {e:?}"));
     topo::test_support::pinned_volume(
         "closed-form mass properties",

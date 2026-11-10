@@ -455,9 +455,9 @@ gate_exact_skip --statements \
 BOUNDS_ALLOWLIST=(
   # 2026-07-29 (M5 PR 8), the driver amendment: the boolean-sweep and
   # evaluation-service seams, and `separation` under the same entry.
-  # boxes.rs's three are the box builders (`face_box`, `boundary_hull`,
-  # `edge_box`); its point read needs no `Bounds` and is `Real`-bound.
-  'crates/topo/src/boolean/boxes.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
+  # its cover's bracketed box; its point read needs no `Bounds`.
+  'crates/topo/src/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
   # carrier_touch.rs's four are the crossing layer's touch reading:
   # `clusters`, the subdivision driver (a piece's half-length bracket
   # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
@@ -588,7 +588,9 @@ BOUNDS_ALLOWLIST=(
   # headers are the boolean lane's own, ratified for the sweep's BVH
   # brackets, and each is a caller spelling the pair verb's header
   # (`run_pair`); none of them reads a bound.
-  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
+  # wire.rs 17 -> 16 (ONEHOME, finished-body doors): `finished_operand`,
+  # the consumer re-gate, is deleted with its bound; no seam moved.
+  'crates/editor-core/src/eval/wire.rs 16 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
@@ -670,7 +672,12 @@ BOUNDS_ALLOWLIST=(
   # `T: AtRestPolicy` beside its `T: CertifiedBounds`, so the symbolic
   # arm of `clearance_lane` answers exactly where its base scalar's
   # does. It asks the base's policy and reads no bracket.
-  'crates/topo/src/props.rs 14 M5 PR 11, the certified-quadrature plumbing'
+  # props.rs 14 -> 11 (ONEHOME, finished-body doors): `mass_properties`,
+  # `classify_shells` and `classify_shells_of` take the scalar's finished
+  # body (`F: FinishedBody`), so their `Decide + CertifiedBounds` is now
+  # `F::Scalar: CertifiedBounds` in a `where` clause: the same certified
+  # seam, named on the finished body's scalar.
+  'crates/topo/src/props.rs 11 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
@@ -711,7 +718,7 @@ BOUNDS_ALLOWLIST=(
   # branched on. `cell_region.rs` 3: `cell_region` and `station_region`,
   # whose station is placed at `T` by the point-in-face doors and whose
   # ball is lifted, and `lift_boundary`, which lifts the boundary
-  # `clear_of_boundary` clears (that one now reads only the lift).
+  # `clear_of_boundary_as` clears (that one now reads only the lift).
   # 3 -> 4 (SYMCLEAR): `cell_region_lifted`, `cell_region`'s body taking
   # the carrier's and the boundary's lifts in hand, so the sweep lifts
   # each window once and places a station at `T` only for a cell
@@ -755,8 +762,23 @@ BOUNDS_ALLOWLIST=(
   # topology's own edge fans. It reads no bracket of its own, and its
   # selection only narrows what the screen meters to what the exact
   # meter downstream meters whole.
-  'crates/sweep/src/blend/battery.rs 21 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 21 -> 23: `knife_end` (a cusp's or slit's end, under
+  # `material_wedge_side`) and `room_at` (`fillet3_knife_room` at a
+  # knife, `fillet3_ball_room` at a rim) are the link's reads of its
+  # ball's side and existence, the same battery seam as
+  # `radius_headroom`: each decides only through `classify`, and reads
+  # a bracket only to report a refusal, the classified margin through
+  # `classified` (whose `measured` is the payload read) and the request
+  # radius through `.lo()` for `KnifeRefusal::NoRoom` and
+  # `BlendError::BallDoesNotFit`. The next tighter
+  # bound, `Decide` alone, fails there: `classified` takes `T: Bounds`.
+  # Neither picks anything from a bracket.
+  'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # build.rs 5 -> 3 (ONEHOME, finished-body doors): `fillet_edges` and
+  # `chamfer_edges` take the scalar's finished body (`F: FinishedBody`),
+  # so their `T: Decide + Bounds` is now `F::Scalar: Bounds` in a
+  # `where` clause, which names the same seam and no compound bound.
+  'crates/sweep/src/blend/build.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
   # function — the same edge-blend seam, reading brackets only where
@@ -777,7 +799,47 @@ BOUNDS_ALLOWLIST=(
   # it is a representation pick (DL5(b), as `seam_split_param`'s branch
   # shift); its other bracket read refuses a non-finite read, and
   # whether the window runs forward stays each caller's.
-  'crates/sweep/src/blend/surgery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 18 -> 22: `ArcReads::arc_past` reads a circle point's angle past `t`
+  # through `geom::Azimuth::near`, a `Decide` door (the window's cut
+  # side and the rename's half-period mark, both at the least band
+  # outside the log, audit row F31), where it rotated by hand through
+  # `atan2`. So its impl block and the three readers that reach it
+  # (`strip_reading`, `piece_distance`, `piece_along`) name `Decide`
+  # beside `Bounds`. No bracket read is added: the brackets read are
+  # `past_misses`' as before, and the decided rename picks between
+  # names of one angle.
+  # Those four doors left `geom-core/tests/bounds_census.rs`' roster of
+  # sole-`Bounds` doors when they gained `Decide`; their DL5(b)
+  # dispositions move here, unchanged:
+  # - `impl ArcReads for geom::Circle`: an arc's closed-form extremes
+  #   (`arc_distance`, `arc_along`). `arc_misses` reads the stored window's and the angle's
+  #   brackets, asking `geom::periodic_window_may_hold`, to SELECT, per
+  #   extreme, between the arc's two ends and the whole circle's value;
+  #   the result is a margin `ring_clearance` decides, and the branch is
+  #   the value channel's (a dual's bracket is its value's). The branch
+  #   is locally constant off the switch, and AT the switch the two
+  #   candidates agree in value and first-order tangent (the end is the
+  #   point realising the whole circle's extreme, where that extreme is
+  #   stationary), so no seed's tangent depends on the branch. An
+  #   uncertain bracket takes the whole circle's value, a sound bound
+  #   wherever the truth lies. The on-axis `lo() <= 0` guards select the
+  #   whole-circle pair, which bounds the arc's wherever `c` is and
+  #   equals the ends' pair where a point scalar takes it.
+  # - `piece_along`, `piece_distance`: an edge's extent along a
+  #   direction, and its near and far distance from a point, over its own
+  #   window. A segment reads no bracket (its clamped foot is `max`/`min`
+  #   arithmetic); a circle's reads are `ArcReads`', whose
+  #   disposition these inherit.
+  # - `strip_reading`: a support ring's three-way reading against a
+  #   plane–plane band's strip, as `CapSliver::read_cycle` reads an
+  #   end-face cycle: `piece_along`'s extents and the witnesses'
+  #   projections are read through `sure` to SELECT inside, crossing or
+  #   neither. An inside ring joins the request's verdict, whose faces
+  #   the reach must still read inside; a decided ring the screen stands
+  #   down on is left to the ring pass, which meters it whole; any
+  #   reading not certain is neither, metered as before. It inherits
+  #   `ring_clearance`'s DL5(b) disposition and the reach's.
+  'crates/sweep/src/blend/surgery.rs 22 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
@@ -787,6 +849,11 @@ BOUNDS_ALLOWLIST=(
   # check of the support screen's premise, one bracket of a strip bound
   # against `escalate`, as `Least::read` reads a cell's. Each decides
   # only the meter's own question, and refuses loudly or not at all.
+  # 14 -> 13: `sheet_clip` reads topo's face cover along the sheet
+  # axis and takes no bracket of its own, so it is `Decide` alone.
+  # 13 -> 14: `misses` reads a sheet rectangle's widths against
+  # `escalate` (`sure`), the meter's own question as `Least::read`
+  # reads a cell's, and grants nothing but "nothing here to meter".
   'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
   # cut-off both open bands end in left `ruled.rs` for its own file when
@@ -805,7 +872,22 @@ BOUNDS_ALLOWLIST=(
   # run-out), and `shared_rims_clear` meters two cut-offs' feet on one
   # rim, deciding only through `classify` over a span metered as the
   # split meters it; the two sliver constructors became one.
-  'crates/sweep/src/blend/open/end_face.rs 7 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 7 -> 9: `CapSliver`'s impl block and `apart` reach
+  # `ArcReads::arc_past` through `piece_along`, so they name `Decide`
+  # beside `Bounds` for the same decided rename (surgery.rs' 18 -> 22);
+  # they read no bracket of their own. Their dispositions, moved here
+  # from `bounds_census`' sole-`Bounds` roster when they gained `Decide`:
+  # - `impl CapSliver`: the end-face sliver meter `clearance` reads no
+  #   bracket itself (its reads are `ArcReads::arc_misses`' and the
+  #   on-axis guards', through `piece_distance` and `piece_along`), and
+  #   its result is the margin `ring_clearance` decides, so it inherits
+  #   that door's DL5(b) disposition and no other.
+  # - `apart`: a lower bound on two end-plane pieces' distance, for the
+  #   sliver's inside reading; it reads no bracket itself (its reads are
+  #   `piece_distance`'s and `piece_along`'s), and its result is one term
+  #   of `CapSliver::inside_point` or `ring_inside`, which only `sure`
+  #   decides, so it inherits that door's disposition and no other.
+  'crates/sweep/src/blend/open/end_face.rs 9 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # The fitted door's fourth body is `projected_hull_lane` (`Decide +
   # Bounds + CertifiedEnclosure`, the bound its three siblings carry):
@@ -915,7 +997,10 @@ BOUNDS_ALLOWLIST=(
   # reaches the box and nothing else, each candidate read exactly.
   'crates/topo/src/census.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
+  # shell.rs 2 -> 1 (ONEHOME, finished-body doors): `shell` takes the
+  # scalar's finished body (`F: FinishedBody`), so its compound bound is
+  # spelled on `F::Scalar` in a `where` clause; the seam is unchanged.
+  'crates/topo/src/shell.rs 1 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
   # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell
@@ -1943,7 +2028,7 @@ plant_trait_generic_sole_bracket_ratified() {
 # naming the ratified entry it merely begins with.
 plant_colon_path_beside_entry() {
   printf 'pub fn f<T: Decide + Bounds>(_t: T) {}\n' \
-    > "$1/crates/topo/src/boolean/boxes.rs:x.rs"
+    > "$1/crates/topo/src/boxes.rs:x.rs"
 }
 
 # THE READER'S OWN HALF OF THE SAME SPLIT, planted in both directions on
@@ -2085,7 +2170,7 @@ gate_selftest() {
   gate_selftest_case "is not on this gate's alias roster" plant_bracket_only_alias_in_ratified_file
   gate_selftest_case "$want" plant_alias_declaration_moved
   gate_selftest_case "FILE NOT IN THE TREE" plant_roster_file_gone
-  gate_selftest_case "crates/topo/src/boolean/boxes.rs:x.rs" plant_colon_path_beside_entry
+  gate_selftest_case "crates/topo/src/boxes.rs:x.rs" plant_colon_path_beside_entry
   gate_selftest_case "crates/topo/src/boolean/a:Bounds.rs" plant_colon_path_compound_bound
   gate_selftest_case "MORE than the entry argues for" plant_ratified_file_gains_a_bound
   gate_selftest_case "FEWER than the entry argues for" plant_ratified_file_loses_a_bound

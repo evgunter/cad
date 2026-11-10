@@ -17,15 +17,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::{body_of, eval, failures, vessel};
-use editor_core::{EvalScalar, Node};
+use editor_core::Node;
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Interval, Tol};
 use topo::clearance::{
     BoundReport, BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
 };
 use topo::{Body, FaceKey};
 
-trait Scalar: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy + EvalScalar {}
-impl<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy + EvalScalar> Scalar for T {}
+trait Scalar:
+    Decide + Bounds + CertifiedBounds + topo::AtRestPolicy + editor_core::test_support::AnyEvaluate
+{
+}
+impl<
+    T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy + editor_core::test_support::AnyEvaluate,
+> Scalar for T
+{
+}
 
 /// The pot the vessel shells, and the vessel itself: the revolve node's
 /// body and the document's result, evaluated at `T`.
@@ -54,8 +61,7 @@ fn sealed_cavity<T: Scalar>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
     let hollow = topo::shell(&finished("the pot", pot), T::from_f64(vessel::WALL), tol)
         .expect("the pot shells sealed")
         .body;
-    let roles = topo::classify_shells(&finished("the hollow", hollow.clone()), tol)
-        .expect("the hollow classifies");
+    let roles = topo::classify_shells(&hollow, tol).expect("the hollow classifies");
     let [void] = roles
         .iter()
         .filter(|c| c.role == topo::ShellRole::Void)
@@ -69,7 +75,7 @@ fn sealed_cavity<T: Scalar>(pot: Body<T>) -> (Body<T>, Vec<FaceKey>) {
         .filter(|(_, f)| f.shell == void)
         .map(|(k, _)| k)
         .collect();
-    (hollow, faces)
+    (topo::FinishedBody::into_body(hollow), faces)
 }
 
 /// E7's self-intersection question over `faces` of `body`, at the

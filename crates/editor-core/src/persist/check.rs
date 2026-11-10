@@ -1476,6 +1476,9 @@ pub enum SnapshotError {
     EpsilonInvalid {
         /// The recorded value.
         value: f64,
+        /// The K it was asked at (`geom_core::tolerance::k_admitted`),
+        /// captured when refused.
+        k: f64,
     },
     /// A placement's constraint whose id the mint log does not hold
     /// as a constraint's, or that a second constraint of the document
@@ -1873,10 +1876,10 @@ impl core::fmt::Display for SnapshotError {
             Self::ProductRead { read, fault } => {
                 write!(f, "the product slot reads {read}, and {fault}")
             }
-            Self::EpsilonInvalid { value } => write!(
+            Self::EpsilonInvalid { value, k } => write!(
                 f,
                 "the recorded ε {value:e} is not admissible: {}",
-                geom_core::tolerance::EpsFloor
+                geom_core::tolerance::EpsFloor { k: *k }
             ),
             Self::ConstraintNotMinted { node, constraint } => write!(
                 f,
@@ -1961,7 +1964,10 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // The recorded ε, by the same `doc::epsilon_admissible` the edit
     // door asks before it records one.
     if !crate::doc::epsilon_admissible(doc.epsilon) {
-        return Err(SnapshotError::EpsilonInvalid { value: doc.epsilon });
+        return Err(SnapshotError::EpsilonInvalid {
+            value: doc.epsilon,
+            k: geom_core::tolerance::k_admitted(doc.epsilon),
+        });
     }
     // Every id in the document is one the document has minted — replay
     // after load must never re-mint a referenced id.
@@ -2298,14 +2304,9 @@ pub enum ProgramFault {
     },
 }
 
-// The prose the document layer renders for a program fault. The
-// lattice arm states the walk failure in the same words
-// [`crate::ProgramRefusal::Transition`] does — that refusal is what
-// the probe raised — and then names the tip state and the verb that
-// could not follow it, keeping their `Debug` spellings for the reason
-// `profile`'s `ReplayError` rendering states: the pair is the
-// transition table's coordinate. The typed variant remains the
-// machine contract.
+// The lattice arm is the sentence [`crate::ProgramRefusal::Transition`]
+// renders — that refusal is what the probe raised. The typed variant
+// remains the machine contract.
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -2314,16 +2315,7 @@ impl core::fmt::Display for ProgramFault {
                 step,
                 state,
                 verb,
-            } => {
-                write!(
-                    f,
-                    "loop {loop_} step {step} is not a legal chain-lattice walk: "
-                )?;
-                match verb {
-                    Some(verb) => write!(f, "the {verb:?} verb at tip state {state:?}"),
-                    None => write!(f, "the chain is unclosed at tip state {state:?}"),
-                }
-            }
+            } => crate::program::write_lattice(f, *loop_, *step, *state, *verb),
         }
     }
 }
@@ -2705,7 +2697,10 @@ mod tests {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 at: Some(0),
             },
-            SnapshotError::EpsilonInvalid { value: 0.0 },
+            SnapshotError::EpsilonInvalid {
+                value: 0.0,
+                k: geom_core::tolerance::DEFAULT_K,
+            },
             SnapshotError::ConstraintNotMinted {
                 node: node(),
                 constraint: crate::node::ConstraintId(crate::MintId::new(2, 2)),
@@ -2811,7 +2806,7 @@ mod tests {
         let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
         doc.epsilon = 0.0;
         match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
+            Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value, .. })) => {
                 assert_eq!(value, 0.0);
             }
             other => panic!("non-positive ε must refuse at save, got {other:?}"),

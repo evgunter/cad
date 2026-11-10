@@ -65,6 +65,7 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {
@@ -171,13 +172,13 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
         band.zero()
     );
     // Each site's own predicate, as measured: the crossing insertion's
-    // incidence read, the join edge's start. The crossing insertion's was
-    // its mapped source until PCERT E1c (PR 5889), whose certification
-    // reads the carrier's incidence first: the skew pose's re-posed line
-    // reads `[0, 1.14e-12]` there at ε 1e-12, the same rounding fringe
-    // the mapped source escalated in.
+    // mapped source, the join edge's start. The certification reads the
+    // carrier's incidence first, at the line's span ends and its foot on
+    // the axis, where the skew pose's re-posed line reads inside the zero
+    // band at ε 1e-12; the mapped source then reads `[0, 1.06e-12]`, the
+    // rounding fringe.
     let (source, site_predicate) = match reposed {
-        BooleanError::CrossingInsertion { source, .. } => (source, "pcurve_line_chart_incident"),
+        BooleanError::CrossingInsertion { source, .. } => (source, "carrier_matches_mapped_source"),
         BooleanError::Join(j) => match j.error() {
             topo::SplitJoinError::Euler(source) => (source, "carrier_endpoint_start"),
             _ => panic!("{what}: the only admitted escape is a certification escalation; got {r}"),
@@ -220,25 +221,6 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
 /// [`same_door_or_escalated`] writes the reason for.
 #[test]
 fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
-    // Pinned red since PR 5664 (at 1e-12 since PR 5156): the pose escalates on
-    // `bool_ruled_region_span` at the certified scalar
-    // (`work/charttail/main-red-the-meeting-axes-pose-refuses-on-a-ruled-region-span-since-5664`,
-    // `work/germ/main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &test_utils::pinned_red::EVERY_ROW,
-        "the meeting-axes pose",
-        &[
-            "the meeting-axes pose builds: Err(Escalated { decision: Containment { decision: None, escalation: Margin }, diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -1.570796326795",
-            "terminal_sliver: false",
-            "predicate: Some(\"bool_ruled_region_span\")",
-        ],
-        the_meeting_axes_pose_builds_at_the_certified_scalar_row,
-    );
-}
-
-/// The row [`the_meeting_axes_pose_builds_at_the_certified_scalar`] runs, under its pin.
-fn the_meeting_axes_pose_builds_at_the_certified_scalar_row() {
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
     let b = spin(
         &spin(&cyl(1.0, 1.2), x_axis(), PI / 2.0),
@@ -260,10 +242,15 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar_row() {
     let assert_union = |out: &topo::BooleanBody<Interval>, nodes: [Point3<f64>; 2], what: &str| {
         let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("interval props");
+        let (lo, hi) = (
+            m.enclosure.volume.lo() - m.enclosure.volume_pad,
+            m.enclosure.volume.hi() + m.enclosure.volume_pad,
+        );
         assert!(
-            m.enclosure.volume.lo() - m.enclosure.volume_pad <= want
-                && want <= m.enclosure.volume.hi() + m.enclosure.volume_pad,
-            "{what}: volume {:?} ± {} brackets {want}",
+            lo <= want
+                && want <= hi
+                && m.enclosure.volume.hi() - m.enclosure.volume.lo() <= 1e-9 * want.abs().max(1.0),
+            "{what}: volume {:?} ± {} brackets {want}, its enclosure (less the pad) no wider than 1e-9 of it",
             m.enclosure.volume,
             m.enclosure.volume_pad
         );
@@ -333,7 +320,7 @@ fn a_skew_pair_stays_off_the_nodes_at_the_certified_scalar() {
             BooleanError::GermSectionUnbuilt {
                 a_kind: geom::SurfaceKind::Cylinder,
                 b_kind: geom::SurfaceKind::Cylinder,
-                why: topo::SectionUnbuilt::NoLane { .. },
+                why: topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::NoLane { .. }),
                 ..
             }
         ),

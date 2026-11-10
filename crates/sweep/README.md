@@ -399,10 +399,54 @@ of that edge is the edge, and requesting it is a silent no-op. The
 battery leaves it out of every chain and the request reads without it
 from there on, so the result is the same request's with that edge left
 out; a request every edge of which is smooth returns the operand as it
-is, key for key. Zero with the normals opposed is a cusp or slit,
-and refuses `BlendError::KnifeEdge`: its blend is defined (the ball
-rests where the supports' `r`-offsets meet, touching them away from the
-edge, where they open to `2r`) but not built (`work/band/a-knife-edge-blend-is-unbuilt-though-its-rolling-ball-is-defined.md`).
+is, key for key.
+
+**A knife edge is filleted where its ball is defined.** Zero with the
+normals opposed is a cusp (wedge 0) or slit (wedge 2π), and its side is
+the jet's question, not the dihedral's: `battery::knife_end` reads the
+relative transverse curvature signed into the plus face's outward frame
+(`geom_brep::material_kappa_rel`, the reading the tier-3 fold decides
+the end with) under `fillet3_knife_end`. A cusp's ball rests in the
+material crescent between the supports, the side a convex edge's takes;
+a slit's rests in the void crescent, as a concave edge's does; and the
+link carries that convexity, so every later predicate reads it as it
+reads any other edge's. The ball's centre is where the supports'
+`r`-offsets cross away from the edge, which the curved arms' sheet
+reduction already computes, except for its choice between the two
+crossings: the rim branch keeps the one that returns the rim as
+`r → 0`, and at a knife the rim lies on the line of centres (or the
+line runs along the circle), so that selector reads an exact zero.
+There `arms::Branch::Knife` keeps the crossing on the side both faces
+leave the edge by, the `he_plus` face's inward unit (`arms::inward_unit`,
+read off the traversal). `fillet3_knife_room` decides first that the
+crossing exists — the offset traces' secant margin, in meters: two
+tubes kissing externally always have room, a lune between internally
+tangent cylinders has it while `r < R_big − R_small` — and a radius
+past it refuses `BlendError::KnifeEdge { refusal: KnifeRefusal::NoRoom }`.
+A ball that exists but whose band leaves its supports is the face
+clearance, ring and reach meters' to refuse, as on any other edge. The
+chamfer reaches no knife refusal of its own: its one arm is
+plane–plane, a knife's supports are never two planes on a valid body,
+and a knife meets `ChamferArmUnsupported` as any curved pair does.
+
+**A rim's ball is decided to exist before any arm reads it.** At a
+rim the ball's centre is the crossing of the supports' `r`-offsets that
+returns the rim as `r → 0`, and past some radius the offsets do not
+cross: a ball inside a sphere and resting on the plane through its
+centre has no path along the rim past half the sphere's radius, and
+two convex spheres' offsets part once the ball outgrows the lens
+between them. `fillet3_ball_room` decides the crossing when the link
+resolves, on the offsets' room in meters, each offset's radius signed
+by the ball's side (`arms::plane_sphere_room` for the plane–sphere
+arm; `arms::offset_room` in the sheet, the knife's margin too, where
+two straight traces cross at every radius of a definite wedge and are
+not asked), and a radius past it refuses `BlendError::BallDoesNotFit`.
+The decision mints the token the battery calls those arms with, so no
+arm takes the root of a negative number, and no later predicate — the
+clearance screen above all — is handed the poison such a root would
+carry. It is the knife's question asked of the other crossing; the
+two keep their own names and refusals because a knife's ball rests in
+the crescent its tangent faces open, and a rim's rolls in a wedge.
 
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth

@@ -45,7 +45,7 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 /// watertight mesh.
 #[test]
 fn the_chamfered_cube() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
         &query::all_edges(&body),
@@ -81,12 +81,8 @@ fn the_chamfered_cube() {
 
     // Every face is a plane — the whole claim of the analytic case.
     for (k, _) in out_body.faces() {
-        let fd = out_body.get_face(k).expect("a face");
         assert!(
-            matches!(
-                out_body.get_surface(fd.surface),
-                Some(Surface::Plane { .. })
-            ),
+            matches!(out_body.face_surface(k), Some(Surface::Plane { .. })),
             "a chamfered cube carries planes only; face {k:?} does not"
         );
     }
@@ -115,7 +111,7 @@ fn the_chamfered_cube() {
 /// edge and corner vertex accounted for as retired.
 #[test]
 fn the_chamfer_records_every_birth_and_death() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let source_edges = query::all_edges(&body);
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -181,7 +177,8 @@ fn the_chamfer_records_every_birth_and_death() {
 /// something either form promises.
 #[test]
 fn fillet_and_chamfer_agree_on_a_right_corner() {
-    let body = sweep::test_support::finished("body", cube(L, Tol::witness()), Tol::witness());
+    let body =
+        sweep::test_support::finished("body", cube::<f64>(L, Tol::witness()), Tol::witness());
     let edges = query::all_edges(&body);
     let filleted = fillet_edges(&body, &edges, D, Tol::witness()).expect("fillets");
     let chamfered = chamfer_edges(&body, &edges, D, Tol::witness()).expect("chamfers");
@@ -226,7 +223,7 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
 /// plane section: a chord, the strip a prism of section `d²/2`.
 #[test]
 fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let out = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -401,6 +398,7 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
     )
     .expect("a circular prism")
     .body
+    .into_body()
 }
 
 /// An L-bracket: the six-vertex L profile extruded by 1 m. Its one
@@ -432,6 +430,7 @@ fn l_bracket() -> Body<f64> {
     )
     .expect("the bracket extrudes")
     .body
+    .into_body()
 }
 
 /// The bracket's one concave edge: the vertical wall–wall edge over the
@@ -441,13 +440,7 @@ fn concave_edge(body: &Body<f64>) -> EdgeKey {
     let at = |p: Point3<f64>| (p.x - 1.0).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12;
     body.edges()
         .find(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
+            let Some((start, end)) = body.edge_vertices(*k) else {
                 return false;
             };
             let pt = |v| {
@@ -455,7 +448,7 @@ fn concave_edge(body: &Body<f64>) -> EdgeKey {
                     .and_then(|x| body.get_point(x.point))
                     .copied()
             };
-            match (pt(h.start), pt(end)) {
+            match (pt(start), pt(end)) {
                 (Some(a), Some(b)) => at(a) && at(b),
                 _ => false,
             }

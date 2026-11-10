@@ -338,7 +338,7 @@ impl Face {
 /// **A loop's place on its face** ([`Face::loop_roles`]): the outer loop,
 /// or the ring at this index of [`Face::rings`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LoopRole {
+pub enum LoopRole {
     /// [`Face::outer`].
     Outer,
     /// `Face::rings[i]`.
@@ -356,7 +356,7 @@ impl LoopRole {
     }
 
     /// Whether this is the outer loop.
-    pub(crate) const fn is_outer(self) -> bool {
+    pub const fn is_outer(self) -> bool {
         matches!(self, Self::Outer)
     }
 

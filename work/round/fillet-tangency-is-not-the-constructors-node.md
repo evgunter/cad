@@ -2,10 +2,11 @@
 id: fillet-tangency-is-not-the-constructors-node
 kind: issue
 title: the Fillet step's declared tangency cannot be registered: the CENTRE carrier_line_circle asks about is re-derived by build_seg, not the constructor's node
-status: open
+status: closed
 opened: 2026-09-06
 priority: P1
-cost: D
+cost: C
+closed: 2026-11-06
 ---
 
 **Measured by M10-9** (the registered-identity door, branch
@@ -124,3 +125,17 @@ program's `keep_out` already carries. The certification consumer that waits on t
 row is SYM's `declared-tangency-needs-the-registered-identity-door`.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## Closed (2026-11-06, ROUND orchestrator)
+
+The obstacle no longer exists: the row's route 2 ("the segment carries
+its declared carrier") landed with PATHS 5a/5b (`5a6f2ebf16` retired the
+stored bulge, `465f43a450` stores each construction's arc).
+`Segment::Arc(Arc2)` holds the constructor's carrier, `seg::build_seg`
+reads the stored segment instead of re-deriving a centre from three
+numbers, and the line×line fillet registers its incoming tangency
+(`path.rs`'s `register_incoming_tangency`, through
+`Arc2::register_tangent_at`). The residue, that the arc-carrier fillets
+under `path/` register no tangency, belongs to DECIDE's
+`declared-tangency-needs-the-registered-identity-door`, which waited on
+this row and is un-parked with a note saying so.

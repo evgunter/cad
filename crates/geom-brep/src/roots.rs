@@ -136,8 +136,12 @@ pub enum Unsettled {
     /// and not a crossing at any order the finder reads.
     Tangency,
     /// A meter refused: the residual's rounding, or a located root's
-    /// slack, is not definitely inside the band.
-    Meter,
+    /// slack, is not definitely inside the band, or a generator's own
+    /// inequality did not read definite.
+    Meter {
+        /// The check that refused: its predicate row.
+        row: &'static str,
+    },
     /// The walk ran past [`geom_core::bisect::PIECE_BUDGET`].
     Exhausted,
     /// A piece at the walk's floor whose enclosure the band cannot decide:
@@ -165,6 +169,58 @@ pub enum Unsettled {
     /// A meeting within the band of a crease of a spline carrier, where
     /// it has no tangent to read a crossing by.
     Crease,
+}
+
+impl Unsettled {
+    /// **The one sentence this refusal is rendered by**: what the finder
+    /// met, in words.
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::Tangency => "a double root",
+            Self::Meter { .. } => "a residual the band cannot meter",
+            Self::Exhausted => "the walk ran past its piece budget",
+            Self::Floor => "a piece at the walk's floor the band does not read past",
+            Self::Resolvent => "a resolvent with no positive root",
+            Self::CountDisagrees { .. } => "the built roots disagree with the certified count",
+            Self::AtApex => "a root at a cone's apex",
+            Self::Degenerate => "a residual whose leading term vanishes",
+            Self::Crease => "a meeting at a spline's crease",
+        }
+    }
+
+    /// What this refusal is to a ladder ([`crate::ladder::Refusal`]), per
+    /// case and exhaustive, so a case added here states its own:
+    ///
+    /// - a meeting within the band of a cone's apex stands as every such
+    ///   reading does ([`crate::ladder::Refusal::of_apex`]);
+    /// - a line along a cone's generator is a limit, its lead decided
+    ///   zero: a pose the crossing layer does not read (row 2);
+    /// - a meeting at a spline's crease aborts until it is split: its
+    ///   producers name a floor refusal near a crease, and a meeting not
+    ///   decided apart from one (in band, or decided zero), so the abort
+    ///   is not the class of every case it carries, and a ladder that
+    ///   reads one splits it first;
+    /// - every other case did not settle on no margin and in a way the
+    ///   band or a budget moves ([`crate::ladder::Rung::Unsettled`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a meeting at a crease, not yet split.
+    pub const fn refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        use crate::ladder::{Aborts, Refusal};
+        match self {
+            Self::AtApex => Ok(Refusal::of_apex()),
+            Self::Degenerate => Ok(Refusal::Limit),
+            Self::Crease => Err(Aborts),
+            Self::Tangency
+            | Self::Meter { .. }
+            | Self::Exhausted
+            | Self::Floor
+            | Self::Resolvent
+            | Self::CountDisagrees { .. } => Ok(Refusal::Unsettled),
+        }
+    }
 }
 
 /// Two of a root finder's own readings contradict where no legal input

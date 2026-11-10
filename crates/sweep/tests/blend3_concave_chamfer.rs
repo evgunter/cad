@@ -116,7 +116,7 @@ fn the_chamfered_cavity() {
 /// stored sense bit — read, never sampled.
 fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
     let f = body.get_face(face).expect("a minted face");
-    let Some(Surface::Plane { normal, .. }) = body.get_surface(f.surface) else {
+    let Some(Surface::Plane { normal, .. }) = body.face_surface(face) else {
         panic!("every face this carve mints is a plane");
     };
     OutwardNormal::from_chart(*normal, f.sense).vec()
@@ -124,8 +124,7 @@ fn outward(body: &Body<f64>, face: topo::FaceKey) -> Vec3<f64> {
 
 /// A point on a face's carrier plane.
 fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
-    let f = body.get_face(face).expect("a minted face");
-    let Some(Surface::Plane { origin, .. }) = body.get_surface(f.surface) else {
+    let Some(Surface::Plane { origin, .. }) = body.face_surface(face) else {
         panic!("every face this carve mints is a plane");
     };
     *origin
@@ -172,7 +171,7 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
     // the centre and every minted face must therefore face AWAY from
     // it. A single-sided convention passes one of these two, never
     // both.
-    let cube_body = cube(2.0, Tol::witness());
+    let cube_body = cube::<f64>(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cut = chamfer_edges(
         &sweep::test_support::at_rest(&cube_body, Tol::witness()),
