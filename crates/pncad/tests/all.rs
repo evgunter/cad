@@ -7036,7 +7036,22 @@ mod the_hollowed_box_through_the_facade {
     #[test]
     fn the_box_refuses_typed_at_a_dual_and_there_alone() {
         let (doc, cup) = open_box();
-        let ev: Evaluation<pncad::geom_core::Dual64> = run!(pncad::geom_core::Dual64, &doc);
+        // A dual evaluates bound to the build of record (DUAL-DESIGN DL3).
+        let record: Evaluation<f64> = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default().of_record(),
+            Tol::witness(),
+        );
+        let ev: Evaluation<pncad::geom_core::Dual64> = pncad::document::evaluate_recorded(
+            &doc,
+            None,
+            &record,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
         let head = ev.nodes.get(&cup).expect("the shell node ran");
         let NodeResult::Failed(e) = head else {
             panic!("the shell did not refuse at a dual: {head:?}");

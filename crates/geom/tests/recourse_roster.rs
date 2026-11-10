@@ -47,14 +47,14 @@ const INDIRECT: &[(&str, &str)] = &[
     ("azimuth.rs: row", FORWARDS),
     ("chart_point.rs: name", FORWARDS),
     ("curves.rs: site", CALLERS_CRATE),
-    ("curves.rs: sites.off_axis", ROW_FIELD),
-    ("curves.rs: sites.two_ovals", ROW_FIELD),
+    ("curves.rs: sites.off_axis()", ROW_FIELD),
+    ("curves.rs: sites.two_ovals()", ROW_FIELD),
     (
-        "surfaces.rs: RingReader::Convention.sites().tube",
+        "surfaces.rs: RingReader::Convention.sites().tube()",
         ROW_FIELD,
     ),
     ("surfaces.rs: name", FORWARDS),
-    ("surfaces.rs: sites.tube", ROW_FIELD),
+    ("surfaces.rs: sites.tube()", ROW_FIELD),
 ];
 
 /// **The census meets the harness every roster shares**, and reads

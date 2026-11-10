@@ -524,9 +524,9 @@ fn every_door_name_carries_a_listed_prefix() {
         [
             "circle_roots.rs: c0",
             "circle_roots.rs: row",
-            "circle_roots.rs: rows.coaxial",
-            "circle_roots.rs: rows.noise",
-            "circle_roots.rs: rows.root_slack",
+            "circle_roots.rs: rows.coaxial()",
+            "circle_roots.rs: rows.noise()",
+            "circle_roots.rs: rows.root_slack()",
             "composite.rs: row",
             "spline_face.rs: row",
         ],

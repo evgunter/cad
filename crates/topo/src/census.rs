@@ -349,7 +349,9 @@ use crate::live::proven;
 use crate::null::CurveGeom;
 use crate::sweep_trace::SweepPairs;
 
-use crate::link::{FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest};
+use crate::link::{
+    CurvedUnread, FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest,
+};
 #[cfg(test)]
 use crate::link::{PieceAt, Sector, face_piece};
 use crate::validate::{
@@ -1828,13 +1830,7 @@ fn corners_meet<T: Decide>(
 }
 
 /// [`corners_meet`]'s predicate names.
-const OVERLAP_CORNER: crate::validate::WedgeNames = crate::validate::WedgeNames {
-    after_leaving: "pm_census_overlap_corner_after_leaving",
-    before_arriving: "pm_census_overlap_corner_before_arriving",
-    turn: "pm_census_overlap_corner_turn",
-    straight: "pm_census_overlap_corner_straight",
-    straddle: "pm_census_overlap_corner_straddle",
-};
+const OVERLAP_CORNER: crate::validate::WedgeNames = crate::rows::OVERLAP_CORNER;
 
 /// A face's material about a point of its closure, in the plane
 /// tangent to it there.
@@ -2517,7 +2513,7 @@ pub(crate) enum WedgeRefusal {
     Undecided(Indeterminate),
     /// This edge's wedge has no reading, for one of three reasons:
     /// a face of it with no tangent plane where it meets the line, so
-    /// no sheet there ([`TouchUnread::Unreadable`]); its two sheets
+    /// no sheet there ([`crate::CurvedUnread::Unreadable`]); its two sheets
     /// definitely meeting at a zero angle or a full turn, a cusp or a
     /// knife slit, D1's wedge ends, which this reading has no interior
     /// direction for ([`TouchUnread::Degenerate`]); or a length too long
@@ -2544,7 +2540,7 @@ impl WedgeRefusal {
 /// Every reason [`WedgeRefusal::Unread`] carries, for the samples.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const WEDGE_UNREAD: [TouchUnread; 6] = [
-    TouchUnread::Unreadable,
+    TouchUnread::Curved(CurvedUnread::Unreadable),
     TouchUnread::NormalFault(NormalAbort::KernelFault),
     TouchUnread::NormalFault(crate::face_normal::NORMAL_INVALID_INPUTS[0]),
     TouchUnread::NormalFault(crate::face_normal::NORMAL_INVALID_INPUTS[1]),
@@ -2601,7 +2597,7 @@ struct Wedge<T: Real> {
 /// Where no pair overlaps and a reading refused: the refusal the ladder
 /// ranks first by its standing ([`WedgeRefusal::refusal`]: a limit
 /// ahead of a reading in band), with the index of the pair it was read
-/// at. A refusal of the whole query (`TouchUnread::Unreadable`) stops
+/// at. A refusal of the whole query (`TouchUnread::Curved(_)`) stops
 /// the read where it is met.
 pub(crate) fn line_wedges<T: Decide>(
     body: &Body<T>,
@@ -2697,12 +2693,15 @@ fn wedge<T: Decide>(
             Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
                 Err(WedgeRefusal::Undecided(diag))
             }
-            Ok(None) => Err(WedgeRefusal::Unread(e.key, TouchUnread::Unreadable)),
+            Ok(None) => Err(WedgeRefusal::Unread(
+                e.key,
+                TouchUnread::Curved(CurvedUnread::Unreadable),
+            )),
             Err(why) => Err(WedgeRefusal::Unread(
                 e.key,
                 match why.standing() {
                     Err(row) => TouchUnread::NormalFault(row),
-                    Ok(_) => TouchUnread::Unreadable,
+                    Ok(_) => TouchUnread::Curved(CurvedUnread::Unreadable),
                 },
             )),
         };
@@ -2759,26 +2758,16 @@ fn strictly_inside<T: Decide>(w: &Wedge<T>, v: Vec3<T>, band: Band) -> Result<bo
 /// [`strictly_inside`]'s predicate names: tier 3's pinch-corner
 /// reading, asked of a line's wedges under names of its own, so the K
 /// stream keeps the two questions apart.
-const LINE_WEDGE: crate::validate::WedgeNames = crate::validate::WedgeNames {
-    after_leaving: LINE_WEDGE_AFTER_LEAVING,
-    before_arriving: LINE_WEDGE_BEFORE_ARRIVING,
-    turn: LINE_WEDGE_TURN,
-    straight: LINE_WEDGE_STRAIGHT,
-    // Unreachable: `strictly_inside` hands only exact departures (every
-    // direction scaled to the wedge's own arm), so no sign here is read
-    // at two bounds and this row never records. It names the row only
-    // because every `WedgeNames` carries one.
-    straddle: "pm_census_wedge_straddle",
-};
+const LINE_WEDGE: crate::validate::WedgeNames = crate::rows::LINE_WEDGE;
 
 /// [`LINE_WEDGE`]'s first-bound sign.
-pub(crate) const LINE_WEDGE_AFTER_LEAVING: &str = "pm_census_wedge_after_leaving";
+pub(crate) const LINE_WEDGE_AFTER_LEAVING: &str = crate::rows::LINE_WEDGE.after_leaving();
 /// [`LINE_WEDGE`]'s second-bound sign.
-pub(crate) const LINE_WEDGE_BEFORE_ARRIVING: &str = "pm_census_wedge_before_arriving";
+pub(crate) const LINE_WEDGE_BEFORE_ARRIVING: &str = crate::rows::LINE_WEDGE.before_arriving();
 /// [`LINE_WEDGE`]'s turn.
-pub(crate) const LINE_WEDGE_TURN: &str = "pm_census_wedge_turn";
+pub(crate) const LINE_WEDGE_TURN: &str = crate::rows::LINE_WEDGE.turn();
 /// [`LINE_WEDGE`]'s straight-or-cusp sign.
-pub(crate) const LINE_WEDGE_STRAIGHT: &str = "pm_census_wedge_straight";
+pub(crate) const LINE_WEDGE_STRAIGHT: &str = crate::rows::LINE_WEDGE.straight();
 
 fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let resolved: Vec<(VertexKey, PointKey, Point3<T>)> = body
@@ -4654,11 +4643,11 @@ fn edge_in_curved_face<T: Decide>(
         Err(crate::face_normal::NormalAtError::Escalated { .. }) => {
             return Some(undecided(TouchUnread::InBand));
         }
-        Ok(None) => return Some(undecided(TouchUnread::Unreadable)),
+        Ok(None) => return Some(undecided(TouchUnread::Curved(CurvedUnread::Unreadable))),
         Err(why) => {
             return Some(undecided(match why.standing() {
                 Err(row) => TouchUnread::NormalFault(row),
-                Ok(_) => TouchUnread::Unreadable,
+                Ok(_) => TouchUnread::Curved(CurvedUnread::Unreadable),
             }));
         }
     };
@@ -4745,11 +4734,7 @@ struct Cell<T: Real> {
 /// conic arc's span by [`crate::splitting::containment::carrier_loop`].
 /// The crossings themselves are the meeting reading's
 /// ([`edge_crossings`]).
-const EF_CROSS_CONIC: crate::splitting::containment::ConicRows =
-    crate::splitting::containment::ConicRows::bounded(
-        "pm_census_ef_cross_arc_span",
-        "pm_census_ef_cross_arc_straddle",
-    );
+const EF_CROSS_CONIC: crate::rows::ConicRows = crate::rows::EF_CROSS_CONIC;
 
 /// The cells of edge `e` lying in face `f`'s interior: the edge cut at
 /// every face vertex on its interior ([`on_edge_interior_reading`]) and
@@ -6987,54 +6972,10 @@ fn sweep_conformal_patches<T: Decide>(
                             });
                         }
                     }
-                    Some(Err(ChartRegionError::Escalated(cause))) => {
-                        errors.push(ValidationError::CensusEscalated { cause });
-                    }
-                    // Every other typed predicate refusal: the pair
-                    // was not certified, and WHICH refusal said so is
-                    // carried rather than replaced. They do not share
-                    // a cause — a stopped interior-witness
-                    // search, an absent pcurve cache and a non-planar
-                    // trim want three different repairs — so the one
-                    // thing this arm may not do is restate them as
-                    // the inventory refusal. Refused loudly, never
-                    // skipped silently.
-                    //
-                    // Spelled out rather than matched by wildcard,
-                    // because this arm is one half of the
-                    // `Escalated`/`Unsupported` discrimination
-                    // `editor_core::attribute` turns into `AtRest`
-                    // against `Uncertified`: a new `ChartRegionError`
-                    // arm must be classified here deliberately rather
-                    // than default into an unrefuted frontier.
-                    Some(Err(
-                        cause @ (ChartRegionError::ChartDivergence { .. }
-                        | ChartRegionError::NonPlanarTrim { .. }
-                        | ChartRegionError::TrimOffFace { .. }
-                        | ChartRegionError::MissingCache { .. }
-                        | ChartRegionError::ArmUnbounded { .. }
-                        | ChartRegionError::SeamBranch
-                        | ChartRegionError::PeriodFold
-                        | ChartRegionError::CarrierTilt
-                        | ChartRegionError::TouchingBoundary
-                        | ChartRegionError::DegenerateLoop { .. }
-                        | ChartRegionError::RayExhausted
-                        | ChartRegionError::EdgeScale
-                        | ChartRegionError::WitnessSegmentCapExceeded { .. }
-                        | ChartRegionError::WitnessCellCapExceeded { .. }
-                        | ChartRegionError::Corrupt),
-                    )) => {
-                        // The refusal is CARRIED, not replaced. The
-                        // refusals say different things with different
-                        // recourses — a stopped witness search is not
-                        // a thin overlap, and neither is an absent
-                        // pcurve cache — and flattening them here made
-                        // every one of them read as the inventory
-                        // statement at the census door.
-                        errors.push(ValidationError::CensusUnsupported {
-                            subject: CensusSubject::FacePair(fa, fb),
-                            cause: CensusUnsupportedCause::ChartRegion(cause),
-                        });
+                    // Classified by its standing, in one place
+                    // (`chart_region_finding`).
+                    Some(Err(cause)) => {
+                        errors.push(chart_region_finding(CensusSubject::FacePair(fa, fb), cause));
                     }
                 }
             }
@@ -7945,7 +7886,7 @@ impl TouchUnread {
         match self {
             Self::InBand
             | Self::PieceInBand
-            | Self::Unreadable
+            | Self::Curved(_)
             | Self::Unanalysed
             | Self::Degenerate
             | Self::ChordScale
@@ -7981,9 +7922,38 @@ impl TouchUnread {
                 "; otherwise ",
                 until_apart!()
             ),
-            Self::Unreadable => concat!(
+            Self::Curved(CurvedUnread::Unreadable) => concat!(
                 "they touch at a curved face or edge, and the check cannot yet tell which \
                  side each is on. ",
+                designed_contact!(),
+                "; otherwise ",
+                until_apart!()
+            ),
+            Self::Curved(CurvedUnread::NoTangentPlane) => concat!(
+                "they touch at a corner where a face of one has no tangent plane (a cone's \
+                 apex, or a point on a surface's axis), and the check cannot yet tell which \
+                 side each is on. ",
+                designed_contact!(),
+                "; otherwise ",
+                until_apart!()
+            ),
+            Self::Curved(CurvedUnread::Crease) => concat!(
+                "they touch at a corner of a spline face that sits on a crease of its \
+                 surface, and the check cannot yet tell which side each is on. ",
+                designed_contact!(),
+                "; otherwise ",
+                until_apart!()
+            ),
+            Self::Curved(CurvedUnread::NoSectorArm) => concat!(
+                "they touch at a corner of a face whose kind of surface the check cannot \
+                 yet read at a corner. ",
+                designed_contact!(),
+                "; otherwise ",
+                until_apart!()
+            ),
+            Self::Curved(CurvedUnread::Unplaced) => concat!(
+                "they touch at a corner of a spline face whose edge there could not be \
+                 placed on the face, so the check cannot yet tell which side each is on. ",
                 designed_contact!(),
                 "; otherwise ",
                 until_apart!()
@@ -8039,7 +8009,7 @@ impl TouchUnread {
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> std::borrow::Cow<'static, str> {
         let said: &'static str = match self {
-            Self::Unreadable => concat!(
+            Self::Curved(CurvedUnread::Unreadable) => concat!(
                 "a face meeting the line is curved there, and the check cannot yet read \
                  which side of a curved face material lies on. ",
                 geom_core::not_yet_ending!(),
@@ -8078,9 +8048,33 @@ impl TouchUnread {
                 geom_core::not_yet_ending!(),
                 " for this shape"
             ),
-            Self::Unreadable => concat!(
+            Self::Curved(CurvedUnread::Unreadable) => concat!(
                 "a curved face meets the point, and the check cannot yet read which side of \
                  a curved face material lies on. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Curved(CurvedUnread::NoTangentPlane) => concat!(
+                "a face meeting the point has no tangent plane there (a cone's apex, or a \
+                 point on a surface's axis), so no side reads. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Curved(CurvedUnread::Crease) => concat!(
+                "the point is a corner of a spline face on a crease of its surface, where \
+                 the check cannot yet read which side material lies on. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Curved(CurvedUnread::NoSectorArm) => concat!(
+                "a face meeting the point has a kind of surface the check cannot yet read \
+                 at a corner. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Curved(CurvedUnread::Unplaced) => concat!(
+                "an edge of a spline face at the point could not be placed on the face, \
+                 so no side reads. ",
                 geom_core::not_yet_ending!(),
                 " for this shape"
             ),
@@ -8433,7 +8427,9 @@ impl TouchSite {
         }
         let edge = |e: EdgeKey| {
             geo.line_edge(e)
-                .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))
+                .ok_or(TouchVerdict::Unread(TouchUnread::Curved(
+                    CurvedUnread::Unreadable,
+                )))
         };
         let on_edge =
             |e: EdgeKey, p: Point3<T>| Link::touch_on_edge(body, geo, e, p, band).map(Germ::Link);
@@ -8448,8 +8444,9 @@ impl TouchSite {
                 // Every cell of the overlap the finding reports,
                 // re-derived by the same walk. A refusal on the way is
                 // this touch's own.
-                let fg =
-                    planar_face(geo, f).ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))?;
+                let fg = planar_face(geo, f).ok_or(TouchVerdict::Unread(TouchUnread::Curved(
+                    CurvedUnread::Unreadable,
+                )))?;
                 let mut refused = Vec::new();
                 let cells = ef_overlap_cells(body, edge(e)?, fg, geo, band, &mut refused);
                 if !refused.is_empty() {
@@ -8523,7 +8520,7 @@ fn edge_in_own_face<T: Decide>(
         Link::touch_in_face(body, geo, face, p, band),
     ) {
         (Ok(a), Ok(b)) => rest::judge(&a, &b, band),
-        (Err(TouchUnread::Unreadable), Ok(b)) => {
+        (Err(why), Ok(b)) if why.curved_unread() => {
             match Link::chord_on_edge(body, geo, edge, face, p, band) {
                 Ok(a) => rest::judge(&a, &b, band),
                 Err(v) => v.into(),
@@ -8647,18 +8644,22 @@ enum SelfTouch {
     /// A curved face or edge takes part and the faces' tangent cones do
     /// not decide the point ([`Link::tangent_of`]), at first order or one
     /// order down (`link::second_order`), or the tangent reading cannot
-    /// build. [`TouchUnread::Unreadable`] for a face with no tangent plane
-    /// there (a cone's apex, or a vertex in the band of its axis), a cusp
+    /// build. [`crate::CurvedUnread::Unreadable`], or the cause the corner names
+    /// ([`TouchUnread::curved_unread`]), for a face with no tangent plane
+    /// there (a cone's apex, or a vertex in the band of its axis:
+    /// [`crate::CurvedUnread::NoTangentPlane`]), a cusp
     /// corner its edges' bends do not part, a horn beside a sector along
     /// its ray or a ring of horns that reads as no thorn, a spline face
     /// held off a corner, a face whose normal at the foot or whose reach
     /// does not read, a corner face [`crate::sector_face::resolve`]
-    /// refuses, a curved edge with no certified curve, sheets along a
+    /// refuses (a crease, a surface with no sector arm, a spline edge not
+    /// placed: [`crate::CurvedUnread::Crease`], [`crate::CurvedUnread::NoSectorArm`],
+    /// [`crate::CurvedUnread::Unplaced`]), a curved edge with no certified curve, sheets along a
     /// tied ray that one order down meet or do not part, a curved sheet
     /// holding such a ray inside it, or two whole tangent planes on one
     /// plane (two kissing balls at any pose included). A sign one order
     /// down that the band leaves undecided, in band or moved there by the
-    /// first order's charged residue, is [`TouchUnread::Unreadable`] too:
+    /// first order's charged residue, is [`crate::CurvedUnread::Unreadable`] too:
     /// this `why` does not part an in-band reading one order down from a
     /// structural refusal.
     /// [`TouchUnread::Degenerate`] for two sectors read lying on each
@@ -8690,14 +8691,16 @@ fn self_touch_verdict<T: Decide>(
     };
     match Link::planar_of(body, geo, &holds, at, band) {
         Ok(link) => SelfTouch::Read(rest::one_material(&link, band)),
-        Err(TouchUnread::Unreadable) => {
+        Err(why) if why.curved_unread() => {
             match Link::tangent_of(body, geo, &holds, at, band)
                 .map(|link| rest::one_material(&link, band))
             {
-                Ok(TouchVerdict::Unread(
-                    why @ (TouchUnread::Unreadable | TouchUnread::Degenerate),
-                ))
-                | Err(why @ TouchUnread::Unreadable) => SelfTouch::SecondOrder(why),
+                Ok(TouchVerdict::Unread(why))
+                    if why.curved_unread() || why == TouchUnread::Degenerate =>
+                {
+                    SelfTouch::SecondOrder(why)
+                }
+                Err(why) if why.curved_unread() => SelfTouch::SecondOrder(why),
                 Ok(verdict) => SelfTouch::Read(verdict),
                 Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),
             }
@@ -8736,7 +8739,7 @@ impl<T: Decide> FaceSector<T> {
         // the polygon; a face that resolves off a plane is curved.
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
-        let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
+        let fg = planar_face(geo, f).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         fg.walked?;
         // A planar face at rest has an outward normal: none is a defect.
         let outward = crate::face_normal::face_outward_normal(body, f)
@@ -8768,7 +8771,7 @@ impl<T: Decide> FaceSector<T> {
 impl<T: Decide> Link<T> {
     /// **The planar link of the faces holding `p` as `holds` say**
     /// ([`Germ::of_holds`]); a lone round face, which is no link, is
-    /// [`TouchUnread::Unreadable`].
+    /// [`crate::CurvedUnread::Unreadable`].
     fn planar_of(
         body: &Body<T>,
         geo: &Geo<T>,
@@ -8778,7 +8781,7 @@ impl<T: Decide> Link<T> {
     ) -> Result<Self, TouchUnread> {
         match Germ::of_holds(body, geo, holds, p, band)? {
             Germ::Link(link) => Ok(link),
-            Germ::Round { .. } => Err(TouchUnread::Unreadable),
+            Germ::Round { .. } => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
         }
     }
 
@@ -8912,7 +8915,7 @@ impl<T: Decide> Germ<T> {
     /// ([`FaceSector::of`]), or, where all of it is one sphere or
     /// cylinder face with the point inside it, that face's material
     /// ([`round_face`]). A tie inside an edge that is not a line is
-    /// [`TouchUnread::Unreadable`].
+    /// [`crate::CurvedUnread::Unreadable`].
     fn of_holds(
         body: &Body<T>,
         geo: &Geo<T>,
@@ -8928,7 +8931,9 @@ impl<T: Decide> Germ<T> {
                     Held::Corner(v) => Hold::Corner(v),
                     Held::Inside => Hold::Inside,
                     Held::Edge(e) => {
-                        let edge = geo.line_edge(e).ok_or(TouchUnread::Unreadable)?;
+                        let edge = geo
+                            .line_edge(e)
+                            .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
                         Hold::Edge(edge.v0, edge.v1)
                     }
                 };
@@ -8971,10 +8976,12 @@ impl<T: Decide> Link<T> {
     /// A cusp corner reads as its edges bend: the whole turn, or a horn
     /// the link keeps beside its sectors ([`Link::of_tangent`]). A face
     /// with no tangent plane at the point (a cone's apex, or a vertex in
-    /// the band of its axis), a cusp corner its bends do not part, a
-    /// spline face held anywhere but a
-    /// corner, a curved edge with no certified curve, or a face whose
-    /// normal or reach does not read is [`TouchUnread::Unreadable`]; a
+    /// the band of its axis: [`crate::CurvedUnread::NoTangentPlane`]), a corner
+    /// face [`crate::sector_face::resolve`] refuses (its named cause), a
+    /// cusp corner its bends do not part, a spline face held anywhere but
+    /// a corner, a curved edge with no certified curve, or a face whose
+    /// normal or reach does not read is [`crate::CurvedUnread::Unreadable`] or
+    /// that named cause, one control ([`TouchUnread::curved_unread`]); a
     /// reading of it in band, [`TouchUnread::InBand`].
     fn tangent_of(
         body: &Body<T>,
@@ -9069,7 +9076,7 @@ fn tangent_sectors<T: Decide>(
     let reach = || {
         crate::splitting::rules::face_reach_from(body, f, p)
             .map(geom_core::Lever::length)
-            .map_err(|_| TouchUnread::Unreadable)
+            .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))
     };
     let held_edge = |e: EdgeKey| holds.contains(&Held::Edge(e));
     for cycle in &cycles {
@@ -9103,7 +9110,7 @@ fn tangent_sectors<T: Decide>(
         let normal = foot_normal(body, f, p, band)?;
         let fan = TangentFan::Inside {
             reach: reach()?,
-            frame: carrier_frame(&surface).ok_or(TouchUnread::Unreadable)?,
+            frame: carrier_frame(&surface).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?,
         };
         out.push(FaceSector::tangent(
             surface, face.sense, normal, p, fan, band,
@@ -9141,22 +9148,40 @@ fn corner_normal<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<Vec3<T>, TouchUnread> {
-    use crate::sector_face::{SectorFaceError, VertexFace};
     match crate::sector_face::resolve(body, v, he, band) {
-        Ok(face) => match face.at_vertex {
-            VertexFace::Tangent(n) => Ok(n.vec()),
-            VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(TouchUnread::Unreadable),
-        },
-        Err(SectorFaceError::ApexUndecided { .. }) => Err(TouchUnread::kept(Refusal::of_apex())),
+        Ok(face) => vertex_normal(face.at_vertex),
+        Err(why) => Err(corner_cause(&why)),
+    }
+}
+
+/// **A resolved corner face's normal at the vertex**, or no tangent
+/// plane there ([`CurvedUnread::NoTangentPlane`]): a vertex in the band
+/// of the carrier's axis, or a cone's apex.
+fn vertex_normal<T: Decide>(at: crate::sector_face::VertexFace<T>) -> Result<Vec3<T>, TouchUnread> {
+    use crate::sector_face::VertexFace;
+    match at {
+        VertexFace::Tangent(n) => Ok(n.vec()),
+        VertexFace::NearAxis(_) | VertexFace::Apex(_) => {
+            Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
+        }
+    }
+}
+
+/// **The cause [`corner_normal`] names for a corner face
+/// [`crate::sector_face::resolve`] refuses**: an apex in band by its own
+/// standing, and every other refusal the curved reading's abort under
+/// its own name ([`TouchUnread::Curved`]).
+fn corner_cause(why: &crate::sector_face::SectorFaceError) -> TouchUnread {
+    use crate::sector_face::SectorFaceError;
+    match why {
+        SectorFaceError::ApexUndecided { .. } => TouchUnread::kept(Refusal::of_apex()),
         // A corner on a spline crease is unread whatever its reading: the
         // touch at it goes undetected (module docs), which
         // `work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`
         // weighs against refusing it by the crease's own standing.
-        Err(
-            SectorFaceError::Crease { .. }
-            | SectorFaceError::Unsupported { .. }
-            | SectorFaceError::Unplaced { .. },
-        ) => Err(TouchUnread::Unreadable),
+        SectorFaceError::Crease { .. } => TouchUnread::Curved(CurvedUnread::Crease),
+        SectorFaceError::Unsupported { .. } => TouchUnread::Curved(CurvedUnread::NoSectorArm),
+        SectorFaceError::Unplaced { .. } => TouchUnread::Curved(CurvedUnread::Unplaced),
     }
 }
 
@@ -9170,10 +9195,16 @@ fn foot_normal<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Vec3<T>, TouchUnread> {
+    use crate::face_normal::FootNormalError;
     match crate::face_normal::face_outward_normal_at_foot(body, f, p, band) {
         Ok(Some(n)) => Ok(n.vec()),
         Ok(None) => Err(TouchUnread::Corrupt),
-        Err(_) => Err(TouchUnread::Unreadable),
+        // Within the band of the carrier's axis, centre or apex: the
+        // corner's cause ([`corner_cause`]), read at a foot.
+        Err(FootNormalError::NoFoot { .. }) => {
+            Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
+        }
+        Err(FootNormalError::Unread) => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
     }
 }
 
@@ -9186,7 +9217,8 @@ fn departure<T: Decide>(
     v: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
-    let (dir, reach) = crate::star::departure(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
+    let (dir, reach) = crate::star::departure(body, v, he)
+        .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?;
     use crate::bound_side::BoundSupport;
     Ok(match reach {
         BoundSupport::Conic { bend, .. } => (dir, false, bend.curvature),
@@ -9237,7 +9269,9 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        let edge = geo.line_edge(e).ok_or(TouchUnread::Unreadable)?;
+        let edge = geo
+            .line_edge(e)
+            .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         let mut keys = vec![edge.f_plus];
         if edge.f_minus != edge.f_plus {
             keys.push(edge.f_minus);
@@ -9271,7 +9305,9 @@ impl<T: Decide> Link<T> {
         band: Band,
     ) -> Result<Self, TouchUnread> {
         use crate::link::Ruled;
-        let edge = geo.line_edge(e).ok_or(TouchUnread::Unreadable)?;
+        let edge = geo
+            .line_edge(e)
+            .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         let outward = |f: FaceKey| {
             crate::face_normal::face_outward_normal(body, f)
                 .map(|n| n.vec())
@@ -9358,7 +9394,7 @@ impl<T: Decide> Link<T> {
 /// a lower bound on its reach about `p`, a point inside it: the least
 /// clearance of a boundary edge ([`crate::link::clearance`]); a face
 /// with no boundary reaches round its carrier. `None` off a sphere or a
-/// cylinder; [`TouchUnread::Unreadable`] for a boundary edge no clearance
+/// cylinder; [`crate::CurvedUnread::Unreadable`] for a boundary edge no clearance
 /// reads, and [`TouchUnread::Corrupt`] where the face does not read.
 fn round_face<T: Decide>(
     body: &Body<T>,
@@ -10269,9 +10305,12 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     // solids disagree, and nothing clears on that.
                     Said::Pierce | Said::Wedges(None) => Some(Undecided::Unresolved),
                     Said::Wedges(Some(why)) => Some(why.undecided()),
-                    Said::CurvedTouch => Some(Undecided::Touch(TouchUnread::Unreadable)),
-                    Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b)))
-                        .then_some(Undecided::Touch(TouchUnread::Unreadable)),
+                    Said::CurvedTouch => Some(Undecided::Touch(TouchUnread::Curved(
+                        CurvedUnread::Unreadable,
+                    ))),
+                    Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b))).then_some(
+                        Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable)),
+                    ),
                     Said::Unexamined => Some(Undecided::Unexamined),
                     Said::InBand => None,
                 },
@@ -12533,39 +12572,30 @@ fn confirm_patch<T: Decide>(
         }
         Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => {}
         Some(Ok(crate::chart_region::ChartOverlap::Empty)) => errors.push(stale),
-        Some(Err(ChartRegionError::Escalated(cause))) => {
-            errors.push(ValidationError::CensusEscalated { cause });
+        Some(Err(cause)) => {
+            errors.push(chart_region_finding(
+                CensusSubject::FacePair(face_a, face_b),
+                cause,
+            ));
         }
-        // As the sweep arm: every other typed refusal is carried
-        // whole rather than restated as the inventory refusal,
-        // and the list is exhaustive so a new `ChartRegionError`
-        // arm is a compile error here rather than a silent
-        // promotion to an unrefuted frontier.
-        Some(Err(
-            cause @ (ChartRegionError::ChartDivergence { .. }
-            | ChartRegionError::NonPlanarTrim { .. }
-            | ChartRegionError::TrimOffFace { .. }
-            | ChartRegionError::MissingCache { .. }
-            | ChartRegionError::ArmUnbounded { .. }
-            | ChartRegionError::SeamBranch
-            | ChartRegionError::PeriodFold
-            | ChartRegionError::CarrierTilt
-            | ChartRegionError::TouchingBoundary
-            | ChartRegionError::DegenerateLoop { .. }
-            | ChartRegionError::RayExhausted
-            | ChartRegionError::EdgeScale
-            | ChartRegionError::WitnessSegmentCapExceeded { .. }
-            | ChartRegionError::WitnessCellCapExceeded { .. }
-            | ChartRegionError::Corrupt),
-        )) => {
-            // Carried, as at the sweep arm and for the same
-            // reason: which refusal fired is the whole of
-            // what tells a reader which repair to make.
-            errors.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::FacePair(face_a, face_b),
-                cause: CensusUnsupportedCause::ChartRegion(cause),
-            });
+    }
+}
+
+/// **A chart-region refusal as a census finding about `subject`**, read
+/// by its standing ([`ChartRegionError::refusal`]), the one classification
+/// of a chart-region refusal: a metred margin escalates
+/// ([`ValidationError::CensusEscalated`]), and every other refusal is
+/// carried whole ([`ValidationError::CensusUnsupported`]), since which
+/// refusal fired is what tells a reader which repair to make.
+fn chart_region_finding(subject: CensusSubject, cause: ChartRegionError) -> ValidationError {
+    match cause.refusal() {
+        Ok(geom_core::ladder::Refusal::Margin(diag)) => {
+            ValidationError::CensusEscalated { cause: diag }
         }
+        Ok(_) | Err(_) => ValidationError::CensusUnsupported {
+            subject,
+            cause: CensusUnsupportedCause::ChartRegion(cause),
+        },
     }
 }
 
@@ -12588,6 +12618,29 @@ mod tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A chart-region refusal reaches the census by its standing**
+    /// ([`chart_region_finding`]): an escalation, whose margin was metred,
+    /// as [`ValidationError::CensusEscalated`] with that diagnostic, and an
+    /// in-band refusal, which carries none, as
+    /// [`ValidationError::CensusUnsupported`] with the refusal whole.
+    #[test]
+    fn a_chart_region_refusal_reaches_the_census_by_its_standing() {
+        let pair = CensusSubject::FacePair(FaceKey::default(), FaceKey::default());
+        let diag = geom_core::k_stats::decide("census_standing_row", Margin::of(5e-9), band())
+            .expect_err("a margin in the gap escalates");
+        match chart_region_finding(pair, ChartRegionError::Escalated(diag)) {
+            ValidationError::CensusEscalated { cause } => assert_eq!(cause, diag),
+            other => panic!("an escalation reads as escalated: {other:?}"),
+        }
+        match chart_region_finding(pair, ChartRegionError::TouchingBoundary) {
+            ValidationError::CensusUnsupported {
+                subject,
+                cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::TouchingBoundary),
+            } => assert_eq!(subject, pair),
+            other => panic!("an in-band refusal is carried whole with its pair: {other:?}"),
+        }
     }
 
     /// **A refused crossing of a census edge and a face boundary edge
@@ -12949,7 +13002,7 @@ mod tests {
                 edge,
                 face,
                 witness: witness(),
-                why: TouchUnread::Unreadable,
+                why: TouchUnread::Curved(CurvedUnread::Unreadable),
             },
         ];
         assert_eq!(
@@ -12965,7 +13018,7 @@ mod tests {
                     edge,
                     face,
                     witness: witness(),
-                    why: TouchUnread::Unreadable,
+                    why: TouchUnread::Curved(CurvedUnread::Unreadable),
                 },
             ]
         );
@@ -17289,8 +17342,8 @@ mod tests {
                 Undecided::Touch(TouchUnread::PieceInBand),
             ),
             (
-                TouchUnread::Unreadable,
-                Undecided::Touch(TouchUnread::Unreadable),
+                TouchUnread::Curved(CurvedUnread::Unreadable),
+                Undecided::Touch(TouchUnread::Curved(CurvedUnread::Unreadable)),
             ),
             (TouchUnread::Corrupt, Undecided::CorruptInstance),
         ] {
@@ -22261,7 +22314,7 @@ mod line_wedges_ranking {
 /// no body a constructor builds refuses at two faces of one link.
 #[cfg(test)]
 mod link_faces_ranking {
-    use super::{TouchUnread, sectors_of_faces};
+    use super::{CurvedUnread, TouchUnread, sectors_of_faces};
     use crate::validate::EdgeTangentUnread;
 
     fn read(faces: Vec<Result<(), TouchUnread>>) -> Option<TouchUnread> {
@@ -22300,7 +22353,7 @@ mod link_faces_ranking {
         assert_eq!(
             read(vec![
                 Err(TouchUnread::Corrupt),
-                Err(TouchUnread::Unreadable)
+                Err(TouchUnread::Curved(CurvedUnread::Unreadable))
             ]),
             Some(TouchUnread::Corrupt),
             "the first refusal of the whole query stops the reading"
@@ -22308,9 +22361,9 @@ mod link_faces_ranking {
         assert_eq!(
             read(vec![
                 Err(TouchUnread::Degenerate),
-                Err(TouchUnread::Unreadable)
+                Err(TouchUnread::Curved(CurvedUnread::Unreadable))
             ]),
-            Some(TouchUnread::Unreadable),
+            Some(TouchUnread::Curved(CurvedUnread::Unreadable)),
             "an unreadable face is what a link refuses with, past a limit"
         );
         assert_eq!(read(vec![Ok(()), Ok(())]), None, "every face read");
@@ -22623,5 +22676,66 @@ mod lone_vertex_rows {
             Err(TouchUnread::LoneLoop),
             "the face's polygon reading refuses as a lone loop"
         );
+    }
+}
+
+#[cfg(test)]
+mod corner_cause_rows {
+    use geom::SurfaceKind;
+    use geom_core::{MarginDiag, Point3, Vec3};
+
+    use super::{CurvedUnread, TouchUnread, corner_cause, vertex_normal};
+    use crate::entity::FaceKey;
+    use crate::sector_face::{ConeApex, SectorFaceError, VertexFace};
+
+    /// **[`corner_normal`](super::corner_normal) names each cause of a
+    /// corner left unread**: a cone's apex no tangent plane, a crease a
+    /// crease, a surface with no sector arm and a spline edge not placed
+    /// their own, each the curved reading's abort ([`TouchUnread::Curved`]).
+    /// Red where an arm reverts to another name.
+    #[test]
+    fn each_corner_cause_is_named_apart() {
+        let face = FaceKey::default();
+        let apex = VertexFace::Apex(ConeApex {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.5_f64,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            sense: true,
+        });
+        assert!(
+            matches!(
+                vertex_normal(apex),
+                Err(TouchUnread::Curved(CurvedUnread::NoTangentPlane))
+            ),
+            "a cone's apex"
+        );
+        let causes = [
+            (
+                SectorFaceError::Crease {
+                    face,
+                    kind: SurfaceKind::Nurbs,
+                    reading: Ok(MarginDiag::value(0.0)),
+                },
+                CurvedUnread::Crease,
+            ),
+            (
+                SectorFaceError::Unsupported {
+                    face,
+                    kind: SurfaceKind::Torus,
+                },
+                CurvedUnread::NoSectorArm,
+            ),
+            (
+                SectorFaceError::Unplaced {
+                    face,
+                    kind: SurfaceKind::Nurbs,
+                },
+                CurvedUnread::Unplaced,
+            ),
+        ];
+        for (why, named) in causes {
+            assert_eq!(corner_cause(&why), TouchUnread::Curved(named), "{why:?}");
+        }
     }
 }

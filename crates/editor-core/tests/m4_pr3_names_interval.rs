@@ -13,7 +13,6 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, SplitHalf,
-    evaluate,
 };
 use fixture::{insert, len, on_frame, plane_on, slid, wall};
 use geom_core::Interval;
@@ -136,8 +135,8 @@ fn corpus() -> ProfileDoc {
     doc
 }
 
-fn run<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
-    evaluate::<T>(
+fn run<T: editor_core::test_support::AnyEvaluate>(doc: &ProfileDoc) -> Evaluation<T> {
+    editor_core::test_support::evaluate_any::<T>(
         doc,
         None,
         &CancelToken::new(),
