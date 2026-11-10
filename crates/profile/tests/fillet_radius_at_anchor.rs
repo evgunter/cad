@@ -2,34 +2,39 @@
 //! boundary.**
 //!
 //! `CornerReason::AnchorOutsideTrimmedExtent::radius_at_anchor` is the
-//! radius lever: its boundary is the radius of the fillet tangent to an
-//! overrun leg's carrier exactly at its anchor and to the other
-//! carrier, on the reported candidate's branch, the smaller over its
-//! overrun legs; its cleared value is the same form with each anchor
-//! moved `clearance` (twice the fit gate's escalation threshold) toward
-//! the corner. These rows re-derive both here from the carriers alone —
-//! centre `P + r·m`, `m` the anchor's normal toward the turn, tangency
-//! to the other carrier linear in `r`, each leg's solution assigned to
-//! the candidate whose side of the carriers' axis its centre lies on —
-//! and replay every anchor-fit entry of three grids (grid A's arc×arc
-//! corners, the line×arc grid, and a straight×straight one) against
-//! them:
+//! radius lever's exact-fit window: its boundary is the radius of the
+//! fillet tangent to an overrun leg's carrier exactly at its anchor and
+//! to the other carrier, on the reported candidate's branch (the
+//! binding, smaller, leg's); its far edge is the same form with that
+//! anchor moved `fit_reach` (half the fit band's coincidence threshold)
+//! toward the corner. These rows re-derive both here from the carriers
+//! alone — centre `P + r·m`, `m` the anchor's normal toward the turn,
+//! tangency to the other carrier linear in `r`, each leg's solution
+//! assigned to the candidate whose side of the carriers' axis its
+//! centre lies on — and replay every anchor-fit entry of three grids
+//! (grid A's arc×arc corners, the line×arc grid, and a
+//! straight×straight one) against them:
 //!
-//! - the payload is the re-derived boundary and cleared radius, and the
-//!   boundary is the largest over the corner's candidates, so the
+//! - the payload is the re-derived boundary and edge, and the boundary
+//!   is the largest over the corner's candidates, so the
 //!   setback-nearest pick never names a candidate with a smaller one;
+//! - at the boundary, the fit margin read off the circle intersection
+//!   and the legs' setbacks (not the closed form) is zero;
 //! - the boundary is never above the FLIP — the largest radius at which
 //!   this corner stops refusing with an entry, bisected on the replay to
 //!   adjacent floats — and where the corner itself flips there, the
-//!   re-derived fit margin at the flip is minus the gate's escalation
-//!   threshold: the band, read off the gate rather than a measured
-//!   reach. Elsewhere the loop builds below it at the pair's other
-//!   corner;
-//! - the sentence's radius X, typed back, and every radius in a sweep
-//!   below it ("X m or less"), and its anchor distances S, typed back,
-//!   are never refused by this gate again in any form — no anchor-fit
-//!   entry at this corner and no `fillet_leg_fit` escalation; another
-//!   gate refusing in its own words is counted, not failed;
+//!   margin at the flip is minus the gate's escalation threshold: the
+//!   band, read off the gate rather than a measured reach. Elsewhere the
+//!   loop builds below it at the pair's other corner;
+//! - the sentence's radius X and its anchor distances S, typed back,
+//!   each leave a margin in `[0, ε/2]` — a Zero fit, the fillet ending
+//!   at the anchor — and are never refused by this gate again in any
+//!   form (no anchor-fit entry at this corner, no `fillet_leg_fit`
+//!   escalation); no radius in a sweep below X ("X m or less")
+//!   overruns again, and the sliver just below the window, which the
+//!   fit gate refuses in band, is counted. Another gate refusing a
+//!   typed-back lever in its own words is counted, and the counts are
+//!   pinned per row;
 //! - authoring 3608's boundary is 0.361629480311458.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -339,7 +344,7 @@ struct Census {
     at_the_flip: usize,
     /// Entries whose loop builds below the bound at the other corner.
     below_the_flip: usize,
-    /// Values typed back, by kind (`lever`: the sentence's X and its
+    /// Values typed back, by kind (`X`: the sentence's radius; `S`: its
     /// anchor set; `sweep`: the radii below X), and those another gate
     /// refused in its own words, by kind and refusal.
     typed_back: BTreeMap<&'static str, usize>,
@@ -354,11 +359,20 @@ impl Census {
         }
     }
 
-    /// One lever typed back: a failure if the fit refuses it again,
-    /// counted if another gate does.
+    /// One value typed back: a failure if the fit refuses it again,
+    /// counted if another gate does. Below X ("or less") the radii
+    /// between the exact-fit window and the band's escalation threshold
+    /// leave a sliver of leg too short to tell from none, which the fit
+    /// gate refuses in band in its own words: there only an overrun is a
+    /// failure, and the in-band refusal is counted.
     fn typed(&mut self, kind: &'static str, n: usize, what: &str, res: &Built, at: Point2<f64>) {
         *self.typed_back.entry(kind).or_default() += 1;
-        if refused_by_the_fit(res, at) {
+        let refused = if kind == "sweep" {
+            entry_at(res, at).is_some()
+        } else {
+            refused_by_the_fit(res, at)
+        };
+        if refused {
             let e = res.as_ref().err().map(ToString::to_string);
             self.fail(
                 n,
@@ -379,12 +393,22 @@ impl Census {
     }
 }
 
-/// The run's fit band: its escalation threshold, and the clearance the
-/// levers are named past (twice that).
+/// The run's fit band: its escalation threshold.
 fn escalate() -> f64 {
     geom_core::Band::linear(tol())
         .expect("the run's band")
         .escalate()
+}
+
+/// How far an oracle margin may sit outside the exact-fit window and
+/// still be in it: the two derivations' rounding, far below the band.
+fn slack() -> f64 {
+    1e-2 * tol().eps()
+}
+
+/// Whether an oracle margin lies in the exact-fit window `[0, ε/2]`.
+fn exact_fit(m: f64) -> bool {
+    (-slack()..=0.5 * tol().eps() + slack()).contains(&m)
 }
 
 /// The radii below `x` an author reaching for "or less" might type.
@@ -394,6 +418,9 @@ fn below(x: f64) -> impl Iterator<Item = f64> {
         .chain([(x * 1e4).floor() / 1e4])
         .filter(move |&y| y > 0.0 && y < x)
 }
+
+/// The legs, in `[incoming, outgoing]` order.
+const LEGS: [FilletLeg; 2] = [FilletLeg::Incoming, FilletLeg::Outgoing];
 
 /// One anchor-fit entry against the re-derived levers and the replay.
 #[allow(clippy::too_many_arguments)]
@@ -411,16 +438,13 @@ fn analyse(
     let CornerReason::AnchorOutsideTrimmedExtent {
         legs,
         overrun,
-        clearance,
+        fit_reach,
         radius_at_anchor,
     } = &entry.reason
     else {
         unreachable!("an anchor-fit entry")
     };
     let esc = escalate();
-    if (*clearance - 2.0 * esc).abs() > 1e-15 * esc {
-        cen.fail(n, format!("clearance {clearance} is not 2·{esc}"));
-    }
     let x = p(entry.at);
     let sigma = cross(inc.dir_at(x), out.dir_at(x)).signum();
     let Some(lever) = *radius_at_anchor else {
@@ -486,16 +510,19 @@ fn analyse(
             format!("payload {bound} against the re-derived {derived}"),
         );
     }
-    // The cleared radius: each anchor `clearance` toward the corner.
+    // The window's far edge: each anchor `fit_reach` toward the corner.
     let short = [
-        inc.point_at(FilletLeg::Incoming, x, got[0].1 - clearance),
-        out.point_at(FilletLeg::Outgoing, x, got[1].1 - clearance),
+        inc.point_at(FilletLeg::Incoming, x, got[0].1 - fit_reach),
+        out.point_at(FilletLeg::Outgoing, x, got[1].1 - fit_reach),
     ];
     match bound_at(short, reported) {
-        Some(c) if (c - lever.clear).abs() <= 1e-12 * bound => {}
+        Some(c) if (c - lever.exact_fit_edge).abs() <= 1e-12 * bound => {}
         c => cen.fail(
             n,
-            format!("cleared {} against the re-derived {c:?}", lever.clear),
+            format!(
+                "window edge {} against the re-derived {c:?}",
+                lever.exact_fit_edge
+            ),
         ),
     }
     let largest = cands
@@ -508,6 +535,26 @@ fn analyse(
             n,
             format!("another candidate's bound {largest} is larger than {derived}"),
         );
+    }
+    // The reported candidate's least fit margin at `y`, from the circle
+    // intersection and the legs' setbacks — not the closed form.
+    let margin_at = |y: f64, anchors: [V; 2]| -> Option<f64> {
+        let (_, legs) = cands_at(y).into_iter().find(|c| c.0 == reported)?;
+        let t = [inc.at(anchors[0]), out.at(anchors[1])];
+        let lens = [
+            t[0].setback_len(FilletLeg::Incoming, (0.0, 0.0), x).1,
+            t[1].setback_len(FilletLeg::Outgoing, (0.0, 0.0), x).1,
+        ];
+        Some((lens[0] - legs[0].0).min(lens[1] - legs[1].0))
+    };
+    // The bound ties to the kernel's construction: the margin there is
+    // zero.
+    match margin_at(bound, anchored) {
+        Some(m) if m.abs() <= slack() => {}
+        m => cen.fail(
+            n,
+            format!("the margin at the bound {bound} is {m:?}, not 0"),
+        ),
     }
     // The flip: never below the bound, and the gate's band from it
     // unless the loop builds below it at the other corner.
@@ -537,10 +584,14 @@ fn analyse(
     let Some(typed) = number_after(&said, "use a radius of ", " m or less") else {
         return cen.fail(n, format!("the sentence names no radius: {said}"));
     };
-    if typed > lever.clear {
-        cen.fail(n, format!("X {typed} is above the cleared {}", lever.clear));
+    if !(lever.exact_fit_edge..=bound).contains(&typed) {
+        cen.fail(n, format!("X {typed} is outside its window {lever:?}"));
     }
-    cen.typed("lever", n, &format!("X = {typed}"), &build(typed), at);
+    match margin_at(typed, anchored) {
+        Some(m) if exact_fit(m) => {}
+        m => cen.fail(n, format!("X {typed}'s margin is {m:?}, not an exact fit")),
+    }
+    cen.typed("X", n, &format!("X = {typed}"), &build(typed), at);
     for y in below(typed) {
         cen.typed("sweep", n, &format!("r = {y} below X"), &build(y), at);
     }
@@ -558,18 +609,33 @@ fn analyse(
             }
             continue;
         };
-        if s < legs[k].setback + clearance {
-            cen.fail(n, format!("S {s} is short of the cleared setback"));
+        if !exact_fit(s - legs[k].setback) || s > legs[k].setback + fit_reach {
+            cen.fail(
+                n,
+                format!("S {s} is outside its window from {}", legs[k].setback),
+            );
         }
         moved[k] = carrier.point_at(side, x, s);
     }
-    cen.typed(
-        "lever",
-        n,
-        "the anchors",
-        &build_at(moved[0], moved[1], r),
-        at,
-    );
+    match margin_at(r, moved) {
+        Some(m) if m >= -slack() && (overrun.indices().all(|k| moved[k] != anchored[k])) => {
+            // Each named leg fits exactly; a leg not named kept its own
+            // (Positive) margin.
+            for k in overrun.indices() {
+                let len = [inc.at(moved[0]), out.at(moved[1])][k]
+                    .setback_len(LEGS[k], (0.0, 0.0), x)
+                    .1;
+                if !exact_fit(len - got[k].0) {
+                    cen.fail(
+                        n,
+                        format!("the {:?} anchor's margin is {}", LEGS[k], len - got[k].0),
+                    );
+                }
+            }
+        }
+        m => cen.fail(n, format!("the anchor set's margin is {m:?}")),
+    }
+    cen.typed("S", n, "the anchors", &build_at(moved[0], moved[1], r), at);
 }
 
 /// Grid A's loop with its legs anchored at `head` and `next`.
@@ -646,6 +712,31 @@ fn row() -> String {
     format!("{:e}", tol().eps())
 }
 
+/// Pins a grid's typed-back levers that another gate refuses, at the
+/// run's ε row: `(X, S)`, per row.
+fn pin_typed(grid: &str, cen: &Census, rows: &[(&str, (usize, usize))]) {
+    let other = |kind: &str| {
+        cen.other_gates
+            .iter()
+            .filter(|((k, _), _)| *k == kind)
+            .map(|(_, n)| n)
+            .sum::<usize>()
+    };
+    let got = (other("X"), other("S"));
+    eprintln!(
+        "{grid} typed back, refused by another gate at ε = {}: {got:?}",
+        row()
+    );
+    if let Some((_, want)) = rows.iter().find(|(r, _)| *r == row()) {
+        assert_eq!(
+            got,
+            *want,
+            "{grid} at ε = {}: typed-back X and S refused by another gate",
+            row()
+        );
+    }
+}
+
 /// Pins a grid's counts at the run's ε row: `(entries, at the flip,
 /// below it)`, per row.
 fn pin(grid: &str, cen: &Census, rows: &[(&str, (usize, usize, usize))]) {
@@ -704,9 +795,15 @@ fn grid_a_bounds_are_the_anchor_fit_boundary() {
     eprintln!("grid A at ε = {}: {cen:?}", row());
     cen.assert_clean("grid A");
     pin("grid A", &cen, GRID_A_ROWS);
+    pin_typed("grid A", &cen, GRID_A_TYPED);
 }
 
 /// Grid A's counts per ε row.
+/// Grid A's typed-back `(X, S)` that another gate refuses, per ε row.
+const GRID_A_TYPED: &[(&str, (usize, usize))] =
+    &[("1e-9", (0, 0)), ("1e-6", (4, 3)), ("1e-12", (0, 0))];
+
+/// Counts per ε row.
 const GRID_A_ROWS: &[(&str, (usize, usize, usize))] = &[
     ("1e-9", (3_185, 2_923, 262)),
     ("1e-6", (3_179, 2_917, 262)),
@@ -750,9 +847,15 @@ fn line_arc_bounds_are_the_anchor_fit_boundary() {
     cen.assert_clean("line×arc");
     assert_eq!(cen.below_the_flip, 0, "every line×arc bound is its flip");
     pin("line×arc", &cen, LINE_ARC_ROWS);
+    pin_typed("line×arc", &cen, LINE_ARC_TYPED);
 }
 
 /// The line×arc grid's counts per ε row.
+/// The line×arc grid's typed-back `(X, S)` another gate refuses.
+const LINE_ARC_TYPED: &[(&str, (usize, usize))] =
+    &[("1e-9", (0, 0)), ("1e-6", (0, 0)), ("1e-12", (0, 0))];
+
+/// Counts per ε row.
 const LINE_ARC_ROWS: &[(&str, (usize, usize, usize))] = &[
     ("1e-9", (246, 246, 0)),
     ("1e-6", (246, 246, 0)),
@@ -791,9 +894,16 @@ fn line_line_bounds_are_the_anchor_fit_boundary() {
     cen.assert_clean("line×line");
     assert_eq!(cen.below_the_flip, 0, "every straight bound is its flip");
     pin("straight×straight", &cen, LINE_LINE_ROWS);
+    pin_typed("straight×straight", &cen, LINE_LINE_TYPED);
 }
 
 /// The straight×straight grid's counts per ε row.
+/// The straight×straight grid's typed-back `(X, S)` another gate
+/// refuses.
+const LINE_LINE_TYPED: &[(&str, (usize, usize))] =
+    &[("1e-9", (0, 0)), ("1e-6", (0, 0)), ("1e-12", (0, 0))];
+
+/// Counts per ε row.
 const LINE_LINE_ROWS: &[(&str, (usize, usize, usize))] = &[
     ("1e-9", (642, 642, 0)),
     ("1e-6", (642, 642, 0)),
@@ -803,8 +913,8 @@ const LINE_LINE_ROWS: &[(&str, (usize, usize, usize))] = &[
 /// **Authoring 3608**, the census's widest miss: r = 0.4 refuses at
 /// the origin, where the setback excess was 0.0013 m and 0.0384 m of
 /// radius had to go. The radius at the anchor is 0.361629480311458;
-/// the sentence names a radius past the band below it, and that radius
-/// clears the corner's anchor fit while the authored one does not.
+/// the sentence names a radius in its exact-fit window, and that radius
+/// builds while the authored one does not, as does the exact boundary.
 #[test]
 fn authoring_3608_names_the_radius_that_ends_at_its_anchor() {
     let case = [0.0, 0.2, -1.0, 0.3, 0.8, 0.15, -1.0, 0.3];
@@ -826,6 +936,13 @@ fn authoring_3608_names_the_radius_that_ends_at_its_anchor() {
     );
     let said = refused.as_ref().unwrap_err().to_string();
     let typed = number_after(&said, "or use a radius of ", " m or less").expect("a radius");
-    assert!(typed < lever.boundary, "{said}");
-    assert!(!refused_by_the_fit(&arc_arc(case, typed), origin), "{said}");
+    assert!(
+        (lever.exact_fit_edge..=lever.boundary).contains(&typed),
+        "{said}"
+    );
+    assert!(arc_arc(case, typed).is_ok(), "{said}");
+    assert!(
+        arc_arc(case, lever.boundary).is_ok(),
+        "the exact boundary builds"
+    );
 }

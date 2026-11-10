@@ -40,7 +40,7 @@ Each is admitted at that ceiling, citing this row.
 The rows above are synthetic. The kernel's own sentences show the
 size of the problem. Measured over grid A's 3 148 anchor-fit refusals
 (`crates/profile/tests/common/mod.rs`, `grid_a`) at the default ε,
-after the levers were named past the fit gate's band, which changed
+after the levers were named within their exact-fit window, which changed
 their digits but not their word counts:
 
 - 828 sentences are over 75 words, and the longest is 93;

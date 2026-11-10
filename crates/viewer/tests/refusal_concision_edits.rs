@@ -834,10 +834,10 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
                                 },
                             ],
                             overrun: OverrunLegs::One(FilletLeg::Outgoing),
-                            clearance: 2e-8,
+                            fit_reach: 5e-10,
                             radius_at_anchor: Some(LeverValue {
                                 boundary: 0.225,
-                                clear: 0.225 - 1.5e-8,
+                                exact_fit_edge: 0.225 - 3.75e-10,
                             }),
                         },
                     },

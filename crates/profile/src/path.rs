@@ -382,7 +382,9 @@ use crate::fillet_recourse::{
 use crate::gate::{Escalation, Gate, decide};
 use crate::path::program::{ClosedLoop, ConstructedLoop, Step, Target};
 use crate::seg::{self, ArcRead};
-use crate::sugar::{ArcSweep, LineFilletTrims, TrimRefusal, fit_clearance, line_line_fillet_trims};
+use crate::sugar::{
+    ArcSweep, LineFilletTrims, TrimRefusal, exact_fit_reach, line_line_fillet_trims,
+};
 use crate::validate::{
     ARC_SCENE_RESOLUTION_RECOURSE, FilletLeg, FilletLegCarrier, JUNCTION_TANGENT_LEVER,
     NoCornerReason, OverrunLegs,
@@ -664,29 +666,30 @@ pub enum CornerReason<T: Real> {
     /// setback pairs). Its numbers meter the two levers
     /// ([`Recourse::AnchorOrRadius`]): an overrun leg fits once its
     /// anchor lies `setback` from the corner, and the corner's anchors
-    /// fit at `radius_at_anchor` or less. Each lever is named
-    /// `clearance` past that boundary on its fitting side, because the
-    /// fit gate decides a margin inside its band as an escalation, not
-    /// a fit: typed back, the boundary itself would refuse again.
+    /// fit at `radius_at_anchor` or less. Each lever is named on its
+    /// fitting side within `fit_reach` of that boundary, where the fit
+    /// gate reads the margin as a Zero fit: the named fillet ends at the
+    /// anchor.
     AnchorOutsideTrimmedExtent {
         /// The reported candidate's `[incoming, outgoing]` legs.
         legs: [LegFit<T>; 2],
         /// Which of them the fit gate refused.
         overrun: OverrunLegs,
-        /// The fit margin the levers' values clear the gate by, meters:
-        /// twice the band's escalation threshold.
-        clearance: T,
+        /// How far past its boundary, on the fitting side, a lever's
+        /// value still fits exactly, meters: half the fit band's
+        /// coincidence threshold.
+        fit_reach: T,
         /// The radius lever, meters, on the reported candidate's branch:
         /// its [`LeverValue::boundary`] is the radius of the fillet
         /// tangent to an overrun leg's carrier exactly at its anchor and
         /// to the other carrier, the smaller over its overrun legs; its
-        /// [`LeverValue::clear`] is the same form with each anchor moved
-        /// `clearance` toward the corner, where every overrun leg's fit
-        /// margin is `clearance`. The tangency is linear in the radius
-        /// on both leg kinds, so both are closed forms, not a search.
-        /// `None` where a form degenerates — no positive radius on that
-        /// branch, none below the authored one, or a leg no longer than
-        /// the clearance.
+        /// [`LeverValue::exact_fit_edge`] is the same form on that
+        /// binding leg with its anchor moved `fit_reach` toward the
+        /// corner, where its fit margin is `fit_reach`. The tangency is
+        /// linear in the radius on both leg kinds, so both are closed
+        /// forms, not a search. `None` where a form degenerates — no
+        /// positive radius on that branch, none below the authored one,
+        /// or a leg no longer than the reach.
         radius_at_anchor: Option<LeverValue<T>>,
     },
     /// The requested radius demands the **enclosing** tangency at this
@@ -749,16 +752,18 @@ pub struct LegFit<T: Real> {
     pub available: T,
 }
 
-/// **A lever's value**: the boundary where the gate's margin is zero,
-/// and the value a recourse names, past the gate's band on the fitting
-/// side ([`CornerReason::AnchorOutsideTrimmedExtent`]).
+/// **A lever's exact-fit window**: the boundary where the fit margin is
+/// zero, and the far edge, on the fitting side, of the values whose
+/// margin the fit gate still reads as a Zero fit — the fillet ending at
+/// the anchor ([`CornerReason::AnchorOutsideTrimmedExtent`]). The
+/// sentence names a value between the two.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LeverValue<T: Real> {
     /// Where the fit margin is zero, meters.
     pub boundary: T,
-    /// Where the fit margin clears the band, meters: what an author
-    /// sets.
-    pub clear: T,
+    /// Where the fit margin is the exact-fit reach, meters: the window's
+    /// far edge.
+    pub exact_fit_edge: T,
 }
 
 /// One derived corner of a carrier pair, and why no fillet of the
@@ -894,7 +899,7 @@ impl<T: Real> CornerReason<T> {
             Self::AnchorOutsideTrimmedExtent {
                 legs,
                 overrun,
-                clearance,
+                fit_reach,
                 radius_at_anchor,
             } => Some(Recourse::AnchorOrRadius {
                 anchors: overrun
@@ -905,7 +910,7 @@ impl<T: Real> CornerReason<T> {
                             LEGS[k],
                             LeverValue {
                                 boundary: setback,
-                                clear: setback + *clearance,
+                                exact_fit_edge: setback + *fit_reach,
                             },
                         )
                     })
@@ -968,10 +973,9 @@ pub enum Recourse<T: Real> {
 const CORNER_IS_NEVER_AUTHORED: &str =
     "a fillet's corner is where its carriers cross, never an authored point";
 
-/// "or use a radius of X m or less", X rendered on the fitting side,
-/// or the lever named without a value where there is none — including
-/// a cleared radius that is not positive, which a leg no longer than
-/// the clearance leaves.
+/// "or use a radius of X m or less", X rendered on the fitting side
+/// within its exact-fit window, or the lever named without a value
+/// where there is none.
 fn write_radius_lever<T: Real>(
     f: &mut core::fmt::Formatter<'_>,
     radius: Option<&LeverValue<T>>,
@@ -983,15 +987,16 @@ fn write_radius_lever<T: Real>(
 }
 
 /// "the incoming leg at least S m [and the outgoing leg at least S m]",
-/// each S rendered on the fitting side.
+/// each S rendered on the fitting side within its exact-fit window.
 fn write_anchor_targets<T: Real>(
     f: &mut core::fmt::Formatter<'_>,
     anchors: &[(FilletLeg, LeverValue<T>)],
 ) -> core::fmt::Result {
     let mut sep = "";
     for (side, at_least) in anchors {
-        // A setback past the band is positive, so it always spells.
-        let at_least = num_toward(at_least, Toward::Above).unwrap_or_else(|| num(&at_least.clear));
+        // A setback is positive, so its window always spells.
+        let at_least =
+            num_toward(at_least, Toward::Above).unwrap_or_else(|| num(&at_least.exact_fit_edge));
         write!(f, "{sep}the {side} at least {at_least} m")?;
         sep = " and ";
     }
@@ -1072,12 +1077,12 @@ impl<'a, T: Real> PairRecourse<'a, T> {
                 Self::AnchorOrRadius {
                     anchors: merged,
                     // The largest bound, read componentwise: the
-                    // largest cleared radius lies below every boundary
+                    // largest window edge lies below every boundary
                     // at least as large, so the pair stays a lever.
                     radius: match (bound, *radius) {
                         (Some(a), Some(b)) => Some(LeverValue {
                             boundary: a.boundary.max(b.boundary),
-                            clear: a.clear.max(b.clear),
+                            exact_fit_edge: a.exact_fit_edge.max(b.exact_fit_edge),
                         }),
                         (bound, None) => bound,
                         (None, radius) => radius,
@@ -2179,42 +2184,39 @@ pub(crate) enum Toward {
     Below,
 }
 
-/// **A lever's number, spelled past the band on its fitting side**: the
-/// shortest decimal on [`num`]'s precision loop that lies at or beyond
-/// [`LeverValue::clear`], `toward` its fitting side, and within nine
-/// times the clearance past it (or [`num`]'s own grid, if that is
-/// wider). The number an author types back then clears the gate's band
-/// instead of landing in it, as rounding to nearest would about half
-/// the time, and nothing is named further out than ten clearances.
+/// **A lever's number, spelled strictly on its fitting side within the
+/// exact-fit window**: the shortest decimal on [`num`]'s precision loop
+/// that lies between [`LeverValue::boundary`] and
+/// [`LeverValue::exact_fit_edge`] — at each precision, the boundary
+/// rounded `toward` its fitting side. Typed back, it is a Zero fit at
+/// this corner: the fillet ends at the anchor. Rounding to nearest
+/// would land on the overrun side about half the time, and the float of
+/// the exact boundary can too.
 ///
-/// `None` where the cleared value is not a positive finite number, or
-/// no spelling lies in that window.
+/// `None` where the boundary is not a positive finite number, or no
+/// spelling lies in the window.
 pub(crate) fn num_toward<T: Real>(lever: &LeverValue<T>, toward: Toward) -> Option<String> {
-    let raw = format!("{:?}", lever.clear);
+    let raw = format!("{:?}", lever.boundary);
     let x = raw.parse::<f64>().ok()?;
-    let boundary = format!("{:?}", lever.boundary).parse::<f64>().ok()?;
-    if !(x.is_finite() && x > 0.0 && boundary.is_finite()) {
+    let edge = format!("{:?}", lever.exact_fit_edge).parse::<f64>().ok()?;
+    if !(x.is_finite() && x > 0.0 && edge.is_finite()) {
         return None;
     }
-    let reach = (9.0 * (x - boundary).abs()).max(grid_tol(x));
-    let fits = |y: f64| match toward {
-        Toward::Above => y >= x,
-        Toward::Below => y <= x,
+    let (lo, hi) = match toward {
+        Toward::Above => (x, edge),
+        Toward::Below => (edge, x),
     };
     shortest(
         &raw,
         x,
         |back, unit| {
-            Some(if fits(back) {
-                back
-            } else {
-                match toward {
-                    Toward::Above => back + unit,
-                    Toward::Below => back - unit,
-                }
+            Some(match toward {
+                Toward::Above if back < x => back + unit,
+                Toward::Below if back > x => back - unit,
+                _ => back,
             })
         },
-        |y| fits(y) && (y - x).abs() <= reach && y > 0.0,
+        |y| lo <= y && y <= hi && y > 0.0,
     )
 }
 
@@ -4271,16 +4273,16 @@ fn emit_straight_leg_at<T: Decide>(
 /// On a straight leg the setback is `r·|tan(φ/2)|`, so the fillet that
 /// ends exactly at a leg's anchor has radius `r·available/setback`: the
 /// closed form of `radius_at_anchor` on this pair, one branch and no
-/// search; ended `clearance` short of the anchor, it is
-/// `r·(available − clearance)/setback`. A leg no longer than the
-/// clearance leaves that radius non-positive, and the sentence then
-/// names no value (`write_radius_lever`): no comparison enters
-/// `path.rs`.
+/// search; ended `fit_reach` short of the anchor, it is
+/// `r·(available − fit_reach)/setback`, the exact-fit window's far
+/// edge. A leg no longer than the reach leaves that edge non-positive,
+/// and the window then holds every positive radius below the boundary
+/// (`num_toward`): no comparison enters `path.rs`.
 fn map_fillet_err<T: Real>(
     refusal: TrimRefusal<T>,
     corner: Point2<T>,
     radius: T,
-    clearance: T,
+    fit_reach: T,
 ) -> PathError<T> {
     match refusal {
         TrimRefusal::DoesNotFit {
@@ -4308,10 +4310,10 @@ fn map_fillet_err<T: Real>(
                 CornerReason::AnchorOutsideTrimmedExtent {
                     legs: [leg(0), leg(1)],
                     overrun,
-                    clearance,
+                    fit_reach,
                     radius_at_anchor: Some(LeverValue {
                         boundary: radius * reach / setback,
-                        clear: radius * (reach - clearance) / setback,
+                        exact_fit_edge: radius * (reach - fit_reach) / setback,
                     }),
                 },
             )
@@ -4846,7 +4848,7 @@ impl<T: Decide> Core<T> {
                             )])
                         });
                     }
-                    map_fillet_err(e, corner, pending.radius, fit_clearance(band))
+                    map_fillet_err(e, corner, pending.radius, exact_fit_reach(band))
                 },
             )?;
         // A straight carrier pair derives ONE corner and its
@@ -6942,7 +6944,7 @@ mod tests {
                     },
                 ],
                 overrun: OverrunLegs::One(FilletLeg::Incoming),
-                clearance: 2e-8,
+                fit_reach: 5e-10,
                 radius_at_anchor: None,
             },
         }
@@ -6963,6 +6965,36 @@ mod tests {
         assert_eq!(kept_margin.to_bits(), (0.0135_f64 - 0.01_f64).to_bits());
     }
 
+    /// **A lever's number lies in its exact-fit window, and is short.**
+    /// An anchor whose boundary is 0.40000000012 m, with a window of
+    /// 5·10⁻¹⁰ m above it, is named "0.4000000002": the boundary rounded
+    /// up, inside the window, where "0.4000000001" would overrun. A
+    /// radius whose boundary is 0.15 m is named "0.15", the window
+    /// holding the boundary itself. A boundary that is not positive
+    /// spells nothing, and the sentence then names the lever without a
+    /// number.
+    #[test]
+    fn a_levers_number_lies_in_its_exact_fit_window() {
+        let at_least = LeverValue {
+            boundary: 0.400_000_000_12_f64,
+            exact_fit_edge: 0.400_000_000_12 + 5e-10,
+        };
+        assert_eq!(
+            num_toward(&at_least, Toward::Above).as_deref(),
+            Some("0.4000000002")
+        );
+        let radius = LeverValue {
+            boundary: 0.15_f64,
+            exact_fit_edge: 0.15 - 3.75e-10,
+        };
+        assert_eq!(num_toward(&radius, Toward::Below).as_deref(), Some("0.15"));
+        let gone = LeverValue {
+            boundary: -1e-9_f64,
+            exact_fit_edge: -2e-9,
+        };
+        assert_eq!(num_toward(&gone, Toward::Below), None);
+    }
+
     /// **The cap is visible at the door too.**
     /// [`PathError::ArcCenterNotEquidistant`] fires precisely BECAUSE
     /// the kernel decided two radii differ, and its sentence prints
@@ -6971,38 +7003,6 @@ mod tests {
     /// centre| = 100 m"* — a refusal that contradicts itself in its own
     /// sentence, telling the reader the centre is not equidistant while
     /// printing one number twice.
-    /// **A lever's number lies past the band, and is short.** At the
-    /// default band's clearance of 2·10⁻⁸ m, an anchor whose boundary is
-    /// 0.4 m is named "0.4000001", not "0.4000000001", which would
-    /// leave a margin of 10⁻¹⁰ m inside the band; a radius whose cleared
-    /// value is 0.15 − 1.5·10⁻⁸ m is named "0.1499999". A cleared value
-    /// that is not positive spells nothing, and the sentence then names
-    /// the lever without a number.
-    #[test]
-    fn a_levers_number_lies_past_the_band() {
-        let at_least = LeverValue {
-            boundary: 0.4_f64,
-            clear: 0.4 + 2e-8,
-        };
-        assert_eq!(
-            num_toward(&at_least, Toward::Above).as_deref(),
-            Some("0.4000001")
-        );
-        let radius = LeverValue {
-            boundary: 0.15_f64,
-            clear: 0.15 - 1.5e-8,
-        };
-        assert_eq!(
-            num_toward(&radius, Toward::Below).as_deref(),
-            Some("0.1499999")
-        );
-        let gone = LeverValue {
-            boundary: 1e-9_f64,
-            clear: -1e-8,
-        };
-        assert_eq!(num_toward(&gone, Toward::Below), None);
-    }
-
     #[test]
     fn a_hundred_metre_refusal_does_not_print_its_two_radii_alike() {
         let s = PathError::ArcCenterNotEquidistant {

@@ -497,13 +497,13 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         /// The `[incoming, outgoing]` legs' fillets that end exactly at
         /// their anchors, for the door to assign to the candidates.
         at_anchor: [AtAnchor<T>; 2],
-        /// The same legs' fillets that end `clearance` short of their
+        /// The same legs' fillets that end `fit_reach` short of their
         /// anchors, toward the corner: the radius at which that leg's
-        /// fit margin is `clearance`, past the gate's band.
-        clearing: [AtAnchor<T>; 2],
-        /// The fit margin a recourse's values clear the gate by
-        /// ([`fit_clearance`]).
-        clearance: T,
+        /// fit margin is `fit_reach`, the far edge of its exact fit.
+        exact_fit_edge: [AtAnchor<T>; 2],
+        /// How far past a boundary a lever's value still fits exactly
+        /// ([`exact_fit_reach`]).
+        fit_reach: T,
         /// The corner's turn sense, which every candidate rounds it in.
         sense: ArcSweep,
     },
@@ -820,12 +820,12 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                             .map(|l| l.arc.map(|a| offset_radius(&a, sgn, radius))),
                     }
                 };
-                // The same fillets, ended `clearance` short of each
+                // The same fillets, ended `fit_reach` short of each
                 // anchor toward the corner. A leg no longer than the
-                // clearance has no such point on it, and the door reads
+                // reach has no such point on it, and the door reads
                 // that off the leg's extent.
-                let clearance = fit_clearance::<T>(band);
-                let short_of = |leg: &Leg<T>| leg.point_at(corner, leg.len - clearance);
+                let fit_reach = exact_fit_reach::<T>(band);
+                let short_of = |leg: &Leg<T>| leg.point_at(corner, leg.len - fit_reach);
                 ArcTrimRefusal::DoesNotFit {
                     first,
                     second,
@@ -833,11 +833,11 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
                         at_anchor(&leg_in, head, &leg_out, next),
                         at_anchor(&leg_out, next, &leg_in, head),
                     ],
-                    clearing: [
+                    exact_fit_edge: [
                         at_anchor(&leg_in, short_of(&leg_in), &leg_out, next),
                         at_anchor(&leg_out, short_of(&leg_out), &leg_in, head),
                     ],
-                    clearance,
+                    fit_reach,
                     sense,
                 }
             }
@@ -1118,13 +1118,16 @@ fn branch<T: Real>(leg_in: &Leg<T>, leg_out: &Leg<T>, o: Point2<T>) -> T {
     }
 }
 
-/// **The fit margin a recourse's values clear `fillet_leg_fit` by**:
-/// twice the band's escalation threshold. The gate decides a margin
-/// below that threshold as in band, so a radius or an anchor named at
-/// the boundary itself, typed back, would refuse again as an
-/// escalation; named at this margin it decides Positive.
-pub(crate) fn fit_clearance<T: Real>(band: Band) -> T {
-    T::from_f64(2.0 * band.escalate())
+/// **How far a recourse's value may lie past its exact boundary and
+/// still fit exactly**: half the band's coincidence threshold. The fit
+/// gate reads a run on that band, and a margin inside it is a Zero fit
+/// (`RUN_PASSES`): the fillet ends at the anchor, with no sliver of the
+/// leg between them. A value whose margin lies in `[0, reach]` is
+/// therefore the fillet that ends exactly at the anchor, at this
+/// tolerance; the float of the exact boundary itself can land on the
+/// overrun side, which the window's fitting side keeps it off.
+pub(crate) fn exact_fit_reach<T: Real>(band: Band) -> T {
+    T::from_f64(0.5 * band.zero())
 }
 
 impl<T: Real> Leg<T> {

@@ -574,10 +574,11 @@ fn map_refusal<T: Bounds>(
         // that is not positive and below the authored one, an offset
         // radius that is not positive, or the other branch). The
         // unassigned minimum over both legs names the other
-        // candidate's bound on some corners. The radius the sentence
-        // names is the same form with each anchor moved the clearance
-        // toward the corner (`sugar::fit_clearance`), read by the same
-        // rule: there every overrun leg's fit margin clears the band.
+        // candidate's bound on some corners. The far edge of the
+        // radius's exact-fit window is the same form with the anchor
+        // moved the reach toward the corner (`sugar::exact_fit_reach`),
+        // read by the same rule; the sentence names a radius between
+        // the two, where the binding leg's fillet ends at its anchor.
         //
         // Every read is an `f64` enclosure lower bound off the
         // diagnostic channel, exactly `nearest_joint`'s: a selection
@@ -591,8 +592,8 @@ fn map_refusal<T: Bounds>(
             first,
             second,
             at_anchor,
-            clearing,
-            clearance,
+            exact_fit_edge,
+            fit_reach,
             sense,
         } => {
             let candidates: Vec<OverrunCandidate<T>> =
@@ -617,29 +618,36 @@ fn map_refusal<T: Bounds>(
                     // tangent offset pair, which is on both branches.
                     && fit.branch.lo() * nearest.branch.lo() >= 0.0
             };
-            // The cleared radius is the same form with the anchor moved
-            // `clearance` toward the corner, read by the same rule, on a
-            // leg long enough to hold that point and below the boundary.
+            // The exact-fit window's far edge is the same form with the
+            // anchor moved `fit_reach` toward the corner, read by the
+            // same rule, on a leg long enough to hold that point and
+            // below the boundary.
             let lever = |k: usize| -> Option<LeverValue<T>> {
-                let (exact, clear) = (&at_anchor[k], &clearing[k]);
+                let (exact, edge) = (&at_anchor[k], &exact_fit_edge[k]);
                 (on_branch(exact)
-                    && on_branch(clear)
-                    && nearest.legs[k].leg_length.lo() > clearance.lo()
-                    && clear.radius.lo() < exact.radius.lo())
+                    && on_branch(edge)
+                    && nearest.legs[k].leg_length.lo() > fit_reach.lo()
+                    && edge.radius.lo() < exact.radius.lo())
                 .then_some(LeverValue {
                     boundary: exact.radius,
-                    clear: clear.radius,
+                    exact_fit_edge: edge.radius,
                 })
             };
             let radius_at_anchor = nearest
                 .overrun
                 .indices()
                 .map(lever)
+                // The binding leg's whole window: the smaller boundary,
+                // with its own edge, so the named radius fits that leg
+                // exactly (the other leg's margin is then larger).
                 .try_fold(None, |least: Option<LeverValue<T>>, fit| {
                     fit.map(|r| {
-                        Some(least.map_or(r, |least| LeverValue {
-                            boundary: least.boundary.min(r.boundary),
-                            clear: least.clear.min(r.clear),
+                        Some(least.map_or(r, |least| {
+                            if r.boundary.lo() < least.boundary.lo() {
+                                r
+                            } else {
+                                least
+                            }
                         }))
                     })
                 })
@@ -659,7 +667,7 @@ fn map_refusal<T: Bounds>(
                 CornerReason::AnchorOutsideTrimmedExtent {
                     legs: nearest.legs.map(leg),
                     overrun: nearest.overrun,
-                    clearance,
+                    fit_reach,
                     radius_at_anchor,
                 },
                 Overrun::new(corner, nearest.center, radius, nearest.tangents, sense),
