@@ -1560,6 +1560,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
 /// arm of [`NodeErrorKind::Transform`].
 pub fn transform_error_tag(err: &TransformError) -> &'static str {
     match err {
+        TransformError::Pcurve { .. } => "pcurve",
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::Corrupt { .. } => "corrupt",

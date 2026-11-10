@@ -69,6 +69,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/SlitUnplaced",
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
+    "Transform/Pcurve",
     "NotFinished/ScaffoldingEmptyLoop",
     "NotFinished/ScaffoldingStrutVertex",
     "Loft/Pcurve",
@@ -2821,8 +2822,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
 }
 
 fn transform() -> Vec<(String, NodeErrorKind)> {
+    use payloads::*;
     use topo::TransformError as E;
     [
+        ("Pcurve", E::Pcurve { source: pcurve() }),
         (
             "NullScaffold",
             E::NullScaffold {

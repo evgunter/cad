@@ -6042,7 +6042,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "transform_error_tag",
-        values: &["corrupt", "null_scaffold", "nurbs_placeholder"],
+        values: &["corrupt", "null_scaffold", "nurbs_placeholder", "pcurve"],
         delegates: &[],
     },
     TagEntry {
@@ -6408,7 +6408,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `the_edit_and_snapshot_maps_agree_on_the_var_read_words`;
     // these two rows say only that the sharing is deliberate.
     ("payload_var_kind", 2),
-    ("pcurve", 5),
+    ("pcurve", 6),
     ("pcurves", 3),
     // One fact at the edit and load doors: a pick whose path names no
     // one piece of its copy (`editor_core::edit::pick_fault`).

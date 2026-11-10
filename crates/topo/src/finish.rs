@@ -122,34 +122,38 @@ impl<T: AtRestPolicy> Replay<T> {
     /// # Errors
     ///
     /// [`NotFinished`] where the data map meets a state tier 2 refuses,
-    /// which a replay never holds ([`moved_body`]).
-    pub fn moved(&self, iso: &crate::Isometry<T>, _tol: Tol) -> Result<Self, NotFinished> {
+    /// which a replay never holds, or a mirror's re-minted row refuses
+    /// ([`moved_body`]).
+    pub fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
         Ok(Self {
-            body: moved_body(&self.body, iso)?,
+            body: moved_body(&self.body, iso, tol)?,
         })
     }
 }
 
-/// **`body` under `iso`**, the reflection's reversal included: the data
-/// map behind every `moved` door. A refusal of the map is a state the
-/// gate refuses, which a finished body or a leaf never holds; it is
-/// returned typed ([`ValidationError::Unmovable`]) rather than panicked
-/// on.
-pub(crate) fn moved_body<T: geom_core::Decide>(
+/// **`body` under `iso`**, the reflection's reversal and re-minted rows
+/// included ([`crate::mirror`]): the data map behind every `moved` door.
+/// A refusal of the map is a state the gate refuses, which a finished
+/// body or a leaf never holds; it is returned typed
+/// ([`ValidationError::Unmovable`]) rather than panicked on. Under a
+/// reflection the re-mint of a row can refuse, as a [`ValidationError::Pcurve`].
+pub(crate) fn moved_body<T: AtRestPolicy>(
     body: &Body<T>,
     iso: &crate::Isometry<T>,
+    tol: Tol,
 ) -> Result<Body<T>, NotFinished> {
     use crate::transform::TransformError as E;
     let unmovable = |found| NotFinished::new(vec![ValidationError::Unmovable { found }]);
-    let mapped = crate::transform::map_isometry(body, iso).map_err(|e| match e {
+    let refused = |e| match e {
+        E::Pcurve { source } => NotFinished::new(vec![ValidationError::Pcurve { finding: source }]),
         E::NullScaffold { .. } => unmovable("a null-scaffold edge"),
         E::NurbsPlaceholder => unmovable("a placeholder net"),
         E::Corrupt { found } => unmovable(found),
-    })?;
-    Ok(match iso {
-        crate::Isometry::Proper(_) => mapped,
-        crate::Isometry::Improper(_) => mapped.reverted(),
-    })
+    };
+    match iso {
+        crate::Isometry::Proper(_) => crate::transform::map_isometry(body, iso).map_err(refused),
+        crate::Isometry::Improper(r) => crate::mirror::mirror_body(body, r, tol).map_err(refused),
+    }
 }
 
 impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {

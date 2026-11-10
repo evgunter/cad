@@ -169,6 +169,8 @@ not (
   (binary_id(stl::all) & (test(=export::the_acceptance_exports_agree_are_honest_and_are_byte_identical))) |
   (binary_id(sweep) & (test(=offer_rows::every_sphere_offer_passes_just_below_it))) |
   (binary_id(sweep::all) & test(=a_mirrored_body_is_its_image::a_spline_loft_mirrors_to_its_image)) |
+  (binary_id(sweep::all) & test(=a_moved_body_keeps_its_verdict::every_surface_class_keeps_its_verdict_under_a_move)) |
+  (binary_id(sweep::all) & test(=a_moved_body_keeps_its_verdict::an_offset_cap_keeps_its_verdict_under_a_move)) |
   (binary_id(sweep::all) & test(=trimmed_sphere_aims::trimmed_sphere_shells_read_their_side_off_aimed_rays)) |
   (binary_id(sweep::all) & test(=curved_coincident_fates::a_hemisphere_base_and_a_brick_bottom_are_cut_alike_in_either_order)) |
   (binary_id(sweep::all) & test(=a_seam_inside_a_face_is_no_boundary_of_it::a_turned_tube_reads_its_side_in_its_seam_plane)) |

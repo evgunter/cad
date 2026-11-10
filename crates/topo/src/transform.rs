@@ -72,6 +72,14 @@ use crate::null::CurveGeom;
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum TransformError {
+    /// The mirror's re-mint of the image's pcurve rows refused
+    /// ([`crate::mirror`]): a row on an analytic chart, restated with its
+    /// azimuth, lands on a branch other than the one a fresh mint takes,
+    /// so the mirror derives its rows afresh.
+    Pcurve {
+        /// The typed pcurve-pass refusal, nested whole.
+        source: crate::pcurves::PcurveMintError,
+    },
     /// The body carries a null-scaffold edge: what an unfinished edit
     /// leaves behind (a lone `mev_null` on a fresh face, say). At a
     /// build, a caller reaches it by moving a body in the middle of its
@@ -98,8 +106,9 @@ pub enum TransformError {
 }
 
 impl TransformError {
-    /// This refusal's text, ended at `at` where it is `Some`: a defect
-    /// ends in the door's defect ending ([`geom_brep::recourse::defect_ending`]),
+    /// This refusal's text, ended at `at` where it is `Some`: a nested
+    /// pcurve refusal reads at that door, a defect ends in the door's
+    /// defect ending ([`geom_brep::recourse::defect_ending`]),
     /// and scaffolding ends in its edit's lever at a build. `None` writes
     /// the payload alone, its `Display`.
     fn write(
@@ -111,6 +120,7 @@ impl TransformError {
         let defect = at.map(geom_brep::recourse::defect_ending);
         let ended = |defect: Option<&str>| defect.map(|d| format!(". {d}")).unwrap_or_default();
         match self {
+            Self::Pcurve { source } => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
             Self::NullScaffold { .. } if at.is_some_and(ReadAt::is_build) => write!(
                 f,
                 "the body still carries what an edit left behind, which the map cannot \
@@ -594,10 +604,10 @@ impl OrientationClass {
 ///
 /// Under [`Hand::Improper`] the result is the reflected body INSIDE OUT
 /// ([`Hand`]): the analytic faces' outward side is flipped on their
-/// `sense`, since their mapped frames carry the outward normal across;
-/// an edge image or a pcurve row on an analytic chart has its azimuth
-/// negated with the chart, and a joint element on one is conjugated by
-/// that negation ([`reflected_joint`]). Each of those is exact.
+/// `sense`, since their mapped frames carry the outward normal across,
+/// and an edge image on an analytic chart has its azimuth negated with
+/// the chart. Its pcurve rows and joints are left as found, for the
+/// mirror to re-mint ([`crate::mirror`]).
 pub(crate) fn map_isometry<T: Decide>(
     body: &Body<T>,
     iso: &Isometry<T>,
@@ -704,35 +714,6 @@ pub(crate) fn map_isometry<T: Decide>(
     }
 
     if hand == Hand::Improper {
-        // Every row is restated as an edge's chart image is, and every
-        // joint on an analytic chart with its azimuth; on a plane or a
-        // net the chart is unmoved.
-        // A row or joint whose half-edge no longer resolves is on no
-        // face and travels as found (`crate::pcurves`' dead-key posture).
-        let class = |he| -> Option<OrientationClass> {
-            let lp = body.half_edges.get(he)?.parent_loop;
-            let face = body.loops.get(lp)?.face;
-            let surface = body.faces.get(face)?.surface;
-            body.surfaces.get(surface).map(OrientationClass::of)
-        };
-        let mut rows = Vec::new();
-        for (he, row) in &body.pcurves {
-            if let Some(class) = class(he) {
-                rows.push((he, row.carried(reflected_image(row.pcurve(), class)?)));
-            }
-        }
-        for (he, row) in rows {
-            out.pcurves.insert(he, row);
-        }
-        let mut joints = Vec::new();
-        for (he, element) in &body.joints {
-            if class(he) == Some(OrientationClass::Analytic) {
-                joints.push((he, reflected_joint(*element)));
-            }
-        }
-        for (he, element) in joints {
-            out.joints.insert(he, element);
-        }
         let flipped: Vec<crate::entity::FaceKey> = out
             .faces
             .iter()
@@ -748,25 +729,6 @@ pub(crate) fn map_isometry<T: Decide>(
         }
     }
     Ok(out)
-}
-
-/// **A joint element on an analytic chart, restated for its reflected
-/// chart** `R: (u, v) ↦ (−u, v)`: the element conjugated, `R·E·R`.
-/// `R` negates the first channel's periods and keeps the second's, and
-/// carries the sphere's twin `σ: (u, v) ↦ (u + π, π − v)` to
-/// `T_u⁻¹·σ`, so `(u, v, σ)` becomes `(−u − σ, v, σ)`. Integers, so
-/// the restatement is exact; a reset keeps its class modulo `T_u`.
-fn reflected_joint(element: crate::JointElement) -> crate::JointElement {
-    use crate::joint::{Deck, JointElement};
-    let conjugate = |d: Deck| Deck {
-        u: -d.u - i32::from(d.twin),
-        v: d.v,
-        twin: d.twin,
-    };
-    match element {
-        JointElement::Shift(d) => JointElement::Shift(conjugate(d)),
-        JointElement::Reset(d) => JointElement::Reset(conjugate(d)).canonical(),
-    }
 }
 
 /// The pushforward under `map ∘ place`: the sketch datum stays as

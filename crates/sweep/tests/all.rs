@@ -1360,6 +1360,8 @@ mod a_cone_with_a_tilted_seam;
 mod a_cylinder_through_a_hole_tangent_to_its_wall;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
+#[path = "a_moved_body_keeps_its_verdict.rs"]
+mod a_moved_body_keeps_its_verdict;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]

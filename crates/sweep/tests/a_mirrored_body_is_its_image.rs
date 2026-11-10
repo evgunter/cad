@@ -125,7 +125,7 @@ fn frustum_wedge() -> Body<f64> {
 
 /// A square with one arc side, lofted through a narrower copy of
 /// itself: its walls are spline nets.
-fn loft() -> Body<f64> {
+pub(crate) fn loft() -> Body<f64> {
     let section = |h: f64, b: f64| {
         let p = |x: f64, y: f64| Point2::new(x * h, y * h);
         vec![bulge_loop(vec![
@@ -150,7 +150,7 @@ fn loft() -> Body<f64> {
 /// A torus (major `1.5`, minor `0.5`, about `y`) less the brick
 /// `x ∈ [0.5, 3]`: the brick's face `x = 0.5` stands `0.5` off the axis,
 /// inside the two-oval regime, so the cut's rims are spiric ovals.
-fn torus_less_a_brick() -> Body<f64> {
+pub(crate) fn torus_less_a_brick() -> Body<f64> {
     let p = |x, y| (Point2::new(x, y), 0.0);
     let section = bulge_loop(vec![p(0.5, -1.0), p(3.0, -1.0), p(3.0, 1.0), p(0.5, 1.0)]);
     let profile = Profile::new(
@@ -174,7 +174,7 @@ fn torus_less_a_brick() -> Body<f64> {
         .into_body()
 }
 
-fn bodies() -> Vec<(&'static str, Body<f64>)> {
+pub(crate) fn bodies() -> Vec<(&'static str, Body<f64>)> {
     vec![
         ("the prism", prism()),
         ("the cylinder", cylinder()),
@@ -187,7 +187,7 @@ fn bodies() -> Vec<(&'static str, Body<f64>)> {
 }
 
 /// Mirror planes: one along an axis, and one oblique to every axis.
-fn planes() -> Vec<(&'static str, Reflection<f64>)> {
+pub(crate) fn planes() -> Vec<(&'static str, Reflection<f64>)> {
     vec![
         (
             "x = −0.75",

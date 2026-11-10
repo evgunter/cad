@@ -29,15 +29,14 @@ fn rigid_f64() -> Affine3<f64> {
     Affine3::translation(Vec3::new(1.0, 0.0, 0.0))
 }
 
-/// **At `f64` the absence arm never fires, and the map's certificate is
-/// the free certifier's.**
+/// **At `f64` the absence arm never fires, and the map carries the
+/// certificate.**
 ///
 /// What the row holds is two things: no door on the walk reports
 /// `ApproxLaneUnsupported` or `ApproxCertification` when the seam
-/// answers, and the surface `transform_rigid` produces carries
-/// `geom_brep::certify_offset_over`'s measurement of the mapped pair
-/// at the run's ε, limb for limb by bits — the free function, not the
-/// door re-asked.
+/// answers, and the surface `transform_rigid` produces carries the
+/// source's certificate verbatim, a claim `geom_brep::certify_offset_over`
+/// confirms on the mapped pair at the run's ε.
 #[test]
 fn the_f64_seam_answers_every_public_door() {
     // Pinned red since PR 4472: at ε = 1e-6 the moved cap's plane × fit
@@ -102,29 +101,21 @@ fn the_f64_seam_answers_every_public_door_row() {
         &geom_core::test_support::rigid(&rigid_f64(), Tol::witness()),
         Tol::witness(),
     )
-    .expect("a rigid map of a certified fit re-certifies at the run's ε");
+    .expect("a rigid map of a certified fit moves it");
     let Some(Surface::Approx(m)) = moved.face_surface(face) else {
         panic!("the mapped cap is still approximating");
     };
+    let Some(Surface::Approx(source)) = body.face_surface(face) else {
+        unreachable!("the cap wore the approximating surface above")
+    };
     let spec = m.spec();
-    let free =
-        geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, Tol::witness())
-            .expect("`geom-brep`'s certifier measures the mapped pair");
-    let got = m.certificate();
-    for (name, x, y) in [
-        ("distance", got.distance, free.distance),
-        ("on_locus_max", got.on_locus_max, free.on_locus_max),
-        ("hull_sup", got.hull_sup, free.hull_sup),
-        ("normal_floor", got.normal_floor, free.normal_floor),
-        ("curvature_reach", got.curvature_reach, free.curvature_reach),
-    ] {
-        assert_eq!(
-            x.to_bits(),
-            y.to_bits(),
-            "{name}: the public door's mapped certificate is not the free certifier's \
-             measurement of the same pair"
-        );
-    }
+    geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, Tol::witness())
+        .expect("`geom-brep`'s certifier certifies the mapped pair, as the carried claim says");
+    assert_eq!(
+        format!("{:?}", m.certificate()),
+        format!("{:?}", source.certificate()),
+        "the public door carries the source's certificate"
+    );
 
     // The offset door over the whole body: the mint that produces an
     // `Approx` for a kind not closed under offset. The fitted cap's

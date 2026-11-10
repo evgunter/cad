@@ -10658,15 +10658,16 @@ impl<T: geom_core::Decide> AtRestBody<T> {
     ///
     /// # Errors
     ///
-    /// [`crate::NotFinished`] holding the session-box finding, or the
-    /// band's where the tolerance forms none.
+    /// [`crate::NotFinished`] holding the session-box finding, the band's
+    /// where the tolerance forms none, or, under a reflection, a
+    /// re-minted pcurve row's ([`crate::mirror`]).
     pub fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, crate::NotFinished>
     where
         T: crate::props::AtRestPolicy,
     {
         let band = Band::linear(tol)
             .map_err(|error| crate::NotFinished::new(vec![ValidationError::Band { error }]))?;
-        let body = crate::finish::moved_body(&self.body, iso)?;
+        let body = crate::finish::moved_body(&self.body, iso, tol)?;
         let findings: Vec<ValidationError> = crate::FindingFamily::ALL
             .into_iter()
             .filter(|family| !family.up_to_isometry())
