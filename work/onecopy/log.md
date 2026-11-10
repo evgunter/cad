@@ -1495,3 +1495,4 @@
 - 02:04Z 6686 green at f2cb78b5 but conflicts with 6703 in link.rs ArcReach (main: one clearance read, match-bound name) → back to topo-roster lane to resolve and roster the match-bound name, ahead of roster-reach.
 - 02:07Z held-and-pierce: probe shows all 4 held-premise sites Zero in production; ruled all four Held in PR 6705, line_through off-carrier → ClassificationInvariant via FaceUnread (test row becomes a defect pin); re-pin k-stats ledgers with reason.
 - 02:10Z 6701 delta: FIX (ratchet zero ≠ done-when: count test/doc spellings, refuse module-alias imports; stale ladder.rs cite in funnel-row row) → ladder lane.
+- 02:13Z doc-gate row (filed on 6701, 50 rustdoc errors in 6 crates) → new implementer session_013mPGJ43vk6aHdGjYJJqR2D on onecopy/doc-gate-clean.
