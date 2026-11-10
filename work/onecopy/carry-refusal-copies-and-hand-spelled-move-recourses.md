@@ -48,3 +48,16 @@ named `X_RECOURSE` / `X_ENDING`, so it does not hold
 write `Recourse: {COINCIDENCE_RECOURSE}`, several of them continuing it
 ("; {note}", ", or …"). Deciding the class means deciding which of those
 are the whole ending, and then extending the gate's pairs.
+
+## Closed (ONECOPY, `onecopy/carry-copies`, 2026-11-10)
+
+**S2.** A site read keeps returning `SiteRefusal`, because it has readers that must not see the other `CarryRefusal` arms. `topo`'s `chord_join` (`From<(FaceKey, SiteRefusal)> for SplitJoinError`), `boolean::join::site_refusal` and `boolean::section_table`'s `FootRefusal::Site` each map exactly its three arms into their own sorts; handed `CarryError`, each would have to answer a march, lane, pad, tube or seat refusal that no site makes. The type's doc now says it is a narrowing of `CarryError` and names those readers. The correspondence is spelled once, as `From<SiteRefusal> for CarryError`, and `CarriedComponent::holds` reads through it with `?`. The three-arm map is gone.
+
+**S6, and the class.** The move recourse's home gains one arm. `geom_core::move_recourse!("so …")` is `Recourse: move the geometry so …`: the labelled move arm with the site's own condition after it. That is the composition `editor-core`'s naming levers and `topo`'s `chord_join` and `merge_faces` already write unlabelled (`concat!(coincidence_move_arm!(), " so …")`). `NoCarrier`'s two recourses go through it. Their text moves from "move one face so the surfaces …" to "move the geometry so the surfaces …"; no test or fixture pins either spelling.
+
+The class's one spelling, then:
+- `MOVE_RECOURSE` is the whole ending, continued or not.
+- `COINCIDENCE_RECOURSE` is the fragment for a sentence of the site's own.
+- `move_recourse!("so …")` is a move named more closely.
+
+`scripts/gates/recourse-ending-by-hand.sh` now holds `COINCIDENCE_RECOURSE` / `MOVE_RECOURSE` as a named pair. It fails loud if either constant leaves geom-core, and its self-test fires on that case and on the pair's hand label. The 13 production sites that wrote `Recourse: {COINCIDENCE_RECOURSE}` or `Recourse: {}", …COINCIDENCE_RECOURSE` (intersect, frame, extrude ×3, revolve ×4, skin, ray_walk, replace_face) write `MOVE_RECOURSE`, with byte-identical text, including the ones that continue it ("; {note}"). Sites that compose the fragment mid-sentence after words of their own are the fragment's intended use and pass. Literal "Recourse: move …" spellings are the gate's stated blind spot, filed with their counts as `work/onecopy/move-the-geometry-is-spelled-as-a-literal-at-ninety-sites.md`.
