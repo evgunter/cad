@@ -14,8 +14,7 @@
 //! below pins [`DirectedPoint`]'s SHAPE — the incoming-state currency
 //! has no carrier field — and nothing wider: it is not a universal
 //! over every function in the crate (a chain-side kernel in `path.rs`
-//! reads the tip's incoming carrier, and its readers are named
-//! below). The statement that IS true is PATHS-DESIGN §4's: no
+//! holds the emitted chain itself). The statement that IS true is PATHS-DESIGN §4's: no
 //! signature in this sealed verb module admits a `Core`, a previous
 //! leg or an incoming carrier. (Rustdoc on this toolchain does not
 //! check the error code written after `compile_fail`; the failure to
@@ -41,20 +40,11 @@
 //! functions and applies their EMISSIONS (append-leg / insert-arc /
 //! extend-ray) to the accumulating loop on the far side of this module
 //! boundary; the §4 junction checks read the chain's own intrinsic
-//! leg data and stay chain-side. **The ONE chain-side datum a kernel
-//! in `path.rs` / `family.rs` can still see is the tip's incoming
-//! carrier** (`Incoming.carrier`, the arriving arc's circle), and its
-//! readers are NAMED so that a new one is a diff on this list rather
-//! than a quiet return of the old wall: the straight-origin test of
-//! ray extension (`PendingMeta::extends_straight_leg`, asking only
-//! whether the forward by-tangent origin was a straight leg), and
-//! `carriers_are_identical` under the
-//! `path_carrier_identity` key in `family::leg_end_arc_open` — the arc
-//! extension's vertex-move choice, a same-carrier question the ruling
-//! that every zero-turn joint is a tangent joint (D1) retires in
-//! principle and which stands recorded here until its own unit takes
-//! it. The chain keeps no other memory of an emitted arc. The
-//! arc-carrier RESOLUTION machinery (`arc_fillet::resolve`, unchanged
+//! leg data and stay chain-side. The tip's record of its arriving leg
+//! (`Incoming`) is that leg's end tangent, its lever arm and the
+//! straight run it rides — no carrier — so no emission can ask which
+//! carrier the arriving leg had, and every extension's incoming run
+//! is a segment of its own. The arc-carrier RESOLUTION machinery (`arc_fillet::resolve`, unchanged
 //! bit for bit) is the kernel's arc half: it is already pure over
 //! `FilletSide` values.
 //!
