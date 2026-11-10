@@ -1688,7 +1688,7 @@ pub enum PcurveCheck {
     /// torus chart (the projected lane's own gate).
     TubePeriod,
     /// A curved chart's incidence test (`chart_incidence`,
-    /// `incidence_over_span`, the cone conic's apex-height read): whether
+    /// `incidence_over_span_as`, the cone conic's apex-height read): whether
     /// the carrier lies on the chart. Only a genuine incidence reading
     /// raises it.
     ChartIncidence,
@@ -4651,7 +4651,7 @@ impl<T: Decide> PcurveCache<T> {
             // ones — no bracket obligation — so it shares this
             // `Decide`-scalar door.
             spiric @ Pcurve::Spiric { .. } => {
-                run_spiric_checks(spiric, t0, t1, carrier, surface, band)?
+                run_spiric_checks_as(spiric, t0, t1, carrier, surface, band)?
             }
             section @ Pcurve::FocalSection(_) => {
                 run_focal_section_checks(section, t0, t1, carrier, surface, band)?
@@ -4881,7 +4881,7 @@ impl<T: Decide> PcurveCache<T> {
                 surface,
                 band,
             ),
-            spiric @ Pcurve::Spiric { .. } => run_spiric_checks(
+            spiric @ Pcurve::Spiric { .. } => run_spiric_checks_as(
                 spiric,
                 self.param_start,
                 self.param_end,
@@ -7084,7 +7084,7 @@ fn focal_section_envelope<T: Real>(
 ///      whose residues are visible at every sample —
 ///      [`EnvelopeStatement::SpiricIdentity`], envelope `0` plus the
 ///      drift check 1 admitted.
-fn run_spiric_checks<T: Decide>(
+fn run_spiric_checks_as<T: Decide>(
     pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
@@ -8871,7 +8871,7 @@ pub(crate) struct Placement<T> {
     mid: T,
     levers: Levers<T>,
     /// The span the placement reads, which an open carrier's incidence
-    /// test samples ([`incidence::incident`]).
+    /// test samples ([`incidence::incident_as`]).
     span: (T, T),
     /// The carrier's incidence read already taken on the chart this
     /// placement re-derives on (`Placement::shown`): the test returns it
@@ -9476,7 +9476,7 @@ fn read_shown<T: Decide>(
             Incidence::On(_) => Ok(None),
         };
     }
-    incidence::incident(
+    incidence::incident_as(
         carrier,
         surface,
         Placement::over((t0, t1), carrier, surface),
@@ -9518,7 +9518,7 @@ pub fn read_edge_incidence<T: Decide>(
     if surface.spline_chart().is_none() && carrier.kind() == geom::CurveKind::Nurbs {
         return read_incidence(carrier, t0, t1, surface, band);
     }
-    incidence::incident(
+    incidence::incident_as(
         carrier,
         surface,
         Placement::over((t0, t1), carrier, surface).edge_only(),
@@ -9574,7 +9574,7 @@ fn net_incidence<T: Decide>(
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     let span = span.unwrap_or_else(|| net.knot_values().domain());
-    incidence_over_span(
+    incidence_over_span_as(
         "pcurve_spline_chart_incident",
         surface,
         span,
@@ -9755,7 +9755,7 @@ impl RevolvedTube {
 ///
 /// **Every arm reads incidence first** (D3): whether the carrier lies on
 /// the chart is read by the chart's incidence test
-/// ([`incidence::incident`]) before any class or kind gate reads it, and
+/// ([`incidence::incident_as`]) before any class or kind gate reads it, and
 /// every arm images, or takes the general lane, only behind the witness
 /// that test returns ([`incidence::Incident`]).
 fn derive_class<T: Decide>(
@@ -9815,7 +9815,7 @@ fn derive_class_zero<T: Decide>(
             // show off the plane.
             note_zero(
                 zero,
-                incidence::incident(carrier, surface, place, band)?.margin(),
+                incidence::incident_as(carrier, surface, place, band)?.margin(),
             );
             // Affine chart: the coefficients map through one by one.
             let v_ref = normal.cross(u_ref);
@@ -9837,7 +9837,7 @@ fn derive_class_zero<T: Decide>(
             radius,
             u_ref,
         } => {
-            let shown = incidence::incident(carrier, surface, place, band)?;
+            let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             let cv = axis.cross(u_ref);
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
@@ -9964,7 +9964,7 @@ fn derive_class_zero<T: Decide>(
             half_angle,
             u_ref,
         } => {
-            let shown = incidence::incident(carrier, surface, place, band)?;
+            let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             let c_ha = half_angle.cos();
             let cv = axis.cross(u_ref);
@@ -10347,7 +10347,7 @@ fn derive_class_zero<T: Decide>(
             axis,
             u_ref,
         } => {
-            let shown = incidence::incident(carrier, surface, place, band)?;
+            let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             // Only circles are the sphere's classes: a bounded surface
             // holds no line, and its plane sections are circles. A line or
@@ -10623,7 +10623,7 @@ fn derive_class_zero<T: Decide>(
                 RevolvedTube::Sheet => Err(incidence::general_lane(shown, None)),
                 RevolvedTube::Ring => torus_oblique_circle(carrier, surface, place, band, shown),
             };
-            let shown = incidence::incident(carrier, surface, place, band)?;
+            let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             let cv = axis.cross(u_ref);
             // A bounded surface holds no line, and a torus's plane
@@ -11549,7 +11549,7 @@ const INCIDENCE_SAMPLES: u32 = 64;
 /// torus's `|√((ρ − R)² + h²) − r|`. On a spindle sheet the torus's
 /// form is the distance from the sheet's whole revolved circle, which
 /// holds the sheet, so it bounds the sheet's from below: the one-sided
-/// reading [`incidence_over_span`] decides.
+/// reading [`incidence_over_span_as`] decides.
 fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     match *surface {
         Surface::Sphere { center, radius, .. } => (p.distance(center) - radius).abs(),
@@ -11603,13 +11603,13 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
 }
 
 /// **The incidence test of a closed conic on its chart**: the sampled
-/// test ([`incidence_over_span`]) over `turn`: one turn `[0, τ]`, whose
+/// test ([`incidence_over_span_as`]) over `turn`: one turn `[0, τ]`, whose
 /// end repeats its start, or the edge's own span where the read is the
 /// edge's ([`read_edge_incidence`]).
 ///
 /// # Errors
 ///
-/// As [`incidence_over_span`].
+/// As [`incidence_over_span_as`].
 fn chart_incidence<T: Decide>(
     name: &'static str,
     carrier: &Curve3<T>,
@@ -11618,7 +11618,7 @@ fn chart_incidence<T: Decide>(
     slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    incidence_over_span(name, surface, turn, |t| carrier.eval(t), slack, band)
+    incidence_over_span_as(name, surface, turn, |t| carrier.eval(t), slack, band)
 }
 
 /// **A carrier's sampled incidence test**: [`incidence_at`] over the
@@ -11627,7 +11627,7 @@ fn chart_incidence<T: Decide>(
 /// # Errors
 ///
 /// As [`incidence_at`].
-fn incidence_over_span<T: Decide>(
+fn incidence_over_span_as<T: Decide>(
     name: &'static str,
     surface: &Surface<T>,
     span: (T, T),
@@ -11735,7 +11735,7 @@ mod incidence {
     use geom_core::Band;
 
     /// The carrier's incidence test on its chart did not show it off the
-    /// chart, by `margin`. Built only by [`incident`].
+    /// chart, by `margin`. Built only by [`incident_as`].
     #[derive(Clone, Copy, Debug)]
     pub(super) struct Incident {
         margin: Option<geom_core::MarginDiag>,
@@ -11765,7 +11765,7 @@ mod incidence {
     ///
     /// Returned with the move's own rounding, a first-order running
     /// bound ([`geom_core::running`]): the read charges it
-    /// (`incidence_over_span`), so data exactly on the chart read Zero,
+    /// (`incidence_over_span_as`), so data exactly on the chart read Zero,
     /// and a miss the move's rounding could hide is not decided. A
     /// sphere's or torus's centre is within the chart's own size of any
     /// carrier on it, and a cone's apex slides nowhere, so theirs are
@@ -11914,7 +11914,7 @@ mod incidence {
 
     /// **The chart's incidence test of one point** ([`super::read_point_incidence`]):
     /// the point's distance from the analytic chart, decided by
-    /// [`incidence_over_span`](super::incidence_over_span) in the point's
+    /// [`incidence_over_span`](super::incidence_over_span_as) in the point's
     /// own frame ([`anchored`]).
     pub(super) fn point_incident<T: Decide>(
         point: geom_core::Point3<T>,
@@ -11926,7 +11926,7 @@ mod incidence {
             Some((_, moved, slack, _)) => (moved, slack),
             None => (surface.clone(), T::zero()),
         };
-        super::incidence_over_span(
+        super::incidence_over_span_as(
             "pcurve_point_chart_incident",
             &moved,
             (T::zero(), T::zero()),
@@ -11936,7 +11936,7 @@ mod incidence {
         )
     }
 
-    pub(super) fn incident<T: Decide>(
+    pub(super) fn incident_as<T: Decide>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         place: Placement<T>,
@@ -11962,7 +11962,7 @@ mod incidence {
                 Surface::Approx(_) => "pcurve_approx_chart_incident",
                 _ => "pcurve_nurbs_chart_incident",
             };
-            return match super::spline_incidence::spline_incidence(
+            return match super::spline_incidence::spline_incidence_as(
                 name,
                 chart,
                 place.span,
@@ -12100,7 +12100,7 @@ mod incidence {
     }
 
     /// The escalation of a class reading that did not show one of the
-    /// chart's own classes, on a carrier [`incident`] did not show off
+    /// chart's own classes, on a carrier [`incident_as`] did not show off
     /// the chart, where the pair has no general lane written
     /// ([`PcurveCheck::ChartClass`]): lever-only "not yet".
     pub(super) fn class_escalated(_shown: Incident, cause: Indeterminate) -> PcurveCertifyError {
@@ -12113,7 +12113,7 @@ mod incidence {
 }
 
 /// The escalation of a genuine incidence reading landing in the sliver
-/// band: the sampled test (`incidence_over_span`) and the spiric wall's
+/// band: the sampled test (`incidence_over_span_as`) and the spiric wall's
 /// centre read. No class gate raises it (a class reading in band is
 /// [`PcurveCheck::ChartClass`]'s, through the incidence door).
 fn incidence_escalated(cause: Indeterminate) -> PcurveCertifyError {
@@ -12153,7 +12153,7 @@ fn incidence_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// # Errors
 ///
 /// The incidence test's for a plane or torus the oval is not shown on
-/// ([`incidence::incident`]); [`spiric_off_own_chart`]'s for a cylinder,
+/// ([`incidence::incident_as`]); [`spiric_off_own_chart`]'s for a cylinder,
 /// cone or sphere chart and for a torus whose axis is perpendicular to
 /// the carrier's;
 /// [`PcurveCertifyError::UnsupportedChart`] for a spline or
@@ -12184,7 +12184,7 @@ fn spiric_chart_pcurve<T: Decide>(
     // D3: whether the oval lies on the chart is read first, by the
     // chart's incidence test, before the cap or the wall is imaged.
     if matches!(surface, Surface::Plane { .. } | Surface::Torus { .. }) {
-        incidence::incident(carrier, surface, place, band)?;
+        incidence::incident_as(carrier, surface, place, band)?;
     }
     match *surface {
         Surface::Plane {

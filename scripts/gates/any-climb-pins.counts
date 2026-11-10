@@ -30,7 +30,7 @@ crates/topo/src/census.rs planar_interiors_meet 1 row t4-ports-unpinned-for-a-ke
 crates/topo/src/census.rs probe_vertices 1 pin an_abort_stops_the_probe_and_a_limit_outranks_in_band
 crates/topo/src/census.rs shared_interior_witness 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/census.rs shared_run 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/census.rs span_clear 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/census.rs span_clear_as 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 # wedges_overlap: its pair ladder and each pair's probe ladder, both read
 # by the production function in the one module.
 crates/topo/src/census.rs wedges_overlap 2 pin a_pair_whose_wedge_does_not_read_is_kept_and_a_later_pair_answers

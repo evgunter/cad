@@ -416,7 +416,7 @@ impl Local {
             .iter()
             .enumerate()
             .filter(|(_, e)| match &e.arc {
-                Some((carrier, span)) => !ball.clear_of_arc(carrier, *span, band),
+                Some((carrier, span)) => !ball.clear_of_arc_as(carrier, *span, band),
                 None => e.ends.iter().any(|v| vertices.contains(v)),
             })
             .map(|(i, _)| i)

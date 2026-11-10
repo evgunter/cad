@@ -172,7 +172,7 @@ pub(crate) struct Hit<T: geom_core::Real> {
 /// A path that meets nothing gives nothing to read
 /// ([`RayFault::Unread`]); a tie, a sideless closest crossing or a
 /// tangential one grazes; an in-band one sets the path aside.
-pub(crate) fn side_at_closest<T: Decide>(
+pub(crate) fn side_at_closest_as<T: Decide>(
     crossings: Crossings<T, Hit<T>>,
     (order, cross): (&'static str, &'static str),
     lever: T,
@@ -952,7 +952,7 @@ fn side<T: Decide, D: Legs<T>>(
     crossings: Crossings<T, Hit<T>>,
     band: Band,
 ) -> Result<bool, Fault> {
-    side_at_closest(crossings, D::SIDE_ROWS, door.lever(), band)
+    side_at_closest_as(crossings, D::SIDE_ROWS, door.lever(), band)
 }
 
 /// **The crossing offer**: every crossing of `leg` with the boundary,
@@ -1024,11 +1024,11 @@ impl<T: Decide> Round<T> {
 /// Places round the circle are arc lengths in `[0, 2π·radius)`: a
 /// circle has no behind.
 impl<T: Decide> Course<T> for Round<T> {
-    /// Read the shorter way round ([`ray_walk::apart`]), then as a turn
+    /// Read the shorter way round ([`ray_walk::apart_as`]), then as a turn
     /// ahead.
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
         let s = self.swept(y);
-        ray_walk::apart(at, Margin::of((self.circle.radius * s).abs()), band)
+        ray_walk::apart_as(at, Margin::of((self.circle.radius * s).abs()), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?;
         Ok(Some(self.arc(y)))
     }
@@ -1081,7 +1081,7 @@ impl<T: Decide> Line<T> {
 impl<T: Decide> Course<T> for Line<T> {
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
         let s = self.line.height(y);
-        match ray_walk::advance(at, Margin::of(s), band)
+        match ray_walk::advance_as(at, Margin::of(s), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?
         {
             Sign::Negative => Ok(None),
