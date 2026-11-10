@@ -597,8 +597,7 @@ fn ladder_reading<T: Decide>(
 /// coincidence already stands on that bound
 /// ([`geom_brep::tori_coincide`]), and a torus pair the ring reads apart
 /// comes back as such, for the door to ask the faces for a witness
-/// ([`PairDoorReading::RingApart`]). The corner sites read their own arm,
-/// not a pair's extent, and take [`carrier_eq_reading`] as it is.
+/// ([`PairDoorReading::RingApart`]).
 ///
 /// # Errors
 ///
@@ -1472,7 +1471,7 @@ mod tests {
     /// a quarter turn and a smaller one.
     #[test]
     fn the_ladder_reads_two_tori_as_their_pose_does() {
-        use crate::boolean::boxes::tests::torus_wall;
+        use crate::boxes::tests::torus_wall;
         let b = band();
         let e = b.zero();
         let surface = |(center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64)| {

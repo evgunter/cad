@@ -2,10 +2,12 @@
 id: a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected
 kind: issue
 title: A solid touching itself at a corner on a spline crease finishes with the touch undetected: corner_normal reads every crease Unreadable, which the at-rest census routes to SelfTouch::SecondOrder and skips
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-10
+branch: onecopy/crease-self-touch
 ---
 
 
@@ -46,3 +48,15 @@ crease corner, or finishes it with the touch undetected:
 
 Either way, pin it with a row: a body touching itself at a crease corner,
 and the gate's outcome on it.
+
+## Resolution
+
+Neither option as written: the census held the sector's side through
+its half-edge, and the chart reader dropped it. A spline corner on a
+crease now reads the normal on its sector's side
+(`geom_brep::chart_normal_beside`, the side decided off the half-edge's
+pcurve box), and what still refuses (a side the band does not read, an
+irregular point) routes by `Refusal::of_crease` in `census::corner_normal`.
+Pinned by `census::self_touch_curved::a_solid_touching_itself_at_a_spline_crease_corner_is_read`.
+The `Unsupported`/`Unplaced` arms are their own row:
+`work/onecopy/a-spline-corner-with-no-placed-chart-reading-finishes-undetected.md`.
