@@ -493,10 +493,16 @@ fn one_cylinder(
         let c = da.cross(db);
         let arm = topo::boolean::carrier_pair_arm(a, fa, b, fb, band)
             .map(|l| l.length().lo());
-        eprintln!(
-            "PROBE-CYLAXIS stated={stated} s=[{:e},{:e},{:e}] norm={:e} ra={:e} rb={:e} arm={:?} zero={:e}",
+        let line = format!(
+            "PROBE-CYLAXIS stated={stated} s=[{:e},{:e},{:e}] norm={:e} ra={:e} rb={:e} arm={:?} zero={:e}\n",
             c.x.lo(), c.y.lo(), c.z.lo(), c.norm().lo(), ra.lo(), rb.lo(), arm, band.zero()
         );
+        if let Ok(path) = std::env::var("PROBE_CYLAXIS_OUT") {
+            use std::io::Write as _;
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = f.write_all(line.as_bytes());
+            }
+        }
     }
     let established = || {
         if !stated {
