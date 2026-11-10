@@ -31,6 +31,7 @@ members = [
     "crates/pncad-py",
     "crates/profile",
     "crates/quantity",
+    "crates/source-scope",
     "crates/step-export",
     "crates/step-import",
     "crates/stl",
@@ -258,6 +259,15 @@ dbg_macro = "warn"
 [profile.dev.package.spade]
 opt-level = 2
 [profile.dev.package.mesh]
+opt-level = 2
+# The source-scope guards parse every shipped `.rs` file with `syn`, which
+# at opt 0 dominates their run (the flagged-door census: ~18 s per shipped
+# row at opt 0). `syn` and `proc-macro2` are external and never edited
+# here, so optimizing them costs one compile, not a per-PR recompile; the
+# same reasoning as `spade` above, for a test-only graph.
+[profile.dev.package.syn]
+opt-level = 2
+[profile.dev.package.proc-macro2]
 opt-level = 2
 # Scope note: extending these overrides to the geom crates was measured
 # and rejected — the kernel's generic (T: Real) hot code monomorphizes

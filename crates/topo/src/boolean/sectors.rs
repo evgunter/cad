@@ -36,7 +36,7 @@
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
 //! A bound's code against the other sector's face is read as its
-//! [`BoundSupport`] allows ([`side_code`]): a line edge at its far vertex, in
+//! [`BoundSupport`] allows ([`datum_code`]): a line edge at its far vertex, in
 //! metres; a curved edge and a bisector through
 //! [`geom_brep::enters_material`]: `Enters ⇒ In`, `Exits ⇒ Out`,
 //! `Tangent ⇒ On` in the sector passes; the vertex-on-face pass reads a
@@ -1554,7 +1554,7 @@ pub(super) fn within<T: Decide>(
 /// **A direction's side of a bound is read at the shorter of the two's
 /// reaches**: for a unit direction the reading is `sin θ` times the
 /// bound's reach, how far its far end lies off the direction's line, at
-/// the length the side codes read the bound at ([`side_code`]); a
+/// the length the side codes read the bound at ([`datum_code`]); a
 /// direction with a reach of its own is known no farther than that
 /// reach. Two faces' line, un-normalized, reads `sin θ · sin φ` times
 /// the reach ([`rays_within`]). The sector's `arm`, the shorter chord of
@@ -1699,7 +1699,7 @@ fn within_signs<T: Decide>(
 /// end's offset from `b`'s plane. The two terms can add or cancel; the
 /// first is within the zero wherever `a` holds its bound. For a straight
 /// bound the second is what its side code reads at the chord's far point
-/// ([`side_code`]); a curved bound's code reads the edge where this
+/// ([`datum_code`]); a curved bound's code reads the edge where this
 /// reads its tangent. The unit line would divide the whole by
 /// `|m| = sin φ`, so a far end within the zero of both planes would read
 /// off their line wherever the two faces are near parallel.
@@ -1709,13 +1709,23 @@ pub(super) fn rays_within<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<(bool, bool), BooleanError> {
+    // Within every sector, an identity: any sector not holding `d`
+    // answers `false`, whatever an earlier sector read ([`climb`],
+    // [`Answering::Any`]); a sector in band is kept by its standing
+    // ([`BooleanError::refusal`]), refusing only where every other holds.
     let holds = |d| -> Result<bool, BooleanError> {
-        for s in sectors {
-            if !within(s, d, false, read, band)? {
-                return Ok(false);
-            }
+        let outside = climb(Answering::Any, sectors, |s| {
+            Rung::holds(
+                within(s, d, false, read, band).map(|w| !w),
+                (),
+                BooleanError::refusal,
+            )
+        });
+        match outside {
+            Climb::Answered { answer, .. } => answer.map(|()| false),
+            Climb::Passed => Ok(true),
+            Climb::Undecided(e) => Err(e),
         }
-        Ok(true)
     };
     let m = line.line();
     Ok((holds(m)?, holds(-m)?))
@@ -5170,6 +5180,40 @@ mod tests {
             PierceLever::of(&sphere, p).within(1e9),
             2.0,
             "a sphere's lever does not depend on the reach"
+        );
+    }
+
+    /// **A sector not holding the line answers past one in band**
+    /// ([`rays_within`], `Any`). The quarter sector from `−y` to `x`, and
+    /// the line a mid-band width past its `x` bound: both rays read in band of it,
+    /// the bound being a line. Then the eighth from `y` toward `−x`, off
+    /// the line both ways, which both rays are clearly outside. Both
+    /// read `false`, each answering at the second sector past the first
+    /// in band. A first-refusal loop refused at
+    /// the first sector.
+    #[test]
+    fn a_sector_not_holding_the_line_answers_past_one_in_band() {
+        let b = band();
+        let z = [0.0, 0.0, 1.0];
+        let first = sector([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], z);
+        let h = core::f64::consts::FRAC_1_SQRT_2;
+        let second = sector([0.0, 1.0, 0.0], [-h, h, 0.0], z);
+        let m = Vec3::new(1.0, (b.zero() + b.escalate()) / 2.0, 0.0);
+        for d in [m, -m] {
+            assert!(
+                within(&first, d, false, DeclarationRead::Moot, b).is_err(),
+                "each ray reads in band of the first sector"
+            );
+        }
+        assert_eq!(
+            rays_within(
+                Leaned::of_line(m),
+                &[&first, &second],
+                DeclarationRead::Moot,
+                b
+            )
+            .unwrap(),
+            (false, false)
         );
     }
 }

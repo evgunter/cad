@@ -476,23 +476,18 @@ pub struct SpiricRegimeSites {
 }
 
 impl SpiricRegimeSites {
-    /// [`Curve3::spiric`]'s own rows.
-    pub const MINT: Self = Self::new(
-        "spiric_off_axis",
-        "spiric_two_ovals",
-        "spiric_two_ovals_floor",
-    );
-
     /// The rows for the offset off zero (`off_axis`) and the two-oval
     /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
-    /// Private: a reader names its rows at [`SpiricReader::sites`].
+    /// Private to this module: a reader names its rows at
+    /// [`SpiricReader::sites`], and no code mints a bundle elsewhere, this
+    /// crate's included.
     ///
     /// # Panics
     ///
     /// Where two of the names are equal: each names its own margin. In a
     /// `const` item the panic is a compile error.
     #[must_use]
-    pub(crate) const fn new(
+    pub(crate) const fn rows_as(
         off_axis: &'static str,
         far: &'static str,
         floor: &'static str,
@@ -544,13 +539,17 @@ impl SpiricReader {
     #[must_use]
     pub const fn sites(self) -> SpiricRegimeSites {
         match self {
-            Self::Mint => SpiricRegimeSites::MINT,
-            Self::BooleanRider => SpiricRegimeSites::new(
+            Self::Mint => SpiricRegimeSites::rows_as(
+                "spiric_off_axis",
+                "spiric_two_ovals",
+                "spiric_two_ovals_floor",
+            ),
+            Self::BooleanRider => SpiricRegimeSites::rows_as(
                 "bool_rider_spiric_off_axis",
                 "bool_rider_spiric_regime",
                 "bool_rider_spiric_regime_floor",
             ),
-            Self::PlaneTorus => SpiricRegimeSites::new(
+            Self::PlaneTorus => SpiricRegimeSites::rows_as(
                 "pt_spiric_off_axis",
                 "pt_spiric_two_ovals",
                 "pt_spiric_two_ovals_floor",
@@ -984,8 +983,10 @@ impl<T: Real> Line<T> {
 /// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
 /// a length only where the caller's `dir` is unit, which nothing here
 /// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
-/// The forward reading has one home, [`Ray::ahead`], decided under the
-/// reader's own row.
+/// A root's forward reading is [`Ray::ahead`], decided under the
+/// reader's own row. The touch analysis decides its own ahead readings
+/// through its verdict door (`topo` `link.rs`'s `ahead`, whose doc says
+/// how they differ, and which of them is this one's twin).
 #[derive(Clone, Copy, Debug)]
 pub struct Ray<T: Real> {
     /// The line the ray runs along, from its origin.
@@ -1014,9 +1015,13 @@ impl<T: Decide> Ray<T> {
     /// doc). The method takes the parameter, not a point, because every
     /// reader holds only a parameter computed on [`Ray::line`]: a root
     /// against a carrier (`line_*_roots`), or the closest-approach span of
-    /// an edge's passage. No point is minted before the forward test. The ray does not re-derive `at`; a
-    /// reader that passes a parameter of another line decides nothing
-    /// about this ray.
+    /// an edge's passage. No point is minted before the forward test. The
+    /// ray does not re-derive `at`; a reader that passes a parameter of
+    /// another line decides nothing about this ray.
+    ///
+    /// Of the touch analysis's ahead readings (`LINK_AHEAD`), only its
+    /// face sector's plain-band test comes here; `topo` `link.rs`'s
+    /// `ahead` says why the others do not.
     ///
     /// # Errors
     ///
@@ -1372,7 +1377,7 @@ impl<T: Decide> Curve3<T> {
     ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
     /// - the regime, [`spiric_regime`] at no swing under
-    ///   [`SpiricRegimeSites::MINT`]: two ovals required;
+    ///   [`SpiricReader::Mint`]: two ovals required;
     ///   through the axis ⇒ [`SpiricInvalid::ThroughAxis`] (one kind per
     ///   configuration, most exact first: that oval is a `Circle`); at
     ///   or past the inner equator ⇒ [`SpiricInvalid::NotTwoOvals`].
@@ -1410,7 +1415,7 @@ impl<T: Decide> Curve3<T> {
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         let ring = crate::RingTorus::decided(major_radius, minor_radius);
-        match spiric_regime(ring, offset, T::zero(), SpiricRegimeSites::MINT, band) {
+        match spiric_regime(ring, offset, T::zero(), SpiricReader::Mint.sites(), band) {
             Ok(SpiricRegime::TwoOvals) => {}
             Ok(SpiricRegime::ThroughAxis) => return Err(SpiricInvalid::ThroughAxis),
             Ok(SpiricRegime::PastInnerEquator) => return Err(SpiricInvalid::NotTwoOvals),
@@ -2690,7 +2695,7 @@ mod tests {
     #[should_panic(expected = "three rows need three names")]
     fn spiric_regime_sites_refuse_a_shared_name() {
         let shared = std::hint::black_box("shared");
-        let _ = SpiricRegimeSites::new(shared, shared, "floor");
+        let _ = SpiricRegimeSites::rows_as(shared, shared, "floor");
     }
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {

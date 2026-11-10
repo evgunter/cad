@@ -2,12 +2,12 @@
 id: refused-fused-step-reports-no-partial-geometry
 kind: issue
 title: design: what a refused fused step (arc_fillet_arc and kin) hands back, so the path preview can draw the carriers it did bind
-status: dispatched
+status: closed
 opened: 2026-09-18
 priority: P1
 cost: M
-pr: 6547
-branch: round/refused-corner
+pr: 6719
+closed: 2026-11-10
 ---
 
 **This is a DESIGN item, not a dispatchable unit.** Its question changes what the replay driver returns, and that is the interface the ratified PATHS lattice exposes. Settle it in an `[ev]` PR before anyone builds it.
@@ -23,3 +23,17 @@ Follow-up to `work/author/path-preview-draws-nothing-for-a-refused-step.md`, spl
 **Owed:** an `[ev]` PR proposing one of the shapes above as a PATHS-DESIGN revision. Implementation follows as a unit once it is ratified. The author item (`path-preview-draws-nothing-for-a-refused-step`) then draws what the chosen shape hands back.
 
 **Evidence from the prefix half (AUTH-5, `author/path-preview-prefix`).** The prefix the preview draws for a fused step is often shorter than `steps[..k]`, and what it leaves out is exactly what this item would hand back. A fused step whose arrival is completed by binders is refused AT the binder, not at itself: `line_to, line_to, fillet_arc { radius: 0.001, spec: Radius { r: 0.01 } }, at (0, 0.02), angle 3.0` is refused at step 5 (`NoCornerForFillet { reason: CarriersDoNotMeet }`), and the tips before steps 4 and 5 are radius arrivals no provisional close can leave, so the prefix drawn ends before the fused step (step 3). The incoming ray and the arrival circle the fillet could not join are therefore not on screen at all, only the two legs before them. A step refused at itself (the `arc_fillet_arc` the form offers after two legs, refused `NoCornerOfPair`, every corner behind the incoming ray) draws everything before it and nothing of its own two arcs, so the `CornerRefusal` points in its payload are the only trace of them. A line `fillet` whose arrival the author binds (`at`, `angle`) and which that binding refuses draws the same way: up to the corner the fillet stands on, because a prefix ending between the `fillet` and its binders would have the preview's provisional close stand in as the arrival carrier and draw a resolved arc nobody's numbers produce (`sketch::drew_only_its_leg`).
+
+## Closed (PR 6719)
+
+Built to Ev's ruling on PR 6547.
+- **The construction record.** `replay_drawn` records a
+  `FilletConstruction` for every fillet verb, each side as it is bound,
+  then the fit's answer, or the overrunning candidates on an anchor-fit
+  refusal. The viewer draws it and marks the refused corners.
+- **The anchor-fit refusal** carries both legs and
+  `radius_at_anchor` (the closed form, assigned to the candidate's
+  branch). Its sentence values both levers, each rendered on the fitting
+  side within the exact-fit band, so the named value typed back is an
+  exact fit at the corner (pinned at three ε rows on three grids).
+- **The recourse** is a closed `Recourse` folded exhaustively per pair.

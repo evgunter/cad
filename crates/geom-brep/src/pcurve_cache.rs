@@ -179,7 +179,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
+use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError, constant_weight};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
     Vec3, rounding_charge,
@@ -2042,8 +2042,8 @@ pub enum PcurveCertifyError {
     /// with the spline layer's own refusal rather than swallowed
     /// (D4 ¶2).
     ChartRow {
-        /// The spline layer's typed refusal.
-        source: SplineError,
+        /// The spline layer's typed refusal of the row read.
+        source: Built<SplineError>,
     },
     /// A certificate limb of the fitted lane refused definitely: which
     /// limb, and what the classifier saw of its value
@@ -2279,8 +2279,7 @@ impl PcurveCertifyError {
             Self::ChartRow { source } => write!(
                 f,
                 "pcurve certification: the chart's control net, or the row or column read \
-                 from it, is not valid spline structure — {}",
-                source.payload()
+                 from it, is not valid spline structure — {source}"
             ),
             Self::FittedCertificate {
                 limb,
@@ -5671,9 +5670,7 @@ impl<T: Decide> EnvelopeTerms<T> {
     }
 }
 
-/// Check 4 on a periodic chart: the carrier's incidence under the
-/// structure [`derive_harmonic`] selects for it, plus the stored
-/// image's fidelity to the image it derives.
+/// [`periodic_envelope_shown`] with no incidence read taken.
 #[cfg(test)]
 fn periodic_envelope<T: Decide>(
     stored: (Channel<T>, Channel<T>),
@@ -5696,9 +5693,12 @@ fn periodic_envelope<T: Decide>(
     )
 }
 
-/// [`periodic_envelope`] behind the stored chart's incidence read the
-/// certification already took (`shown`), carried to the re-derivation
-/// on the chart's orthonormalised twin rather than read there again.
+/// Check 4 on a periodic chart: the carrier's incidence under the
+/// structure [`derive_harmonic`] selects for it, plus the stored
+/// image's fidelity to the image it derives. An incidence read the
+/// certification already took on the stored chart (`shown`) is
+/// carried to the re-derivation on the chart's orthonormalised twin
+/// rather than read there again.
 #[allow(clippy::too_many_arguments)]
 fn periodic_envelope_shown<T: Decide>(
     stored: (Channel<T>, Channel<T>),
@@ -11688,7 +11688,8 @@ mod incidence {
 
     /// **The chart's incidence test of one point** ([`super::read_point_incidence`]):
     /// the point's distance from the analytic chart, decided by
-    /// [`incidence_over_span`] in the point's own frame ([`anchored`]).
+    /// [`incidence_over_span`](super::incidence_over_span) in the point's
+    /// own frame ([`anchored`]).
     pub(super) fn point_incident<T: Decide>(
         point: geom_core::Point3<T>,
         surface: &Surface<T>,
@@ -11758,6 +11759,13 @@ mod incidence {
             .map_or((carrier, surface, T::zero(), T::zero()), |(c, s, e, m)| {
                 (c, s, *e, *m)
             });
+        // The chart's incidence row per surface, spelled where the census
+        // reads it.
+        const SPHERE_INCIDENT: &str = "pcurve_sphere_chart_incident";
+        const TORUS_INCIDENT: &str = "pcurve_torus_chart_incident";
+        const SPINDLE_INCIDENT: &str = "pcurve_spindle_chart_incident";
+        const CYLINDER_INCIDENT: &str = "pcurve_cylinder_chart_incident";
+        const PLANE_INCIDENT: &str = "pcurve_plane_chart_incident";
         let (name, off_why) = match (carrier, surface) {
             (Curve3::Circle(..) | Curve3::Ellipse(..), Surface::Cone { .. }) => {
                 let turn = if place.edge_only {
@@ -11773,23 +11781,22 @@ mod incidence {
                     .map(tested);
             }
             (_, Surface::Sphere { .. }) => (
-                "pcurve_sphere_chart_incident",
+                SPHERE_INCIDENT,
                 "the carrier's points are not at the sphere's radius from its centre",
             ),
-            (_, Surface::Torus { .. }) => ("pcurve_torus_chart_incident", super::TORUS_OFF),
+            (_, Surface::Torus { .. }) => (TORUS_INCIDENT, super::TORUS_OFF),
             (_, Surface::Spindle { .. }) => (
-                "pcurve_spindle_chart_incident",
+                SPINDLE_INCIDENT,
                 "the carrier's points are not on the spindle sheet's revolved circle (their \
                  distance from it at a sample is past the band)",
             ),
             (_, Surface::Cylinder { .. }) => (
-                "pcurve_cylinder_chart_incident",
+                CYLINDER_INCIDENT,
                 "the carrier's points are not at the cylinder's radius from its axis",
             ),
-            (_, Surface::Plane { .. }) => (
-                "pcurve_plane_chart_incident",
-                "the carrier's points are not on the plane",
-            ),
+            (_, Surface::Plane { .. }) => {
+                (PLANE_INCIDENT, "the carrier's points are not on the plane")
+            }
             _ => unreachable!(
                 "incident: a spline carrier on an analytic chart takes its own test \
                  (`net_incidence`)"
@@ -14098,7 +14105,7 @@ mod tests {
             margin: geom_core::MarginDiag::value(1e-7),
         };
         let row = PcurveCertifyError::ChartRow {
-            source: SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+            source: Built::new(SplineError::DomainInvalid { lo: 1.0, hi: 0.0 }),
         };
         for at in [Reading::Build, Reading::AtRest] {
             assert_eq!(band.ending(at), BAND_TOLERANCE_RECOURSE, "{at:?}");

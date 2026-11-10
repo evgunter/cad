@@ -1,6 +1,6 @@
 //! **The boolean's turn order and the split's walk order are one order
 //! along a section conic.** The boolean ranks a germ's partners by
-//! [`nearer_along`] — the half-turn ([`germ_arm`]), then the turn from
+//! [`along_sign`] — the half-turn ([`germ_arm`]), then the turn from
 //! the incumbent ([`super::travel`]); the split pairs a curved face's
 //! crossings in walk order ([`crate::splitting::join::conic_pairs_of_sites`],
 //! the eccentric anomaly through `sort_along_runs`). Each row feeds one
@@ -32,7 +32,7 @@
 
 use super::super::section_table::SectionTable;
 use super::super::{BooleanError, Branch, HalfGerm, Locus};
-use super::{Faced, PartnerDistance, Turn, along_facing, germ_arm, keep_nearer, nearer_along};
+use super::{Faced, PartnerDistance, Turn, along_facing, along_sign, germ_arm, nearest_of};
 use crate::HalfEdgeKey;
 use crate::chord_join::SplitJoinError;
 use geom::{Curve3, Surface};
@@ -107,17 +107,20 @@ fn from_germ(order: &[usize]) -> Vec<usize> {
     cycle
 }
 
-/// The candidates ranked by the join's own pick: [`keep_nearer`] under
-/// [`nearer_along`] folded over them in input order, as
-/// `loose_partners` folds a germ's partners; then again over the rest.
+/// The candidates ranked by the join's own pick: the nearest
+/// ([`nearest_of`] under [`along_sign`], free of nothing), as
+/// `loose_partners` takes a germ's partner; then again over the rest.
 /// Read from the germ, so the germ leads.
 fn ranked(mut left: Vec<(usize, PartnerDistance<f64>)>) -> Result<Vec<usize>, BooleanError> {
     let mut out = vec![0];
     while !left.is_empty() {
-        let mut best = None;
-        for (k, &(_, reach)) in left.iter().enumerate() {
-            best = keep_nearer(best, (reach, k), |c, b| nearer_along(c, b, band()))?;
-        }
+        let cands = left
+            .iter()
+            .enumerate()
+            .map(|(k, &(_, reach))| (reach, k))
+            .collect();
+        let sign = |c, b| along_sign(c, b, band());
+        let best = nearest_of(cands, sign)?;
         let (_, k) = best.expect("a candidate is left");
         out.push(left.remove(k).0);
     }

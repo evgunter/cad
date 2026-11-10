@@ -730,7 +730,7 @@ pub enum SectionError {
         predicate: &'static str,
     },
     /// A plane and a spline's section is a march, and the reader handed
-    /// no march door ([`crate::pair_section`]): the scalar named
+    /// no march door ([`crate::pair_section`](fn@crate::pair_section)): the scalar named
     /// does not march.
     NoMarch {
         /// The scalar.
@@ -805,8 +805,8 @@ impl SectionError {
             Self::CoincidentSurfaces => write!(
                 f,
                 "the surfaces are coincident (the same cylinder or the same sphere), so \
-                 they share a surface rather than meet along a curve. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 they share a surface rather than meet along a curve. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::DegenerateTorus(refusal) => {
                 write!(f, "{}", crate::recourse::read_at(refusal, at))
@@ -2233,21 +2233,24 @@ pub fn plane_cone_section<T: Decide>(
     // axis-normal lane by `cos α`, so each clause is decided before
     // either lane runs. They run BEFORE the pose trileans, so a refusal
     // here has classified no pose — `route_pose` reads it as unserved.
+    const PN_APERTURE_SIN: &str = "pn_aperture_sin";
+    const PN_APERTURE_COS: &str = "pn_aperture_cos";
+    const PN_SEAM_OFF_AXIS: &str = "pn_seam_off_axis";
     for (name, margin, what) in [
         (
-            "pn_aperture_sin",
+            PN_APERTURE_SIN,
             sin_a,
             "the cone's half-angle does not definitely open off its axis, so the \
              apex lane's division by sin α is not decided",
         ),
         (
-            "pn_aperture_cos",
+            PN_APERTURE_COS,
             cos_a,
             "the cone's half-angle is not definitely under a right angle, so the \
              axis-normal circle's division by cos α is not decided",
         ),
         (
-            "pn_seam_off_axis",
+            PN_SEAM_OFF_AXIS,
             seam_width,
             "the cone's seam does not definitely leave its axis, so where its \
              azimuth zero lies is not decided",
@@ -2300,9 +2303,12 @@ pub fn plane_cone_section<T: Decide>(
         };
         let gap_err = rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON));
         let size = apex_gap.abs() + gap_err;
+        const PN_APEX_PAIR_REACH: &str = "pn_apex_pair_reach";
+        const PN_APEX_TANGENT_REACH: &str = "pn_apex_tangent_reach";
+        const PN_APEX_POINT_REACH: &str = "pn_apex_point_reach";
         let (name, bound) = match verdict {
             Sign::Positive => (
-                "pn_apex_pair_reach",
+                PN_APEX_PAIR_REACH,
                 pair_bound(
                     reach,
                     (apex, a, cos_a, sin_a, seam_width),
@@ -2318,12 +2324,12 @@ pub fn plane_cone_section<T: Decide>(
             // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum
             // length rather than an extent; its honest door `levered_inv(size, steep)` rounds apart.
             Sign::Zero => (
-                "pn_apex_tangent_reach",
+                PN_APEX_TANGENT_REACH,
                 Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
             ),
             // Unsourced lever: as `pn_apex_tangent_reach`'s, over the discriminant.
             Sign::Negative => (
-                "pn_apex_point_reach",
+                PN_APEX_POINT_REACH,
                 Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
             ),
         };
@@ -3033,21 +3039,24 @@ pub fn cone_cylinder_section<T: Decide>(
     // question; `coc_seam_off_axis` because the circles' seam is the
     // cone's squared to the axis. All three meter through the operand extent, the lever every
     // angular margin here takes.
+    const COC_APERTURE_SIN: &str = "coc_aperture_sin";
+    const COC_APERTURE_COS: &str = "coc_aperture_cos";
+    const COC_SEAM_OFF_AXIS: &str = "coc_seam_off_axis";
     for (name, margin, what) in [
         (
-            "coc_aperture_sin",
+            COC_APERTURE_SIN,
             sin_a,
             "the cone's half-angle does not definitely open off its axis, so the \
              station's division by sin α is not decided",
         ),
         (
-            "coc_aperture_cos",
+            COC_APERTURE_COS,
             cos_a,
             "the cone's half-angle is not definitely under a right angle, so cot α's \
              sign — and with it which nappe each circle is on — is not decided",
         ),
         (
-            "coc_seam_off_axis",
+            COC_SEAM_OFF_AXIS,
             seam_width,
             "the cone's seam does not definitely leave its axis, so the circles' \
              azimuth zero is not decided",

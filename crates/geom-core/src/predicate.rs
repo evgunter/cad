@@ -556,7 +556,7 @@ impl Band {
     ///   infinity: the run's ε is within a factor K of `f64::MAX`. The
     ///   one arm a run's tolerance reaches, at the top of the range
     ///   [`Tolerance`](crate::tolerance::Tolerance) admits (any finite
-    ///   ε ≥ [`eps_min`](crate::tolerance::eps_min) of its K, any finite
+    ///   ε ≥ [`eps_min`] of its K, any finite
     ///   K > 1), and unreachable for any
     ///   physically meaningful tolerance (D4 ¶4's session box is 1 km,
     ///   ε ≈ 1e-9). The repair is a smaller ε.
@@ -569,7 +569,7 @@ impl Band {
     ///   K = 1 + 2⁻⁵² clears the half-ulp) and a K near 1. **No normal ε
     ///   collapses at any admitted K**, so no run's ε does (every
     ///   admitted ε is at least its K's
-    ///   [`eps_min`](crate::tolerance::eps_min), never below a coordinate's
+    ///   [`eps_min`], never below a coordinate's
     ///   spacing at the box edge, which is normal): this arm is reached only through
     ///   [`Band::linear_at`], at a scale the caller names: a K near 1 is
     ///   admitted only with an ε whose angle over any finite arm is
@@ -675,7 +675,7 @@ impl Band {
     ///     the arm, not ε. θ never rounds to 0 at a run's ε: that needs
     ///     `lever_arm` ≥ ε·2¹⁰⁷⁵, past `f64::MAX` for every ε a run
     ///     admits, each at least its K's
-    ///     [`eps_min`](crate::tolerance::eps_min), never below a
+    ///     [`eps_min`], never below a
     ///     coordinate's spacing at the box edge.
     ///   - [`BandError::InvalidValue`] on `escalate` if θ is finite but
     ///     K·θ overflows — the same overflow residue [`Band::linear`]
@@ -2699,13 +2699,33 @@ macro_rules! kernel_limit_recourse {
 }
 
 /// [`MOVE_RECOURSE`] as a literal, for `concat!`; see
-/// `kernel_defect_ending!`.
+/// `kernel_defect_ending!`. With a literal, the move a site names more
+/// closely, as a whole ending: `move_recourse!("so the surfaces clearly
+/// part")` is `Recourse: move the geometry so the surfaces clearly part`.
+/// The literal must start with `so `, checked at compile time; that form
+/// is an expression, not a literal, so it does not nest in `concat!`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! move_recourse {
     () => {
         concat!("Recourse: ", $crate::coincidence_move_arm!())
     };
+    ($so:literal) => {{
+        const _: () = assert!(
+            $crate::predicate::continues_with_so($so),
+            "move_recourse!'s condition starts with \"so \""
+        );
+        concat!("Recourse: ", $crate::coincidence_move_arm!(), " ", $so)
+    }};
+}
+
+/// Whether `s` starts with `so `: `move_recourse!`'s condition, checked
+/// at compile time.
+#[doc(hidden)]
+#[must_use]
+pub const fn continues_with_so(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() > 3 && b[0] == b's' && b[1] == b'o' && b[2] == b' '
 }
 
 /// [`KERNEL_OR_FILE_DEFECT_ENDING`] as a literal, for `concat!`; see
@@ -4756,6 +4776,7 @@ mod tests {
         assert_eq!(err.predicate, None);
 
         let named = err.with_predicate("side_of_plane");
+        // UNDECIDED-NAME: the name with_predicate attaches, any name the test reads back
         assert_eq!(named.predicate, Some("side_of_plane"));
         // Margin and band pass through untouched.
         assert_eq!(named.margin, err.margin);
@@ -4764,6 +4785,7 @@ mod tests {
         // Re-attaching replaces: the outermost predicate wins.
         assert_eq!(
             named.with_predicate("transversality").predicate,
+            // UNDECIDED-NAME: the name with_predicate replaces the first with, read back
             Some("transversality")
         );
     }
@@ -4832,6 +4854,7 @@ mod tests {
         let enclosure = Indeterminate {
             margin: MarginDiag::enclosure(-2e-9, 5e-9),
             band,
+            // UNDECIDED-NAME: the enclosure cause Display's golden string is pinned on
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         };
