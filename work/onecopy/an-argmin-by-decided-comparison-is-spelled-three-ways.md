@@ -55,22 +55,52 @@ the design-fork procedure before anyone builds it. Until then
 
 ## Narrowed by `onecopy/argmin-and-leftovers` (2026-11-10)
 
-The one home exists: `geom_brep::ladder::argmin_decided`, one step of
-an argmin over a decided order (`Nearer::{Candidate, Incumbent, Tie}`),
-whose `Step` each site resolves by a named tie rule
-(`Step::keep_incumbent`, `Step::refuse_tie`). The three folds read it
-with every outcome unchanged:
+The designers' reconciled ruling is built:
+`geom_brep::ladder::argmin_decided(cands, cmp, FreeOf)`, the set rule
+(a candidate drops out only on a decided reading against one; every
+pair is compared, so the result is free of order), with the ending by
+what the caller is free of (`FreeOf::{Nothing, Ties, Band}`) and its
+recording (an undecided reading is spliced superseded where the minimum
+does not rest on it). Ported, with no outcome moved over the `ci` sets:
 
-- `join::keep_nearer` is its adapter for `PartnerDistance`: keep the
-  incumbent.
-- `link`'s piece-end turn fold: keep the incumbent (`Equal` is a tie).
-- `offset_derive::nearest`: refuse a tie, as `Unsupported`.
+- link's piece-end fold: `Ties`.
+- `offset_derive::nearest`: `Nothing`; its tie is
+  `SectionVerdict::BranchesTied`, and its `?` has left the escalation
+  register.
+- join `own_nearest` (was `keep_own`) and `loose_partners`: `Nothing`;
+  a tie refuses as `BooleanError::JoinPartnersTied` (standing `InBand`).
 
-Each step still refuses at its first comparison that does not decide.
-That is today's semantics, which the door keeps.
+## What remains: `first_pair`
 
-**What remains** is the design question above: what an argmin's kept
-reading is (the in-contention set and its rule), and which tie rule
-each site wants. It is at the designers. Its ruling lands as a change
-to `argmin_decided` alone. Until then the steps' `?`s stay registered
-in `escalation-question-marks.counts`, citing this row.
+`first_pair` stays on its old fold, which keeps the incumbent on an
+exact tie in both lanes. Ported at `Band` in its free lane and `Nothing`
+otherwise, it refused 759 calls over 525 `ci` test processes that build
+today, every one an exact tie (no in-band reading) between mutual pairs.
+
+**The one blocker is a tie with a conic germ in the round**: 663 of 751
+tied sets have conic tied pairs, and the other 88 have straight tied
+pairs beside another conic germ. Freeing it needs a proof that, where a
+germ ranks its partners by travel rather than by chord, committing any
+one of a tied set of mutual pairs first gives one matching.
+
+**Draft proof for straight germs** (not a live declaration). Every germ
+straight, `K > 2`, and `T` the pairs tied at the round's minimum, each
+mutual; commit `P = (g, h)`.
+- A germ's nearest partner is decided apart from every other
+  (`own_nearest` is free of nothing). On a straight germ the order
+  along its line is the chord's, so for a mutual `Q = (p, q)` in `T`,
+  every other partner `y` of `p` stands more than `K·zero` farther than
+  `q`. A pair `(y, p)` then reads decided farther than `Q`, and cannot
+  be committed before it: `Q` keeps its germs until it is committed, and
+  stays mutual with its key unchanged.
+- A germ `y` whose nearest was `g` or `h` takes a partner decided
+  farther than that one, which was not decided nearer than the minimum,
+  so its new pair stands past the minimum by more than `(K − 1)·zero`:
+  farther than `T`'s pairs at `K > 2`, or in band, which escalates the
+  run under either order.
+- So both orders commit every pair of `T` before any pair touching their
+  germs, and reach one state: the matching is free of which goes first,
+  though not the run.
+
+A conic germ ranks by travel, so the first step does not hold for it.
+
