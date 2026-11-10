@@ -52,3 +52,28 @@ One candidate: read each end's distance along the wedge's own in-plane normal, o
 - `link::foot`, which only the far reach read, is gone.
 
 **Pinned** by `link::clearance_rows::nearly_opposite_ends_read_the_segments_own_clearance`: `δ` down to `0` at five radii and five turns. It is red under the bisector reading ("an arc decided to meet the apex"). The six witnesses pass at both ε with the pin live.
+
+## Follow-up (2026-11-10, `onecopy/link-norms`, from PR 6703's review)
+
+- The class's two siblings are re-posed through `Distance::apart(p, q)`, a sixth constructor that is `|p − q|` with no direction read off it. They read a norm as `Distance::of(x, f, normalize(x − f))`, which is NaN at the very configuration they decide:
+  - `Link::lowest_on`'s `meets`;
+  - `Cone::touches`' ray tie.
+- A sweep of `topo` for `Distance::of(a, b, (a − b).normalize())` in any spelling finds no other.
+- `ArcReach::clears` returns `Result<(), Unsettled>`, so the impossible "does not clear" cannot be written. In release a clearance decided negative refuses as a zero does; it no longer passes silently. The dead `Ok(false) => Rung::Passes` arm and its doc line are gone.
+- The measurement narrative lives here (above), no longer in `clears`' doc.
+
+## Review of PR 6734 (2026-11-10)
+
+The follow-up's claim that the remaining normalized directions are a ray's own was false. The review named four more, each now guarded at its site or re-posed:
+- **`face_piece`'s bisecting probe**, `normalize(unit(qa) + unit(qb))`, the shape 6703 retired. It rests on a premise, stated at the site and not asserted: `side` decided the pair under half a turn apart, past the band, and two unit directions `θ < π` apart sum to `2·cos(θ/2) ≥ sin θ`. Were it to fail, the probe would be NaN and its readings refuse in band (`PieceInBand`).
+- **`Cone::reads_given`'s wedge bisector**, `normalize(a − p) + normalize(b − p)`. It rests on a premise, stated at the site and not asserted: a wedge is under half a turn (`Sector`'s constructors), and each ray's point stands at its reach off `p`. Were it to fail, the reference would be NaN and its clearance refuse in band.
+- **`Link::lowest_on`'s `along`**, `normalize(e)`, read only by the `apart` closure and the twin roots. Both are two points of the segment's line apart, so both now read `Distance::apart`, and `along` is gone.
+- **`LINK_BALL`**, `Distance::of(y, x + n·d, n)` with `n = normalize(y − x)`. That is `|y − x| − d`, a norm less a length, which is `Round::offset` of a convex sphere. It now reads so, through `Distance::at(&Round::sphere(x, d, true), y)`, with no new constructor. It reads `−d` at the centre, where the old spelling was NaN; where the scalar moves the centre (`AtTheAxis`) it reads nothing, and the refused candidate keeps its refusal.
+
+**`Distance::clearance` of a segment of no length.** `to_segment`'s foot parameter divides by the segment's squared length. Coincident ends, or ends near enough that the square underflows, read `0/0`. At `Interval`, two straddling enclosures of one point give a squared length that holds zero without being it, and the divide reads an invalid enclosure. Either way the arc refused in band, although the clearance is plainly `|q − p|`. A reference along `q`'s own ray at `q`'s distance is `q` itself, or an enclosure of it computed apart, so the parity reading meets this arc whenever `q` stands on a reference's ray.
+
+`clearance` now asks whether the squared length is nonzero for every value it stands for, a structure decision (`geom_core::structure_nonzero`, C6), not one against the band. Where it may be zero, the clearance is `p`'s distance from the hull of the ends (`either` per coordinate; the first end at a point scalar). That is sound for any segment, since the hull box holds it, and exact where the ends are one point. Pinned by `link::clearance_rows::a_segment_of_no_length_clears_by_its_points_distance`, which covers coincident ends and ends `1e-170` apart at `f64`, and coincident and straddling enclosures (half-widths `1e-15`, `2e-15`) at `Interval`. It is red under an exact-zero read, with the review's `InBand { margin: Invalid, "link_arc" }`.
+
+**Pins of what moved** (`link::tie_rows`):
+- On a segment of enclosures, `meets` joins a candidate on its foot. The old spelling dropped it.
+- `touches`' tie reads `q` on a closed ray Zero, where the old spelling left it unread. Its verdict, near, is the same.

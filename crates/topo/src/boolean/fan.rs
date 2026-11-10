@@ -2,7 +2,7 @@
 //! is to the pair algebra of [`super::sectors::pair_search`].
 //!
 //! A sector at a cone's apex is a fan of the cone's rulings between its
-//! bounds ([`super::sectors::BoolFace::Apex`]): an arc of a small circle
+//! bounds ([`crate::star::StarFace::Apex`]): an arc of a small circle
 //! on the sphere of directions, where a planar sector is an arc of a
 //! great circle. The pair algebra reads three things of a sector, and
 //! each has a fan arm here:
@@ -24,18 +24,19 @@
 //!
 //! The pair algebra is bound-coded: a sector's side of a partner face is
 //! read off its bounds, which holds where the side is monotone across
-//! the sector. [`super::sectors::build_sectors`] cuts every sector at
-//! its partner faces' extremes ([`super::sectors::Partners`]) so that
-//! it is.
+//! the sector. [`super::sectors::pair_sectors`] refines each vertex's
+//! star at its partner faces' extremes ([`crate::star::Star::refine`]) so
+//! that it is.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
-use super::sectors::{BoolFace, BoolSector};
+use super::sectors::BoolSector;
 use super::{BooleanError, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
 use crate::bound_side::BoundSupport;
 use crate::entity::VertexKey;
 use crate::sector_face::ConeApex;
+use crate::star::StarFace;
 use crate::validate::decide;
 use geom_core::Lever;
 
@@ -81,10 +82,10 @@ pub(super) fn face_side_code<T: Decide>(
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let apex = match &other.at_vertex {
-        BoolFace::Tangent(_) => {
+        StarFace::Tangent(_) => {
             return super::sectors::sector_code(dir, reach, other, band);
         }
-        BoolFace::Apex(apex) => apex,
+        StarFace::Apex(apex) => apex,
     };
     let q = reach.point(apex.apex, dir);
     let offset = nappe_offset(apex, other.start, q);
@@ -190,10 +191,10 @@ impl<'s, T: geom_core::Real> Fan<'s, T> {
     /// The fan in `a` and `b`, where either is one.
     pub(super) fn of(a: &'s BoolSector<T>, b: &'s BoolSector<T>) -> Option<Self> {
         match (&a.at_vertex, &b.at_vertex) {
-            (BoolFace::Apex(pa), BoolFace::Tangent(nb)) => Some(Self::First(pa, nb.vec())),
-            (BoolFace::Tangent(na), BoolFace::Apex(pb)) => Some(Self::Second(na.vec(), pb)),
-            (BoolFace::Apex(pa), BoolFace::Apex(pb)) => Some(Self::Both(pa, pb)),
-            (BoolFace::Tangent(_), BoolFace::Tangent(_)) => None,
+            (StarFace::Apex(pa), StarFace::Tangent(nb)) => Some(Self::First(pa, nb.vec())),
+            (StarFace::Tangent(na), StarFace::Apex(pb)) => Some(Self::Second(na.vec(), pb)),
+            (StarFace::Apex(pa), StarFace::Apex(pb)) => Some(Self::Both(pa, pb)),
+            (StarFace::Tangent(_), StarFace::Tangent(_)) => None,
         }
     }
 }
@@ -685,7 +686,7 @@ mod rows {
                 start_reach: Reach::straight_bisector(unit),
                 end_reach: Reach::straight_bisector(unit),
                 face: FaceKey::from(key(2)),
-                at_vertex: BoolFace::Apex(apex),
+                at_vertex: StarFace::Apex(apex),
                 bend: crate::bound_side::FaceBend::Plane,
                 arm: unit,
             };
@@ -743,7 +744,7 @@ mod rows {
             start_reach: Reach::straight_bisector(arm),
             end_reach: Reach::straight_bisector(arm),
             face: FaceKey::from(key(face)),
-            at_vertex: BoolFace::Apex(apex),
+            at_vertex: StarFace::Apex(apex),
             bend: crate::bound_side::FaceBend::Plane,
             arm,
         }

@@ -271,7 +271,7 @@ pub enum StepImportError {
         /// discarded: which count or weight the wall's stored net
         /// broke. A count is the whole net's; a weight's `index`
         /// counts along the extracted COLUMN, not through the net.
-        source: geom_core::spline::SplineError,
+        source: geom_core::spline::Built<geom_core::spline::SplineError>,
     },
     /// D7's typed ambiguity at ε_in (stage-1 surface recognition,
     /// ruling #256): a face that cannot import WITHOUT promotion (a
@@ -857,12 +857,14 @@ mod nested_at_the_door {
             let error = StepImportError::Pcurves {
                 source: topo::PcurveMintError::Certify {
                     half_edge: topo::HalfEdgeKey::default(),
-                    error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Cone,
-                        carrier: geom::CurveKind::Circle,
-                        why: "the circle dips below the apex",
-                        margin,
-                    },
+                    error: geom_brep::PcurveCertifyError::Incidence(
+                        geom_brep::IncidenceRefusal::off_chart(
+                            geom::SurfaceKind::Cone,
+                            geom::CurveKind::Circle,
+                            "the circle dips below the apex",
+                            margin,
+                        ),
+                    ),
                 },
                 file: FileCoincidence::new(1e-6),
             };

@@ -53,7 +53,13 @@ use test_utils::source::{
 /// Why a crate's decided names are not all in the census union yet.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Missing {
-    /// It decides names and runs no roster.
+    /// It decides names and runs no roster. No crate is listed so today;
+    /// the variant stays, since it is how the next deciding crate is
+    /// listed until its roster lands.
+    #[allow(
+        dead_code,
+        reason = "the list's shape for the next crate with no roster"
+    )]
     Roster,
     /// It runs a roster, but its names are spelled in a closed type's
     /// table, which the census does not read.
@@ -64,11 +70,6 @@ enum Missing {
 /// with why and the row that closes it. A reference only such a crate
 /// spells is held by its entry.
 const KNOWN_MISSING: &[(&str, Missing, &str)] = &[
-    (
-        "editor-core",
-        Missing::Roster,
-        "work/onecopy/editor-core-runs-no-predicate-name-roster.md",
-    ),
     (
         "profile",
         Missing::ClosedTable,

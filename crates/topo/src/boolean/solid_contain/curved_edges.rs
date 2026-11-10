@@ -180,7 +180,7 @@ pub(super) fn read<T: Decide>(
                 .fold((first, first), |(lo, hi), &(s, _)| (lo.min(s), hi.max(s)));
             // Met at two places along the ray, definitely apart: no one
             // half crossing stands for both.
-            if geom_core::k_stats::decide_magnitude(rows.order, Margin::of(hi - lo), band)
+            if geom_core::k_stats::decide_magnitude(rows.order(), Margin::of(hi - lo), band)
                 == Ok(geom_core::k_stats::Magnitude::Positive)
             {
                 for s in [lo, hi] {
@@ -193,10 +193,10 @@ pub(super) fn read<T: Decide>(
             // nearest the edge at `q`, which the boundary pre-pass holds
             // clear of both its faces; a passage whose span straddles `q`
             // is read nowhere.
-            if ray.ahead(hi, rows.advance, band) == Ok(Sign::Negative) {
+            if ray.ahead(hi, rows.advance(), band) == Ok(Sign::Negative) {
                 continue;
             }
-            if ray.ahead(lo, rows.advance, band) == Ok(Sign::Negative) {
+            if ray.ahead(lo, rows.advance(), band) == Ok(Sign::Negative) {
                 meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
                 continue;
             }
@@ -347,7 +347,7 @@ fn nearest<T: Decide>(
                 j == i
                     || [lo, hi].iter().all(|&at| {
                         decide(
-                            rows.order,
+                            rows.order(),
                             Margin::of((u - at).abs() - (t - at).abs()),
                             band,
                         ) == Ok(Sign::Positive)

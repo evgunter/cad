@@ -1,7 +1,7 @@
 //! **Which side of a face one bound of a vertex's sector leaves on**:
 //! the one reading of a bound's side, taken by the boolean's sector
-//! passes (`boolean::sectors`) and the split's neighbourhood walk
-//! ([`crate::splitting::entry_side`]) alike.
+//! passes (`boolean::sectors`) and the split's neighbourhood
+//! ([`crate::splitting::bound_side`]) alike, over one star's bounds.
 //!
 //! A bound is a ray out of a vertex with what stands behind it
 //! ([`BoundSupport`]): a line edge's far vertex, a curved edge's departure

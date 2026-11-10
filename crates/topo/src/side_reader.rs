@@ -30,19 +30,7 @@ use crate::live::proven;
 use crate::ray_walk::RayFault;
 
 /// An aimed ray's rows ([`side_at_infinity`]).
-pub(crate) const AIMED_ROWS: RayRows = RayRows {
-    advance: "side_at_infinity_advance",
-    denom: "side_at_infinity_denom",
-    clearance: "side_at_infinity_clearance",
-    beside: "side_at_infinity_beside",
-    order: "side_at_infinity_order",
-    vertex: "side_at_infinity_vertex",
-    edge: "side_at_infinity_edge",
-    edge_span: "side_at_infinity_edge_span",
-    winding: "side_at_infinity_winding",
-    represents: "side_at_infinity_met_edge_represents",
-    reaches: "side_at_infinity_met_edge_reaches",
-};
+pub(crate) const AIMED_ROWS: RayRows = crate::rows::AIMED_RAY;
 
 /// **Two crossings of an aimed ray in band of each other along it** —
 /// what a side-at-infinity reading that lies in band found
@@ -737,11 +725,11 @@ fn aimed_ray<T: Decide>(
     };
     Ok(
         match crossings.first_count(
-            AIMED_ROWS.order,
+            AIMED_ROWS.order(),
             band,
             RayHit::count,
             |a, b| {
-                a.pair(body, b, AIMED_ROWS.order, band).map_err(|f| {
+                a.pair(body, b, AIMED_ROWS.order(), band).map_err(|f| {
                     f.map(|(near, gap, far)| {
                         Unread::Pair(AimedPair {
                             shell,

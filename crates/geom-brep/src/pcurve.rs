@@ -36,9 +36,9 @@
 
 use geom::Surface;
 use geom::{Curve3, FitError, FitOutcome, NurbsCurve2};
-use geom_core::Point2;
 use geom_core::predicate::Band;
 use geom_core::spline::KnotVector;
+use geom_core::{KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, Point2};
 
 /// Typed refusal of a pcurve constructor.
 #[derive(Debug)]
@@ -57,9 +57,19 @@ pub enum PcurveError {
     SpanExceedsPeriod,
     /// The rational-quadratic chain's structure refused (unreachable
     /// for valid spans; typed rather than assumed).
-    Structure(geom_core::spline::SplineError),
-    /// The PR 4 fitting loop refused (typed, nested whole).
-    Fit(FitError),
+    Structure(geom_core::spline::Built<geom_core::spline::SplineError>),
+    /// The degree or tolerance asked of the fit is none it takes: degree
+    /// 0, a degree its [`PCURVE_FIT_SAMPLES`] samples cannot fit (it
+    /// needs `degree + 1` of them), or a tolerance that is not finite
+    /// and positive.
+    InvalidRequest {
+        /// The degree asked for.
+        degree: usize,
+        /// The tolerance asked for.
+        tolerance: f64,
+    },
+    /// The fit of the samples this door took refused.
+    Fit(geom_core::spline::Built<FitError>),
 }
 
 impl core::fmt::Display for PcurveError {
@@ -75,19 +85,27 @@ impl core::fmt::Display for PcurveError {
                  chain) — split the edge first; certified edges never carry one \
                  (the winding gate)"
             ),
-            Self::Structure(e) => write!(f, "pcurve: {e}"),
-            Self::Fit(e) => write!(f, "pcurve: {e}"),
+            // The chain is built from a span checked finite, positive and
+            // within one period, so its structure refusing is the kernel's.
+            Self::Structure(e) => write!(f, "pcurve: {e}. {KERNEL_DEFECT_ENDING}"),
+            Self::InvalidRequest { degree, tolerance } => write!(
+                f,
+                "pcurve: a fit of degree {degree} to tolerance {tolerance} m is none the \
+                 fitting loop takes. Recourse: ask for a degree from 1 to {} and a finite \
+                 tolerance strictly above zero",
+                PCURVE_FIT_SAMPLES - 1
+            ),
+            // The samples are the door's own: an approximation the kernel
+            // chose, or a knot edit no valid sample set reaches.
+            Self::Fit(e) => match e.refusal() {
+                FitError::KnotAlgebra(_) => write!(f, "pcurve: {e}. {KERNEL_DEFECT_ENDING}"),
+                _ => write!(f, "pcurve: {e}. {KERNEL_LIMIT_RECOURSE}"),
+            },
         }
     }
 }
 
 impl std::error::Error for PcurveError {}
-
-impl From<FitError> for PcurveError {
-    fn from(e: FitError) -> Self {
-        Self::Fit(e)
-    }
-}
 
 /// The fixed sample count of the cylinder-chart fitting schedule (D9:
 /// a named constant, never data-dependent): dense enough that the
@@ -199,8 +217,10 @@ pub fn ellipse_pcurve_on_plane(
         }
     }
     knots.extend_from_slice(&[1.0, 1.0, 1.0]);
-    let kv = KnotVector::clamped(knots, 2).map_err(PcurveError::Structure)?;
-    NurbsCurve2::new(kv, control, weights).map_err(PcurveError::Structure)
+    let kv = KnotVector::clamped(knots, 2)
+        .map_err(|e| PcurveError::Structure(geom_core::spline::Built::new(e)))?;
+    NurbsCurve2::new(kv, control, weights)
+        .map_err(|e| PcurveError::Structure(geom_core::spline::Built::new(e)))
 }
 
 /// The fitted pcurve of a **tilted-section ellipse on its cylinder
@@ -245,6 +265,13 @@ pub fn ellipse_pcurve_on_cylinder(
     if span > core::f64::consts::TAU {
         return Err(PcurveError::SpanExceedsPeriod);
     }
+    // The schedule's fixed sample count bounds the degree it can fit.
+    if degree == 0
+        || degree >= PCURVE_FIT_SAMPLES as usize
+        || !(tolerance.is_finite() && tolerance > 0.0)
+    {
+        return Err(PcurveError::InvalidRequest { degree, tolerance });
+    }
     // The chart coordinates of a carrier point (`Surface::chart_point`
     // at the least band: its decisions here only pick which name of the
     // azimuth a sample reads). The first sample's azimuth is named in
@@ -267,5 +294,6 @@ pub fn ellipse_pcurve_on_cylinder(
         prev_u = u;
         points.push(Point2::new(u, v));
     }
-    Ok(NurbsCurve2::approximate(&points, degree, tolerance)?)
+    NurbsCurve2::approximate(&points, degree, tolerance)
+        .map_err(|e| PcurveError::Fit(geom_core::spline::Built::new(e)))
 }

@@ -3457,6 +3457,10 @@ quantity is new: the segment `q`–`w`'s nearest point's distance from
 `p`, its two ends at two distances. It is a named `const`
 (`LINK_ARC_REACH`), `link_arc_reach`, and does not pool with
 `link_arc` (`docs/predicate-dimension-audit.md`'s row of that name).
+*Superseded in part (2026-11-10, below):* `link_arc` no longer reads the
+ends against their bisector, so "unchanged" and "the quantity is new" no
+longer hold. Both names now read one quantity, and why they stay apart is
+in the 2026-11-10 addendum.
 
 ## ONECOPY addendum (2026-11-10): `link_arc` re-posed as the segment's clearance
 
@@ -3470,11 +3474,47 @@ a clearance of `1e-16` m, decided negative 123 times at default ε and 142
 at 1e-12. `link_arc` now records **one** sample per near arc: the
 segment's clearance of `p`, `link::metric::Distance::clearance` (the
 distance to its nearest point, `link::to_segment`), as `link_arc_reach`
-does for the far arc. On a well-conditioned arc the two old samples and
-the new one are the same quantity to rounding (`ρ·cos(θ/2)`), so
-`link_arc` keeps pooling with `census_touch_arc`. The count halves, and
-the noise samples near opposite ends are gone
+does for the far arc. The count halves, and the noise samples near
+opposite ends are gone
 (`work/onecopy/link-near-clearance-divides-by-a-vanishing-bisector.md`).
+
+**`link_arc`'s population changes at this date.** On a well-conditioned
+arc the two old samples and the new one are the same quantity to rounding
+(`ρ·cos(θ/2)`). Near opposite ends the old samples were noise up to `±ρ`,
+and the new one is the true clearance, near zero. A pool across the change
+is therefore not one population: a report that compares `link_arc` (or
+its predecessor `census_touch_arc`) before and after must split at this
+addendum, and none of its old samples stand for the new reading's tail.
+
+**`link_arc` and `link_arc_reach` read one quantity and stay two names.**
+Both are the segment's clearance of `p`. They do not pool:
+- `link_arc_reach` is read only where no reference reads at `q`'s
+  distance (`ArcReach::Out`, after `Near` passes), so its samples are a
+  conditional subpopulation of the hard poses;
+- its segment's far end stands at the wedge's reach, not at `q`'s
+  distance, so its clearances scale with a different arm.
+
+Pooled, the far reach's tail would pass for the near reading's.
+
+**`link_offset_tie` and `link_offset_ball` change their samples at this
+date too** (PR 6734).
+- `link_offset_tie` read a point's distance from its foot, and two points'
+  distance apart along the segment, as a projection onto a direction:
+  `normalize(x − f)·(x − f)`, or `normalize(e)·(x − y)`. Each now reads
+  the norm, `link::metric::Distance::apart`.
+  - Off the coincidence, the foot sample was the same quantity to
+    rounding.
+  - At it, it was a NaN, unread, and is now `0`, read Zero.
+  - The along-segment sample was signed, and is now its magnitude.
+  So a before-and-after comparison must split here, and the old samples'
+  signs stand for nothing in the new population.
+- `link_offset_ball` read a point's side of a ball's tangent plane toward
+  it, `n·(y − x − n·d)` with `n = normalize(y − x)`. It now reads its
+  signed distance from the sphere, `|y − x| − d`, the ball read as a round
+  carrier (`Round::sphere`, `Round::offset`, through `Distance::at`).
+  - Off the centre, that is the same quantity to rounding.
+  - At the centre, the old sample was a NaN, unread, and the new one is
+    `−d`, inside.
 
 ## ONEREAD addendum (2026-11-02): a bound's side decided at the link's metric door
 

@@ -180,13 +180,14 @@ impl<T: Real> Period<T> {
     /// `2(mid − t) − P`, at most `0`, and likewise at the stop), so on a
     /// point named about the middle the margins are its own. They are
     /// equal only at the tie, `t` half a period from the middle, the
-    /// antipode, which a point there is past on either copy: there the
-    /// copy's rounding can move the margin's last bit, never its sign
-    /// past the band (measured over topo, sweep, editor-core, step-import
-    /// and mesh at ε 1e-9 and 1e-12: every moved point reading is such a
-    /// tie). `geom_brep::curve_pair::Span` reads its ends' sides through
-    /// this on a closed carrier, and so does `topo`'s ring lane, each
-    /// with its own meter.
+    /// antipode, which a point there is past on either copy: at or within
+    /// rounding of it the copy's rounding can move the margin's last bit,
+    /// never its sign past the band (measured over topo, sweep,
+    /// editor-core, step-import and mesh at ε 1e-9 and 1e-12: every moved
+    /// point reading is at or within rounding of such a tie).
+    /// `geom_brep::curve_pair::Span` reads its ends' sides through this
+    /// on a closed carrier, and so does `topo`'s ring lane, each with its
+    /// own meter.
     pub fn span_margins(self, t: T, (lo, hi): (T, T)) -> (T, T) {
         let p = self.length;
         ((t - lo).max(hi - (t + p)), (hi - t).max((t - p) - lo))
@@ -355,8 +356,9 @@ impl<T: Decide> Period<T> {
     /// middle's antipode lands on one copy, and where the span's gap is
     /// narrower than the box, part of it lies inside the span on the copy
     /// a turn away: a reader of such a box against the ends reads each
-    /// side on both copies (`geom_brep::curve_pair::Span`, "A parameter a
-    /// turn away").
+    /// side on both copies, through [`Period::span_margins`], the copy
+    /// rule's home (`geom_brep::curve_pair::Span`, "A parameter a turn
+    /// away", and `topo`'s ring lane read it).
     ///
     /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
     /// is not finite, or a gap no `i32` of periods names, has no copy, and
@@ -798,12 +800,35 @@ impl Turn {
 /// of the headroom, the inf's and (where it is read) the sup's: they are
 /// two bounds on one quantity, so one row holds them, as the site's own
 /// spelling did.
+///
+/// **Where its names are registered**: a reader that mints its own two
+/// names into one is a row bundle, registered in its crate's `rows`
+/// registry behind a type of that crate's (`topo::rows::ConicRows`,
+/// `geom_brep::rows::PeriodRows`), which alone can build one. A caller of
+/// [`TurnRows::exact`] with a name minted elsewhere (a parameter, a closed decision's `predicate()`, a
+/// shared site's const) is a plain site in this wrapper, whose uniqueness
+/// is the plain-site census's question
+/// (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`).
 #[derive(Clone, Copy, Debug)]
 pub struct TurnRows<S> {
     /// The headroom's row, `(period − extent)` at the rate.
-    pub turn: &'static str,
+    turn: &'static str,
     /// The row a straddle of the two readings is named by.
-    pub straddle: S,
+    straddle: S,
+}
+
+impl<S: Copy> TurnRows<S> {
+    /// The headroom's row.
+    #[must_use]
+    pub const fn turn(&self) -> &'static str {
+        self.turn
+    }
+
+    /// The straddle's row.
+    #[must_use]
+    pub const fn straddle(&self) -> S {
+        self.straddle
+    }
 }
 
 impl TurnRows<()> {
@@ -815,10 +840,24 @@ impl TurnRows<()> {
 }
 
 impl TurnRows<&'static str> {
-    /// The rows of a [`Bounded`] site.
+    /// The rows of a [`Bounded`] site, two names of one reader's: a row
+    /// bundle. Crate-private: outside this crate a reader mints its two
+    /// names in its crate's `rows` registry ([`Self::registered`]).
     #[must_use]
-    pub const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
+    pub(crate) const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
         Self { turn, straddle }
+    }
+
+    /// **The rows of a [`Bounded`] site, minted by a crate's `rows`
+    /// registry alone**: the registry's own bundle type wraps it
+    /// (`topo::rows::ConicRows`, `geom_brep::rows::PeriodRows`), and
+    /// editor-core's tree-wide test refuses a call of this outside a
+    /// `rows.rs` in any crate's `src`. A test probe of the period door
+    /// calls it too.
+    #[doc(hidden)]
+    #[must_use]
+    pub const fn registered(turn: &'static str, straddle: &'static str) -> Self {
+        Self::bounded(turn, straddle)
     }
 }
 
