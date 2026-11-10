@@ -4483,6 +4483,25 @@ impl<T: Real> PcurveCache<T> {
             certificate: self.certificate,
         })
     }
+
+    /// **This cache under an isometry**: `pcurve`, the image restated
+    /// for the mapped chart, on this cache's interval with its
+    /// certificate verbatim. Under a rigid map the chart moves with its
+    /// surface and `pcurve` is this image; under a reflection it is the
+    /// image on the reflected chart. The certificate stores norms and
+    /// nothing in chart coordinates ([`Self::mirrored_v`]), and an
+    /// isometry keeps every norm, so it is the image's. The caller keeps
+    /// the premise that `pcurve` is that restatement: `topo`'s data map
+    /// (`map_isometry`) is the one caller.
+    #[must_use]
+    pub fn carried(&self, pcurve: Pcurve<T>) -> Self {
+        Self {
+            pcurve,
+            param_start: self.param_start,
+            param_end: self.param_end,
+            certificate: self.certificate,
+        }
+    }
 }
 
 impl<T: Decide> PcurveCache<T> {

@@ -784,8 +784,8 @@ mod join_text {
 #[cfg(test)]
 mod nested_at_the_door {
     //! **A nested refusal the import door renders reads that door**: the
-    //! placement's re-certification and the pcurve re-mint's escalation,
-    //! each past the file's ε_in, end in the damaged file's ending. Red if
+    //! placement's map meeting a corrupt body, and the pcurve re-mint's
+    //! escalation past the file's ε_in, end in the damaged file's ending. Red if
     //! the door renders the nested refusal's `Display` (a build) or reads
     //! it at rest.
     #![allow(clippy::unwrap_used)]
@@ -795,16 +795,11 @@ mod nested_at_the_door {
     use super::StepImportError;
 
     #[test]
-    fn a_placements_refused_recertification_names_the_file() {
+    fn a_placements_refused_map_names_the_file() {
         let error = StepImportError::Placement {
             transform: 9,
-            source: topo::TransformError::Certify {
-                edge: topo::EdgeKey::default(),
-                source: geom_brep::CertifyError::ResidualExceeded {
-                    check: geom_brep::CertCheck::EndpointStart,
-                    sample: 0,
-                    margin: MarginDiag::value(2e-6),
-                },
+            source: topo::TransformError::Corrupt {
+                found: "a vertex references a missing point",
             },
             file: FileCoincidence::new(1e-6),
         };

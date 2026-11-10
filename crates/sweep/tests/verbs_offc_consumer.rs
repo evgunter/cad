@@ -530,15 +530,34 @@ fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
     }
 }
 
-/// **A degraded fit does not survive the map.** The same planted
+/// `body` moved by [`rigid`], and the at-rest findings on `face` of the
+/// image: the map is construction state and carries what it is handed,
+/// so a face that does not certify is the finish's to refuse.
+fn findings_after_the_map(body: &Body<f64>, face: FaceKey) -> Vec<String> {
+    let moved = topo::transform_rigid(
+        body,
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the map moves what it is handed: {e:?}"));
+    match topo::validate_geometric(&moved, Tol::witness()) {
+        Ok(()) => Vec::new(),
+        Err(errors) => errors
+            .iter()
+            .filter(|e| matches!(e, topo::ValidationError::ApproxCertification { face: f, .. } if *f == face))
+            .map(|e| format!("{e:?}"))
+            .collect(),
+    }
+}
+
+/// **A degraded fit is moved and refused at rest.** The same planted
 /// corruption [`a_degraded_fit_on_a_face_goes_red_at_tier_three`] uses —
 /// a fit edited after certification, carrying an honest-looking
-/// certificate — is refused by the transform door itself, typed
-/// `ApproxRecertify` with the fit door's own limb verbatim. The map
-/// mints no certificate it did not derive, so a mapped degradation
-/// cannot ship behind a fresh-looking one.
+/// certificate — is moved by the map, which carries what it is handed,
+/// and tier 3 refuses the image on the fit door's limb, as it refuses
+/// the source.
 #[test]
-fn a_degraded_fit_does_not_survive_the_map() {
+fn a_degraded_fit_is_moved_and_refused_at_rest() {
     let d = 0.05;
     let (mut body, face) = box_with_approx_cap(d, MINT_TARGET);
     let good = approx_face_surface(&body, face);
@@ -570,21 +589,10 @@ fn a_degraded_fit_does_not_survive_the_map() {
     )
     .unwrap();
 
-    let e = topo::transform_rigid(
-        &body,
-        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-        Tol::witness(),
-    )
-    .expect_err("a degraded fit must not move");
+    let findings = findings_after_the_map(&body, face);
     assert!(
-        matches!(
-            e,
-            topo::TransformError::ApproxRecertify {
-                source: geom_brep::OffsetFitError::Limb { .. }
-            }
-        ),
-        "expected the fit door's limb refusal under ApproxRecertify, got {e_at}",
-        e_at = e.render(geom_brep::recourse::Reading::Build)
+        findings.iter().any(|f| f.contains("Limb")),
+        "tier 3 refuses the degraded fit's image on its limb: {findings:?}"
     );
 }
 
@@ -645,7 +653,7 @@ fn the_pcurve_pass_reaches_the_same_charts_either_side_of_the_map() {
 /// Both refusals go through `geom_brep::certify_offset_over`, the one
 /// home; deleting the check there reds this row twice.
 #[test]
-fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
+fn a_narrowed_window_refuses_at_rest_either_side_of_the_map() {
     let d = 0.05;
     let (mut body, face) = box_with_approx_cap(d, MINT_TARGET);
     let good = approx_face_surface(&body, face);
@@ -681,29 +689,10 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
         "tier 3 must report the window it cannot honour on {face:?}: {findings:?}"
     );
 
-    // The map.
-    let e = topo::transform_rigid(
-        &body,
-        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-        Tol::witness(),
-    )
-    .expect_err("a narrowed window is a claim nothing proved");
+    let findings = findings_after_the_map(&body, face);
     assert!(
-        matches!(
-            e,
-            topo::TransformError::ApproxRecertify {
-                source: geom_brep::OffsetFitError::WindowUnsupported { .. }
-            }
-        ),
-        "expected ApproxRecertify(WindowUnsupported), got {e_at}",
-        e_at = e.render(geom_brep::recourse::Reading::Build)
-    );
-    // Door-neutral text: the refusal names the window, not whichever
-    // door happened to raise it.
-    let text = e.render(geom_brep::recourse::Reading::Build);
-    assert!(
-        !text.contains("approx_offset_surface"),
-        "the window refusal must not name the storage door from the map: {text}"
+        findings.iter().any(|f| f.contains("WindowUnsupported")),
+        "tier 3 refuses the narrowed window's image: {findings:?}"
     );
 }
 
@@ -719,7 +708,7 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
 /// default ε), so re-deriving at anything looser than about twice ε
 /// lets this surface through.
 #[test]
-fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
+fn a_micro_edit_of_an_interior_control_point_is_refused_at_rest() {
     let d = 0.05;
     let (mut body, face) = box_with_approx_cap(d, MINT_TARGET);
     let good = approx_face_surface(&body, face);
@@ -750,34 +739,20 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
         },
     )
     .unwrap();
-    let e = topo::transform_rigid(
-        &body,
-        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
-        Tol::witness(),
-    )
-    .expect_err("an edit of ten times ε does not certify at ε");
+    let findings = findings_after_the_map(&body, face);
     assert!(
-        matches!(
-            e,
-            topo::TransformError::ApproxRecertify {
-                source: geom_brep::OffsetFitError::Limb { .. }
-            }
-        ),
-        "expected a limb refusal, got {e_at}",
-        e_at = e.render(geom_brep::recourse::Reading::Build)
+        findings.iter().any(|f| f.contains("Limb")),
+        "an edit of ten times ε does not certify at ε, after the map as before: {findings:?}"
     );
 }
 
-/// **The mapped certificate is the re-derivation's, field by field.**
-/// A bogus certificate — every limb zero, the wrong distance, a made-up
-/// cell count — planted behind a GOOD pair. The pair certifies, so the
-/// map succeeds; what it must ship is what it measured, not what it was
-/// handed. Every field is compared against an independent
-/// `certify_offset` on the mapped pair, and `rounds` is the one that
-/// differs: it is the fit's provenance and is carried, which this row
-/// pins rather than assumes.
+/// **The map carries the certificate it is handed.** A bogus
+/// certificate — every limb zero, the wrong distance, a made-up cell
+/// count — planted behind a GOOD pair comes back verbatim: the map
+/// derives nothing, and only a finish reads a certificate against its
+/// geometry.
 #[test]
-fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
+fn a_planted_certificate_is_carried_by_the_map() {
     let d = 0.05;
     let (mut body, face) = box_with_approx_cap(d, MINT_TARGET);
     let good = approx_face_surface(&body, face);
@@ -813,47 +788,21 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
     )
     .expect("a good pair moves");
     let after = approx_face_surface(&moved, face);
-    let c = after.certificate();
-    let geom::SurfaceDescription::Offset { base, .. } = after.description();
-    let fresh = geom_brep::certify_offset_at(base, after.fit(), d, MINT_TARGET, band())
-        .expect("the mapped pair certifies independently");
     assert_eq!(
-        c.distance, d,
-        "the distance is re-derived, not the planted 42"
-    );
-    assert_eq!(c.cells, fresh.cells);
-    assert_eq!(c.samples, fresh.samples);
-    assert_eq!(c.normal_floor, fresh.normal_floor);
-    assert_eq!(c.curvature_reach, fresh.curvature_reach);
-    assert_eq!(
-        c.hull_sup, fresh.hull_sup,
-        "bit for bit the re-derivation's"
-    );
-    assert_eq!(c.on_locus_max, fresh.on_locus_max);
-    assert_eq!(
-        c.rounds, 7,
-        "`rounds` is the FIT's provenance and is carried — see OffsetCertificate::rounds"
+        format!("{:?}", after.certificate()),
+        format!("{bogus:?}"),
+        "the map carries the certificate it is handed, field by field"
     );
 }
 
-/// **Every other scalar refuses typed, naming itself.** The offset fit
-/// is derived at `f64` only, so an `Approx` face at any other scalar has
-/// no certificate to re-derive — and the stored one is a claim about a
-/// different geometry. The refusal is `ApproxLaneUnsupported`, and it
-/// names the scalar so a reader knows which capability is missing rather
-/// than which kind is unwelcome.
-///
+/// **An `Approx` face moves at a scalar with no fit lane.** The offset
+/// fit is derived at `f64` only, and the map derives nothing: it carries
+/// the face's certificate, which bounds a distance the isometry keeps.
 /// The surface is an `f64`-certified one read at `Interval`
-/// (`ApproxSurface::map_scalar` — a structural lift, not a second
-/// certification door), which is exactly how such a face becomes
-/// reachable at a scalar with no fit lane.
-///
-/// The refusal happens in the surface pass, before any curve is touched.
-/// `transform_rigid` takes `&Body<T>` and works on a CLONE, so what
-/// there is to pin is that the clone is dropped rather than returned: no
-/// body comes back at all.
+/// (`ApproxSurface::map_scalar`, a structural lift), which is how such
+/// a face becomes reachable at a scalar with no fit lane.
 #[test]
-fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
+fn an_approx_face_moves_at_a_scalar_with_no_fit_lane() {
     use common::approx::{planar_patch, pulled_back};
     use geom_core::{Bounds, Interval, Real};
     use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -912,20 +861,12 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     )
     .expect("the attach-layer door accepts a live face");
 
-    let e = topo::transform_rigid(
+    topo::transform_rigid(
         &body,
         &geom_core::RigidMotion::translation(v3(1.0, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
-    .expect_err("a scalar with no fit lane cannot move an Approx face");
-    assert!(
-        matches!(
-            e,
-            topo::TransformError::ApproxLaneUnsupported { scalar: "interval" }
-        ),
-        "expected ApproxLaneUnsupported naming the interval scalar, got {e_at}",
-        e_at = e.render(geom_brep::recourse::Reading::Build)
-    );
+    .unwrap_or_else(|e| panic!("the map carries the face's certificate at Interval: {e:?}"));
 }
 
 /// **What an `Approx`-capped part can and cannot do once placed,

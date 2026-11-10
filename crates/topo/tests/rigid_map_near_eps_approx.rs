@@ -7,9 +7,9 @@
 //! can sit anywhere under ε. A face minted within the rotation's drift
 //! of ε therefore has an IMAGE that re-derives above ε. These rows
 //! build that face through the production mint door at the run's ε,
-//! show that its image refuses the re-derivation `transform_rigid`
-//! runs, and show that the body moves anyway: the transform re-fits the
-//! mapped description and ships a face tier 3's own door accepts.
+//! show that its image refuses a re-derivation, and show that the body
+//! moves anyway: the map carries the certificate, which bounds a
+//! distance the isometry keeps, and ships the exact image.
 //!
 //! **The subject is one shape at a scale.** Every rigid map commutes
 //! with a uniform scale about the origin, and so does the offset
@@ -277,12 +277,11 @@ fn the_image_of_a_face_minted_near_eps_refuses_re_derivation() {
     }
 }
 
-/// **The fix.** Every rotation moves the body. Where the image
-/// certifies, the moved face IS the image, bit for bit, with the
-/// operand's `rounds` carried; where it refuses, the moved face is a
-/// fresh fit of the mapped description — the base mapped bit for bit,
-/// a different net — and tier 3's door accepts it at the run's ε. Both
-/// classes occur, so neither half of the row is vacuous.
+/// **The fix.** Every rotation moves the body, and the moved face IS
+/// the image, bit for bit, its certificate the operand's, including the
+/// images whose re-derivation refuses: the certificate bounds a distance
+/// the rotation keeps, so it is the image's. Both kinds of image occur,
+/// so the row covers the one a re-derivation would have refused.
 #[test]
 fn a_rigid_map_moves_a_face_minted_near_eps() {
     let tol = Tol::witness();
@@ -290,7 +289,7 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
     for d in [0.05_f64, -0.05] {
         let face = near_eps_face(d);
         let (body, key) = body_with(face.clone());
-        let (mut imaged, mut refitted) = (0_usize, 0_usize);
+        let (mut certified, mut refused) = (0_usize, 0_usize);
         for (name, map) in rotations() {
             let moved =
                 topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
@@ -312,44 +311,38 @@ fn a_rigid_map_moves_a_face_minted_near_eps() {
             } = after.description();
             assert!(
                 same_net(got, want) && got_d.to_bits() == want_d.to_bits(),
-                "d = {d}, {name}: the description maps exactly either way"
+                "d = {d}, {name}: the description maps exactly"
             );
-            lane.recertify(&after, tol).unwrap_or_else(|e| {
-                panic!(
-                    "d = {d}, {name}: tier 3's door must accept the moved face: {e_at}",
-                    e_at = e.render(geom_brep::recourse::Reading::Build)
-                )
-            });
+            assert!(
+                same_net(after.fit(), &fit),
+                "d = {d}, {name}: the fit is the image, not a re-fit"
+            );
+            assert_eq!(
+                format!("{:?}", after.certificate()),
+                format!("{:?}", face.certificate()),
+                "d = {d}, {name}: the certificate is carried"
+            );
             if lane.remap(&description, &fit, face.window(), tol).is_ok() {
-                imaged += 1;
-                assert!(
-                    same_net(after.fit(), &fit),
-                    "d = {d}, {name}: an image that certifies is shipped as the image"
-                );
-                assert_eq!(after.certificate().rounds, face.certificate().rounds);
+                certified += 1;
             } else {
-                refitted += 1;
-                assert!(
-                    !same_net(after.fit(), &fit),
-                    "d = {d}, {name}: a refused image must not be what ships"
-                );
+                refused += 1;
             }
         }
         assert!(
-            imaged > 0 && refitted > 0,
-            "d = {d}: both answers must occur — {imaged} imaged, {refitted} re-fitted"
+            certified > 0 && refused > 0,
+            "d = {d}: both kinds of image must occur — {certified} re-derive, {refused} refuse"
         );
     }
 }
 
-/// **A face that does not certify where it stands is not re-fitted.**
-/// The near-ε face with an interior fit control point nudged by ten
-/// times ε, behind the certificate it had before, refuses
-/// `ApproxRecertify` on the image's limb under every rotation: the map
-/// re-fits only a sound face, so it cannot launder a body tier 3
-/// rejects into one it accepts.
+/// **The map carries what it is handed; a finish decides.** The near-ε
+/// face with an interior fit control point nudged by ten times ε,
+/// behind the certificate it had before, is a planted face that no
+/// longer certifies where it stands. The map is construction state: it
+/// moves the planted face as it moves any, and tier 3's own door
+/// refuses the image as it refuses the source.
 #[test]
-fn a_face_that_fails_where_it_stands_is_not_re_fitted() {
+fn a_planted_face_is_moved_and_refused_by_the_finishs_door() {
     let tol = Tol::witness();
     let d = 0.05;
     let face = near_eps_face(d);
@@ -369,8 +362,6 @@ fn a_face_that_fails_where_it_stands_is_not_re_fitted() {
         fit: nudged,
         window: face.window(),
     };
-    // Planted with the operand's certificate: the surface claims what
-    // it no longer is, and only a re-derivation can tell.
     let planted = geom::ApproxSurface::certify(spec, |_, _, _| {
         Ok::<_, std::convert::Infallible>(*face.certificate())
     })
@@ -379,13 +370,15 @@ fn a_face_that_fails_where_it_stands_is_not_re_fitted() {
         OffsetFitLane::fit().recertify(&planted, tol).is_err(),
         "the planted fit must fail where it stands, or this row tests nothing"
     );
-    let (body, _) = body_with(planted);
+    let (body, key) = body_with(planted);
     for (name, map) in rotations() {
-        match topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol) {
-            Err(topo::TransformError::ApproxRecertify {
-                source: OffsetFitError::Limb { .. },
-            }) => {}
-            other => panic!("{name}: expected the image's limb refusal, got {other:?}"),
-        }
+        let moved = topo::transform_rigid(&body, &geom_core::test_support::rigid(&map, tol), tol)
+            .unwrap_or_else(|e| panic!("{name}: the map moves what it is handed: {e:?}"));
+        assert!(
+            OffsetFitLane::fit()
+                .recertify(&approx_on(&moved, key), tol)
+                .is_err(),
+            "{name}: tier 3's door refuses the planted face's image"
+        );
     }
 }

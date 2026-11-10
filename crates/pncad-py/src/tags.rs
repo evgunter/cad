@@ -1560,13 +1560,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
 /// arm of [`NodeErrorKind::Transform`].
 pub fn transform_error_tag(err: &TransformError) -> &'static str {
     match err {
-        TransformError::Pcurve { .. } => "pcurve",
-        TransformError::Band(_) => "band",
-        TransformError::Certify { .. } => "certify",
         TransformError::NullScaffold { .. } => "null_scaffold",
         TransformError::NurbsPlaceholder => "nurbs_placeholder",
-        TransformError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
-        TransformError::ApproxRecertify { .. } => "approx_recertify",
         TransformError::Corrupt { .. } => "corrupt",
     }
 }
@@ -3195,6 +3190,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::OrphanEntity { .. } => "orphan_entity",
         ValidationError::MultiplyOwned { .. } => "multiply_owned",
         ValidationError::OrphanGeometry { .. } => "orphan_geometry",
+        ValidationError::Unmovable { .. } => "unmovable",
         ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
         ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
         ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",

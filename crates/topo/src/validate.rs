@@ -2694,6 +2694,14 @@ pub enum ValidationError {
         /// The unreferenced geometry entry.
         geometry: GeomRef,
     },
+    /// A finished body an isometry could not move
+    /// ([`crate::FinishedBody::moved`]): the data map met a state the
+    /// gate refuses (a reference that does not resolve, a null scaffold,
+    /// a placeholder net), which a finished body never holds.
+    Unmovable {
+        /// What the map met, as a clause.
+        found: &'static str,
+    },
     /// A solid with no shells. Defined by the operator set: `mvfs`
     /// births solid + shell + face together and `kvfs` retires them
     /// together, so a bare solid is operator-unreachable (module docs,
@@ -5326,6 +5334,9 @@ impl ValidationError {
             }
             Self::OrphanGeometry { geometry } => {
                 write!(f, "{geometry} is used by nothing")
+            }
+            Self::Unmovable { found } => {
+                write!(f, "the finished body could not be moved: {found}")
             }
             Self::SolidWithoutShells { solid } => {
                 write!(f, "solid {solid:?} has no shells")
@@ -10636,6 +10647,39 @@ impl<T: geom_core::Decide> AtRestBody<T> {
             held: Some(std::sync::Arc::new(record)),
             ..self
         }
+    }
+
+    /// **This finished body under an isometry**, finished
+    /// ([`crate::FinishedBody::moved`]): the body's data mapped with every
+    /// certificate carried, check 7's kept certificate moved with it, the
+    /// held finish record carried, and every family not up to isometry
+    /// asked again of the image. `finish` is the one place a verdict is
+    /// derived; this derives none.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::NotFinished`] holding the session-box finding, or the
+    /// band's where the tolerance forms none.
+    pub fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, crate::NotFinished>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let band = Band::linear(tol)
+            .map_err(|error| crate::NotFinished::new(vec![ValidationError::Band { error }]))?;
+        let body = crate::finish::moved_body(&self.body, iso)?;
+        let findings: Vec<ValidationError> = crate::FindingFamily::ALL
+            .into_iter()
+            .filter(|family| !family.up_to_isometry())
+            .filter_map(|family| family.asked_again(&body, band).err())
+            .collect();
+        if !findings.is_empty() {
+            return Err(crate::NotFinished::new(findings));
+        }
+        Ok(Self {
+            body,
+            sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
+            held: self.held.clone(),
+        })
     }
 
     /// **Relogs the held finish record** into this thread's open frame:

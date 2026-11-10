@@ -50,8 +50,6 @@ pub(crate) enum Origin {
 /// certifies with [`Origin::Kernels`]; a panic names its site.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum KernelSite {
-    /// [`crate::transform_rigid`]'s re-mint of each moved edge.
-    RigidTransform,
     /// [`crate::Body::split_edge`](crate::construction::Construct::split_edge)'s two children.
     SplitChild,
     /// A graft's re-certification of the source body's edges.
@@ -90,7 +88,6 @@ pub(crate) enum KernelSite {
 impl core::fmt::Display for KernelSite {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
-            Self::RigidTransform => "transform_rigid",
             Self::SplitChild => "a split child",
             Self::Graft => "a graft",
             Self::ReDescription => "a re-description",

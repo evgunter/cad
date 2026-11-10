@@ -188,8 +188,9 @@ fn the_f64_seam_answers_every_public_door_row() {
     );
 }
 
-/// The certifying interval scalar: every door refuses by its own typed
-/// variant, and the text says the absence is the DERIVATION's.
+/// The certifying interval scalar: every door that derives refuses by
+/// its own typed variant, and the text says the absence is the
+/// DERIVATION's; the map derives nothing and carries the certificate.
 #[test]
 fn the_interval_seam_refuses_at_every_public_door() {
     use geom_core::{Bounds, Interval, Real};
@@ -275,19 +276,12 @@ fn the_interval_seam_refuses_at_every_public_door() {
         );
     }
 
-    match topo::transform_rigid(
+    topo::transform_rigid(
         &body,
         &geom_core::RigidMotion::translation(v3(1.0, 0.0, 0.0)).unwrap(),
         Tol::witness(),
-    ) {
-        Err(topo::TransformError::ApproxLaneUnsupported { scalar }) => {
-            assert_eq!(
-                scalar, "interval",
-                "the refusal names the scalar the map ran at"
-            );
-        }
-        other => panic!("the map must refuse rather than carry the certificate: {other:?}"),
-    }
+    )
+    .unwrap_or_else(|e| panic!("the map carries the face's certificate at Interval: {e:?}"));
 }
 
 /// The mint's absence path through the PUBLIC offset door at a scalar with
@@ -348,12 +342,13 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
     }
 }
 
-/// The same two absence paths at the telemetry probe scalar, through the
-/// public doors. The probe IS `f64` with a sink attached, and it still
-/// has no fit: the derivation is written at `f64` the TYPE.
+/// The same seam at the telemetry probe scalar, through the public
+/// doors. The probe IS `f64` with a sink attached, and it still has no
+/// fit: the derivation is written at `f64` the TYPE. The map derives
+/// nothing and carries the certificate; the mint refuses.
 #[cfg(feature = "probe")]
 #[test]
-fn the_probe_seam_refuses_at_the_map_and_the_mint() {
+fn the_probe_seam_carries_at_the_map_and_refuses_at_the_mint() {
     use geom_core::{Probe, Real};
 
     let approx_f64 = geom_brep::approx_offset_surface_at(
@@ -384,7 +379,7 @@ fn the_probe_seam_refuses_at_the_map_and_the_mint() {
     )
     .unwrap();
 
-    match topo::transform_rigid(
+    topo::transform_rigid(
         &body,
         &geom_core::RigidMotion::translation(geom_core::Vec3::new(
             Probe::from_f64(1.0),
@@ -393,12 +388,8 @@ fn the_probe_seam_refuses_at_the_map_and_the_mint() {
         ))
         .unwrap(),
         Tol::witness(),
-    ) {
-        Err(topo::TransformError::ApproxLaneUnsupported { scalar }) => {
-            assert_eq!(scalar, "telemetry probe");
-        }
-        other => panic!("the map must refuse at the probe: {other:?}"),
-    }
+    )
+    .unwrap_or_else(|e| panic!("the map carries the face's certificate at the probe: {e:?}"));
 
     let nurbs = planar_patch(1.0).map_scalar(Probe::from_f64);
     let mut b2 = topo::Body::<Probe>::new();

@@ -1456,6 +1456,7 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::OrphanEntity { .. }
         | E::MultiplyOwned { .. }
         | E::OrphanGeometry { .. }
+        | E::Unmovable { .. }
         | E::SolidWithoutShells { .. }
         | E::ShellWithoutFaces { .. }
         | E::EdgeAcrossShells { .. }

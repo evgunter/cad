@@ -2266,6 +2266,35 @@ pub(crate) struct KeptSign<T: Decide> {
 }
 
 impl<T: Decide> KeptSign<T> {
+    /// **This certificate over the body's image under an isometry**
+    /// `map`: every run's reference point moved with the body, and every
+    /// flux, area and carry kept. Each face's flux `∫(p − c)·n` about a
+    /// reference `c` that moves with the body is the image's, and so is
+    /// the volume; a reflection negates it and the mirror's reversal
+    /// restores it, so a mirrored body's runs are kept too.
+    pub(crate) fn moved(&self, map: &geom_core::Affine3<T>) -> Self {
+        let move_about = |about: ReadAbout<T>| match about {
+            ReadAbout::Shell(point) => ReadAbout::Shell(map.transform_point(point)),
+            ReadAbout::Region { point, carry } => ReadAbout::Region {
+                point: map.transform_point(point),
+                carry,
+            },
+        };
+        Self {
+            band: self.band,
+            tol: self.tol,
+            quad: self.quad,
+            runs: self
+                .runs
+                .iter()
+                .map(|run| FaceRun {
+                    about: move_about(run.about),
+                    ..run.clone()
+                })
+                .collect(),
+        }
+    }
+
     /// **This certificate over `body`**, the one body it was derived
     /// over, its rounds as the gate left them.
     pub(crate) fn of<'b>(&self, body: &'b Body<T>) -> SignCertificate<'b, T> {

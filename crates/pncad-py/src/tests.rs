@@ -6042,16 +6042,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "transform_error_tag",
-        values: &[
-            "approx_lane_unsupported",
-            "approx_recertify",
-            "band",
-            "certify",
-            "corrupt",
-            "null_scaffold",
-            "nurbs_placeholder",
-            "pcurve",
-        ],
+        values: &["corrupt", "null_scaffold", "nurbs_placeholder"],
         delegates: &[],
     },
     TagEntry {
@@ -6209,6 +6200,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "touch_interference",
             "transverse_not_intrinsic",
             "uncertifiable_surface",
+            "unmovable",
             "unreachable_half_edge",
             "unrecorded_contact",
             "unrepresentable_curve_datum",
@@ -6288,11 +6280,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact (VR7) at the edit and load doors: a variable with no
     // name that nothing reads.
     ("anonymous_var_unread", 2),
-    ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    ("band", 18),
+    ("band", 17),
     ("cap_plane", 3),
-    ("certify", 2),
     // One fact: a ring meeting its outer loop and a ring meeting
     // another ring name the same shape (`ring_pair_contact_tag`);
     // `ring_pair_words_are_the_outer_contact_words` pins them.
@@ -6418,7 +6408,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `the_edit_and_snapshot_maps_agree_on_the_var_read_words`;
     // these two rows say only that the sharing is deliberate.
     ("payload_var_kind", 2),
-    ("pcurve", 6),
+    ("pcurve", 5),
     ("pcurves", 3),
     // One fact at the edit and load doors: a pick whose path names no
     // one piece of its copy (`editor_core::edit::pick_fault`).

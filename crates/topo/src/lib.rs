@@ -1529,7 +1529,7 @@ pub use splitting::{
     UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
     vertex_sides,
 };
-pub use transform::{TransformError, transform_rigid};
+pub use transform::{Isometry, TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, INSIDE_OUT_REFUSAL, OrientationUnread, RingContact, RingPairContact,
