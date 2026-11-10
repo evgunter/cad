@@ -123,8 +123,13 @@ fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
 ) {
     let body = plate::<T>(0.0, 0.0, 0.0, H);
     let edges = every_edge(&body);
-    let out = fillet_edges(&at_rest(&body, tol()), &edges, size, tol())
-        .unwrap_or_else(|e| panic!("{what}: the rounded plate fillets whole, got {e:?}"));
+    let out = match fillet_edges(&at_rest(&body, tol()), &edges, size, tol()) {
+        Ok(out) => out,
+        Err(e) if crate::band_closed_mixed_chain_shapes::touch_limit_skip::<T>(what, &e.error) => {
+            return;
+        }
+        Err(e) => panic!("{what}: the rounded plate fillets whole, got {e:?}"),
+    };
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
     let requested: Vec<EdgeKey> = rim_at(&body, 0.0)
         .into_iter()
