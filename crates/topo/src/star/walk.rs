@@ -52,6 +52,19 @@ pub(crate) enum StarFace<T: Real> {
     Apex(ConeApex<T>),
 }
 
+impl<T: Decide> StarFace<T> {
+    /// The face's outward normal along the direction `d` out of the
+    /// vertex: its tangent plane's, or at a cone's apex the normal along
+    /// the ruling `d` lies on, which is constant along it
+    /// ([`ConeApex::normal_along`]).
+    pub(crate) fn normal_along(&self, d: Vec3<T>) -> OutwardNormal<T> {
+        match self {
+            Self::Tangent(normal) => *normal,
+            Self::Apex(apex) => apex.normal_along(d),
+        }
+    }
+}
+
 /// The sector between two consecutive bounds of a star.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Sector<T: Real> {
@@ -343,7 +356,7 @@ impl<T: Decide> Star<T> {
 /// scaled to the edge's extent from below, and its reach: a line's
 /// chord, a curved edge's departure tangent at its extent with its bend
 /// and its arc ([`ConicArc::of`]).
-fn departure<T: Decide>(
+pub(crate) fn departure<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,

@@ -3851,11 +3851,10 @@ mod tests {
         )
     }
 
-    /// **The split walk and the boolean read one edge's side of a plane
-    /// alike**, each by its own path on one body: the split's
-    /// [`crate::splitting::entry_side`] (the walk's departure read off the
-    /// body) and the vertex-on-face pass's [`pierce_side`] of the bound
-    /// [`build_sectors`] built. The rim is the oblique wall's closed
+    /// **The split and the boolean read one edge's side of a plane
+    /// alike**, each through its own door on one star bound: the split's
+    /// [`crate::splitting::bound_side`] and the vertex-on-face pass's
+    /// [`pierce_side`]. The rim is the oblique wall's closed
     /// ellipse ([`crate::test_support_fixtures::oblique_rim_wall`]), its
     /// two departures along `±y` at the vertex `(1, 0, tan φ)`. Planes
     /// through the vertex square to `y` tie at first order and are read
@@ -3864,41 +3863,25 @@ mod tests {
     fn the_split_walk_and_the_boolean_read_one_edges_side_alike() {
         let b = band();
         let (body, _, vertex) = crate::test_support_fixtures::oblique_rim_wall(0.3);
-        let sectors = build_sectors(
-            &body,
-            Operand::A,
-            vertex,
-            &crate::sector_shape::SlitTips::default(),
-            &Partners::None,
-            b,
-        )
-        .unwrap();
-        let orbit = body.vertex_orbit_linked(vertex);
+        let star = crate::star::Star::walk(&body, vertex, &crate::sector_shape::SlitTips::default(), b)
+            .unwrap();
         let (mut read, mut descended) = (0, 0);
         for a in (0..12).map(|k| f64::from(k) * core::f64::consts::TAU / 12.0 + 0.05) {
             for lift in [0.0, 0.3, -0.3] {
                 let n = Vec3::new(a.cos(), lift, a.sin()).normalize();
-                for &he in &orbit {
-                    let (dir, split) = crate::splitting::entry_side(
+                for edge in star.bounds.iter().filter(|e| e.real) {
+                    let split = crate::splitting::bound_side(
                         &body,
-                        vertex,
-                        he,
+                        edge,
                         geom_brep::ReferenceNormal::of_split_plane(n),
                         |_| Err::<crate::splitting::PlaneSide, ()>(()),
                         b,
                     )
                     .unwrap();
-                    let (bound, reach) = sectors
-                        .iter()
-                        .flat_map(|s| [(s.start, s.start_reach), (s.end, s.end_reach)])
-                        .find(|(d, r)| {
-                            matches!(r, BoundSupport::Conic { .. })
-                                && d.normalize().dot(dir.normalize()) > 1.0 - 1e-12
-                        })
-                        .expect("a sector bound along the walk's departure");
+                    let dir = edge.dir;
                     let boolean = pierce_side(
-                        bound,
-                        reach,
+                        edge.dir,
+                        edge.reach,
                         OutwardNormal::from_chart(n, true),
                         FaceBend::Plane,
                         NO_CURVATURE(),

@@ -9061,21 +9061,18 @@ fn foot_normal<T: Decide>(
 
 /// Where half-edge `he` leaves its start `v`, scaled to its reach,
 /// whether it is a line, and its curvature vector there (nothing on a
-/// line): the splitting lane's reading
-/// ([`crate::splitting::neighborhood::chord`]), a line's chord or a
-/// curve's tangent scaled to its extent.
+/// line): the star's reading of a bound ([`crate::star::departure`]), a
+/// line's chord or a curve's tangent scaled to its extent.
 fn departure<T: Decide>(
     body: &Body<T>,
     v: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<(Vec3<T>, bool, Vec3<T>), TouchUnread> {
-    let (_, dir, bend) =
-        crate::splitting::neighborhood::chord(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
-    Ok((
-        dir,
-        bend.is_none(),
-        bend.map_or(Vec3::zero(), |b| b.curvature),
-    ))
+    let (dir, reach) = crate::star::departure(body, v, he).map_err(|_| TouchUnread::Unreadable)?;
+    Ok(match reach {
+        crate::bound_side::BoundSupport::Conic { bend, .. } => (dir, false, bend.curvature),
+        _ => (dir, true, Vec3::zero()),
+    })
 }
 
 /// **Half-edge `he`'s unit direction at `p`**, a point inside its edge,

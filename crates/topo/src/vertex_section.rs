@@ -16,11 +16,11 @@
 //! on it.
 //!
 //! Which faces a section enters from the vertex is the neighbourhood
-//! walk's reading of the vertex's edges and sectors
-//! ([`crate::splitting::entry_side`], [`crate::splitting::wide_entries`]):
-//! a face's sector holds the plane's trace where its two bounds leave on
-//! opposite sides of the plane, or where it is wide and its subdivision
-//! direction leaves on the side its bounds do not. A sector with a bound
+//! star's reading of the vertex's bounds and sectors ([`crate::star`],
+//! each bound's side as [`crate::splitting::bound_side`] reads it): a
+//! face's corner holds the plane's trace where its two edges leave on
+//! opposite sides of the plane, or where a divider inside it leaves on
+//! the side its edges do not. A sector with a bound
 //! in the plane holds the trace along that edge, which ends at the
 //! vertex. Of the faces a section enters, a planar one is cut along a
 //! line the join mints through its ends, and a cylinder or cone the
@@ -42,12 +42,11 @@ use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Unit
 
 use crate::body::Body;
 use crate::chord_join::{SectionCase, WallSection, wall_section};
-use crate::entity::{FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{FaceKey, VertexKey};
 use crate::sector_face::SectorFaceError;
 use crate::sector_shape::SlitTips;
-use crate::splitting::{
-    EntryFault, PlaneSide, SectorReading, SplitReduceError, entry_side, wide_entries,
-};
+use crate::splitting::{EntryFault, PlaneSide, SectorReading, SplitReduceError, bound_side};
+use crate::star::{Datum, Star, StarFault};
 use crate::validate::decide_reported;
 
 /// K name: a vertex ON a plane read against the sections the plane cuts
@@ -177,14 +176,7 @@ pub(crate) fn read_sections<T: Decide>(
         return Ok(on_plane);
     }
     let plane = plane()?;
-    let entered = entered_faces(
-        (body, tips),
-        (vertex, at),
-        (&orbit, &faces),
-        plane,
-        &far,
-        band,
-    )?;
+    let entered = entered_faces((body, tips), (vertex, at), plane, &far, band)?;
     let Some(sine) = entered
         .into_iter()
         .filter_map(|face| section_sine(body, (vertex, at), face, plane, band))
@@ -269,66 +261,63 @@ fn read_kind<T: Decide>(body: &Body<T>, face: FaceKey, at: Point3<T>, band: Band
     }
 }
 
-/// The read faces ([`read_kind`]) whose sector at the vertex holds the
-/// plane's trace (module docs). `orbit` and `faces` are the vertex's
-/// orbit and each orbit half-edge's sector face; a sector at one of
-/// `tips` is the face's full turn round the slit's tip.
+/// The read faces ([`read_kind`]) whose corner at the vertex holds the
+/// plane's trace (module docs), read off the vertex's star refined
+/// against the plane ([`crate::star`]); a corner at one of `tips` is the
+/// face's full turn round the slit's tip.
 fn entered_faces<T: Decide>(
     (body, tips): (&Body<T>, &SlitTips),
     (vertex, at): (VertexKey, Point3<T>),
-    (orbit, faces): (&[HalfEdgeKey], &[FaceKey]),
     plane: SectionPlane<T>,
     far: &impl Fn(VertexKey) -> Result<PlaneSide, VertexRefusal>,
     band: Band,
 ) -> Result<Vec<FaceKey>, VertexRefusal> {
-    let n = plane.normal.get();
-    let entries = orbit
+    let star = Star::walk(body, vertex, tips, band)
+        .and_then(|mut star| {
+            star.refine(&[Datum::Plane(plane.normal.get())], band)?;
+            Ok(star)
+        })
+        .map_err(|fault| match fault {
+            StarFault::Face(e) => VertexRefusal::Sector(e),
+            fault => VertexRefusal::Walk(fault.split_refusal(vertex, band)),
+        })?;
+    let sides = star
+        .bounds
         .iter()
-        .zip(faces)
-        .map(|(&he, &face)| {
-            entry_side(body, vertex, he, plane.reference, far, band).map_err(|fault| match fault {
-                EntryFault::Walk(e) => VertexRefusal::Walk(e),
+        .zip(&star.sectors)
+        .map(|(bound, sector)| {
+            bound_side(body, bound, plane.reference, far, band).map_err(|fault| match fault {
                 EntryFault::Far(e) => e,
                 EntryFault::Undecided(diag) => {
                     VertexRefusal::Walk(SplitReduceError::SliverSector {
                         vertex,
-                        face,
+                        face: sector.face,
                         reading: SectorReading::Escalated(diag),
                     })
                 }
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let m = star.bounds.len();
     let mut entered = Vec::new();
-    for (i, (&he, &face)) in orbit.iter().zip(faces).enumerate() {
+    for k in (0..m).filter(|&k| star.bounds[k].real) {
+        let face = star.sectors[k].face;
         if !read_kind(body, face, at, band) || entered.contains(&face) {
             continue;
         }
-        let next = (i + 1) % orbit.len();
-        let ((dir_a, a), (dir_b, b)) = (entries[i], entries[next]);
+        // The corner runs from its own edge across its dividers to the
+        // next real edge.
+        let mut next = (k + 1) % m;
+        let mut inner = Vec::new();
+        while !star.bounds[next].real {
+            inner.push(sides[next]);
+            next = (next + 1) % m;
+        }
+        let (a, b) = (sides[k], sides[next]);
         let holds = match (a, b) {
             (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above) => true,
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
-                let resolved = match crate::sector_face::resolve(body, vertex, he, band) {
-                    Ok(resolved) => resolved,
-                    Err(e @ SectorFaceError::ApexUndecided { .. }) => {
-                        return Err(VertexRefusal::Sector(e));
-                    }
-                    Err(e) => {
-                        unreachable!("{face:?}: a read face's kind has a sector arm, yet {e:?}")
-                    }
-                };
-                wide_entries(
-                    (vertex, face),
-                    (dir_a, dir_b),
-                    resolved.at_vertex,
-                    tips.bounds(vertex, face, he == orbit[next]),
-                    n,
-                    band,
-                )
-                .map_err(VertexRefusal::Walk)?
-                .iter()
-                .any(|&(_, _, side)| opposes(side, a))
+                inner.iter().any(|&side| opposes(side, a))
             }
             _ => false,
         };

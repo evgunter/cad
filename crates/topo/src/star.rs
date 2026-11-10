@@ -58,7 +58,7 @@
 use geom_core::{Decide, Real};
 
 mod walk;
-pub(crate) use walk::{Bound, Datum, Sector, Star, StarFace, StarFault};
+pub(crate) use walk::{Bound, Datum, Sector, Star, StarFace, StarFault, departure};
 
 use crate::body::{Body, WALKS_CLOSE};
 use crate::entity::{EntityId, HalfEdgeKey, LoopKey, VertexKey};
@@ -77,6 +77,43 @@ pub(crate) trait Member {
     /// Whether the entry lies on the side the verb's runs move to their
     /// copies.
     fn moved(&self) -> bool;
+}
+
+/// A bound of a [`Star`] as a verb's runs read it: whether the verb's
+/// side of it is the one its runs move ([`Star::moved`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Moved {
+    he: HalfEdgeKey,
+    real: bool,
+    moved: bool,
+}
+
+impl Member for Moved {
+    fn he(&self) -> HalfEdgeKey {
+        self.he
+    }
+    fn real(&self) -> bool {
+        self.real
+    }
+    fn moved(&self) -> bool {
+        self.moved
+    }
+}
+
+impl<T: Real> Star<T> {
+    /// The star's bounds as the verb's runs read them, `moved(k)` whether
+    /// the verb's side of bound `k` is the one its runs move.
+    pub(crate) fn moved(&self, moved: impl Fn(usize) -> bool) -> Vec<Moved> {
+        self.bounds
+            .iter()
+            .enumerate()
+            .map(|(k, b)| Moved {
+                he: b.he,
+                real: b.real,
+                moved: moved(k),
+            })
+            .collect()
+    }
 }
 
 /// A maximal cyclic run of moved entries, by entry index.
