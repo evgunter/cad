@@ -4,6 +4,7 @@
 # row per (file, function).
 # path	function	count	class
 crates/geom-brep/src/pair_section.rs	within_span	1	witness
+crates/geom-brep/src/nurbs_iso.rs	iso_boundary_row	1	sup
 crates/geom-brep/src/pcurve_cache.rs	side_of	2	sup
 crates/topo/src/chord_join.rs	chord_spec	1	exact-rate
 crates/topo/src/boolean/trace.rs	circle_crossings	1	exact-rate
