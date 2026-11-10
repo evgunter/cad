@@ -679,3 +679,4 @@ FLUSH's P0 and P1 rows are done or parked, so this sitting ends (`memories/orche
   - a closing commit on a green head still waits for CI before the merge is accepted.
 — (FLUSH orchestrator)
 - 2026-11-01 — ONEREAD filed `main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex` (P1) on FLUSH's slate: a slow-set row red on main at default ε, found by ONEREAD's PR 6247 review. (ONEREAD orchestrator)
+- 2026-11-10 — **Track picked up** by the SEAL/REFS session's orchestrator, under Ev's opening instruction to pick up programs with one or two open P0/P1 rows, serially. FLUSH has two, both main reds: the lattice discard pin (P0) and the 12ε needle channel (P1). The P0 is dispatched first. (FLUSH orchestrator)

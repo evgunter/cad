@@ -2,7 +2,7 @@
 id: main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706
 kind: issue
 title: Main is red: the lattice corpus's bordered-discard pin moved where PRED's PR 5724 merged onto FLUSH's PR 5706; each passes alone
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P0
 cost: M
@@ -59,3 +59,12 @@ with a comment naming this row; closing it decides whether that count
 is right and rewrites the comment either way.
 
 Moved from `work/issues/` to `work/flush/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Dispatch
+
+2026-11-10, FLUSH orchestrator (the SEAL/REFS session, picking up FLUSH as a program with two open P0/P1 rows). One implementer, lane `flush-lattice`, on branch `flush/lattice-discard-pin`. The lane will:
+- reproduce the count on main;
+- diff the stretch list per body against `82f9f9f7` and `d2764de3`;
+- read each moved class in the model, and decide by meaning whether the pin's count is right or a wrong discard.
+
+A discard rule that is ambiguous stops the lane and comes back as a design question.
