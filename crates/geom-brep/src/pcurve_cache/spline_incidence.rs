@@ -146,12 +146,12 @@ pub(super) fn spline_incidence_as<T: Decide>(
     read_samples(name, chart, samples, band)
 }
 
-/// **The spline chart's incidence test of one point**: [`spline_incidence`]
+/// **The spline chart's incidence test of one point**: [`spline_incidence_as`]
 /// at the one sample, walked once.
 ///
 /// # Errors
 ///
-/// As [`spline_incidence`].
+/// As [`spline_incidence_as`].
 pub(super) fn spline_point_incidence<T: Decide>(
     name: &'static str,
     chart: &NurbsSurface<T>,
