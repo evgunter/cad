@@ -1,8 +1,6 @@
 # Review of PR 6806 (`spiricarm/horn-cusp`): reviewer R1
 
-**Frozen head reviewed: `0c3420d4cb983431637bb3dfbe16586c2a30ee40`** (checked out; the PR head matched).
-Probes: branch `spiricarm-rev6806-r1/probes` (`projected/r1_probe.rs`, `probes-r1/r1_oracle.py`,
-two `#[ignore]` probes in `closed_form_limb2.rs`, one in `a_conical_ended_football_revolves.rs`).
+**Frozen head: `0c3420d4cb983431637bb3dfbe16586c2a30ee40`** (= PR head). Probes on `spiricarm-rev6806-r1/probes`: `projected/r1_probe.rs`, `probes-r1/r1_oracle.py`, `#[ignore]` rows in `closed_form_limb2.rs`, `a_conical_ended_football_revolves.rs`.
 
 ## Verdict: APPROVE-WITH-FIXES
 
