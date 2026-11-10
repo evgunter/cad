@@ -1459,3 +1459,59 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
     - other sweep hits filed (spline_arc ball/cross, edge_nurbs edge_piece, projected frame_box_on), with `window_arms` folded in only if the one home makes it a call;
     - a carrier-walk witness allowed if `read_capped` calls exactly it, plus one attempt at a far rational arc loft through a boolean.
   - **Class (logged):** a floor read off a control box at f64 after an untracked cut is not a lower bound. Every cut box that decides needs the cut's rounding charged, and `Interval` alone does not do it where the net is collapsed to its value channel.
+- 2026-11-04 16:30Z — **Tracker PR 6529 merged** (`17fd9b4b`).
+- 2026-11-04 16:30Z — **Spline-region charge: the one-home guard tripped.** A live PCERT branch, `pcert/spline-certificate-door` (commits `bd84839a`, `995620ef`, `742c98b2`; last 16:05Z, +160/−8 on the file), edits `spline_incidence.rs`, and `line-incidence-bound` has a one-line edit there too. So the lane copies the tracked cut and charge into topo's `spline_region`, citing the P3 row `the-spline-chart-cell-walk-is-written-twice` with this as its second copy. The tier stays a single FULL review. `Trim::copy` is still folded in.
+- 2026-11-04 17:56Z — **PR 6530 (`spline-region-charge`) single FULL review dispatched** on the frozen head `e2185db6c914b338def8391c11b61fe35ffa4909` (CI run 41878682912 green). Reviewer `session_013QoYWWSS2CEuh85skE5JgS`, evidence `splice/review-6530`, brief `briefs-1103/review-6530.md`.
+  - The lane's report: the charge is copied into topo; `Patch::floor` replaces `hull_gap`; `Trim::copy` is charged at every scalar; the walk is split out as `carrier_walk`. The Phase 0 probe falls from 133 false Offs to 0.
+  - Three mutants are named red. There is no boolean witness: today's arc lofts' weights (0.71–1) never reach the defect.
+  - Filed at P2: charttail chart arms, hone spline_arc, isotail edge_piece, pcert frame_box.
+  - The brief presses on three things: the knotted-insertion bound checked against the topo copy itself, the trim's parity argument, and endings moved in sweep and the tour, which the lane did not run.
+- 2026-11-04 19:52Z — **PR 6530 single FULL review** (frozen `e2185db6`; reviewer `session_013QoYWWSS2CEuh85skE5JgS`, evidence `splice/review-6530` @ `09272fd5`): APPROVE-WITH-FIXES.
+  - **What held:**
+    - the bound holds against a double-double Boehm reference: worst drift/bound 0.95 for cells and 0.98 for pieces (first-order, a thin margin);
+    - the parity argument's shared ends hold in code;
+    - no ending moved: sweep `/spline/` and the spline-operand census are line-identical at 1e-6 and 1e-12, and teapot/lily/klein are unchanged;
+    - cost is about +1%.
+  - **MAJOR (test gap, executed):** six of nine charge sites survive every PR row: the read term alone, the cut term alone, the insertion-ratio charge, the Interval half-width, the shift, the iso ends. `u`-unwidening survives even the reviewer's rows.
+  - **MINORs:**
+    - a NaN bound is silently dropped by `f64::max`, narrowing instead of refusing (latent);
+    - the "verbatim" copy dropped `structure_positive`'s weight guard, and `refined` passes unit weights to `refine_plan`.
+  - **NOTEs:**
+    - the Fitted arm's Interval parameter bracket is uncharged;
+    - `close_gap`'s ulp sliver;
+    - the HONE spline-arc filing is a P1 candidate.
+  - **Fix pass sent:**
+    - a named row for every mutant, including the reviewer's three green rows;
+    - a NaN bound refuses (adopting the reviewer's two red rows);
+    - the weight guard restored and the copy's differences stated;
+    - the Fitted bracket charged or shown immaterial;
+    - the `close_gap` argument;
+    - doc fixes;
+    - one far-arc probe for the HONE row's band.
+  - **Class (logged):** a rounding charge built from several terms needs a row per term. A row that turns red only when the whole charge is dropped pins none of the terms.
+- 2026-11-04 20:52Z — **PR 6530 fix pass** (head `2ebbb704`, CI run 41907494060 green). Accepted except for one change.
+  - Every one of ten mutants is red by a named row: the reviewer's five rows adopted, plus a cut-and-read composition row, a transposed trim row for `u`, a shift row and an iso-end row.
+  - NaN and infinite bounds now refuse. The weight guard is restored at both scalars, and `bezier_cells` refuses a non-positive cut weight, which restores main's Interval refusal. The Fitted run's Interval ends are charged, and `close_gap` compares homogeneous forms.
+  - The HONE far-arc probe read 0 false clears in 2000, so that row stays P2.
+  - **Sent back:** unasked, the lane had narrowed the reviewed read charge `rounding_charge(2·(reach+|q−c|+|c|))` to `rounding_charge(|q−c| + gap)`. A soundness charge narrowed after review needs its own review, so it is reverted, with the narrowing to be filed P3 if wanted.
+  - Also asked for: topo's full slow set, sweep `/spline/` at 1e-6/1e-12, and the spline-operand census diffed against main, since `bezier_cells` now refuses more.
+- 2026-11-04 22:15Z — **PR 6530 (`spline-region-charge`) landing.**
+  - The revert is accepted: head `8eaf2fdf`, CI run 41911412907 green. The reviewed read term is back, which I checked in the diff at `spline_region.rs:512`, and the narrowing is filed P3, unbuilt.
+  - The reruns are clean: topo 3972/3975 (inherited reds only); sweep `/spline/` 43/43 at 1e-6 and 1e-12; the census stdout identical to main's at 1e-6.
+  - Main merged; `cargo check -p topo --all-targets` is clean, with no conflict markers.
+  - State sync: closed `spline-region-decides-off-the-carrier-on-an-uncharged-f64-box-floor`.
+- 2026-11-04 22:40Z — **PR 6530 merged** (`b2eb7192`, head `cc41fa90`, CI run 41923211393 green). Lane `session_013QoYWViQCDK7cyUP3Ktm28` archived; worktrees removed.
+- 2026-11-04 22:40Z — **Sitting ends; program set `ready`.** Every live P0/P1 row is now parked, but open P2/P3 rows remain to pick up.
+  - **Merged since the reopening:** PR 6519 (teapot wall 3's 1e-6 floor, P0), PR 6523 (a section spiric on a cap plane, P1), PR 6530 (the spline-region f64 charge, P1), and tracker PR 6529.
+  - **Earlier in the sitting:** 6429, 6437, 6441, 6435, 6434, 6476, 6481, 6487, 6494, 6499.
+  - **Parked:**
+    - P0 `curved-demo-joins-build`. Klein walls 3/4 and teapot wall 3 wait on SECTARMS' NURBS × cone/sphere section; teapot wall 2 on SPIRICARM; lily wall 8 on the C5 plane × torus arm.
+    - P0 `an-unread-rider-related-only-by-its-own-vertices-refuses`, on CLEAR's embedding gate (Ev: "(a) is fine").
+    - P1 `a-creased-spline-gets-no-second-order-clearing`.
+  - **Filed this stretch:**
+    - SPLICE: `a-meeting-on-the-charts-edge-nearer-a-spans-end-than-the-walks-floor-refuses` (P3), `the-spline-face-floors-read-charge-is-wider-than-its-read` (P3).
+    - ONECOPY: `main-red-the-m7-8-plain-names-probe-fails-after-the-faceview-fix-pass` (P1), `the-spiric-two-oval-regime-is-decided-in-three-places` (P3).
+    - HONEROOT: `a-circle-touching-a-torus-off-the-arc-escalates-the-arcs-side-decision` (P3).
+    - TCOST: `the-tilted-rods-other-spins-row-runs-past-two-hours-at-1e-12-locally` (P2).
+    - P2 uncharged-cut rows on CHARTTAIL, HONE, ISOTAIL and PCERT.
+  - **Inherited reds on main the lanes reproduced:** topo `every_door_that_reads_a_box_is_inventoried` and the `a_needle_cavity…` row; sweep `a_lofted_arc_wall_is_a_function_of_the_sections_bulge`, `the_seam_split_census_reads_no_side_inside_out` and `the_walk_matches_the_serial_golden_at_four_threads`. Their owners' rows already exist, except the new ONECOPY m7_8 row.

@@ -45,7 +45,7 @@ fn boxed(
         },
         tol,
     );
-    AtRestBody::validate(b, tol).expect("operand at rest")
+    topo::finish(b, tol).expect("operand at rest")
 }
 
 fn show(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
@@ -87,7 +87,7 @@ fn needle_cavity_probe() {
         .expect("a unit axis");
     let motion = geom_core::RigidMotion::rotation(axis, 1.1).expect("a finite angle");
     let moved = |b: &AtRestBody<f64>| {
-        AtRestBody::validate(topo::transform_rigid(b, &motion, tol).expect("moves"), tol)
+        topo::finish(topo::transform_rigid(b, &motion, tol).expect("moves"), tol)
             .expect("moved operand at rest")
     };
     for (pose, r) in [

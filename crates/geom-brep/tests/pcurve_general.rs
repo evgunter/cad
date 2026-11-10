@@ -511,7 +511,7 @@ fn a_spline_image_short_of_the_edge_refuses() {
             assert!(got.is_ok(), "[{a}, {b}] lies in the image: {got:?}");
         } else {
             assert!(
-                matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+                got.as_ref().err().is_some_and(|e| read_off(e, None, None)),
                 "[{a}, {b}] overruns the image's [0, 1]: {got:?}"
             );
         }
@@ -637,4 +637,23 @@ fn the_derived_route_certifies_a_line_and_refuses_a_circle_at_the_hull() {
         ),
         "a curved foot path's degree-1 image refuses at the hull: {got:?}"
     );
+}
+
+fn read_off(
+    e: &geom_brep::PcurveCertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::PcurveCertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

@@ -1,7 +1,7 @@
 //! **A stated chart image on a spline face is ended by its carrier's
 //! incidence read where it refuses** (D3): at a build, at rest and at the
 //! import door, a carrier off its wall at a read sample ends
-//! `CarrierOffChart` by that door's term (the
+//! an `Incidence` read off by that door's term (the
 //! kernel's defect, the stored culprit, the damaged file), one in band
 //! of it ends in the read's lever, and one on it certifies as it did,
 //! never ending as the image's own bound.
@@ -218,24 +218,15 @@ fn at_rest<T: AtRestPolicy + Bounds>(place: Place, stored: bool) -> Vec<PcurveCe
 }
 
 fn is_off(e: &PcurveCertifyError) -> bool {
-    matches!(
+    read_off(
         e,
-        PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Nurbs,
-            carrier: geom::CurveKind::Line,
-            ..
-        }
+        Some(geom::SurfaceKind::Nurbs),
+        Some(geom::CurveKind::Line),
     )
 }
 
 fn is_in_band(e: &PcurveCertifyError) -> bool {
-    matches!(
-        e,
-        PcurveCertifyError::Escalated {
-            check: geom_brep::PcurveCheck::ChartIncidence,
-            ..
-        }
-    )
+    read_in_band(e)
 }
 
 /// Every door's reading at every place, the misreads gathered so each
@@ -251,15 +242,14 @@ fn every_door_reads_the_wall<T: AtRestPolicy + Bounds>() {
     let on = at_build::<T>(Place::On);
     check("build, on the wall", on.is_ok(), &on);
     let off = at_build::<T>(Place::Off);
-    let read_off = matches!(
-        off,
-        Err(CertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Nurbs,
-            carrier: geom::CurveKind::Line,
-            ..
-        })
-    );
-    check("build, off the wall", read_off, &off);
+    let shown_off = off.as_ref().err().is_some_and(|e| {
+        edge_read_off(
+            e,
+            Some(geom::SurfaceKind::Nurbs),
+            Some(geom::CurveKind::Line),
+        )
+    });
+    check("build, off the wall", shown_off, &off);
     if let Err(off) = &off {
         let at_build = off.ending(Reading::Build);
         check(
@@ -270,18 +260,12 @@ fn every_door_reads_the_wall<T: AtRestPolicy + Bounds>() {
         let at_import = off.ending(geom_core::FileCoincidence::new(1e-6));
         check(
             "import, off the wall: the damaged file",
-            read_off && at_import.as_deref() == Some(geom_core::DAMAGED_FILE_ENDING),
+            shown_off && at_import.as_deref() == Some(geom_core::DAMAGED_FILE_ENDING),
             &at_import,
         );
     }
     let near = at_build::<T>(Place::InBand);
-    let read_near = matches!(
-        near,
-        Err(CertifyError::Escalated {
-            check: geom_brep::CertCheck::ChartIncidence,
-            ..
-        })
-    );
+    let read_near = near.as_ref().err().is_some_and(edge_read_in_band);
     check("build, in band of the wall", read_near, &near);
     if let Err(near) = &near {
         for at in [
@@ -307,10 +291,10 @@ fn every_door_reads_the_wall<T: AtRestPolicy + Bounds>() {
             &on,
         );
         let off = at_rest::<T>(Place::Off, stored);
-        let read_off = !off.is_empty() && off.iter().all(is_off);
+        let shown_off = !off.is_empty() && off.iter().all(is_off);
         check(
             &format!("at rest (stored: {stored}), off the wall"),
-            read_off,
+            shown_off,
             &off,
         );
         if let Some(first) = off.first() {
@@ -388,4 +372,48 @@ fn at_a_dual_an_off_carrier_is_a_finding_as(fitted: bool) {
         !certify.is_empty() && certify.iter().all(|e| is_off(e)),
         "the dual's at-rest pass reads the diagonal off the wall (fitted: {fitted}): {findings:?}"
     );
+}
+
+fn read_off(
+    e: &geom_brep::PcurveCertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::PcurveCertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn read_in_band(e: &geom_brep::PcurveCertifyError) -> bool {
+    matches!(
+        geom_brep::IncidenceRead::of(e),
+        Some(geom_brep::IncidenceRead::Undecided(_))
+    )
+}
+
+fn edge_read_off(
+    e: &geom_brep::CertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let geom_brep::CertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), geom_brep::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn edge_read_in_band(e: &geom_brep::CertifyError) -> bool {
+    matches!(
+        e.incidence_read(),
+        Some(geom_brep::IncidenceRead::Undecided(_))
+    )
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

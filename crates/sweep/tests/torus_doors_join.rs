@@ -91,7 +91,7 @@ fn stop(got: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> Stop {
         .and_then(topo::boolean::refused_face_kind)
         == Some(geom::SurfaceKind::Torus);
     match got {
-        Err(BooleanError::ResultInvalid { errors }) => match errors.as_slice() {
+        Err(BooleanError::ResultInvalid { findings: errors }) => match errors.as_slice() {
             [
                 ValidationError::VolumeUncomputable {
                     source:

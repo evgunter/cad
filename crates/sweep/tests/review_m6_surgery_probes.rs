@@ -185,12 +185,7 @@ fn p1_rim_edge_orientation_recon() {
             .get_loop(blanked.get_half_edge(ed.he_plus).unwrap().parent_loop)
             .unwrap()
             .face;
-        let is_plane = matches!(
-            blanked
-                .get_surface(blanked.get_face(f).unwrap().surface)
-                .unwrap(),
-            Surface::Plane { .. }
-        );
+        let is_plane = matches!(blanked.face_surface(f).unwrap(), Surface::Plane { .. });
         if is_plane {
             plane_first += 1;
         } else {
@@ -624,7 +619,7 @@ fn p6_reversed_pip_walls_carry_through() {
     let (pipped, box_edges) = one_pip(0.5, 0.5);
     let sphere_senses: Vec<(topo::FaceKey, bool)> = pipped
         .faces()
-        .filter(|(_, f)| matches!(pipped.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(pipped.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.sense))
         .collect();
     assert_eq!(sphere_senses.len(), 2, "two half-caps");

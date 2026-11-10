@@ -27,7 +27,7 @@ gathered across M2's full pipeline.
   (predicate, margin, band, outcome) with decisions bit-identical to
   f64. That premise is checked, not argued:
   `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
-  `probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` evaluates the
+  `probe_agrees_with_f64_bit_for_bit_save_the_lane_pass_keys` evaluates the
   registered corpus at `Probe` and at `f64` and compares them bit for
   bit (value channel, mass properties, content keys, name tables,
   verdict and escalation logs), once per ε row `scripts/k_probe_sweep.sh`
@@ -1222,8 +1222,7 @@ the value). The names that reach the funnel through them today:
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
 | `bool_germ_plane_normal` | `crates/topo/src/boolean/join.rs`'s const, decided at the germ-plane read | yes — every germ pair with a plane side that a curved-capable boolean joins |
-| `bool_box_cylinder_axis` | `crates/topo/src/boolean/boxes.rs`'s const, decided where `face_box_rule` reads a cylinder carrier | yes — every cylinder face either box lane boxes (the sweep's face tree, separation, the census pre-filter and reach) |
-| `unit_direction_arm` | `geom-core`'s const, decided by `UnitVec3::levered` on the arm before the levered length | yes — once beside every `bool_germ_plane_normal`, `bool_box_cylinder_axis` and `props_torus_axis` sample |
+| `unit_direction_arm` | `geom-core`'s const, decided by `UnitVec3::levered` on the arm before the levered length | yes — once beside every `bool_germ_plane_normal` and `props_torus_axis` sample |
 | `fixture_split_normal` | `crates/topo/src/test_support_fixtures.rs`'s `split_plane`, a const the fixtures own | no — a test-owned name, as `fixture_frame_axis` |
 
 **Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
@@ -1273,6 +1272,19 @@ in the band for a carrier the at-rest rule admits. The split fixtures
 mint under the test-owned `fixture_split_normal`. The tour's two cut
 scenes (`cutaway`, `curvedcut`) mint their normals under
 `tour_frame_axis`, so that name gains two samples per tour run.
+
+**Roster change (BOXES `cover-topo-faces`, 2026-11-08): one name retired,
+four respelled.** A face's region is topo's face cover (`crates/topo/src/cover.rs`).
+Its cylinder arm is the boundary's convex hull, which the axial slab held
+already, so `bool_box_cylinder_axis` decides nothing and is retired (and
+the cone's `bool_box_cone_axis`, minted and retired in the same change,
+never landed). The sphere window's three reads decide in the cover module
+and take its prefix: `bool_box_sphere_axis`, `bool_box_sphere_seam_unit`
+and `bool_box_sphere_seam` are `cover_sphere_axis`,
+`cover_sphere_seam_unit` and `cover_sphere_seam`. The depth gap's foot
+placement is the face's nearest-distance reading's,
+`census_backstop_depth_foot` → `cover_face_nearest_foot`. The notes below
+keep the names they were written under.
 
 **Roster change (TQUERY, 2026-10-02): one name added.** The face
 boxes' cylinder slab reads its axis as a unit direction, so
@@ -3445,6 +3457,64 @@ quantity is new: the segment `q`–`w`'s nearest point's distance from
 `p`, its two ends at two distances. It is a named `const`
 (`LINK_ARC_REACH`), `link_arc_reach`, and does not pool with
 `link_arc` (`docs/predicate-dimension-audit.md`'s row of that name).
+*Superseded in part (2026-11-10, below):* `link_arc` no longer reads the
+ends against their bisector, so "unchanged" and "the quantity is new" no
+longer hold. Both names now read one quantity, and why they stay apart is
+in the 2026-11-10 addendum.
+
+## ONECOPY addendum (2026-11-10): `link_arc` re-posed as the segment's clearance
+
+**No roster change; one name's sample changes.** `link::ArcReach::clears`
+read a near arc (two ends at `q`'s distance) as both ends' distances
+along their directions' bisector `normalize(q̂ + ŵ)`: two `link_arc`
+samples per arc. Where the ends are nearly opposite, `q̂ + ŵ` vanishes and
+those samples were rounding noise. On six witnesses, `|q̂ + ŵ|` reached
+`0` (a NaN sample) and `8e-17`, where the ends read up to `±1.9` m against
+a clearance of `1e-16` m, decided negative 123 times at default ε and 142
+at 1e-12. `link_arc` now records **one** sample per near arc: the
+segment's clearance of `p`, `link::metric::Distance::clearance` (the
+distance to its nearest point, `link::to_segment`), as `link_arc_reach`
+does for the far arc. The count halves, and the noise samples near
+opposite ends are gone
+(`work/onecopy/link-near-clearance-divides-by-a-vanishing-bisector.md`).
+
+**`link_arc`'s population changes at this date.** On a well-conditioned
+arc the two old samples and the new one are the same quantity to rounding
+(`ρ·cos(θ/2)`). Near opposite ends the old samples were noise up to `±ρ`,
+and the new one is the true clearance, near zero. A pool across the change
+is therefore not one population: a report that compares `link_arc` (or
+its predecessor `census_touch_arc`) before and after must split at this
+addendum, and none of its old samples stand for the new reading's tail.
+
+**`link_arc` and `link_arc_reach` read one quantity and stay two names.**
+Both are the segment's clearance of `p`. They do not pool:
+- `link_arc_reach` is read only where no reference reads at `q`'s
+  distance (`ArcReach::Out`, after `Near` passes), so its samples are a
+  conditional subpopulation of the hard poses;
+- its segment's far end stands at the wedge's reach, not at `q`'s
+  distance, so its clearances scale with a different arm.
+
+Pooled, the far reach's tail would pass for the near reading's.
+
+**`link_offset_tie` and `link_offset_ball` change their samples at this
+date too** (PR 6734).
+- `link_offset_tie` read a point's distance from its foot, and two points'
+  distance apart along the segment, as a projection onto a direction:
+  `normalize(x − f)·(x − f)`, or `normalize(e)·(x − y)`. Each now reads
+  the norm, `link::metric::Distance::apart`.
+  - Off the coincidence, the foot sample was the same quantity to
+    rounding.
+  - At it, it was a NaN, unread, and is now `0`, read Zero.
+  - The along-segment sample was signed, and is now its magnitude.
+  So a before-and-after comparison must split here, and the old samples'
+  signs stand for nothing in the new population.
+- `link_offset_ball` read a point's side of a ball's tangent plane toward
+  it, `n·(y − x − n·d)` with `n = normalize(y − x)`. It now reads its
+  signed distance from the sphere, `|y − x| − d`, the ball read as a round
+  carrier (`Round::sphere`, `Round::offset`, through `Distance::at`).
+  - Off the centre, that is the same quantity to rounding.
+  - At the centre, the old sample was a NaN, unread, and the new one is
+    `−d`, inside.
 
 ## ONEREAD addendum (2026-11-02): a bound's side decided at the link's metric door
 
@@ -3571,3 +3641,125 @@ the door that reads them, which has not moved; and the sector rungs
 `geom_brep::sector_shape`) already carry their module's prefix. The
 committed CSVs under `docs/k-report-data/` and the addenda above keep
 the old spellings, as the sweeps wrote them.
+
+## ONECOPY addendum (2026-11-06): the region landings read the plane door
+
+**Roster change: seventeen names leave, and two join.** The sphere, torus
+and ruled region doors (`topo/src/boolean/{sphere,torus,ruled}_region.rs`)
+read where a leg meets a boundary edge in one place, `region::landings`:
+one curve across the other's plane through the plane door
+(`geom_brep::curve_face::plane_crossing::span_plane_meet`), whose own
+`plane_crossing_*` rows now carry those roots, and the root then on its
+plane's section curve. These leave the roster:
+- `bool_sphere_region_span`, `bool_torus_region_span`,
+  `bool_ruled_region_span` and `bool_ruled_region_collinear`;
+- `bool_torus_region_family`: its three arms each read a circle edge
+  across a meridian leg's plane (a parallel off the rims by its point on
+  the leg's half-plane, the root of that same reading), so on the plane
+  door there is no choice left to make;
+- each door's four `FirstHarmonicRows` names
+  (`bool_{sphere,torus,ruled}_region_roots_{noise,coaxial,extreme,slack}`).
+
+These stay, read now by the shared landing:
+`bool_torus_region_component` and `bool_ruled_region_component` (a root's
+section, read through the chart's channels, and an edge's offset from a
+plane it is parallel to). `bool_ruled_region_nappe` stays, read by the
+cone's apex reach and its generators' targets.
+
+These join:
+- `bool_sphere_region_component`: an arc's offset from a leg's plane it
+  is parallel to;
+- `plane_crossing_line_parallel`: a line's slope across a plane times
+  the span's length, the plane door's line rung.
+
+`plane_crossing_root_in_span` and `plane_crossing_belly_graze` gain the
+region doors' populations.
+
+## ONECOPY addendum (2026-11-06): the sphere cut-in reads the co-surface arm
+
+**Roster change: four names leave, and one joins.** `apply_cut_ins`
+(`topo/src/boolean/ops.rs`) reads where a sphere face's boundary arc meets
+the cut's half-meridian through `geom_brep::curve_pair::on_surface`: the
+arc across the meridian's plane through the plane door
+(`span_plane_meet`, its `plane_crossing_*` rows), each root placed on the
+arc's span by the door (`span_place`), and the root then on the meridian's
+half-plane through the chart's channels. These leave the roster:
+- `bool_sphere_cut_roots_{noise,coaxial,extreme,slack}`, the cut-in's
+  `FirstHarmonicRows`; `circle_roots::FirstHarmonic::conic_off_plane`,
+  which they metered, has no caller left and is retired.
+
+This joins:
+- `bool_sphere_cut_in_plane`: an arc's offset from the meridian's plane
+  it is parallel to (in it, the cut-in refuses as before).
+
+These stay: `bool_sphere_cut_span`, now read only for an arc's direction
+and for the order of two ends split on one arc (a root's place on its
+arc is the plane door's); `bool_sphere_cut_half`, read now as the
+meridian's section of its plane (`SurfaceCurve::section_of`, the same
+length, `h·(p − c)`); `bool_sphere_cut_pole` and
+`bool_sphere_cut_vertex`.
+
+`plane_crossing_root_in_span`, `plane_crossing_belly_graze` and
+`plane_crossing_plane_parallel` gain the cut-in's population.
+
+## ONECOPY addendum (2026-11-09): the planar loop walk's ray reads the co-surface arm
+
+**Roster change: three names leave, and one joins.** A ray of the arc-bearing
+loop walk (`splitting/containment.rs` `conic_crossings`) and a conic arc of the
+loop lie on one plane, so they meet where the arc crosses the ray's square
+plane: through `geom_brep::curve_pair::on_surface` (`SurfaceCurve::u_line` on
+the plane through `q` along `d`, `OnSurface::across`), on the plane door's own
+rows, the root's place on the arc's span among them. These leave the roster:
+- `point_in_arc_loop_conic_disc`, the unit-circle chord's discriminant;
+- `point_in_arc_loop_conic_window` and `point_in_arc_loop_conic_end`,
+  `arc_trim`'s two rows on a ray's crossing (`ARC_LOOP_TRIM`, retired).
+  `arc_trim` keeps its one other consumer, check 9's `ring_outer_arc_*`.
+
+This joins:
+- `point_in_arc_loop_conic_in_plane`: an arc's offset from the ray's square
+  plane it is parallel to, which only the projected read can reach.
+
+**Joins with the door (PR 6609 review, M1):** `plane_crossing_graze_reach`, a
+graze's extremum's metered distance into the span widened by its root spread
+`acos(1 − z/r)` at each end. A belly read `Zero` keeps only the extremum, so
+an extremum just off the span answers a touch, not a miss
+(`span_plane_meet`, for every reader of the door).
+
+`point_in_arc_loop_conic_advance` stays, now `(y − q)·d` in metres along the
+unit ray (the old `s/dn`, the same quantity). `plane_crossing_belly_graze`,
+`_plane_parallel`, `_graze_side` and `_root_in_span` gain the walk's
+population.
+
+## ONECOPY addendum (2026-11-09): span membership reads `curve_pair::Span`
+
+**Roster change: three names leave; one joins.** A point's or a
+parameter's place on a curve span has one reading, `geom_brep::curve_pair::Span`'s:
+an end by the raw chord to its point (`curve_pair_span_end_chord`), else the
+side by the parameter metered at the span's greatest speed
+(`curve_pair_span_end_side`). These leave the roster:
+- `plane_crossing_root_in_span`: the plane door's root place, which metered the
+  gap at the smaller semi-axis (an inf speed). Its population joins
+  `curve_pair_span_end_chord`/`_side` (the door, its region landings, the
+  loop walk's ray, `torus_region`'s arc).
+- `ring_outer_arc_end` and `ring_outer_arc_trim`: check 9's `arc_trim` rows.
+  Check 9's arc window reads `Span::place`, and `arc_trim` is retired.
+
+**One joins:** `plane_crossing_roots_apart`, the chord between two roots'
+points: Zero collapses them to one root. `plane_crossing_root_order` stays and
+changes its quantity: the roots' parameter gap metered at the span's greatest
+speed, read only where their chord is past the band.
+
+## ONECOPY addendum (2026-11-10): the split's interiority and check 2 read the chord
+
+**Roster change: one name leaves, two join.** A crossing past the band of a
+thin ellipse's fast end met two readings at the speed floor after the plane
+door, each reading `Δt·inf`, up to `sup/inf` under the arc:
+- `split_edge_param_interior` leaves. `split_edge`'s interiority is the
+  span's own reading (`curve_pair::Span::place_param_read`), and its
+  population joins `curve_pair_span_end_chord`/`_side`.
+- Two join: `interval_span_chord`, the chord between a periodic span's end
+  points, and `interval_span_sense`, the span at the carrier's sup speed.
+  Certification's check 2 reads them only where `interval_span_forward` at the
+  floor is short of positive (`geom_core::period::Extent::forward_by_arc`).
+  Both readings bound the arc from below, so the forward claim keeps its
+  direction.

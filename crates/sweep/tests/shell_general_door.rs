@@ -144,11 +144,7 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold() {
 fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row() {
     let eps = Tol::witness().eps();
     let (mut body, cap) = box_with_bumped_cap(0.01);
-    let Some(geom::Surface::Nurbs(bump)) = body
-        .get_face(cap)
-        .and_then(|f| body.get_surface(f.surface))
-        .cloned()
-    else {
+    let Some(geom::Surface::Nurbs(bump)) = body.face_surface(cap).cloned() else {
         panic!("the cap wears its spline chart");
     };
     let moves = inward(&body, T);
@@ -245,7 +241,7 @@ fn shelling_a_spline_capped_box_refuses_past_the_door() {
     let at_rest = finished("the spline-capped box", body, Tol::witness());
     let e = topo::shell(&at_rest, T, Tol::witness())
         .expect_err("the fitted cavity cap's quadrature is not built");
-    let ShellError::NotValid { errors } = &e else {
+    let ShellError::NotValid { findings: errors } = &e else {
         panic!(
             "expected the thin solid's tier-3 refusal, got {e_at}",
             e_at = e.render(geom_brep::recourse::Reading::Build)
@@ -361,9 +357,9 @@ fn a_collapse_names_the_move_that_made_it() {
     let (body, cap) = box_with_bumped_cap(0.0);
     let side = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.x.abs() > 0.5 && origin.x.abs() < 0.5
             )
@@ -436,6 +432,7 @@ fn stadium_prism() -> Body<f64> {
     )
     .expect("the stadium extrudes")
     .body
+    .into_body()
 }
 
 /// The `2 × 2 × 1` box with every edge filleted at 0.3, or only its
@@ -471,4 +468,5 @@ fn filleted_box(every: bool) -> Body<f64> {
     sweep::blend::fillet_edges(&finished("the box", block, tol), &edges, 0.3, tol)
         .expect("the fillet builds")
         .body
+        .into_body()
 }

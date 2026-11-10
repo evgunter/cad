@@ -40,7 +40,8 @@ fn ext(what: &str, loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> AtRestBody<
         tol(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     finished(what, body, tol())
 }
 
@@ -51,10 +52,7 @@ fn point(body: &Body<f64>, v: topo::VertexKey) -> [f64; 3] {
 
 /// Each record's two cells' carrier kinds, faces only.
 fn face_pairs(r: &topo::BooleanBody<f64>) -> Vec<(SurfaceKind, SurfaceKind)> {
-    let kind = |f: topo::FaceKey| {
-        let face = r.body.get_face(f).unwrap();
-        r.body.get_surface(face.surface).unwrap().kind()
-    };
+    let kind = |f: topo::FaceKey| r.body.face_surface(f).unwrap().kind();
     r.contacts
         .face_face()
         .map(|(x, y)| {
@@ -131,10 +129,7 @@ fn a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it() {
         "plate ∪ rod: the face–face record of the plate's face and the rod's wall"
     );
     let (side, _) = u.contacts.face_face().next().unwrap();
-    let plane = |f: topo::FaceKey| {
-        let face = u.body.get_face(f).unwrap();
-        u.body.get_surface(face.surface).unwrap().kind() == SurfaceKind::Plane
-    };
+    let plane = |f: topo::FaceKey| u.body.face_surface(f).unwrap().kind() == SurfaceKind::Plane;
     let side = if plane(side) {
         side
     } else {
@@ -570,10 +565,7 @@ fn a_record_on_an_arc_trimmed_face_confirms_along_the_line_through_it() {
             sweep::test_support::extruded(plane, vec![circle(0.0, 1.5, 0.5, 0.0)], y1 - y0, tol());
         let mut body: Body<f64> = (*slab).clone();
         topo::graft_disjoint(&mut body, &rod).unwrap();
-        let surface = |f: topo::FaceKey| {
-            let face = body.get_face(f).unwrap();
-            body.get_surface(face.surface).unwrap().clone()
-        };
+        let surface = |f: topo::FaceKey| body.face_surface(f).unwrap().clone();
         let cap = body
             .faces()
             .map(|(k, _)| k)
@@ -818,12 +810,7 @@ fn a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line() {
             "{label}: face–face records"
         );
         for (p, q) in r.contacts.face_face() {
-            let kind = |f: topo::FaceKey| {
-                r.body
-                    .get_surface(r.body.get_face(f).unwrap().surface)
-                    .unwrap()
-                    .kind()
-            };
+            let kind = |f: topo::FaceKey| r.body.face_surface(f).unwrap().kind();
             let (plane, wall) = if kind(p) == SurfaceKind::Plane {
                 (p, q)
             } else {
@@ -832,9 +819,7 @@ fn a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line() {
             let walls: Vec<topo::FaceKey> = r
                 .body
                 .faces()
-                .filter(|(_, f)| {
-                    r.body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Cylinder
-                })
+                .filter(|(fk, _)| r.body.face_surface(*fk).unwrap().kind() == SurfaceKind::Cylinder)
                 .map(|(k, _)| k)
                 .collect();
             let on_rod = face_points(&r.body, wall)
@@ -944,11 +929,7 @@ fn bridged_rod_posed(
 
 /// The two faces a finding pairs, as their carriers' kinds, plane first.
 fn pair_kinds(body: &Body<f64>, a: topo::FaceKey, b: topo::FaceKey) -> (SurfaceKind, SurfaceKind) {
-    let kind = |f: topo::FaceKey| {
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .kind()
-    };
+    let kind = |f: topo::FaceKey| body.face_surface(f).unwrap().kind();
     let (p, q) = (kind(a), kind(b));
     if p == SurfaceKind::Plane {
         (p, q)
@@ -1156,7 +1137,7 @@ fn a_solid_missing_its_cusp_edges_leaves_a_solid_in_its_bore_cleared() {
 /// this row reads only what the same-solid pass says.
 #[test]
 fn the_void_and_material_pinches_read_alike_at_every_pose() {
-    for (s, d) in [(1.0e-2, 0.0), (1.0e2, 0.0), (1.0, 1.0e3)] {
+    for (s, d) in [(1.0e-2, 0.0), (1.0e2, 0.0), (1.0, 5.0e2)] {
         let r = bridged_rod_posed(s, d, 0.0, false, false);
         let errors = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).unwrap_err();
         let touches = errors
@@ -1231,10 +1212,7 @@ fn a_rod_touching_a_notch_edge_off_its_tangent_run_is_its_own_pair() {
     let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.35);
     let mut body = plate.into_body();
     topo::graft_disjoint_all_keyed(&mut body, &rod.into_body()).unwrap();
-    let kind = |f: topo::FaceKey| {
-        let face = body.get_face(f).unwrap();
-        body.get_surface(face.surface).unwrap().kind()
-    };
+    let kind = |f: topo::FaceKey| body.face_surface(f).unwrap().kind();
     let side = body
         .faces()
         .map(|(f, _)| f)

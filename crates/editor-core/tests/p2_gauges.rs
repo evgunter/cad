@@ -337,7 +337,7 @@ pub(crate) fn a_pinned_copy_escalates_its_transform() -> bool {
 /// value is held to an escalation the run made (a refusal of its own
 /// or of a node it is poisoned through), never another refusal; at
 /// every other ε, and wherever it evaluates, `check` runs.
-pub(crate) fn encloses_or_escalates<T: geom_core::Decide>(
+pub(crate) fn encloses_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
     check: impl FnOnce(),
@@ -362,8 +362,8 @@ pub(crate) fn body_of<T: geom_core::Decide + topo::AtRestPolicy>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Arc<Body<T>> {
-    let one = |bodies: &[editor_core::Framed<T>]| {
-        let [b] = bodies else {
+    let one = |bodies: &[Option<editor_core::Framed<T>>]| {
+        let [Some(b)] = bodies else {
             panic!("{id:?} holds {} bodies, not one", bodies.len());
         };
         Arc::new(crate::fixture::in_space(b))

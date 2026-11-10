@@ -319,8 +319,8 @@ fn f6_face_sense_flip_is_not_healed() {
     match import_text(&text) {
         Err(e) => println!("f6 .T.->.F.: typed refusal: {e_at}", e_at = e.render()),
         Ok(StepImport::Solid { body, .. }) => {
-            let tier3 = topo::validate_geometric(body.body(), Tol::witness());
-            let out = export(body.body(), "cube");
+            let tier3 = topo::validate_geometric(&*body, Tol::witness());
+            let out = export(&body, "cube");
             let kept = out.contains("ADVANCED_FACE('', (#39), #5, .F.)")
                 || out.matches(", .F.);").count() > 0;
             println!("f6 .T.->.F.: imported; tier3 = {tier3:?}; re-export keeps .F.: {kept}");
@@ -355,14 +355,14 @@ fn f6_reversed_face_unflip_is_not_healed() {
             );
         }
         Ok(StepImport::Solid { body, .. }) => {
-            let tier3 = topo::validate_geometric(body.body(), Tol::witness());
-            let out = export(body.body(), "washer");
+            let tier3 = topo::validate_geometric(&*body, Tol::witness());
+            let out = export(&body, "washer");
             let flipped_back = out.contains(", #5, .F.);");
             let v = topo::test_support::pinned_volume(
                 "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
-                    body.body().clone(),
+                    body.clone().into_body(),
                     Tol::witness(),
                 ),
                 Tol::witness(),
@@ -646,7 +646,11 @@ fn h8_eps_in_not_consumed() {
         assert_eq!(eps_in, eps);
         let v = topo::test_support::pinned_volume(
             "the measured body",
-            &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
+            &topo::test_support::finished(
+                "the measured body",
+                body.clone().into_body(),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
         .volume;

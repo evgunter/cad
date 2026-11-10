@@ -62,6 +62,7 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// PROBE 1 (charter A3): a TORUS operand, the slab `|z| ≤ 0.1` across
@@ -89,7 +90,7 @@ fn probe_torus_union_is_never_silently_wrong() {
     let torus = finished("the torus", torus, Tol::witness());
     let slab = finished(
         "the slab",
-        brick((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness()),
+        brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness()),
         Tol::witness(),
     );
     let all = (-3.0, 3.0);
@@ -136,7 +137,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
     let r: f64 = 1.05;
     let a = finished(
         "the box",
-        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let b = finished("the cylinder", disc2(r, PI / 4.0, 0.2, 0.6), Tol::witness());
@@ -178,7 +179,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
 /// it. Exact or typed; silence is the MAJOR.
 #[test]
 fn probe_horizontal_log_halfburied_is_exact_or_typed() {
-    let slab = finished("the slab", operands::slab(), Tol::witness());
+    let slab = finished("the slab", operands::slab::<f64>(), Tol::witness());
     // Vertical 2-arc cylinder r=0.7, then rotate about x so the axis
     // runs along y at z = 0.5, spanning y in [0.5, 3.5].
     let log0 = disc2(0.7, 0.0, 0.0, 3.0);
@@ -252,7 +253,7 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
 fn probe_contained_cylinder_reaches_the_fallback_soundly() {
     let a = finished(
         "the box",
-        brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness()),
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness()),
         Tol::witness(),
     );
     let b = disc2(0.3, 0.0, 0.3, 0.4); // wholly interior at (0,0)?? centred origin — move it
@@ -296,10 +297,10 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
 fn probe_involution_on_a_boolean_result_body() {
     let plate = finished(
         "the plate",
-        brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), Tol::witness()),
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), Tol::witness()),
         Tol::witness(),
     );
-    let boss = finished("the boss", m5_boss(3, 0.3, 1.0), Tol::witness());
+    let boss = finished("the boss", m5_boss::<f64>(3, 0.3, 1.0), Tol::witness());
     let holed = topo::subtract(&plate, &boss, Tol::witness())
         .unwrap()
         .body()

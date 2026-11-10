@@ -81,6 +81,7 @@ use super::enclose::{
 };
 use super::exhaust::UvRect;
 use super::section::{SectionReader, sign};
+use geom_core::bisect::{Budget, Step, bisect_within};
 
 /// The deepest a walk cuts one edge or face piece.
 pub(crate) const EXIT_DEPTH: u32 = 40;
@@ -99,8 +100,12 @@ pub(crate) const EXIT_CUT: f64 = 0.5 - 1.0 / 128.0;
 /// never under two ulps of the edge's coordinate.
 pub(crate) const EXIT_STRIP: f64 = 1.0 / 1_073_741_824.0;
 
-/// The most pieces one box's walk examines.
-pub(crate) const EXIT_PIECES: u32 = 4096;
+/// **The pieces one box's one-arc proof may read**, across all of its
+/// edge or face walks, in either lane (ℝ³ here, ℝ⁴ in [`super::four`]):
+/// one wall they share. It is not [`geom_core::bisect::PIECE_BUDGET`],
+/// which bounds one walk; the two share a size by choice, not by
+/// derivation.
+pub(crate) const EXIT_PIECES: Budget = Budget::new(4096);
 
 /// Why a chain was not proved one arc.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -194,18 +199,13 @@ fn edge_runs<'p, T: CertifiedBounds>(
     boxes: &NurbsBoxes<'_, T>,
     partner: impl Into<ChartPhi<'p>>,
     (along_u, c, (a, b)): (bool, f64, (f64, f64)),
-    pieces: &mut u32,
+    pieces: &mut Budget,
 ) -> Option<Vec<Run>> {
     let partner = partner.into();
     let piece = |s: f64, t: f64| if along_u { (s, t, c, c) } else { (c, c, s, t) };
     let sign_at = |s: f64| sign(phi_over(boxes, partner, piece(s, s)));
     let mut out = Vec::new();
-    let mut stack = vec![(a, b, 0u32)];
-    while let Some((s, t, depth)) = stack.pop() {
-        *pieces += 1;
-        if *pieces > EXIT_PIECES {
-            return None;
-        }
+    let walked = bisect_within([(a, b, 0u32)], pieces, |(s, t, depth)| {
         // The derivative over a strip across the edge: of positive width,
         // since a net is cut only to a rectangle that has one and a strip
         // of none would read the whole span cell's, and thin beside the
@@ -221,24 +221,26 @@ fn edge_runs<'p, T: CertifiedBounds>(
         let slope = partner.partial(boxes, UvWindow::new(r0, r1, r2, r3), along_u);
         // `[m − h, m + h]` holds `[s, t]`: `h` is the larger half,
         // rounded up.
-        let m = 0.5 * (s + t);
+        let m = geom::mid_param(s, t);
         let h = (m - s).max(t - m).next_up();
         let mean = phi_over(boxes, partner, piece(m, m)) + slope * Interval::from_bounds(-h, h);
         if let Some(s) = sign(mean).or_else(|| sign(phi_over(boxes, partner, piece(s, t)))) {
             out.push(Run::Constant(s));
-            continue;
+            return Step::Settled;
         }
         if sign(slope).is_some() {
             out.push(Run::Monotone(sign_at(s), sign_at(t)));
-            continue;
+            return Step::Settled;
         }
         if depth >= EXIT_DEPTH {
-            return None;
+            return Step::Stop(());
         }
         let cut = s + EXIT_CUT * (t - s);
-        // Popped low half first, so `out` runs in the edge's order.
-        stack.push((cut, t, depth + 1));
-        stack.push((s, cut, depth + 1));
+        // The low half first, so `out` runs in the edge's order.
+        Step::Halve([(s, cut, depth + 1), (cut, t, depth + 1)])
+    });
+    if !matches!(walked, Ok(None)) {
+        return None;
     }
     Some(out)
 }
@@ -262,7 +264,7 @@ pub(crate) fn boundary_zeros<'p, T: CertifiedBounds>(
 ) -> Option<u32> {
     let partner = partner.into();
     let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
-    let mut pieces = 0u32;
+    let mut pieces = EXIT_PIECES;
     // Counter-clockwise: the top and left edges are walked backwards.
     let mut runs = Vec::new();
     for (edge, back) in [
@@ -812,7 +814,10 @@ pub(crate) fn one_arc<'p, T: CertifiedBounds>(
         let Some(p) = pcurve_at(pcurve, t) else {
             return (f64::NAN, f64::NAN);
         };
-        (0.5 * (p.x.lo() + p.x.hi()), 0.5 * (p.y.lo() + p.y.hi()))
+        (
+            geom::mid_param(p.x.lo(), p.x.hi()),
+            geom::mid_param(p.y.lo(), p.y.hi()),
+        )
     };
     let clipped = windows
         .iter()
@@ -926,7 +931,7 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
     r: Box3,
 ) -> Option<Vec<Box3>> {
     let mut roots = Vec::new();
-    let mut pieces = 0u32;
+    let mut pieces = EXIT_PIECES;
     for k in 0..3 {
         for c in [side(r, k).lo(), side(r, k).hi()] {
             face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut pieces)?;
@@ -951,41 +956,41 @@ fn face_walk<T: CertifiedBounds>(
     s2: &Surface<T>,
     (x, k): (Box3, usize),
     roots: &mut Vec<Box3>,
-    pieces: &mut u32,
+    pieces: &mut Budget,
 ) -> Option<()> {
     let (i, j) = ((k + 1) % 3, (k + 2) % 3);
-    let mut stack = vec![(x, 0u32)];
-    while let Some((x, depth)) = stack.pop() {
-        *pieces += 1;
-        if *pieces > EXIT_PIECES {
-            return None;
-        }
+    let walked = bisect_within([(x, 0u32)], pieces, |(x, depth)| {
         if sign(implicit_enclosure(s1, x)).is_some() || sign(implicit_enclosure(s2, x)).is_some() {
-            continue;
+            return Step::Settled;
         }
         match krawczyk(s1, s2, x, (i, j)) {
             Some(Krawczyk::One(root)) => {
                 roots.push(root);
-                continue;
+                return Step::Settled;
             }
-            Some(Krawczyk::None) => continue,
+            Some(Krawczyk::None) => return Step::Settled,
             None => {}
         }
         if depth >= EXIT_DEPTH {
-            return None;
+            return Step::Stop(());
         }
         let span = |a: usize| side(x, a).hi() - side(x, a).lo();
         let a = if span(i) >= span(j) { i } else { j };
         let s = side(x, a);
         let cut = s.lo() + EXIT_CUT * (s.hi() - s.lo());
-        stack.push((
-            with_side(x, a, Interval::from_bounds(cut, s.hi())),
-            depth + 1,
-        ));
-        stack.push((
-            with_side(x, a, Interval::from_bounds(s.lo(), cut)),
-            depth + 1,
-        ));
+        Step::Halve([
+            (
+                with_side(x, a, Interval::from_bounds(s.lo(), cut)),
+                depth + 1,
+            ),
+            (
+                with_side(x, a, Interval::from_bounds(cut, s.hi())),
+                depth + 1,
+            ),
+        ])
+    });
+    if !matches!(walked, Ok(None)) {
+        return None;
     }
     Some(())
 }
@@ -1014,7 +1019,10 @@ fn krawczyk<T: CertifiedBounds>(
     (i, j): (usize, usize),
 ) -> Option<Krawczyk> {
     let (xi, xj) = (side(x, i), side(x, j));
-    let (mi, mj) = (0.5 * (xi.lo() + xi.hi()), 0.5 * (xj.lo() + xj.hi()));
+    let (mi, mj) = (
+        geom::mid_param(xi.lo(), xi.hi()),
+        geom::mid_param(xj.lo(), xj.hi()),
+    );
     let m = with_side(with_side(x, i, pt(mi)), j, pt(mj));
     let (f1, f2) = (implicit_enclosure(s1, m), implicit_enclosure(s2, m));
     let (g1, g2) = (
@@ -1022,7 +1030,7 @@ fn krawczyk<T: CertifiedBounds>(
         implicit_gradient_enclosure(s2, x),
     );
     let jac = [[g1[i], g1[j]], [g2[i], g2[j]]];
-    let mid = |v: Interval| 0.5 * (v.lo() + v.hi());
+    let mid = |v: Interval| geom::mid_param(v.lo(), v.hi());
     let (a, b, c, d) = (
         mid(jac[0][0]),
         mid(jac[0][1]),
@@ -1080,13 +1088,14 @@ fn r3_reaches_end<T: CertifiedBounds>(
     {
         return Err(Shortfall::Undecided);
     }
-    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+    let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
     let c = mid(side(at, k));
     if !(side(r, k).lo() <= c && c <= side(r, k).hi()) {
         return Err(Shortfall::Undecided);
     }
     let mut roots = Vec::new();
-    let sliced = face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut 0);
+    let mut pieces = EXIT_PIECES;
+    let sliced = face_walk(s1, s2, (with_side(r, k, pt(c)), k), &mut roots, &mut pieces);
     if !roots.is_empty() {
         return Ok(());
     }
@@ -1432,8 +1441,9 @@ mod tests {
             None
         );
         // The touched edge itself refuses, rather than walking past it.
+        let mut pieces = super::EXIT_PIECES;
         assert!(
-            edge_runs(&boxes, &ground(), (true, 0.25, (0.0, 1.0)), &mut 0).is_none(),
+            edge_runs(&boxes, &ground(), (true, 0.25, (0.0, 1.0)), &mut pieces).is_none(),
             "the touched edge resolved"
         );
         assert_eq!(

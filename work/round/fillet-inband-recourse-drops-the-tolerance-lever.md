@@ -2,10 +2,12 @@
 id: fillet-inband-recourse-drops-the-tolerance-lever
 kind: issue
 title: Three fillet recourse sentences omit the tolerance lever where it is real, and two gates have none
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: E
+rides_with: the-path-doors-escalation-carries-its-gate
+closed: 2026-11-06
 ---
 
 
@@ -20,7 +22,7 @@ gates have no such lever at all:
 | sentence (`crates/profile/src/validate.rs`) | names the tolerance lever? | is the tolerance a lever at its gate? |
 |---|---|---|
 | `FILLET_TURN_INBAND_RECOURSE` | yes — "(or lower the tolerance)" | yes (linear band) |
-| `FILLET_OFFSET_LEVER_RECOURSE` | yes — "or lower the tolerance" | yes (linear band) |
+| `FILLET_OFFSET_LEVER_RECOURSE` | yes — "or lower the tolerance" | **NO — its threshold grows as ε shrinks** |
 | `FILLET_NO_CORNER_RECOURSE` | **no** | **only for three of its four gates** |
 | `FILLET_ENCLOSING_RECOURSE` | **no** | yes (linear band) |
 | `FILLET_FIT_RECOURSE` | **no** | **NO — exact-order band** |
@@ -96,3 +98,20 @@ said the six constants stay where they live, so the choice is owed here.
 Whichever repair above is taken, the poisoned arm wants the note:
 - at a lever-only gate, through `Indeterminate::lever_ending`;
 - at a linear-band gate, through `ending(..)`.
+
+## Corrected at the fix pass of PR 6546 (2026-11-06)
+
+The table's premise that every linear-band gate has a tolerance lever is
+false at `fillet_offset_lever`. Its margin is `ρ₂ − least_lever`, and
+`least_lever = C·u·R₂·scale²/(d·ε)` (`sugar::ArcCarrier::offset_circles`)
+grows as ε shrinks, so a smaller tolerance decides the margin AGAINST
+the request. A reviewer followed the offered tighten at ε = X/2 and got
+`FilletOffsetLeverTooShort` at −0.3057 m, even on a +5ε reading. A gate
+offers the tolerance only where its margin is a size the user may intend
+and a smaller ε decides it for them, not merely where it is classified
+on the linear band. `profile::Gate::FilletOffsetLever` is therefore
+`Lever`.
+
+## Closed (2026-11-06)
+
+PR 6546: one closed `profile::Gate` routes every in-band ending at the path door, validation and the guided door, derived from (gate, verdict) per D4 ¶1 (i)–(ii); see the carrier `the-path-doors-escalation-carries-its-gate` and the PR body for what this row's part became.

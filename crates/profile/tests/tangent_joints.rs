@@ -427,7 +427,7 @@ fn largest_fitting_radius_succeeds_with_exact_tangency() {
 }
 
 #[test]
-fn doubled_back_fillet_corner_refuses_as_parallel_carriers() {
+fn doubled_back_fillet_corner_refuses_with_its_turn_within_tolerance() {
     // phi = pi: the arrival carrier is the incoming ray's own line,
     // traversed backwards. There is no corner to cut, and the turn
     // gate says so structurally — before any closed form is asked to
@@ -444,11 +444,113 @@ fn doubled_back_fillet_corner_refuses_as_parallel_carriers() {
         .expect_err("doubled-back corner must refuse")
     {
         PathError::NoCornerForFillet {
-            reason: profile::path::PathNoCornerReason::CarriersParallel,
+            reason:
+                profile::path::PathNoCornerReason::TurnWithinTolerance {
+                    sin_turn,
+                    align,
+                    lever,
+                    lever_of: profile::path::TurnLever::AnchorSeparation,
+                    corner,
+                },
             radius,
-        } => assert_eq!(radius, 0.5),
-        other => panic!("expected CarriersParallel, got {other:?}"),
+        } => {
+            assert_eq!(radius, 0.5);
+            assert!(
+                corner.is_none(),
+                "the straight pair places no corner: {corner:?}"
+            );
+            assert_eq!(sin_turn, 0.0, "the rays are collinear");
+            assert_eq!(align, -1.0, "and opposed");
+            assert_eq!(lever, 1.0, "levered by the anchors' separation");
+        }
+        other => panic!("expected TurnWithinTolerance, got {other:?}"),
     }
+}
+
+/// A real 64° corner whose arrival anchor sits a fraction of ε from the
+/// ray's start: the levered turn margin is zero at tolerance, and the
+/// refusal says so with both factors and the anchor-separation lever —
+/// it names no carrier tangency, because there is none.
+#[test]
+fn a_real_corner_on_a_short_anchor_separation_names_its_lever() {
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let phi = 64.0_f64.to_radians();
+    let (c, s) = (0.3 * eps, 0.3 * eps);
+    let anchor = Point2::new(c + s * phi.cos(), s * phi.sin());
+    let err = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(1.0, 0.0, tol)
+        .expect("the incoming ray runs +x")
+        .fillet(0.05, tol)
+        .expect("positive radius")
+        .toward(phi.cos(), phi.sin(), tol)
+        .expect("the arrival side leans 64°")
+        .to(anchor, tol)
+        .expect_err("the turn margin is zero at tolerance");
+    let PathError::NoCornerForFillet {
+        reason:
+            profile::path::PathNoCornerReason::TurnWithinTolerance {
+                sin_turn,
+                align,
+                lever,
+                lever_of,
+                ..
+            },
+        ..
+    } = err
+    else {
+        panic!("expected TurnWithinTolerance, got {err:?}")
+    };
+    assert_eq!(lever_of, profile::path::TurnLever::AnchorSeparation);
+    // A counter-clockwise turn: the sine is positive, the turn side.
+    assert!((sin_turn - phi.sin()).abs() < 1e-12, "sin φ {sin_turn}");
+    assert!((align - phi.cos()).abs() < 1e-12, "cos φ {align}");
+    assert!(
+        (lever - (anchor - Point2::new(0.0, 0.0)).norm()).abs() < 1e-24,
+        "lever {lever:e}"
+    );
+    let shown = err.to_string();
+    assert!(
+        shown.contains("if the angle is real, move both anchors away from the corner"),
+        "the straight pair's recourse names the corner's distance from both anchors: {shown}"
+    );
+    for (label, want) in [
+        ("sin φ = ", sin_turn),
+        ("(cos φ = ", align),
+        (" of ", lever),
+    ] {
+        let got = rendered_after(&shown, label);
+        assert!(
+            (got - want).abs() <= 1e-8 * want.abs(),
+            "{label:?} renders {got:e}, the payload holds {want:e}: {shown}"
+        );
+    }
+    // The recourse followed: the same carriers, with both anchors — the
+    // ray's start and the arrival anchor — a metre from the corner, build.
+    let far = Point2::new(c + phi.cos(), phi.sin());
+    let closed = Open
+        .at(Point2::new(c - 1.0, 0.0))
+        .toward(1.0, 0.0, tol)
+        .expect("the incoming ray runs +x")
+        .fillet(0.05, tol)
+        .expect("positive radius")
+        .toward(phi.cos(), phi.sin(), tol)
+        .expect("the arrival side leans 64°")
+        .to(far, tol)
+        .expect("the corner now lies a metre from both anchors")
+        .line_to(Point2::new(c - 1.0, far.y), tol)
+        .expect("across the top")
+        .line_to(Start, tol)
+        .expect("the loop closes");
+    profile::Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()])
+        .validate(tol)
+        .expect("the followed recourse validates");
+    assert!(
+        shown.contains("over the anchors' separation of") && shown.contains("cos φ = "),
+        "the sentence names both factors: {shown}"
+    );
+    assert!(!shown.contains("parallel"), "no carrier tangency: {shown}");
 }
 
 // --------------------------------------- the cusp door (issue 941 item 2) --
@@ -556,20 +658,13 @@ fn no_coverage_corpus_row_leaves_a_joint_to_decide() {
     assert_eq!(refused, REFUSED, "the corpus rows refused for their shape");
 }
 
-/// **Arc extension constructs no joint at the tip, and leaves none to
-/// decide.** The boss chain of `path/family.rs`'s module doc: a
-/// fillet-arc arrival onto the circle about (7, 0), then an
-/// `arc_fillet` whose `Radius` names that circle's own radius, so the
-/// derived carrier IS the arriving one and the arriving leg extends to
-/// the trim point instead of meeting a new carrier at the tip.
-///
-/// Red if the extension leaves a vertex at the tip that validation
-/// decides one carrier continuing (a decided joint appears).
-#[test]
-fn an_arc_extension_leaves_no_joint_to_decide() {
+/// The boss chain of `path/family.rs`'s module doc with its extension's
+/// radius `r`: a fillet-arc arrival onto the circle of radius 1.5 about
+/// (7, 0), ending at the tip (8.5, 0), then an `arc_fillet` whose
+/// `Radius { r, Left }` derives its carrier from that tip.
+fn boss(r: f64) -> ConstructedLoop<f64> {
     let t = Tol::witness();
-    let closed = Open
-        .at(Point2::new(5.05, -1.6))
+    Open.at(Point2::new(5.05, -1.6))
         .toward(2.1_f64, 0.8, t)
         .unwrap()
         .fillet_arc(
@@ -584,13 +679,13 @@ fn an_arc_extension_leaves_no_joint_to_decide() {
         .unwrap()
         .arc_fillet(
             profile::Radius {
-                r: 1.5,
+                r,
                 side: profile::ArcSide::Left,
             },
             0.5,
             t,
         )
-        .expect("the arrival carrier's own radius extends it")
+        .expect("an arc extension opens for every r")
         .at(Point2::new(4.05, 1.35), t)
         .unwrap()
         .toward(-4.1, 0.3, t)
@@ -598,11 +693,118 @@ fn an_arc_extension_leaves_no_joint_to_decide() {
         .line(1.0, t)
         .unwrap()
         .line_to(Start, t)
-        .expect("the chain closes");
-    let vp = constructed(vec![closed.loop_]).expect("the boss chain validates");
+        .expect("the chain closes")
+        .loop_
+}
+
+/// **An arc extension's run is a segment of its own, its tip joint
+/// constructed, whatever `r` is.** With `r` the arriving circle's own
+/// radius, the tip (8.5, 0) stays a vertex between two arcs on the one
+/// circle about (7, 0), and the joint there is constructed rather than
+/// decided; with `r` a hair off it, the loop has the same segments and
+/// the same constructed joints — no emission asks whether the two
+/// carriers are the same. With `r` within the band of the circle's
+/// radius the build is the same, and validation escalates
+/// `carrier_circles_identity` at the tip pair: the two carriers are one
+/// circle only to within the band.
+///
+/// Red if the extension moves the arriving leg's end instead (the tip
+/// is no vertex), if the tip joint is left for validation to decide,
+/// or if a nudged `r` changes the topology.
+#[test]
+fn an_arc_extension_is_its_own_segment_with_a_constructed_tip_joint() {
+    let kinds = |lp: &ConstructedLoop<f64>| -> Vec<bool> {
+        lp.as_loop()
+            .segments()
+            .iter()
+            .map(|s| matches!(s, profile::Segment::Arc(_)))
+            .collect()
+    };
+    let same = boss(1.5);
+    let vs = same.as_loop().vertices();
+    let tip = vs
+        .iter()
+        .position(|v| v.x.to_bits() == 8.5f64.to_bits() && v.y.to_bits() == 0.0f64.to_bits())
+        .unwrap_or_else(|| panic!("the tip (8.5, 0) is a vertex: {vs:?}"));
+    let segs = same.as_loop().segments();
+    let (profile::Segment::Arc(before), profile::Segment::Arc(after)) =
+        (&segs[tip - 1], &segs[tip])
+    else {
+        panic!("arcs meet at the tip: {segs:?}");
+    };
+    for arc in [before, after] {
+        assert!(
+            (arc.centre.x - 7.0).abs() < 1e-12 && arc.centre.y.abs() < 1e-12,
+            "both arcs are about (7, 0): {arc:?}"
+        );
+        assert!(
+            (arc.radius - 1.5).abs() < 1e-12,
+            "both arcs are of radius 1.5: {arc:?}"
+        );
+    }
+    assert!(
+        same.constructed_joints().contains(&tip),
+        "the tip joint {tip} is constructed: {:?}",
+        same.constructed_joints()
+    );
+    let vp = constructed(vec![same.clone()]).expect("two arcs on one circle validate");
     assert!(
         decided(&vp).is_empty(),
         "every tangent joint of the boss chain is constructed: {:?}",
         decided(&vp)
     );
+    let nudged = boss(1.5 + 1e-10);
+    assert_eq!(
+        kinds(&nudged),
+        kinds(&same),
+        "a nudged r keeps the segments"
+    );
+    assert_eq!(
+        nudged.constructed_joints(),
+        same.constructed_joints(),
+        "a nudged r keeps the constructed joints"
+    );
+    let vp = constructed(vec![nudged]).expect("the nudged chain validates");
+    assert!(decided(&vp).is_empty(), "{:?}", decided(&vp));
+    // `r` an ε below the circle's radius: the derived centre stands ε
+    // off (7, 0), so the two carriers are one circle only to within the
+    // band (margin d + |Δr| ≈ 2ε). The build is the same; validation
+    // asks whether they are one circle — the question one swept wall
+    // over the run or two would turn on — and escalates at the tip pair.
+    let eps = tol().eps();
+    let inband = boss(1.5 - eps);
+    assert_eq!(
+        kinds(&inband),
+        kinds(&same),
+        "an in-band r keeps the segments"
+    );
+    let segs = inband.as_loop().segments().len();
+    match constructed(vec![inband]) {
+        Err(ProfileError::Escalated {
+            site: profile::EscalationSite::SegmentPair(a, b),
+            gate,
+            ..
+        }) => {
+            assert_eq!(
+                (a.segment_index, b.segment_index, gate.predicate()),
+                ((tip + segs - 1) % segs, tip, "carrier_circles_identity"),
+                "the tip pair's carrier identity escalates"
+            );
+        }
+        other => panic!("an in-band r escalates at the tip pair, got {other:?}"),
+    }
+}
+
+/// The number the sentence renders right after `label`, parsed back.
+fn rendered_after(shown: &str, label: &str) -> f64 {
+    let rest = &shown[shown
+        .find(label)
+        .unwrap_or_else(|| panic!("no {label:?} in: {shown}"))
+        + label.len()..];
+    let end = rest
+        .find(|ch: char| !(ch.is_ascii_digit() || matches!(ch, '.' | '-' | 'e' | '+')))
+        .unwrap_or(rest.len());
+    rest[..end]
+        .parse()
+        .unwrap_or_else(|_| panic!("{label:?} renders no number in: {shown}"))
 }

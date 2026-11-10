@@ -16,8 +16,8 @@ use geom_core::{Arc2, Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, ConstructedLoop, CornerReason, CornerRefusal, FilletLeg,
-    FilletLegCarrier, Open, PathError, Profile, ProfileLoop, Segment, SketchPlane, Start,
-    test_support::bulge_loop,
+    FilletLegCarrier, LegFit, LeverValue, Open, OverrunLegs, PathError, Profile, ProfileLoop,
+    Segment, SketchPlane, Start, test_support::bulge_loop,
 };
 
 /// The quarter tangent `tan(Δθ/4)` a stored segment's sweep reads as —
@@ -104,15 +104,51 @@ pub fn enclosing<T: Real>(err: &PathError<T>) -> Option<(Option<FilletLeg>, T, T
     })
 }
 
-/// The first entry refusing on the anchor fit, as its payload.
-pub fn anchor_fit<T: Real>(err: &PathError<T>) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+/// **The leg a census keyed on one leg reads**: the overrun leg whose
+/// setback outruns its extent by more, ties to the incoming leg. The
+/// payload carries both legs; this is the one a single-leg sentence
+/// would have named, and the census suites that measure that number
+/// read it here.
+pub fn worse_leg<T: Real + PartialOrd>(
+    legs: &[LegFit<T>; 2],
+    overrun: OverrunLegs,
+) -> (FilletLeg, LegFit<T>) {
+    let margin = |l: &LegFit<T>| l.available - l.setback;
+    match overrun {
+        OverrunLegs::One(FilletLeg::Outgoing) => (FilletLeg::Outgoing, legs[1]),
+        OverrunLegs::Both if margin(&legs[1]) < margin(&legs[0]) => (FilletLeg::Outgoing, legs[1]),
+        OverrunLegs::One(FilletLeg::Incoming) | OverrunLegs::Both => (FilletLeg::Incoming, legs[0]),
+    }
+}
+
+/// The first entry refusing on the anchor fit, as its worse leg's
+/// numbers ([`worse_leg`]).
+pub fn anchor_fit<T: Real + PartialOrd>(
+    err: &PathError<T>,
+) -> Option<(FilletLeg, FilletLegCarrier, T, T)> {
+    corners(err).iter().find_map(|c| match &c.reason {
+        CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+            let (side, leg) = worse_leg(legs, *overrun);
+            Some((side, leg.carrier, leg.setback, leg.available))
+        }
+        _ => None,
+    })
+}
+
+/// An anchor-fit entry's payload: both legs, which of them overrun, and
+/// the radius lever.
+pub type AnchorFitPayload<T> = ([LegFit<T>; 2], OverrunLegs, Option<LeverValue<T>>);
+
+/// The first anchor-fit entry's whole payload: both legs and the radius
+/// at the anchor.
+pub fn anchor_fit_payload<T: Real>(err: &PathError<T>) -> Option<AnchorFitPayload<T>> {
     corners(err).iter().find_map(|c| match &c.reason {
         CornerReason::AnchorOutsideTrimmedExtent {
-            side,
-            carrier,
-            setback,
-            available,
-        } => Some((*side, *carrier, *setback, *available)),
+            legs,
+            overrun,
+            radius_at_anchor,
+            ..
+        } => Some((*legs, *overrun, *radius_at_anchor)),
         _ => None,
     })
 }
@@ -1221,7 +1257,7 @@ pub fn grid_a(
 /// exact band.
 pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
     match e {
-        PathError::Escalated { source }
+        PathError::Escalated { source, .. }
             if source.predicate.is_some_and(|p| {
                 p.starts_with("path_junction_") || p == "path_fillet_joint_turn"
             }) =>
@@ -1231,6 +1267,90 @@ pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
         PathError::JunctionTangent { .. } => Some("JunctionTangent"),
         _ => None,
     }
+}
+
+/// The least ε a CI row runs at, where grid A's anchor-fit census is read
+/// whole: no overrun on the grid lies inside that row's band.
+const LEAST_ROW_EPS: f64 = 1e-12;
+
+/// The environment [`child_grid_a_anchor_fits`] reads.
+const GRID_A_CHILD_OUT: &str = "PROFILE_GRID_A_ANCHOR_FITS_OUT";
+
+/// **Grid A's anchor-fit entries this row's band takes, by side**:
+/// `(incoming, outgoing, refusals)`, the last the authorings whose
+/// refusals they were. A leg's run is decided on the band validation
+/// reads a segment's length on, which widens with ε, so a refusal whose
+/// candidates' runs a setback overruns by less than K·ε is, at this row,
+/// an in-band `fillet_leg_fit` escalation instead, and its anchor-fit
+/// entries leave the census. Computed, not pinned: grid A's entries are
+/// read whole at [`LEAST_ROW_EPS`] in a child process, and those of the
+/// authorings that escalate on `fillet_leg_fit` at this row are counted.
+pub fn grid_a_overruns_inside_the_band() -> (usize, usize, usize) {
+    let out =
+        std::env::temp_dir().join(format!("profile_grid_a_anchor_fits_{}", std::process::id()));
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::child_grid_a_anchor_fits"),
+        None => "child_grid_a_anchor_fits".to_string(),
+    };
+    let status = std::process::Command::new(std::env::current_exe().expect("test exe path"))
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env("CAD_TOLERANCE_EPS", format!("{LEAST_ROW_EPS:e}"))
+        .env("CAD_AMBIGUITY_K", format!("{}", tol().k()))
+        .env(GRID_A_CHILD_OUT, &out)
+        .status()
+        .expect("the child spawns");
+    assert!(
+        status.success(),
+        "the grid-A child at ε = {LEAST_ROW_EPS:e} failed"
+    );
+    let read = std::fs::read_to_string(&out).expect("the child wrote");
+    std::fs::remove_file(&out).expect("the child's file is removed");
+    let mut taken = std::collections::BTreeSet::new();
+    grid_a(|n, _, _, res| {
+        if let Err(PathError::Escalated { source, .. }) = res
+            && source.predicate == Some("fillet_leg_fit")
+        {
+            taken.insert(n);
+        }
+    });
+    let (mut incoming, mut outgoing) = (0, 0);
+    let mut refusals = std::collections::BTreeSet::new();
+    for line in read.lines() {
+        let (n, side) = line.split_once(' ').expect("an authoring and a side");
+        let n: usize = n.parse().expect("an authoring");
+        if taken.contains(&n) {
+            refusals.insert(n);
+            match side {
+                "in" => incoming += 1,
+                "out" => outgoing += 1,
+                other => panic!("no side {other:?}"),
+            }
+        }
+    }
+    (incoming, outgoing, refusals.len())
+}
+
+/// CHILD MODE (no-op unless [`GRID_A_CHILD_OUT`] is set): writes every
+/// grid-A anchor-fit entry at THIS process's ε, one `authoring side`
+/// per line ([`grid_a_overruns_inside_the_band`]).
+#[test]
+fn child_grid_a_anchor_fits() {
+    let Ok(out) = std::env::var(GRID_A_CHILD_OUT) else {
+        return;
+    };
+    let mut lines = Vec::new();
+    grid_a(|n, _, _, res| {
+        if let Err(e) = res {
+            for (_, side, _, _) in anchor_fit_entries(e) {
+                let side = match side {
+                    FilletLeg::Incoming => "in",
+                    FilletLeg::Outgoing => "out",
+                };
+                lines.push(format!("{n} {side}"));
+            }
+        }
+    });
+    std::fs::write(out, lines.join("\n")).expect("the child's file is writable");
 }
 
 /// How many grid-A recourse entries [`past_the_corner`] answers at the
@@ -1299,26 +1419,25 @@ pub fn line_arc_grid(mut visit: impl FnMut(&Result<ProfileLoop<f64>, PathError<f
 }
 
 /// Every anchor-fit entry of a refusal, in envelope order, as
-/// `(corner, side, setback, available)`; empty for any other refusal.
+/// `(corner, side, setback, available)` of its worse leg
+/// ([`worse_leg`]); empty for any other refusal.
 pub fn anchor_fit_entries(err: &PathError<f64>) -> Vec<(Point2<f64>, FilletLeg, f64, f64)> {
     corners(err)
         .iter()
-        .filter_map(|c| match c.reason {
-            CornerReason::AnchorOutsideTrimmedExtent {
-                side,
-                setback,
-                available,
-                ..
-            } => Some((c.at, side, setback, available)),
+        .filter_map(|c| match &c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+                let (side, leg) = worse_leg(legs, *overrun);
+                Some((c.at, side, leg.setback, leg.available))
+            }
             _ => None,
         })
         .collect()
 }
 
-/// The anchor-fit entry at the corner `at` (to 1e-9), as
-/// `(side, carrier, setback, available)`; a row asserting a corner's
-/// numbers names the corner, so a wrong-corner entry reads as the
-/// wrong refusal rather than as the wrong number.
+/// The anchor-fit entry at the corner `at` (to 1e-9), as its worse
+/// leg's `(side, carrier, setback, available)`; a row asserting a
+/// corner's numbers names the corner, so a wrong-corner entry reads as
+/// the wrong refusal rather than as the wrong number.
 pub fn anchor_fit_at(
     err: &PathError<f64>,
     at: (f64, f64),
@@ -1326,13 +1445,29 @@ pub fn anchor_fit_at(
     corners(err)
         .iter()
         .find(|c| (c.at.x - at.0).abs() < 1e-9 && (c.at.y - at.1).abs() < 1e-9)
-        .and_then(|c| match c.reason {
+        .and_then(|c| match &c.reason {
+            CornerReason::AnchorOutsideTrimmedExtent { legs, overrun, .. } => {
+                let (side, leg) = worse_leg(legs, *overrun);
+                Some((side, leg.carrier, leg.setback, leg.available))
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no anchor-fit entry at {at:?} in {err:?}"))
+}
+
+/// The anchor-fit entry at the corner `at` (to 1e-9), as its whole
+/// payload: both legs and the radius at the anchor.
+pub fn anchor_fit_payload_at(err: &PathError<f64>, at: (f64, f64)) -> AnchorFitPayload<f64> {
+    corners(err)
+        .iter()
+        .find(|c| (c.at.x - at.0).abs() < 1e-9 && (c.at.y - at.1).abs() < 1e-9)
+        .and_then(|c| match &c.reason {
             CornerReason::AnchorOutsideTrimmedExtent {
-                side,
-                carrier,
-                setback,
-                available,
-            } => Some((side, carrier, setback, available)),
+                legs,
+                overrun,
+                radius_at_anchor,
+                ..
+            } => Some((*legs, *overrun, *radius_at_anchor)),
             _ => None,
         })
         .unwrap_or_else(|| panic!("no anchor-fit entry at {at:?} in {err:?}"))

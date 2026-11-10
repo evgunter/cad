@@ -1,7 +1,7 @@
 //! **A spline chart's certificate doors end a refusal by the carrier's
 //! incidence read** (D3): a carrier off its wall at a read sample ends
-//! `CarrierOffChart`, one read in band of it ends in the read's lever
-//! (`Escalated`, [`PcurveCheck::ChartIncidence`]), never as the image's
+//! `Incidence` read off, one read in band of it ends in the read's lever
+//! (an `Incidence` read [`crate::IncidenceRead::Undecided`]), never as the image's
 //! own bound, and one on it certifies as it did. Each door is read at
 //! `f64` and at `Interval`:
 //!
@@ -35,7 +35,7 @@ use geom::{Curve3, NurbsCurve2, NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec2, Vec3};
 
-use super::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
+use super::{Pcurve, PcurveCache, PcurveCertifyError};
 use crate::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, NurbsLane, SurfaceKey,
 };
@@ -245,41 +245,25 @@ fn every_door_reads_the_wall<T: Decide>(lanes: Lanes<T>) {
         for (door, got) in doors::<T>(place, lanes) {
             let ok = match place {
                 Place::On => got.is_ok(),
-                Place::Off => matches!(
-                    got,
-                    Err(PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Nurbs,
-                        ..
-                    })
-                ),
-                Place::InBand => matches!(
-                    got,
-                    Err(PcurveCertifyError::Escalated {
-                        check: PcurveCheck::ChartIncidence,
-                        ..
-                    })
-                ),
+                Place::Off => got
+                    .as_ref()
+                    .err()
+                    .is_some_and(|e| read_off(e, Some(geom::SurfaceKind::Nurbs), None)),
+                Place::InBand => got.as_ref().err().is_some_and(read_in_band),
             };
             check(door, place, ok, format!("{got:?}"));
         }
         let got = stated::<T>(place, lanes);
         let ok = match place {
             Place::On => got.is_ok(),
-            Place::Off => matches!(
-                got,
-                Err(CertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Nurbs,
-                    carrier: geom::CurveKind::Line,
-                    ..
-                })
-            ),
-            Place::InBand => matches!(
-                got,
-                Err(CertifyError::Escalated {
-                    check: crate::CertCheck::ChartIncidence,
-                    ..
-                })
-            ),
+            Place::Off => got.as_ref().err().is_some_and(|e| {
+                edge_read_off(
+                    e,
+                    Some(geom::SurfaceKind::Nurbs),
+                    Some(geom::CurveKind::Line),
+                )
+            }),
+            Place::InBand => got.as_ref().err().is_some_and(edge_read_in_band),
         };
         check("stated", place, ok, format!("{got:?}"));
     }
@@ -310,7 +294,7 @@ fn every_door_reads_the_wall_at_interval() {
 
 /// **At a dual, a curve in UV with no fitted door is read first where it
 /// refuses**: on the wall it refuses `FittedLaneUnsupported`, the scalar
-/// certifying nothing fitted; off it, the read ends it `CarrierOffChart`,
+/// certifying nothing fitted; off it, the read ends it read off (`Incidence`),
 /// so `topo`'s `not_owed`, which excuses the first, never excuses an off
 /// carrier.
 #[test]
@@ -336,13 +320,9 @@ fn at_a_dual_an_off_carrier_ends_off_the_chart_not_at_the_fitted_door() {
     );
     let off = general(Place::Off);
     assert!(
-        matches!(
-            off,
-            Err(PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Nurbs,
-                ..
-            })
-        ),
+        off.as_ref()
+            .err()
+            .is_some_and(|e| read_off(e, Some(geom::SurfaceKind::Nurbs), None)),
         "off the wall the read ends it: {off:?}"
     );
 }
@@ -364,13 +344,10 @@ fn a_row_shorter_than_its_edge_is_read_over_the_edge<T: Decide>(lane: FittedLane
     );
     let over_edge = row.recertify(&carrier, (c(0.0), c(1.5)), &wall, b, Some(lane));
     assert!(
-        matches!(
-            over_edge,
-            Err(PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Nurbs,
-                ..
-            })
-        ),
+        over_edge
+            .as_ref()
+            .err()
+            .is_some_and(|e| read_off(e, Some(geom::SurfaceKind::Nurbs), None)),
         "over the edge, past the patch, at {}: {over_edge:?}",
         T::NAME
     );
@@ -409,14 +386,14 @@ fn a_chart_too_narrow_for_its_foot_is_walked() {
     assert_eq!(on, Ok(()), "a point on the narrow chart");
     let off = crate::read_point_incidence(Point3::new(0.5, 0.5, 1e-3), &wall, band());
     assert!(
-        matches!(off, Err(PcurveCertifyError::CarrierOffChart { .. })),
+        off.as_ref().err().is_some_and(|e| read_off(e, None, None)),
         "a point a millimetre off it: {off:?}"
     );
 }
 
 /// **On an analytic chart the fitted doors read the carrier first**, as
 /// every closed-form door does: a curve in UV offered for a line off its
-/// cylinder ends `CarrierOffChart`, not the lane's refusal of an analytic
+/// cylinder ends read off (`Incidence`), not the lane's refusal of an analytic
 /// chart (`ImageMismatch`), which a line on it still takes.
 #[test]
 fn an_analytic_chart_reads_the_carrier_before_the_fitted_lane() {
@@ -447,13 +424,50 @@ fn an_analytic_chart_reads_the_carrier_before_the_fitted_lane() {
     );
     let off = general(1.0 + 1e-3);
     assert!(
-        matches!(
-            off,
-            Err(PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cylinder,
-                ..
-            })
-        ),
+        off.as_ref()
+            .err()
+            .is_some_and(|e| read_off(e, Some(geom::SurfaceKind::Cylinder), None)),
         "a line off the cylinder ends off the chart: {off:?}"
     );
+}
+
+fn read_off(
+    e: &crate::PcurveCertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let crate::PcurveCertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), crate::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn read_in_band(e: &crate::PcurveCertifyError) -> bool {
+    matches!(
+        crate::IncidenceRead::of(e),
+        Some(crate::IncidenceRead::Undecided(_))
+    )
+}
+
+fn edge_read_off(
+    e: &crate::CertifyError,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    let crate::CertifyError::Incidence(r) = e else {
+        return false;
+    };
+    matches!(r.read(), crate::IncidenceRead::Off(_)) && kinds_are(r.kinds(), chart, carrier)
+}
+
+fn edge_read_in_band(e: &crate::CertifyError) -> bool {
+    matches!(e.incidence_read(), Some(crate::IncidenceRead::Undecided(_)))
+}
+
+fn kinds_are(
+    kinds: Option<(geom::SurfaceKind, geom::CurveKind)>,
+    chart: Option<geom::SurfaceKind>,
+    carrier: Option<geom::CurveKind>,
+) -> bool {
+    kinds.is_some_and(|(c, k)| chart.is_none_or(|x| x == c) && carrier.is_none_or(|x| x == k))
 }

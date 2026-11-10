@@ -248,7 +248,7 @@ fn one_seam_cone() -> Body<f64> {
 /// `tessellate`'s fold answers for when several refuse.
 fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .map(|(fk, _)| fk)
         .expect("the body carries a face of that kind")
 }
@@ -258,11 +258,11 @@ fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
 /// lane's to make and not a door's.
 fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {
     let band = Band::linear(Tol::witness()).unwrap();
-    let (_, f) = body
+    let (fk, f) = body
         .faces()
-        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
+        .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .expect("the body carries a face of that kind");
-    let surface = body.get_surface(f.surface).unwrap();
+    let surface = body.face_surface(fk).unwrap();
     let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
     (
         geom_brep::props::require_iso_rectangle(surface, &outer, band).is_ok(),

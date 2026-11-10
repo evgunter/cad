@@ -11,7 +11,7 @@
 //! that point, so it is the exact distance or less. The verdicts of the
 //! incidence door ([`read_incidence`]) are then held to the hunt at
 //! both scalars: a line the hunt shows past the band is refused
-//! `CarrierOffChart`, and a line read off is not inside the band.
+//! read off the chart (`IncidenceRead::Off`), and a line read off is not inside the band.
 //!
 //! Built with `PCERT_RADIAL_PAIR_MUTANT=sampled-line-incidence` the
 //! search finds its counterexamples at once.
@@ -142,18 +142,6 @@ fn distance(surface: &Surface<Interval>, line: &Curve3<Interval>, t: f64) -> f64
     chart_distance(surface, line.eval(Interval::from_f64(t))).lo()
 }
 
-/// The axis of `surface`, where it has one.
-fn axis_of(surface: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
-    match *surface {
-        Surface::Cylinder { origin, axis, .. } => Some((origin, axis)),
-        Surface::Cone { apex, axis, .. } => Some((apex, axis)),
-        Surface::Torus { center, axis, .. }
-        | Surface::Spindle { center, axis, .. }
-        | Surface::Sphere { center, axis, .. } => Some((center, axis)),
-        _ => None,
-    }
-}
-
 /// The hunt's largest distance over `[t0, t1]` (module docs).
 fn hunt(
     surface: &Surface<f64>,
@@ -188,8 +176,7 @@ fn hunt(
         .iter()
         .map(|s| (*s - line.origin).dot(line.dir) / uu)
         .collect();
-    if let Some((o, a)) = axis_of(surface) {
-        let a = a.normalize();
+    if let Some(geom::Line { origin: o, dir: a }) = surface.axis_line().map(geom::Line::unit) {
         let (q, u) = (line.origin - o, line.dir);
         let (qo, uo) = (q - a * q.dot(a), u - a * u.dot(a));
         near.push(-qo.dot(uo) / uo.dot(uo));
@@ -272,8 +259,8 @@ fn draw(rng: &mut fuzz::Rng, surface: &Surface<f64>, singular: &[Point3<f64>]) -
     let offset = unit(rng) * offset_by;
     let tilt = unit(rng) * tilt_by;
     let (point, dir) = match rng.below(5) {
-        4 => match axis_of(surface) {
-            Some((o, a)) => (o + a * rng.range(-1.0, 1.0), a),
+        4 => match surface.axis_line() {
+            Some(axis) => (axis.at(rng.range(-1.0, 1.0)), axis.dir),
             None => (wall, unit(rng)),
         },
         0 | 1 => {
@@ -331,7 +318,10 @@ fn no_parameter_of_the_span_is_farther_than_the_read() {
                 read_incidence(&carrier_i, f(span.0), f(span.1), &surface_i, band()),
             ];
             for verdict in &verdicts {
-                let shown_off = matches!(verdict, Err(PcurveCertifyError::CarrierOffChart { .. }));
+                let shown_off = matches!(
+                    verdict.as_ref().err().and_then(crate::IncidenceRead::of),
+                    Some(crate::IncidenceRead::Off(_))
+                );
                 if hunted > 1.2 * escalate {
                     assert!(
                         shown_off,
@@ -434,7 +424,7 @@ fn a_line_on_the_chart_or_inside_the_zero_band_is_not_read_off() {
 /// - a chord of a cone's double nappe through the apex plane and near
 ///   the apex, off at the apex's kink.
 ///
-/// Each ends `CarrierOffChart` at the incidence door and at the mint, at
+/// Each is read off the chart (`IncidenceRead::Off`) at the incidence door and at the mint, at
 /// both scalars. Red against a read that trusts a quartic, which
 /// vanishes on the axis, and under `sampled-line-incidence` for the
 /// narrow one (the cone chord).
@@ -517,7 +507,10 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
         // The second span puts the middle off the sampled schedule.
         for span in [(0.0, 1.0), (0.013, 0.9)] {
             let off = |r: Option<&PcurveCertifyError>| {
-                matches!(r, Some(PcurveCertifyError::CarrierOffChart { .. }))
+                matches!(
+                    r.and_then(crate::IncidenceRead::of),
+                    Some(crate::IncidenceRead::Off(_))
+                )
             };
             let door = (
                 read_incidence(&carrier, span.0, span.1, &surface, band()),
@@ -529,13 +522,13 @@ fn a_line_whose_candidate_forms_degenerate_is_read_off() {
             );
             assert!(
                 off(door.0.as_ref().err()) && off(door.1.as_ref().err()),
-                "{what} over {span:?}: the door refuses CarrierOffChart at both scalars: {:?} / {:?}",
+                "{what} over {span:?}: the door reads it off the chart at both scalars: {:?} / {:?}",
                 door.0,
                 door.1
             );
             assert!(
                 off(mint.0.as_ref().err()) && off(mint.1.as_ref().err()),
-                "{what} over {span:?}: the mint refuses CarrierOffChart at both scalars: {:?} / {:?}",
+                "{what} over {span:?}: the mint reads it off the chart at both scalars: {:?} / {:?}",
                 mint.0,
                 mint.1
             );

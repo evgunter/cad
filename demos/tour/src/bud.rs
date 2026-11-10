@@ -183,6 +183,7 @@ pub fn bud(tol: Tol) -> Body<f64> {
     )
     .expect("the meridian fully revolves")
     .body
+    .into_body()
 }
 
 /// Every edge of `body` whose two incident faces carry the surface
@@ -252,7 +253,7 @@ fn mouth_ball_centre() -> (f64, f64) {
 
 /// The `(major, minor)` radii of a band face's torus.
 fn band_torus(body: &Body<f64>, face: pncad::topo::FaceKey) -> (f64, f64) {
-    match body.get_surface(body.get_face(face).expect("the band face").surface) {
+    match body.face_surface(face) {
         Some(Surface::Torus {
             major_radius,
             minor_radius,
@@ -401,12 +402,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let bands: Vec<pncad::topo::FaceKey> = rolled
         .body
         .faces()
-        .filter(|(_, face)| {
-            matches!(
-                rolled.body.get_surface(face.surface),
-                Some(Surface::Torus { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(rolled.body.face_surface(*fk), Some(Surface::Torus { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(bands.len(), 3, "one torus band per rim");
@@ -571,7 +567,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![SceneBody::plain(
             "budfillet",
             [0.86, 0.78, 0.52],
-            rolled.body,
+            rolled.body.into_body(),
         )],
     }]
 }

@@ -68,7 +68,7 @@ impl<T: Decide> SplineArc<T> {
             return None;
         }
         let mut cuts = vec![lo];
-        for (knot, _) in curve.knot_values().runs() {
+        for knot in curve.knot_values().breakpoints() {
             let k = knot.point_value()?;
             if lo < k && k < hi {
                 cuts.push(k);
@@ -118,7 +118,7 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
     }
 
     fn halves(&self, p: Piece) -> [Piece; 2] {
-        let m = 0.5 * (p.a + p.b);
+        let m = geom::mid_param(p.a, p.b);
         let depth = p.depth + 1;
         [Piece { b: m, depth, ..p }, Piece { a: m, depth, ..p }]
     }
@@ -128,11 +128,11 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
     /// middle.
     fn ball(&self, p: &Piece) -> PieceBall<T> {
         let net = self.net(p);
-        let m = 0.5 * (p.a + p.b);
+        let m = geom::mid_param(p.a, p.b);
         let (lo, hi) = net
             .iter()
             .fold((net[0], net[0]), |(lo, hi), &c| (lo.min(c), hi.max(c)));
-        let center = lo + (hi - lo) * T::from_f64(0.5);
+        let center = lo.mid(hi);
         let reach = net
             .iter()
             .fold(T::zero(), |r, c| r.max((*c - center).norm()));
@@ -155,9 +155,9 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
         let offsets: Vec<T> = net.iter().map(|c| (*c - q).dot(side)).collect();
         let along = || net.iter().map(|c| (*c - q).dot(d));
         let offset = || offsets.iter().copied();
-        if all(CROSS_SIDE, offset(), Sign::Positive, band)
-            || all(CROSS_SIDE, offset(), Sign::Negative, band)
-            || all(CROSS_ADVANCE, along(), Sign::Negative, band)
+        if all_as(CROSS_SIDE, offset(), Sign::Positive, band)
+            || all_as(CROSS_SIDE, offset(), Sign::Negative, band)
+            || all_as(CROSS_ADVANCE, along(), Sign::Negative, band)
         {
             return Some(0);
         }
@@ -171,21 +171,21 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
             return None;
         };
         let steps = || offsets.windows(2).map(|w| w[1] - w[0]);
-        let monotone = all(CROSS_TURN, steps(), Sign::Positive, band)
-            || all(CROSS_TURN, steps(), Sign::Negative, band);
+        let monotone = all_as(CROSS_TURN, steps(), Sign::Positive, band)
+            || all_as(CROSS_TURN, steps(), Sign::Negative, band);
         if !monotone {
             return None;
         }
         if a == z {
             return Some(0);
         }
-        all(CROSS_ADVANCE, along(), Sign::Positive, band).then_some(1)
+        all_as(CROSS_ADVANCE, along(), Sign::Positive, band).then_some(1)
     }
 }
 
 /// Whether every margin of `xs` decides `sign` on `row`, read in order
 /// to the first that does not.
-fn all<T: Decide>(
+fn all_as<T: Decide>(
     row: &'static str,
     xs: impl IntoIterator<Item = T>,
     sign: Sign,
@@ -202,12 +202,7 @@ mod tests {
     use crate::splitting::pieced_arc::{ArcHit, ArcRows};
     use geom_core::{Interval, Tol, Vec3};
 
-    const ROWS: ArcRows = ArcRows {
-        end: "test_spline_end",
-        clear: "test_spline_clear",
-        on: "test_spline_on",
-        leaf: "test_spline_leaf",
-    };
+    const ROWS: ArcRows = crate::rows::TEST_SPLINE_ARC;
 
     /// The plane the curve lies in, `z = 0.7`.
     const Z: f64 = 0.7;

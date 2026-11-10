@@ -42,7 +42,8 @@ fn revolved(polygon: &[(f64, f64)], theta: Option<f64>) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     if theta.is_none() {
         body.merge_coplanar_faces(Tol::witness()).unwrap();
     }
@@ -68,10 +69,7 @@ fn pin(r: f64, x: f64, y0: f64, y1: f64) -> Body<f64> {
 }
 
 fn is_cone(body: &Body<f64>, face: FaceKey) -> bool {
-    matches!(
-        body.get_surface(body.get_face(face).unwrap().surface),
-        Some(geom::Surface::Cone { .. })
-    )
+    matches!(body.face_surface(face), Some(geom::Surface::Cone { .. }))
 }
 
 /// The pass's verdict on every pair of `a`'s cone face with a face of
@@ -275,7 +273,8 @@ fn a_tilted_slab_cuts_ellipses_cleared_by_w2() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     assert_all_tiers(&frustum);
     for (what, body) in [
         ("the seamed frustum", frustum),

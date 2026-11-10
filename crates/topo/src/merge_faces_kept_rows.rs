@@ -211,11 +211,10 @@ pub(crate) fn wall_beside_a_leaning_neighbour(tol: Tol) -> (Body<f64>, FaceKey, 
         FaceGeometry::Certified,
         tol,
     );
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (key, edge) in edges {
+    let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
+    for key in edges {
         let (s1, s2) = crate::readback::edge_sides(&body, key).unwrap().surfaces();
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let (start, end) = crate::query::edge_ends(&body, key);
         let p0 = *body
             .get_point(body.get_vertex(start).unwrap().point)
             .unwrap();

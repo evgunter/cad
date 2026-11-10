@@ -558,7 +558,11 @@ fn an_iso_arc_refuses_a_span_past_its_arc() {
     certify(0.2, 0.9).expect("a span inside the arc certifies");
     for (t0, t1) in [(-0.01, 0.9), (0.2, quarter + 0.01)] {
         match certify(t0, t1) {
-            Err(geom_brep::PcurveCertifyError::CarrierOffChart { .. }) => {}
+            Err(e)
+                if matches!(
+                    geom_brep::IncidenceRead::of(&e),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                ) => {}
             other => panic!("[{t0}, {t1}] runs past the arc [0, {quarter}]: {other:?}"),
         }
     }

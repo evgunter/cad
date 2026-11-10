@@ -421,9 +421,8 @@ fn face_span(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> f64 {
 /// Every vertex position on a face, through its loops' cycles.
 fn face_points(body: &pncad::topo::Body<f64>, face: pncad::topo::FaceKey) -> Vec<Point3<f64>> {
     let mut out = Vec::new();
-    let f = body.get_face(face).expect("the face resolves");
-    for &lp in std::iter::once(&f.outer).chain(f.rings.iter()) {
-        let l = body.get_loop(lp).expect("the loop resolves");
+    let f = body.face(face).expect("the face resolves");
+    for (_, l, _) in f.loops() {
         let pncad::topo::LoopBoundary::Cycle { first } = l.boundary else {
             continue;
         };
@@ -452,7 +451,7 @@ fn tip_axis(body: &pncad::topo::Body<f64>) -> Vec3<f64> {
         for q in &ps[i + 1..] {
             let d = *p - *q;
             if d.norm() > best.0 {
-                best = (d.norm(), d / d.norm());
+                best = (d.norm(), d.normalize());
             }
         }
     }
@@ -506,12 +505,8 @@ fn struts(body: &pncad::topo::Body<f64>) -> Vec<[f64; 4]> {
     let at = |v| pncad::topo::readback::vertex_point(body, v).expect("a live vertex");
     let mut out: Vec<[f64; 4]> = body
         .edges()
-        .filter_map(|(_, e)| {
-            let a = body
-                .get_half_edge(e.he_plus)
-                .expect("a live half-edge")
-                .start;
-            let b = body.half_edge_end(e.he_plus).expect("a forward half");
+        .filter_map(|(k, _)| {
+            let (a, b) = body.edge_vertices(k).expect("a live edge");
             let (p, q) = (at(a), at(b));
             let (lo, hi) = if p.z < q.z { (p, q) } else { (q, p) };
             (lo.z == 0.0 && hi.z == 2.0).then_some([lo.x, lo.y, hi.x, hi.y])
@@ -913,7 +908,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             )),
             view: loft_view(),
             bodies: vec![
-                SceneBody::plain("loft_prism", [0.55, 0.72, 0.52], prism),
+                SceneBody::plain("loft_prism", [0.55, 0.72, 0.52], prism.into_body()),
                 SceneBody::plain("nonuniform_loft", [0.45, 0.62, 0.78], nonuniform),
                 SceneBody::plain("twisted_loft", [0.80, 0.62, 0.42], twisted),
             ],
@@ -964,7 +959,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                 azim: 15.0,
                 up: 'z',
             },
-            bodies: vec![SceneBody::plain("s_duct", [0.72, 0.45, 0.30], s_duct)],
+            bodies: vec![SceneBody::plain(
+                "s_duct",
+                [0.72, 0.45, 0.30],
+                s_duct.into_body(),
+            )],
         },
     ];
 
@@ -1047,7 +1046,11 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             azim,
             up: 'z',
         },
-        bodies: vec![SceneBody::plain(name, twisted_color, twisted.clone())],
+        bodies: vec![SceneBody::plain(
+            name,
+            twisted_color,
+            twisted.clone().into_body(),
+        )],
     };
 
     // ---- The twisted TUBE: the same spine, said as a LOFT --------
@@ -1213,7 +1216,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![SceneBody::plain(
             "twisted_tube",
             [0.44, 0.55, 0.68],
-            twisted_tube,
+            twisted_tube.into_body(),
         )],
     });
 
@@ -1269,7 +1272,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![SceneBody::plain(
             "twisted_duct",
             twisted_color,
-            twisted.clone(),
+            twisted.clone().into_body(),
         )],
     });
     stops.push(shadow(

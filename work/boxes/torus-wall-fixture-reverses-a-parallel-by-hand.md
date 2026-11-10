@@ -2,12 +2,11 @@
 id: torus-wall-fixture-reverses-a-parallel-by-hand
 kind: issue
 title: The torus_wall test fixture spells a reversed parallel by hand rather than through Curve3::reversed
-status: parked
+status: open
 opened: 2026-10-03
 priority: P4
 cost: E
 refs: [3895]
-blocked_on: [cover-topo-faces]
 ---
 
 
@@ -25,3 +24,8 @@ noted here rather than edited.
 
 Build the descending parallel as the ascending one's `reversed()`, its
 interval `[−u1, −u0]`, if nothing reads the moved `u_ref`.
+
+## Since `cover-topo-faces` (2026-11-08)
+
+Not taken: the fixture (`boolean::boxes::tests::torus_wall`) is
+unchanged.
