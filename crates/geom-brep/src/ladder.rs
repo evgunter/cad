@@ -1064,6 +1064,12 @@ pub fn argmin_decided<C, E>(
     let n = candidates.len();
     let mut out = vec![false; n];
     let mut reads: Vec<((usize, usize), Read<E>, Detached)> = Vec::new();
+    // Every pair, a retired candidate's included: comparing only against
+    // the ones still in contention is not free of order. With `a` and `b`
+    // in band of each other and `c` decided farther than `a` but nearer
+    // than `b`, the order `a, b, c` retires `b` against `c` and leaves `a`;
+    // the order `c, a, b` retires `c` against `a` and then meets `b` only
+    // against `a`, in band, leaving both.
     for i in 0..n {
         for j in i + 1..n {
             let (got, log) = detached(|| cmp(&candidates[i], &candidates[j]));

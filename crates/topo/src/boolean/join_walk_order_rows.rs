@@ -120,7 +120,8 @@ fn ranked(mut left: Vec<(usize, PartnerDistance<f64>)>) -> Result<Vec<usize>, Bo
             .enumerate()
             .map(|(k, &(_, reach))| (reach, k))
             .collect();
-        let best = nearest_of(cands, |c, b| along_sign(c, b, band()), FreeOf::Nothing)?;
+        let sign = |c, b| along_sign(c, b, band());
+        let best = nearest_of(cands, sign, FreeOf::Nothing, |_| false)?;
         let (_, k) = best.expect("a candidate is left");
         out.push(left.remove(k).0);
     }
