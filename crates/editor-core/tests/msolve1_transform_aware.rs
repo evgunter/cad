@@ -987,7 +987,7 @@ fn a10_a_nested_family_head_is_read_at_its_member() {
     let placement = poses
         .placement(&doc, base)
         .expect("the base is placed")
-        .affine::<f64>();
+        .affine();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a10-alone"), Tol::witness());
     let (alone, base_alone) = insert_pinned(
         alone,
@@ -1312,7 +1312,7 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
         panic!("{:?}", table.lookup(&a))
     };
     assert_eq!(row.body, 2 + 1, "member (1, 1) is body i·N + j");
-    let placement = poses.placement(&doc, base).unwrap().affine::<f64>();
+    let placement = poses.placement(&doc, base).unwrap().affine();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a11-alone"), Tol::witness());
     let (alone, base_alone) = insert_pinned(
         alone,

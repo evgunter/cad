@@ -187,10 +187,7 @@ fn non_rigid_maps_are_refused_at_the_door() {
         Vec3::zero(),
     );
     for (name, m) in [("scale", scale), ("shear", shear), ("mirror", mirror)] {
-        match geom_core::RigidMotion::check_rigid(
-            &m,
-            geom_core::Band::linear(Tol::witness()).unwrap(),
-        ) {
+        match geom_core::RigidMotion::check_rigid(&m) {
             Err(geom_core::RigidMotionError::NotRigid { .. }) => {}
             other => panic!("{name}: expected NotRigid refusal, got {other:?}"),
         }

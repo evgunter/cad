@@ -312,7 +312,7 @@ fn seated_through(
 
 /// Whether two poses agree to well inside the witness band.
 fn near(a: &editor_core::Frame, b: &editor_core::Frame) -> bool {
-    let (a, b) = (a.affine::<f64>(), b.affine::<f64>());
+    let (a, b) = (a.affine(), b.affine());
     let cols = |m: &geom_core::linalg::Affine3<f64>| {
         [m.linear.c0, m.linear.c1, m.linear.c2, m.translation]
     };
