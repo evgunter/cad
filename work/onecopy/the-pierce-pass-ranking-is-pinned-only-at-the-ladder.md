@@ -2,8 +2,10 @@
 id: the-pierce-pass-ranking-is-pinned-only-at-the-ladder
 kind: issue
 title: read_pierces' A-then-B ranking is reached by no fixture, and Rung::refused and rung_or_abort are two public spellings of one rule
-status: open
+status: closed
 opened: 2026-11-09
+closed: 2026-11-10
+pr: 6705
 ---
 
 
