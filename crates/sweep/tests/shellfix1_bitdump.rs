@@ -17,9 +17,9 @@ use sweep::test_support::finished;
 
 fn plane_face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.z - z).abs() < 1e-9 && normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
             )
@@ -36,7 +36,7 @@ fn shellfix1_bitdump_corpus() {
     };
     let write_dump = |name: &str, body: &Body<f64>| save(&dir, name, &dump(body));
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let body = block(w, d, h, Tol::witness());
+    let body = block::<f64>(w, d, h, Tol::witness());
     write_dump(
         "sealed_box",
         &topo::shell(
@@ -45,7 +45,8 @@ fn shellfix1_bitdump_corpus() {
             Tol::witness(),
         )
         .unwrap()
-        .body,
+        .body
+        .into_body(),
     );
     let top = plane_face_at_z(&body, h);
     let bottom = plane_face_at_z(&body, 0.0);

@@ -179,8 +179,13 @@ fn a_line_definitely_off_the_cone_ends_as_its_incidence_read() {
     let carrier = ruling(&surface, 1.0, 1.0, in_band(), 4.0 * band().escalate());
     let (at_f64, at_interval) = derived(&carrier, (0.5, 2.0), &surface);
     assert!(
-        matches!(at_f64, Err(PcurveCertifyError::CarrierOffChart { .. }))
-            && matches!(at_interval, Err(PcurveCertifyError::CarrierOffChart { .. })),
+        matches!(
+            at_f64.as_ref().err().and_then(IncidenceRead::of),
+            Some(IncidenceRead::Off(_))
+        ) && matches!(
+            at_interval.as_ref().err().and_then(IncidenceRead::of),
+            Some(IncidenceRead::Off(_))
+        ),
         "ends as its incidence read: {at_f64:?} / {at_interval:?}"
     );
 }

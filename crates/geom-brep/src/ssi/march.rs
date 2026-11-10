@@ -1415,7 +1415,7 @@ where
                     }
                     let (mut lo, mut hi) = (0.5 * h, h);
                     for _ in 0..SSI_LEAVING_BISECTIONS {
-                        let m = 0.5 * (lo + hi);
+                        let m = geom::mid_param(lo, hi);
                         if exit.holds(&add(&x, &predict(m)), &ctx) {
                             lo = m;
                         } else {
@@ -1784,7 +1784,7 @@ fn push_boundary<S>(
     let mut hi = 1.0f64;
     let mut best: Option<[f64; 3]> = None;
     for _ in 0..SSI_SLAB_BISECTIONS {
-        let m = 0.5 * (lo + hi);
+        let m = geom::mid_param(lo, hi);
         let mut t = inside;
         for (i, v) in t.iter_mut().enumerate() {
             *v = inside[i] + (outside[i] - inside[i]) * m;

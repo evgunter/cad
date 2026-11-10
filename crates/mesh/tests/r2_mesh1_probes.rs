@@ -156,12 +156,13 @@ fn r2_ordinary_placements_agree_between_anchors() {
 }
 
 /// End to end through the public API: a unit ball revolved about an
-/// axis ~3e3 m from the world origin, tessellated, volume checked
+/// axis ~9e2 m from the world origin (inside the 1 km session box,
+/// which refuses one past it), tessellated, volume checked
 /// against 4π/3. The ball's two faces are rimless pole-to-pole bands,
 /// so this crosses the fixed fold on the real path.
 #[test]
 fn r2_e2e_placed_ball_volume_is_the_balls() {
-    let (cx, cy) = (1.3e3, -2.7e3);
+    let (cx, cy) = (4.3e2, -7.9e2);
     let lp = bulge_loop(vec![
         (Point2::new(cx, cy - 1.0), 1.0),
         (Point2::new(cx, cy + 1.0), 0.0),

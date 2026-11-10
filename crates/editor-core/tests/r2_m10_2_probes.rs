@@ -972,7 +972,7 @@ fn r2_a_measure_at_dual64_is_bit_identical_and_untangented() {
         vec![vs[0].clone(), vs[7].clone()],
     );
     let at_f64 = measured(&eval(&doc), id);
-    let evd = evaluate::<Dual64>(
+    let evd = editor_core::test_support::evaluate_bound::<Dual64>(
         &doc,
         None,
         &CancelToken::new(),

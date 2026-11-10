@@ -2,11 +2,13 @@
 id: the-session-box-is-not-enforced-at-construction
 kind: issue
 title: The 1 km session box of [tolerance.units] is not enforced at construction: rows build 6 km bars, 1.3 km tori and 1e9 m placements
-status: open
+status: closed
 opened: 2026-10-26
 priority: P2
 cost: M
 design: true
+closed: 2026-11-08
+pr: 6380
 ---
 
 
@@ -40,3 +42,17 @@ tori and the far placements still reach the limit.
 re-state the clause. That is Ev's call: it moves rows that build today.
 
 - 2026-11-02 — moved from OFFSET to SHELL by `git mv` when OFFSET merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and OFFSET had fallen far under it).
+
+## 2026-11-02: the box is asked at the finished-body gate (ONEHOME, PR 6380)
+
+PR 6380 (`onehome/run-owns-rounding`) builds the session-box predicate of
+`crates/geom-core/README.md`, "Float rounding" (Ev, PR 6329, split 2 B):
+`topo::session_box::in_session_box`, over a body's vertices and its edges'
+spans, asked first in the at-rest gate's structural pass, refusing
+`ValidationError::OutsideSessionBox`. The 6 km bar's rows in
+`crates/topo/tests/long_edges_on_one_line.rs` are now one box-refusal row.
+The sweep rows named above (`verbs_tubewall_r1_probes.rs`' 1300 m torus,
+`sym11_far_placement_rows.rs`' far placements) are refused there too
+wherever they reach the gate; that PR's body lists how each moved.
+
+**Closed (2026-11-08, PR 6380, ONEHOME orchestrator).** The session box is enforced at the finished-body gate: `topo::session_box`, asked first in the structural pass. It decides on a true lower bound of the body's reach, read over its vertices and over its edges' covers (`Body::edge_cover`, from below), and refuses `ValidationError::OutsideSessionBox` in the `SessionBox` finding family. The run's admission rule makes the floor a checked fact, with `eps_min(K) = max(ADMISSION_FLOOR/(K−1), u·box)` (Ev, PR 6380). Rows that built geometry past 1 km were moved into the box with their subjects kept, or became box-refusal rows. One gap remains: a curved face's bulge that no edge rides, filed as `work/oneround/the-session-box-reach-misses-a-curved-faces-bulge.md`.

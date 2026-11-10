@@ -227,7 +227,7 @@ fn outcome(built: Result<ConstructedLoop<f64>, PathError<f64>>) -> Outcome {
         Err(PathError::FilletCarrierBelowSceneResolution {
             predicate, margin, ..
         }) => Outcome::DoorSceneResolution(predicate, margin),
-        Err(PathError::Escalated { source }) => {
+        Err(PathError::Escalated { source, .. }) => {
             Outcome::DoorEscalated(source.predicate.unwrap_or("?").to_string())
         }
         Err(e) => Outcome::DoorOther(e.to_string().chars().take(90).collect()),

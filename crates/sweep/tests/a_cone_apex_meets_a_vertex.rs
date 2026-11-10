@@ -159,9 +159,15 @@ fn four_ops_pinching(
                 // Parts touching at the apex or along a ruling are curved
                 // faces of two shells the census cannot yet clear
                 // (`work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
+                // Parts that touch nowhere, no contact recorded between
+                // them, clear on their faces' covers.
                 let census = topo::validate_pseudomanifold(&body.body, &body.contacts, tol());
-                if body.body.shells().count() == 1 {
+                let shells = body.body.shells().count();
+                if shells == 1 {
                     assert_eq!(census, Ok(()), "{what}: tier 3′ over the result's contacts");
+                } else if body.contacts.is_empty() {
+                    assert_eq!(shells, 2, "{what}: two shells apart");
+                    assert_eq!(census, Ok(()), "{what}: two shells apart pass tier 3′");
                 } else {
                     assert!(
                         census
@@ -393,7 +399,7 @@ fn a_small_box_whose_side_holds_the_wrap_seam_builds_every_op() {
 /// (`a_cone_apex_on_an_edge::an_80_degree_cones_top_against_a_box_clear_of_its_rim_builds`). The
 /// vertex pair at the apex reads the cone's whole turn in four true
 /// quarters, its window `2π` by the corner's bounds
-/// (`boolean::sectors::push_apex_corner`); read off the two bounds'
+/// (`topo::star`'s walk); read off the two bounds'
 /// azimuth, a hair past zero where the seam's departures round apart,
 /// the quarters collapsed onto the seam and left its bound `On` the
 /// box's side (`VertexPairAtConeApex`, box first and `box ∖ cone`).
@@ -453,8 +459,8 @@ fn wedge_volume(alpha: f64, edges: [Vec3<f64>; 3]) -> f64 {
 /// about `(1, 0.3, −0.5)`, so that none of its faces through the apex
 /// holds the axis and each face's side of the fan turns inside the
 /// fan's quarters. Each flat sector is cut at the fan's extreme rulings
-/// along it, and each fan sector at the planes' (`boolean::sectors`'
-/// `partner_cuts`). Its far faces clear the cone, so the box holds the
+/// along it, and each fan sector at the planes' (`topo::star`'s
+/// refinement against the partner's faces). Its far faces clear the cone, so the box holds the
 /// cone inside its trihedral wedge, [`wedge_volume`].
 #[test]
 fn a_box_cornered_at_the_apex_off_the_axis_holds_the_cone_in_its_wedge() {

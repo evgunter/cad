@@ -37,6 +37,7 @@
 
 use geom::NurbsCurve3;
 use geom_core::Bounds;
+use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
@@ -294,7 +295,7 @@ impl Pieces {
         let refinement = RingRefinement::new(kv, &add).ok()?;
         let (h, w) = (refinement.refine(&h), refinement.refine(&w));
         let knots = refinement.knots();
-        let breaks: Vec<f64> = knots.knot_runs().map(|(k, _)| k).collect();
+        let breaks: Vec<f64> = knots.breakpoints().collect();
         let mut pieces = Vec::new();
         for (i, pair) in breaks.windows(2).enumerate() {
             let lo = i * p;
@@ -399,6 +400,12 @@ pub(crate) struct SignBudget;
 /// The pieces as given are all read before any is halved, so two of
 /// opposite sign read `None` in any order.
 ///
+/// A refinement over enclosures, not an agreeing ladder
+/// (`geom_core::ladder::climb_agreeing`): no hull is a band decision, and
+/// a piece that straddles is halved and read again, not kept. Which
+/// refusal surfaces can depend on the order the pieces are read, and no
+/// outcome rests on which.
+///
 /// # Errors
 ///
 /// [`SignBudget`] where a halving is due with `budget` spent.
@@ -411,40 +418,43 @@ fn refined_sign(
         return Ok(None);
     }
     let mut found = signs.iter().find_map(|s| *s);
-    for (piece, read) in pieces.into_iter().zip(signs) {
-        if read.is_some() {
-            continue;
+    let unread: Vec<Vec<Interval>> = pieces
+        .into_iter()
+        .zip(signs)
+        .filter_map(|(piece, read)| read.is_none().then_some(piece))
+        .collect();
+    let mut reads = Budget::implied_by_halvings(unread.len(), *budget);
+    let walked = bisect_within(unread, &mut reads, |c| {
+        let h = hull(&c);
+        if let Some(s) = sign(h) {
+            if found.is_some_and(|f| f != s) {
+                return Step::Stop(Ok(None));
+            }
+            found = Some(s);
+            return Step::Settled;
         }
-        let mut stack = vec![piece];
-        while let Some(c) = stack.pop() {
-            let h = hull(&c);
-            if let Some(s) = sign(h) {
-                if found.is_some_and(|f| f != s) {
-                    return Ok(None);
-                }
-                found = Some(s);
-                continue;
-            }
-            let before = Certification::width(h);
-            if before.is_nan() {
-                return Ok(None);
-            }
-            if *budget == 0 {
-                return Err(SignBudget);
-            }
-            *budget -= 1;
-            let (left, right) = (
-                restrict_segment(&c, (0.0, 1.0), (0.0, 0.5)),
-                restrict_segment(&c, (0.0, 1.0), (0.5, 1.0)),
-            );
-            if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
-                return Ok(None);
-            }
-            stack.push(right);
-            stack.push(left);
+        let before = Certification::width(h);
+        if before.is_nan() {
+            return Step::Stop(Ok(None));
         }
+        if *budget == 0 {
+            return Step::Stop(Err(SignBudget));
+        }
+        *budget -= 1;
+        let (left, right) = (
+            restrict_segment(&c, (0.0, 1.0), (0.0, 0.5)),
+            restrict_segment(&c, (0.0, 1.0), (0.5, 1.0)),
+        );
+        if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
+            return Step::Stop(Ok(None));
+        }
+        Step::Halve([left, right])
+    });
+    match walked {
+        Ok(Some(read)) => read,
+        Ok(None) => Ok(found),
+        Err(Exhausted) => unreachable!("a sign read spends its halvings before its reads"),
     }
-    Ok(found)
 }
 
 /// **A side's plane distance, read as [`boundary_section`] reads it**,
@@ -847,7 +857,7 @@ fn settle_by(
             return Some(t);
         }
     }
-    let mut t = 0.5 * (lo + hi);
+    let mut t = geom::mid_param(lo, hi);
     for _ in 0..SECTION_SETTLE_ITERS {
         let f = phi(t);
         if !f.is_finite() {
@@ -868,7 +878,7 @@ fn settle_by(
         t = if newton.is_finite() && newton > lo && newton < hi {
             newton
         } else {
-            0.5 * (lo + hi)
+            geom::mid_param(lo, hi)
         };
     }
     (phi(t).abs() <= tol).then_some(t)

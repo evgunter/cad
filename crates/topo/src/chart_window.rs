@@ -7,7 +7,7 @@
 //! the lift, the walk refuses ([`SplitJoinError::ApexUnlifted`]).
 //!
 //! [`face_azimuth_images`] is the walk, one image per charted half-edge;
-//! [`face_azimuth_window`] and [`face_loop_azimuth_windows`] hull it
+//! [`face_azimuth_window`] hulls it, [`face_loop_azimuth_travels`] sums it
 //! ([`azimuth_hull`]). The chord join's island winding reads the images
 //! themselves ([`run_azimuth_images`]).
 //!
@@ -43,8 +43,11 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     Ok(face_azimuth_images(body, surface, face, band)?.and_then(|images| azimuth_hull(&images)))
 }
 
-/// The azimuth window of each cycle loop of `face` on `surface`'s chart,
-/// the outer loop and its rings alike: the hull of the loop's images,
+/// **The net azimuth each cycle loop of `face` travels** on `surface`'s
+/// chart, the outer loop and its rings alike: the sum over the loop's
+/// images of exit less entry, each image's branch pinned to the one
+/// before ([`run_azimuth_images`]). A loop that closes in the chart
+/// travels zero; one that winds round the chart's pole, a whole turn.
 /// `None` for a walk with no charted edge. A lone-vertex loop winds
 /// nothing and is not listed.
 ///
@@ -55,13 +58,13 @@ pub(crate) fn face_azimuth_window<T: Decide>(
 /// # Panics
 ///
 /// As [`face_azimuth_images`].
-pub(crate) fn face_loop_azimuth_windows<T: Decide>(
+pub(crate) fn face_loop_azimuth_travels<T: Decide>(
     body: &Body<T>,
     surface: &geom::Surface<T>,
     face: FaceKey,
     band: Band,
-) -> Result<Vec<Option<(T, T)>>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+) -> Result<Vec<Option<T>>, SplitJoinError> {
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     view.loops()
         .filter_map(|(_, l, _)| match l.boundary {
             LoopBoundary::Cycle { first } => Some(first),
@@ -69,8 +72,12 @@ pub(crate) fn face_loop_azimuth_windows<T: Decide>(
         })
         .map(|first| {
             let halves = body.loop_walk(first).closed("loop", first);
-            run_azimuth_images(body, surface, face, &halves, band)
-                .map(|images| azimuth_hull(&images))
+            run_azimuth_images(body, surface, face, &halves, band).map(|images| {
+                images
+                    .iter()
+                    .map(|image| image.exit - image.entry)
+                    .reduce(|a, b| a + b)
+            })
         })
         .collect()
 }
@@ -95,7 +102,7 @@ pub fn face_azimuth_window_traces<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     face_azimuth_window(body, view.surface(), face, band)
 }
 
@@ -179,7 +186,7 @@ pub(crate) fn face_azimuth_images<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<Vec<AzimuthImage<T>>>, SplitJoinError> {
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let Some(halves) = view.outer_cycle() else {
         return Ok(None);
     };
@@ -240,7 +247,13 @@ pub(crate) fn run_azimuth_images<T: Decide>(
     halves: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Vec<AzimuthImage<T>>, SplitJoinError> {
-    let tau = T::tau();
+    // The azimuth's period is the chart's own (C4, `Surface::angle_periods`).
+    let Some((Some(turn), _)) = surface.angle_periods() else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chart with no azimuth channel has no azimuth images",
+        });
+    };
     let mut images = Vec::new();
     let mut prev_exit: Option<T> = None;
     let mut prev_edge: Option<EdgeKey> = None;
@@ -371,7 +384,7 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                     )?,
                 };
                 prev_k = k;
-                base.shift_branch(k, geom_brep::Period::new(tau))
+                base.shift_branch(k, turn)
             }
         };
         // A general-lane image (a circle's class read in band on a sphere,
@@ -441,11 +454,18 @@ fn nearest_branch<T: Decide>(
         what: "a divided face's chart is the placeholder — it has no lever to decide a branch by",
     })?;
     let arm = crate::pcurves::joint_arm(chart, vertex);
+    // The azimuth's period is the chart's own (C4, `Surface::angle_periods`).
+    let Some((Some(turn), _)) = surface.angle_periods() else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chart with no azimuth channel names no azimuth branch",
+        });
+    };
     crate::pcurves::lever_periods(
         "chart_window_branch",
         arm,
         gap,
-        geom_brep::Period::new(T::tau()),
+        turn,
         crate::pcurves::Orbit::Periods,
         band,
     )
@@ -549,7 +569,7 @@ fn pole_branch<T: Decide>(
     // edge bending back (the lens, [`pole_lever`]'s four times), which
     // never gets here: a non-meridian circle's chart image is projected,
     // and the walk refuses it as FITTED.
-    geom_brep::Period::new(T::tau())
+    geom_brep::Period::angle()
         .decide(
             "chart_window_pole_branch",
             shifted,
@@ -597,9 +617,11 @@ fn pole_lever<T: Decide>(
         return None;
     };
     let swept = (far_t - pole_t).max(T::zero() - T::pi()).min(T::pi());
-    let w = carrier.eval(pole_t + swept) - center;
-    let height = w.dot(axis);
-    let far = (w - axis * height).norm();
+    let (height, far) = geom::Line {
+        origin: center,
+        dir: axis,
+    }
+    .height_and_distance(carrier.eval(pole_t + swept));
     let reach = (height * pole_height).select_le_zero(radius, far);
     let bend = (radius.powi(2) - r.powi(2)).max(T::zero()).sqrt();
     Some((reach * bend - r * radius).select_le_zero(reach, r * radius / bend))
@@ -1194,7 +1216,7 @@ mod run_image_incidence {
     #![allow(clippy::unwrap_used)]
     use super::SplitJoinError;
     use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN};
-    use geom_brep::{OffMargin, PcurveCertifyError, PcurveCheck};
+    use geom_brep::{OffMargin, PcurveCertifyError};
     use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, MarginDiag};
 
     /// **A boundary edge's incidence refusal ends by the one map**,
@@ -1204,21 +1226,24 @@ mod run_image_incidence {
     /// a coincidence lever.
     #[test]
     fn a_run_edges_incidence_refusal_ends_by_its_read() {
-        let off = |margin| PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            carrier: geom::CurveKind::Circle,
-            why: "WHY",
-            margin,
-        };
-        let undecided = |margin| PcurveCertifyError::Escalated {
-            check: PcurveCheck::ChartIncidence,
-            sample: 0,
-            cause: Indeterminate {
+        let off = |margin| {
+            PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
                 margin,
-                band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("pcurve_cone_chart_incident"),
-                terminal_sliver: false,
-            },
+            ))
+        };
+        let undecided = |margin| {
+            PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::undecided(
+                0,
+                Indeterminate {
+                    margin,
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("pcurve_cone_chart_incident"),
+                    terminal_sliver: false,
+                },
+            ))
         };
         let m = MarginDiag::value(4e-10);
         for (refusal, ending) in [

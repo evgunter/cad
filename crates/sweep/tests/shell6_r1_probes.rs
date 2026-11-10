@@ -53,6 +53,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 fn frustum(r0: f64, r1: f64) -> Body<f64> {
@@ -66,21 +67,18 @@ fn frustum(r0: f64, r1: f64) -> Body<f64> {
 
 fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }
 
 fn cone_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
-    body.get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(face).unwrap().clone()
 }
 
 fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
-    let data = body.get_face(face).unwrap();
     let mut out = Vec::new();
-    for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+    for (lk, _, _) in body.face(face).unwrap().loops() {
         let topo::LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
             continue;
         };
@@ -374,8 +372,8 @@ fn r1_per_chart_cone_offset_reachability_attack() {
         let v0 = volume(&body);
         let kinds: Vec<String> = body
             .faces()
-            .map(|(_, f)| {
-                format!("{:?}", body.get_surface(f.surface))
+            .map(|(fk, _)| {
+                format!("{:?}", body.face_surface(fk))
                     .split(|c: char| !c.is_alphanumeric())
                     .nth(1)
                     .unwrap_or("?")

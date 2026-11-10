@@ -736,15 +736,15 @@ pub enum SsiError {
     /// that validated, and surfaced with the spline layer's own
     /// refusal rather than swallowed (D4 ¶2).
     ChartRow {
-        /// The spline layer's typed refusal.
-        source: geom_core::spline::SplineError,
+        /// The spline layer's typed refusal of the row read.
+        source: geom_core::spline::Built<geom_core::spline::SplineError>,
     },
     /// The NURBS × NURBS boundary pass isolated no answer on a face of
     /// the two knot rectangles' product, or could not read a row or
     /// corner handed in as known ([`PairBoundaryCause`] says which).
     PairBoundaryUnresolved {
         /// The face pieces the walk may examine.
-        pieces: u32,
+        pieces: usize,
         /// Why.
         cause: PairBoundaryCause,
     },
@@ -865,17 +865,17 @@ impl core::fmt::Display for SsiError {
                 "ssi: the two tori are one surface, a coincidence, so the pair has no section to \
                  trace"
             ),
-            Self::DegenerateTorus(refusal) => match &refusal.verdict {
-                crate::torus_convention::TorusVerdict::Undecided(diag) => write!(
-                    f,
-                    concat!("ssi: {}", geom_core::undecided!(), ": {}"),
-                    refusal.convention.subject(),
-                    diag.payload()
-                ),
-                crate::torus_convention::TorusVerdict::Refused(verdict) => write!(
+            // The refusal's own words (`TorusRefusal::said`); a torus
+            // decided outside the convention adds this door's consequence,
+            // which an undecided half does not yet have.
+            Self::DegenerateTorus(refusal) => match refusal.verdict {
+                crate::torus_convention::TorusVerdict::Undecided(_) => {
+                    write!(f, "ssi: {}", refusal.said("the torus's", None))
+                }
+                crate::torus_convention::TorusVerdict::Refused(_) => write!(
                     f,
                     "ssi: {}, so the pair has no section to trace",
-                    refusal.convention.refused("the torus's", *verdict)
+                    refusal.said("the torus's", None)
                 ),
             },
             Self::OperandNotFinite { operand, datum } => write!(
@@ -1261,9 +1261,9 @@ impl core::fmt::Display for SsiError {
                 write!(f, "ssi: {what}")
             }
             Self::CarrierEnclosure(r) => write!(f, "ssi: {r}"),
-            Self::ChartRow { .. } => write!(
+            Self::ChartRow { source } => write!(
                 f,
-                "ssi: a NURBS wall's boundary row is not valid spline structure"
+                "ssi: a NURBS wall's boundary row is not valid spline structure: {source}"
             ),
             Self::PairBoundaryUnresolved { pieces, cause } => match cause {
                 PairBoundaryCause::Unresolved => write!(
@@ -1447,15 +1447,7 @@ impl SsiError {
             Self::CoincidentTori => {
                 TORI_COINCIDENT.recourse(RefusedArm::SignCertain(None), reading)
             }
-            Self::DegenerateTorus(refusal) => {
-                let arm = match &refusal.verdict {
-                    crate::torus_convention::TorusVerdict::Undecided(diag) => {
-                        RefusedArm::Undecided(diag)
-                    }
-                    crate::torus_convention::TorusVerdict::Refused(verdict) => verdict.arm(),
-                };
-                refusal.convention.sized().recourse(arm, reading)
-            }
+            Self::DegenerateTorus(refusal) => refusal.recourse(reading),
             Self::Escalated { decision, cause } => {
                 SsiDecision::Trace(*decision).ending(cause, reading)
             }
@@ -1546,9 +1538,11 @@ impl SsiError {
             // is the kernel's.
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             // Interpolation takes no tolerance, runs no knot algebra and
-            // reads no rows: these are the approximating fits' refusals.
+            // reads no rows: these are the approximating fits' refusals,
+            // and the march asks no degree 0 (`Structure`).
             Self::Fit(
                 FitError::InvalidTolerance { .. }
+                | FitError::Structure(_)
                 | FitError::KnotAlgebra(_)
                 | FitError::RaggedRows { .. }
                 | FitError::BudgetExhausted { .. },
@@ -1557,8 +1551,10 @@ impl SsiError {
             // 3-D images and chord parameters are computed afterwards in
             // f64. A chord below the running total's rounding is absorbed,
             // so two parameters tie (`ParamCountMismatch`, its knots
-            // `Structure`); a step below an image's resolution repeats a
-            // point (`DegenerateChord`); an image can overflow
+            // `Assembly`); a step below an image's resolution repeats a
+            // point, and two images too far apart or too near for their
+            // distance to be represented leave a chord with no length
+            // (`DegenerateChord`); an image can overflow
             // (`NonFinitePoint`); and the collocation solve meets the
             // parameters as rounded (`Lsq`). Each is the approximation's
             // limit at an extreme scale.
@@ -1566,7 +1562,7 @@ impl SsiError {
                 FitError::NonFinitePoint { .. }
                 | FitError::DegenerateChord { .. }
                 | FitError::ParamCountMismatch { .. }
-                | FitError::Structure(_)
+                | FitError::Assembly(_)
                 | FitError::Lsq(_),
             ) => Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading),
             Self::TraceUnresolved { .. } => TRACE_UNRESOLVED_RECOURSE.to_owned(),
@@ -2320,8 +2316,9 @@ pub(crate) const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the 
 /// zero ([`TubeDegeneracy::WallConstantAcrossLocus`]): the face's own
 /// degeneracy. The stored face is what the lever edits, so the ending
 /// is the same at rest as at a build.
-const WALL_COLLAPSED_RECOURSE: &str = "Recourse: move the geometry so the spline face does not \
-     collapse to a point or a curve where the surfaces meet";
+const WALL_COLLAPSED_RECOURSE: &str = geom_core::move_recourse!(
+    "so the spline face does not collapse to a point or a curve where the surfaces meet"
+);
 
 /// Fit a marched polyline into a cubic NURBS carrier and its pcurves,
 /// on **one shared parameter** (the OQ4 contract).
@@ -3196,7 +3193,7 @@ pub fn march_torus_torus(
 /// defect.
 ///
 /// In a debug build the count is re-derived by the ruling angle's
-/// coverage ([`ruling_coverage`]).
+/// coverage ([`coverage`](crate::pair_section::ruling::coverage)).
 ///
 /// # Errors
 ///
@@ -3558,7 +3555,7 @@ fn plane_pcurve(
         control,
         carrier.weights().to_vec(),
     )
-    .map_err(|e| SsiError::Fit(geom::FitError::Structure(e)))
+    .map_err(|e| SsiError::Fit(geom::FitError::Assembly(geom_core::spline::Built::new(e))))
 }
 
 /// The ℝ⁴ trace's fitted product **without a certificate** — the OQ4
@@ -5123,10 +5120,12 @@ mod ending_tests {
             (
                 "chart row",
                 SsiError::ChartRow {
-                    source: geom_core::spline::SplineError::ControlCountMismatch {
-                        control: 3,
-                        expected: 4,
-                    },
+                    source: geom_core::spline::Built::new(
+                        geom_core::spline::SplineError::ControlCountMismatch {
+                            control: 3,
+                            expected: 4,
+                        },
+                    ),
                 },
             ),
             (

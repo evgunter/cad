@@ -12,7 +12,7 @@
 
 use geom_core::{Band, Decide, Tol};
 
-use super::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
+use super::contain::{CurvedPlacement, FaceContainment};
 use super::{BooleanError, Operand};
 use crate::body::Body;
 
@@ -27,14 +27,21 @@ enum Placed {
 }
 
 /// [`Placed`] of `node` in `face` of the unmutated operand `body`, the
-/// containment door's margined read ([`curved_face_placement`]).
+/// held placement's read ([`super::contain::placement_on_carrier`]). The
+/// section puts the node on both walls of the equal pair only to within
+/// the band (each wall's outward radial there is the node's normal to
+/// within `band.escalate()`, as `geom_brep`'s bisector pose asserts), so
+/// it is held in band ([`crate::held::Held::in_band`]). A reading off a
+/// wall is a desync.
 fn placed<T: Decide>(
     (operand, body): (Operand, &Body<T>),
     face: crate::entity::FaceKey,
     node: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Placed, BooleanError> {
-    match curved_face_placement(body, face, node, band)
+    let held = crate::held::Held::in_band(node);
+    match super::contain::placement_on_carrier(body, face, held, band)
+        .map(|(at, _, _)| at)
         .map_err(|e| super::reduce::esc(e, operand, face))?
     {
         CurvedPlacement::Trim(Some(FaceContainment::Out)) => Ok(Placed::Out),
@@ -306,7 +313,7 @@ pub(super) fn bisector_datum<T: Decide>(
     let side = |(origin, normal): Bisector<T>| {
         crate::validate::decide(
             super::reduce::factored_crossing::FACTORED_PLANE_SIDE,
-            Margin::of((p - origin).dot(normal)),
+            Margin::of(geom::plane_offset(origin, normal, p)),
             band,
         )
         .map_err(|diag| {
@@ -337,10 +344,10 @@ pub(super) fn bisector_datum<T: Decide>(
     };
     // The pierced wall's residual grows radially, away from its axis.
     let radial = geom::Line { origin, dir: axis }.offset(p);
-    let r = radial.norm();
+    let (radial_hat, r) = radial.direction_and_length();
     let outward = wall_sense(
         n_pierced.vec(),
-        radial / r,
+        radial_hat,
         geom_core::Lever::curvature_radius(r),
         band,
     )?;
@@ -363,7 +370,6 @@ mod tests {
     /// origin: on A's wall B's residual is `z² − y² = 2·d₀·d₁`, `d₀` the
     /// distance from the `ẑ − ŷ` plane and `d₁` from the `ẑ + ŷ` one.
     fn pair() -> ([super::Bisector<f64>; 2], [geom::Surface<f64>; 2]) {
-        let unit = |v: Vec3<f64>| v / v.norm();
         let (a1, a2) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0));
         let o = Point3::new(0.0, 0.0, 0.0);
         let wall = |axis| geom::Surface::Cylinder {
@@ -373,7 +379,7 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         (
-            [(o, unit(a1 - a2)), (o, unit(a1 + a2))],
+            [(o, (a1 - a2).normalize()), (o, (a1 + a2).normalize())],
             [wall(a1), wall(a2)],
         )
     }
@@ -465,16 +471,15 @@ mod tests {
     /// about B's outward normal.
     #[test]
     fn a_node_mints_a_germ_at_each_arc_end_and_runs_through_bs_sectors_inside_a() {
-        let unit = |v: Vec3<f64>| v / v.norm();
         let o = Point3::new(0.0, 0.0, 0.0);
         let wall = |axis: Vec3<f64>| geom::Surface::Cylinder {
             origin: o,
             axis,
             radius: 1.0,
-            u_ref: unit(axis.orthonormal_basis().0),
+            u_ref: axis.orthonormal_basis().0.normalize(),
         };
         let axis_of = |s: &geom::Surface<f64>| match s {
-            geom::Surface::Cylinder { axis, .. } => unit(*axis),
+            geom::Surface::Cylinder { axis, .. } => axis.normalize(),
             _ => unreachable!(),
         };
         for angle in [0.5_f64, 1.2, 2.3] {
@@ -503,7 +508,7 @@ mod tests {
                             .into_iter()
                             .filter(|&(t, _)| (curve.eval(t) - node.point).norm() < 1e-9)
                             .map(|(t, sign)| curve.deriv(t) * sign)
-                            .map(unit)
+                            .map(Vec3::normalize)
                             .collect::<Vec<_>>();
                         assert!(
                             leaves.iter().any(|d| (*d - rays[i]).norm() < 1e-9),
@@ -522,7 +527,7 @@ mod tests {
                         );
                         let n_b = if b_along { node.normal } else { -node.normal };
                         for (s0, e0) in runs {
-                            let m = unit(rays[s0] + rays[e0]);
+                            let m = (rays[s0] + rays[e0]).normalize();
                             let h = 1e-2;
                             let q = node.point + m * h
                                 - node.normal * ((1.0 - m.dot(ay).powi(2)) * h * h / 2.0);

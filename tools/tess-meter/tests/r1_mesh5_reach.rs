@@ -73,7 +73,7 @@ fn frustum_wedge(r0: f64, r1: f64, h: f64, theta: f64) -> Result<Body<f64>, Stri
         Revolution::Partial(theta),
         Tol::witness(),
     )
-    .map(|r| r.body)
+    .map(|r| r.body.into_body())
     .map_err(|e| format!("revolve: {e:?}"))
 }
 
@@ -81,13 +81,13 @@ fn frustum_wedge(r0: f64, r1: f64, h: f64, theta: f64) -> Result<Body<f64>, Stri
 /// `(nu, nv_old)` its patch would have been sized to.
 fn cone_faces(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
     let mut out = Vec::new();
-    for (_fk, f) in body.faces() {
+    for (_fk, _) in body.faces() {
         if let Some(&Surface::Cone {
             apex,
             axis,
             half_angle,
             ..
-        }) = body.get_surface(f.surface)
+        }) = body.face_surface(_fk)
         {
             let _ = (apex, axis);
             out.push((half_angle, f64::NAN, f64::NAN));

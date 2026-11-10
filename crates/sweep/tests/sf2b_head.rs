@@ -36,6 +36,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// A meridian whose belly is an arc from `(r0, y0)` to `(r1, y1)`
@@ -142,6 +143,7 @@ fn wedge() -> Body<f64> {
     )
     .expect("a quarter revolve")
     .body
+    .into_body()
 }
 
 /// The distinct incident surface kinds at every vertex, as a sorted
@@ -253,16 +255,10 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
     // direction is this door's or the offset mint's.
     for m in &moves {
         let mut one = body.clone();
-        let before = one
-            .get_face(m.faces[0])
-            .and_then(|f| one.get_surface(f.surface))
-            .cloned();
+        let before = one.face_surface(m.faces[0]).cloned();
         match topo::replace_faces_offset(&mut one, &m.faces, m.distance, tol) {
             Ok(_) => {
-                let after = one
-                    .get_face(m.faces[0])
-                    .and_then(|f| one.get_surface(f.surface))
-                    .cloned();
+                let after = one.face_surface(m.faces[0]).cloned();
                 println!("  per-chart d={}: {before:?} -> {after:?}", m.distance);
             }
             Err(e) => println!("  per-chart d={} REFUSED: {e:?}", m.distance),
@@ -314,8 +310,8 @@ fn sf2b_bellied_pot_sealed_and_opened() {
     }
     let mouth: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, .. }) if (origin.y - 8.0 / 64.0).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -366,7 +362,7 @@ fn sf2b_head_measurement() {
             println!(
                 "  chart sense={}: {:?}",
                 f.sense,
-                body.get_surface(f.surface).expect("surface")
+                body.face_surface(k).expect("surface")
             );
         }
         for (form, n) in corner_forms(&body) {

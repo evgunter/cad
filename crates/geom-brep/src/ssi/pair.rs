@@ -260,7 +260,11 @@ pub struct PairReading {
 impl core::fmt::Debug for Section<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
-            lane, pass, banked, ..
+            lane,
+            pass,
+            banked,
+            rows: _,
+            corners: _,
         } = self;
         f.debug_struct("Section")
             .field("domain", &lane.domain)
@@ -430,7 +434,7 @@ impl<'a> PairLane<'a> {
         let pair = self.boxes();
         let r = Box4::of_charts(self.a.surface(), self.b.surface());
         let unresolved = |cause| SsiError::PairBoundaryUnresolved {
-            pieces: PAIR_BOUNDARY_PIECES,
+            pieces: PAIR_BOUNDARY_PIECES.left(),
             cause,
         };
         let rungs = self.cover_rungs(r)?;
@@ -566,7 +570,7 @@ impl<'a> PairLane<'a> {
             }
         }
         Err(SsiError::PairBoundaryUnresolved {
-            pieces: PAIR_BOUNDARY_PIECES,
+            pieces: PAIR_BOUNDARY_PIECES.left(),
             cause: PairBoundaryCause::CoverUnread,
         })
     }
@@ -607,7 +611,7 @@ impl<'a> PairLane<'a> {
     /// inside `q`, which holds exactly one solution.
     fn settle_crossing(&self, q: Box4, k: usize, high: bool) -> Result<Crossing, SsiError> {
         let free: Vec<usize> = (0..4).filter(|&i| i != k).collect();
-        let mut x = q.0.map(|(lo, hi)| 0.5 * (lo + hi));
+        let mut x = q.0.map(|(lo, hi)| geom::mid_param(lo, hi));
         let tol = self.ctx.tol.settling();
         let chart = if k < 2 {
             BoundaryChart::First
@@ -868,7 +872,7 @@ pub(crate) fn branch_witness(
     else {
         return None;
     };
-    let mid = 0.5 * (branch.params.0 + branch.params.1);
+    let mid = geom::mid_param(branch.params.0, branch.params.1);
     let (at_a, at_b) = (pa.eval(mid), pb.eval(mid));
     let m = [at_a.x, at_a.y, at_b.x, at_b.y];
     let chain = super::certify::pair_tube_chain((pa, pb), (pad_a, pad_b))?;

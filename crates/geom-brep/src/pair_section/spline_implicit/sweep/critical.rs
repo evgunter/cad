@@ -263,7 +263,7 @@ fn range((lo, hi): (f64, f64)) -> Option<Interval> {
 
 /// The middle of an interval.
 fn mid(x: Interval) -> f64 {
-    0.5 * (x.lo() + x.hi())
+    geom::mid_param(x.lo(), x.hi())
 }
 
 /// **The Krawczyk box of `x`**, `K ∩ x`, and whether `K` lies strictly

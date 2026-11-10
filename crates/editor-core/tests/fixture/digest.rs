@@ -124,10 +124,8 @@ pub fn feed_body(feed: &mut impl FnMut(&[u8]), body: &Body<f64>) {
     // The topology's attachment to that geometry, both ways: a face's
     // carrier and an edge's curve. A re-plumbing that kept every arena
     // and re-pointed the topology at it moves these and nothing above.
-    for (key, face) in body.faces() {
-        let surface = body
-            .get_surface(face.surface)
-            .expect("a face has a carrier");
+    for (key, _) in body.faces() {
+        let surface = body.face_surface(key).expect("a face has a carrier");
         feed(format!("{key:?}{surface:?}").as_bytes());
     }
     for (key, edge) in body.edges() {

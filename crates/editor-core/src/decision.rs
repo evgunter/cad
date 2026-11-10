@@ -47,7 +47,7 @@ fn lookup<V: Copy>(table: &[(&str, V)], predicate: &str) -> Option<V> {
 
 /// A size the user may have chosen: the levers, with the tolerance arm
 /// a value gives.
-const SIZED: EndingKind = EndingKind::Sized;
+const SIZED: EndingKind = EndingKind::Sized(COINCIDENCE_RECOURSE);
 /// No size the user chose (an angle, a direction's gauge, a curve
 /// parameter): the coincidence lever alone.
 const LEVER: EndingKind = EndingKind::Lever(COINCIDENCE_RECOURSE);
@@ -109,14 +109,25 @@ impl Decision {
     }
 }
 
+/// What an escalation was deciding, in words, read off the name its
+/// funnel recorded ([`Indeterminate::predicate`]):
+/// [`geom_core::UNNAMED_DECISION`] where this crate has no words for
+/// that name, or the escalation named none.
+pub(crate) fn subject(source: &Indeterminate) -> &'static str {
+    source
+        .predicate
+        .and_then(words)
+        .unwrap_or(geom_core::UNNAMED_DECISION)
+}
+
 /// The one ending of an escalation under `predicate`, read at the build
-/// its door reports: its [`Decision`]'s kind. A name with no row ends as
-/// a sized one and says no recourse is recorded for it
-/// ([`geom_core::MissingRecourse`]).
-pub(crate) fn ending(predicate: &str, source: &Indeterminate) -> String {
+/// its door reports: its [`Decision`]'s kind. A name with no row, and an
+/// escalation with no name, ends as a sized one and says no recourse is
+/// recorded for it ([`geom_core::MissingRecourse`]).
+pub(crate) fn ending(predicate: Option<&str>, source: &Indeterminate) -> String {
     source.ending_by(
-        Decision::named(predicate).map(Decision::ending),
-        Some(predicate),
+        predicate.and_then(Decision::named).map(Decision::ending),
+        predicate,
     )
 }
 
@@ -175,7 +186,6 @@ mod undecided_text {
 
     fn node(predicate: &'static str, margin: MarginDiag) -> String {
         NodeErrorKind::Escalated {
-            predicate,
             source: at(predicate, margin),
         }
         .to_string()
@@ -292,7 +302,6 @@ mod undecided_text {
             "naming",
             |m| {
                 NamingError::Escalated {
-                    predicate: crate::names::ON_MEMBER_EDGE,
                     source: at(crate::names::ON_MEMBER_EDGE, m),
                 }
                 .to_string()

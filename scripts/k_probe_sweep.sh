@@ -126,7 +126,10 @@ finish_run() {
 # probe suite needs. Three suites (the E6 driver's and two `Sym<Interval>`
 # ones) needed `interval` besides while the certified lane sat behind that
 # feature, and compiled to NOTHING without it; the feature is deleted
-# (RING-4), so they compile under `probe` alone.
+# (RING-4), so they compile under `probe` alone. Whatever else a crate's
+# own tests need (`test-support`) is on that crate's self dev-dependency,
+# not here: scripts/gates/test-support-self-edge.sh holds every manifest
+# to it.
 feats_for() {
   echo probe
 }
@@ -176,7 +179,7 @@ run_dump() {
 # WHAT THESE TESTS ASSERT, stated because it is what decides the
 # placement: one-sided GREENNESS at `Probe` — `failures(&ev).is_empty()`
 # — and not bit-identity against an f64 run, which the `--ignored` half's
-# `probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` compares and this
+# `probe_agrees_with_f64_bit_for_bit_save_the_lane_pass_keys` compares and this
 # selection does not. Greenness is TOLERANCE-DEPENDENT, so this runs at a stated ε
 # rather than at whatever the ambient default happens to be.
 #

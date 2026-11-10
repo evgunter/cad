@@ -25,7 +25,7 @@ use profile::SegmentKind;
 pub(super) const REVOLVE_AXIS_DIRECTION: &str = "revolve_axis_direction";
 
 /// The classified axis in both coordinate systems: the sketch-plane
-/// line plus its placed 3-D frame. `a3`/`u3` are the **shared
+/// line plus its placed 3-D frame. `axis`/`u3` are the **shared
 /// azimuthal frame** every revolution surface of this call uses
 /// (module docs): `u3` points at the angle-0 (seam) meridian
 /// half-plane.
@@ -37,13 +37,12 @@ pub(super) struct AxisFrame<T: Real> {
     pub(super) dir_sk: Vec2<T>,
     /// The sketch placement (carried for convenience).
     pub(super) place: Affine3<T>,
-    /// Placed axis origin.
-    pub(super) o3: Point3<T>,
-    /// Placed unit axis direction.
-    pub(super) a3: Vec3<T>,
-    /// [`Self::a3`] as the witness it is: the sketch axis's decided
-    /// direction turned by the sketch frame, the axis the revolve
-    /// turns about.
+    /// The sketch axis's origin, placed.
+    pub(super) origin3: Point3<T>,
+    /// The placed axis direction as the witness it is: the sketch axis's
+    /// decided direction turned by the sketch frame, the axis the
+    /// revolve turns about. The frame's one copy of it; the axis line
+    /// reads it ([`Self::line3`]).
     pub(super) axis: UnitVec3<T>,
     /// Placed unit radial direction (the seam meridian; `u_ref` of
     /// every revolution surface).
@@ -139,8 +138,7 @@ impl<T: Decide> AxisFrame<T> {
             origin_sk: axis.origin,
             dir_sk,
             place,
-            o3: place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero())),
-            a3: turn_axis.get(),
+            origin3: place.transform_point(Point3::new(axis.origin.x, axis.origin.y, T::zero())),
             axis: turn_axis,
             u3: place.linear * Vec3::new(e_r.x, e_r.y, T::zero()),
             n3: place.linear.c2,
@@ -183,19 +181,40 @@ pub(super) fn turn_past<T: Real>(start: Point2<T>, arc: Arc2<T>, turn: Sign, tow
 }
 
 impl<T: Real> AxisFrame<T> {
+    /// **The placed axis line**: [`Self::origin3`] along the decided unit
+    /// [`Self::axis`]. Read off the frame's two fields, so the direction
+    /// is held once.
+    pub(super) fn line3(&self) -> geom::Line<T> {
+        geom::Line {
+            origin: self.origin3,
+            dir: self.axis.get(),
+        }
+    }
+
     /// The unit radial direction `ê_r` in sketch coordinates.
     pub(super) fn e_r(&self) -> Vec2<T> {
         radial_of(self.dir_sk)
     }
 
-    /// The signed radial coordinate of a sketch point (module docs).
-    pub(super) fn r(&self, p: Point2<T>) -> T {
-        (p - self.origin_sk).perp_dot(self.dir_sk)
+    /// The sketch axis as a line.
+    fn line_sk(&self) -> geom_core::Line2<T> {
+        geom_core::Line2 {
+            origin: self.origin_sk,
+            dir: self.dir_sk,
+        }
     }
 
-    /// The axial coordinate of a sketch point.
+    /// The signed radial coordinate of a sketch point (module docs):
+    /// its [`geom_core::Line2::side`] off the axis, negated, positive
+    /// to the axis's right.
+    pub(super) fn r(&self, p: Point2<T>) -> T {
+        T::zero() - self.line_sk().side(p)
+    }
+
+    /// The axial coordinate of a sketch point: its
+    /// [`geom_core::Line2::height`] along the axis.
     pub(super) fn axial(&self, p: Point2<T>) -> T {
-        (p - self.origin_sk).dot(self.dir_sk)
+        self.line_sk().height(p)
     }
 
     /// The placed axis point at a sketch point's axial coordinate —

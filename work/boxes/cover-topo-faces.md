@@ -2,10 +2,13 @@
 id: cover-topo-faces
 kind: unit
 title: topo::face_cover and edge_cover replace FaceBoxRule and both box lanes; Span's arithmetic goes; the two-cover overlap reads the meet
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
+branch: boxes/cover-topo-faces
+closed: 2026-11-08
+pr: 6579
 ---
 
 
@@ -26,3 +29,12 @@ Third unit of the cover build (`cover-geom-readings` has the order and the ratif
 Closes into this unit: `D280`, `sphere-operand-box-is-the-whole-ball`, and most of the P3/P4 arm rows parked on it. Close each one that the new arm settles, and re-file or re-park the rest with what still stands.
 
 - **Retire `boxes::BoxFrame`** onto `geom::cover::Frame` (PR 6383's review: `Frame` is a near-copy, about 58 references remain). The `orthonormal_basis` gate's second home for `cover.rs` then becomes the only one.
+
+## Closed (PR 6579, 2026-11-08)
+
+Landed through a concurrent dual review and one fix pass (`docs/dual-review-log/rows/PR-6579.md`). The face and edge readings live at topo's crate root (`crates/topo/src/cover.rs`), as `[topo.homes]`' signature test puts them. Every arm is the carrier's cover met with what the reading proves. The slab and frustum terms went once the fix pass showed a ruled face lies in its boundary's hull.
+
+Still open:
+- `cover-carrier-level-piece`: depth_gap's carrier level, the C7 question both reviewers answered (a);
+- `the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement` (P2);
+- the restated sphere and torus rows. (BOXES orchestrator)

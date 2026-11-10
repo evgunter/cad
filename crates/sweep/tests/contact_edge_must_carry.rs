@@ -249,7 +249,7 @@ fn corpus() -> Vec<(String, Body<f64>)> {
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 )
             });
-        (name.to_owned(), out.body)
+        (name.to_owned(), out.body.into_body())
     };
     let mut rows = Vec::new();
     let body = cube(1.0, tol);
@@ -595,7 +595,7 @@ fn the_near_osculating_family_is_screened_by_the_battery_before_the_rule() {
 #[test]
 fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever() {
     let b = band();
-    let die = cube(1.0, tol());
+    let die = cube::<f64>(1.0, tol());
     let r = 1.5 * b.escalate();
     in_band_refusal(
         fillet_edges(
@@ -633,7 +633,7 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();
-    let die = sweep::test_support::finished("die", cube(1.0, tol()), tol());
+    let die = sweep::test_support::finished("die", cube::<f64>(1.0, tol()), tol());
     in_band_refusal(
         fillet_edges(&die, &query::all_edges(&die), 1.5 * b.escalate(), tol()),
         "the die at r = 1.5·Kε",
@@ -673,6 +673,13 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
 
     // The slim corner arc, on the fixture its pin lives on.
     let scale = b.zero() / 1e-9;
+    if scale > 1e2 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-7",
+            "the skewed cavity scales with eps, and past 1e-7 it leaves the session box",
+        );
+        return;
+    }
     let r = 8.7e-5 * scale;
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
@@ -725,8 +732,9 @@ fn corner_arc_pairs(out: &Filleted<f64>) -> usize {
 /// `tangent_second_order` per contact edge in the rule, and the
 /// certification door then re-asks the same question at the same
 /// stations for the stored `TangentIntersection` — the rod's four
-/// trimlines spend `4 × (7 + 7)`. Without the rule the count is the
-/// certificate's half alone.
+/// trimlines spend `4 × (7 + 7)` beside the door's finish
+/// (`finish_spend`). Without the rule the count is the certificate's
+/// half alone.
 #[cfg(feature = "probe")]
 #[test]
 fn each_contact_edge_spends_the_rules_stations_once_beside_the_certificates() {
@@ -758,8 +766,15 @@ fn each_contact_edge_spends_the_rules_stations_once_beside_the_certificates() {
         contact, 4,
         "the rod's four trimlines store the intrinsic tangency"
     );
+    let finish =
+        crate::contact_edge_must_carry::finish_spend(&out.body, "tangent_second_order", tol());
     assert_eq!(
-        spent,
+        finish,
+        contact * 2 * interior,
+        "the door's finish reads each contact edge's stations twice more: tier 2's edge wedge and tier 3's recertification"
+    );
+    assert_eq!(
+        spent - finish,
         contact * 2 * interior,
         "each contact edge spends the schedule's interior once in the rule and once in the \
          certificate"
@@ -817,4 +832,27 @@ fn the_rule_reads_every_corpus_contact_the_same_in_both_orders_at_interval() {
         }
     }
     assert!(read > 0, "the corpus carves contact edges");
+}
+
+/// **What one finish of `body` spends of `predicate`** on the K stream:
+/// the samples a run of the scalar's finish records over it. A door
+/// returns a finished body, so a door's spend is its own decisions plus
+/// one finish. A suite that counts the door's decisions subtracts this,
+/// rather than carrying the finish's reads in its own arithmetic.
+///
+/// Starts a fresh recording, so call it after taking the door's samples.
+#[cfg(feature = "probe")]
+pub(crate) fn finish_spend(
+    body: &Body<geom_core::Probe>,
+    predicate: &str,
+    tol: geom_core::Tol,
+) -> usize {
+    geom_core::k_stats::start_recording();
+    let finished = topo::finish(body.clone(), tol);
+    let spent = geom_core::k_stats::take_samples()
+        .iter()
+        .filter(|s| s.predicate == predicate)
+        .count();
+    assert!(finished.is_ok(), "the door's own body finishes again");
+    spent
 }

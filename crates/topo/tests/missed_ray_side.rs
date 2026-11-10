@@ -12,11 +12,8 @@
 
 use crate::common;
 use common::brick;
-use geom_core::{Band, Bounds, Decide, Dual64, Point3, Tol};
-use topo::{
-    AtRestBody, AtRestOutcome, AtRestPolicy, Body, BooleanError, BooleanResult, Operand,
-    SolidContainment, ValidationError, point_in_solid,
-};
+use geom_core::{Band, Point3, Tol};
+use topo::{AtRestBody, Body, BooleanResult, SolidContainment, ValidationError, point_in_solid};
 
 /// The slab thicknesses, in ε: the in-band window of `V/A`, its ends
 /// included.
@@ -38,7 +35,7 @@ fn slab(t: f64, tol: Tol) -> Body<f64> {
 }
 
 fn at_rest(body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(body, tol).expect("the operand is at rest")
+    topo::finish(body, tol).expect("the operand is at rest")
 }
 
 fn far_brick(tol: Tol) -> AtRestBody<f64> {
@@ -237,43 +234,6 @@ fn two_thin_slabs_in_one_body_read_their_sides() {
     }
 }
 
-/// Every op in both orders between `rev` and each of `others` refuses
-/// `InsideOutOperand`, naming `rev`'s operand and its one solid inside
-/// out (check 7's `NegativeVolume`).
-fn refused_as_inside_out<T: Decide + Bounds + AtRestPolicy>(
-    what: &str,
-    rev: &AtRestBody<T>,
-    others: &[(&str, AtRestBody<T>)],
-) {
-    type Op<T> = fn(&AtRestBody<T>, &AtRestBody<T>, Tol) -> Result<BooleanResult<T>, BooleanError>;
-    let tol = Tol::witness();
-    let ops: [(&str, Op<T>); 3] = [
-        ("∪", topo::union::<T>),
-        ("∩", topo::intersect::<T>),
-        ("∖", topo::subtract::<T>),
-    ];
-    for (place, other) in others {
-        for (name, op) in ops {
-            for (a, b, inside_out) in [(rev, other, Operand::A), (other, rev, Operand::B)] {
-                match op(a, b, tol) {
-                    Err(BooleanError::InsideOutOperand { operand, errors }) => {
-                        assert_eq!(operand, inside_out, "{what} {place} {name}: the operand");
-                        assert!(
-                            matches!(errors[..], [ValidationError::NegativeVolume { .. }]),
-                            "{what} {place} {name}: {errors:?}"
-                        );
-                    }
-                    other => panic!(
-                        "{what} {place} {name} ({inside_out:?} inside-out): want \
-                         InsideOutOperand, got {:?}",
-                        other.map(|_| ())
-                    ),
-                }
-            }
-        }
-    }
-}
-
 /// **An inside-out slab never finishes at rest.** Its `V/A` is in band,
 /// but check 7 reads its orientation off a ray aimed at one of its faces,
 /// which crosses into its material first: the at-rest gate refuses it,
@@ -285,40 +245,11 @@ fn an_inside_out_slab_refuses_at_rest() {
         let rev = slab(m * tol.eps(), tol).revert().unwrap();
         let solid = rev.solids().next().expect("one solid").0;
         assert_eq!(
-            AtRestBody::validate(rev, tol).map(|_| ()),
+            topo::finish(rev, tol)
+                .map(|_| ())
+                .map_err(topo::NotFinished::into_findings),
             Err(vec![ValidationError::NegativeVolume { solid }]),
             "{m}ε: the at-rest gate refuses the inside-out slab"
         );
-    }
-}
-
-/// **At a dual, the operand gate refuses it.** A dual's policy runs no
-/// at-rest gate, so the inside-out slab reaches the Boolean with no
-/// verdict; the operand gate reads every solid of such an operand with
-/// check 7's reader, and refuses it in every op and both orders.
-#[test]
-fn an_inside_out_slab_is_refused_as_an_operand_at_a_dual() {
-    let tol = Tol::witness();
-    let kept =
-        |b: Body<Dual64>| Dual64::gate_at_rest_kept(b, tol).expect("a dual gate runs nothing");
-    let others = [
-        (
-            "far",
-            kept(brick::<Dual64>((5.0, 6.0), (5.0, 6.0), (5.0, 6.0), tol)),
-        ),
-        (
-            "across",
-            kept(brick::<Dual64>((0.5, 1.5), (0.5, 1.5), (-1.0, 1.0), tol)),
-        ),
-    ];
-    for m in WINDOW {
-        let t = m * tol.eps();
-        let rev = kept(
-            brick::<Dual64>((0.0, 1.0), (0.0, 1.0), (0.0, t), tol)
-                .revert()
-                .unwrap(),
-        );
-        assert_eq!(rev.outcome(), AtRestOutcome::NotRunAtThisScalar);
-        refused_as_inside_out(&format!("dual {m}ε"), &rev, &others);
     }
 }
