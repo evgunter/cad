@@ -2041,7 +2041,9 @@ A create gesture asks for two things and nothing else:
   can read: a planar face, or a plane already defined), a blend's edge
   set, and the face a profile is drawn on. A live node's reads change only by the slot door or
   `SetMembers` (DM6, `crates/editor-core/REFERENCES.md`), so they are
-  stated at insert.
+  stated at insert. A selection reads one body (DM3): entities picked
+  on a drawn member of a family are selected in that member,
+  `pattern[1]`, by the member's own names.
 
 It inserts the node with default values and selects the node its noun
 names (the pattern, not the pattern's placement). A default is worked

@@ -2293,7 +2293,7 @@ class Node:
 
     @staticmethod
     def drawn_profile(
-        frame: _Operand, faces: list[tuple[_Operand, str]], outline: Chain | list[Chain]
+        frame: _Operand, faces: list[tuple[_BodyArg, str]], outline: Chain | list[Chain]
     ) -> Node:
         """A profile drawn on `frame`, tracing `faces`: its chain (a
         `Chain`, or a list of them, outer first) reads the trace of each
@@ -2668,16 +2668,17 @@ class PoseDef:
     component of a direction."""
 
     @staticmethod
-    def plane(at: _Operand, face: str) -> PoseDef:
+    def plane(at: _BodyArg, face: str) -> PoseDef:
         """A face read as a plane: its carrier's plane, with the face's
-        outward normal. A curved face refuses `pose_read` at
-        `evaluate`."""
+        outward normal. `at` may be one member of a family, `xs[i]`,
+        read by the member's own name. A curved face refuses
+        `pose_read` at `evaluate`."""
     @staticmethod
-    def axis(at: _Operand, name: str) -> PoseDef:
+    def axis(at: _BodyArg, name: str) -> PoseDef:
         """A cylinder's, a cone's or a torus's axis, a straight edge's
         line, or a circular edge's axis."""
     @staticmethod
-    def point(at: _Operand, name: str) -> PoseDef:
+    def point(at: _BodyArg, name: str) -> PoseDef:
         """A sphere's, a torus's or a circle's centre, a cone's apex, or
         a vertex's point."""
     @staticmethod
@@ -5636,8 +5637,8 @@ class Evaluation:
         anything."""
     def traced_frame(
         self,
-        plane: tuple[_Operand, str],
-        traced: tuple[_Operand, str],
+        plane: tuple[_BodyArg, str],
+        traced: tuple[_BodyArg, str],
     ) -> PoseDef:
         """The frame a sketch tracing a face stands on: `Through` the
         traced face's own axis and a vertex of the plane face `plane`,

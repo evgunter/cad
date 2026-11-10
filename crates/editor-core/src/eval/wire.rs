@@ -2566,7 +2566,19 @@ where
                 },
             )
         };
-        read.push((at, ent, reference_body(results, slot, var, (at, ent))?));
+        let framed = reference_body(results, slot, var, (at, ent))?;
+        // A member read is its body alone where it is read, and its
+        // place among the family's bodies where the pair is reported and
+        // the rebuild reads it.
+        let place = match doc.selection(var) {
+            Some(select) => member_place(doc, results, slot, select, params)?,
+            None => None,
+        };
+        let ent = names::EntityRef {
+            body: place.unwrap_or(ent.body),
+            ..ent
+        };
+        read.push((at, ent, framed));
     }
     let Some(lane) = T::clearance_lane() else {
         return answer(ClearanceReport::refused(
@@ -3010,6 +3022,25 @@ pub(super) fn selection_member<T: Decide>(
         })
         .collect::<Result<Vec<i64>, _>>()?;
     Ok(Some((family, at)))
+}
+
+/// **The place of the member a selection's body read picks** among its
+/// family's bodies ([`selection_member`]), `None` for a plain read.
+fn member_place<T: topo::AtRestPolicy + Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    slot: crate::OperandSlot,
+    select: &crate::var::Select,
+    params: &crate::expr::VarEnv<T>,
+) -> Result<Option<u32>, NodeErrorKind> {
+    let Some((family, at)) = selection_member(doc, slot, select, params)? else {
+        return Ok(None);
+    };
+    let whole = value_of(results, family)?.whole();
+    let Some(members) = &whole.members else {
+        return Err(wrong_operand(whole, family, super::family::INSTANCES));
+    };
+    member_at(family, members, &at).map(|(place, _)| Some(place))
 }
 
 /// **The table a selection's names are**: the body's own. For a member

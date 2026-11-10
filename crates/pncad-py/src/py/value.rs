@@ -1819,10 +1819,10 @@ impl Evaluation {
     /// or has no vertex off the axis.
     fn traced_frame(
         &self,
-        plane: (super::doc::OperandArg, String),
-        traced: (super::doc::OperandArg, String),
+        plane: (super::doc::BodyArg, String),
+        traced: (super::doc::BodyArg, String),
     ) -> PyResult<super::pose::PoseDef> {
-        let face = |(body, name): (super::doc::OperandArg, String)| {
+        let face = |(body, name): (super::doc::BodyArg, String)| {
             Ok::<_, PyErr>(d::Operand::select(
                 body.read(),
                 vec![super::doc::name_from_text(&name)?],

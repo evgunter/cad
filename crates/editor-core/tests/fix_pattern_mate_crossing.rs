@@ -361,25 +361,17 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
 }
 
 /// A head whose `Member` qualifier keys FEWER indices than its family
-/// is over is outside A11's member vocabulary, so the constraint is not
-/// an edge, and its two ends reach opposite sides of an accepted cut.
+/// is over names no member, and no side can state it: the side it spells
+/// reads the family at one index of two, which the door refuses as the
+/// read's rank (`SelectionFault::IndexRank`, REFERENCES DM3). So no such
+/// constraint reaches a seam, and the gate asking the member vocabulary
+/// is never handed a head its walk refuses (AQ8 option (b), SKIP —
+/// `crates/editor-core/ASSEMBLY.md`'s AQ8 clause).
 ///
-/// A member of a family of families is keyed by both indices, and a
-/// name keying both resolves. The name here keys ONE of the two — the
-/// name the family's table never mints — so the walk refuses it at the
-/// family, structurally, before any value is read.
-///
-/// INVARIANT (AQ8 option (b), SKIP — `crates/editor-core/ASSEMBLY.md`'s
-/// AQ8 clause):
-/// such a constraint contributes NO crossing however its names fall,
-/// because it never solved and a record minted from it would be
-/// trusted-at-rest state. This is the row that separates a gate asking
-/// the member vocabulary from one matching a head's SPELLING: admitting
-/// a family's placement by shape mints a record here, for a constraint the
-/// member walk never resolved.
+/// *Breaks if* a side reading a family of families at one index is
+/// admitted.
 #[test]
-fn an_underqualified_family_head_reaches_the_seam_and_contributes_no_crossing() {
-    let o = blocks_reach(&["fix-xs-n-leg"]);
+fn an_underqualified_family_head_is_refused_at_the_door() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-nested"), Tol::witness());
     let (doc, leg, leg_body) = pinned_block(doc, "fix-xs-n-leg");
     let (doc, i, inner) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
@@ -388,36 +380,31 @@ fn an_underqualified_family_head_reaches_the_seam_and_contributes_no_crossing() 
         fixture::family_of(doc, inner, fixture::slides_along(j, [0.0, 1.0, 0.0], 5.0));
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    // The constraint door is structural, so a target whose head
-    // resolves to no member is admitted as written.
-    let (doc, mate) = seat(
-        doc,
-        top,
-        in_member(outer, vec![(j, 1)], in_part(leg, leg_body, CapEnd::End)),
-        in_part(top, top_body, CapEnd::Start),
-    );
-
-    // No member at the nested head: only the top's side resolves.
-    assert_eq!(
-        seam_members(&doc, mate),
-        vec![(mate, top)],
-        "an underqualified head resolves to no member"
-    );
-
-    // The cut is accepted, with the constraint's ends on opposite
-    // sides — the reachable seam a spelling-matched gate would mint on.
-    let out = editor_core::split(
+    let refused = editor_core::apply(
         &doc,
-        &cut(&doc, [leg, inner, outer]),
-        DocumentId::derive("fix-xs-nested-part"),
+        &editor_core::DocEdit::AddConstraint {
+            placement: top,
+            mate: Box::new(fixture::rest(
+                fixture::head(in_part(top, top_body, CapEnd::Start)),
+                fixture::head(in_member(
+                    outer,
+                    vec![(j, 1)],
+                    in_part(leg, leg_body, CapEnd::End),
+                )),
+            )),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
-        o.resolver.as_ref(),
-        &editor_core::Stop::default(),
-    )
-    .expect("the cut is closed: the kept top reads the cut side");
+    );
     assert!(
-        crossings(&out.remainder, out.instance).is_empty(),
-        "a constraint that is not an edge says nothing about the seam (AQ8 SKIP)"
+        matches!(
+            refused,
+            Err(editor_core::EditError::SelectionShape {
+                fault: editor_core::SelectionFault::IndexRank { found: 1, rank: 2 },
+                ..
+            })
+        ),
+        "an underqualified head refuses its read's rank at the door: {refused:?}"
     );
 }
 

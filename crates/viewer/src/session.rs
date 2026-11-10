@@ -3759,7 +3759,9 @@ impl DocSession {
                         .ok_or_else(|| Refusal::NotABodyRead {
                             read: Box::new(Operand::Node(face.node)),
                         })?;
-                    Ok(Operand::select(body, vec![face.name]))
+                    let (body, names) =
+                        member_selection(doc, self.evaluation(), body, vec![face.name]);
+                    Ok(Operand::select(body, names))
                 }
             }
         };
