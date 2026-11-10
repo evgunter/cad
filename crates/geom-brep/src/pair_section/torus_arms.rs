@@ -13,7 +13,7 @@ use geom_core::{
 };
 
 use super::{ClassCarrier, ComponentShape, SectionComponent};
-use crate::intersect::decide_across;
+use geom_core::k_stats::decide_across;
 
 /// **Why an arm did not count the section.**
 #[derive(Clone, Copy, Debug)]
@@ -327,14 +327,14 @@ pub(super) const WALL_NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
 /// across both two `(0,1)` loops.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn parallel_cylinder_arm<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
+    axis: geom::Line<T>,
     [big_r, r]: [T; 2],
     (e, slack): (T, T),
     toward: Vec3<T>,
     rc: T,
     band: Band,
 ) -> Result<Vec<SectionComponent<T>>, Pinch> {
+    let geom::Line { origin: c, dir: a } = axis;
     let (rho_min, rho_max) = ((e - rc).abs(), e + rc);
     let (lo, hi) = (big_r - r, big_r + r);
     let [min_over_lo, min_under_hi, max_over_lo, max_under_hi] = signs_across(
@@ -476,14 +476,14 @@ const PARALLEL_TORI_ORDER: &str = "section_torus_parallel_tori_order";
 /// is not read: every component carries a witness.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub(super) fn parallel_torus_arm<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
+    axis: geom::Line<T>,
     [[big_r, r], [big_r2, r2]]: [[T; 2]; 2],
     h: T,
     (e, slack): (T, T),
     toward: Vec3<T>,
     band: Band,
 ) -> Result<Vec<SectionComponent<T>>, Pinch> {
+    let geom::Line { origin: c, dir: a } = axis;
     let side = a.cross(toward);
     let at = |x: T, y: T, z: T| c + toward * x + a * y + side * z;
     // A level row is one tube's top or bottom against the other's. Left
@@ -669,7 +669,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
                 outer2: s2,
                 ..
             } = strands[0];
-            let y = (y_lo + y_hi) / T::from_f64(2.0);
+            let y = geom::mid_param(y_lo, y_hi);
             let (rho, rho2) = (sheet([big_r, r], y, s1), sheet([big_r2, r2], y - h, s2));
             // Read at a fixed height, the rows move with the partner by
             // one slack through `e`, and through `ρ₂` by at most the
@@ -780,18 +780,14 @@ const SQUARE_TRACE_ULPS: f64 = 2.0;
 /// `a` about the pivot, which moves it by less than the band anywhere the
 /// section can matter. An undecided margin is not a pose this arm claims.
 pub(super) fn square_pose<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
-    (o, d): (Point3<T>, Vec3<T>),
+    geom::Line { origin: c, dir: a }: geom::Line<T>,
+    partner @ geom::Line { origin: o, dir: d }: geom::Line<T>,
     ball: crate::ExtentBall<T>,
     band: Band,
 ) -> Option<SquareWall<T>> {
     if sign(
         "section_torus_square_wall_tilt",
-        Margin::levered(
-            a.dot(d),
-            super::torus::lever(ball.foot_on(geom::Line { origin: o, dir: d }), ball),
-        ),
+        Margin::levered(a.dot(d), super::torus::lever(ball.foot_on(partner), ball)),
         band,
     ) != Some(Sign::Zero)
     {
@@ -884,13 +880,13 @@ const SQUARE_EDGE_OVER: &str = "section_torus_square_wall_edge_over";
 /// pinches; a fold or strip crossing at a tube circle's top or bottom,
 /// where they cross, is unordered.
 pub(super) fn square_cylinder_arm<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
+    axis: geom::Line<T>,
     [big_r, r]: [T; 2],
     wall: &SquareWall<T>,
     rc: T,
     band: Band,
 ) -> Result<Vec<SectionComponent<T>>, ArmRefusal> {
+    let geom::Line { origin: c, dir: a } = axis;
     let &SquareWall {
         d,
         across,

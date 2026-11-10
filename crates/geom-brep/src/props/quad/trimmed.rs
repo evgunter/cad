@@ -650,15 +650,6 @@ fn trim_cells<T: Decide>(
     Ok(out)
 }
 
-/// The distinct breakpoints of a knot vector, ascending — the cell
-/// boundaries of every rule below.
-fn breakpoints(kv: &KnotVector) -> Vec<f64> {
-    let mut b: Vec<f64> = kv.knots().to_vec();
-    b.sort_by(f64::total_cmp);
-    b.dedup();
-    b
-}
-
 /// The `[lo, hi]` cell of a breakpoint list containing `t` (clamped to
 /// the ends): the cell whose polynomial the rules evaluate.
 fn cell_of(breaks: &[f64], t: f64) -> (f64, f64) {
@@ -877,10 +868,10 @@ impl Column {
             below: vbreaks
                 .windows(2)
                 .filter(|b| b[1] > b[0] && b[1] <= vk)
-                .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
+                .map(|b| (b[0], b[1], geom::mid_param(b[0], b[1])))
                 .collect(),
             vk,
-            mid_v: vk.midpoint(vk1),
+            mid_v: geom::mid_param(vk, vk1),
         }
     }
 }
@@ -1107,8 +1098,8 @@ fn chord_polygon_flux(
         sliver: 0.0,
         removable: 0.0,
     };
-    let ubreaks = breakpoints(kv_u);
-    let vbreaks = breakpoints(kv_v);
+    let ubreaks: Vec<f64> = kv_u.breakpoints().collect();
+    let vbreaks: Vec<f64> = kv_v.breakpoints().collect();
     let mut total = Interval::zero();
     let mut sliver = 0.0f64;
     let mut removable = 0.0f64;
@@ -1171,7 +1162,7 @@ fn exact_piece(
     q: f64,
 ) -> Interval {
     let mu = wu.len() - 1;
-    let mid_u = p.midpoint(q);
+    let mid_u = geom::mid_param(p, q);
     let column = Column::under(vbreaks, cell_of(vbreaks, mid(chord.ell(pt(mid_u)))));
     let scale_u = pt(q) - pt(p);
     let mut acc = Interval::zero();
@@ -1221,7 +1212,7 @@ fn composite_piece(
     let (pi, qi) = (pt(p), pt(q));
     let h = qi - pi;
     let band = Interval::hull(chord.ell(pi), chord.ell(qi));
-    let m = p.midpoint(q);
+    let m = geom::mid_param(p, q);
     let in_gap = gaps.iter().any(|&(g0, g1)| p >= g0 && q <= g1);
     let located = (p < m && m < q && !in_gap)
         .then(|| {
@@ -1331,8 +1322,8 @@ fn chord_polygon_area(
     kv_v: &KnotVector,
     cells: &[TrimCell],
 ) -> Interval {
-    let ku = breakpoints(kv_u);
-    let kvb = breakpoints(kv_v);
+    let ku: Vec<f64> = kv_u.breakpoints().collect();
+    let kvb: Vec<f64> = kv_v.breakpoints().collect();
     let v0 = kvb[0];
     let mut total = Interval::zero();
     for c in cells {
@@ -1357,7 +1348,7 @@ fn chord_polygon_area(
                 return Interval::refused();
             };
             let hu = q - p;
-            let um = p.midpoint(q);
+            let um = geom::mid_param(p, q);
             let top = ell(um);
             let Some(column) = ParamRange::spanning(v0, top) else {
                 return Interval::refused();
@@ -1376,7 +1367,7 @@ fn chord_polygon_area(
                     return Interval::refused();
                 };
                 let hv = c1 - c0;
-                let vm = c0.midpoint(c1);
+                let vm = geom::mid_param(c0, c1);
                 let (cell_g, cell_gu, cell_gv) = area_cell(
                     su,
                     sv,

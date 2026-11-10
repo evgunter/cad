@@ -145,7 +145,7 @@ use crate::props::AtRestPolicy;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 
 /// How a boolean result body came to be (module docs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1167,7 +1167,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
-    let body = gate(finished, band, tol)?;
+    let body = gate(finished, &Held::of(op, &contacts, decls), band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
     let [mut face_fragments_a, face_fragments_b] = fragments;
@@ -1385,6 +1385,18 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // entity's key (`splitting::finish`'s `carve`), so those
         // names still hold on `a2` and `b2`.
         let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+        // The re-entry's operands are not finished (the cut-ins leave
+        // joinable vertices), but they hold tiers 1 and 2: carved, turned,
+        // grafted and cut from finished operands by operators that each
+        // keep both. A finding here is a kernel defect.
+        for (what, body) in [("A", &a2), ("B", &b2)] {
+            debug_assert_eq!(
+                crate::validate_closed(body),
+                Ok(()),
+                "re-cut operand {what} fails tier 1 or 2, though every operator that made it \
+                 keeps both on a finished operand (kernel bug)"
+            );
+        }
         let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
         if let BooleanResult::Body(out) = &mut result {
             // A row names the cells of the op's inputs, not of the
@@ -1850,11 +1862,12 @@ pub(crate) fn place_witness<T: Decide>(
 }
 
 /// One face as the section certificate reads it: its key, its surface's
-/// key and description, and its certified box.
+/// key and description, its cover and its certified box.
 pub(crate) struct FaceRow<T: Real> {
     face: FaceKey,
     key: SurfaceKey,
     surface: geom::Surface<T>,
+    cover: crate::cover::FaceCovered<T>,
     bbox: bvh::Aabb,
 }
 
@@ -1871,20 +1884,28 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
     body.face_views()
         .map(|fd| {
             let (face, surface) = (fd.key(), fd.surface().clone());
+            let cover = crate::cover::face_cover(body, face, band);
+            let bbox = boxes::cover_box(&cover, pad);
             Ok(FaceRow {
                 face,
                 key: fd.record().surface,
                 surface,
-                bbox: boxes::face_box(body, face, pad, band)?,
+                cover,
+                bbox,
             })
         })
         .collect()
 }
 
-/// The section certificate's [`Reach`](geom_brep::Reach) of
-/// two overlapping face boxes ([`super::glue::overlap_ball`]).
-fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> geom_brep::Reach<T> {
-    geom_brep::Reach::Ball(super::glue::overlap_ball(box_a, box_b))
+/// The section certificate's [`Reach`](geom_brep::Reach) of two faces
+/// whose boxes overlap: the ball where their covers meet, within the
+/// band's sweep tolerance ([`crate::cover::meet_within`]).
+fn overlap_reach<T: Real>(
+    a: &crate::cover::FaceCovered<T>,
+    b: &crate::cover::FaceCovered<T>,
+    band: Band,
+) -> geom_brep::Reach<T> {
+    geom_brep::Reach::Ball(crate::cover::meet_within(a, b, boxes::sweep_pad(band)))
 }
 
 /// **The section certificate's per-pair rule** for A's face `fa` (the
@@ -1935,7 +1956,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
         None => classify_known(
             &fa.surface,
             &fb.surface,
-            &overlap_reach(&fa.bbox, &fb.bbox),
+            &overlap_reach(&fa.cover, &fb.cover, band),
             sections.region_for(&fa.surface, &fb.surface),
             T::ssi_lane(),
             band,
@@ -2900,7 +2921,7 @@ pub(crate) fn boundary_edges<T: Real>(
     let mut seen: BTreeSet<crate::entity::EdgeKey> = BTreeSet::new();
     let mut edges = Vec::new();
     for f in faces {
-        let Some(face) = body.passed_face(f) else {
+        let Some(face) = body.face(f) else {
             continue;
         };
         for member in face.boundary() {
@@ -3001,14 +3022,9 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
         let sides = crate::readback::edge_sides_of(body, edge, &edge_data);
         let (s1, s2) = sides.surfaces();
-        let he_plus = sides.plus.half_edge;
-        let start = proven(&body.half_edges, he_plus, EntityId::HalfEdge).start;
-        let p0 = body.linked_vertex_point(start, EntityId::HalfEdge(he_plus), "start");
-        let p1 = body.linked_vertex_point(
-            body.proven_half_edge_end(he_plus),
-            EntityId::HalfEdge(he_plus),
-            "end",
-        );
+        let (v0, v1) = crate::query::edge_ends(body, edge);
+        let p0 = body.linked_vertex_point(v0, EntityId::HalfEdge(sides.plus.half_edge), "start");
+        let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.plus.half_edge), "end");
         let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface();
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
         let existing = body
@@ -5543,7 +5559,7 @@ impl GluedSurfaces {
                 .pairs
                 .iter()
                 .filter_map(|pair| {
-                    let relation = pair.class.carrier_relation()?;
+                    let relation = pair.class().carrier_relation()?;
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
                     let ka = a.get_face(pair.a)?.surface;
@@ -5576,9 +5592,91 @@ impl GluedSurfaces {
     }
 }
 
+/// **The face–face records an operand carried into a result**, which
+/// the result gate reads once the result is sorted into solids
+/// ([`gate`]): each record's two faces, carried, must lie in two shells.
+pub(super) struct Held<'a> {
+    op: BooleanOp,
+    contacts: &'a ContactRecords,
+    records: [&'a OperandRecords; 2],
+}
+
+#[cfg(test)]
+impl Held<'static> {
+    /// No record carried: a row that gates a body built by hand.
+    fn nothing() -> Self {
+        Self {
+            op: BooleanOp::Union,
+            contacts: Box::leak(Box::default()),
+            records: [Box::leak(Box::default()), Box::leak(Box::default())],
+        }
+    }
+}
+
+impl<'a> Held<'a> {
+    /// The records `contacts` carries from `decls`' operands, in `op`.
+    pub(super) fn of<T: Real>(
+        op: BooleanOp,
+        contacts: &'a ContactRecords,
+        decls: &'a Glue<T>,
+    ) -> Self {
+        Self {
+            op,
+            contacts,
+            records: [&decls.records_a, &decls.records_b],
+        }
+    }
+
+    /// **No shell holds both faces of a carried area record**
+    /// ([`crate::contact::area_record`]). Two pieces an operand held
+    /// apart over an area, joined into one solid elsewhere, lie on each
+    /// other inside one shell, which the census and tier 3′ do not read:
+    /// [`BooleanError::TouchesItself`], or in a cut by the record's
+    /// holder [`BooleanError::ToolSeatCrossed`] ([`super::seat_crossed`]).
+    fn apart<T: Decide>(&self, body: &Body<T>) -> Result<(), BooleanError> {
+        let shell = |f: FaceKey| body.get_face(f).map(|d| d.shell);
+        for row in self.contacts.rows() {
+            let crate::ContactKind::FaceFace(x, y) = row.record.kind() else {
+                continue;
+            };
+            if shell(x).is_none()
+                || shell(x) != shell(y)
+                || !crate::contact::area_record(body, x, y)
+            {
+                continue;
+            }
+            for backing in row.cites.iter() {
+                let Backing::Carried { input, record } = backing else {
+                    continue;
+                };
+                let operand = if input == 0 { Operand::A } else { Operand::B };
+                let Some(carried) = self.records[usize::from(operand == Operand::B)]
+                    .ff
+                    .iter()
+                    .find(|c| c.record == record)
+                else {
+                    continue;
+                };
+                let faces = [carried.contact.a, carried.contact.b];
+                return Err(if super::seat_crossed(self.op, operand) {
+                    BooleanError::ToolSeatCrossed { record, faces }
+                } else {
+                    BooleanError::TouchesItself {
+                        operand,
+                        record,
+                        faces,
+                    }
+                });
+            }
+        }
+        Ok(())
+    }
+}
+
 /// **The result gate every [`BooleanBody`] passes**, at the site that
 /// built it: the body is sorted one solid per piece of material
-/// ([`crate::pieces`]), then finished ([`AtRestPolicy::finish`]), so the
+/// ([`crate::pieces`]), and no shell holds both faces of a face–face
+/// record an operand carried in ([`Held::apart`]), then finished ([`AtRestPolicy::finish`]), so the
 /// finish rides the result and is taken on the bits the caller
 /// receives. A solid whose only shell check 7 certified in band passes:
 /// how thin a result is gets judged by its pairs alone (D10, Booleans).
@@ -5592,14 +5690,16 @@ impl GluedSurfaces {
 /// [`coincident_wedges_disjoint`]'s.
 pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     body: Body<T>,
+    held: &Held<'_>,
     band: Band,
     tol: Tol,
 ) -> Result<T::Finished, BooleanError> {
     let mut body = body;
     let pad = super::boxes::sweep_pad(band);
-    let face_box = |body: &Body<T>, f| super::boxes::face_box(body, f, pad, band).ok();
+    let face_box = |body: &Body<T>, f| Some(super::boxes::face_box(body, f, pad, band));
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
+    held.apart(&body)?;
     pinched_at_cone_apex(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]
     let from = std::time::Instant::now();
@@ -5723,9 +5823,14 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
                     continue;
                 }
                 let p = body.linked_vertex_point(half.start, EntityId::Face(face), "loop");
-                if let Ok(crate::face_normal::ConePoint::Apex) =
-                    crate::face_normal::cone_point(apex, axis, p, band)
-                {
+                if let Ok(crate::face_normal::ConePoint::Apex) = crate::face_normal::cone_point(
+                    geom::Line {
+                        origin: apex,
+                        dir: axis,
+                    },
+                    p,
+                    band,
+                ) {
                     return Err(BooleanError::ResultPinchedAtConeApex {
                         apex: crate::census::witness(p),
                     });
@@ -6822,13 +6927,6 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CutsPerOperand, BooleanError> {
-    const ROWS: geom_brep::curve_face::circle_roots::FirstHarmonicRows =
-        geom_brep::curve_face::circle_roots::FirstHarmonicRows {
-            noise: "bool_sphere_cut_roots_noise",
-            coaxial: "bool_sphere_cut_roots_coaxial",
-            extreme: "bool_sphere_cut_roots_extreme",
-            root_slack: "bool_sphere_cut_roots_slack",
-        };
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
@@ -6855,6 +6953,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let &geom::Surface::Sphere { axis, .. } = face.surface() else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
+        let record = geom_brep::curve_pair::on_surface::Charted::record(sphere, face.surface());
         let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
@@ -6871,6 +6970,19 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         }
         let k = k.normalize();
         let h = k.cross(axis);
+        // The cut's half-meridian, a curve on the face's sphere: its chart
+        // framed on `h`, its meridian at azimuth `0`. A boundary arc lies
+        // on the same sphere, so it meets the meridian where it crosses
+        // the meridian's plane on the half-plane `h`
+        // ([`geom_brep::curve_pair::on_surface`]).
+        let meridian = match geom_brep::curve_pair::on_surface::SurfaceCurve::meridian(
+            &record.turned(h),
+            geom_core::Point2::new(T::zero(), T::zero()),
+            true,
+        ) {
+            Ok(meridian) => meridian,
+            Err(_) => unreachable!("a sphere has meridians"),
+        };
         // A point of the half-meridian by its coordinates across and
         // along the axis, `r·(cos φ, sin φ)`.
         let latitude = |p: Point3<T>| (h.dot(p - cut.center), axis.dot(p - cut.center));
@@ -6929,10 +7041,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                         }
                         _ => unread(),
                     };
-                    let region =
-                        super::sphere_region::sphere_face_region(body, piece, cut.center, r)
-                            .map_err(read)?
-                            .ok_or_else(unread)?;
+                    let region = super::sphere_region::sphere_face_region(body, piece)
+                        .map_err(read)?
+                        .ok_or_else(unread)?;
                     // The region's own refusal: in band of an arc, or no
                     // ray of its walk settled, or an arc that bounds
                     // nothing — each a piece not read against the circle.
@@ -7004,64 +7115,70 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();
-                let geom::Curve3::Circle(edge_circle @ geom::Circle { radius: cr, .. }) =
-                    *curve.carrier()
-                else {
+                let carrier = curve.carrier();
+                let &geom::Curve3::Circle(geom::Circle { radius: cr, .. }) = carrier else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
-                let roots = geom_brep::curve_face::circle_roots::first_harmonic_roots(
-                    &geom_brep::curve_face::circle_roots::FirstHarmonic::conic_off_plane(
-                        &edge_circle,
-                        (cut.center, k),
-                    ),
-                    cr,
-                    t0,
-                    t1,
-                    &ROWS,
-                    band,
+                let uncertified = || {
+                    refuse(
+                        "a boundary arc of the sphere face meets the cut's meridian plane where \
+                         its roots are not certified",
+                    )
+                };
+                let roots = match geom_brep::curve_pair::on_surface::OnSurface::edge(
+                    view.record().surface,
+                    carrier,
+                    (t0, t1),
                 )
-                .map_err(BooleanError::of_door_refusal(
-                    BooleanDecision::Sphere(SphereQuestion::CutIn),
-                ))?;
-                let thetas = match roots {
-                    Ok(geom_brep::roots::Roots::Miss) => continue,
-                    Ok(geom_brep::roots::Roots::Certified(found)) => found.roots().to_vec(),
-                    Ok(geom_brep::roots::Roots::On(_)) | Err(_) => {
-                        return Err(refuse(
-                            "a boundary arc of the sphere face meets the cut's meridian plane \
-                             where its roots are not certified",
-                        ));
+                .across(&meridian, "bool_sphere_cut_in_plane", band)
+                {
+                    Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
+                    Ok(
+                        geom_brep::curve_pair::on_surface::CoSurface::InPlane
+                        | geom_brep::curve_pair::on_surface::CoSurface::Touch
+                        | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
+                    ) => return Err(uncertified()),
+                    // A rung of the plane door escalated: the cut-in's own
+                    // question, in band.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::InBand(diag)) => {
+                        return Err(esc(diag));
                     }
+                    // Every piece inherits the cut face's record (the
+                    // `mef` below): a piece on another is a fault here.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::OffRecord {
+                        edge,
+                        curve,
+                    }) => unreachable!(
+                        "cut-in: a piece of the sphere face on another record than the \
+                         face's: the piece's {edge:?}, the face's {curve:?}"
+                    ),
                 };
                 let rising = sign(
                     "bool_sphere_cut_span",
                     Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
                 )? == Sign::Positive;
-                let (lo_t, hi_t) = if rising { (t0, t1) } else { (t1, t0) };
-                for theta in thetas {
-                    let into = |end: T| Margin::metered(theta - end, geom_core::InfSpeed::new(cr));
-                    let (from_lo, to_hi) = (
-                        sign("bool_sphere_cut_span", into(lo_t))?,
-                        sign(
-                            "bool_sphere_cut_span",
-                            Margin::metered(hi_t - theta, geom_core::InfSpeed::new(cr)),
-                        )?,
-                    );
-                    if from_lo == Sign::Negative || to_hi == Sign::Negative {
-                        continue;
-                    }
-                    let p = curve.carrier().eval(theta);
+                for (root, p) in roots {
+                    let theta = root.t;
+                    let at_end = match root.place {
+                        geom_brep::curve_face::plane_crossing::RootPlace::Inside => false,
+                        geom_brep::curve_face::plane_crossing::RootPlace::AtEnd => true,
+                        geom_brep::curve_face::plane_crossing::RootPlace::Undecided(_) => {
+                            return Err(uncertified());
+                        }
+                    };
                     let at_pole = sign(
                         "bool_sphere_cut_pole",
                         Margin::of(axis.cross(p - cut.center).norm()),
                     )? == Sign::Zero;
                     if !at_pole
-                        && sign("bool_sphere_cut_half", Margin::of(h.dot(p - cut.center)))?
+                        && meridian
+                            .section_of(p, "bool_sphere_cut_half", band)
+                            .map_err(esc)?
                             != Sign::Positive
                     {
                         continue;
                     }
-                    let vertex = if from_lo == Sign::Zero || to_hi == Sign::Zero {
+                    let vertex = if at_end {
                         let start = hd.start;
                         let end = proven(&body.half_edges, hd.next, EntityId::HalfEdge).start;
                         let at = |v| {
@@ -7639,7 +7756,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 crate::pcurves::mint_pcurves(&mut body, tol)
                     .map_err(|source| BooleanError::Pcurves { source })?;
             }
-            let body = gate(body, band, tol)?;
+            let body = gate(body, &Held::of(op, &contacts, decls), band, tol)?;
             let FallbackFates {
                 substituted,
                 uncut,
@@ -7991,7 +8108,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&a_view, &b_view],
         band,
     )?;
-    let body = gate(body, band, tol)?;
+    let body = gate(body, &Held::of(op, &contacts, decls), band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;
     let kept: [super::discard::InResult<'_>; 2] = match kind {
@@ -8360,7 +8477,7 @@ mod tests {
 
     use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::{gate, seam_class, seam_must_carry};
+    use super::{Held, gate, seam_class, seam_must_carry};
 
     /// **A merge group's kept face is never one the output rows retire,
     /// in either order the groups come in.** `(K1, [F])` then
@@ -8516,7 +8633,8 @@ mod tests {
             "the raw box is closed"
         );
         let band = Band::linear(tol).unwrap();
-        let Err(BooleanError::ResultInvalid { findings: errors }) = gate(raw.clone(), band, tol)
+        let Err(BooleanError::ResultInvalid { findings: errors }) =
+            gate(raw.clone(), &Held::nothing(), band, tol)
         else {
             panic!("the raw box's chords are scaffolds at rest");
         };
@@ -8534,7 +8652,7 @@ mod tests {
         let described =
             crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         assert_eq!(
-            gate(described, band, tol)
+            gate(described, &Held::nothing(), band, tol)
                 .map(|_| ())
                 .map_err(|e| e.render(geom_brep::recourse::Reading::Build)),
             Ok(()),
@@ -8550,7 +8668,9 @@ mod tests {
     ) -> usize {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let Err(BooleanError::ResultInvalid { findings: errors }) = gate(body, band, tol) else {
+        let Err(BooleanError::ResultInvalid { findings: errors }) =
+            gate(body, &Held::nothing(), band, tol)
+        else {
             panic!("{what}: the result gate refuses it");
         };
         assert!(errors.iter().all(want), "{what}: {errors:?}");
@@ -8641,7 +8761,9 @@ mod tests {
             .unwrap()
             .params();
         let split = body.split_edge(edge, (t0 + t1) * 0.5, tol).unwrap().vertex;
-        let Err(BooleanError::ResultInvalid { findings }) = gate(body.clone(), band, tol) else {
+        let Err(BooleanError::ResultInvalid { findings }) =
+            gate(body.clone(), &Held::nothing(), band, tol)
+        else {
             panic!("a split vertex is no output's");
         };
         assert_eq!(
@@ -8652,7 +8774,7 @@ mod tests {
             .join_edges(band, tol)
             .expect("the split edge joins back");
         assert_eq!(joins.len(), 1, "the split vertex, joined");
-        gate(body, band, tol).expect("the joined box passes");
+        gate(body, &Held::nothing(), band, tol).expect("the joined box passes");
     }
 
     /// An operand's own scaffold never reaches the door: the undescribed
@@ -10134,7 +10256,7 @@ mod tests {
             // Each brick its own cell: the axes are read off this pair.
             let axes = crate::boolean::separating::OperandAxes::new(boxes::axis_key);
             for (yf, _) in other.faces() {
-                let face_box = boxes::face_box(&other, yf, pad, band).unwrap();
+                let face_box = boxes::face_box(&other, yf, pad, band);
                 assert!(face_box.overlaps(&ball_box), "{what}: the boxes overlap");
                 assert_eq!(
                     ball_may_reach(
@@ -10306,28 +10428,69 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::overlap_reach;
     use crate::revalue_pin::S;
+    use geom_core::Real;
 
-    /// The reach enters as computed values: built at `Sym<f64>` from two
-    /// boxes the face walk would measure from geometry the parameter
-    /// moves, neither its centre nor its radius re-values to the ball
-    /// `p0` measured.
+    /// **The reach is the meet of the two faces' covers, within the
+    /// band, read in the body's scalar**: built at `Sym<f64>` from two
+    /// corner sets the parameter moves, its centre and radius re-value
+    /// to the `p1` build's own bits, and none is laundered through an
+    /// `f64` box. Two unit cubes overlapping in `[0.5, 1]` along `x`
+    /// read the overlap's ball, centre `(0.75, 0.5, 0.5)` and radius
+    /// `0.75` widened by the sweep's pad. One face with no cover leaves
+    /// the other's ball; both leave no ball. Red where the reach is read
+    /// off the two `f64` boxes, or off one face's cover alone, or where a
+    /// refusal poisons the meet.
     #[test]
-    fn the_reach_takes_its_ball_as_computed() {
-        let found = crate::revalue_pin::revalued([1.0, 1.0 + 1.0e-3], |p, _| {
-            let cube = |lo: f64, hi: f64| bvh::Aabb {
-                min_x: lo,
-                min_y: lo,
-                min_z: lo,
-                max_x: hi,
-                max_y: hi,
-                max_z: hi,
+    fn the_reach_is_the_covers_meet_in_the_bodys_scalar() {
+        use geom::cover::Cover;
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let pad = crate::boolean::boxes::sweep_pad(band);
+        let found = crate::revalue_pin::revalued([1.0, 1.0 + 1.0e-3], |_, p| {
+            let cube = |lo: S, hi: S| {
+                Cover::points(vec![
+                    geom_core::Point3::new(lo, lo, lo),
+                    geom_core::Point3::new(hi, hi, hi),
+                ])
+                .unwrap()
             };
-            let reach = overlap_reach::<S>(&cube(0.0, p), &cube(0.5 * p, 2.0 * p));
+            let half = S::from_f64(0.5);
+            let two = S::from_f64(2.0);
+            let reach =
+                overlap_reach::<S>(&Ok(cube(S::zero(), p)), &Ok(cube(half * p, two * p)), band);
             let ball = reach.ball();
             vec![ball.center().x, ball.radius()]
         });
         assert_eq!(found.laundered, 0, "{found:?}");
-        assert_eq!(found.opaque, 2, "{found:?}");
+        assert_eq!(found.kept, 2, "{found:?}");
+        let brick = |x0: f64, x1: f64| {
+            Cover::points(vec![
+                geom_core::Point3::new(x0, 0.0, 0.0),
+                geom_core::Point3::new(x1, 1.0, 1.0),
+            ])
+            .unwrap()
+            .convex()
+        };
+        let cube = brick(0.0, 1.0);
+        let met = overlap_reach::<f64>(&Ok(cube.clone()), &Ok(brick(0.5, 1.5)), band).ball();
+        assert!(
+            (met.center().x - 0.75).abs() < 1e-15 && (met.radius() - (0.75 + pad)).abs() < 1e-15,
+            "the overlap's ball within the band: {met:?}"
+        );
+        let uncovered = || {
+            Err(crate::cover::FaceUncovered::of_carrier(
+                geom::cover::Uncovered::new(
+                    geom::cover::Entity::Surface(geom::SurfaceKind::Plane),
+                    geom::cover::Unknown::Unbounded,
+                ),
+            ))
+        };
+        let one = overlap_reach::<f64>(&Ok(cube.clone()), &uncovered(), band).ball();
+        assert!(
+            one.center().x == 0.5 && (one.radius() - (0.75f64.sqrt() + pad)).abs() < 1e-15,
+            "one face uncovered: the other's ball, {one:?}"
+        );
+        let none = overlap_reach::<f64>(&uncovered(), &uncovered(), band).ball();
+        assert!(none.radius().is_nan(), "both uncovered: no ball");
     }
 }
 

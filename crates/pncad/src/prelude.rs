@@ -507,8 +507,8 @@ pub use topo::{
 // --- 5. The validation ladder ---------------------------------
 // The tier-3′ census vocabulary rides with `ValidationError` for the
 // group-9 reason again, and here the list was already half-persuaded:
-// `ContactPair` — the payload of `ValidationError::
-// ContactContradicted` — has been curated (through `crate::select`)
+// `ContactPair` — the record `ValidationError::ContactContradicted`
+// names — has been curated (through `crate::select`)
 // all along, so the surface already carried ONE payload of this
 // refusal and left its siblings a module hop away. These are
 // that inconsistency closed, not a new policy:
@@ -556,7 +556,10 @@ pub use topo::{
 // unchanged and only
 // the reach moved: a caller binds a payload and branches on the
 // DISCRIMINANT, and every discriminant these refusals name is
-// spellable from this list.
+// spellable from this list, save `ContactContradicted`'s verdict and
+// `MaterialOnBothSides`'s ruling (`topo::ContactVerdict`,
+// `topo::TangentRuling`, filed:
+// `work/bind/contact-verdict-is-a-rung-under-contact-contradicted.md`).
 //
 // All four cross to Python as well, and this list is what made that
 // spellable. `ValidationError.findings` carries one word per failure —
@@ -578,11 +581,9 @@ pub use topo::{
 // --- 6. Mass properties ---------------------------------------
 // `Settle` is what a measurement is asked (`[tolerance.measure]`), with
 // the vocabulary its variants carry, and `Stop` why it stopped.
-// `VolumeEnclosure` is a certificate's bracket, and `CertifiedBody` is
-// `StepImport::Solid::body`, the body held with its certificate: the
-// curated-type rule (the
-// `coherence` note below) says a caller able to hold it must be able to
-// spell it. `MassMeasurement` is what a measurement answers, and
+// `VolumeEnclosure` is a certificate's bracket. `MassMeasurement` is
+// what a measurement answers (a finished body's `AtRestBody::measure`
+// continues its finish's certificate to one), and
 // `SettleVerdict` what `Stop::Settled` says a deciding predicate
 // decided; each is the one name in Rust and Python (Python's
 // `MassMeasurement.verdict` is a `SettleVerdict`, spelled as its words).
@@ -590,8 +591,8 @@ pub use topo::{
 // `Unmet` what `MassMeasurement::met` answers where the number went
 // unmet.
 pub use topo::{
-    CertifiedBody, MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle,
-    SettleVerdict, ShellRole, SignNames, Stop, Unmet, VolumeEnclosure, mass_properties,
+    MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle, SettleVerdict, ShellRole,
+    SignNames, Stop, Unmet, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

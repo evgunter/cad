@@ -242,10 +242,7 @@ fn the_cap_states_its_meridian_crossings_as_meetings() {
         // spheres this fixture holds.
         let on_face = |input, f, p: geom_core::Point3<f64>| {
             let b = body(input);
-            let Some((_, face)) = b.faces().find(|&(k, _)| k == f) else {
-                return false;
-            };
-            match b.get_surface(face.surface) {
+            match b.face_surface(f) {
                 Some(topo::Surface::Plane { origin, normal, .. }) => {
                     (p - *origin).dot(*normal).abs() < 1e-9
                 }

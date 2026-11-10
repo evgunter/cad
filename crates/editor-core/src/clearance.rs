@@ -545,14 +545,13 @@ pub struct GeometryWitness {
 
 impl PartialEq for GeometryWitness {
     fn eq(&self, other: &Self) -> bool {
-        let same = |p: Point3<f64>, q: Point3<f64>| p.x == q.x && p.y == q.y && p.z == q.z;
         self.a == other.a
             && self.b == other.b
             && self.a_uv == other.a_uv
             && self.b_uv == other.b_uv
             && self.distance == other.distance
-            && same(self.a_point, other.a_point)
-            && same(self.b_point, other.b_point)
+            && self.a_point.equals_exactly(other.a_point)
+            && self.b_point.equals_exactly(other.b_point)
     }
 }
 
@@ -2045,8 +2044,7 @@ pub(crate) fn closest_pair(
     over: &topo::clearance::Enclosure<'_>,
 ) -> Result<GeometryWitness, String> {
     let surface_at = |body: &Body<f64>, face: FaceKey| -> Option<Surface<f64>> {
-        let f = body.get_face(face)?;
-        Some(body.get_surface(f.surface)?.clone())
+        body.face_surface(face).cloned()
     };
     let (Some(sa), Some(sb)) = (surface_at(bx, face_a), surface_at(by, face_b)) else {
         return Err(

@@ -112,9 +112,11 @@
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
+use geom_brep::curve_pair::on_surface::{Charted, SurfaceCurve};
+
 use super::region::{
-    self, End, Fault, LegSection, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal,
-    Round, circle_edge_hit, in_band, targets,
+    self, End, Fault, Legs, Line, Paths, QueryFoot, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit, in_band, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -177,31 +179,34 @@ impl<T: Decide> Ruled<T> {
         }
     }
 
-    fn surface(&self) -> geom::Surface<T> {
-        match *self {
-            Self::Cylinder {
+    /// A cylinder's or a cone's own fields, or `None` on any other
+    /// surface.
+    fn of(surface: &geom::Surface<T>) -> Option<Self> {
+        Some(match *surface {
+            geom::Surface::Cylinder {
                 origin,
                 axis,
                 radius,
                 u_ref,
-            } => geom::Surface::Cylinder {
+            } => Self::Cylinder {
                 origin,
                 axis,
                 radius,
                 u_ref,
             },
-            Self::Cone {
+            geom::Surface::Cone {
                 apex,
                 axis,
                 half_angle,
                 u_ref,
-            } => geom::Surface::Cone {
+            } => Self::Cone {
                 apex,
                 axis,
                 half_angle,
                 u_ref,
             },
-        }
+            _ => return None,
+        })
     }
 }
 
@@ -209,6 +214,10 @@ impl<T: Decide> Ruled<T> {
 /// each with the direction its loop traverses it.
 #[derive(Clone, Debug)]
 pub(crate) struct RuledFaceRegion<T: geom_core::Real> {
+    /// The face's surface record, its key and surface: every leg is
+    /// charted on it and every edge keyed by it.
+    charted: Charted<T>,
+    /// The record's surface's own fields ([`Ruled::of`]).
     surface: Ruled<T>,
     /// The face's sense bit: `false` points its outward normal at the
     /// axis.
@@ -259,24 +268,10 @@ impl<T: Decide> region::Course<T> for LegShape<T> {
         }
     }
 
-    fn carrier(&self) -> geom::Curve3<T> {
+    fn curve(&self) -> SurfaceCurve<T> {
         match self {
-            Self::Parallel(round) => round.carrier(),
-            Self::Ruling(line) => line.carrier(),
-        }
-    }
-
-    fn plane(&self) -> (Point3<T>, Vec3<T>) {
-        match self {
-            Self::Parallel(round) => round.plane(),
-            Self::Ruling(line) => line.plane(),
-        }
-    }
-
-    fn section(&self) -> LegSection<T> {
-        match self {
-            Self::Parallel(round) => round.section(),
-            Self::Ruling(line) => line.section(),
+            Self::Parallel(round) => round.curve(),
+            Self::Ruling(line) => line.curve(),
         }
     }
 
@@ -325,31 +320,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
-    let surface = match *f.surface() {
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        } => Ruled::Cylinder {
-            origin,
-            axis,
-            radius,
-            u_ref,
-        },
-        geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => Ruled::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        },
-        _ => return Err(corrupt()),
-    };
+    let surface = Ruled::of(f.surface()).ok_or_else(corrupt)?;
     let ruled = [
         geom::CurveKind::Line,
         geom::CurveKind::Circle,
@@ -360,10 +331,11 @@ pub(crate) fn ruled_face_region<T: Decide>(
     };
     let covers: Vec<_> = edges
         .iter()
-        .map(|e| super::boxes::edge_cover(body, e.edge))
+        .map(|e| crate::cover::edge_cover(body, e.edge))
         .collect();
     let scale = reach_bound(&surface, &covers);
     Ok(Some(RuledFaceRegion {
+        charted: Charted::record(f.record().surface, f.surface()),
         surface,
         sense: f.sense(),
         outer: f.record().outer,
@@ -376,13 +348,13 @@ pub(crate) fn ruled_face_region<T: Decide>(
 /// cylinder's radius, or a bound on the farthest the cone face's
 /// boundary reaches from the apex, never under it: edge by edge, its
 /// edge cover's farthest distance from the apex
-/// ([`super::boxes::edge_cover`], one per edge in `covers`), poison for an edge with no cover (its
+/// ([`crate::cover::edge_cover`], one per edge in `covers`), poison for an edge with no cover (its
 /// carrier's reading refuses, or an end vertex is not a finite point),
 /// which the readings levered at it escalate. The boundary was read
 /// certified, so no edge of it is null scaffolding.
 fn reach_bound<T: Decide>(
     surface: &Ruled<T>,
-    covers: &[Result<geom::cover::Cover<T>, super::EdgeUncovered>],
+    covers: &[Result<geom::cover::Cover<T>, crate::cover::EdgeUncovered>],
 ) -> T {
     match *surface {
         Ruled::Cylinder { radius, .. } => radius,
@@ -417,7 +389,7 @@ impl<T: Decide> RuledFaceRegion<T> {
             crate::validate::decide_positive("bool_ruled_region_frame", Margin::of(rho), band)
                 .map_err(esc)?;
         }
-        let foot = QueryFoot::read(&Legs::surface(self), p, band);
+        let foot = QueryFoot::read(self.charted.surface(), p, band);
         if self.on_boundary(foot.at(), band)? {
             return Ok(None);
         }
@@ -528,7 +500,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         Ok(
             crate::validate::decide_nonzero("bool_ruled_region_nappe", Margin::of(h), band)
                 .map_err(RegionRefusal::Escalated)?
-                == geom_core::k_stats::NonzeroSign::Positive,
+                == geom_core::NonzeroSign::Positive,
         )
     }
 
@@ -541,56 +513,24 @@ impl<T: Decide> RuledFaceRegion<T> {
         )
     }
 
-    /// The unit radial direction at azimuth `u`.
-    fn radial(&self, u: T) -> Vec3<T> {
-        let f = self.frame();
-        let (sin, cos) = u.sin_cos();
-        f.u_ref * cos + f.v_ref() * sin
-    }
-
     /// The parallel through `p`, run `forward` (right-handed about the
     /// axis) or back: at the surface's own radius at `p`'s height.
     fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
-        let v = p.uv().y;
-        let axis = self.surface.axis();
-        let (center, radius) = match self.surface {
-            Ruled::Cylinder { origin, radius, .. } => (origin + axis * v, radius),
-            Ruled::Cone {
-                apex, half_angle, ..
-            } => {
-                let (sin, cos) = half_angle.sin_cos();
-                (apex + axis * (v * cos), (v * sin).abs())
-            }
-        };
-        let normal = if forward { axis } else { -axis };
-        Leg::whole(LegShape::Parallel(Round::through(
-            p,
-            center,
-            normal,
-            radius,
-            LegSection::Whole,
-        )))
+        let curve = SurfaceCurve::parallel(&self.charted, p.uv(), forward);
+        Leg::whole(LegShape::Parallel(Round::on(region::built(curve))))
     }
 
     /// The ruling through `p`, a point clear of a cone's apex on the
     /// nappe `opening`, run `outward` or back; back toward a cone's apex
     /// it ends there.
     fn ruling(&self, p: QueryFoot<T>, opening: bool, outward: bool) -> Leg<T> {
-        let (dir, end) = match self.surface {
-            Ruled::Cylinder { axis, .. } => (if outward { axis } else { -axis }, None),
-            Ruled::Cone { apex, .. } => {
-                let g = p.at() - apex;
-                let reach = g.norm();
-                let g = g / reach;
-                if outward {
-                    (g, None)
-                } else {
-                    (-g, Some(reach))
-                }
-            }
+        let end = match self.surface {
+            Ruled::Cylinder { .. } => None,
+            Ruled::Cone { apex, .. } => (!outward).then(|| (p.at() - apex).norm()),
         };
+        let curve = SurfaceCurve::ruling(&self.charted, p.uv(), opening, outward);
         Leg {
-            course: LegShape::Ruling(self.line(p, dir, opening)),
+            course: LegShape::Ruling(Line::on(region::built(curve))),
             end: end.map(|place| End {
                 place,
                 row: END,
@@ -599,45 +539,18 @@ impl<T: Decide> RuledFaceRegion<T> {
         }
     }
 
-    /// The ruling's line from `start` along `dir`, at its azimuth on the
-    /// nappe `opening`: in the plane through the axis at that azimuth, on
-    /// that half-plane's ruling.
-    fn line(&self, start: QueryFoot<T>, dir: Vec3<T>, opening: bool) -> Line<T> {
-        let u = start.uv().x;
-        let (sin, cos) = u.sin_cos();
-        let normal = self.surface.axis().cross(self.radial(u));
-        let opening = match self.surface {
-            Ruled::Cylinder { .. } => None,
-            Ruled::Cone { .. } => Some(opening),
-        };
-        Line::from(
-            start,
-            dir,
-            normal.normalize(),
-            LegSection::HalfPlane {
-                toward: geom::Azimuth::of(sin, cos),
-                opening,
-            },
-        )
-    }
-
     /// From a `p` at the cone's apex, the generator through `target`: it
     /// starts at the apex, the foot at the target's azimuth and no slant.
     fn apex_generator(&self, target: Point3<T>, band: Band) -> Result<Leg<T>, Fault> {
-        let Ruled::Cone { apex, .. } = self.surface else {
+        if !matches!(self.surface, Ruled::Cone { .. }) {
             unreachable!("only a cone has an apex")
-        };
+        }
         // A target at the apex's level gives no generator to run.
         let opening = self.nappe(target, band).map_err(|_| RayFault::Unread)?;
-        let surface = self.surface.surface();
-        let target = QueryFoot::read(&surface, target, band);
-        let start = QueryFoot::of_chart(&surface, geom_core::Point2::new(target.uv().x, T::zero()));
-        let g = target.at() - apex;
-        Ok(Leg::whole(LegShape::Ruling(self.line(
-            start,
-            g.normalize(),
-            opening,
-        ))))
+        let surface = self.charted.surface();
+        let target = QueryFoot::read(surface, target, band);
+        let curve = SurfaceCurve::from_apex(&self.charted, target.uv(), opening);
+        Ok(Leg::whole(LegShape::Ruling(Line::on(region::built(curve)))))
     }
 }
 
@@ -704,14 +617,14 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
         then_forward: bool,
         band: Band,
     ) -> Result<(LegShape<T>, End<T>, impl FnOnce() -> Leg<T>), Fault> {
-        let surface = self.surface.surface();
+        let surface = self.charted.surface();
         let opening = self.opening(p, band)?;
-        let target = QueryFoot::read(&surface, target, band);
+        let target = QueryFoot::read(surface, target, band);
         let ((up, vp), (ut, vt)) = ((p.uv().x, p.uv().y), (target.uv().x, target.uv().y));
         // Both corners lie on `p`'s nappe, so the path does too, wherever
         // the target lies: it only steers.
         let (first, end, corner) = if parallel_first {
-            let corner = QueryFoot::of_chart(&surface, geom_core::Point2::new(ut, vp));
+            let corner = QueryFoot::of_chart(surface, geom_core::Point2::new(ut, vp));
             let LegShape::Parallel(round) = self.parallel(p, first_forward).course else {
                 unreachable!("a parallel leg is round")
             };
@@ -730,7 +643,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
                     )
                 }
             };
-            let corner = QueryFoot::of_chart(&surface, geom_core::Point2::new(up, v));
+            let corner = QueryFoot::of_chart(surface, geom_core::Point2::new(up, v));
             let outward =
                 match decide("bool_ruled_region_corner", Margin::of(gap), band).map_err(in_band)? {
                     Sign::Positive => true,
@@ -784,12 +697,12 @@ impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
         self.scale
     }
 
-    fn surface(&self) -> geom::Surface<T> {
-        self.surface.surface()
+    fn charted(&self) -> &Charted<T> {
+        &self.charted
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
-        geom_brep::implicit_outward_normal(&self.surface.surface(), self.sense, y).vec()
+        geom_brep::implicit_outward_normal(self.charted.surface(), self.sense, y).vec()
     }
 }
 

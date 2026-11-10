@@ -1109,8 +1109,8 @@ pub fn spout_belly_carriers(
     let carriers = |id, keep: fn(&Surface<f64>) -> bool| {
         let body = body_at(ev, id, tol);
         let mut keys = Vec::new();
-        for (_, face) in body.faces() {
-            if !keys.contains(&face.surface) && body.get_surface(face.surface).is_some_and(keep) {
+        for (fk, face) in body.faces() {
+            if !keys.contains(&face.surface) && body.face_surface(fk).is_some_and(keep) {
                 keys.push(face.surface);
             }
         }
@@ -1367,7 +1367,7 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
     let rule = gauss_legendre(order);
     let planes: Vec<(Point3<f64>, Vec3<f64>)> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
             _ => None,
         })
@@ -1390,8 +1390,8 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
         b
     };
     let (mut flux, mut area) = (0.0, 0.0);
-    for (_, f) in body.faces() {
-        let n = match body.get_surface(f.surface) {
+    for (fk, f) in body.faces() {
+        let n = match body.face_surface(fk) {
             Some(Surface::Plane { .. }) => continue,
             Some(Surface::Nurbs(n)) => n,
             other => panic!("a quadrature over planes and NURBS, got {other:?}"),
@@ -1641,25 +1641,19 @@ pub fn wall3_pinned(e: &BooleanError, spout: &Body<f64>, pot: &Body<f64>) -> boo
     else {
         return false;
     };
-    let the_belly = pot
-        .get_face(*belly)
-        .and_then(|f| pot.get_surface(f.surface))
-        .is_some_and(|s| {
-            matches!(s, Surface::Sphere { center, radius, .. }
+    let the_belly = pot.face_surface(*belly).is_some_and(|s| {
+        matches!(s, Surface::Sphere { center, radius, .. }
                 if near(*center, [0.0, Y_BELLY_C, 0.0]) && (radius - R_BELLY).abs() < 1e-12)
-        });
-    let the_outer_wall = spout
-        .get_face(*face)
-        .and_then(|f| spout.get_surface(f.surface))
-        .is_some_and(|s| match s {
-            Surface::Nurbs(n) => {
-                let (u0, u1) = n.knot_values_u().domain();
-                let (v0, v1) = n.knot_values_v().domain();
-                near(n.eval(u0, v0), [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_R0])
-                    && near(n.eval(u1, v1), SPOUT_OUTER_TIP)
-            }
-            _ => false,
-        });
+    });
+    let the_outer_wall = spout.face_surface(*face).is_some_and(|s| match s {
+        Surface::Nurbs(n) => {
+            let (u0, u1) = n.knot_values_u().domain();
+            let (v0, v1) = n.knot_values_v().domain();
+            near(n.eval(u0, v0), [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_R0])
+                && near(n.eval(u1, v1), SPOUT_OUTER_TIP)
+        }
+        _ => false,
+    });
     the_belly && the_outer_wall
 }
 
@@ -1736,8 +1730,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         .count();
     let on_mouth_plane = bellied
         .faces()
-        .filter(|(_, f)| {
-            matches!(bellied.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(bellied.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - Y_MOUTH).abs() < 1e-12)
         })
         .count();
@@ -1761,7 +1755,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // all. The count that stored `+y` goes in the note, measured.
     let planes: Vec<(f64, f64)> = bellied
         .faces()
-        .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
+        .filter_map(|(fk, f)| match bellied.face_surface(fk) {
             Some(Surface::Plane { origin, normal, .. }) => {
                 let outward = pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense);
                 Some((origin.y, outward.vec().y))
@@ -1772,8 +1766,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let stored_plus = planes.len()
         - bellied
             .faces()
-            .filter(|(_, f)| {
-                matches!(bellied.get_surface(f.surface),
+            .filter(|(fk, _)| {
+                matches!(bellied.face_surface(*fk),
                     Some(Surface::Plane { normal, .. }) if normal.y < 0.0)
             })
             .count();
@@ -1809,7 +1803,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     let reach = bellied
         .faces()
-        .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match bellied.face_surface(fk) {
             Some(Surface::Cylinder { radius, .. }) => Some(*radius - WALL),
             _ => None,
         })
@@ -1997,13 +1991,13 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // arm is free to mint them in any order.
     let lid_band = |y: f64| -> (f64, f64) {
         let mut hit = None;
-        for (_, f) in rolled.faces() {
+        for (fk, f) in rolled.faces() {
             let Some(Surface::Torus {
                 major_radius,
                 minor_radius,
                 center,
                 ..
-            }) = rolled.get_surface(f.surface)
+            }) = rolled.face_surface(fk)
             else {
                 continue;
             };

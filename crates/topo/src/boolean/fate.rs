@@ -9,7 +9,7 @@
 //! kept copy's sector runs into the dropped copy's sector
 //! (`recl::recl_sectors`), and a vertex-on-face site where a lumped
 //! sector of the kept copy lies on the pierced dropped face
-//! (`vtxfac::classify_vertex_on_face`). Each records the kept edge
+//! (`vtxfac::read_vertex_on_face`). Each records the kept edge
 //! ([`FateEdge`]): on its one side the dropped face is substituted, on
 //! its other side not.
 //!
@@ -432,7 +432,7 @@ pub(super) struct Leaving<T: geom_core::Real, R = LeverBounds<T>> {
     /// The unit direction: the edge's tangent, or its secant.
     pub(super) dir: Vec3<T>,
     /// How far the edge reaches from the vertex, its edge cover's far
-    /// distance from above (`boxes::edge_reach_bounds`): a corner's reading acts on
+    /// distance from above (`crate::cover::edge_reach_bounds`): a corner's reading acts on
     /// every sign, so its lever is the region's own measure from where
     /// it is read, and where that is known only from both sides (a curve
     /// other than a line or circle, whose bound from above can pass it
@@ -494,7 +494,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
         }
-        _ => super::boxes::edge_reach_bounds(body, h.edge, edge, base)?,
+        _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
     };
     let (dir, bend) = match curve.carrier() {
         _ if secant => (curve.mid_point() - base, None),
@@ -562,9 +562,9 @@ pub(super) fn bisector<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let mid = s.middle();
-    let len = mid.norm();
+    let (dir, len) = mid.direction_and_length();
     match sign(len, T::one(), band)? {
-        Sign::Positive => Ok(mid.normalize()),
+        Sign::Positive => Ok(dir),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",
         }),
@@ -775,7 +775,7 @@ fn places<T: Decide>(
                 .half_edge_start_point(h)
                 .ok_or_else(|| desync("a fate cut's corner has no point"))?;
             let normal = normal_at(
-                (body, f, at_point),
+                ((body, operand), f, at_point),
                 "a fate cut's corner face has no normal at its vertex",
                 band,
             )?;
@@ -808,22 +808,25 @@ fn places<T: Decide>(
     Ok(held.then_some((found, tied)))
 }
 
-/// Face `f`'s outward normal at `p`, where a corner is read: an
-/// escalation where it reads in band, else `what`.
+/// Face `f`'s outward normal at `p`, where a corner is read: a
+/// refusal by its own standing ([`crate::face_normal::NormalAtError::standing`]),
+/// a kept one in the Boolean's words on `operand`'s face
+/// ([`BooleanError::of_pierced_normal`]: an escalation, an apex or a
+/// crease) and an abort by its row ([`BooleanError::of_aborted_normal`]:
+/// a torus outside the ring convention, or `what`); a face that no
+/// longer resolves is `what` too.
 fn normal_at<T: Decide>(
-    (body, f, p): (&Body<T>, FaceKey, Point3<T>),
+    ((body, operand), f, p): ((&Body<T>, Operand), FaceKey, Point3<T>),
     what: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     match crate::face_normal::face_outward_normal_at(body, f, p, band) {
         Ok(Some(n)) => Ok(n.vec()),
-        Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
-            Err(BooleanError::Escalated {
-                decision: super::BooleanDecision::of_normal(decision),
-                diag,
-            })
-        }
-        Ok(None) | Err(_) => Err(BooleanError::ClassificationInvariant { what }),
+        Ok(None) => Err(BooleanError::ClassificationInvariant { what }),
+        Err(why) => Err(match why.standing() {
+            Ok(_) => BooleanError::of_pierced_normal(why, operand, f),
+            Err(abort) => BooleanError::of_aborted_normal(abort, (operand, f), what),
+        }),
     }
 }
 
@@ -1143,13 +1146,19 @@ fn lies<T: Decide>(
     let unplaced = |e| contained(e, "a fate cut's end is not placed in its face");
     let (mut inside, mut corners, mut on_edge) = (Vec::new(), Vec::new(), Vec::new());
     for f in pieces(body, root, divisions) {
-        let at = match crate::face_normal::face_outward_normal(body, f) {
-            Some(normal) => super::contfp(body, f, normal.vec(), p, band).map_err(unplaced)?,
-            None => super::curved_face_containment(body, f, p, band)
-                .map_err(unplaced)?
-                .ok_or(BooleanError::ClassificationInvariant {
+        let end =
+            crate::held::Held::constructed(p, "a fate cut's end, a point of the face it divides");
+        let at = match super::contain::placement_on_carrier(body, f, end, band)
+            .map_err(unplaced)?
+            .0
+        {
+            // OffCarrier → Out (trusted on carrier).
+            super::CurvedPlacement::OffCarrier => super::FaceContainment::Out,
+            super::CurvedPlacement::Trim(at) => {
+                at.ok_or(BooleanError::ClassificationInvariant {
                     what: "a fate cut's end lies in a curved face its chart cannot place it in",
-                })?,
+                })?
+            }
         };
         match at {
             super::FaceContainment::In => inside.push(f),
@@ -1240,7 +1249,7 @@ fn piece_holding<T: Decide>(
 /// coincidence), and a piece with no normal at `p` refuses as
 /// [`normal_at`] does.
 fn piece_beside<T: Decide>(
-    body: &Body<T>,
+    (body, operand): (&Body<T>, Operand),
     sides: &[(FaceKey, EdgeKey)],
     p: Point3<T>,
     d: Vec3<T>,
@@ -1257,7 +1266,7 @@ fn piece_beside<T: Decide>(
             .ok_or_else(|| desync("a division edge no longer resolves"))?
             .he_plus;
         let normal = normal_at(
-            (body, f, p),
+            ((body, operand), f, p),
             "a piece of a fate cut's kept face has no normal on its division's edge",
             band,
         )?;
@@ -1332,7 +1341,6 @@ fn rehome<T: Decide>(
         .ok_or_else(|| desync("a divided face no longer resolves"))?
         .rings
         .clone();
-    let normal = crate::face_normal::face_outward_normal(body, new);
     // Every ring is read before any moves: the reading cannot walk a
     // lone vertex's loop in `new`.
     let mut moved = Vec::new();
@@ -1351,8 +1359,10 @@ fn rehome<T: Decide>(
                 .collect(),
         };
         // The ladder ([`climb`]) whose answer is the first vertex placed:
-        // a ring the cut does not cross is on one side, so every vertex
-        // placed reads it alike ([`Answering::Any`]). A vertex on the
+        // a ring the cut does not cross is on one side, and a touch
+        // switches no side, so every vertex placed reads it alike
+        // ([`Answering::Any`]; the premise and its residual, a vertex
+        // the cut did not identify: `chord_join::paths_rung`). A vertex on the
         // boundary passes; a limit and a vertex in band are kept, ranked,
         // and refuse only where no vertex places the ring.
         let placed = climb(Answering::Any, vertices, |v| {
@@ -1363,10 +1373,18 @@ fn rehome<T: Decide>(
             else {
                 return Rung::Aborts(Err(desync("a ring's vertex has no point")));
             };
-            let at = match normal {
-                Some(n) => super::contfp(body, new, n.vec(), p, band).map(Some),
-                None => super::curved_face_containment(body, new, p, band),
-            };
+            let held = crate::held::Held::constructed(
+                p,
+                "a vertex of a ring of the face divided into this one",
+            );
+            let at =
+                super::contain::placement_on_carrier(body, new, held, band).map(|(at, _, _)| {
+                    match at {
+                        // OffCarrier → Out (trusted on carrier).
+                        super::CurvedPlacement::OffCarrier => Some(super::FaceContainment::Out),
+                        super::CurvedPlacement::Trim(at) => at,
+                    }
+                });
             match at {
                 Ok(Some(super::FaceContainment::In)) => Rung::Answers(Ok(true)),
                 Ok(Some(super::FaceContainment::Out)) => Rung::Answers(Ok(false)),
@@ -2086,7 +2104,9 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                                 d,
                                 band,
                             )?,
-                            Lies::OnEdge(sides) => piece_beside(kept_body, &sides, p, d, band)?,
+                            Lies::OnEdge(sides) => {
+                                piece_beside((kept_body, fc.holder), &sides, p, d, band)?
+                            }
                             Lies::Nowhere(unplaced) => return Err(unplaced.refused().into()),
                         }
                     }

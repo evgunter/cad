@@ -75,9 +75,9 @@ pub fn tilted(z: f64, t: f64, flip: bool) -> SplitPlane<f64> {
 /// The planar faces of `half` lying in `plane`: its section faces.
 pub fn section_faces(half: &Body<f64>, plane: &SplitPlane<f64>) -> Vec<FaceKey> {
     half.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                half.get_surface(f.surface),
+                half.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.cross(plane.normal.get()).norm() < 1e-12
                         && (*origin - plane.origin).dot(plane.normal.get()).abs() < 1e-12

@@ -65,7 +65,9 @@
 //! rule.
 
 use crate::gate::{Escalation, Gate, decide};
-use geom_core::{Band, Bounds, Circles, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::{
+    Band, Bounds, Circles, Decide, LengthOutOfFormat, Line2, Margin, Point2, Real, Sign, Tol, Vec2,
+};
 
 use super::{
     ArcData, CornerReason, CornerRefusal, CornerWindow, Dir, PathError, PathNoCornerReason,
@@ -128,7 +130,7 @@ pub(crate) struct ArcFilletTrims<T: Real> {
     /// The incoming side's carrier when it is circular — what the door
     /// re-emits the trimmed piece along (`(centre, winding)`).
     pub in_arc: Option<(Point2<T>, ArcSweep)>,
-    /// The fillet arc's own carrier, for the §4 item 4 identity checks.
+    /// The fillet arc's own carrier.
     pub arc: ArcData<T>,
     /// What the offset construction proved of the centre
     /// ([`crate::sugar::ArcFilletCandidate::centre_facts`]).
@@ -189,7 +191,14 @@ impl<T: Real> FilletSide<T> {
     /// not because the windows are different questions.
     fn travel(&self, from: Point2<T>, to: Point2<T>, arc_gate: Gate) -> (Gate, T) {
         match self.carrier {
-            SideCarrier::Ray(u) => (Gate::PathCornerAdvance, (to - from).dot(u)),
+            SideCarrier::Ray(u) => (
+                Gate::PathCornerAdvance,
+                geom_core::Line2 {
+                    origin: from,
+                    dir: u,
+                }
+                .height(to),
+            ),
             SideCarrier::Circle { centre, winding } => {
                 let turn = winding.sign::<T>();
                 let r = (self.anchor - centre).norm_squared().sqrt();
@@ -229,10 +238,10 @@ fn structure<T: Real>(refusal: StructureRefusal) -> PathError<T> {
 
 /// The corners of a **ray × circle** pair, in increasing ray parameter.
 ///
-/// Squared-radius form: the signed perpendicular offset of the centre
-/// from the ray is exact in metres (`u` is unit), so the discriminant
-/// is `R² − offset²` with `powi(2)` — no `√(R²)²` anywhere on the path
-/// to a coordinate. The metre gate `R − |offset|` is a classification
+/// Squared-radius form, read by [`Line2::circle_heights`]: the
+/// discriminant is `R² − offset²` with `powi(2)`, the offset the
+/// centre's [`Line2::side`] — no `√(R²)²` anywhere on the path to a
+/// coordinate. The metre gate `R − |offset|` is a classification
 /// margin and is allowed its `sqrt`.
 fn ray_circle<T: Decide>(
     origin: Point2<T>,
@@ -242,10 +251,8 @@ fn ray_circle<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<[Point2<T>; 2], PathError<T>> {
-    let w = centre - origin;
-    let along = w.dot(u);
-    let offset = w.perp_dot(u);
-    let margin = r_sq.sqrt() - offset.abs();
+    let ray = Line2 { origin, dir: u };
+    let margin = r_sq.sqrt() - ray.distance(centre);
     match decide(Gate::PathCarrierMeet, Margin::of(margin), band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero) => {
@@ -256,8 +263,7 @@ fn ray_circle<T: Decide>(
         }
         Err(source) => return Err(PathError::escalated(source)),
     }
-    let h = (r_sq - offset.powi(2)).sqrt();
-    Ok([origin + u * (along - h), origin + u * (along + h)])
+    Ok(ray.circle_heights(centre, r_sq).map(|t| ray.at(t)))
 }
 
 /// The corners of a **circle × circle** pair, in fixed order (the
@@ -1032,13 +1038,10 @@ pub(crate) fn carrier_tangent<T: Decide>(
     band: Band,
 ) -> Result<Dir<T>, PathError<T>> {
     let v = p - centre;
-    let radius = v.norm_squared().sqrt();
-    if !geom_core::is_finite_length(radius) {
-        return Err(PathError::NonFiniteDirection { dx: v.x, dy: v.y });
-    }
-    if geom_core::is_underflowed_length(radius, v.norm_witness()) {
-        return Err(PathError::UnderflowedDirection { dx: v.x, dy: v.y });
-    }
+    let radius = v.checked_length().map_err(|e| match e {
+        LengthOutOfFormat::NonFinite => PathError::NonFiniteDirection { dx: v.x, dy: v.y },
+        LengthOutOfFormat::Underflowed => PathError::UnderflowedDirection { dx: v.x, dy: v.y },
+    })?;
     match decide(Gate::PathArcCenterRadius, Margin::of(radius), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(PathError::DegenerateArcCenter { radius }),

@@ -455,9 +455,9 @@ gate_exact_skip --statements \
 BOUNDS_ALLOWLIST=(
   # 2026-07-29 (M5 PR 8), the driver amendment: the boolean-sweep and
   # evaluation-service seams, and `separation` under the same entry.
-  # boxes.rs's three are the box builders (`face_box`, `boundary_hull`,
-  # `edge_box`); its point read needs no `Bounds` and is `Real`-bound.
-  'crates/topo/src/boolean/boxes.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
+  # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
+  # its cover's bracketed box; its point read needs no `Bounds`.
+  'crates/topo/src/boolean/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
   # carrier_touch.rs's four are the crossing layer's touch reading:
   # `clusters`, the subdivision driver (a piece's half-length bracket
   # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
@@ -847,6 +847,11 @@ BOUNDS_ALLOWLIST=(
   # check of the support screen's premise, one bracket of a strip bound
   # against `escalate`, as `Least::read` reads a cell's. Each decides
   # only the meter's own question, and refuses loudly or not at all.
+  # 14 -> 13: `sheet_clip` reads topo's face cover along the sheet
+  # axis and takes no bracket of its own, so it is `Decide` alone.
+  # 13 -> 14: `misses` reads a sheet rectangle's widths against
+  # `escalate` (`sure`), the meter's own question as `Least::read`
+  # reads a cell's, and grants nothing but "nothing here to meter".
   'crates/sweep/src/blend/reach.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # planar.rs 3 -> 4, ruled.rs 3 -> 2, end_face.rs new at 5: the
   # cut-off both open bands end in left `ruled.rs` for its own file when

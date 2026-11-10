@@ -550,9 +550,8 @@ fn ee_lines(r: &topo::BooleanBody<f64>) -> Vec<String> {
         .edge_edge()
         .map(|(e0, e1)| {
             let ends = |e| {
-                let edge = r.body.get_edge(e).expect("a recorded edge is live");
-                [edge.he_plus, edge.he_minus]
-                    .map(|he| r.body.half_edge_start_point(he).expect("an end"))
+                <[_; 2]>::from(r.body.edge_vertices(e).expect("a recorded edge is live"))
+                    .map(|v| topo::readback::vertex_point(&r.body, v).expect("an end"))
             };
             let [p, q] = ends(e0);
             let [s, t] = ends(e1);
@@ -666,16 +665,16 @@ fn review_4781_r2_record_survives() {
 #[test]
 fn r2_every_same_side_touch_pose_answers_as_a_touch() {
     // Pinned since PR 5728 (limb 2 for every carrier): at ε = 1e-12 a
-    // cylinder fixture (extent 2236) refuses as limb 2's kernel limit,
-    // bound 3.67e-12
+    // cylinder fixture (`cc unequal`'s, extent 671 at the ×1.5e2 scale)
+    // refuses as limb 2's kernel limit, bound 1.33e-12
     // (`work/shell/main-red-two-review-4781-rows-refuse-at-limb-2s-kernel-limit-since-5728`).
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the review 4781 touch rows",
         &[
-            "Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 3.667082637548463e-12",
-            "extent: 2236.067977499794",
+            "Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 1.333925562600302e-12",
+            "extent: 670.8203932499385",
         ],
         r2_every_same_side_touch_pose_answers_as_a_touch_row,
     );
@@ -683,7 +682,10 @@ fn r2_every_same_side_touch_pose_answers_as_a_touch() {
 
 /// The row [`r2_every_same_side_touch_pose_answers_as_a_touch`] runs, under its pin.
 fn r2_every_same_side_touch_pose_answers_as_a_touch_row() {
-    for s in [1.0, 1e-3, 1e3] {
+    // The large scale is ×1.5e2: the farthest fixture point, the
+    // `cc unequal` B cylinder's rim, lies about 5.1 units out, and the
+    // session box admits no coordinate past 1 km (`[tolerance.units]`).
+    for s in [1.0, 1e-3, 1.5e2] {
         for turned in [false, true] {
             let map = turned.then(|| {
                 Affine3::rotation_about_axis(
@@ -709,14 +711,6 @@ fn r2_every_same_side_touch_pose_answers_as_a_touch_row() {
                     Shape::Box((1.0, 3.0), (-2.0, 0.0), (0.0, 1.0)),
                 ),
             ] {
-                // Fixture limits, not the Boolean's: the ×1e3 turned
-                // operands do not finish at every ε
-                // (`VolumeUncomputable`), and the radius-2000 disc does
-                // not extrude at ε = 1e-12 (a pcurve certification), so
-                // those corners are left out.
-                if s == 1e3 && (turned || name == "cc unequal") {
-                    continue;
-                }
                 let (a, b) = (a.scaled(s), b.scaled(s));
                 let line = [Point3::new(s, 0.0, 0.0), Point3::new(s, 0.0, s)];
                 let line = map.map_or(line, |m| line.map(|p| m.transform_point(p)));

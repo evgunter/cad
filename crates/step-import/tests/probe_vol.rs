@@ -57,7 +57,11 @@ fn measured_relative_volume_agreement() {
         // periodic-band refusal exists to keep out of this corpus.
         let v = topo::test_support::pinned_volume(
             "the measured body",
-            &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
+            &topo::test_support::finished(
+                "the measured body",
+                body.clone().into_body(),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
         .volume

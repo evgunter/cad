@@ -655,9 +655,9 @@ pub fn plane_on(
             (kind == geom::SurfaceKind::Plane).then_some(())?;
             let pose = topo::readback::face_pose(solid, face).ok()?;
             let out = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
-            let sense = if out.to_array() == n.to_array() {
+            let sense = if out.equals_exactly(n) {
                 1.0
-            } else if (-out).to_array() == n.to_array() {
+            } else if (-out).equals_exactly(n) {
                 -1.0
             } else {
                 return None;

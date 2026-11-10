@@ -71,22 +71,31 @@
 //! read by both passes ([`pierced_and_paired`]). It is read again
 //! only where its pierce touches the face, so its orbit is unwritten;
 //! a pierce that would cross refuses before it writes, and so does a
-//! second pierce. The pair's partner must lie on one side of the face,
+//! second pierce of a face no area record declares one wall with the
+//! first. The pair's partner must lie on one side of the face,
 //! meeting it along rays at most ([`partner_side`]). The vertex's edges
 //! are then classed against one cone of the other solid at the point,
 //! the face and its partners together ([`cone_classes`]); an edge it
 //! cannot class refuses. A vertex in pairs alone is read through the
 //! same cone, its partners' faces alone.
+//!
+//! **A declared wall.** Two faces of the other solid that an area record
+//! of its declares one wall, each face holding the material on its own
+//! side, are pierced at one point by a vertex crossing them: the vertex
+//! is read once, each face's crossing minted at it ([`Wall`],
+//! [`WallRead`]). [`cone_classes`]' gathered cone is not that reading:
+//! it classes a vertex that touches what it gathers and writes nothing,
+//! while a crossing of a wall mints a strut run against each face's ring.
 
 use geom_brep::OutwardNormal;
 use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::contain::FaceContainment;
 use super::plane_eq::PlaneEqError;
 use super::reduce::plane_desc;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::sectors::{
     BoolSector, Leaned, PierceLever, Unparted, build_sectors, leaned_lever, pierce_side,
@@ -106,47 +115,180 @@ use crate::validate::decide;
 use geom_core::Tol;
 
 /// **Each vertex that pierces a face and pairs with a vertex too**, with
-/// its first pair; refuses [`BooleanError::VertexReadTwice`] where a
-/// vertex pierces two faces, before any pass writes. A pierce
-/// hangs struts at its vertex only where it crosses the face, so such a
-/// vertex is read again only where its pierce touches
-/// ([`classify_vertex_on_face`] refuses before it writes, and
-/// [`partner_side`] and [`cone_classes`] read the touch). A vertex in
+/// its first pair, and **each vertex that pierces a declared wall**: the
+/// two faces of an area record of the other operand's
+/// ([`crate::contact::area_record`]), in pierce order ([`Walls`]).
+///
+/// Refuses [`BooleanError::VertexReadTwice`] before any pass writes
+/// where a vertex pierces two faces no area record of the other operand
+/// declares a wall, pierces a third, or pierces a wall and pairs with a
+/// vertex too. A pierce hangs struts at its vertex only where it
+/// crosses the face, so a vertex that pairs is read again only where its
+/// pierce touches ([`read_vertex_on_face`] refuses before it writes,
+/// and [`partner_side`] and [`cone_classes`] read the touch). A vertex in
 /// several pairs and in no pierce is not returned, since the
 /// vertex-vertex passes read every pair before the first writes.
-pub(super) fn pierced_and_paired(
+pub(super) fn pierced_and_paired<T: Decide>(
     contacts: &ReductionContacts,
-) -> Result<BTreeMap<(Operand, VertexKey), SectorRead>, BooleanError> {
+    records: [&super::OperandRecords; 2],
+    bodies: [&Body<T>; 2],
+) -> Result<(Rereads, Walls), BooleanError> {
     let mut rereads = BTreeMap::new();
+    let mut walls = Walls::new();
     for (operand, pierced) in [
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
+        let theirs = usize::from(operand == Operand::A);
+        let declared = |x: FaceKey, y: FaceKey| {
+            records[theirs].ff.iter().find(|r| {
+                ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
+                    && crate::contact::area_record(bodies[theirs], x, y)
+            })
+        };
         let mut pierces = BTreeMap::new();
         for c in pierced {
-            if let Some(&face) = pierces.get(&c.vertex) {
-                return Err(BooleanError::VertexReadTwice {
-                    operand,
-                    vertex: c.vertex,
-                    reads: [SectorRead::Pierce(face), SectorRead::Pierce(c.face)],
-                    in_band: None,
-                });
+            let Some(&face) = pierces.get(&c.vertex) else {
+                pierces.insert(c.vertex, c.face);
+                continue;
+            };
+            let twice = BooleanError::pierced_twice(operand, c.vertex, [face, c.face]);
+            let Some(record) = declared(face, c.face) else {
+                return Err(twice);
+            };
+            let wall = Wall {
+                faces: [face, c.face],
+                record: record.record,
+                seat: [record.contact.a, record.contact.b],
+            };
+            if walls.insert((operand, c.vertex), wall).is_some() {
+                return Err(twice);
             }
-            pierces.insert(c.vertex, c.face);
         }
         for c in &contacts.vv {
             let (own, other) = match operand {
                 Operand::A => (c.a, c.b),
                 Operand::B => (c.b, c.a),
             };
-            if pierces.contains_key(&own) {
+            if let Some(&face) = pierces.get(&own) {
+                if walls.contains_key(&(operand, own)) {
+                    return Err(BooleanError::VertexReadTwice {
+                        operand,
+                        vertex: own,
+                        reads: [SectorRead::Pierce(face), SectorRead::Pair(other)],
+                        in_band: None,
+                    });
+                }
                 rereads
                     .entry((operand, own))
                     .or_insert(SectorRead::Pair(other));
             }
         }
     }
-    Ok(rereads)
+    Ok((rereads, walls))
+}
+
+/// **A declared wall a vertex pierces**: the two faces of an area record
+/// of the pierced operand ([`crate::contact::area_record`]), which the
+/// vertex pierces at one point, in pierce order. The record declares
+/// them one two-sided wall, each face holding the material on its own
+/// side, so the vertex is read once against both: the first face's run
+/// mints as any pierce's, the second face reads the orbit as no pierce
+/// wrote it and mints its runs on the other side ([`WallRead`]), and an
+/// edge of the vertex is In where either face reads it In
+/// ([`gathered`]). Where the two reads do not mirror each other, or the
+/// vertex crosses its tool's seat in a cut ([`super::seat_crossed`]), it
+/// refuses when the second face is read, before any pierce writes; where
+/// the second face's runs would mint a strut, an invariant, it refuses
+/// at that face's mint ([`mint_pierce`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Wall {
+    /// The pierced faces, in pierce order.
+    pub faces: [FaceKey; 2],
+    /// The record's index in the pierced operand's records.
+    pub record: u32,
+    /// The record's two faces, in its own order.
+    pub seat: [FaceKey; 2],
+}
+
+/// Each vertex that pierces a declared wall ([`Wall`]).
+pub(super) type Walls = BTreeMap<(Operand, VertexKey), Wall>;
+
+/// Each vertex that pierces a face and pairs too, with its first pair
+/// ([`pierced_and_paired`]).
+pub(super) type Rereads = BTreeMap<(Operand, VertexKey), SectorRead>;
+
+/// **What a wall's first face read leaves its second** ([`WallRead`]):
+/// the real halves each run moved, in run order, and the classes it read
+/// for the vertex's edges.
+#[derive(Clone, Debug, Default)]
+pub(super) struct FirstFace {
+    pub moved: Vec<Vec<HalfEdgeKey>>,
+    pub classes: Vec<(HalfEdgeKey, SideCode)>,
+}
+
+/// **A wall's second face, read at its vertex** ([`Wall`]).
+///
+/// Every pierce is read before any is minted, so the second face reads
+/// its sectors on the vertex's orbit as no pierce has written it, beside
+/// what its first face read. Its In runs are the halves the first face's Out
+/// runs moved, by the mirror the record declares (each face holds the
+/// material on its own side); they mint at the first face's copy, so the
+/// vertex's two sides each take one face's crossing and the copy between
+/// them holds neither.
+#[derive(Clone, Copy)]
+pub(super) struct WallRead<'a> {
+    /// The wall.
+    pub wall: Wall,
+    /// The wall's first face's read.
+    pub first: &'a FirstFace,
+}
+
+/// **The classes a wall vertex's edges take**: In where either face
+/// reads them In, each face holding the material on its own side; the
+/// second face's otherwise.
+pub(super) fn gathered(
+    first: &[(HalfEdgeKey, SideCode)],
+    second: &[(HalfEdgeKey, SideCode)],
+) -> Vec<(HalfEdgeKey, SideCode)> {
+    second
+        .iter()
+        .map(|&(he, class)| {
+            let in_first = first.iter().any(|&(h, c)| h == he && c == SideCode::In);
+            (he, if in_first { SideCode::In } else { class })
+        })
+        .collect()
+}
+
+/// **A wall's second face mints where its read stands** ([`WallRead`]):
+/// each half the first face's runs moved now leaves one copy of
+/// `vertex`, and every other half of `vertex`'s orbit as the read walked
+/// it on the body still leaves `vertex` itself, in the operand as it
+/// stands.
+#[cfg(debug_assertions)]
+fn debug_assert_unwritten<T: geom_core::Real>(
+    live: &Body<T>,
+    vertex: VertexKey,
+    second: &SecondFace,
+) {
+    let start = |he: HalfEdgeKey| live.get_half_edge(he).map(|h| h.start);
+    let moved: BTreeSet<HalfEdgeKey> = second.first_moved.iter().flatten().copied().collect();
+    let copies: BTreeSet<_> = moved.iter().map(|&he| start(he)).collect();
+    debug_assert!(
+        moved.is_empty() || (copies.len() == 1 && !copies.contains(&Some(vertex))),
+        "a wall's first face moved its runs to one copy of {vertex:?}: {copies:?}"
+    );
+    debug_assert!(
+        !second.orbit.is_empty(),
+        "{vertex:?}'s orbit was walked when its wall's second face read it"
+    );
+    for &he in second.orbit.iter().filter(|he| !moved.contains(he)) {
+        debug_assert_eq!(
+            start(he),
+            Some(vertex),
+            "a half of {vertex:?}'s orbit left it before its wall's second face minted"
+        );
+    }
 }
 
 /// The pierced face's oriented datum at a pierce point: its outward
@@ -477,6 +619,9 @@ pub(super) struct VtxFacOut<T: geom_core::Real> {
     /// Whether a sector reads on the face at both bounds: lies in its
     /// plane, the lump's candidate.
     pub flush: bool,
+    /// The real halves each run moved to its copy, in run order (a
+    /// wall's second face reads its own against them, [`WallRead`]).
+    pub moved: Vec<Vec<HalfEdgeKey>>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -496,15 +641,76 @@ struct Entry {
     lumped: bool,
 }
 
+/// What [`read_vertex_on_face`] read of one pierce, writing nothing,
+/// for [`mint_pierce`] to write.
+pub(super) struct PierceRead<T: geom_core::Real> {
+    /// The classification, with no null edge and no ring yet.
+    out: VtxFacOut<T>,
+    contact: VfContact,
+    piercing: Operand,
+    point: geom_core::Point3<T>,
+    normal: Vec3<T>,
+    /// For a wall's second face, what its mint stands on ([`WallRead`]).
+    wall_first: Option<SecondFace>,
+    /// The bounds the runs' sites were read off.
+    entries: Vec<Entry>,
+    runs: Vec<ReadRun<T>>,
+}
+
+impl<T: geom_core::Real> PierceRead<T> {
+    /// The pierce read.
+    pub(super) const fn contact(&self) -> VfContact {
+        self.contact
+    }
+
+    /// What this pierce, a wall's first face, leaves its second face to
+    /// read against ([`WallRead`]).
+    pub(super) fn first_face(&self) -> FirstFace {
+        FirstFace {
+            moved: self.out.moved.clone(),
+            classes: self.out.classes.clone(),
+        }
+    }
+}
+
+/// **What a wall's second face's mint stands on** ([`WallRead`]): the
+/// halves its first face's runs moved, at whose copy its In runs mint,
+/// and, for the debug check of that copy, its vertex's orbit as the read
+/// walked it on the body, before any pierce wrote it.
+struct SecondFace {
+    first_moved: Vec<Vec<HalfEdgeKey>>,
+    #[cfg(debug_assertions)]
+    orbit: Vec<HalfEdgeKey>,
+}
+
+/// One Out run of a [`PierceRead`]: its arc of the bounds, and its germs
+/// as the ring orders them.
+struct ReadRun<T: geom_core::Real> {
+    run: crate::star::Run,
+    /// Where the facing was checked, before any run's mint: a strut's
+    /// corner with the edge arriving at it, and the site's tip. `None`
+    /// for a wall's second face, whose site is read at its mint.
+    facing_at: Option<(
+        Option<(HalfEdgeKey, crate::entity::EdgeKey)>,
+        crate::star::TipSide,
+    )>,
+    germs: (Germ<T>, Germ<T>),
+    order: [(Leaned<T>, geom_core::Lever<T>); 2],
+    bends: [Option<GermBend<T>>; 2],
+}
+
 /// Classifies `contact.vertex` (in the piercing body) against
-/// `contact.face` (in the pierced body) and performs the piercing
-/// side's insertion (module docs), returning its half of the ring for
-/// [`mint_ring`]. Where the vertex is read again (`reread`,
-/// from [`pierced_and_paired`]) and crosses the face, refuses
-/// [`BooleanError::VertexReadTwice`] before it writes.
+/// `contact.face` (in the pierced body), writing nothing: the piercing
+/// side's insertion (module docs) as [`mint_pierce`] writes it. Every
+/// refusal a reading of the pierce can meet is here, so a pass reads
+/// each pierce before it mints any; what is left to [`mint_pierce`] is
+/// the Euler operator's own refusal. Where the vertex is read again
+/// (`reread`, from
+/// [`pierced_and_paired`]) and crosses the face, refuses
+/// [`BooleanError::VertexReadTwice`].
 #[allow(clippy::too_many_arguments)]
-pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
-    piercing_body: &mut Body<T>,
+pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
+    piercing_body: &Body<T>,
     pierced_body: &Body<T>,
     piercing: Operand,
     contact: VfContact,
@@ -516,20 +722,23 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     chart: Option<(f64, f64)>,
     tips: &crate::sector_shape::SlitTips,
     band: Band,
-) -> Result<VtxFacOut<T>, BooleanError> {
+    wall: Option<WallRead<'_>>,
+) -> Result<PierceRead<T>, BooleanError> {
     let vertex = contact.vertex;
+    // Every read below is of the vertex's orbit as no pierce wrote it.
+    let orbit_body = piercing_body;
     let pierced_op = piercing.other();
     // The pierce point, read BEFORE the classification: on a curved
     // pierced face the oriented datum is point-dependent, so `p` is an
     // input to the sector algebra rather than only to Delta 3's ring.
-    let p = piercing_body.resolve_vertex_point(vertex, Proven);
+    let p = orbit_body.resolve_vertex_point(vertex, Proven);
     // `contact.face` is a key the sweep recorded and carries here, so
     // its miss is typed; its surface is a link. This pass mints its rings
     // only once every pierce is read ([`mint_ring`]), so the face is as
     // the operand and the passes before this one left it.
     let pierced_face =
         pierced_body
-            .passed_face(contact.face)
+            .face(contact.face)
             .ok_or(BooleanError::ClassificationInvariant {
                 what: "a vertex-on-face contact's face no longer resolves",
             })?;
@@ -589,7 +798,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // A corner at a cone's apex is subdivided where the pierced face's
     // tangent plane turns its side along the cone's rulings.
     let sectors = build_sectors(
-        piercing_body,
+        orbit_body,
         piercing,
         vertex,
         tips,
@@ -662,7 +871,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             .map(|s| {
                 let Some(planes) = super::node::bisectors(
                     &declared.sections,
-                    (&*piercing_body, piercing, s.face),
+                    (orbit_body, piercing, s.face),
                     (pierced_body, contact.face),
                 )?
                 else {
@@ -823,7 +1032,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // recorded, and neither reads the sector's tilt again.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         if class == Some(GlueClass::Tangent) {
-            let s_sector = piercing_body.proven_face(s.face).surface().clone();
+            let s_sector = orbit_body.proven_face(s.face).surface().clone();
             let s_pierced = pierced_body.proven_face(contact.face).surface().clone();
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
@@ -854,7 +1063,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             Some(rel) => rel,
             None => {
                 return Err(unglued_flat_sector(
-                    (piercing_body, piercing, s),
+                    (orbit_body, piercing, s),
                     (pierced_op, contact.face, pierced_kind),
                     plane,
                     (p, n_pierced.vec()),
@@ -870,7 +1079,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             });
             let aligned = matches!(rel, super::PlaneRelation::SameOriented);
             if keeper == piercing {
-                for (edge, _) in super::sectors::bound_edges(piercing_body, s) {
+                for (edge, _) in super::sectors::bound_edges(orbit_body, s) {
                     fates.edges.push(super::fate::FateEdge {
                         holder: piercing,
                         edge,
@@ -931,20 +1140,96 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     }
     resolve_on_entries(&mut entries, band)?;
 
-    // Out-runs (the copy takes the OUT side — above ≙ OUT).
-    let runs = crate::star::runs(&entries);
-    let mut out = VtxFacOut {
-        edges: Vec::new(),
-        ring: None,
-        covered,
-        fates,
-        classes,
-        read_against,
-        datum: face_datum,
-        flush,
+    // The side the piercing runs take, and the one fact the runs, their
+    // germs, their copies and the ring's struts follow: Out (the copy
+    // takes the OUT side — above ≙ OUT), or a wall's second face's In,
+    // which mints at its first face's copy ([`WallRead`]).
+    let runs_side = match wall {
+        None => SideCode::Out,
+        Some(_) => SideCode::In,
+    };
+    let runs = match runs_side {
+        SideCode::In => crate::star::runs(
+            &entries
+                .iter()
+                .map(|e| Entry {
+                    class: e.class.opposite(),
+                    ..*e
+                })
+                .collect::<Vec<_>>(),
+        ),
+        _ => crate::star::runs(&entries),
+    };
+    let moved: Vec<Vec<HalfEdgeKey>> = runs
+        .iter()
+        .map(|run| {
+            (0..run.len)
+                .map(|j| &entries[(run.start + j) % n])
+                .filter(|e| e.is_edge)
+                .map(|e| e.he)
+                .collect()
+        })
+        .collect();
+    if let Some(w) = wall {
+        // The mirror the record declares, read: where the faces' reads
+        // part from it (a sector flush with the wall, a run holding no
+        // edge, runs that are not the first face's), the second face's
+        // runs are not the first's copy, and the vertex is read twice.
+        let runs_of = |m: &[Vec<HalfEdgeKey>]| m.iter().cloned().collect::<BTreeSet<_>>();
+        let touches = moved.is_empty() && w.first.moved.is_empty();
+        let cut_by_the_seat = super::seat_crossed(op, pierced_op);
+        // A vertex touching the wall writes nothing on either face, but
+        // its edges may lie in the wall, which no line reader reads as
+        // one, and an operation keeping them keeps that line: it is read
+        // twice. A cut by the seat keeps nothing of the cut part at the
+        // wall, whose material lies on both sides there, so it reads the
+        // touch on both faces.
+        if flush
+            || moved.iter().any(Vec::is_empty)
+            || runs_of(&moved) != runs_of(&w.first.moved)
+            || (touches && !cut_by_the_seat)
+        {
+            return Err(BooleanError::pierced_twice(piercing, vertex, w.wall.faces));
+        }
+        // A cut crossing its tool's seat leaves the sliver of the cut part
+        // between the two faces' sections, which the finish keeps.
+        if cut_by_the_seat && !touches {
+            return Err(BooleanError::ToolSeatCrossed {
+                record: w.wall.record,
+                faces: w.wall.seat,
+            });
+        }
+    }
+    let mut read_pierce = PierceRead {
+        out: VtxFacOut {
+            edges: Vec::new(),
+            ring: None,
+            moved,
+            covered,
+            fates,
+            classes,
+            read_against,
+            datum: face_datum,
+            flush,
+        },
+        contact,
+        piercing,
+        point: p,
+        normal: n_pierced.vec(),
+        wall_first: wall.map(|w| SecondFace {
+            first_moved: w.first.moved.clone(),
+            #[cfg(debug_assertions)]
+            orbit: orbit_body
+                .get_vertex(vertex)
+                .and_then(|v| v.emanating)
+                .and_then(|he| orbit_body.vertex_orbit(he))
+                .unwrap_or_default(),
+        }),
+        entries: Vec::new(),
+        runs: Vec::with_capacity(runs.len()),
     };
     if runs.is_empty() {
-        return Ok(out); // tangential touch: 3′ contact only, no surgery
+        return Ok(read_pierce); // tangential touch: 3′ contact only, no surgery
     }
     if let Some(next) = reread {
         return Err(BooleanError::VertexReadTwice {
@@ -970,7 +1255,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let codes = (read[(t + 1) % n], read[t]);
         let own = super::sectors::germ_locus(
             super::sectors::GermSide {
-                body: piercing_body,
+                body: orbit_body,
                 operand: piercing,
                 site: vertex,
                 sector: s,
@@ -999,7 +1284,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     (false, (SideCode::On, _), Some(_)) => Leaned::upright(s.start.normalize()),
                     (false, (_, SideCode::On), Some(_)) => Leaned::upright(s.end.normalize()),
                     (false, _, Some(apex)) => Leaned::upright(pierce_apex_germ(
-                        (piercing_body, piercing),
+                        (orbit_body, piercing),
                         (vertex, s, apex),
                         (p, n_pierced),
                         band,
@@ -1012,7 +1297,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // the plane the sweep found it on included.
         let branch = germ_branch(
             &declared.sections,
-            (&*piercing_body, pierced_body),
+            (orbit_body, pierced_body),
             piercing,
             cells,
             (p, dir.dir),
@@ -1027,8 +1312,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         #[cfg(debug_assertions)]
         if let (Some(datum), super::Branch::Component(k)) = (on_wall[t], branch) {
             let (body_a, body_b) = match piercing {
-                Operand::A => (&*piercing_body, pierced_body),
-                Operand::B => (pierced_body, &*piercing_body),
+                Operand::A => (orbit_body, pierced_body),
+                Operand::B => (pierced_body, orbit_body),
             };
             if let Some(Ok(section)) = declared
                 .sections
@@ -1058,7 +1343,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .iter()
         .map(|&run| {
             let [(t0, o0), (t1, o1)] = run_transitions(run, n);
-            Ok((germ_of(t0, o0)?, germ_of(t1, o1)?))
+            let held = |o: OutBound| match (runs_side, o) {
+                (SideCode::In, OutBound::Start) => OutBound::End,
+                (SideCode::In, OutBound::End) => OutBound::Start,
+                (_, o) => o,
+            };
+            Ok((germ_of(t0, held(o0))?, germ_of(t1, held(o1))?))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
     // The germs the ring orders its struts by ([`mint_ring`]). A germ
@@ -1066,7 +1356,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // (`on_wall`) has no bend in the face.
     let bend_of = |t: usize, d: Vec3<T>| {
         let face = sectors[t].face;
-        let surface = piercing_body.proven_face(face).surface();
+        let surface = orbit_body.proven_face(face).surface();
         // At a cone's apex the germ is a ruling, which the pierced plane
         // holds: the section runs straight along it.
         let bend = match sectors[t].apex() {
@@ -1096,8 +1386,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             )
         })
         .collect();
-    let mut run_edges = Vec::new();
-    for (&run, &(start_germ, end_germ)) in runs.iter().zip(&run_germs) {
+    for ((&run, &(start_germ, end_germ)), (order, bends)) in
+        runs.iter().zip(&run_germs).zip(order_germs)
+    {
         // A run of bisector entries alone lies inside one corner P: a
         // wide sector's one bisector, or one or two of a slit tip's full
         // turn's three quarters. A corner holds at most one such run: the
@@ -1112,28 +1403,26 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // corner is still Q's at `vertex` whichever run mints first, and
         // the table's read stands (minting struts first would reorder
         // `out.edges` and the ring struts with them).
-        let site = crate::star::arc_site(&*piercing_body, vertex, &entries, run, || {
-            format!("the run {run:?}")
+        // A wall's second face mints its runs at its first face's copy,
+        // where that face's mint moves their halves: its site is read at
+        // its mint ([`mint_pierce`]), a fan, with no strut to face.
+        let site = (runs_side != SideCode::In).then(|| {
+            crate::star::arc_site(piercing_body, vertex, &entries, run, || {
+                format!("the run {run:?}")
+            })
         });
         // The star names a strut's facing by the orbit; the Boolean's one
         // facing rule ([`super::insert::strut_faces_first`]) reads it by
         // the corner's geometry, and the two must agree.
-        if let Some(corner) = site.strut_corner() {
+        let strut = site.and_then(|site| strut_at(piercing_body, site));
+        if let (Some(site), Some((corner, arrival))) = (site, strut) {
             let corner_half = proven(&piercing_body.half_edges, corner, EntityId::HalfEdge);
-            let arrival = linked(
-                &piercing_body.half_edges,
-                corner_half.prev,
-                EntityId::HalfEdge,
-                EntityId::HalfEdge(corner),
-                "prev",
-            )
-            .edge;
             // A pierce's germs lie in the pierced face, through no
             // edge of the pierced solid: their cuts run beside none.
             let germ =
                 |t: usize, (cells, dir, _): Germ<T>| (super::insert::Cut::apart(t, dir), cells);
             let facing = super::insert::strut_faces_first(
-                (piercing_body, vertex),
+                (orbit_body, vertex),
                 (piercing, &sectors),
                 (arrival, corner_half.edge),
                 germ((run.start + n - 1) % n, start_germ),
@@ -1159,8 +1448,99 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 });
             }
         }
-        // The piercing run is Out.
-        let mint = piercing_body.mev_null_run(site, NewVertexSide::Above)?;
+        read_pierce.runs.push(ReadRun {
+            run,
+            facing_at: site.map(|site| (strut, site.tip())),
+            germs: (start_germ, end_germ),
+            order,
+            bends,
+        });
+    }
+    read_pierce.entries = entries;
+    Ok(read_pierce)
+}
+
+/// A strut site's corner and the edge arriving at it, which a strut's
+/// facing is read at ([`super::insert::strut_faces_first`]).
+fn strut_at<T: geom_core::Real>(
+    body: &Body<T>,
+    site: crate::star::Site,
+) -> Option<(HalfEdgeKey, crate::entity::EdgeKey)> {
+    let corner = site.strut_corner()?;
+    let corner_half = proven(&body.half_edges, corner, EntityId::HalfEdge);
+    let arrival = linked(
+        &body.half_edges,
+        corner_half.prev,
+        EntityId::HalfEdge,
+        EntityId::HalfEdge(corner),
+        "prev",
+    )
+    .edge;
+    Some((corner, arrival))
+}
+
+/// Writes the piercing side's insertion [`read_vertex_on_face`] read:
+/// each Out run's null edge, and the pierce's half of its ring for
+/// [`mint_ring`].
+///
+/// # Errors
+///
+/// A mint's own refusal ([`Body::mev_null_run`]), and
+/// [`BooleanError::ClassificationInvariant`] where a wall's second face
+/// would mint a strut.
+pub(super) fn mint_pierce<T: Decide>(
+    piercing_body: &mut Body<T>,
+    read: PierceRead<T>,
+) -> Result<VtxFacOut<T>, BooleanError> {
+    let PierceRead {
+        mut out,
+        contact,
+        piercing,
+        point,
+        normal,
+        wall_first,
+        entries,
+        runs,
+    } = read;
+    #[cfg(debug_assertions)]
+    if let Some(second) = &wall_first {
+        debug_assert_unwritten(piercing_body, contact.vertex, second);
+    }
+    if runs.is_empty() {
+        return Ok(out);
+    }
+    let mut planned = Vec::with_capacity(runs.len());
+    for run in runs {
+        // Another run's mint moves this one's fan end, so the site is
+        // read here; a strut's corner, the edge arriving at it, and its
+        // tip, which the read checked the facing at, stand as read
+        // ([`read_vertex_on_face`]).
+        let site =
+            crate::star::arc_site(&*piercing_body, contact.vertex, &entries, run.run, || {
+                format!("the run {:?}", run.run)
+            });
+        match run.facing_at {
+            Some(read) => debug_assert_eq!(
+                (strut_at(piercing_body, site), site.tip()),
+                read,
+                "an earlier run's mint moved the strut corner a pierce run's facing was read at"
+            ),
+            // A wall's second face's runs each hold a real half (the
+            // mirror its read checked), moved to the first face's copy,
+            // so its site is a fan: a strut there would read its corner
+            // at the vertex, which its halves have left.
+            None if site.strut_corner().is_some() => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a wall's second face mints a strut",
+                });
+            }
+            None => {}
+        }
+        let side = match wall_first {
+            Some(_) => NewVertexSide::Below,
+            None => NewVertexSide::Above,
+        };
+        let mint = piercing_body.mev_null_run(site, side)?;
         let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
         let rec = BoolNullEdgeRecord {
             operand: piercing,
@@ -1168,28 +1548,29 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             edge: created.edge,
             attr,
             dangling: site.dangling(),
-            germs: [half_germ(start_he, start_germ), half_germ(end_he, end_germ)],
+            germs: [
+                half_germ(start_he, run.germs.0),
+                half_germ(end_he, run.germs.1),
+            ],
         };
-        run_edges.push(rec);
         out.edges.push(rec);
+        planned.push(PlannedRun {
+            edge: created.edge,
+            germs: run.germs,
+            order: run.order,
+            bends: run.bends,
+        });
     }
-
     out.ring = Some(RingPlan {
         contact,
         piercing,
-        point: p,
-        normal: n_pierced.vec(),
-        runs: run_edges
-            .iter()
-            .zip(run_germs)
-            .zip(order_germs)
-            .map(|((rec, germs), (order, bends))| PlannedRun {
-                edge: rec.edge,
-                germs,
-                order,
-                bends,
-            })
-            .collect(),
+        point,
+        normal,
+        strut_side: match wall_first {
+            Some(_) => NewVertexSide::Above,
+            None => NewVertexSide::Below,
+        },
+        runs: planned,
     });
     Ok(out)
 }
@@ -1206,6 +1587,9 @@ pub(super) struct RingPlan<T: geom_core::Real> {
     pub point: geom_core::Point3<T>,
     /// The pierced face's outward normal at `point`.
     pub normal: Vec3<T>,
+    /// The side the ring's struts take, the run's other: In, or Out
+    /// where the runs are a wall's second face's In runs ([`WallRead`]).
+    pub strut_side: NewVertexSide,
     runs: Vec<PlannedRun<T>>,
 }
 
@@ -1386,12 +1770,18 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
     // ring's corners says ([`crate::star::hang_ring`]). The half leaving
     // its node faces the germ its run's corner meets first clockwise, so
     // facings alternate by depth; with one run either half may face
-    // either germ. The pierced run is In. The op does not enter.
+    // either germ. The pierced run is the piercing run's other side
+    // ([`RingPlan::strut_side`]). The op does not enter.
+    if plans.iter().any(|plan| plan.strut_side != first.strut_side) {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a pierce ring's pierces mint opposite sides",
+        });
+    }
     crate::star::hang_ring(
         pierced_body,
         (w, ring_loop),
         &ring,
-        NewVertexSide::Below,
+        first.strut_side,
         |strut, mint| {
             let (_, plan, run) = runs[strut.run];
             let (start_germ, end_germ) = run.germs;
@@ -1608,6 +1998,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         piercing: Operand::A,
         point,
         normal,
+        strut_side: NewVertexSide::Below,
         runs: provisional,
     };
     let runs: Vec<(usize, &RingPlan<T>, &PlannedRun<T>)> =
@@ -1731,9 +2122,12 @@ pub(super) struct HeldPierce<T: geom_core::Real> {
 /// face as a ring, so a face holding two points, read at the second
 /// after the first's mint, would read its trim unplaced. Two pierces of
 /// one face at one point, a pose no row reaches, refuses
-/// [`BooleanError::HeldPierceUnbuilt`]. A definite refusal
-/// at any face outranks an escalation at any other, as in the pierce
-/// pass this serves.
+/// [`BooleanError::HeldPierceUnbuilt`]. The reads are one ladder, as
+/// in the pierce pass this serves: a refusal of the whole query at any
+/// face outranks every refusal kept at another, and a limit kept
+/// anywhere outranks a reading kept in band anywhere
+/// ([`Evidence`]); the order the faces are read in chooses only which
+/// refusal of the outranking class is reported.
 ///
 /// **On a curved face, or over one**, the run is the plane case's. Its
 /// germs are the two faces' section's tangents at the point, `±n × n_p`
@@ -1768,9 +2162,9 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Vec<HeldPierce<T>>, BooleanError> {
     // Every face of every pierce is read before anything is written,
-    // and each read is needed: a ladder no read answers, where a definite
-    // refusal stops it and an escalation is kept until every later read
-    // is taken, so which is read first does not choose between the two.
+    // and each read is needed: a ladder no read answers, where a refusal
+    // of the whole query (`BooleanError::refusal`'s `Aborts`) stops it
+    // and every other refusal is kept until every later read is taken.
     let mut reads: Vec<HeldRead<T>> = Vec::new();
     let mut kept = Evidence::default();
     for plan in plans {
@@ -1785,37 +2179,45 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
         let climbed = climb_evidence(Answering::First, held, |read| {
             let read = match read {
                 Ok(read) => read,
-                Err(e @ BooleanError::Escalated { .. }) => return Rung::InBand(e),
-                Err(definite) => return Rung::Aborts(definite),
+                Err(e) => return Rung::refused(e, BooleanError::refusal, core::convert::identity),
             };
             // Two pierces of one face at one point would mint two ring
             // vertices there. No row reaches the pose, so no answer here
             // is checked: it refuses, before anything is written.
-            let mut escalated = None;
-            for earlier in reads.iter().filter(|r| r.face == read.face) {
-                match super::one_vertex_at(earlier.point, read.point, band) {
-                    Ok(Some(_)) => {
+            let earlier = reads.iter().filter(|r| r.face == read.face);
+            let rung =
+                match climb_evidence(
+                    Answering::First,
+                    earlier,
+                    |earlier| match super::one_vertex_at(earlier.point, read.point, band) {
+                        Ok(Some(_)) => Rung::Answers(()),
+                        Ok(None) => Rung::Passes,
+                        Err(diag) => Rung::kept(diag),
+                    },
+                ) {
+                    Ok(_) => {
                         let kind = |body: &Body<T>, face| body.proven_face(face).surface().kind();
-                        return Rung::Aborts(BooleanError::HeldPierceUnbuilt {
+                        let unbuilt = BooleanError::HeldPierceUnbuilt {
                             operand: read.piercing,
                             face: read.face,
                             pierced: read.pierced,
                             kind: kind(&*piercing_body, read.face),
                             pierced_kind: kind(pierced_body, read.pierced),
                             placed: true,
-                        });
+                        };
+                        return Rung::refused(
+                            unbuilt,
+                            BooleanError::refusal,
+                            core::convert::identity,
+                        );
                     }
-                    Ok(None) => {}
-                    Err(diag) => {
-                        escalated.get_or_insert(BooleanError::Escalated {
-                            decision: super::BooleanDecision::VertexOnVertex,
-                            diag,
-                        });
-                    }
-                }
-            }
+                    Err(kept) => kept.into_rung().map_kept(|diag| BooleanError::Escalated {
+                        decision: super::BooleanDecision::VertexOnVertex,
+                        diag,
+                    }),
+                };
             reads.push(read);
-            escalated.map_or(Rung::Passes, Rung::InBand)
+            rung
         });
         match climbed {
             Ok((_, definite)) => return Err(definite),
@@ -1933,9 +2335,25 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 {
                     return Ok(None);
                 }
+                // Held where the residual above decided it (`Zero`, or in
+                // band); a spline face's trim decides its own carrier.
+                let placed = match &side {
+                    Some(Ok(d)) => super::contain::placement_on_carrier(
+                        piercing_body,
+                        face,
+                        crate::held::Held::decided(p, d.margin),
+                        band,
+                    ),
+                    Some(Err(_)) => super::contain::placement_on_carrier(
+                        piercing_body,
+                        face,
+                        crate::held::Held::in_band(p),
+                        band,
+                    ),
+                    None => super::contain::placement_unheld(piercing_body, face, p, band),
+                };
                 let (placement, _, _) =
-                    super::contain::curved_face_placement_decided(piercing_body, face, p, band)
-                        .map_err(|e| super::reduce::esc(e, piercing, face))?;
+                    placed.map_err(|e| super::reduce::esc(e, piercing, face))?;
                 let kind = kind_of(piercing_body, face);
                 match placement {
                     super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {}
@@ -1945,7 +2363,8 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                         return Err(unbuilt(face, kind, false));
                     }
                     // Off the face, or on its boundary, which the sweep's
-                    // pierces and splits hold.
+                    // pierces and splits hold. OffCarrier → not held (the
+                    // residual above decided `p` on the carrier).
                     super::contain::CurvedPlacement::OffCarrier
                     | super::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
                 }
@@ -1983,10 +2402,15 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // point lies in the face. On the face's boundary the point
                 // is a vertex or an edge of the piercing body: the sweep's
                 // pierces and splits hold it.
-                let (at, _) =
-                    super::contain::contfp_decided(piercing_body, face, plane.normal, p, band)
+                let held = match &side {
+                    Ok(d) => crate::held::Held::decided(p, d.margin),
+                    Err(_) => crate::held::Held::in_band(p),
+                };
+                let (at, _, _) =
+                    super::contain::placement_on_carrier(piercing_body, face, held, band)
                         .map_err(|e| super::reduce::esc(e, piercing, face))?;
-                if at != FaceContainment::In {
+                // OffCarrier → not held (the side above decided `p` on the plane).
+                if at != super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
                     return Ok(None);
                 }
                 (plane.normal, None, side)
@@ -2167,6 +2591,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
             piercing,
             point,
             normal,
+            strut_side: NewVertexSide::Below,
             runs: vec![PlannedRun {
                 edge: created.edge,
                 germs,
@@ -2522,26 +2947,22 @@ fn unglued_flat_sector<T: Decide>(
     ) {
         // The parallel rung reads the tilt above's margin, decided zero,
         // and the offset is `p`'s standing off two planes it lies on.
-        Ok((super::PlaneRelation::Distinct, _)) => BooleanError::ClassificationInvariant {
-            what: "geometrically coplanar sector with definitely-distinct plane",
-        },
+        Ok(super::CarrierVerdict::Apart(_) | super::CarrierVerdict::TwoKinds) => {
+            BooleanError::ClassificationInvariant {
+                what: "geometrically coplanar sector with definitely-distinct plane",
+            }
+        }
         // One plane at the sector's arm, for a pair the glue door did
         // not glue over the faces.
-        Ok((rel, margin)) => super::unglued_corner(
+        Ok(super::CarrierVerdict::One {
+            relation: rel,
+            margin,
+        }) => super::unglued_corner(
             declared,
             pair,
             senses,
             s.bounds_off(n_pierced, band).err(),
-            // The ladder decides one carrier only on a margin, so a
-            // reading without one is a broken invariant.
-            || match margin {
-                Some(margin) => {
-                    super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band)
-                }
-                None => BooleanError::ClassificationInvariant {
-                    what: "a corner pair the ladder read one carrier on no margin",
-                },
-            },
+            || super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band),
         ),
         // In band, unreachable here: `bool_sector_coplanar` read this
         // same margin (the two normals' cross, at the sector's reach)
@@ -2558,6 +2979,9 @@ fn unglued_flat_sector<T: Decide>(
             [(piercing, s.face), (pierced_op, pierced)],
             declared.carriers_read(pair, relation),
         ),
+        Err(PlaneEqError::OffRing { torus, refusal }) => {
+            super::off_ring_torus(torus, refusal, [(piercing, s.face), (pierced_op, pierced)])
+        }
     }
 }
 
@@ -2911,6 +3335,7 @@ mod tests {
             piercing: Operand::A,
             point: geom_core::Point3::new(x, 0.0, 0.0),
             normal: Vec3::new(0.0, 0.0, 1.0),
+            strut_side: NewVertexSide::Below,
             runs: Vec::new(),
         }
     }
@@ -2980,7 +3405,13 @@ mod tests {
         let (f, g) = (FaceKey::from(key(4)), FaceKey::from(key(5)));
         let vf = |vertex, face| VfContact { vertex, face };
         let vv = |a, b| VvContact { a, b };
-        let read = |c: &ReductionContacts| match pierced_and_paired(c) {
+        let read = |c: &ReductionContacts| match pierced_and_paired(
+            c,
+            [&Default::default(), &Default::default()],
+            [&Body::<f64>::new(), &Body::<f64>::new()],
+        )
+        .map(|(r, _)| r)
+        {
             Err(BooleanError::VertexReadTwice {
                 operand,
                 vertex,
@@ -4289,8 +4720,9 @@ mod tests {
         for start in &orbit {
             let mut body = built.body.clone();
             body.get_vertex_mut(corner).unwrap().emanating = Some(*start);
-            let classified = classify_vertex_on_face(
-                &mut body.clone(),
+            let mut piercing = body.clone();
+            let classified = read_vertex_on_face(
+                &piercing,
                 &cube_body,
                 Operand::A,
                 super::super::VfContact {
@@ -4305,7 +4737,9 @@ mod tests {
                 None,
                 &crate::sector_shape::SlitTips::default(),
                 band,
+                None,
             )
+            .and_then(|read| mint_pierce(&mut piercing, read))
             .unwrap();
             orders.push(
                 classified

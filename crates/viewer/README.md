@@ -474,9 +474,9 @@ vocabulary is not a forbidden import path.
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
 | `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — a split's plane, a pattern's picked direction or axis — could not be made from its numbers or its pick. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
-| `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
+| `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named across the crate — drivers, panes and tool modules alike (`rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists them) |
 | `session::author` | `BooleanSpec`, `PatternRuleSpec` and its `PatternDirection` (a target axis or a picked edge or face, never typed components), `PartSelectSpec` — the authoring specs and their lowering to nodes, which hold no session state at all |
-| `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
+| `session::delete` | `DeleteAffordance` and `kind_census` — the delete's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
 
 `session` itself keeps `DocSession`, its `Gesture`, `perform` and the
@@ -2201,6 +2201,20 @@ held in pick order: a member list becomes the two seats from its first
 two members, and two seats become a member list of what they hold.
 `Clear picks` empties the tool and keeps the operation.
 
+**Each operand is the body read the pick reached**, a
+`BodyRead<Formula>`: a body; a split's half by its port, a tree pick
+of the split waiting for its half; or one member of a family by its
+indices (`pattern[1]`), for a viewport pick on that drawn member. A
+tree pick of a family names the node, so it reads the family whole
+until the panel's member row chooses one. A member read keeps its
+output, so a split of a family reads one half of one member. A family
+something reads along a seen path (a copy, a `⊔`, the product) is
+read whole, and the combine takes that reader over: what one member's
+read does to a copy of its family is a takeover not yet ruled. The
+boolean seats are the ones that read members; the other body seats
+read a family whole. The held-picks line says which read it holds
+(`Pattern 1[1]`, `Pattern 1, every member`, `Split 1[1], above half`).
+
 **A body picked twice is not refused anywhere.** A repeated read
 glues — `A ∪ A` and `A ∩ A` are `A`, `A ∖ A` the typed empty body — so
 the tool lists it twice and the session door commits it like any other
@@ -2393,19 +2407,40 @@ boolean lands where D10 `[placement.spaces]` puts its body (its own
 space, or its inputs'), and the mirror writes `body ∪ image`. An
 inserted part is a fresh `new_space()` and the instance into it by the
 identity bundle (`editor_core::stand`: no mate, and the constant `0` on
-each slide and spin), in one action. A pattern, fused or not, lands
-where the pick was seen and takes the seen body over along the path it
-was seen through: picked on a copy, it reads that copy in the copy's
-space and takes over the `⊔` operands and the product slot that read
-it, writing no placement's source, and the result says it belongs to
-that placed copy, with a way to the original body; picked as the body
-itself, it makes a new body and offers, as one explicit step, to
-re-point the variable the body's placements share onto it, member 0 standing where that body stood. A split takes the seen
-body over the same way, by `above ⊔ below`, its two halves standing
-where that body stood; where nothing reads the body along such a
-path, the split's halves are drawn in its place. A second copy of a
-body is a second placement of it: Place on the body, shown again in the
-View pane and picked as itself. Projecting a pattern member writes
+each slide and spin), in one action. A feature gesture — a fillet, a
+chamfer, a mirror, a sketch on a face, a split, a pattern fused or not,
+a combine — lands where the pick was seen. Picked on a copy, it reads that
+copy in the copy's space (`fillet(C)`) and takes over the `⊔` operands
+and the product slot that read it, writing no placement's source; the
+other copies of the body are untouched, and the Properties pane says
+the result belongs to that placed copy, with a button to the original
+body (`frame::placement_offers`). Picked as the body itself (in the
+tree, or shown again in the View pane), it makes a new body, and that
+body offers, as one explicit step, to re-point the variable the body's
+placements share onto it (`world::repoint_offer`,
+`SessionOp::RepointPlacements`): every placement reads the body's own
+output, the one variable they share, and the re-point sets each
+placement's source to the new body through the kernel's takeover
+(`Recording::take_over`), rebinding what read each copy and reading
+each copy's mates' `on` sides off the new body, in one action. No
+gesture re-points a placement unasked. A pattern's member 0 stands
+where the body stood. A split takes the seen body over by
+`above ⊔ below`, its two halves standing where that body stood. A split
+of a body that placements read writes `above ⊔ below` too: that `⊔` is
+the new body the split makes, as a fillet makes `fillet(B)`, and it
+offers to re-point the placements onto it, the halves standing in the
+body's space where the body stood. Where nothing reads the body, along
+a seen path or as a placement's source, the split's halves are drawn in
+its place. A second copy of a body is a second placement of it:
+Place on the body, shown again in the View pane and picked as itself.
+Every placement is a copy to the viewer, wherever its target stands
+(D10 `[placement.placement]`: "each placement is a copy of its own"):
+one placed in its body's own space or in another construction's
+space, as Place's and a pattern's are, is a copy as one in the world
+is. The body a placement copies (`world::copy_source`) is what the
+placed badge, the placement editor's `on` side, the re-point offer and
+the way to the original body read; a pick on a copy seats that copy.
+Projecting a pattern member writes
 nothing: a pick on a drawn member seats `family[k]`. The Transform tool
 is the placement editor opened on its pick with no mate row
 (`MateTool::moving`). On a body picked as itself it is Place, and then
@@ -2419,6 +2454,24 @@ its half. Place refuses a copy (`Refusal::PlaceOnACopy`): a copy is
 edited by its own placement. A combine re-places an operand from
 another space at the pose it held, by values on the first operand's
 space's axes. Nothing a place gesture writes reads the copy's geometry.
+
+**A delete splices by continuation** (DM6,
+`crates/editor-core/REFERENCES.md`; `editor_core::continuation::splice`). The
+delete hands each reader of the deleted node to the body that node
+continues — a fillet's, a chamfer's or a shell's input; the one
+operand an operator is left with; a cut's target once its tool goes —
+as explicit `SetParam`, `SetMembers`, `SetProduct` and `Rebind` edits
+in one action, and takes the readers of a node that continues nothing
+with it. What a node continues may be one member of a family (a cut
+of `xs[k]` whose tool goes): a list operand is handed that member, and
+a seat that reads a whole body (a placement's source, the product)
+cannot be, so there the delete refuses (`Refusal::Unspliced`) and
+deletes nothing. Nothing about how the node was made is recorded or inferred:
+the plan is read off the recipe, so adding a feature and deleting it
+leaves the document as it was, and a mirror's image or a sketch's
+profile (the piece its gesture made) deleted collapses the union back
+to the body. The delete button prices the nodes that go
+(`DeleteAffordance`).
 
 **A body reaches the product through one door.** Nothing joins the
 product unasked, a document's first body included. **Add to the

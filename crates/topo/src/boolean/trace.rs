@@ -131,28 +131,13 @@ impl core::fmt::Display for TraceFault {
             Self::Unsettled(why) => write!(
                 f,
                 "a root count the door cannot certify ({})",
-                unsettled_words(*why)
+                why.sentence()
             ),
         }
     }
 }
 
 impl core::error::Error for TraceFault {}
-
-/// What an uncertified root count says of itself, in words.
-fn unsettled_words(why: Unsettled) -> &'static str {
-    match why {
-        Unsettled::Tangency => "a double root",
-        Unsettled::Meter { .. } => "a residual the band cannot meter",
-        Unsettled::Exhausted => "the walk ran past its piece budget",
-        Unsettled::Floor => "a piece at the walk's floor the band does not read past",
-        Unsettled::Resolvent => "a resolvent with no positive root",
-        Unsettled::CountDisagrees { .. } => "the built roots disagree with the certified count",
-        Unsettled::AtApex => "a root at a cone's apex",
-        Unsettled::Degenerate => "a residual whose leading term vanishes",
-        Unsettled::Crease => "a meeting at a spline's crease",
-    }
-}
 
 fn door(error: BooleanError) -> TraceFault {
     match error {
@@ -183,8 +168,8 @@ fn sign(name: &'static str, margin: Margin<impl Decide>, band: Band) -> Result<S
     decide(name, margin, band).map_err(TraceFault::Escalated)
 }
 
-/// **The crossings of the ray `origin + dir·t`, `t > 0`, with
-/// `surface`**, nearest first. `dir` is unit; `reach` is a length the
+/// **The crossings of `ray` with `surface`**, nearest first, each ahead of
+/// its origin ([`geom::Ray::ahead`]). Its `dir` is unit; `reach` is a length the
 /// size of the scene the piece runs through, the lever its lead and
 /// its senses are read over. `sense` is the face's orientation sense.
 ///
@@ -194,12 +179,12 @@ fn sign(name: &'static str, margin: Margin<impl Decide>, band: Band) -> Result<S
 pub fn ray_crossings<T: Decide>(
     surface: &Surface<T>,
     sense: bool,
-    origin: Point3<T>,
-    dir: Vec3<T>,
+    ray: &geom::Ray<T>,
     reach: T,
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
     use super::reduce::SpanVerdict;
+    let geom::Line { origin, dir } = ray.line;
     // Unsourced lever: the ray's length, a scene size the caller hands
     // rather than geometry the extent home reads.
     let arm = geom_core::Lever::unsourced(reach);
@@ -227,7 +212,7 @@ pub fn ray_crossings<T: Decide>(
             });
         }
         _ => {
-            match super::reduce::line_wall_roots_of(origin, dir, (T::zero(), reach), surface, band)
+            match super::reduce::line_wall_roots_of(ray.line, (T::zero(), reach), surface, band)
                 .map_err(door)?
             {
                 None => {
@@ -245,7 +230,10 @@ pub fn ray_crossings<T: Decide>(
     };
     let mut out = Vec::new();
     for t in roots {
-        match sign(TRACE_CROSSING_AHEAD, Margin::of(t), band)? {
+        match ray
+            .ahead(t, TRACE_CROSSING_AHEAD, band)
+            .map_err(TraceFault::Escalated)?
+        {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => continue,
         }
@@ -468,24 +456,6 @@ fn order<T: Decide>(
 /// plane stands beyond the carrier, past its support on the plane's
 /// nearer side, or off a plane or a cylinder it is parallel to.
 pub const TRACE_PLANE_MISSES: &str = "trace_plane_misses";
-
-/// **Where a carrier stands and how far it reaches from there**: the
-/// lever a piece's decisions about its face are read over. A bounded
-/// carrier's whole cover's ball ([`Surface::cover`]: a sphere's own, a
-/// torus's tube's); a plane's point and a cone's apex, reaching nowhere
-/// from it; a cylinder's axis point and its radius off the axis. `None`
-/// for a carrier with no closed form.
-pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
-    match *surface {
-        Surface::Plane { origin, .. } => Some((origin, T::zero())),
-        Surface::Cylinder { origin, radius, .. } => Some((origin, radius)),
-        Surface::Cone { apex, .. } => Some((apex, T::zero())),
-        Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Spindle { .. } => {
-            surface.cover().ok().map(|c| c.ball())
-        }
-        Surface::Nurbs(_) | Surface::Approx(_) => None,
-    }
-}
 
 /// **Whether the plane through `point` with unit `normal` is shown to
 /// miss `surface`**: `true` grants that its trace is empty, and `false`

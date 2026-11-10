@@ -137,7 +137,7 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Opti
     // door finishes its result, and check 7's quadrature escalates there
     // on the rim span's winding (`props_rim_span_winding`, in band),
     // `VolumeUncomputable` alone. The P0 row
-    // `work/onehome/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
+    // `work/boxfinish/f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves.md`
     // is the reader that lifts it; this pin turns red when it lands.
     if major > 1e3 && window_arg.is_none() && Tol::witness().eps() <= 1e-12 {
         match &got {
@@ -173,12 +173,12 @@ fn rel_close(got: f64, want: f64, rel: f64, what: &str) {
 
 fn tori(body: &Body<f64>) -> Vec<(f64, f64)> {
     let mut out = Vec::new();
-    for (_, face) in body.faces() {
+    for (fk, _) in body.faces() {
         if let Some(Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        }) = body.get_surface(face.surface)
+        }) = body.face_surface(fk)
         {
             out.push((*major_radius, *minor_radius));
         }
@@ -305,8 +305,8 @@ fn u_ref_caveat_is_honest_in_both_directions() {
         )
         .expect("builds");
         let mut out = Vec::new();
-        for (_, face) in t.body.faces() {
-            if let Some(Surface::Torus { u_ref, .. }) = t.body.get_surface(face.surface) {
+        for (fk, _) in t.body.faces() {
+            if let Some(Surface::Torus { u_ref, .. }) = t.body.face_surface(fk) {
                 out.push(*u_ref);
             }
         }
@@ -401,8 +401,7 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
         assert_eq!(cavity.faces.len(), 2);
         let inner = outer - wall;
         for f in &cavity.faces {
-            let face = t.body.get_face(*f).unwrap();
-            match t.body.get_surface(face.surface) {
+            match t.body.face_surface(*f) {
                 Some(Surface::Torus { minor_radius, .. }) => {
                     assert_eq!(
                         minor_radius.to_bits(),

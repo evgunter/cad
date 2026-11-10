@@ -62,7 +62,7 @@
 //! (`Sweep::strip_spurs`), so the finish and the section query read one
 //! loop. Last, it writes the F9 record.
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
@@ -318,7 +318,7 @@ fn fixed_partners<T: Decide>(
         if halves.len() <= 2 {
             continue;
         }
-        let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+        let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
         let wall = view.surface();
         let mut crossings = Vec::with_capacity(halves.len());
         for &h in &halves {
@@ -403,7 +403,7 @@ fn split_leave<T: Decide>(
     half: HalfEdgeKey,
 ) -> Result<geom_core::Vec3<T>, SplitJoinError> {
     let face = he_face(body, half)?;
-    let view = body.passed_face(face).ok_or_else(|| corrupt_face(face))?;
+    let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let wall = view.surface();
     leave_on(body, plane_normal, above_set, half, (wall, view.sense()))
 }
@@ -525,7 +525,7 @@ fn pair_along_line<T: Decide>(
     line: geom::Line<T>,
     band: Band,
 ) -> Result<(Vec<(HalfEdgeKey, HalfEdgeKey)>, usize), SplitJoinError> {
-    let keys: Vec<T> = crossings.iter().map(|c| line.param(c.point)).collect();
+    let keys: Vec<T> = crossings.iter().map(|c| line.height(c.point)).collect();
     let order = super::order::sort_along_line(&keys, band)
         .map_err(|diag| SplitJoinError::Escalated { face, diag })?;
     let mut pairs = Vec::new();
@@ -736,7 +736,7 @@ fn conic_pairs<T: Decide>(
     // conic's speed is even and 2π-periodic in `θ`, so it reads the
     // same at `w` as at the `θ` it came from.
     let gap = |w: &[T], a: usize, b: usize| {
-        (w[a] - w[b]) * conic.tangent((w[a] + w[b]) * T::from_f64(0.5)).norm()
+        (w[a] - w[b]) * conic.tangent(geom::mid_param(w[a], w[b])).norm()
     };
     let n = crossings.len();
     let runs = super::order::sort_along_runs(n, |a, b| gap(&walk, a, b), band).map_err(escalate)?;
@@ -752,6 +752,11 @@ fn conic_pairs<T: Decide>(
     .map_err(escalate)?
         == Sign::Zero
     {
+        // WHICH, not a search a later gap may answer past
+        // ([`geom_brep::ladder::Answering::First`]'s rule, several rungs may answer): the cut
+        // `k` rotates the walk, and the pairing below reads which crossings it put past the
+        // seam, so a gap in band ahead of a later one decided apart may be the true cut, and
+        // its escalation refuses.
         let mut cut = None;
         for k in 1..n {
             let step = gap(&walk, order[k], order[k - 1]);
@@ -1580,7 +1585,7 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     apex_germs: SecondaryMap::new(),
-                    coincidences: Vec::new(),
+                    coincidences: crate::splitting::ReducedRows(Vec::new()),
                     edge_pieces: crate::lineage::SplitEdgeDivisions::new(
                         crate::lineage::LineageRows::EdgeDivisions(None),
                     ),

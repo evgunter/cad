@@ -38,7 +38,7 @@ impl<T: geom_core::Real> LoftedBody<T> for topo::Replay<T> {
     }
 }
 
-impl<T: geom_core::Real> LoftedBody<T> for topo::AtRestBody<T> {
+impl<T: geom_core::Decide> LoftedBody<T> for topo::AtRestBody<T> {
     fn body_of(&self) -> &topo::Body<T> {
         self
     }
@@ -50,11 +50,10 @@ fn wall_values<T: topo::AtRestPolicy + SpanLocate, R, B: LoftedBody<T>>(
 ) -> Vec<R> {
     let mut out = Vec::new();
     for face in lofted.side_faces.iter().flatten().flatten() {
-        let face = lofted.body.body_of().get_face(*face).expect("a built face");
         match lofted
             .body
             .body_of()
-            .get_surface(face.surface)
+            .face_surface(*face)
             .expect("a described face")
         {
             Surface::Nurbs(n) => {

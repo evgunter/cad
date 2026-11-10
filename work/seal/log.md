@@ -1,3 +1,150 @@
 # SEAL — the log
 
 - 2026-11-01 — Opened by CLEAVE's split on its semantic seams (Ev, in chat, 2026-11-01: CLEAVE measured 114 budget points against 30). 4 rows moved here from `work/cleave/` by `git mv`, ids and bodies unchanged, each with a dated `## Slate triage` note. Nothing is dispatched. (CLEAVE orchestrator)
+- 2026-11-09 — **Sitting picked up (`active`) by the REFS orchestrator, serially after REFS's P1s** (Ev, this session: programs with one or two open items, done serially). Two P1s are open:
+  - `a-vertex-piercing-two-declared-coincident-faces-reads-as-one`: priced H (boolean vertex-on-face topology); dispatched first, unit branch `seal/vertex-reads-one-interface`. Tier **single, FULL**: a boolean classification change whose correctness a read cannot settle.
+  - `glue-disagreements-and-held-contradictions-after-stage-4`: `design`, so it goes to designers before building.
+- 2026-11-09 — **`a-vertex-piercing-two-declared-coincident-faces-reads-as-one` stopped at a fork before building** (no code). The row's premise that records don't reach the boolean is stale: the census runs at `⊔`'s door, and `records_a/b` arrive through `Glue::of`, but only to be carried, since no classification pass reads them. The README's typed area self-touch refusal has no code. Two measured experiments:
+  - reading the second pierce panics in `sectors.rs` (read-once invariant);
+  - dropping the pierces gives `post − seat` = ∅ correctly, but `seat ∪ bead` fails `UnpairedLooseEnds`, and `seat − post` is suspected self-intersecting.
+
+  `design: true` set. Fork `seat-vertex-one-interface` went to three designers (drawn arm, bytes on its analysis branch), problem only, with the probe files.
+- 2026-11-09 — **Fork `seat-vertex-one-interface`: three first reports, agreeing on every per-op outcome and split on the layer.**
+  - **A:** the kernel door groups each operand's solids into sets no record joins, runs per group, and folds `∪` n-ary with given-apart pairs. Its probe found a ledge case (`Pierce + Pair`).
+  - **B:** editor distribution, plus a kernel-named refusal.
+  - **C:** kernel classification reads the seat as local shape (one cone, a strut run per face, an entity per material sector). Its argument: only this reaches a slit inside one solid.
+  - All three want a new typed area self-touch refusal for a bridged `∪`. All agree the row's Done-when names a mechanism and not a semantics.
+  - **C measured** that the editor's distributed cut re-decides the seat, unquietable, and reports four split-wall flush pairs. Filed on TALLY as `a-cut-distributed-over-a-seat-re-decides-the-seat-and-reports-its-split-tool` (P1 M).
+  - Round 1 is running.
+- 2026-11-09 — **Fork `seat-vertex-one-interface` converged after one round, with no question for Ev, so it has no fork-log row** (the precedent is REFS's exact-descent fork, 2026-11-02).
+  - **R1:** each designer was shown the other two. A moved from door grouping to C's local reading: `recl.rs`'s per-sector slit line and `cone_classes`' gathered cone refute "a single pass can't make one vertex two". B moved from the editor layer to C: the measured re-decision cannot be fixed at the editor without a second substitution door, and a fold re-decides at its second step. C moved its mechanism a step deeper and conceded that its measurement alone was an editor-fixable defect.
+  - **Agreed:** a declared pair is one two-sided wall to every material reader. It is built on the whole body, with records in lineage and a new typed refusal at the solid sort for a bridged union.
+  - The design is written into the row's `## Design`, and its `design` flag is cleared. The decisive first step is a prototype on the seat fixture, testing three stated assumptions.
+  - Follow-up filed on TALLY, parked: `the-editors-distribution-over-a-seat-retires-for-the-kernels-whole-body-boolean` (P2 M).
+  - Next: dispatch the prototype-then-build lane on `seal/vertex-reads-one-interface`. Tier **dual**, because the classification logic is especially tricky in shared boolean ground. It is decided at review time per `docs/DUAL-REVIEW-PROTOCOL.md`.
+- 2026-11-09 — **Prototype on `seal/vertex-reads-one-interface-prototype` (`ed87ae56c3`).** Assumptions 1 and 2 hold: two coincident sections on a crossing wall, and two strut runs at one vertex each paired with its own ring. Assumption 3 FAILS. In `X − S`, the two sections leave a zero-thickness crack of X between them, and it is kept as an Out piece that zips with the reverted seat patches into a lamina. Swapping the copies' order moves the crack to the other ops, and `bead − seat` also needs the top's patch divided along the bolt's foot edge.
+  - **Sound and correct per the design:** `seat − post` (22 faces, 0.948, record carried), both `∩`, a bead touching one piece, the bridged unions refusing, and the no-record negatives. Every built body passes tier 3/3′.
+  - **Not caused by this change:** `seat − ledge` refuses `ClassificationInvariant` on bare inputs too.
+  - **Sequencing call (mine, with recommendation; the alternative was sending the crack rule back to the designers first):** land step 2 now for everything shown sound, with `X − S` held to a typed refusal, and file the crack as its own P1 H design row. Reason: the landed part is sound and gives the design's outcomes for every op but one, and nothing is half-built. The crack is a finish-layer question the design text did not reach.
+- 2026-11-09 — **`vertex-reads-one-interface` is PR 6613, CI `gate ok` green on `a8d19a96b7e9`.** Dual review dispatched on that frozen head, protocol `db69dd9d5a`. Difficulty letter H, so the arm is CONCURRENT: R1 and R2 have the same brief and claims, and each is pointed at the style lane. The lane's own premise corrections and its two new rows are in the PR body. I reclaimed the implementer's 23 GB target before dispatch, because two review targets would not fit beside it.
+- 2026-11-09 — **`glue-disagreements-and-held-contradictions-after-stage-4` re-censused.** Stage 4 PR F (PR 4641) and `mates-declare-no-contact` (PR 5637) landed, which releases the row. A read-only census against main `b3363f462e` is written into the row: 22 of the 35 held arms are retired and 13 survive. C21 and C22 are not settled by the glue door, and stage 4 added six sites of the same shapes. I split the work into a mechanical unit and a design question: what a reading carries when two decided readings disagree, or a decided reading breaks a convention. The question went to fork `glue-disagreements-carry`, two designers (drawn arm; bytes on its analysis branch), problem only. The mechanical unit waits for the fork, since the fork may reshape the types it would write.
+- 2026-11-09 — **Fork `glue-disagreements-carry`: two first reports, agreeing on the premise and split on four points.**
+  - **Both reject the brief's "two decided readings disagree":**
+    - C21 is a straddle (data as lower bounds, the extent sum as the upper), for the funnel's `k_stats::straddle`, as `tori_coincide` already does;
+    - `off_ring` carries geom-brep's torus refusal and lever, not `PoisonedCarrierDatum`;
+    - the margins `IdentityLadder::Apart` and `NotTangent` drop are mechanical;
+    - the census's predicate-string dispatch goes (D4 ¶1 (ii));
+    - the glue door decides a tangency once;
+    - no `Definite` type;
+    - the parent row's item 7 is unratified agent text.
+  - **A:**
+    - the torus witness is a straddle;
+    - a reading's definite "no" is a typed verdict (`Ruled { row, by: Decided }`), a contradiction only against a record at rest;
+    - `sides_mixed` is a typed verdict;
+    - C22 is the corner's own decided Zero through `gate_rejection`.
+  - **B:**
+    - the witness Zero is a gate rejection;
+    - `Contradicted { fact, evidence: Option<Decided> }` at the reading, with `Decided` gaining a predicate;
+    - `sides_mixed` is an `unreachable!` invariant;
+    - C22 is one level up: the glue door keeps one verdict table for every pair it reads (Glued / InBand / Apart), and the corner reads it rather than re-deciding the pair, retiring README C4's agent-written corner sentence.
+  - Round 1 is running, each designer shown the other's `For Ev`.
+- 2026-11-09 — **Fork `glue-disagreements-carry`, round 1: both moved, and they crossed on three points.**
+  - **Now agreed:**
+    - a reading's definite "no" is a typed verdict, and a contradiction exists only at rest against a record. The Boolean then mints none: `BooleanError::ContactContradicted` and the conformal screen are decided-twice debris;
+    - `CarrierVerdict::{One, Apart(Decided)}`;
+    - the corner stops re-reading the carrier pair, and its Apart refusal is `Coincide::Sectors`;
+    - README C4's agent-written corner sentence retires.
+  - **Crossed:** A moved to B's first positions (the witness as a gate rejection, a door verdict table, `sides_mixed` unreachable), and B moved to A's (witness straddle, no table, `sides_mixed` typed). `Decided.predicate`: A adopted it and B withdrew it.
+  - Round 2 asks the question beneath each:
+    - is a carrier-wide upper an honest bound on the faces;
+    - does the lane admit a rim where n1·n2 varies;
+    - does any reader need the door's Apart for a decision or recourse;
+    - with row enums, does the predicate field have a reader.
+- 2026-11-09 — **Fork `glue-disagreements-carry` converged in round 2, with no question for Ev, so it has no fork-log row.**
+  - **Seat replacements.** Both round-1 lanes were stopped by an API safeguard flag (`reasoning_extraction`) after I asked each to copy its own report into a file. Fresh lanes of the same models took seats A and B for round 2, each handed its seat's round-1 text as its starting position. The note is on the fork's analysis branch. Lesson: never ask a lane to re-emit its own output; transcribe it myself.
+  - **Round 2.** Seat A moved to B's positions on all four crossed points, and seat B held them, each on a fact read from the tree:
+    - `TorusDisplacement::upper` bounds every point of both tori, so the witness is a straddle;
+    - `tangent_certificate_lane` admits Villarceau rims, so `SidesMixed` is typed;
+    - no corner branches on the door's Apart, so there is no table;
+    - no reader of a `Decided`'s name, so there is no field.
+  - **My adjudication of the residue.** The open corner case (`ReadOn::Faces`: near arm Zero, far bound off) ends `Coincide::Sectors` with `Off(Decided)`. I checked B's objection to A's gate rejection: `k_stats::gate_rejection` hits `unreachable!` when `passes` admits the sign, and `Sectors` passes `AnySign`. For `TorusCoincidence::Apart` I took B's `max(chord, sine)` guard over A's `Result` upper.
+  - **The design is in the row, cut into four P1 steps:**
+    - `carrier-readings-keep-the-margins-they-decided-on` (M);
+    - `a-reach-straddle-goes-through-the-straddle-door` (M);
+    - `a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted` (H);
+    - `a-corner-reads-only-its-own-sectors` (M, parked on step 1).
+
+    The umbrella row is parked on them; its design flag is cleared and it is re-costed H.
+  - Next, serially: step 1 once PR 6613 merges.
+- 2026-11-09 — **PR 6613: the dual review is in, APPROVE-WITH-FIXES twice, no MAJOR.**
+  - **Shared findings:**
+    - `ToolSeatCrossed` refuses tools that only touch the seat (∅ is right);
+    - the wall's In-wins edge-class gather has no row (mutants survive), and it feeds naming;
+    - the mirror check has no row;
+    - the PR body misdescribes main, and main's `cap − seat` built a silently wrong record-held floor that this PR's gate now refuses (unclaimed);
+    - stale docs;
+    - an undisclosed parallel gather path beside `cone_classes`;
+    - the area-record predicate is written twice.
+  - **R2 only:**
+    - the built rows assert nothing the wrong `cap − seat` fails (face counts, one shell holding both record faces);
+    - a curved area seat used as a cut's tool can still build that floor (by inspection);
+    - collar `CarryRefused`;
+    - the redundant flush refusals.
+  - **R1 only:** both operands carrying records refuses `CarryRefused`; `sample_errors`.
+  - The fix pass was sent to the implementer as one adjudicated list of 13 items.
+  - **One class to note:** a gate's rows have to go red with the gate off. Here they did not, and the built rows passed a wrong body. That is item 4 of the fix list.
+  - Off-target: R2 found the Express-lane bullet duplicated in `memories/agent-lane-operations.md`. That is a `memories/` edit, so it is Ev's. Noted, not fixed.
+- 2026-11-09 — **PR 6613 fix pass in; state-synced for merge.**
+  - The implementer took all 13 items and argued none down; CI is green at `5a2b000b`. I read the seat rule (`boolean::seat_crossed`, the second face's read in `vtxfac`) and accept it: a touch writes nothing on either face, and reads on both only in a cut by the seat.
+  - Filed by the pass: `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` (P1, M, by inspection). The crack and readers rows were restated.
+  - The plan's slate now lists the four glue steps, the umbrella, and the three rows this unit's review left.
+  - The implementer reports a red on main that is not this PR's: the slow-set row `union_fold_face_face_touch::a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line` fails "the body has a value: Unevaluated" on a clean main worktree. Its handling is below.
+- 2026-11-09 — **PR 6613 merged** (`a83e4b956b`), with its dual-review row last. The blinded coding (byte 175, A = R2) found eight bilateral and a tally of 0: neither review raised a MAJOR. Lane, target and both review scratch dirs reclaimed.
+  - **The protocol hash is `24b76fff0e`, not `db69dd9d5a`.** This working copy is shallow, so `git log -1 -- docs/DUAL-REVIEW-PROTOCOL.md` here stops at the graft; a full-history lane gives the right one. The two trees are identical; the row cites `24b76fff0e`.
+  - **The main red the implementer reported is the nightly's.** Nightly 87 (11-09) is red on several jobs, the slow-set full suites among them, and the newest `triage/nightly-*` branch is 10-29. That is GREEN's ground (act on the triage, not beside it), so I leave it to the triage and tell Ev at hand-back.
+- 2026-11-09 — **Glue step 1 dispatched:** `carrier-readings-keep-the-margins-they-decided-on` on `seal/carrier-readings-keep-margins`. Review tier single, FULL, for the reason in the row.
+- 2026-11-09 — **The duplicated `memories/` bullets went to Ev as `[ev]` PR 6633.** It deletes the first copies of the Express-lane and `-n` bullets, since the later copies say the same and more. It waits for Ev's sign-off, as any `memories/` change does.
+- 2026-11-09 — **Glue step 1 is PR 6634, CI `gate ok` green on `1de5db3b8b`.** Single FULL review dispatched on that frozen head (tier logged at dispatch in the row). The implementer's target is reclaimed. The lane's rulings to make at adjudication:
+  - `CarrierVerdict` grew a third variant, `TwoKinds`. My first read: right, since the kind-mismatch arm decides no datum, and the alternative is the hand mint the step removes.
+  - The plane ladder's orientation rung stays on `decide_nonzero`.
+  - I1/I2 wait on step 3's Rest verdict, but step 3's row does not name them yet. The fix pass records them there.
+- 2026-11-09 — **PR 6634 review in: APPROVE-WITH-FIXES, no MAJOR** (267,451 tokens, 37 min). Fix pass sent to the implementer.
+  - **Rulings:** `TwoKinds` is confirmed. The orientation rung stays on `decide_nonzero`: `jointly` keeps a Zero tag only where both inputs are Zeros, so carrying the rung in `One` would unprove Sym Zeros.
+  - **Class findings and their homes:**
+    - **Routing behind new endings goes unpinned** when rows test the ending function rather than the arm that reaches it. Six mutants survived (face and side swaps, a dropped door refusal). Fix pass, item 1.
+    - **"Closing a duplication adds a copy":** the PairSide/PairFace matches, two `NonzeroSign`→`Sign` conversions, the `TorusVerdict` dispatch written four times. Fixed, or filed as rows, in the fix pass.
+    - **A pre-existing blind spot:** `plane_eq::senses` decides `bool_plane_orient` a second time. The fix pass files it as a row.
+    - **Two sweep tests fail `OutsideSessionBox` on main too.** The fix pass checks whether they are in the slow set; the nightly is GREEN's.
+- 2026-11-09 — **PR 6634 merged** (`ad8371a76f`). Glue step 1 is done, and step 4 (`a-corner-reads-only-its-own-sectors`) is open now. Lane, target and scratch reclaimed. Next, serially:
+  1. REFS `the-reference-path-reads-every-node-from-mint-to-read`.
+  2. Glue step 2 (`a-reach-straddle-goes-through-the-straddle-door`).
+- 2026-11-09 — **PR 6634 fix pass in (`4c33cb1f81`, `gate ok` green); state-synced for merge.**
+  - **Routing pins:** all six surviving mutants are now pinned, each shown red. Census ~6290's table row is corrected.
+  - **I7:** its deferred arm's log is restored to main's.
+  - **Leftovers recorded:** I1/I2 on step 3's row, I7 on SECTOR's row.
+  - **Filed in `work/seal/`, all P3:** four rows, three from the review's style findings and the `plane_eq::senses` second decision.
+  - **The two `OutsideSessionBox` slow-set rows** are evidence on ONEHOME's existing `main-red-four-sweep-slow-rows-refuse-outside-session-box`. The nightly red is GREEN's.
+- 2026-11-09 — **Glue step 2 is PR 6646, CI `gate ok` green on `d89337d37d`.** Single FULL review dispatched on that frozen head. The implementer's target is reclaimed.
+  - **Shape:** one helper, `geom_brep::ladder::data_beneath_sum`, serves C21 and `tori_coincide`. `TorusCoincidence::Apart` gains `upper`, and its tilt term is `max(chord, sine)`.
+  - **Premise correction to rule on at adjudication:** apart-beside-NaN now ends `Undecided(poison)` where main read `Apart`.
+- 2026-11-09 — **PR 6646 review in: APPROVE-WITH-FIXES, no MAJOR** (218,500 tokens, 16 min). Fix pass sent.
+  - **Confirmed:** `upper`'s soundness (re-derived, rounding included) and the one helper. The premise correction is accepted: apart beside NaN now ends in poison, under D2.
+  - **MINOR, by execution:** a C21 straddle whose first datum is nonzero offers a tolerance, where main offered none. The table had claimed otherwise. The fix pass corrects it and pins the case with a sphere row.
+  - **Class finding:** the C21 "tolerance offer: none" claim rested on fixtures whose axes agree exactly. A general claim pinned only on a degenerate fixture holds for the fixture, not the case.
+  - **Also in the fix pass:**
+    - doc truth: the data bound the carriers' separation, not the displacement over the extent;
+    - one torus path at the face-pair door, plus the helper's dead and discarded arms;
+    - a pin on the zero-tag;
+    - an independent oracle for the torus row.
+- 2026-11-09 — **PR 6646 fix pass in (`a065581371`, `gate ok` green). Merged on the orchestrator's read of the delta; state-synced.**
+  - **Docs and pins:** C21's tolerance offer is disclosed and pinned by a sphere row. The docs now say the data bound the carriers' separation. A pin on the `jointly` zero-tag kills the surviving mutant. The torus row checks its enclosure against closed-form values.
+  - **One torus path:** `carrier_eq::ladder_reading` returns `PairDoorReading::{Verdict, RingApart { relation, by, upper }}`. The corner maps `RingApart` to `Apart(by)`, and the door hands `upper` to the witness. `tori_pair`/`torus_verdict` are gone.
+  - **The helper** takes only a non-Zero sum, so neither caller holds a dead arm.
+  - **Two reds the fix pass caught at ε = 1e-12, both its own:** the offer is absent at 1e-12, and a thin torus patch did not certify. Both are fixed.
+- 2026-11-09 — **Glue step 3 is PR 6673, CI `gate ok` green on `fbc78cbef5`** (594,228 tokens, 137 min). Single FULL review dispatched on that frozen head; the implementer's target is reclaimed. The lane made one design call the row did not settle, put to the review as its first claim: a tangency the census finds with no record and aligned normals (`Opposed`) now reports nothing, where main reported a contact "contradicted" with no record behind it (grounds: `[verdicts.consumers]` and the fork's text). Villarceau probe: the whole circle never reads `SidesMixed`; a contrived span does, so the verdict stays typed. Filed by the lane: `three-escalation-endings-route-by-the-predicate-name` (P3) and BIND's `contact-verdict-is-a-rung-under-contact-contradicted` (P4).
+- 2026-11-09 — **PR 6673 review in: NOT-MERGEABLE-AS-IS on one MAJOR** (278,914 tokens, 65 min). Fix pass sent to the implementer.
+  - **M1, upheld:** the lane's own design call is overruled. A same-solid tangency with no record and aligned outward normals is a touch with material on both sides (the pinned rod-in-cylinder is an invalid body), and DR-311's fix pass (PR 5456) had ruled "aligned or mixed normals stay findings". Main was wrong only in calling it a contradicted record. The fix makes it a typed `ValidationError` defect, sibling to `CuspEdgesMissing`.
+  - **Minors, all accepted:** five mutants that survive the topo lib suite (margins recorded, `TangentCert.line`, `verified.lines`, `interiors`) and two display-sign mutants get rows; stale docs and a removed-name sweep; the closure says the `is_span_precision` string dispatch remains, scheduled by the P3 row; a Gap sign under an aligned-normal record to check.
+  - **Style, sent as fixes:** `ContactVerdict` duplicates the verdict arms it reports (the parallel-enum class `contact.rs` forbids) and puts a predicate string back on a payload; `GluedPair` gets one origin with the class derived, so `Glued::OneCarrier` carries its relation as the row said; the two Tangent arms that build a glued record share a helper; `TangentRow::Opposed` renamed to the fact; three rows that tested the removed screen retargeted.
+  - **Class finding:** an implementer's design call made under "the code would not compile without one" reversed a reviewed ruling without citing it. The lane flagged the call, which is what put it first in the review.
+- 2026-11-09 — **PR 6673 fix pass in** (`08cf84e943`, CI `gate ok`): `ValidationError::MaterialOnBothSides` for a record-less aligned or mixed-sides tangency, pinned on the rod-in-cylinder; the five glue-record mutants and the two display swaps killed by new rows; `GluedPair` holds one `Origin`, its class derived; `ContactVerdict` carries the rulings whole; a `Gap` fact no longer reads a sign that means two things. Merged on the orchestrator's read of the delta (the census arm, `Named::of`, `Origin`). State-synced: the unit row keeps `closed`, its `## Dispatch` before `## Closed`. Left unpinned, stated in the PR: record-less gap, independent and parallel rulings staying silent (no same-solid fixture reaches them on a derived line).

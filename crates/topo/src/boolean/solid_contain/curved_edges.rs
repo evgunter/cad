@@ -17,13 +17,13 @@
 //!   cross it at one root, so their one point is read against the seam
 //!   once.
 //! - **Whether it meets it.** That ray point is read against the edge's
-//!   span as the census reads it ([`crate::census::edge_span`]): on the
-//!   carrier ([`geom::Curve3::foot`]'s `on_carrier`, zero in the band, off
-//!   only past it on a lower bound), and where its foot sits against the
-//!   span's ends ([`geom_brep::curve_pair::Span::place`]). On the carrier,
-//!   or in the band's gap, inside the span, the ray meets the edge. In
-//!   band of an end it is marked a graze; past the span its nearest point
-//!   is that end, read as a vertex. Off the carrier from every crossing,
+//!   span as the census reads it ([`crate::census::edge_span`]), by the
+//!   point-on-span reading ([`geom_brep::curve_pair::Span::read`]): on the
+//!   carrier (zero in the band, off only past it on a lower bound), and
+//!   where its foot sits against the span's ends. On the carrier, or in
+//!   the band's gap, inside the span, the ray meets the edge. In band of
+//!   an end, or where the place refuses, it is marked a graze; past the
+//!   span its nearest point is that end, read as a vertex. Off the carrier from every crossing,
 //!   it passes clear, and each face reads its own crossing.
 //! - **Which crossing it stands for.** A met edge is half a crossing for
 //!   each face, at that face's carrier crossing nearest where the ray
@@ -53,7 +53,7 @@ use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::ray_walk::RayFault;
 use crate::validate::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign};
 
 /// The alternate feet that carry a crossing's point to the ray's closest
 /// approach to an edge's carrier. Each foot is never farther than the one
@@ -88,11 +88,12 @@ pub(super) fn read<T: Decide>(
     planes: &[PlaneCross<T>],
     roots: &[RootCross<T>],
     missed: &[FaceKey],
-    (q, d, reach): (Point3<T>, Vec3<T>, T),
+    (ray, reach): (&geom::Ray<T>, T),
     band: Band,
     rows: RayRows,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
+    let geom::Line { origin: q, dir: d } = ray.line;
     let top = reach * T::from_f64(2.0);
     // A face's own carrier crossings on this ray, where it reads them:
     // `None` for a face read whole or not at all (a closed sphere or torus
@@ -155,7 +156,7 @@ pub(super) fn read<T: Decide>(
             let mut found: Vec<(T, Gap)> = Vec::new();
             let (mut decided, mut clear) = (true, true);
             for &(_, t) in ca.iter().chain(&cb) {
-                match passes(&span, q, d, q + d * t, band) {
+                match passes(&span, ray, q + d * t, band) {
                     Passes::Met(s, gap) => found.push((s, gap)),
                     Passes::End(s) => {
                         clear = false;
@@ -192,10 +193,10 @@ pub(super) fn read<T: Decide>(
             // nearest the edge at `q`, which the boundary pre-pass holds
             // clear of both its faces; a passage whose span straddles `q`
             // is read nowhere.
-            if decide(rows.advance, Margin::of(hi), band) == Ok(Sign::Negative) {
+            if ray.ahead(hi, rows.advance, band) == Ok(Sign::Negative) {
                 continue;
             }
-            if decide(rows.advance, Margin::of(lo), band) == Ok(Sign::Negative) {
+            if ray.ahead(lo, rows.advance, band) == Ok(Sign::Negative) {
                 meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
                 continue;
             }
@@ -221,7 +222,7 @@ pub(super) fn read<T: Decide>(
             });
         }
     }
-    narrow(body, (q, d), band, meets)
+    narrow(body, ray, band, meets)
 }
 
 /// **A face met at one edge, read again at its other edges from where
@@ -235,10 +236,11 @@ pub(super) fn read<T: Decide>(
 /// edge of a face narrower than the band there is near.
 fn narrow<T: Decide>(
     body: &Body<T>,
-    (q, d): (Point3<T>, Vec3<T>),
+    ray: &geom::Ray<T>,
     band: Band,
     meets: &mut EdgeMeets<T>,
 ) -> Result<(), RayFault<PointInSolidError>> {
+    let geom::Line { origin: q, dir: d } = ray.line;
     let met = meets.met.clone();
     for m in &met {
         for &face in &m.faces {
@@ -256,7 +258,7 @@ fn narrow<T: Decide>(
                 };
                 let faces = [face, fe.across];
                 for seed in [m.span.0, m.span.1] {
-                    match passes(&span, q, d, q + d * seed, band) {
+                    match passes(&span, ray, q + d * seed, band) {
                         Passes::Met(s, gap) => {
                             let mark = gap.mark(m.gap);
                             meets.marks.push(RayHit::marked(faces, s, mark));
@@ -277,16 +279,15 @@ fn narrow<T: Decide>(
     Ok(())
 }
 
-/// **What the ray `q + s·d` reads against `span` from `seed`**, a point
+/// **What `ray` reads against `span` from `seed`**, a point
 /// of it (module docs). A point definitely off the edge's carrier (on the
 /// carrier's lower bound, where it has a closed form) is clear of it
 /// there. One that is not lies near the carrier, where its foot is well
 /// placed, and is carried to the ray's closest approach by alternate
-/// feet, which is read on the carrier and against the span's ends.
+/// feet, which the point-on-span reading reads ([`geom_brep::curve_pair::Span::read`]).
 fn passes<T: Decide>(
     span: &crate::census::EdgeSpan<T>,
-    q: Point3<T>,
-    d: Vec3<T>,
+    ray: &geom::Ray<T>,
     seed: Point3<T>,
     band: Band,
 ) -> Passes<T> {
@@ -305,28 +306,27 @@ fn passes<T: Decide>(
     if clear {
         return Passes::Clear;
     }
-    let ray = geom::Line { origin: q, dir: d };
+    let ray = ray.line;
     let mut r = seed;
     for _ in 0..FEET {
         near = carrier.foot(r, near).seed();
         r = ray.foot(carrier.eval(near));
     }
     let s = ray.param(r);
-    let gap = match carrier.foot(r, near).on_carrier(band) {
-        Ok(geom::OnCarrier::Off) => return Passes::Clear,
-        Ok(geom::OnCarrier::On { .. }) => Gap::Zero,
-        Err(refusal) => match refusal.escalation() {
-            Ok(diag) => Gap::InBand(diag),
-            Err(_) => return Passes::Undecided,
-        },
-    };
-    match span.span().place(r, near, band) {
-        Ok(geom_brep::curve_pair::Place::Inside) => Passes::Met(s, gap),
-        Ok(geom_brep::curve_pair::Place::Past) => Passes::Clear,
-        // In band of an end, or undecided against one, a walk that could
-        // not run included: the ray passes within reach of its vertex, a
+    use geom_brep::curve_pair::{Reading, SpanRefusal};
+    match span.span().read(r, near, band) {
+        Ok(Reading::On { .. }) => Passes::Met(s, Gap::Zero),
+        // Off the carrier, or past the span clear of both ends, whatever
+        // the carrier refused there (an escalation or a walk that could
+        // not run): no reading of the carrier puts the point on the edge.
+        Ok(Reading::Off | Reading::Carrier) => Passes::Clear,
+        // In band of an end, or undecided against one, whatever the
+        // carrier read: the ray passes within reach of its vertex, a
         // graze, which refuses the ray rather than answering it.
-        Ok(geom_brep::curve_pair::Place::End(_)) | Err(_) => Passes::End(s),
+        Ok(Reading::End(_)) | Err(SpanRefusal::Place(_) | SpanRefusal::Both(_)) => Passes::End(s),
+        Err(SpanRefusal::Carrier(refused)) => refused
+            .escalation()
+            .map_or(Passes::Undecided, |diag| Passes::Met(s, Gap::InBand(diag))),
     }
 }
 
@@ -388,7 +388,7 @@ mod straddle_rows {
         let through = EdgeSpan::of(ellipse.clone(), (-0.5, 0.5));
         assert!(
             matches!(
-                passes(&through, q, d, at, band),
+                passes(&through, &geom::Ray::new(q, d), at, band),
                 Passes::Met(_, Gap::InBand(_))
             ),
             "an arc through the vertex"
@@ -408,8 +408,43 @@ mod straddle_rows {
         );
         let past = EdgeSpan::of(ellipse, (t0, t1));
         assert!(
-            matches!(passes(&past, q, d, at, band), Passes::Clear),
+            matches!(
+                passes(&past, &geom::Ray::new(q, d), at, band),
+                Passes::Clear
+            ),
             "an arc past the closest approach"
+        );
+    }
+
+    /// **A place refusal at the door is a graze at the edge's end**: a
+    /// ray along the radius of a circle through its point half the band
+    /// past an arc's start, its chord to the start in band, so the span's
+    /// place refuses (`span_rows`' `a_refusal_names_the_reading_it_rests_on`).
+    /// The door reads it as the ray passing the end, which refuses the
+    /// ray, never as meeting the edge in band. Red where a place refusal
+    /// is read as a wedge.
+    #[test]
+    fn a_place_refusal_at_the_door_is_a_graze_at_the_end() {
+        let band = Band::new(ZERO, 10.0 * ZERO).unwrap();
+        let half = 0.5 * (band.zero() + band.escalate());
+        let centre = Point3::new(0.0, 0.0, 1.0);
+        let circle = geom::Curve3::circle(centre, Vec3::unit_z(), 2.0, Vec3::unit_x());
+        let arc = EdgeSpan::of(circle.clone(), (0.5, 2.5));
+        let at = circle.eval(0.5 - half / 2.0);
+        assert!(
+            matches!(
+                arc.span().read(at, 0.5, band),
+                Err(geom_brep::curve_pair::SpanRefusal::Place(_))
+            ),
+            "the span's place refuses the point"
+        );
+        let radial = (at - centre).normalize();
+        assert!(
+            matches!(
+                passes(&arc, &geom::Ray::new(at - radial, radial), at, band),
+                Passes::End(_)
+            ),
+            "the ray grazes the arc's start"
         );
     }
 }

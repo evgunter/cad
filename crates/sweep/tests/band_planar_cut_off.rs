@@ -88,10 +88,7 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
         arcs += 1;
         let surfaces = [e.he_plus, e.he_minus].map(|h| {
             let f = out.body.face_of_half_edge(h).expect("an arc's face");
-            out.body
-                .get_surface(out.body.get_face(f).expect("a face").surface)
-                .expect("a stored surface")
-                .clone()
+            out.body.face_surface(f).expect("a stored surface").clone()
         });
         let (t0, t1) = c.params();
         for k in 0..=64 {
@@ -654,7 +651,7 @@ fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
         .get_point(body.get_vertex(turn.vertex).expect("v").point)
         .expect("p");
     assert!(
-        (p - Point3::new(0.0, 0.0, 1.0)).norm() == 0.0,
+        p.equals_exactly(Point3::new(0.0, 0.0, 1.0)),
         "the turn is the teardrop's corner, got {p:?}"
     );
     match Verb::Fillet.run(&body, &rim) {

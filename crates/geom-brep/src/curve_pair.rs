@@ -47,13 +47,14 @@
 //! **The walk is the closed forms' differential test oracle** (the rows),
 //! never a runtime fallback.
 
+pub mod on_surface;
 mod polish;
 pub mod pose;
 pub mod span;
 mod walk;
 
 pub use pose::{Candidate, Pose, PoseRefusal, Sense, WindowBound, pose};
-pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd};
+pub use span::{Hit, PastBy, Place, Reading, Span, SpanEnd, SpanRefusal};
 
 use geom::CurveKind;
 use geom_core::{Band, Decide, Indeterminate, Point3};
@@ -138,7 +139,7 @@ pub struct Meetings<T: geom_core::Real> {
 }
 
 /// Why [`meet`] gave no answer.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MeetFault {
     /// A decision fell in the band's gap. Ranked by its margin.
     Escalated(Indeterminate),
@@ -151,6 +152,9 @@ pub enum MeetFault {
     /// before it could certify the candidates. Unsettled: no margin, and
     /// a coarser band may settle it.
     Unsettled(Unsettled),
+    /// A spline's piece walk could not run, reading a point on a span. As
+    /// the walk's refusal stands ([`crate::ladder::Refusal::of_walk`]).
+    Unwalked(geom::PieceWalkRefusal),
     /// A pose the pair's arm has no closed form for. A limit.
     Unsupported {
         /// The pose.
@@ -170,19 +174,161 @@ pub enum MeetFault {
 
 impl MeetFault {
     /// What this refusal is to a ladder over the readings that meet it
-    /// ([`crate::ladder::Refusal`]), as each variant's docs state it.
+    /// ([`crate::ladder::Refusal`]): its group's ([`MeetKind::refusal`]).
     ///
     /// # Errors
     ///
     /// [`crate::ladder::Aborts`] for a carrier the arm misread or two
     /// readings that contradict: a kernel fault, never a pose.
-    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+    pub fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        self.kind().refusal()
+    }
+}
+
+/// **What a [`MeetFault`] is to a consumer that does not tell its
+/// limits apart** ([`MeetFault::kind`]): the one grouping of its arms,
+/// so no consumer spells the group by hand.
+#[derive(Clone, Copy, Debug)]
+pub enum MeetKind {
+    /// A decision fell in the band's gap ([`MeetFault::Escalated`]).
+    Escalated(Indeterminate),
+    /// A meeting in band ([`MeetFault::Touch`]).
+    Touch(Indeterminate),
+    /// The reading did not run to an answer, and no margin says how far
+    /// it was ([`MeetUnread`]).
+    Unread(MeetUnread),
+    /// A kernel fault, never a pose: the carrier misread, or the readings
+    /// that contradict.
+    Fault {
+        /// What faulted.
+        what: &'static str,
+    },
+}
+
+impl MeetKind {
+    /// What this group is to a ladder ([`crate::ladder::Refusal`]): an
+    /// escalation or a touch ranked by its margin, an unread reading as
+    /// it stands ([`MeetUnread::refusal`]), a kernel fault an abort. The
+    /// one table of a meeting refusal's standing.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a kernel fault.
+    pub fn refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
         use crate::ladder::{Aborts, Refusal};
         match self {
-            Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(*diag)),
-            Self::Unsettled(_) => Ok(Refusal::Unsettled),
-            Self::Unsupported { .. } => Ok(Refusal::Limit),
-            Self::Desync | Self::Contradiction { .. } => Err(Aborts),
+            Self::Escalated(diag) | Self::Touch(diag) => Ok(Refusal::Margin(diag)),
+            Self::Unread(why) => why.refusal(),
+            Self::Fault { .. } => Err(Aborts),
+        }
+    }
+}
+
+/// **A meeting reading that did not run to an answer**, with no margin
+/// to say how far it was ([`MeetKind::Unread`]): the fault itself,
+/// narrowed to [`MeetFault::Unsettled`], [`MeetFault::Unwalked`] or
+/// [`MeetFault::Unsupported`] by its one constructor ([`Self::of`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MeetUnread(MeetFault);
+
+impl MeetUnread {
+    /// `fault` where it is a reading that did not run to an answer.
+    #[must_use]
+    pub const fn of(fault: MeetFault) -> Option<Self> {
+        match fault {
+            MeetFault::Unsettled(_) | MeetFault::Unwalked(_) | MeetFault::Unsupported { .. } => {
+                Some(Self(fault))
+            }
+            MeetFault::Escalated(_)
+            | MeetFault::Touch(_)
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => None,
+        }
+    }
+
+    /// The fault it is.
+    #[must_use]
+    pub const fn fault(self) -> MeetFault {
+        self.0
+    }
+
+    /// Its standing: the finder's ([`Unsettled::refusal`]), the walk's
+    /// ([`crate::ladder::Refusal::of_walk`]), or a limit for a pose with
+    /// no closed form.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] where the finder's does
+    /// ([`Unsettled::refusal`]).
+    pub fn refusal(self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self.0 {
+            MeetFault::Unsettled(why) => why.refusal(),
+            MeetFault::Unwalked(why) => Ok(crate::ladder::Refusal::of_walk(why)),
+            MeetFault::Unsupported { .. } => Ok(crate::ladder::Refusal::Limit),
+            MeetFault::Escalated(_)
+            | MeetFault::Touch(_)
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => {
+                unreachable!("a MeetUnread holds an unread arm (MeetUnread::of)")
+            }
+        }
+    }
+
+    /// The one sentence it is rendered by: what the finder met
+    /// ([`Unsettled::sentence`]), the walk's
+    /// ([`geom::PieceWalkRefusal::sentence`]), or the pose.
+    #[must_use]
+    pub fn sentence(self) -> &'static str {
+        match self.0 {
+            MeetFault::Unsettled(why) => why.sentence(),
+            MeetFault::Unwalked(why) => why.sentence(),
+            MeetFault::Unsupported { pose } => pose,
+            MeetFault::Escalated(_)
+            | MeetFault::Touch(_)
+            | MeetFault::Desync
+            | MeetFault::Contradiction { .. } => {
+                unreachable!("a MeetUnread holds an unread arm (MeetUnread::of)")
+            }
+        }
+    }
+
+    /// The pose the arm has no closed form for, where that is why.
+    #[must_use]
+    pub const fn pose(self) -> Option<&'static str> {
+        match self.0 {
+            MeetFault::Unsupported { pose } => Some(pose),
+            _ => None,
+        }
+    }
+
+    /// The recourse its rendering ends with: its standing's
+    /// ([`crate::ladder::Refusal::recourse`]). A reason that aborts is a
+    /// payload that mixes classes and aborts until it is split (a meeting
+    /// at a spline's crease): its ending is the unbuilt split's, no way
+    /// through yet, not a kernel defect.
+    #[must_use]
+    pub fn recourse(self) -> crate::ladder::Ending {
+        match self.refusal() {
+            Ok(standing) => standing.recourse(),
+            Err(crate::ladder::Aborts) => crate::ladder::Ending::NotYet,
+        }
+    }
+}
+
+impl MeetFault {
+    /// This refusal's group ([`MeetKind`]).
+    #[must_use]
+    pub const fn kind(&self) -> MeetKind {
+        match self {
+            Self::Escalated(diag) => MeetKind::Escalated(*diag),
+            Self::Touch(diag) => MeetKind::Touch(*diag),
+            Self::Unsettled(_) | Self::Unwalked(_) | Self::Unsupported { .. } => {
+                MeetKind::Unread(MeetUnread(*self))
+            }
+            Self::Desync => MeetKind::Fault {
+                what: "a carrier the meeting table misread",
+            },
+            Self::Contradiction { readings } => MeetKind::Fault { what: readings },
         }
     }
 }
@@ -201,15 +347,8 @@ impl From<RootRefusal> for MeetFault {
 }
 
 impl From<geom::PieceWalkRefusal> for MeetFault {
-    /// A spline's walk past its budget as unsettled, and a spline with no
-    /// speed bound as a pose the reader does not serve.
     fn from(why: geom::PieceWalkRefusal) -> Self {
-        match why {
-            geom::PieceWalkRefusal::Exhausted => Self::Unsettled(Unsettled::Exhausted),
-            geom::PieceWalkRefusal::Unbounded => Self::Unsupported {
-                pose: "a spline whose speed bound is zero or poison",
-            },
-        }
+        Self::Unwalked(why)
     }
 }
 
@@ -387,8 +526,8 @@ impl<T: Decide> Found<T> {
     fn read(&mut self, a: &Span<'_, T>, b: &Span<'_, T>, c: Candidate<T>, band: Band) {
         let on_both = || {
             both(
-                a.contact(c.point, c.ta, band),
-                b.contact(c.point, c.tb, band),
+                a.contact(c.point, c.ta, band).map_err(|r| r.refused()),
+                b.contact(c.point, c.tb, band).map_err(|r| r.refused()),
             )
         };
         let Some(bound) = c.bound else {
@@ -655,6 +794,15 @@ impl From<geom::CarrierRefusal> for MeetFault {
         refusal
             .escalation()
             .map_or_else(Self::from, Self::Escalated)
+    }
+}
+
+impl From<SpanRefusal> for MeetFault {
+    /// A point-on-span refusal as the meeting's: the refusal it is
+    /// ranked by ([`SpanRefusal::refused`]) as its own
+    /// ([`From<geom::CarrierRefusal>`]).
+    fn from(refusal: SpanRefusal) -> Self {
+        refusal.refused().into()
     }
 }
 

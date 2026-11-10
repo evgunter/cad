@@ -25,7 +25,8 @@
 //!   is the radius's, so the skews that put an arc levered at its own
 //!   length in band or under it build determinate;
 //! - the K cost on the die (48 contact edges, corner arcs included):
-//!   `48 × 2 × 7` samples of `tangent_second_order`, under `probe`.
+//!   `48 × 2 × 7` samples of `tangent_second_order` beside the door's
+//!   finish, under `probe`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -328,8 +329,7 @@ fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
             .unwrap()
             .face,
     ];
-    let start = body.get_half_edge(e.he_plus).unwrap().start;
-    let end = body.half_edge_end(e.he_plus).unwrap();
+    let (start, end) = body.edge_vertices(crease).unwrap();
     for v in [start, end] {
         let on_a_cap_ring = body.half_edges().any(|(_, h)| {
             if h.start != v {
@@ -400,8 +400,9 @@ fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
 
 /// **The die's 48 contact edges — 24 trimlines and 24 corner arcs —
 /// each spend the schedule's interior once in the rule and once in
-/// the certificate**: `48 × 2 × 7` samples of `tangent_second_order`,
-/// and nothing else on the carve samples that predicate.
+/// the certificate**: `48 × 2 × 7` samples of `tangent_second_order`
+/// beside the door's finish (`finish_spend`, the same again), and
+/// nothing else on the carve samples that predicate.
 #[cfg(feature = "probe")]
 #[test]
 fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certificates() {
@@ -445,7 +446,14 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
         .count();
     let contact = intrinsic_edges(&out.body);
     assert_eq!(contact, 48, "the die's 24 trimlines and 24 corner arcs");
-    assert_eq!(spent, contact * 2 * interior);
+    let finish =
+        crate::contact_edge_must_carry::finish_spend(&out.body, "tangent_second_order", tol());
+    assert_eq!(
+        finish,
+        contact * 2 * interior,
+        "the door's finish reads each contact edge's stations twice more: tier 2's edge wedge and tier 3's recertification"
+    );
+    assert_eq!(spent - finish, contact * 2 * interior);
 }
 
 // ---------------------------------------------------------------

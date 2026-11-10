@@ -70,9 +70,10 @@ produced it is unrepresentable knowledge, so no verb can branch on
 it, refuse on it, or silently depend on it. The verbs are pure
 functions over these bare state values in a sealed kernel module;
 the chain threads values and applies their emissions. (The
-junction check's lever arm and the §4 item 4 identity data are the
-CHAIN's own emission-layer bookkeeping, not anything a verb can
-consult.)
+junction check's lever arm is the CHAIN's own emission-layer
+bookkeeping, not anything a verb can consult; the chain keeps no
+memory of what leg produced a point, so no emission can branch on
+it either.)
 
 **The directed point is one API over a family of internal
 representations.** The API is (position, tangent,
@@ -208,9 +209,10 @@ authoring act.
 - **Incoming**: `fillet`/`fillet_arc` consume a directed point —
   a bound Directed tip, or a bare leg end, where the incoming
   side is the TANGENT RAY extended as a REAL line leg (ray
-  extension, uniform across line/arc/NURBS incomings; after a
-  straight leg the extension EXTENDS that leg's own segment, the
-  §4 item 4 exemption applied at emission). The fused verbs'
+  extension, uniform across line/arc/NURBS incomings; whatever
+  leg came before, the ray is a segment of its own and the leg's
+  end stays a vertex, with a constructed tangent joint there, or
+  the declared cusp `.cusp()` asked for). The fused verbs'
   incoming spec is state-keyed exactly as `arc_to(spec)`
   (endpoint-full from a Point, endpoint-free from a Directed tip)
   plus the two carrier-continuation rows: `Center{c, winding, p}`
@@ -220,12 +222,20 @@ authoring act.
   (§2c dissolution amendment below): the centre is DERIVED from
   the tip's binding bits, so tangency holds by construction, and
   the incoming run extends FORWARD from the tip along the derived
-  carrier. When that carrier continues the incoming segment's own
-  carrier, the extension MOVES that segment's end vertex to the
-  trim point (the §4 item 4 exemption, exactly as a straight
-  leg's ray extension); otherwise the joint at the tip is a
-  constructed tangency onto a new carrier — sound for every
-  authored `r`. A trim that would eat the tip's authored anchor
+  carrier as a segment of its own, and the joint at the tip is a
+  constructed tangency onto that carrier, for every authored `r`.
+  No emission asks whether the derived carrier is the incoming
+  segment's own (§4 item 4): where `r` equals the incoming
+  radius, the loop holds two arcs on one circle with a declared
+  tangent joint between them, and the lowering, not the path,
+  makes them one curve. Where `r` lies within the band of the
+  incoming radius the two carriers are one circle only to within
+  it, and validation escalates `carrier_circles_identity` at the
+  tip pair: whether the run is one swept wall or two turns on
+  that answer. A run the trim leaves within the band of no
+  length is no run (`fillet_leg_fit` reads it on the band
+  validation reads a segment's length on), and one in that band
+  escalates at the fit. A trim that would eat the tip's authored anchor
   refuses (`CornerReason::AnchorOutsideTrimmedExtent`, an entry
   of the `NoCornerOfPair` envelope). `Center` from a
   directed tip stays EXCLUDED — the tip's direction is bound, so
@@ -998,11 +1008,12 @@ typestate, and it retires:
 - **Arc extension** replaces the `Radius@OnArc` row: from any
   directed point, a fused verb's `Radius{r, side}` incoming
   derives its carrier from the tip's binding bits and extends
-  it FORWARD. Same-carrier continuation moves the incoming
-  segment's end vertex (the §4 item 4 exemption, exactly as
-  ray extension); a different `r` is a legal new tangent
-  carrier with a constructed tangency at the tip — sound for
-  every authored `r`, where the retired row was UNGUARDED for
+  it FORWARD as a segment of its own, with a constructed
+  tangency at the tip, for every `r` (one equal to the
+  incoming radius is a value coincidence, two arcs on one
+  circle that item 4 admits, and one within the band of it
+  escalates at validation) — every authored `r` names a
+  construction, where the retired row was UNGUARDED for
   mismatched `r` (`bulge_from_center` computes from angles
   alone; the emitted run's bulge, claimed centre, and declared
   tangency went mutually inconsistent — a latent defect this

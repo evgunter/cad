@@ -284,8 +284,7 @@ pub(super) fn sweep(
     // knot that is no crease has a derivative along the line that is
     // continuous and zero there, which the pieces beside it read.
     let knots = |k: &geom_core::spline::Knots<f64>, d: (f64, f64)| {
-        k.runs()
-            .map(|(t, _)| t)
+        k.breakpoints()
             .filter(|&t| d.0 < t && t < d.1)
             .collect::<Vec<_>>()
     };
@@ -336,11 +335,11 @@ pub(super) fn sweep(
                 let (a, b) = if along_u { piece.u } else { piece.v };
                 if b - a <= floor.width() {
                     return Step::Stop(Sweep::Declined(Declined::Floor((
-                        0.5 * (piece.u.0 + piece.u.1),
-                        0.5 * (piece.v.0 + piece.v.1),
+                        geom::mid_param(piece.u.0, piece.u.1),
+                        geom::mid_param(piece.v.0, piece.v.1),
                     ))));
                 }
-                let m = 0.5 * (a + b);
+                let m = geom::mid_param(a, b);
                 Step::Halve(if along_u {
                     [UvRect { u: (a, m), ..piece }, UvRect { u: (m, b), ..piece }]
                 } else {
@@ -392,8 +391,8 @@ pub(super) fn sweep(
                 }
                 _ => {
                     return Sweep::Declined(Declined::Floor((
-                        0.5 * (cluster.u.0 + cluster.u.1),
-                        0.5 * (cluster.v.0 + cluster.v.1),
+                        geom::mid_param(cluster.u.0, cluster.u.1),
+                        geom::mid_param(cluster.v.0, cluster.v.1),
                     )));
                 }
             }

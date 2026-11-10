@@ -804,7 +804,6 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             found: "an edge vanished mid-walk",
         })?;
         let curve_key = edge.curve;
-        let he_plus = edge.he_plus;
         let old = match out.curves.get(curve_key) {
             Some(CurveGeom::Certified(ec)) => ec.clone(),
             Some(CurveGeom::NullScaffold(_)) => {
@@ -816,8 +815,10 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
                 });
             }
         };
-        let start = endpoint(&out, he_plus, false)?;
-        let end = endpoint(&out, he_plus, true)?;
+        let (vs, ve) = out.edge_vertices(ek).ok_or(TransformError::Corrupt {
+            found: "an edge references a missing half-edge",
+        })?;
+        let (start, end) = (endpoint(&out, vs)?, endpoint(&out, ve)?);
         let (param_start, param_end) = old.params();
         let carrier = map_carrier(iso, old.carrier())?;
         // A sketch pushforward is stated in 3-space, so the authority
@@ -935,24 +936,11 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
     Ok(out)
 }
 
-/// The mapped world position of `he_plus`'s start (or end) vertex.
+/// The mapped world position of vertex `vk`.
 fn endpoint<T: Real>(
     body: &Body<T>,
-    he_plus: crate::entity::HalfEdgeKey,
-    end: bool,
+    vk: crate::entity::VertexKey,
 ) -> Result<Point3<T>, TransformError> {
-    let vk = if end {
-        body.half_edge_end(he_plus).ok_or(TransformError::Corrupt {
-            found: "an edge's primary half-edge has no end vertex",
-        })?
-    } else {
-        body.half_edges
-            .get(he_plus)
-            .ok_or(TransformError::Corrupt {
-                found: "an edge references a missing half-edge",
-            })?
-            .start
-    };
     let v = body.vertices.get(vk).ok_or(TransformError::Corrupt {
         found: "a half-edge references a missing vertex",
     })?;
@@ -982,14 +970,15 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
             MappedSource::RevolvedPoint {
                 point,
                 place,
-                axis_origin,
-                axis_dir,
+                axis,
                 angle,
             } => MappedSource::RevolvedPoint {
                 point,
                 place: *map * place,
-                axis_origin: map.transform_point(axis_origin),
-                axis_dir: hand.axial(map, axis_dir),
+                axis: geom::Line {
+                    origin: map.transform_point(axis.origin),
+                    dir: hand.axial(map, axis.dir),
+                },
                 angle,
             },
         },
