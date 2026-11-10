@@ -73,12 +73,15 @@ re-derives rigidity from twelve numbers at a box scalar. The rule:
   composes the turns, the chart's least turn is `RigidMotion::least_turn`
   and its `S·O` the turn's own axes signed (`with_signed_axes`), and
   `settle`'s arms are the rotation mints, `spun_about`, `standing_at`
-  and `translated`. `solve::admitted` is gone. The sphere re-cut mints
-  its turns (`turned_between`).
+  and the slides' `translation(shift).compose(m)`. `solve::admitted` is
+  gone. Each mint takes its own arm (`aimed`, `least_turn`), so no
+  caller can mint a non-rigid motion. The sphere re-cut mints its turns
+  (`turned_between`).
 - **`check_rigid` exists only at `f64`.** It admits a map whose seven
   margins are within their own rounding (`16u·t`, the admission floor's
   statement) with its bits kept, and refuses any other `NotRigid`,
-  naming the margin. No band, no box lever, no re-mint. Its callers are
+  naming the margin, and an entry whose square overflows refuses as not
+  finite. No band, no box lever, no re-mint. Its callers are
   the viewer's layout load and gesture (`Frame::admission_fault`) and a
   library caller's matrix.
 - **STEP builds each placement by `build_axes`** as a

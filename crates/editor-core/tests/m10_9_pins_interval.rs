@@ -228,9 +228,9 @@ pub(crate) struct Study {
 /// reading) the bracket door shut (1544, 1224) -> (1542, 1226) and the
 /// pad's `frozen` 3257 -> 3281; PR 6594 (the planar line's home) the pad
 /// 1660 -> 1684; PR 6682 (an extension's run is its own segment) the pad
-/// 1684 -> 1704; ONEHOME (`RigidMotion::check_rigid`: a map within its
-/// own rounding is admitted as given and decides nothing) each placed
-/// map's seven `transform_rigid_*` margins: 7 symbolic per
+/// 1684 -> 1704; ONEHOME (`mate::solve::admitted` removed: a solved
+/// placement is composed as motions and decides no rigidity margin) each
+/// placed map's seven `transform_rigid_*` margins: 7 symbolic per
 /// map, numeric and frozen unmoved, the plate 1203 -> 1189, the annulus
 /// 720 -> 713, the link 998 -> 991, the bracket 1613 -> 1599 (door shut
 /// 1542 -> 1528) and the pad 1704 -> 1697 (door shut alike). The moves
@@ -898,8 +898,8 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // ruling reading's forms), -> 3294 with PR 6594, 3637 at PR 6682's
     // first parent (the step from 3294 is not bisected: `frozen` alone,
     // over 175 first-parent commits) and 3751 with PR 6682. Then ONEHOME's
-    // seven rigidity margins, a map within its rounding deciding none:
-    // 1704 -> 1697 symbolic.
+    // seven rigidity margins, which a placement composed as motions decides
+    // none of (`mate::solve::admitted` removed): 1704 -> 1697 symbolic.
     assert_eq!(got[0], (1697, 1368, 3751), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],

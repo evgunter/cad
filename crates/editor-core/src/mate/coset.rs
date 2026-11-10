@@ -471,8 +471,7 @@ impl<T: Real> Coset<T> {
     pub fn unconstrained() -> Self {
         Self {
             subgroup: Subgroup::Se3,
-            representative: geom_core::RigidMotion::world_at(Point3::origin())
-                .unwrap_or_else(|_| unreachable!("the coordinate origin is finite")),
+            representative: geom_core::RigidMotion::world(),
         }
     }
 }

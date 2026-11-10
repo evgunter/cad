@@ -435,11 +435,15 @@ pub enum NormalizationKind {
     /// rounding was moved by that construction. A STEP `direction` is a
     /// ratio vector, so the normalization is the file's own semantics,
     /// not a heal; it is reported so the move is on record. `moved_by` is
-    /// measured against the raw stated matrix: its columns the reference
-    /// direction, the axis crossed with it and the axis, as the file
-    /// states them, unnormalized. Over the session box it is the
-    /// farthest a point moves between that matrix and the built frame,
-    /// summed over the pair. A file's ε_in bounds no such move
+    /// measured against the frame as the reader adopted its fields,
+    /// unnormalized: its columns the reference direction, the axis
+    /// crossed with it and the axis. The reader adopts a `direction`
+    /// within ε_in of unit verbatim and normalizes any other, and adopts
+    /// a reference within ε_in of perpendicular verbatim and projects any
+    /// other, so the matrix is the file's own fields wherever they lie
+    /// within ε_in and the reader's correction of them elsewhere. Over the
+    /// session box `moved_by` is the farthest a point moves between that
+    /// matrix and the built frame, summed over the pair. A file's ε_in bounds no such move
     /// (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
     /// Keyed by the transformation's instance id, not a face; its census
     /// pair is empty, since no face, edge or vertex changes.
@@ -447,7 +451,7 @@ pub enum NormalizationKind {
         /// The `ITEM_DEFINED_TRANSFORMATION` whose frames were moved.
         transform: u64,
         /// The move (metres): over the session box, the farthest a point
-        /// moves between a frame's raw stated matrix and its built one,
+        /// moves between a frame's matrix as adopted and its built one,
         /// summed over the pair.
         moved_by: f64,
     },
@@ -487,7 +491,9 @@ pub enum SingularityFound {
 /// with the imported body's.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StructureNormalization {
-    /// The `ADVANCED_FACE` entity instance the file states.
+    /// The `ADVANCED_FACE` entity instance the file states; on
+    /// [`NormalizationKind::PlacementReMinted`], which names no face, the
+    /// `ITEM_DEFINED_TRANSFORMATION`'s.
     pub face: u64,
     /// What was re-minted.
     pub kind: NormalizationKind,

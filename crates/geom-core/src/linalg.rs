@@ -145,8 +145,8 @@ pub use frame::{FrameError, FrameInput};
 pub use mat::Mat3;
 pub use point::{Point2, Point3};
 pub use rigid_motion::{
-    MotionPart, OnePlusC, OrthoAxis, OrthonormalizeError, RigidMotion, RigidMotionError, TurnError,
-    not_rigid_reading,
+    MotionPart, OrthoAxis, OrthonormalizeError, RigidMotion, RigidMotionError, TurnError,
+    least_turn_one_plus_c, not_rigid_reading,
 };
 pub use svd::{Svd, Svd2x3, Svd3x4};
 pub use unit_vec::{
