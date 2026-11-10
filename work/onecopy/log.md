@@ -1441,3 +1441,17 @@
   - **census-sort-home:** option 3. A ~28k-line cyclic placement move is onedoor unit 5's successor ground. The row is narrowed (PR 6700, text only).
   - **New PRs:** 6694 (scope-parser), 6698 (lone-loop follow-ups) and 6699 (line-holders) → one FULL reviewer (session_013mPGJ5aJ9gfFg9N5TKN7m3), which is also asked whether 6694's DESIGN Layering row describes or decides.
   - T3 still unopened; pinged the ladder lane.
+- 2026-11-10 05:00Z
+  - **Fork an-argmin-keeps-which-reading: converged after 2 rounds** (labels A, B; first reports and rounds recorded on the analysis branch).
+    - Agreed: one argmin door with a set fold, order-free, and a declared nested premise `FreeOf {Nothing, Ties, Band}`. Covered remainders take the first member; others return `Contested` for the site's typed refusal.
+    - Per site: first_pair is Band in its free lane; keep_own / loose_partners and offset_derive are Nothing; link is Ties.
+    - offset's tie becomes a named row-1 variant with its lever.
+    - No ratified text changes, so it is adopted by me (no [ev]), with the outcome moves measured before the PR opens.
+  - **Merged PR 6691 (main-reds triage), 3eea1540.**
+  - **Reviews:**
+    - 6696 (span-turns) FULL: MERGE; 0 wrong in a 57k-box oracle; merges after 6687.
+    - 6686 FULL: FIX (misattributed doors, two live forwarding closures, three copies inside the reader, generic Const tokens).
+  - **Rulings:**
+    - edge-ends-turns: fix certification check 2 (chord as a second lower bound) if unratified; else land refusal-pinned and send the clause.
+    - small-sweeps B item 2: split the names, keep the control.
+  - Fork a-row-2-refusal-takes-which-name: round 2. A is back to the type (C) as B amended it; awaiting B.
