@@ -166,3 +166,6 @@
   - **B:** keep the arm lever and refuse on the corner's own reading, the near arm's Zero, gate-rejected under a new Positive-only `Coincide` row. The offer "tighten below 1e-11" is executed: the generic pose builds at ε 9e-12, while a hinged pose chains to `bool_contact_edge`. B would also retire `door_refusal` and DR-245's precedence. B judges the answer route unsure at the default ε, citing CONTACT-9's odd germ count.
 
   Round 2 shows each the other's report (transcribed into the scratchpad).
+- 2026-11-10 — **Fork `unglued-corner-ending`, round 2.**
+  - **Seat B held** (245,623 tokens). Its probe levered `fan::meeting` at the farther span. The generic pose then ends `ClassificationInvariant` (the odd germ count) in all 6 runs, where today it refuses typed and builds at ε 9e-12. The hinged pose still refuses, because subdivision bisectors are levered at the arm, and operand order still matters. B accepted the corollary of A's `[tolerance.epsilon]` point: an unglued Zero never authorizes a coplanar lump.
+  - **Seat A's round 2 was lost to a container restart** and was re-sent to the same lane. Under the latest-reports rule, it now also carries B's round 2.
