@@ -266,3 +266,10 @@
   - Named the sited-name converter as a likely fix-pass item.
   - Asked Ev to mark the PR ready for review, since CI does not run on a draft.
   - `[ev]` goes back with the question at the top if the review leaves one for Ev.
+- 2026-11-10 — **PR 6555 review adjudicated** (single FULL, head `bc173fd185`). The core build held. All findings upheld; fix pass sent.
+  - **The sited conversion (`selection_at` in `From<SitedFace>`/`From<SitedRef>`) is form 1 by another route:** name inspection that Ev ruled out. Sites get a native member read, and the conversion stays only for flatten/inline, which convert a different body's names. The viewer's mate `to`/`on` picks and the Python measure cells move off it.
+  - **Load skips `SideIndex`/`IndexRank` for selections read through a pose.** The reviewer's probe: a renamed index leaves `head_of` silently `None`.
+  - **DM3 corrections:** the `SlotVarKind` sentence is false for families, and the mate-side sentence writes the converter into DM3. Fork row 258's Ev cell overclaims.
+  - **The viewer's fallbacks author the form-1 shape.** They refuse in the tool instead.
+  - **Rows to file:** a document the door admits fails to save on a rank change; `traced_frame`'s `NotAFace`; `OtherBody`; continuation and the conservative sites.
+  - **Question for Ev, `[ev]` back on the title** with the question at the top of the body: the form-1 shape type-checks as a per-member selection and fails at evaluation like any unresolved name. The alternative (families kinded at body seats, `xs[k]` stored explicitly) reverses the one-stored-form rule. Recommended: accept.
