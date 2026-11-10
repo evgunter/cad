@@ -261,3 +261,8 @@
     3. Rust `select` on a family whole is kept.
   - The lane also says its first clone dropped mid-transfer and its follow-up checkout ran in `/home/user/cad`. It restored that checkout, which I confirmed clean on `seal/orchestrator`.
   - **Review dispatched:** single FULL tier on the frozen head, with the claims aimed at those departures and the DM3 text. `refs-select-target` was reclaimed, along with the two stale step-3 targets.
+- 2026-11-10 — **Ev asked on PR 6555 whether anything more was needed** (comment 6762217500). Answered (6762223848): nothing now; `[ev]` taken off the title.
+  - Told Ev of my wrong "does not type-check" claim and what the code does instead.
+  - Named the sited-name converter as a likely fix-pass item.
+  - Asked Ev to mark the PR ready for review, since CI does not run on a draft.
+  - `[ev]` goes back with the question at the top if the review leaves one for Ev.
