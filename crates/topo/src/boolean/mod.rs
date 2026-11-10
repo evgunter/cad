@@ -8151,6 +8151,10 @@ fn verify_tangency<T: Decide>(
         match tangent_line((a, fa, &sa), (b, fb, &sb), band).map_err(Refused)? {
             Ok(line) => {
                 let locus = match line.carrier {
+                    // The tangent line runs along a cylinder's stored
+                    // axis (`geom_brep::tangent_locus`: the parallel pair's
+                    // or the ruled pair's), nonzero at rest by tier 3's
+                    // check 1, so it normalizes with no decision.
                     geom::Curve3::Line(geom::Line { origin, dir }) => {
                         rim_wedge::Locus::Line(geom::Line {
                             origin,
