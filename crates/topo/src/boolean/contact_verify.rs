@@ -487,8 +487,8 @@ fn tangent_pass<T: Decide>(
         // sample bounds ([`on_surface`]).
         for (side, r) in [(PairSide::First, r1), (PairSide::Second, r2)] {
             let on = match side {
-                PairSide::First => "contact_tangent_on_1",
-                PairSide::Second => "contact_tangent_on_2",
+                PairSide::First => CONTACT_TANGENT_ON_1,
+                PairSide::Second => CONTACT_TANGENT_ON_2,
             };
             let (read, log) = geom_core::k_stats::detached(|| {
                 on_surface((on, side), r, bounds.residual_sag, band)
@@ -734,6 +734,10 @@ fn span_touch<T: Decide>(
         Err(diag) => Err(Unsettled::Sag(Some(diag))),
     }
 }
+
+/// The names the witness is decided on each surface under ([`on_surface`]).
+const CONTACT_TANGENT_ON_1: &str = "contact_tangent_on_1";
+const CONTACT_TANGENT_ON_2: &str = "contact_tangent_on_2";
 
 /// **The witness on a surface, read across the spans a sample bounds**:
 /// `r` the sample's implicit residual on `side`'s surface and `sag` the
