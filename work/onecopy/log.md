@@ -1531,3 +1531,4 @@
 - 04:20Z Merged 6711 (df6e92b0; gate green d1156f3f, merged main → e7a7e62b disjoint, check+gates clean) and 6712 (docs+rows only, read by orchestrator; lint/fmt clean).
 - 04:22Z torus-harmonics lane → onecopy/carry-copies (carry-refusal-copies-and-hand-spelled-move-recourses).
 - 04:25Z turn-place probe: span_readings hole real (box past the stop end read decided outside). Ruled (A): Period::span_margins as the one copy-rule door for Span::ends_place and span_readings, meters stay per site with reasons. 6708 gate green, in review.
+- 04:28Z PR 6715 roster-reach (088e736a; coverage row two-way ratchet, geom-brep roster, references resolved 67→0) → FULL review. Expect a textual conflict with 6709 on raw-sign-within.counts and its row. [ev] 6702 CI green after the renumber.
