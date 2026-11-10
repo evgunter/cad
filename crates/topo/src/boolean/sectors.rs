@@ -2251,54 +2251,45 @@ fn crescent<T: Decide>(
             return Ok(false);
         }
         // The pair opens a crescent where four readings all hold, none
-        // read off another: the bounds parallel, the sectors across them,
-        // a coincident run's bounds parallel along it too, and the
-        // opening. One decided not to hold answers `false` alone, so each
-        // is read before any refuses, in this order, and the first
-        // refusal stands only where none decides against.
-        let parallel = parallel_same(da, db, arm, BOUNDS_PARALLEL, band);
-        if matches!(parallel, Ok(false)) {
-            return Ok(false);
-        }
+        // read off another ([`all_hold`]): the bounds parallel, the
+        // sectors across them, a coincident run's bounds parallel along it
+        // too, and the opening. One decided not to hold answers `false`
+        // alone, so a refusal stands only where none decides against.
         let d = da.normalize();
         let square = |v: Vec3<T>| v - d * v.dot(d);
         let u = square(a.middle()).normalize();
+        let l = la.min(lb);
+        let parallel = || parallel_same(da, db, arm, BOUNDS_PARALLEL, band);
         // `pair_search` reads two sectors sharing a bound from one
         // side as overlapping, so a touching pair lies across it;
         // this reads that premise where the claim rests on it.
-        let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
-        let across = decide("bool_sector_crescent_across", across, band)
-            .map_err(escalate)
-            .map(|s| s == Sign::Negative);
-        if matches!(across, Ok(false)) {
-            if parallel.is_err() { crate::reach_probe("crescent_across_past_parallel"); }
-            return Ok(false);
-        }
-        let l = la.min(lb);
+        let across = || {
+            let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
+            decide("bool_sector_crescent_across", across, band)
+                .map_err(escalate)
+                .map(|s| s == Sign::Negative)
+        };
         // The run's clause holds off a run, or where the bounds stay
         // parallel along it: either answers it alone.
-        let run = match coincident_run((ca, a_start), (cb, b_start), contacts, band) {
+        let run = || match coincident_run((ca, a_start), (cb, b_start), contacts, band) {
             Ok(false) => Ok(true),
             run => match parallel_same(da, db, l, BOUNDS_PARALLEL, band) {
                 Ok(true) => Ok(true),
                 along => run.and(along),
             },
         };
-        if matches!(run, Ok(false)) {
-            if parallel.is_err() || across.is_err() { crate::reach_probe("crescent_run_past"); }
-            return Ok(false);
-        }
-        let opened = geom_brep::parting(kb - ka, u, l.length());
-        let opened = decide("bool_sector_crescent", opened, band)
-            .map_err(escalate)
-            .map(|s| s == Sign::Positive);
-        if matches!(opened, Ok(false)) && (parallel.is_err() || across.is_err() || run.is_err()) {
-            crate::reach_probe("crescent_opened_past");
-        }
-        if matches!(opened, Ok(false)) {
-            return Ok(false);
-        }
-        parallel.and(across).and(run).and(opened)
+        let opened = || {
+            let opened = geom_brep::parting(kb - ka, u, l.length());
+            decide("bool_sector_crescent", opened, band)
+                .map_err(escalate)
+                .map(|s| s == Sign::Positive)
+        };
+        all_hold(
+            core::iter::once_with(parallel)
+                .chain(core::iter::once_with(across))
+                .chain(core::iter::once_with(run))
+                .chain(core::iter::once_with(opened)),
+        )
     };
     // A ladder over the four pairs of bounds ([`climb`],
     // [`Answering::Any`]: a theorem, any pair that opens a crescent is an
@@ -2315,6 +2306,25 @@ fn crescent<T: Decide>(
         Climb::Passed => Ok(false),
         Climb::Undecided(e) => Err(e),
     }
+}
+
+/// **Whether every one of a conjunction's readings holds**, read in
+/// order and lazily: the first decided not to hold answers `false`
+/// whatever any other read, and stops the reading there; failing one, the
+/// first refusal stands, where a reading it stopped might not hold; and
+/// `true` where every one holds. The readings are independent of one
+/// another, so none is a premise of a later one: a `?` on each in turn
+/// would refuse at an earlier reading where a later one answers.
+fn all_hold<E>(readings: impl IntoIterator<Item = Result<bool, E>>) -> Result<bool, E> {
+    let mut refused = None;
+    for reading in readings {
+        match reading {
+            Ok(false) => return Ok(false),
+            Ok(true) => {}
+            Err(e) => refused = refused.or(Some(e)),
+        }
+    }
+    refused.map_or(Ok(true), Err)
 }
 
 /// **Whether the section runs on from a vertex pair along the other
@@ -2766,6 +2776,110 @@ mod tests {
     use crate::contact::GlueClass;
     use geom_brep::ConicBend;
     use geom_core::Tol;
+
+    fn band_witness() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **A crescent's conjunction answers `false` past a reading in
+    /// band** ([`all_hold`]): each reading decided not to hold answers
+    /// alone, wherever it stands; a refusal stands only where none
+    /// decides against; and the reading stops at the first that does not
+    /// hold. Red against a `?` on each reading in turn, which refuses at
+    /// the first.
+    #[test]
+    fn a_conjunction_answers_false_past_an_earlier_refusal() {
+        let refused = || Err::<bool, &str>("in band");
+        assert_eq!(
+            all_hold([refused(), Ok(false)]),
+            Ok(false),
+            "past a refusal"
+        );
+        assert_eq!(
+            all_hold([Ok(true), refused(), Ok(true), Ok(false)]),
+            Ok(false)
+        );
+        assert_eq!(
+            all_hold([refused(), Ok(true)]),
+            Err("in band"),
+            "nothing against"
+        );
+        assert_eq!(
+            all_hold([Err("first"), Err("second")]),
+            Err("first"),
+            "the first refusal"
+        );
+        assert_eq!(all_hold([Ok::<_, &str>(true), Ok(true)]), Ok(true));
+        let mut read = 0;
+        let stopped = all_hold(core::iter::once_with(|| Ok::<_, &str>(false)).chain(
+            core::iter::once_with(|| {
+                read += 1;
+                Ok(true)
+            }),
+        ));
+        assert_eq!(
+            (stopped, read),
+            (Ok(false), 0),
+            "a decided false stops the reading"
+        );
+    }
+
+    /// **Two coplanar sectors whose bounds are parallel only in band read
+    /// no crescent, where they are not across each other**
+    /// ([`crescent`]): `a`'s start bound a conic, `b`'s start a gray
+    /// angle off it, both sectors on one side of it. The bounds' parallel
+    /// reading is in band, and the across reading decides they are not
+    /// across, which answers the pair `false` alone; every other pair of
+    /// bounds is decided apart or reads no bend. Red against the old
+    /// order, which refused at the parallel reading. The body is never
+    /// read: no pair reaches the coincident-run reading.
+    #[test]
+    fn a_crescent_answers_past_bounds_parallel_in_band() {
+        let band = band_witness();
+        let gray = 0.5 * (band.zero() + band.escalate());
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let plane = crate::bound_side::FaceBend::Plane;
+        let mut a = hand_sector((x, y), z, 1.0, 1, plane);
+        a.start_reach = BoundSupport::Conic {
+            extent: geom_core::test_support::fixture_lever(1.0),
+            bend: ConicBend {
+                curvature: y,
+                bounds: geom_brep::BendBounds::Planar {
+                    least: 1.0,
+                    reach: core::f64::consts::FRAC_PI_2,
+                    rise: 1.0,
+                    arc: 1.0,
+                    lifts_to: core::f64::consts::PI,
+                },
+            },
+            arc: None,
+        };
+        let tilted = Vec3::new(1.0, gray, 0.0).normalize();
+        let b = hand_sector((tilted, y), z, 1.0, 2, plane);
+        assert!(
+            parallel_same(x, tilted, a.arm, BOUNDS_PARALLEL, band).is_err(),
+            "the start bounds are parallel only in band"
+        );
+        let body = Body::<f64>::new();
+        let corner = |sector| Corner {
+            body: &body,
+            sectors: core::slice::from_ref(sector),
+            sector,
+        };
+        assert!(
+            matches!(
+                crescent(
+                    corner(&a),
+                    corner(&b),
+                    &crate::boolean::ReductionContacts::default(),
+                    band
+                ),
+                Ok(false)
+            ),
+            "not across: no crescent, past the parallel reading"
+        );
+    }
 
     /// **A bisector's `On` from a tie a slack made refuses typed**: the
     /// tie carries the sign the band decided (`1.5·zero` at `K = 1.4`),

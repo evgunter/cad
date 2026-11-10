@@ -1483,31 +1483,41 @@ fn held_cut<T: Decide>(
         } else {
             nested(secs, own, cut, band)
         };
-        match nests {
-            Ok(true) => return Ok(false),
-            Ok(false) => {}
-            Err(e) => {
-                return match on_arc(before, [lo, hi], at) {
-                    Ok([Some(false), _] | [_, Some(false)]) => {
-                        crate::reach_probe("held_cut_walk_past_nested");
-                        Ok(false)
-                    }
-                    _ => Err(e),
-                };
-            }
-        }
-        Ok(match on_arc(before, [lo, hi], at)? {
-            [Some(false), _] | [_, Some(false)] => false,
-            [None, _] => tied_held(secs, (lo, true), hi, cut, band)?,
-            [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
-            [Some(true), Some(true)] => true,
-        })
+        Ok(
+            match past_nesting(nests, || on_arc(before, [lo, hi], at))? {
+                [Some(false), _] | [_, Some(false)] => false,
+                [None, _] => tied_held(secs, (lo, true), hi, cut, band)?,
+                [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
+                [Some(true), Some(true)] => true,
+            },
+        )
     };
     climb(Answering::Any, cuts.iter().copied(), |cut| {
         Rung::holds(holds(cut), cut.owner, BooleanError::refusal)
     })
     .into_reading()
     .and_then(Option::transpose)
+}
+
+/// **The walk's reading of a cut, read past its nesting**
+/// ([`held_cut`]): a nested strut is not held, and nor is a cut the walk
+/// places off the run (an end `Some(false)`), so either answers alone. A
+/// nesting that holds reads as the walk placing the cut off the run; one
+/// that does not leaves the walk's reading; one in band refuses only where
+/// the walk does not place the cut off. The walk is read only where the
+/// nesting does not answer.
+fn past_nesting<E>(
+    nests: Result<bool, E>,
+    walk: impl FnOnce() -> Result<[Option<bool>; 2], E>,
+) -> Result<[Option<bool>; 2], E> {
+    match nests {
+        Ok(true) => Ok([Some(false), Some(false)]),
+        Ok(false) => walk(),
+        Err(e) => match walk() {
+            Ok(walk) if walk.contains(&Some(false)) => Ok(walk),
+            _ => Err(e),
+        },
+    }
 }
 
 /// Whether `cut`'s run is a strut that the strut segment `own` holds
@@ -2800,6 +2810,36 @@ fn mint_run<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **A cut the walk places off the run is not held, past a nesting
+    /// read in band** ([`past_nesting`]): either reading answers alone.
+    /// A nesting in band refuses only where the walk places neither end
+    /// off; one that holds answers without the walk, which is not read.
+    /// Red against the old order, which refused at the nesting.
+    #[test]
+    fn a_walk_off_the_run_answers_past_a_nesting_in_band() {
+        let off = || Ok::<_, &str>([Some(true), Some(false)]);
+        let on = || Ok::<_, &str>([Some(true), Some(true)]);
+        assert_eq!(past_nesting(Err("in band"), off), off(), "past the nesting");
+        assert_eq!(
+            past_nesting(Err("in band"), on),
+            Err("in band"),
+            "the walk holds it"
+        );
+        assert_eq!(
+            past_nesting(Err("in band"), || Err("the walk")),
+            Err("in band"),
+            "the nesting's refusal first"
+        );
+        assert_eq!(past_nesting(Ok(false), on), on(), "no nesting: the walk's");
+        assert_eq!(
+            past_nesting(Ok(true), || -> Result<_, &str> {
+                unreachable!("the walk is read")
+            }),
+            Ok([Some(false), Some(false)]),
+            "a nested strut, unread walk"
+        );
+    }
     use geom_core::Tol;
 
     /// **`strut_facing`'s vote table.** `he_plus` lies beside the
