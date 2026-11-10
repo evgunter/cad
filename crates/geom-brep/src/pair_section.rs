@@ -961,12 +961,12 @@ impl NoCarrier {
     pub const fn recourse(self) -> &'static str {
         match self {
             Self::Tangent | Self::Pinch => {
-                "Recourse: move one face so the surfaces clearly cross or clearly part"
+                geom_core::move_recourse!("so the surfaces clearly cross or clearly part")
             }
             // A spline × implicit pair that clearly crosses is not carried
             // either (`SplineImplicitWhole`), so parting is the one way
             // through.
-            Self::Touch => "Recourse: move one face so the surfaces clearly part",
+            Self::Touch => geom_core::move_recourse!("so the surfaces clearly part"),
             Self::WallRegion
             | Self::RowRegion
             | Self::SplineImplicitWhole
@@ -1458,6 +1458,15 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
 }
 
 /// **Why a site has no component of its section**, or more than one.
+///
+/// A narrowing of [`CarryError`]: each arm is one of its arms
+/// (`From<SiteRefusal> for CarryError`), and the carry's own refusals
+/// ([`CarryRefusal`]'s other arms) are not among them. It is a type of
+/// its own for the site's readers in `topo`, which map exactly these
+/// three into their own sorts and must not be handed a march, a lane or
+/// a seat refusal no site makes: `chord_join`'s
+/// `From<(FaceKey, SiteRefusal)> for SplitJoinError`, `boolean::join`'s
+/// `site_refusal`, and `boolean::section_table`'s `FootRefusal::Site`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SiteRefusal {
     /// The reading in the band or poisoned.
@@ -1470,6 +1479,16 @@ pub enum SiteRefusal {
     /// ([`geom::PieceWalkRefusal::refusal`]): unsettled past its budget,
     /// a limit where the spline bounds no speed.
     Unwalked(geom::PieceWalkRefusal),
+}
+
+impl From<SiteRefusal> for CarryError {
+    fn from(refusal: SiteRefusal) -> Self {
+        match refusal {
+            SiteRefusal::Escalated(diag) => Self::Escalated(diag),
+            SiteRefusal::Desync(what) => Self::Desync(what),
+            SiteRefusal::Unwalked(why) => Self::Refused(CarryRefusal::Unwalked(why)),
+        }
+    }
 }
 
 impl From<geom::CarrierRefusal> for SiteRefusal {
@@ -2833,13 +2852,7 @@ impl<T: Decide> CarriedComponent<T> {
 
     /// [`Self::reads`] as the carry reads it.
     fn holds(&self, w: Point3<T>, band: Band) -> Result<bool, CarryError> {
-        self.reads(w, band)
-            .map(|t| t.is_some())
-            .map_err(|e| match e {
-                SiteRefusal::Escalated(diag) => CarryError::Escalated(diag),
-                SiteRefusal::Desync(what) => CarryError::Desync(what),
-                SiteRefusal::Unwalked(why) => CarryError::Refused(CarryRefusal::Unwalked(why)),
-            })
+        Ok(self.reads(w, band)?.is_some())
     }
 }
 

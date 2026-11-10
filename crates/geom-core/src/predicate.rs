@@ -2699,12 +2699,17 @@ macro_rules! kernel_limit_recourse {
 }
 
 /// [`MOVE_RECOURSE`] as a literal, for `concat!`; see
-/// `kernel_defect_ending!`.
+/// `kernel_defect_ending!`. With a literal, the move a site names more
+/// closely, as a whole ending: `move_recourse!("so the surfaces clearly
+/// part")` is `Recourse: move the geometry so the surfaces clearly part`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! move_recourse {
     () => {
         concat!("Recourse: ", $crate::coincidence_move_arm!())
+    };
+    ($so:literal) => {
+        concat!("Recourse: ", $crate::coincidence_move_arm!(), " ", $so)
     };
 }
 
