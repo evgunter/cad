@@ -204,6 +204,8 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("datum", &UNIT_TEST),
     // `splitting::finish`'s `escalation_endings` rows.
     ("finish_straddle", &UNIT_TEST),
+    // `on_surface_as`'s unit test's `(name, side)` row.
+    ("probe_on", &UNIT_TEST),
     ("probe_oracle", &UNIT_TEST),
     // `test_support_samples`' cause named after geom-brep's arm row.
     ("dihedral_arm", &UNIT_TEST),
@@ -219,6 +221,19 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
+    NameCarrier::Const("REACH"),
+    NameCarrier::Const("NEST"),
+    NameCarrier::Const("NEAR"),
+    NameCarrier::Const("FAR"),
+    // The tangent rows' closed table (`TangentRow::predicate`).
+    NameCarrier::Table("TangentRow"),
+    // The consts `ClearanceBound::predicate` returns, per arm.
+    NameCarrier::Const("CLEARANCE_MARGIN"),
+    NameCarrier::Const("SELF_INTERSECTION_GAP"),
+    // `(name, value)` pairs, opened by the census: the pair section's
+    // sign batch and the tangent witness's `(name, side)`.
+    NameCarrier::Call("signs_as"),
+    NameCarrier::Call("on_surface_as"),
     // `bound_side::first_order_as`'s two rows, picked by a `match` on the
     // support.
     NameCarrier::Const("BOOL_CHORD_SIDE"),
@@ -255,7 +270,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("lex_cmp_as"),
     NameCarrier::Call("near_as"),
     NameCarrier::Call("net_closes_as"),
-    NameCarrier::Call("on_surface_as"),
     NameCarrier::Call("one_verdict_as"),
     NameCarrier::Call("pair_as"),
     NameCarrier::Call("parallel_same_as"),
@@ -453,10 +467,9 @@ const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's nam
 const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
 const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinder_data` and \
                              `cone_data`, whose names are declared consts";
-const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names are spelled in its own \
-                           match, which the census does not read";
-const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
-                           (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
+const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names the census reads where the \
+                           type spells them: `TangentRow`'s table, a declared `NameCarrier::Table`, \
+                           or the consts `ClearanceBound`'s arms return, declared carriers";
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
                             its enclosing function's caller or a binding, named here by the call's \
                             first argument";
@@ -472,6 +485,10 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
+    (
+        "boolean/section_cert.rs: cone_sphere: [(name, b)]",
+        CLOSURE_FORWARDS,
+    ),
     (
         "boolean/carrier_eq.rs: coincident_over_extent_as: row",
         FORWARDS,
@@ -503,12 +520,8 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     (
-        "boolean/contact_verify.rs: on_surface_pads_each_verdict_in_its_own_direction: (\"probe_on\", PairSide::Second)",
-        TUPLE_PAIRS,
-    ),
-    (
         "boolean/contact_verify.rs: tangent_pass: (on, side)",
-        TUPLE_PAIRS,
+        CARRIER_CALL,
     ),
     ("boolean/contain.rs: face_placement: on_plane", FORWARDS),
     ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),

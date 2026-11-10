@@ -46,6 +46,19 @@ use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, ros
 /// the call: the `const`s names are spelled in, then the calls (row
 /// structs and `*_as` forwarders) whose literal arguments are names.
 const CARRIERS: &[NameCarrier] = &[
+    NameCarrier::Const("SQUARE_FOLD_HALF"),
+    NameCarrier::Const("SQUARE_EDGE_OVER"),
+    NameCarrier::Const("SPHERE_NEAR"),
+    NameCarrier::Const("SPHERE_FAR"),
+    // The closed decision types' name tables (`fn name/floor/straddle/
+    // row/predicate`), read as the census reads them. A type whose
+    // `fn name` spells a label (`PcurveKind`, `SsiLimb`, `FloorKind`) is
+    // no name table and is not declared.
+    NameCarrier::Table("CsDecision"),
+    NameCarrier::Table("CcDecision"),
+    NameCarrier::Table("Row"),
+    NameCarrier::Table("TorusDatum"),
+    NameCarrier::Table("Meter"),
     NameCarrier::Const("SQUARE_ORDER"),
     NameCarrier::Const("RADII"),
     // The forwarders a `FORWARDS` line names, declared so their callers'
@@ -68,11 +81,11 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("old_rim_only_closed_as"),
     NameCarrier::Call("old_span_as"),
     NameCarrier::Call("pairing_reading_as"),
+    NameCarrier::Call("reaches_edge_as"),
     NameCarrier::Call("plane_cone_section"),
     NameCarrier::Call("require_positive_as"),
     NameCarrier::Call("require_solid_angle_as"),
     NameCarrier::Call("run_spiric_checks_as"),
-    NameCarrier::Call("signs"),
     NameCarrier::Call("spline_incidence_as"),
     NameCarrier::Call("spread_readings"),
     NameCarrier::Call("torus_lift_as"),
@@ -164,6 +177,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("mean_width_side"),
     NameCarrier::Call("HullArm"),
     NameCarrier::Call("bounded"),
+    // Takes its rows as `(name, value)` pairs, opened by the census.
+    NameCarrier::Call("signs_as"),
     NameCarrier::Call("require_on_loop"),
     NameCarrier::Call("data_beneath_sum"),
 ];
@@ -174,8 +189,9 @@ const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's nam
 const IDENTITY: &str = "a `read_identity` call over data whose names are read where it is built";
 const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
                       forwards its caller's name";
-const CLOSED_TYPE: &str = "a closed type's `name()` or `predicate()`, whose names are spelled in \
-                           its own match, which the census does not read";
+const CLOSED_TYPE: &str = "a closed type's `name()`, `floor()`, `straddle()` or `predicate()`, whose \
+                           names the census reads at the type's own table, a declared \
+                           `NameCarrier::Table`";
 const STRUCT_UPDATE: &str = "a row struct built from another's literal (`..CHART_HULL`), whose names \
                              are read there";
 const SAME_NAMED: &str = "a call sharing a declared carrier's token that takes no name first: a \
@@ -186,8 +202,6 @@ const CROSS_CRATE: &str = "a public forwarder whose callers are in other crates,
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
                             its enclosing function's caller or a binding, named here by the call's \
                             first argument";
-const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
-                           (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
 const NOT_A_NAME: &str = "another `decide*` or `check*` call, whose first argument is not a name";
 
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
@@ -198,6 +212,10 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
 const INDIRECT: &[(&str, &str)] = &[
+    (
+        "pair_section/torus_arms.rs: reaches_edge_as: [(name, m)]",
+        FORWARDS,
+    ),
     (
         "carrier_resolution.rs: the_resolution_bounds_each_section_tables_carrier: &cut",
         CARRIER_CALL,
@@ -402,47 +420,18 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pair_section/torus.rs: radius_guard: name", FORWARDS),
     (
-        "pair_section/torus_arms.rs: across_strip: [(\"section_torus_square_wall_fold_side\", f.y - e)]",
-        TUPLE_PAIRS,
-    ),
-    (
-        "pair_section/torus_arms.rs: across_strip: [(SQUARE_EDGE_OVER, big_r - y.abs())]",
-        TUPLE_PAIRS,
-    ),
-    (
         "pair_section/torus_arms.rs: apart_in_order_as: name",
         FORWARDS,
     ),
-    (
-        "pair_section/torus_arms.rs: inside_strip: [(\"section_torus_square_wall_sheet\", rho - y.abs())]",
-        TUPLE_PAIRS,
-    ),
-    (
-        "pair_section/torus_arms.rs: reaches_edge: [(name, m)]",
-        TUPLE_PAIRS,
-    ),
     ("pair_section/torus_arms.rs: sign_as: name", FORWARDS),
-    ("pair_section/torus_arms.rs: signs: name", FORWARDS),
+    ("pair_section/torus_arms.rs: signs_as: name", FORWARDS),
     (
         "pair_section/torus_arms.rs: signs_across: [far, floor]",
         PAIRED,
     ),
-    ("pair_section/torus_arms.rs: sphere_arm: [(", TUPLE_PAIRS),
-    (
-        "pair_section/torus_arms.rs: sphere_arm: [(SPHERE_NEAR, cuts(d_near)), (SPHERE_FAR, cuts(d_far))]",
-        TUPLE_PAIRS,
-    ),
     (
         "pair_section/torus_arms.rs: sphere_touch: name",
         CLOSURE_FORWARDS,
-    ),
-    (
-        "pair_section/torus_arms.rs: square_folds: [(\"section_torus_square_wall_tube\", tubes.secant())]",
-        TUPLE_PAIRS,
-    ),
-    (
-        "pair_section/torus_arms.rs: square_folds: [(SQUARE_FOLD_HALF, sigma * y - big_r)]",
-        TUPLE_PAIRS,
     ),
     (
         "pair_section/torus_coincidence.rs: read_identity#1(d.data.map(|(datum, m)| (datum.row(), m)))",

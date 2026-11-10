@@ -397,7 +397,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::contain::FaceContainment;
 use crate::validate::decide;
-use geom_brep::pair_section::{Pinch, signs, signs_across};
+use geom_brep::pair_section::{Pinch, signs_across, signs_as};
 use geom_brep::{AxisPose, ExtentBall, Reach, Turn, axis_pose};
 
 /// Which face of the pair a statement is about.
@@ -1025,7 +1025,7 @@ enum PlaneCut {
 }
 
 fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
-    let [near, far] = match signs(
+    let [near, far] = match signs_as(
         [
             (NEAR, r - (h - s * big_r).abs()),
             (FAR, r - (h + s * big_r).abs()),
@@ -1037,7 +1037,7 @@ fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
     };
     match (near, far) {
         (true, true) => PlaneCut::AroundAxis,
-        (false, false) => match signs(
+        (false, false) => match signs_as(
             [("section_torus_plane_between", s * big_r - r - h.abs())],
             band,
         ) {
@@ -1306,7 +1306,7 @@ fn cone_cylinder<T: Decide>(
     let (off, dist) = perp_to(cone.apex - o, d);
     let foot = cone.apex - off;
     let lever = reach.lever_from(cone.apex).length();
-    if let Err(tan) = signs([("section_cone_cylinder_apex", dist - rc)], band) {
+    if let Err(tan) = signs_as([("section_cone_cylinder_apex", dist - rc)], band) {
         return tan.into();
     }
     match sign_as(
@@ -1407,7 +1407,7 @@ fn cone_cone<T: Decide>(
             single: false,
         };
     }
-    if let Err(tan) = signs(
+    if let Err(tan) = signs_as(
         [
             (APEX, two.elevation(one.apex)),
             (APEX, one.elevation(two.apex)),
@@ -1575,7 +1575,7 @@ fn cone_plane<T: Decide>(
 /// component carries a witness on its extreme line.
 fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> Section<T> {
     let delta = cone.apex - cs;
-    let apex_out = match signs([("section_cone_sphere_apex", delta.norm() - rho)], band) {
+    let apex_out = match signs_as([("section_cone_sphere_apex", delta.norm() - rho)], band) {
         Ok([out]) => out,
         Err(tan) => return tan.into(),
     };
@@ -1609,9 +1609,9 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
     // apex: its roots' side is `−b`'s, and `|b| > √k > 0` wherever it
     // meets.
     let meets = |b: T, d: T, name: &'static str| -> Result<Option<bool>, Section<T>> {
-        match signs([("section_cone_sphere_generator", rho - d)], band)? {
+        match signs_as([("section_cone_sphere_generator", rho - d)], band)? {
             [false] => Ok(None),
-            [true] => match signs([(name, b)], band)? {
+            [true] => match signs_as([(name, b)], band)? {
                 [up] => Ok(Some(!up)),
             },
         }
@@ -1704,7 +1704,7 @@ fn sphere_plane<T: Decide>(
 ) -> Section<T> {
     let d = (cs - p0).dot(n);
     const REACH: &str = "section_sphere_plane_reach";
-    match signs([(REACH, rho - d.abs())], band) {
+    match signs_as([(REACH, rho - d.abs())], band) {
         Ok([true]) => {
             let rad = ((rho - d.abs()) * (rho + d.abs())).sqrt();
             // A witness picked off the axes. No output keeps it, but W3
@@ -1725,7 +1725,7 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
     let (k, dd) = (c2 - c1).direction_and_length();
     const REACH: &str = "section_sphere_pair_reach";
     const NEST: &str = "section_sphere_pair_nest";
-    match signs([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
+    match signs_as([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
         Ok([true, true]) => {
             let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
             let rad = ((r1 - x) * (r1 + x)).sqrt();

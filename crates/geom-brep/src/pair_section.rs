@@ -117,7 +117,7 @@ pub use torus::{
     AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, axis_pose,
 };
-pub use torus_arms::{Pinch, SquareWall, signs, signs_across};
+pub use torus_arms::{Pinch, SquareWall, signs_across, signs_as};
 pub use torus_coincidence::{
     TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement,
     tori_coincide,
