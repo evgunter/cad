@@ -1884,12 +1884,15 @@ Flagged, NOT fixed here (dispositions):
   second axis's offset from the first, crossed with its unit direction
   (`(ob − oa) × db`), and the radius differences (a rim's radius less its
   cylinder's, and the two cylinders'). `replay_one_cylinder_axis` takes
-  the axes' cross product `da × db`, a sine of two unit directions,
-  **dimensionless**, through `Margin::levered` at `Lever::unsourced(1 m)`.
-  That is bit-identical to the raw read, which held the sine against the
-  band as though it were a length. **FLAG**: the lever has no source.
-  `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
-  carries the real one, with its candidates and a measurement plan.
+  the axes' tilt `|da × db|`, a sine of two unit directions,
+  **dimensionless**, through `Margin::levered` at the arm the kernel's
+  pair door levers the same datum at (`topo::boolean::carrier_pair_arm`:
+  the reach of the ball enclosing both faces from the foot of its centre
+  on the second axis, as `carrier_eq`'s `carrier_cyl_axis_parallel`).
+  Until `work/onecopy/the-replays-cylinder-axis-is-levered-at-an-unsourced-metre.md`
+  it read each component of the cross product apart at
+  `Lever::unsourced(1 m)`, the raw read's own scale. Every sine the door
+  read on the replay's corpus was exactly zero, so no decision moved.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

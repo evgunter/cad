@@ -437,7 +437,8 @@ fn carrier_verdict(
 /// The name [`one_cylinder`]'s metre data — the axes' offset, the
 /// radii's differences — are each decided Zero under.
 const ONE_CYLINDER: &str = "replay_one_cylinder";
-/// The name [`one_cylinder`]'s axis parallelism is decided Zero under.
+/// The name [`one_cylinder`]'s axis parallelism is decided Zero under:
+/// the axes' tilt `|da × db|`, levered at the pair's reach.
 const ONE_CYLINDER_AXIS: &str = "replay_one_cylinder_axis";
 
 /// **Two faces on cylinders, read as one axis, one radius and one
@@ -483,34 +484,22 @@ fn one_cylinder(
                 deferred::discharge_or_why(d.margin)
             })
     };
-    // Unsourced lever: one metre, what the raw read it replaced took the
-    // axes' cross product (a sine of two unit directions) against; the
-    // arm the band means is the-replays-cylinder-axis-is-levered-at-an-
-    // unsourced-metre (audit F40).
-    let metre = geom_core::Lever::unsourced(<Lane as geom_core::Real>::one());
-    {
-        use geom_core::Bounds as _;
-        let c = da.cross(db);
-        let arm = topo::boolean::carrier_pair_arm(a, fa, b, fb, band)
-            .map(|l| l.length().lo());
-        let line = format!(
-            "PROBE-CYLAXIS stated={stated} s=[{:e},{:e},{:e}] norm={:e} ra={:e} rb={:e} arm={:?} zero={:e}\n",
-            c.x.lo(), c.y.lo(), c.z.lo(), c.norm().lo(), ra.lo(), rb.lo(), arm, band.zero()
-        );
-        if let Ok(path) = std::env::var("PROBE_CYLAXIS_OUT") {
-            use std::io::Write as _;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-                let _ = f.write_all(line.as_bytes());
-            }
-        }
-    }
     let established = || {
         if !stated {
-            let (cross, off) = (da.cross(db), (ob - oa).cross(db));
-            for s in [cross.x, cross.y, cross.z] {
-                zero_as(ONE_CYLINDER_AXIS, geom_core::Margin::levered(s, metre))
-                    .map_err(|why| (Component::Axis, why))?;
-            }
+            // The tilt, one datum (`|da × db|`, the sine of the angle
+            // between the axes), levered at the arm the kernel's pair
+            // door reads it at: the reach of the ball enclosing both
+            // faces from the foot of its centre on the second axis
+            // (`topo::boolean::carrier_pair_arm`), so the replay and the
+            // kernel judge one tilt alike.
+            let arm = topo::boolean::carrier_pair_arm(a, fa, b, fb, band)
+                .map_err(|_| (Component::Axis, deferred::Undischarged::Otherwise))?;
+            zero_as(
+                ONE_CYLINDER_AXIS,
+                geom_core::Margin::levered(da.cross(db).norm(), arm),
+            )
+            .map_err(|why| (Component::Axis, why))?;
+            let off = (ob - oa).cross(db);
             for r in [off.x, off.y, off.z] {
                 zero_as(ONE_CYLINDER, geom_core::Margin::of(r))
                     .map_err(|why| (Component::Axis, why))?;

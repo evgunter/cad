@@ -1,7 +1,6 @@
 # Unsourced levers (Lever::unsourced, ExtentBall::unsourced): references per file
 # (scripts/gates/lever-sources.sh), pinned with their reasons; a change that moves one sets it here.
 crates/editor-core/src/checks/at_rest.rs 2
-crates/editor-core/src/coincide/replay.rs 1
 crates/editor-core/src/eval/measure.rs 2
 crates/editor-core/src/mate/coset.rs 1
 crates/editor-core/src/mate/value.rs 4
