@@ -798,8 +798,10 @@ impl SplitReduceError {
             }
             Self::VertexNearConeAxis { .. } => write!(
                 f,
-                "a corner of a cone face lies too near the cone's axis for the cone's \
-                 surface to read a direction there. Recourse: {SPLIT_COINCIDENCE_RECOURSE}"
+                "a corner of a cone face lies so near the cone's tip that the face's \
+                 direction there cannot be read at this tolerance. Recourse: move the plane \
+                 or the solid so the corner lies clear of the cone's tip, or tighten the \
+                 tolerance"
             ),
             Self::ApexUndecided { diag, .. } => write!(
                 f,
