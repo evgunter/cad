@@ -530,3 +530,8 @@ and bodies unchanged. No orchestrator yet.
   - NURBS 3b, at `61d6046` plus one uncommitted edit.
   
   Both were told to merge main first.
+- 2026-11-10 — **PR 6518 merged** (cylinder × sphere on the ruling sweep; single full review with the fix pass accepted).
+  - The fix pass restated the exemption by mechanism: `SWEEP_ZONE_WIDTHS` = 1, argued from the ladder, with a measured upper bound of 0.29.
+  - It also fixed two defects the measurement found (a cancelling `1 − cos φ`, and a band-scale ball padding), added the empty-cut guard and the fast coverage row, and gave the refusal map one home.
+  - The arm's rounding charges were removed under main's newly ratified `[simple.conditioned]`.
+  - The cylinder × sphere lane was then asked to bisect `m5_pr7_ssi::a_corner_both_of_whose_sides…`, which went from about 30 s to over 1680 s after a main merge. It is plane × NURBS, and our stage 4 (PR 6479) is a suspect.
