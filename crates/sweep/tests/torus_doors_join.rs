@@ -2,12 +2,13 @@
 //! the symmetric cylinder × torus poses whose components the value lists
 //! and tells apart (a rod parallel to the torus axis, and a square rod
 //! crossing the outer equator in one loop), which the door marches.
-//! Each passes the join and stops at the result gate's volume, typed:
-//! two chords meeting end to end on a section loop both crease there,
-//! so the edge join leaves that vertex standing.
+//! Each passes the join and builds, its torus face measured through the
+//! rotational lane, at the volume the donut sliced against the rod
+//! reads.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::donut_slices::{Op, Rod, volume};
 use crate::common::germ_pair::cyl;
 use crate::revolve_common::{axis_y, validated};
 use core::f64::consts::FRAC_PI_2;
@@ -65,105 +66,97 @@ fn rod_y(x: f64, rc: f64) -> AtRestBody<f64> {
     )
 }
 
-/// **Where a run stops past the join**, by variant.
-#[derive(Debug, PartialEq, Eq)]
-enum Stop {
-    /// The result gate's volume on a torus face whose trim the chart
-    /// table has no lane for
-    /// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`),
-    /// the refused face's own surface read
-    /// (`topo::boolean::refused_face_kind`). A rod's chorded wall
-    /// measures through the rotational lane, so the torus face is the one
-    /// the gate reports in any face order.
-    TorusTrim,
-    /// The edge join on a spline carrier beside another carrier, open or
-    /// closed (`work/splice/a-spline-join-beside-another-carrier-has-no-far-parameter.md`),
-    /// which no pose here reaches.
-    Join { closed: bool },
-}
+/// What the slicing oracle's own quadrature may be off by (m³), far
+/// below any width the enclosures read.
+const ORACLE_SLACK: f64 = 1e-11;
 
-fn stop(got: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> Stop {
-    use geom_brep::PropsError;
-    use topo::{BooleanError, MassPropsError, ValidationError};
-    let on_torus = got
-        .as_ref()
-        .err()
-        .and_then(topo::boolean::refused_face_kind)
-        == Some(geom::SurfaceKind::Torus);
-    match got {
-        Err(BooleanError::ResultInvalid { findings: errors }) => match errors.as_slice() {
-            [
-                ValidationError::VolumeUncomputable {
-                    source:
-                        MassPropsError::Face {
-                            source: PropsError::QuadratureUnsupported { what },
-                            ..
-                        },
-                    ..
-                },
-            ] if on_torus
-                && what.starts_with("a trimmed face with no volume lane on its chart") =>
-            {
-                Stop::TorusTrim
-            }
-            other => panic!("an unpinned result gate: {other:?}"),
-        },
-        Err(BooleanError::JoinCarrierUnsupported {
-            carrier: geom::CurveKind::Nurbs,
-            closed,
-            ..
-        }) => Stop::Join { closed },
-        other => panic!(
-            "an unpinned stop: {:?}",
-            other.map(|r| r.body().map(|b| b.kind))
-        ),
-    }
+/// **A run builds at its volume**: the result a body, which passed the
+/// result gate (tier 3, its torus face measured through the rotational
+/// lane), whose certified volume holds the donut sliced against the rod
+/// by `op` ([`crate::common::donut_slices`]).
+fn at_its_volume(
+    label: &str,
+    got: Result<topo::BooleanResult<f64>, topo::BooleanError>,
+    op: Op,
+    rod: Rod,
+) {
+    let tol = Tol::witness();
+    let got = got.unwrap_or_else(|e| panic!("{label}: refused: {e:?}"));
+    let body = got
+        .body()
+        .unwrap_or_else(|| panic!("{label}: an empty result"));
+    let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap_or_else(|e| panic!("{label}: the body does not measure: {e:?}"))
+        .enclosure;
+    let truth = volume(op, rod);
+    assert!(
+        (m.volume - truth).abs() <= m.volume_pad + ORACLE_SLACK,
+        "{label}: the volume {} ± {} misses the sliced {truth}",
+        m.volume,
+        m.volume_pad
+    );
 }
 
 /// **A rod round the core, inside the tube's shadow**: the two loops
-/// round the rod, told apart by the torus's plane, carry; ∪ stops at the
-/// result gate's volume on the torus face its chords trim.
+/// round the rod, told apart by the torus's plane, carry; ∪ builds at its
+/// volume.
 #[test]
-fn a_rod_inside_the_tubes_shadow_stops_at_the_volume() {
+fn a_rod_inside_the_tubes_shadow_builds_at_its_volume() {
     let got = topo::union(&donut(), &rod_z(2.0, 0.0, 0.2), Tol::witness());
-    assert_eq!(stop(got), Stop::TorusTrim);
+    let rod = Rod::AlongZ {
+        at: (2.0, 0.0),
+        rc: 0.2,
+    };
+    at_its_volume("the rod in the shadow", got, Op::Union, rod);
 }
 
-/// **The same rod off the axis line**: ∩ stops at the result gate's
-/// volume on the torus face its chords trim.
-// Pinned red at every ε row, on the torus face's trim:
-// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
-// When it lands, `stop` meets a body and the row is re-pinned there.
+/// **The same rod off the axis line**: ∩ builds at its volume, the
+/// torus face its chords trim measured.
 #[test]
-fn a_rod_off_the_axis_line_stops_at_the_torus_trim() {
+fn a_rod_off_the_axis_line_builds_at_its_volume() {
     let got = topo::intersect(&donut(), &rod_z(1.9, 0.5, 0.2), Tol::witness());
-    assert_eq!(stop(got), Stop::TorusTrim);
+    let rod = Rod::AlongZ {
+        at: (1.9, 0.5),
+        rc: 0.2,
+    };
+    at_its_volume("the rod off the axis line", got, Op::Intersect, rod);
 }
 
-/// **A rod across both bounds**: its two meridional loops carry; ∩
-/// stops at the result gate's volume on the torus face's trim.
+/// **A rod across both bounds**: its two meridional loops carry; ∩ builds
+/// at its volume.
 #[test]
-fn a_rod_across_the_tube_stops_at_the_torus_trim() {
+fn a_rod_across_the_tube_builds_at_its_volume() {
     let got = topo::intersect(&donut(), &rod_z(2.0, 0.0, 0.7), Tol::witness());
-    assert_eq!(stop(got), Stop::TorusTrim);
+    let rod = Rod::AlongZ {
+        at: (2.0, 0.0),
+        rc: 0.7,
+    };
+    at_its_volume("the rod across the tube", got, Op::Intersect, rod);
 }
 
-/// **A rod across the inner bound**: its one null loop carries; ∩ stops
-/// at the result gate's volume on the torus face its chord trims.
-// Pinned red at every ε row, on the torus face's trim:
-// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
+/// **A rod across the inner bound**: its one null loop carries; ∩ builds
+/// at its volume.
 #[test]
-fn a_rod_across_the_inner_bound_stops_at_the_volume() {
+fn a_rod_across_the_inner_bound_builds_at_its_volume() {
     let got = topo::intersect(&donut(), &rod_z(1.5, 0.0, 0.2), Tol::witness());
-    assert_eq!(stop(got), Stop::TorusTrim);
+    let rod = Rod::AlongZ {
+        at: (1.5, 0.0),
+        rc: 0.2,
+    };
+    at_its_volume("the rod across the inner bound", got, Op::Intersect, rod);
 }
 
 /// **A square rod straddling the outer equator**: its one loop carries;
-/// ∖ stops at the result gate's volume on the torus face its chord trims.
-// Pinned red at every ε row, on the torus face's trim:
-// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md.
+/// ∖ builds at its volume. The rod along `y` through `(2.45, 0, 0)` is,
+/// turned a quarter about the donut's axis, the oracle's rod along `x`
+/// through `y = 2.45`.
 #[test]
-fn a_square_rod_on_the_outer_equator_stops_at_the_volume() {
+fn a_square_rod_on_the_outer_equator_builds_at_its_volume() {
     let got = topo::subtract(&donut(), &rod_y(2.45, 0.1), Tol::witness());
-    assert_eq!(stop(got), Stop::TorusTrim);
+    let rod = Rod::AlongX {
+        x: (-1.0, 1.0),
+        at: (2.45, 0.0),
+        rc: 0.1,
+    };
+    at_its_volume("the square rod", got, Op::Subtract, rod);
 }
