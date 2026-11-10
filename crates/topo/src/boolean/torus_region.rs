@@ -114,7 +114,7 @@ use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
 
 /// The row a place is read against a first leg's corner on.
-const CORNER: &str = "bool_torus_region_corner";
+const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
 
 /// A circle edge's boundary reading's rows (module docs).
 const BOUNDARY: ConicRows = ConicRows::bounded(
@@ -418,7 +418,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         };
         let end = End {
             place: first.course.arc(corner.at()),
-            row: CORNER,
+            row: TORUS_REGION_CORNER,
             open: false,
         };
         let then = move || {
@@ -439,7 +439,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
     const COMPONENT: &'static str = "bool_torus_region_component";
 
-    const SIDE: (&'static str, &'static str) =
+    const SIDE_ROWS: (&'static str, &'static str) =
         ("bool_torus_region_order", "bool_torus_region_cross");
 
     fn lever(&self) -> T {
