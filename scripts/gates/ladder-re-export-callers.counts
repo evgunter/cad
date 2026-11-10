@@ -1,7 +1,11 @@
-# Code outside geom-brep that spells the ladder `geom_brep::ladder`, per
-# crate (scripts/gates/ladder-re-export-callers.sh). A ratchet: lower a
-# count as callers move to `geom_core::ladder`; at none, delete the
+# Raw `geom_brep::ladder` spellings outside geom-brep's library (code,
+# test modules, `tests/`, doc links and prose alike), per crate
+# (scripts/gates/ladder-re-export-callers.sh). A ratchet: lower a count
+# as spellings move to `geom_core::ladder`; at none, delete the
 # re-export with this file and its gate
 # (work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md).
-crates/sweep 1
-crates/topo 90
+# geom-brep: its integration tests (`crates/geom-brep/tests/`), which
+# see the crate from outside.
+crates/geom-brep 1
+crates/sweep 2
+crates/topo 153

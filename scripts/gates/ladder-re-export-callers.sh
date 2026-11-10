@@ -14,34 +14,48 @@
 # count is gone, the re-export, this gate and its register are deleted
 # together, and `rung-holds-one-home.sh`'s `LADDER` drops `geom_brep::`.
 #
-# WHAT IS READ: production sources (`crates/*/src`, less test-only
-# mounts and `#[cfg(test)]` items) outside `crates/geom-brep/`, in the
-# code view (comments and literals blanked, so a doc link is not
-# counted), for each `geom_brep::ladder` path.
+# WHAT IS READ: every `.rs` file under `crates/`, less geom-brep's own
+# `src/` (its spelling is `crate::ladder`, which the re-export also
+# serves), RAW: code, `#[cfg(test)]` modules, test-only mounts, `tests/`,
+# doc links, prose and literals alike. So a count of none means nothing
+# outside geom-brep's library names the old path, and the re-export can
+# be deleted. Each `geom_brep::ladder` is one spelling, two on a line
+# counting two.
 #
-# WHAT IT CANNOT SEE: a `use geom_brep::{ladder, ..}` group (it names the
-# module apart from its crate) and a test module's spelling. A
-# reviewer's, those.
+# REFUSED OUTRIGHT: an import of the module itself (`use
+# geom_brep::ladder;`, `use geom_brep::ladder as …`, or `ladder` in a
+# `geom_brep::{…}` group on one line). A file could drop its count with
+# one, spelling `ladder::` after it, and port nothing.
+#
+# WHAT IT CANNOT SEE: a `geom_brep::{…}` group split over lines that
+# names `ladder` on a line of its own, and a macro that builds the path.
+# A reviewer's, those.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 REGISTER=scripts/gates/ladder-re-export-callers.counts
 PATH_RE='geom_brep::ladder\b'
+ALIAS_RE='use[[:space:]]+geom_brep::ladder[[:space:]]*(;|as[[:space:]])|geom_brep::\{[^}]*\bladder\b'
 
 gate() {
   gate_require_crate_sources
   gate_require_file "$REGISTER" "the ladder re-export's register"
-  gate_production_sources
   local -a files=()
-  local f
-  for f in "${GATE_PRODUCTION_FILES[@]}"; do
-    case "$f" in crates/geom-brep/*) ;; *) files+=("$f") ;; esac
-  done
+  mapfile -t files < <(find crates -name '*.rs' -not -path 'crates/geom-brep/src/*' -not -path '*/target/*' | sort)
+  local alias=""
+  if [ "${#files[@]}" -gt 0 ]; then
+    alias=$(gate_grep -nHE "$ALIAS_RE" "${files[@]}")
+  fi
+  if [ -n "$alias" ]; then
+    printf '%s\n' "$alias"
+    gate_error "a module alias of the transitional geom_brep::ladder (above): import geom_core::ladder or its items, never the old module"
+    exit 1
+  fi
   local live=""
   if [ "${#files[@]}" -gt 0 ]; then
-    # Each line is `file:line:code`; a line may spell the path twice.
-    live=$(gate_rust_code --skip-cfg-test "${files[@]}" | gate_grep -E "$PATH_RE" \
+    # `file:line:text`; a line may spell the path twice.
+    live=$(gate_grep -nHE "$PATH_RE" "${files[@]}" \
       | awk '{ split($0, at, ":"); split(at[1], p, "/"); c[p[1] "/" p[2]] += gsub(/geom_brep::ladder/, "&") }
              END { for (k in c) print k, c[k] }')
   fi
@@ -51,10 +65,11 @@ gate() {
   diff=$(diff <(printf '%s\n' "$live" | sed '/^$/d' | sort) <(printf '%s\n' "$want" | sed '/^$/d') || true)
   if [ -n "$diff" ]; then
     printf '%s\n' "$diff"
-    gate_error "geom_brep::ladder spellings differ from $REGISTER ('<' is the tree, '>' the register): import geom_core::ladder, or lower the count where callers moved"
+    gate_error "geom_brep::ladder spellings differ from $REGISTER ('<' is the tree, '>' the register): import geom_core::ladder, or lower the count where spellings moved"
     exit 1
   fi
-  gate_ok "every crate outside geom-brep spells the transitional geom_brep::ladder exactly its registered count"
+  GATE_SCAN_FILES=${#files[@]}
+  gate_ok "every crate outside geom-brep's library spells the transitional geom_brep::ladder exactly its registered count"
 }
 
 gate_plant_clean() {
@@ -87,16 +102,46 @@ plant_in_a_doc_link() {
   printf '/// [`geom_brep::ladder::climb`]\npub fn f() {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
+plant_in_a_test_module() {
+  mkdir -p "$1/crates/planted/src"
+  printf '#[cfg(test)]\nmod rows { use geom_brep::ladder::climb; }\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_in_an_integration_test() {
+  mkdir -p "$1/crates/geom-brep/tests"
+  printf 'use geom_brep::ladder::climb;\n' > "$1/crates/geom-brep/tests/rows.rs"
+}
+
+plant_module_alias() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'use geom_brep::ladder;\npub fn f() { ladder::climb(); }\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_module_alias_renamed() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'use geom_brep::ladder as l;\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_module_in_a_group() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'use geom_brep::{Thing, ladder};\n' > "$1/crates/planted/src/lib.rs"
+}
+
 gate_selftest() {
-  local want="spellings differ"
+  local want="spellings differ" alias="a module alias"
   gate_selftest_clean
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_new_caller
   gate_selftest_case "$want" plant_stale_entry
+  gate_selftest_case "$want" plant_in_a_doc_link
+  gate_selftest_case "$want" plant_in_a_test_module
+  gate_selftest_case "$want" plant_in_an_integration_test
+  gate_selftest_case "$alias" plant_module_alias
+  gate_selftest_case "$alias" plant_module_alias_renamed
+  gate_selftest_case "$alias" plant_module_in_a_group
   gate_selftest_passes "a registered caller" plant_registered
-  gate_selftest_passes "geom-brep's own spelling" plant_in_geom_brep
-  gate_selftest_passes "a doc link" plant_in_a_doc_link
-  printf '%s selftest OK: passes a clean tree, a registered caller, geom-brep'"'"'s own spelling and a doc link; fires on a new caller and on a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
+  gate_selftest_passes "geom-brep's own library spelling" plant_in_geom_brep
+  printf '%s selftest OK: passes a clean tree, a registered caller and geom-brep'"'"'s own library spelling; fires on a new spelling in code, a doc link, a test module and an integration test, on a register entry the tree no longer carries, and on a module alias (bare, renamed, or in a group), and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
