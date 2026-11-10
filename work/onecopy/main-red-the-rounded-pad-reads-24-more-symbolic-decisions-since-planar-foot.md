@@ -20,3 +20,5 @@ Re-run on main (merged 2026-11-09) at 1e-6, 1e-9 and 1e-12: red at each, with th
 What is owed (ONECOPY, 6594's lane): 24 more decisions on the pad reach the symbolic tier than the measured count pins. Say whether the planar foot's reading is what added them, and if so, re-pin the measured count with that reason; otherwise find what did. No theorem is disputed and no registration refused, so no verdict is known to have moved.
 
 Reproduce: `cargo nextest run -p editor-core --profile ci --ignore-default-filter -E 'test(/m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document/)'`.
+
+**Drifted further** (2026-11-10, found by `onecopy/line-holders`' slow run): on `origin/main` `53ed936f`, `r2_rounded_pad` reads **1704** symbolic against the measured 1660 (`checks_expanded: 1204`, `numeric: 1368`, `frozen: 3751`), 20 more than this row's 1684, at both ε.
