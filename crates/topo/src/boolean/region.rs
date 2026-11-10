@@ -1422,9 +1422,10 @@ mod tests {
     }
 }
 
-/// [`RegionRefusal::refusal`] as each variant's image in the point-in-loop
+/// [`RegionRefusal::refusal`] as each variant's image in the point-in-solid
 /// door stands (QML T4).
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod standing_rows {
     use geom_core::ladder::{Aborts, Refusal};
     use geom_core::{Band, Indeterminate, MarginDiag};
