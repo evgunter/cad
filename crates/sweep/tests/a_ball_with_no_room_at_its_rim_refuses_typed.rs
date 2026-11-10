@@ -167,12 +167,11 @@ fn a_pockets_floor_rim_refuses_its_ball_past_half_the_pocket() {
     assert!(n >= 10, "cavity floor: {n} rungs past the boundary");
 }
 
-/// **Plane × sphere off the centre, in both orders**: the #935 zone, a
-/// sphere `R = 2` about the origin cut at `y = 1` (plane first) and at
-/// `y = −0.5` (sphere first), the ball inside the sphere. The room is
-/// `(2 − r) − |1 − r|` at the top, gone at `r = 1.5`, and
-/// `(2 − r) − |r − 0.5|` at the bottom, gone at `r = 1.25`: a plane off
-/// the centre holds more room than the hemisphere's on its far side.
+/// **Plane × sphere off the centre, plane first**: the #935 zone, a
+/// sphere `R = 2` about the origin cut at `y = 1`, the ball inside the
+/// sphere. The room is `(2 − r) − |1 − r|`, gone at `r = 1.5`: a plane
+/// off the centre holds more room than the hemisphere's on its far
+/// side.
 #[test]
 fn an_off_centre_plane_sphere_rim_refuses_its_ball_where_its_cap_runs_out() {
     let z = finished("zone", sphere_zone(0.5, Revolution::Full, tol()), tol());
@@ -181,6 +180,14 @@ fn an_off_centre_plane_sphere_rim_refuses_its_ball_where_its_cap_runs_out() {
         (2.0 - r) - (1.0 - r).abs()
     });
     assert!(n >= 3, "zone top: {n} rungs past the boundary");
+}
+
+/// **Plane × sphere off the centre, sphere first**: the same zone cut
+/// at `y = −0.5`, whose room `(2 − r) − |r − 0.5|` is gone at
+/// `r = 1.25`.
+#[test]
+fn the_zones_bottom_rim_refuses_its_ball_where_its_cap_runs_out() {
+    let z = finished("zone", sphere_zone(0.5, Revolution::Full, tol()), tol());
     let lo = one_edge_rim_at(&z, 3.75f64.sqrt(), -0.5);
     let n = ladder("zone bottom", &z, &[lo], Some(1.25), |r| {
         (2.0 - r) - (r - 0.5).abs()
@@ -188,19 +195,24 @@ fn an_off_centre_plane_sphere_rim_refuses_its_ball_where_its_cap_runs_out() {
     assert!(n >= 3, "zone bottom: {n} rungs past the boundary");
 }
 
-/// **Plane × sphere with the ball outside the sphere**: the boss's dome
-/// rim (concave, the ball in the void above the flat top) and the
-/// dimple's (convex, the ball in the material around the pocket), on
-/// the plane through the sphere's centre. The offset sphere is
-/// `R + r`, so the room is `R = 0.5` at every radius and never runs
-/// out.
+/// **Plane × sphere with the ball outside the sphere**, on the plane
+/// through the sphere's centre: the offset sphere is `R + r`, so the
+/// room is `R = 0.5` at every radius and never runs out. The boss's
+/// dome rim is concave, the ball in the void above the flat top.
 #[test]
-fn a_ball_outside_its_sphere_never_runs_out_of_room() {
-    for (what, up) in [("boss dome rim", true), ("dimple rim", false)] {
-        let b = finished(what, boss(up, tol()), tol());
-        let rim = rim_arcs_at(&b, 0.5, 1.0);
-        assert_eq!(ladder(what, &b, &rim, None, |_| 0.5), 0, "{what}");
-    }
+fn a_ball_outside_a_boss_never_runs_out_of_room() {
+    let b = finished("boss", boss(true, tol()), tol());
+    let rim = rim_arcs_at(&b, 0.5, 1.0);
+    assert_eq!(ladder("boss dome rim", &b, &rim, None, |_| 0.5), 0);
+}
+
+/// The dimple's rim, the boss's mirror: convex, the ball in the
+/// material around the pocket, outside the sphere, room `0.5`.
+#[test]
+fn a_ball_outside_a_dimple_never_runs_out_of_room() {
+    let b = finished("dimple", boss(false, tol()), tol());
+    let rim = rim_arcs_at(&b, 0.5, 1.0);
+    assert_eq!(ladder("dimple rim", &b, &rim, None, |_| 0.5), 0);
 }
 
 /// **Sphere × sphere, through the sheet reduction**: the lentil's
@@ -214,20 +226,26 @@ fn a_sphere_sphere_rim_refuses_its_ball_where_the_offset_circles_part() {
     assert!(n >= 10, "lentil equator: {n} rungs past the boundary");
 }
 
-/// **Sphere × cone through the sheet reduction, and plane × sphere
-/// through its own arm, on one body**: the lantern's neck and shoulder.
-/// The neck is a plane × sphere rim on the plane through the belly's
-/// centre, gone at `r = 0.5`. The shoulder is a line and a circle — the
-/// unit belly about the origin and the cone `x + y = 1.4` in the
-/// meridian, [`SHOULDER_CONE`] from the centre — whose room
-/// `(1 − r) − |1.4/√2 − r|` is about `0.01` while `r` is short of that
-/// distance and `1.98995 − 2r` past it, gone at `r ≈ 0.994975`.
+/// **Plane × sphere on the lantern**: its neck, a rim on the plane
+/// through the unit belly's centre, whose room `1 − 2r` is gone at
+/// `r = 0.5`.
 #[test]
-fn a_lanterns_rims_refuse_their_balls_where_the_offset_traces_part() {
+fn a_lanterns_neck_refuses_its_ball_past_half_the_belly() {
     let lan = finished("lantern", lantern(tol()), tol());
     let neck = rim_arcs_at(&lan, 1.0, 0.0);
     let n = ladder("lantern neck", &lan, &neck, Some(0.5), |r| 1.0 - 2.0 * r);
     assert!(n >= 10, "lantern neck: {n} rungs past the boundary");
+}
+
+/// **Sphere × cone, through the sheet reduction**: the lantern's
+/// shoulder, a line and a circle — the unit belly about the origin and
+/// the cone `x + y = 1.4` in the meridian, [`SHOULDER_CONE`] from the
+/// centre — whose room `(1 − r) − |1.4/√2 − r|` is about `0.01` while
+/// `r` is short of that distance and `1.98995 − 2r` past it, gone at
+/// `r ≈ 0.994975`.
+#[test]
+fn a_lanterns_shoulder_refuses_its_ball_where_the_offset_traces_part() {
+    let lan = finished("lantern", lantern(tol()), tol());
     let shoulder = rim_arcs_at(&lan, 0.8, 0.6);
     let n = ladder(
         "lantern shoulder",

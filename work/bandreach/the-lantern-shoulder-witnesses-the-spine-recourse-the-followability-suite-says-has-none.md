@@ -12,8 +12,8 @@ cost: E
 ## Finding
 
 Found while laddering every curved-rim family through its ball's room
-(`crates/sweep/tests/a_ball_with_no_room_at_its_rim_refuses_typed.rs:228`,
-`a_lanterns_rims_refuse_their_balls_where_the_offset_traces_part`).
+(`crates/sweep/tests/a_ball_with_no_room_at_its_rim_refuses_typed.rs:247`,
+`a_lanterns_shoulder_refuses_its_ball_where_the_offset_traces_part`).
 The lantern's shoulder (`crates/sweep/src/test_support.rs:1068`
 `lantern`, rim `(0.8, 0.6)`, the unit belly against the cone
 `x + y = 1.4`, a sphere–cone row of the sheet reduction) refuses

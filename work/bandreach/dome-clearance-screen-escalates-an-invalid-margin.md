@@ -81,7 +81,7 @@ root), past `r = 0.4`.
 
 **Outcome.** A typed refusal at the source. When the link resolves,
 `fillet3_ball_room` decides that the offsets cross, on their secant
-margin in metres (`arms::plane_sphere_room`, `arms::rim_room`). The
+margin in metres (`arms::plane_sphere_room`, `arms::offset_room`). The
 door is `battery::room_at`, shared with `fillet3_knife_room`. A radius
 past it refuses `BlendError::BallDoesNotFit` with
 `FILLET3_BALL_ROOM_RECOURSE`. A smaller radius always has room, so the
@@ -99,3 +99,15 @@ and 0.25, refuses the clearance screen at 0.4, and refuses
 - `blend_recourse_followability::the_ball_room_recourse_is_followed_by_a_ball_that_fits`.
 - `verbs_arms1_r1_probes::near_limit_radii_refuse_typed`, at the
   closed-form room.
+
+**Fix pass (review of PR 6779).** The room is read with each offset's
+radius signed, so past `r = R` it keeps falling with the overshoot
+instead of reading a ball that holds the sphere; the knife's and the
+rim's margins are one function (`arms::offset_room`). `room_at` mints
+a private `BallRoom` token, and the battery reaches the plane–sphere
+arm and the sheet reduction only through it. `BallDoesNotFit` says no
+ball rolls along the rim touching both faces, true at the decided Zero
+of `r = R/2` too. The class rows now read the closed form at every
+rung, around each boundary, both plane–sphere orders, and the outside
+fold. Filed `work/band/predicate-3-reads-a-spine-past-the-axis-as-regular.md`.
+
