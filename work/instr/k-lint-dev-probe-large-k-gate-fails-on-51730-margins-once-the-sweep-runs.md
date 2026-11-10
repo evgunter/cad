@@ -141,6 +141,10 @@ k-lint: GATE FAILED — the margin distribution changed: 10033 margin(s) crowd a
 
 The driver lint (`--gate-rule-1-only`) passes: rule 1 is 0, with 342 advisory flags (108 / 117 / 117), the same 342 as before.
 
+## Dispatch
+
+2026-11-10, INSTR orchestrator. One implementer: lane `instr-klint`, branch `instr/klint-large-k`. **Phase A** measures on main and splits every flag, uncapped, by ε × rule × family. It finds each rule-1 family's owning row, and files a row where one is missing. It reads each rule-2/3 family as one of three things: ε-coupled and ruled, a stale floor, or a population for a row. It then recommends re-derivation, demotion, or a split, and stops with no change to the gate. **Phase B** builds the chosen ruling. Demoting the gate goes to Ev first, because the gate is Ev's ruling (PR #243).
+
 ## Read (2026-11-10, `instr/klint-large-k`)
 
 **What was measured.** Main `9fe94da35`, running
