@@ -2295,9 +2295,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // roots that answer `LiesOn` sit behind the uncovered arm.
             if covered && !on_carrier {
                 let (t0, t1) = curve.params();
-                if let Ok(SpanVerdict::LiesOn) =
-                    wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)
-                    && parents_distinct_from(x, edge, y, face, band)
+                if let Ok(SpanVerdict::LiesOn) = wall_crossing(
+                    y,
+                    face,
+                    x_is.other(),
+                    &surface,
+                    curve.carrier(),
+                    t0,
+                    t1,
+                    band,
+                    &escalate,
+                ) && parents_distinct_from(x, edge, y, face, band)
                 {
                     let arc = ArcOnCarrier {
                         x,
@@ -2659,7 +2667,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         (Sign::Zero, Sign::Positive | Sign::Negative)
         | (Sign::Positive | Sign::Negative, Sign::Zero) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
+            match wall_crossing(
+                y,
+                face,
+                x_is.other(),
+                &surface,
+                curve.carrier(),
+                t0,
+                t1,
+                band,
+                &escalate,
+            )? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2757,7 +2775,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // a tangency, and a trim with no verdict.
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
+            match wall_crossing(
+                y,
+                face,
+                x_is.other(),
+                &surface,
+                curve.carrier(),
+                t0,
+                t1,
+                band,
+                &escalate,
+            )? {
                 SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::OffFace => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, m1, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, m2, contacts, band, tol)?;
@@ -2795,7 +2823,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // one.
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
+            match wall_crossing(
+                y,
+                face,
+                x_is.other(),
+                &surface,
+                curve.carrier(),
+                t0,
+                t1,
+                band,
+                &escalate,
+            )? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2843,7 +2881,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 ) =>
         {
             let (t0, t1) = curve.params();
-            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band, &escalate)? {
+            match wall_crossing(
+                y,
+                face,
+                x_is.other(),
+                &surface,
+                curve.carrier(),
+                t0,
+                t1,
+                band,
+                &escalate,
+            )? {
                 SpanVerdict::Pierce { t, p, at, on } => Ok(CurvedEvent::Pierce {
                     t,
                     p,
@@ -2958,6 +3006,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     match wall_crossing(
                         y,
                         face,
+                        x_is.other(),
                         &surface,
                         curve.carrier(),
                         t0,
@@ -4905,6 +4954,7 @@ fn place_crossing<T: Decide>(
 fn wall_crossing<T: Decide + Bounds>(
     y: &Body<T>,
     face: FaceKey,
+    operand: Operand,
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -4963,16 +5013,18 @@ fn wall_crossing<T: Decide + Bounds>(
                     geom_brep::curve_face::circle_torus::circle_torus_roots(
                         carrier, t0, t1, surface, band,
                     )
-                    .map_err(BooleanError::of_door_refusal(
+                    .map_err(BooleanError::of_torus_door_refusal(
                         BooleanDecision::ArcTorusRoots,
+                        (operand, face),
                     )),
                 ),
                 (_, geom::Surface::Torus { .. }) => Some(
                     geom_brep::curve_face::ellipse_torus::ellipse_torus_roots(
                         carrier, t0, t1, surface, band,
                     )
-                    .map_err(BooleanError::of_door_refusal(
+                    .map_err(BooleanError::of_torus_door_refusal(
                         BooleanDecision::ArcTorusRoots,
+                        (operand, face),
                     )),
                 ),
                 _ => None,
@@ -7443,6 +7495,7 @@ mod edge_span_tests {
             wall_crossing(
                 &y,
                 FaceKey::default(),
+                crate::boolean::Operand::B,
                 &wall,
                 &line,
                 t0,
@@ -7507,6 +7560,7 @@ mod edge_span_tests {
         let got = wall_crossing(
             &y,
             face,
+            crate::boolean::Operand::B,
             &wall,
             &ellipse,
             core::f64::consts::FRAC_PI_2 - 0.1,
@@ -7560,6 +7614,7 @@ mod edge_span_tests {
         let got = wall_crossing(
             &y,
             face,
+            crate::boolean::Operand::B,
             &frame.surface(),
             &spline,
             0.0,
@@ -8938,6 +8993,7 @@ mod arc_end_rows {
         let got = wall_crossing(
             &body,
             cap,
+            crate::boolean::Operand::B,
             &sphere,
             &line,
             0.5 * reach,

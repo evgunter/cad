@@ -2182,10 +2182,10 @@ impl<T: Real, K> Walked<T, K> {
 
     /// The certified row, where the derivation's lane choice already
     /// read the certificate; the walked row back otherwise.
-    fn into_certified(self) -> Result<(K, PcurveCache<T>, Option<JointElement>), Self> {
+    fn into_certified(self) -> Result<(K, PcurveCache<T>, Option<JointElement>), Box<Self>> {
         match self.image {
             ChartImage::Certified(cache) => Ok((self.key, cache, self.element)),
-            image @ ChartImage::Image { .. } => Err(Self { image, ..self }),
+            image @ ChartImage::Image { .. } => Err(Box::new(Self { image, ..self })),
         }
     }
 
@@ -3364,7 +3364,7 @@ fn certify_walked<T: Decide, K: Copy>(
                 rows.push(row);
                 continue;
             }
-            Err(w) => w,
+            Err(w) => *w,
         };
         let (t0, t1) = w.window();
         let cache = match (w.pcurve().certifying_door(), fitted) {

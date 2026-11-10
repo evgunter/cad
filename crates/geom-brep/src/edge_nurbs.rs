@@ -1029,7 +1029,11 @@ pub struct PlaneNurbsIncidence<T: Real> {
 /// inside `(0, 1)` always do; an empty list holds nothing, and reads as
 /// no candidate.
 #[must_use]
-pub fn arc_rim_candidates<T: Real>(chart: &NurbsSurface<T>, t0: T, span: T) -> Vec<Pcurve<T>> {
+pub fn arc_rim_candidates<T: SpanLocate>(
+    chart: &NurbsSurface<T>,
+    t0: T,
+    span: T,
+) -> Vec<Pcurve<T>> {
     arc_rim_images(chart, |_, _| Some((t0, span)))
 }
 
@@ -1113,7 +1117,7 @@ fn arc_rim_spans<T: Real>(chart: &NurbsSurface<T>) -> usize {
 /// in each row, each over the arc `arc(end, forward)` names: the row
 /// at `v₁` where `end`, running with `u` where `forward`. An arc that
 /// is `None` offers no image.
-fn arc_rim_images<T: Real>(
+fn arc_rim_images<T: SpanLocate>(
     chart: &NurbsSurface<T>,
     arc: impl Fn(bool, bool) -> Option<(T, T)>,
 ) -> Vec<Pcurve<T>> {
@@ -1127,6 +1131,7 @@ fn arc_rim_images<T: Real>(
     [(false, cv0), (true, cv1)]
         .into_iter()
         .flat_map(|(end, v)| {
+            let ends = row_end_weights(chart, end);
             [(true, cu0, cu1 - cu0), (false, cu1, cu0 - cu1)].map(|(forward, p0x, sign)| {
                 arc(end, forward).map(|(t0, angle)| Pcurve::IsoArc {
                     p0: Point2::new(p0x, v),
@@ -1134,11 +1139,31 @@ fn arc_rim_images<T: Real>(
                     t0,
                     angle,
                     breaks: breaks.clone(),
+                    ends: if forward {
+                        ends.as_slice().into()
+                    } else {
+                        ends.iter().rev().copied().collect()
+                    },
                 })
             })
         })
         .flatten()
         .collect()
+}
+
+/// **A boundary row's end weights**, along the chart's `u`, where they
+/// are not one value ([`Pcurve::IsoArc`]'s `ends`). Empty for a row at
+/// one end weight, and for a row the chart cannot give.
+fn row_end_weights<T: SpanLocate>(chart: &NurbsSurface<T>, end: bool) -> Vec<T> {
+    let Ok(row) = crate::nurbs_iso::boundary_iso_v(chart, end) else {
+        return Vec::new();
+    };
+    let ends = crate::pcurve_cache::joint_weights(&row);
+    if crate::pcurve_cache::one_value(&ends) {
+        Vec::new()
+    } else {
+        ends
+    }
 }
 
 /// **The `k`-th of `m` uniform breakpoints on `[0, 1]`**, `k/m` as one

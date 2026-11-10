@@ -455,6 +455,8 @@ mod band_co_requested_boundary;
 mod band_concave_bar;
 #[path = "band_dihedral_cups.rs"]
 mod band_dihedral_cups;
+#[path = "band_mixed_vertex.rs"]
+mod band_mixed_vertex;
 #[path = "band_one_cycle_members.rs"]
 mod band_one_cycle_members;
 #[path = "band_planar_consume.rs"]

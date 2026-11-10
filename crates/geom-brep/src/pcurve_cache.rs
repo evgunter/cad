@@ -179,7 +179,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError, constant_weight};
+use geom_core::spline::{Built, KnotVector, SpanLocate, SplineError};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
     Vec3, rounding_charge,
@@ -610,6 +610,15 @@ pub enum Pcurve<T: Real> {
         /// Sub-arc breakpoints on `τ ∈ [0, 1]`: a uniform clamped
         /// degree-1 knot vector with one span per sub-arc.
         breaks: KnotVector,
+        /// The row's end weights at the sub-arc joints, in the image's
+        /// own order (`g = 0` first), where they are not one constant:
+        /// a row stated `w₀, w₁, w₂, …` with `w₀ ≠ w₂` is the same arc
+        /// as `1, w₁/√(w₀w₂), 1, …` read through a Möbius change of its
+        /// parameter, `σ = λs / (λs + 1 − s)` on each sub-arc with
+        /// `λ = √(eₖ/eₖ₊₁)` ([`iso_arc_g`]). Empty for a row at one end
+        /// weight, where `σ = s`. Copied off the row's held weights, and
+        /// compared to them exactly by the certificate.
+        ends: Box<[T]>,
     },
     /// The **exact chart image of a [`geom::Curve3::Spiric`]** on the
     /// charts a spiric lies on — the plane of its own cutting section,
@@ -884,9 +893,9 @@ impl WallTorus {
 /// The chart parameter `g(t) ∈ [0, 1]` of an [`Pcurve::IsoArc`]
 /// (variant docs for the derivation). Total: a malformed `breaks`
 /// answers poison rather than panicking (D4).
-fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
+fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[T]) -> T {
     let spans = iso_arc_spans(breaks);
-    if spans == 0 {
+    if spans == 0 || !(ends.is_empty() || ends.len() == spans + 1) {
         return T::from_f64(f64::NAN);
     }
     #[allow(clippy::cast_precision_loss)]
@@ -905,11 +914,19 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     let degree = breaks.degree();
     let mut acc: Option<T> = None;
     for span in set.first.index()..=set.last.index() {
+        let k = span.saturating_sub(degree);
         #[allow(clippy::cast_precision_loss)]
         let kf = T::from_f64(span.saturating_sub(degree) as f64);
         let phi = (t - t0) - (kf + T::from_f64(0.5)) * h;
         let (s_h, c_h) = (phi * T::from_f64(0.5)).sin_cos();
         let s = T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q);
+        let s = match (ends.get(k), ends.get(k + 1)) {
+            (Some(&a), Some(&b)) => {
+                let lambda = iso_arc_skew(a, b);
+                lambda * s / (lambda * s + T::one() - s)
+            }
+            _ => s,
+        };
         let g = (kf + s) / m;
         acc = Some(match acc {
             None => g,
@@ -1212,12 +1229,14 @@ impl<T: Real> Pcurve<T> {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => Pcurve::IsoArc {
                 p0: point(*p0),
                 pd: vector(*pd),
                 t0: *t0,
                 angle: *angle,
                 breaks: breaks.clone(),
+                ends: ends.clone(),
             },
             // The CAP image is linear in its chart-space coefficients
             // exactly as the harmonic one is — `p0` through `point`,
@@ -1395,8 +1414,9 @@ impl<T: SpanLocate> Pcurve<T> {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => {
-                let g = iso_arc_g(t, *t0, *angle, breaks);
+                let g = iso_arc_g(t, *t0, *angle, breaks, ends);
                 Point2::new(p0.x + pd.x * g, p0.y + pd.y * g)
             }
             // One `sin_cos`, one `sqrt` (inside `spiric_radial`), one
@@ -3455,21 +3475,12 @@ fn spans_of(
                 && z.1.is_finite()
             {
                 meters
-                    .over(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
-                        if lower(lever, true) > 0.0 {
-                            Ok(lever)
-                        } else {
-                            Err(())
-                        }
+                    .certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
+                        lower(lever, true) > 0.0
                     })
-                    .map_or_else(
-                        |()| {
-                            meters
-                                .apex_root(point(f_sup))
-                                .map_or(f64::INFINITY, |m| upper(m, true))
-                        },
-                        |m| upper(m, true),
-                    )
+                    // `+∞` off the cone and the sheet only: on them the
+                    // apex reading always reads.
+                    .map_or(f64::INFINITY, |m| upper(m, true))
             } else {
                 f64::NAN
             };
@@ -3630,7 +3641,7 @@ mod span_memo {
 /// distance from the operand's origin and never at its distance from the
 /// world's. The twin's canonical composite along the net is converted to
 /// metres per part (the cone's and the torus's lever per part, the cone's
-/// apex root where its lever is not positive) and halved under limb 2's
+/// and the sheet's apex reading where its lever is not positive) and halved under limb 2's
 /// budget ([`projected::offset_rounds`]): a spline's rounds insert their
 /// breaks into its own net exactly, and a closed form's re-enclose the
 /// spans they cut, over [`closed_form_grid`]'s first breaks. No round
@@ -3672,13 +3683,33 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
         unreachable!("an analytic chart has a frame")
     };
     let frame = crate::carrier_net::Frame::of(o, te);
-    let (domain, grid, per_span) = match carrier {
+    let (domain, mut grid, per_span) = match carrier {
         Curve3::Nurbs(net) => (net.domain(), Vec::new(), projected::INCIDENCE_CUTS),
         _ => {
             let (lo, hi) = crate::carrier_net::outer_ends(window);
             ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
         }
     };
+    // On a sheet, an end within `10⁻⁶ r` of the axis (read in `f64`, a
+    // schedule's reading) is graded toward ([`apex_grading`]).
+    if let Surface::Spindle {
+        center,
+        axis,
+        minor_radius,
+        ..
+    } = *surface
+    {
+        let mid = |x: T| geom_core::mid_param(x.lo(), x.hi());
+        let on_axis = |t: T| {
+            let d = carrier.eval(t) - center;
+            let rho2 = mid(d.dot(d)) - mid(d.dot(axis).powi(2)) / mid(axis.dot(axis));
+            rho2 <= (1e-6 * mid(minor_radius)).powi(2)
+        };
+        grid.extend(apex_grading(
+            crate::carrier_net::outer_ends(window),
+            [on_axis(window.0), on_axis(window.1)],
+        ));
+    }
     let round_over =
         |grid: &[f64],
          cuts: &[f64]|
@@ -4195,6 +4226,26 @@ mod limb2_quick {
     }
 }
 
+/// **Breaks graded toward a sheet's apexes**: at `2⁻ᵏ` of `[lo, hi]`
+/// from each end `at_apex` marks. Only the part at an apex reads its
+/// distance from the apex ([`projected::Meters::apex_root`]), which falls
+/// only as that part shrinks; with these breaks the first round holds it
+/// at `f64`'s spacing there, where the rounds' halving would take one
+/// round per level. A schedule of cuts, not a decision: any cuts give a
+/// sound bound.
+fn apex_grading((lo, hi): (f64, f64), at_apex: [bool; 2]) -> Vec<f64> {
+    const LEVELS: i32 = 60;
+    let length = hi - lo;
+    [(at_apex[0], lo, 1.0), (at_apex[1], hi, -1.0)]
+        .into_iter()
+        .filter(|&(at, _, _)| at)
+        .flat_map(|(_, end, toward)| {
+            (1..=LEVELS).map(move |k| end + toward * length * 2f64.powi(-k))
+        })
+        .filter(|&c| lo < c && c < hi)
+        .collect()
+}
+
 /// The breaks a closed-form carrier's first net is cut at inside
 /// `[lo, hi]`: none for a line, whose degree-1 net is exact; for a
 /// curved kind, equal spans of at most a [`crate::ssi::SSI_CERT_SPANS`]th
@@ -4636,8 +4687,9 @@ impl<T: Decide> PcurveCache<T> {
                 t0: at0,
                 angle,
                 breaks,
+                ends,
             } => run_iso_arc_checks(
-                *p0, *pd, *at0, *angle, breaks, t0, t1, carrier, surface, band,
+                *p0, *pd, *at0, *angle, breaks, ends, t0, t1, carrier, surface, band,
             )?,
             // EXHAUSTIVE by variant, never a catch-all (D3): a
             // catch-all here would route a NEW closed-form variant
@@ -4869,12 +4921,14 @@ impl<T: Decide> PcurveCache<T> {
                 t0,
                 angle,
                 breaks,
+                ends,
             } => run_iso_arc_checks(
                 *p0,
                 *pd,
                 *t0,
                 *angle,
                 breaks,
+                ends,
                 self.param_start,
                 self.param_end,
                 carrier,
@@ -7908,18 +7962,58 @@ struct ArcRimWeight<T> {
     /// built over the same angle as the circle, in the scalar, is
     /// `w − w`: at `Sym` a symbolic Zero, which the weight held as an
     /// `f64` constant (`from_f64` of its value) is not. Poison for a
-    /// column with fewer than two weights.
+    /// column with fewer than three weights.
     margin: T,
 }
 
-/// **The arc pattern's interior weight at unit end weight**: `w₁/w₀`
-/// on the column's held weights. A rational curve is invariant under
-/// one positive scale of all its weights, so a column `c, c·w, c, …`
-/// is the arc `1, w, 1, …`, and the ratio is the `w` the pattern
-/// states. `None` for a column with fewer than two weights.
+/// **The arc pattern's interior weight at unit end weight**: the
+/// column's first sub-arc's [`arc_rim_normal_weight`]. `None` for a
+/// column with fewer than three weights.
 fn arc_rim_ratio<T: Real>(column: &NurbsCurve3<T>) -> Option<T> {
-    let w = column.weights();
-    Some(*w.get(1)? / *w.first()?)
+    match column.weights().get(..3)? {
+        &[w0, w1, w2] => Some(arc_rim_normal_weight(w0, w1, w2)),
+        _ => None,
+    }
+}
+
+/// **A sub-arc's interior weight at unit end weights**, `w₁/√(w₀·w₂)`:
+/// a rational quadratic is the same curve under one positive scale of
+/// its weights and under a Möbius change of its parameter, which
+/// together take `w₀, w₁, w₂` to `1, w₁/√(w₀·w₂), 1`. Where the two end
+/// weights are one value it is `w₁/w₀`, which keeps a held pattern's
+/// weight a symbolic identity at `Sym`.
+pub(crate) fn arc_rim_normal_weight<T: Real>(w0: T, w1: T, w2: T) -> T {
+    if geom_core::is_exact_zero(w0 - w2) {
+        w1 / w0
+    } else {
+        w1 / (w0 * w2).sqrt()
+    }
+}
+
+/// **A column's held weights at its sub-arc joints**: its even-indexed
+/// control points, an arc rim image's `ends` where they are not
+/// [`one_value`].
+pub(crate) fn joint_weights<T: Real>(column: &NurbsCurve3<T>) -> Vec<T> {
+    column.weights().iter().step_by(2).copied().collect()
+}
+
+/// **Whether held weights are one value**: each equal to the first,
+/// read as structure ([`geom_core::is_exact_zero`] of the difference).
+/// A held weight is a point at every scalar, so this is their own
+/// equality, on the value channel at `Sym`.
+pub(crate) fn one_value<T: Real>(weights: &[T]) -> bool {
+    weights
+        .split_first()
+        .is_none_or(|(&first, rest)| rest.iter().all(|&w| geom_core::is_exact_zero(w - first)))
+}
+
+/// **A sub-arc's Möbius ratio** `λ = √(a/b)` between the end weights `a`
+/// at its start and `b` at its end ([`Pcurve::IsoArc`]'s `ends`): the
+/// chart parameter is `λs / (λs + 1 − s)` of the standard one, whose
+/// rate against it lies between `λ` and `1/λ`.
+#[must_use]
+pub fn iso_arc_skew<T: Real>(a: T, b: T) -> T {
+    (a / b).sqrt()
 }
 
 fn arc_rim_weight<T: SpanLocate>(
@@ -7942,10 +8036,12 @@ fn arc_rim_weight<T: SpanLocate>(
 }
 
 /// **The turn a chart column's arc weight states**: `m` sub-arcs of
-/// `h = 2·acos(w)` each, `w` the column's interior weight. The inverse
-/// of [`arc_rim_weight`]'s `w = cos(h/2)`, read by the arc rim's measured
-/// image (`edge_nurbs::arc_rim_measured`). `None` for a column with fewer
-/// than two weights, or whose weight is not decided below 1: a
+/// `h = 2·acos(w)` each, `w` the column's first sub-arc's interior
+/// weight at unit end weights, `w₁/√(w₀·w₂)` (`w₁/w₀` where the two end
+/// weights are one value). The inverse of [`arc_rim_weight`]'s
+/// `w = cos(h/2)`, read by the arc rim's measured image
+/// (`edge_nurbs::arc_rim_measured`). `None` for a column with fewer
+/// than three weights, or whose weight is not decided below 1: a
 /// polynomial column (`w = 1`) states no turn.
 pub(crate) fn arc_rim_turn<T: Decide>(
     column: &NurbsCurve3<T>,
@@ -7997,11 +8093,15 @@ pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
 /// six decades past useful.
 ///
 /// The structure `Ĉ` assumes — degree 2, uniform clamped knots with
-/// one span per sub-arc on `[0, 1]`, weights `1, w, 1, w, …, 1` — is
-/// read as EXACT `f64` structure (C6) and refused typed when it does
-/// not hold, so an imported rational chart that is not this
-/// construction cannot slip through. That `w` really is `cos(h/2)` is
-/// the one DECIDED margin, metered into metres by the radius.
+/// one span per sub-arc on `[0, 1]`, weights `1, w, 1, w, …, 1` up to
+/// one scale, or end weights the image states as its `ends` — is read
+/// as EXACT `f64` structure (C6) and refused typed when it does not
+/// hold, so an imported rational chart that is not this construction
+/// cannot slip through. A column at unequal end weights is the same
+/// arc through each sub-arc's Möbius change of parameter, which the
+/// image's map applies, so `Ĉ` keeps its control points and shares
+/// `B`'s weights. That each sub-arc's `w` at unit end weights really is
+/// `cos(h/2)` is the DECIDED margin, metered into metres by the radius.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 #[allow(clippy::too_many_lines)] // one class, kept whole like its siblings
 fn run_iso_arc_checks<T: Decide>(
@@ -8010,6 +8110,7 @@ fn run_iso_arc_checks<T: Decide>(
     at0: T,
     angle: T,
     breaks: &KnotVector,
+    ends: &[T],
     t0: T,
     t1: T,
     carrier: &Curve3<T>,
@@ -8098,6 +8199,7 @@ fn run_iso_arc_checks<T: Decide>(
         t0: at0,
         angle,
         breaks: breaks.clone(),
+        ends: ends.into(),
     };
     let mut max_residual = T::zero();
     schedule_residuals(
@@ -8216,8 +8318,8 @@ fn run_iso_arc_checks<T: Decide>(
         }
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
-    let bw = b.weights_f64_interim();
-    if bw.len() != 2 * spans + 1 {
+    let held = b.weights();
+    if held.len() != 2 * spans + 1 {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
         ));
@@ -8225,41 +8327,59 @@ fn run_iso_arc_checks<T: Decide>(
     // The pattern is `c, c·w, c, …, c` for one positive scale `c`: one
     // scale leaves the rational basis unchanged, so the column is the
     // arc `1, w, 1, …`, and `Ĉ` below, built at unit end weight, shares
-    // its basis. Each half of the pattern is one constant, compared on
-    // the bits as every constancy is (`constant_weight`). It reads the
-    // weights' VALUE channel, not their plain constants: a held arc's
+    // its basis. Each half of the pattern is one value ([`one_value`]),
+    // which reads the weights' VALUE channel at `Sym`, not their plain
+    // constants: a held arc's
     // interior weight is `cos(h/2)` in the scalar, no plain constant at
     // `Sym`, and the pattern's equalities are value identities decided
     // at the witness only
     // (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
     // the margin below reads the column's held `w₁/w₀`.
-    let ends: Vec<f64> = bw.iter().step_by(2).copied().collect();
-    let interior: Vec<f64> = bw.iter().skip(1).step_by(2).copied().collect();
-    if constant_weight(&ends).is_none() || constant_weight(&interior).is_none() {
+    //
+    // A column whose end weights are not one constant is the same arc
+    // through a Möbius change of each sub-arc's parameter, which the
+    // image states as its `ends` (variant docs). Its end weights are
+    // the image's exactly, once the traversal is read below; its
+    // interior weights may be anything, and each sub-arc's normalized
+    // `wₖ/√(eₖ·eₖ₊₁)` is decided against `cos(h/2)` on its own.
+    let row_ends = joint_weights(&b);
+    let interior: Vec<T> = held.iter().skip(1).step_by(2).copied().collect();
+    if ends.is_empty() && !(one_value(&row_ends) && one_value(&interior)) {
         return Err(bad(
             "an arc rim whose chart column weights are not `c, c·w, c, …` with ONE \
              interior ratio — the uniform sub-arc construction",
         ));
     }
-    // --- The one decided margin: `w = cos(h/2)`. ---
+    // --- The decided margins: `w = cos(h/2)`. ---
     let ArcRimWeight {
         h,
         cos_half,
         margin,
     } = arc_rim_weight(&b, angle, spans);
-    match decide(
-        "pcurve_iso_boundary",
-        Margin::metered(margin, InfSpeed::new(*radius)),
-        band,
-    )
-    .map_err(&esc)?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(bad(
-                "an arc rim whose chart column weight is not `cos(h/2)` for its sub-arc \
-                 angle — the column is not this circle's rational-quadratic form",
-            ));
+    let margins: Vec<T> = if ends.is_empty() {
+        vec![margin]
+    } else {
+        (0..spans)
+            .map(|k| {
+                arc_rim_normal_weight(held[2 * k], held[2 * k + 1], held[2 * k + 2]) - cos_half
+            })
+            .collect()
+    };
+    for margin in margins {
+        match decide(
+            "pcurve_iso_boundary",
+            Margin::metered(margin, InfSpeed::new(*radius)),
+            band,
+        )
+        .map_err(&esc)?
+        {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => {
+                return Err(bad(
+                    "an arc rim whose chart column weight is not `cos(h/2)` for its sub-arc \
+                     angle — the column is not this circle's rational-quadratic form",
+                ));
+            }
         }
     }
     // --- `Ĉ` in B's own space, and the hull. ---
@@ -8310,6 +8430,23 @@ fn run_iso_arc_checks<T: Decide>(
     let forward = !reversed;
     if !forward {
         chat.reverse();
+    }
+    if !ends.is_empty() {
+        let mut row = row_ends;
+        if !forward {
+            row.reverse();
+        }
+        let same = ends.len() == row.len()
+            && ends
+                .iter()
+                .zip(&row)
+                .all(|(a, b)| geom_core::is_exact_zero(*a - *b));
+        if !same {
+            return Err(bad(
+                "an arc rim whose image's end weights are not its chart column's, in its \
+                 traversal — its map is not the column's parameter",
+            ));
+        }
     }
     if chat.len() != b.control().len() {
         return Err(bad(
@@ -14940,6 +15077,7 @@ mod iso_arc_poison {
             Dual64::constant(0.0),
             Dual64::constant(1.0),
             &breaks,
+            &[],
         );
         assert!(g.value.is_nan() && g.deriv.is_nan(), "{g:?}");
     }

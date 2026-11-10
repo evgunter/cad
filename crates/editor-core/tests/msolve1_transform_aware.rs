@@ -538,7 +538,7 @@ fn a3a_a_pattern_of_a_placed_copy_seats() {
             doc,
             top,
             &top_part,
-            &|n| fixture::read_minted(in_member(pattern, vec![(k, COPY)], n)),
+            &|n| fixture::read_member(pattern, &[COPY], n),
             &base_part,
             base,
         );
@@ -832,10 +832,14 @@ fn a8c_the_content_key_separates_two_operands() {
             top,
             rest(
                 head(top_part.cap(top, CapEnd::Start)),
-                head_at(
-                    if at_part { part } else { pattern },
-                    in_member(pattern, vec![(k, 1)], base_part.cap(base, CapEnd::End)),
-                ),
+                if at_part {
+                    head_at(
+                        part,
+                        in_member(pattern, vec![(k, 1)], base_part.cap(base, CapEnd::End)),
+                    )
+                } else {
+                    fixture::member_head(pattern, &[1], base_part.cap(base, CapEnd::End))
+                },
             ),
         );
         let ev = run(&doc, &opts);
@@ -938,7 +942,7 @@ fn a10_a_nested_family_head_is_read_at_its_member() {
         doc,
         top,
         &top_part,
-        &|n| fixture::read_minted(nest(n)),
+        &|n| fixture::read_member(outer, &[1, 1], n),
         &base_part,
         base,
     );
@@ -1289,7 +1293,7 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
         doc,
         top,
         &top_part,
-        &|n| fixture::read_minted(nest(n)),
+        &|n| fixture::read_member(outer, &[1, 1], n),
         &base_part,
         base,
     );
