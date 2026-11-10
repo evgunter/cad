@@ -39,7 +39,7 @@ pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
 /// the pair shares several edges, each of them in turn
 /// (`rim_holding`). On a straight rim it places the chord's ends on the
 /// rim's segment; on a curved one it orders them along the carrier
-/// (`Track::cover`).
+/// (`Track::cover_as`).
 ///
 /// **Outside the [`FAMILY`], and that is a choice with a cost.** The
 /// family is the fragment QUALIFIER vocabulary: `resolve`'s diagnosis
