@@ -133,7 +133,7 @@ use super::{BooleanDecision, LineWedgeFault};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
     EeContact, EfContact, FfContact, Glue, GlueVerdict, Operand, OperandRecords, ReductionContacts,
-    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
+    SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
@@ -3632,15 +3632,20 @@ pub(super) enum DoorInBand {
 }
 
 /// Whether `face` holds `q` strictly inside it, placed as the census
-/// confirms a vertex-on-face record ([`super::contain::face_placement`]),
-/// typing an in-band margin of the containment door as `door` says. The
-/// on-plane margin re-reads a plane the census already put the point on,
-/// so it escalates as the carry's check.
+/// confirms a vertex-on-face record, typing an in-band margin of the
+/// containment door as `door` says. The census put `q` on the face's
+/// carrier when it certified the record, deciding it there with no
+/// margin carried here, so `q` is held in band
+/// ([`crate::held::Held::in_band`]) and placed with no on-plane decision
+/// ([`super::contain::placement_on_carrier`]); a reading definitely off
+/// a curved face's carrier (a planar face's placement never says so)
+/// contradicts the census's certificate, a kernel defect.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] on a margin in band: `SelfCheck(CarriedLineage)`
-/// for the on-plane one, `door`'s for the door's.
+/// [`BooleanError::Escalated`] on the door's margin in band, typed as
+/// `door` says; [`BooleanError::ClassificationInvariant`] where the point
+/// reads off the carrier.
 pub(super) fn piece_reading<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3648,26 +3653,22 @@ pub(super) fn piece_reading<T: Decide>(
     band: Band,
     door: DoorInBand,
 ) -> Result<PieceRead, BooleanError> {
-    use super::contain::{CurvedPlacement, PlacementError};
-    let in_band = |diag| BooleanError::Escalated {
-        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
-        diag,
-    };
-    match super::contain::face_placement(body, face, q, band, "bool_carry_vf_on_plane") {
+    use super::contain::CurvedPlacement;
+    let held = crate::held::Held::in_band(q);
+    match super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at) {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(PieceRead::In),
-        Ok(
-            CurvedPlacement::OffCarrier
-            | CurvedPlacement::Trim(Some(
-                FaceContainment::Out | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
-            )),
-        ) => Ok(PieceRead::NotIn),
+        Ok(CurvedPlacement::Trim(Some(
+            FaceContainment::Out | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
+        ))) => Ok(PieceRead::NotIn),
+        Ok(CurvedPlacement::OffCarrier) => Err(BooleanError::ClassificationInvariant {
+            what: CARRIED_OFF_CARRIER,
+        }),
         Ok(CurvedPlacement::Trim(None)) => Ok(PieceRead::Unread(None)),
-        Err(PlacementError::OnPlane(diag)) => Err(in_band(diag)),
-        Err(PlacementError::Door(ContainError::Escalated {
+        Err(ContainError::Escalated {
             decision,
             escalation,
             diag,
-        })) => Err(match door {
+        }) => Err(match door {
             DoorInBand::Containment => BooleanError::Escalated {
                 decision: BooleanDecision::Containment {
                     decision,
@@ -3676,21 +3677,24 @@ pub(super) fn piece_reading<T: Decide>(
                 diag,
             },
         }),
-        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
-            super::contain::driver_face_stale(face)
-        }
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
         // Listed rather than wildcarded: a new door refusal is routed
         // here deliberately.
-        Err(PlacementError::Door(
+        Err(
             refusal @ (ContainError::RayExhausted
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Uncrossable(_)
             | ContainError::Curved(_)
             | ContainError::ArcEndClearOfCorners(_)),
-        )) => Ok(PieceRead::Unread(Some(refusal))),
+        ) => Ok(PieceRead::Unread(Some(refusal))),
     }
 }
+
+/// [`piece_reading`]'s invariant where a carried record's point reads
+/// off the curved face's carrier the census put it on.
+const CARRIED_OFF_CARRIER: &str = "a carried vertex-on-face record's point reads off the curved face's carrier the census \
+     certified it on";
 
 /// **What a result's records are carried from**, read off the reduction
 /// before its finish: each operand's carried records as the cell pairs
