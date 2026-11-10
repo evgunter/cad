@@ -387,6 +387,8 @@ which is what actually moves the number.
 | geom-brep/src/intersect.rs `plane_torus_section` (SHELL axial-closed; through `geom::spiric_regime`) | pt_spiric_off_axis / pt_spiric_two_ovals / pt_spiric_two_ovals_floor | `d`, the axis-parallel plane's stand-off, then `(R − r) − \|d\|` — the length the two-oval regime closes by, decided before the spiric is minted — read with `pt_axis_in_plane`'s sin×extent beside it (`decide_across`) | m | OK (new in SHELL axial-closed) |
 | topo/src/boolean/slit.rs `spiric_on_curved` (through `geom::spiric_regime`) | bool_rider_spiric_off_axis | a spiric carrier's `offset` — a length; `Zero` leaves the carrier unread | m | OK |
 | topo/src/boolean/slit.rs `spiric_on_curved` (through `geom::spiric_regime`) | bool_rider_spiric_regime / bool_rider_spiric_regime_floor | `(R − r) − \|offset\|` of a spiric carrier, at no swing (`decide_across`) | m | OK |
+| topo/src/boolean/slit.rs `carrier_on_surface` (through `geom_brep::variety::Variety::of` → `geom::RingTorus::of_at`) | bool_rider_torus_tube / bool_rider_ring_torus | a torus face's `r`, then `R − r`: the certificate holds only on a ring | m | OK |
+| topo/src/boolean/reduce.rs `spline_off_carrier` (through `Variety::of` → `geom::RingTorus::of_at`) | bool_spline_sheet_torus_tube / bool_spline_sheet_ring_torus | a torus carrier's `r`, then `R − r` | m | OK |
 | geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_frame_orthogonal | `axis · u_ref`, a cosine of unit vectors, levered at `major_radius + minor_radius` (the farthest point the frame places) | m | OK (new in CURVED-SPIRIC) |
 | dihedral.rs:140 | dihedral_arm | min(curvature arms, extent) | m | OK |
 | dihedral.rs:151 | dihedral_wedge | sinθ (unit-gradient cross) × arm | m | OK |
@@ -539,6 +541,8 @@ which is what actually moves the number.
 
 | site | predicate | comparand | dim | status |
 |---|---|---|---|---|
+| vertex_section.rs (`read_sections`, through `geom_core::running::Rounded::divisor`) | vertex_section_sine | the least entered face's section sine, moved toward zero by its own running bound (`Rounded::room`), read at `Band::enclosure_sign()`: past its rounding, it divides the vertex's offset into a reading; within it, the vertex reads on the plane | dimensionless (sign only) | OK (logged: an undecided room is recorded in the verdict log and picks the on-plane answer; nothing refuses) |
+| boolean/section_cert/ruling.rs (`clearance`, through `Rounded::divisor`) | ruling_clearance_across | the clearance bound's divisor moved toward zero by its running bound: `‖w × d‖` against a cylinder (unit `d`, per unit of `w`), `16·‖u⊥‖` against a cone (m), read at `Band::enclosure_sign()`: within its rounding the bound has no bound of its own and is not read | per unit `w` / m (sign only) | OK (logged: an undecided room is recorded in the verdict log and withholds the bound; nothing refuses) |
 | boolean/contact_verify.rs (`touching`, `tangent_locus_reading`) | contact_tangent_gap / contact_tangent_touch | the pair's separation `ε₁r₁ + ε₂r₂` (each implicit residual, /2r-normalized, read as the witness's height above its face); its sampled max plus `TangentSpanBounds::gap_sag`, as `tangent_gap_hull_sup` | m | OK |
 | boolean/contain.rs (`boundary_pre_pass`) | bool_contact_vertex / bool_contact_edge_length / bool_contact_edge | point distance; a straight edge's own length (the degeneracy gate) and the distance from the point to its closed segment, through `ray_walk::on_segment` | m | OK (CONTACT-4) |
 | boolean/contain.rs (`boundary_pre_pass`, a conic's `End`) | bool_contact_arc_end_vertex | the distance from a conic edge's carrier end to a stored vertex, a norm (`decide_magnitude_reported`) — any in-band value escalates; with all four decided, the point at the end is the finding `ContainError::ArcEndClearOfCorners`, carrying them. The ends are read through `Curve3::eval`, as certification reads them, so at the run's band the finding is the band's own parting (`K < 2`); an end off both corners is read at a caller's band finer than the run's, or where the certifier's distance and this reading part by rounding across a band narrower than it (`K` near one), which the census reports as a defect (`ValidationError::ArcEndOffCorner`) | m | OK (CONTACT-4) |
@@ -701,7 +705,7 @@ which is what actually moves the number.
 | face_normal.rs (`cone_point`) | cone_off_axis / cone_at_apex | a point's distance off a cone's axis, and from its apex (m), through `Margin::norm3` | m | OK (SPLITDOOR; `cone_off_axis` was `bool_cone_off_axis`) |
 | face_normal.rs (`face_outward_normal_at_foot`) | foot_off_locus | a point's distance off a cylinder's axis or from a sphere's centre (`Margin::norm3`), and its height over a cone's apex plane along the axis (`Margin::of`), in m | m | OK (CLEAVE) |
 | splitting/classify.rs (`split_vertex_side`) | split_vertex_side | plane residual | m | OK |
-| geom-brep curve_face/plane_crossing.rs (`conic_plane_candidates`, `span_roots`, `span_plane_meet`, `span_place`) | plane_crossing_plane_parallel / plane_crossing_belly_graze / plane_crossing_graze_side / plane_crossing_root_in_span / plane_crossing_root_order | plane residual; rooted amplitude; (rad)×minor semi-axis, or a line's parameter × its speed | m | OK |
+| geom-brep curve_face/plane_crossing.rs (`conic_plane_candidates`, `span_roots`, `span_plane_meet`, `span_place`) | plane_crossing_plane_parallel / plane_crossing_belly_graze / plane_crossing_graze_side / plane_crossing_roots_apart / plane_crossing_root_order (a span place is `curve_pair::Span::place_param`'s, below) | plane residual; rooted amplitude; the roots' chord (`_roots_apart`), then their parameter gap × the span's sup speed (`_root_order`) | m | OK |
 | geom-brep curve_face/plane_crossing.rs (`span_plane_meet`'s graze, `graze_reaches_span`) | plane_crossing_graze_reach | a graze extremum's parameter distance into the span widened by its root spread `acos(1 − z/r)`, × the smaller semi-axis (`conic_meter`) | m | OK |
 | geom-brep curve_face/plane_crossing.rs (`span_plane_meet`'s line arm) | plane_crossing_line_parallel | a line's slope across the plane `d̂·n̂` × the span's length: the change in its signed distance across the span | m | OK |
 | splitting/classify.rs `reach_clears` | split_gate_box_side | an unarmed entity's reach, read in the plane's own frame, against the plane: its gap from the plane's offset along the unit normal, less the sweep pad (metres) | m | OK |
@@ -760,7 +764,8 @@ which is what actually moves the number.
 | chord_join.rs (`carried_chord_spec`) | chord_carried_forward | the parameter travel from the chord's start to its end the way it leaves, metered by the carrier's speed at the start; only its sign is consumed | m | OK (SECT) |
 | pair_section.rs (`seat_at`) | ssi_seat_at_the_start | where the knot edit opening a loop at `at` refuses: the seat's distance from the fitted loop's start (or end, one point), `‖C(at) − C(t₀)‖`; decided within the band the loop is kept, undecided the seat escalates | m | OK (SECT) |
 | pair_section.rs (`at_node`, read by `CarriedSection::site` and `CarriedComponent::place`) | section_site_at_node | whether a site stands at a node the section lists: its distance from the node, `‖p − node‖`; Zero is the node, an undecided one escalates, and a site decided off every node yet on two arcs that share one escalates on that distance | m | OK (SECT) |
-| pair_section.rs (`CarriedComponent::within_span`, read by `CarriedComponent::reads`) | section_site_in_span | whether a foot on an open arc of a circle or an ellipse lies within the arc's span: the span's last parameter less the foot's, read in the turn the span starts, metered by the carrier's speed at the foot; Zero is the arc's end, within the band of the node every reading tests first: a site decided off that node yet there lies in the band of two arcs crossing at it, and escalates | m (metered) | OK (SECT) |
+| pair_section.rs (`CarriedComponent::within_span`, read by `CarriedComponent::reads`) | section_site_in_span | whether a foot on an open arc of a circle or an ellipse lies within the arc's span: the span's last parameter less the foot's, read in the turn the span starts, metered by the carrier's speed at the foot; Zero is the arc's end, within the band of the node every reading tests first: a site decided off that node yet there lies in the band of two arcs crossing at it, and escalates. A Negative reading is confirmed by the second reading below before the site is excluded | m (metered) | OK (SECT) |
+| pair_section.rs (`CarriedComponent::within_span`, on `section_site_in_span`'s Negative arm) | section_site_in_span_past | whether the reading's witness stands past the span's end by more than any carrier point within the zero of the site could: `section_site_in_span`'s metered margin plus twice the band's zero, `Margin::of`. The witness is a parameter where the carrier passes within the zero of the site, not its foot, so a point within the zero of the site lies within twice the zero of the witness's. Negative excludes the site; Positive (a witness read past the span reads inside it nearer by twice the zero) refuses as a desync; undecided escalates. Sound only for a closed-form conic component, which carries no pad; a conic component with a pad refuses as a desync before either reading | m | OK (SECT) |
 | pair_section.rs (`CarriedComponent::holds`, the counted section's cross-check) | curve_carrier_gap / curve_carrier_clear / curve_carrier_straddle | a listed component's closed-form witness against a marched branch's fitted carrier, `geom`'s on-carrier reading at the witness's foot, in a band widened by the branch's tube radius (the section lies within it of the carrier) | m | OK (SECT) |
 | ring_path.rs (`Quadric::paths`) | split_ring_path_off_core | a torus path end's distance from the core circle, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (GERM) |
 | ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_meridian | `n̂·â` (the cosine between a loop circle's axis and the torus's), levered at the circle's radius | m | OK (GERM) |
@@ -810,7 +815,7 @@ which is what actually moves the number.
 | cell_region.rs (CHART) | cell_region_conic_gap | a lower bound on the distance from the station to a circular or elliptic edge: its whole annulus between the semi-axes, then its arc's floor (`ring_path::Conic::distance_floor`), each asked under this name, either clearing, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | cell_region.rs (CHART) | cell_region_ball_gap | the distance from the station to the ball a spiric or spline edge's arc lies in (its cover over the span, `geom::Curve3::cover_over`, nearest distance), less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | cell_region.rs (CHART) | cell_region_singular_gap | the distance from the station to the carrier's singular set: a cone's apex, a torus's axis, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
-| injective.rs (SELFX, `by_kind`) | self_intersection_ring_torus | `R − r`, the torus's major radius less its minor radius | m | OK (new in SELFX). Only a definite `Positive` discharges the face by kind; anything else refuses `TorusNotRing` |
+| injective.rs (SELFX, `by_kind`, through `geom::RingTorus::of_at`) | self_intersection_torus_tube / self_intersection_ring_torus | `r`, then `R − r`, the torus's major radius less its minor radius | m | OK (new in SELFX). Only both halves decided `Positive` discharge the face by kind; anything else refuses `TorusNotRing` |
 | injective.rs (SELFX, `is_zero`, read by `sign_on`) | self_intersection_on_shared | a presented side's (or corner's) separator value, a signed distance (below): for a linear separator on a spline chart (ZEROSIDE, `on_side`), the hull of its values at the side's restricted control points (`NurbsSurface::rect_net`), and elsewhere, or where a restricted weight is not certified positive, its centred form over the side; on a curved side (CURVEDEP), a bound of it along the curve: the linear separator's value in `{1, cos t, sin t}` coefficients, a quadric carrier's squared form `Q = ψ·D` over a lower bound of `D` (`r`, or `ν·h·sin α` on a cone), the graph separator's Lipschitz bound times the side's distance from the edge's carrier plus its overhang past the graph's piece; on a spiric's wall image (SPIRIC), the linear separator's value along the torus's image of the chart curve in `{1, f(t), cos t, sin t}` coefficients, the torus's drift from the carrier's radii carried as a closed-form term over `ρ = R + r·cos t` | m | OK (new in SELFX). Only a definite `Zero` reads the side as lying on the separator; anything else fails the arm |
 | injective.rs (SELFX, `present_chart`; SPIRIC, `present_line_corner`) | self_intersection_sliver | a rectangle clipped to a shared line: its extent across, `Δ × sup \|S_∂\|` (`rect_jet`'s enclosure of the partial, so a metred sup) | m | OK (new in SELFX's fix pass, split off `self_intersection_on_shared`, which decided this and the side value under one name). Only a definite `Zero` reads the strip as holding no point of the face off the line, and only once the rectangle's sides and corners are proven the face's own — one of the presentation's ε concessions, stated at the site and listed in `injective.rs`'s module docs |
 | injective.rs (SELFX, `sign_on`) | self_intersection_departure | the separator `ψ`, a signed distance in metres (`n̂·(p − q)` with `n̂` a unit normal; a cylinder's `ρ − r`; a sphere's `\|p − c\| − r`; a cone's `ρ·cos α − h·sin α`; the graph arm's `h − γ̃(s)`), as its centred form over the rectangle, or its derivative across a shared side (m per chart unit) times the rectangle's extent across it (chart units) | m | OK (new in SELFX). Only a definite `Positive`/`Negative` certifies; `Zero`, in-band and poison fail the arm and the pair splits |
@@ -1795,11 +1800,65 @@ Flagged, NOT fixed here (dispositions):
     the span within the escalation of the member.
   - The window bounds where the boundary pass reads a refused member
     (`curve_face::located`); a wider one costs reads, never a meeting.
+  - Measured as F35's was (`ci` profile, instrumented locally and not
+    kept): over the `geom-brep`, `topo` and `editor-core` suites, 2,397
+    choices were made, all at `f64`. 2,354 halved and 43 kept, and no
+    piece tied outside the row below. No suite reaches the window at
+    `Interval`.
+    `curve_pair::span_rows::a_window_piece_at_the_balls_reach_or_astride_it_is_kept`
+    pins the tie: an exact tie at `f64`, and an `Interval` reach astride
+    the ball's, each keep the piece, and none of it reaches the verdict
+    log.
 
   **Carried as `k_stats::choose(.., "F37")`**, its tie (a decided zero
-  or an undecided difference) keeping the piece. Its K samples reach
-  the sink under `curve_pair_window_halve`. Not a `decide_flagged`
-  site; `LEDGER_FLAGGED_SITES` does not move.
+  or an undecided difference) keeping the piece. Before this row the
+  choice was a logged `decide` at `Band::least()`. Its verdicts no longer
+  reach the log; its K samples still reach the sink under
+  `curve_pair_window_halve`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
+- **F38** (added by ONECOPY's held-points unit) `held_on_carrier` —
+  `topo/src/held.rs` `Held::check`: in debug builds, the premise of a
+  point its caller holds on a face's carrier, the point's implicit
+  residual against the carrier read `Zero` (or, held in band, never
+  definitely off). It checks a premise the caller's construction or
+  decision already holds, and decides nothing a reading rests on: a
+  release build does not run it, and a debug build that finds it false
+  panics on a defect. A probe of every trusting site over topo, sweep
+  and editor-core at both ε read it `Zero` in every one of about 51,000
+  calls (`work/onecopy/carrier-held-points-are-trusted-not-decided.md`).
+  Logged, it would add a sample per placement for no information, and
+  the K counts would differ between debug and release.
+
+  **Carried as `k_stats::check_unlogged(.., "F38")`**, skipped where the
+  residual is poison (a spline or approximated carrier, which has no
+  implicit form). Not a `decide_flagged` site; `LEDGER_FLAGGED_SITES`
+  does not move.
+
+- **F39** (added by ONECOPY's main-reds unit) `edge_join_carried_far`
+  — `topo/src/boolean/edge_join.rs` `carried_far`: whether the piece
+  `gone`, lying on `kept`'s very carrier (`Curve3::same_content`) and
+  standing at `kept`'s parameter `tw` at the vertex, ends past `tw`
+  away from `kept` (`gx − tw`, or `tw − gx` backward). Positive takes
+  `gx` as the joined edge's far parameter; otherwise the far end is read
+  off the carrier (`read_far`: the parameter of `gone`'s middle near
+  `tw`, then of the far point near that). What keeps it off the logged
+  doors is that **both outcomes name one parameter**: on the carrier
+  `gone` lies on, the reading off the carrier returns `gx` up to
+  rounding, wherever it reads one (a NURBS carrier it does not read,
+  and there the carry is the only spelling). Pinned by
+  `edge_join::carry::the_carried_far_parameter_is_the_one_the_carrier_reads`
+  on a line, circle, ellipse and spiric, forward and backward, at three
+  pieces each. F31's shape: a renaming between spellings of one value.
+  On a NURBS carrier the tie or negative arm of an open join takes
+  `read_far`, which is `None` there, so the join ends in
+  `JoinCarrierUnsupported` (a closed join on NURBS ends there by its own
+  arm); that arm is unreachable short of a zero-length `gone` piece.
+
+  **Carried as `k_stats::choose(.., "F39")`**, its tie taking the
+  reading off the carrier. Its K samples reach the sink under
+  `edge_join_carried_far`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

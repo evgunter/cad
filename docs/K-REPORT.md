@@ -27,7 +27,7 @@ gathered across M2's full pipeline.
   (predicate, margin, band, outcome) with decisions bit-identical to
   f64. That premise is checked, not argued:
   `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
-  `probe_agrees_with_f64_bit_for_bit_save_the_pinned_key_splits` evaluates the
+  `probe_agrees_with_f64_bit_for_bit_save_the_lane_pass_keys` evaluates the
   registered corpus at `Probe` and at `f64` and compares them bit for
   bit (value channel, mass properties, content keys, name tables,
   verdict and escalation logs), once per ε row `scripts/k_probe_sweep.sh`
@@ -3671,3 +3671,22 @@ an extremum just off the span answers a touch, not a miss
 unit ray (the old `s/dn`, the same quantity). `plane_crossing_belly_graze`,
 `_plane_parallel`, `_graze_side` and `_root_in_span` gain the walk's
 population.
+
+## ONECOPY addendum (2026-11-09): span membership reads `curve_pair::Span`
+
+**Roster change: three names leave; one joins.** A point's or a
+parameter's place on a curve span has one reading, `geom_brep::curve_pair::Span`'s:
+an end by the raw chord to its point (`curve_pair_span_end_chord`), else the
+side by the parameter metered at the span's greatest speed
+(`curve_pair_span_end_side`). These leave the roster:
+- `plane_crossing_root_in_span`: the plane door's root place, which metered the
+  gap at the smaller semi-axis (an inf speed). Its population joins
+  `curve_pair_span_end_chord`/`_side` (the door, its region landings, the
+  loop walk's ray, `torus_region`'s arc).
+- `ring_outer_arc_end` and `ring_outer_arc_trim`: check 9's `arc_trim` rows.
+  Check 9's arc window reads `Span::place`, and `arc_trim` is retired.
+
+**One joins:** `plane_crossing_roots_apart`, the chord between two roots'
+points: Zero collapses them to one root. `plane_crossing_root_order` stays and
+changes its quantity: the roots' parameter gap metered at the span's greatest
+speed, read only where their chord is past the band.

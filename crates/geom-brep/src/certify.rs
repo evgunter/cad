@@ -1210,6 +1210,18 @@ impl CertifyError {
         }
     }
 
+    /// **The chart and carrier kinds this incidence refusal names**,
+    /// beside its read ([`Self::incidence_read`]), as the pcurve layer's
+    /// [`crate::IncidenceRead::kinds_of`] reads them: where the refusal
+    /// carries them, and `None` otherwise.
+    #[must_use]
+    pub fn incidence_kinds(&self) -> Option<(geom::SurfaceKind, geom::CurveKind)> {
+        match self {
+            Self::CarrierOffChart { chart, carrier, .. } => Some((*chart, *carrier)),
+            _ => None,
+        }
+    }
+
     /// The payload and, where its decision gives one, the ending read at
     /// `at` ([`CertifyError::ending`]).
     #[must_use]
@@ -1831,8 +1843,10 @@ impl<T: Real> EdgeCurveSpec<T> {
                 crate::mapped::MappedSource::RevolvedPoint {
                     point: Point2::new(T::zero(), T::zero()),
                     place: Affine3::translation(start - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: axis,
+                    axis: geom::Line {
+                        origin: center,
+                        dir: axis,
+                    },
                     angle: t1 - t0,
                 },
             )),
@@ -2006,8 +2020,10 @@ impl<T: Real> EdgeCurveSpec<T> {
                 crate::mapped::MappedSource::RevolvedPoint {
                     point: Point2::new(T::zero(), T::zero()),
                     place: Affine3::translation(p - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: Vec3::unit_z(),
+                    axis: geom::Line {
+                        origin: center,
+                        dir: Vec3::unit_z(),
+                    },
                     angle: T::tau(),
                 },
             )),
@@ -3563,10 +3579,7 @@ fn gap_orientation<T: Decide>(
     let cause = match oriented {
         Ok(sign) => {
             geom_core::k_stats::splice(orientation);
-            return Ok(match sign {
-                geom_core::k_stats::NonzeroSign::Positive => T::from_f64(1.0),
-                geom_core::k_stats::NonzeroSign::Negative => T::from_f64(-1.0),
-            });
+            return Ok(sign.unit());
         }
         Err(cause) => cause,
     };
@@ -7075,8 +7088,10 @@ mod tests {
                 MappedSource::RevolvedPoint {
                     point: Point2::new(2.0, 2.0),
                     place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
-                    axis_origin: center,
-                    axis_dir: Vec3::unit_z(),
+                    axis: geom::Line {
+                        origin: center,
+                        dir: Vec3::unit_z(),
+                    },
                     angle: TAU,
                 },
             )),

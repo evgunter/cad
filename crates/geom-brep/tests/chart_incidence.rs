@@ -79,7 +79,10 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     );
     let got = chart_pcurve(&moved, &cone(alpha), band());
     assert!(
-        matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+        matches!(
+            got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+            Some(geom_brep::IncidenceRead::Off(_))
+        ),
         "a moved section is off the cone: {got:?}"
     );
 }
@@ -95,7 +98,10 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
     let off = |what: &str, carrier: Curve3<f64>, alpha: f64| {
         let got = chart_pcurve(&carrier, &cone(alpha), band());
         assert!(
-            matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            matches!(
+                got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "{what}: {got:?}"
         );
     };
@@ -516,16 +522,14 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
 /// or the torus, in `a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet`.
 #[test]
 fn only_an_incidence_reading_ends_as_one() {
-    use geom_brep::OffMargin;
+    use geom_brep::IncidenceRead;
     use geom_brep::recourse::{INCIDENCE_AT_POSE, INCIDENCE_UNSHOWN, Reading};
     let e = eps();
     let at_pose = |what: &str, got: Result<(), PcurveCertifyError>| {
-        let Err(
-            err @ PcurveCertifyError::CarrierOffChart {
-                margin: Some(OffMargin::InBand(_)),
-                ..
-            },
-        ) = &got
+        let Some(err) = got
+            .as_ref()
+            .err()
+            .filter(|e| matches!(IncidenceRead::of(e), Some(IncidenceRead::AtPose(_))))
         else {
             panic!("{what}: a pose reading: {got:?}");
         };
@@ -538,11 +542,11 @@ fn only_an_incidence_reading_ends_as_one() {
         );
     };
     let definitely_off = |what: &str, got: Result<(), PcurveCertifyError>| {
-        let Err(err @ PcurveCertifyError::CarrierOffChart { margin, .. }) = &got else {
+        let Err(err) = &got else {
             panic!("{what}: definitely off: {got:?}");
         };
         assert!(
-            !matches!(margin, Some(OffMargin::InBand(_)))
+            matches!(IncidenceRead::of(err), Some(IncidenceRead::Off(_)))
                 && err
                     .render(Reading::Build)
                     .ends_with(geom_core::KERNEL_DEFECT_ENDING),
@@ -639,8 +643,8 @@ fn only_an_incidence_reading_ends_as_one() {
 /// as an incidence ending and the third as a lever.
 #[test]
 fn a_class_rate_read_zero_takes_the_incidence_door() {
+    use geom_brep::IncidenceRead;
     use geom_brep::recourse::Reading;
-    use geom_brep::{IncidenceRead, OffMargin};
     let e = eps();
     let not_incidence = |what: &str, got: Result<(), PcurveCertifyError>| {
         let Err(err @ PcurveCertifyError::NoGeneralLane { .. }) = &got else {
@@ -704,14 +708,16 @@ fn a_class_rate_read_zero_takes_the_incidence_door() {
         &torus,
         band(),
     );
-    let Err(err @ PcurveCertifyError::CarrierOffChart { margin, .. }) = &got else {
+    let Err(err) = &got else {
         panic!("a circle ⊥ the meridian, off the torus: {got:?}");
     };
     assert!(
-        !matches!(margin, Some(OffMargin::InBand(_)))
-            && err
-                .render(Reading::Build)
-                .ends_with(geom_core::KERNEL_DEFECT_ENDING),
+        matches!(
+            geom_brep::IncidenceRead::of(err),
+            Some(geom_brep::IncidenceRead::Off(_))
+        ) && err
+            .render(Reading::Build)
+            .ends_with(geom_core::KERNEL_DEFECT_ENDING),
         "{err_at}",
         err_at = err.render(geom_brep::recourse::Reading::Build)
     );
@@ -879,8 +885,7 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
 fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
     use geom_brep::recourse::Reading;
     use geom_brep::{
-        CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve,
-        MappedSource, OffMargin,
+        CertCheck, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource,
     };
     use geom_core::{Affine3, Point2};
     let mid = 0.5 * (band().zero() + band().escalate());
@@ -962,24 +967,10 @@ fn a_carrier_ends_its_incidence_at_the_edge_certificate_by_the_door() {
             .expect_err("the carrier is no curve of its chart here")
         };
         let refusal = certify(false);
-        match (what, &refusal) {
-            ("off", CertifyError::CarrierOffChart { margin, .. }) => {
-                assert!(!matches!(margin, Some(OffMargin::InBand(_))), "{refusal:?}");
-            }
-            (
-                "undecided",
-                CertifyError::Escalated {
-                    check: CertCheck::ChartIncidence,
-                    ..
-                },
-            )
-            | (
-                "at a pose",
-                CertifyError::CarrierOffChart {
-                    margin: Some(OffMargin::InBand(_)),
-                    ..
-                },
-            ) => {}
+        match (what, refusal.incidence_read()) {
+            ("off", Some(geom_brep::IncidenceRead::Off(_)))
+            | ("undecided", Some(geom_brep::IncidenceRead::Undecided(_)))
+            | ("at a pose", Some(geom_brep::IncidenceRead::AtPose(_))) => {}
             _ => panic!("{what}: {refusal:?}"),
         }
         assert_eq!(
@@ -1113,7 +1104,6 @@ fn at_both_lanes(
 /// first `Ok` and the second as the residual's defect; both red here.
 #[test]
 fn a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read() {
-    use geom_brep::OffMargin;
     use geom_brep::recourse::{INCIDENCE_UNSHOWN, ReadAt, Reading};
     use geom_core::FileCoincidence;
     let doors = |what: &str| {
@@ -1138,8 +1128,10 @@ fn a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read() {
         for (lane, err) in at_both_lanes(&carrier, &surface) {
             let what = format!("{row} half a metre off ({lane})");
             assert!(
-                matches!(&err, PcurveCertifyError::CarrierOffChart { margin, .. }
-                    if !matches!(margin, Some(OffMargin::InBand(_)))),
+                matches!(
+                    geom_brep::IncidenceRead::of(&err),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                ),
                 "{what}: the definite miss: {err:?}"
             );
             for (door, at, culprit) in doors(&what) {
@@ -1153,11 +1145,8 @@ fn a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read() {
             let what = format!("{row} mid-band off ({lane})");
             assert!(
                 matches!(
-                    err,
-                    PcurveCertifyError::Escalated {
-                        check: geom_brep::PcurveCheck::ChartIncidence,
-                        ..
-                    }
+                    geom_brep::IncidenceRead::of(&err),
+                    Some(geom_brep::IncidenceRead::Undecided(_))
                 ),
                 "{what}: not shown on the face: {err:?}"
             );

@@ -68,8 +68,8 @@
 //! face. The order of a face's loops, with each one's role, is the
 //! record's own ([`crate::entity::Face::loop_roles`],
 //! [`crate::entity::Face::loop_keys`]), read raw only by a reader that
-//! reports a miss itself, which reads [`Body::unchecked_face_cycles`]
-//! for the cycles.
+//! reports a miss itself, which reads [`Body::unchecked_face_boundary`]
+//! for the loops.
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -389,6 +389,28 @@ pub(crate) enum BoundaryMember<'a, T: Real> {
     },
 }
 
+/// **A lone-vertex loop's standing to a ladder**, wherever a reader
+/// that takes none refuses it over a body tier 1 admits: a limit, a fact
+/// of the body no tolerance moves. Its sentences end in
+/// [`geom_core::KERNEL_OR_FILE_DEFECT_ENDING`], as tier 2's
+/// [`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)
+/// does at rest. The one home of the standing:
+/// [`TouchUnread::LoneLoop`](crate::TouchUnread::LoneLoop),
+/// [`PointInLoopError::LoneLoop`](crate::PointInLoopError::LoneLoop) and
+/// the boolean's `ContainError::EmptyLoop` answer it.
+pub(crate) const LONE_LOOP_REFUSAL: geom_brep::ladder::Refusal = geom_brep::ladder::Refusal::Limit;
+
+/// One loop of a face as [`Body::unchecked_face_boundary`] reads it: a
+/// mirror of [`LoopBoundary`], whose discards `loop-boundary-discards.sh`
+/// reads off this declaration's variants. [loop-boundary-mirror]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum UncheckedLoop {
+    /// An isolated-vertex loop's vertex.
+    Lone(VertexKey),
+    /// A cycle loop's half-edges, in `next` order.
+    Cycle(Vec<HalfEdgeKey>),
+}
+
 impl<T: Real> BoundaryMember<'_, T> {
     /// The member's half-edge; none for a lone vertex. **The one
     /// disposition of a lone-vertex loop for a reader of half-edges**: it
@@ -432,7 +454,7 @@ impl<T: Real> BoundaryMember<'_, T> {
 /// door resolved its face: a shape of a face is never read from a bare
 /// key. A reader that reports a miss itself (the validators) reads the
 /// record's raw keys ([`Face::loop_keys`]) or
-/// [`Body::unchecked_face_cycles`] instead.
+/// [`Body::unchecked_face_boundary`] instead.
 #[derive(Clone, Copy)]
 pub struct FaceView<'a, T: Real> {
     body: &'a Body<T>,
@@ -547,6 +569,9 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// [`FaceView::cycles`]' half-edges in one list: the members of every
     /// cycle bounding the face, outer loop then rings, each in `next`
     /// order.
+    /// A reader of the face's vertices reads [`FaceView::boundary`]'s
+    /// [`BoundaryMember::vertex`]: a lone-vertex loop is no cycle, and
+    /// its vertex is not here.
     pub fn half_edges(self) -> Vec<HalfEdgeKey> {
         self.cycles().flat_map(|(_, cycle)| cycle).collect()
     }
@@ -698,27 +723,50 @@ impl<T: Real> Body<T> {
         })
     }
 
-    /// **The explicitly unchecked walk of a face's cycles**, for a reader
-    /// that reports a miss itself (the census over a body the validator
-    /// has not certified): each of `face`'s loops in
-    /// [`Face::loop_keys`]' order, `Ok(cycle)` for a cycle loop the body
-    /// can walk, `Err(loop)` for one it cannot (a lost loop, a lone-vertex
-    /// loop, an unwalkable cycle). What an unwalkable loop means is the
-    /// caller's to say; this walk never decides it. A reader of a body
-    /// every door keeps valid reads a [`FaceView`].
-    pub(crate) fn unchecked_face_cycles<'a>(
+    /// **The explicitly unchecked walk of a face's boundary**, for a
+    /// reader that reports a miss itself (the census over a body the
+    /// validator has not certified, a snapshot taken before a door's
+    /// checks): each of `face`'s loops in [`Face::loop_keys`]' order,
+    /// `Ok` with its lone vertex or its cycle, `Err(loop)` for a loop the
+    /// body cannot read (a lost loop, an unwalkable cycle). What that
+    /// means is the caller's to say; this walk never decides it. A reader
+    /// of a body every door keeps valid reads a [`FaceView`]
+    /// ([`FaceView::boundary`]).
+    pub(crate) fn unchecked_face_boundary<'a>(
         &'a self,
         face: &'a Face,
-    ) -> impl Iterator<Item = Result<Vec<HalfEdgeKey>, LoopKey>> + 'a {
+    ) -> impl Iterator<Item = Result<UncheckedLoop, LoopKey>> + 'a {
         face.loop_keys().map(move |lk| {
             let Some(loop_) = self.loops.get(lk) else {
                 return Err(lk);
             };
-            let LoopBoundary::Cycle { first } = loop_.boundary else {
-                return Err(lk);
-            };
-            self.loop_cycle(first).ok_or(lk)
+            match loop_.boundary {
+                LoopBoundary::Empty { vertex } => Ok(UncheckedLoop::Lone(vertex)),
+                LoopBoundary::Cycle { first } => {
+                    self.loop_cycle(first).map(UncheckedLoop::Cycle).ok_or(lk)
+                }
+            }
         })
+    }
+
+    /// **Each vertex on the face's boundary, lone ones included**, as
+    /// [`Body::unchecked_face_boundary`] reads it: a lone loop's vertex,
+    /// and each cycle member's start that resolves. A loop the body
+    /// cannot read contributes none, and is the caller's to notice
+    /// through the boundary walk itself.
+    pub(crate) fn unchecked_face_vertices<'a>(
+        &'a self,
+        face: &'a Face,
+    ) -> impl Iterator<Item = VertexKey> + 'a {
+        self.unchecked_face_boundary(face)
+            .filter_map(Result::ok)
+            .flat_map(move |read| match read {
+                UncheckedLoop::Lone(vertex) => vec![vertex],
+                UncheckedLoop::Cycle(cycle) => cycle
+                    .into_iter()
+                    .filter_map(|he| self.half_edges.get(he).map(|h| h.start))
+                    .collect(),
+            })
     }
 
     /// Resolves a vertex's point coordinates (the certification gate's
@@ -1686,10 +1734,11 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         );
     }
 
-    /// **The explicitly unchecked walk of a face's cycles is read only
-    /// where a miss is reported**: [`Body::unchecked_face_cycles`] answers
-    /// a torn loop `Err(loop)` rather than naming the hop, which is right
-    /// only for a reader over a body no door has certified.
+    /// **The explicitly unchecked walk of a face's boundary is read only
+    /// where a miss is reported**: [`Body::unchecked_face_boundary`] and
+    /// its projections answer a torn loop `Err(loop)` rather than naming
+    /// the hop, which is right only for a reader over a body no door has
+    /// certified.
     #[test]
     fn the_unchecked_cycles_are_read_only_where_a_miss_is_reported() {
         const READERS: &[(&str, &str)] = &[
@@ -1706,8 +1755,15 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
                 "euler.rs",
                 "find_half_edge is total by its contract, for hand construction",
             ),
+            (
+                "lineage.rs",
+                "the snapshot is taken before a door's own checks run",
+            ),
         ];
-        let strays = read_outside(&["unchecked_face_cycles("], READERS);
+        let strays = read_outside(
+            &["unchecked_face_boundary(", "unchecked_face_vertices("],
+            READERS,
+        );
         assert!(
             strays.is_empty(),
             "a face's cycles read unchecked outside a reader that reports a miss: {strays:#?}"

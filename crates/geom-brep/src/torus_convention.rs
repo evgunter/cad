@@ -116,6 +116,23 @@ pub enum TorusVerdict {
 }
 
 impl TorusRefusal {
+    /// **This refusal's standing** ([`crate::ladder::Refusal`]), the one
+    /// home of a torus convention's class, which the normal door, the
+    /// Boolean and the face replacement read: an undecided half is ranked
+    /// by its margin (row 1(b)), and a torus decided outside the
+    /// convention is a shape the kernel's model never represents, an
+    /// invalid input (row 1(a)), so it aborts.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a torus decided outside the convention.
+    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        match self.verdict {
+            TorusVerdict::Undecided(diag) => Ok(crate::ladder::Refusal::Margin(diag)),
+            TorusVerdict::Refused(_) => Err(crate::ladder::Aborts),
+        }
+    }
+
     /// The refusal `convention`'s half gives on `decided` at `band`, or
     /// `None` where the half holds.
     #[must_use]
@@ -146,10 +163,27 @@ impl TorusRefusal {
         minor: T,
         band: Band,
     ) -> Result<geom::RingTorus<T>, Self> {
-        geom::RingTorus::of(major, minor, band).map_err(|not| {
+        Self::require_at(major, minor, geom::RingSites::CONVENTION, band)
+    }
+
+    /// [`Self::require`] under a reader's own funnel rows `sites`
+    /// ([`geom::RingTorus::of_at`]): a reader that decides the
+    /// convention on its own rows reads its refusal here, the half
+    /// undecided kept apart from the half decided outside.
+    ///
+    /// # Errors
+    ///
+    /// The refusing half's [`TorusRefusal`].
+    pub fn require_at<T: geom_core::Decide>(
+        major: T,
+        minor: T,
+        sites: geom::RingSites,
+        band: Band,
+    ) -> Result<geom::RingTorus<T>, Self> {
+        geom::RingTorus::of_at(major, minor, sites, band).map_err(|not| {
             let (convention, verdict) = match not {
-                geom::NotARing::Tube(verdict) => (TorusConvention::Tube, verdict),
-                geom::NotARing::Ring(verdict) => (TorusConvention::Ring, verdict),
+                geom::NotARing::Tube { verdict, .. } => (TorusConvention::Tube, verdict),
+                geom::NotARing::Ring { verdict, .. } => (TorusConvention::Ring, verdict),
             };
             Self::of(convention, verdict, band).unwrap_or_else(|| {
                 unreachable!("`RingTorus::of` refuses only a half that did not read Positive")

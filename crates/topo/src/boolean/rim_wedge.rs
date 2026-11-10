@@ -69,8 +69,8 @@ pub(crate) enum RimRouting {
     /// leave it on opposite sides (the smooth seam, the built arm), a
     /// nested touch if on one side. [`departures`] decides which.
     Seam,
-    /// Wedge 0 or 2π: outward normals opposed along the rim
-    /// ([`super::BooleanError::RimCuspArmUnbuilt`]).
+    /// Wedge 0 or 2π: outward normals opposed along the rim. The glue
+    /// door leaves it unglued; no arm builds its junction.
     Cusp(geom_brep::WedgeEnd),
     /// Opposed sides whose jets osculate — conformal contact along the
     /// locus, which is a `Rest` claim wearing a rim's clothes.
@@ -187,6 +187,13 @@ fn rims<T: Decide>(
     .into_reading()
 }
 
+/// The names [`same_circle`]'s data are decided under.
+const RIM_CIRCLE_RADIUS: &str = "rim_circle_radius";
+const RIM_CIRCLE_CENTER: &str = "rim_circle_center";
+const RIM_CIRCLE_AXIS_PARALLEL: &str = "rim_circle_axis_parallel";
+/// The name a seam's end points are each decided on a line under.
+const SEAM_LINE_COLLINEAR: &str = "seam_line_collinear";
+
 /// Whether two circles are one, on their own data at `band`: the
 /// identity ladder ([`read_identity`]), so an in-band radius never hides
 /// a centre decided elsewhere. Radius and centre first, angle last — the
@@ -200,10 +207,10 @@ fn same_circle<T: Decide>(
 ) -> Result<Option<geom_core::MarginDiag>, Indeterminate> {
     match read_identity(
         [
-            ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-            ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
+            (RIM_CIRCLE_RADIUS, Margin::of(ra.radius - rb.radius)),
+            (RIM_CIRCLE_CENTER, Margin::norm3(ra.center - rb.center)),
             (
-                "rim_circle_axis_parallel",
+                RIM_CIRCLE_AXIS_PARALLEL,
                 // Unsourced lever: the two rims' radii summed, which no
                 // one extent's read is; their union's (the larger)
                 // would move verdicts by a shorter arm.
@@ -977,7 +984,7 @@ fn rides<T: Decide>(
             read_identity(
                 [t0, t1].map(|t| {
                     let off = line.distance(curve.carrier().eval(t));
-                    ("seam_line_collinear", Margin::of(off))
+                    (SEAM_LINE_COLLINEAR, Margin::of(off))
                 }),
                 band,
             )
@@ -1197,40 +1204,13 @@ mod redfirst {
         }
     }
 
-    /// The rim-identity comparison, driven directly on two circles —
-    /// the three-outcome ε row every one of its margins owes, stated in
-    /// BAND UNITS so it means the same thing at every ε the matrix
-    /// runs.
-    ///
-    /// `shared_rim` reads circles off face boundaries, which no unit
-    /// fixture in this crate can mint; the comparison it performs is
-    /// this one, so the rows drive it through the same `decide` calls
-    /// with the same names and the same band.
+    /// The rim-identity comparison ([`same_circle`]), driven directly
+    /// on two circles — the three-outcome ε row every one of its
+    /// margins owes, stated in BAND UNITS so it means the same thing at
+    /// every ε the matrix runs. `shared_rim` reads circles off face
+    /// boundaries, which no unit fixture in this crate can mint.
     fn rim_identity(ra: &Rim<f64>, rb: &Rim<f64>, band: Band) -> Result<bool, Indeterminate> {
-        let mut same = true;
-        for (name, margin) in [
-            ("rim_circle_radius", Margin::of(ra.radius - rb.radius)),
-            ("rim_circle_center", Margin::norm3(ra.center - rb.center)),
-            (
-                "rim_circle_axis_parallel",
-                // Unsourced lever: the two rims' radii summed, which no
-                // one extent's read is; their union's (the larger)
-                // would move verdicts by a shorter arm.
-                Margin::levered(
-                    ra.axis.cross(rb.axis).norm(),
-                    geom_core::Lever::unsourced(ra.radius + rb.radius),
-                ),
-            ),
-        ] {
-            match crate::validate::decide(name, margin, band)? {
-                geom_core::Sign::Zero => {}
-                _ => {
-                    same = false;
-                    break;
-                }
-            }
-        }
-        Ok(same)
+        same_circle(*ra, *rb, band).map(|one| one.is_some())
     }
 
     /// **MIN-3, the swallowed escalation.** A radius perturbed INTO the
@@ -1248,7 +1228,7 @@ mod redfirst {
             5.06 + (b.zero() + b.escalate()) * 0.5,
         );
         match rim_identity(&base, &in_band, b) {
-            Err(d) => assert_eq!(d.predicate, Some("rim_circle_radius")),
+            Err(d) => assert_eq!(d.predicate, Some(RIM_CIRCLE_RADIUS)),
             Ok(v) => panic!("in-band must escalate, not answer {v}"),
         }
         let definite = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06 + b.escalate() * 1e6);
@@ -1269,7 +1249,7 @@ mod redfirst {
             5.06,
         );
         match rim_identity(&base, &in_band, b) {
-            Err(d) => assert_eq!(d.predicate, Some("rim_circle_center")),
+            Err(d) => assert_eq!(d.predicate, Some(RIM_CIRCLE_CENTER)),
             Ok(v) => panic!("in-band must escalate, not answer {v}"),
         }
         let definite = circle([1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.06);

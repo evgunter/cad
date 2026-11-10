@@ -145,7 +145,7 @@ fn a_thin_ellipses_foot_reads_the_distance_not_its_unit_image() {
     let foot = c.foot(q, 0.0);
     assert!(foot.gap() < 1.5 * ZERO, "{}", foot.gap());
     assert!((foot.seed() - t).abs() < 1e-6, "{}", foot.seed());
-    assert!((foot.point() - q).norm() == 0.0);
+    assert!(foot.point().equals_exactly(q));
     assert!(
         foot.nearest().is_none(),
         "an ellipse's foot is a stationary point"
@@ -708,13 +708,15 @@ fn a_points_distance_within_a_span_is_the_dense_walks_least() {
     }
 }
 
-/// **Where the inside test straddles at `Interval`, the reading is still
-/// a floor**: a box about the arc's end ray holds points inside the arc
-/// and past it, so the choice hulls both arms, and the reading's low end
-/// is the whole circle's clearance, at most the distance of any point of
-/// the box. A box well inside reads the clearance alone.
+/// **A box about the arc's end ray reads a floor under every point of
+/// it, and never below the whole circle's clearance**: the box holds
+/// points inside the arc and past it, and its reading encloses its
+/// centre's distance with its low end at or above the clearance, which
+/// bounds every point's distance from below. So does a box well inside
+/// the arc. A box whose azimuth is named a
+/// turn from the arc is `topo`'s `ring_path::arc_floor_rows`.
 #[test]
-fn a_straddling_inside_test_at_interval_reads_the_circles_clearance_as_its_floor() {
+fn a_box_about_the_arcs_end_ray_reads_a_floor_no_lower_than_the_clearance() {
     use core::f64::consts::FRAC_PI_2;
     use geom_core::Bounds as _;
     let point = circle();
@@ -731,28 +733,23 @@ fn a_straddling_inside_test_at_interval_reads_the_circles_clearance_as_its_floor
     let q = boxed(centre, 0.05);
     let got = c.distance_within(q, span).unwrap();
     let clear = c.clearance(q).unwrap();
-    let ends = geom_core::Real::min((q - c.eval(span.0)).norm(), (q - c.eval(span.1)).norm());
-    assert!(
-        clear.hi() != ends.hi(),
-        "the fixture's two arms differ, so a reading of one alone shows"
-    );
-    assert!(
-        got.lo() <= clear.lo().min(ends.lo()) && got.hi() >= clear.hi().max(ends.hi()),
-        "the straddle hulls both arms: {got:?} against the clearance {clear:?} and the ends {ends:?}"
-    );
     let truth = point.distance_within(centre, (0.0, FRAC_PI_2)).unwrap();
     assert!(
-        got.lo() <= truth && truth <= got.hi(),
-        "the reading encloses the box centre's distance {truth}: {got:?}"
+        got.lo() >= clear.lo() && got.lo() <= truth && truth <= got.hi(),
+        "the reading encloses the box centre's distance {truth} and is no lower than the \
+         clearance {clear:?}: {got:?}"
     );
     let inside = boxed(Point3::new(2.0, 2.0, 1.5), 0.05);
     let (read, clear) = (
         c.distance_within(inside, span).unwrap(),
         c.clearance(inside).unwrap(),
     );
-    assert_eq!(
-        (read.lo(), read.hi()),
-        (clear.lo(), clear.hi()),
-        "a box well inside the arc reads the clearance alone"
+    let truth = point
+        .distance_within(Point3::new(2.0, 2.0, 1.5), (0.0, FRAC_PI_2))
+        .unwrap();
+    assert!(
+        read.lo() >= clear.lo() && read.lo() <= truth && truth <= read.hi(),
+        "a box well inside the arc reads its centre's distance {truth}, its low end the \
+         clearance's {clear:?} or above: {read:?}"
     );
 }

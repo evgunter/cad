@@ -404,9 +404,22 @@ struct Round {
 /// its part's names, read in no body of this document, and starts no
 /// chain.
 fn chains(doc: &Doc<ProfileProgram>, taken: &TakenOver) -> BTreeMap<RecipeNodeId, RecipeNodeId> {
+    carrying_chains(doc, taken.copies.keys().copied())
+}
+
+/// **Every node that carries one of `roots`' names as they are**, by the
+/// root it carries them from: each root itself, and each node down a
+/// chain of name-carrying edges from it — a copy, a mirror, a split —
+/// over the one census of those edges (`names::verbatim_edge`). The
+/// takeover's chains ([`chains`]) and a delete's hand-back
+/// (`continuation`) walk the same reach.
+pub(crate) fn carrying_chains<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    roots: impl IntoIterator<Item = RecipeNodeId>,
+) -> BTreeMap<RecipeNodeId, RecipeNodeId> {
     let mut chains: BTreeMap<RecipeNodeId, RecipeNodeId> =
-        taken.copies.keys().map(|&copy| (copy, copy)).collect();
-    let mut frontier: Vec<RecipeNodeId> = taken.copies.keys().copied().collect();
+        roots.into_iter().map(|root| (root, root)).collect();
+    let mut frontier: Vec<RecipeNodeId> = chains.keys().copied().collect();
     while let Some(at) = frontier.pop() {
         let Some(&root) = chains.get(&at) else {
             continue;

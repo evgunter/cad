@@ -383,6 +383,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
+use geom_brep::ladder::{Answering, Rung, climb};
 use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::{
@@ -740,7 +741,7 @@ impl<T: Real> ShellError<T> {
                 "whether the thin solid's inner walls stay clear of each other could not be \
                  certified: {}. {}",
                 cavity_refusal_said(refusal),
-                cavity_refusal_ending(refusal)
+                cavity_refusal_ending(refusal, at)
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -881,7 +882,14 @@ fn cavity_refusal_said(
         )
         .into(),
         R::CollapsedChart { .. } => "a wall's chart collapses an edge to a point".into(),
-        R::TorusNotRing { .. } => "a wall lies on a torus that meets itself".into(),
+        R::TorusNotRing { refusal, .. } => match refusal.verdict {
+            geom_brep::TorusVerdict::Refused(_) => {
+                "a wall lies on a torus that meets itself".into()
+            }
+            geom_brep::TorusVerdict::Undecided(_) => {
+                format!("whether a wall's torus is a ring is not decided ({refusal})").into()
+            }
+        },
         R::EmptyScope { .. } => "the cavity has no face".into(),
         R::BoxDependent { .. } => {
             "an upper bound's pair was confirmed at one point only, which the cavity's \
@@ -898,11 +906,27 @@ fn cavity_refusal_said(
 /// op's defect, since the op built every chart it hands the engine.
 fn cavity_refusal_ending(
     refusal: &crate::clearance::EngineRefusal,
+    at: Option<geom_brep::recourse::ReadAt>,
 ) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
         R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
+        }
+        // A convention half the band cannot decide ends in its own lever,
+        // as the convention ends it at the door that reads it
+        // (`TorusConvention::sized`); read as the payload alone, in the
+        // lever, as this map's other arms are.
+        R::TorusNotRing { refusal, .. }
+            if let geom_brep::TorusVerdict::Undecided(diag) = &refusal.verdict =>
+        {
+            let sized = refusal.convention.sized();
+            match at {
+                Some(at) => sized
+                    .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
+                    .into(),
+                None => format!("Recourse: {}", sized.lever).into(),
+            }
         }
         R::Unsupported { .. }
         | R::Uncertified { .. }
@@ -3717,6 +3741,42 @@ mod rim_seam_rows {
     }
 }
 
+/// **A cavity wall's torus the band cannot decide a ring ends in the
+/// convention's lever**, as the convention ends it at every door
+/// (`geom_brep::TorusConvention::sized`); one decided outside it has no
+/// injectivity lane and ends "not yet" (D3, escalate-never-guess).
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod cavity_torus_endings {
+    use super::{cavity_refusal_ending, cavity_refusal_said};
+    use crate::clearance::{EngineRefusal, Which};
+    use geom_core::{Band, NOT_YET_ENDING, Tol};
+
+    #[test]
+    fn an_undecided_cavity_torus_ends_in_its_halfs_lever() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let wall = |major: f64| EngineRefusal::TorusNotRing {
+            face: crate::FaceKey::default(),
+            side: Which::First,
+            refusal: Box::new(geom_brep::TorusRefusal::require(major, 1.0, band).unwrap_err()),
+        };
+        let undecided = wall(1.0 + 0.5 * (band.zero() + band.escalate()));
+        let lever = geom_brep::TorusConvention::Ring.sized().lever;
+        let ending =
+            cavity_refusal_ending(&undecided, Some(geom_brep::recourse::Reading::Build.into()));
+        assert!(ending.contains(lever), "{ending}");
+        assert!(
+            !cavity_refusal_said(&undecided).contains("meets itself"),
+            "an undecided torus is never said to meet itself"
+        );
+        assert!(
+            cavity_refusal_ending(&undecided, None).contains(lever),
+            "the payload alone ends in the lever too"
+        );
+        assert_eq!(cavity_refusal_ending(&wall(0.5), None), NOT_YET_ENDING);
+    }
+}
+
 #[cfg(test)]
 mod mint_endings {
     #![allow(clippy::unwrap_used)]
@@ -4665,7 +4725,7 @@ impl<T: Real> InPlane<T> {
 
 /// **`face`'s footprint in `frame`**: the `(u, v)` box holding its
 /// whole boundary — every vertex, and every edge's arc on its carrier
-/// ([`carrier_box`]). The vertices alone are not enough: an arc bowing
+/// ([`edge_box_in`]). The vertices alone are not enough: an arc bowing
 /// out of the vertex hull carries region past it, and an extruded
 /// disc's cap has its two vertices on one diameter. A poisoned term
 /// poisons all four ends. `None` for a face with no boundary member to
@@ -4677,18 +4737,12 @@ fn footprint<T: Decide>(
     frame: &InPlane<T>,
 ) -> Option<((T, T), (T, T))> {
     let mut points = Vec::new();
-    for he in body.proven_face(face).half_edges() {
-        let h = proven(&body.half_edges, he, EntityId::HalfEdge);
-        let start = frame.point(body.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start"));
-        points.push((start.x, start.y));
-        let edge = linked(
-            &body.edges,
-            h.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        points.extend(edge_box_in(body, h.edge, edge, frame));
+    for member in body.proven_face(face).boundary() {
+        let at = frame.point(body.member_point(&member));
+        points.push((at.x, at.y));
+        if let crate::live::BoundaryMember::Edge { ek, edge, .. } = member {
+            points.extend(edge_box_in(body, ek, edge, frame));
+        }
     }
     let poison = points
         .iter()
@@ -4945,10 +4999,13 @@ fn walls_cross<T: Decide>(
                 }),
         )
         .collect();
-    for &(a_lo, a_hi) in &on_a {
-        for &(b_lo, b_hi) in &on_b {
-            // The overlap less every joint: what is left is where the
-            // two walls meet away from where they are joined.
+    // Each pair's overlap less every joint: what is left is where the two
+    // walls meet away from where they are joined. Read lazily, pair by
+    // pair, so a pair after the answer is not read.
+    let pieces = on_a
+        .iter()
+        .flat_map(|&a| on_b.iter().map(move |&b| (a, b)))
+        .flat_map(|((a_lo, a_hi), (b_lo, b_hi))| {
             let mut rest = vec![(a_lo.max(b_lo), a_hi.min(b_hi))];
             for &(e_lo, e_hi) in &joined {
                 let mut kept = Vec::new();
@@ -4968,20 +5025,23 @@ fn walls_cross<T: Decide>(
                 }
                 rest = kept;
             }
-            // Positive is a crossing; Zero, a touch away from every
-            // joint, is a contact and refuses too.
-            for (lo, hi) in rest {
-                let overlap = hi - lo;
-                if !matches!(
-                    decide("shell_moved_walls_overlap", Margin::of(overlap), band)?,
-                    Sign::Negative
-                ) {
-                    return Ok(Some(overlap.max(T::zero())));
-                }
-            }
-        }
-    }
-    Ok(None)
+            rest
+        });
+    // A ladder over the pieces ([`climb`], [`Answering::Any`]: a theorem,
+    // any piece the walls cross along is a crossing, and its overlap only
+    // names it): Positive is a crossing; Zero, a touch away from every
+    // joint, is a contact and refuses too. A piece read in band refuses
+    // only where no other piece crosses.
+    climb(Answering::Any, pieces, |(lo, hi)| {
+        let overlap = hi - lo;
+        Rung::decide(
+            "shell_moved_walls_overlap",
+            Margin::of(overlap),
+            band,
+            |d| (d.sign != Sign::Negative).then(|| overlap.max(T::zero())),
+        )
+    })
+    .into_reading()
 }
 
 /// One moved planar face as [`moved_walls_cross`] reads it: its plane,
@@ -5868,6 +5928,99 @@ mod tests {
                 .unwrap(),
             &[(-h, h)],
             "the ellipse at x = 1",
+        );
+    }
+
+    /// **A piece the walls cross along answers past a piece read in
+    /// band** ([`walls_cross`] climbs the pieces under `Any`, QML T2; PR
+    /// 6675's review wrote and verified it, red on base). `a`'s two
+    /// spans on the axis are `[0, 1]` and `[2, 3]`; `b`'s overlap them in
+    /// a piece a mid-band width long (in band) and in a piece `0.8` long
+    /// (a crossing), in both orders, since the cut order is not
+    /// ascending. The sliver alone reads in band.
+    #[test]
+    fn a_piece_crossing_answers_past_a_piece_in_band() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let m = 0.5 * (band.zero() + band.escalate());
+        let v = |n: u64| -> VertexKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let e = |n: u64| -> EdgeKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let ring = |k: u64, pts: [(f64, f64); 8]| -> Vec<(VertexKey, (f64, f64), EdgeKey)> {
+            pts.iter()
+                .enumerate()
+                .map(|(i, &p)| (v(k + i as u64), p, e(k + i as u64)))
+                .collect()
+        };
+        let a = ring(
+            1,
+            [
+                (0.0, -1.0),
+                (1.0, -1.0),
+                (1.0, 1.0),
+                (2.0, 1.0),
+                (2.0, -1.0),
+                (3.0, -1.0),
+                (3.0, 2.0),
+                (0.0, 2.0),
+            ],
+        );
+        for (label, b) in [
+            (
+                "sliver late",
+                ring(
+                    21,
+                    [
+                        (-1.0, -1.0),
+                        (0.8, -1.0),
+                        (0.8, 1.0),
+                        (3.0 - m, 1.0),
+                        (3.0 - m, -1.0),
+                        (3.5, -1.0),
+                        (3.5, 2.0),
+                        (-1.0, 2.0),
+                    ],
+                ),
+            ),
+            (
+                "sliver early",
+                ring(
+                    41,
+                    [
+                        (1.0 - m, -1.0),
+                        (1.5, -1.0),
+                        (1.5, 1.0),
+                        (2.2, 1.0),
+                        (2.2, -1.0),
+                        (4.0, -1.0),
+                        (4.0, 2.0),
+                        (1.0 - m, 2.0),
+                    ],
+                ),
+            ),
+        ] {
+            let (wa, wb) = axis_walls(&a, &b);
+            let got = walls_cross(&wa, &wb, band);
+            assert!(
+                matches!(got, Ok(Some(o)) if (o - 0.8).abs() < 1e-12),
+                "{label}: {got:?}"
+            );
+        }
+        let alone = ring(
+            61,
+            [
+                (1.0 - m, -1.0),
+                (1.5, -1.0),
+                (1.5, 1.0),
+                (1.6, 1.0),
+                (1.6, -1.0),
+                (1.7, -1.0),
+                (1.7, 2.0),
+                (1.0 - m, 2.0),
+            ],
+        );
+        let (wa, wb) = axis_walls(&a, &alone);
+        assert!(
+            walls_cross(&wa, &wb, band).is_err(),
+            "the sliver alone reads in band"
         );
     }
 

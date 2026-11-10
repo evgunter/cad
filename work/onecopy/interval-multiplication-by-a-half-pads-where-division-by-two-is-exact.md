@@ -2,10 +2,12 @@
 id: interval-multiplication-by-a-half-pads-where-division-by-two-is-exact
 kind: issue
 title: Interval multiplication by ½ pads an ulp below 2⁻⁹⁵⁹ where division by 2 is exact
-status: open
+status: closed
 opened: 2026-11-09
 priority: P4
 cost: E
+closed: 2026-11-09
+pr: 6661
 ---
 
 

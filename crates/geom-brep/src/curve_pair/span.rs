@@ -60,14 +60,26 @@
 //! past, the point is off the span, on the carrier
 //! ([`Reading::Carrier`]) or not ([`Reading::Off`], an undecided carrier
 //! included, since no answer to it puts the point on the span). A place
-//! the band cannot read is a refusal: the carrier's where it refused
-//! too, else the place's.
+//! the band cannot read is a refusal, the place's, with the carrier's
+//! beside it where that refused too ([`SpanRefusal`]).
 
 use geom::cover::Cover;
 use geom::{CarrierEscalation, CarrierRefusal, Clearance, Curve3, Foot, OnCarrier};
 use geom_core::k_stats::{self, decide_reported, straddle};
 use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real, Sign};
 use geom_core::{Decided, SupSpeed};
+
+/// **Whether [`Span::window_near`]'s walk halves a piece it did not
+/// clear**: its reach chosen past `reach`, the member's ball's radius
+/// and the escalation. A heuristic's choice ([`k_stats::choose`], ledger
+/// row F37), not a `<`: either answer is sound, since a kept piece only
+/// widens the window. **At a tie the piece is kept**.
+pub(super) fn halves<T: Decide>(piece: T, reach: T) -> bool {
+    match k_stats::choose("curve_pair_window_halve", Margin::of(piece - reach), "F37") {
+        k_stats::Pick::Positive => true,
+        k_stats::Pick::Negative | k_stats::Pick::Tie => false,
+    }
+}
 
 /// A carrier and a parameter interval on it (module docs).
 #[derive(Clone, Copy)]
@@ -150,35 +162,42 @@ pub enum Reading<T> {
     Off,
 }
 
-/// Which of [`Span::read`]'s two readings a [`SpanRefusal`] rests on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SpanReading {
+/// **Why [`Span::read`] refused**: which of its two readings refused,
+/// each refusal its own.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SpanRefusal {
     /// The place read the foot inside the span, and the carrier's
     /// reading refused.
-    Carrier,
-    /// The place against the span's ends refused, whatever the carrier
-    /// read: the refusal carried is the carrier's where both refused.
-    Place,
-}
-
-/// **Why [`Span::read`] refused**: the refusal, and the reading the
-/// answer rests on.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SpanRefusal {
-    /// The refusal.
-    pub refused: CarrierRefusal,
-    /// The reading it rests on.
-    pub of: SpanReading,
+    Carrier(CarrierRefusal),
+    /// The place against the span's ends refused, and the carrier read.
+    Place(CarrierRefusal),
+    /// The place against the span's ends refused, and so did the
+    /// carrier's reading: the carrier's refusal, which the answer is
+    /// ranked by ([`Self::refused`]).
+    Both(CarrierRefusal),
 }
 
 impl SpanRefusal {
-    /// The band's escalation this refusal is ([`CarrierRefusal::escalation`]).
+    /// **The refusal the answer is ranked by**: the one reading's that
+    /// refused, and the carrier's where both did. A place presupposes the
+    /// point on the carrier, so where the carrier is undecided the
+    /// place's refusal is a question about a point the carrier may not
+    /// hold.
+    #[must_use]
+    pub const fn refused(&self) -> CarrierRefusal {
+        match self {
+            Self::Carrier(refused) | Self::Place(refused) | Self::Both(refused) => *refused,
+        }
+    }
+
+    /// The band's escalation this refusal is ranked by
+    /// ([`Self::refused`], [`CarrierRefusal::escalation`]).
     ///
     /// # Errors
     ///
     /// [`geom::PieceWalkRefusal`]: the refusal is no escalation.
-    pub fn escalation(self) -> Result<Indeterminate, geom::PieceWalkRefusal> {
-        self.refused.escalation()
+    pub fn escalation(&self) -> Result<Indeterminate, geom::PieceWalkRefusal> {
+        self.refused().escalation()
     }
 }
 
@@ -191,6 +210,13 @@ impl<T> Reading<T> {
             Self::Carrier | Self::Off => None,
         }
     }
+}
+
+/// What the ends say of a point ([`Span::ends_place`]): a place, or past
+/// an end, with that end's chord, for the caller to stand on.
+enum EndsPlace {
+    Decided(Place),
+    Past(Decided),
 }
 
 /// The side of one end a foot lies on.
@@ -331,12 +357,7 @@ impl<'a, T: Decide> Span<'a, T> {
             if positive("curve_pair_window_clear", p.gap - p.reach - reach) {
                 return geom::PieceStep::Settled;
             }
-            if k_stats::choose(
-                "curve_pair_window_halve",
-                Margin::of(p.reach - reach),
-                "F37",
-            ) == k_stats::Pick::Positive
-            {
+            if halves(p.reach, reach) {
                 return geom::PieceStep::Halve;
             }
             kept = Some(kept.map_or(p.span, |(from, _)| (from, p.span.1)));
@@ -386,11 +407,33 @@ impl<'a, T: Decide> Span<'a, T> {
         self.place_at(&self.carrier.foot(q, near), band)
     }
 
-    /// [`Self::place`] at a foot already found on this span's carrier.
-    fn place_at(&self, foot: &Foot<'_, T>, band: Band) -> Result<Place, CarrierRefusal> {
-        let (q, t) = (foot.point(), self.branch(foot.seed()));
+    /// **A parameter of the carrier against the span's ends**, read as
+    /// [`Self::place`] reads a foot (module docs, "The place"): the
+    /// carrier's point at `t` within the band of an end's point is that
+    /// end, by its raw chord (`curve_pair_span_end_chord`); otherwise the
+    /// parameter's side of each end decides (`curve_pair_span_end_side`).
+    /// The point is the carrier's own at `t`, so past the span is off it,
+    /// with no nearest foot to stand on. An endless span holds every
+    /// parameter.
+    ///
+    /// # Errors
+    ///
+    /// An end's chord or side in the band's gap, or their straddle.
+    pub fn place_param(&self, t: T, band: Band) -> Result<Place, Indeterminate> {
+        let t = self.branch(t);
+        Ok(match self.ends_place(self.carrier.eval(t), t, band)? {
+            EndsPlace::Decided(place) => place,
+            EndsPlace::Past(_) => Place::Past,
+        })
+    }
+
+    /// The one reading of a point `q` of the carrier at parameter `t`
+    /// against the span's ends ([`Self::place_param`], [`Self::place_at`]):
+    /// at an end by its chord, else inside, else past by the parameter's
+    /// side, with the chord of the end it lies past.
+    fn ends_place(&self, q: Point3<T>, t: T, band: Band) -> Result<EndsPlace, Indeterminate> {
         if !self.ended {
-            return Ok(Place::Inside);
+            return Ok(EndsPlace::Decided(Place::Inside));
         }
         let ends = [(SpanEnd::Start, t - self.t0), (SpanEnd::Stop, self.t1 - t)];
         // An end at the point first, on its raw chord: no side matters
@@ -403,21 +446,26 @@ impl<'a, T: Decide> Span<'a, T> {
                 sign: Sign::Zero, ..
             }) = read
             {
-                return Ok(Place::End(which));
+                return Ok(EndsPlace::Decided(Place::End(which)));
             }
             chords.push(read);
         }
-        let mut sides = [Side::Clear; 2];
         let mut past = None;
-        for (side, ((_, m), read)) in sides.iter_mut().zip(ends.into_iter().zip(chords)) {
+        for ((_, m), read) in ends.into_iter().zip(chords) {
             let chord = read?;
-            *side = self.side(m, chord, band)?;
-            if *side == Side::Past {
+            if self.side(m, chord, band)? == Side::Past {
                 past = past.or(Some(chord));
             }
         }
-        let Some(chord) = past else {
-            return Ok(Place::Inside);
+        Ok(past.map_or(EndsPlace::Decided(Place::Inside), EndsPlace::Past))
+    }
+
+    /// [`Self::place`] at a foot already found on this span's carrier.
+    fn place_at(&self, foot: &Foot<'_, T>, band: Band) -> Result<Place, CarrierRefusal> {
+        let (q, t) = (foot.point(), self.branch(foot.seed()));
+        let chord = match self.ends_place(q, t, band)? {
+            EndsPlace::Decided(place) => return Ok(place),
+            EndsPlace::Past(chord) => chord,
         };
         if foot.nearest().is_some() {
             return Ok(Place::Past);
@@ -567,10 +615,7 @@ impl<'a, T: Decide> Span<'a, T> {
         Ok(match place {
             Ok(Place::End(which)) => Reading::End(which),
             Ok(Place::Inside) => {
-                let (t, margin) = on.map_err(|refused| SpanRefusal {
-                    refused,
-                    of: SpanReading::Carrier,
-                })?;
+                let (t, margin) = on.map_err(SpanRefusal::Carrier)?;
                 Reading::On {
                     t: self.branch(t),
                     margin,
@@ -580,10 +625,10 @@ impl<'a, T: Decide> Span<'a, T> {
                 Ok(_) => Reading::Carrier,
                 Err(_) => Reading::Off,
             },
-            Err(refused) => {
-                return Err(SpanRefusal {
-                    refused: on.err().unwrap_or(refused),
-                    of: SpanReading::Place,
+            Err(place) => {
+                return Err(match on {
+                    Ok(_) => SpanRefusal::Place(place),
+                    Err(carrier) => SpanRefusal::Both(carrier),
                 });
             }
         })

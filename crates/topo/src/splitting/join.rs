@@ -62,7 +62,7 @@
 //! (`Sweep::strip_spurs`), so the finish and the section query read one
 //! loop. Last, it writes the F9 record.
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
 
@@ -1585,7 +1585,7 @@ mod torn_hop_rows {
                     on_vertices: Vec::new(),
                     null_edges: null_edges.clone(),
                     apex_germs: SecondaryMap::new(),
-                    coincidences: Vec::new(),
+                    coincidences: crate::splitting::ReducedRows(Vec::new()),
                     edge_pieces: crate::lineage::SplitEdgeDivisions::new(
                         crate::lineage::LineageRows::EdgeDivisions(None),
                     ),

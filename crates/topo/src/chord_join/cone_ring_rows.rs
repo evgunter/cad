@@ -188,8 +188,18 @@ fn run_from(
     (island, hair): (&Island, bool),
     r: usize,
 ) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
-    let n = island.edges.len();
     assert_island_in_face(body, face, island, hair);
+    run_from_unchecked(body, (face, surface), island, r)
+}
+
+/// [`run_from`] without its check that the island lies in the face.
+fn run_from_unchecked(
+    body: &mut Body<f64>,
+    (face, surface): (FaceKey, SurfaceKey),
+    island: &Island,
+    r: usize,
+) -> ((HalfEdgeKey, HalfEdgeKey), IslandEdge) {
+    let n = island.edges.len();
     let ring = empty_ring(body, face, island.corners[r]);
     let mut halves: Vec<crate::construction::MevCreated> = Vec::new();
     for k in 0..n - 1 {
@@ -330,6 +340,50 @@ fn a_cone_ring_run_winds_its_island_as_the_oracle_does() {
     assert!(seen[0] > 0 && seen[1] > 0, "both windings read: {seen:?}");
 }
 
+/// **An island that leaves its face is refused, not read by its first
+/// reference**: a sheet narrower than the lune, whose outer-loop
+/// references (its corners and its edges' midpoints, the points the
+/// reading takes) lie on both sides of it by its membership oracle, reads
+/// opposite
+/// windings from its references, and the reading refuses with
+/// `SectionInvariant` rather than answering with whichever reference it
+/// asks first.
+#[test]
+fn an_island_that_leaves_its_face_is_refused() {
+    let f = frames()[0];
+    let surface = cone(f, false);
+    let island = lune(f, &surface, 1.0);
+    let mut planted = 0;
+    for (a, hi) in [
+        (0.05, 0.6),
+        (0.1, 0.9),
+        (0.2, 1.2),
+        (0.3, 1.5),
+        (0.1, 2.0),
+        (0.4, 2.5),
+    ] {
+        let (mut body, face, key) = sheet_up_to(f, surface.clone(), true, ((-a, a), hi));
+        // The references the reading takes: the corners and the edges'
+        // midpoints.
+        let references = outer_references(&body, face, &[]).unwrap();
+        let inside = references.iter().filter(|&&p| (island.inside)(p)).count();
+        if inside == 0 || inside == references.len() {
+            continue;
+        }
+        let (run, closing) = run_from_unchecked(&mut body, (face, key), &island, 0);
+        let spec = edge_spec(&mut body, key, &closing);
+        let got = path_island_winding(&body, face, run, Some(&spec), band());
+        assert!(
+            matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
+            "a sheet of half-width {a} up to {hi}, {inside} of its {} references in the lune: \
+             {got:?}",
+            references.len()
+        );
+        planted += 1;
+    }
+    assert!(planted > 0, "some sheet's corners straddle the lune");
+}
+
 /// A point of the sheet inside `island` and one outside it, off its
 /// boundary: the first of a grid of the sheet's points the oracle reads
 /// each way.
@@ -438,7 +492,7 @@ fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
     let (h_c, az_c) = height_azimuth(f, island.corners[0]);
     let rho = h_c * FRAC_PI_6.tan();
     let quadric = Quadric::of(&surface).unwrap();
-    let mut escalated = 0;
+    let (mut escalated, mut negative) = (0, 0);
     for delta in offsets_through_the_band() {
         let (mut body, face, key) = sheet_to(f, surface.clone(), true, (az_c - delta / rho, 1.2));
         let (run, closing) = run_from(&mut body, (face, key), (&island, true), 2);
@@ -457,17 +511,22 @@ fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
         let first = quadric.paths((w, q), band()).unwrap().remove(0);
         if path_parity(&first, &arcs, Some(arcs.len() - 1), band()).is_err() {
             escalated += 1;
-            let got = path_island_winding(&body, face, run, Some(&spec), band());
-            assert!(
-                matches!(got, Ok(Ok(sign)) if sign == want),
-                "offset {delta:e}: {got:?}, the oracle {want:?}"
-            );
         }
+        // The winding is read at every offset, not only where the first
+        // path errs (PR 6675's review), so a port that leaves fewer
+        // erring offsets still reads the outer reader everywhere.
+        let got = path_island_winding(&body, face, run, Some(&spec), band());
+        assert!(
+            matches!(got, Ok(Ok(sign)) if sign == want),
+            "offset {delta:e}: {got:?}, the oracle {want:?}"
+        );
+        negative += usize::from(matches!(got, Ok(Ok(Sign::Negative))));
     }
     assert!(
         escalated > 0,
         "no offset puts the first path in the escalation band"
     );
+    assert_eq!(negative, 121, "the winding reads Negative at every offset");
 }
 
 /// Walls the island off by its closing edge (`closing`, run back from the
@@ -515,6 +574,7 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
     let quadric = Quadric::of(&surface).unwrap();
     let (lune, sector) = (lune(f, &surface, 1.0), sector(f, &surface));
     let mut escalated = [0; 2];
+    let mut sides = [0usize; 2];
     let mut read = |(island, hair): (&Island, bool),
                     p: Point3<f64>,
                     (mut body, face, key): (Body<f64>, FaceKey, SurfaceKey),
@@ -531,6 +591,13 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
             .collect();
         let w = outer_references(&body, face, &skip).unwrap()[0];
         let first = quadric.paths((p, w), band()).unwrap().remove(0);
+        // The ring's side is read at every offset, not only where the
+        // first path errs (PR 6675's review).
+        match path_ring_side(&body, (&surface, &quadric), (face, newf), ring, band()) {
+            Ok(RingSide::In) => sides[0] += 1,
+            Ok(RingSide::Out) => sides[1] += 1,
+            got => panic!("{label}: the ring's side reads {got:?}"),
+        }
         if path_parity(&first, &arcs, None, band()).is_ok() {
             return;
         }
@@ -575,6 +642,11 @@ fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
     assert!(
         escalated.iter().all(|&n| n > 0),
         "first paths in the escalation band, outside and inside: {escalated:?}"
+    );
+    assert_eq!(
+        sides,
+        [121, 242],
+        "the ring's side, In and Out, at every offset"
     );
 }
 

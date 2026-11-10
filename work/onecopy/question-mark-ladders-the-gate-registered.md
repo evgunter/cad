@@ -25,13 +25,13 @@ measured yet.** Read each in full before porting it.
 | ~~`boolean::rim_wedge::departures` (`abut`)~~ | **ported** (`onecopy/refusal-standing`, QML T1): `climb(Any)` over the two end pairs, a theorem (either abuts) | — |
 | ~~`boolean::rim_wedge::rides`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over both ends | — |
 | ~~`splitting::containment::certify_plane`~~ | **ported** (`onecopy/refusal-standing`, QML T1): one `read_identity` over every datum; the datum apart names the cause | — |
-| `boolean::sectors`' crescent search (two reads) | a crescent found answers | `climb`, `Any` |
+| ~~`boolean::sectors`' crescent search (two reads)~~ | **ported** (`onecopy/refusal-standing`, QML T2): `climb(Any)` over the four bound pairs, a theorem; a pair's premise in band is kept by `BooleanError::refusal` (PR 6576) | — |
 | `splitting::join::conic_pairs` (the first cut) | **WHICH** (place_off ruling, QML T1): the cut rotates the pairing; the `?` stands, the site says so | — |
-| `shell`'s moved-walls overlap search | an overlap found answers | `climb`, `Any` |
+| ~~`shell`'s moved-walls overlap search~~ | **ported** (`onecopy/refusal-standing`, QML T2): `climb(Any)` over the pieces, read lazily; the overlap only names the fault | — |
 | ~~`boolean::surface_group::WrapRims::holds`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over the two coaxial margins | — |
 | `boolean::reduce`'s line-cone apex end search | **WHICH** (place_off ruling, QML T1): the end is the root whose spread is read next; the `?` stands | — |
-| `ring_path`'s lead-point read | an arc that is not a point answers `None` | `climb`, `Any` |
-| `offset_derive::nearest` | an argmin | see below |
+| ~~`ring_path`'s lead-point read~~ | **ported** (`onecopy/refusal-standing`, QML T2): `path_parity` climbs every (piece, arc) pair; any pair at which the path says nothing answers `None`, a pair in band is kept, the rest fold the parity | — |
+| `offset_derive::nearest` | an argmin | **filed** (`onecopy/refusal-standing`, QML T2): `an-argmin-by-decided-comparison-is-spelled-three-ways` (a copy of `join::keep_nearer`, and the argmin rule is a design question) |
 | ~~`sweep::loft::stacking::rim_pinned`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `read_identity` over the rows | — |
 | `boolean::edge_join::joinable` (the chart-class read over the two surfaces) | **WHICH** (place_off ruling, QML T1): the carrying surface is in the locus compared; the `?` stands | — |
 
@@ -65,7 +65,7 @@ measured yet.
 | `boolean::carrier_touch::off_face`, `ball_off_face` | any cluster or edge not off answers "not off" | `climb`, `Any` |
 | `boolean::region::on_boundary` | any edge holding the point | `climb`, `Any` |
 | `boolean::sectors::rays_within` | any ray not within answers "no" | `climb`, `Any` |
-| `boolean::sectors::crescent` (its callee reads, beside its decide sites) | a crescent found | `climb`, `Any` |
+| ~~`boolean::sectors::crescent` (its callee reads, beside its decide sites)~~ | **ported** (`onecopy/refusal-standing`, QML T2), with its decide sites | — |
 | `boolean::rim_wedge::departures` (its cover reads) | either pair's departure | `climb`, `Any` |
 | `census::span_clear` | anything meeting answers "not clear" | `climb`, `Any` |
 | `chart_region::polygon_relation` | the first decisive vertex | `climb`, `Any` (check every non-boundary vertex reads alike) |
@@ -137,3 +137,16 @@ caller):
 - `topo::boolean::rim_wedge` (≈`rim_wedge.rs:500`): a disagreement maps
   to a valid answer.
 
+
+## The `?` inside a rung (PR 6675's review)
+
+A port moves a loop's reads inside one rung of a `climb`. A `?` that stays inside that rung's reader is registered nowhere afterwards: the register reads `?`s in a search loop, and the rung's reader is a closure the gate does not see as one. This is a second hiding place for the T1 review's F3 class (a sequential `?` outside any loop).
+
+**Today's in-rung `?`s are premises.** Each is needed by the reads after it, so the first refusal is the rung's own refusal, not a kept reading another rung answers past:
+- `boolean::sectors::crescent`'s pair: `parallel_same(..)?`, then `bool_sector_crescent_across`, then `coincident_run(..)?`, each read only where the one before it held;
+- `ring_path::path_parity`'s pair: `misses_in_plane`, `segment_misses` and `spline_crossings`, each read on what the pair's previous reads placed;
+- `shell::walls_cross`: no `?` inside the rung; its pieces are built before the climb from topology only.
+
+**What would not be a premise:** a later conjunct inside a rung that is independent of the earlier ones, so it could answer for the rung on its own. That is a search inside the rung, and it is the F3 shape again.
+
+**A cheap gate shape, proposed and not built:** inside the closure passed to `climb`/`climb_evidence`/`climb_agreeing`, count `?` on a band reading (the register's own matcher, run on the closure's body) and register each closure's count with a disposition (`PREMISE`: each read needs the one before; `SEARCH`: port it). The closure is bounded by the call's argument list, so the existing statement view finds it, and the register file is `escalation-question-marks-callee.counts`'s format with a `rung:` prefix.

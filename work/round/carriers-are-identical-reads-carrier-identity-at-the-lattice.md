@@ -2,13 +2,14 @@
 id: carriers-are-identical-reads-carrier-identity-at-the-lattice
 kind: issue
 title: family.rs's carriers_are_identical (key path_carrier_identity) decides whether two carriers are the same inside the fillet family's arc extension — a lattice question the sixth-round ruling retires
-status: dispatched
+status: closed
 opened: 2026-09-08
 refs: [2135]
 priority: P1
 cost: H
-pr: 6542
+pr: 6682
 branch: round/extensions-are-their-own-segments
+closed: 2026-11-10
 ---
 
 Found by BOOL-10's seal measurement (PR 2135): after `arc_continue`'s
@@ -67,3 +68,25 @@ tip joint unconditionally; shrink `Incoming.carrier` if nothing reads it;
 re-baseline the pinned rows and the stored-loop corpus hash, saying what
 moved; re-word the code docs citing the dead "§4 item 4 exemption".
 Loft run-awareness is LATHE's `loft-corresponds-sections-by-segment-not-by-run`.
+
+## Closed (PR 6682)
+
+The decision is gone rather than measured better.
+- **Deleted:** `carriers_are_identical` with its
+  `path_carrier_identity` gate, `merge_of`, `extend_leg_to`,
+  `extend_arc_to`, `ByTangent` and `Incoming.carrier`.
+- **The tip.** A fused or ray incoming's tip is always a vertex, with a
+  constructed tangent joint, for every `r`.
+- **The fit gate.** The merge used to absorb the run lengths between
+  the fit gate's band and validation's. The fit now reads the run on
+  validation's band; that closes
+  `a-fillet-run-the-fit-gate-passes-validation-calls-degenerate`.
+- **What stays.** At r = R in the band, the simplicity pass's
+  `carrier_circles_identity` still escalates at the tip pair. That
+  question is real: `sweep::swept::cosurface` reads it to choose one
+  wall or two. PATHS-DESIGN documents it.
+- **Filed for follow-up:**
+  - the span window just past the band,
+    `a-fillet-run-just-past-the-band-builds-and-then-escalates-a-span`;
+  - DOCTAIL's strand-report row, raised to P0 because this change
+    widens it to the ordinary fillet insert.

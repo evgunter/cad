@@ -466,7 +466,9 @@ pub enum SpiricRegime {
 
 /// **The site names one reader of [`spiric_regime`] decides under**, so a
 /// refusal and its `k_stats` stream name the reading that met them:
-/// three distinct names, one per margin ([`SpiricRegimeSites::new`]).
+/// three distinct names, one per margin.
+/// Minted only by its reader ([`SpiricReader::sites`]), so no two readers
+/// share a name (`reader_rows`, in this crate's root).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SpiricRegimeSites {
     off_axis: &'static str,
@@ -483,15 +485,22 @@ impl SpiricRegimeSites {
 
     /// The rows for the offset off zero (`off_axis`) and the two-oval
     /// margin's far and floor rows ([`geom_core::k_stats::decide_across`]).
+    /// Private: a reader names its rows at [`SpiricReader::sites`].
     ///
     /// # Panics
     ///
     /// Where two of the names are equal: each names its own margin. In a
     /// `const` item the panic is a compile error.
     #[must_use]
-    pub const fn new(off_axis: &'static str, far: &'static str, floor: &'static str) -> Self {
+    pub(crate) const fn new(
+        off_axis: &'static str,
+        far: &'static str,
+        floor: &'static str,
+    ) -> Self {
         assert!(
-            !str_eq(off_axis, far) && !str_eq(off_axis, floor) && !str_eq(far, floor),
+            !crate::str_eq(off_axis, far)
+                && !crate::str_eq(off_axis, floor)
+                && !crate::str_eq(far, floor),
             "a spiric regime's three rows need three names"
         );
         Self {
@@ -501,20 +510,53 @@ impl SpiricRegimeSites {
     }
 }
 
-/// `a == b`, in a `const` context.
-const fn str_eq(a: &str, b: &str) -> bool {
-    let (a, b) = (a.as_bytes(), b.as_bytes());
-    if a.len() != b.len() {
-        return false;
+impl SpiricRegimeSites {
+    /// The reader's three rows: off the axis, then the two-oval margin's
+    /// far and floor rows.
+    #[must_use]
+    pub(crate) const fn rows(self) -> [&'static str; 3] {
+        [self.off_axis, self.two_ovals[0], self.two_ovals[1]]
     }
-    let mut k = 0;
-    while k < a.len() {
-        if a[k] != b[k] {
-            return false;
+}
+
+/// **Every reader of [`spiric_regime`]**, each with its own rows
+/// ([`Self::sites`]): a new reader is a variant here, which the roster
+/// (`reader_rows`, in this crate's root) reads off this enum, so its names are
+/// checked against every other reader's when this crate compiles.
+///
+/// **This enum is the registry of who reads the spiric regime.** It spells
+/// its callers' row names, `topo`'s and `geom-brep`'s, as strings only:
+/// those names are global to the `k_stats` stream and the ledger
+/// (`docs/predicate-dimension-audit.md`) already, and this crate depends
+/// on nothing of its callers to hold them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
+pub enum SpiricReader {
+    /// [`Curve3::spiric`]'s mint.
+    Mint,
+    /// The Boolean's rider, reading a spiric edge against a curved face.
+    BooleanRider,
+    /// The plane×torus section, choosing the spiric it mints.
+    PlaneTorus,
+}
+
+impl SpiricReader {
+    /// The reader's rows.
+    #[must_use]
+    pub const fn sites(self) -> SpiricRegimeSites {
+        match self {
+            Self::Mint => SpiricRegimeSites::MINT,
+            Self::BooleanRider => SpiricRegimeSites::new(
+                "bool_rider_spiric_off_axis",
+                "bool_rider_spiric_regime",
+                "bool_rider_spiric_regime_floor",
+            ),
+            Self::PlaneTorus => SpiricRegimeSites::new(
+                "pt_spiric_off_axis",
+                "pt_spiric_two_ovals",
+                "pt_spiric_two_ovals_floor",
+            ),
         }
-        k += 1;
     }
-    true
 }
 
 /// **Whether an axis-parallel plane at signed stand-off `offset` from
@@ -825,10 +867,20 @@ impl<T: Real> Line<T> {
     }
 
     /// **`p`'s foot on the span `(t0, t1)`**: the line's point at
-    /// [`Self::param_within`].
+    /// [`Self::param_within`]. `p`'s distance from the span is
+    /// [`Self::distance_within`].
     #[must_use]
     pub fn foot_within(&self, p: Point3<T>, span: (T, T)) -> Point3<T> {
         self.at(self.param_within(p, span))
+    }
+
+    /// **`p`'s distance from the span `(t0, t1)`**, `t0 ≤ t1`: its
+    /// distance from its [foot on the span](Self::foot_within). A segment
+    /// from `a` to `b` is the span `(0, 1)` of `Line { origin: a, dir: b −
+    /// a }`.
+    #[must_use]
+    pub fn distance_within(&self, p: Point3<T>, span: (T, T)) -> T {
+        (p - self.foot_within(p, span)).norm()
     }
 
     /// **`p`'s foot on the ray from `t0`**, the points `t ≥ t0`:
@@ -924,6 +976,53 @@ impl<T: Real> Line<T> {
     #[must_use]
     pub fn square_foot(&self, p: Point3<T>) -> Point3<T> {
         p - (p - self.origin).project_onto(self.dir)
+    }
+}
+
+/// **A half-line**: [`Ray::line`] read forward from its origin, the point
+/// `origin + dir·t` at advance `t > 0` ahead and at `t < 0` behind. An
+/// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
+/// a length only where the caller's `dir` is unit, which nothing here
+/// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+/// The forward reading has one home, [`Ray::ahead`], decided under the
+/// reader's own row.
+#[derive(Clone, Copy, Debug)]
+pub struct Ray<T: Real> {
+    /// The line the ray runs along, from its origin.
+    pub line: Line<T>,
+}
+
+impl<T: Real> Ray<T> {
+    /// The ray from `origin` along `dir`, any nonzero `dir`: its advance
+    /// is in units of `|dir|` (the type's doc).
+    #[must_use]
+    pub fn new(origin: Point3<T>, dir: Vec3<T>) -> Self {
+        Self {
+            line: Line { origin, dir },
+        }
+    }
+}
+
+impl<T: Decide> Ray<T> {
+    /// **Whether advance `at` lies ahead of the ray's origin**, decided
+    /// under the reader's own `site`: `Positive` ahead, `Negative` behind,
+    /// `Zero` at the origin. Each reader keeps its own policy for `Zero`
+    /// and for an undecided reading.
+    ///
+    /// `at` is a parameter on this ray's own line (`origin + dir·at`), and
+    /// the margin decided is `at` itself, in units of `|dir|` (the type's
+    /// doc). The method takes the parameter, not a point, because every
+    /// reader holds only a parameter computed on [`Ray::line`]: a root
+    /// against a carrier (`line_*_roots`), or the closest-approach span of
+    /// an edge's passage. No point is minted before the forward test. The ray does not re-derive `at`; a
+    /// reader that passes a parameter of another line decides nothing
+    /// about this ray.
+    ///
+    /// # Errors
+    ///
+    /// [`Indeterminate`] where `at` is in band.
+    pub fn ahead(&self, at: T, site: &'static str, band: Band) -> Result<Sign, Indeterminate> {
+        geom_core::k_stats::decide(site, Margin::of(at), band)
     }
 }
 
@@ -2565,8 +2664,8 @@ mod tests {
     #[test]
     fn spiric_regime_reads_its_margin_across_the_swing() {
         let ring = crate::RingTorus::decided(1.2, 0.225);
-        let sites =
-            SpiricRegimeSites::new("test_off_axis", "test_two_ovals", "test_two_ovals_floor");
+        let sites = SpiricReader::PlaneTorus.sites();
+        let [off_axis, _, floor] = sites.rows();
         let at = |margin: f64| spiric_regime(ring, 0.975 - margin, 0.5, sites, band());
         assert_eq!(at(0.6), Ok(SpiricRegime::TwoOvals), "clear of the swing");
         assert_eq!(
@@ -2575,18 +2674,14 @@ mod tests {
             "past the equator by more than the swing"
         );
         let in_band = at(0.5 + 0.5 * band().zero()).expect_err("floor in band");
-        assert_eq!(
-            in_band.predicate,
-            Some("test_two_ovals_floor"),
-            "{in_band:?}"
-        );
+        assert_eq!(in_band.predicate, Some(floor), "{in_band:?}");
         assert_eq!(
             spiric_regime(ring, 1e-12, 0.5, sites, band()),
             Ok(SpiricRegime::ThroughAxis),
             "an offset in the zero band"
         );
         let poison = spiric_regime(ring, f64::NAN, 0.0, sites, band()).expect_err("poison");
-        assert_eq!(poison.predicate, Some("test_off_axis"), "{poison:?}");
+        assert_eq!(poison.predicate, Some(off_axis), "{poison:?}");
     }
 
     /// **A reader's three regime rows need three names**: one name on

@@ -84,7 +84,7 @@ impl<T: SpanLocate> Knots<T> {
             let (lo, hi) = value
                 .structure_bracket()
                 .ok_or(SplineError::KnotIsPoison { index })?;
-            knots.extend(core::iter::repeat_n(f64::midpoint(lo, hi), m));
+            knots.extend(core::iter::repeat_n(crate::mid_param(lo, hi), m));
         }
         Ok(Cow::Owned(KnotVector::from_algebra(knots, self.degree())))
     }
@@ -350,7 +350,7 @@ impl<T: SpanLocate> Knots<T> {
 /// it holds for none, [`SplineError::KnotRunsUndecided`] with the step's
 /// enclosure where it holds for some.
 fn runs_ascend<T: SpanLocate>(a: T, b: T, index: usize) -> Result<(), SplineError> {
-    if super::locate::structure_ascends(a, b) {
+    if crate::structure_ascends(a, b) {
         return Ok(());
     }
     let step = b - a;
