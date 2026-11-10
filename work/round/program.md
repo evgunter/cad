@@ -2,7 +2,7 @@
 id: round
 kind: program
 title: ROUND — the profile fillet family: its doors, its recourse sentences, and where a quarter of it lives
-status: active
+status: ready
 opened: 2026-09-20
 group: kernel/sketch
 prefix: round/

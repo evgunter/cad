@@ -367,3 +367,28 @@ approved ("strictly on the fitting side"). The first pass's "past the
 band" rewording would have changed what that clause decides, so it
 comes out. The typed-back rows now pin per-row counts of other-gate
 refusals, and an independent margin ties the bound to the kernel.
+
+## 2026-11-10 — the refused corner landed (PR 6719); handed back (`ready`)
+
+PR 6719 merged as `05e7001f94` after one FULL review and two fix
+passes; the four rows (two units, two passengers) are closed.
+- **The rendering rule.** The levers are named within the exact-fit band
+  on the fitting side, so the named radius and anchor distance, typed
+  back, are exact fits at their corner. Other gates still refuse a
+  handful of typed-back levers (4 X and 3 S on grid A at 1e-6, 0
+  elsewhere), pinned per row.
+- **A reading I accepted.** Below the window, a radius in the fit gate's
+  own band escalates there in that gate's words. That is the sliver
+  region the contract leaves to other wording, so the sweep below X
+  counts it rather than failing it.
+- **The cusp passenger** refuses at the door as `CuspDoublesBackOverLeg`.
+- **CI.** The implementer pushed two empty commits to re-run CI after
+  `test (kernel)` tripped the 1.0 s per-test budget on two untouched
+  rows (topo 1.032 s, sweep 1.014 s), since re-runs are refused from
+  here. That is a workaround I would not choose again: those rows sit at
+  the budget's edge and belong to whoever owns the slow-set roster.
+
+No P0/P1 is left. Two new P3 rows came out of the unit: the enclosing
+refusal's rendering, and the over-budget sentences. Both need a
+wording choice, so a successor can take them as cheaply. ROUND goes
+back `ready`.
