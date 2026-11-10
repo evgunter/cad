@@ -245,7 +245,7 @@
 //!
 //! **Two doors sit beside the table rather than in it**, the pair
 //! [`AtRestBody`] carries: its construction at the certifying scalars'
-//! finish ([`crate::finish`]), which is [`validate_geometric`] keeping
+//! finish ([`crate::finish`](fn@crate::finish)), which is [`validate_geometric`] keeping
 //! its verdict with the body, and
 //! [`AtRestBody::validate_pseudomanifold`], the tier-3′ pass over that
 //! body, which runs the census and reads the battery's half off the
@@ -715,7 +715,7 @@ pub enum EdgeTangentUnread {
     /// The edge's least speed meters no length over its span. A limit.
     NoLength,
     /// A spline edge's piece walk could not run, standing as the walk's
-    /// refusal does ([`geom_brep::ladder::Refusal::of_walk`]).
+    /// refusal does ([`geom::PieceWalkRefusal::refusal`]).
     Unwalked(geom::PieceWalkRefusal),
 }
 
@@ -728,7 +728,7 @@ impl EdgeTangentUnread {
     pub const fn refusal(self) -> geom_brep::ladder::Refusal {
         match self {
             Self::NoCurve | Self::NoReach | Self::NoLength => geom_brep::ladder::Refusal::Limit,
-            Self::Unwalked(why) => geom_brep::ladder::Refusal::of_walk(why),
+            Self::Unwalked(why) => why.refusal(),
         }
     }
 
@@ -2064,7 +2064,7 @@ pub enum ValidationError {
     },
     /// **Tier 3, one region per face, on a torus**: the face's essential
     /// surface cycles (those whose joint elements compose to a nonzero
-    /// deck element, [`crate::surface_boundary::cycle_winding`]) are not a
+    /// deck element, [`crate::surface_boundary::surface_cycle_windings`]) are not a
     /// separating pair. A face holds none or two, and two only where
     /// their windings are opposite, so that they bound one band of the
     /// torus between them.
@@ -4593,7 +4593,8 @@ impl ValidationError {
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::DegenerateTorus { verdict, .. } => f.write_str(
-                &geom_brep::TorusConvention::Ring.refused_ended("a torus face's", *verdict, at),
+                &geom_brep::TorusRefusal::decided(geom_brep::TorusConvention::Ring, *verdict)
+                    .said("a torus face's", at),
             ),
             Self::DegenerateSpindle { miss, .. } => match miss.verdict {
                 Ok(decided) => write!(

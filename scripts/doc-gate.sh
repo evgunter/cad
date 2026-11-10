@@ -601,11 +601,16 @@ workspace_manifests() {
 # THE LINT SET IS A PARAMETER, not a global read from in here, because
 # pass 3 runs a different one and a pass that silently inherited the
 # wrong set would be a gate reporting on lints it did not run.
+#
+# `--keep-going`: without it cargo schedules no new crate once rustdoc
+# rejects one, so a red pass prints only the crates that happened to
+# run first, and every crate downstream of the failing one goes
+# unread.
 doc_pass_with() {
   local lints=$1 why=$2; shift 2
   local rc=0
-  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items "$@" || rc=1
-  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items --bins --examples "$@" || rc=1
+  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items --keep-going "$@" || rc=1
+  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items --keep-going --bins --examples "$@" || rc=1
   [ "$rc" -eq 0 ] || gate_error "$(gate_name): rustdoc rejected $why"
   return "$rc"
 }

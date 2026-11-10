@@ -2104,7 +2104,7 @@ pub(in crate::boolean) mod tests {
     /// statement of the words `subject` and `ending` must produce, on a
     /// margin it can read (`readable`) or a poisoned one.
     fn want(decision: BooleanDecision, readable: bool) -> (&'static str, Ending) {
-        const CORNER: &str = "Recourse: reshape that corner so its edges span clearly more than \
+        const CORNER_RECOURSE: &str = "Recourse: reshape that corner so its edges span clearly more than \
                               the tolerance and are clearly not in line";
         const STRAIGHT: &str = "whether a corner is straight or folds back on itself";
         const SPHERES: &str = "Recourse: move the spheres so they clearly stand apart, or so one \
@@ -2374,13 +2374,14 @@ pub(in crate::boolean) mod tests {
             ),
             BooleanDecision::Corner(SectorRung::Arm) => (
                 "whether a corner's edges are long enough to measure its angle over",
-                Ending::Sized(CORNER, SizedPass::Positive),
+                Ending::Sized(CORNER_RECOURSE, SizedPass::Positive),
             ),
-            BooleanDecision::Corner(SectorRung::Straight { full_circle: false }) => {
-                (STRAIGHT, Ending::Sized(CORNER, SizedPass::Negative))
-            }
+            BooleanDecision::Corner(SectorRung::Straight { full_circle: false }) => (
+                STRAIGHT,
+                Ending::Sized(CORNER_RECOURSE, SizedPass::Negative),
+            ),
             BooleanDecision::Corner(SectorRung::Straight { full_circle: true }) => {
-                (STRAIGHT, Ending::Sized(CORNER, SizedPass::AnySign))
+                (STRAIGHT, Ending::Sized(CORNER_RECOURSE, SizedPass::AnySign))
             }
             BooleanDecision::PierceOnFace => (
                 "whether a point lies on a curved face, so the face's normal can be read there",

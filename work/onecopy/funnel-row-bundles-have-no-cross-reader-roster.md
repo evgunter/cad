@@ -36,10 +36,10 @@ rosters (`test_utils::source::predicate_census`). Each lists the
 predicate names one crate decides and why:
 - `crates/sweep/tests/recourse_roster.rs`;
 - `crates/profile/tests/recourse_roster.rs`;
-- `geom-brep`'s `ladder.rs` and `curve_face/rows.rs`.
+- `crates/topo/tests/recourse_roster.rs`;
+- `geom-core`'s `ladder.rs` (moved from geom-brep) and geom-brep's `curve_face/rows.rs`.
 
-Each is per crate, and none checks one name across two crates' readers.
-topo has no such roster (`geom-brep/src/ladder.rs:757` notes it).
+Each is per crate, and none checks one name across two crates' readers. (This row once said topo had no such roster; it has one now, and `crates/geom-core/src/ladder.rs:744-748` names sweep's and topo's rosters as the ones that list `read_identity`'s calls.)
 
 Beyond bundles, a plain `&'static str` site passed to a `k_stats` door can
 be spelled by two readers alike. `crates/geom-core/tests/flagged_census.rs`

@@ -265,7 +265,7 @@ pub(in crate::boolean) enum ReadAcross {
 /// **Where `leg` meets `edge`**: each meeting's point, the edge's
 /// parameter there, and whether it lies within the band of an end of the
 /// edge ([`Landing`]). One curve is read across the other's plane through
-/// the plane door ([`span_plane_meet`]), the pair's orientation the
+/// the plane door ([`span_plane_meet`](geom_brep::curve_face::plane_crossing::span_plane_meet)), the pair's orientation the
 /// door's choice ([`Legs::across`]), and each root is a meeting where it
 /// lies on both curves: on the leg's section of its plane
 /// ([`Section`](geom_brep::curve_pair::on_surface::Section)), or where the door places it on the edge. Where along
@@ -732,7 +732,7 @@ pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
     const AT: &'static str;
 
     /// The rows the closest crossing is read under: `(order, cross)`.
-    const SIDE: (&'static str, &'static str);
+    const SIDE_ROWS: (&'static str, &'static str);
 
     /// The row a root's section of a leg's plane is read on
     /// ([`Section`](geom_brep::curve_pair::on_surface::Section)), and an edge's offset from a plane it is parallel
@@ -927,7 +927,7 @@ fn side<T: Decide, D: Legs<T>>(
     crossings: Crossings<T, Hit<T>>,
     band: Band,
 ) -> Result<bool, Fault> {
-    side_at_closest(crossings, D::SIDE, door.lever(), band)
+    side_at_closest(crossings, D::SIDE_ROWS, door.lever(), band)
 }
 
 /// **The crossing offer**: every crossing of `leg` with the boundary,
