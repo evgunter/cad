@@ -43,6 +43,9 @@ const CARRIERS: &[NameCarrier] = &[
     // The straddle row a door mints, and a turn rule's two rows.
     NameCarrier::Call("straddle"),
     NameCarrier::Call("bounded"),
+    // `Extent::forward_by_arc`'s name triple, its callers' rows.
+    NameCarrier::Call("forward_by_arc"),
+    NameCarrier::Const("ARC_ROWS"),
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
@@ -77,7 +80,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("linalg/unit_vec.rs: v", NOT_FIRST),
     ("linalg/unit_vec.rs: v * scale", NOT_FIRST),
     ("line2.rs: det", NOT_A_NAME),
+    ("period.rs: chord_name", FORWARDS),
     ("period.rs: name", FORWARDS),
+    ("period.rs: sense_name", FORWARDS),
     ("period.rs: rows.straddle", ROW_FIELD),
     ("period.rs: rows.turn", ROW_FIELD),
     ("running.rs: name", FORWARDS),

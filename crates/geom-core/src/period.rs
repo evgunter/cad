@@ -1246,26 +1246,26 @@ mod period_rows {
         use crate::{InfSpeed, SupSpeed};
         let band = band();
         let rates = (InfSpeed::new(1.0_f64), SupSpeed::new(1000.0));
-        let rows = ("t_forward", "t_chord", "t_sense");
+        const ARC_ROWS: (&str, &str, &str) = ("t_forward", "t_chord", "t_sense");
         let chord = |x: f64| crate::Vec3::new(x, 0.0, 0.0);
         let dt = 5e-11;
         assert!(matches!(
             Extent::forward("t_forward", 0.0, dt, rates.0, band),
             Err(NotForward::Zero(_))
         ));
-        let extent = Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-8), band)
+        let extent = Extent::forward_by_arc(ARC_ROWS, 0.0, dt, rates, chord(5e-8), band)
             .expect("forward by its chord");
         assert_eq!(extent.get(), dt);
         assert!(
             matches!(
-                Extent::forward_by_arc(rows, dt, 0.0, rates, chord(-5e-8), band),
+                Extent::forward_by_arc(ARC_ROWS, dt, 0.0, rates, chord(-5e-8), band),
                 Err(NotForward::Reversed(_))
             ),
             "run backwards, apart past the band: reversed, not a point"
         );
         assert!(
             matches!(
-                Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-10), band),
+                Extent::forward_by_arc(ARC_ROWS, 0.0, dt, rates, chord(5e-10), band),
                 Err(NotForward::Zero(_))
             ),
             "a chord in the zero"
