@@ -2250,28 +2250,36 @@ fn crescent<T: Decide>(
         if !matches!(ra, BoundSupport::Conic { .. }) && !matches!(rb, BoundSupport::Conic { .. }) {
             return Ok(false);
         }
-        if !parallel_same_as(da, db, arm, BOUNDS_PARALLEL, band)? {
-            return Ok(false);
-        }
+        // The pair opens a crescent where every one of five readings
+        // holds, none read off another ([`every_holds`]): the bounds
+        // parallel, the sectors across them, the run's clause, and the
+        // opening. The run's clause holds off a run, or where the bounds
+        // stay parallel along it, so it is itself two readings, either
+        // answering it ([`any_holds`]).
         let d = da.normalize();
         let square = |v: Vec3<T>| v - d * v.dot(d);
         let u = square(a.middle()).normalize();
+        let l = la.min(lb);
+        let parallel = || parallel_same_as(da, db, arm, BOUNDS_PARALLEL, band);
         // `pair_search` reads two sectors sharing a bound from one
         // side as overlapping, so a touching pair lies across it;
         // this reads that premise where the claim rests on it.
-        let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
-        if decide("bool_sector_crescent_across", across, band).map_err(escalate)? != Sign::Negative
-        {
-            return Ok(false);
-        }
-        let l = la.min(lb);
-        if coincident_run((ca, a_start), (cb, b_start), contacts, band)?
-            && !parallel_same_as(da, db, l, BOUNDS_PARALLEL, band)?
-        {
-            return Ok(false);
-        }
-        let opened = geom_brep::parting(kb - ka, u, l.length());
-        Ok(decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive)
+        let across = || {
+            let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
+            decide("bool_sector_crescent_across", across, band)
+                .map_err(escalate)
+                .map(|s| s == Sign::Negative)
+        };
+        let off_run = || coincident_run((ca, a_start), (cb, b_start), contacts, band).map(|run| !run);
+        let along = || parallel_same_as(da, db, l, BOUNDS_PARALLEL, band);
+        let run = || any_holds([&off_run as &dyn Fn() -> _, &along]);
+        let opened = || {
+            let opened = geom_brep::parting(kb - ka, u, l.length());
+            decide("bool_sector_crescent", opened, band)
+                .map_err(escalate)
+                .map(|s| s == Sign::Positive)
+        };
+        every_holds([&parallel as &dyn Fn() -> _, &across, &run, &opened])
     };
     // A ladder over the four pairs of bounds ([`climb`],
     // [`Answering::Any`]: a theorem, any pair that opens a crescent is an
@@ -2284,6 +2292,42 @@ fn crescent<T: Decide>(
     match climb(Answering::Any, pairs, |p| {
         Rung::holds(pair(p), (), BooleanError::refusal)
     }) {
+        Climb::Answered { answer, .. } => answer.map(|()| true),
+        Climb::Passed => Ok(false),
+        Climb::Undecided(e) => Err(e),
+    }
+}
+
+/// **Whether every one of a conjunction's readings holds**, as a
+/// ladder over them ([`climb`], [`Answering::Any`]): a reading decided
+/// not to hold answers `false`, whatever any other read; one in band is
+/// kept by its standing ([`BooleanError::refusal`]) and refuses only
+/// where none decides against; and one whose standing aborts (a kernel
+/// fault) ends the reading at once, read past by nothing. Each reading
+/// is read only where none before it answered.
+fn every_holds<const N: usize>(
+    readings: [&dyn Fn() -> Result<bool, BooleanError>; N],
+) -> Result<bool, BooleanError> {
+    let climbed = climb(Answering::Any, readings, |read| {
+        Rung::holds(read().map(|held| !held), (), BooleanError::refusal)
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer.map(|()| false),
+        Climb::Passed => Ok(true),
+        Climb::Undecided(e) => Err(e),
+    }
+}
+
+/// **Whether any one of a disjunction's readings holds**, as a ladder
+/// over them ([`climb`], [`Answering::Any`]): [`every_holds`]'s dual,
+/// a reading that holds answering `true`.
+fn any_holds<const N: usize>(
+    readings: [&dyn Fn() -> Result<bool, BooleanError>; N],
+) -> Result<bool, BooleanError> {
+    let climbed = climb(Answering::Any, readings, |read| {
+        Rung::holds(read(), (), BooleanError::refusal)
+    });
+    match climbed {
         Climb::Answered { answer, .. } => answer.map(|()| true),
         Climb::Passed => Ok(false),
         Climb::Undecided(e) => Err(e),
@@ -2739,6 +2783,136 @@ mod tests {
     use crate::contact::GlueClass;
     use geom_brep::ConicBend;
     use geom_core::Tol;
+
+    fn band_witness() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A reading in band, kept by its standing, and a kernel fault, which
+    /// aborts ([`BooleanError::refusal`]).
+    fn in_band() -> BooleanError {
+        let diag =
+            decide("bool_sector_crescent", Margin::of(5e-9), band_witness()).expect_err("mid-band");
+        BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+    }
+    fn fault() -> BooleanError {
+        BooleanError::ClassificationInvariant {
+            what: "a planted fault",
+        }
+    }
+
+    /// **A conjunction answers `false` past a reading in band, never past
+    /// a fault** ([`every_holds`], [`any_holds`]): each reading decided
+    /// not to hold answers alone, wherever it stands; a reading in band
+    /// refuses only where none decides against; a fault ends the reading
+    /// where it stands, so no later reading answers past it, and none is
+    /// read after it. The run's clause, a disjunction, answers `true` past
+    /// a reading in band, never past a fault. Red against a hand-rolled
+    /// conjunction that answers past any refusal.
+    #[test]
+    fn a_conjunction_answers_past_a_margin_and_never_past_a_fault() {
+        let held = |b: bool| move || Ok::<_, BooleanError>(b);
+        let refused = |e: fn() -> BooleanError| move || Err::<bool, _>(e());
+        let (t, f) = (held(true), held(false));
+        let (margin, kernel) = (refused(in_band), refused(fault));
+        assert!(
+            matches!(every_holds([&margin as &dyn Fn() -> _, &f]), Ok(false)),
+            "past a margin"
+        );
+        assert!(
+            matches!(every_holds([&t as &dyn Fn() -> _, &margin, &t]), Err(e) if e.refusal().is_ok()),
+            "nothing against"
+        );
+        assert!(
+            matches!(
+                every_holds([&kernel as &dyn Fn() -> _, &f]),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "never past a fault"
+        );
+        let read = core::cell::Cell::new(false);
+        let after = || {
+            read.set(true);
+            Ok(false)
+        };
+        assert!(matches!(
+            every_holds([&f as &dyn Fn() -> _, &after]),
+            Ok(false)
+        ));
+        assert!(!read.get(), "a decided false stops the reading");
+        assert!(every_holds([&kernel as &dyn Fn() -> _, &after]).is_err());
+        assert!(!read.get(), "a fault stops the reading");
+        assert!(matches!(every_holds([&t as &dyn Fn() -> _, &t]), Ok(true)));
+        assert!(
+            matches!(any_holds([&margin as &dyn Fn() -> _, &t]), Ok(true)),
+            "the run's clause past a margin"
+        );
+        assert!(
+            matches!(
+                any_holds([&kernel as &dyn Fn() -> _, &t]),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "the run's clause never past a fault"
+        );
+        assert!(matches!(any_holds([&f as &dyn Fn() -> _, &f]), Ok(false)));
+    }
+
+    /// **Two coplanar sectors whose bounds are parallel only in band read
+    /// no crescent, where they are not across each other**
+    /// ([`crescent`]): `a`'s start bound a conic, `b`'s start a gray
+    /// angle off it, both sectors on one side of it. The bounds' parallel
+    /// reading is in band, and the across reading decides they are not
+    /// across, which answers the pair `false` alone; every other pair of
+    /// bounds is decided apart or reads no bend. Red against the old
+    /// order, which refused at the parallel reading. The body is never
+    /// read: no pair reaches the coincident-run reading.
+    #[test]
+    fn a_crescent_answers_past_bounds_parallel_in_band() {
+        let band = band_witness();
+        let gray = 0.5 * (band.zero() + band.escalate());
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let plane = crate::bound_side::FaceBend::Plane;
+        let mut a = hand_sector((x, y), z, 1.0, 1, plane);
+        a.start_reach = BoundSupport::Conic {
+            extent: geom_core::test_support::fixture_lever(1.0),
+            bend: ConicBend {
+                curvature: y,
+                bounds: geom_brep::BendBounds::Planar {
+                    least: 1.0,
+                    reach: core::f64::consts::FRAC_PI_2,
+                    rise: 1.0,
+                    arc: 1.0,
+                    lifts_to: core::f64::consts::PI,
+                },
+            },
+            arc: None,
+        };
+        let tilted = Vec3::new(1.0, gray, 0.0).normalize();
+        let b = hand_sector((tilted, y), z, 1.0, 2, plane);
+        assert!(
+            parallel_same_as(x, tilted, a.arm, BOUNDS_PARALLEL, band).is_err(),
+            "the start bounds are parallel only in band"
+        );
+        let body = Body::<f64>::new();
+        let corner = |sector| Corner {
+            body: &body,
+            sectors: core::slice::from_ref(sector),
+            sector,
+        };
+        assert!(
+            matches!(
+                crescent(
+                    corner(&a),
+                    corner(&b),
+                    &crate::boolean::ReductionContacts::default(),
+                    band
+                ),
+                Ok(false)
+            ),
+            "not across: no crescent, past the parallel reading"
+        );
+    }
 
     /// **A bisector's `On` from a tie a slack made refuses typed**: the
     /// tie carries the sign the band decided (`1.5·zero` at `K = 1.4`),

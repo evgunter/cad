@@ -68,7 +68,7 @@
 //! to.
 
 use geom_core::NonzeroSign;
-use geom_core::ladder::{Answering, Rung, climb};
+use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
@@ -1470,28 +1470,82 @@ fn held_cut<T: Decide>(
     // names the second partner of the `SharedVertexCrossings` refusal it
     // raises where neither way mints. A cut read in
     // band is kept by its standing ([`BooleanError::refusal`]), refusing
-    // only where no other cut is held. Each cut's reads are premises of
-    // one another, so they stay inside its rung.
+    // only where no other cut is held. Within a cut, a strut that nests
+    // is not held, and nor is a cut the walk places off the run: two
+    // readings, either answering "not held" ([`unheld_walk`]), the walk
+    // read past a nesting in band; past the walk, `tied_held` reads only
+    // an end the walk tied.
     let holds = |cut: OtherCut<T>| -> Result<bool, BooleanError> {
         let at = cut.at;
-        Ok(
-            if strut && (secs[at.entry].he != secs[lo.entry].he || nested(secs, own, cut, band)?) {
-                false
+        let nests = || {
+            if !strut {
+                Ok(false)
+            } else if secs[at.entry].he != secs[lo.entry].he {
+                // A strut's run lies in its own physical sector, so a cut
+                // in another lies off it, which the walk would say too:
+                // this answers without reading the walk. Every suite
+                // reading that reaches it is such a cut, the walk placing
+                // it off the run (measured, PR 6786), so no row tells the
+                // two apart; the nesting's own rows pin the rest.
+                Ok(true)
             } else {
-                match on_arc(before, [lo, hi], at)? {
-                    [Some(false), _] | [_, Some(false)] => false,
-                    [None, _] => tied_held(secs, (lo, true), hi, cut, band)?,
-                    [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
-                    [Some(true), Some(true)] => true,
-                }
-            },
-        )
+                nested(secs, own, cut, band)
+            }
+        };
+        let Some(walk) = unheld_walk(nests, || on_arc(before, [lo, hi], at))? else {
+            return Ok(false);
+        };
+        Ok(match walk {
+            [None, _] => tied_held(secs, (lo, true), hi, cut, band)?,
+            [_, None] => tied_held(secs, (hi, false), lo, cut, band)?,
+            _ => true,
+        })
     };
     climb(Answering::Any, cuts.iter().copied(), |cut| {
         Rung::holds(holds(cut), cut.owner, BooleanError::refusal)
     })
     .into_reading()
     .and_then(Option::transpose)
+}
+
+/// **A cut's walk, where the cut may be held** ([`held_cut`]): `None`
+/// where it is not, as a ladder over two readings ([`climb`],
+/// [`Answering::Any`]), either answering "not held": the cut a strut
+/// that nests (`nests`), and the walk placing an end of it off the run
+/// (`walk`, an end `Some(false)`). The walk is read only where the
+/// nesting does not answer, and past a nesting in band, which is kept by
+/// its standing ([`BooleanError::refusal`]) and refuses only where the
+/// walk does not place the cut off; a reading whose standing aborts ends
+/// the reading at once. Otherwise the walk's reading, which places no end
+/// off the run.
+fn unheld_walk(
+    nests: impl FnOnce() -> Result<bool, BooleanError>,
+    walk: impl FnOnce() -> Result<[Option<bool>; 2], BooleanError>,
+) -> Result<Option<[Option<bool>; 2]>, BooleanError> {
+    enum Reading {
+        Nests,
+        Walk,
+    }
+    let (mut nests, mut walk) = (Some(nests), Some(walk));
+    let mut walked = None;
+    let climbed = climb(Answering::Any, [Reading::Nests, Reading::Walk], |reading| {
+        let off = match reading {
+            Reading::Nests => nests.take().map_or(Ok(false), |nests| nests()),
+            Reading::Walk => match walk.take() {
+                Some(walk) => walk().map(|at| {
+                    walked = Some(at);
+                    at.contains(&Some(false))
+                }),
+                None => Ok(false),
+            },
+        };
+        Rung::holds(off, (), BooleanError::refusal)
+    });
+    match climbed {
+        Climb::Answered { answer, .. } => answer.map(|()| None),
+        Climb::Undecided(e) => Err(e),
+        Climb::Passed => Ok(walked),
+    }
 }
 
 /// Whether `cut`'s run is a strut that the strut segment `own` holds
@@ -2784,6 +2838,65 @@ fn mint_run<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **A cut the walk places off the run is not held, past a nesting
+    /// read in band, never past a fault** ([`unheld_walk`]): either
+    /// reading answers "not held" alone. A nesting in band refuses only
+    /// where the walk places neither end off; a nesting that holds
+    /// answers without the walk, which is not read; a fault in the
+    /// nesting ends the reading, the walk unread. Red against a hand-rolled
+    /// reading that answers past any refusal of the nesting.
+    #[test]
+    fn a_walk_off_the_run_answers_past_a_nesting_in_band_never_past_a_fault() {
+        let diag = crate::validate::decide(
+            "bool_sector_crescent",
+            geom_core::Margin::of(5e-9),
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .expect_err("mid-band");
+        let in_band = || {
+            Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            ))
+        };
+        let fault = || {
+            Err(BooleanError::ClassificationInvariant {
+                what: "a planted fault",
+            })
+        };
+        let off = || Ok([Some(true), Some(false)]);
+        let on = || Ok([Some(true), Some(true)]);
+        let unread =
+            || -> Result<[Option<bool>; 2], BooleanError> { unreachable!("the walk is read") };
+        assert!(
+            matches!(unheld_walk(in_band, off), Ok(None)),
+            "past a nesting in band"
+        );
+        assert!(
+            matches!(unheld_walk(in_band, on), Err(e) if e.refusal().is_ok()),
+            "the walk holds it"
+        );
+        assert!(
+            matches!(
+                unheld_walk(fault, unread),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "never past a fault, the walk unread"
+        );
+        assert!(
+            matches!(unheld_walk(|| Ok(true), unread), Ok(None)),
+            "a nested strut, the walk unread"
+        );
+        assert!(
+            matches!(
+                unheld_walk(|| Ok(false), on),
+                Ok(Some([Some(true), Some(true)]))
+            ),
+            "no nesting: the walk's"
+        );
+    }
     use geom_core::Tol;
 
     /// **`strut_facing`'s vote table.** `he_plus` lies beside the
