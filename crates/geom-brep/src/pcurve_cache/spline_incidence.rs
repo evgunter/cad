@@ -296,9 +296,9 @@ impl<'a, T: Decide> Net<'a, T> {
         let (control, weights) = (chart.control(), chart.weights());
         let (lo, hi) = shadow_box(control);
         let centre = Vec3::new(
-            T::from_computed(lo[0] + (hi[0] - lo[0]) * 0.5),
-            T::from_computed(lo[1] + (hi[1] - lo[1]) * 0.5),
-            T::from_computed(lo[2] + (hi[2] - lo[2]) * 0.5),
+            T::from_computed(geom_core::bracket_mid((lo[0], hi[0]))),
+            T::from_computed(geom_core::bracket_mid((lo[1], hi[1]))),
+            T::from_computed(geom_core::bracket_mid((lo[2], hi[2]))),
         );
         // Moved about the centre and out to homogeneous form: the
         // difference and the product round each coordinate by `u` of it.

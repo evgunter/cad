@@ -141,7 +141,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
             edge_end_point(body, ek, edge.he_plus, "he_plus"),
             edge_end_point(body, ek, edge.he_minus, "he_minus"),
         );
-        if carrier.as_line().is_some() {
+        if super::edge_line(body, ek).is_some() {
             segments.push(ends);
         } else if let Some(conic) = carrier.conic() {
             depths.push(Proposed {
