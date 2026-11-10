@@ -96,8 +96,11 @@
 //!   [`SelfTouch::SecondOrder`]) — a cone's apex or a vertex in the band
 //!   of its axis, a cusp corner whose edges' bends do not part it, a horn
 //!   beside a sheet along its ray or a ring of horns that reads as no
-//!   thorn, a spline face held off a corner, a face whose foot normal,
-//!   reach or corner face does not read, a curved edge with no certified
+//!   thorn, a spline face held off a corner, a face whose foot normal
+//!   or reach does not read, a spline corner face on a placeholder chart
+//!   or with no certified curve or pcurve there (a spline corner on a
+//!   crease reads its sector's side, or refuses by the crease's
+//!   standing; it is not left here), a curved edge with no certified
 //!   curve, sheets along a tied ray that one order down meet or do not
 //!   part, a curved sheet holding a tied ray inside it, two whole tangent
 //!   planes on one plane, or sectors read lying on each other (two
@@ -337,10 +340,10 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
 use crate::boolean::{
     ContactKind, ContactRecords, ContainError, FaceContainment, SolidContainment, contfp,
 };
+use crate::boxes::{edge_box, face_box, sweep_pad};
 use crate::chart_region::{ChartRegionError, RegionLane};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::face_normal::NormalAbort;
@@ -4113,13 +4116,16 @@ fn pierce_inside<T: Decide>(
 /// point `s` of `S`, stands within `g = h + ε` of `s`, and a boundary
 /// vertex over `S` has its foot on `S`'s line within `σg` of `s`. So
 /// `b` stands within `g·(1 + σ) + ε` of `S` along any path below. That
-/// reach, `g·(1 + σ)` charged its rounding, is read within `Kε` first:
-/// through the magnitude door at the band `[(K − 1)ε, Kε]`
+/// reach, `g·(1 + σ)` charged its rounding, is read within `Kε` through
+/// the magnitude door at the band `[(K − 1)ε, Kε]`
 /// (`pm_census_ef_pierce_height`, its straddle `…_height_straddle`), at
-/// most `(K − 1)ε` or refused. Past `Kε`, a boundary point over `S`
-/// could read apart from it.
+/// most `(K − 1)ε` or not clear; past `Kε`, a boundary point over `S`
+/// could read apart from it. That reading is the ladder's first rung, so
+/// an undecided height is kept, and a member meeting `S` still answers
+/// past it.
 ///
-/// Then no boundary vertex lies on `S`'s interior
+/// The members, every one read whatever an earlier one read: no boundary
+/// vertex lies on `S`'s interior
 /// ([`on_edge_interior_reading`]), no line boundary edge's interior meets
 /// `S`'s ([`interiors_meet`]), and every other boundary edge stands
 /// clear of `S` (below).
@@ -7937,13 +7943,6 @@ impl TouchUnread {
                 "; otherwise ",
                 until_apart!()
             ),
-            Self::Curved(CurvedUnread::Crease) => concat!(
-                "they touch at a corner of a spline face that sits on a crease of its \
-                 surface, and the check cannot yet tell which side each is on. ",
-                designed_contact!(),
-                "; otherwise ",
-                until_apart!()
-            ),
             Self::Curved(CurvedUnread::NoSectorArm) => concat!(
                 "they touch at a corner of a face whose kind of surface the check cannot \
                  yet read at a corner. ",
@@ -8057,12 +8056,6 @@ impl TouchUnread {
             Self::Curved(CurvedUnread::NoTangentPlane) => concat!(
                 "a face meeting the point has no tangent plane there (a cone's apex, or a \
                  point on a surface's axis), so no side reads. ",
-                geom_core::not_yet_ending!(),
-                " for this shape"
-            ),
-            Self::Curved(CurvedUnread::Crease) => concat!(
-                "the point is a corner of a spline face on a crease of its surface, where \
-                 the check cannot yet read which side material lies on. ",
                 geom_core::not_yet_ending!(),
                 " for this shape"
             ),
@@ -8652,9 +8645,11 @@ enum SelfTouch {
     /// its ray or a ring of horns that reads as no thorn, a spline face
     /// held off a corner, a face whose normal at the foot or whose reach
     /// does not read, a corner face [`crate::sector_face::resolve`]
-    /// refuses (a crease, a surface with no sector arm, a spline edge not
-    /// placed: [`crate::CurvedUnread::Crease`], [`crate::CurvedUnread::NoSectorArm`],
-    /// [`crate::CurvedUnread::Unplaced`]), a curved edge with no certified curve, sheets along a
+    /// refuses (a surface with no sector arm, a spline edge not placed:
+    /// [`crate::CurvedUnread::NoSectorArm`], [`crate::CurvedUnread::Unplaced`];
+    /// a spline corner on a crease reads the normal on its sector's side,
+    /// and one the band cannot read refuses the reading by the crease's
+    /// standing, not here), a curved edge with no certified curve, sheets along a
     /// tied ray that one order down meet or do not part, a curved sheet
     /// holding such a ray inside it, or two whole tangent planes on one
     /// plane (two kissing balls at any pose included). A sign one order
@@ -8977,11 +8972,12 @@ impl<T: Decide> Link<T> {
     /// the link keeps beside its sectors ([`Link::of_tangent`]). A face
     /// with no tangent plane at the point (a cone's apex, or a vertex in
     /// the band of its axis: [`crate::CurvedUnread::NoTangentPlane`]), a corner
-    /// face [`crate::sector_face::resolve`] refuses (its named cause), a
-    /// cusp corner its bends do not part, a spline face held anywhere but
-    /// a corner, a curved edge with no certified curve, or a face whose
-    /// normal or reach does not read is [`crate::CurvedUnread::Unreadable`] or
-    /// that named cause, one control ([`TouchUnread::curved_unread`]); a
+    /// face [`crate::sector_face::resolve`] refuses (its named cause; a
+    /// corner on a crease is read on its sector's side), a cusp corner its
+    /// bends do not part, a spline face held anywhere but a corner, a
+    /// curved edge with no certified curve, or a face whose normal or reach
+    /// does not read is [`crate::CurvedUnread::Unreadable`] or that named
+    /// cause, one control ([`TouchUnread::curved_unread`]); a
     /// reading of it in band, [`TouchUnread::InBand`].
     fn tangent_of(
         body: &Body<T>,
@@ -9175,11 +9171,12 @@ fn corner_cause(why: &crate::sector_face::SectorFaceError) -> TouchUnread {
     use crate::sector_face::SectorFaceError;
     match why {
         SectorFaceError::ApexUndecided { .. } => TouchUnread::kept(Refusal::of_apex()),
-        // A corner on a spline crease is unread whatever its reading: the
-        // touch at it goes undetected (module docs), which
-        // `work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`
-        // weighs against refusing it by the crease's own standing.
-        SectorFaceError::Crease { .. } => TouchUnread::Curved(CurvedUnread::Crease),
+        // A corner on a spline crease reads the normal on its sector's
+        // side (`sector_face`); a crease that refuses still is an
+        // irregular point, a side the band cannot read or a corner that
+        // may hold both sides of a fold, and refuses by the crease's own
+        // standing: in band, or a limit where decided.
+        SectorFaceError::Crease { reading, .. } => TouchUnread::kept(Refusal::of_crease(*reading)),
         SectorFaceError::Unsupported { .. } => TouchUnread::Curved(CurvedUnread::NoSectorArm),
         SectorFaceError::Unplaced { .. } => TouchUnread::Curved(CurvedUnread::Unplaced),
     }
@@ -9451,7 +9448,7 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// read off the two faces.
 ///
 /// The test is the boolean's narrow phase
-/// ([`crate::boolean::separating::apart_by`]): both faces' covers are
+/// ([`crate::separating::apart_by`]): both faces' covers are
 /// read along the direction, a sphere face's with its pole-side cut
 /// along it ([`crate::cover::face_cover_toward`]), and the pair
 /// clears only on a gap, less both faces' [`sweep_pad`], decided
@@ -9465,7 +9462,7 @@ fn backstop_apart<T: Decide>(
     proposed: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
-    use crate::boolean::separating::{Item, apart_by, planar_axis};
+    use crate::separating::{Item, apart_by, planar_axis};
     let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
         .into_iter()
         .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
@@ -14759,12 +14756,8 @@ mod tests {
                     "{what}, {f:?}: a net poisoned in x bounds its locus on no axis, got {reach:?}"
                 );
                 // The boolean lane's answer for the same net: the poison box.
-                let boxed = crate::boolean::boxes::face_box(
-                    &body,
-                    f,
-                    0.0,
-                    Band::linear(Tol::witness()).unwrap(),
-                );
+                let boxed =
+                    crate::boxes::face_box(&body, f, 0.0, Band::linear(Tol::witness()).unwrap());
                 assert!(
                     [
                         boxed.min_x,
@@ -14846,12 +14839,8 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(|_| true));
-        let b = crate::boolean::boxes::face_box(
-            &body,
-            seeds[0],
-            1e-9,
-            Band::linear(Tol::witness()).unwrap(),
-        );
+        let b =
+            crate::boxes::face_box(&body, seeds[0], 1e-9, Band::linear(Tol::witness()).unwrap());
         eprintln!("[face_box] masquerade box = {b:?}");
         let far = bvh::Aabb::from_points([
             Point3::new(0.0, 100.0, 100.0),
@@ -18798,7 +18787,7 @@ mod torn_reach_rows {
     #[test]
     fn the_cone_window_panics_on_a_torn_curve() {
         let (mut body, face) =
-            crate::boolean::boxes::tests::cone_wall(30.0_f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
+            crate::boxes::tests::cone_wall(30.0_f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
         assert!(reach(&body, face), "the sound cone wall has a reach");
         let edge = body.get_half_edge(first_member(&body, face)).unwrap().edge;
         let curve = body.get_edge(edge).unwrap().curve;
@@ -22689,9 +22678,10 @@ mod corner_cause_rows {
     use crate::sector_face::{ConeApex, SectorFaceError, VertexFace};
 
     /// **[`corner_normal`](super::corner_normal) names each cause of a
-    /// corner left unread**: a cone's apex no tangent plane, a crease a
-    /// crease, a surface with no sector arm and a spline edge not placed
-    /// their own, each the curved reading's abort ([`TouchUnread::Curved`]).
+    /// corner left unread**: a cone's apex no tangent plane, a surface with
+    /// no sector arm and a spline edge not placed their own, each the
+    /// curved reading's abort ([`TouchUnread::Curved`]); a crease refuses
+    /// by its own standing instead.
     /// Red where an arm reverts to another name.
     #[test]
     fn each_corner_cause_is_named_apart() {
@@ -22710,15 +22700,19 @@ mod corner_cause_rows {
             ),
             "a cone's apex"
         );
+        // A crease is no abort: it refuses by its own standing, a limit
+        // where decided and in band where the band cannot read it.
+        let crease = |reading| SectorFaceError::Crease {
+            face,
+            kind: SurfaceKind::Nurbs,
+            reading,
+        };
+        assert_eq!(
+            corner_cause(&crease(Ok(MarginDiag::value(0.0)))),
+            TouchUnread::Unanalysed,
+            "a crease decided"
+        );
         let causes = [
-            (
-                SectorFaceError::Crease {
-                    face,
-                    kind: SurfaceKind::Nurbs,
-                    reading: Ok(MarginDiag::value(0.0)),
-                },
-                CurvedUnread::Crease,
-            ),
             (
                 SectorFaceError::Unsupported {
                     face,

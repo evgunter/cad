@@ -132,6 +132,7 @@ pub mod attach;
 pub mod body;
 pub mod boolean;
 pub(crate) mod bound_side;
+pub(crate) mod boxes;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -224,6 +225,7 @@ mod row_walk_proofs;
 pub mod rows;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
+pub(crate) mod separating;
 pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
@@ -597,10 +599,10 @@ pub mod test_support {
     }
 
     /// The pad a face's reach box takes past the band, and each face's
-    /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
+    /// share of the census's gaps (`boxes::sweep_pad`): the
     /// spelling a test outside this crate reads it by.
     pub fn sweep_pad(band: geom_core::Band) -> f64 {
-        crate::boolean::boxes::sweep_pad(band)
+        crate::boxes::sweep_pad(band)
     }
 
     /// **Restates the surface at `key`** as `surface`: a row that needs

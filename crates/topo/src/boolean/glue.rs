@@ -30,9 +30,10 @@ use geom_core::{Band, Bounds, Decide};
 use super::section_table::SectionTable;
 use super::{
     BooleanError, CarrierVerdict, DeclarationRead, Glue, GluedPair, Operand, PairUnread,
-    TangencyFailure, boxes, carrier_pair_decided, glued_tangency,
+    TangencyFailure, carrier_pair_decided, glued_tangency,
 };
 use crate::body::Body;
+use crate::boxes;
 use crate::entity::FaceKey;
 
 /// **Which operand's description a glued pair keeps** (`docs/DESIGN.md`
@@ -470,7 +471,7 @@ mod region_rows {
         let got = region(&brick::<f64>((0.5, 3.0), (0.0, 1.0), (0.0, 1.0), tol))
             .expect("the boxes overlap");
         // The meet of the two hulls is the overlap `[0.5, 1] × [0, 1]²`.
-        let pad = super::boxes::sweep_pad(band);
+        let pad = crate::boxes::sweep_pad(band);
         let centre = Point3::new(0.75, 0.5, 0.5);
         assert!((got.center() - centre).norm() < 1e-12, "{got:?}");
         let radius = (0.25f64.powi(2) + 2.0 * 0.5f64.powi(2)).sqrt() + pad;

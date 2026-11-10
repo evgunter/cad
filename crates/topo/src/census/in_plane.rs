@@ -51,7 +51,7 @@
 //!   not place, and refuses.
 //!
 //! Either role is tried for each face. An edge pair is apart along a
-//! direction ([`crate::boolean::separating::apart`]): the axis between
+//! direction ([`crate::separating::apart`]): the axis between
 //! their anchors, the world axes, and the directions the pair's faces
 //! propose (`depth_gap::toward`, `depth_gap::across`); the gap is less
 //! both edges' [`sweep_pad`], as a face pair's is. A placement counts only
@@ -68,12 +68,12 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::boolean::boxes::sweep_pad;
-use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
 use crate::boolean::{CurvedPlacement, FaceContainment, face_placement};
+use crate::boxes::sweep_pad;
 use crate::cover::{edge_cover, edge_end_point};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey};
 use crate::live::{BoundaryMember, proven};
+use crate::separating::{Item, apart, planar_axis, world_axes};
 use crate::validate::decide;
 
 /// K name: a vertex's offset from the other face's plane, read by the
