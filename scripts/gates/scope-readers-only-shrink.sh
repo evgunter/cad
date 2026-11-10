@@ -18,10 +18,13 @@
 # base, and refuses any entry the base does not hold: a new reader, a new
 # reason, a new file for one, or a new item.
 #
-# GATE_BASE UNSET IS REFUSED: a record that shrinks against nothing is
-# not held. `run-gates.sh` sets it to the merge base with origin/main
-# when it is unset; ci.yml's `lint` job sets it to the change filter's
-# base.
+# THE BASE, as `gate_base_file` reads it for every pin that only falls:
+# ci.yml's `lint` job sets GATE_BASE to the change filter's base, and
+# `run-gates.sh` sets it to the merge base with origin/main when a local
+# run leaves it unset. An unscoped CI run has no base by design (a
+# one-commit checkout, no origin/main): there the gate says it compared
+# nothing and passes, as the other only-falls gates do. A base that is
+# given but cannot be read is refused.
 #
 # WHAT IT CANNOT SEE: a reader the ledger's needle cannot find and no
 # review lists (the needle's own doc lists those shapes), and a record
@@ -54,10 +57,6 @@ READER
 
 gate() {
   gate_require_file "$LEDGER" "the reader census and its scope ledger"
-  if [ -z "${GATE_BASE:-}" ]; then
-    gate_error "GATE_BASE is unset, so the scope-reader records were not compared with the merge base, and a record that only shrinks against nothing is not held: set GATE_BASE=\$(git merge-base HEAD origin/main) (run-gates.sh does when it is unset)"
-    exit 1
-  fi
   local head base grown absent name new_here=""
   if ! head=$(record_of "$LEDGER"); then
     gate_error "the record reader (python3) failed on $LEDGER, so the records were not read: that is not a pass"
@@ -68,7 +67,10 @@ gate() {
     gate_error "$LEDGER holds no $absent record: a record of scope readers is gone or renamed, so this gate cannot hold it; restore it, or move this gate with it"
     exit 1
   fi
-  gate_base_file "$LEDGER"
+  if ! gate_base_file "$LEDGER"; then
+    gate_ok "the scope-reader records are read (GATE_BASE unset: compared with nothing)"
+    return
+  fi
   if ! base=$(record_of "$GATE_BASE_FILE"); then
     gate_error "the record reader (python3) failed on the base's $LEDGER, so the records were not compared: that is not a pass"
     exit 1
@@ -145,7 +147,8 @@ gate_selftest() {
   export GATE_BASE=refs/gate-base
   gate_selftest_clean
   gate_selftest_without_tool python3 "the record reader (python3) failed"
-  GATE_BASE="" gate_selftest_case "GATE_BASE is unset" plant_nothing
+  GATE_BASE="" gate_selftest_passes "no base given (an unscoped run)" plant_nothing
+  GATE_BASE=refs/no-such-base gate_selftest_case "is not a commit" plant_nothing
   gate_selftest_case "holds no HAND_ROLLED_AT_THE_HOMES_ARRIVAL" plant_absent
   gate_selftest_case "holds no NOT_SCOPE_AT_THE_HOMES_ARRIVAL" plant_one_absent
   gate_selftest_case --also "GREW HAND_ROLLED_AT_THE_HOMES_ARRIVAL c.rs::new" "only shrinks" plant_grown
@@ -155,7 +158,7 @@ gate_selftest() {
   gate_selftest_passes "records that shrank" plant_shrunk
   gate_selftest_passes "records the base does not hold yet" plant_new_here
   gate_selftest_passes "an entry named only in a comment" plant_commented_entry
-  printf '%s selftest OK: passes a clean tree, shrunk records, records the base does not hold yet and a commented name; fires on an unset GATE_BASE, a grown or renamed hand-rolled entry, a grown or re-reasoned NotScope entry and a missing record of either kind, and stays RED when python3 cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, no base given, shrunk records, records the base does not hold yet and a commented name; fires on a base it cannot read, a grown or renamed hand-rolled entry, a grown or re-reasoned NotScope entry and a missing record of either kind, and stays RED when python3 cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
