@@ -1727,8 +1727,8 @@ fn a_ring_a_float_from_fat_keeps_its_floor() {
 }
 
 /// **The torus's charge holds on every family the suites build.** Thin
-/// (`r/R` to 0.1), ordinary and fat (`r/R` from 0.9 to within 1e-5 of
-/// 1) tori, against circles and ellipses on the tube, near the axis and
+/// tori (`r/R` up to 0.1), ordinary ones and fat ones (`r/R` from 0.9 to
+/// within 1e-5 of one), against circles and ellipses on the tube, near the axis and
 /// on the rim, near and far from the origin: the exact excess of the
 /// stored coefficients is within `rounding_charge(terms)`. Over 6000
 /// draws the excess stood at most 0.48 of the charge, in every family
