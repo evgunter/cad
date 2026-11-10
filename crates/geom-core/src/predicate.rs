@@ -2143,6 +2143,14 @@ impl MarginDiag {
         }
     }
 
+    /// The signs the gate that rejected this reading passes, where a gate
+    /// rejected it; `None` for every other reading. With
+    /// [`MarginDiag::rejected_sign`], the whole of the gate's tag.
+    #[must_use]
+    pub fn rejected_passing(self) -> Option<SizedPass> {
+        self.tag().map(|r| r.passes)
+    }
+
     /// The gate's tag, where a gate rejected this reading.
     const fn tag(self) -> Option<Rejection> {
         match self.0 {

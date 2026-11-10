@@ -2,12 +2,13 @@
 id: glue-disagreements-and-held-contradictions-after-stage-4
 kind: unit
 title: after D10 stage 4: type the glue door's disagreements and whatever declared-pair contradiction survives (mints C20-C22, C24, and the 35 held arms)
-status: parked
+status: closed
 opened: 2026-10-10
 priority: P1
 cost: H
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [a-corner-reads-only-its-own-sectors]
+closed: 2026-11-10
+pr: 6693
 refs: [decided-coincidence-carries-a-synthetic-invalid-margin, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid, 4641]
 ---
 
@@ -203,3 +204,13 @@ carries is a choice to weigh once stage 4 has said what survives.
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). SEAL holds the Indeterminate seal and the declared-contact rows in its way; id and body unchanged. (CLEAVE orchestrator)
+
+## Closed (2026-11-10)
+
+The four steps of the design (fork `glue-disagreements-carry`) are closed:
+- `carrier-readings-keep-the-margins-they-decided-on` (PR 6634);
+- `a-reach-straddle-goes-through-the-straddle-door` (PR 6646);
+- `a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted` (PR 6673);
+- `a-corner-reads-only-its-own-sectors` (PR 6693, re-designed by fork `unglued-corner-ending`).
+
+C22 retired with step 4. C24 moved to `the-indeterminate-seal`, which makes `INVALID` crate-private and so owes the public poison reading C24 waits on. That move also clears the seal's wait on this row.
