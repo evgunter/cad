@@ -3348,7 +3348,23 @@ fn support_boundary_clearance<T: Decide + Bounds>(
         }
         let mut cycles = vec![(outer_pieces, true)];
         for &ring in &fd.rings {
-            cycles.push((ring_pieces(body, ring, face, opens, rims)?, false));
+            // A mixed rim reads a ring's ellipse, spiric or NURBS edge
+            // through its certified box, as it reads its outer cycle's; a
+            // rim on one pair keeps `ring_pieces`' refusal of them
+            // (`work/bandmeter/a-ring-of-ellipse-edges-refuses-the-ring-meter.md`).
+            let pieces = if per_link {
+                let walk = loop_walk(body, ring)
+                    .ok_or_else(|| unwalked(EntityId::Loop(ring), "a support face's ring"))?;
+                let mut pieces = Vec::with_capacity(walk.len());
+                for (_, _, edge) in walk {
+                    let (carrier, window) = metered_piece(body, edge, face, opens, rims)?;
+                    pieces.push((edge, carrier, window));
+                }
+                pieces
+            } else {
+                ring_pieces(body, ring, face, opens, rims)?
+            };
+            cycles.push((pieces, false));
         }
         for (cycle, outer) in cycles {
             let margins = cycle

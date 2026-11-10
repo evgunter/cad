@@ -407,25 +407,30 @@ fn arcs(list: &[(P, f64, f64, f64)]) -> Outline {
     )
 }
 
-/// **The shared row's `Interval` touch limit, skipped loudly**: at an ε
-/// other than the default, the contact class of a section's shared row
-/// escalates at `Interval` (`shared_row_touch`), whatever the span (the
-/// limit #6514 pins at the default ε, filed as
-/// `work/select/the-shared-row-contact-class-is-levered-by-the-edges-length.md`).
-/// True, with a SKIPPED line, exactly for that refusal at that scalar and
-/// ε; any other refusal is the row's to fail on.
-pub(crate) fn touch_limit_skip<T>(what: &str, e: &BlendError) -> bool {
-    let interval = core::any::type_name::<T>().contains("Interval");
-    let eps = tol().eps();
-    let other_eps = eps.to_bits() != geom_core::tolerance::DEFAULT_EPS.to_bits();
-    let skip = interval && other_eps && format!("{e:?}").contains("shared_row_touch");
-    if skip {
-        println!(
-            "SKIPPED {what} at ε {eps:e}: a section's shared row escalates its touch at \
-             Interval away from the default ε (the limit #6514 pins there); got {e:?}"
-        );
-    }
-    skip
+/// **The shared row's touch reading at `Interval` at the tightest ε**:
+/// at ε = 1e-12 every mixed rim's section refuses at the certified
+/// scalar, its contact class `shared_row_touch` escalating
+/// (`row_contact`'s touch bound, levered at the edge's extent, encloses
+/// about `[0, 4e-12]`, in that row's band), while it builds at every
+/// other ε, and at `f64` everywhere
+/// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
+/// The rows pin it both ways: at `Interval` and ε = 1e-12 a mixed rim
+/// refuses with exactly that escalation ([`assert_touch_escalation`]),
+/// and anywhere else it builds.
+pub(crate) fn tightest_interval<T>() -> bool {
+    core::any::type_name::<T>().contains("Interval") && tol().eps().to_bits() == 1e-12_f64.to_bits()
+}
+
+/// The refusal [`tightest_interval`] pins: the description pass's
+/// certificate escalating the section's `shared_row_touch`.
+pub(crate) fn assert_touch_escalation(what: &str, e: &BlendError) {
+    let text = format!("{e:?}");
+    assert!(
+        text.contains("surgery contact edge")
+            && text.contains("Escalated { check: Transversality")
+            && text.contains("predicate: Some(\"shared_row_touch\")"),
+        "{what}: at Interval at ε 1e-12 the section's shared row escalates its touch, got {e:?}"
+    );
 }
 
 /// A plate of outline `o`, `z ∈ [0, h]`, every edge filleted at `r`, at
@@ -444,8 +449,17 @@ fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
         T::from_f64(r),
         tol(),
     ) {
-        Ok(out) => out,
-        Err(e) if touch_limit_skip::<T>(what, &e.error) => return None,
+        Ok(out) => {
+            assert!(
+                !tightest_interval::<T>(),
+                "{what}: built where its touch escalates"
+            );
+            out
+        }
+        Err(e) if tightest_interval::<T>() => {
+            assert_touch_escalation(what, &e.error);
+            return None;
+        }
         Err(e) => panic!("{what}: fillets whole, got {:?}", e.error),
     };
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
@@ -722,8 +736,17 @@ fn a_lattice_drawn_rounded_plate_fillets_whole() {
             T::from_f64(r),
             tol(),
         ) {
-            Ok(out) => out,
-            Err(e) if touch_limit_skip::<T>(what, &e.error) => return,
+            Ok(out) => {
+                assert!(
+                    !tightest_interval::<T>(),
+                    "{what}: built where its touch escalates"
+                );
+                out
+            }
+            Err(e) if tightest_interval::<T>() => {
+                assert_touch_escalation(what, &e.error);
+                return;
+            }
             Err(e) => panic!("{what}: fillets whole, got {:?}", e.error),
         };
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
@@ -774,8 +797,17 @@ fn a_lattice_drawn_pockets_mouth_off_the_origin_fillets_whole() {
         });
         assert_eq!(mouth.len(), 8, "{what}: the mouth");
         let out = match fillet_edges(&at_rest(&pocket, tol()), &mouth, T::from_f64(r), tol()) {
-            Ok(out) => out,
-            Err(e) if touch_limit_skip::<T>(what, &e.error) => return,
+            Ok(out) => {
+                assert!(
+                    !tightest_interval::<T>(),
+                    "{what}: built where its touch escalates"
+                );
+                out
+            }
+            Err(e) if tightest_interval::<T>() => {
+                assert_touch_escalation(what, &e.error);
+                return;
+            }
             Err(e) => panic!("{what}: fillets whole, got {:?}", e.error),
         };
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
@@ -795,5 +827,195 @@ fn a_lattice_drawn_pockets_mouth_off_the_origin_fillets_whole() {
     for r in [0.05, 0.14] {
         row::<f64>(&format!("lattice mouth, r = {r}"), r);
         row::<Interval>(&format!("lattice mouth at Interval, r = {r}"), r);
+    }
+}
+
+/// The plate of outline `o`, every edge filleted at `r`, at `f64`:
+/// `Ok` with the tier-3 check, Pappus and membership of [`plate_check`],
+/// or the refusal.
+fn plate_try(what: &str, o: &Outline, r: f64) -> Result<(), BlendError> {
+    let body = prism::<f64>(o, 0.0, 0.5);
+    match fillet_edges(&at_rest(&body, tol()), &every_edge(&body), r, tol()) {
+        Ok(_) => {
+            plate_check(what, o, 0.5, r);
+            Ok(())
+        }
+        Err(e) => Err(e.error),
+    }
+}
+
+/// **R1's adversarial outlines** (PR 6520's review): an L whose reflex
+/// corner is a small concave arc, a dog-bone whose neck the two rims'
+/// bands overlap past a radius, and a pinched outline whose two waists
+/// do. Each builds exact where its bands fit and refuses typed where
+/// they overlap.
+#[test]
+fn adversarial_outlines_build_where_their_bands_fit_and_refuse_where_they_overlap() {
+    let l = |rr: [f64; 6]| {
+        rounded(
+            &[
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 1.0),
+                (1.0, 1.0),
+                (1.0, 2.0),
+                (0.0, 2.0),
+            ],
+            &rr,
+            &[0.0; 6],
+        )
+    };
+    let dog = rounded(
+        &[
+            (-2.0, -1.0),
+            (-1.0, -1.0),
+            (-1.0, -0.1),
+            (1.0, -0.1),
+            (1.0, -1.0),
+            (2.0, -1.0),
+            (2.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 0.1),
+            (-1.0, 0.1),
+            (-1.0, 1.0),
+            (-2.0, 1.0),
+        ],
+        &[
+            0.3, 0.3, 0.05, 0.05, 0.3, 0.3, 0.3, 0.3, 0.05, 0.05, 0.3, 0.3,
+        ],
+        &[0.0; 12],
+    );
+    let pinched = rounded(
+        &[
+            (-1.0, -0.6),
+            (-0.3, -0.6),
+            (0.0, -0.1),
+            (0.3, -0.6),
+            (1.0, -0.6),
+            (1.0, 0.6),
+            (0.3, 0.6),
+            (0.0, 0.1),
+            (-0.3, 0.6),
+            (-1.0, 0.6),
+        ],
+        &[0.35, 0.35, 0.05, 0.35, 0.35, 0.35, 0.35, 0.05, 0.35, 0.35],
+        &[0.0; 10],
+    );
+    // `None` builds; `Some(m)` refuses at the support screen with margin
+    // `m`: the dog-bone's neck is 0.2 across against two setbacks of
+    // 0.12, an overlap of exactly 0.04; the pinched waists read theirs
+    // at the screen's closest samples.
+    let rows: Vec<(&str, Outline, f64, Option<f64>)> = vec![
+        (
+            "L, corners 0.45, reflex 0.1, r 0.2",
+            l([0.45, 0.45, 0.45, 0.1, 0.45, 0.45]),
+            0.2,
+            None,
+        ),
+        (
+            "L, corners 0.3, reflex 0.1, r 0.12",
+            l([0.3, 0.3, 0.3, 0.1, 0.3, 0.3]),
+            0.12,
+            None,
+        ),
+        ("dog-bone, r 0.08", dog.clone(), 0.08, None),
+        ("dog-bone, r 0.12", dog, 0.12, Some(-0.04)),
+        ("pinched, r 0.13", pinched.clone(), 0.13, None),
+        (
+            "pinched, r 0.16",
+            pinched,
+            0.16,
+            Some(-0.025_634_936_838_49),
+        ),
+    ];
+    for (what, o, r, overlap) in rows {
+        match (plate_try(what, &o, r), overlap) {
+            (Ok(()), None) => {}
+            (Err(BlendError::FaceClearanceUncertified { margin, .. }), Some(m)) => {
+                let read = margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .expect("a definite reading");
+                assert!(
+                    (read - m).abs() < 1e-9,
+                    "{what}: refuses at {read}, not {m}"
+                );
+            }
+            (got, want) => panic!("{what}: got {got:?}, want the overlap {want:?}"),
+        }
+    }
+}
+
+/// **Holes at a corner arc's wedge**: the top-right arc (centre
+/// `(0.7, 0.3)`, `R = 0.3`) at `r = 0.05` takes the annulus `0.25…0.3`
+/// within its quarter turn off the cap. A radius-0.02 hole inside the
+/// wedge, and just outside it on either side, each half a hundredth
+/// clear of the strips and half a hundredth into them: clear builds,
+/// overlapping refuses.
+#[test]
+fn holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping() {
+    let (r, hr) = (0.05, 0.02);
+    let o = rect(1.0, 0.6, [0.3; 4]);
+    for (deg, rad) in [
+        (45.0_f64, 0.25 - hr - 0.005),
+        (45.0, 0.25 - hr + 0.005),
+        (-5.0, 0.225),
+        (-5.0, 0.235),
+        (95.0, 0.225),
+        (95.0, 0.235),
+        (180.0, 0.275),
+    ] {
+        let at = (
+            0.7 + rad * deg.to_radians().cos(),
+            0.3 + rad * deg.to_radians().sin(),
+        );
+        let clear = o.sd(at) - hr - r;
+        let what = format!("hole at {deg}°, {rad:.3} out (clear {clear:.4})");
+        let (_, body) = holed_plate(at, hr);
+        let rim = rim_where(&body, 0.5, |p| o.sd((p.x, p.y)).abs() < 1e-9);
+        let got = fillet_edges(&at_rest(&body, tol()), &rim, r, tol());
+        println!(
+            "{what}: {:?}",
+            got.as_ref().map(|_| ()).map_err(|e| &e.error)
+        );
+        match got {
+            Ok(out) => {
+                assert!(clear > 0.0, "{what}: overlaps a strip and built");
+                validate_geometric(&out.body, tol())
+                    .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+                let (va, wa) = volume(&body);
+                let (vb, wb) = volume(&out.body);
+                let truth = o.pappus(r, true);
+                assert!(
+                    ((va - vb) - truth).abs() <= wa + wb + 1e-12,
+                    "{what}: ΔV {} is Pappus's {truth}",
+                    va - vb
+                );
+            }
+            Err(e) => {
+                assert!(clear < 0.0, "{what}: clear and refused, got {:?}", e.error);
+                let BlendError::FaceClearanceUncertified { margin, .. } = e.error else {
+                    panic!("{what}: refuses at the support screen, got {:?}", e.error);
+                };
+                // Inside the wedge the screen reads the exact overlap; at
+                // its edges its closest samples read less of it.
+                let read = margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .expect("a definite reading");
+                assert!(
+                    read < 0.0 && read >= clear - 1e-9,
+                    "{what}: refuses at {read}"
+                );
+                if (deg - 45.0).abs() < 1e-12 {
+                    assert!(
+                        (read - clear).abs() < 1e-9,
+                        "{what}: at the exact overlap {clear}"
+                    );
+                }
+            }
+        }
     }
 }

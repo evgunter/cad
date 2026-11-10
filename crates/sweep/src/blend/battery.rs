@@ -3563,6 +3563,16 @@ fn consumption_sweep<T: Decide + Bounds>(
 /// carrier of another kind turns a half turn, so it joins nothing. The
 /// sum is read for selection only: a sum not certainly below the half
 /// turn leaves the pair to the screen.
+///
+/// **What it rests on: the spine bound `r < ρ/2`** that predicate 3
+/// (spine regularity) enforces on every arc of radius `ρ`, so no spindle
+/// torus is built. A
+/// link's band then lies within its own window, the slab between a
+/// straight link's end normals or the wedge of an arc's, and windows of
+/// links joined by a run turning less than a half turn lie on either
+/// side of it. A spindle torus's band would reach back across its own
+/// wedge's planes, and two such windows could meet; admitting spindle
+/// tori would take this argument's margin away.
 fn closed_chain_apart<T: Decide + Bounds>(
     body: &Body<T>,
     chains: &[Chain<T>],

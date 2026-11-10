@@ -20,6 +20,7 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
+use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_interval};
 use crate::common::interval::iv;
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
@@ -124,8 +125,15 @@ fn plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     let body = plate::<T>(0.0, 0.0, 0.0, H);
     let edges = every_edge(&body);
     let out = match fillet_edges(&at_rest(&body, tol()), &edges, size, tol()) {
-        Ok(out) => out,
-        Err(e) if crate::band_closed_mixed_chain_shapes::touch_limit_skip::<T>(what, &e.error) => {
+        Ok(out) => {
+            assert!(
+                !tightest_interval::<T>(),
+                "{what}: built where its touch escalates"
+            );
+            out
+        }
+        Err(e) if tightest_interval::<T>() => {
+            assert_touch_escalation(what, &e.error);
             return;
         }
         Err(e) => panic!("{what}: the rounded plate fillets whole, got {e:?}"),
