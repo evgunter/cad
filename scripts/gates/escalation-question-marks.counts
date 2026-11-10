@@ -25,10 +25,14 @@ crates/topo/src/splitting/join.rs 1
 # reduce: the line-cone apex end: WHICH, the end is the root whose spread
 # is read next (place_off ruling; the site says so).
 crates/topo/src/boolean/reduce.rs 1
-# offset_derive: nearest's comparison, an argmin whose in-band comparison
-# leaves the minimum open unless a later candidate is decided nearer than
-# both (work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md).
-crates/topo/src/offset_derive.rs 1
+# offset_derive and link: one step each of geom_brep::ladder::argmin_decided
+# (the comparison's ? in its order closure, and the step's own), an argmin
+# whose in-band comparison leaves the minimum open unless a later candidate
+# is decided nearer than both
+# (work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md):
+# offset_derive's nearest, link's piece-end turn fold.
+crates/topo/src/link.rs 1
+crates/topo/src/offset_derive.rs 2
 # edge_join: joinable's chart-class read over the two surfaces: WHICH,
 # the carrying surface is in the locus compared (place_off ruling; the
 # site says so).

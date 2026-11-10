@@ -2255,8 +2255,9 @@ fn rotational_sense<T: Decide>(
 /// at and the match it names.
 type Met<T> = (usize, PartnerDistance<T>, (Slot, Slot));
 
-/// The nearer of the incumbent `best` and `cand` under `nearer`; the
-/// incumbent keeps a tie (deterministic scan order, D9).
+/// The nearer of the incumbent `best` and `cand` under `nearer`, one
+/// step of the decided argmin ([`geom_brep::ladder::argmin_decided`]):
+/// the incumbent keeps a tie (deterministic scan order, D9).
 fn keep_nearer<T, M>(
     best: Option<(PartnerDistance<T>, M)>,
     cand: (PartnerDistance<T>, M),
@@ -2265,10 +2266,15 @@ fn keep_nearer<T, M>(
 where
     T: geom_core::Real,
 {
-    Ok(Some(match best {
-        Some(b) if !nearer(cand.0, b.0)? => b,
-        _ => cand,
-    }))
+    use geom_brep::ladder::{Nearer, argmin_decided};
+    let order = |c: &(PartnerDistance<T>, M), b: &(PartnerDistance<T>, M)| {
+        Ok::<_, BooleanError>(if nearer(c.0, b.0)? {
+            Nearer::Candidate
+        } else {
+            Nearer::Incumbent
+        })
+    };
+    Ok(Some(argmin_decided(best, cand, order)?.keep_incumbent()))
 }
 
 /// `scanjoin`, germ form (module docs): among all candidate/entry slot

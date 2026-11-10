@@ -23,6 +23,7 @@ use std::collections::BTreeMap;
 
 use geom_brep::ChartedNurbs;
 use geom_brep::SectionReading;
+use geom_brep::ladder::{Nearer, argmin_decided};
 use geom_brep::ssi::{
     BoundarySection, ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain, SsiError,
 };
@@ -616,18 +617,21 @@ fn nearest<T: Decide>(
                 what: "a closed-form section whose carrier has no closed-form parameter",
             }));
         };
-        best = match best {
-            None => Some((c, r)),
-            Some((b, rb)) => match decide("offset_section_branch", Margin::of(rb - r), band)? {
-                Sign::Positive => Some((c, r)),
-                Sign::Negative => Some((b, rb)),
-                Sign::Zero => {
-                    return Ok(Err(SectionVerdict::Unsupported {
-                        what: "two branches of the section lie equally near the edge",
-                    }));
-                }
-            },
+        let nearer = |c: &(Curve3<T>, T), b: &(Curve3<T>, T)| {
+            Ok(
+                match decide("offset_section_branch", Margin::of(b.1 - c.1), band)? {
+                    Sign::Positive => Nearer::Candidate,
+                    Sign::Negative => Nearer::Incumbent,
+                    Sign::Zero => Nearer::Tie,
+                },
+            )
         };
+        let Some(kept) = argmin_decided(best, (c, r), nearer)?.refuse_tie() else {
+            return Ok(Err(SectionVerdict::Unsupported {
+                what: "two branches of the section lie equally near the edge",
+            }));
+        };
+        best = Some(kept);
     }
     Ok(best.map(|(c, _)| c).ok_or(SectionVerdict::NoBranch))
 }

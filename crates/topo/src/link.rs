@@ -78,7 +78,7 @@
 //! other reading takes such a link ([`rest::judge`] and
 //! [`rest::by_round`] refuse it).
 
-use geom_brep::ladder::{Aborts, Answering, Climb, Refusal, Rung, climb};
+use geom_brep::ladder::{Aborts, Answering, Climb, Nearer, Refusal, Rung, argmin_decided, climb};
 
 use crate::validate::EdgeTangentUnread;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -1177,10 +1177,14 @@ pub(crate) fn face_piece<T: Decide>(
                 if item.0 == Turn::Ahead {
                     continue;
                 }
-                best = match best {
-                    Some(b) if order(item, b)? != Less => Some(b),
-                    _ => Some(item),
+                let nearer = |c: &(Turn, Point3<T>), b: &(Turn, Point3<T>)| {
+                    Ok(match order(*c, *b)? {
+                        Less => Nearer::Candidate,
+                        Equal => Nearer::Tie,
+                        Greater => Nearer::Incumbent,
+                    })
                 };
+                best = Some(argmin_decided(best, item, nearer)?.keep_incumbent());
             }
             best.map(|b| b.1)
         }

@@ -1,7 +1,7 @@
 ---
 id: an-argmin-by-decided-comparison-is-spelled-three-ways
 kind: issue
-title: The nearest of several candidates by decided comparisons is spelled three ways (join::keep_nearer, offset_derive::nearest, link's turn fold), and none says what an in-band comparison leaves of the minimum
+title: The decided argmin (geom_brep::ladder::argmin_decided) refuses at its first in-band comparison; what an in-band comparison leaves of the minimum, and each site's tie rule, is open
 status: open
 opened: 2026-11-09
 priority: P3
@@ -52,3 +52,25 @@ refuse). Port the three folds onto it. Then decide, per site, whether
 the set rule above is the one it wants. That is a design question, for
 the design-fork procedure before anyone builds it. Until then
 `offset_derive::nearest`'s `?` stays registered with this row cited.
+
+## Narrowed by `onecopy/argmin-and-leftovers` (2026-11-10)
+
+The one home exists: `geom_brep::ladder::argmin_decided`, one step of
+an argmin over a decided order (`Nearer::{Candidate, Incumbent, Tie}`),
+whose `Step` each site resolves by a named tie rule
+(`Step::keep_incumbent`, `Step::refuse_tie`). The three folds read it
+with every outcome unchanged:
+
+- `join::keep_nearer` is its adapter for `PartnerDistance`: keep the
+  incumbent.
+- `link`'s piece-end turn fold: keep the incumbent (`Equal` is a tie).
+- `offset_derive::nearest`: refuse a tie, as `Unsupported`.
+
+Each step still refuses at its first comparison that does not decide.
+That is today's semantics, which the door keeps.
+
+**What remains** is the design question above: what an argmin's kept
+reading is (the in-contention set and its rule), and which tie rule
+each site wants. It is at the designers. Its ruling lands as a change
+to `argmin_decided` alone. Until then the steps' `?`s stay registered
+in `escalation-question-marks.counts`, citing this row.

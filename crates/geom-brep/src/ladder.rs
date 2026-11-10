@@ -972,6 +972,90 @@ impl<E> Evidence<E> {
     }
 }
 
+/// **A candidate's decided order against the incumbent nearest**, the
+/// one comparison [`argmin_decided`] folds: the candidate is nearer, the
+/// incumbent is, or the two are decided equally near.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Nearer {
+    /// The candidate is decided nearer.
+    Candidate,
+    /// The incumbent is decided nearer.
+    Incumbent,
+    /// The two are decided equally near.
+    Tie,
+}
+
+/// **One step of an argmin over decided comparisons**: the nearer of the
+/// incumbent and a candidate, or the tie between them, resolved by the
+/// caller's tie rule ([`Step::keep_incumbent`], [`Step::refuse_tie`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[must_use]
+pub enum Step<C> {
+    /// The nearer of the two, or the candidate where there was no
+    /// incumbent.
+    Nearest(C),
+    /// The two were decided equally near.
+    Tied {
+        /// The incumbent.
+        incumbent: C,
+        /// The candidate.
+        candidate: C,
+    },
+}
+
+impl<C> Step<C> {
+    /// The tie rule **keep the incumbent**: a tie keeps the one met
+    /// first, the deterministic scan order (D9).
+    pub fn keep_incumbent(self) -> C {
+        match self {
+            Self::Nearest(c) | Self::Tied { incumbent: c, .. } => c,
+        }
+    }
+
+    /// The tie rule **refuse a tie**: `None` where the two were decided
+    /// equally near, for the caller to refuse as its own.
+    #[must_use]
+    pub fn refuse_tie(self) -> Option<C> {
+        match self {
+            Self::Nearest(c) => Some(c),
+            Self::Tied { .. } => None,
+        }
+    }
+}
+
+/// **One step of an argmin over decided comparisons**: `candidate`
+/// against the nearest so far, `incumbent`, by `order` (the candidate's
+/// [`Nearer`] order against the incumbent, `order(candidate, incumbent)`).
+/// The first candidate is the nearest with nothing to compare. The caller
+/// folds its candidates through it in its own scan order and resolves
+/// each step by its tie rule ([`Step`]).
+///
+/// A comparison `order` cannot decide refuses by its `Err`, at once:
+/// what an undecided comparison leaves of the minimum is
+/// `work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md`'s
+/// open question.
+///
+/// # Errors
+///
+/// Whatever `order` refuses with.
+pub fn argmin_decided<C, E>(
+    incumbent: Option<C>,
+    candidate: C,
+    order: impl FnOnce(&C, &C) -> Result<Nearer, E>,
+) -> Result<Step<C>, E> {
+    let Some(incumbent) = incumbent else {
+        return Ok(Step::Nearest(candidate));
+    };
+    Ok(match order(&candidate, &incumbent)? {
+        Nearer::Candidate => Step::Nearest(candidate),
+        Nearer::Incumbent => Step::Nearest(incumbent),
+        Nearer::Tie => Step::Tied {
+            incumbent,
+            candidate,
+        },
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
@@ -1467,5 +1551,45 @@ mod tests {
         e.in_band(1);
         e.blocked(4);
         assert_eq!(rank(e), (1, 3), "the first limit");
+    }
+
+    /// **One argmin step answers each decided order, under each tie
+    /// rule**: the candidate or the incumbent where one is decided
+    /// nearer, the incumbent kept or the step refused on a tie, the first
+    /// candidate taken with nothing to compare, and a comparison that
+    /// does not decide refused as itself.
+    #[test]
+    fn an_argmin_step_reads_its_order_and_its_tie_rule() {
+        use super::{Nearer, Step, argmin_decided};
+        let step = |order: Nearer| {
+            argmin_decided(Some("incumbent"), "candidate", |_, _| Ok::<_, ()>(order))
+                .expect("a decided order")
+        };
+        for (order, kept, refused) in [
+            (Nearer::Candidate, "candidate", Some("candidate")),
+            (Nearer::Incumbent, "incumbent", Some("incumbent")),
+            (Nearer::Tie, "incumbent", None),
+        ] {
+            assert_eq!(step(order).keep_incumbent(), kept, "{order:?} kept");
+            assert_eq!(step(order).refuse_tie(), refused, "{order:?} refused");
+        }
+        assert_eq!(
+            argmin_decided(None, "first", |_, _| Err::<Nearer, _>("never asked")),
+            Ok(Step::Nearest("first")),
+            "the first candidate is nearest with nothing to compare"
+        );
+        assert_eq!(
+            argmin_decided(Some("incumbent"), "candidate", |_, _| Err::<Nearer, _>(
+                "in band"
+            )),
+            Err("in band"),
+            "an undecided comparison refuses"
+        );
+        let mut asked = None;
+        let _ = argmin_decided(Some(1), 2, |c, b| {
+            asked = Some((*c, *b));
+            Ok::<_, ()>(Nearer::Tie)
+        });
+        assert_eq!(asked, Some((2, 1)), "the order is asked candidate first");
     }
 }
