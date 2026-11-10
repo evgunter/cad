@@ -6,7 +6,7 @@ status: closed
 opened: 2026-11-09
 closed: 2026-11-10
 pr: 6705
-refs: [6598, two-ops-placements-state-a-carrier-held-premise-unheld]
+refs: [6598, 6689, two-ops-placements-state-a-carrier-held-premise-unheld]
 ---
 
 
