@@ -15,8 +15,8 @@
 
 use super::metric::{self, Departure, Distance, Reading};
 use super::{
-    Band, Bound, Decide, LINK_PLANE, LINK_SECOND_ORDER, Link, Material, Place, Point3, Sign,
-    TouchUnread, Vec3, ahead, wedge_side,
+    Band, Bound, CurvedUnread, Decide, LINK_PLANE, LINK_SECOND_ORDER, Link, Material, Place,
+    Point3, Sign, TouchUnread, Vec3, ahead, wedge_side,
 };
 use crate::entity::EdgeKey;
 use geom_core::Lever;
@@ -98,12 +98,12 @@ pub(super) fn cusp<T: Decide>(
 /// sheet of the cone comes near the ray, and the region round the
 /// polygon winds one less than inside it for a thorn, one more for a
 /// needle. Two cycles must lie on rays decidedly apart. Anything else
-/// is [`TouchUnread::Unreadable`]: a horn beside a sector along its ray,
+/// is [`crate::CurvedUnread::Unreadable`]: a horn beside a sector along its ray,
 /// a ring of two horns (no vertex off a side), a polygon the band does
 /// not part.
 pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), TouchUnread> {
     let (p, horns) = (link.cone.p, &link.horns);
-    let unread = TouchUnread::Unreadable;
+    let unread = TouchUnread::Curved(CurvedUnread::Unreadable);
     let along = |d: Vec3<T>, l: T| p + d.normalize() * l;
     // Each horn's next: the horn whose edge out is this one's edge back
     // in, along the same ray.

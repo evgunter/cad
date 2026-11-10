@@ -2,9 +2,12 @@
 id: funnel-row-bundles-have-no-cross-reader-roster
 kind: issue
 title: The funnel's other row bundles (SubdivisionRows, QuarticRows, HalfAngleRows, ...) are built field by field by each reader, and nothing checks their names across readers
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
+closed: 2026-11-10
+branch: onecopy/funnel-bundles
+pr: 6723
 ---
 
 
@@ -58,3 +61,20 @@ Pick one:
 
 The second covers plain sites too, but needs the ledger to say which rows
 are shared on purpose.
+
+## Closed
+
+PR 6723. Every crate that mints row bundles holds them in one registry: `geom::rows`, `geom_brep::rows`, `topo::rows`, `sweep::rows`.
+
+- The bundle types' fields and constructors are private to the registry, so no reader builds one field by field.
+- Every reader's bundle is a `const` given to `geom_core::row_registry!`, which derives the crate's `ROSTER` from exactly those consts and fails the build on a shared name.
+- geom's roster is read off its reader enums.
+- editor-core's `every_predicate_name_is_minted_once_tree_wide` walks all four rosters together.
+
+topo's `ConicRows` (a `TurnRows` with two names of its reader's own) and check 7's `RoleNames` are registered bundles. Still unregistered, as wrappers of a name minted elsewhere:
+- `geom_core::period::TurnRows::exact` / `::bounded` called with a passed-in name;
+- `RoleNames::one`;
+- `SignNames`;
+- `half_angle::RootSlack`'s `row`.
+
+Their uniqueness, and that of literals at `k_stats` doors, is `plain-predicate-sites-have-no-tree-wide-census`.

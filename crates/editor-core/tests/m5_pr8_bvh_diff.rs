@@ -27,19 +27,25 @@
 use crate::corpus;
 
 use corpus::{documents, read_body};
-use editor_core::{CancelToken, EvalOptions, Evaluation, Node, evaluate};
+use editor_core::{CancelToken, EvalOptions, Evaluation, Node};
 use geom_core::Tol;
 use topo::{SweepStrategy, sweep_traces};
 
 fn eval_with<T>(doc: &editor_core::ProfileDoc, strategy: SweepStrategy) -> Evaluation<T>
 where
-    T: editor_core::EvalScalar,
+    T: editor_core::test_support::AnyEvaluate,
 {
     let opts = EvalOptions {
         boolean_sweep: strategy,
         ..EvalOptions::default()
     };
-    evaluate::<T>(doc, None, &CancelToken::new(), &opts, Tol::witness())
+    editor_core::test_support::evaluate_any::<T>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    )
 }
 
 /// A node result's `Debug` form MINUS the verdict log. The log is the
