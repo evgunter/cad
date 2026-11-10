@@ -2702,15 +2702,30 @@ macro_rules! kernel_limit_recourse {
 /// `kernel_defect_ending!`. With a literal, the move a site names more
 /// closely, as a whole ending: `move_recourse!("so the surfaces clearly
 /// part")` is `Recourse: move the geometry so the surfaces clearly part`.
+/// The literal must start with `so `, checked at compile time; that form
+/// is an expression, not a literal, so it does not nest in `concat!`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! move_recourse {
     () => {
         concat!("Recourse: ", $crate::coincidence_move_arm!())
     };
-    ($so:literal) => {
+    ($so:literal) => {{
+        const _: () = assert!(
+            $crate::predicate::continues_with_so($so),
+            "move_recourse!'s condition starts with \"so \""
+        );
         concat!("Recourse: ", $crate::coincidence_move_arm!(), " ", $so)
-    };
+    }};
+}
+
+/// Whether `s` starts with `so `: `move_recourse!`'s condition, checked
+/// at compile time.
+#[doc(hidden)]
+#[must_use]
+pub const fn continues_with_so(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() > 3 && b[0] == b's' && b[1] == b'o' && b[2] == b' '
 }
 
 /// [`KERNEL_OR_FILE_DEFECT_ENDING`] as a literal, for `concat!`; see

@@ -1457,6 +1457,10 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     }
 }
 
+/// The desync of a component whose tube pads no band, read by the carry
+/// ([`CarryError::Desync`]) and by a site ([`SiteRefusal::Desync`]).
+const TUBE_PADS_NO_BAND: &str = "a component's tube pads no band";
+
 /// **Why a site has no component of its section**, or more than one.
 ///
 /// A narrowing of [`CarryError`]: each arm is one of its arms
@@ -1881,7 +1885,7 @@ impl<T: Decide> PairSection<T> {
                 // branch that runs on past the cut end is not its arc's.
                 let padded = band
                     .padded(b.pad)
-                    .map_err(|_| CarryError::Desync("a component's tube pads no band"))?;
+                    .map_err(|_| CarryError::Desync(TUBE_PADS_NO_BAND))?;
                 let there = if at_start { start } else { end };
                 let gap = geom_core::k_stats::decide_reported(
                     "carry_cut_end_at_end",
@@ -2736,7 +2740,7 @@ impl<T: Decide> CarriedComponent<T> {
         use geom::OnCarrier;
         let padded = band
             .padded(self.pad)
-            .map_err(|_| SiteRefusal::Desync("a component's tube pads no band"))?;
+            .map_err(|_| SiteRefusal::Desync(TUBE_PADS_NO_BAND))?;
         match self.carrier.on_carrier(p, self.span.0, padded) {
             Ok(OnCarrier::On { t, .. }) => self.within_span(t, band),
             Ok(OnCarrier::Off) => Ok(None),

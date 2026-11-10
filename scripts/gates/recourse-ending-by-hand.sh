@@ -32,7 +32,12 @@
 #   * a pair named neither `X_RECOURSE` / `X_ENDING` nor in
 #     `NAMED_PAIRS`; and a fragment's words spelled as a literal rather
 #     than through its constant or macro (`"Recourse: move the geometry"`
-#     by hand), which no shape here reads;
+#     by hand), which no shape here reads
+#     (`work/onecopy/move-the-geometry-is-spelled-as-a-literal-at-a-hundred-sites.md`);
+#   * the macro forms: `geom_core::move_recourse!("so …")` is the ending
+#     and passes, and so does a hand
+#     `concat!("Recourse: ", geom_core::coincidence_move_arm!(), …)`, which
+#     no shape reads (it names the arm's macro, not a fragment constant);
 #   * a fragment composed mid-sentence after words of the site's own
 #     (`profile::path`'s "Recourse: only the ratio …, {RANGE_RECOURSE}"),
 #     which is the fragment's intended use and is meant to pass.
