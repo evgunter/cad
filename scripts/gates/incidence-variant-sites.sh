@@ -15,10 +15,11 @@
 # `Escalated { check: ChartIncidence, .. }`) pins the shape of the
 # refusal rather than its read, and the next re-shaping of the refusal
 # moves it silently; one that pins the variant's `chart`/`carrier` kinds
-# reads them off the refusal rather than off the body. Such a row reads
-# the classifier, and the kinds on the body's own face and edge
-# (`topo::readback::face_carrier_kind` / `edge_carrier_kind`). This gate is a backstop for
-# that rule: a new naming anywhere outside geom-brep's src raises its file
+# reads them off the variant's fields. Such a row reads the classifier,
+# and the kinds on the body's own face and edge
+# (`topo::readback::face_carrier_kind` / `edge_carrier_kind`) against the
+# refusal's (`geom_brep::IncidenceRead::kinds_of` /
+# `CertifyError::incidence_kinds`). This gate is a backstop for that rule: a new naming anywhere outside geom-brep's src raises its file
 # above its row and fails, and a naming that went away lowers it and
 # fails until the row is lowered, so the slack cannot let one back in
 # unseen.
@@ -43,7 +44,7 @@
 #   door      a pin of a door's own field that no read answers: a
 #             refusal's `decision()` naming the check it was decided
 #             under (the incidence read, never the residual's meter),
-#             its `why` in the mint's words, or its margin's value
+#             or its `why` in the mint's words
 # There is NO pin class: a test that tells a miss from an in-band read,
 # or reads a refusal's chart and carrier kinds, reads the classifier and
 # the body, and a row naming `pin` is refused.

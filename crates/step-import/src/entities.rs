@@ -1133,7 +1133,8 @@ impl<'a> Resolver<'a> {
         KnotVector::clamped(flat, degree).map_err(|_| StepImportError::MalformedRecord {
             id,
             expected: "a clamped knot vector (degree+1 end multiplicities, \
-                       nondecreasing interior knots)",
+                       nondecreasing interior knots, each within half the largest \
+                       finite number)",
         })
     }
 

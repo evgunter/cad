@@ -5779,7 +5779,7 @@ mod refused_faces {
 
 /// **The surface kind of the face whose volume `e` refuses**: where `e`
 /// is the result gate's single volume finding on one face
-/// ([`ValidationError::VolumeUncomputable`] on a face's closed form or
+/// ([`ValidationError::VolumeUncomputable`](crate::ValidationError::VolumeUncomputable) on a face's closed form or
 /// quadrature, or a ring on a curved face), that face's kind as the gate
 /// was handed it. Read it right after the boolean that refused: the
 /// record is this thread's last refusing gate's.

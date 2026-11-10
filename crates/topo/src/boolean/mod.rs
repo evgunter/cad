@@ -5273,7 +5273,9 @@ impl BooleanError {
                 convention,
                 verdict,
                 ..
-            } => f.write_str(&convention.refused_ended("a torus face's", *verdict, at)),
+            } => f.write_str(
+                &geom_brep::TorusRefusal::decided(*convention, *verdict).said("a torus face's", at),
+            ),
             Self::CurvedPierceUnsupported { operand, .. } => write!(
                 f,
                 "an edge of the {} operand touches or crosses a curved face of the \
@@ -6046,17 +6048,7 @@ impl BooleanError {
             Self::EdgeInFace { edge, face, gap } => {
                 if let Some(torus) = gap.torus() {
                     write!(f, "edge {edge:?} of the result lies in face {face:?}, and ")?;
-                    match (torus.verdict, at) {
-                        (geom_brep::TorusVerdict::Refused(verdict), at) => f.write_str(
-                            &torus
-                                .convention
-                                .refused_ended("a torus face's", verdict, at),
-                        ),
-                        (geom_brep::TorusVerdict::Undecided(_), Some(at)) => {
-                            f.write_str(&torus.render(at))
-                        }
-                        (geom_brep::TorusVerdict::Undecided(_), None) => write!(f, "{torus}"),
-                    }
+                    f.write_str(&torus.said("a torus face's", at))
                 } else if gap.is_defect() {
                     write!(
                         f,

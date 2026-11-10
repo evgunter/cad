@@ -701,7 +701,7 @@ fn centre(vectors: &[[Interval; 3]]) -> [Interval; 3] {
     core::array::from_fn(|c| {
         let sum: f64 = vectors
             .iter()
-            .map(|v| (v[c].lo() + v[c].hi()) / 2.0)
+            .map(|v| geom_core::mid_param(v[c].lo(), v[c].hi()))
             .map(|m| if m.is_finite() { m } else { 0.0 })
             .sum();
         #[allow(clippy::cast_precision_loss)]
