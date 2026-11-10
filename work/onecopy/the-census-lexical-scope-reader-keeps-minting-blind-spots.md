@@ -2,10 +2,12 @@
 id: the-census-lexical-scope-reader-keeps-minting-blind-spots
 kind: issue
 title: the census's lexical scope reader keeps minting blind spots; read scopes with a parser
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: M
+closed: 2026-11-09
+pr: 6694
 ---
 
 Filed from PR 6640's FULL review (`onecopy/census-rosters-2`), as the class behind its FIX.
