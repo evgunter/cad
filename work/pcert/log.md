@@ -1110,3 +1110,18 @@ E1c waits on the answer.
     - tess's crease-gap row widened (δ-dependent);
     - evidence on `loft-builds-at-interval-and-refuses-a-rational-column-at-sym`;
     - onecopy's axis-foot antipode row.
+- 2026-11-10 — **`a-spline-charts-certificate-door-reads-no-incidence-so-an-off-carrier-ends-as-its-images-bound` merged** (PR 6531). A spline chart's certificate doors read the carrier's incidence where the image refuses, through one home (`incidence_ended`).
+  - The read is skipped only where the certificate's span is shown to cover the span asked (`covers`: c0 ≤ a0 ≤ a1 ≤ c1, via `k_stats::param_order`). A holding certificate's envelope is a sup over the span it covers.
+  - Endings, per E1d: off ends `Incidence(Off)` with each door's term; in band ends the lever. A carrier that certified on main certifies unchanged.
+  - Analytic charts read first at every door (`certify_fitted`/`certify_general` newly, disclosed).
+  - Dual's `validate_pcurves`, including `restate`'s stated Fitted arm, now finds an off carrier.
+  - The point read gains an f64 Gauss–Newton foot; the foot is skipped on a chart too narrow for it.
+  - Review tier: single FULL, cost-led. APPROVE-WITH-FIXES, 0 MAJOR; the envelope argument held.
+    - Fix list GG: a span-coverage rule, a foot panic, endings, one wrapper, and a trace of the sampled-meter gap.
+    - The delta verifier gave APPROVE-WITH-FIXES and confirmed the GG2 trace.
+    - Fix list HH (reversed-span covers; `exact_arc_rim` and `row_image_refusal` route a non-definite read in band) was read by the orchestrator.
+  - Read-first cost 4–10× on lofts; read-on-refusal costs about 1.0–1.1×.
+  - Paused 2026-11-04 to 2026-11-10 at the weekly limit. Resumed with main merges: main sealed `Incidence`, and `spline_pair_arc_rim`'s in-band row now ends `Incidence(Undecided)`.
+  - Filed:
+    - `a-stated-chart-image-on-a-spline-face-is-certified-by-a-sampled-meter` (P1). Every product path mints, so not P0; the construction tier and pncad's re-exported `EdgeCurve::certify` can obtain the sampled certificate but not store it.
+    - onehome `an-elbow-revolve-costs-65x-since-the-finished-body-door` (P2, bisected to PR 6371; PR 6803).
