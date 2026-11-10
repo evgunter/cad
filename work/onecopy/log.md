@@ -1535,3 +1535,4 @@
 - 04:33Z Merged 6708 doc-gate-clean (MERGE review; merged main → dd13c0f8: workspace rustdoc pass exit 0, check+gates clean). Style S2 (no selftest for --keep-going) left.
 - 04:38Z 6715 FULL: FIX (M1 tests/ unread; holds match any literal → only decide-shaped spellings; UNDECIDED-NAME needs its reverse ratchet; a production refusal and a hand-built Decided papered over → rows/homes; or-patterns) → roster lane before roster-rest.
 - 04:42Z Merged 6706 torus-words (gate green 703501eb; merged main incl 6708 doc links in ssi/shell/validate → 94252b53, check+gates+geom-brep/topo rustdoc clean).
+- 04:47Z PR 6716 argmin door (4313e49c) → FULL review session_013mPGJ5JdZKewxdcDb42Xrp. Tie-last probe: 9407 fingerprints identical incl. 525 conic-tie processes → prover lane on the conic case. 6710 fix pass (6fb7b455: run_from, shape-4 gate, 81 more sites) → same reviewer. 6694 fold (9cb3fb3c: through_import) → same reviewer.
