@@ -62,15 +62,6 @@ pub(crate) struct Rim<T: Real> {
     pub u_ref: Vec3<T>,
 }
 
-impl<T: Real> Rim<T> {
-    /// **The rim's period**: its parameter is the circle's angle, so it
-    /// repeats as a circle's does ([`geom::conic_period`]), the one
-    /// statement every rim reading here takes its turn from.
-    fn period() -> geom_core::period::Period<T> {
-        geom::conic_period()
-    }
-}
-
 /// What the ruling's table routes a shared rim to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RimRouting {
@@ -377,7 +368,7 @@ pub(crate) fn departures<T: Decide>(
     let (Some(ra), Some(rb)) = (reach(a, fa, locus, band)?, reach(b, fb, locus, band)?) else {
         return Ok(Departure::EdgeKindUnread);
     };
-    let tau = Rim::<T>::period().length();
+    let tau = geom::conic_period::<T>().length();
     let mut cuts: Vec<T> = ra.cuts.iter().chain(&rb.cuts).copied().collect();
     if let Locus::Rim(_) = locus
         && cuts.is_empty()
@@ -548,7 +539,7 @@ impl<T: Decide> FaceOnLocus<T> {
         scale: T,
         band: Band,
     ) -> Result<Cover, RimUnread> {
-        let tau = Rim::<T>::period().length();
+        let tau = geom::conic_period::<T>().length();
         let wraps: &[f64] = match locus {
             Locus::Rim(_) => &[-1.0, 0.0, 1.0],
             Locus::Line(_) => &[0.0],
@@ -615,7 +606,7 @@ fn locus_param<T: Decide>(locus: Locus<T>, p: Point3<T>) -> T {
         Locus::Rim(rim) => {
             let d = p - rim.center;
             let th = d.dot(rim.axis.cross(rim.u_ref)).atan2(d.dot(rim.u_ref));
-            let tau = Rim::<T>::period().length();
+            let tau = geom::conic_period::<T>().length();
             th - tau * (th / tau).floor()
         }
     }
@@ -693,7 +684,7 @@ fn reach<T: Decide>(
         rides: Vec::new(),
         cuts: Vec::new(),
     };
-    let tau = Rim::<T>::period().length();
+    let tau = geom::conic_period::<T>().length();
     for (he, curve) in face_boundary_arcs(body, face) {
         let (t0, t1) = curve.params();
         let (p0, p1) = (curve.carrier().eval(t0), curve.carrier().eval(t1));
@@ -884,15 +875,17 @@ fn crossings<T: Decide>(
             Ok(Some(kept))
         }
         (
-            geom::Curve3::Circle(geom::Circle {
-                frame:
-                    geom::Frame {
-                        origin: center,
-                        axis,
-                        ..
-                    },
-                radius,
-            }),
+            geom::Curve3::Circle(
+                arc @ geom::Circle {
+                    frame:
+                        geom::Frame {
+                            origin: center,
+                            axis,
+                            ..
+                        },
+                    radius,
+                },
+            ),
             _,
         ) => {
             let (ce, ae, re) = (*center, *axis, *radius);
@@ -956,12 +949,8 @@ fn crossings<T: Decide>(
             // Strictly inside the arc: its angle from the start, about
             // the edge's own axis, inside the parameter span.
             let span = t1 - t0;
-            // The arc's own carrier's period, a circle's.
-            let tau = curve
-                .carrier()
-                .period()
-                .unwrap_or_else(|| unreachable!("a circle repeats"))
-                .length();
+            // The arc's own carrier's period, its circle's.
+            let tau = arc.period().length();
             let mut kept = Vec::new();
             for q in candidates {
                 let d = q - ce;

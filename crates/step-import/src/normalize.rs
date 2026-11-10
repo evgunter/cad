@@ -658,11 +658,9 @@ fn seam_vertex_on_loop(
             continue;
         };
         let q = crate::signed_zero::plus_zero_point(circle.frame.origin + s_u_ref * circle.radius);
-        let turn = spec
-            .carrier
+        let t = circle
             .period()
-            .unwrap_or_else(|| unreachable!("a circle repeats"));
-        let t = turn.above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
+            .above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
         if t < spec.t1 {
             crossing = Some((u.edge, t, q));
             break;

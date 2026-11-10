@@ -91,7 +91,8 @@ impl<T: Real> Circle<T> {
         Cover::arc(
             &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),
             (self.radius, self.radius),
-            ParamWindow::new(T::zero(), T::tau()),
+            // The circle's one turn (a circle's period).
+            ParamWindow::new(T::zero(), geom::conic_period::<T>().length()),
         )
     }
 }

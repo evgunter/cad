@@ -376,15 +376,20 @@ pub(crate) fn overused_identified_edge_in(
 /// `raw` moved by whole turns near `prev`, where within a quarter turn
 /// of a whole number of turns from it; otherwise (`raw` about half a turn
 /// from `prev`) the copy of the two either side nearer `anchor` (module
-/// docs: the wire-band pole junction, meridians exactly π apart). Not
-/// [`Period::near`], which renames about one reference and breaks only an
-/// exact tie, to the upper copy: here a whole zone, a quarter turn either
-/// side of the tie, is placed by a second reference, `anchor`.
+/// docs: the wire-band pole junction, meridians exactly π apart). One
+/// [`Period::near`] about `prev` breaks only an exact tie, to the upper
+/// copy; here a whole zone, a quarter turn either side of the tie, is
+/// placed by a second reference, `anchor`, among `Period::near`'s copies.
 ///
 /// Every copy is the period's own ([`Period::near`]), so no whole-period
 /// integer is read off a value (C4): the copy about `prev`, and in the
 /// tie zone the copies about half a turn either side of it, the one at or
-/// below `prev` and the one at or above.
+/// below `prev` and the one at or above. The zone's edge, a quarter turn
+/// off `prev`, is decided on that copy. Within an ulp of the edge, that is
+/// not the reading the integer off `(prev − raw)/τ` gave, so the answer
+/// there can move by a whole turn. And a `raw` no turn moves is returned
+/// as it is, so a signed zero keeps its sign
+/// (`unwrap_tie_reads_its_zone_edge_as_the_period_reads_it`).
 fn unwrap_tie(raw: f64, prev: f64, anchor: f64) -> f64 {
     // `u` is an azimuth, an angle by construction.
     let turn = Period::<f64>::angle();
@@ -1366,8 +1371,37 @@ pub(crate) fn loop_polygon(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use core::f64::consts::TAU;
+
+    /// **`unwrap_tie` at its zone's edge, as the period reads it.**
+    /// Where `raw`'s copy about `prev` stands exactly a quarter turn off
+    /// it, the copy is read by [`Period::near`] and the zone test is the
+    /// period's own. At `prev − π/2` it reads the tie zone and takes the
+    /// copy nearer `anchor`: 5.0124 for an anchor above, −1.2708 below.
+    /// At the review's draw (`raw` −13.837166941154068, `prev` 0.3,
+    /// `anchor` 2.3), the period's copy stands inside the quarter zone and
+    /// reads −1.2707963267948958. The fold this replaced read the integer
+    /// off `(prev − raw)/τ`, put that draw in the tie zone and took
+    /// 5.01238898038469, a whole turn away. And a signed zero keeps its
+    /// sign: `Period::near` returns `raw` itself where no turn moves it,
+    /// so −0.0 about 0.0 reads −0.0, where the fold's `raw + τ·0` read
+    /// +0.0.
+    #[test]
+    fn unwrap_tie_reads_its_zone_edge_as_the_period_reads_it() {
+        use core::f64::consts::FRAC_PI_2;
+        let edge = 0.3 - FRAC_PI_2;
+        assert_eq!(
+            unwrap_tie(edge, 0.3, 2.3).to_bits(),
+            5.012_388_980_384_689_5_f64.to_bits()
+        );
+        assert_eq!(unwrap_tie(edge, 0.3, -1.0).to_bits(), edge.to_bits());
+        assert_eq!(
+            unwrap_tie(-13.837_166_941_154_068, 0.3, 2.3).to_bits(),
+            (-1.270_796_326_794_895_8_f64).to_bits()
+        );
+        assert_eq!(unwrap_tie(-0.0, 0.0, 0.0).to_bits(), (-0.0_f64).to_bits());
+    }
     use geom::Surface;
-    use topo::chart_iso::TAU;
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(kind: ChartKind) -> Chart {

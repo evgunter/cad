@@ -909,7 +909,7 @@ pub fn conic_residual_extremes<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) ->
         let reach = h.a1 + h.a2 + h.noise;
         return Some((h.c0 - reach, h.c0 + reach));
     }
-    conic_arc_residual_range(s, conic, T::zero(), T::tau())
+    conic_arc_residual_range(s, conic, T::zero(), geom::conic_period::<T>().length())
 }
 
 /// [`conic_residual_extremes`] on a circle.
@@ -960,7 +960,7 @@ pub fn circle_residual_curvature_bound<T: Real>(
     s: &Surface<T>,
     circle: &geom::Circle<T>,
 ) -> Option<T> {
-    arc_curvature_bound(s, circle, T::zero(), T::tau())
+    arc_curvature_bound(s, circle, T::zero(), circle.period().length())
 }
 
 /// [`circle_residual_curvature_bound`]'s arc-scoped form, on any

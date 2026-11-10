@@ -1644,10 +1644,12 @@ fn spiric_on_curved<T: Decide>(
 }
 
 /// `n` points of conic `carrier` equispaced over its whole turn from
-/// parameter `t0`, distinct: the `k`th at `t0 + k · 2π / n`.
+/// parameter `t0`, distinct: the `k`th at `t0 + k · 2π / n`. The turn is
+/// a conic's period ([`geom::conic_period`]): [`Samples::Even`] is read on
+/// a circle or an ellipse only.
 fn even_points<T: Decide>(carrier: &geom::Curve3<T>, t0: T, n: u32) -> Vec<Point3<T>> {
     let count = |m: u32| (0..m).fold(T::zero(), |c, _| c + T::one());
-    let step = T::from_f64(core::f64::consts::TAU) / count(n);
+    let step = geom::conic_period::<T>().length() / count(n);
     (0..n).map(|k| carrier.eval(t0 + step * count(k))).collect()
 }
 

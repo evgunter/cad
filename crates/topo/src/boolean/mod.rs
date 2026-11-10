@@ -8108,7 +8108,9 @@ fn verify_tangency<T: Decide>(
                 (
                     circle,
                     T::zero(),
-                    T::from_f64(core::f64::consts::TAU),
+                    // The rim's whole turn, its circle's period, read where
+                    // rim_wedge reads it.
+                    geom::conic_period::<T>().length(),
                     rim_wedge::Locus::Rim(rim),
                     identity,
                     None,

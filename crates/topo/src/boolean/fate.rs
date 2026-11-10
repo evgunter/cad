@@ -39,6 +39,7 @@
 
 use geom_brep::LeverBounds;
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::sectors::reading_lever;
@@ -900,7 +901,7 @@ fn tip_wraps<T: Decide>(
     }
     // The runs' turning is an angle by construction: one turn of it is
     // its period.
-    let turn = geom_core::period::Period::<T>::angle();
+    let turn = Period::<T>::angle();
     let whole = if outer {
         turn.length()
     } else {

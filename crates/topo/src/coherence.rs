@@ -770,7 +770,7 @@ mod tests {
     #[test]
     fn a_whole_turn_of_skew_is_no_disagreement() {
         for turns in [-2.0_f64, -1.0, 1.0, 2.0] {
-            let a = 0.7 + turns * crate::chart_iso::TAU;
+            let a = 0.7 + turns * core::f64::consts::TAU;
             assert!(wrapped(a, 0.7) < 1e-15, "{turns} turns read as a gap");
         }
         let half = wrapped(core::f64::consts::PI, 0.0);

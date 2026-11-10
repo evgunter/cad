@@ -89,6 +89,7 @@ use crate::ladder::{Answering, Climb, Rung, climb, decided};
 pub use crate::rows::{HalfAngleRows, SubdivisionRows, TouchRows};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
+use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
 use crate::quartic::depressed_quartic_roots;
@@ -818,9 +819,11 @@ fn subdivision<T: Decide>(
     // such share is re-cut by leaving it inside its neighbours' piece, so
     // a stretch in band at the walk's own cuts is walked, not refused. The
     // last end is the first a turn on.
+    // `θ` is an angle by construction: one turn of it, cut and closed.
+    let turn = Period::<T>::angle();
     let n = SUBDIVISION_START;
-    let piece = T::tau() / T::from_f64(f64::from(n));
-    let base = (t0 + t1) / two - T::pi();
+    let piece = turn.length() / T::from_f64(f64::from(n));
+    let base = (t0 + t1) / two - turn.half();
     let mut ends: Vec<(T, Sign)> = (0..n)
         .filter_map(|k| {
             let from = base + piece * T::from_f64(f64::from(k));
@@ -833,11 +836,8 @@ fn subdivision<T: Decide>(
     let Some(&(first, first_side)) = ends.first() else {
         return Err(uncut());
     };
-    // `θ` is an angle by construction: the walk closes one turn on.
-    ends.push((
-        first + geom_core::period::Period::<T>::angle().length(),
-        first_side,
-    ));
+    // The walk closes one turn on.
+    ends.push((first + turn.length(), first_side));
     // The pieces are walked left to right ([`geom_core::bisect`]), so the
     // bisection's raw midpoints come out in order; the reported roots do
     // not, since one in the walk's tail past `mid + π` re-centres to the

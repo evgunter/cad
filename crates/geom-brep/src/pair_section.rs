@@ -1803,16 +1803,23 @@ impl<T: Decide> PairSection<T> {
             .iter()
             .zip(slot)
             .map(|(c, fitted)| match (&c.carrier, fitted) {
-                (ClassCarrier::Closed(curve), _) => Ok(CarriedComponent {
+                (ClassCarrier::Closed(curve), _) => {
+                    let Some(turn) = curve.period() else {
+                        return Err(CarryError::Desync(
+                            "a component the classification closes on a carrier that does not repeat",
+                        ));
+                    };
+                    Ok(CarriedComponent {
                     carrier: curve.clone(),
-                    span: (T::zero(), T::from_f64(core::f64::consts::TAU)),
+                    span: (T::zero(), turn.length()),
                     shape: ComponentShape::Loop,
                     certificate: None,
                     winds: c.winds,
                     pad: 0.0,
                     reach: 0.0,
-                    witness: curve.eval(T::pi()),
-                }),
+                    witness: curve.eval(turn.half()),
+                })
+                }
                 (ClassCarrier::Span { curve, span }, _) => Ok(CarriedComponent {
                     carrier: curve.clone(),
                     span: *span,

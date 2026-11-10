@@ -26,20 +26,25 @@ Filed from PR 6776's review: the spellings of a turn that are left.
 
 ## Resolved (2026-11-10)
 
-- **F1:** edge_join's closed join asks `carrier.period()`. A carrier with none takes the old `JoinCarrierUnsupported` arm.
-- **F2:** `on_carrier`'s `domain()` asks `Curve3::period()`.
-- **F3, sites that hold a carrier, ask it:**
-  - `splitting/join.rs`, through a new `SectionConic::period()` that reads its carrier's;
-  - `reduce.rs:4038`;
-  - rim_wedge's edge-arc angle;
-  - step-import's `normalize.rs` rim seam.
-- **F3, a circle with no `Curve3`, states a circle's period** through `geom::conic_period`: the trace's circle, region's arc, and rim_wedge's rim (a private `Rim::period()`, replacing five `T::from_f64(TAU)` points, so at `Interval` the rim now reads τ's enclosure).
-- **F3, angles by construction, read `Period::angle()`:** fate's turning, the ruling folds, `props/curved.rs`'s three turns about an axis, and half_angle's walk.
-- **F4:** mesh's `unwrap_tie` reads every copy through `Period::near`: about `prev`, and in the tie zone about half a turn either side. It reads no whole-period integer off a value. Each copy is `raw + times(k)`, the same product as before, so no bits move.
-- **S1:** certify's `(None, Circle | Ellipse | Spiric)` is `unreachable!`, and the line arm takes lines only.
-- **S2:** the step-import site, which holds a `Curve3`, asks it. The sites that hold only a `&dyn Conic` (`conic_quadric::through_the_apex`, `pose::window`) read `geom::conic_period`, the conic kind's own statement.
-- **S4:** `branches_astride` takes a `Period` and reads its `half()`.
+**A carrier states its own period, by type.**
+- `geom::Circle::period` and `Ellipse::period` are total. `Curve3::period` is built from them and `spiric_period`, so which kinds repeat is decided once.
+- Sites that hold a matched circle read the circle's period, with no `Option`: step-import's rim seam, reduce's `boundary_meets_circle_only_at` (which now takes the `Circle`), rim_wedge's edge arc, `implicit::circle_curvature_bound` and `certify`'s self-loop.
+- certify's no-period arm branches on `Curve3::period()` being `None`, and restates no kind list.
+- `cover/readings`' `Curve3::cover` reads the period, not a kind list.
 
-**Measured:** the ci profile on geom, geom-brep, topo, mesh, step-import, sweep and editor-core passed 12983 of 12983 at default ε, at 1e-6 and at 1e-12, so no row moved at `f64`.
+**Sites that hold only a `Conic`, or a circle with no `Curve3`**, read `geom::conic_period`: trace, region, rim_wedge's rim (the private `Rim::period` is dropped, S3), `boolean/mod.rs`'s rim locus, `slit::even_points`, `separating`, `implicit::conic_arc_residual_range` and `splitting/join` (through `SectionConic::period`, which reads its carrier). `edge_join` and `pair_section`'s closed components ask their `Curve3`.
 
-**Not folded:** rim_wedge's `τ·floor(x/τ)` reductions, the same C4 class as F4, move bits under `at_or_above`. They are filed as `rim-wedge-reduces-angles-by-a-floor-of-the-value`.
+**Angles by construction read `Period::angle()`** (through a `use`, S4): fate, the ruling folds, `props/curved.rs`, the half-angle walk (one `turn` for its cut and its close), and certify's revolution.
+
+**mesh's `unwrap_tie`** reads every copy through `Period::near`, with no integer off a value. This moves values in two places, pinned by `unwrap_tie_reads_its_zone_edge_as_the_period_reads_it`:
+- At the quarter-turn zone edge, `Period::near`'s copy decides the zone where the old `(prev − raw)/τ` integer did. Within an ulp of the edge the answer can move by a whole turn: at `raw` −13.837166941154068, `prev` 0.3, `anchor` 2.3 it reads −1.2708 where the fold read 5.0124.
+- A signed zero keeps its sign: −0.0 about 0.0 reads −0.0, where the fold read +0.0.
+
+**`branches_astride`** takes a `Period` (S4). chart_iso's `pub const TAU` is retired.
+
+**Value changes besides `unwrap_tie`:**
+- At `Interval`, a `from_f64(TAU)` point became τ's enclosure (edge_join, rim_wedge, slit, `boolean/mod.rs`, `pair_section`).
+- At `Sym`, `T::tau()` is the node `2·π` where `from_f64(TAU)` was a literal.
+- At `f64` nothing else moves: the ci profile on geom, geom-brep, topo, mesh, step-import, sweep and editor-core is green at all three ε.
+
+**The gate:** `scripts/gates/period-spelling.sh`, table `period-spelling.tsv`, counts `from_f64(TAU)`, `2.0 * PI` and bare `TAU` in production code outside the homes, per (file, function) with a class. The `owed` rows, the C4 integer reads, and the `T::tau()` sites a carrier is owed are filed as `a-turn-read-off-a-value-or-a-literal-remains-at-f64`. rim_wedge's floors, with the Interval straddle (finding 3), are `rim-wedge-reduces-angles-by-a-floor-of-the-value`.

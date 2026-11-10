@@ -1,0 +1,36 @@
+# Production spellings of a whole turn outside their homes, by file, function and
+# class (scripts/gates/period-spelling.sh; its header defines the classes and
+# says what raising a row means). One row per (file, function).
+# path	function	count	class
+crates/editor-core/src/analysis.rs	std_normal_pdf	1	constant
+crates/editor-core/src/eval/mod.rs	for_node	1	angle
+crates/editor-core/src/names/emit_topo.rs	on	1	owed
+crates/editor-core/src/placement.rs	rotate_by_turns_then_translate	1	angle
+crates/geom-brep/src/curve_face/conic_oracle.rs	the_end_cells_are_searched	1	fixture
+crates/geom-brep/src/curve_face/conic_oracle/exact.rs	truth	1	fixture
+crates/geom-brep/src/edge_wedge.rs	around_circle	1	angle
+crates/geom-brep/src/pair_section/ruling.rs	-	1	owed
+crates/geom-brep/src/pair_section/ruling.rs	coverage	3	owed
+crates/geom-brep/src/pair_section/ruling.rs	new	1	owed
+crates/geom-brep/src/pair_section/ruling.rs	run	2	owed
+crates/geom-brep/src/pair_section/winds.rs	winding	2	owed
+crates/geom-brep/src/pcurve.rs	ellipse_pcurve_on_cylinder	1	owed
+crates/geom-brep/src/pcurve.rs	ellipse_pcurve_on_plane	1	owed
+crates/geom-brep/src/pcurve_cache.rs	closed_form_grid	1	owed
+crates/geom-brep/src/pcurve_cache.rs	cover	1	owed
+crates/geom-brep/src/pcurve_cache.rs	dyadic	1	owed
+crates/geom-brep/src/props/bracket.rs	tau_bracket	2	home
+crates/geom-brep/src/props/closure.rs	interval_loop_turns	1	owed
+crates/mesh/src/cert.rs	abs_radial_max	2	owed
+crates/mesh/src/trimmed.rs	choose_pole_azimuths	2	owed
+crates/mesh/src/trimmed.rs	harmonic_range	2	owed
+crates/step-import/src/adopt.rs	arc_rim_on_wall_boundary	1	owed
+crates/step-import/src/entities.rs	is_periodic_band	1	owed
+crates/sweep/src/blend/surgery.rs	past_misses	1	owed
+crates/topo/src/census/pierce_tilted.rs	draw	1	fixture
+crates/topo/src/chart_region_r2_probes.rs	probe_seam_straddle_and_exact_full_wrap	1	fixture
+crates/topo/src/injective.rs	periodic	1	owed
+crates/viewer/src/camera.rs	wrap_angle	1	angle
+crates/viewer/src/combine.rs	fmt	1	angle
+crates/viewer/src/pane/create.rs	sweep_ui	1	angle
+crates/viewer/src/pane/viewport.rs	push_circle	1	angle

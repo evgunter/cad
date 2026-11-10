@@ -2020,6 +2020,14 @@ impl<T: Real> EdgeCurveSpec<T> {
     pub fn self_loop_circle_at(p: Point3<T>) -> Self {
         use geom_core::{Affine3, Point2, Vec3};
         let center = p + Vec3::unit_x();
+        let circle = geom::Circle::new(
+            geom::Frame::new(
+                center,
+                Vec3::unit_z(),
+                Vec3::new(T::zero() - T::one(), T::zero(), T::zero()),
+            ),
+            T::one(),
+        );
         Self {
             description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::whole(
                 crate::mapped::MappedSource::RevolvedPoint {
@@ -2029,17 +2037,13 @@ impl<T: Real> EdgeCurveSpec<T> {
                         origin: center,
                         dir: Vec3::unit_z(),
                     },
-                    angle: T::tau(),
+                    // A whole revolution, an angle by construction.
+                    angle: geom_core::period::Period::<T>::angle().length(),
                 },
             )),
-            carrier: Curve3::circle(
-                center,
-                Vec3::unit_z(),
-                T::one(),
-                Vec3::new(T::zero() - T::one(), T::zero(), T::zero()),
-            ),
+            carrier: Curve3::Circle(circle),
             param_start: T::zero(),
-            param_end: T::tau(),
+            param_end: circle.period().length(),
         }
     }
 }
@@ -4012,32 +4016,6 @@ fn decide_turn<T: Decide>(
                 turn: wound(turn)?,
             })
         }
-        // A carrier with no period and no net: a line. A conic and a spiric
-        // have a period (`Curve3::period`), so they arrive above.
-        //
-        // A line's span is forward in parameter, and then in metres where
-        // its `dir` is the zero vector: such a line names one point at
-        // every parameter, so no span on it is forward, and it refuses as
-        // `IntervalNotForward` (its metred margin is an exact zero) rather
-        // than certifying a direction its readers take as nonzero
-        // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
-        // The metres decision runs on that line alone, so every other
-        // line's span is decided once, as before.
-        (None, Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. }) => {
-            unreachable!("a conic and a spiric state a period (`Curve3::period`)")
-        }
-        (None, line @ Curve3::Line(_)) => {
-            forward(Margin::of(span))?;
-            if line.as_line().is_some_and(|geom::Line { dir, .. }| {
-                matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero))
-            }) {
-                forward(Margin::metered(
-                    span,
-                    geom::carrier_speed::speed_range(line).0,
-                ))?;
-            }
-            None
-        }
         // Rung-3 carriers (M5 PR 9): the span is metered through the
         // certified speed lower bound (`m/parameter`, the split-meter
         // substrate — C12.3). The meter is gated definitely-positive
@@ -4081,6 +4059,30 @@ fn decide_turn<T: Decide>(
                 }
             })?;
             forward(Margin::metered(span, meter))?;
+            None
+        }
+        // A carrier with no period that is no spline: a line. Which kinds
+        // have a period is `Curve3::period`'s to say, so this arm restates
+        // no kind list.
+        //
+        // A line's span is forward in parameter, and then in metres where
+        // its `dir` is the zero vector: such a line names one point at
+        // every parameter, so no span on it is forward, and it refuses as
+        // `IntervalNotForward` (its metred margin is an exact zero) rather
+        // than certifying a direction its readers take as nonzero
+        // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
+        // The metres decision runs on that line alone, so every other
+        // line's span is decided once, as before.
+        (None, line) => {
+            forward(Margin::of(span))?;
+            if line.as_line().is_some_and(|geom::Line { dir, .. }| {
+                matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero))
+            }) {
+                forward(Margin::metered(
+                    span,
+                    geom::carrier_speed::speed_range(line).0,
+                ))?;
+            }
             None
         }
     })

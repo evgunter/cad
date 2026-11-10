@@ -3043,9 +3043,7 @@ fn cone_loop_winding<T: Decide>(
                             Sign::Positive => principal,
                             // A turn about the axis is an angle by
                             // construction: one turn is its period.
-                            Sign::Negative => {
-                                principal + sense * geom_core::period::Period::<T>::angle().length()
-                            }
+                            Sign::Negative => principal + sense * Period::<T>::angle().length(),
                             Sign::Zero => return refuse("props_cone_arc_turn"),
                         };
                 }
@@ -4474,7 +4472,7 @@ fn pole_turning<T: Decide>(
         let full = pole_arc_full(arc.extent, arc.radius, band)?;
         let sweep = match (full, *c) {
             // Whole circulations of a turning, an angle by construction.
-            (true, Some(c)) => c * geom_core::period::Period::<T>::angle().length(),
+            (true, Some(c)) => c * Period::<T>::angle().length(),
             (true, None) => return Ok(None),
             (false, c) => {
                 let d = push(arc.from, arc.depart);
@@ -5816,8 +5814,8 @@ fn sheet_apex_jumps<T: Decide>(
         let du = match (with_u, positive) {
             (true, true) | (false, false) => turn,
             // `turn` is a turn about the axis, an angle by construction.
-            (true, false) => turn + geom_core::period::Period::<T>::angle().length(),
-            (false, true) => turn - geom_core::period::Period::<T>::angle().length(),
+            (true, false) => turn + Period::<T>::angle().length(),
+            (false, true) => turn - Period::<T>::angle().length(),
         };
         let sin_v = apex.height / minor;
         pieces[next].apex_before = true;

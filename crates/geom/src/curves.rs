@@ -960,16 +960,17 @@ impl<T: Real> Curve3<T> {
         }
     }
 
-    /// **The carrier's period, where its parameter repeats**: a conic's
-    /// ([`conic_period`]) and a spiric oval's ([`spiric_period`]), each
-    /// kind's own statement; a line and a spline do not repeat (`None`).
+    /// **The carrier's period, where its parameter repeats**: a circle's
+    /// and an ellipse's ([`Circle::period`], [`Ellipse::period`]) and a
+    /// spiric oval's ([`spiric_period`]), each kind's own statement; a line and a spline do not repeat (`None`).
     /// Matched exhaustively over the kinds. A renaming by whole periods,
     /// or a reading on a copy a period away ([`Period::span_margins`]),
     /// reads it.
     #[must_use]
     pub fn period(&self) -> Option<Period<T>> {
         match self {
-            Curve3::Circle(_) | Curve3::Ellipse(_) => Some(conic_period()),
+            Curve3::Circle(c) => Some(c.period()),
+            Curve3::Ellipse(e) => Some(e.period()),
             Curve3::Spiric { .. } => Some(spiric_period()),
             Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }

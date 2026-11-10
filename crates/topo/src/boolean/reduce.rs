@@ -3843,7 +3843,7 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
     // A ruling or an ellipse has no circle for (a) and (b) to read: the
     // interior question alone decides it.
     let circle = match curve.carrier() {
-        c @ geom::Curve3::Circle(_) => Some(c),
+        c @ geom::Curve3::Circle(k) => Some((c, k)),
         geom::Curve3::Line(_) | geom::Curve3::Ellipse(_) => None,
         _ => return Ok(None),
     };
@@ -3883,8 +3883,8 @@ fn lying_on<T: Decide + crate::props::AtRestPolicy>(
             all(Placement::Recorded).then_some(lies(LyingEnds::Inside, true))
         }
     };
-    if let Some(circle) = circle {
-        if boundary_meets_circle_only_at(y, face, circle, &at_ends, band)? {
+    if let Some((circle, round)) = circle {
+        if boundary_meets_circle_only_at(y, face, round, &at_ends, band)? {
             return Ok(interior_clear());
         }
         if let [(_, Some(wu)), (_, Some(wv))] = placed {
@@ -4025,7 +4025,7 @@ fn circle_refusal(
 fn boundary_meets_circle_only_at<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
-    circle: &geom::Curve3<T>,
+    circle: &geom::Circle<T>,
     at: &[VertexKey],
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -4035,11 +4035,8 @@ fn boundary_meets_circle_only_at<T: Decide>(
     let Some(boundary) = super::carrier_cross::face_boundary(y, face)? else {
         return Ok(false);
     };
-    let turn = circle
-        .period()
-        .unwrap_or_else(|| unreachable!("a circle repeats"))
-        .length();
-    let whole = Span::new(circle, (T::zero(), turn)).endless();
+    let carrier = geom::Curve3::Circle(*circle);
+    let whole = Span::new(&carrier, (T::zero(), circle.period().length())).endless();
     let reading = match boundary.read(&whole, band) {
         Ok(reading) => reading,
         Err(BoundaryRefusal::Met(MeetKind::Fault { what })) => {
@@ -7673,13 +7670,16 @@ mod lying_on_rows {
     }
 
     /// The circle about unit `axis` through `center` of `radius`.
-    fn circle((center, axis, radius): (Point3<f64>, Vec3<f64>, f64)) -> geom::Curve3<f64> {
+    fn circle((center, axis, radius): (Point3<f64>, Vec3<f64>, f64)) -> geom::Circle<f64> {
         let across = if axis.x.abs() < 0.9 {
             Vec3::unit_x()
         } else {
             Vec3::unit_y()
         };
-        geom::Curve3::circle(center, axis, radius, axis.cross(across).normalize())
+        geom::Circle::new(
+            geom::Frame::new(center, axis, axis.cross(across).normalize()),
+            radius,
+        )
     }
 
     fn meets(
@@ -7955,8 +7955,15 @@ mod lying_on_rows {
         )
         .expect("the arc splits");
         let reach = |c| {
-            arc_chain_reaches(&y, from, to, Vec3::unit_y(), &circle(c), band())
-                .expect("no escalation")
+            arc_chain_reaches(
+                &y,
+                from,
+                to,
+                Vec3::unit_y(),
+                &geom::Curve3::Circle(circle(c)),
+                band(),
+            )
+            .expect("no escalation")
         };
         assert!(
             !reach((Point3::new(-1.0, 0.0, 0.0), Vec3::unit_z(), 2.0)),
@@ -8451,11 +8458,9 @@ mod torn_hop_rows {
         let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let face = body.faces().next().map(|(k, _)| k).unwrap();
         // A circle far from every edge of the cube.
-        let circle = geom::Curve3::circle(
-            Point3::new(0.5, 0.5, 10.0),
-            Vec3::unit_z(),
+        let circle = geom::Circle::new(
+            geom::Frame::new(Point3::new(0.5, 0.5, 10.0), Vec3::unit_z(), Vec3::unit_x()),
             0.25,
-            Vec3::unit_x(),
         );
         let circle = &circle;
         assert!(

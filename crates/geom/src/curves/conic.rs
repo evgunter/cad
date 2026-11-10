@@ -315,6 +315,15 @@ impl<T: Real> Circle<T> {
         Self { frame, radius }
     }
 
+    /// **The circle's period**: its parameter is an angle
+    /// ([`crate::conic_period`]), so every circle repeats. Total, where
+    /// [`crate::Curve3::period`], which reads it, is `None` on the kinds
+    /// that do not repeat.
+    #[must_use]
+    pub fn period(&self) -> geom_core::period::Period<T> {
+        crate::conic_period()
+    }
+
     /// The point from an azimuthal frame already built:
     /// `center + radial·radius`, exactly as parenthesized (D9) — the one
     /// spelling of a circle's point, which [`Curve3::circle_at`] and
@@ -391,6 +400,14 @@ impl<T: Real> Conic<T> for Circle<T> {
 }
 
 impl<T: Real> Ellipse<T> {
+    /// **The ellipse's period**: its parameter is the eccentric anomaly,
+    /// an angle ([`crate::conic_period`]), so every ellipse repeats.
+    /// Total, as [`Circle::period`] is.
+    #[must_use]
+    pub fn period(&self) -> geom_core::period::Period<T> {
+        crate::conic_period()
+    }
+
     /// The ellipse placed by `frame` with `semi_u` along its `u_ref` and
     /// `semi_v` along its `v_ref`, unchecked; [`Curve3::ellipse`] is the
     /// deciding door.
