@@ -2,10 +2,11 @@
 id: a-question-mark-inside-a-rung-is-registered-nowhere
 kind: issue
 title: A ? on a band reading inside a climb's rung closure is registered by no gate
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: M
+closed: 2026-11-10
 ---
 
 
@@ -27,3 +28,19 @@ Since then QML T5 put `held_cut`'s three reads inside its rung, each a premise o
 ## Done when
 
 The `rung:` register exists and reds an unregistered in-rung `?`, with each of today's sites dispositioned `PREMISE` or `SEARCH`, or a reviewer rules the shape not worth a gate and this row says why.
+
+## Outcome
+
+The register is `scripts/gates/escalation-question-marks-rung.counts`, keyed `rung:<file>:<fn>`, read by `scripts/gates/escalation_rungs.py` under `escalation-question-marks.sh`. A rung's reader is three things: every closure in the call's arguments, every argument naming a `let` closure bound earlier in the `fn`, and every such closure a reader calls by name. A line in it counts where it holds `)?` with the register's two matchers, or with the name of a `let` closure that reads the band. The last arm is what found `side(from)?, side(to)?`: the band reaches those lines through `side`.
+
+**Measured** over the 71 climb calls: 15 `?`s across three `fn`s, after the port below.
+- `held_cut`: 4, one more than this row listed. `on_arc(before, ..)?` reads the band through `before`.
+- `crescent`: 5.
+- `path_parity`: 6.
+
+Two more `?`s sit in rungs on reads of no band: `seam_germ_side`'s topology desyncs (`.ok_or(desync(..))?`) and `link::Sector::place`'s `ahead_settle(.., rd)?`, its wedge's only read, whose band is named `rd`. The header names both as blind spots.
+
+**Dispositions.** The row's claim that every in-rung `?` is a premise does not hold. A rung that reads `x?`, answers `P` where `x` holds, and then reads a `y` that answers `P` alone is a search inside the rung.
+- **Ported:** `path_parity`'s two pairs of segment ends, the crest side and the conic plane side. Either end decided on the cylinder or plane answers alone, so both ends are now read before either refuses. The row `a_segment_ending_on_the_crest_cylinder_answers_past_an_end_in_band` reds against the old order.
+- **Registered `SEARCH` and filed** as `a-rungs-later-read-answers-past-its-earlier-question-mark`: one site each in `crescent`, `held_cut` and `path_parity`.
+- **`PREMISE`:** the rest, each named in the register.

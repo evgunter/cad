@@ -1,0 +1,33 @@
+# Every production `?` on a band reading inside a rung's reader (a
+# closure passed to `climb`, `climb_evidence` or `climb_agreeing`, or a
+# `let` closure it reads through), counted per enclosing `fn`
+# (scripts/gates/escalation-question-marks.sh, `escalation_rungs.py`).
+# A new site reds until it is registered here with why its `?` is not a
+# search inside the rung; a count that falls reds until it is lowered.
+#
+# Two dispositions, named per entry:
+# - PREMISE: each read a `?` stops is read only on what the reads before
+#   it placed, so the first refusal is the rung's own, not a kept
+#   reading a later read of the same rung answers past.
+# - SEARCH: a later read is independent of the earlier and could answer
+#   for the rung alone: read both before either refuses (the port), and
+#   lower the count. Each is listed with its port in
+#   work/onecopy/a-rungs-later-read-answers-past-its-earlier-question-mark.md.
+#
+# held_cut's cut: `nested` (a strut's) answers `false`, as `on_arc`'s
+# `Some(false)` does on its own: SEARCH. `on_arc`, then `tied_held` only
+# on the end `on_arc` tied: PREMISE.
+rung:crates/topo/src/boolean/insert.rs:held_cut 4
+# crescent's pair of bounds: `parallel_same` answers `false`, as the
+# across reading decided off `Negative` does on its own: SEARCH. Then
+# `coincident_run` and the second `parallel_same` it guards, then the
+# opening, each read only where the one before held: PREMISE.
+rung:crates/topo/src/boolean/sectors.rs:crescent 5
+# path_parity's piece against an arc: `plane_roots` refuses ahead of
+# `misses_in_plane`, whose coplanar-apart arm holds whatever the planes:
+# SEARCH. The meridian arm's `plane_roots`, `segment_misses` and the
+# lead's length on an end already decided on the plane, and
+# `spline_crossings` alone in its arm: PREMISE. Both arms that read a
+# segment's two ends read them together, since an end decided on the
+# cylinder or the plane answers alone.
+rung:crates/topo/src/ring_path.rs:path_parity 6
