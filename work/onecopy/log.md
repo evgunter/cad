@@ -1484,3 +1484,4 @@
   - **crease_at, ruled (i):** an undecided knot on either edge stops the join; only a decided crease picks the kept edge. Tie=crease would have moved the kept carrier or produced JoinCarrierUnsupported. It goes as its own PR.
 
 - 01:32Z merged 6700 (census-sort narrowed, text-only) at 4a474089. 6696 lane reports ready at c77de79f; queued behind 6703 mergecheck (main moved since).
+- 01:33Z argmin lane: first_pair non-free lane has 761 exact ties (504 reds). Ruled opt 1: declare Ties with a proof at the call (narrow to mutual pairs if that is all it covers), attribute the 18 in-band, report residual moves before opening.
