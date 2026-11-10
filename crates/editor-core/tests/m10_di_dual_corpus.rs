@@ -215,11 +215,6 @@ fn the_dl3_witnesses_are_refused_by_the_closed_form_alone_at_dual64() {
 /// `at_rest_policy_tests`.)
 #[test]
 fn at_rest_census_verdicts_match_f64_at_interval() {
-    at_rest_census_verdicts_match_f64_at_interval_row();
-}
-
-/// The row [`at_rest_census_verdicts_match_f64_at_interval`] runs.
-fn at_rest_census_verdicts_match_f64_at_interval_row() {
     use geom_core::Interval;
     let blind = |findings: Result<Vec<editor_core::CheckFinding>, editor_core::ChecksError>| {
         findings.map(|f| !crate::fixture::could_not_look(&f).is_empty())
