@@ -141,7 +141,10 @@ gate_require_file() {
 # the one home a gate reading climbs takes its list from, so a combinator
 # added there joins every such gate by construction. Sets
 # `GATE_LADDER_ENTRY_POINTS`; a home that is gone or names none is an
-# error, not an empty list.
+# error, not an empty list. Its blind spot: it reads `^pub fn climb[a-z_]*`
+# lines only, so an entry point named otherwise (`read_identity`), one
+# narrower than `pub` (`pub(crate) fn`), or one whose `pub fn` line an
+# attribute or a line break splits from its name is missed.
 gate_ladder_entry_points() {
   local home=crates/geom-core/src/ladder.rs
   if [ ! -f "$home" ]; then

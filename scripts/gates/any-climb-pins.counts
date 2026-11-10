@@ -23,18 +23,24 @@ crates/topo/src/boolean/rim_wedge.rs departures 1 row t4-ports-unpinned-for-a-ke
 crates/topo/src/boolean/rim_wedge.rs rim_exists 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs crescent 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs rays_within 1 pin a_sector_not_holding_the_line_answers_past_one_in_band
-crates/topo/src/boolean/slit.rs holding 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+# pieces_hold, search_meeting, lone_ring_outer_side: a ladder moved into a
+# helper and pinned with its rungs stubbed. Such a pin proves the helper
+# is `Any`, not that the site's own readings answer past a kept one; the
+# row keeps those sites scheduled for a reading-level pin.
+# pieces_hold: holding's ladder over its pieces.
+crates/topo/src/boolean/slit.rs pieces_hold 1 pin an_unread_piece_refuses_ahead_of_an_earlier_in_band_one
 crates/topo/src/boolean/solid_contain.rs point_in_faces 1 pin a_face_holding_the_point_answers_past_a_face_in_band
 crates/topo/src/census.rs arc_interiors_meet 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/census.rs planar_interiors_meet 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+# search_meeting: the one ladder shared_run, planar_interiors_meet and
+# shared_interior_witness search their probes through.
+crates/topo/src/census.rs search_meeting 1 pin an_unbuilt_reading_outranks_an_undecided_one_in_either_order
 crates/topo/src/census.rs probe_vertices 1 pin an_abort_stops_the_probe_and_a_limit_outranks_in_band
-crates/topo/src/census.rs shared_interior_witness 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/census.rs shared_run 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/census.rs span_clear 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 # wedges_overlap: its pair ladder and each pair's probe ladder, both read
 # by the production function in the one module.
 crates/topo/src/census.rs wedges_overlap 2 pin a_pair_whose_wedge_does_not_read_is_kept_and_a_later_pair_answers
-crates/topo/src/chord_join.rs holds_outer 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+# lone_ring_outer_side: holds_outer's ladder over the outer loop's points.
+crates/topo/src/chord_join.rs lone_ring_outer_side 1 pin a_point_in_band_of_a_lone_rings_plane_hands_the_side_to_the_next
 # path_ring_side: cone_ring_rows reads the outer reader at every offset,
 # among them offsets whose first path is in band, and holds its answer; a
 # first-refusal ladder refuses there. paths_rung is read on the rung
@@ -42,9 +48,10 @@ crates/topo/src/chord_join.rs holds_outer 1 row t4-ports-unpinned-for-a-kept-rea
 # references answers from another reference past it.
 crates/topo/src/chord_join.rs path_ring_side 1 pin a_path_escalating_by_a_corner_hands_re_homing_to_the_next
 crates/topo/src/chord_join.rs paths_rung 1 pin a_path_in_band_hands_the_rung_to_the_next_path
-crates/topo/src/chord_join.rs ring_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/chord_join.rs ring_side 1 pin a_planar_ring_vertex_escalating_hands_re_homing_to_the_next
 crates/topo/src/link.rs place 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/offset_nappe.rs face_nappe_reading 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+# face_nappe_reading: no input reaches past a kept rung (min <= max).
+crates/topo/src/offset_nappe.rs face_nappe_reading 1 proof min-le-max
 crates/topo/src/ray_walk.rs on_boundary 1 pin a_segment_holding_the_point_answers_past_one_in_band
 crates/topo/src/ray_walk.rs walk 1 pin a_deciding_ray_answers_past_one_in_band_and_a_limit_outranks_it
 crates/topo/src/replace_face.rs carried_alike 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
@@ -54,13 +61,15 @@ crates/topo/src/shell.rs band_seam 1 row t4-ports-unpinned-for-a-kept-reading-ah
 crates/topo/src/shell.rs walls_cross 1 pin a_piece_crossing_answers_past_a_piece_in_band
 crates/topo/src/shell.rs wraps_its_period 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/side_reader.rs cast_aims 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/splitting/finish.rs shell_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/splitting/finish.rs shell_side 1 pin an_in_band_edge_refuses_typed_only_where_no_edge_decides
 # contact: the ends' ladder, the second end at the point past the first in band.
 crates/topo/src/splitting/pieced_arc.rs contact 1 pin an_end_in_band_blocks_the_walk_but_not_the_other_end
 crates/topo/src/stands.rs insides_at 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 # ladder, the witness ladder: sweep's integration row reads it through
-# the production Boolean with a corner in band ahead of an answering one.
-crates/topo/src/stands.rs ladder 1 pin a_box_edge_resting_on_a_rim_answers_past_its_in_band_corner
+# the production Boolean. `witness_ladder::a_box_edge_resting_on_a_rim_…`,
+# its first pin, stayed green under the site-restricted mutant (red only
+# for another site); this one is red at the ladder itself.
+crates/topo/src/stands.rs ladder 1 pin a_cylinder_wall_turned_off_the_ruling_is_no_tangency
 # The entry points that take no `Answering` (`climb_agreeing`,
 # `climb_differing`): every answer supersedes the kept rungs, so each call
 # is a site. Pins found by the mutant run with only those two mutated.

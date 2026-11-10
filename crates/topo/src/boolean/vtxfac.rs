@@ -422,6 +422,11 @@ pub(super) enum PartnerRead {
 /// face, a sector on the face at both bounds, or a bound on it beside a
 /// touch `flush` with the face, read [`PartnerRead::Along`], in that
 /// order.
+///
+/// Not every bound is read before a verdict: `Across` stops the climb, so
+/// a later bound that would refuse the whole read (an abort) goes
+/// unreported. That is the ladder's rule (an answer is an answer), and it
+/// gives up the earlier property that every bound's refusal was seen.
 pub(super) fn partner_side<T: Decide>(
     partner: &Partner<T>,
     own_at: Point3<T>,

@@ -4956,14 +4956,7 @@ impl RimSide {
                 // the section's identified crossing, and on the sphere the
                 // ring's plane meets the surface in the ring alone, so a
                 // loop crossing the plane would cross the ring.
-                use geom_brep::ladder::{Answering, Climb, Rung, climb};
-                let points = loop_points(body, outer)?;
-                let read = climb(Answering::Any, points, |w| {
-                    let offset = Margin::of((w - center).dot(axis));
-                    Rung::decide("bool_lone_ring_outer_side", offset, band, |d| {
-                        (d.sign != Sign::Zero).then_some(d.sign)
-                    })
-                });
+                let read = lone_ring_outer_side(loop_points(body, outer)?, center, axis, band);
                 let outer_side = match read {
                     Climb::Answered { answer, .. } => answer,
                     Climb::Undecided(diag) => return Err(escalated(diag)),
@@ -5564,6 +5557,26 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
     Ok(true)
 }
 
+/// The side of a lone ring's plane (through `center`, normal `axis`)
+/// the old face's outer loop lies on: the first point read definitely off
+/// the plane answers, past a point read in band ([`climb`],
+/// [`Answering::Any`]: the loop does not cross the plane,
+/// [`RimSide::holds_outer`]'s premise). `Passed` where every point
+/// reads on it.
+fn lone_ring_outer_side<T: Decide>(
+    points: impl IntoIterator<Item = Point3<T>>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Climb<Sign, Indeterminate> {
+    climb(Answering::Any, points, |w| {
+        let offset = Margin::of((w - center).dot(axis));
+        Rung::decide("bool_lone_ring_outer_side", offset, band, |d| {
+            (d.sign != Sign::Zero).then_some(d.sign)
+        })
+    })
+}
+
 /// Which side of `run` a bystander ring lies on, read at its first
 /// vertex off `run`'s boundary: a ring disjoint from the run cannot
 /// cross it, but it may touch it at a vertex — a pinch, where two
@@ -5694,6 +5707,30 @@ mod side_ladder_rows {
             Ok(Some(Sign::Negative)),
             "a later decided side answers"
         );
+    }
+
+    /// **A point read in band of a lone ring's plane hands the side to the
+    /// next point** ([`super::lone_ring_outer_side`], `Any`): the first
+    /// point in band, the second decided below, reads below; both in band,
+    /// it is kept. A first-refusal ladder kept the first.
+    #[test]
+    fn a_point_in_band_of_a_lone_rings_plane_hands_the_side_to_the_next() {
+        use geom_core::ladder::Climb;
+        use geom_core::{Point3, Vec3};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let (center, axis) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let at = |z: f64| Point3::new(1.0, 0.0, z);
+        assert!(matches!(
+            super::lone_ring_outer_side([at(5e-9), at(-1.0)], center, axis, band),
+            Climb::Answered {
+                at: 1,
+                answer: Sign::Negative
+            }
+        ));
+        assert!(matches!(
+            super::lone_ring_outer_side([at(5e-9), at(5e-9)], center, axis, band),
+            Climb::Undecided(_)
+        ));
     }
 
     /// **A path read in band hands the rung to the next path**
