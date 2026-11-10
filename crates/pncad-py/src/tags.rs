@@ -180,6 +180,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err.kind() {
         PathErrorKind::JunctionTangent => "junction_tangent",
         PathErrorKind::JunctionCusp => "junction_cusp",
+        PathErrorKind::CuspDoublesBackOverLeg => "cusp_doubles_back_over_leg",
         PathErrorKind::SeamTangent => "seam_tangent",
         PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
@@ -1607,6 +1608,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::Band(_) => "band",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcSweepUndecided { .. } => "arc_sweep_undecided",
+        SkinError::ParametersInvalid { .. } => "parameters_invalid",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",
