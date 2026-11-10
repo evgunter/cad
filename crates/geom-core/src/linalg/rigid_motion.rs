@@ -2507,7 +2507,13 @@ mod motion_rows {
         );
         let admitted = RigidMotion::check_rigid(&turn).expect("a rotation is rigid");
         assert_eq!(bits12(&admitted.to_affine()), bits12(&turn), "as given");
-        for s in [1.0 + 0.2 * zero / reach, 1.0 + 0.4 * zero] {
+        // One ulp off unit is a rigid map in floating point, at every ε.
+        assert!(
+            RigidMotion::check_rigid(&stretch(1.0 + f64::EPSILON)).is_ok(),
+            "a column one ulp off unit is admitted"
+        );
+        // Beyond rounding at every ε row: the door reads no band.
+        for s in [1.0 + 1e-12, 1.0 + 0.4 * zero] {
             assert!(
                 matches!(
                     RigidMotion::check_rigid(&stretch(s)),
@@ -2518,10 +2524,20 @@ mod motion_rows {
                 "a column {s} long is refused"
             );
         }
-        assert!(
-            RigidMotion::admitted_for_a_suite(&stretch(1.0 + 0.2 * zero / reach), band()).is_ok(),
-            "a suite's door admits it at the band"
-        );
+        // A stretch beyond rounding that the levered band calls zero: the
+        // suites' door admits it, where the run's ε leaves room for one
+        // (at ε = 1e-12, `0.2ε/S` is under an ulp, and there is none).
+        let in_band = 0.2 * zero / reach;
+        if in_band > 64.0 * f64::EPSILON {
+            assert!(
+                RigidMotion::admitted_for_a_suite(&stretch(1.0 + in_band), band()).is_ok(),
+                "a suite's door admits it at the band"
+            );
+            assert!(
+                RigidMotion::check_rigid(&stretch(1.0 + in_band)).is_err(),
+                "the f64 door refuses it"
+            );
+        }
     }
 
     /// **The action on a direction is the linear part on its vector**,
