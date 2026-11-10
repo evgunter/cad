@@ -38,6 +38,14 @@ Both moves are real and correct, and are re-pinned (`crates/editor-core/tests/m1
 
 **1684 → 1704 (PR 6682, an extension's run is its own segment, Ev's ruling on PR 6542).** It adds 20 symbolic and 106 numeric decisions (`segment_gap`, `carrier_line_circle`, `line_span`, `chord_side`, `collinear_overlap`, `vertex_separation`, …). Each corner after a straight leg keeps the leg's end as a vertex, so the simplicity pass reads more pairs. PR 6682's body names this move and leaves the re-pin to this row.
 
-**One more pin in the file, not this row's move.** `m10_9_what_the_registry_buys` was red on the bracket as well, with the door shut: (1544, 1224) pinned, (1542, 1226) read. It reads (1542, 1226) at `b2eb7192` (PR 6530's merge, which wrote the (1544, 1224) pin with PCERT E1c's re-pin) and at both of that merge's parents. So the pin was never main's reading. It is re-pinned at main's reading, unbisected, with that said at the pin.
+**One more pin in the file, not this row's move.** `m10_9_what_the_registry_buys` was red on the bracket as well, with the door shut: (1544, 1224) pinned, (1542, 1226) read.
+- **The cause is PR 6504** (`pcert/one-ruling-reading`). Its first parent `9eead2e516` reads (1544, 1224) and its merge `143d99ec29` reads (1542, 1226).
+  - The cylinder arm reads a line's ruling as its miss over the span plus its standoff from the wall, where it read its radial speed. That standoff is a norm the tier does not reduce with the door shut.
+  - So two `pcurve_chart_radial_moving` decisions the tier proved are numeric. The shipped count does not move.
+- **A correction.** This row first said the (1544, 1224) pin "was never main's reading". That is wrong: it was measured on a build whose worktrees shared one target dir, so another tree's artifacts were read. Measured on clean targets, the pin passes at PCERT E1c's merge (PR 5889) and moves at PR 6504.
+- **The same sweep named the other unbisected moves in the file:**
+  - PR 5728 (limb 2 for every carrier) moved the pad's door-shut receipt and dials, and the link's door-shut refusal.
+  - PR 5811 (an operation computes in a frame of its reads) moved the bracket's (1630, 1383) to (1474, 1228): a copy is no longer rebuilt and re-certified.
+  - PR 6504 moved the pad's `frozen` from 3257 to 3281.
 
 With these re-pins, `m10_9_pins_interval` passes 7/7 at 1e-6, 1e-9 and 1e-12.

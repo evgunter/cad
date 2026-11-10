@@ -223,6 +223,14 @@ pub(crate) struct Study {
 /// 962 -> 998, the bracket 1551 -> 1613 and the pad 1592 -> 1660 symbolic decisions; door shut,
 /// the link (709, 585) -> (727, 585), the bracket (1488, 1218) ->
 /// (1544, 1224) and the pad (1592, 1250) -> (1660, 1250).
+///
+/// Later moves, each named at the pin it moved: PR 6504 (one ruling
+/// reading) the bracket door shut (1544, 1224) -> (1542, 1226) and the
+/// pad's `frozen` 3257 -> 3281; PR 6594 (the planar line's home) the pad
+/// 1660 -> 1684; PR 6682 (an extension's run is its own segment) the pad
+/// 1684 -> 1704. The moves this ledger lists between PR 5728 and PR 5811
+/// are PR 5728's (the pad and the link door shut) and PR 5811's (the
+/// bracket door shut), measured at each merge and its first parent.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -272,8 +280,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             //
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
-            // Pinned at what main measures (unbisected between PR 5728
-            // and PR 5811, `work/shell/main-red-three-m10-interval-pins-moved-at-5728`): shut, the door now refuses earlier,
+            // Pinned at what main measures since PR 5728 (limb 2 for every
+            // carrier; at 1e-9 its first parent reads (722, 704) refusing
+            // at the pcurve's certification, its merge (709, 585)): shut, the door now refuses earlier,
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
             without_the_registry: Some(((727, 585), Some("Stalled { operand: Cylinder"))),
@@ -291,17 +300,26 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            // Pinned at what main measures: (1566, 1384) -> (1474, 1228),
-            // unbisected between PR 5728 and PR 5811 (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
+            // Pinned at what main measures: (1566, 1384) -> (1474, 1228).
+            // The move to (1474, 1228) is PR 5811 (an operation computes
+            // in a frame of its reads), from (1630, 1383) at its first
+            // parent: a placement's copy shares its source's body under a
+            // frame and is never rebuilt, so the copy's maps and
+            // re-certification no longer run (`carrier_on_surface`, the
+            // pcurve mint and envelope, `dihedral_*`, the witness). The
+            // steps from (1566, 1384) to (1630, 1383) are not bisected.
             // Then (1474, 1228) -> (1474, 1218) when the simplicity pass
             // stopped reading a gap on a line pair that shares a vertex
             // (PR 5952), and (1474, 1218) -> (1488, 1218) with the
-            // cylinder rim's axial decision (PR 6105, the fn doc). Then
-            // (1544, 1224) -> (1542, 1226): pinned at what main measures.
-            // It reads (1542, 1226) at `b2eb7192`, the merge that pinned
-            // (1544, 1224), and at both of its parents, so the pin was
-            // never main's reading and the move is unbisected (before PR
-            // 6530).
+            // cylinder rim's axial decision (PR 6105, the fn doc), and
+            // (1488, 1218) -> (1544, 1224) with PCERT E1c (PR 5889). Then
+            // (1544, 1224) -> (1542, 1226) with PR 6504 (one ruling
+            // reading): the cylinder arm reads a line's ruling as its miss
+            // over the span plus its standoff from the wall (`ruling_miss`,
+            // `norm_gap`) where it read its radial speed, and the standoff
+            // is a norm the tier does not reduce with the door shut, so two
+            // `pcurve_chart_radial_moving` decisions it proved are numeric.
+            // The shipped count, with the registry, does not move.
             without_the_registry: Some(((1542, 1226), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
@@ -327,8 +345,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // discharge (64 decisions, `(1147, 1392)` shut against
             // `(1211, 1328)` shipped, when they were angles).
             // Pinned at what main measures: (1546, 1260) -> (1592, 1250),
-            // the same receipt as shipped, unbisected between PR 5728 and
-            // PR 5811 (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
+            // the same receipt as shipped. The move to (1592, 1250) is PR
+            // 5728 (limb 2 for every carrier), from (1544, 1250) at its
+            // first parent; the step from (1546, 1260) is not bisected.
             // Then (1660, 1250) -> (1684, 1262) -> (1704, 1368) with
             // PR 6594 and PR 6682 (`symbolic` below).
             without_the_registry: Some(((1704, 1368), None)),
@@ -862,15 +881,17 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         got.push((c.symbolic, c.numeric, c.frozen));
     }
     // Pinned at what main measures, (1546, 1260, 3026) -> (1592, 1250,
-    // 2465) at every ε row, unbisected between PR 5728 and PR 5811
-    // (`work/shell/main-red-three-m10-interval-pins-moved-at-5728`).
+    // 2465) at every ε row. The move to (1592, 1250, 2465) is PR 5728
+    // (limb 2 for every carrier), from (1544, 1250, 2420) at its first
+    // parent; the step from (1546, 1260, 3026) is not bisected.
     // Then PCERT E1c (every mint reads incidence first, PR 5889):
     // (1592, 1250, 2465) -> (1660, 1250, 3257), the read's decisions and
     // the forms it freezes. Then (1660, 1250) -> (1684, 1262) -> (1704,
-    // 1368) with PR 6594 and PR 6682 (the study's `symbolic`). `frozen`
-    // read 3281 at PR 6594's first parent, 3294 at its merge, 3637 at PR
-    // 6682's first parent and 3751 at its merge: each added decision's
-    // forms.
+    // 1368) with PR 6594 and PR 6682 (the study's `symbolic`). `frozen`,
+    // the forms each decision freezes: 3257 -> 3281 with PR 6504 (its
+    // ruling reading's forms), -> 3294 with PR 6594, 3637 at PR 6682's
+    // first parent (the step from 3294 is not bisected: `frozen` alone,
+    // over 175 first-parent commits) and 3751 with PR 6682.
     assert_eq!(got[0], (1704, 1368, 3751), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
