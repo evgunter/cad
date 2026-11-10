@@ -1474,3 +1474,11 @@
   - **6701 (T3) FULL: FIX (small).** Two broken doc links in the moved ladder; nonexistent carrier names in the row and body; stale register/row paths; mixed geom-brep spellings; pole_side's tuple-shaped hand-rolled `Rung::holds` slips the gate; `PieceWalkRefusal::recourse` restates `refusal()`; one pin per port. Back to the ladder lane.
   - **6689 fix pass** (d6fedd06: one torus-text home `refused_ended`; fate routed through `standing()`; the dual-premise row filed) → delta review.
   - **held-and-pierce:** the carrier-held-points row was already closed by 6669. Four more sites state a held premise but read the unheld door (node, rim_wedge, overlap place, line_through_both_faces), so they are done here. The two that read OffCarrier as data are decided from the code first.
+- 2026-11-10 06:05Z
+  - **Merged PR 6676 (foot-closed-forms).** 10401/10401 on the merged tree. The delta review's one false doc sentence (the h=±0 flipped-axis foot) and the two "nonzero" spellings go to the unit-axis branch.
+  - **Reviews:**
+    - 6689 delta: MERGE (one torus-text home, both halves; Boolean/Validation output byte-identical). Merge check running.
+    - 6699 FULL: FIX. The sweep missed 3 line holders, including end_face's line_clearance, the shape it ported; link `past` is bit-for-bit Ray::ahead; AxisFrame holds the direction twice.
+    - 6694 FULL: FIX, one MAJOR: a silent regression on `use super::door` in a child mod. Also self::/super:: path calls, cfg duplicates and ledger holes. The DESIGN Layering row's "one home… refused" clause binds future work, so it is dropped (the rule lives in reader_census).
+  - **New PR 6703 (link-bisector):** the near-clearance is re-posed as the segment clearance norm; FULL review: session_013mPGJ25dtYSzPuuQWtH4AY.
+  - **crease_at, ruled (i):** an undecided knot on either edge stops the join; only a decided crease picks the kept edge. Tie=crease would have moved the kept carrier or produced JoinCarrierUnsupported. It goes as its own PR.
