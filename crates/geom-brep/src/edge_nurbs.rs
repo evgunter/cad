@@ -563,10 +563,12 @@ impl PlaneNurbsRefusal {
     /// The ending this refusal's decision gives it, read at `at`
     /// ([`Self::decided`], through the one decision table's
     /// [`Decision::ending`]): a check's refused arm by its routing
-    /// ([`CertCheck::recourse`]), a certificate limb's escalation and
-    /// the one-arc proof as the SSI door ends them, a lane's capability
-    /// gap "not yet", the image producer's own refusal the door's
-    /// defect, and a lever on the input its own.
+    /// ([`CertCheck`]'s
+    /// [`DoorCheck::recourse`](crate::recourse::DoorCheck::recourse)), a
+    /// certificate limb's escalation and the one-arc proof as the SSI
+    /// door ends them, a lane's capability gap "not yet", the image
+    /// producer's own refusal the door's defect, and a lever on the
+    /// input its own.
     ///
     /// `Display` renders the payload alone, as [`crate::CertifyError`]'s
     /// does, and the door that reports the refusal appends this, or
