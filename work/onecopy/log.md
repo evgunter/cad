@@ -1520,3 +1520,4 @@
 - 03:42Z 6711 FULL: MERGE (charge derived sound, 0/23200 failures; loose ~2^9 on fat tori). Merged main → d1156f3f, check+gates clean, gating. Follow-up (N1 figures, S1 tighten-or-row, S2 seeds) → torus-harmonics lane.
 - 03:46Z 6706 fix pass (735cd804; refused_ended deleted, TorusRefusal::said/decided the home) → delta review. PR 6708 doc-gate-clean (94feb337, gate green; 51 rustdoc sites; closes ciw P0 too) → lane closes onecopy row, then review.
 - 03:48Z 6708 at 2024a739 (row closed) → FULL review session_013mPGJ4RRKJeyVYD9u7SSLi. Doc-gate lane → angle-census-trace (the-angle-reads-cleared… row) if it can push.
+- 03:52Z Merged 6690 bracket-mid (gate green at 028ea772; main moved only by onehome docs, disjoint).
