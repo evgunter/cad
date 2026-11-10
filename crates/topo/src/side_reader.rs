@@ -489,7 +489,7 @@ fn aim_turn() -> (f64, f64) {
 ///
 /// **A pair is two crossings of faces that do not meet** (`meet`), in
 /// band of each other along the ray, each read where the ray meets its
-/// faces ([`RayHit::pair`]): a face's crossing, or the point where the
+/// faces ([`RayHit::pair_as`]): a face's crossing, or the point where the
 /// ray passes an edge, in band of both its faces; an edge the ray passes
 /// without crossing is no party. Two faces `t` apart are met about `t`
 /// apart along the ray, less what the band lets an edge's passage slide
@@ -499,7 +499,7 @@ fn aim_turn() -> (f64, f64) {
 /// beside another face.
 ///
 /// **A corner or a wedge reads nothing, and is read before a pair** in
-/// the same cluster ([`crate::ray_walk::Crossings::first_count`]): D10
+/// the same cluster ([`crate::ray_walk::Crossings::first_count_as`]): D10
 /// refuses only on a pair, which restricts refusal and does not demand
 /// it, and a ray that meets a corner or a wedge reads nothing. A ray
 /// that grazes a face, meets a corner (a vertex in band of it) or a
@@ -721,12 +721,12 @@ fn aimed_ray<T: Decide>(
         Err(RayFault::Graze | RayFault::Unread) => return Ok(Aimed::SetAside(SetAsideWhy::Graze)),
     };
     Ok(
-        match crossings.first_count(
+        match crossings.first_count_as(
             AIMED_ROWS.order(),
             band,
             RayHit::count,
             |a, b| {
-                a.pair(body, b, AIMED_ROWS.order(), band).map_err(|f| {
+                a.pair_as(body, b, AIMED_ROWS.order(), band).map_err(|f| {
                     f.map(|(near, gap, far)| {
                         Unread::Pair(AimedPair {
                             shell,

@@ -222,9 +222,10 @@ pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
     ConsumedExtent, carrier_eq,
 };
-// The engine's own readers of a curved face placement, and of the two
-// helpers the containment component reads (`contain`, at the crate
-// root), under their bare names.
+// The containment component (`contain`, at the crate root) declares
+// `CurvedPlacement` and the two helpers `kind_word` and
+// `one_vertex_at`; the engine reads them back here under their bare
+// names.
 use crate::contain::CurvedPlacement;
 use crate::contain::{kind_word, one_vertex_at};
 pub use discard::DiscardRow;

@@ -148,7 +148,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
         )
     };
     if !(clear_of_singular(surface, station, &clear_as)
-        && clear_of_boundary(boundary, station, &clear_as))
+        && clear_of_boundary_as(boundary, station, &clear_as))
     {
         return CellRegion::Undecided;
     }
@@ -235,7 +235,7 @@ impl Ball {
     }
 
     /// Is the arc of `carrier` over `params` decided clear of the ball?
-    pub(crate) fn clear_of_arc(
+    pub(crate) fn clear_of_arc_as(
         self,
         carrier: &geom::Curve3<Interval>,
         params: (Interval, Interval),
@@ -275,7 +275,7 @@ fn clear_of_singular(
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:
-/// what [`clear_of_boundary`] decides, in the order it decides it.
+/// what [`clear_of_boundary_as`] decides, in the order it decides it.
 #[derive(Debug, Clone)]
 pub(crate) enum BoundaryStop {
     /// A vertex's point.
@@ -328,7 +328,7 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
 
 /// Is every stop of a face's lifted boundary decided clear of the
 /// ball? The first stop that is not ends the walk.
-fn clear_of_boundary(
+fn clear_of_boundary_as(
     stops: &[BoundaryStop],
     station: Point3<Interval>,
     clear_as: &dyn Fn(&'static str, Interval) -> bool,

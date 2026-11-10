@@ -46,7 +46,7 @@ crates/topo/src/injective.rs	on	1	chart
 crates/topo/src/offset_axial.rs	solve_corner	1	harmonic
 crates/topo/src/offset_axial.rs	param_on	1	turn
 crates/topo/src/offset_axial.rs	reauthor	1	turn
-crates/topo/src/offset_axial.rs	azimuth_turn	1	turn
+crates/topo/src/offset_axial.rs	azimuth_turn_as	1	turn
 crates/topo/src/ring_path.rs	paths	1	turn
 crates/topo/src/ring_path.rs	parallel	1	turn
 crates/topo/src/sector_face.rs	azimuth_from	1	turn

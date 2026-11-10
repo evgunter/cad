@@ -1705,7 +1705,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
             body_a, face_a, body_b, face_b, &surface_a, &uv_a, &folded, band,
         )
     };
-    match period_fold(window_mid(&uv_a) - window_mid(&uv_b), a_radius, band)? {
+    match period_fold_as(window_mid(&uv_a) - window_mid(&uv_b), a_radius, band)? {
         Fold::One(shift) => overlap_at(shift),
         Fold::Astride([lo, hi], decline) => {
             let (below, above) = (overlap_at(lo), overlap_at(hi));
@@ -1719,7 +1719,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     }
 }
 
-/// The fold [`period_fold`] decides.
+/// The fold [`period_fold_as`] decides.
 enum Fold<T> {
     /// The one shift `k·τ`.
     One(T),
@@ -1733,14 +1733,14 @@ enum Fold<T> {
 /// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
 /// half-period marks ([`geom_brep::Period::decide`]) metered at the
 /// radius, so it is a literal at every scalar. Where a mark misses, the
-/// two branches astride it (`pcurves::branches_astride`), each a literal.
+/// two branches astride it (`pcurves::branches_astride_as`), each a literal.
 ///
 /// # Errors
 ///
 /// [`ChartRegionError::PeriodFold`] on a mark whose astride branches
 /// are not decided;
 /// [`ChartRegionError::Escalated`] in band, likewise.
-fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
+fn period_fold_as<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
     let name = "chart_region_period_fold";
     let meter = |g| Margin::metered(g, InfSpeed::new(radius));
     let period = geom_brep::Period::angle();
@@ -1752,7 +1752,7 @@ fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, Char
                 geom_brep::BranchMiss::Undecided(diag) => ChartRegionError::Escalated(diag),
                 _ => ChartRegionError::PeriodFold,
             };
-            match crate::pcurves::branches_astride(name, gap, period.length(), meter, band) {
+            match crate::pcurves::branches_astride_as(name, gap, period.length(), meter, band) {
                 Ok([lo, hi]) => Ok(Fold::Astride([shift(lo), shift(hi)], decline)),
                 Err(_) => Err(decline),
             }
@@ -2768,7 +2768,7 @@ fn certified_arms<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(InfSpeed<T>, InfSpeed<T>), ChartRegionError> {
     let gate = |arm: T, chart: &'static str| -> Result<T, ChartRegionError> {
-        gate_arm(ARM_INF, arm, arm.lo(), band).map_err(|g| g.of_chart(chart))
+        gate_arm_as(ARM_INF, arm, arm.lo(), band).map_err(|g| g.of_chart(chart))
     };
     let (arm_u, arm_v) = match *surface {
         // A plane chart's coordinates ARE metres (unit u_ref frame).
@@ -2841,7 +2841,7 @@ fn certified_arms<T: Decide + Bounds>(
 /// The row a chart's inf-side lever arm is gated on.
 const ARM_INF: &str = "chart_region_arm_inf";
 
-/// Why [`gate_arm`] gates no rate.
+/// Why [`gate_arm_as`] gates no rate.
 #[derive(Clone, Debug)]
 pub(crate) enum ArmGate {
     /// The chart has no certified extent in that channel.
@@ -2874,7 +2874,7 @@ impl ArmGate {
 /// no bound) instead of laundering it into an escalation that reads as
 /// "undecided measurement". Only the floor is ever leaned on
 /// downstream, so this is the same question the row asks, asked first.
-pub(crate) fn gate_arm<T: Decide>(
+pub(crate) fn gate_arm_as<T: Decide>(
     name: &'static str,
     arm: T,
     floor: f64,
@@ -2890,7 +2890,7 @@ pub(crate) fn gate_arm<T: Decide>(
     }
 }
 
-/// **A spline chart's two inf-side lever arms, gated** ([`gate_arm`] on
+/// **A spline chart's two inf-side lever arms, gated** ([`gate_arm_as`] on
 /// `name`, each arm's floor read by `floor`): the per-axis infs of its
 /// stretch reading ([`geom_brep::chart_stretch_inf`]) gated FIRST, since
 /// they are the assembly's divisors and only a definitely-positive one
@@ -2903,10 +2903,13 @@ pub(crate) fn spline_chart_arms<T: Decide>(
     band: Band,
 ) -> Result<(InfSpeed<T>, InfSpeed<T>), ArmGate> {
     let inf = geom_brep::chart_stretch_inf(surface);
-    let gate = |arm: T| gate_arm(name, arm, floor(arm), band);
-    let (inf_u, inf_v) = (gate(inf.inf_u)?, gate(inf.inf_v)?);
+    let gate_as = |arm: T| gate_arm_as(name, arm, floor(arm), band);
+    let (inf_u, inf_v) = (gate_as(inf.inf_u)?, gate_as(inf.inf_v)?);
     let (arm_u, arm_v) = skew_discounted_arms(&inf, inf_u, inf_v);
-    Ok((InfSpeed::new(gate(arm_u)?), InfSpeed::new(gate(arm_v)?)))
+    Ok((
+        InfSpeed::new(gate_as(arm_u)?),
+        InfSpeed::new(gate_as(arm_v)?),
+    ))
 }
 
 /// **A spline chart's two inf-side lever arms** from its stretch reading
@@ -6386,7 +6389,7 @@ mod period_fold_rows {
         for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
-                    let Fold::One(shift) = period_fold(a - b, Sym::from_f64(2.0), band).unwrap()
+                    let Fold::One(shift) = period_fold_as(a - b, Sym::from_f64(2.0), band).unwrap()
                     else {
                         panic!("k = {k}: a gap of whole periods sits on no mark");
                     };
