@@ -2,11 +2,10 @@
 id: the-vertex-pair-planner-nests-struts-across-pairs-beside-ring-tree
 kind: issue
 title: boolean/insert.rs nests one shared vertex's struts across pairs by holds_whole, a second nesting reading beside star::ring_tree
-status: dispatched
+status: open
 opened: 2026-11-02
 priority: P1
 cost: M
-branch: onehome/star-walk
 ---
 
 Found by `run-loops-of-split-and-pierce-are-twins` stage 1 (`onehome/star-sites`), which tested whether the vertex–vertex planner's own chord nesting is `star::ring_tree` in substance.
@@ -34,3 +33,4 @@ A third nesting reading outside `topo::star`'s scope: `boolean/zip.rs` `peel` ne
 ## Stage 2 (onehome/star-walk)
 
 Every plan at a shared vertex now reads one walk, the vertex's star (`Star::walk`). Each pair refines that star against its own partner's faces (`boolean::sectors::pair_sectors`). The star orders the vertex's **bounds**; refinement only adds bounds inside sectors. `holds_whole`, `nests`, `segment` and `strut_anchor` stay, and `holds_whole` says why at the code. The struts they nest are different pairs', and their germs lie strictly inside one sector, between two bounds. There `walks_before` places them by their germs' directions, and no bound order reaches them. One parent relation over all the vertex's chords needs one order of every pair's germs, which is stage 3's germ order (`germ-orders-about-a-normal-have-two-homes`). The code tie, where the Out strut holds, then becomes that order's tie reading. So the fold rides stage 3.
+- 2026-11-10: stage 2 (PR 6725) kept `holds_whole`/`nests`/`segment`/`strut_anchor`, since they need stage 3's germ order across pairs. The row is open until stage 3. (ONEHOME orchestrator)

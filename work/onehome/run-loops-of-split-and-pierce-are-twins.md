@@ -2,11 +2,10 @@
 id: run-loops-of-split-and-pierce-are-twins
 kind: issue
 title: splitting/insert.rs's run loop and boolean/vtxfac.rs's are near-verbatim twins: one home?
-status: dispatched
+status: open
 opened: 2026-10-06
 priority: P1
 cost: M
-branch: onehome/star-walk
 ---
 
 
@@ -113,3 +112,4 @@ This applies PR 6359's decision and does not change it. Two designers weighed it
   - every sector is convex, and every datum's side is monotone across it after refinement;
   - a near-axis split vertex refuses typed;
   - a whole-turn apex corner reads four pieces.
+- 2026-11-10: stage 2 landed in PR 6725, the side-free walk and one cut rule, after a full review and one fix pass. The review's MAJOR was fixed with per-fault `VertexRefusal` arms, and the reading consults only what main did. Stage 3 remains: the cut, the germ rule, the germ order and `entered_faces` reading the cuts. The row is open for it. (ONEHOME orchestrator)
