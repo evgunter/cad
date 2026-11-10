@@ -9633,9 +9633,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         /// Planar AND bounded entirely by line edges, so the exact
         /// sweeps hold this face's whole boundary.
         line_bounded: bool,
-        /// Planar and holding a lone-vertex loop, which the exact
-        /// sweeps read no ring of: the reason a pair of planar faces
-        /// leaves them.
+        /// Planar, every edge a line, and holding a lone-vertex loop:
+        /// the lone loop, which the exact sweeps read no ring of, is the
+        /// one reason this face leaves them.
         lone: bool,
     }
     let mut reaches: Vec<ProximityFace<T>> = Vec::new();
@@ -9707,8 +9707,24 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             line_bounded: planar && line_bounded(f),
             lone: planar
                 && body.get_face(f).is_some_and(|face| {
-                    body.unchecked_face_boundary(face)
-                        .any(|read| matches!(read, Ok(crate::live::UncheckedLoop::Lone(_))))
+                    let mut lone = false;
+                    for read in body.unchecked_face_boundary(face) {
+                        match read {
+                            Ok(crate::live::UncheckedLoop::Lone(_)) => lone = true,
+                            Ok(crate::live::UncheckedLoop::Cycle(cycle)) => {
+                                let lines = cycle.iter().all(|&he| {
+                                    body.half_edges
+                                        .get(he)
+                                        .is_some_and(|h| edge_is_line(body, h.edge))
+                                });
+                                if !lines {
+                                    return false;
+                                }
+                            }
+                            Err(_) => return false,
+                        }
+                    }
+                    lone
                 }),
         });
     }
@@ -9874,7 +9890,12 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                         && b.planar
                         && in_plane::apart_in_plane(body, a.face, b.face, &proposed, band))
                 {
-                    let why = if a.planar && b.planar && (a.lone || b.lone) {
+                    // The lone loop is the cause only where it is what
+                    // keeps each face out of the exact sweeps.
+                    let why = if (a.lone || b.lone)
+                        && (a.lone || a.line_bounded)
+                        && (b.lone || b.line_bounded)
+                    {
                         Undecided::LoneLoop
                     } else {
                         Undecided::CurvedWithinReach
@@ -22220,6 +22241,73 @@ mod lone_vertex_rows {
 
     use crate::test_support_fixtures::box_with_a_lone_ring;
 
+    /// The whole census of `body` with no contact recorded.
+    fn census(body: &crate::Body<f64>) -> Vec<crate::ValidationError> {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).expect("a band");
+        super::census_and_certify(body, &crate::ContactRecords::default(), band, tol, None)
+    }
+
+    /// **A face pair is refused for the cause that keeps it out of the
+    /// exact sweeps**: a half-disc post standing on a box's top face that
+    /// holds a one-vertex ring. Against a planar face of the post bounded
+    /// by lines, the lone loop is the one cause and is named; against
+    /// the wall or a cap bounded by an arc, the curve is, as it would be
+    /// with no ring. Red where any pair with a lone-loop face was named
+    /// the lone loop.
+    #[test]
+    fn a_face_pair_is_refused_for_what_keeps_it_out_of_the_exact_sweeps() {
+        use crate::{EntityId, ValidationError};
+        let tol = Tol::witness();
+        let (mut body, top, _) = box_with_a_lone_ring(tol);
+        let post = crate::tier3_tests::half_disc(0.3, 0.5, (0.5, 0.5, 1.0), false, tol);
+        crate::graft_disjoint_all_keyed(&mut body, &post).unwrap();
+        let errors = census(&body);
+        let planar_lines = |f| {
+            let face = body.face(f).expect("a face");
+            matches!(face.surface(), geom::Surface::Plane { .. })
+                && face
+                    .half_edges()
+                    .iter()
+                    .all(|&he| super::edge_is_line(&body, body.half_edges[he].edge))
+        };
+        let mut read = [0, 0];
+        for e in &errors {
+            let ValidationError::CensusUndecidable {
+                a: EntityId::Face(a),
+                b: EntityId::Face(b),
+                what,
+                ..
+            } = e
+            else {
+                continue;
+            };
+            let other = if *a == top {
+                *b
+            } else if *b == top {
+                *a
+            } else {
+                continue;
+            };
+            let lines = planar_lines(other);
+            let want = if lines {
+                super::Undecided::LoneLoop
+            } else {
+                super::Undecided::CurvedWithinReach
+            };
+            assert_eq!(
+                *what,
+                want.what(),
+                "the top face against {other:?} (lines {lines})"
+            );
+            read[usize::from(lines)] += 1;
+        }
+        assert!(
+            read[0] > 0 && read[1] > 0,
+            "the top face meets both kinds of post face undecided: {read:?}"
+        );
+    }
+
     /// **A part touching a lone vertex is refused under the lone loop's
     /// name, not as corruption or a curved face**: a cube stood on its
     /// corner at the lone vertex of a box's one-vertex ring, read through
@@ -22252,8 +22340,7 @@ mod lone_vertex_rows {
         )
         .unwrap();
         crate::graft_disjoint_all_keyed(&mut body, &cube).unwrap();
-        let errors =
-            super::census_and_certify(&body, &crate::ContactRecords::default(), band, tol, None);
+        let errors = census(&body);
         let lone = super::Undecided::LoneLoop.what();
         let undecided: Vec<&str> = errors
             .iter()
@@ -22300,12 +22387,18 @@ mod lone_vertex_rows {
     /// cone); the polygon reading of the face is refused the same way.
     /// Red where the ring read as an unwalkable loop.
     ///
-    /// Called directly: no production path reaches the at-point arms.
-    /// `gather` mints no `Held::Corner` for a lone vertex, and `contfp`
-    /// refuses a face with a lone loop (`ContainError::EmptyLoop`) before
-    /// any `OnVertex` reaches [`super::face_cone`]. The whole census on
-    /// such a body is
-    /// [`a_part_touching_a_lone_vertex_is_refused_as_a_lone_loop`]'s row.
+    /// Called directly, for both at-point arms side by side:
+    /// - [`super::face_cone`]'s is unreachable in production: its
+    ///   `OnVertex` comes from `contfp`, which refuses a face with a lone
+    ///   loop (`ContainError::EmptyLoop`) before placing any point on it.
+    /// - [`super::tangent_sectors`]'s is reached only through
+    ///   [`super::self_touch_verdict`], after the planar reading aborts.
+    ///   The lone face's own planar reading refuses first, as a limit
+    ///   (`FaceGeo.walked`), so a curved face at the point has to abort
+    ///   it. `self_touch_curved`'s
+    ///   `a_self_touch_at_a_lone_vertex_of_a_curved_wall_refuses_as_a_lone_loop`
+    ///   reaches the arm that way. The whole census across two solids is
+    ///   [`a_part_touching_a_lone_vertex_is_refused_as_a_lone_loop`]'s row.
     #[test]
     fn a_lone_loop_is_skipped_off_the_point_and_refused_at_it() {
         use super::FaceContainment::OnVertex;
