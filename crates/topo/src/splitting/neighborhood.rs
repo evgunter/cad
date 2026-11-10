@@ -270,8 +270,56 @@ pub(super) fn classify<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::fixtures::raw_prism;
     use geom_core::{Tol, Vec3};
+
+    /// **A vertex near a cone's axis refuses, typed**: on a needle cone,
+    /// a vertex a band's width off the axis and well off the apex has no
+    /// tangent plane the split reads, and the star's fault is the split's
+    /// [`SplitReduceError::VertexNearConeAxis`], naming the vertex, the
+    /// face and the band.
+    #[test]
+    fn a_vertex_near_a_cones_axis_refuses_typed() {
+        use crate::construction::{FaceSurface, MevSite};
+        use geom_core::Point3;
+        let alpha: f64 = 0.01;
+        let at = |z: f64| Point3::new(z * alpha.tan(), 0.0, z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(1e-5), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Cone {
+                    apex: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    half_angle: alpha,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            at(1.0),
+            Tol::witness(),
+        )
+        .unwrap();
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let normal = Vec3::new(0.0, 1.0, 0.0);
+        match split_star(&body, normal, seed.vertex, &SlitTips::of(&body), band) {
+            Err(SplitReduceError::VertexNearConeAxis {
+                vertex,
+                face,
+                band: b,
+            }) => {
+                assert_eq!((vertex, face), (seed.vertex, seed.face));
+                assert_eq!(b, band);
+            }
+            other => panic!("expected the typed near-axis refusal, got {other:?}"),
+        }
+    }
 
     /// The split lane has no sphere arm and says so BY NAME, on the
     /// shared walk's report rather than by re-matching the surface —
@@ -279,15 +327,23 @@ mod tests {
     /// row.
     #[test]
     fn a_sphere_carried_sector_refuses_by_name() {
-        let p = raw_prism(3, Tol::witness());
-        let face = p.face_side[0];
-        let mut body = p.body;
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let vertex = body
+            .vertices()
+            .map(|(k, _)| k)
+            .find(|&v| {
+                body.resolve_vertex_point(v, crate::live::Proven)
+                    .equals_exactly(geom_core::Point3::origin())
+            })
+            .unwrap();
+        let orbit_he = body.vertex_orbit_linked(vertex)[0];
+        let face = crate::sector_face::face_of(&body, vertex, orbit_he);
         body.set_face_surface(
             face,
             crate::construction::FaceSurface::New {
                 surface: geom::Surface::Sphere {
-                    center: geom_core::Point3::new(0.0, 0.0, 0.0),
-                    radius: 2.0,
+                    center: geom_core::Point3::new(2.0, 2.0, 2.0),
+                    radius: 12f64.sqrt(),
                     axis: Vec3::new(0.0, 0.0, 1.0),
                     u_ref: Vec3::new(1.0, 0.0, 0.0),
                 },
@@ -295,13 +351,6 @@ mod tests {
             },
         )
         .unwrap();
-        let outer = body.get_face(face).unwrap().outer;
-        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
-        else {
-            panic!("the side face's outer loop is a cycle");
-        };
-        let orbit_he = body.mate(first).unwrap();
-        let vertex = body.get_half_edge(orbit_he).unwrap().start;
         let band = Band::linear(Tol::witness()).unwrap();
         let normal = Vec3::new(0.0, 0.0, 1.0);
         match split_star(&body, normal, vertex, &SlitTips::of(&body), band) {

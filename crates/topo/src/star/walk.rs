@@ -410,3 +410,178 @@ pub(crate) fn departure<T: Decide>(
         }
     })
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::construction::{FaceSurface, MevSite};
+    use geom_core::{Point3, Tol};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A cone of half-angle `alpha` about `+z` from the origin carrying the
+    /// one face of a body whose one edge, a ruling, runs from `from` on the
+    /// cone to `to` on it: the face's loop walks the edge out and back.
+    fn strut_on_cone(alpha: f64, from: Point3<f64>, to: Point3<f64>) -> (Body<f64>, VertexKey) {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(from, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Cone {
+                    apex: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    half_angle: alpha,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        body.mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            to,
+            Tol::witness(),
+        )
+        .unwrap();
+        (body, seed.vertex)
+    }
+
+    /// The cone's point at azimuth `u` and height `z`.
+    fn on_cone(alpha: f64, u: f64, z: f64) -> Point3<f64> {
+        let r = z * alpha.tan();
+        Point3::new(r * u.cos(), r * u.sin(), z)
+    }
+
+    /// The window a sector at an apex spans, from its start round to its
+    /// end in the face's sweep.
+    fn window(star: &Star<f64>, k: usize) -> f64 {
+        let StarFace::Apex(apex) = star.sectors[k].at else {
+            panic!("sector {k} is not at an apex")
+        };
+        apex.azimuth_from(star.start(k).dir, star.bounds[k].dir)
+    }
+
+    /// **A whole-turn corner at a cone's apex reads four pieces**: a
+    /// strut's one ruling from the apex walks the face's whole turn round
+    /// it, which the walk quarters, each piece a quarter-turn.
+    #[test]
+    fn a_whole_turn_apex_corner_reads_four_pieces() {
+        let alpha = 0.5;
+        let (body, apex) = strut_on_cone(alpha, Point3::origin(), on_cone(alpha, 0.3, 1.0));
+        let star = Star::walk(&body, apex, &SlitTips::of(&body), band()).unwrap();
+        assert_eq!(star.bounds.len(), 4, "four pieces: {star:?}");
+        assert_eq!(
+            star.bounds.iter().filter(|b| b.real).count(),
+            1,
+            "one real bound, the ruling, and three dividers"
+        );
+        for k in 0..4 {
+            let w = window(&star, k);
+            assert!(
+                (w - core::f64::consts::FRAC_PI_2).abs() < 1e-9,
+                "piece {k} spans a quarter-turn, not {w}"
+            );
+        }
+    }
+
+    /// **Every sector is convex, and every datum's side is monotone across
+    /// it after refinement.** The strut's whole turn at the apex refined
+    /// against tilted planes and a partner cone at the apex, and a cube's
+    /// corner refined against tilted partner cones: each apex sector spans
+    /// under a half-turn and each tangent sector under a half-turn about
+    /// its normal, and along each sector, sampled at nine directions, every
+    /// datum's side runs one way.
+    #[test]
+    fn every_sector_is_convex_and_every_datums_side_monotone_after_refinement() {
+        let alpha = 0.5;
+        let (cone, apex) = strut_on_cone(alpha, Point3::origin(), on_cone(alpha, 0.3, 1.0));
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let corner = cube
+            .vertices()
+            .map(|(k, _)| k)
+            .find(|&v| {
+                cube.resolve_vertex_point(v, Proven)
+                    .equals_exactly(Point3::origin())
+            })
+            .unwrap();
+        let tilted = |x: f64, y: f64, z: f64| Vec3::new(x, y, z).normalize();
+        let partner = |axis: Vec3<f64>| ConeApex {
+            apex: Point3::origin(),
+            axis,
+            half_angle: 0.3,
+            u_ref: axis.cross(Vec3::unit_x()).normalize(),
+            sense: true,
+        };
+        let rows: Vec<(&Body<f64>, VertexKey, Vec<Datum<f64>>)> = vec![
+            (&cone, apex, vec![Datum::Plane(tilted(0.3, 1.0, -0.2))]),
+            (&cone, apex, vec![Datum::Plane(tilted(1.0, 0.2, 0.4))]),
+            (
+                &cone,
+                apex,
+                vec![
+                    Datum::Plane(tilted(0.3, 1.0, -0.2)),
+                    Datum::Cone(partner(tilted(1.0, -0.5, 0.3))),
+                ],
+            ),
+            (
+                &cube,
+                corner,
+                vec![Datum::Cone(partner(tilted(1.0, 2.0, 3.0)))],
+            ),
+            (
+                &cube,
+                corner,
+                vec![Datum::Cone(partner(tilted(-1.0, 0.5, 0.2)))],
+            ),
+        ];
+        let mut cuts = 0;
+        for (row, (body, vertex, datums)) in rows.iter().enumerate() {
+            let mut star = Star::walk(body, *vertex, &SlitTips::of(body), band()).unwrap();
+            let walked = star.bounds.len();
+            star.refine(datums, band()).unwrap();
+            cuts += star.bounds.len() - walked;
+            for k in 0..star.sectors.len() {
+                let (end, start) = (star.bounds[k].dir, star.start(k).dir);
+                // The sector's directions from its start to its end.
+                let along: Vec<Vec3<f64>> = match star.sectors[k].at {
+                    StarFace::Apex(apex) => {
+                        let w = window(&star, k);
+                        assert!(w < core::f64::consts::PI, "row {row}, sector {k}: {w}");
+                        (0..9)
+                            .map(|j| apex.ruling_from(start, w * f64::from(j) / 8.0))
+                            .collect()
+                    }
+                    StarFace::Tangent(n) => {
+                        let sweep = start.cross(end).dot(n.vec());
+                        assert!(sweep > 0.0, "row {row}, sector {k}: convex, {sweep}");
+                        (0..9)
+                            .map(|j| {
+                                let t = f64::from(j) / 8.0;
+                                (start * (1.0 - t) + end * t).normalize()
+                            })
+                            .collect()
+                    }
+                };
+                for datum in datums {
+                    let across = match datum {
+                        Datum::Plane(n) => *n,
+                        Datum::Cone(c) => c.axis,
+                    };
+                    let side: Vec<f64> = along.iter().map(|d| d.dot(across)).collect();
+                    let steps: Vec<f64> = side.windows(2).map(|w| w[1] - w[0]).collect();
+                    assert!(
+                        steps.iter().all(|&s| s >= -1e-12) || steps.iter().all(|&s| s <= 1e-12),
+                        "row {row}, sector {k}: {datum:?}'s side turns inside it: {side:?}"
+                    );
+                }
+            }
+        }
+        assert!(cuts >= 4, "the rows cut at their datums' extrema: {cuts}");
+    }
+}

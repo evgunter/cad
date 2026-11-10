@@ -3392,6 +3392,114 @@ mod tests {
         )
     }
 
+    /// **A cylinder-graze divider reads its descended side, in both
+    /// verbs.** At an oblique rim's vertex the wall's corner is straight,
+    /// so the star cuts it at its bisector, a divider in the wall's
+    /// tangent plane, off the wall's ruling where the rim leaves the
+    /// vertex obliquely. A plane tangent to the wall there ties the divider at
+    /// first order, and both verbs read one order down: the split's
+    /// [`crate::splitting::bound_side`] and the pierce's [`pierce_side`]
+    /// take the side the wall bends to along the divider, the same one,
+    /// not `On` by convention.
+    #[test]
+    fn a_cylinder_graze_divider_reads_its_descended_side_in_both_verbs() {
+        use crate::construction::{FaceSurface, MefSite};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+        let b = band();
+        // The unit cylinder about z cut by the plane through the origin
+        // tilted by `phi` about y: its rim an ellipse, one closed edge
+        // whose vertex stands at parameter `t0`, where the rim leaves the
+        // vertex across the wall's rulings, not square to them.
+        let (phi, t0) = (0.3f64, 1.0f64);
+        let (sn, c) = phi.sin_cos();
+        let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(-sn, 0.0, c),
+                Vec3::new(c, 0.0, sn),
+            ),
+            1.0 / c,
+            1.0,
+        ));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(carrier.eval(t0), true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let cyl = body.get_face(seed.face).unwrap().surface;
+        let cut = body.add_surface(geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(-sn, 0.0, c),
+            u_ref: Vec3::new(c, 0.0, sn),
+        });
+        body.mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(cyl, cut),
+                    selector: geom_brep::CurveSelector::Witness(
+                        carrier.eval(t0 + core::f64::consts::PI),
+                    ),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t0 + core::f64::consts::TAU,
+            },
+            FaceSurface::Inherit,
+            geom_core::Tol::witness(),
+        )
+        .unwrap();
+        let (wall, vertex) = (seed.face, seed.vertex);
+        let star =
+            crate::star::Star::walk(&body, vertex, &crate::sector_shape::SlitTips::default(), b)
+                .unwrap();
+        let k = (0..star.bounds.len())
+            .find(|&k| !star.bounds[k].real && star.sectors[k].face == wall)
+            .expect("the wall's straight corner holds a divider");
+        let StarFace::Tangent(normal) = star.sectors[k].at else {
+            panic!("the wall has a tangent plane at the rim")
+        };
+        let divider = &star.bounds[k];
+        for n in [normal.vec(), -normal.vec()] {
+            let split = crate::splitting::bound_side(
+                &body,
+                divider,
+                geom_brep::ReferenceNormal::of_split_plane(n),
+                |_| Err::<crate::splitting::PlaneSide, ()>(()),
+                b,
+            )
+            .unwrap();
+            let (boolean, _) = pierce_side(
+                divider.dir,
+                divider.reach,
+                OutwardNormal::from_chart(n, true),
+                FaceBend::Plane,
+                NO_CURVATURE(),
+                Reading::plain(b),
+            )
+            .unwrap();
+            assert!(boolean.tied, "n = {n:?}: the divider ties at first order");
+            let want = match boolean.code {
+                SideCode::In => crate::splitting::PlaneSide::Below,
+                SideCode::Out => crate::splitting::PlaneSide::Above,
+                SideCode::On => panic!("n = {n:?}: the wall bends off its tangent plane"),
+            };
+            assert_eq!(split, want, "n = {n:?}: the split reads the boolean's side");
+        }
+    }
+
     /// **The split and the boolean read one edge's side of a plane
     /// alike**, each through its own door on one star bound: the split's
     /// [`crate::splitting::bound_side`] and the vertex-on-face pass's
