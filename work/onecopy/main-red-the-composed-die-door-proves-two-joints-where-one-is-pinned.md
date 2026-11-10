@@ -7,6 +7,7 @@ opened: 2026-11-10
 priority: P0
 closed: 2026-11-10
 branch: onecopy/composed-die-joints
+pr: 6771
 ---
 
 Found by `onecopy/crease-at`'s slow run (PR 6709), and reproduced identically on `origin/main` `361df7ff`, that branch's base, at default ε:
