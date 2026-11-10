@@ -278,7 +278,7 @@ pub(super) fn cell_midpoint(lo: f64, hi: f64) -> (f64, Interval) {
     let m = geom::mid_param(lo, hi);
     (
         if m < hi { m } else { lo },
-        ((pt(lo) + pt(hi)) * pt(0.5)).clamped_to(lo, hi),
+        geom::mid_param(pt(lo), pt(hi)).clamped_to(lo, hi),
     )
 }
 
