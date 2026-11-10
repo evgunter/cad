@@ -541,7 +541,7 @@ mod thin_ellipse_rows {
 
     use crate::body::Body;
     use crate::construction::FaceSurface;
-    use crate::euler::{EulerOpError, MefSite, MevSite};
+    use crate::euler::{MefSite, MevSite};
 
     /// The cap, and the ellipse's major direction.
     fn thin_cap(tol: Tol) -> (Body<f64>, Vec3<f64>) {

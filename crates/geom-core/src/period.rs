@@ -1169,7 +1169,7 @@ mod period_rows {
     fn forward_by_arc_reads_the_chord_where_the_floor_under_reads() {
         use super::{Extent, NotForward};
         use crate::{InfSpeed, SupSpeed};
-        let band = Band::new(1e-9, 1e-8).unwrap();
+        let band = band();
         let rates = (InfSpeed::new(1.0_f64), SupSpeed::new(1000.0));
         let rows = ("t_forward", "t_chord", "t_sense");
         let chord = |x: f64| crate::Vec3::new(x, 0.0, 0.0);
@@ -1178,7 +1178,8 @@ mod period_rows {
             Extent::forward("t_forward", 0.0, dt, rates.0, band),
             Err(NotForward::Zero(_))
         ));
-        let extent = Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-8), band).unwrap();
+        let extent = Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-8), band)
+            .expect("forward by its chord");
         assert_eq!(extent.get(), dt);
         assert!(
             matches!(
