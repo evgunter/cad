@@ -1081,7 +1081,7 @@ pub fn arc_rim_measured<T: Decide>(
     };
     let vref = axis.cross(u_ref);
     let spans = arc_rim_spans(chart);
-    let turn = crate::pcurve_cache::Period::new(T::tau());
+    let turn = crate::pcurve_cache::Period::angle();
     arc_rim_images(chart, |end, forward| {
         let row = crate::nurbs_iso::boundary_iso_v(chart, end).ok()?;
         let angle = crate::pcurve_cache::arc_rim_turn(&row, spans, band)?;

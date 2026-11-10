@@ -1150,7 +1150,7 @@ pub(crate) fn loop_polygon(
         let jpole = pole_v(jid);
         match cur.kind {
             TravKind::Rim { v_raw } => {
-                let v_own = if chart.v_periodic() && k > 0 {
+                let v_own = if chart.v_domain_wraps() && k > 0 {
                     Period::new(TAU).near(v_raw, prev_v)
                 } else {
                     v_raw
@@ -1285,7 +1285,7 @@ pub(crate) fn loop_polygon(
                         prev_v
                     } else {
                         let v = chart.v_of(positions[jid as usize]);
-                        if chart.v_periodic() && k > 0 {
+                        if chart.v_domain_wraps() && k > 0 {
                             Period::new(TAU).near(v, prev_v)
                         } else {
                             v
@@ -1302,7 +1302,7 @@ pub(crate) fn loop_polygon(
                 prev_u = ut;
                 for &id in &cur.ids[1..cur.ids.len() - 1] {
                     let v_raw_pt = chart.v_of(positions[id as usize]);
-                    let v = if chart.v_periodic() {
+                    let v = if chart.v_domain_wraps() {
                         Period::new(TAU).near(v_raw_pt, prev_v)
                     } else {
                         v_raw_pt

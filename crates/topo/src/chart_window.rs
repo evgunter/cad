@@ -247,7 +247,7 @@ pub(crate) fn run_azimuth_images<T: Decide>(
     halves: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Vec<AzimuthImage<T>>, SplitJoinError> {
-    let tau = T::tau();
+    let turn = geom_brep::Period::angle();
     let mut images = Vec::new();
     let mut prev_exit: Option<T> = None;
     let mut prev_edge: Option<EdgeKey> = None;
@@ -378,7 +378,7 @@ pub(crate) fn run_azimuth_images<T: Decide>(
                     )?,
                 };
                 prev_k = k;
-                base.shift_branch(k, geom_brep::Period::new(tau))
+                base.shift_branch(k, turn)
             }
         };
         // A general-lane image (a circle's class read in band on a sphere,
@@ -452,7 +452,7 @@ fn nearest_branch<T: Decide>(
         "chart_window_branch",
         arm,
         gap,
-        geom_brep::Period::new(T::tau()),
+        geom_brep::Period::angle(),
         crate::pcurves::Orbit::Periods,
         band,
     )
@@ -556,7 +556,7 @@ fn pole_branch<T: Decide>(
     // edge bending back (the lens, [`pole_lever`]'s four times), which
     // never gets here: a non-meridian circle's chart image is projected,
     // and the walk refuses it as FITTED.
-    geom_brep::Period::new(T::tau())
+    geom_brep::Period::angle()
         .decide(
             "chart_window_pole_branch",
             shifted,

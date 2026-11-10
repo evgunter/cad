@@ -971,7 +971,7 @@ impl<T: Real> Curve3<T> {
     pub fn period(&self) -> Option<Period<T>> {
         match self {
             Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
-                Some(Period::new(T::tau()))
+                Some(Period::angle())
             }
             Curve3::Line(_) | Curve3::Nurbs(_) => None,
         }
