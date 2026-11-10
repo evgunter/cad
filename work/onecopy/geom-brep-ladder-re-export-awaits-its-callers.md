@@ -24,9 +24,18 @@ paths to one item: a small copy of a name.
 
 New code imports `geom_core::ladder` directly.
 
+Inside geom-brep the ladder is spelled `crate::ladder` until then, one
+spelling through the re-export (the review of PR 6701).
+
 ## Done when
 
-The ladder PRs in flight at the move have merged. Then every caller of
-`geom_brep::ladder` is ported to `geom_core::ladder`, the re-export is
-deleted, and `rung-holds-one-home.sh`'s `LADDER` pattern drops its
-`geom_brep::` alternative.
+No code outside geom-brep spells `geom_brep::ladder`: every caller
+(91 at filing, `crates/topo` 90 and `crates/sweep` 1) is ported to
+`geom_core::ladder`. `scripts/gates/ladder-re-export-callers.sh`
+holds that count per crate and lets it only fall; it reds a new
+caller of the old path. At none, geom-brep's own
+`crate::ladder` spellings move to `geom_core::ladder`, and the
+re-export in `crates/geom-brep/src/lib.rs`, that gate and its register
+are deleted,
+and `rung-holds-one-home.sh`'s `LADDER` pattern drops its `geom_brep::`
+alternative.

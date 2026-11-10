@@ -652,7 +652,7 @@ impl PropsCheck {
 }
 
 impl PropsError {
-    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]), each
+    /// **This refusal's standing** ([`crate::ladder::Refusal`]), each
     /// variant's `[failure.taxonomy]` row as its doc states it:
     /// [`Escalated`](Self::Escalated), row 1(b), is kept by its margin;
     /// the unbuilt lanes, row 2, are limits; an invalid input (1(a)), a
@@ -662,16 +662,14 @@ impl PropsError {
     ///
     /// # Errors
     ///
-    /// [`geom_core::ladder::Aborts`] for an invalid input, a stored-data
+    /// [`crate::ladder::Aborts`] for an invalid input, a stored-data
     /// fault and a payload that mixes classes.
-    pub(crate) const fn refusal(
-        &self,
-    ) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+    pub(crate) const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
         match self {
-            Self::Escalated { cause, .. } => Ok(geom_core::ladder::Refusal::Margin(*cause)),
+            Self::Escalated { cause, .. } => Ok(crate::ladder::Refusal::Margin(*cause)),
             Self::Unimplemented
             | Self::NotOneChartBranch { .. }
-            | Self::QuadratureUnsupported { .. } => Ok(geom_core::ladder::Refusal::Limit),
+            | Self::QuadratureUnsupported { .. } => Ok(crate::ladder::Refusal::Limit),
             Self::NappeSpanning
             | Self::HolesExceedFace
             | Self::SenseContradicted
@@ -686,7 +684,7 @@ impl PropsError {
             | Self::NotIsoRectangle { .. }
             | Self::SphereLoop { .. }
             | Self::ConeLoop { .. }
-            | Self::SeamRegionCoverUnresolved => Err(geom_core::ladder::Aborts),
+            | Self::SeamRegionCoverUnresolved => Err(crate::ladder::Aborts),
         }
     }
 }
@@ -1122,7 +1120,7 @@ mod tests {
 #[cfg(test)]
 mod refusal_rows {
     use super::PropsError;
-    use geom_core::ladder::{Aborts, Refusal};
+    use crate::ladder::{Aborts, Refusal};
 
     #[test]
     fn an_unbuilt_lane_is_a_limit_and_invalid_input_aborts() {

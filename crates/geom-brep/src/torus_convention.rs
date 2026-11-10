@@ -163,7 +163,24 @@ impl TorusRefusal {
         minor: T,
         band: Band,
     ) -> Result<geom::RingTorus<T>, Self> {
-        geom::RingTorus::of(major, minor, band).map_err(|not| {
+        Self::require_at(major, minor, geom::RingSites::CONVENTION, band)
+    }
+
+    /// [`Self::require`] under a reader's own funnel rows `sites`
+    /// ([`geom::RingTorus::of_at`]): a reader that decides the
+    /// convention on its own rows reads its refusal here, the half
+    /// undecided kept apart from the half decided outside.
+    ///
+    /// # Errors
+    ///
+    /// The refusing half's [`TorusRefusal`].
+    pub fn require_at<T: geom_core::Decide>(
+        major: T,
+        minor: T,
+        sites: geom::RingSites,
+        band: Band,
+    ) -> Result<geom::RingTorus<T>, Self> {
+        geom::RingTorus::of_at(major, minor, sites, band).map_err(|not| {
             let (convention, verdict) = match not {
                 geom::NotARing::Tube { verdict, .. } => (TorusConvention::Tube, verdict),
                 geom::NotARing::Ring { verdict, .. } => (TorusConvention::Ring, verdict),

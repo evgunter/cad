@@ -8057,7 +8057,7 @@ mod of_join_rows {
             );
             let text = got.to_string();
             assert!(
-                text.contains(&why.to_string()) && text.ends_with(why.recourse()),
+                text.contains(&why.to_string()) && text.ends_with(&*why.recourse()),
                 "{why:?}: the walk's refusal and its recourse: {text}"
             );
         }
