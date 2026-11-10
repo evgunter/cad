@@ -313,6 +313,10 @@ pub enum Unreplayed {
     /// ([`crate::EvalOutcome::Exhausted`]) at or before the node the
     /// row was decided at.
     Exhausted,
+    /// The replay could not read the extent of the two faces whose axes'
+    /// tilt it levers over it, for the pair door's reason
+    /// ([`topo::boolean::carrier_pair_arm`]).
+    Extent(topo::boolean::PairUnread),
 }
 
 impl fmt::Display for Unreplayed {
@@ -338,6 +342,10 @@ impl fmt::Display for Unreplayed {
             Self::Exhausted => {
                 "the replay with every variable a symbol ran out of member budget before the \
                  row's node"
+            }
+            Self::Extent(_) => {
+                "the replay with every variable a symbol could not read the two faces' extent \
+                 its axes' tilt is levered over"
             }
         })
     }
@@ -705,6 +713,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
             "a blend's two supports read as sharing the axis its band is minted on"
         }
         topo::DecisionSite::VertexFusion => "a vertex its margin read on another operand's cell",
+        topo::DecisionSite::IsoJoin => "two edges read on one iso family of one chart and joined",
         topo::DecisionSite::CensusAtRest => "two cells at rest the census read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
     }

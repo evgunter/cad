@@ -79,11 +79,11 @@ fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
 }
 
-fn param(n: &'static str) -> Formula {
+pub(crate) fn param(n: &'static str) -> Formula {
     Formula::named(name(n), Dimension::Length)
 }
 
-fn uniform(w: f64) -> Distribution {
+pub(crate) fn uniform(w: f64) -> Distribution {
     Distribution::Uniform { lo: -w, hi: w }
 }
 
@@ -94,7 +94,7 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn unit_square() -> LoopProgram<Formula> {
+pub(crate) fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }

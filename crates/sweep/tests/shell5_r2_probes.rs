@@ -36,8 +36,7 @@ fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
 fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
     let mut out = [(f64::INFINITY, f64::NEG_INFINITY); 3];
     for &face in &body.get_shell(shell).expect("a shell").faces {
-        let data = body.get_face(face).expect("a face");
-        for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+        for (lk, _, _) in body.face(face).expect("a face").loops() {
             let LoopBoundary::Cycle { first } = body.get_loop(lk).expect("a loop").boundary else {
                 continue;
             };
@@ -194,6 +193,7 @@ fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// **A CURVED void wall thinner than `2t`, with every planar wall
@@ -243,7 +243,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 
     let mut radii: Vec<f64> = out
         .faces()
-        .filter_map(|(_, f)| match out.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match out.face_surface(fk) {
             Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
             _ => None,
         })
@@ -306,8 +306,8 @@ fn r2_an_island_under_its_walls_solid_is_refused_and_the_sorted_product_shells()
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(body.shells().count(), 3, "three shells in it");
     let solid = body.solids().next().unwrap().0;
-    let errors = topo::AtRestBody::validate(body, tol)
-        .expect_err("two pieces under one solid is not a finished body");
+    let errors =
+        topo::finish(body, tol).expect_err("two pieces under one solid is not a finished body");
     assert_eq!(
         errors,
         vec![topo::ValidationError::SolidOuterShells { solid, outer: 2 }],
@@ -317,7 +317,7 @@ fn r2_an_island_under_its_walls_solid_is_refused_and_the_sorted_product_shells()
     let inner = topo::shell(
         &finished(
             "the operand",
-            brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+            brick::<f64>((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
             tol,
         ),
         0.25,

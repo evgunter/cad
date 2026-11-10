@@ -91,7 +91,9 @@ fn census(report: &CoherenceReport) -> Row {
     for u in &report.unexamined {
         match u.why {
             Unexaminable::NonIsoCarrier { .. } => row.non_iso += 1,
-            Unexaminable::NullScaffoldEdge { .. } => row.scaffold += 1,
+            Unexaminable::NullScaffoldEdge { .. } | Unexaminable::LoneLoop { .. } => {
+                row.scaffold += 1
+            }
             Unexaminable::Corrupt { .. } => row.corrupt += 1,
         }
     }
@@ -241,7 +243,7 @@ fn split_half_cap(tol: Tol) -> Body<f64> {
     let mut body = common::halfcap_with_its_arc_through_the_pole(tol);
     let (centre, axis) = body
         .faces()
-        .find_map(|(_, f)| match body.get_surface(f.surface) {
+        .find_map(|(fk, _)| match body.face_surface(fk) {
             Some(geom::Surface::Sphere { center, axis, .. }) => Some((*center, *axis)),
             _ => None,
         })
@@ -475,7 +477,7 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
                     .met()
                     .expect("the pinned resolution is met");
                 (
-                    common::arena_census(body.body()),
+                    common::arena_census(&body),
                     [
                         enclosure.volume,
                         enclosure.surface_area,

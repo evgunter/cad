@@ -194,7 +194,7 @@ fn land<T: Decide>(
     core.claim(bound_at, PieceRole::Leg);
     core.push_leg(p, g.arc)?;
     let arm = leg_arm(g.carrier, g.chord);
-    Ok(in_state(core, leg_end_tip(p, arrival, arm, g.carrier)))
+    Ok(in_state(core, leg_end_tip(p, arrival, arm)))
 }
 
 /// The close at `Start`: `arrival` is the authored director (the sharp
@@ -224,7 +224,7 @@ fn close<T: Decide>(
     };
     let (g, departure) = onto_arc_geom(pos.at, arrival, start_pos, tol)?;
     let start_ang = depart(&mut core, pos, departure, tol)?;
-    let arriving = Incoming::fresh(arrival, leg_arm(g.carrier, g.chord), g.carrier);
+    let arriving = Incoming::fresh(arrival, leg_arm(g.carrier, g.chord));
     seam_joint(&mut core, how, &arriving, start_ang, tol)?;
     core.claim(bound_at, PieceRole::Leg);
     core.close_leaving(g.arc, FirstSeg::Arc)?;

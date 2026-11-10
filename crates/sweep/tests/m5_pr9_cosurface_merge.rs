@@ -40,17 +40,13 @@ fn disc_cylinder() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// Cylinder wall faces of `body`.
 fn wall_count(body: &Body<f64>) -> usize {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .count()
 }
 
@@ -180,7 +176,8 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     let out = body
         .merge_coplanar_faces(Tol::witness())
         .expect("no-op merge");

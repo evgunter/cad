@@ -41,19 +41,32 @@ pub fn moved_copy(
     (session, copy)
 }
 
-/// `node`'s evaluated body's points, sorted.
+/// `node`'s evaluated bodies' points, sorted: a body's, a boolean's, or
+/// both halves' of a split.
 pub fn corners(session: &mut DocSession, node: RecipeNodeId) -> Vec<[f64; 3]> {
     session.pump();
     let eval = session.evaluation().expect("the inline seam landed");
     let value = eval
         .value(node)
         .unwrap_or_else(|| panic!("{node:?} evaluated: {:?}", eval.node_error(node)));
-    let ValuePayload::Body(body) = &value.payload else {
-        panic!("{node:?} is a body, not {:?}", value.payload)
+    let bodies: Vec<_> = match &value.payload {
+        ValuePayload::Body(_) | ValuePayload::Boolean(_) => {
+            value.payload.one_body().flatten().into_iter().collect()
+        }
+        ValuePayload::Split { .. } => (0..2)
+            .filter_map(|half| value.payload.output_body(half).ok())
+            .collect(),
+        other => panic!("{node:?} is a body, not {other:?}"),
     };
-    let mut points: Vec<[f64; 3]> = crate::fixture::in_space(body)
-        .points()
-        .map(|(_, p)| p.to_array())
+    assert!(!bodies.is_empty(), "{node:?} holds a body");
+    let mut points: Vec<[f64; 3]> = bodies
+        .into_iter()
+        .flat_map(|body| {
+            crate::fixture::in_space(body)
+                .points()
+                .map(|(_, p)| p.to_array())
+                .collect::<Vec<_>>()
+        })
         .collect();
     points.sort_by(|a, b| a.partial_cmp(b).expect("finite points"));
     points
@@ -122,33 +135,6 @@ pub fn rest_on(
     )
     .expect("a rest proposes");
     super::commit_mate(session, proposal.op());
-}
-
-/// A duplicate's step: the length of the slides its stepped placement
-/// moves the copy by, along `viewer::combine::STEP_DIRECTION`, which
-/// the door authors literal.
-pub fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
-    use pncad::document::{Coord, Expr, Node};
-    let doc = session.committed_doc();
-    let Some(Node::Place { constraints, .. }) = doc.node(copy) else {
-        panic!("a duplicate is a stepped placement");
-    };
-    let slides: Vec<f64> = constraints
-        .iter()
-        .filter_map(|c| c.value())
-        .filter(|value| matches!(value.coord, Coord::Slide(_)))
-        .map(|value| doc.written(&Expr::var(value.by, value.coord.dimension())))
-        .filter(|written| !written.is_zero())
-        .map(|written| {
-            written
-                .literal_value()
-                .unwrap_or_else(|| panic!("the door authors a literal step: {written:?}"))
-        })
-        .collect();
-    match slides[..] {
-        [one] => one.abs(),
-        _ => slides.iter().map(|s| s * s).sum::<f64>().sqrt(),
-    }
 }
 
 /// **A box of `size` split at half its height**, landed: the session,

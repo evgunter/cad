@@ -43,7 +43,7 @@ fn stood_down(tol: Tol) -> bool {
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> AtRestBody<f64> {
-    AtRestBody::validate(common::brick::<f64>(x, y, z, tol), tol).expect("the brick is at rest")
+    topo::finish(common::brick::<f64>(x, y, z, tol), tol).expect("the brick is at rest")
 }
 
 fn slab(t: f64, tol: Tol) -> Body<f64> {
@@ -112,7 +112,7 @@ fn a_brick_less_a_thin_slab_holds_it_as_a_cavity() {
     let big = brick((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol);
     for m in ABOVE_K {
         let what = format!("brick ∖ slab {m}ε");
-        let s = AtRestBody::validate(slab(m * tol.eps(), tol), tol).expect("the slab is at rest");
+        let s = topo::finish(slab(m * tol.eps(), tol), tol).expect("the slab is at rest");
         let body = built(&what, topo::subtract(&big, &s, tol));
         assert_eq!(shells_per_solid(&body), [2], "{what}: one solid");
         assert_eq!(
@@ -187,7 +187,7 @@ fn a_thin_slab_and_a_far_brick_are_two_solids() {
         );
     }
     for m in ABOVE_K {
-        let s = AtRestBody::validate(slab(m * tol.eps(), tol), tol).expect("the slab is at rest");
+        let s = topo::finish(slab(m * tol.eps(), tol), tol).expect("the slab is at rest");
         for (order, a, b) in [("slab ∪ far", &s, &far), ("far ∪ slab", &far, &s)] {
             let what = format!("{order} {m}ε");
             let body = built(&what, topo::union(a, b, tol));
@@ -221,7 +221,9 @@ fn a_lone_slab_is_outer_and_inside_out_refuses_at_rest() {
         let inverted = body.revert().expect("the slab reverts");
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
-            AtRestBody::validate(inverted, tol).map(|_| ()),
+            topo::finish(inverted, tol)
+                .map(|_| ())
+                .map_err(topo::NotFinished::into_findings),
             Err(vec![ValidationError::NegativeVolume { solid }]),
             "{m}ε: the inside-out slab refuses at rest"
         );
@@ -251,11 +253,13 @@ fn a_slab_in_the_plane_x_equals_y_reads_its_role() {
         let inverted = raw.revert().expect("the slab reverts");
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
-            AtRestBody::validate(inverted, tol).map(|_| ()),
+            topo::finish(inverted, tol)
+                .map(|_| ())
+                .map_err(topo::NotFinished::into_findings),
             Err(vec![ValidationError::NegativeVolume { solid }]),
             "{m}ε: the inside-out slab refuses at rest"
         );
-        let s = AtRestBody::validate(raw, tol).expect("the slab is at rest");
+        let s = topo::finish(raw, tol).expect("the slab is at rest");
         let what = format!("brick ∖ x=y slab {m}ε");
         let body = built(&what, topo::subtract(&big, &s, tol));
         assert_eq!(
@@ -324,7 +328,7 @@ fn reads_its_orientation(what: &str, raw: Body<f64>, inverted: bool, tol: Tol) {
         raw
     };
     let solid = raw.solids().next().expect("one solid").0;
-    match (AtRestBody::validate(raw, tol), inverted) {
+    match (topo::finish(raw, tol), inverted) {
         (Ok(_), false) => {}
         (Err(errors), true) => assert_eq!(
             errors,
@@ -430,7 +434,7 @@ fn a_boolean_leaving_a_turned_needle_builds_it_in_every_pose() {
                 let at = |k: usize| c[k] + r[k][0] * p[0] + r[k][1] * p[1] + r[k][2] * p[2];
                 Point3::new(at(0), at(1), at(2))
             };
-            let at_rest = |body| AtRestBody::validate(body, tol).expect("an operand at rest");
+            let at_rest = |body| topo::finish(body, tol).expect("an operand at rest");
             let a = at_rest(common::mapped_cube::<f64>(
                 move |x, y, z| place([x, y, z]),
                 tol,
@@ -517,7 +521,7 @@ fn channel(pose: Pose, w: f64, s: f64, tol: Tol) -> Channel {
         } else {
             body
         };
-        AtRestBody::validate(body, tol).expect("an operand at rest")
+        topo::finish(body, tol).expect("an operand at rest")
     };
     let corner = |p: [f64; 3]| {
         if pose == Pose::Aligned {
@@ -564,8 +568,7 @@ enum Want {
 fn shell_points(body: &Body<f64>, shell: topo::ShellKey) -> Vec<[f64; 3]> {
     let mut out: Vec<[f64; 3]> = Vec::new();
     for &f in &body.get_shell(shell).expect("the shell resolves").faces {
-        let face = body.get_face(f).expect("its face resolves");
-        for l in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (l, _, _) in body.face(f).expect("its face resolves").loops() {
             let topo::LoopBoundary::Cycle { first } = body.get_loop(l).expect("a loop").boundary
             else {
                 continue;
@@ -642,13 +645,21 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
         let what = what(op);
         match want(op) {
             Want::Sector => {
+                // The sector question, or the corner's chord bound tie
+                // that a flat sector of the unglued pair refuses on.
                 assert!(
                     matches!(
                         &run,
                         Err(BooleanError::Escalated {
                             decision: BooleanDecision::Coincidence(Coincide::Sectors, _),
                             diag,
-                        }) if matches!(diag.predicate, Some("bool_sector_within" | "bool_sector_coplanar"))
+                        }) if diag.predicate == Some("bool_sector_within")
+                    ) || matches!(
+                        &run,
+                        Err(BooleanError::Escalated {
+                            decision: BooleanDecision::Coincidence(Coincide::CornerBound, _),
+                            diag,
+                        }) if diag.predicate == Some("bool_chord_side")
                     ),
                     "{what}: refuses on the sector question, got {:?}",
                     run.map(|_| ())
@@ -699,7 +710,8 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
 /// off its germ at the seam, and builds at every width.
 ///
 /// Turned at ε 1e-9 at 12ε, the same operands refuse earlier, in the
-/// reduction's sector question (`bool_sector_coplanar`)
+/// reduction's sector question (`bool_sector_within`) or on a flat
+/// sector's chord bound tie (`Coincide::CornerBound`, `bool_chord_side`)
 /// (`work/germ/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
 #[test]
 fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {

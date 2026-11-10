@@ -33,6 +33,7 @@ fn zprism(pts: &[(f64, f64, f64)], z: (f64, f64)) -> topo::Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn apex() -> AtRestBody<f64> {
@@ -59,10 +60,9 @@ fn edge_face_records(r: &BooleanResult<f64>) -> Vec<EdgeInPlane> {
         .filter_map(|pair| match pair {
             (topo::Cell::Edge(e), topo::Cell::Face(f))
             | (topo::Cell::Face(f), topo::Cell::Edge(e)) => {
-                let d = body.get_edge(e).unwrap();
-                let p = point(body, body.get_half_edge(d.he_plus).unwrap().start);
-                let q = point(body, body.half_edge_end(d.he_plus).unwrap());
-                let plane = match body.get_surface(body.get_face(f).unwrap().surface) {
+                let (start, end) = body.edge_vertices(e).unwrap();
+                let (p, q) = (point(body, start), point(body, end));
+                let plane = match body.face_surface(f) {
                     Some(geom::Surface::Plane { origin, normal, .. }) => {
                         let d = origin.x * normal.x + origin.y * normal.y + origin.z * normal.z;
                         Some((*normal, d))
@@ -100,7 +100,7 @@ fn an_apex_across_a_round_hole_is_recorded_in_the_face() {
     .unwrap();
     let wide = finished(
         "the block",
-        brick((-1.0, 1.0), (0.5, 1.5), (-0.5, 2.5), tol()),
+        brick::<f64>((-1.0, 1.0), (0.5, 1.5), (-0.5, 2.5), tol()),
         tol(),
     );
     let rod = finished("the rod", rod, tol());
@@ -135,7 +135,7 @@ fn an_apex_in_band_of_a_faces_edge_is_recorded_in_no_face() {
         let d = k * zero;
         let b = finished(
             "the block",
-            brick((d, 1.0), (0.5, 1.5), (-0.5, 2.5), tol()),
+            brick::<f64>((d, 1.0), (0.5, 1.5), (-0.5, 2.5), tol()),
             tol(),
         );
         let r = topo::union(&apex(), &b, tol()).unwrap();

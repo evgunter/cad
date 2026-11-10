@@ -2,10 +2,12 @@
 id: anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction
 kind: issue
 title: The anchor-fit refusal's number meters the setback, and the recourse an author follows is un-metered
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
-cost: E
+cost: M
+pr: 6719
+closed: 2026-11-10
 ---
 
 
@@ -61,3 +63,17 @@ channel, or a closed form on the straight-leg class), rendered beside or
 instead of the setback number — or no number at all beside the recourse.
 Either is a payload-shape change the editor renders, which is why it is a
 residue rather than part of unit 11. Not decided here.
+
+## Closed (PR 6719)
+
+Built to Ev's ruling on PR 6547.
+- **The construction record.** `replay_drawn` records a
+  `FilletConstruction` for every fillet verb, each side as it is bound,
+  then the fit's answer, or the overrunning candidates on an anchor-fit
+  refusal. The viewer draws it and marks the refused corners.
+- **The anchor-fit refusal** carries both legs and
+  `radius_at_anchor` (the closed form, assigned to the candidate's
+  branch). Its sentence values both levers, each rendered on the fitting
+  side within the exact-fit band, so the named value typed back is an
+  exact fit at the corner (pinned at three ε rows on three grids).
+- **The recourse** is a closed `Recourse` folded exhaustively per pair.

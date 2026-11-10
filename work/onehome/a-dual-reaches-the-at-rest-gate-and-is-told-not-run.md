@@ -2,12 +2,14 @@
 id: a-dual-reaches-the-at-rest-gate-and-is-told-not-run
 kind: issue
 title: AtRestBody<T: Real> admits a dual, carrying AtRestOutcome::NotRunAtThisScalar, where a certification bound on T would make a dual at the gate fail to typecheck
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P2
 cost: M
 rides_with: the-at-rest-result-gate-and-its-typing-live-in-five-homes
 branch: onehome/finished-body
+closed: 2026-11-03
+pr: 6371
 ---
 
 

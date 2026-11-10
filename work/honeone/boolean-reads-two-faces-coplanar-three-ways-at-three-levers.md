@@ -2,10 +2,12 @@
 id: boolean-reads-two-faces-coplanar-three-ways-at-three-levers
 kind: issue
 title: the boolean decides 'these two faces are coplanar' three ways, at three levers
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: M
+closed: 2026-11-10
+branch: seal/corner-sectors
 ---
 
 Filed by PR 4564's review (S1). One question, whether two faces meeting
@@ -44,3 +46,20 @@ now read each edge through one gathered cone (`topo::link::Cone`),
 whose signs are points' distances from planes. Two sites remain,
 `pair_search`'s `bool_faces_parallel` and the pierce lump's
 `bool_sector_coplanar`.
+
+## The second site retired, and the row closed (SEAL PR 6693, 2026-11-10)
+
+The pierce lump's `bool_sector_coplanar` is deleted by SEAL's
+`a-corner-reads-only-its-own-sectors` (`rg -n bool_sector_coplanar crates`
+prints nothing on `seal/corner-sectors`). A flat sector of an unglued
+pair refuses on its bounds' own ties (`vtxfac.rs` `unglued_flat_sector`),
+and a glued one reads the door's recorded relation. One site decides the
+question: `crates/topo/src/boolean/fan.rs` `meeting`, `bool_faces_parallel`,
+which `pair_search` now reaches. The fix's three asks are met there:
+
+- **Lever:** the shorter sector arm, where the verdict governs only the
+  corner.
+- **Opposed normals:** read parallel by the unsigned `|n × n'|`. The
+  verdict only opens the coplanar branch, which reads orientation off
+  the glue record (`fan::Coincident::Glued(PlaneRelation)`).
+- **One door:** a fourth site has no second spelling to copy.

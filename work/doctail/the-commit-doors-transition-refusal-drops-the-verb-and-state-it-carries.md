@@ -2,7 +2,8 @@
 id: the-commit-doors-transition-refusal-drops-the-verb-and-state-it-carries
 kind: issue
 title: The commit door's transition refusal drops the verb and tip state its value carries
-status: open
+status: closed
+closed: 2026-11-06
 opened: 2026-09-28
 priority: P4
 cost: E
@@ -30,3 +31,13 @@ hand-built program), which is why this is P4. A fix names the verb by
 `profile::Verb`'s `Display` and the state in words — which would want
 `tip_state_words`' phrasing to live where editor-core can reach it,
 the one design point on the row.
+
+## Closed (2026-11-06)
+
+Closed by ROUND's `fillet-step-discoverability-six-door-refusals`:
+`ProgramRefusal::Transition` and `ProgramFault::Lattice` render one
+sentence (`program::write_lattice`) naming the refused step, the tip
+state and, as its recourse, the steps that state takes. They render
+in the transition table's `Debug` spellings, which are also the
+`ProgramStep` variants a library caller writes, rather than `Verb`'s
+`Display` and the viewer's state words the row suggested.

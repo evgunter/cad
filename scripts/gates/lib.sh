@@ -38,6 +38,14 @@ GATE_SELFTEST_ARGS=()
 # inside a process substitution too — so every subshell of one run names
 # the same file, and two gates running at once never share one.
 GATE_MATCHER_FAILED=${TMPDIR:-/tmp}/gate-matcher-failed.$$
+# A citation of a `work/` row, `work/<program>/<id>` with or without
+# `.md`: the one spelling, read by `pin-cites-an-open-row.sh` (awk) and,
+# through `engine-leaves.sh`, by `engine_leaves.py` (Python), so both
+# take the same text for a citation. An ERE both dialects read alike.
+GATE_ROW_CITATION_ERE='work/[a-z0-9-]+/[A-Za-z0-9_.-]*[A-Za-z0-9]'
+# `gate_base_file`'s copy of a file at the merge base, named and removed
+# the same way.
+GATE_BASE_FILE=${TMPDIR:-/tmp}/gate-base.$$
 
 gate_parse_args() {
   while [ $# -gt 0 ]; do
@@ -128,6 +136,47 @@ gate_require_file() {
   GATE_SCAN_FILES=1
 }
 
+# gate_ladder_entry_points — the ladder's entry points, one per line:
+# each `pub fn climb*` in `geom_core::ladder` (crates/geom-core/src/ladder.rs),
+# the one home a gate reading climbs takes its list from, so a combinator
+# added there joins every such gate by construction. Sets
+# `GATE_LADDER_ENTRY_POINTS`; a home that is gone or names none is an
+# error, not an empty list.
+gate_ladder_entry_points() {
+  local home=crates/geom-core/src/ladder.rs
+  if [ ! -f "$home" ]; then
+    gate_error "$(gate_name): $home does not exist under $PWD — the ladder's entry points are gone, so no climb can be read"
+    exit 1
+  fi
+  GATE_LADDER_ENTRY_POINTS=$(sed -n 's/^pub fn \(climb[a-z_]*\)[<(].*/\1/p' "$home" | sort -u)
+  if [ -z "$GATE_LADDER_ENTRY_POINTS" ]; then
+    gate_error "$(gate_name): $home declares no \`pub fn climb*\` — the ladder's entry points are gone, so no climb can be read"
+    exit 1
+  fi
+}
+
+# gate_base_file FILE — FILE (relative to the root) as the merge base
+# holds it, written to `$GATE_BASE_FILE`: what a pin that only falls is
+# compared against. `GATE_BASE` names the base, a commit or tree in the root's
+# repository; ci.yml's `lint` job sets it to the change filter's base and
+# fetches that commit, since its own checkout is one commit deep. Run
+# locally with `GATE_BASE=$(git merge-base HEAD origin/main)`, not
+# `origin/main`: once main lowers a pin past the branch's, a tip of main
+# reads as a rise the branch never made. Unset,
+# this returns 1 and the caller says in its green line that it compared
+# nothing. Set but unreadable is not a pass.
+gate_base_file() {
+  [ -n "${GATE_BASE:-}" ] || return 1
+  if ! git cat-file -e "$GATE_BASE^{tree}" 2>/dev/null; then
+    gate_error "$(gate_name): the base GATE_BASE=$GATE_BASE is not a commit in the repository at $PWD, so $1 cannot be compared with it; fetch it (git fetch --depth=1 origin $GATE_BASE). An unread base is not a pass"
+    exit 1
+  fi
+  if ! git show "$GATE_BASE:./$1" > "$GATE_BASE_FILE" 2>/dev/null; then
+    gate_error "$(gate_name): $1 does not exist at the base $GATE_BASE, so there is no pin to compare with; a gate that is new in this change has no base to hold, so land it before its first pin moves"
+    exit 1
+  fi
+}
+
 # A MATCHER THAT DID NOT RUN IS NOT A CLEAN SCAN — the rule above,
 # applied to the scan instead of to the file set. That asymmetry was the
 # hole: two guards proved the gate had files to read, and nothing proved
@@ -195,7 +244,7 @@ gate_grep() {
 # otherwise delete its own evidence on the way out.
 gate_matcher_marker_cleanup() {
   if [ "${BASHPID:-$$}" = "$$" ]; then
-    rm -f "$GATE_MATCHER_FAILED"
+    rm -f "$GATE_MATCHER_FAILED" "$GATE_BASE_FILE"
   fi
   return 0
 }
@@ -435,9 +484,19 @@ gate_rust_code() {
     # A single quote cannot be written inside this program, which is
     # itself single-quoted; CODEBRK is built rather than spelled.
     BEGIN { Q = sprintf("%c", 39); CODEBRK = "[\"" Q "/]" }
+    # A KEPT LITERAL\x27S BRACES ARE NOT CODE: a test that searches its own
+    # source for `"\n}\n"` once closed its `#[cfg(test)]` module early in
+    # the skip below, and the rest of the module read as production. Each
+    # piece of a literal the view keeps goes through `lit`, which tallies
+    # its braces (`lo`, `lc`) for the skip to take back out.
+    function lit(t,   u) {
+      u = t; lo += gsub(/\{/, "{", u)
+      u = t; lc += gsub(/\}/, "}", u)
+      return t
+    }
     FNR == 1 { state = 0; cdepth = 0; depth = 0; skipping = 0; seen_open = 0 }
     {
-      s = $0; out = ""; i = 1; n = length(s)
+      s = $0; out = ""; i = 1; n = length(s); lo = 0; lc = 0
       # THE FAST PATH, and it is worth its four lines: a line carrying no
       # quote, no apostrophe and no block-comment opener has nothing in
       # it but code and possibly a trailing `//`. That is most of the
@@ -491,19 +550,19 @@ gate_rust_code() {
         }
         if (state == 2) {                      # inside "..." (or b"...")
           p = match(rest, /["\\]/)
-          if (p == 0) { if (KEEPLIT == 1) out = out rest; i = n + 1; continue }
+          if (p == 0) { if (KEEPLIT == 1) out = out lit(rest); i = n + 1; continue }
           if (substr(rest, p, 1) == "\\") {
-            if (KEEPLIT == 1) out = out substr(rest, 1, p + 1)
+            if (KEEPLIT == 1) out = out lit(substr(rest, 1, p + 1))
             i += p + 1; continue
           }
-          if (KEEPLIT == 1) out = out substr(rest, 1, p - 1)
+          if (KEEPLIT == 1) out = out lit(substr(rest, 1, p - 1))
           out = out "\""; state = 0; i += p
           continue
         }
         if (state == 3) {                      # inside r#*"..."#*
           p = index(rest, "\"" rawhashes)
-          if (p == 0) { if (KEEPLIT == 1) out = out rest; i = n + 1; continue }
-          if (KEEPLIT == 1) out = out substr(rest, 1, p - 1)
+          if (p == 0) { if (KEEPLIT == 1) out = out lit(rest); i = n + 1; continue }
+          if (KEEPLIT == 1) out = out lit(substr(rest, 1, p - 1))
           out = out "\"" rawhashes; state = 0; i += p + rawh
           continue
         }
@@ -545,12 +604,12 @@ gate_rust_code() {
         if (substr(s, i + 1, 1) == "\\") {
           j = i + 3          # the backslash escapes exactly one char
           while (j <= n && substr(s, j, 1) != Q) j++
-          if (KEEPLIT == 1) out = out substr(s, i, j - i + 1)
+          if (KEEPLIT == 1) out = out lit(substr(s, i, j - i + 1))
           else out = out Q Q
           i = j + 1; continue
         }
         if (substr(s, i + 2, 1) == Q) {
-          if (KEEPLIT == 1) out = out substr(s, i, 3)
+          if (KEEPLIT == 1) out = out lit(substr(s, i, 3))
           else out = out Q Q
           i += 3; continue
         }
@@ -568,6 +627,7 @@ gate_rust_code() {
         opens = 0; closes = 0
         if (index(out, "{") > 0) opens = gsub(/\{/, "{", out)
         if (index(out, "}") > 0) closes = gsub(/\}/, "}", out)
+        opens -= lo; closes -= lc
         if (skipping == 0 && out ~ ENVIRON["GATE_CFG_TEST_RE"] &&
             out !~ ENVIRON["GATE_CFG_TEST_NOT_RE"]) {
           skipping = 1; seen_open = 0; skip_depth = depth

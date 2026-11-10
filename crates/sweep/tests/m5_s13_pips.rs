@@ -146,9 +146,7 @@ fn die_pip_subtract_is_green() {
     // The cavity wall keeps the reverted bit (mef inheritance, S12).
     let reversed = cut
         .faces()
-        .filter(|(_, f)| {
-            matches!(cut.get_surface(f.surface), Some(Surface::Sphere { .. })) && !f.sense
-        })
+        .filter(|(fk, f)| matches!(cut.face_surface(*fk), Some(Surface::Sphere { .. })) && !f.sense)
         .count();
     assert!(reversed > 0, "the pip wall must be sense: false");
 
@@ -269,7 +267,7 @@ fn two_pips_cut_under_the_group_arm() {
     assert_eq!(cut.shells().count(), 1);
     let sphere_surfaces: std::collections::BTreeSet<String> = cut
         .faces()
-        .filter_map(|(_, f)| match cut.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match cut.face_surface(fk) {
             Some(s @ Surface::Sphere { .. }) => Some(format!("{s:?}")),
             _ => None,
         })
@@ -302,7 +300,7 @@ fn a_re_charted_balls_rows_name_its_input_shells_faces() {
         .map(|(_, shell)| shell.faces.iter().map(|&f| topo::Cell::Face(f)).collect())
         .collect();
     assert_eq!(shells.len(), 2, "two disjoint balls, two shells");
-    let a = finished("operand A", slab(), Tol::witness());
+    let a = finished("operand A", slab::<f64>(), Tol::witness());
     let out = boolean_op_with(
         BooleanOp::Subtract,
         &a,
@@ -362,7 +360,7 @@ fn in_band_extent_escalates_instead_of_answering() {
     // Center above the slab so that r − |s| = mid for the top face.
     let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 2.0 - mid), Tol::witness());
     let b = finished("the ball", b, Tol::witness());
-    let slab = finished("the slab", slab(), Tol::witness());
+    let slab = finished("the slab", slab::<f64>(), Tol::witness());
     let err =
         topo::union(&slab, &b, Tol::witness()).expect_err("an in-band extent must not answer");
     let BooleanError::Escalated { .. } = err else {

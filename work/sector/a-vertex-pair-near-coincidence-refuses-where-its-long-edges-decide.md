@@ -52,3 +52,17 @@ count came from `recl::resolve_edge_edge`'s tangent short-circuit,
 which marked a germ whatever the op. This row's comes from
 `pair_search` and `within` reading at the shorter arm. That fix leaves
 `contact9_side_codes` as it was.
+
+## Evidence: the pose's refusal, and a span lever (2026-11-10, SEAL PR 6693)
+
+Fork `unglued-corner-ending` settled this pose's refusal.
+- **What it does now.** An unglued plane pair that `fan::meeting` reads parallel at the corner's arm refuses there: `Coincidence(CornerCrossing)`, the tilt `θ·arm` rejected by the Positive-only gate, offering "tighten below θ·arm/K".
+- **The pins.** `crates/topo/tests/a_corner_reads_only_its_own_sectors.rs` pins it on `test_support::tool_on_a_block_corner`, this row's witness with its top tilted by θ.
+- **Following the offer.**
+  - The generic pose (ψ = 0) builds in all six runs just below the offer.
+  - The pose hinged along `b` meets `bool_contact_edge` there instead.
+  - `contact9_side_codes::a_near_coincident_pair_at_a_corner_refuses_typed` is that hinged pose; it is repinned to the new row.
+
+Both designers measured what levering `fan::meeting` at the far span instead of the arm does:
+- **The generic pose under a span lever is a ready witness.** The designers measured the odd germ count. The lane's mutant levering `bool_faces_parallel` at the larger span (PR 6693) measured the generic tool pose ending `ClassificationInvariant` ("germ record without a clean In/Out transition after rewrite") in every op, at ε 1e-9 and 1e-12.
+- **The hinged pose still refuses.** Subdivision bisectors (`BoundSupport::Bisector`) are levered at the arm, a second short lever this row's fix has to reach.

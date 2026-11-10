@@ -894,10 +894,7 @@ fn far_end_anchor_makes_its_authored_point_a_vertex() {
     let lowered = pinned(lowered);
     validate_ok(&lowered);
     assert!(
-        lowered
-            .vertices()
-            .iter()
-            .any(|v| v.x.to_bits() == far.x.to_bits() && v.y.to_bits() == far.y.to_bits()),
+        lowered.vertices().iter().any(|v| v.same_bits(far)),
         "the authored far vertex must be on the path verbatim"
     );
 }
@@ -1245,7 +1242,7 @@ fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
 }
 
 /// Carriers that never meet name their own reason — distinct from the
-/// tangency knife edge, which still reports `CarriersParallel`.
+/// tangency knife edge, which still reports `CarriersTangent`.
 ///
 /// Note this needs an INTERIOR arrival anchor, not `p: Start`: a
 /// closing arrival anchors BOTH carriers at the entry point, so they
@@ -1326,7 +1323,7 @@ fn the_new_arc_carrier_gates_escalate_in_band() {
         },
         Tol::witness(),
     );
-    let Err(PathError::Escalated { source }) = refused else {
+    let Err(PathError::Escalated { source, .. }) = refused else {
         panic!("in-band carrier separation must escalate, got {refused:?}");
     };
     assert_eq!(source.predicate, Some("path_carrier_meet"));
@@ -1353,7 +1350,7 @@ fn the_new_arc_carrier_gates_escalate_in_band() {
             },
             Tol::witness(),
         );
-    let Err(PathError::Escalated { source }) = refused else {
+    let Err(PathError::Escalated { source, .. }) = refused else {
         panic!("an in-band angular reach must escalate, got {refused:?}");
     };
     assert_eq!(source.predicate, Some("path_corner_reach_arc"));
@@ -1469,7 +1466,7 @@ fn the_angular_advance_gate_escalates_in_band() {
     // Assert WHICH gate escalated: an escalation from `path_carrier_meet`
     // would satisfy a bare `Escalated` match while leaving the angular
     // advance gate as untested as before.
-    let Err(PathError::Escalated { source }) = refused else {
+    let Err(PathError::Escalated { source, .. }) = refused else {
         panic!("an in-band angular ADVANCE must escalate, got {refused:?}");
     };
     assert_eq!(

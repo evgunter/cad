@@ -131,7 +131,11 @@ mod certified {
     fn interval_one_pip_composed_die_is_bracketed() {
         let pipped = boolean_op_with(
             BooleanOp::Subtract,
-            &finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness()),
+            &finished(
+                "the cube",
+                cube::<geom_core::Interval>(DIE_L, Tol::witness()),
+                Tol::witness(),
+            ),
             &finished("the pip ball", pip_ball(), Tol::witness()),
             &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
@@ -167,13 +171,11 @@ mod certified {
                 let kind = |he| {
                     let h = blanked.get_half_edge(he)?;
                     let f = blanked.get_loop(h.parent_loop)?.face;
-                    blanked
-                        .get_surface(blanked.get_face(f)?.surface)
-                        .map(|s| match s {
-                            Surface::Plane { .. } => 0u8,
-                            Surface::Sphere { .. } => 1,
-                            _ => 2,
-                        })
+                    blanked.face_surface(f).map(|s| match s {
+                        Surface::Plane { .. } => 0u8,
+                        Surface::Sphere { .. } => 1,
+                        _ => 2,
+                    })
                 };
                 matches!(
                     (kind(e.he_plus), kind(e.he_minus)),

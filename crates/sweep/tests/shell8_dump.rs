@@ -35,7 +35,7 @@ fn dump(label: &str, body: &Body<f64>) {
             f.sense,
             f.rings.len(),
             f.surface,
-            body.get_surface(f.surface)
+            body.face_surface(k)
         );
     }
     for (k, e) in body.edges() {
@@ -43,8 +43,7 @@ fn dump(label: &str, body: &Body<f64>) {
             body.face_of_half_edge(e.he_plus).unwrap(),
             body.face_of_half_edge(e.he_minus).unwrap(),
         );
-        let start = body.get_half_edge(e.he_plus).unwrap().start;
-        let end = body.half_edge_end(e.he_plus).unwrap();
+        let (start, end) = body.edge_vertices(k).unwrap();
         let c = body
             .get_curve_geom(e.curve)
             .and_then(|g| g.certified())
@@ -71,7 +70,7 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     // A body tier 3 refuses prints its refusal and is not measured.
-    match topo::AtRestBody::validate(topo::Body::clone(body), tol()) {
+    match topo::finish(topo::Body::clone(body), tol()) {
         Err(errors) => println!("[dump8] {label}: not at rest {errors:?}"),
         Ok(finished) => match topo::mass_properties(
             &finished,

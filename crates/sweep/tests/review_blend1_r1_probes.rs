@@ -79,20 +79,14 @@ fn tilt_raised_cap(
         .find_map(|he| {
             let h = body.get_half_edge(he)?;
             let f = body.get_loop(h.parent_loop)?.face;
-            matches!(
-                body.get_surface(body.get_face(f)?.surface)?,
-                geom::Surface::Plane { .. }
-            )
-            .then_some(f)
+            matches!(body.face_surface(f)?, geom::Surface::Plane { .. }).then_some(f)
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {
         origin,
         normal,
         u_ref,
-    } = *body
-        .get_surface(body.get_face(cap).expect("the cap resolves").surface)
-        .expect("the cap's plane")
+    } = *body.face_surface(cap).expect("the cap's plane")
     else {
         panic!("the cap side is a plane")
     };
@@ -136,10 +130,7 @@ fn verdict(body: &Body<f64>, rim: EdgeKey) -> Result<(), BlendError> {
 fn r1_tilted_cap_departure_is_the_meridian_reading() {
     for departure in [1e-3, in_band(), 2.0 * tol().eps(), 0.5 * tol().eps()] {
         let (body, _, cap, axis, lever) = tilted_cap(departure);
-        let geom::Surface::Plane { normal, .. } = *body
-            .get_surface(body.get_face(cap).unwrap().surface)
-            .unwrap()
-        else {
+        let geom::Surface::Plane { normal, .. } = *body.face_surface(cap).unwrap() else {
             panic!("a plane")
         };
         let read = normal.cross(axis).norm() * lever;
@@ -336,10 +327,11 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
 
 /// **The in-band convexity-sign escalation renders the TANGENTIAL
 /// sentence, not the chain-flip one.** A 5ε wedge at a 1 m arm
-/// escalates `fillet3_convexity_sign` at the link's own lever; that
-/// is the same site and the same user situation as the wedge decided
-/// `Zero`, whose refusal is `KnifeEdge`, so the two arms carry
-/// one recourse (D4 ¶1 addendum). "Split the chain at the convexity
+/// escalates `fillet3_convexity_sign` at the link's own lever, an edge
+/// neither at a definite angle nor definitely tangent, and the
+/// sentence names both ways out (D4 ¶1 addendum). (The wedge decided
+/// `Zero` with the material facing itself is a knife, which the battery
+/// reads on rather than refusing here.) "Split the chain at the convexity
 /// flip" belongs to `ConvexitySignFlip` — a chain whose links all
 /// resolved definitely and disagree — and is advice about a flip no
 /// escalation here decided; this row pins its absence.
@@ -373,17 +365,12 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         !text.contains(sweep::blend::FILLET3_CONVEXITY_RECOURSE),
         "no flip was decided, so the flip sentence is absent: {text}"
     );
-    // The definite neighbour, rendered from the same site: a wedge
-    // decided Zero with the material facing itself. Both arms, one
-    // sentence.
+    // The definite neighbour from the same site: a wedge decided Zero
+    // with the material facing itself is a knife, read on, not refused.
     let back = plane(Vec3::new(-1.0, 0.0, 0.0));
-    let flat = wedge_at(out(&x), out(&back), tau, metre(), e, band()).unwrap_err();
-    assert!(matches!(flat, BlendError::KnifeEdge { .. }), "{flat:?}");
-    assert!(
-        flat.render(geom_brep::recourse::Reading::Build)
-            .contains(sweep::blend::FILLET3_WEDGE_RECOURSE),
-        "{flat}"
-    );
+    let (flat, _) = wedge_at(out(&x), out(&back), tau, metre(), e, band())
+        .expect("a knife is read, not refused");
+    assert_eq!(flat, sweep::blend::LinkWedge::Knife);
 }
 
 /// **Can a BODY reach the in-band convexity arm?** A profile whose

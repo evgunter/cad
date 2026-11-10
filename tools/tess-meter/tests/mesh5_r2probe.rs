@@ -53,6 +53,7 @@ fn revolve_polygon(pts: &[Point2<f64>], theta: f64) -> Body<f64> {
     revolve(&profile, axis, Revolution::Partial(theta), Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn fnv(bytes: &[u8], h: &mut u64) {
@@ -114,13 +115,12 @@ fn cone_patch_report(body: &Body<f64>, mesh: &mesh::Mesh) -> (usize, f64) {
     let mut tris = 0usize;
     let mut max_dev = 0.0_f64;
     for patch in &mesh.patches {
-        let face = body.get_face(patch.face).unwrap();
         let Surface::Cone {
             apex,
             axis,
             half_angle,
             ..
-        } = *body.get_surface(face.surface).unwrap()
+        } = *body.face_surface(patch.face).unwrap()
         else {
             continue;
         };
@@ -201,7 +201,7 @@ fn r2_overflow_edge_needle_cone() {
     );
     let half_angle = needle
         .faces()
-        .find_map(|(_, f)| match *needle.get_surface(f.surface).unwrap() {
+        .find_map(|(fk, _)| match *needle.face_surface(fk).unwrap() {
             Surface::Cone { half_angle, .. } => Some(half_angle),
             _ => None,
         })
@@ -277,7 +277,7 @@ fn r2_cone_shape_sweep() {
         let body = revolve_polygon(&poly, theta);
         let (rho_rim, half_angle) = body
             .faces()
-            .find_map(|(_, f)| match *body.get_surface(f.surface).unwrap() {
+            .find_map(|(fk, _)| match *body.face_surface(fk).unwrap() {
                 Surface::Cone { half_angle, .. } => Some((poly[1].x, half_angle)),
                 _ => None,
             })

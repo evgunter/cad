@@ -314,6 +314,10 @@ pub enum BindingViolation {
     /// The two resolved different parts: a reference one resolved and
     /// the other did not, or at another pin.
     Parts,
+    /// The `f64` evaluation was built over other options than the
+    /// passes, the seed aside: a parameter box, symbols or a computing
+    /// frame ([`crate::RecordMispairing::Options`]).
+    Options,
 }
 
 impl core::fmt::Display for BindingViolation {
@@ -363,6 +367,10 @@ impl core::fmt::Display for BindingViolation {
                 f,
                 "the f64 build of record bound {var} to other bits than the \
                  sensitivity passes did"
+            ),
+            Self::Options => f.write_str(
+                "the f64 build of record was built over other options than the sensitivity \
+                 passes (a parameter box, symbols or a computing frame)",
             ),
             Self::Parts => f.write_str(
                 "the f64 build of record resolved other parts than the sensitivity \
@@ -595,27 +603,43 @@ fn driver(
             refusal: Some(refusal),
         })
     })?;
+    // The build of record every dual pass is bound to (DUAL-DESIGN
+    // DL3): a node it built no value at is refused in each pass before
+    // it runs.
     let own: Evaluation<f64>;
-    let record = match of_record {
+    let built = match of_record {
         Some(handed) => handed,
         None => {
-            own = stamped(
-                evaluate::<f64>(
-                    doc,
-                    None,
-                    &stop.cancel,
-                    &stop.options(EvalOptions {
-                        resolver: resolver.cloned(),
-                        ..EvalOptions::default()
-                    }),
-                    tol,
-                ),
-                pin,
+            own = evaluate::<f64>(
+                doc,
+                None,
+                &stop.cancel,
+                &pass_opts(None, resolver, stop).of_record(),
+                tol,
             );
             &own
         }
     };
-    let record = Record::new(doc, record, value).map_err(SensitivityRefusal::Binding)?;
+    let record = Record::new(doc, built, value).map_err(SensitivityRefusal::Binding)?;
+    // The record is a build of the passes' input before any pass is
+    // bound to it: the evaluation service's own pairing, said in the
+    // binding's words.
+    crate::eval::record_pairing(doc, built, &pass_opts(None, resolver, stop), tol).map_err(
+        |m| {
+            SensitivityRefusal::Binding(match m {
+                // Built over other options, it read other bits where it
+                // bound a variable off the nominal: the variable says it.
+                crate::RecordMispairing::Options => {
+                    moved_binding(doc, built).map_or(BindingViolation::Options, |var| {
+                        BindingViolation::Binding {
+                            var: doc.spoken_var(var),
+                        }
+                    })
+                }
+                m => m.into(),
+            })
+        },
+    )?;
 
     // The variables, in declaration order (deterministic in both schedules).
     let names: Vec<VarId> = toleranced_params(doc).collect();
@@ -630,9 +654,10 @@ fn driver(
     // record that read other inputs is refused even where there is no
     // pass to refuse it — the nominal is read from it.
     let base: Evaluation<Dual64> = stamped(
-        evaluate(
+        crate::eval::evaluate_recorded(
             doc,
             None,
+            built,
             &stop.cancel,
             &pass_opts(None, resolver, stop),
             tol,
@@ -645,9 +670,10 @@ fn driver(
 
     let one = |name: &VarId| -> Result<Sensitivity, SensitivityRefusal> {
         let pass = stamped(
-            evaluate(
+            crate::eval::evaluate_recorded(
                 doc,
                 Some(&base),
+                built,
                 &stop.cancel,
                 &pass_opts(Some(*name), resolver, stop),
                 tol,
@@ -692,7 +718,10 @@ fn driver(
 
 /// `ev`, which the driver evaluated from the document `pin` is of,
 /// stamped with that pin.
-fn stamped<T: geom_core::Decide>(mut ev: Evaluation<T>, pin: crate::ContentPin) -> Evaluation<T> {
+fn stamped<T: topo::AtRestPolicy + geom_core::Decide>(
+    mut ev: Evaluation<T>,
+    pin: crate::ContentPin,
+) -> Evaluation<T> {
     ev.pin = Some(Ok(pin));
     ev
 }
@@ -730,7 +759,7 @@ fn leaf_opts(
 
 /// The measured value of `value`, or the refusal rendered with the node
 /// it came from ([`Evaluation::reading`]).
-fn measure_of<T: geom_core::Decide + Copy>(
+fn measure_of<T: topo::AtRestPolicy + geom_core::Decide + Copy>(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
     value: VarId,
@@ -760,6 +789,18 @@ enum BoundBits {
     Count(i64),
 }
 
+impl BoundBits {
+    /// One binding's bits, a continuous one by its value half.
+    fn of<T: ValueBits>(binding: &crate::expr::ParamValue<T>) -> Self {
+        match binding {
+            crate::expr::ParamValue::Continuous { dim, value } => {
+                Self::Continuous(*dim, value.value_bits())
+            }
+            crate::expr::ParamValue::Count(n) => Self::Count(*n),
+        }
+    }
+}
+
 /// A scalar's VALUE HALF as exact bits — what D9's "bit-identical"
 /// quantifies over: the `f64` itself, a dual's value channel.
 trait ValueBits: geom_core::Decide + Copy {
@@ -778,6 +819,38 @@ impl ValueBits for Dual64 {
     }
 }
 
+/// The first variable `ev` bound to other bits than `doc`'s nominal
+/// environment does, by [`BuildIdentity`]'s reading of a binding.
+fn moved_binding(doc: &Doc<ProfileProgram>, ev: &Evaluation<f64>) -> Option<VarId> {
+    let nominal = doc.var_env::<f64>();
+    let bits = |b: Option<&crate::expr::ParamValue<f64>>| b.map(BoundBits::of);
+    let vars: BTreeSet<&VarId> = nominal
+        .bindings
+        .keys()
+        .chain(ev.env.bindings.keys())
+        .collect();
+    vars.into_iter()
+        .find(|var| bits(nominal.bindings.get(var)) != bits(ev.env.bindings.get(var)))
+        .copied()
+}
+
+impl From<crate::RecordMispairing> for BindingViolation {
+    fn from(m: crate::RecordMispairing) -> Self {
+        use crate::RecordMispairing as M;
+        match m {
+            M::Document { expected, found } => {
+                Self::EvaluationOfAnotherDocument { expected, found }
+            }
+            M::NotABuild => Self::NotABuild,
+            M::Unpinned => Self::Unpinned { refusal: None },
+            M::Revision => Self::Revision,
+            M::Tolerance => Self::Tolerance,
+            M::Options => Self::Options,
+            M::Resolver => Self::Parts,
+        }
+    }
+}
+
 impl From<crate::Stopped> for BindingViolation {
     fn from(stopped: crate::Stopped) -> Self {
         match stopped {
@@ -789,7 +862,7 @@ impl From<crate::Stopped> for BindingViolation {
 
 impl BuildIdentity {
     /// `ev`'s identity, or why it has none to bind by.
-    fn of<T: ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
+    fn of<T: topo::AtRestPolicy + ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
         match ev.outcome {
             EvalOutcome::Completed => {}
             EvalOutcome::Canceled => return Err(BindingViolation::Incomplete),
@@ -813,15 +886,7 @@ impl BuildIdentity {
             .env
             .bindings
             .iter()
-            .map(|(&var, binding)| {
-                let bits = match binding {
-                    crate::expr::ParamValue::Continuous { dim, value } => {
-                        BoundBits::Continuous(*dim, value.value_bits())
-                    }
-                    crate::expr::ParamValue::Count(n) => BoundBits::Count(*n),
-                };
-                (var, bits)
-            })
+            .map(|(&var, binding)| (var, BoundBits::of(binding)))
             .collect();
         Ok(Self {
             document: ev.document,
@@ -2231,7 +2296,13 @@ mod tests {
     fn pass_run(doc: &ProfileDoc, seed: VarId) -> Evaluation<Dual64> {
         let opts = pass_opts(Some(seed), None, &crate::Stop::default());
         stamped(
-            evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness()),
+            crate::test_support::evaluate_bound(
+                doc,
+                None,
+                &CancelToken::new(),
+                &opts,
+                Tol::witness(),
+            ),
             pin(doc),
         )
     }

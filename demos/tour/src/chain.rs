@@ -238,8 +238,8 @@ pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
 /// function's one-surface assertion establishes.
 pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
     let mut found: Option<(SurfaceKey, (T, T))> = None;
-    for (_, face) in body.faces() {
-        let Some(Surface::Cylinder { origin, .. }) = body.get_surface(face.surface) else {
+    for (fk, face) in body.faces() {
+        let Some(Surface::Cylinder { origin, .. }) = body.face_surface(fk) else {
             continue;
         };
         match found {

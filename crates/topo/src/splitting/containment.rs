@@ -118,33 +118,34 @@
 //!   lower bound `curve_carrier_clear`, the ellipse's Hessian-bounded
 //!   root, the two straddling on `curve_carrier_straddle`), and the span's
 //!   reading of its ends (`curve_pair_span_end_*`).
-//! - **`point_in_arc_loop_conic_end`**: on a ray's crossing, the distance
-//!   to either end of the arc ([`arc_trim`]'s step 1), the unit chord
-//!   times the smaller semi-axis.
-//! - **`point_in_arc_loop_conic_window`**, **`_disc`**, **`_advance`**: a
-//!   ray's crossing of a conic — the distance trim's defect sum
-//!   ([`arc_trim`]), the discriminant, the root's advance — each levered
-//!   by the smaller semi-axis, where a `Zero` grazes the ray and an
-//!   in-band margin sets it aside.
+//! - **A ray's crossing of a conic arc** ([`conic_crossings`]) is a
+//!   co-surface pair's (C5): the arc across the ray's square plane through
+//!   `geom_brep`'s co-surface arm, on the plane door's rows
+//!   (`plane_crossing_*`, the root's place on the arc's span included),
+//!   then **`point_in_arc_loop_conic_advance`**, the root's distance
+//!   along the ray in metres, and **`point_in_arc_loop_conic_in_plane`**,
+//!   an arc's offset from the ray's square plane it is parallel to (only
+//!   on the projected read). A `Zero` grazes the ray and an in-band
+//!   margin sets it aside.
 //!
 //! **`point_in_arc_loop_conic_straddle`** classifies nothing: it names an
 //! ellipse's two decided bounds on its span's overlap straddling the
 //! whole band ([`geom_core::k_stats::straddle`]).
 
-use geom::Conic;
+pub(crate) use crate::rows::BoundaryRows;
 use geom::cover::{Cover, Site};
 use geom_brep::ExtentBall;
+use geom_brep::ladder::{IdentityLadder, read_identity};
 use geom_brep::recourse::{LeverOnly, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
-use geom_core::{
-    Band, Decide, Indeterminate, InfSpeed, Lever, Margin, MarginDiag, Point3, Sign, Vec3,
-};
+use geom_core::period::{Exact, Extent, Turn, TurnRow, TurnRows, TurnUndecided, Within};
+use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
+use crate::geometry::SurfaceKey;
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, ParityRows, RayFault};
-use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::spline_arc::SplineArc;
 use crate::validate::decide;
@@ -154,12 +155,7 @@ use crate::validate::decide;
 /// `point_in_loop_arm` row is not among them: it gates the *frame*
 /// construction below, which is this consumer's own, and is written
 /// at its own `decide` call.
-const ROWS: ParityRows = ParityRows {
-    segment: "point_in_loop_segment",
-    boundary: "point_in_loop_boundary",
-    side: "point_in_loop_side",
-    advance: "point_in_loop_advance",
-};
+const ROWS: ParityRows = crate::rows::POINT_IN_LOOP;
 
 /// The trilean answer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -225,8 +221,10 @@ impl LoopDecision {
         match self {
             Self::Boundary => "move the point exactly onto the boundary or clearly off it",
             Self::Ray => "nudge the point so no boundary corner lines up with it",
-            Self::ArcSpan => "move the geometry so this arc stays clearly short of a full turn",
-            Self::Plane => "move the geometry so the face is flat and the point lies on it",
+            // The edge interval's winding decision's own lever: one arc
+            // short of a full turn, whichever reader asks.
+            Self::ArcSpan => geom_brep::recourse::SpanDecision::Winding.lever(),
+            Self::Plane => geom_core::move_lever!("so the face is flat and the point lies on it"),
         }
     }
 
@@ -349,12 +347,43 @@ pub enum PointInLoopError {
         /// The loop.
         r#loop: LoopKey,
     },
+    /// The loop is a lone vertex, which bounds no region to place a point
+    /// in. Tier 1 admits it; tier 2 refuses it at rest
+    /// ([`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)).
+    /// Its standing is the crate's one lone-loop standing
+    /// (`live::LONE_LOOP_REFUSAL`).
+    LoneLoop {
+        /// The loop.
+        r#loop: LoopKey,
+    },
     /// The walk could not decide: a ray definitely met an edge it could
     /// not cross, and no ray settled.
     Uncrossable(Uncrossable),
     /// A precondition of [`point_in_loop`] does not hold: the walk was
     /// handed a plane the loop or the point does not lie in.
     OffPlane(OffPlane),
+}
+
+impl PointInLoopError {
+    /// What this refusal is to a ladder over several points
+    /// ([`geom_brep::ladder::Refusal`]): an escalation by its margin, a
+    /// schedule no ray settled in band, an edge no ray crosses or a
+    /// lone-vertex loop a limit, and a loop that does not walk or a point off its plane a refusal
+    /// of the whole query ([`geom_brep::ladder::Aborts`]).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_brep::ladder::Aborts`], for a refusal of the whole query.
+    pub fn refusal(&self) -> Result<geom_brep::ladder::Refusal, geom_brep::ladder::Aborts> {
+        use geom_brep::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated { diag, .. } => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted { .. } => Ok(Refusal::InBand),
+            Self::Uncrossable(_) => Ok(Refusal::Limit),
+            Self::LoneLoop { .. } => Ok(crate::live::LONE_LOOP_REFUSAL),
+            Self::CorruptLoop { .. } | Self::OffPlane(_) => Err(Aborts),
+        }
+    }
 }
 
 /// **Which of [`point_in_loop`]'s preconditions failed**, for `loop`.
@@ -499,6 +528,11 @@ impl PointInLoopError {
                 "{subject} cannot be read: {self}. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
+            Self::LoneLoop { .. } => write!(
+                f,
+                "{subject} cannot be read: {self}. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
             Self::OffPlane(o) => write!(f, "{subject} cannot be read: {o}. Recourse: {recourse}"),
         }
     }
@@ -532,6 +566,9 @@ impl PointInLoopError {
             ),
             Self::CorruptLoop { r#loop } => {
                 write!(f, "loop {loop:?} is not walkable")
+            }
+            Self::LoneLoop { r#loop } => {
+                write!(f, "loop {loop:?} is a lone vertex, which bounds no region")
             }
             Self::Uncrossable(u) => write!(
                 f,
@@ -623,8 +660,9 @@ fn loop_points<T: Decide>(
 ) -> Result<Vec<Point3<T>>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let loop_data = body.get_loop(r#loop).ok_or_else(corrupt)?;
-    let LoopBoundary::Cycle { first } = loop_data.boundary else {
-        return Err(corrupt()); // an empty loop bounds no region
+    let first = match loop_data.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
     };
     let mut points = Vec::new();
     for he in body.loop_cycle(first).ok_or_else(corrupt)? {
@@ -758,85 +796,26 @@ fn walk_schedule<T: Decide>(
 /// populations stay separable. Its own rows, written at their `decide` calls:
 /// `point_in_arc_loop_arm` (the schedule gate), `point_in_arc_loop_reach`
 /// (a spiric piece's ball's clearance from a ray), and the
-/// conic arm's `point_in_arc_loop_conic_{span,on,window,disc,advance}`
-/// and its pre-pass trim's `point_in_arc_loop_conic_{end,trim}`.
-const ARC_LOOP_ROWS: ParityRows = ParityRows {
-    segment: "point_in_arc_loop_segment",
-    boundary: "point_in_arc_loop_boundary",
-    side: "point_in_arc_loop_side",
-    advance: "point_in_arc_loop_advance",
-};
+/// conic arm's `point_in_arc_loop_conic_{span,advance,in_plane}` beside
+/// the plane door's own (`plane_crossing_*`, [`conic_crossings`]).
+const ARC_LOOP_ROWS: ParityRows = crate::rows::ARC_LOOP;
 
-/// The rows a caller reads a conic edge under — its own, so each
-/// caller's population stays separable in the telemetry: the arc's width
-/// against a period (`turn`, [`ConicArc::of`]'s turn rule) and the name
-/// an ellipse's span escalation carries where its two readings straddle
-/// the band ([`geom_core::k_stats::straddle`]), which no margin of `turn`
-/// says, so it is not charged to it.
-pub(crate) type ConicRows = TurnRows<&'static str>;
-
-/// The rows a caller reads a loop's boundary under: a straight edge's
-/// ([`ray_walk::on_segment`]'s two), a conic edge's, a spiric edge's and
-/// a spline edge's.
-#[derive(Clone, Copy)]
-pub(crate) struct BoundaryRows {
-    /// A straight edge's rows.
-    pub(crate) line: &'static ParityRows,
-    /// A conic edge's rows.
-    pub(crate) conic: ConicRows,
-    /// A spiric edge's rows.
-    pub(crate) spiric: ArcRows,
-    /// A spline edge's rows.
-    pub(crate) spline: ArcRows,
-}
+pub(crate) use crate::rows::ConicRows;
 
 /// [`point_in_loop`]'s rows for a loop's boundary.
-const WALK_ROWS: BoundaryRows = BoundaryRows {
-    line: &ARC_LOOP_ROWS,
-    conic: ConicRows::bounded(
-        "point_in_arc_loop_conic_span",
-        "point_in_arc_loop_conic_straddle",
-    ),
-    spiric: ArcRows {
-        end: "point_in_arc_loop_spiric_end",
-        clear: "point_in_arc_loop_spiric_clear",
-        on: "point_in_arc_loop_spiric_on",
-        leaf: "point_in_arc_loop_spiric_leaf",
-    },
-    spline: ArcRows {
-        end: "point_in_arc_loop_spline_end",
-        clear: "point_in_arc_loop_spline_clear",
-        on: "point_in_arc_loop_spline_on",
-        leaf: "point_in_arc_loop_spline_leaf",
-    },
-};
+const WALK_ROWS: BoundaryRows = crate::rows::ARC_LOOP_WALK;
 
-/// A conic arc of a planar loop — a circle or an ellipse — in its own
-/// affine frame: the locus `center + u·a·cos θ + v·b·sin θ` over
-/// `θ ∈ [t0, t1]` (for an ellipse `θ` is the eccentric anomaly, the
-/// carrier's own parameter). In UNIT coordinates `((x−c)·u/a,
-/// (x−c)·v/b)` the conic is the unit circle and the arc a window of
-/// it.
+/// A conic arc of a planar loop — a circle or an ellipse — over
+/// `θ ∈ [t0, t1]` of its carrier (for an ellipse `θ` is the eccentric
+/// anomaly, the carrier's own parameter).
 #[derive(Clone)]
 pub(crate) struct ConicArc<T: geom_core::Real> {
     /// The carrier, a circle or an ellipse.
     carrier: geom::Curve3<T>,
-    /// The smaller semi-axis, the fewest metres one unit-coordinate step
-    /// buys: the rate unit coordinates cross to metres at. It meters the
-    /// CROSSING rows, where a `Zero` grazes a ray and an understated
-    /// margin costs rays, never an answer. A verdict
-    /// on an ellipse reads it only where a LOWER bound is the sound side
-    /// — the span rule's wound-past-period ([`Self::of`]); the boundary
-    /// reading bounds its distances on both sides ([`Self::hit`]), and
-    /// an arc's span needs the larger semi-axis too.
-    rate: InfSpeed<T>,
     /// The arc's two end points, evaluated as certification evaluates
     /// them (`Curve3::eval`), so every reading of an end reads the point
     /// whose pin to its vertex was certified.
     ends: [Point3<T>; 2],
-    /// The arc's two ends and its apex (the window's mid direction),
-    /// on the unit circle — the trim [`arc_trim`] decides by distance.
-    trim: [(T, T); 3],
     /// The span's turn ([`Self::of`]): short of a whole turn, a whole
     /// turn (over one never builds a `ConicArc`), or `Err` where it is
     /// unsettled with any overlap within the escalation band.
@@ -880,7 +859,7 @@ impl<T: Decide> ConicArc<T> {
     /// circle or an ellipse.
     ///
     /// **The span is read for "not over"**, through the turn rule
-    /// ([`Period::turn`]): exact on a circle, between the smaller
+    /// ([`geom_core::period::Period::turn`]): exact on a circle, between the smaller
     /// semi-axis and the speed over the turn's defect on an ellipse.
     ///
     /// - **Wound past a period** — no edge at all — where the rule reads
@@ -926,11 +905,10 @@ impl<T: Decide> ConicArc<T> {
         rows: ConicRows,
         band: Band,
     ) -> Result<Option<Self>, ConicArcError> {
-        let Some(conic) = carrier.conic() else {
+        // A conic arc, read in its carrier's own period.
+        let (Some(_), Some(one_turn)) = (carrier.conic(), carrier.period()) else {
             return Ok(None);
         };
-        let rate = InfSpeed::new(conic.speed_lo());
-        let one_turn = Period::new(T::tau());
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
         };
@@ -943,14 +921,14 @@ impl<T: Decide> ConicArc<T> {
         // read as over-wound.
         let (turn, recording) = geom_core::k_stats::detached(|| match carrier {
             geom::Curve3::Circle(_) => one_turn.turn(
-                TurnRows::exact(rows.turn),
+                TurnRows::exact(rows.rows().turn()),
                 extent,
                 Exact::new(floor.get()),
                 band,
             ),
             _ => {
                 let rate = geom::carrier_speed::turn_defect_rate(carrier, t0, extent);
-                one_turn.turn(rows, extent, rate, band)
+                one_turn.turn(rows.rows(), extent, rate, band)
             }
         });
         // An arc kept on an unsettled turn rests on no escalation: its
@@ -978,22 +956,17 @@ impl<T: Decide> ConicArc<T> {
             }
             Err(TurnUndecided { diag, .. }) => Err(diag),
         };
-        let (s0, c0) = t0.sin_cos();
-        let (s1, c1) = t1.sin_cos();
-        let (sm, cm) = geom::mid_param(t0, t1).sin_cos();
         Ok(Some(Self {
             carrier: carrier.clone(),
-            rate,
             ends: [carrier.eval(t0), carrier.eval(t1)],
-            trim: [(c0, s0), (c1, s1), (cm, sm)],
             span_turn,
             span: (t0, t1),
         }))
     }
 
-    /// The carrier, rebuilt from the arc's frame as [`Self::of`] read it.
-    /// The carrier read as a conic.
-    fn conic(&self) -> &dyn Conic<T> {
+    /// The carrier read as a conic: the probes' placement.
+    #[cfg(test)]
+    fn conic(&self) -> &dyn geom::Conic<T> {
         self.carrier
             .conic()
             .unwrap_or_else(|| unreachable!("a conic arc's carrier is a circle or an ellipse"))
@@ -1004,24 +977,6 @@ impl<T: Decide> ConicArc<T> {
     #[cfg(test)]
     fn point(&self, t: T) -> Point3<T> {
         self.conic().point_at(t)
-    }
-
-    /// A unit-circle point as a [`Point3`] for [`arc_trim`], which reads
-    /// points; the third coordinate is zero, so every distance is the
-    /// plane's own.
-    fn lift((x, y): (T, T)) -> Point3<T> {
-        Point3::new(x, y, T::zero())
-    }
-
-    /// The arc's ends, apex and the apex's antipode, lifted.
-    fn trim_points(&self) -> ([Point3<T>; 2], Point3<T>, Point3<T>) {
-        let [e0, e1, m] = self.trim;
-        let z = T::zero();
-        (
-            [Self::lift(e0), Self::lift(e1)],
-            Self::lift(m),
-            Self::lift((z - m.0, z - m.1)),
-        )
     }
 
     /// **Where `q` sits against this edge**: the arc's span read by
@@ -1037,7 +992,7 @@ impl<T: Decide> ConicArc<T> {
         use geom_brep::curve_pair::{Reading, Span};
         let span = Span::new(&self.carrier, self.span);
         let near = geom::mid_param(self.span.0, self.span.1);
-        Ok(match span.read(q, near, band) {
+        Ok(match span.read(q, near, band).map_err(|r| r.refused()) {
             Ok(Reading::Off) => ConicHit::Off,
             Ok(Reading::Carrier) => ConicHit::Carrier,
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
@@ -1055,126 +1010,19 @@ impl<T: Decide> ConicArc<T> {
             }
             // An ellipse's `Past` stands on the span walk, which can run
             // past its budget: not placed, typed.
-            Err(geom::CarrierRefusal::Unwalked(_)) => ConicHit::Unsettled,
+            Err(geom::CarrierRefusal::Unwalked(geom::PieceWalkRefusal::Exhausted)) => {
+                ConicHit::Unsettled
+            }
+            // The walk's speed bound is the carrier's greatest speed, at
+            // least its speed floor, which certification decided positive
+            // (`IntervalNotForward` refuses one that is not), and the
+            // conic's lengths are finite (`geom`'s `conic` module): this
+            // arc was built from that certificate.
+            Err(geom::CarrierRefusal::Unwalked(geom::PieceWalkRefusal::Unbounded)) => {
+                unreachable!("a certified conic bounds its speed (check 2's speed floor)")
+            }
         })
     }
-
-    /// Is the unit-circle point `(x, y)` inside the arc's window?
-    /// [`arc_trim`] in the arc's unit coordinates, levered by the
-    /// smaller semi-axis: Positive inside, Negative outside, Zero an
-    /// endpoint's neighbourhood. Only a ray's crossing reads it, where a
-    /// `Zero` grazes the ray and an in-band margin sets it aside, so the lever's
-    /// understatement on an ellipse costs rays, never a count.
-    fn in_window(&self, (x, y): (T, T), band: Band) -> Result<Sign, Indeterminate> {
-        let (ends, apex, anti) = self.trim_points();
-        arc_trim(
-            Self::lift((x, y)),
-            ends,
-            apex,
-            anti,
-            self.rate,
-            &ARC_LOOP_TRIM,
-            band,
-        )
-    }
-}
-
-/// The K rows one [`arc_trim`] consumer decides on.
-pub(crate) struct ArcTrimRows {
-    /// A point's distance to either end of the arc.
-    pub(crate) end: &'static str,
-    /// The two-term chordal margin: which side of the ends.
-    pub(crate) trim: &'static str,
-}
-
-/// The arc-bearing walk's trim rows for a ray's CROSSING of an arc,
-/// where a `Zero` grazes the ray.
-const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
-    end: "point_in_arc_loop_conic_end",
-    trim: "point_in_arc_loop_conic_window",
-};
-
-/// **Whether `p`, a point on a circle, lies inside the arc of it whose
-/// ends are `ends` and whose apex is `apex`** (`anti` the apex's
-/// antipode) — decided as DISTANCES, never as an angle, and the one
-/// home of that rule: tier 3's check 9 trims an edge with it and the
-/// arc-bearing walk here trims a crossing with it. Every length is
-/// multiplied by `rate` on its way to a margin: `1` for points given
-/// in metres, the smaller semi-axis for points given in a conic's unit
-/// coordinates (exact for a circle, conservative for an ellipse).
-///
-/// 1. **At an end**: `p` within the band of either end, measured as
-///    `|p − end|`, answers `Zero`. That is the ONLY way an endpoint
-///    neighbourhood counts: an angular window compresses arc length
-///    near an end by `sin(w/2)`, so on a short arc (and by `sin` of the
-///    complement on a near-full one) its `Zero` reaches `ε / sin(w/2)`
-///    along the carrier, a hundred times `ε` at `w = 0.02`.
-/// 2. **Otherwise, which side of the ends**: the sum of two chordal
-///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
-///    is an end, `m` the apex and `m′` its antipode. Chord length is
-///    monotone in angular distance up to a half turn, so each term is
-///    positive exactly on the arc; near an end they move as `cos(w/4)`
-///    and `sin(w/4)` times the arc length, whose sum is at least 1, so
-///    the margin is never compressed below the distance it measures —
-///    on a short arc, a near-full one, or a whole circle (where `m′` is
-///    the end and every point is inside). Its `Zero` is therefore within
-///    the band of an end, which step 1 has already answered.
-///
-/// `Positive` inside, `Negative` past an end, `Zero` at an end or in
-/// the trim's band.
-///
-/// **A DECIDED membership, and so not
-/// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
-/// the one place that says why, for this trim. That door answers "may hold" wherever
-/// exclusion is unproved, which is the sound answer for a caller
-/// selecting between two bounds that each hold either way. A decided
-/// membership has no such free answer: an uncertain one escalates, and
-/// its band is a length — measured along the carrier here, levered by
-/// the radius there — never a bare angle.
-///
-/// # Errors
-///
-/// An in-band end distance with neither end definitely `Zero`, or an
-/// in-band trim margin.
-pub(crate) fn arc_trim<T: Decide>(
-    p: Point3<T>,
-    ends: [Point3<T>; 2],
-    apex: Point3<T>,
-    anti: Point3<T>,
-    rate: InfSpeed<T>,
-    rows: &ArcTrimRows,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    let [a, b] = ends;
-    let at = [
-        decide(rows.end, Margin::metered((p - a).norm(), rate), band),
-        decide(rows.end, Margin::metered((p - b).norm(), rate), band),
-    ];
-    if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
-        return Ok(Sign::Zero);
-    }
-    if let Some(diag) = at.into_iter().find_map(Result::err) {
-        return Err(diag);
-    }
-    decide(
-        rows.trim,
-        Margin::metered(arc_trim_margin(p, a, apex, anti), rate),
-        band,
-    )
-}
-
-/// [`arc_trim`]'s step 2 alone — the sum of two chordal defects,
-/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, positive on the arc and
-/// never compressed below the angle to the nearer end — for a caller that
-/// has decided the ends by another metric first (an ellipse's exact end
-/// distances, [`ConicArc::hit`]). The one body of the construction.
-pub(crate) fn arc_trim_margin<T: Decide>(
-    p: Point3<T>,
-    a: Point3<T>,
-    apex: Point3<T>,
-    anti: Point3<T>,
-) -> T {
-    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
 }
 
 /// One boundary edge of a planar loop, on its own carrier.
@@ -1263,7 +1111,7 @@ impl<T: Decide> LoopEdge<T> {
     ) -> Result<EdgeContact, ReadEscalation> {
         Ok(match self {
             Self::Chord => {
-                match ray_walk::on_segment_margin(a, b, q, &rows.line.segment_rows(), band)? {
+                match ray_walk::on_segment_margin(a, b, q, &rows.line().segment_rows(), band)? {
                     Some(on) => EdgeContact::On(on),
                     None => EdgeContact::Off,
                 }
@@ -1275,8 +1123,8 @@ impl<T: Decide> LoopEdge<T> {
                 ConicHit::End => EdgeContact::End,
                 ConicHit::Unsettled => EdgeContact::Unread,
             },
-            Self::Spiric(k) => pieced_contact(k.contact(q, rows.spiric, band))?,
-            Self::Spline(k) => pieced_contact(k.contact(q, rows.spline, band))?,
+            Self::Spiric(k) => pieced_contact(k.contact(q, rows.spiric(), band))?,
+            Self::Spline(k) => pieced_contact(k.contact(q, rows.spline(), band))?,
         })
     }
 
@@ -1328,6 +1176,11 @@ impl<T: Decide> CarrierLoop<T> {
     /// edge in turn, under `rows`, to the first that places it on the
     /// edge or at an end.
     ///
+    /// Which edge holds `q` is the answer (its key is what the face door
+    /// reports, `FaceContainment::OnEdge`), so an edge read in band may be
+    /// the true holder and no later edge answers past it: the first
+    /// escalation refuses.
+    ///
     /// # Errors
     ///
     /// The first edge's escalation.
@@ -1362,6 +1215,9 @@ impl<T: Decide> CarrierLoop<T> {
 /// A loop in cycle order: each vertex, and each edge (vertex `i` to
 /// `i + 1`) with its key and on its own carrier.
 pub(crate) struct CarrierLoop<T: geom_core::Real> {
+    /// The surface record of the loop's face: what its edges are keyed by
+    /// where the walk reads one against its ray ([`conic_crossings`]).
+    face: SurfaceKey,
     /// The vertices' points.
     pub(crate) verts: Vec<Point3<T>>,
     /// The edges' keys.
@@ -1408,7 +1264,7 @@ fn cycle_steps<T: Decide>(
     steps
 }
 
-/// The cover of a step's edge (`boolean::boxes::edge_cover`): `None`
+/// The cover of a step's edge (`boolean::crate::cover::edge_cover`): `None`
 /// for null scaffolding, a zero-length chord its vertex holds.
 ///
 /// # Errors
@@ -1422,10 +1278,10 @@ fn step_cover<T: Decide>(
     r#loop: LoopKey,
     step: &LoopStep<'_, T>,
 ) -> Result<Option<Cover<T>>, PointInLoopError> {
-    match crate::boolean::boxes::edge_cover(body, step.edge) {
+    match crate::cover::edge_cover(body, step.edge) {
         Ok(cover) => Ok(Some(cover)),
-        Err(crate::boolean::EdgeUncovered::Scaffold) => Ok(None),
-        Err(crate::boolean::EdgeUncovered::Carrier(_) | crate::boolean::EdgeUncovered::Ends) => {
+        Err(crate::cover::EdgeUncovered::Scaffold) => Ok(None),
+        Err(crate::cover::EdgeUncovered::Carrier(_) | crate::cover::EdgeUncovered::Ends) => {
             Err(PointInLoopError::CorruptLoop { r#loop })
         }
     }
@@ -1436,6 +1292,7 @@ fn step_cover<T: Decide>(
 ///
 /// # Errors
 ///
+/// [`PointInLoopError::LoneLoop`] for a lone-vertex loop;
 /// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
 /// conic wound past a period, or a whole-turn SCAFFOLD conic;
 /// [`PointInLoopError::Escalated`] for an ellipse's span the band cannot
@@ -1447,9 +1304,12 @@ pub(crate) fn carrier_loop<T: Decide>(
     band: Band,
 ) -> Result<CarrierLoop<T>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
-        return Err(corrupt());
+    let record = body.get_loop(r#loop).ok_or_else(corrupt)?;
+    let first = match record.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
     };
+    let face = body.get_face(record.face).ok_or_else(corrupt)?.surface;
     let steps = cycle_steps(body, first);
     let mut verts = Vec::new();
     let mut keys = Vec::new();
@@ -1524,6 +1384,7 @@ pub(crate) fn carrier_loop<T: Decide>(
         }
     }
     Ok(CarrierLoop {
+        face,
         verts,
         keys,
         edges,
@@ -1533,24 +1394,28 @@ pub(crate) fn carrier_loop<T: Decide>(
 
 /// **A lower bound on the distance from `q` to the arc `span` of
 /// `carrier`**, read on the carrier with no decision, and the reading
-/// that gave it ([`ArcFloor`]): a line's own segment; a circle's or an
-/// ellipse's own arc (`ring_path::Conic::distance_floor`, the arc of
-/// the circle over the same span less the conic's distance from it);
+/// that gave it ([`ArcFloor`]): a line's own segment
+/// ([`geom::Line::distance_within`]); a circle's or an ellipse's own arc
+/// (`ring_path::ConicArc::distance_floor`, the arc of the circle over the
+/// same span, [`geom::Curve3::distance_within`], less the conic's
+/// distance from it);
 /// any other carrier's cover over the span (its nearest distance,
 /// [`geom::cover::Cover::distance_range`]), and its arc's pieces past it
 /// ([`ArcPieces`]). A conic carries its whole annulus's floor beside its
-/// arc's. `None` for a carrier with no cover over the span. The one home of the question "is this edge
-/// clear of that point by more than a radius", which the clearance
-/// cell door and the boolean's touch gate both ask.
+/// arc's. `None` for a carrier with no cover over the span. The one home,
+/// over every carrier, of the question "is this edge clear of that point
+/// by more than a radius", which the clearance cell door and the
+/// boolean's touch gate both ask; its line and circle readings are
+/// geom's closed form.
 pub(crate) fn arc_distance_floor<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     q: Point3<T>,
 ) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
-        geom::Curve3::Line(_) => ArcFloor::Segment(
-            geom_brep::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
-        ),
+        geom::Curve3::Line(line) => {
+            ArcFloor::Segment(line.distance_within(q, (t0.min(t1), t0.max(t1))))
+        }
         geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
             let Some(crate::ring_path::LoopArc::Conic(arc)) =
                 crate::ring_path::LoopArc::of(carrier, (t0, t1))
@@ -1569,10 +1434,12 @@ pub(crate) fn arc_distance_floor<T: Decide>(
                 axis,
                 ..
             } = *conic.frame();
-            let n = axis / axis.norm();
-            let w = q - center;
-            let height = w.dot(n);
-            let across = (w - n * height).norm();
+            let n = axis.normalize();
+            let (height, across) = geom::Line {
+                origin: center,
+                dir: n,
+            }
+            .height_and_distance(q);
             let off = (minor - across).max(across - major).max(T::zero());
             ArcFloor::Conic {
                 annulus: (height.powi(2) + off.powi(2)).sqrt(),
@@ -1583,7 +1450,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
             // The carrier's half of an edge's cover: the callers read
             // carrier spans, some with no edge record behind them, and
             // read their ends as vertices of their own.
-            let cover = crate::boolean::boxes::arc_cover(carrier, (t0, t1)).ok()?;
+            let cover = crate::cover::arc_cover(carrier, (t0, t1)).ok()?;
             ArcFloor::Ball {
                 ball: cover.distance_range(&Site::Point(q)).0,
                 pieces: ArcPieces {
@@ -1651,7 +1518,10 @@ pub(crate) struct ArcPieces<'c, T: geom_core::Real> {
 impl<T: Decide> ArcPieces<'_, T> {
     /// Whether `clear` decides every piece's floor clear on the
     /// carrier's point walk ([`geom::Curve3::point_walk`]), within
-    /// [`geom_core::bisect::PIECE_BUDGET`].
+    /// [`geom_core::bisect::PIECE_BUDGET`]. Not [`geom::Curve3::clear_of`]:
+    /// `clear` is the caller's lever, unlogged and with no band, so a walk
+    /// stops on a middle point that fails it rather than on a piece's
+    /// reach falling within a band.
     fn clear(self, clear: impl Fn(T) -> bool) -> bool {
         let hi = geom::carrier_speed::speed_range(self.carrier).1;
         let walk = self.carrier.point_walk(self.q, self.span, hi, |p| {
@@ -1881,7 +1751,7 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let lp = carrier_loop(body, r#loop, WALK_ROWS.conic, band)?;
+    let lp = carrier_loop(body, r#loop, WALK_ROWS.conic(), band)?;
     if lp.edges.iter().all(|e| matches!(e, LoopEdge::Chord)) {
         return point_in_vertex_polygon(body, r#loop, normal, q, band);
     }
@@ -1893,6 +1763,11 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
         },
     )
 }
+
+/// The names [`certify_plane`]'s data are decided under.
+const POINT_IN_LOOP_NORMAL: &str = "point_in_loop_normal";
+const POINT_IN_LOOP_PLANE: &str = "point_in_loop_plane";
+const POINT_IN_LOOP_QUERY: &str = "point_in_loop_query";
 
 /// **[`point_in_loop`]'s preconditions, certified**: `normal` is a unit
 /// vector, the whole loop lies in the plane through its first vertex
@@ -1910,17 +1785,20 @@ fn certify_plane<T: Decide>(
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Plane);
     let off_plane = |cause| PointInLoopError::OffPlane(OffPlane { r#loop, cause });
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
-        return Err(corrupt());
+    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
     };
     let steps = cycle_steps(body, first);
     let origin = steps.first().ok_or_else(corrupt)?.point;
     let (_, reach) = loop_reach(body, r#loop)?;
     let unit = Margin::levered(normal.norm() - T::one(), reach);
-    if decide("point_in_loop_normal", unit, band).map_err(escalate)? != Sign::Zero {
-        return Err(off_plane(OffPlaneCause::NormalNotUnit));
-    }
-    let off = |p: Point3<T>| Margin::of((p - origin).dot(normal));
+    // One identity over every datum ([`read_identity`]): the normal is
+    // unit, every point and axis of the loop's carriers lies on the
+    // plane, and so does `q`. Any datum decided apart answers "off the
+    // plane", whatever an earlier one read; its cause only names which.
+    let mut data = vec![(POINT_IN_LOOP_NORMAL, unit, OffPlaneCause::NormalNotUnit)];
+    let off = |p: Point3<T>| Margin::of(geom::plane_offset(origin, normal, p));
     let tilt = |axis: Vec3<T>, arm: Lever<T>| Margin::levered(axis.cross(normal).norm(), arm);
     // A conic's whole carrier, read from its centre.
     for step in &steps {
@@ -1951,16 +1829,15 @@ fn certify_plane<T: Decide>(
                 margins.extend(n.control().iter().map(|&p| off(p)));
             }
         }
-        for m in margins {
-            if decide("point_in_loop_plane", m, band).map_err(escalate)? != Sign::Zero {
-                return Err(off_plane(OffPlaneCause::Loop { edge: step.edge }));
-            }
-        }
+        let cause = OffPlaneCause::Loop { edge: step.edge };
+        data.extend(margins.into_iter().map(|m| (POINT_IN_LOOP_PLANE, m, cause)));
     }
-    if decide("point_in_loop_query", off(q), band).map_err(escalate)? != Sign::Zero {
-        return Err(off_plane(OffPlaneCause::Query));
+    data.push((POINT_IN_LOOP_QUERY, off(q), OffPlaneCause::Query));
+    match read_identity(data.iter().map(|&(name, m, _)| (name, m)), band) {
+        IdentityLadder::Zero(_) => Ok(()),
+        IdentityLadder::Apart { at, .. } => Err(off_plane(data[at].2)),
+        IdentityLadder::Undecided(cause) => Err(escalate(cause)),
     }
-    Ok(())
 }
 
 /// [`point_in_loop`] for a caller whose own boundary pass
@@ -2062,9 +1939,10 @@ fn carrier_walk<T: Decide>(
             )?;
             for (i, edge) in edges.iter().enumerate() {
                 crossings += match edge {
-                    LoopEdge::Conic(k) => {
-                        RayFault::of(conic_crossings(k, on_carrier[i], q, d, band), escalate)?
-                    }
+                    LoopEdge::Conic(k) => RayFault::of(
+                        conic_crossings(lp.face, k, on_carrier[i], normal, q, d, band),
+                        escalate,
+                    )?,
                     // A piece still unsettled at the depth is a graze, or a
                     // crossing at a piece's end ([`PiecedArc::crossings`]).
                     LoopEdge::Spiric(k) => {
@@ -2103,67 +1981,109 @@ pub(crate) fn loop_reach<T: Decide>(
     Ok((anchor, extent_from(r#loop, anchor, &verts, &covers)?))
 }
 
-/// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —
-/// `None` for a graze. `on_carrier` says the pre-pass put `q` on the
-/// conic and off the arc, so a root at `q` itself is no crossing.
+/// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k`, an
+/// edge of the loop whose face's surface record is `face` — `None` for a
+/// graze. `on_carrier` says the pre-pass put `q` on the conic and off
+/// the arc, so a root at `q` itself is no crossing.
+///
+/// **A co-surface pair** (C5): the ray lies in the loop's plane (of unit
+/// normal `normal`) and the arc on it, so they meet where the arc crosses
+/// the ray's square plane, through `geom_brep`'s co-surface arm
+/// ([`geom_brep::curve_pair::on_surface`]): the ray is the `u`-line through
+/// `q` of the plane through `q` along `d`, and the arc an edge on it. On
+/// the projected read (`point_in_loop_projected`) an arc a little off the
+/// plane is read as its projection along `normal`, the region the walk
+/// reads there. Each root is then read along the ray
+/// (`point_in_arc_loop_conic_advance`) and on the arc's span by the plane
+/// door ([`RootPlace`](geom_brep::curve_face::plane_crossing::RootPlace)): a root at an end grazes, one in band of an end
+/// sets the ray aside.
+///
+/// **The ray's plane is built, not read off `face`'s record**: the plane
+/// through `q` with `u_ref = d` and the caller's `normal`
+/// ([`Charted::held`](geom_brep::curve_pair::on_surface::Charted::held)),
+/// under `face`'s key. That it carries the loop's arcs is the premise
+/// that the loop and `q` lie in the plane through the loop of normal
+/// `normal`, and each way in holds it differently:
+/// - [`point_in_loop`] certifies it ([`certify_plane`]).
+/// - On the projected read it is that read's own premise, above.
+/// - [`contfp`](crate::boolean::contfp), through
+///   [`carrier_loop_side`], takes it unchecked from its caller: "`q`
+///   already on the plane of `face`, with unit plane normal `normal`".
+///
+/// Both readings of the pair check the key (C5); the walk reads the one,
+/// the arc across the ray's square plane.
 ///
 /// # Errors
 ///
 /// The raw [`Indeterminate`] of an in-band margin on any of its rows,
 /// which sets the ray aside ([`ray_walk`]).
 fn conic_crossings<T: Decide>(
+    face: SurfaceKey,
     k: &ConicArc<T>,
     on_carrier: bool,
+    normal: Vec3<T>,
     q: Point3<T>,
     d: Vec3<T>,
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
-    let (px, py) = k.conic().unit_in_plane(q);
-    let (f, (a, b)) = (k.conic().frame(), k.conic().semi_axes());
-    let (dx, dy) = (d.dot(f.u_ref) / a, d.dot(f.v_ref()) / b);
-    // On `point_in_loop`, `certify_plane` has put the conic in the plane
-    // `d` lies in, so `(dx, dy)` is nonzero. On the projected read a
-    // conic tilted off that plane shrinks it, and a zero poisons every
-    // margin below, which sets the ray aside.
-    let dn = (dx.powi(2) + dy.powi(2)).sqrt();
-    let (ex, ey) = (dx / dn, dy / dn);
-    let along = px * ex + py * ey;
-    let (hx, hy) = (px - ex * along, py - ey * along);
-    let disc = T::one() - (hx.powi(2) + hy.powi(2));
-    // `(1 − h²)/2` is the unit circle's `(r² − h²)/2r`: levered by the
-    // conic's smaller semi-axis it is a length (exact for a circle).
-    match decide(
-        "point_in_arc_loop_conic_disc",
-        Margin::metered(disc * T::from_f64(0.5), k.rate),
+    use geom_brep::curve_face::plane_crossing::RootPlace;
+    use geom_brep::curve_pair::on_surface::{
+        AcrossRefusal, Charted, CoSurface, OnSurface, SurfaceCurve,
+    };
+    let plane = Charted::held(
+        face,
+        geom::Surface::Plane {
+            origin: q,
+            normal,
+            u_ref: d,
+        },
+    );
+    let Ok(ray) = SurfaceCurve::u_line(&plane, geom_core::Point2::new(T::zero(), T::zero())) else {
+        unreachable!("a plane has its u-lines")
+    };
+    let read = OnSurface::edge(face, &k.carrier, k.span).across(
+        &ray,
+        "point_in_arc_loop_conic_in_plane",
         band,
-    )? {
-        Sign::Positive => {}
-        Sign::Zero => return Ok(None), // tangent to the conic
-        Sign::Negative => return Ok(Some(0)),
-    }
-    let root = disc.max(T::zero()).sqrt();
+    );
+    let roots = match read {
+        Ok(found) => found,
+        Err(AcrossRefusal::InBand(diag)) => return Err(diag),
+        Err(AcrossRefusal::OffRecord { edge, curve }) => {
+            unreachable!("the walk keys its arc and its ray by one face: {edge:?}, {curve:?}")
+        }
+    };
+    let roots = match roots {
+        CoSurface::Roots(roots) => roots,
+        // Tangent to the conic where a root can reach the arc (the door
+        // reads a graze's root spread against the span itself), or the
+        // arc wholly in the ray's square plane (a conic stood on edge,
+        // only on the projected read): a graze.
+        CoSurface::Touch | CoSurface::InPlane => return Ok(None),
+        CoSurface::Unlaned => unreachable!("a conic arc crosses a plane in closed form"),
+    };
     let mut crossings = 0;
-    for s in [T::zero() - along - root, T::zero() - along + root] {
-        // Back to metres along the unit ray.
-        let t = s / dn;
-        match decide("point_in_arc_loop_conic_advance", Margin::of(t), band)? {
+    for (root, y) in roots {
+        let advance = Margin::of((y - q).dot(d));
+        match decide("point_in_arc_loop_conic_advance", advance, band)? {
             Sign::Positive => {}
             Sign::Negative => continue,
             Sign::Zero if on_carrier => continue,
             // A crossing at `q` the pre-pass did not see.
             Sign::Zero => return Ok(None),
         }
-        let (hx, hy) = (px + dx * t, py + dy * t);
-        let hn = (hx.powi(2) + hy.powi(2)).sqrt();
-        match k.in_window((hx / hn, hy / hn), band)? {
-            Sign::Positive => crossings += 1,
-            Sign::Negative => {}
+        match root.place {
+            RootPlace::Inside => crossings += 1,
             // An endpoint's neighbourhood. The endpoint is a vertex of
             // the loop, and a ray through a vertex has already grazed on
             // its side row, so this arm answers only where that row and
-            // this window disagree inside the band — a graze all the
-            // same, never a count.
-            Sign::Zero => return Ok(None),
+            // the door's span reading disagree inside the band — a graze
+            // all the same, never a count.
+            RootPlace::AtEnd => return Ok(None),
+            // A count needs every root: one in band of an end sets the
+            // ray aside (not a search's kept reading; the callee register
+            // names it).
+            RootPlace::Undecided(diag) => return Err(diag),
         }
     }
     Ok(Some(crossings))
@@ -2174,6 +2094,32 @@ fn conic_crossings<T: Decide>(
 mod tests {
     use super::*;
     use geom_brep::recourse::Reading;
+
+    /// **An edge read in band refuses ahead of a later edge that places
+    /// the point** ([`CarrierLoop::place_off`]): which edge holds the
+    /// point is the face door's answer, and the edge in band may be it. A
+    /// point at the band's distance past a square's corner along its
+    /// second edge lies in band of the first edge and on the second.
+    #[test]
+    fn an_edge_in_band_refuses_ahead_of_a_later_edge_that_places_the_point() {
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let square = || CarrierLoop {
+            face: Default::default(),
+            verts: vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)],
+            keys: vec![EdgeKey::default(); 4],
+            edges: (0..4).map(|_| LoopEdge::Chord).collect(),
+            covers: Vec::new(),
+        };
+        assert!(
+            square().place_off(p(1.0, 5e-9), WALK_ROWS, band).is_err(),
+            "the first edge in band refuses: it may be the edge that holds the point"
+        );
+        match square().place_off(p(1.0, 0.5), WALK_ROWS, band) {
+            Ok(Err(OnLoop { edge, .. })) => assert_eq!(edge, 1, "the second edge holds the point"),
+            _ => panic!("a point on the second edge, clear of the first, is on it"),
+        }
+    }
 
     /// [`ConicArc::of`] over a fixture span, its extent decided forward
     /// as certification decides it.
@@ -2215,7 +2161,7 @@ mod tests {
         );
         let at = |theta: f64| Point3::new(r * theta.cos(), r * theta.sin(), 0.0);
         for (t0, t1) in [(0.0, 0.02), (0.0, core::f64::consts::TAU - 0.02)] {
-            let Ok(Some(k)) = conic_of(&carrier, (t0, t1), WALK_ROWS.conic, band) else {
+            let Ok(Some(k)) = conic_of(&carrier, (t0, t1), WALK_ROWS.conic(), band) else {
                 panic!("a circle arc under a period");
             };
             let ask = |q| k.hit(q, band).expect("decided");
@@ -2277,7 +2223,7 @@ mod tests {
         // The arc from the minor vertex (π/2) round through the major
         // vertex at π to 3π/2.
         let (t0, t1) = (core::f64::consts::FRAC_PI_2, 1.5 * core::f64::consts::PI);
-        let Ok(Some(k)) = conic_of(&carrier, (t0, t1), WALK_ROWS.conic, band) else {
+        let Ok(Some(k)) = conic_of(&carrier, (t0, t1), WALK_ROWS.conic(), band) else {
             panic!("an ellipse arc under a period");
         };
         for s in [12.0, 15.0, 40.0] {
@@ -2313,7 +2259,7 @@ mod tests {
             20.0,
             1.0,
         ));
-        conic_of(&carrier, (t0, t1), WALK_ROWS.conic, band)
+        conic_of(&carrier, (t0, t1), WALK_ROWS.conic(), band)
     }
 
     /// **A nearly full ellipse arc keeps its gap; a full one has none.**
@@ -2389,7 +2335,7 @@ mod tests {
             let got = conic_of(
                 &ellipse(14.0),
                 (1.570796325723468, 7.853981635045912),
-                WALK_ROWS.conic,
+                WALK_ROWS.conic(),
                 band,
             );
             assert!(
@@ -2410,7 +2356,7 @@ mod tests {
                     let speed = (a.powi(2) * at.sin().powi(2) + at.cos().powi(2)).sqrt();
                     let dt = overlap / speed;
                     let span = (at - 0.5 * dt, at - 0.5 * dt + core::f64::consts::TAU + dt);
-                    let got = conic_of(&ellipse(a), span, WALK_ROWS.conic, band);
+                    let got = conic_of(&ellipse(a), span, WALK_ROWS.conic(), band);
                     assert!(
                         matches!(
                             got,
@@ -2431,7 +2377,7 @@ mod tests {
             let got = conic_of(
                 &ellipse(a),
                 (-0.5 * dt, core::f64::consts::TAU + 0.5 * dt),
-                WALK_ROWS.conic,
+                WALK_ROWS.conic(),
                 band,
             );
             assert!(
@@ -2450,11 +2396,11 @@ mod tests {
         });
         let tau = core::f64::consts::TAU;
         assert!(matches!(
-            conic_of(&circle, (0.0, tau + 5.0 * eps), WALK_ROWS.conic, band),
+            conic_of(&circle, (0.0, tau + 5.0 * eps), WALK_ROWS.conic(), band),
             Err(ConicArcError::Escalated(_))
         ));
         assert!(matches!(
-            conic_of(&circle, (0.0, tau + 30.0 * eps), WALK_ROWS.conic, band),
+            conic_of(&circle, (0.0, tau + 30.0 * eps), WALK_ROWS.conic(), band),
             Err(ConicArcError::WoundPastPeriod)
         ));
     }
@@ -2492,7 +2438,7 @@ mod tests {
         let m = 0.5 * (band.zero() + band.escalate());
         let lever = format!("Recourse: {}", LoopDecision::ArcSpan.lever());
         let fast = over(core::f64::consts::FRAC_PI_2, m / 100.0);
-        match conic_of(&ellipse(100.0, 1.0), fast, WALK_ROWS.conic, band) {
+        match conic_of(&ellipse(100.0, 1.0), fast, WALK_ROWS.conic(), band) {
             Err(ConicArcError::Escalated(ReadEscalation {
                 escalation: Escalation::Margin,
                 diag,
@@ -2518,7 +2464,7 @@ mod tests {
             let carrier = ellipse(1.0, eps / (2.0 * h));
             let span = over(0.0, h);
             let bracket = geom_core::k_stats::Bracket::open();
-            let got = conic_of(&carrier, span, WALK_ROWS.conic, band);
+            let got = conic_of(&carrier, span, WALK_ROWS.conic(), band);
             let recorded = bracket.finish();
             let Err(ConicArcError::Escalated(got)) = got else {
                 panic!("overlap √({k}ε): expected a straddle");
@@ -2532,7 +2478,7 @@ mod tests {
             assert_straddle(
                 got,
                 &recorded,
-                (LoopDecision::ArcSpan, WALK_ROWS.conic.straddle),
+                (LoopDecision::ArcSpan, WALK_ROWS.conic().rows().straddle()),
                 (gap * sup, gap * inf),
                 &format!("overlap √({k}ε)"),
             );
@@ -2621,7 +2567,7 @@ mod tests {
         let Ok(Some(k)) = conic_of(
             &carrier,
             (p(0.0), p(core::f64::consts::PI)),
-            WALK_ROWS.conic,
+            WALK_ROWS.conic(),
             band,
         ) else {
             panic!("the arc is read");
@@ -2673,7 +2619,7 @@ mod tests {
             let Ok(Some(k)) = conic_of(
                 &carrier,
                 (0.0, core::f64::consts::TAU),
-                WALK_ROWS.conic,
+                WALK_ROWS.conic(),
                 band,
             ) else {
                 panic!("a {a}: the full ellipse is read");
@@ -2725,7 +2671,7 @@ mod tests {
         let Ok(Some(k)) = conic_of(
             &stored_minor_first(a, b),
             (0.0, core::f64::consts::TAU),
-            WALK_ROWS.conic,
+            WALK_ROWS.conic(),
             band,
         ) else {
             panic!("the full ellipse is read");
@@ -2762,7 +2708,7 @@ mod tests {
                     let dt = overlap / speed;
                     let start = at - 0.5 * dt - core::f64::consts::FRAC_PI_2;
                     let span = (start, start + core::f64::consts::TAU + dt);
-                    let got = conic_of(&stored_minor_first(a, 1.0), span, WALK_ROWS.conic, band);
+                    let got = conic_of(&stored_minor_first(a, 1.0), span, WALK_ROWS.conic(), band);
                     assert!(
                         matches!(
                             got,
@@ -2859,7 +2805,7 @@ mod tests {
     ) -> SpanRead {
         use geom_core::Decided;
         use geom_core::k_stats::decide_reported;
-        let rows = WALK_ROWS.conic;
+        let rows = WALK_ROWS.conic();
         let (ellipse, a, b) = match *carrier {
             geom::Curve3::Circle(geom::Circle { radius, .. }) => (false, radius, radius),
             geom::Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (true, semi_u, semi_v),
@@ -2867,7 +2813,11 @@ mod tests {
         };
         let lever = a.min(b);
         let gap = T::tau() - (t1 - t0);
-        let low = decide_reported(rows.turn, Margin::metered(gap, InfSpeed::new(lever)), band);
+        let low = decide_reported(
+            rows.rows().turn(),
+            Margin::metered(gap, geom_core::InfSpeed::new(lever)),
+            band,
+        );
         if let Ok(Decided {
             sign: Sign::Negative,
             ..
@@ -2883,7 +2833,7 @@ mod tests {
                 sign: Sign::Negative,
                 ..
             }) = decide_reported(
-                rows.turn,
+                rows.rows().turn(),
                 Margin::metered_sup(gap, geom_core::SupSpeed::new(speed)),
                 band,
             )
@@ -2898,7 +2848,7 @@ mod tests {
 
     /// The span as `ConicArc::of` now reads it.
     fn new_span_rule(carrier: &geom::Curve3<f64>, span: (f64, f64), band: Band) -> SpanRead {
-        match conic_of(carrier, span, WALK_ROWS.conic, band) {
+        match conic_of(carrier, span, WALK_ROWS.conic(), band) {
             Err(ConicArcError::WoundPastPeriod) => SpanRead::Wound,
             Err(ConicArcError::Escalated(e)) => SpanRead::Escalated(e.escalation),
             Ok(Some(k)) => SpanRead::Arc(k.span_turn.ok().map(|turn| match turn {
@@ -3327,5 +3277,33 @@ mod arc_ball_rows {
                 "the arc's point at {t} lies {gap} out, past {radius}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod lone_loop_rows {
+    use geom_core::Tol;
+
+    use super::PointInLoopError;
+    use crate::entity::LoopBoundary;
+
+    /// **A lone-vertex loop is refused under its own name**, not as a
+    /// loop that does not walk. Red where it read
+    /// [`PointInLoopError::CorruptLoop`].
+    #[test]
+    fn a_lone_loop_is_no_polygon() {
+        let (body, _, lone) = crate::test_support_fixtures::box_with_a_lone_ring(Tol::witness());
+        let ring = body
+            .loops
+            .iter()
+            .find(|(_, l)| l.boundary == LoopBoundary::Empty { vertex: lone })
+            .map(|(k, _)| k)
+            .expect("the ring");
+        assert_eq!(
+            super::loop_points(&body, ring).err(),
+            Some(PointInLoopError::LoneLoop { r#loop: ring }),
+            "the ring's points"
+        );
     }
 }

@@ -9,7 +9,8 @@
 //! `2π·r·h + π·r² + π·r²/cos θ`, `h` the roof's height on the axis.
 //!
 //! The poses run in four frames — the world's, one off its origin, and
-//! two with tilted axes, one a kilometre out (review R1 of PR 4839) —
+//! two with tilted axes, one near the session box's edge (review R1 of
+//! PR 4839) —
 //! and every tolerance is derived, not chosen:
 //!
 //! - **The pads** are bounded by the reporting target the wall
@@ -243,7 +244,7 @@ const FRAMES: [([f64; 3], [f64; 3]); 4] = [
     ([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     ([3.0, -2.0, 5.0], [0.0, 0.0, 1.0]),
     ([1.5, 2.5, -0.5], [1.0, 2.0, 3.0]),
-    ([1e3, -7e2, 4e2], [0.3, -0.2, 0.9]),
+    ([6e2, -4.2e2, 2.4e2], [0.3, -0.2, 0.9]),
 ];
 
 const POSES: [Pose; 5] = [
@@ -281,7 +282,7 @@ const POSES: [Pose; 5] = [
 
 /// Tiers 2 and 3, and the pads within what the reporting target allows,
 /// for one pose at the scalar `T`; returns the measurement.
-fn measured<T: Decide + AtRestPolicy + CertifiedBounds>(
+fn measured<T: Decide + AtRestPolicy<Finished = topo::AtRestBody<T>> + CertifiedBounds>(
     pose: Pose,
     f: &Frame,
     at: &str,
@@ -419,11 +420,7 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds>(
             max_cell_pairs: budget,
         },
     };
-    let surface = |f: topo::FaceKey| {
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
+    let surface = |f: topo::FaceKey| body.face_surface(f).unwrap().clone();
     let report = sweep.run(&windows, &windows, true, |candidate| {
         if !witnessed {
             return Err("no witness is offered".to_owned());
@@ -543,12 +540,7 @@ fn a_curved_junction_certifies_across_the_departure_arm() {
             let wall = faces
                 .iter()
                 .copied()
-                .find(|&k| {
-                    matches!(
-                        body.get_surface(body.get_face(k).unwrap().surface).unwrap(),
-                        Surface::Cylinder { .. }
-                    )
-                })
+                .find(|&k| matches!(body.face_surface(k).unwrap(), Surface::Cylinder { .. }))
                 .unwrap();
             for &cap in faces.iter().filter(|&&k| k != wall) {
                 let pair = (wall.min(cap), wall.max(cap));
@@ -768,12 +760,7 @@ fn mitred<T: Decide + AtRestPolicy>(pose: Pose, f: &Frame, drop: f64, tol: Tol) 
 fn walls<T: Real>(body: &Body<T>) -> Vec<topo::FaceKey> {
     body.faces()
         .map(|(k, _)| k)
-        .filter(|&k| {
-            matches!(
-                body.get_surface(body.get_face(k).unwrap().surface).unwrap(),
-                Surface::Cylinder { .. }
-            )
-        })
+        .filter(|&k| matches!(body.face_surface(k).unwrap(), Surface::Cylinder { .. }))
         .collect()
 }
 

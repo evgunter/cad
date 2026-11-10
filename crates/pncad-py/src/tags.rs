@@ -180,6 +180,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err.kind() {
         PathErrorKind::JunctionTangent => "junction_tangent",
         PathErrorKind::JunctionCusp => "junction_cusp",
+        PathErrorKind::CuspDoublesBackOverLeg => "cusp_doubles_back_over_leg",
         PathErrorKind::SeamTangent => "seam_tangent",
         PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
@@ -903,6 +904,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // recourse is "evaluate at a dual scalar, or drop the seed" (or
         // seed a free length, angle or scalar variable), not the box's.
         C::Seed => "seed",
+        C::RecordRefused => "record_refused",
+        C::RecordMispaired => "record_mispaired",
         C::WrongOperand => "wrong_operand",
         // A pick of one piece of a copy: a path naming no piece, and
         // a read at the piece's other shape.
@@ -914,7 +917,9 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // A selection a node reads: a name the ladder refused.
         C::SelectResolve => "select_resolve",
         C::EmptyOperand => "empty_operand",
-        C::UnfinishedOperand => "unfinished_operand",
+        C::EmptyMember => "empty_member",
+        C::NotFinished => "not_finished",
+        C::UnfinishedLeaf => "unfinished_leaf",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
         C::UnderflowedDirection => "underflowed_direction",
@@ -1049,13 +1054,16 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ToleranceConflict { .. } => None,
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
+        NodeErrorKind::RecordRefused | NodeErrorKind::RecordMispaired(_) => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::NoSuchPiece { .. } => None,
         NodeErrorKind::PieceShape { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
-        NodeErrorKind::UnfinishedOperand { .. } => None,
+        NodeErrorKind::EmptyMember { .. } => None,
+        NodeErrorKind::NotFinished { .. } => None,
+        NodeErrorKind::UnfinishedLeaf { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
@@ -1298,7 +1306,7 @@ pub fn replay_error_tag(kind: &ReplayErrorKind<f64>) -> &'static str {
 /// structure).
 pub fn structure_refusal_tag(kind: &StructureRefusalKind) -> &'static str {
     match kind {
-        StructureRefusalKind::Indeterminate(_) => "indeterminate",
+        StructureRefusalKind::Indeterminate { .. } => "indeterminate",
         StructureRefusalKind::Flipped { .. } => "flipped",
     }
 }
@@ -1321,6 +1329,7 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::SidePlane { .. } => "side_plane",
         ExtrudeError::Op { .. } => "op",
         ExtrudeError::Pcurve(_) => "pcurve",
+        ExtrudeError::NotFinished { .. } => "not_finished",
     }
 }
 
@@ -1343,7 +1352,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverRadius { .. } => "sliver_radius",
         RevolveError::ArcCrossesAxis { .. } => "arc_crosses_axis",
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
-        RevolveError::SheetApex { .. } => "sheet_apex",
+        RevolveError::ApexEndOffSheet { .. } => "apex_end_off_sheet",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
         RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
@@ -1356,6 +1365,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::CapPlane { .. } => "cap_plane",
         RevolveError::Op { .. } => "op",
         RevolveError::Pcurve(_) => "pcurve",
+        RevolveError::NotFinished { .. } => "not_finished",
     }
 }
 
@@ -1409,11 +1419,6 @@ pub fn split_op_error_tag(err: &SplitOpError) -> &'static str {
         SplitOpError::Finish(SplitFinishError::EdgeJoin { refusal, .. }) => {
             join_refusal_tag(refusal)
         }
-        // A side refused only on in-band shells is the Boolean's
-        // `Escalated` on the same decision, so it carries the Boolean's word.
-        SplitOpError::Finish(SplitFinishError::ResultEscalated { .. }) => {
-            boolean_error_tag(BooleanErrorKind::Escalated)
-        }
         SplitOpError::Finish(_) => "finish",
         SplitOpError::Pcurves(_) => "pcurves",
         SplitOpError::Pieces(_) => "pieces",
@@ -1432,6 +1437,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
         BlendError::FaceClearance { .. } => "face_clearance",
         BlendError::KnifeEdge { .. } => "knife_edge",
+        BlendError::BallDoesNotFit { .. } => "ball_does_not_fit",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
         BlendError::ConvexitySignFlip { .. } => "convexity_sign_flip",
@@ -1445,9 +1451,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::UnsupportedRunOut { .. } => "unsupported_run_out",
         BlendError::UnsupportedGeometry { .. } => "unsupported_geometry",
         BlendError::BodyNotIntact { .. } => "body_not_intact",
-        BlendError::ScaffoldingOperand { .. } => "scaffolding_operand",
-        BlendError::InsideOutOperand { .. } => "inside_out_operand",
-        BlendError::UnjoinedOperand { .. } => "unjoined_operand",
+        BlendError::NotFinished { .. } => "not_finished",
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::WhollyInside { .. } => "wholly_inside",
@@ -1492,16 +1496,13 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
         BooleanErrorKind::PointInFaceRefused => "point_in_face_refused",
-        BooleanErrorKind::ScaffoldingOperand => "scaffolding_operand",
         BooleanErrorKind::InsideOutOperand => "inside_out_operand",
-        BooleanErrorKind::UnjoinedOperand => "unjoined_operand",
         BooleanErrorKind::NonMaximalFaces => "non_maximal_faces",
         BooleanErrorKind::CoplanarNeighbours => "coplanar_neighbours",
         BooleanErrorKind::NonFiniteSectorChord => "non_finite_sector_chord",
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
-        BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::TangencyUnsupported => "tangency_unsupported",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::HeldPierceUnbuilt => "held_pierce_unbuilt",
@@ -1513,6 +1514,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::LineMaterialUnread => "line_material_unread",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
+        BooleanErrorKind::TouchesItself => "touches_itself",
+        BooleanErrorKind::ToolSeatCrossed => "tool_seat_crossed",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1530,6 +1533,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::JoinUndecided => "join_undecided",
+        BooleanErrorKind::JoinPartnersTied => "join_partners_tied",
+        BooleanErrorKind::JoinPairsTied => "join_pairs_tied",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
@@ -1605,6 +1610,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::Band(_) => "band",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcSweepUndecided { .. } => "arc_sweep_undecided",
+        SkinError::ParametersInvalid { .. } => "parameters_invalid",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",
@@ -1642,6 +1648,7 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
         LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
+        LoftError::NotFinished { .. } => "not_finished",
         LoftError::PinnedCorner { .. } => "pinned_corner",
         LoftError::PinnedCornerUnsupported { .. } => "pinned_corner_unsupported",
         LoftError::CornerEscalated { .. } => "corner_escalated",
@@ -1844,7 +1851,9 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// could not be read along the piece says how
 /// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
 /// no region, a grazing or
-/// on-carrier piece, a sign in the band, an uncertified root count.
+/// on-carrier piece, a sign in the band, an uncertified root count, a
+/// torus carrier its gate refused or left in band; or
+/// the face has no cover to lever the piece over.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
     use pncad::topo::boolean::trace::TraceFault as C;
@@ -1867,6 +1876,8 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::Carrier(C::OnCarrier) => "on_carrier",
         F::Carrier(C::Escalated(_)) => "escalated",
         F::Carrier(C::Unsettled(_)) => "unsettled",
+        F::Carrier(C::Torus(_)) => "torus",
+        F::Uncovered(_) => "uncovered",
     }
 }
 
@@ -2273,7 +2284,6 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
-        E::BodyInvalid { .. } => "body_invalid",
         E::Compose(_) => "compose_refused",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
@@ -2294,7 +2304,6 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::ProductOutsideWorld => "product_outside_world",
         K::Frame => "frame_refused",
         K::Graft => "graft_refused",
-        K::PieceInvalid => "piece_invalid",
         K::ProductInvalid => "product_invalid",
         K::ContactLineage => "contact_lineage",
     }
@@ -2504,7 +2513,6 @@ pub fn at_rest_evidence_tag(evidence: &AtRestEvidence) -> &'static str {
         AtRestEvidence::Malformed(_) => "malformed",
         AtRestEvidence::InsideArrival(_) => "inside_arrival",
         AtRestEvidence::NotGathered(_) => "not_gathered",
-        AtRestEvidence::NotRun => "not_run",
         AtRestEvidence::Carried(_) => "carried",
     }
 }
@@ -2513,7 +2521,6 @@ pub fn at_rest_evidence_tag(evidence: &AtRestEvidence) -> &'static str {
 pub fn unlocalized_tag(why: &Unlocalized) -> &'static str {
     match why {
         Unlocalized::Refused { .. } => "refused",
-        Unlocalized::Invalid { .. } => "invalid",
         Unlocalized::Empty => "empty",
         Unlocalized::Unnamed => "unnamed",
         Unlocalized::Lane => "lane",
@@ -2990,6 +2997,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::BatteryJoint => "battery_joint",
         S::BatterySupportAxis => "battery_support_axis",
         S::VertexFusion => "vertex_fusion",
+        S::IsoJoin => "iso_join",
         S::CensusAtRest => "census_at_rest",
         S::ProfileJunction => "profile_junction",
     }
@@ -3026,13 +3034,14 @@ pub fn coherence_condition_tag(condition: CoherenceCondition) -> &'static str {
 ///
 /// **A word about the DATA, never about the configuration.** A check
 /// a caller turned off is `ChecksReport.skipped` and is not a finding
-/// at all; these three are loops the body itself put out of reach, and
+/// at all; these are loops the body itself put out of reach, and
 /// no configuration makes them examinable. The alphabets are disjoint
 /// from [`coherence_condition_tag`]'s, which is what lets both ride
 /// one attribute.
 pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
     match why {
         Unexaminable::Corrupt { .. } => "corrupt",
+        Unexaminable::LoneLoop { .. } => "empty_loop",
         Unexaminable::NullScaffoldEdge { .. } => "null_scaffold_edge",
         Unexaminable::NonIsoCarrier { .. } => "non_iso_carrier",
     }
@@ -3088,6 +3097,7 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
 /// such a site, and the tag it mints is that answer.
 pub fn validation_error_tag(err: &ValidationError) -> &'static str {
     match err {
+        ValidationError::OutsideSessionBox { .. } => "outside_session_box",
         ValidationError::Band { .. } => "band",
         ValidationError::DanglingDescription { .. } => "dangling_description",
         ValidationError::UncertifiableSurface { .. } => "uncertifiable_surface",
@@ -3172,6 +3182,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SameSideInterference { .. } => "same_side_interference",
         ValidationError::TouchInterference { .. } => "touch_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
+        ValidationError::MaterialOnBothSides { .. } => "material_on_both_sides",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
         ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",

@@ -18,7 +18,6 @@ use pncad::geom_core::{Point2, Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use pncad::topo::AtRestBody;
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, FaceKey, LoopBoundary};
 
@@ -34,6 +33,7 @@ fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     )
     .expect("the meridian fully revolves")
     .body
+    .into_body()
 }
 
 fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
@@ -47,6 +47,7 @@ fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     )
     .expect("the footprint extrudes")
     .body
+    .into_body()
 }
 
 /// MY fixture for #1082 — not the PR's drum, not the teapot meridian:
@@ -155,8 +156,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     let body = vase(tol);
     let mouth: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -168,7 +169,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     );
 
     let cup = pncad::topo::shell_open(
-        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
         t,
         &mouth,
         tol,
@@ -193,8 +194,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     };
     let rim: Vec<FaceKey> = cup
         .faces()
-        .filter(|(_, f)| {
-            matches!(cup.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(cup.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -252,8 +253,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     // stations carries its ring. None of them is on the mouth plane.
     let mouth_rings: usize = cup
         .faces()
-        .filter(|(_, f)| {
-            matches!(cup.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(cup.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
         })
         .map(|(_, f)| f.rings.len())
@@ -345,7 +346,7 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
         ("a box with one beveled side", beveled_box, None),
     ] {
         let hollow = pncad::topo::shell(
-            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
             t,
             tol,
         )
@@ -412,7 +413,7 @@ fn p2b_an_all_square_plus_prism_still_hollows() {
         tol,
     );
     let hollow = pncad::topo::shell(
-        &AtRestBody::validate(plus.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(plus.clone(), tol).expect("a finished operand"),
         0.02,
         tol,
     )
@@ -470,7 +471,7 @@ fn p3_wall1_hollows_to_its_closed_form() {
         tol,
     );
     let pot = pncad::topo::shell(
-        &AtRestBody::validate(bellied.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(bellied.clone(), tol).expect("a finished operand"),
         t,
         tol,
     )

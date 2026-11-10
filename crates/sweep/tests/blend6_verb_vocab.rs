@@ -185,7 +185,7 @@ fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
 /// (implementer-discipline §8); each row carries its own label.
 #[test]
 fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let t = Tol::witness();
 
@@ -248,7 +248,7 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
 ///   angle" — the cube's edges are such edges, and they build.
 #[test]
 fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let t = Tol::witness();
 
@@ -280,8 +280,10 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 /// chamfer**: the dihedral sign is metered during link RESOLUTION,
 /// before the arm table, so a co-surface seam meridian (one sphere on
 /// both sides, sine exactly zero) is a smooth seam `chamfer_edges`
-/// leaves as it is, and a declared cusp's kiss refuses `KnifeEdge`
-/// through it — not the arm-table refusal.
+/// leaves as it is, and a declared cusp's kiss reads as a knife there
+/// and then meets the chamfer's one refusal for a pair its plane–plane
+/// arm does not cover, `ChamferArmUnsupported` — the chamfer's own arm,
+/// speaking as the chamfer.
 #[test]
 fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
     let ball = sweep::test_support::revolved_about_y(
@@ -329,13 +331,11 @@ fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
         Tol::witness(),
     )
     .expect_err("a cusp's strip is not built");
-    match err.error {
-        BlendError::KnifeEdge { margin, .. } => {
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
-            assert_eq!(margin.sign, geom_core::Sign::Zero);
-        }
-        ref other => panic!("expected the shared knife arm, got {other:?}"),
-    }
+    assert!(
+        matches!(err.error, BlendError::ChamferArmUnsupported { edge, .. } if edge == kiss),
+        "expected the chamfer's arm refusal on the kiss, got {:?}",
+        err.error
+    );
     assert_speaks_as_the_chamfer(&err, "knife");
 }
 
@@ -345,7 +345,7 @@ fn a_chamfer_leaves_a_co_surface_seam_and_refuses_a_cusp_as_the_chamfer() {
 /// a roster name both verbs meter under — still opens as the chamfer.
 #[test]
 fn a_chamfer_escalation_speaks_as_the_chamfer() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edges = query::all_edges(&body);
     let eps = Tol::witness().get().eps;
     // gap 1.0, two setbacks: margin = 1.0 − 2d = 5·eps, inside the band.
@@ -425,14 +425,14 @@ fn edge_surfaces(
     edge: EdgeKey,
 ) -> Option<(geom::Surface<f64>, geom::Surface<f64>)> {
     let e = body.get_edge(edge)?;
-    let start = body.get_half_edge(e.he_plus)?.start;
-    if Some(start) == body.half_edge_end(e.he_plus) {
+    let (start, end) = body.edge_vertices(edge)?;
+    if start == end {
         return None; // closed rim, not the open-arc family
     }
     let face_of = |he: topo::HalfEdgeKey| -> Option<geom::Surface<f64>> {
         let l = body.get_half_edge(he)?.parent_loop;
         let f = body.get_loop(l)?.face;
-        body.get_surface(body.get_face(f)?.surface).cloned()
+        body.face_surface(f).cloned()
     };
     Some((face_of(e.he_plus)?, face_of(e.he_minus)?))
 }
@@ -466,6 +466,7 @@ fn l_bracket() -> Body<f64> {
     )
     .expect("an L-bracket extrudes")
     .body
+    .into_body()
 }
 
 /// The bracket's one concave edge: both supports planes, the dihedral
@@ -476,13 +477,7 @@ fn l_bracket() -> Body<f64> {
 fn concave_edge(body: &Body<f64>) -> EdgeKey {
     let near = |p: geom_core::Point3<f64>| (p.x - 0.5).abs() < 1e-9 && (p.y - 0.5).abs() < 1e-9;
     let vertical = |e: EdgeKey| -> bool {
-        let Some(edge) = body.get_edge(e) else {
-            return false;
-        };
-        let (Some(start), Some(end)) = (
-            body.get_half_edge(edge.he_plus).map(|h| h.start),
-            body.half_edge_end(edge.he_plus),
-        ) else {
+        let Some((start, end)) = body.edge_vertices(e) else {
             return false;
         };
         [start, end].into_iter().all(|v| {

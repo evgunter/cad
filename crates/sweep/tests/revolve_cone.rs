@@ -47,13 +47,13 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     // apex (0, 1, 0) and half-angle π/4; segment 2 (axis) omitted.
     let base = t.walls()[0][0].expect("base wall");
     assert!(matches!(
-        t.body.get_surface(t.body.get_face(base).unwrap().surface),
+        t.body.face_surface(base),
         Some(Surface::Plane { .. })
     ));
     let slant = t.walls()[0][1].expect("slant wall");
     let Some(&Surface::Cone {
         apex, half_angle, ..
-    }) = t.body.get_surface(t.body.get_face(slant).unwrap().surface)
+    }) = t.body.face_surface(slant)
     else {
         panic!("slant wall is a cone");
     };

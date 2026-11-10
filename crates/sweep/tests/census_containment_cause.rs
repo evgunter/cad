@@ -59,6 +59,7 @@ fn lens(z0: f64, h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A lens solid in z ∈ [0, 1] and a small box standing on its top cap,
