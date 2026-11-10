@@ -75,6 +75,7 @@ fn plate_with_hole() -> Body<f64> {
         1.0,
     )
     .body
+    .into_body()
 }
 
 /// The DECLARED cusp ([`sweep::test_support::lune`]).
@@ -90,11 +91,8 @@ fn tangent_edges(body: &Body<f64>) -> Vec<(EdgeKey, [Point3<f64>; 2])> {
         .iter()
         .filter(|(_, m)| **m == ContactMark::Tangent)
         .map(|(e, _)| {
-            let he = body.get_edge(e).unwrap().he_plus;
-            let ends = [
-                point(body.get_half_edge(he).unwrap().start),
-                point(body.half_edge_end(he).unwrap()),
-            ];
+            let (v0, v1) = body.edge_vertices(e).unwrap();
+            let ends = [point(v0), point(v1)];
             (e, ends)
         })
         .collect()
@@ -132,7 +130,7 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
                 .unwrap_or_else(|| panic!("normal {normal}: refused {e:?}, not the knife edge")),
             Ok(_) => panic!("normal {normal}: answered"),
         };
-        let wall = body.get_surface(body.get_face(knife.wall).unwrap().surface);
+        let wall = body.face_surface(knife.wall);
         assert_eq!(
             wall.map(geom::Surface::kind),
             Some(geom::SurfaceKind::Cylinder),
@@ -141,11 +139,8 @@ fn a_split_tangent_to_a_hole_wall_refuses_the_knife_edge_it_would_mint() {
         let KnifeEdgeSite::Edge(seam) = knife.at else {
             panic!("normal {normal}: read along the seam, got {:?}", knife.at);
         };
-        let he = body.get_edge(seam).unwrap().he_plus;
-        for v in [
-            body.get_half_edge(he).unwrap().start,
-            body.half_edge_end(he).unwrap(),
-        ] {
+        let (v0, v1) = body.edge_vertices(seam).unwrap();
+        for v in [v0, v1] {
             let q = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
             assert!(
                 (q.x - 1.0).abs() < 1e-12 && q.y.abs() < 1e-12,
@@ -343,9 +338,8 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
             };
             let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
             // The seam: the ruling's edge between the wall and the cut.
-            for (_, e) in piece.edges() {
-                let start = piece.get_half_edge(e.he_plus).unwrap().start;
-                let end = piece.half_edge_end(e.he_plus).unwrap();
+            for (ek, e) in piece.edges() {
+                let (start, end) = piece.edge_vertices(ek).unwrap();
                 let pair = [surface_of(e.he_plus), surface_of(e.he_minus)];
                 let kinds = pair.map(|s| piece.get_surface(s).unwrap().kind());
                 if !(on_the_ruling(point(start)) && on_the_ruling(point(end)))
@@ -447,9 +441,8 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                 let on_the_ruling = |p: Point3<f64>| p.x.abs() <= eps && (p.y - 1.0).abs() <= eps;
                 let seams: Vec<_> = piece
                     .edges()
-                    .filter(|(_, e)| {
-                        let start = piece.get_half_edge(e.he_plus).unwrap().start;
-                        let end = piece.half_edge_end(e.he_plus).unwrap();
+                    .filter(|(ek, e)| {
+                        let (start, end) = piece.edge_vertices(*ek).unwrap();
                         on_the_ruling(point(start))
                             && on_the_ruling(point(end))
                             && [e.he_plus, e.he_minus].into_iter().any(|he| {
@@ -493,9 +486,8 @@ fn shoulder_seam(piece: &Body<f64>) -> (&'static str, Vec<geom::SurfaceKind>) {
     let kind = |s| piece.get_surface(s).unwrap().kind();
     let seams: Vec<_> = piece
         .edges()
-        .filter(|(_, e)| {
-            let start = piece.get_half_edge(e.he_plus).unwrap().start;
-            let end = piece.half_edge_end(e.he_plus).unwrap();
+        .filter(|(ek, _)| {
+            let (start, end) = piece.edge_vertices(*ek).unwrap();
             on_the_ruling(point(start)) && on_the_ruling(point(end))
         })
         .collect();
@@ -565,9 +557,9 @@ fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
 fn cap_at(piece: &Body<f64>, height: f64) -> topo::FaceKey {
     let caps: Vec<_> = piece
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                piece.get_surface(f.surface),
+                piece.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if normal.z.abs() > 0.5 && (origin.z - height).abs() < tol().eps()
             )
@@ -639,9 +631,9 @@ fn a_join_of_the_seams_pieces_keeps_the_tangency() {
         let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
         piece
             .edges()
-            .filter(|(_, e)| {
-                on(point(piece.get_half_edge(e.he_plus).unwrap().start))
-                    && on(point(piece.half_edge_end(e.he_plus).unwrap()))
+            .filter(|&(k, _)| {
+                let (start, end) = piece.edge_vertices(k).unwrap();
+                on(point(start)) && on(point(end))
             })
             .map(|(k, _)| k)
             .collect()
@@ -849,12 +841,17 @@ fn two_discs_kissing_externally_touch_at_every_op() {
 // The consumers: a declared cusp body refuses typed or comes out sane.
 // ---------------------------------------------------------------------
 
-/// **Chamfer and fillet refuse the cusp strut typed** — on the lune's
-/// cusp (wedge 0) and on a lune-shaped hole's slit (wedge 2π) alike:
-/// the supports meet tangentially, and the blend there, whose ball
-/// touches them away from the edge, is not built.
+/// **The chamfer refuses the cusp strut typed, and the fillet builds
+/// it** — on the lune's cusp (wedge 0) and on a lune-shaped hole's slit
+/// (wedge 2π) alike. The supports meet tangentially: the chamfer's one
+/// arm is plane–plane, so the kiss meets its refusal for a pair that
+/// arm does not cover (`ChamferArmUnsupported`), and the fillet's ball
+/// rests in the
+/// crescent away from the edge, which builds tier-3 valid
+/// (`a_knife_edge_fillet_builds_where_its_ball_is_defined` checks its
+/// volume against the closed form).
 #[test]
-fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
+fn the_chamfer_refuses_a_cusp_or_slit_strut_typed_and_the_fillet_builds_it() {
     let cusp = extruded(vec![lune()], 0.0, 1.0);
     let slit = extruded(vec![rect(-1.0, -1.0, 3.0, 5.0), lune()], 0.0, 1.0);
     for (name, built, loop_index) in [("cusp", &cusp, 0), ("slit", &slit, 1)] {
@@ -865,30 +862,20 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
             .find(|&e| tangent_edges(&built.body).iter().any(|(t, _)| *t == e))
             .expect("the strut the cusp joint swept is marked Tangent");
         let operand = sweep::test_support::at_rest(&built.body, tol());
-        for (verb, got) in [
-            (
-                "chamfer",
-                chamfer_edges(&operand, &[strut], 0.05, tol()).map(|_| ()),
+        let refusal = chamfer_edges(&operand, &[strut], 0.05, tol())
+            .err()
+            .unwrap_or_else(|| panic!("{name}: chamfered a wedge-{name} edge"));
+        assert!(
+            matches!(
+                refusal.error,
+                BlendError::ChamferArmUnsupported { edge, .. } if edge == strut
             ),
-            (
-                "fillet",
-                fillet_edges(&operand, &[strut], 0.05, tol()).map(|_| ()),
-            ),
-        ] {
-            match got {
-                Err(refusal) => {
-                    assert!(
-                        matches!(refusal.error, BlendError::KnifeEdge { edge, .. } if edge == strut),
-                        "{name} {verb}: expected KnifeEdge on the strut, got {refusal:?}"
-                    );
-                    // The refusal says what it established: a wedge
-                    // decided Zero with the material facing itself.
-                    let text = refusal.render(geom_brep::recourse::Reading::Build);
-                    assert!(text.contains("cusp or slit"), "{name} {verb}: {text}");
-                }
-                Ok(()) => panic!("{name} {verb}: blended a wedge-{name} edge"),
-            }
-        }
+            "{name}: expected the chamfer's arm refusal on the strut, got {refusal:?}"
+        );
+        let out = fillet_edges(&operand, &[strut], 0.05, tol())
+            .unwrap_or_else(|r| panic!("{name}: the fillet refused {:?}", r.error));
+        topo::validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name}: the fillet is tier-3 valid, got {e:?}"));
     }
 }
 
@@ -999,9 +986,8 @@ fn shoulder_seam_edge(piece: &Body<f64>) -> EdgeKey {
     let point = |v| *piece.get_point(piece.get_vertex(v).unwrap().point).unwrap();
     let seams: Vec<_> = piece
         .edges()
-        .filter(|(_, e)| {
-            let start = piece.get_half_edge(e.he_plus).unwrap().start;
-            let end = piece.half_edge_end(e.he_plus).unwrap();
+        .filter(|(ek, _)| {
+            let (start, end) = piece.edge_vertices(*ek).unwrap();
             on_the_ruling(point(start)) && on_the_ruling(point(end))
         })
         .map(|(k, _)| k)
@@ -1078,10 +1064,8 @@ fn a_conventional_form_stated_over_a_corner_is_a_defect() {
     let (edge, curve) = cube
         .edges()
         .find_map(|(k, e)| {
-            let (p0, p1) = (
-                point(cube.get_half_edge(e.he_plus)?.start),
-                point(cube.half_edge_end(e.he_plus)?),
-            );
+            let (start, end) = cube.edge_vertices(k)?;
+            let (p0, p1) = (point(start), point(end));
             let top = (p0.z, p1.z, p0.y, p1.y) == (1.0, 1.0, 0.0, 0.0);
             let c = cube.get_curve_geom(e.curve)?.certified()?;
             (top && c.description().pair().is_some()).then(|| (k, c.clone()))

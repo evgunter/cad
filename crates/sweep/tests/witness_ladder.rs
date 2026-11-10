@@ -53,7 +53,7 @@ fn a_box_edge_resting_on_a_rim_answers_past_its_in_band_corner() {
     let a = finished("the box", a, tol());
     let b: AtRestBody<f64> = finished(
         "the unit box",
-        brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     );
     let va = 0.6 * 0.4 * 0.4;

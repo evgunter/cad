@@ -33,7 +33,7 @@ fn ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent() {
     let body = common::ball();
     let bands: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(bands.len(), 2);
@@ -76,6 +76,7 @@ fn revolved(pts: &[(f64, f64)], axis_dir: (f64, f64)) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 #[test]
@@ -113,7 +114,7 @@ fn nappe_adversaries() {
         assert!(ok.is_ok(), "{name}: honest body must be green");
         let cones: Vec<(FaceKey, bool, Point3<f64>, Vec3<f64>)> = body
             .faces()
-            .filter_map(|(k, f)| match body.get_surface(f.surface) {
+            .filter_map(|(k, f)| match body.face_surface(k) {
                 Some(&Surface::Cone { apex, axis, .. }) => Some((k, f.sense, apex, axis)),
                 _ => None,
             })
@@ -167,8 +168,7 @@ fn conic_trimmed_wall_flip_probe() {
     let walls: Vec<(FaceKey, bool)> = body
         .faces()
         .filter_map(|(k, f)| {
-            matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. }))
-                .then_some((k, f.sense))
+            matches!(body.face_surface(k), Some(Surface::Cylinder { .. })).then_some((k, f.sense))
         })
         .collect();
     println!("CONIC walls={walls:?}");

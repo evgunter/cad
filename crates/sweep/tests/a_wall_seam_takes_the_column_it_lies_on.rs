@@ -169,7 +169,7 @@ fn a_seam_inside_a_chart_a_hair_wider_takes_its_interior_column() {
     let (flat, chart) = body
         .faces()
         .filter(|(f, _)| *f != arc)
-        .find_map(|(f, face)| match body.get_surface(face.surface) {
+        .find_map(|(f, _)| match body.face_surface(f) {
             Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => {
                 Some((f, Arc::clone(n)))
             }
@@ -280,7 +280,8 @@ fn at_a_dual_a_split_seam_takes_its_stated_column() {
         tol(),
     )
     .expect("the dual prism builds")
-    .body;
+    .body
+    .into_body();
     let seam = body
         .pcurves()
         .find(|(_, c)| matches!(c.pcurve(), Pcurve::IsoLine { pl, .. } if pl.x.lo() == 0.0))
@@ -344,10 +345,7 @@ fn a_stated_column_is_offered_before_the_closed_form_it_crosses() {
     let edge = body.get_edge(middle).unwrap();
     for h in [edge.he_plus, edge.he_minus] {
         let face = body.face_of_half_edge(h).unwrap();
-        let chart = body
-            .get_surface(body.get_face(face).unwrap().surface)
-            .unwrap()
-            .clone();
+        let chart = body.face_surface(face).unwrap().clone();
         let image = derived(&body, h).unwrap();
         let Pcurve::IsoLine { p0, pl } = image else {
             panic!("{h:?}: a sub-seam takes an iso line: {image:?}")
@@ -376,7 +374,7 @@ fn flat_wall_shifted_in_v(body: &Body<f64>) -> (Body<f64>, FaceKey) {
     let flat = body
         .faces()
         .filter(|(f, _)| *f != arc)
-        .find_map(|(f, face)| match body.get_surface(face.surface) {
+        .find_map(|(f, _)| match body.face_surface(f) {
             Some(Surface::Nurbs(n)) if n.control().iter().all(|p| p.y == 0.0) => Some(f),
             _ => None,
         })

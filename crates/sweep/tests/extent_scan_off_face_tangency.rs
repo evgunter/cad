@@ -57,6 +57,7 @@ pub(crate) fn rod_z(r: f64, (x, y): (f64, f64), (z0, z1): (f64, f64)) -> Body<f6
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A rod of radius `r` along x through `(y, z)`, from `x0` to `x1`: a

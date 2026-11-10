@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
@@ -378,9 +378,9 @@ finer tube is no wider, or the finer carrier does not certify; each
 kept round climbs a rung, so there are at most `SSI_TUBE_RUNGS`.
 Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
-rectangle, against the plane, one side at a time
-(`geom_brep::boundary_section`: plane × one boundary curve of the
-wall). A side
+rectangle, against the plane, one side at a time (`ssi::boundary`: the
+plane's form along one boundary curve of the wall, as a curved
+partner's is read). A side
 either lies within the band of the plane, or meets it at isolated
 crossings, each found to the sweep floor and decided transversal along
 the side, or refused as a graze, the locus tangent to the side, naming
@@ -437,9 +437,8 @@ meets that side, its step the curvature's against ε, the carrier's and
 the bend of the branch's own chart path alike, kept by its residual as
 every step is; a
 march that leaves where no crossing matches refuses as the march's
-limit (`SsiError::CrossingUnmatched`). The plane's window must hold the
-wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
-march ends only at the knot rectangle. The ℝ³ lane still ends an open
+limit (`SsiError::CrossingUnmatched`). The march runs on the wall's
+chart, so it ends only at the knot rectangle. The ℝ³ lane still ends an open
 branch at the caller's slab by its boundary search
 (`ssi_branch_open_end`), and the slab is not
 geometry (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`). Neither candidate
@@ -583,31 +582,30 @@ not certified apart, at the seeding floor), and accounts every cell of
 the product, excluded or inside a tube, at the accounting floor, in
 chart units at the fastest of the four chart speeds
 (`exhaust::account_pair`). Exhaustiveness is `all()`'s obligation.
-The plane × NURBS lane is read through a handle of the same shape and
-contract (`ssi::PlaneSection::of`, which refuses a window short of the
-wall before any reading; `plane_nurbs_ssi` is its `all()`). Its
-boundary pass, the side-by-side pass above, runs once per handle at the
-first reading that needs it. `branch_at(seed)` settles the seed's feet
-on the plane's chart and the wall as the pair lane's does (outside the
-wall's rectangle it refuses `SeedOffDomain`), and what it proves, and
-its backstops, are the pair lane's. It answers what holds the settled
-seed (`ssi::SectionReading`): a `Side` or `Corner` region the pass
-reported, or the branch whose certified chart tube holds it.
-`all()` traces every open branch between the crossings no certified
-branch already ends at and every closed loop from the chart lane's
-seeds, and accounts every cell of the wall's knot rectangle, excluded,
-in a tube, or in a region.
-The residual × NURBS lane, a cylinder, sphere or ring torus against a
-wall, is read through a handle of the same shape and contract on the
-1×2 trace (`ssi::ImplicitSection::of`, `branch_at`, `all`): its state is
-the wall's `(u, v)` and its one equation the partner's residual in
-metres along the wall. Its branches carry the wall's pcurve and none on
-the partner, which has no chart, as an ℝ³ branch carries none. Its
-boundary pass is the curved partner's (`ImplicitWall::pass`, the
-classification's own), its limb 3 the plane lane's chart tube read
-against the partner's form, `∇f·S⊥` over an upper bound on `‖∇f‖`
-(`ChartPhi`), and its seeding and accounting exclude a cell where the
-form's floor in metres over the wall's box there is clear of zero.
+The residual × NURBS lane, a plane, cylinder, sphere or ring torus
+against a wall, is read through a handle of the same shape and contract
+on the 1×2 trace (`ssi::ImplicitSection::of`; `plane_nurbs_ssi` is its
+`all()` against a plane): its state is the wall's `(u, v)` and its one
+equation the partner's residual in metres along the wall, the partner
+read through its canonical form (`ImplicitForm`; the plane's is its
+distance). Its boundary pass, the side-by-side pass above, read on the
+partner's form, runs once per handle at the first reading that needs it.
+`branch_at(seed)` settles the seed's foot on the wall as the pair lane
+settles its feet (outside the wall's rectangle it refuses
+`SeedOffDomain`), and what it proves, and its backstops, are the pair
+lane's. It answers what holds the settled seed (`ssi::SectionReading`):
+a `Side` or `Corner` region the pass reported, or the branch whose
+certified chart tube holds it. `all()` traces every open branch between
+the crossings no certified branch already ends at and every closed loop
+from the lane's seeds, and accounts every cell of the wall's knot
+rectangle, excluded, in a tube, or in a region. Its branches carry the
+wall's pcurve and none on the partner, which has no chart there, as an
+ℝ³ branch carries none; the uncertified door
+(`trace_plane_nurbs_uncertified`) returns the plane's pcurve too, the
+carrier's exact affine image on the plane's chart. Its limb 3 is the
+chart tube read against the partner's form, `∇f·S⊥` over an upper bound
+on `‖∇f‖` (`ChartPhi`), and its seeding and accounting exclude a cell
+where the form over the wall's box there is clear of zero.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
@@ -683,7 +681,11 @@ cylinder or a cone, that the chart's class readings do not show one of
 its own) stores the *projected image*, the
 chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
 carrier's net in the chart frame, plus a partition of the span into
-pieces that each stay in one `atan2` sector. On the plane it is the
+pieces that each stay in one `atan2` sector. Its channels are the
+chart's one reading of a point's coordinates (D3; `geom::ChartChannels`,
+the table `geom::ChartInverse::point` reads), each angle named on its
+piece's branch, which the sector condition decides at derivation, so
+evaluating the image decides nothing. On the plane it is the
 carrier's net mapped through the affine chart; on the cone its second
 channel is the coordinate of the carrier point's foot on the
 generator. `S(ψ(x))` is the point of the chart nearest `x`, so the
@@ -756,10 +758,18 @@ written refuses "not yet". Those pairs are: an ellipse the chart's
 class readings do not show one of its own, on any chart (on the plane,
 and as a section of a cylinder or a cone, an ellipse images in closed
 form, and needs no general lane there); a
-line within the band of a sphere or a torus, which hold none; a line
-within the band of a cone that is no ruling, which the cone's arm reads
-as a ruling and so refuses at its certificate rather than "not yet";
-and every carrier on a spindle chart. Whether the carrier lies
+line within the band of a sphere or a torus, which hold none; and
+every carrier on a spindle chart. Whether a line is a ruling of a
+cylinder or a cone is one reading (`ruling_miss`), shared by the mint,
+props and the boolean: the line's greatest distance over the edge's
+span from the ruling, in metres. The ruling is anchored where the
+closed form places its image: on a cylinder, the ruling through the
+line's origin; on a cone, the generator through the apex that the
+line's anchor names, whose distance is that form's whole miss. The
+cylinder's meridian form images the ruling at the chart's radius, so
+its class gate adds the origin's radial gap, and a Zero there is the
+form's own miss. A reader
+that images nothing anchors the line at its span's start. Whether the carrier lies
 on the chart at all is a residual, not a class gate: a definite miss
 is a contradiction between what the edge states and its geometry,
 ended by the door that reads it (D4 ¶1 (iv)), and a read in band, at a
@@ -897,6 +907,23 @@ again.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
+Two curves on one surface record are not a curve pair to this table.
+Their 3D gap is identically zero in the model, so a contact decision on
+it reads only the construction's rounding against the band. They meet
+where one crosses the other's plane, through the plane door
+(`curve_face::plane_crossing`), at a root on the curve's own section of
+that plane, read through the surface's chart: the co-surface arm
+(`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
+harmonic (`pose::height`). A curve on a surface is built from chart
+coordinates on a surface record: its key, and its surface as stored or
+on another chart of it. An edge carries its face's record, and the arm
+refuses a pair on two records whichever way it reads the pair. That the
+key and the surface are one record's stays the caller's: the region
+doors and the sphere cut-in read both off one face, and the planar loop
+walk names its own premise for the ray's plane. Every consumer holding
+two curves on one surface reads that arm (the region doors' landings,
+the sphere cut-in, the planar loop walk's ray against a conic arc), and
+none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
@@ -910,7 +937,7 @@ NURBS (and `Approx` as its fit) against a cylinder, sphere or torus is
 classified, its tangency and coincidence decided and its loop-free
 verdict read, and where the sweep declines it is read whole over the knot
 rectangle on the 1×2 trace (`ImplicitSection::all`, rung 3). The offset door reads
-plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
+plane×NURBS through `ImplicitSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle. The boolean reads
 plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
 section value (`pair_section`, through its march door), built
@@ -1227,10 +1254,9 @@ are cases): a surface pair along a declared tangency and the boolean's
 bound-against-bound readings alike (`topo::boolean::sectors`, `fate`,
 `slit`). An edge bound of a vertex's sector against a face is read
 through the one bound-side reading (`topo::bound_side`), taken by
-`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, and
-so is a bisector bound in the boolean's sector passes; the split's
-subdivision bisectors (`wide_entries`, `split_bisector_side`) read
-their side of the plane outside it. A conic edge against a plane
+`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, over
+one vertex's star (`topo::star`), and so is every divider bound, in
+both verbs. A conic edge against a plane
 descends through `conic_bend_side`, its lift certified from the
 carrier's curvature bounds less the first-order residue. Any other
 tied bound descends by the parting of its bend past the face's normal
@@ -1650,7 +1676,7 @@ planar walls closer than `2t` (`WallClearance`), and two planar walls at
 an angle whose moved regions cross (`OffsetsCross`); curved walls
 have no clearance gate yet (Open, below). A fitted
 face's edge with a plane is their section over the fit through the old
-edge's middle (`PlaneSection::branch_at`, C5): the branch there, the
+edge's middle (`ImplicitSection::branch_at`, C5): the branch there, the
 fit's boundary row where a `Side` region holds the middle (the plane
 holds that row within the band), a refusal by the corner where a
 `Corner` region does, and `NoBranch` where the middle settles outside

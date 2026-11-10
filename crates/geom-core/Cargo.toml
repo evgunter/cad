@@ -117,9 +117,16 @@ proptest = { workspace = true }
 # named by [dev-dependencies] only, here and everywhere else — which is
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
+# Scope questions about Rust source, read off a parse (`syn`): the
+# flagged-door census resolves which binding a door's name reaches
+# through it. Test-only, as `test-utils` is.
+source-scope = { path = "../source-scope" }
 # Derivative oracle for Dual<f64> tests only — never a runtime dependency
 # (see the deviation note in src/dual.rs module docs).
 num-dual = { workspace = true }
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# integration tests under `cargo test -p` (scripts/gates/test-support-self-edge.sh).
+geom-core = { path = ".", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

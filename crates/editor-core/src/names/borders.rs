@@ -457,7 +457,7 @@ impl<K: Ord + Clone> Obstacles<K> {
     /// meets. `parent` is the corner's faces and `pieces` the faces of
     /// `body` that hold part of them; a copy's boundary is those
     /// faces' half-edges at the copy, read as a face piece's boundary is
-    /// ([`Obstacles::split`]), so a wall is a face across an edge at the
+    /// ([`Obstacles::held_walls`]), so a wall is a face across an edge at the
     /// copy along which a piece of the corner meets an obstacle that
     /// borders two or more copies. Several copies under one set are
     /// N2's tie. Refuses as [`Obstacles::walls`] does, and where a copy

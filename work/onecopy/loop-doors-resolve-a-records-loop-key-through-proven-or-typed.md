@@ -2,7 +2,7 @@
 id: loop-doors-resolve-a-records-loop-key-through-proven-or-typed
 kind: issue
 title: shell.rs's loop doors (cycle_of, loop_points, ring_rows, loop_rekeyed) take a bare LoopKey and resolve it through proven, so a torn link a face record holds panics without naming its holder
-status: open
+status: dispatched
 priority: P3
 cost: E
 opened: 2026-11-03

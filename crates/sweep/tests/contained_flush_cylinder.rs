@@ -14,7 +14,7 @@ use topo::{BooleanResult, mass_properties, union};
 #[test]
 fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
     let tol = Tol::witness();
-    let block = topo::test_support::brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol);
+    let block = topo::test_support::brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol);
     let block = finished("the block", block, tol);
     let cylinder = finished("the cylinder", disc_of_arcs(3, 0.5, 1.0, tol), tol);
     let BooleanResult::Body(union) =
@@ -51,8 +51,8 @@ fn a_carried_edge_edge_row_on_a_discarded_wall_is_consumed() {
     let tol = Tol::witness();
     let cylinder = finished("the cylinder", disc_of_arcs(3, 0.5, 1.0, tol), tol);
     let ends = |k: topo::EdgeKey| {
-        let e = cylinder.get_edge(k).unwrap();
-        [e.he_plus, e.he_minus].map(|h| cylinder.half_edge_start_point(h).unwrap())
+        <[_; 2]>::from(cylinder.edge_vertices(k).unwrap())
+            .map(|v| topo::readback::vertex_point(&cylinder, v).unwrap())
     };
     let arc = |k: topo::EdgeKey| {
         topo::readback::edge_carrier_kind(&cylinder, k).is_ok_and(|c| c == geom::CurveKind::Circle)
@@ -83,7 +83,7 @@ fn a_carried_edge_edge_row_on_a_discarded_wall_is_consumed() {
         ..Default::default()
     };
     let with = |block: (f64, f64)| {
-        let block = topo::test_support::brick(block, (-1.0, 1.0), (0.0, 1.0), tol);
+        let block = topo::test_support::brick::<f64>(block, (-1.0, 1.0), (0.0, 1.0), tol);
         let block = finished("the block", block, tol);
         topo::boolean_op_with(
             topo::BooleanOp::Union,

@@ -67,10 +67,7 @@ fn the_band_faces_sense_bit_folds_the_stored_verdict_on_both_sides() {
         };
         let face = out.body.get_face(band).unwrap();
         assert!(
-            matches!(
-                out.body.get_surface(face.surface),
-                Some(Surface::Torus { .. })
-            ),
+            matches!(out.body.face_surface(band), Some(Surface::Torus { .. })),
             "{name}: the band is a torus"
         );
         assert_eq!(
@@ -105,8 +102,8 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
         .filter(|(_, e)| {
             let kind = |he| {
                 let l = boss.get_half_edge(he).unwrap().parent_loop;
-                let f = boss.get_face(boss.get_loop(l).unwrap().face).unwrap();
-                boss.get_surface(f.surface).map(core::mem::discriminant)
+                boss.face_surface(boss.get_loop(l).unwrap().face)
+                    .map(core::mem::discriminant)
             };
             kind(e.he_plus) != kind(e.he_minus)
         })
@@ -119,8 +116,8 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
     );
     let top = boss
         .faces()
-        .find(|(_, f)| {
-            matches!(boss.get_surface(f.surface),
+        .find(|(fk, _)| {
+            matches!(boss.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. }) if (origin.z - SLAB).abs() < 1e-12 && normal.z > 0.5)
         })
         .map(|(k, _)| k)
@@ -142,7 +139,7 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
     let mut spheres = 0;
     for f in &around {
         let fd = out.body.get_face(*f).unwrap();
-        match out.body.get_surface(fd.surface) {
+        match out.body.face_surface(*f) {
             Some(Surface::Plane { .. }) => {
                 planes += 1;
                 assert_eq!(

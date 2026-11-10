@@ -96,12 +96,12 @@ fn opts(doc: &ProfileDoc, seed: Option<&str>) -> EvalOptions {
     }
 }
 
-fn run<T: editor_core::EvalScalar>(
+fn run<T: editor_core::test_support::AnyEvaluate>(
     doc: &ProfileDoc,
     prior: Option<&Evaluation<T>>,
     o: &EvalOptions,
 ) -> Evaluation<T> {
-    evaluate::<T>(doc, prior, &CancelToken::new(), o, Tol::witness())
+    editor_core::test_support::evaluate_any::<T>(doc, prior, &CancelToken::new(), o, Tol::witness())
 }
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -128,7 +128,7 @@ fn measured_f64(doc: &ProfileDoc, ev: &Evaluation<f64>, var: VarId) -> f64 {
     }
 }
 
-fn key(ev: &Evaluation<impl geom_core::Decide>, id: RecipeNodeId) -> u128 {
+fn key(ev: &Evaluation<impl topo::AtRestPolicy>, id: RecipeNodeId) -> u128 {
     ev.value(id).expect("evaluated Ok").content_key.0
 }
 

@@ -34,3 +34,7 @@ production. Gluing every verified rim and refusing the rest regressed
 (a `departures` escalation). C7's per-op routing of the result's junction
 needs the membership, which the glue stage does not hold: that is the work
 here.
+
+## Since SEAL's tangent-verdict unit (`seal/tangent-verdict`)
+
+The op no longer re-reads a glued tangency (`verify_glued_contacts` records what the door certified), so the only reader of `route_rim`'s refusal is the glue door, which reads any unrouted rim as no tangency. `TangencyFailure::Unrouted` therefore carries no payload, and `BooleanError::RimCuspArmUnbuilt` is minted nowhere; the variant stays as the name of the arm the per-op routing here would raise.

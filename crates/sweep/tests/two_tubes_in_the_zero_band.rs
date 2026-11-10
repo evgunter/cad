@@ -27,7 +27,7 @@ fn band() -> Band {
 }
 
 fn at_rest(b: topo::Body<f64>) -> topo::AtRestBody<f64> {
-    topo::AtRestBody::validate(b, tol()).unwrap()
+    topo::finish(b, tol()).unwrap()
 }
 
 /// A point rounded far above the band, so both orders' cells compare.
@@ -37,8 +37,7 @@ fn at(body: &topo::Body<f64>, v: topo::VertexKey) -> String {
 }
 
 fn face_kind(body: &topo::Body<f64>, f: topo::FaceKey) -> String {
-    let face = body.get_face(f).unwrap();
-    format!("{:?}", body.get_surface(face.surface).unwrap().kind())
+    format!("{:?}", body.face_surface(f).unwrap().kind())
 }
 
 /// Each record as its cells' places: a vertex's point, an edge's end

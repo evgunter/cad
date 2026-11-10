@@ -98,15 +98,13 @@ fn eye_fillet_center_y() -> f64 {
 /// is what the part is: two circles, three straight sides (each an
 /// on-path anchor plus its direction), and the blend radii.
 ///
-/// **Topology, stated as the invariant it now is (LB5).** The outline
-/// has TEN vertices: five fillet arcs, each with a trim point ahead of
-/// it. The hub arc is ONE segment, and the seam sits on the keel, where
-/// `.to(Start)` retrims the entry anchor away. The raw spelling this
-/// replaced started mid-hub-arc and so carried an eleventh vertex — a
-/// same-carrier joint splitting the hub arc in two, hence one extra
-/// lateral face after extrusion. That vertex was the raw builder's
-/// seam, not the plate's shape, and the ratified LB5 disposition
-/// re-anchors it: the demo's point is the rocker's SHAPE.
+/// **Topology (LB5).** The outline has TWELVE vertices: five fillet
+/// arcs, each with a trim point ahead of it, and the boss's and the
+/// hub's authored entry points, where each `arc_fillet(Radius { .. })`
+/// starts its run on the same circle as a segment of its own, the joint
+/// there constructed. The seam sits on the keel, where `.to(Start)`
+/// retrims the entry anchor away. The extrude builds one wall per run
+/// on one carrier, so each circle is still one lateral face.
 ///
 /// **Derived corners are not authored ones, to the ulp (LB4).** Four of
 /// these five corners are arc↔line, where the derived corner lands 0–4
@@ -383,7 +381,7 @@ pub fn build<S: Scalar>(tol: Tol) -> (Extruded<S>, Body<S>) {
     )
     .expect("the keyhole's creases round at R_CREASE")
     .body;
-    (plate, rounded)
+    (plate, rounded.into_body())
 }
 
 /// The area one keyhole crease's fillet removes from the plate's

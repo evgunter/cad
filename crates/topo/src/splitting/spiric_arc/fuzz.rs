@@ -20,12 +20,7 @@ use crate::splitting::pieced_arc::{ArcHit, ArcRows};
 use geom_core::{Interval, Tol};
 use test_utils::fuzz::Rng;
 
-const ROWS: ArcRows = ArcRows {
-    end: "fuzz_spiric_end",
-    clear: "fuzz_spiric_clear",
-    on: "fuzz_spiric_on",
-    leaf: "fuzz_spiric_leaf",
-};
+const ROWS: ArcRows = crate::rows::FUZZ_SPIRIC_ARC;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

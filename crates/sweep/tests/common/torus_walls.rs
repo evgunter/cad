@@ -105,6 +105,7 @@ pub fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
     )
     .expect("the elbow revolves")
     .body
+    .into_body()
 }
 
 /// **The sectioned vessel**: the tour's torus-walled vessel meridian
@@ -156,6 +157,7 @@ pub fn vessel_quarter() -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
+    .into_body()
 }
 
 /// **The sectioned vessel and its cavity through the axial door** —

@@ -14,7 +14,7 @@
 //! discarded face lost (`lift`). The lineage only routes the verdicts,
 //! where a superset is harmless; what a face holds is read from the
 //! records and, where a piece's source face holds several member faces,
-//! from the piece's own region ([`super::overlap`]).
+//! from the piece's own region ([`super::overlap`](fn@super::overlap)).
 //!
 //! **What depends on member order** (`[operations.operators]`): the
 //! holdings do not, since each reading is the geometric truth of a
@@ -42,7 +42,6 @@ use super::{
     BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GlueVerdict,
     GluedPair, Operand, OperandRecords, SweepStrategy,
 };
-use crate::AtRestBody;
 use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::props::AtRestPolicy;
@@ -81,9 +80,9 @@ pub struct MemberInputs {
 
 /// One member of an n-ary operation: its body and what it carries.
 #[derive(Clone, Copy, Debug)]
-pub struct NaryMember<'m, T: Real> {
+pub struct NaryMember<'m, T: crate::props::AtRestPolicy> {
     /// The member's finished body.
-    pub body: &'m AtRestBody<T>,
+    pub body: &'m T::Finished,
     /// Its records and rank.
     pub inputs: &'m MemberInputs,
 }
@@ -273,7 +272,7 @@ impl<'n> FaceDescent<'n> {
 /// **One pairwise judgement**: members `a` (operand A) and `b`
 /// (operand B), run as their own pair boolean.
 #[derive(Debug)]
-pub struct NaryJudgement<T: Real> {
+pub struct NaryJudgement<T: crate::props::AtRestPolicy> {
     /// Operand A's member.
     pub a: usize,
     /// Operand B's member.
@@ -299,7 +298,7 @@ pub struct JudgedRow {
 /// **One fold step**: member `member` joined to the accumulation of
 /// every member before it (operand A) as operand B.
 #[derive(Debug)]
-pub struct NaryStep<T: Real> {
+pub struct NaryStep<T: crate::props::AtRestPolicy> {
     /// The member the step joins.
     pub member: usize,
     /// The pair boolean's result: the accumulation after the step.
@@ -315,7 +314,7 @@ pub struct NaryStep<T: Real> {
     pub holdings: Holdings,
 }
 
-impl<T: Real> NaryStep<T> {
+impl<T: crate::props::AtRestPolicy> NaryStep<T> {
     /// The judged rows the step's row `row` restates; `None` for a row
     /// the step decided.
     pub fn restates(&self, row: usize) -> Option<&[JudgedRow]> {
@@ -332,7 +331,7 @@ impl<T: Real> NaryStep<T> {
 /// ran before the stop. With two members there is no judgement apart
 /// from the one step, which is the pair's.
 #[derive(Debug)]
-pub struct NaryRun<T: Real> {
+pub struct NaryRun<T: crate::props::AtRestPolicy> {
     /// Each judgement, in the order judged: every member pair whose
     /// boxes meet, in list order.
     pub judgements: Vec<NaryJudgement<T>>,
@@ -358,7 +357,7 @@ pub enum NaryEnd {
     Refused(NaryRefusal),
 }
 
-impl<T: Real> NaryRun<T> {
+impl<T: crate::props::AtRestPolicy> NaryRun<T> {
     /// The result, where the operation built: the last step's body.
     pub fn result(&self) -> Option<&BooleanBody<T>> {
         match self.end {
@@ -726,7 +725,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
 /// finished face holds no member face: the step's holdings are read from
 /// its final records, the pair door keeps its A clone wherever it
 /// discards A's faces, and every finished face is a piece of a member's.
-fn lift<T: Decide>(
+fn lift<T: Decide + crate::AtRestPolicy>(
     prev: &Holdings,
     member: usize,
     step: &BooleanBody<T>,
@@ -798,9 +797,9 @@ fn lift<T: Decide>(
         HeldRefusal::Recharted { face: (1, f) } => HeldRefusal::Recharted { face: (member, *f) },
         HeldRefusal::Recharted { face: (_, f) } => HeldRefusal::Accumulation {
             face: *f,
-            refusal: super::overlap::OverlapRefusal::Unread {
-                what: "a lost region of a face a sphere's re-chart turned",
-            },
+            refusal: super::overlap::OverlapRefusal::Unread(
+                super::overlap::OverlapUnread::RechartedRegionLost,
+            ),
         },
         HeldRefusal::NotUnder {
             member_face: (1, f),
@@ -816,17 +815,17 @@ fn lift<T: Decide>(
             member_face: (_, f),
         } => HeldRefusal::Accumulation {
             face: *f,
-            refusal: super::overlap::OverlapRefusal::Unread {
-                what: "a row says the face holds an accumulation face lying elsewhere",
-            },
+            refusal: super::overlap::OverlapRefusal::Unread(
+                super::overlap::OverlapUnread::HeldElsewhere,
+            ),
         },
         HeldRefusal::CarrierUnread {
             member_face: (_, f),
         } => HeldRefusal::Accumulation {
             face: *f,
-            refusal: super::overlap::OverlapRefusal::Unread {
-                what: "an accumulation face a row says the face holds, on a carrier not read",
-            },
+            refusal: super::overlap::OverlapRefusal::Unread(
+                super::overlap::OverlapUnread::HeldCarrierUnread,
+            ),
         },
         HeldRefusal::Accumulation { .. } | HeldRefusal::UncutRemainder { .. } => r.clone(),
     };

@@ -87,7 +87,7 @@ fn extruded(
         depth,
         side: ExtrudeSide::Along,
     };
-    extrude(&profile, along, tol).unwrap().body
+    extrude(&profile, along, tol).unwrap().body.into_body()
 }
 
 /// A pentagon whose walls face along the axes and between them, extruded.
