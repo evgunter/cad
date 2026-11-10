@@ -882,14 +882,9 @@ fn cavity_refusal_said(
         )
         .into(),
         R::CollapsedChart { .. } => "a wall's chart collapses an edge to a point".into(),
-        R::TorusNotRing { refusal, .. } => match refusal.verdict {
-            geom_brep::TorusVerdict::Refused(_) => {
-                "a wall lies on a torus that meets itself".into()
-            }
-            geom_brep::TorusVerdict::Undecided(_) => {
-                format!("whether a wall's torus is a ring is not decided ({refusal})").into()
-            }
-        },
+        R::TorusNotRing { refusal, .. } => {
+            format!("a wall lies on a torus not decided a ring: {refusal}").into()
+        }
         R::EmptyScope { .. } => "the cavity has no face".into(),
         R::BoxDependent { .. } => {
             "an upper bound's pair was confirmed at one point only, which the cavity's \
@@ -903,7 +898,8 @@ fn cavity_refusal_said(
 /// a refinement the band or a budget stopped is the geometry's lever, a
 /// carrier or touching pair no certificate reads yet is not yet built,
 /// and a scope with no face or a chart that did not evaluate is the
-/// op's defect, since the op built every chart it hands the engine.
+/// op's defect, since the op built every chart it hands the engine. A
+/// wall's torus off its ring convention ends in its half's lever.
 fn cavity_refusal_ending(
     refusal: &crate::clearance::EngineRefusal,
     at: Option<geom_brep::recourse::ReadAt>,
@@ -913,25 +909,17 @@ fn cavity_refusal_ending(
         R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
             format!("Recourse: {WALL_OR_GEOMETRY}").into()
         }
-        // A convention half the band cannot decide ends in its own lever,
-        // as the convention ends it at the door that reads it
-        // (`TorusConvention::sized`); read as the payload alone, in the
+        // A torus off its ring convention ends in its half's lever, in band
+        // or decided, as the convention ends it at the door that reads it
+        // (`TorusRefusal::recourse`); read as the payload alone, in the
         // lever, as this map's other arms are.
-        R::TorusNotRing { refusal, .. }
-            if let geom_brep::TorusVerdict::Undecided(diag) = &refusal.verdict =>
-        {
-            let sized = refusal.convention.sized();
-            match at {
-                Some(at) => sized
-                    .recourse(geom_brep::recourse::RefusedArm::Undecided(diag), at)
-                    .into(),
-                None => format!("Recourse: {}", sized.lever).into(),
-            }
+        R::TorusNotRing { refusal, .. } => match at {
+            Some(at) => refusal.recourse(at).into(),
+            None => geom_core::lever_recourse(refusal.convention.sized().lever, None).into(),
+        },
+        R::Unsupported { .. } | R::Uncertified { .. } | R::CollapsedChart { .. } => {
+            NOT_YET_ENDING.into()
         }
-        R::Unsupported { .. }
-        | R::Uncertified { .. }
-        | R::CollapsedChart { .. }
-        | R::TorusNotRing { .. } => NOT_YET_ENDING.into(),
         // The cavity asks the strict question, which has no upper bound
         // to prove, so a pointwise-only proof is the engine's defect.
         R::PoisonEnclosure { .. } | R::EmptyScope { .. } | R::BoxDependent { .. } => {
@@ -3737,39 +3725,80 @@ mod rim_seam_rows {
     }
 }
 
-/// **A cavity wall's torus the band cannot decide a ring ends in the
-/// convention's lever**, as the convention ends it at every door
-/// (`geom_brep::TorusConvention::sized`); one decided outside it has no
-/// injectivity lane and ends "not yet" (D3, escalate-never-guess).
+/// **A cavity wall's torus off its ring convention ends in its half's
+/// lever**, in band or decided, as the convention ends it at every door
+/// (`geom_brep::TorusRefusal::recourse`), and is said in the half's own
+/// words, never as a carrier that meets itself. The refusal is the
+/// engine's own: `by_kind` on an `Interval` torus, as the cavity's gate
+/// reads it.
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod cavity_torus_endings {
     use super::{cavity_refusal_ending, cavity_refusal_said};
-    use crate::clearance::{EngineRefusal, Which};
-    use geom_core::{Band, NOT_YET_ENDING, Tol};
+    use crate::clearance::EngineRefusal;
+    use geom_core::interval::Interval;
+    use geom_core::{Band, NOT_YET_ENDING, Point3, Tol, Vec3};
+
+    fn wall(major: f64, minor: f64, band: Band) -> EngineRefusal {
+        let p = |x: f64| Interval::from_bounds(x, x);
+        let torus = geom::Surface::Torus {
+            center: Point3::new(p(0.0), p(0.0), p(0.0)),
+            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+            major_radius: p(major),
+            minor_radius: p(minor),
+            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
+        };
+        match crate::injective::by_kind(crate::FaceKey::default(), &torus, band) {
+            Err(refusal @ EngineRefusal::TorusNotRing { .. }) => refusal,
+            other => panic!("({major}, {minor}): a torus not decided a ring: {other:?}"),
+        }
+    }
 
     #[test]
-    fn an_undecided_cavity_torus_ends_in_its_halfs_lever() {
+    fn a_cavity_torus_off_its_ring_ends_in_its_halfs_lever() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let wall = |major: f64| EngineRefusal::TorusNotRing {
-            face: crate::FaceKey::default(),
-            side: Which::First,
-            refusal: Box::new(geom_brep::TorusRefusal::require(major, 1.0, band).unwrap_err()),
-        };
-        let undecided = wall(1.0 + 0.5 * (band.zero() + band.escalate()));
-        let lever = geom_brep::TorusConvention::Ring.sized().lever;
-        let ending =
-            cavity_refusal_ending(&undecided, Some(geom_brep::recourse::Reading::Build.into()));
-        assert!(ending.contains(lever), "{ending}");
-        assert!(
-            !cavity_refusal_said(&undecided).contains("meets itself"),
-            "an undecided torus is never said to meet itself"
-        );
-        assert!(
-            cavity_refusal_ending(&undecided, None).contains(lever),
-            "the payload alone ends in the lever too"
-        );
-        assert_eq!(cavity_refusal_ending(&wall(0.5), None), NOT_YET_ENDING);
+        let build = Some(geom_brep::recourse::Reading::Build.into());
+        for (what, refusal, half) in [
+            (
+                "a ring half in band",
+                wall(1.0 + 0.5 * (band.zero() + band.escalate()), 1.0, band),
+                geom_brep::TorusConvention::Ring,
+            ),
+            (
+                "a tube wider than its ring",
+                wall(0.5, 1.0, band),
+                geom_brep::TorusConvention::Ring,
+            ),
+            (
+                "a horn torus",
+                wall(1.0, 1.0, band),
+                geom_brep::TorusConvention::Ring,
+            ),
+            (
+                "no tube",
+                wall(2.0, 0.0, band),
+                geom_brep::TorusConvention::Tube,
+            ),
+        ] {
+            let lever = half.sized().lever;
+            for at in [build, None] {
+                let ending = cavity_refusal_ending(&refusal, at);
+                assert!(
+                    ending.contains(lever) && ending != NOT_YET_ENDING,
+                    "{what}, {at:?}: {ending}"
+                );
+            }
+            let said = cavity_refusal_said(&refusal);
+            let EngineRefusal::TorusNotRing { refusal: torus, .. } = &refusal else {
+                unreachable!("`wall` returns a torus refusal")
+            };
+            assert!(
+                said.contains(torus.said("a torus's", None).as_str())
+                    && !said.contains("meets itself")
+                    && !said.contains("whether a wall"),
+                "{what}: said in the half's own words: {said}"
+            );
+        }
     }
 }
 

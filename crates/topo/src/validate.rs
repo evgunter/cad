@@ -4593,7 +4593,8 @@ impl ValidationError {
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::DegenerateTorus { verdict, .. } => f.write_str(
-                &geom_brep::TorusConvention::Ring.refused_ended("a torus face's", *verdict, at),
+                &geom_brep::TorusRefusal::decided(geom_brep::TorusConvention::Ring, *verdict)
+                    .said("a torus face's", at),
             ),
             Self::DegenerateSpindle { miss, .. } => match miss.verdict {
                 Ok(decided) => write!(
