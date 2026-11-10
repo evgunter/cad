@@ -162,7 +162,7 @@ pub(super) fn sweep(
     if root.window().is_none() {
         return Sweep::Declined(Declined::Unread);
     }
-    let off = |name, margin| {
+    let off_as = |name, margin| {
         matches!(
             decide(name, margin, band),
             Ok(Sign::Positive | Sign::Negative)
@@ -191,7 +191,7 @@ pub(super) fn sweep(
             Vec3::new(d.x, d.y, d.z),
             Interval::from_certified(speed),
         );
-        off("spline_sweep_regular", Margin::levered(slope, extent))
+        off_as("spline_sweep_regular", Margin::levered(slope, extent))
     };
     let regular = |cell: UvRect| {
         cell.window().is_some_and(|w| {
@@ -320,7 +320,7 @@ pub(super) fn sweep(
                 // A reading that does not certify is halved as an undecided
                 // one is, down to the floor.
                 let read = metres.is_certified() && slope.is_certified();
-                let along = read && off("spline_sweep_regular", Margin::levered(slope, extent));
+                let along = read && off_as("spline_sweep_regular", Margin::levered(slope, extent));
                 if let Some(above) = side(piece, metres).filter(|_| read) {
                     excluded.borrow_mut().push(Excluded {
                         cell: piece,

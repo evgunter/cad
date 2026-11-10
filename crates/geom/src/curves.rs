@@ -487,7 +487,7 @@ impl SpiricRegimeSites {
     /// Where two of the names are equal: each names its own margin. In a
     /// `const` item the panic is a compile error.
     #[must_use]
-    pub(crate) const fn new(
+    pub(crate) const fn rows_as(
         off_axis: &'static str,
         far: &'static str,
         floor: &'static str,
@@ -539,17 +539,17 @@ impl SpiricReader {
     #[must_use]
     pub const fn sites(self) -> SpiricRegimeSites {
         match self {
-            Self::Mint => SpiricRegimeSites::new(
+            Self::Mint => SpiricRegimeSites::rows_as(
                 "spiric_off_axis",
                 "spiric_two_ovals",
                 "spiric_two_ovals_floor",
             ),
-            Self::BooleanRider => SpiricRegimeSites::new(
+            Self::BooleanRider => SpiricRegimeSites::rows_as(
                 "bool_rider_spiric_off_axis",
                 "bool_rider_spiric_regime",
                 "bool_rider_spiric_regime_floor",
             ),
-            Self::PlaneTorus => SpiricRegimeSites::new(
+            Self::PlaneTorus => SpiricRegimeSites::rows_as(
                 "pt_spiric_off_axis",
                 "pt_spiric_two_ovals",
                 "pt_spiric_two_ovals_floor",
@@ -2689,7 +2689,7 @@ mod tests {
     #[should_panic(expected = "three rows need three names")]
     fn spiric_regime_sites_refuse_a_shared_name() {
         let shared = std::hint::black_box("shared");
-        let _ = SpiricRegimeSites::new(shared, shared, "floor");
+        let _ = SpiricRegimeSites::rows_as(shared, shared, "floor");
     }
 
     fn spiric_fields(c: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>, f64, f64, f64) {

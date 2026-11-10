@@ -176,9 +176,7 @@ use crate::null::NullFacePair;
 use crate::ring_path::LoopSplit;
 use crate::validate::{decide, decide_positive};
 use geom_core::Tol;
-use geom_core::ladder::{
-    Climb, FreeOf, Rung, Undecided, Unpicked, argmin_decided, climb_agreeing, rung_or_abort,
-};
+use geom_core::ladder::{Climb, FreeOf, Rung, Undecided, Unpicked, argmin_decided, climb_agreeing};
 
 /// The K funnel name of a germ plane's normal-length decision: the
 /// boolean reads a plane carrier's normal into the section lanes, and
@@ -5639,7 +5637,7 @@ fn seam_germ_side<T: Decide>(
                 Ok(Ok(Some(n_f))) => n_f,
                 Ok(Ok(None)) => return Rung::Passes,
                 Ok(Err(why)) => {
-                    return rung_or_abort(why.refusal(), why, |why| Err(why.aborted()))
+                    return Rung::refused(why, HoldingUnread::refusal, |why| Err(why.aborted()))
                         .map_kept(|_| ());
                 }
                 Err(e) => return Rung::Aborts(Err(e)),

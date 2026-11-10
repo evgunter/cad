@@ -345,14 +345,16 @@ impl<T: Decide> CylinderSpherePose<T> {
         band: Band,
     ) -> Result<(Point3<T>, T, CsStance<T>), PoseRefusal> {
         let geom::Line { origin, dir: axis } = axis;
-        let read = |name: &'static str, value: T| {
+        let read_as = |name: &'static str, value: T| {
             geom_core::k_stats::decide_reported(name, Margin::of(value), band)
         };
+        const CYLINDER_RADIUS: &str = "cs_cylinder_radius";
+        const SPHERE_RADIUS: &str = "cs_sphere_radius";
         for (name, value, radius) in [
-            ("cs_cylinder_radius", r, SectionRadius::Cylinder),
-            ("cs_sphere_radius", big_r, SectionRadius::Sphere),
+            (CYLINDER_RADIUS, r, SectionRadius::Cylinder),
+            (SPHERE_RADIUS, big_r, SectionRadius::Sphere),
         ] {
-            match read(name, value) {
+            match read_as(name, value) {
                 Ok(Decided {
                     sign: Sign::Positive,
                     ..
@@ -366,7 +368,8 @@ impl<T: Decide> CylinderSpherePose<T> {
             }
         }
         let pose = |decision: CsDecision, value: T| {
-            read(decision.name(), value).map_err(|diag| PoseRefusal::Undecided { decision, diag })
+            read_as(decision.name(), value)
+                .map_err(|diag| PoseRefusal::Undecided { decision, diag })
         };
         // `axis` is unit by the surface's own invariant.
         let (off, d) = square_part(center - origin, axis);
