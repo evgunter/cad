@@ -5185,7 +5185,7 @@ mod tests {
 
     /// **A sector not holding the line answers past one in band**
     /// ([`rays_within`], `Any`). The quarter sector from `−y` to `x`, and
-    /// the line `5e-9` past its `x` bound: both rays read in band of it,
+    /// the line a mid-band width past its `x` bound: both rays read in band of it,
     /// the bound being a line. Then the eighth from `y` toward `−x`, off
     /// the line both ways, which both rays are clearly outside. Both
     /// read `false`, each answering at the second sector past the first
@@ -5198,7 +5198,7 @@ mod tests {
         let first = sector([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], z);
         let h = core::f64::consts::FRAC_1_SQRT_2;
         let second = sector([0.0, 1.0, 0.0], [-h, h, 0.0], z);
-        let m = Vec3::new(1.0, 5e-9, 0.0);
+        let m = Vec3::new(1.0, (b.zero() + b.escalate()) / 2.0, 0.0);
         for d in [m, -m] {
             assert!(
                 within(&first, d, false, DeclarationRead::Moot, b).is_err(),

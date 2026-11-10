@@ -8,4 +8,5 @@
 # see the crate from outside.
 crates/geom-brep 1
 crates/sweep 2
-crates/topo 144
+# topo 144 -> 143: QML T4's shell.rs imports geom_core::ladder.
+crates/topo 143
