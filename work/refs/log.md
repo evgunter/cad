@@ -290,3 +290,4 @@
   - **Accepting a named free count at a side is within Ev's read-from-the-document principle.** The DM3 sentence was settled from the review.
   - Second fix pass sent.
 - 2026-11-10 — `a-selects-body-takes-an-indexed-read` closed (PR 6555), after a full review, a delta review and two fix passes. Ev accepted the as-built state (comment 6774456192): the form-1 shape is admitted as a per-member selection and refuses at evaluation, and nothing produces or recognises it. Fork row 259's Ev cell records it. (REFS orchestrator)
+- 2026-11-10 — PR 6555 merged (`a5e6a785ff`). REFS has no open P0 or P1 row left. **Track handed back.** (REFS orchestrator)
