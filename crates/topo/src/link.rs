@@ -494,7 +494,7 @@ pub(crate) mod metric {
     /// The nonzero gate's rejection of a distance the band decides zero
     /// where only a side would do, as the K row `name`, with its margin
     /// ([`crate::validate::decide_nonzero`]): minted, and logged, only
-    /// where that zero refuses the whole reading ([`super::Unread::escalation`]).
+    /// where that zero refuses the whole reading ([`super::Unread::escalation_as`]).
     pub(crate) fn zero_refused<T: Decide>(
         name: &'static str,
         d: Distance<T>,
@@ -960,7 +960,7 @@ pub(crate) enum Unsettled<T> {
     /// The band decides its distance zero where only a side would do (a
     /// point drawn in onto a ray's line at the apex): the K row and the
     /// distance, its rejection minted only where it refuses the whole
-    /// reading ([`Unread::escalation`]). In band (row 1(b)): a tighter
+    /// reading ([`Unread::escalation_as`]). In band (row 1(b)): a tighter
     /// band may part the distance from zero.
     Zero(&'static str, Distance<T>),
     /// The band decides it, and the tie's slack reads it another way
@@ -1025,7 +1025,7 @@ pub(crate) enum Unread<T> {
     /// has no wedge (a whole-plane sector). An arc does not reach this
     /// variant by meeting the apex: its clearance is a distance, never
     /// decided negative, and one the band reads zero is a refusal of its
-    /// own ([`ArcReach::clears`]). A limit (`[failure.taxonomy]` row 2).
+    /// own ([`ArcReach::clears_as`]). A limit (`[failure.taxonomy]` row 2).
     NoReference,
     /// No reference read, where a tighter band may give one: a plane `q`
     /// reads in band of outside its sector (`Against::Off`), a side given
@@ -2166,7 +2166,7 @@ impl<T: Decide> Cone<T> {
     /// the material holds `q` iff `q` lies behind `T` and the arc crosses
     /// the other sectors an even number of times, or in front and odd.
     /// The arc is the segment `q`–`w` seen from `p`, clear of `p`
-    /// ([`ArcReach::clears`]), so it meets `T`'s plane only at `w`, and
+    /// ([`ArcReach::clears_as`]), so it meets `T`'s plane only at `w`, and
     /// each other sector is read as [`Cone::crossing`] reads it.
     /// Parity is the material only where the cone's winding takes two
     /// values ([`rest::one_material`]). A reference any reading of which
@@ -2458,7 +2458,7 @@ impl<T: Decide> Cone<T> {
     /// arc leaves `from` on `q`'s side and reaches `on` from `w`'s, and
     /// the material behind a sector winds one more than the side in
     /// front of it. `None` where a reading is in band, the arc does not
-    /// clear the apex ([`ArcReach::clears`]), an end lies on the
+    /// clear the apex ([`ArcReach::clears_as`]), an end lies on the
     /// other's plane, or `q` lies on a third sector, or on its bound. A
     /// third plane `q` lies in band of, decidedly outside its sector, is
     /// read as [`Cone::reads_over`] reads it ([`Cone::against`]): the

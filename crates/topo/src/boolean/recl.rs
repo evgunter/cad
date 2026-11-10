@@ -1929,7 +1929,7 @@ fn resolve_edge_sector<T: Decide>(
         // face it was read On against even where another event's germ,
         // sharing its record, has since rewritten that On (`mark_germ`
         // rewrites every On of a germ record, a second edge's on a ray
-        // `parallel_same` reads apart among them).
+        // `parallel_same_as` reads apart among them).
         None => find_ref_sector(first_read, a_side, f_s, n_own).ok_or(
             BooleanError::ClassificationInvariant {
                 what: "on-edge event without a reference sector",

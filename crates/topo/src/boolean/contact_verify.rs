@@ -736,7 +736,7 @@ fn span_touch<T: Decide>(
     }
 }
 
-/// The names the witness is decided on each surface under ([`on_surface`]).
+/// The names the witness is decided on each surface under ([`on_surface_as`]).
 const CONTACT_TANGENT_ON_1: &str = "contact_tangent_on_1";
 const CONTACT_TANGENT_ON_2: &str = "contact_tangent_on_2";
 

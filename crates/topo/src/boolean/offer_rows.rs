@@ -2306,7 +2306,7 @@ fn every_site_names_the_decision_it_raises() {
                 function = name;
             }
             // A site that passes a parallelism reading raises its
-            // coincidence: `sectors::parallel_same` names none of its own.
+            // coincidence: `sectors::parallel_same_as` names none of its own.
             if !line.trim_start().starts_with("use ") {
                 for (name, reading) in PARALLEL_READINGS {
                     let passed = line

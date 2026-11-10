@@ -718,7 +718,7 @@ BOUNDS_ALLOWLIST=(
   # branched on. `cell_region.rs` 3: `cell_region` and `station_region`,
   # whose station is placed at `T` by the point-in-face doors and whose
   # ball is lifted, and `lift_boundary`, which lifts the boundary
-  # `clear_of_boundary` clears (that one now reads only the lift).
+  # `clear_of_boundary_as` clears (that one now reads only the lift).
   # 3 -> 4 (SYMCLEAR): `cell_region_lifted`, `cell_region`'s body taking
   # the carrier's and the boundary's lifts in hand, so the sweep lifts
   # each window once and places a station at `T` only for a cell

@@ -2138,7 +2138,7 @@ fn pairing_reading_as<T: Decide>(
     )
 }
 
-/// [`pairing_reading`] on two outward normals already read.
+/// [`pairing_reading_as`] on two outward normals already read.
 fn pairing_of_normals<T: Decide>(
     name: &'static str,
     n_plus: geom_core::Vec3<T>,

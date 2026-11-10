@@ -1825,7 +1825,7 @@ pub(crate) fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Opt
 /// [`chart_u_period`] (C4: every closed channel has its own period, which
 /// the chart owns). `τ` where `v` is an angle (sphere, torus:
 /// [`polar_arm`]); the knot domain's length on a spline net decided
-/// closed in `v` ([`net_closes`], `pcurve_chart_v_closed`); `None` on a
+/// closed in `v` ([`net_closes_as`], `pcurve_chart_v_closed`); `None` on a
 /// plane, cylinder or cone, whose `v` is a length, and on an open net.
 /// The kind of period it is ([`VPeriod`]) is what levers its marks
 /// ([`decide_joint`]).
@@ -1880,7 +1880,7 @@ pub(crate) fn chart_side_bounds<T: Decide>(
     !closed && geom_brep::chart_singularity::spline_side_spans(payload, side, band)
 }
 
-/// A spline net's channel, for the closure question [`net_closes`] asks.
+/// A spline net's channel, for the closure question [`net_closes_as`] asks.
 #[derive(Clone, Copy)]
 enum NetChannel {
     U,

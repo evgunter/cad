@@ -1488,7 +1488,7 @@ pub(crate) struct SectionOval<T: Real> {
 }
 
 /// The closed curve of a section a chord takes an arc of: a conic, or a
-/// spiric oval. [`arc_leaving`] and [`oriented_arc`] read it through its
+/// spiric oval. [`arc_leaving_as`] and [`oriented_arc`] read it through its
 /// parameter, its tangent and its lever, the same rule for each.
 #[derive(Clone)]
 pub(crate) enum SectionCurve<T: Real> {
@@ -2301,7 +2301,7 @@ impl<T: Real> SectionChord<T> {
 /// ([`geom_brep::carrier_resolution::resolution`]), `K` times over,
 /// against the zero band (metres), where the gate refuses one of its
 /// attachment pins: Zero reads an in-band pin as the input's
-/// ([`crate::validate::resolved`]).
+/// ([`crate::validate::resolved_as`]).
 pub(crate) const SECTION_PIN_RESOLUTION: &str = "section_pin_resolution";
 
 /// K name: a section chord's end miss past the band, moved toward zero
@@ -2330,7 +2330,7 @@ fn section_end_reading<T: Real>(curve: &SectionCurve<T>) -> Option<SectionEndRea
 /// own resolution over the edge's span, `ρ`.
 ///
 /// - **In band.** Where `ρ` is within the `ε/K` share of the band
-///   ([`crate::validate::resolved`]), the miss is the input's: an end
+///   ([`crate::validate::resolved_as`]), the miss is the input's: an end
 ///   pin by either reading, a residual off the surfaces only on a
 ///   stood-in circle, whose plane is the section plane only to within
 ///   the tilt read Zero ([`SplitJoinError::SectionEndEscalated`], with
@@ -2439,7 +2439,7 @@ fn section_pin_refusal<T: Decide>(
 /// 2. Orient: of the conic's two arcs from `u1` to `u2`, take the one
 ///    leaving `u1` along `leave`, the section's direction of departure
 ///    there as the lane that paired the chord's ends decided it
-///    ([`Leave`], [`arc_leaving`]). Which arc lies in the face is the
+///    ([`Leave`], [`arc_leaving_as`]). Which arc lies in the face is the
 ///    pairing's answer; the chord does not ask the face again. A
 ///    chord from a vertex to itself or to a copy of its site
 ///    ([`same_site`]) is the whole conic, run the same way; on
@@ -2881,7 +2881,7 @@ pub(crate) struct WallSection<T: Real> {
 /// divided face IS the germ plane, and the section conic comes from the
 /// C5 table against the partner wall (by value, from the other
 /// operand). The arc is the one the germ's direction names
-/// ([`arc_leaving`]), the same datum the wall side's chord reads, so
+/// ([`arc_leaving_as`]), the same datum the wall side's chord reads, so
 /// both operands' chords of one polygon side are one geometric arc —
 /// which is what keeps the zip's seams antiparallel-congruent.
 #[allow(clippy::too_many_arguments)]
@@ -6735,7 +6735,7 @@ mod tests {
     /// guard would have been green throughout.
     ///
     /// On the split the walk and the chord read one sine on one lever
-    /// ([`arc_leaving`]): that is the one duplicate this row admits, and
+    /// ([`arc_leaving_as`]): that is the one duplicate this row admits, and
     /// it names both halves so a third cannot join them unseen.
     ///
     /// **What it cannot match** — three shapes:
@@ -6744,7 +6744,7 @@ mod tests {
     ///    arc from the face. It surfaces as new rows in
     ///    `docs/K-REPORT.md`'s census, which is the mechanism that
     ///    already exists for that.
-    /// 2. **A reading of the arc from `arc_leaving`'s RESULT** —
+    /// 2. **A reading of the arc from `arc_leaving_as`'s RESULT** —
     ///    recomputing it from the returned carrier's axis, say. The rung
     ///    still fires once, and no string search can see it.
     /// 3. **A copy in another crate.** The count is scoped to
@@ -6802,7 +6802,7 @@ mod tests {
                 assert!(
                     path == &home || !text.contains(rung.as_str()),
                     "{} names {rung}: the chord's arc has been re-forked out of {}, which \
-                     must hold the only one. Call `arc_leaving` instead.",
+                     must hold the only one. Call `arc_leaving_as` instead.",
                     path.display(),
                     home.display()
                 );

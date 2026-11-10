@@ -59,7 +59,7 @@
 //! more than the band's zero — but it may still be in band of a face's
 //! CARRIER, where its foot lies outside the face. The schedule is walked
 //! by [`crate::ray_walk::walk`], and each ray counts its crossings
-//! ([`crate::ray_walk::Crossings::first_count`]): a crossing landing ON
+//! ([`crate::ray_walk::Crossings::first_count_as`]): a crossing landing ON
 //! a curved face's boundary or meeting its face tangentially before
 //! the count turns, a tie between two faces that do not meet, a tangent
 //! root, or a crossing at `q` grazes the ray; a ray within the band of a
@@ -2991,7 +2991,7 @@ fn ray_passes_beside<T: Decide>(
 const SCHEDULE_ROWS: RayRows = crate::rows::SCHEDULE_RAY;
 
 /// One ray of the sweep: the side its running count reads
-/// ([`Crossings::first_count`]), or `None` where it crosses nothing
+/// ([`Crossings::first_count_as`]), or `None` where it crosses nothing
 /// that counts.
 fn cast_ray<T: Decide>(
     body: &Body<T>,
@@ -3325,7 +3325,7 @@ enum RootSide {
 ///   face is met twice.
 ///
 /// A mark matters only where the count reaches it
-/// ([`Crossings::first_count`]).
+/// ([`Crossings::first_count_as`]).
 #[allow(clippy::too_many_arguments)] // the ray, the planes and the rows, no less
 fn edge_meets<T: Decide>(
     body: &Body<T>,
@@ -4556,7 +4556,7 @@ pub(crate) fn ray_crossings<T: Decide>(
     // alone: faces of one sense tile their carrier (a seam split), so one
     // holds it; a sheet's two faces, opposite senses over one trim, both
     // hold it and cancel; two of one sense that overlap turn the count by
-    // two, which reads nothing ([`Crossings::first_count`]). Where a face
+    // two, which reads nothing ([`Crossings::first_count_as`]). Where a face
     // holds it, the others' readings of it, in band, faulted or not,
     // decide nothing; a fault stands only where no face holds it. ----
     let mut read = vec![false; roots.len()];
