@@ -215,7 +215,7 @@ fn draw(r: &mut Rng, i: usize) -> (Around<f64>, Piece<f64>, Vec<Point3<f64>>, f6
         1 => Around::Point(origin),
         _ => Around::Circle(Core {
             axis: geom::Line {
-                origin: origin,
+                origin,
                 dir: axis,
             },
             radius: r.range(0.0, 2.0),
