@@ -338,7 +338,7 @@ pub(super) fn build_sectors<T: Decide>(
 pub(super) fn pair_sectors<T: Decide>(
     sites: [(&Body<T>, VertexKey, &SlitTips); 2],
     band: Band,
-) -> Result<(Vec<BoolSector<T>>, Vec<BoolSector<T>>), BooleanError> {
+) -> Result<[Vec<BoolSector<T>>; 2], BooleanError> {
     let [a, b] = [Operand::A, Operand::B].map(|operand| {
         let (body, vertex, tips) = sites[operand as usize];
         Star::walk(body, vertex, tips, band)
@@ -352,7 +352,7 @@ pub(super) fn pair_sectors<T: Decide>(
         star.refine(datums, band)
             .map_err(|fault| star_fault(fault, operand, vertex, band))?;
     }
-    Ok((BoolSector::of_star(&a), BoolSector::of_star(&b)))
+    Ok([BoolSector::of_star(&a), BoolSector::of_star(&b)])
 }
 
 /// Each of a partner vertex's faces as a datum its sectors are refined
@@ -3393,17 +3393,19 @@ mod tests {
         )
     }
 
-    /// **A cylinder-graze divider reads its descended side, in both
-    /// verbs.** At an oblique rim's vertex the wall's corner is straight,
-    /// so the star cuts it at its bisector, a divider in the wall's
-    /// tangent plane, off the wall's ruling where the rim leaves the
-    /// vertex obliquely. A plane tangent to the wall there ties the divider at
-    /// first order, and both verbs read one order down: the split's
-    /// [`crate::splitting::bound_side`] and the pierce's [`pierce_side`]
-    /// take the side the wall bends to along the divider, the same one,
-    /// not `On` by convention.
+    /// **A cylinder-graze divider reads its descended side, in the
+    /// pierce** (the split's half is
+    /// `splitting::neighborhood::tests::a_cylinder_graze_divider_reads_its_descended_side`).
+    /// At an oblique rim's vertex the wall's corner is straight, so the
+    /// star cuts it at its bisector, a divider in the wall's tangent plane,
+    /// off the wall's ruling where the rim leaves the vertex obliquely
+    /// ([`crate::test_support_fixtures::oblique_rim_wall_from`]). The wall's
+    /// tangent plane ties the divider at first order, and the pierce reads
+    /// it one order down: the wall bends away from its outward normal, so
+    /// the divider reads In against that normal and Out against its
+    /// reverse, not `On`.
     #[test]
-    fn a_cylinder_graze_divider_reads_its_descended_side_in_both_verbs() {
+    fn a_cylinder_graze_divider_reads_its_descended_side() {
         let b = band();
         let (body, wall, vertex) =
             crate::test_support_fixtures::oblique_rim_wall_from::<f64>(0.3, 1.0);
@@ -3417,16 +3419,8 @@ mod tests {
             panic!("the wall has a tangent plane at the rim")
         };
         let divider = &star.bounds[k];
-        for n in [normal.vec(), -normal.vec()] {
-            let split = crate::splitting::bound_side(
-                &body,
-                divider,
-                geom_brep::ReferenceNormal::of_split_plane(n),
-                |_| Err::<crate::splitting::PlaneSide, ()>(()),
-                b,
-            )
-            .unwrap();
-            let (boolean, _) = pierce_side(
+        for (n, want) in [(normal.vec(), SideCode::In), (-normal.vec(), SideCode::Out)] {
+            let (read, _) = pierce_side(
                 divider.dir,
                 divider.reach,
                 OutwardNormal::from_chart(n, true),
@@ -3435,13 +3429,8 @@ mod tests {
                 Reading::plain(b),
             )
             .unwrap();
-            assert!(boolean.tied, "n = {n:?}: the divider ties at first order");
-            let want = match boolean.code {
-                SideCode::In => crate::splitting::PlaneSide::Below,
-                SideCode::Out => crate::splitting::PlaneSide::Above,
-                SideCode::On => panic!("n = {n:?}: the wall bends off its tangent plane"),
-            };
-            assert_eq!(split, want, "n = {n:?}: the split reads the boolean's side");
+            assert!(read.tied, "n = {n:?}: the divider ties at first order");
+            assert_eq!(read.code, want, "n = {n:?}: descended");
         }
     }
 

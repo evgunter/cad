@@ -518,7 +518,7 @@ mod tests {
             u_ref: axis.cross(Vec3::unit_x()).normalize(),
             sense: true,
         };
-        let rows: Vec<(&Body<f64>, VertexKey, Vec<Datum<f64>>)> = vec![
+        let rows = [
             (&cone, apex, vec![Datum::Plane(tilted(0.3, 1.0, -0.2))]),
             (&cone, apex, vec![Datum::Plane(tilted(1.0, 0.2, 0.4))]),
             (

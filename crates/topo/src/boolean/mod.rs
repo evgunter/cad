@@ -6925,7 +6925,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
         // Each vertex's sectors, cut where the other's faces turn their
         // side along them ([`sectors::pair_sectors`]).
-        let (a_sectors, b_sectors) =
+        let [a_sectors, b_sectors] =
             sectors::pair_sectors([(&a, c.a, &tips[0]), (&b, c.b, &tips[1])], band)?;
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.

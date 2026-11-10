@@ -95,7 +95,7 @@ impl StarFault {
 /// # Errors
 ///
 /// [`StarFault::split_refusal`]'s, and the carrier refusals.
-pub(crate) fn split_star<T: Decide>(
+pub(super) fn split_star<T: Decide>(
     body: &Body<T>,
     normal: geom_core::Vec3<T>,
     vertex: VertexKey,
@@ -169,7 +169,7 @@ pub(crate) fn bound_side<T: Decide, E>(
 /// One ON vertex's classified neighbourhood: its star, each bound's side
 /// (after rules (a) and (b)), and whether the plane held it before the
 /// rules sent it to one.
-pub(crate) struct Classified<T: geom_core::Real> {
+pub(super) struct Classified<T: geom_core::Real> {
     pub star: Star<T>,
     pub classes: Vec<PlaneSide>,
     pub in_plane: Vec<bool>,
@@ -271,6 +271,41 @@ pub(super) fn classify<T: Decide>(
 mod tests {
     use super::*;
     use geom_core::{Tol, Vec3};
+
+    /// **A cylinder-graze divider reads its descended side, in the
+    /// split** (the pierce's half is
+    /// `boolean::sectors::tests::a_cylinder_graze_divider_reads_its_descended_side`):
+    /// the oblique rim's straight corner on the wall holds a divider, and a
+    /// plane tangent to the wall there reads it one order down, Below
+    /// against the wall's outward normal and Above against its reverse,
+    /// not `On` by convention.
+    #[test]
+    fn a_cylinder_graze_divider_reads_its_descended_side() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, wall, vertex) =
+            crate::test_support_fixtures::oblique_rim_wall_from::<f64>(0.3, 1.0);
+        let star = Star::walk(&body, vertex, &SlitTips::default(), band).unwrap();
+        let k = (0..star.bounds.len())
+            .find(|&k| !star.bounds[k].real && star.sectors[k].face == wall)
+            .expect("the wall's straight corner holds a divider");
+        let crate::star::StarFace::Tangent(normal) = star.sectors[k].at else {
+            panic!("the wall has a tangent plane at the rim")
+        };
+        for (n, want) in [
+            (normal.vec(), PlaneSide::Below),
+            (-normal.vec(), PlaneSide::Above),
+        ] {
+            let side = bound_side(
+                &body,
+                &star.bounds[k],
+                geom_brep::ReferenceNormal::of_split_plane(n),
+                |_| Err::<PlaneSide, ()>(()),
+                band,
+            )
+            .unwrap();
+            assert_eq!(side, want, "n = {n:?}: descended");
+        }
+    }
 
     /// **A vertex near a cone's axis refuses, typed**: on a needle cone,
     /// a vertex a band's width off the axis and well off the apex has no
