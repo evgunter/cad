@@ -47,13 +47,13 @@ use geom_core::k_stats::Magnitude;
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag, Sign};
 use strum::IntoEnumIterator as _;
 
-use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
 use crate::contact::{
     ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass, RestRow, RestRuling,
     TangentRow, TangentRuling,
 };
+use crate::contain::ContainError;
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -257,8 +257,8 @@ pub(crate) fn uncrossable() -> crate::splitting::Uncrossable {
 /// Every refusal the solid door can hand the face door's curved reads,
 /// carried as [`ContainError::Curved`]; `Loop` once per loop refusal, and
 /// `OffPlane` once per cause.
-fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
-    use crate::boolean::PointInSolidError as S;
+fn point_in_solid_errors() -> Vec<crate::solid_contain::PointInSolidError> {
+    use crate::solid_contain::PointInSolidError as S;
     use crate::splitting::{OffPlane, OffPlaneCause, PointInLoopError as L};
     let face = FaceKey::default();
     let r#loop = LoopKey::default();
@@ -333,11 +333,11 @@ pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
     } else {
         [[zero, off], [off, zero]]
     };
-    ContainError::ArcEndClearOfCorners(Box::new(crate::boolean::ArcEndGaps { gaps, band: band() }))
+    ContainError::ArcEndClearOfCorners(Box::new(crate::contain::ArcEndGaps { gaps, band: band() }))
 }
 
 fn contain_errors() -> Vec<ContainError> {
-    use crate::boolean::ContainDecision;
+    use crate::contain::ContainDecision;
     use crate::splitting::{Escalation, LoopDecision};
     let [value, _, poisoned] = diags();
     let over_wound = Indeterminate {
@@ -356,7 +356,7 @@ fn contain_errors() -> Vec<ContainError> {
     };
     // Every pair a site raises (`boolean::CONTAINMENT_RAISED`), in each form
     // its reading can take there.
-    let mut v: Vec<ContainError> = crate::boolean::CONTAINMENT_RAISED
+    let mut v: Vec<ContainError> = crate::contain::CONTAINMENT_RAISED
         .into_iter()
         .flat_map(|(decision, escalation)| match escalation {
             Escalation::Margin if decision == arc_span => {
@@ -2111,11 +2111,11 @@ where
 /// every enum [`validation_error_samples`] renders is sampled.
 #[cfg(test)]
 pub(crate) fn nested_coverage_gaps() -> Vec<String> {
-    use crate::boolean::ContainErrorKind;
     use crate::chart_region::ChartRegionErrorKind;
     use crate::contact::{
         ContactRefusalKind, ContactVerdictKind, TangentRowKind, TangentRulingKind,
     };
+    use crate::contain::ContainErrorKind;
     use crate::pcurves::PcurveMintErrorKind;
     use crate::props::MassPropsErrorKind;
     use crate::validate::{
@@ -2170,21 +2170,21 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         "ContainError",
         &contain_errors(),
     ));
-    let carried: Vec<crate::boolean::PointInSolidError> = contain_errors()
+    let carried: Vec<crate::solid_contain::PointInSolidError> = contain_errors()
         .into_iter()
         .filter_map(|e| match e {
             ContainError::Curved(e) => Some(e),
             _ => None,
         })
         .collect();
-    out.extend(gaps::<
-        _,
-        crate::boolean::solid_contain::PointInSolidErrorKind,
-    >("PointInSolidError", &carried));
+    out.extend(gaps::<_, crate::solid_contain::PointInSolidErrorKind>(
+        "PointInSolidError",
+        &carried,
+    ));
     let loops: Vec<crate::splitting::PointInLoopError> = carried
         .into_iter()
         .filter_map(|e| match e {
-            crate::boolean::PointInSolidError::Loop(e) => Some(e),
+            crate::solid_contain::PointInSolidError::Loop(e) => Some(e),
             _ => None,
         })
         .collect();

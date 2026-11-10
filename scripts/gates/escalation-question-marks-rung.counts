@@ -23,7 +23,7 @@ rung:crates/topo/src/boolean/insert.rs:held_cut 4
 # FaceOnLocus::at's ride (climb_differing): the end (`hi - s`) is read
 # only where the start decided inside, and is the rung's last read; the
 # start's own refusal is an `and_then`, not a `?`: PREMISE.
-rung:crates/topo/src/boolean/rim_wedge.rs:at 1
+rung:crates/topo/src/rim_wedge.rs:at 1
 # crescent's pair of bounds. The opening (`bool_sector_crescent`) reads
 # none of the reads before it, and decided off `Positive` it answers
 # `false` alone. So the first `parallel_same_as`, the across reading and
@@ -42,7 +42,7 @@ rung:crates/topo/src/ring_path.rs:path_parity 6
 # ruled_region's apex walk, a reader `ray_walk::walk` reads through its
 # parameter: `apex_generator` builds the generator `read_leg` reads:
 # PREMISE.
-rung:crates/topo/src/boolean/ruled_region.rs:contains 1
+rung:crates/topo/src/ruled_region.rs:contains 1
 # point_in_faces' ray sweep, read the same way: `missed_side` is read
 # only where `cast_ray` found no hit: PREMISE.
-rung:crates/topo/src/boolean/solid_contain.rs:point_in_faces 1
+rung:crates/topo/src/solid_contain.rs:point_in_faces 1

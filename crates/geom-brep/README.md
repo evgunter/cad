@@ -1174,9 +1174,9 @@ shared half-angle root cores `curve_face::circle_roots`) are built
 here; the line × quadric and conic × quadric arms are the boolean's
 root doors in `topo`. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
-on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);
+on its own sheet (`topo::spline_region::spline_chart_placement`);
 a point in space has its placement built
-(`topo::boolean::spline_region`, the spline arm of the boolean's
+(`topo::spline_region`, the spline arm of the boolean's
 point-in-face door): on the carrier by a foot decided within the band,
 off it where every Bézier cell of the chart is decided past it; then in
 where such a foot lies in the trim, read from the face's lifted pcurve

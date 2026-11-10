@@ -36,7 +36,7 @@ The ∖ and ∩ of the same pair pass tier 3′.
 The refusal is raised in `crates/topo/src/census.rs`, in the
 edge-in-curved-face lane (the `face_holds` call with
 `"pm_census_ef_curved_contain"`), where `face_holds` answers
-`Some(None)`: `boolean::contain`'s `face_placement` read the face's trim
+`Some(None)`: `contain`'s `face_placement` read the face's trim
 as `CurvedPlacement::Trim(None)`.
 
 ## Not checked

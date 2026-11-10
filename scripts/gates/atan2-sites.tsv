@@ -36,11 +36,11 @@ crates/topo/src/cover.rs	sphere_window	1	chart
 crates/topo/src/boolean/conic_quadric/mod.rs	through_the_apex	1	harmonic
 crates/topo/src/boolean/fate.rs	tip_wraps	1	turn
 crates/topo/src/boolean/ops.rs	apply_cut_ins	1	turn
-crates/topo/src/boolean/region.rs	between	1	turn
-crates/topo/src/boolean/rim_wedge.rs	locus_param	1	awaits-6443
-crates/topo/src/boolean/rim_wedge.rs	crossings	2	awaits-6443
-crates/topo/src/boolean/solid_contain.rs	loop_turn	1	turn
-crates/topo/src/boolean/solid_contain.rs	arc_turn	2	turn
+crates/topo/src/region.rs	between	1	turn
+crates/topo/src/rim_wedge.rs	locus_param	1	awaits-6443
+crates/topo/src/rim_wedge.rs	crossings	2	awaits-6443
+crates/topo/src/solid_contain.rs	loop_turn	1	turn
+crates/topo/src/solid_contain.rs	arc_turn	2	turn
 crates/topo/src/chart_region.rs	cylinder_pair_overlap	1	turn
 crates/topo/src/injective.rs	on	1	chart
 crates/topo/src/offset_axial.rs	solve_corner	1	harmonic

@@ -1,9 +1,9 @@
 //! **A torus face's region, read from its boundary edges** — the one
 //! reading both point doors take of a torus face outside a closed group:
 //! the ray lane's hit test and boundary pre-pass
-//! ([`super::solid_contain`]) and the pierce arm's landing test
-//! ([`super::contain::curved_face_containment`]). It is
-//! [`super::sphere_region`]'s method on the torus.
+//! ([`crate::solid_contain`]) and the pierce arm's landing test
+//! ([`crate::contain::curved_face_containment`]). It is
+//! [`crate::sphere_region`]'s method on the torus.
 //!
 //! # Method: the closest crossing along a path of circles
 //!
@@ -98,15 +98,15 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use geom_brep::curve_pair::on_surface::{Charted, Section, SurfaceCurve};
 
-use super::region::{
-    self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
-    circle_edge_hit, in_band,
-};
-use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
 use crate::null::Scaffolding;
 use crate::ray_walk::RayFault;
+use crate::region::{
+    self, End, Fault, Legs, Paths, QueryFoot, ReadAcross, Region, RegionEdge, RegionRefusal, Round,
+    circle_edge_hit, in_band,
+};
+use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::ConicRows;
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
@@ -561,7 +561,7 @@ mod tests {
             ),
             t0: 0.0,
             t1: TAU,
-            turn: crate::boolean::region::fixture_turn(0.0, TAU),
+            turn: crate::region::fixture_turn(0.0, TAU),
             forward,
         }
     }
@@ -692,7 +692,7 @@ mod tests {
             ),
             t0: 0.0,
             t1: TAU,
-            turn: crate::boolean::region::fixture_turn(0.0, TAU),
+            turn: crate::region::fixture_turn(0.0, TAU),
             forward,
         };
         region(R, MINOR, vec![circle(0.0, true, 1), circle(phi1, false, 2)])
@@ -823,7 +823,7 @@ mod tests {
                 ),
                 t0: 0.0,
                 t1: TAU,
-                turn: crate::boolean::region::fixture_turn(0.0, TAU),
+                turn: crate::region::fixture_turn(0.0, TAU),
                 forward,
             };
             let point = |phi: f64, t: f64| {
@@ -917,7 +917,7 @@ mod tests {
             }),
             t0,
             t1,
-            turn: crate::boolean::region::fixture_turn(t0, t1),
+            turn: crate::region::fixture_turn(t0, t1),
             forward: true,
         }
     }
@@ -1023,7 +1023,7 @@ mod tests {
             },
             t0: -2.5,
             t1: 2.5,
-            turn: crate::boolean::region::fixture_turn(-2.5, 2.5),
+            turn: crate::region::fixture_turn(-2.5, 2.5),
             forward: true,
         };
         let region = holding(oval.clone());
@@ -1127,7 +1127,7 @@ mod tests {
         };
         let (body, face) = wall();
         let (mut nulled, nulled_face) = wall();
-        super::region::with_null_edge(&mut nulled, nulled_face);
+        crate::region::with_null_edge(&mut nulled, nulled_face);
         let plain = torus_face_region(&body, face).unwrap().unwrap();
         // The null edge stepped over, not refused.
         let held = torus_face_region(&nulled, nulled_face).unwrap().unwrap();
@@ -1185,7 +1185,7 @@ mod tests {
     fn a_torus_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let regions = patch_on_frames();
-        let class = crate::boolean::region::refusal_class;
+        let class = crate::region::refusal_class;
         for (what, p) in patch_edge_queries(&[-5e-9, -1e-9, -5e-10, 5e-10, 1e-9, 5e-9]) {
             let first = class(regions[0].contains(p, band));
             for (k, region) in regions.iter().enumerate().skip(1) {
@@ -1209,7 +1209,7 @@ mod tests {
     fn a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let regions = patch_on_frames();
-        let class = crate::boolean::region::refusal_class;
+        let class = crate::region::refusal_class;
         let by_frame = patch_edge_queries(&[-1e-8, 1e-8])
             .into_iter()
             .filter(|&(_, p)| {

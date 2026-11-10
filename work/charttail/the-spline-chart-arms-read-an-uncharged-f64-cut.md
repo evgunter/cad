@@ -10,11 +10,11 @@ cost: M
 
 
 
-Filed by `splice/spline-region-charge`, from its sweep for the class "an f64 cut of a control net (knot insertion, de Casteljau, a window restriction, out of homogeneous form) whose box, hull or offsets decide, with no charge for the cut's rounding". That PR charges the spline face placement's two instances (`topo/src/boolean/spline_region.rs`: the carrier floor and the trim's pieces), where a point on a sheet `1e5` out read off its carrier and a query on a trim curve was given a side at the 1e-12 row. **This row was read, not reproduced.** Confidence: high that it is uncharged, low that it matters (the slack is relative).
+Filed by `splice/spline-region-charge`, from its sweep for the class "an f64 cut of a control net (knot insertion, de Casteljau, a window restriction, out of homogeneous form) whose box, hull or offsets decide, with no charge for the cut's rounding". That PR charges the spline face placement's two instances (`topo/src/spline_region.rs`: the carrier floor and the trim's pieces), where a point on a sheet `1e5` out read off its carrier and a query on a trim curve was given a side at the 1e-12 row. **This row was read, not reproduced.** Confidence: high that it is uncharged, low that it matters (the slack is relative).
 
 ## What
 
-`topo/src/boolean/spline_region.rs` `window_arms` reads each Bézier cell
+`topo/src/spline_region.rs` `window_arms` reads each Bézier cell
 restricted to the window (`Patch::restricted`, then `Patch::surface`) into
 `topo/src/chart_region.rs` `spline_chart_arms` (line ~2850) and `gate_arm`
 (~2828), whose arms meter the trim's clearance decisions (`Trim::exits_clear`,

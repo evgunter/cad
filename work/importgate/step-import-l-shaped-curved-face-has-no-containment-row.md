@@ -19,7 +19,7 @@ Found by CONTACT-11's review (MINOR-4).
 `CONICAL_SURFACE` arms), and `topo::point_in_solid` is public. So a
 CAD file with an L-shaped torus or cone face reaches the trims'
 chart-box checks, `torus_chart_windows` and `cone_trimmed_window` in
-`crates/topo/src/boolean/solid_contain.rs`. Today no boolean can mint
+`crates/topo/src/solid_contain.rs`. Today no boolean can mint
 such a face: `topo::subtract` refuses the torus × plane pair
 (`GermFrameUnsupported`) (`crates/sweep/tests/contact11_torus_chart_l.rs`).
 
@@ -43,7 +43,7 @@ covered.
 ## Moved by CHART (2026-10-24)
 
 Branch `chart/ringed-curved-doors` reads a cone face from its boundary
-edges (`topo::boolean::ruled_region`), as the torus already was, and
+edges (`topo::ruled_region`), as the torus already was, and
 deletes `cone_trimmed_window` and `chart_polygon_box`. An imported L
 cone face is now read, not refused: the notch reads `Out`. The cone row
 is renamed `a_small_notch_in_a_cone_face_reads_out_at_every_size`. The

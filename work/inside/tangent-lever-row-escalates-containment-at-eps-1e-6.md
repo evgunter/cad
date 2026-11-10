@@ -35,4 +35,4 @@ reduction's, before the join.
 
 ## Re-homed at ZIP's close (2026-10-11)
 
-Moved from ZIP to INSIDE: the escalation is the reduction's containment ladder in `boolean/contain.rs`, which INSIDE owns. The declared-REST zip it once exercised was deleted by INTENT stage 4 A.
+Moved from ZIP to INSIDE: the escalation is the reduction's containment ladder in `contain.rs`, which INSIDE owns. The declared-REST zip it once exercised was deleted by INTENT stage 4 A.

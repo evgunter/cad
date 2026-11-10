@@ -177,9 +177,9 @@ pub fn face_nearest<T: Decide>(
         .all(geom_core::is_finite_length);
     let out = finite
         && constraint(|| {
-            match crate::boolean::face_placement(body, face, least, band, NEAREST_FOOT) {
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                    crate::boolean::FaceContainment::Out,
+            match crate::contain::face_placement(body, face, least, band, NEAREST_FOOT) {
+                Ok(crate::contain::CurvedPlacement::Trim(Some(
+                    crate::contain::FaceContainment::Out,
                 ))) => Ok(()),
                 _ => Err(()),
             }
@@ -280,7 +280,7 @@ pub fn face_cover<T: Decide>(body: &Body<T>, face: FaceKey, band: Band) -> FaceC
 /// [`face_cover`] read along `aim`, which a sphere face's arm reads one
 /// more constraint off: at each end of the aim where the face places
 /// the sphere's pole `c ± r·â` definitely `Out`
-/// ([`crate::boolean::curved_face_placement`]), the face reaches no
+/// ([`crate::contain::curved_face_placement`]), the face reaches no
 /// further along it than its boundary. `â·x` on a sphere has its only
 /// critical points at those poles, so with one not a point of the face
 /// its extreme that way is on the boundary. Only a definite `Out`
@@ -480,9 +480,9 @@ fn pole_side<T: Decide>(
     let (below, above) = boundary.range_along(d);
     let out = |s: T| {
         constraint(|| {
-            match crate::boolean::curved_face_placement(body, f.key(), center + d * (r * s), band) {
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                    crate::boolean::FaceContainment::Out,
+            match crate::contain::curved_face_placement(body, f.key(), center + d * (r * s), band) {
+                Ok(crate::contain::CurvedPlacement::Trim(Some(
+                    crate::contain::FaceContainment::Out,
                 ))) => Ok(()),
                 _ => Err(()),
             }
@@ -547,8 +547,8 @@ fn sphere_window<T: Decide>(
     surface: &Surface<T>,
     band: Band,
 ) -> Option<Cover<T>> {
-    use crate::boolean::solid_contain::PointInSolidError;
     use crate::props::LoopEdgesError;
+    use crate::solid_contain::PointInSolidError;
     use geom_core::{Margin, Sign};
     let Surface::Sphere {
         center,
@@ -586,7 +586,7 @@ fn sphere_window<T: Decide>(
         {
             return Err(());
         }
-        let trim = match crate::boolean::solid_contain::sphere_chart_trim(
+        let trim = match crate::solid_contain::sphere_chart_trim(
             body,
             f.key(),
             *center,

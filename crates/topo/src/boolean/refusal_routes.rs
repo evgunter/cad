@@ -42,8 +42,8 @@ use crate::splitting::Escalation;
 use crate::contact::GlueClass;
 
 pub use super::plane_eq::PlaneRung;
-pub use super::solid_contain::WallRung;
 use crate::face_normal::NormalDecision;
+pub use crate::solid_contain::WallRung;
 use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use geom_brep::sector_shape::SectorRung;
@@ -1918,7 +1918,7 @@ pub(in crate::boolean) mod tests {
         /// The defect ending.
         Defect,
         /// The containment walk's decision's own lever, which its rows in
-        /// `boolean::contain` pin independently, and no tolerance.
+        /// `contain` pin independently, and no tolerance.
         Placement(ContainDecision, Escalation),
     }
 
@@ -2706,7 +2706,7 @@ pub(in crate::boolean) mod tests {
         );
         let r = 1.0 + (b.zero() + b.escalate()) / 2.0;
         let p = Point3::new(r * 1.2_f64.cos(), r * 1.2_f64.sin(), 0.5);
-        let refusal = crate::boolean::contain::curved_face_placement(&body, wall, p, b);
+        let refusal = crate::contain::curved_face_placement(&body, wall, p, b);
         let Err(crate::boolean::ContainError::Escalated {
             decision,
             escalation,

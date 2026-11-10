@@ -42,7 +42,7 @@
 //! radius below ρ meets the carrier in one disc. With no vertex or edge of the face inside the
 //! ball, the face holds all of that disc or none of it, and the foot,
 //! placed `Out` of the face by its door
-//! ([`super::contain::curved_face_placement`]), says none. Every edge is
+//! ([`crate::contain::curved_face_placement`]), says none. Every edge is
 //! decided clear by a lower bound on its distance from the foot
 //! ([`edge_clear_of_ball`]).
 //!
@@ -56,10 +56,10 @@
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
 use super::BooleanError;
-use super::contain::{ContainError, CurvedPlacement, FaceContainment};
 use super::{BooleanDecision, reduce};
 use crate::body::Body;
 use crate::boxes;
+use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::BoundaryMember;
 use crate::validate::decide;
@@ -343,7 +343,7 @@ fn ball_off_face<T: Decide + Bounds>(
     }
     // OffCarrier → not clear (the foot is on the carrier by construction).
     let foot = crate::held::Held::constructed(foot, "the foot of the ball on the face's carrier");
-    match super::contain::placement_on_carrier(y, face, foot, band).map(|(at, _, _)| at) {
+    match crate::contain::placement_on_carrier(y, face, foot, band).map(|(at, _, _)| at) {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => Ok(true),
         Ok(_)
         | Err(
@@ -373,7 +373,7 @@ fn ball_off_face<T: Decide + Bounds>(
             },
             diag,
         }),
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
     }
 }
 

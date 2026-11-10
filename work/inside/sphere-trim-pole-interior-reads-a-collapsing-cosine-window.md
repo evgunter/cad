@@ -15,7 +15,7 @@ Found by PRED's D46 dimension verdicts (the audit's F26,
 
 ## What
 
-`crates/topo/src/boolean/solid_contain.rs` `sphere_chart_trim`, on each
+`crates/topo/src/solid_contain.rs` `sphere_chart_trim`, on each
 boundary meridian edge of a sphere face whose turn is `Short`, asks
 whether a pole lies strictly inside the edge under
 `bool_sphere_trim_pole_interior`:

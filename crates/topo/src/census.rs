@@ -340,16 +340,16 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::boolean::{
-    ContactKind, ContactRecords, ContainError, FaceContainment, SolidContainment, contfp,
-};
+use crate::boolean::{ContactKind, ContactRecords};
 use crate::boxes::{edge_box, face_box, sweep_pad};
 use crate::chart_region::{ChartRegionError, RegionLane};
+use crate::contain::{ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::face_normal::NormalAbort;
 use crate::geometry::PointKey;
 use crate::live::proven;
 use crate::null::CurveGeom;
+use crate::solid_contain::SolidContainment;
 use crate::sweep_trace::SweepPairs;
 
 use crate::link::{
@@ -1948,7 +1948,7 @@ fn face_cone<T: Decide>(
 /// placement, the point checked on the face's carrier in debug builds
 /// ([`crate::held::Held::check`]) and placed with no on-carrier decision
 /// (a planar face by its plane, [`contfp`]; a curved one by its region,
-/// [`crate::boolean::curved_face_placement`]). A point read definitely
+/// [`crate::contain::curved_face_placement`]). A point read definitely
 /// off a curved face's carrier (a planar face's placement never says so)
 /// breaks the caller's premise, the kernel's fault ([`census_fault`]),
 /// as the boolean's held door answers it. `Some(None)` where no door
@@ -1972,11 +1972,11 @@ fn placed<T: Decide>(
         Some(normal) => contain(body, (f, normal), q, band, errors).map(Some),
         _ => match read_containment(
             f,
-            crate::boolean::curved_face_placement(body, f, q, band),
+            crate::contain::curved_face_placement(body, f, q, band),
             errors,
         )? {
-            crate::boolean::CurvedPlacement::Trim(at) => Some(at),
-            crate::boolean::CurvedPlacement::OffCarrier => census_fault(
+            crate::contain::CurvedPlacement::Trim(at) => Some(at),
+            crate::contain::CurvedPlacement::OffCarrier => census_fault(
                 format_args!("face {f:?}"),
                 "a point the census holds on the face's carrier reads definitely off it",
             ),
@@ -7405,8 +7405,8 @@ pub(crate) enum Undecided {
 /// [`Undecided::WitnessTooClose`]'s sentence, for every decision the
 /// loop walk carries and for none: the walk's question about the corner
 /// tested (the point its subject names), and its lever, both read from
-/// [`crate::boolean::placement_subject`] and
-/// [`crate::boolean::placement_lever`]. The margin that would value a
+/// [`crate::contain::placement_subject`] and
+/// [`crate::contain::placement_lever`]. The margin that would value a
 /// tighter tolerance stops here: `what` is a `&'static str`, so each
 /// sentence is built once and kept.
 fn witness_too_close(decision: Option<crate::splitting::LoopDecision>) -> &'static str {
@@ -7419,8 +7419,8 @@ fn witness_too_close(decision: Option<crate::splitting::LoopDecision>) -> &'stat
                 let sentence = format!(
                     "testing a corner of one against the other, {} is undecided at this \
                      tolerance. Recourse: {}",
-                    crate::boolean::placement_subject(carried),
-                    crate::boolean::placement_lever(carried)
+                    crate::contain::placement_subject(carried),
+                    crate::contain::placement_lever(carried)
                 );
                 (decision, sentence)
             })
@@ -7549,8 +7549,8 @@ impl Undecided {
 
     /// The reason a point-in-solid refusal leaves a placement
     /// undecided. Exhaustive, so a new refusal is placed here by hand.
-    pub(crate) fn of_point_in_solid(e: &crate::boolean::PointInSolidError) -> Self {
-        use crate::boolean::PointInSolidError as E;
+    pub(crate) fn of_point_in_solid(e: &crate::solid_contain::PointInSolidError) -> Self {
+        use crate::solid_contain::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
             E::Escalated { .. } => Self::WitnessTooClose(None),
@@ -9792,7 +9792,7 @@ pub(crate) enum Probe {
 /// the probe with its reason.
 pub(crate) fn probe_vertices<P: Copy>(
     vertices: &[(VertexKey, P)],
-    mut place: impl FnMut(P) -> Result<SolidContainment, crate::boolean::PointInSolidError>,
+    mut place: impl FnMut(P) -> Result<SolidContainment, crate::solid_contain::PointInSolidError>,
     exempt: impl Fn(VertexKey) -> bool,
 ) -> Probe {
     let (mut out_seen, mut any) = (false, false);
@@ -9884,7 +9884,7 @@ pub(crate) fn answered_in_band(
 ///    orderings
 ///    with no gate on either: every vertex of each instance is probed
 ///    against the other's material through the per-solid point-in-solid
-///    door ([`crate::boolean::point_in_solid_faces`], at the run band, through that
+///    door ([`crate::solid_contain::point_in_solid_faces`], at the run band, through that
 ///    door's own predicates — no comparand of this arm's), and:
 ///    - any vertex strictly `In` the other's material ⇒
 ///      [`ValidationError::InstanceInterference`] (`outer` holds the
@@ -10626,8 +10626,8 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         .collect();
     let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
         let selected = match selections.get(&outer) {
-            Some(cell) => cell.get_or_init(|| crate::boolean::SolidFaces::of(body, outer)),
-            None => &Err(crate::boolean::PointInSolidError::NoSuchSolid { solid: outer }),
+            Some(cell) => cell.get_or_init(|| crate::solid_contain::SolidFaces::of(body, outer)),
+            None => &Err(crate::solid_contain::PointInSolidError::NoSuchSolid { solid: outer }),
         };
         let sel = match selected {
             Ok(sel) => sel,
@@ -10642,7 +10642,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .collect();
         probe_vertices(
             &vertices,
-            |p| crate::boolean::point_in_solid_faces(body, sel, p, band, tol),
+            |p| crate::solid_contain::point_in_solid_faces(body, sel, p, band, tol),
             exempt,
         )
     };
@@ -11200,7 +11200,7 @@ pub(crate) fn in_both<E>(
 }
 
 /// Where `face` holds `q`: the boolean's own placement
-/// ([`crate::boolean::face_placement`]), which decides `q` against the
+/// ([`crate::contain::face_placement`]), which decides `q` against the
 /// face's carrier rather than holding it there, a point decided off a
 /// planar face's plane read `Out`: the reader for a point no one holds
 /// on the carrier. A point the caller holds there is placed by
@@ -11215,8 +11215,8 @@ pub(crate) fn face_holds<T: Decide>(
     on_plane: &'static str,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    use crate::boolean::{CurvedPlacement, PlacementError};
-    match crate::boolean::face_placement(body, face, q, band, on_plane) {
+    use crate::contain::{CurvedPlacement, PlacementError};
+    match crate::contain::face_placement(body, face, q, band, on_plane) {
         Ok(CurvedPlacement::OffCarrier) => Some(Some(FaceContainment::Out)),
         Ok(CurvedPlacement::Trim(at)) => Some(at),
         Err(PlacementError::OnPlane(cause)) => {
@@ -11232,7 +11232,7 @@ pub(crate) fn face_holds<T: Decide>(
 /// One `(vertex, face)` record's witness: both cells live, and the
 /// vertex strictly inside the face — on its plane and inside its region
 /// for a planar face, inside its trim by the curved containment door
-/// ([`crate::boolean::curved_face_containment`], which puts a point off
+/// ([`crate::contain::curved_face_containment`], which puts a point off
 /// the carrier `Out`) for a curved one.
 fn confirm_vertex_on_face<T: Decide>(
     body: &Body<T>,
@@ -11392,7 +11392,7 @@ fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
 /// **How a segment passes one of a body's line edges** — the
 /// edge-edge closest read ([`ee_lines_closest`]) with the segment as the
 /// first span: what a ray reads of the edges it passes
-/// (`boolean::solid_contain::ray_crossings`).
+/// (`solid_contain::ray_crossings`).
 pub(crate) struct LinePass<T: Real> {
     /// The edge.
     pub(crate) edge: EdgeKey,
@@ -13285,7 +13285,7 @@ mod tests {
     /// grazed is not.
     #[test]
     fn a_carried_loop_refusal_is_placed_by_its_kind() {
-        use crate::boolean::PointInSolidError as E;
+        use crate::solid_contain::PointInSolidError as E;
         use crate::splitting::{
             OffPlane, OffPlaneCause, PointInLoopError as L, Uncrossable, UncrossableCarrier,
         };
@@ -14400,7 +14400,7 @@ mod tests {
         let (body, cap, end) = half_disc_cap(0.0, tol);
         let q = end + Vec3::new(-0.95 * zero, 0.95 * zero, 0.0);
         let narrow = Band::new(zero, 1.25 * zero).unwrap();
-        let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), q, narrow);
+        let read = crate::contain::contfp(&body, cap, Vec3::unit_z(), q, narrow);
         let Err(ContainError::Escalated { diag, .. }) = read.clone() else {
             panic!("the band's own parting: {read:?}");
         };
@@ -14427,7 +14427,7 @@ mod tests {
         let off = Band::linear(tol).unwrap().zero() / 2.0;
         let (body, cap, end) = half_disc_cap(off, tol);
         let fine = Band::new(off / 50.0, off / 5.0).unwrap();
-        let read = crate::boolean::contfp(&body, cap, Vec3::unit_z(), end, fine);
+        let read = crate::contain::contfp(&body, cap, Vec3::unit_z(), end, fine);
         let mut errors = Vec::new();
         assert_eq!(read_containment(cap, read, &mut errors), None);
         let [ValidationError::ArcEndOffCorner { face, gaps }] = errors.as_slice() else {
@@ -14543,7 +14543,7 @@ mod tests {
         let q = end - tangent * (0.95 * zero) + radial * (0.3 * zero);
         for k in [1.001, 1.2] {
             let band = Band::new(zero, k * zero).unwrap();
-            let read = crate::boolean::contfp(&body, cap, axis, q, band);
+            let read = crate::contain::contfp(&body, cap, axis, q, band);
             // The point's chord to the end sits within a hair of the zero
             // band, which a band this narrow reads either way as the
             // rounding falls: the finding with every end at a corner, or
@@ -16213,7 +16213,7 @@ mod tests {
             }
             asked += 1;
             assert_eq!(
-                crate::boolean::contfp(&body, cap, Vec3::unit_z(), p, band()),
+                crate::contain::contfp(&body, cap, Vec3::unit_z(), p, band()),
                 Ok(FaceContainment::Out),
                 "a far vertex in the cap's plane at {p:?}"
             );
@@ -16270,7 +16270,7 @@ mod tests {
             .map(|(k, _)| k)
             .expect("the cap");
         assert_eq!(
-            crate::boolean::contfp(&body, cap, Vec3::unit_x(), q, band()),
+            crate::contain::contfp(&body, cap, Vec3::unit_x(), q, band()),
             Ok(FaceContainment::Out),
             "just past the arc's end, the cap answers"
         );
@@ -19634,7 +19634,7 @@ mod two_carrier_records {
         let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
         crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
         let placed = |x: f64| {
-            crate::boolean::face_placement(
+            crate::contain::face_placement(
                 &body,
                 top,
                 geom_core::Point3::new(x, 0.0, 1.0),
@@ -19645,12 +19645,12 @@ mod two_carrier_records {
         assert!(
             matches!(
                 placed(2.0),
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                Ok(crate::contain::CurvedPlacement::Trim(Some(
                     FaceContainment::Out
                 )))
             ) && matches!(
                 placed(1.0),
-                Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                Ok(crate::contain::CurvedPlacement::Trim(Some(
                     FaceContainment::In
                 )))
             ),
@@ -20504,10 +20504,10 @@ mod two_carrier_records {
             /// strictly inside `face`; `None` where the placement refuses.
             fn placed(body: &Body<f64>, face: FaceKey, p: geom_core::Point3<f64>) -> Option<bool> {
                 let b = Band::linear(Tol::witness()).unwrap();
-                let at = crate::boolean::face_placement(body, face, p, b, "probe_oracle").ok()?;
+                let at = crate::contain::face_placement(body, face, p, b, "probe_oracle").ok()?;
                 Some(matches!(
                     at,
-                    crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::In))
+                    crate::contain::CurvedPlacement::Trim(Some(FaceContainment::In))
                 ))
             }
 

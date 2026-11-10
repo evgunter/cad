@@ -1,6 +1,6 @@
 //! **What the region readings share**: the skeleton
-//! [`super::sphere_region`], [`super::torus_region`] and
-//! [`super::ruled_region`] read a trimmed curved face with. The skeleton
+//! [`crate::sphere_region`], [`crate::torus_region`] and
+//! [`crate::ruled_region`] read a trimmed curved face with. The skeleton
 //! gathers the boundary, reads the point against it first, walks the
 //! paths and reads each leg to its closest crossing; a door supplies only
 //! its surface's legs ([`Legs`], and [`Paths`] for a roster of them) and
@@ -31,12 +31,12 @@ use geom_brep::curve_pair::on_surface::{
 };
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3};
 
-use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
 use crate::live::BoundaryMember;
 use crate::null::Scaffolding;
 use crate::ray_walk::{self, Crossings, RayFault};
+use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
 use crate::splitting::{PointInLoopError, Uncrossable};
 use crate::validate::decide;
@@ -209,7 +209,7 @@ pub(crate) type Landing<T> = (Point3<T>, T, bool);
 /// readings, the foot read in closed form on no chart; on them, the
 /// chart's own point.
 #[derive(Clone, Copy, Debug)]
-pub(in crate::boolean) struct QueryFoot<T: geom_core::Real> {
+pub(crate) struct QueryFoot<T: geom_core::Real> {
     uv: Point2<T>,
     at: Point3<T>,
 }
@@ -235,7 +235,7 @@ impl<T: Decide> QueryFoot<T> {
     ///
     /// On a surface with no closed chart inversion: every region door
     /// reads an analytic surface.
-    pub(in crate::boolean) fn read(surface: &geom::Surface<T>, p: Point3<T>, band: Band) -> Self {
+    pub(crate) fn read(surface: &geom::Surface<T>, p: Point3<T>, band: Band) -> Self {
         let Ok(chart) = surface.chart_point(p, band) else {
             unreachable!("a region door reads an analytic surface")
         };
@@ -252,7 +252,7 @@ impl<T: Decide> QueryFoot<T> {
 
     /// The point at chart coordinates `uv` on `surface`: a corner a door
     /// sets from two feet's coordinates.
-    pub(in crate::boolean) fn of_chart(surface: &geom::Surface<T>, uv: Point2<T>) -> Self {
+    pub(crate) fn of_chart(surface: &geom::Surface<T>, uv: Point2<T>) -> Self {
         Self {
             uv,
             at: surface.eval(uv.x, uv.y),
@@ -260,19 +260,19 @@ impl<T: Decide> QueryFoot<T> {
     }
 
     /// The chart coordinates.
-    pub(in crate::boolean) fn uv(&self) -> Point2<T> {
+    pub(crate) fn uv(&self) -> Point2<T> {
         self.uv
     }
 
     /// The point of the surface.
-    pub(in crate::boolean) fn at(&self) -> Point3<T> {
+    pub(crate) fn at(&self) -> Point3<T> {
         self.at
     }
 }
 
 /// Which curve of a pair is read across the other's plane
 /// ([`Legs::across`]).
-pub(in crate::boolean) enum ReadAcross {
+pub(crate) enum ReadAcross {
     /// The edge across the leg's plane, in the edge's parameter.
     EdgeOverLeg,
     /// The leg across the edge's own plane ([`OnSurface::plane`]), in the
@@ -296,7 +296,7 @@ pub(in crate::boolean) enum ReadAcross {
 ///
 /// A rung of the plane door in band, a component in band, or a touch
 /// sets the path aside. No landing is read off a refusal.
-pub(in crate::boolean) fn landings<T: Decide, D: Legs<T>>(
+pub(crate) fn landings<T: Decide, D: Legs<T>>(
     door: &D,
     edge: &RegionEdge<T>,
     leg: &Leg<T, D::Course>,
@@ -410,9 +410,7 @@ fn on_section(section: Sign) -> Result<bool, Fault> {
 /// **A leg's curve on the door's surface**: the arm builds it from the
 /// surface record and a foot's chart coordinates, and a door asks only
 /// for the families its surface has.
-pub(in crate::boolean) fn built<T: Decide>(
-    curve: Result<SurfaceCurve<T>, NoSuchFamily>,
-) -> SurfaceCurve<T> {
+pub(crate) fn built<T: Decide>(curve: Result<SurfaceCurve<T>, NoSuchFamily>) -> SurfaceCurve<T> {
     match curve {
         Ok(curve) => curve,
         Err(refused) => {
@@ -562,7 +560,7 @@ pub(crate) trait Region<T: Decide> {
     /// **The region the surface cycles `keep` bound alone**: the boundary
     /// less every edge of another cycle ([`RegionEdge::cycle`]), the one
     /// cut a reading of a face against some of its cycles takes
-    /// ([`super::contain::cycle_side`]).
+    /// ([`crate::contain::cycle_side`]).
     #[must_use]
     fn keep_cycles(mut self, keep: &[usize]) -> Self
     where
@@ -616,7 +614,7 @@ pub(crate) trait Region<T: Decide> {
 
 /// **A leg's course**: the line or circle it runs along from its start
 /// at place `0`, places measured in metres along it.
-pub(in crate::boolean) trait Course<T: Decide> {
+pub(crate) trait Course<T: Decide> {
     /// Where `y`, a crossing on the course, lies along it, on the row
     /// `at`: `Some(place)` ahead of the start, `None` behind it.
     ///
@@ -666,14 +664,14 @@ pub(crate) struct End<T: geom_core::Real> {
 /// One leg of a path along its course `C`, ending at `end` where it is
 /// bounded.
 #[derive(Clone, Copy)]
-pub(in crate::boolean) struct Leg<T: geom_core::Real, C> {
-    pub(in crate::boolean) course: C,
-    pub(in crate::boolean) end: Option<End<T>>,
+pub(crate) struct Leg<T: geom_core::Real, C> {
+    pub(crate) course: C,
+    pub(crate) end: Option<End<T>>,
 }
 
 impl<T: Decide, C: Course<T>> Leg<T, C> {
     /// A leg running its whole course.
-    pub(in crate::boolean) fn whole(course: C) -> Self {
+    pub(crate) fn whole(course: C) -> Self {
         Self { course, end: None }
     }
 
@@ -703,7 +701,7 @@ impl<T: Decide, C: Course<T>> Leg<T, C> {
     /// # Errors
     ///
     /// A graze or an in-band reading sets the path aside.
-    pub(in crate::boolean) fn place(
+    pub(crate) fn place(
         &self,
         y: Point3<T>,
         at: &'static str,
@@ -724,7 +722,7 @@ impl<T: Decide, C: Course<T>> Leg<T, C> {
     ///
     /// The leg reaching the edge grazes; an in-band reading sets the path
     /// aside.
-    pub(in crate::boolean) fn along(
+    pub(crate) fn along(
         &self,
         edge: &RegionEdge<T>,
         at: &'static str,
@@ -752,7 +750,7 @@ impl<T: Decide, C: Course<T>> Leg<T, C> {
 
 /// **A region read along legs**: where a leg meets the boundary, and the
 /// face's side there.
-pub(in crate::boolean) trait Legs<T: Decide>: Region<T> {
+pub(crate) trait Legs<T: Decide>: Region<T> {
     type Course: Course<T> + Copy;
 
     /// The row a crossing's place along a leg is read on.
@@ -831,7 +829,7 @@ pub(crate) enum Path<T: geom_core::Real> {
 
 /// **A region read along paths of legs**: a surface's two families of
 /// curves through a point, its parallels and one other.
-pub(in crate::boolean) trait Paths<T: Decide>: Legs<T> {
+pub(crate) trait Paths<T: Decide>: Legs<T> {
     /// `p`'s own leg of a family ([`Path::Single`]).
     ///
     /// # Errors
@@ -874,7 +872,7 @@ pub(in crate::boolean) trait Paths<T: Decide>: Legs<T> {
 ///
 /// [`RegionRefusal::RayExhausted`] naming the face's outer loop where no
 /// path settled, or the first in-band one's refusal.
-pub(in crate::boolean) fn walk<T: Decide, D: Paths<T>>(
+pub(crate) fn walk<T: Decide, D: Paths<T>>(
     door: &D,
     p: QueryFoot<T>,
     band: Band,
@@ -901,7 +899,7 @@ pub(in crate::boolean) fn walk<T: Decide, D: Paths<T>>(
 }
 
 /// One path from `p`: whether `p` is in the face.
-pub(in crate::boolean) fn read_path<T: Decide, D: Paths<T>>(
+pub(crate) fn read_path<T: Decide, D: Paths<T>>(
     door: &D,
     p: QueryFoot<T>,
     path: Path<T>,
@@ -937,7 +935,7 @@ pub(in crate::boolean) fn read_path<T: Decide, D: Paths<T>>(
 }
 
 /// A path of the one leg `leg`: whether its start is in the face.
-pub(in crate::boolean) fn read_leg<T: Decide, D: Legs<T>>(
+pub(crate) fn read_leg<T: Decide, D: Legs<T>>(
     door: &D,
     leg: &Leg<T, D::Course>,
     band: Band,
@@ -999,7 +997,7 @@ pub(crate) struct Round<T: geom_core::Real> {
 impl<T: Decide> Round<T> {
     /// **The leg round `curve`**, a circle the arm built on the door's
     /// surface from a foot ([`QueryFoot`]), starting at that foot.
-    pub(in crate::boolean) fn on(curve: SurfaceCurve<T>) -> Self {
+    pub(crate) fn on(curve: SurfaceCurve<T>) -> Self {
         let Shape::Circle(circle) = curve.shape() else {
             unreachable!("a round leg runs on a circle")
         };
@@ -1072,7 +1070,7 @@ pub(crate) struct Line<T: geom_core::Real> {
 impl<T: Decide> Line<T> {
     /// **The leg along `curve`**, a ruling the arm built on the door's
     /// surface from a foot ([`QueryFoot`]), starting at that foot.
-    pub(in crate::boolean) fn on(curve: SurfaceCurve<T>) -> Self {
+    pub(crate) fn on(curve: SurfaceCurve<T>) -> Self {
         let Shape::Line(line) = curve.shape() else {
             unreachable!("a line leg runs on a ruling")
         };
@@ -1163,7 +1161,7 @@ fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
 /// or its refusal's predicate (`Some("another refusal")` for a refusal
 /// that names none), so two frames agree where they refuse alike.
 #[cfg(test)]
-pub(in crate::boolean) fn refusal_class(
+pub(crate) fn refusal_class(
     r: Result<Option<bool>, RegionRefusal>,
 ) -> Result<Option<bool>, Option<&'static str>> {
     r.map_err(|e| match e {

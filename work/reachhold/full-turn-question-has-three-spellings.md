@@ -27,7 +27,7 @@ Several decisions ask how far an arc or window falls short of a full turn:
   the same lever text, written out a second time in
   `LoopDecision::lever`.
 - `topo::boolean::ContainDecision::WindowPeriod`
-  (`crates/topo/src/boolean/contain.rs`, the cylinder arm's period
+  (`crates/topo/src/contain.rs`, the cylinder arm's period
   guard): a face's azimuth window rather than an edge's arc. It passes
   only on a positive gap, because a zero or negative one is the door's
   remainder, not an answer. Its lever is "move the geometry so the wall

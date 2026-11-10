@@ -1086,7 +1086,7 @@ the ray's are the walk's own, bare literals:
 | `point_in_arc_loop_spline_advance` | a `const` in `spline_arc`: a control point's advance along the ray |
 
 **Roster addition (CLEAVE): a trimmed sphere face's region.** Fourteen
-names from `topo/src/boolean/sphere_region.rs`. Nine are its rays',
+names from `topo/src/sphere_region.rs`. Nine are its rays',
 which entered without an entry here: bare literals at their `decide`
 sites, and a `FirstHarmonicRows` value (`ROOT_ROWS`) for the
 first-harmonic root door. Five are its boundary pre-pass's, a
@@ -1115,7 +1115,7 @@ at points on a sphere, a population apart from the planar walk's and
 the boolean's boundary pre-pass's.
 
 **Roster change (RESTREAD): a torus face's region.** Seventeen names from
-`topo/src/boolean/torus_region.rs`, which replaces the torus chart
+`topo/src/torus_region.rs`, which replaces the torus chart
 windows: `bool_torus_trim`, `bool_torus_trim_major_period`,
 `bool_torus_trim_minor_period`, `bool_torus_chart_affine`,
 `bool_torus_chart_box` and `bool_torus_chart_closure` leave the roster,
@@ -1319,7 +1319,7 @@ centre or control point off the plane, or a conic's or spiric's tilt
 levered by its reach), and `point_in_loop_query` (the query off the
 plane). Each is `Zero` on a well-posed call, so on the shipped callers
 they sample zero-centred residues once per call (the plane row once per
-vertex and carrier datum). `boolean::solid_contain`'s in-face test does
+vertex and carrier datum). `solid_contain`'s in-face test does
 not certify (it reads a face's trim at its own surface plane) and adds
 no samples. Dimensions: `docs/predicate-dimension-audit.md`'s rows of
 the same names.
@@ -3347,7 +3347,7 @@ two `props_quad_converged` indeterminates).
 
 
 **Roster change (CHART, 2026-10-24): a cylinder or cone face's region.**
-Eighteen names from `topo/src/boolean/ruled_region.rs`, which replaces the
+Eighteen names from `topo/src/ruled_region.rs`, which replaces the
 cylinder and cone chart trims. `bool_wall_trim`, `bool_wall_trim_period`,
 `bool_wall_iso_meridian`, `bool_wall_iso_rim`, `bool_wall_section_tilt`,
 `bool_wall_section_seat`, `bool_wall_piece_span`, `bool_wall_rim_level`,

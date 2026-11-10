@@ -27,7 +27,7 @@ its whole radius.
   `geom_brep::curve_pair::meet`, whose coplanar circles read their
   distance as a first harmonic with exact metre extremes (stage (c) of
   `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227)).
-- `crates/topo/src/boolean/rim_wedge.rs`, the coplanar-circles arm of
+- `crates/topo/src/rim_wedge.rs`, the coplanar-circles arm of
   the rim candidates (`x` and `y2 = re² − x²`).
 - `crates/topo/src/boolean/section_cert.rs` `sphere_sphere`: the
   section circle's witness point `c1 + k·x + b1·rad` (ORBIT shares

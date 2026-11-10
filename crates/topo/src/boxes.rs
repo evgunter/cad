@@ -164,7 +164,7 @@
 //!   it, so a decision lands in band more readily and the walk REFUSES
 //!   more, never a wrong side. A cover TIGHTER than its edge is the
 //!   unsound direction: the lever could under-state a reading's reach.
-//! - `boolean::ruled_region`'s reach bound (`reach_bound`, each boundary
+//! - `ruled_region`'s reach bound (`reach_bound`, each boundary
 //!   edge's [`edge_cover`]) sizes the lever of a ruled face's crossings
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.
@@ -1492,7 +1492,7 @@ pub(crate) mod tests {
     ///   within the band (`cover::meet_within`), a lever. **Refuses**: a
     ///   wider ball lengthens the lever, which decides a tilt less
     ///   readily; a ball narrower than the meet could miss the section.
-    /// - `shell.rs`, `boolean/ruled_region.rs`,
+    /// - `shell.rs`, `ruled_region.rs`,
     ///   `splitting/containment.rs` — an edge's cover read in a frame,
     ///   as a ruled region's or a containment walk's bound.
     ///   **Refuses**: a looser cover reads a nearer edge, which only
@@ -1580,7 +1580,7 @@ pub(crate) mod tests {
             ("boolean/mod.rs", 1),
             ("boolean/ops.rs", 6),
             ("boolean/reduce.rs", 6),
-            ("boolean/ruled_region.rs", 1),
+            ("ruled_region.rs", 1),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 12),
             ("census/depth_gap.rs", 3),

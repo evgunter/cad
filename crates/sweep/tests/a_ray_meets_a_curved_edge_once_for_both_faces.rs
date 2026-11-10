@@ -1,7 +1,7 @@
 //! **A ray within the band of a curved edge meets it once, for both
 //! faces it bounds** (D10, Booleans): half a crossing for each face, at
 //! the carrier crossing of each it stands for, decided once from where
-//! the ray passes the edge (`topo::boolean::solid_contain::curved_edges`).
+//! the ray passes the edge (`topo::solid_contain::curved_edges`).
 //! The curved half of the edge-meeting ray
 //! (`work/flush/a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim.md`).
 //!
@@ -26,8 +26,8 @@ use topo::{Body, ContactRecords};
 use super::curved_edge_corpus::{Truth, corpus, fast, kinked_bore, revolved, robust};
 
 test_utils::gated_to![
-    "crates/topo/src/boolean/solid_contain.rs",
-    "crates/topo/src/boolean/solid_contain/curved_edges.rs",
+    "crates/topo/src/solid_contain.rs",
+    "crates/topo/src/solid_contain/curved_edges.rs",
     "crates/sweep/tests/curved_edge_corpus.rs",
 ];
 

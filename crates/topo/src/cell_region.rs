@@ -45,7 +45,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::boolean::{FaceContainment, contfp, curved_face_containment};
+use crate::contain::{FaceContainment, contfp, curved_face_containment};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};

@@ -47,8 +47,8 @@ use crate::live::BoundaryMember;
 use geom_brep::ladder::read_identity;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Vec3};
 
-use super::rim_wedge::Rim;
-use super::solid_contain::PointInSolidError;
+use crate::rim_wedge::Rim;
+use crate::solid_contain::PointInSolidError;
 
 /// The distance of `c` from the axis line `(origin, axis)`.
 pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>) -> T {
@@ -284,7 +284,7 @@ mod wrap_rims_holds_rows {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::WrapRims;
-    use crate::boolean::rim_wedge::Rim;
+    use crate::rim_wedge::Rim;
 
     #[test]
     fn a_centre_off_the_axis_answers_past_a_tilt_in_band() {

@@ -1,5 +1,5 @@
 //! **Where a point lies against a spline face**: the NURBS and
-//! approximating-surface arm of [`super::contain::curved_face_placement`],
+//! approximating-surface arm of [`crate::contain::curved_face_placement`],
 //! reached once the boundary walk has placed the point off every edge.
 //!
 //! # The carrier: a foot, or a lower bound past the band
@@ -95,8 +95,8 @@ use geom_core::{
     rounding_charge,
 };
 
-use super::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::body::Body;
+use crate::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::joint::Winding;
 use crate::live::proven;
@@ -124,7 +124,7 @@ const PIECE_VISITS: usize = 1 << 14;
 /// The copies of a query a closed chart's periods may ask for.
 const COPIES: usize = 9;
 
-/// **The spline arm of [`super::contain::curved_face_placement`]** (module
+/// **The spline arm of [`crate::contain::curved_face_placement`]** (module
 /// docs): the point `q`, already off every boundary edge, against `face`,
 /// a face whose carrier is a spline chart.
 ///

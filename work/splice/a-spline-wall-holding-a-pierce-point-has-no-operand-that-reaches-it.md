@@ -58,7 +58,7 @@ middle one offset 0.3 in x), whose wall y = −1 is a planar NURBS face:
 - **That vertex, with a box that crosses only the loft's plane top
   cap**, so that the union crosses something: it refuses
   `Containment(KindUnsupported { kind: Nurbs })`. The point-in-solid
-  ray reading (`boolean::solid_contain`) has no NURBS arm.
+  ray reading (`solid_contain`) has no NURBS arm.
 
 ## What it needs
 

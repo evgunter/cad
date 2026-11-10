@@ -34,9 +34,9 @@ or ignore them.
   renders the walk's `PointInLoopError::Escalated` whole, so its
   subject and ending are `LoopDecision::subject` and
   `LoopDecision::ending`.
-- **`boolean::rim_wedge`'s `lift`** (`crates/topo/src/boolean/rim_wedge.rs`,
+- **`rim_wedge`'s `lift`** (`crates/topo/src/rim_wedge.rs`,
   ~:503) folds `ContainError::Escalated { diag, .. }` to its bare `diag`.
-- **`boolean::sphere_region`** (`crates/topo/src/boolean/sphere_region.rs`,
+- **`sphere_region`** (`crates/topo/src/sphere_region.rs`,
   ~:315 and ~:322) folds the conic reading's `ReadEscalation` to its
   `diag` (`RegionRefusal::Escalated`). Its straddles therefore read as
   poisoned margins, and `contain::curved_face_placement` carries the

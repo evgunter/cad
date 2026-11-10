@@ -14,7 +14,7 @@ Filed by `splice/spline-region-charge`. Its fix pass narrowed this term, and the
 
 ## What
 
-`topo/src/boolean/spline_region.rs` `Patch::floor` charges its read
+`topo/src/spline_region.rs` `Patch::floor` charges its read
 `rounding_charge(2·(reach + |q − c| + |c|))`, which is `geom_brep`'s spline
 incidence's term. The read's own rounding is narrower:
 

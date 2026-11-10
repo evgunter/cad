@@ -124,7 +124,7 @@ added constant (`(x/τ + 0.5).floor()`), and `periodic.rs:35`'s
 integer formed by an `as` cast or `trunc()`, a comparison loop spelled without `TAU`
 (`while u > PI`), or a period that is not `τ` (a spline's knot length)
 reduced by hand. A second set it matched and did not classify, all
-`f64` and outside certification: `rem_euclid` in `boolean::rim_wedge`
+`f64` and outside certification: `rem_euclid` in `rim_wedge`
 (also a hand `floor`), `geom_brep::curve_face::circle_torus`, `conic_quadric`,
 `ellipse_torus`, `section_cert_rows`, `curve_pair::meet_oracle`, and
 `step-import`'s `entities.rs:2070` and `normalize.rs:688`.

@@ -46,9 +46,9 @@ use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
-use super::contain::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use super::fate::{Holds, Leaving, corner_holds, departure};
 use crate::body::Body;
+use crate::contain::{CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 use crate::face_normal::NormalAtError;
 use crate::live::BoundaryMember;

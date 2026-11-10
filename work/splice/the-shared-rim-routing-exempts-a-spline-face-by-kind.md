@@ -15,7 +15,7 @@ from its sweep of `classify_dihedral`'s callers.
 
 ## What
 
-`topo::boolean::rim_wedge::classify_shared_rim` routes a full-circle
+`topo::rim_wedge::classify_shared_rim` routes a full-circle
 shared rim through the whole-edge fold (`geom_brep::edge_wedge_over`
 over `geom_brep::WedgeWalk::around_circle`, `CERT_SAMPLES` phases round
 the circle), whose first-order and material reads both read implicit

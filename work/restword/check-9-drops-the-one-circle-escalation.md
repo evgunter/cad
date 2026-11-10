@@ -12,7 +12,7 @@ opened: 2026-10-08
 
 ## What
 
-`boolean::contain::loop_circle`'s one-circle question
+`contain::loop_circle`'s one-circle question
 (`bool_face_disc_carrier`) escalates as `ContainError::Escalated
 { decision: Some(ContainDecision::OneCircle), .. }`. CONTACT-10 gives
 that decision an ending: sized, "gap between circles", `AnySign`. The

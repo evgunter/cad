@@ -961,18 +961,18 @@ impl SplitJoinError {
                 why.recourse()
             ),
             Self::SectionUnarmed { divided, wall, .. } => {
-                let wall = crate::boolean::kind_word(*wall);
+                let wall = crate::contain::kind_word(*wall);
                 write!(
                     f,
                     "the join cannot yet trace where a plane meets a {wall} face, so it cannot \
                      divide the {} face there. {}",
-                    crate::boolean::kind_word(*divided),
+                    crate::contain::kind_word(*divided),
                     crate::boolean::meeting_recourse(wall),
                 )
             }
             Self::RunImageIncidence { kind, refusal, .. } => {
                 use geom_brep::IncidenceRead as R;
-                let kind = crate::boolean::kind_word(*kind);
+                let kind = crate::contain::kind_word(*kind);
                 // Worded by what was read and ended by the one map; a
                 // refusal that carried no read is no incidence refusal.
                 let Some(read) = R::of(refusal) else {
@@ -996,7 +996,7 @@ impl SplitJoinError {
                 f,
                 "an edge of a {} face sits on the face as none of its own curves, and the \
                  join does not yet read such an edge's reach around the face. {}",
-                crate::boolean::kind_word(*kind),
+                crate::contain::kind_word(*kind),
                 geom_core::NOT_YET_ENDING
             ),
             Self::RingIslandUnread { kind, .. } => write!(

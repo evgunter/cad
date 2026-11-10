@@ -14,7 +14,7 @@ Found by the sweep of the far-plane fix
 ## Measured (2026-10-05, PR 4046's dual review)
 
 Every body carrying a trimmed sphere face reaches it since PR 4046 reads
-such faces (`boolean::sphere_region`). The witness is the unit ball at the
+such faces (`sphere_region`). The witness is the unit ball at the
 origin ∩ the box `[−0.3, 0.2] × [0.6, 2] × [−2, 2]` (a slab across the
 `+y` pole). Take the point on the sphere along `(0.126, 0.122, −0.985)`,
 about 0.48 outside the body. Placed 5ε off the sphere, it refuses
@@ -29,7 +29,7 @@ per ε: about 900 such refusals at points clear of every face, plus 65
 (`analysis/reach-dual/4046-r1`, `review.md` MINOR 1).
 
 That fix changed `point_in_solid`'s plane arm in two places
-(`crates/topo/src/boolean/solid_contain.rs`):
+(`crates/topo/src/solid_contain.rs`):
 
 - **Boundary pre-pass (`point_in_faces`).** An in-band
   `bool_point_in_solid_plane` elevation now refuses only where `q`'s

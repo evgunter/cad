@@ -9,7 +9,7 @@ cost: H
 refs: [the-side-readers-aims-decide-exact-ties-at-a-documents-nominal]
 ---
 
-The side reader's crossings (`crates/topo/src/boolean/solid_contain.rs`
+The side reader's crossings (`crates/topo/src/solid_contain.rs`
 `ray_crossings`) hold a cylinder face's root by the turn of its loops on
 an annulus image of the wall (`wall_crosses_by_turn`) where its edges
 are rulings and parallels. Every other trimmed curved face still holds

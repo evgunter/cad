@@ -536,7 +536,7 @@ fn a_foots_seed_is_read_only_where_it_seeds_a_search_or_a_bound() {
              `On`'s `t` for `Reading::On`",
         ),
         (
-            "topo/src/boolean/solid_contain/curved_edges.rs",
+            "topo/src/solid_contain/curved_edges.rs",
             1,
             "the ray's foot iteration carries its point to the closest approach, which \
              `Span::read` reads",

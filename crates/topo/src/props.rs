@@ -5601,7 +5601,7 @@ pub enum ShellClassifyError {
         /// The unclassifiable shell.
         shell: ShellKey,
         /// The walk's refusal.
-        source: crate::boolean::PointInSolidError,
+        source: crate::solid_contain::PointInSolidError,
     },
 }
 
@@ -5971,9 +5971,9 @@ fn shell_role_reading<T: Decide>(
     band: Band,
     volume: impl FnOnce() -> Result<ShellRole, ShellClassifyError>,
 ) -> Result<ShellRole, ShellClassifyError> {
-    use crate::boolean::SolidContainment;
-    use crate::boolean::solid_contain::SolidFaces;
     use crate::side_reader::{SideUnread, side_at_infinity};
+    use crate::solid_contain::SolidContainment;
+    use crate::solid_contain::SolidFaces;
     let record = body.get_shell(shell);
     if record
         .and_then(|s| body.get_solid(s.solid))
@@ -6106,7 +6106,7 @@ pub(crate) enum RoleWalkRefusal {
 ///   open/unresolved split ([`RoleWalkRefusal::Unread`]'s `limit`, which
 ///   tells `VolumeSignUnresolved` from an undecided orientation) and the
 ///   walk's refusal of a face it needed (`VolumeUncomputable`);
-/// - point containment's side at infinity (`boolean::solid_contain`'s
+/// - point containment's side at infinity (`solid_contain`'s
 ///   `at_infinity_side`): the selection's faces, measured in closed form
 ///   only and certified through the scalar's own lane, under its own
 ///   names (`bool_point_in_solid_infinity`), so its decisions log apart.

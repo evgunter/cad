@@ -13,14 +13,14 @@ refs: [validate-tier3-curved-boundary-containment]
 
 Tier 3's region arm (`crates/topo/src/one_region.rs`, `region_errors`)
 reads each surface cycle of a curved face against the others through
-`boolean::cycle_side` (`crates/topo/src/boolean/contain.rs`), the
+`boolean::cycle_side` (`crates/topo/src/contain.rs`), the
 point-in-face doors cut to one cycle. Where no door reads the face, the
 face is exempt, silently, as validate's not-yet-checked list says
 (`validate_geometric`'s "Face-boundary containment" bullet):
 
 - **A spline chart** (`Nurbs`, `Approx`): `cycle_side` answers `None`.
   The spline door reads a face's whole trim at once
-  (`boolean::spline_region`, `Trim::of` and `Trim::with_rings`): it lifts
+  (`spline_region`, `Trim::of` and `Trim::with_rings`): it lifts
   each loop, refuses a loop that winds, and places each ring in the outer
   loop's cover. A ring it cannot place inside makes the trim unreadable,
   so a spline face's ring outside its outer loop is unread rather than

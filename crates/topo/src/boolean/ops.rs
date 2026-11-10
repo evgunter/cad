@@ -43,7 +43,7 @@
 //! When operand boundaries do not intersect, classification falls back
 //! to per-shell containment against the pristine other operand: the
 //! uncut-shell witness ([`super::shell_witness`]) probes the shell's
-//! points with [`super::solid_contain::point_in_solid`] (F8's ray design
+//! points with [`crate::solid_contain::point_in_solid`] (F8's ray design
 //! promoted to 3-D) until one lies off the other boundary.
 //!
 //! # The merge output stage (F7)
@@ -114,7 +114,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::SphereQuestion;
 use super::combine::{GraftMap, graft_solids_disjoint};
-use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
 use super::finish::setopfinish;
 use super::holdings::Holdings;
@@ -125,7 +124,6 @@ use super::section_cert::Sheet;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
-use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
 use super::{BooleanDecision, LineWedgeFault};
@@ -137,11 +135,13 @@ use super::{
 use crate::body::Body;
 use crate::boxes;
 use crate::coincidence::{Backing, Cited, Cites};
+use crate::contain::{ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
+use crate::solid_contain::{SolidContainment, closed_sphere_group};
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
@@ -1838,7 +1838,7 @@ fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
 /// its two carriers to within the band (a near-tangent pair's witness
 /// lies in band of a sphere's), so it is held in band
 /// ([`crate::held::Held::in_band`]) and placed with no on-plane decision
-/// ([`super::contain::placement_on_carrier`]). `None` is no verdict: a
+/// ([`crate::contain::placement_on_carrier`]). `None` is no verdict: a
 /// curved trim the door does not read, or the door's own refusal.
 ///
 /// # Errors
@@ -1854,7 +1854,7 @@ pub(crate) fn place_witness<T: Decide>(
     band: Band,
 ) -> Result<Option<FaceContainment>, BooleanError> {
     let held = crate::held::Held::in_band(p);
-    witness_reads(super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at))
+    witness_reads(crate::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at))
 }
 
 /// [`place_witness`]'s reading of the door: a trim's verdict, or none; a
@@ -1865,15 +1865,15 @@ pub(crate) fn place_witness<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] on `OffCarrier`.
 fn witness_reads(
-    read: Result<super::contain::CurvedPlacement, ContainError>,
+    read: Result<crate::contain::CurvedPlacement, ContainError>,
 ) -> Result<Option<FaceContainment>, BooleanError> {
-    use super::contain::CurvedPlacement;
+    use crate::contain::CurvedPlacement;
     match read {
         Ok(CurvedPlacement::Trim(at)) => Ok(at),
         Ok(CurvedPlacement::OffCarrier) => Err(BooleanError::ClassificationInvariant {
             what: WITNESS_OFF_CARRIER,
         }),
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
         Err(_) => Ok(None),
     }
 }
@@ -3686,7 +3686,7 @@ pub(super) enum DoorInBand {
 /// face's surface (`slit::holding`, after `carrier_on_surface` read
 /// `Placed::On`), on it to within the band with no margin carried here,
 /// so `q` is held in band ([`crate::held::Held::in_band`]) and placed
-/// with no on-plane decision ([`super::contain::placement_on_carrier`]).
+/// with no on-plane decision ([`crate::contain::placement_on_carrier`]).
 /// A reading definitely off a curved face's carrier (a planar face's
 /// placement never says so) contradicts that decision, a kernel defect
 /// ([`piece_reads`]).
@@ -3705,7 +3705,7 @@ pub(super) fn piece_reading<T: Decide>(
 ) -> Result<PieceRead, BooleanError> {
     let held = crate::held::Held::in_band(q);
     piece_reads(
-        super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at),
+        crate::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at),
         door,
     )
 }
@@ -3716,10 +3716,10 @@ pub(super) fn piece_reading<T: Decide>(
 ///
 /// As [`piece_reading`].
 fn piece_reads(
-    read: Result<super::contain::CurvedPlacement, ContainError>,
+    read: Result<crate::contain::CurvedPlacement, ContainError>,
     door: DoorInBand,
 ) -> Result<PieceRead, BooleanError> {
-    use super::contain::CurvedPlacement;
+    use crate::contain::CurvedPlacement;
     match read {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(PieceRead::In),
         Ok(CurvedPlacement::Trim(Some(
@@ -3742,7 +3742,7 @@ fn piece_reads(
                 diag,
             },
         }),
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
         // Listed rather than wildcarded: a new door refusal is routed
         // here deliberately.
         Err(
@@ -6960,7 +6960,7 @@ impl Recharts {
     /// The turn moves the shell's cells over its sphere, so no input
     /// cell finer than that sphere holds one, and every face of the
     /// input shell wears that sphere: a closed sphere group
-    /// ([`super::solid_contain::closed_sphere_group`]) is the whole
+    /// ([`crate::solid_contain::closed_sphere_group`]) is the whole
     /// shell.
     pub(crate) fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
         self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
@@ -6984,7 +6984,7 @@ impl Recharts {
 ///
 /// A face an earlier cut split is read piece by piece: the later cut
 /// runs on the piece holding both its circle's crossings
-/// ([`super::sphere_region`]), and a circle whose crossings lie on an
+/// ([`crate::sphere_region`]), and a circle whose crossings lie on an
 /// earlier cut's meridian takes no cut of its own, the crossing layer
 /// meeting it there as it meets a seam.
 ///
@@ -7105,23 +7105,23 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                              circle's crossings",
                         )
                     };
-                    let read = |e: super::solid_contain::PointInSolidError| match e {
-                        super::solid_contain::PointInSolidError::Escalated { diag, .. } => {
+                    let read = |e: crate::solid_contain::PointInSolidError| match e {
+                        crate::solid_contain::PointInSolidError::Escalated { diag, .. } => {
                             esc(diag)
                         }
                         _ => unread(),
                     };
-                    let region = super::sphere_region::sphere_face_region(body, piece)
+                    let region = crate::sphere_region::sphere_face_region(body, piece)
                         .map_err(read)?
                         .ok_or_else(unread)?;
                     // The region's own refusal: in band of an arc, or no
                     // ray of its walk settled, or an arc that bounds
                     // nothing — each a piece not read against the circle.
-                    let read_region = |e: super::region::RegionRefusal| match e {
-                        super::region::RegionRefusal::Escalated(diag) => esc(diag),
-                        super::region::RegionRefusal::RayExhausted { .. }
-                        | super::region::RegionRefusal::WoundPastPeriod
-                        | super::region::RegionRefusal::Unreadable(_) => unread(),
+                    let read_region = |e: crate::region::RegionRefusal| match e {
+                        crate::region::RegionRefusal::Escalated(diag) => esc(diag),
+                        crate::region::RegionRefusal::RayExhausted { .. }
+                        | crate::region::RegionRefusal::WoundPastPeriod
+                        | crate::region::RegionRefusal::Unreadable(_) => unread(),
                     };
                     let [lo, hi] = crossings;
                     match (
@@ -10350,9 +10350,9 @@ mod tests {
     #[test]
     fn extent_scan_refusals_name_the_faces_operand() {
         use crate::boolean::Operand;
-        use crate::boolean::contain::ContainError;
-        use crate::boolean::solid_contain::PointInSolidError;
+        use crate::contain::ContainError;
         use crate::entity::{FaceKey, LoopKey};
+        use crate::solid_contain::PointInSolidError;
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let (face, lk) = (FaceKey::from(key(7)), LoopKey::from(key(9)));
         for (sphere_is, face_is) in [(Operand::A, Operand::B), (Operand::B, Operand::A)] {
@@ -11259,7 +11259,7 @@ mod join_row_rows {
 mod witness_rows {
     use super::{WITNESS_OFF_CARRIER, witness_reads};
     use crate::boolean::BooleanError;
-    use crate::boolean::contain::{ContainError, CurvedPlacement, FaceContainment};
+    use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 
     #[test]
     fn a_witness_off_a_curved_carrier_reads_as_the_invariant() {

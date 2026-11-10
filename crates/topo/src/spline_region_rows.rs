@@ -5,7 +5,7 @@
 
 use super::{Caps, Place, Reading, Trim, bezier_cells, read, read_capped};
 use crate::body::Body;
-use crate::boolean::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
+use crate::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
 use crate::entity::FaceKey;
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use geom::{NurbsSurface, Surface};
@@ -249,7 +249,7 @@ fn a_point_of_a_spline_face_is_placed_in_or_out_by_its_trim() {
         "a point off the chart's end"
     );
     let in_band = curved_face_placement(&body, face, on + n * ((b.zero() + b.escalate()) / 2.0), b);
-    let Err(crate::boolean::ContainError::Escalated { diag, .. }) = in_band else {
+    let Err(crate::contain::ContainError::Escalated { diag, .. }) = in_band else {
         panic!("a point in the band of the carrier escalates: {in_band:?}");
     };
     assert_eq!(
@@ -793,7 +793,7 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
     let uv = rect((0.25, 0.75), (0.25, 0.75));
     let (plain, plain_face) = sheet(&chart, &uv);
     let (mut nulled, face) = sheet(&chart, &uv);
-    super::super::region::with_null_edge(&mut nulled, face);
+    crate::region::with_null_edge(&mut nulled, face);
     let outer = |body: &Body<f64>, face: FaceKey| body.get_face(face).unwrap().outer;
     let nulls: Vec<_> = nulled
         .edges()

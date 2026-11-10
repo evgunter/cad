@@ -5,9 +5,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
-use crate::boolean::region::QueryFoot;
-use crate::boolean::region::refusal_class as class;
 use crate::entity::EdgeKey;
+use crate::region::QueryFoot;
+use crate::region::refusal_class as class;
 use core::f64::consts::{PI, TAU};
 use slotmap::KeyData;
 
@@ -35,7 +35,7 @@ fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -
         carrier: curve,
         t0,
         t1,
-        turn: crate::boolean::region::fixture_turn(t0, t1),
+        turn: crate::region::fixture_turn(t0, t1),
         forward,
     }
 }
@@ -521,12 +521,12 @@ fn a_generator_meets_no_conic_on_the_mirror_nappe() {
     let region = cone(vec![mirror.clone(), own.clone()], 2.0);
     let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, true);
     assert!(
-        crate::boolean::region::landings(&region, &mirror, &leg, b())
+        crate::region::landings(&region, &mirror, &leg, b())
             .ok()
             .is_some_and(|l| l.is_empty())
     );
     assert_eq!(
-        crate::boolean::region::landings(&region, &own, &leg, b())
+        crate::region::landings(&region, &own, &leg, b())
             .ok()
             .map(|l| l.len()),
         Some(1)
@@ -636,7 +636,7 @@ fn a_generator_toward_the_apex_lands_nowhere_at_it() {
         "the leg ends at the apex"
     );
     let at = |e: &Edge<f64>| {
-        let landings = crate::boolean::region::landings(&region, e, &leg, b()).ok()?;
+        let landings = crate::region::landings(&region, e, &leg, b()).ok()?;
         let mut placed = 0;
         for (y, _, _) in landings {
             if leg
