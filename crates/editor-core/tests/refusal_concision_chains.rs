@@ -2606,14 +2606,16 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::RunImageIncidence {
                     face,
                     kind: geom::SurfaceKind::Cone,
-                    refusal: geom_brep::PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Cone,
-                        carrier: geom::CurveKind::Circle,
-                        why: "the rim's height is not shown away from the apex's",
-                        margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
-                            4e-10,
-                        ))),
-                    },
+                    refusal: geom_brep::PcurveCertifyError::Incidence(
+                        geom_brep::IncidenceRefusal::off_chart(
+                            geom::SurfaceKind::Cone,
+                            geom::CurveKind::Circle,
+                            "the rim's height is not shown away from the apex's",
+                            Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                                4e-10,
+                            ))),
+                        ),
+                    ),
                 },
             ),
             (

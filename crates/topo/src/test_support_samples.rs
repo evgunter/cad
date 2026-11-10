@@ -553,18 +553,18 @@ fn certify_errors() -> Vec<CertifyError> {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
         },
-        CertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Plane,
-            carrier: geom::CurveKind::Line,
-            why: "the line's points are not on the chart",
-            margin: None,
-        },
-        CertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            carrier: geom::CurveKind::Line,
-            why: "the line is not shown off the plane through the apex",
-            margin: Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
-        },
+        CertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+            geom::SurfaceKind::Plane,
+            geom::CurveKind::Line,
+            "the line's points are not on the chart",
+            None,
+        )),
+        CertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+            geom::SurfaceKind::Cone,
+            geom::CurveKind::Line,
+            "the line is not shown off the plane through the apex",
+            Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
+        )),
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
@@ -673,11 +673,10 @@ fn certify_errors() -> Vec<CertifyError> {
             cause: diag(),
         },
         // A carrier's incidence in band at the edge certificate.
-        CertifyError::Escalated {
-            check: CertCheck::ChartIncidence,
-            sample: geom_brep::certify::NOT_A_SAMPLE,
-            cause: diag(),
-        },
+        CertifyError::Incidence(geom_brep::IncidenceRefusal::undecided(
+            geom_brep::certify::NOT_A_SAMPLE,
+            diag(),
+        )),
         // A gate's rejected negative, routed as undecided: a stored
         // contradiction's definite reading, and one the lever reaches.
         CertifyError::Escalated {
@@ -811,34 +810,30 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
         },
-        PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Sphere,
-            carrier: geom::CurveKind::Line,
-            why: "the line's points are not on the chart (its distance from the chart is past the band somewhere in its span)",
-            margin: None,
-        },
-        PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            carrier: geom::CurveKind::Circle,
-            why: "the rim's height is not shown away from the apex's, where the apex plane \
-                  meets the cone only at the apex",
-            margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+        PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+            geom::SurfaceKind::Sphere,
+            geom::CurveKind::Line,
+            "the line's points are not on the chart (its distance from the chart is past the band somewhere in its span)",
+            None,
+        )),
+        PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+            geom::SurfaceKind::Cone,
+            geom::CurveKind::Circle,
+            "the rim's height is not shown away from the apex's, where the apex plane \
+             meets the cone only at the apex",
+            Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
                 4e-10,
             ))),
-        },
-        PcurveCertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Torus,
-            carrier: geom::CurveKind::Circle,
-            why: "the circle is no section of the torus",
-            margin: Some(geom_brep::OffMargin::Past(geom_core::MarginDiag::value(
+        )),
+        PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+            geom::SurfaceKind::Torus,
+            geom::CurveKind::Circle,
+            "the circle is no section of the torus",
+            Some(geom_brep::OffMargin::Past(geom_core::MarginDiag::value(
                 3e-7,
             ))),
-        },
-        PcurveCertifyError::Escalated {
-            check: geom_brep::PcurveCheck::ChartIncidence,
-            sample: 0,
-            cause: diag(),
-        },
+        )),
+        PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::undecided(0, diag())),
         PcurveCertifyError::ImageMismatch {
             image: geom_brep::PcurveKind::General,
             why: "a fitted-grade image at the closed-form door",
@@ -2479,7 +2474,7 @@ mod tests {
                     | K::WindingMismatch
                     | K::SectorRefused
                     | K::ChartRow => defect(),
-                    K::CarrierOffChart => unreachable!("an incidence read, ended above"),
+                    K::Incidence => unreachable!("an incidence read, ended above"),
                     // The ending the SSI door gives what it flattened.
                     K::FittedCertificate => match &e {
                         C::FittedCertificate {

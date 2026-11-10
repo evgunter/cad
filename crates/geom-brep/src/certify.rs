@@ -479,21 +479,11 @@ pub enum CertifyError {
         gap: crate::LaneGap,
     },
     /// The carrier is not shown on the chart its description names
-    /// ([`PcurveCertifyError::CarrierOffChart`], [`CertCheck::ChartIncidence`]):
-    /// decided off it, or read within the band at a pose where the chart
-    /// holds no curve of its kind.
-    CarrierOffChart {
-        /// The chart kind the description named.
-        chart: geom::SurfaceKind,
-        /// The carrier's kind.
-        carrier: geom::CurveKind,
-        /// Why the mint concluded it, in the mint's words
-        /// ([`PcurveCertifyError::CarrierOffChart`]'s `why`).
-        why: &'static str,
-        /// The margin the incidence decision read, where it read one, and
-        /// which side of the band it fell ([`crate::OffMargin`]).
-        margin: Option<crate::OffMargin>,
-    },
+    /// ([`PcurveCertifyError::Incidence`], [`CertCheck::ChartIncidence`]):
+    /// decided off it, read within the band at a pose where the chart
+    /// holds no curve of its kind, or in band. Read through
+    /// [`Self::incidence_read`].
+    Incidence(crate::IncidenceRefusal),
     /// A surface key in the description did not resolve in the owning
     /// body (stale, or the surface does not exist yet — attach the
     /// intrinsic description once its surfaces are in the arena).
@@ -879,34 +869,42 @@ impl core::fmt::Display for CertifyError {
                 chart.name(),
                 crate::pcurve_cache::ENVELOPE_LEVER,
             ),
-            Self::CarrierOffChart {
-                chart,
-                carrier,
-                why,
-                margin,
-            } => match crate::IncidenceRead::of_margin(*margin) {
-                // Not shown off the chart: read AT a pose where the chart
-                // holds no curve of its kind, which says nothing about
-                // whether it lies on it.
-                crate::IncidenceRead::AtPose(_) => write!(
-                    f,
-                    "the {} is no curve of the {} chart its description names at this \
+            Self::Incidence(refusal) => {
+                let (Some((chart, carrier)), Some(why)) = (refusal.kinds(), refusal.why()) else {
+                    let sample = refusal.sample().unwrap_or(NOT_A_SAMPLE);
+                    return match refusal.read() {
+                        crate::IncidenceRead::Undecided(cause) => {
+                            write_escalated(f, CertCheck::ChartIncidence, sample, &cause)
+                        }
+                        crate::IncidenceRead::Off(_) | crate::IncidenceRead::AtPose(_) => {
+                            write_exceeded(f, CertCheck::ChartIncidence, sample)
+                        }
+                    };
+                };
+                match refusal.read() {
+                    // Not shown off the chart: read AT a pose where the chart
+                    // holds no curve of its kind, which says nothing about
+                    // whether it lies on it.
+                    crate::IncidenceRead::AtPose(_) => write!(
+                        f,
+                        "the {} is no curve of the {} chart its description names at this \
                      tolerance: it sits, within the band, at a pose where that chart holds no {} \
                      ({why})",
-                    carrier.name(),
-                    chart.name(),
-                    carrier.name()
-                ),
-                crate::IncidenceRead::Off(_) => write!(
-                    f,
-                    "the {} does not lie on the {} chart its description names ({why})",
-                    carrier.name(),
-                    chart.name()
-                ),
-                crate::IncidenceRead::Undecided(_) => {
-                    unreachable!("a decided incidence refusal carries no undecided read")
+                        carrier.name(),
+                        chart.name(),
+                        carrier.name()
+                    ),
+                    crate::IncidenceRead::Off(_) => write!(
+                        f,
+                        "the {} does not lie on the {} chart its description names ({why})",
+                        carrier.name(),
+                        chart.name()
+                    ),
+                    crate::IncidenceRead::Undecided(_) => {
+                        unreachable!("a decided incidence refusal carries no undecided read")
+                    }
                 }
-            },
+            }
             Self::Unimplemented => write!(
                 f,
                 "a Nurbs described surface, or a Nurbs carrier under a \
@@ -952,19 +950,7 @@ impl core::fmt::Display for CertifyError {
             // every check that reaches this arm meters a residual (a sup
             // bound, `CertCheck::bounds_a_miss`; a parallelism defect),
             // so the noun is not the sentence's to write.
-            Self::ResidualExceeded { check, sample, .. } => {
-                if *sample == NOT_A_SAMPLE {
-                    write!(f, "{check} (not a sampled check)")?;
-                } else {
-                    write!(f, "{check} at sample {sample}")?;
-                }
-                let claim = if check.bounds_a_miss() {
-                    "the certificate cannot show the cache represents the description"
-                } else {
-                    "the cache does not represent the description"
-                };
-                write!(f, " definitely exceeds the tolerance band ({claim}, D4 ¶2)")
-            }
+            Self::ResidualExceeded { check, sample, .. } => write_exceeded(f, *check, *sample),
             // An arc rim's refusal is told in its own words: the plane
             // lane's `OnPair` reads one as well as the `Intersection` lanes.
             Self::PlaneNurbs(refusal @ crate::edge_nurbs::PlaneNurbsRefusal::ArcRim(_)) => {
@@ -1074,24 +1060,62 @@ impl core::fmt::Display for CertifyError {
                 check,
                 sample,
                 cause,
-            } => {
-                // The not-a-sample sentinel renders as words, not as
-                // 4294967295: a diagnostic whose whole purpose is to
-                // stop claiming a schedule point it never visited
-                // should not then print a number that looks like one.
-                if *sample == NOT_A_SAMPLE {
-                    write!(f, "{check} (not a sampled check) escalated: ")?;
-                } else {
-                    write!(f, "{check} at sample {sample} escalated: ")?;
-                }
-                write!(f, "{}", cause.payload())
-            }
+            } => write_escalated(f, *check, *sample, cause),
             Self::Band(e) => write!(f, "{e}"),
         }
     }
 }
 
 impl std::error::Error for CertifyError {}
+
+/// A check's escalation, as the payload says it. The not-a-sample
+/// sentinel renders as words, not as 4294967295: a diagnostic whose
+/// whole purpose is to stop claiming a schedule point it never visited
+/// should not then print a number that looks like one.
+fn write_escalated(
+    f: &mut core::fmt::Formatter<'_>,
+    check: CertCheck,
+    sample: u32,
+    cause: &Indeterminate,
+) -> core::fmt::Result {
+    if sample == NOT_A_SAMPLE {
+        write!(f, "{check} (not a sampled check) escalated: ")?;
+    } else {
+        write!(f, "{check} at sample {sample} escalated: ")?;
+    }
+    write!(f, "{}", cause.payload())
+}
+
+/// A check's residual past the band, as the payload says it.
+fn write_exceeded(
+    f: &mut core::fmt::Formatter<'_>,
+    check: CertCheck,
+    sample: u32,
+) -> core::fmt::Result {
+    if sample == NOT_A_SAMPLE {
+        write!(f, "{check} (not a sampled check)")?;
+    } else {
+        write!(f, "{check} at sample {sample}")?;
+    }
+    let claim = if check.bounds_a_miss() {
+        "the certificate cannot show the cache represents the description"
+    } else {
+        "the cache does not represent the description"
+    };
+    write!(f, " definitely exceeds the tolerance band ({claim}, D4 ¶2)")
+}
+
+/// `check` as a general arm (`Escalated`, `ResidualExceeded`) carries
+/// it: never the incidence test's, which every mint refuses as
+/// [`CertifyError::Incidence`], so [`CertifyError::incidence_read`]
+/// reads every incidence refusal.
+fn general(check: CertCheck) -> CertCheck {
+    assert!(
+        check != CertCheck::ChartIncidence,
+        "an incidence refusal minted as a general arm: mint it as CertifyError::Incidence"
+    );
+    check
+}
 
 impl CertifyError {
     /// The decision this refusal is a refused arm of, and which arm, or
@@ -1113,7 +1137,7 @@ impl CertifyError {
     pub(crate) fn decided(&self) -> Option<Decision<'_, CertCheck>> {
         let (check, arm) = match self {
             Self::ResidualExceeded { check, margin, .. } => {
-                (*check, RefusedArm::SignCertain(Some(*margin)))
+                (general(*check), RefusedArm::SignCertain(Some(*margin)))
             }
             Self::NotTransverse { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
             Self::NotSecondOrderSeparated { verdict, .. } => {
@@ -1124,7 +1148,7 @@ impl CertifyError {
             Self::SpanMeterCollapsed { verdict } => (CertCheck::ParamSpanMeter, verdict.arm()),
             Self::ArmCollapsed { verdict, .. } => (CertCheck::TransversalityArm, verdict.arm()),
             Self::WindingExceeded => (CertCheck::ParamWinding, RefusedArm::SignCertain(None)),
-            Self::Escalated { check, cause, .. } => (*check, RefusedArm::Undecided(cause)),
+            Self::Escalated { check, cause, .. } => (general(*check), RefusedArm::Undecided(cause)),
             Self::ChartImageUnavailable { .. } => {
                 (CertCheck::ChartImage, RefusedArm::SignCertain(None))
             }
@@ -1136,10 +1160,7 @@ impl CertifyError {
                 gap: crate::LaneGap::Pose { .. } | crate::LaneGap::Envelope,
                 ..
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
-            Self::CarrierOffChart { margin, .. } => (
-                CertCheck::ChartIncidence,
-                RefusedArm::SignCertain(margin.map(crate::OffMargin::diag)),
-            ),
+            Self::Incidence(refusal) => (CertCheck::ChartIncidence, refusal.arm()),
             Self::PlaneNurbs(refusal) => return Some(refusal.decided()),
             Self::AnalyticRung3(refusal) => return Some(refusal.decided()),
             Self::Row { refusal, .. } => refusal.decision()?,
@@ -1192,32 +1213,22 @@ impl CertifyError {
     #[must_use]
     pub fn incidence_read(&self) -> Option<crate::IncidenceRead> {
         match self {
-            Self::CarrierOffChart { margin, .. } => Some(crate::IncidenceRead::of_margin(*margin)),
-            Self::Escalated {
-                check: CertCheck::ChartIncidence,
-                cause,
-                ..
-            } => Some(crate::IncidenceRead::Undecided(*cause)),
-            // The test's residual decided past the band: a definite miss,
-            // read as the pcurve layer's (`IncidenceRead::of`) reads it.
-            // Its margin is the residual, not a pose's height, so it is
-            // not quoted as one.
-            Self::ResidualExceeded {
-                check: CertCheck::ChartIncidence,
-                ..
-            } => Some(crate::IncidenceRead::Off(None)),
+            Self::Incidence(refusal) => Some(refusal.read()),
             _ => None,
         }
     }
 
-    /// **The chart and carrier kinds this incidence refusal names**,
-    /// beside its read ([`Self::incidence_read`]), as the pcurve layer's
-    /// [`crate::IncidenceRead::kinds_of`] reads them: where the refusal
-    /// carries them, and `None` otherwise.
+    /// **The chart and carrier kinds this refusal names**, as the pcurve
+    /// layer's [`PcurveCertifyError::kinds`] reads them: an incidence
+    /// refusal's where it carries them ([`crate::IncidenceRefusal::kinds`]),
+    /// a pair with no general image's, and a pair with no chart image's;
+    /// `None` for every other refusal.
     #[must_use]
-    pub fn incidence_kinds(&self) -> Option<(geom::SurfaceKind, geom::CurveKind)> {
+    pub fn kinds(&self) -> Option<(geom::SurfaceKind, geom::CurveKind)> {
         match self {
-            Self::CarrierOffChart { chart, carrier, .. } => Some((*chart, *carrier)),
+            Self::Incidence(refusal) => refusal.kinds(),
+            Self::NoGeneralLane { chart, carrier, .. }
+            | Self::ChartImageUnavailable { chart, carrier } => Some((*chart, *carrier)),
             _ => None,
         }
     }
@@ -4121,33 +4132,23 @@ fn mint_refusal<T: Real>(
     surface: &Surface<T>,
     carrier: &Curve3<T>,
 ) -> CertifyError {
-    use crate::{IncidenceRead, OffMargin};
+    use crate::{IncidenceRead, IncidenceRefusal, OffMargin};
     // A carrier not shown on its chart ends by its read (D3), decided or
     // in band: the one classifier, so this map and every reader of the
     // refusal agree.
-    if let Some(read) = IncidenceRead::of(&e) {
-        let why = match e {
-            PcurveCertifyError::CarrierOffChart { why, .. } => why,
-            _ => "the carrier's distance from the chart is past the band",
-        };
-        let off = |margin| CertifyError::CarrierOffChart {
-            chart: surface.kind(),
-            carrier: carrier.kind(),
-            why,
-            margin,
-        };
-        return match read {
+    if let PcurveCertifyError::Incidence(refusal) = &e {
+        let why = refusal
+            .why()
+            .unwrap_or("the carrier's distance from the chart is past the band");
+        let off = |margin| IncidenceRefusal::off_chart(surface.kind(), carrier.kind(), why, margin);
+        return CertifyError::Incidence(match refusal.read() {
             IncidenceRead::Off(margin) => off(margin.map(OffMargin::Past)),
             IncidenceRead::AtPose(margin) => off(Some(OffMargin::InBand(margin))),
             // The mint runs ONCE, before the schedule, so the sample
-            // field carries the not-a-sample sentinel: reporting `0`
-            // would name a schedule point that was never visited.
-            IncidenceRead::Undecided(cause) => CertifyError::Escalated {
-                check: CertCheck::ChartIncidence,
-                sample: NOT_A_SAMPLE,
-                cause,
-            },
-        };
+            // carries the not-a-sample sentinel: reporting `0` would name
+            // a schedule point that was never visited.
+            IncidenceRead::Undecided(cause) => IncidenceRefusal::undecided(NOT_A_SAMPLE, cause),
+        });
     }
     match e {
         // The class reading is a lane choice (D3): in band it stays its
@@ -4187,8 +4188,8 @@ fn mint_refusal<T: Real>(
             gap,
         },
         // Read above: an incidence refusal never reaches here.
-        PcurveCertifyError::CarrierOffChart { .. } => {
-            unreachable!("mint_refusal: IncidenceRead::of reads every CarrierOffChart")
+        PcurveCertifyError::Incidence(_) => {
+            unreachable!("mint_refusal: an incidence refusal is lifted above")
         }
         // Every other refusal says the same thing: this (chart, carrier)
         // pair has no certified chart image. That is a fact about the
@@ -9596,7 +9597,7 @@ mod tests {
 
     /// **A carrier off its chart ends by the door that reads it, and one
     /// read in band at a pose in its lever** (D3, D4 ¶1 (iv)): the edge
-    /// certificate's `CarrierOffChart`, decided off (with no margin or
+    /// certificate's `Incidence` refusal, decided off (with no margin or
     /// past the pose) or read within the band at the pose. A definite miss
     /// is the kernel's defect at a build, the stored culprit at rest and
     /// the damaged file at import; the read in band is the geometry's
@@ -9604,11 +9605,13 @@ mod tests {
     /// the curve does not lie on its chart.
     #[test]
     fn a_carrier_off_its_chart_ends_by_the_door_and_at_a_pose_in_its_lever() {
-        let refusal = |margin| CertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            carrier: geom::CurveKind::Line,
-            why: "WHY",
-            margin,
+        let refusal = |margin| {
+            CertifyError::Incidence(crate::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Line,
+                "WHY",
+                margin,
+            ))
         };
         let m = geom_core::MarginDiag::value(4e-10);
         let file = FileCoincidence::new(1e-6);

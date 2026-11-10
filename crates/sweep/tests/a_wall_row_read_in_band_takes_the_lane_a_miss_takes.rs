@@ -20,7 +20,6 @@
 use crate::common::semicircle_wall::{
     arc_wall, band, derived, in_band, recharted, semicircle_prism, wall_half_edges,
 };
-use geom_brep::PcurveCertifyError;
 use geom_core::{Bounds, Vec3};
 use topo::{AtRestPolicy, Body, FaceKey, HalfEdgeKey, Pcurve, PcurveMintError};
 
@@ -141,14 +140,9 @@ fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
     let not_yet = |got: &Result<Pcurve<T>, PcurveMintError>| {
         matches!(
             got,
-            Err(PcurveMintError::Certify {
-                error: PcurveCertifyError::NoGeneralLane {
-                    chart: geom::SurfaceKind::Nurbs,
-                    carrier: geom::CurveKind::Circle,
-                    gap: geom_brep::LaneGap::Unwritten,
-                },
-                ..
-            })
+            Err(PcurveMintError::Certify { error, .. })
+                if error.kinds() == Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Circle))
+                    && error.refused_check() == Some(geom_brep::PcurveCheck::ChartClass)
         )
     };
     for h in rims {
@@ -205,7 +199,7 @@ fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
                 &got,
                 Err(PcurveMintError::Certify { error, .. })
                     if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
-                        && geom_brep::IncidenceRead::kinds_of(error) == Some(kinds)
+                        && error.kinds() == Some(kinds)
             ),
             "{h:?}: a rim its wall moved a millimetre from ends off the chart, at {}: {got:?}",
             T::NAME

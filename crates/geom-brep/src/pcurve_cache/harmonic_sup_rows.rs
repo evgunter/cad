@@ -722,10 +722,17 @@ fn a_tilt_in_the_band_decides_no_class() {
         };
         for (lane, got) in [("f64", derived(&carrier)), ("Interval", derived_at())] {
             assert!(
-                matches!(
-                    got,
-                    Err(PcurveCertifyError::Escalated { check, .. }) if check == want
-                ),
+                match &got {
+                    Err(PcurveCertifyError::Escalated { check, .. }) => *check == want,
+                    Err(e) => {
+                        want == PcurveCheck::ChartIncidence
+                            && matches!(
+                                crate::IncidenceRead::of(e),
+                                Some(crate::IncidenceRead::Undecided(_))
+                            )
+                    }
+                    Ok(()) => false,
+                },
                 "{what} at {lane}: a tilt of 0.8·escalate decides no class, as {want:?}: {got:?}"
             );
         }
