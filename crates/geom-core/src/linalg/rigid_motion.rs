@@ -412,6 +412,29 @@ fn rigid_defect(check: &str) -> &'static str {
     }
 }
 
+/// **The re-mint's displacement bound, in bands**: a point within the
+/// session box of every axis moves by at most this many `ε` when a map
+/// whose seven margins decide `Zero` is re-minted
+/// ([`RigidMotion::check_rigid`]).
+const RE_MINT_BANDS: f64 = 4.5;
+
+/// **The band the seven rigidity margins are decided against**: `band`
+/// scaled by `min(1, (K − 1)/4.5)`, `K` its escalation over its zero, so
+/// the re-mint's displacement ([`RE_MINT_BANDS`]) fits the run's
+/// headroom `(K − 1)·ε` at every `K` the run admits. At the default
+/// `K = 10` it is `band` itself.
+fn rigidity_band(band: Band) -> Result<Band, RigidMotionError> {
+    let k = band.escalate() / band.zero();
+    let scale = ((k - 1.0) / RE_MINT_BANDS).min(1.0);
+    if scale >= 1.0 {
+        return Ok(band);
+    }
+    // A positive scale of a band's two thresholds keeps them ordered and
+    // finite, so this refuses only where the band's own numbers could not.
+    Band::new(band.zero() * scale, band.escalate() * scale)
+        .map_err(|_| RigidMotionError::NonFinite(MotionPart::Linear))
+}
+
 /// `Ok(p)` when every component of `p` [`Real::is_bounded`] — a
 /// finite number at a point scalar, both endpoints finite at an
 /// enclosure, the value channel's reading at a carrier — `Err` naming
@@ -832,8 +855,10 @@ impl<T: Decide> RigidMotion<T> {
     /// extent. To first order the re-mint moves `u` by `c₀`'s defect,
     /// `v` by `c₁`'s plus `c₀ · c₁`, and `w` by `c₂`'s plus its two
     /// orthogonalities, so a point with every coordinate within `S`
-    /// moves by at most `(½ + 3⁄2 + 5⁄2)·ε = 4.5ε`. At the default
-    /// `K = 10` that sits inside the run's headroom `(K − 1)·ε`.
+    /// moves by at most `(½ + 3⁄2 + 5⁄2)·ε = 4.5ε`. The margins are
+    /// decided against the band scaled by `min(1, (K − 1)/4.5)`, so that
+    /// displacement fits the run's headroom `(K − 1)·ε` at every `K` the
+    /// run admits; at the default `K = 10` the band is the run's own.
     ///
     /// **Where it is decided.** A map whose every entry is a plain `f64`
     /// ([`SpanLocate::plain_constant`]) is decided and re-minted at that
@@ -884,6 +909,7 @@ impl<T: Decide> RigidMotion<T> {
     /// [`Self::check_rigid`]'s decision and re-mint at this scalar, the
     /// linear part's finiteness already asked.
     fn re_minted(map: &Affine3<T>, band: Band) -> Result<Self, RigidMotionError> {
+        let band = rigidity_band(band)?;
         let l = &map.linear;
         let one = T::one();
         // A table of K row names: they reach the funnel through the loop
@@ -1864,6 +1890,48 @@ mod motion_rows {
         }
     }
 
+    /// **The door's band fits the re-mint into the run's headroom at
+    /// every `K`**: at `K = 2` the headroom is one `ε`, under the
+    /// re-mint's `4.5ε`, so the band is scaled by `1/4.5`. A column whose
+    /// margin at the box's extent is `0.6ε` is admitted at `K = 10` and
+    /// refuses at `K = 2`, naming its check; one at `0.1ε` passes both.
+    #[test]
+    fn the_rigidity_band_fits_the_headroom_at_every_k() {
+        let eps = 1e-9;
+        let at_k = |k: f64| Band::new(eps, k * eps).unwrap();
+        let reach = crate::tolerance::SESSION_BOX_EXTENT;
+        let stretched = |margin: f64| {
+            let delta = margin * eps / reach / 2.0;
+            Affine3::from_parts(
+                Mat3::from_cols(
+                    Vec3::new(1.0 + delta, 0.0, 0.0),
+                    Vec3::unit_y(),
+                    Vec3::unit_z(),
+                ),
+                Vec3::zero(),
+            )
+        };
+        assert!(
+            RigidMotion::check_rigid(&stretched(0.6), at_k(10.0)).is_ok(),
+            "0.6ε at the box's extent is admitted at the default K"
+        );
+        assert!(
+            matches!(
+                RigidMotion::check_rigid(&stretched(0.6), at_k(2.0)),
+                Err(RigidMotionError::NotRigid {
+                    check: "transform_rigid_col0_unit"
+                })
+            ),
+            "0.6ε at the box's extent refuses at K = 2"
+        );
+        for k in [2.0, 10.0] {
+            assert!(
+                RigidMotion::check_rigid(&stretched(0.1), at_k(k)).is_ok(),
+                "0.1ε at the box's extent is admitted at K = {k}"
+            );
+        }
+    }
+
     /// **A point map is decided and re-minted at `f64` at every scalar**:
     /// a turn's twelve entries entered as point intervals and as `Sym`
     /// literals are admitted as the `f64` lane's frame, bit for bit, and
@@ -2267,8 +2335,9 @@ mod crossing_and_turn_rows {
     /// **Up to the band's escalation edge, the turn is rigid and carries
     /// `a` onto `b` to rounding**, at `f64` and at `Interval`: over six
     /// generic pairs at `1 + a·b` from `0.5` down to four escalations,
-    /// every turn builds, the rigidity door admits it at `f64` and never
-    /// reads the `Interval` turn, a box, as not rigid,
+    /// every turn builds, the rigidity door admits it at `f64` and entered
+    /// at `Interval`, and never reads the `Interval` turn, a box, as not
+    /// rigid,
     /// its seven rigidity defects stay below `1e-14`, and `a` lands
     /// within `1e-14` of `b` (at `Interval`, the enclosure of the miss
     /// within `1e-13`). Neither bound depends on how near opposed the
@@ -2320,6 +2389,11 @@ mod crossing_and_turn_rows {
                 assert!(
                     RigidMotion::check_rigid(&m.to_affine(), band()).is_ok(),
                     "{at}: the rigidity door admits the f64 turn"
+                );
+                assert!(
+                    RigidMotion::check_rigid(&m.to_affine().map(Interval::from_f64), band())
+                        .is_ok(),
+                    "{at}: the rigidity door admits the f64 turn entered at Interval"
                 );
                 // The same two directions at `Interval`, as point
                 // enclosures: each is the aim of an `f64` frame, entered
