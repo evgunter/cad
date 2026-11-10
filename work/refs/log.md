@@ -254,3 +254,10 @@
   - The build goes into PR 6555 as one lane, dispatched once SEAL's step-4 rework lane hands back (serial, per Ev's opening message). It also pins `a-selection-of-a-member-of-a-family-with-an-empty-member-refuses` in its new form (`xs[i]` at an empty member refuses `EmptyOperand`).
 - 2026-11-10 — **Ev on PR 6555** (comment 6757577350): "a form-1 specific refusal should not be possible, it shouldn't type check". DM3's sentence now says the family read whole does not type-check at a selection's body seat (`SlotVarKind`), committed `0cb7996da8`; the build brief says the fix is deleting `names_members`' bypass of the existing kind check, with no name-inspecting check.
 - 2026-11-10 — **PR 6555's build dispatched** (one lane; SEAL's step-4 lane had handed back, its review runs beside it). Row `a-selects-body-takes-an-indexed-read` set `dispatched`, tier single FULL.
+- 2026-11-10 — **PR 6555 build in** (head `bc173fd185`; local gates green: nextest 4215, Python 955, clippy, lint). Hosted CI has not run: the PR is a draft and the lane's undraft was refused by the permission classifier. Left for Ev rather than retried from here.
+  - Departures to adjudicate:
+    1. No whole-family refusal exists or can: a plain family read at a body seat is per-member, so the form-1 shape is a per-member selection whose every member refuses `SelectResolve`. My DM3 sentence ("does not type-check, `SlotVarKind`") was an unchecked claim, and the lane rewrote it. That is my second unchecked-sentence finding this sitting.
+    2. A sited-name converter (`operand.rs` `selection_at`) turns `Member`-spelled names into `xs[i]`. This may be the converter the ruling deleted.
+    3. Rust `select` on a family whole is kept.
+  - The lane also says its first clone dropped mid-transfer and its follow-up checkout ran in `/home/user/cad`. It restored that checkout, which I confirmed clean on `seal/orchestrator`.
+  - **Review dispatched:** single FULL tier on the frozen head, with the claims aimed at those departures and the DM3 text. `refs-select-target` was reclaimed, along with the two stale step-3 targets.
