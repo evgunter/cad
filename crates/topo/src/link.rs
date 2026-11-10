@@ -4968,44 +4968,55 @@ pub(crate) mod rest {
         })
     }
 
-    /// **A tangent link whose lenses one order down are read**
-    /// ([`super::second_order::lenses`]) over its remainder, its other
-    /// sectors and its horns, each lens cut out of the remainder's
-    /// material (a void) or added to it (a sliver). The link rests where
-    /// no other sector crosses a lens's wedge (a crossing, confirmed in the
-    /// ball), no ray of another sector lies on its closed wedge, the
-    /// remainder rests ([`one_material`]), and each lens's middle reads
-    /// decidedly inside the remainder's material for a void and outside it
-    /// for a sliver; a remainder of no sector and no horn has no material,
-    /// and its lenses are then all one kind. The argument:
-    /// `crates/topo/README.md`, beside the first-order one. A lens of the
-    /// wrong kind for its region is [`crate::CurvedUnread::Unreadable`]; another
-    /// sector's ray on the wedge, or a reading in band, is
-    /// [`TouchUnread::InBand`].
+    /// **A tangent link whose lenses and lunes one order down are read**
+    /// ([`super::second_order::lenses`]) over its remainder: its other
+    /// sectors, each sector a lune's wedge ends inside cut short there,
+    /// and its horns but the lunes' caps, each lens or lune cut out of the
+    /// remainder's material (a void) or added to it (a sliver). The link
+    /// rests where no other sector crosses a pair's wedge (a crossing,
+    /// confirmed in the ball), no other horn's ray lies on its closed
+    /// wedge, no other sector reaches a cap's ray, the remainder rests
+    /// ([`one_material`]), and each pair's middle reads decidedly inside
+    /// the remainder's material for a void and outside it for a sliver; a
+    /// remainder of no sector and no horn has no material, and its pairs
+    /// are then all one kind. The argument: `crates/topo/README.md`,
+    /// beside the first-order one. A pair of the wrong kind for its region
+    /// is [`crate::CurvedUnread::Unreadable`]; a horn or sector reaching
+    /// it as above, or a reading in band, is [`TouchUnread::InBand`].
     fn lensed<T: Decide>(
         link: &Link<T>,
-        lenses: &[([usize; 2], super::second_order::Lens)],
+        lenses: &[super::second_order::OneWedge<T>],
         band: Band,
         rd: Reading<T>,
     ) -> TouchVerdict {
         use super::second_order::Lens;
         let (p, sectors) = (link.cone.p, &link.cone.sectors);
         let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
-        let paired = |k: usize| lenses.iter().any(|(pair, _)| pair.contains(&k));
-        let kept: Vec<usize> = (0..sectors.len()).filter(|&k| !paired(k)).collect();
-        let remainder = if kept.is_empty() && link.horns.is_empty() {
+        let paired = |k: usize| lenses.iter().any(|w| w.pair.contains(&k));
+        let capped = |h: usize| lenses.iter().any(|w| w.caps.iter().any(|&(c, _)| c == h));
+        let pieces: Vec<_> = (0..sectors.len())
+            .filter(|&k| !paired(k))
+            .map(|k| super::FaceSector {
+                sector: sectors[k].clone(),
+                face: link.faces[k].clone(),
+            })
+            .chain(lenses.iter().filter_map(|w| {
+                w.rest.as_ref().map(|f| super::FaceSector {
+                    sector: f.sector.clone(),
+                    face: f.face.clone(),
+                })
+            }))
+            .map(super::TangentPiece::Sector)
+            .chain(
+                (0..link.horns.len())
+                    .filter(|&h| !capped(h))
+                    .map(|h| super::TangentPiece::Horn(link.horns[h])),
+            )
+            .collect();
+        let remainder = if pieces.is_empty() {
             None
         } else {
-            let pieces = kept
-                .iter()
-                .map(|&k| {
-                    super::TangentPiece::Sector(super::FaceSector {
-                        sector: sectors[k].clone(),
-                        face: link.faces[k].clone(),
-                    })
-                })
-                .chain(link.horns.iter().map(|&h| super::TangentPiece::Horn(h)));
-            match Link::of_tangent(p, pieces.collect()) {
+            match Link::of_tangent(p, pieces) {
                 Ok(r) => Some(r),
                 Err(why) => return TouchVerdict::Unread(why),
             }
@@ -5018,11 +5029,10 @@ pub(crate) mod rest {
         }
         let rays = link.cone.rays();
         let mut notes = Notes::default();
-        for &([i, j], kind) in lenses {
-            let s = &sectors[i];
-            let &[(a, b)] = s.wedges.as_slice() else {
-                return unread;
-            };
+        for w in lenses {
+            let ([i, j], (a, b)) = (w.pair, w.wedge);
+            // The wedge as the sector whose one wedge it is.
+            let s = &sectors[if w.rest.is_some() { j } else { i }];
             let others: Vec<usize> = (0..sectors.len()).filter(|&k| k != i && k != j).collect();
             if crosses_in_ball(link, &others, &rays, (a, b), rd, &mut notes) {
                 return TouchVerdict::Crossing;
@@ -5040,12 +5050,21 @@ pub(crate) mod rest {
             // wedge's bound it is a tie first order reads one order down,
             // where this lens's two sheets fold along their shared edge
             // (`parts`); so is a sheet in the lens plane holding the whole
-            // wedge, the wedge's bounds lying inside it.
-            let reaches = link
-                .horns
-                .iter()
-                .any(|h| on_sector(&link.cone, s, h.apex + h.ends[0].0, rd) != Some(false));
-            if reaches {
+            // wedge, the wedge's bounds lying inside it. A lune's own caps
+            // close it; at a cap's ray `parts` reads the sheets but not the
+            // cap between them, so no other sector may reach that ray.
+            let reaches = (0..link.horns.len())
+                .filter(|&h| !w.caps.iter().any(|&(c, _)| c == h))
+                .any(|h| {
+                    let h = &link.horns[h];
+                    on_sector(&link.cone, s, h.apex + h.ends[0].0, rd) != Some(false)
+                });
+            let crowded = w.caps.iter().any(|&(_, r)| {
+                others
+                    .iter()
+                    .any(|&k| on_sector(&link.cone, &sectors[k], r, rd) != Some(false))
+            });
+            if reaches || crowded {
                 notes.in_band = true;
             }
             let probe = a.mid(b);
@@ -5053,12 +5072,12 @@ pub(crate) mod rest {
                 // A remainder of horns alone is thorns of material.
                 Some(r) if r.cone.sectors.is_empty() => Some(Material::Out),
                 Some(r) => r.cone.reads_over(probe, rd),
-                None => Some(match lenses[0].1 {
+                None => Some(match lenses[0].kind {
                     Lens::Void => Material::In,
                     Lens::Sliver => Material::Out,
                 }),
             };
-            match (kind, around) {
+            match (w.kind, around) {
                 (Lens::Void, Some(Material::In)) | (Lens::Sliver, Some(Material::Out)) => {}
                 // Belt and braces, reached by no row: an undecided reading
                 // refuses rather than passes.
