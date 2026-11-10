@@ -20,7 +20,9 @@
 //! A [`SurfaceCurve`]'s **locus** is built from a surface record's surface
 //! and chart coordinates and from nothing else: its centre, radius and
 //! direction are that surface's own at those coordinates, so no curve off
-//! it can be built as one. Its parametrisation may start at a point the
+//! it can be built as one (C5, `crates/geom-brep/README.md`: "a curve on a
+//! surface is built from chart coordinates on a surface record"). Its
+//! parametrisation may start at a point the
 //! caller holds on it ([`SurfaceCurve::starting_at`]): a circle's `θ = 0`
 //! names where along the locus places are counted from, and moves no
 //! point of it. The surface is the record's as stored, or turned about
@@ -392,24 +394,46 @@ impl<T: Decide> SurfaceCurve<T> {
     }
 
     /// **The circle with its parametrisation started at `p`**, a point the
-    /// caller holds on it: `θ = 0` is `p`'s direction from the centre. The
-    /// locus (centre, axis, radius) is the chart's, as built; only where
-    /// places along it are counted from moves. A region door starts its
-    /// legs at the query's closed-form foot ([`geom::Surface::foot`]) so a
-    /// crossing's place along a leg reads no chart frame in the leg's
-    /// start, which `surface.eval(uv)` carries in its last ulps.
+    /// caller holds on it: `θ = 0` is `p`'s offset from the centre with its
+    /// component along the axis projected out, so the frame stays square to
+    /// the axis. The locus (centre, axis, radius) is the chart's, as built
+    /// from chart coordinates on the record (C5); only where places along
+    /// it are counted from moves. The cone and torus region doors start
+    /// their circle legs at the query's closed-form foot
+    /// ([`geom::Surface::foot`]), and the sphere door its great circle and
+    /// its circle about the query at the foot and the corner it holds, so a
+    /// crossing's place along a leg reads no chart frame in the leg's start,
+    /// which `surface.eval(uv)` carries in its last ulps.
     ///
-    /// A line's origin is a point of its locus, so it does not move:
-    /// called on a line, this is a caller's defect.
+    /// # Panics
+    ///
+    /// On a line: a line's origin is a point of its locus, so it does not
+    /// move, and asking is a caller's defect. In debug builds, where `p`
+    /// lies farther from the circle than about `1e-6` of its radius.
     #[must_use]
     pub fn starting_at(self, p: Point3<T>) -> Self {
         let Shape::Circle(c) = self.shape else {
             unreachable!("only a circle's start moves: a line's origin is its locus")
         };
-        let w = p - c.frame.origin;
+        let (centre, axis) = (c.frame.origin, c.frame.axis);
+        let w = p - centre;
+        let w = w - axis * w.dot(axis);
+        debug_assert!(
+            {
+                let off = (p - centre)
+                    .dot(axis)
+                    .abs()
+                    .max((w.norm() - c.radius).abs());
+                match (off.point_value(), c.radius.point_value()) {
+                    (Some(off), Some(r)) => off <= 1e-6 * r.max(1.0),
+                    _ => true,
+                }
+            },
+            "a circle's start is a point the caller holds on it"
+        );
         Self {
             shape: Shape::Circle(Circle::new(
-                Frame::new(c.frame.origin, c.frame.axis, w.normalize()),
+                Frame::new(centre, axis, w.normalize()),
                 c.radius,
             )),
             ..self

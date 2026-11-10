@@ -814,27 +814,12 @@ fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
     }
     agree("cylinder window", &cylinders, &queries);
 
-    let (vs, s) = ((1.0, 2.0), ALPHA.sin());
+    let vs = CONE_VS;
     let cones: Vec<_> = charts(&cone_z())
         .iter()
         .map(|surface| cone_window(surface, us, vs))
         .collect();
-    let mut queries = Vec::new();
-    for i in 0..60 {
-        let t = f64::from(i) / 60.0 + 0.004;
-        let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
-        for o in ZERO_OFFSETS {
-            queries.push((format!("rim v0, u {u}, {o:e} off"), on_cone(u, vs.0 + o)));
-            queries.push((format!("rim v1, u {u}, {o:e} off"), on_cone(u, vs.1 + o)));
-            let (g0, g1) = (
-                on_cone(us.0 + o / (v * s), v),
-                on_cone(us.1 + o / (v * s), v),
-            );
-            queries.push((format!("generator u0, v {v}, {o:e} off"), g0));
-            queries.push((format!("generator u1, v {v}, {o:e} off"), g1));
-        }
-    }
-    agree("cone window", &cones, &queries);
+    agree("cone window", &cones, &cone_edge_queries(us, &ZERO_OFFSETS));
 }
 
 /// **Within the band of a cone's apex plane, the query's foot is the
@@ -881,37 +866,49 @@ fn a_query_beside_a_cones_apex_plane_reads_the_charts_nappe() {
 #[test]
 fn a_cones_circle_legs_read_no_chart_frame_at_the_escalation() {
     let us = (0.4, 2.9);
-    let (vs, s) = ((1.0, 2.0), ALPHA.sin());
     let cones: Vec<_> = charts(&cone_z())
         .iter()
-        .map(|surface| cone_window(surface, us, vs))
+        .map(|surface| cone_window(surface, us, CONE_VS))
         .collect();
-    let mut by_frame = 0;
-    for i in 0..60 {
-        let t = f64::from(i) / 60.0 + 0.004;
-        let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
-        for o in [-1e-8, 1e-8] {
-            for p in [
-                on_cone(u, vs.0 + o),
-                on_cone(u, vs.1 + o),
-                on_cone(us.0 + o / (v * s), v),
-                on_cone(us.1 + o / (v * s), v),
-            ] {
-                let first = class(cones[0].contains(p, b()));
-                if cones
-                    .iter()
-                    .skip(1)
-                    .any(|r| class(r.contains(p, b())) != first)
-                {
-                    by_frame += 1;
-                }
-            }
-        }
-    }
+    let by_frame = cone_edge_queries(us, &[-1e-8, 1e-8])
+        .into_iter()
+        .filter(|&(_, p)| {
+            let first = class(cones[0].contains(p, b()));
+            cones
+                .iter()
+                .skip(1)
+                .any(|r| class(r.contains(p, b())) != first)
+        })
+        .count();
     assert_eq!(
         by_frame, KEPT_CONE,
         "queries a frame answers at the escalation"
     );
+}
+
+/// The frame pins' cone window's slant range.
+const CONE_VS: (f64, f64) = (1.0, 2.0);
+
+/// Queries `o` off each of the cone window `us × CONE_VS`'s four edges,
+/// for each offset in `offsets`, at 60 stations along them, each named.
+fn cone_edge_queries(us: (f64, f64), offsets: &[f64]) -> Vec<(String, Point3<f64>)> {
+    let (vs, s) = (CONE_VS, ALPHA.sin());
+    let mut queries = Vec::new();
+    for i in 0..60 {
+        let t = f64::from(i) / 60.0 + 0.004;
+        let (u, v) = (us.0 + t * (us.1 - us.0), vs.0 + t * (vs.1 - vs.0));
+        for &o in offsets {
+            queries.push((format!("rim v0, u {u}, {o:e} off"), on_cone(u, vs.0 + o)));
+            queries.push((format!("rim v1, u {u}, {o:e} off"), on_cone(u, vs.1 + o)));
+            let (g0, g1) = (
+                on_cone(us.0 + o / (v * s), v),
+                on_cone(us.1 + o / (v * s), v),
+            );
+            queries.push((format!("generator u0, v {v}, {o:e} off"), g0));
+            queries.push((format!("generator u1, v {v}, {o:e} off"), g1));
+        }
+    }
+    queries
 }
 
 /// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`]'s count.
