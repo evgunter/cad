@@ -383,6 +383,59 @@ pub(crate) const EDGE_SCALE_RECOURSE: &str =
 const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
 
 impl ChartRegionError {
+    /// **This refusal's standing** ([`geom_core::ladder::Refusal`]), by
+    /// the `[failure.taxonomy]` row each variant's doc puts it in.
+    /// Exhaustive with no catch-all arm, so an added variant states its
+    /// standing here before it compiles.
+    ///
+    /// - Kept by its margin (row 1(b)): [`Self::Escalated`].
+    /// - In band, with no margin carried (row 1(b): a tighter band may
+    ///   decide it): [`Self::RayExhausted`] (every ray grazed),
+    ///   [`Self::TouchingBoundary`] (not decidable at this ε) and
+    ///   [`Self::PeriodFold`] (a gap decided on a half-period mark, the
+    ///   branches astride it disagreeing).
+    /// - A limit (row 2: a reading not built, or a bound on the work):
+    ///   [`Self::ChartDivergence`], [`Self::NonPlanarTrim`],
+    ///   [`Self::ArmUnbounded`], [`Self::SeamBranch`] and both witness
+    ///   caps.
+    /// - A limit (row 1(b): a precision limit the model controls, which no
+    ///   tolerance moves; its lever is the model's scale):
+    ///   [`Self::EdgeScale`] (an edge length no ordinary number holds).
+    /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
+    ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
+    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4); and two
+    ///   payloads that mix classes, until they are split
+    ///   (`work/onecopy/chart-region-refusals-that-mix-classes-await-their-split.md`):
+    ///   [`Self::TrimOffFace`], whose incidence read is a decided miss, a
+    ///   pose, or an undecided read; and [`Self::DegenerateLoop`], raised
+    ///   both for a loop with under three chart points (structure) and for
+    ///   an orientation the band decides zero (in band).
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::ladder::Aborts`] for a refusal of the whole query.
+    pub(crate) const fn refusal(
+        &self,
+    ) -> Result<geom_core::ladder::Refusal, geom_core::ladder::Aborts> {
+        use geom_core::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag) => Ok(Refusal::Margin(*diag)),
+            Self::RayExhausted | Self::TouchingBoundary | Self::PeriodFold => Ok(Refusal::InBand),
+            Self::ChartDivergence { .. }
+            | Self::NonPlanarTrim { .. }
+            | Self::ArmUnbounded { .. }
+            | Self::SeamBranch
+            | Self::WitnessSegmentCapExceeded { .. }
+            | Self::WitnessCellCapExceeded { .. }
+            | Self::EdgeScale => Ok(Refusal::Limit),
+            Self::MissingCache { .. }
+            | Self::CarrierTilt
+            | Self::Corrupt
+            | Self::TrimOffFace { .. }
+            | Self::DegenerateLoop { .. } => Err(Aborts),
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
@@ -3767,18 +3820,29 @@ fn overlap_of_regions<T: Decide + Bounds>(
 /// valid only when their boundaries have no proper crossing: the
 /// first definite vertex verdict in cycle order (D9), `None` when
 /// every vertex sits on `to`'s boundary.
+///
+/// Every vertex off `to`'s boundary reads the one relation where the
+/// boundaries do not cross, so a vertex read in band is kept by its
+/// standing ([`ChartRegionError::refusal`]) and a later definite vertex
+/// answers. That is a premise about the input, not a theorem of the
+/// rule, so the ladder climbs under [`Answering::First`] (a kept vertex
+/// ahead stays live on the record), pending 6592's `Alike`
+/// (`work/onecopy/side-at-infinity-aimed-rays-disagree.md`).
 fn polygon_relation<T: Decide>(
     of: &[Point2<T>],
     to: &[Point2<T>],
     band: Band,
 ) -> Result<Option<PolyContainment>, ChartRegionError> {
-    for v in of {
-        match point_in_polygon(to, *v, band)? {
-            PolyContainment::OnBoundary => continue,
-            verdict => return Ok(Some(verdict)),
+    use geom_core::ladder::{Answering, Rung, climb};
+    climb(Answering::First, of, |v| {
+        match point_in_polygon(to, *v, band) {
+            Ok(PolyContainment::OnBoundary) => Rung::Passes,
+            Ok(verdict) => Rung::Answers(Ok(verdict)),
+            Err(e) => Rung::refused(e, ChartRegionError::refusal, Err),
         }
-    }
-    Ok(None)
+    })
+    .into_reading()
+    .and_then(|answer| answer.transpose())
 }
 
 #[cfg(test)]
@@ -3800,6 +3864,94 @@ mod tests {
 
     pub(super) fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// One sample of every variant kind, through a `match` with no
+    /// wildcard, so an arm added without a sample here is a compile
+    /// error rather than a row that never runs.
+    pub(super) fn sample(kind: ChartRegionErrorKind) -> ChartRegionError {
+        let diag = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: band(),
+            predicate: Some("chart_region_area"),
+            terminal_sliver: false,
+        };
+        match kind {
+            ChartRegionErrorKind::ChartDivergence => {
+                ChartRegionError::ChartDivergence { detail: "same-key" }
+            }
+            ChartRegionErrorKind::NonPlanarTrim => ChartRegionError::NonPlanarTrim {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                what: "a Harmonic image",
+            },
+            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
+                face: FaceKey::default(),
+                half_edge: HalfEdgeKey::default(),
+                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
+            },
+            ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
+                half_edge: HalfEdgeKey::default(),
+            },
+            ChartRegionErrorKind::ArmUnbounded => ChartRegionError::ArmUnbounded { chart: "cone" },
+            ChartRegionErrorKind::SeamBranch => ChartRegionError::SeamBranch,
+            ChartRegionErrorKind::PeriodFold => ChartRegionError::PeriodFold,
+            ChartRegionErrorKind::CarrierTilt => ChartRegionError::CarrierTilt,
+            ChartRegionErrorKind::TouchingBoundary => ChartRegionError::TouchingBoundary,
+            ChartRegionErrorKind::DegenerateLoop => ChartRegionError::DegenerateLoop {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+            },
+            ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
+            ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
+            ChartRegionErrorKind::WitnessSegmentCapExceeded => {
+                ChartRegionError::WitnessSegmentCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP + 1,
+                }
+            }
+            ChartRegionErrorKind::WitnessCellCapExceeded => {
+                ChartRegionError::WitnessCellCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP,
+                    cells: WITNESS_CELL_CAP,
+                }
+            }
+            ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
+            ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
+        }
+    }
+
+    /// [`ChartRegionError::refusal`] by its `[failure.taxonomy]` rows (QML
+    /// T4), over every variant ([`sample`]): the expected standing is a
+    /// `match` with no wildcard, so changing a standing, or adding a
+    /// variant without stating one here, goes red.
+    #[test]
+    fn a_chart_region_refusal_stands_by_its_row() {
+        use geom_core::ladder::{Aborts, Refusal};
+        for kind in <ChartRegionErrorKind as strum::IntoEnumIterator>::iter() {
+            let e = sample(kind);
+            let want = match kind {
+                ChartRegionErrorKind::Escalated => match e {
+                    ChartRegionError::Escalated(diag) => Ok(Refusal::Margin(diag)),
+                    _ => unreachable!("the sample is its kind"),
+                },
+                ChartRegionErrorKind::RayExhausted
+                | ChartRegionErrorKind::TouchingBoundary
+                | ChartRegionErrorKind::PeriodFold => Ok(Refusal::InBand),
+                ChartRegionErrorKind::ChartDivergence
+                | ChartRegionErrorKind::NonPlanarTrim
+                | ChartRegionErrorKind::ArmUnbounded
+                | ChartRegionErrorKind::SeamBranch
+                | ChartRegionErrorKind::WitnessSegmentCapExceeded
+                | ChartRegionErrorKind::WitnessCellCapExceeded
+                | ChartRegionErrorKind::EdgeScale => Ok(Refusal::Limit),
+                ChartRegionErrorKind::MissingCache
+                | ChartRegionErrorKind::CarrierTilt
+                | ChartRegionErrorKind::Corrupt
+                | ChartRegionErrorKind::DegenerateLoop
+                | ChartRegionErrorKind::TrimOffFace => Err(Aborts),
+            };
+            assert_eq!(e.refusal(), want, "{kind:?}");
+        }
     }
 
     /// **A trim off its plane ends by the door that reads it**: a
@@ -3930,57 +4082,6 @@ mod tests {
             "declare",
             "rescale",
         ];
-        let diag = Indeterminate {
-            margin: geom_core::MarginDiag::value(5e-9),
-            band: band(),
-            predicate: Some("chart_region_area"),
-            terminal_sliver: false,
-        };
-        // Every arm, constructed: one sample per variant kind, through a
-        // `match` with no wildcard, so an arm added without a sample here
-        // is a compile error rather than a row that never runs.
-        let sample = |kind: ChartRegionErrorKind| match kind {
-            ChartRegionErrorKind::ChartDivergence => {
-                ChartRegionError::ChartDivergence { detail: "same-key" }
-            }
-            ChartRegionErrorKind::NonPlanarTrim => ChartRegionError::NonPlanarTrim {
-                face: FaceKey::default(),
-                half_edge: HalfEdgeKey::default(),
-                what: "a Harmonic image",
-            },
-            ChartRegionErrorKind::TrimOffFace => ChartRegionError::TrimOffFace {
-                face: FaceKey::default(),
-                half_edge: HalfEdgeKey::default(),
-                read: geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
-            },
-            ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
-                half_edge: HalfEdgeKey::default(),
-            },
-            ChartRegionErrorKind::ArmUnbounded => ChartRegionError::ArmUnbounded { chart: "cone" },
-            ChartRegionErrorKind::SeamBranch => ChartRegionError::SeamBranch,
-            ChartRegionErrorKind::PeriodFold => ChartRegionError::PeriodFold,
-            ChartRegionErrorKind::CarrierTilt => ChartRegionError::CarrierTilt,
-            ChartRegionErrorKind::TouchingBoundary => ChartRegionError::TouchingBoundary,
-            ChartRegionErrorKind::DegenerateLoop => ChartRegionError::DegenerateLoop {
-                face: FaceKey::default(),
-                r#loop: LoopKey::default(),
-            },
-            ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
-            ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
-            ChartRegionErrorKind::WitnessSegmentCapExceeded => {
-                ChartRegionError::WitnessSegmentCapExceeded {
-                    segments: WITNESS_SEGMENT_CAP + 1,
-                }
-            }
-            ChartRegionErrorKind::WitnessCellCapExceeded => {
-                ChartRegionError::WitnessCellCapExceeded {
-                    segments: WITNESS_SEGMENT_CAP,
-                    cells: WITNESS_CELL_CAP,
-                }
-            }
-            ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
-            ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
-        };
         let arms: Vec<_> = <ChartRegionErrorKind as strum::IntoEnumIterator>::iter()
             .map(sample)
             .collect();
@@ -5311,6 +5412,33 @@ mod tests {
                 assert_eq!(overlap_of_regions(&a, &b, false, band()).unwrap(), first);
             }
         }
+    }
+
+    /// **A vertex inside answers past a vertex in band**
+    /// ([`polygon_relation`], `First`, under its boundaries-do-not-cross
+    /// premise). The unit square, and a polygon whose first vertex lies
+    /// `5e-9` off the square's right edge (in band) and whose next vertex
+    /// is inside: the relation is `In`. A first-refusal loop escalated at
+    /// the first vertex.
+    #[test]
+    fn a_vertex_inside_answers_past_a_vertex_in_band() {
+        let sq = rect(0.0, 0.0, 1.0, 1.0);
+        let of = [
+            Point2::new(1.0 + 5e-9, 0.5),
+            Point2::new(0.5, 0.5),
+            Point2::new(0.5, 0.25),
+        ];
+        assert!(
+            matches!(
+                point_in_polygon(&sq, of[0], band()),
+                Err(ChartRegionError::Escalated(_))
+            ),
+            "the first vertex reads in band"
+        );
+        assert_eq!(
+            polygon_relation(&of, &sq, band()).unwrap(),
+            Some(PolyContainment::In)
+        );
     }
 }
 
