@@ -979,6 +979,16 @@ impl<T: Real> Meridian<T> {
         let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius, branch);
         let level = |q: Point3<T>| self.axis.foot(q);
         let s = (center - self.axis.origin).dot(radial);
+        {
+            use std::io::Write;
+            let num = |x: T| format!("{x:?}").split(|c: char| !(c.is_ascii_digit() || c == '.' || c == '-' || c == 'e')).find_map(|w| w.parse::<f64>().ok()).unwrap_or(f64::NAN);
+            let (sv, rv) = (num(s), num(radius));
+            let tag = if sv < 0.0 { if -sv > rv { "NEG_RING" } else { "NEG_SPINDLE" } } else if sv > rv { "POS_RING" } else { "POS_SPINDLE" };
+            let name = std::thread::current().name().unwrap_or("?").to_string();
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(format!("/tmp/claude-0/-home-user-cad/b6e0c139-d1ac-5d9b-a208-ff9f91c2be5c/scratchpad/coax/{}.log", std::process::id())) {
+                let _ = writeln!(f, "{tag}\t{name}\t{sv:e}\t{rv:e}");
+            }
+        }
         // The setback is the EUCLIDEAN displacement of the trimline from
         // the rim, the metric predicate 2 measures face extents in.
         let trim = |t: SupportTrace<T>| {
