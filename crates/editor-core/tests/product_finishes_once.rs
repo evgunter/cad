@@ -193,19 +193,13 @@ fn a_union_across_two_frames_runs_one_finish() {
 #[cfg(debug_assertions)]
 fn finished_value(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     let (doc, a) = block(doc);
-    let (doc, profile) = on_frame(
+    let (doc, b) = block(doc);
+    // The second block joins the first's space, half a block over.
+    let (doc, b) = fixture::against(
         doc,
-        [0.5, 0.25, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.5, 0.5, 0.5)],
-    );
-    let (doc, b) = fixture::insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-        },
+        a,
+        b,
+        &editor_core::Frame::translation([0.5, 0.25, 0.0]),
     );
     fixture::union_over(doc, &[a, b])
 }
