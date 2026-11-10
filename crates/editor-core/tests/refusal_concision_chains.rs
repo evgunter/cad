@@ -942,7 +942,7 @@ mod kernel {
         pub(super) const SPLIT_REDUCE_ERROR: SplitReduceError = [
             Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
             TangencyUnsupported, KnifeEdge, SliverVertex, SliverSector, SectionGermsEscalated,
-            SectionGermsUnordered, ApexSection, ApexUndecided, NonFiniteSectorChord,
+            SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
             UnrecordedSide, UnboundedFace, CrossingInsertion, Euler, LineageRow,
@@ -2413,6 +2413,14 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 vertex,
                 face,
                 reading: topo::ApexSectionReading::NoRulingInside,
+            },
+        ),
+        (
+            "VertexNearConeAxis",
+            R::VertexNearConeAxis {
+                vertex,
+                face,
+                band: band(),
             },
         ),
         (

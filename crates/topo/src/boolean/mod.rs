@@ -6987,23 +6987,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut line_touches = Vec::new();
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
         // Each vertex's sectors, cut where the other's faces turn their
-        // side along them ([`sectors::Partners::Faces`]), which only a
-        // cone's apex on either side can do: what those faces are at the
-        // vertex is read off an uncut walk first.
-        let none = sectors::Partners::None;
-        let a_plain = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &none, band)?;
-        let b_plain = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &none, band)?;
-        let (a_sectors, b_sectors) = if a_plain.iter().chain(&b_plain).any(|s| s.apex().is_some()) {
-            let faces = |plain: &[sectors::BoolSector<T>]| {
-                sectors::Partners::Faces(plain.iter().map(|s| s.at_vertex).collect())
-            };
-            (
-                sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &faces(&b_plain), band)?,
-                sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &faces(&a_plain), band)?,
-            )
-        } else {
-            (a_plain, b_plain)
-        };
+        // side along them ([`sectors::pair_sectors`]).
+        let [a_sectors, b_sectors] =
+            sectors::pair_sectors([(&a, c.a, &tips[0]), (&b, c.b, &tips[1])], band)?;
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;

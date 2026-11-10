@@ -2,7 +2,7 @@
 //! is to the pair algebra of [`super::sectors::pair_search`].
 //!
 //! A sector at a cone's apex is a fan of the cone's rulings between its
-//! bounds ([`super::sectors::BoolFace::Apex`]): an arc of a small circle
+//! bounds ([`crate::star::StarFace::Apex`]): an arc of a small circle
 //! on the sphere of directions, where a planar sector is an arc of a
 //! great circle. The pair algebra reads three things of a sector, and
 //! each has a fan arm here:
@@ -24,18 +24,19 @@
 //!
 //! The pair algebra is bound-coded: a sector's side of a partner face is
 //! read off its bounds, which holds where the side is monotone across
-//! the sector. [`super::sectors::build_sectors`] cuts every sector at
-//! its partner faces' extremes ([`super::sectors::Partners`]) so that
-//! it is.
+//! the sector. [`super::sectors::pair_sectors`] refines each vertex's
+//! star at its partner faces' extremes ([`crate::star::Star::refine`]) so
+//! that it is.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
-use super::sectors::{BoolFace, BoolSector};
+use super::sectors::BoolSector;
 use super::{BooleanError, Coincide, DeclarationRead, Operand, SideCode};
 use crate::body::Body;
 use crate::bound_side::BoundSupport;
 use crate::entity::VertexKey;
 use crate::sector_face::ConeApex;
+use crate::star::StarFace;
 use crate::validate::decide;
 use geom_core::Lever;
 
@@ -81,10 +82,10 @@ pub(super) fn face_side_code<T: Decide>(
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let apex = match &other.at_vertex {
-        BoolFace::Tangent(_) => {
+        StarFace::Tangent(_) => {
             return super::sectors::sector_code(dir, reach, other, band);
         }
-        BoolFace::Apex(apex) => apex,
+        StarFace::Apex(apex) => apex,
     };
     let q = reach.point(apex.apex, dir);
     let offset = nappe_offset(apex, other.start, q);
@@ -184,7 +185,7 @@ pub(super) fn meeting<T: Decide>(
     let arm = a.arm.min(b.arm);
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     match (&a.at_vertex, &b.at_vertex) {
-        (BoolFace::Tangent(na), BoolFace::Tangent(nb)) => {
+        (StarFace::Tangent(na), StarFace::Tangent(nb)) => {
             let int = na.vec().cross(nb.vec());
             // A norm levered by a minimum of chord norms: a magnitude.
             match geom_core::k_stats::decide_magnitude(
@@ -197,13 +198,13 @@ pub(super) fn meeting<T: Decide>(
                 Err(diag) => Err(escalate(diag)),
             }
         }
-        (BoolFace::Apex(apex), BoolFace::Tangent(normal)) => {
+        (StarFace::Apex(apex), StarFace::Tangent(normal)) => {
             plane_fan(((a_op, a_site, a), apex), normal.vec(), band)
         }
-        (BoolFace::Tangent(normal), BoolFace::Apex(apex)) => {
+        (StarFace::Tangent(normal), StarFace::Apex(apex)) => {
             plane_fan(((b_op, b_site, b), apex), normal.vec(), band)
         }
-        (BoolFace::Apex(pa), BoolFace::Apex(pb)) => {
+        (StarFace::Apex(pa), StarFace::Apex(pb)) => {
             let (axa, axb) = (pa.nappe_axis(a.start), pb.nappe_axis(b.start));
             let tangency = || BooleanError::CurvedBooleanUnsupported {
                 operand: a_op,
@@ -577,7 +578,7 @@ mod rows {
                 start_reach: Reach::straight_bisector(unit),
                 end_reach: Reach::straight_bisector(unit),
                 face: FaceKey::from(key(2)),
-                at_vertex: BoolFace::Apex(apex),
+                at_vertex: StarFace::Apex(apex),
                 bend: crate::bound_side::FaceBend::Plane,
                 arm: unit,
             };
@@ -635,7 +636,7 @@ mod rows {
             start_reach: Reach::straight_bisector(arm),
             end_reach: Reach::straight_bisector(arm),
             face: FaceKey::from(key(face)),
-            at_vertex: BoolFace::Apex(apex),
+            at_vertex: StarFace::Apex(apex),
             bend: crate::bound_side::FaceBend::Plane,
             arm,
         }

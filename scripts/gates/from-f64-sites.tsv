@@ -178,6 +178,7 @@ crates/topo/src/splitting/classify.rs	1	constant	crate::boolean::boxes::sweep_pa
 crates/topo/src/splitting/containment.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/order.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/spline_arc.rs	1	constant	m	a spline piece's middle parameter, a point the halving chose
+crates/topo/src/star/walk.rs	1	constant	k	a quarter or a half cut of an apex window, a fraction from the walk's own table
 crates/topo/src/test_support_meeting.rs	1	fixture	<fn>	posed_pyramid_kept: a fixture's posed f64 corners lifted into T
 crates/topo/src/test_support_fixtures.rs	1	fixture	frame.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface's radius
@@ -193,4 +194,3 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	band.escalate()	the band's 
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * (m as f64 + 8.0) * geom_core::UNIT_ROUNDOFF	a summation's rounding factor, from the count of its terms
 crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * samples.len() as f64	the count of steps a walk's error bound is shared over
 crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's multiple of π, a literal at each call (±1, ±3)
-crates/topo/src/boolean/sectors.rs	1	constant	k	a quarter cut of a whole turn, a fraction from TurnOrder::quarter_fractions
