@@ -2434,8 +2434,10 @@ mod tests {
             Some(vec![seg.he_plus, seg.he_minus])
         );
         // The segment now runs seed.vertex → strut.vertex.
-        assert_eq!(body.get_half_edge(seg.he_plus).unwrap().start, seed.vertex);
-        assert_eq!(body.half_edge_end(seg.he_plus), Some(strut.vertex));
+        assert_eq!(
+            body.edge_vertices(seg.edge),
+            Some((seed.vertex, strut.vertex))
+        );
     }
 
     #[test]

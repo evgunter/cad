@@ -46,8 +46,10 @@ fn assert_bits(actual: f64, expected: f64, what: &str) {
 #[test]
 fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
     let m = Meridian {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        axis: geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        },
         rim: Point3::new(2.0, 0.0, 1.0),
     };
     let plane = Surface::Plane {

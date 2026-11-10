@@ -519,7 +519,12 @@ pub fn ring_torus<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    ring_half(RingSites::CONVENTION.ring, major_radius, minor_radius, band)
+    ring_half(
+        RingReader::Convention.sites().ring,
+        major_radius,
+        minor_radius,
+        band,
+    )
 }
 
 /// The ring half's one spelling, `R − r` as a length, under `name`.
@@ -550,7 +555,7 @@ pub fn torus_tube<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    tube_half(RingSites::CONVENTION.tube, minor_radius, band)
+    tube_half(RingReader::Convention.sites().tube, minor_radius, band)
 }
 
 /// The tube half's one spelling, `r` as a length, under `name`.
@@ -615,18 +620,17 @@ pub struct RingSites {
 }
 
 impl RingSites {
-    /// The convention's own rows ([`torus_tube`], [`ring_torus`]).
-    pub const CONVENTION: Self = Self::new("torus_tube_positive", "ring_torus_convention");
-
     /// The rows for the tube half (`r`) and the ring half (`R − r`).
-    /// Private: a reader names its rows at [`RingReader::sites`].
+    /// Private to this module: a reader names its rows at
+    /// [`RingReader::sites`], and no code mints a bundle elsewhere, this
+    /// crate's included.
     ///
     /// # Panics
     ///
     /// Where the two names are equal: each names its own margin. In a
     /// `const` item the panic is a compile error.
     #[must_use]
-    pub(crate) const fn new(tube: &'static str, ring: &'static str) -> Self {
+    const fn new(tube: &'static str, ring: &'static str) -> Self {
         assert!(
             !crate::str_eq(tube, ring),
             "the ring convention's two halves need two names"
@@ -678,7 +682,7 @@ impl RingReader {
     #[must_use]
     pub const fn sites(self) -> RingSites {
         match self {
-            Self::Convention => RingSites::CONVENTION,
+            Self::Convention => RingSites::new("torus_tube_positive", "ring_torus_convention"),
             Self::SelfIntersection => RingSites::new(
                 "self_intersection_torus_tube",
                 "self_intersection_ring_torus",
@@ -746,13 +750,18 @@ impl NotARing {
 
 impl<T: geom_core::Decide> RingTorus<T> {
     /// **Decides radii `(major_radius, minor_radius)` a ring** under the
-    /// convention's own rows ([`RingSites::CONVENTION`]).
+    /// convention's own rows ([`RingReader::Convention`]).
     ///
     /// # Errors
     ///
     /// As [`RingTorus::of_at`].
     pub fn of(major_radius: T, minor_radius: T, band: Band) -> Result<Self, NotARing> {
-        Self::of_at(major_radius, minor_radius, RingSites::CONVENTION, band)
+        Self::of_at(
+            major_radius,
+            minor_radius,
+            RingReader::Convention.sites(),
+            band,
+        )
     }
 
     /// **Decides radii `(major_radius, minor_radius)` a ring under a

@@ -109,14 +109,13 @@ fn crease<T: Real + Bounds>(body: &Body<T>, k: f64) -> EdgeKey {
     query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
             let p = |v| {
                 *body
                     .get_point(body.get_vertex(v).expect("v").point)
                     .expect("p")
             };
-            at(p(body.get_half_edge(he).expect("a half").start))
-                && at(p(body.half_edge_end(he).expect("an end")))
+            at(p(v0)) && at(p(v1))
         })
         .expect("the block's edge at (k, k)")
 }
@@ -755,14 +754,13 @@ fn crease_at_v<T: Real + Bounds>(body: &Body<T>) -> EdgeKey {
     query::all_edges(body)
         .into_iter()
         .find(|&e| {
-            let he = body.get_edge(e).expect("an edge").he_plus;
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
             let p = |v| {
                 *body
                     .get_point(body.get_vertex(v).expect("v").point)
                     .expect("p")
             };
-            at(p(body.get_half_edge(he).expect("a half").start))
-                && at(p(body.half_edge_end(he).expect("an end")))
+            at(p(v0)) && at(p(v1))
         })
         .expect("the crease at V")
 }

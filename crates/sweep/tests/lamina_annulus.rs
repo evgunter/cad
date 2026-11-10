@@ -498,15 +498,12 @@ fn upright(pts: &[(f64, f64)]) -> Body<f64> {
 }
 
 fn ends(body: &Body<f64>, e: EdgeKey) -> [Vec3<f64>; 2] {
-    let he = body.get_edge(e).unwrap().he_plus;
+    let (v0, v1) = body.edge_vertices(e).unwrap();
     let at = |v| {
         let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
         Vec3::new(p.x, p.y, p.z)
     };
-    [
-        at(body.get_half_edge(he).unwrap().start),
-        at(body.half_edge_end(he).unwrap()),
-    ]
+    [at(v0), at(v1)]
 }
 
 fn edges_where(body: &Body<f64>, on: impl Fn(Vec3<f64>) -> bool) -> Vec<EdgeKey> {

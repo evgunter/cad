@@ -534,12 +534,9 @@ fn a_rim_band_is_cut_off_at_both_ends() {
         .edges()
         .map(|(k, _)| k)
         .find(|&e| {
-            let he = body.get_edge(e).unwrap().he_plus;
+            let (v0, v1) = body.edge_vertices(e).unwrap();
             let p = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-            let (s, f) = (
-                p(body.get_half_edge(he).unwrap().start),
-                p(body.half_edge_end(he).unwrap()),
-            );
+            let (s, f) = (p(v0), p(v1));
             let on = |q: Point3<f64>, x: f64| (q - Point3::new(x, 0.0, 2.0)).norm() < 1e-12;
             (on(s, 0.0) && on(f, 2.0)) || (on(s, 2.0) && on(f, 0.0))
         })
