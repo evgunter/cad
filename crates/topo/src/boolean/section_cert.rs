@@ -1809,6 +1809,7 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(
             SectionError::RadiusEscalated { .. }
             | SectionError::DegenerateOperand { .. }
+            | SectionError::ConeAtTheBand { .. }
             | SectionError::DegenerateTorus(_)
             | SectionError::WrongLane { .. }
             | SectionError::RoutesToGeneralRung { .. }

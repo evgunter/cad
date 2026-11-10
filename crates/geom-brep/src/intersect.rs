@@ -611,7 +611,9 @@ pub fn route_pose<T: Decide>(
         // Refused BEFORE the pose was classified: an operand guard the
         // arm runs ahead of its pose trileans. The pose is unknown, and
         // a gate must not admit what it cannot classify.
-        Err(SectionError::DegenerateOperand { what }) => refused(what),
+        Err(SectionError::DegenerateOperand { what } | SectionError::ConeAtTheBand { what }) => {
+            refused(what)
+        }
         Err(
             e @ (SectionError::Escalated(_)
             | SectionError::RadiusEscalated { .. }
@@ -683,7 +685,20 @@ pub enum SectionError {
     /// `r = R = 0` and mints a radius-zero locus from them. `what`
     /// carries the whole finding — which clause failed and what it was
     /// measured on — because the clauses are not all about radii.
+    ///
+    /// Mixed, so it aborts ([`Self::refusal`]): a guard decided negative
+    /// (row 1(a)) beside a radius guard decided `Zero`, a poisoned height
+    /// and a partner the form does not read.
     DegenerateOperand {
+        /// Which clause of the convention failed, and on what.
+        what: &'static str,
+    },
+    /// A cone's aperture or seam guard decided `Zero`: at this band the
+    /// cone stands on its convention's edge (a half-angle at zero or a
+    /// right angle, a seam on its axis), where a tighter band may part
+    /// it, so it stands in band. Its decided-negative sibling is
+    /// [`Self::DegenerateOperand`], and it renders as that does.
+    ConeAtTheBand {
         /// Which clause of the convention failed, and on what.
         what: &'static str,
     },
@@ -763,9 +778,9 @@ impl SectionError {
     ///
     /// **A cause that mixes classes stands as an abort**, since a ladder
     /// must never read past what may be a fault or an in-band
-    /// coincidence: [`Self::DegenerateOperand`] (a guard decided `Zero`
-    /// beside one decided negative, a poisoned height, a partner the form
-    /// does not read), [`Self::Pinched`] (a tangency decided `Zero`
+    /// coincidence: [`Self::DegenerateOperand`] (a guard decided
+    /// negative beside a radius decided `Zero`, a poisoned height, a
+    /// partner the form does not read), [`Self::Pinched`] (a tangency decided `Zero`
     /// beside readings that drop an undecided margin) and
     /// [`Self::Unaccounted`] (an accounting that did not close beside a
     /// branch that did not certify).
@@ -784,7 +799,9 @@ impl SectionError {
             | Self::Spiric(SpiricInvalid::Escalated(diag)) => Ok(Refusal::Margin(*diag)),
             Self::DegenerateTorus(refusal) => refusal.refusal(),
             // A tighter band may part each.
-            Self::CoincidentSurfaces | Self::Unordered { .. } => Ok(Refusal::InBand),
+            Self::CoincidentSurfaces | Self::Unordered { .. } | Self::ConeAtTheBand { .. } => {
+                Ok(Refusal::InBand)
+            }
             // An arm not built, or not built that far (row 2), and an
             // ellipse past what the representation carries (row 1(b), no
             // margin).
@@ -849,7 +866,7 @@ impl SectionError {
                  read it over. {}",
                 crate::ssi::WRONG_LANE_RECOURSE
             ),
-            Self::DegenerateOperand { what } => {
+            Self::DegenerateOperand { what } | Self::ConeAtTheBand { what } => {
                 write!(f, "a section operand is degenerate: {what}")
             }
             Self::BeyondOperandExtent { what } => write!(
@@ -2331,7 +2348,10 @@ pub fn plane_cone_section<T: Decide>(
             .map_err(SectionError::Escalated)?
         {
             Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+            // Decided `Zero`, a tighter band may part the cone from its
+            // convention's edge; decided negative, it is outside it.
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
         }
     }
     let c = a.dot(n);
@@ -3135,7 +3155,10 @@ pub fn cone_cylinder_section<T: Decide>(
     ] {
         match decide(name, Margin::levered(margin, below), band).map_err(SectionError::Escalated)? {
             Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
+            // Decided `Zero`, a tighter band may part the cone from its
+            // convention's edge; decided negative, it is outside it.
+            Sign::Zero => return Err(SectionError::ConeAtTheBand { what }),
+            Sign::Negative => return Err(SectionError::DegenerateOperand { what }),
         }
     }
 
@@ -3361,7 +3384,7 @@ mod section_error_standing_rows {
                 verdict,
             })
         };
-        let rows: [(&str, SectionError, Result<Refusal, Aborts>); 24] = [
+        let rows: [(&str, SectionError, Result<Refusal, Aborts>); 25] = [
             (
                 "wrong lane",
                 SectionError::WrongLane { expected: "a pair" },
@@ -3397,6 +3420,11 @@ mod section_error_standing_rows {
                 "degenerate operand, mixed",
                 SectionError::DegenerateOperand { what: "w" },
                 Err(Aborts),
+            ),
+            (
+                "a cone at its convention's edge",
+                SectionError::ConeAtTheBand { what: "w" },
+                Ok(Refusal::InBand),
             ),
             (
                 "beyond extent",

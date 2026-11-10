@@ -2760,7 +2760,7 @@ fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
         ("1e-20 off the axis", axis + u_ref * 1e-20),
     ] {
         let cone = cone_43(apex, axis, seam);
-        let refused = |r: Result<(), SectionError>| matches!(r, Err(SectionError::DegenerateOperand { what }) if what.contains("seam"));
+        let refused = |r: Result<(), SectionError>| matches!(r, Err(SectionError::ConeAtTheBand { what }) if what.contains("seam"));
         let coc = cone_cylinder_section(&cone, &cyl, fixture_lever(1.0), band()).map(|_| ());
         let pn = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).map(|_| ());
         assert!(refused(coc.clone()), "{which}: cone×cylinder {coc:?}");
@@ -2960,19 +2960,26 @@ fn cone_cylinder_convention_guards_and_wrong_lane() {
         half_angle,
         u_ref,
     };
-    for (what, cone, cyl) in [
-        ("zero radius", &cone, cyl_r(0.0)),
-        ("negative radius", &cone, cyl_r(-0.5)),
-        ("closed half-angle", &cone_at(0.0), cyl_r(0.5)),
+    // A radius decided zero or negative is degenerate; a half-angle
+    // decided `Zero` at its convention's edge stands at the band.
+    for (what, cone, cyl, at_the_band) in [
+        ("zero radius", &cone, cyl_r(0.0), false),
+        ("negative radius", &cone, cyl_r(-0.5), false),
+        ("closed half-angle", &cone_at(0.0), cyl_r(0.5), true),
         (
             "right half-angle",
             &cone_at(core::f64::consts::FRAC_PI_2),
             cyl_r(0.5),
+            true,
         ),
     ] {
         let err = cone_cylinder_section(cone, &cyl, fixture_lever(1.0), band()).expect_err(what);
         assert!(
-            matches!(err, SectionError::DegenerateOperand { .. }),
+            if at_the_band {
+                matches!(err, SectionError::ConeAtTheBand { .. })
+            } else {
+                matches!(err, SectionError::DegenerateOperand { .. })
+            },
             "{what}: got {err:?}"
         );
     }

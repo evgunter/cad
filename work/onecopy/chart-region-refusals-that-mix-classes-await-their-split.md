@@ -2,7 +2,9 @@
 id: chart-region-refusals-that-mix-classes-await-their-split
 kind: issue
 title: ChartRegionError's TrimOffFace and DegenerateLoop each mix refusal classes, so their ladder standing aborts until they are split
-status: open
+status: closed
+closed: 2026-11-10
+branch: onecopy/section-error-standing
 opened: 2026-11-09
 priority: P3
 cost: M
@@ -30,3 +32,11 @@ Each variant is split by class, or carries its class:
 - `DegenerateLoop`'s two raisings are two variants, or one variant with its cause.
 
 `ChartRegionError::refusal()`'s abort arm then loses them, and its doc and `chart_region`'s standing row change with it.
+
+## Closed: TrimOffFace stands by its read, DegenerateLoop by its raising (#onecopy/section-error-standing)
+
+`ChartRegionError::TrimOffFace` stands by the read it carries: an undecided read by its margin, a read at a pose in band, and a decided miss an abort.
+
+`DegenerateLoop`'s orientation raising (the band deciding the signed area `Zero`) keeps the name, and stands in band. Its structural raising, fewer than three chart segments, is `ShortLoop`. That still mixes a periodic wrap with a collapsed loop, so it aborts: `work/onecopy/chart-region-short-loop-mixes-a-periodic-wrap-with-a-collapsed-loop.md`.
+
+The census's `chart_region_finding` now reads an undecided trim read as `CensusEscalated`. A probe at default ε and at `1e-12` found no census or ladder reaching any of the three in-suite, so no outcome moved.

@@ -1372,4 +1372,47 @@ mod apex_section_standing_rows {
             ApexSectionReading::Refused(Box::new(SplitJoinError::UnpairedLooseEnds { count: 2 }));
         assert_eq!(mixed.refusal(), Err(Aborts), "a mixed cause");
     }
+
+    /// **The plane-cone table's refusals stand by their own cause through
+    /// the apex section** ([`geom_brep::SectionError::refusal`]): a carrier
+    /// left undecided by its margin, a cone on its convention's edge in
+    /// band, and a cone outside it an abort. Red where the table's refusal
+    /// stands as one abort for all.
+    #[test]
+    fn the_cone_tables_refusals_stand_by_their_cause_through_the_apex() {
+        let diag = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band: geom_core::Band::new(1e-9, 1e-8).unwrap_or_else(|_| unreachable!("a band")),
+            predicate: Some("ellipse_minor_positive"),
+            terminal_sliver: false,
+        };
+        let table = |source| {
+            ApexSectionReading::Refused(Box::new(SplitJoinError::Section {
+                face: FaceKey::default(),
+                source,
+            }))
+            .refusal()
+        };
+        assert_eq!(
+            table(geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::Escalated(diag)
+            )),
+            Ok(Refusal::Margin(diag)),
+            "a carrier in band, by its margin"
+        );
+        assert_eq!(
+            table(geom_brep::SectionError::ConeAtTheBand {
+                what: "pn_aperture_sin"
+            }),
+            Ok(Refusal::InBand),
+            "a cone on its convention's edge"
+        );
+        assert_eq!(
+            table(geom_brep::SectionError::DegenerateOperand {
+                what: "pn_aperture_cos"
+            }),
+            Err(Aborts),
+            "a cone outside its convention"
+        );
+    }
 }
