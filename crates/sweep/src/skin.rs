@@ -890,7 +890,7 @@ fn chord_length_parameters<T: SpanLocate>(
     params[0] = T::zero();
     params[k - 1] = T::one();
     for j in 1..k {
-        if !geom_core::spline::structure_ascends(params[j - 1], params[j]) {
+        if !geom_core::structure_ascends(params[j - 1], params[j]) {
             return Err(SkinError::NoParameterStep { section: j });
         }
     }
