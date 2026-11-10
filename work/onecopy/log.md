@@ -1526,3 +1526,4 @@
 - 03:58Z argmin split: one keep_own move (first_pair_rows K-gate fixture now refuses JoinPartnersTied). Ruled 1+3: new non-tying fixture for the K-gate claim, old fixture re-pinned as the tie-refuses row. Open now; tie-last probe running independently.
 - 04:05Z Merged 6698 (5b2bb0dc; merged main incl 6690 → f9d919d2, check+gates clean, disjoint from 6690). [ev] 6702: 6589 took fork row 256 → renumbered 258; dropped a stale duplicate star row the merge left; body updated.
 - 04:10Z 6706 delta: MERGE → merged main (703501eb), check+gates clean, gating. PR 6714 main-reds (4c6e1e23; pad re-pinned 1704 with causes 6594+6682, registry pin never main's, aims fixed by 6666) → FULL review.
+- 04:12Z census lane → onecopy/leg-chart-frame (a-cone-or-torus-leg-carries-its-charts-frame…).
