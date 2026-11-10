@@ -12,8 +12,7 @@
 //! derivation cannot survive to rest.
 
 use geom::Curve3;
-use geom_core::period::Period;
-use geom_core::{Point3, Real};
+use geom_core::Point3;
 
 use crate::error::StepImportError;
 
@@ -102,7 +101,7 @@ pub(crate) fn endpoint_params(
                     })
                 }
             };
-            let turn = Period::new(f64::tau());
+            let turn = conic.period();
             let t0 = turn.at_or_above(angle(p_start)?, 0.0);
             if self_loop {
                 return Ok((t0, t0 + turn.length()));

@@ -642,6 +642,21 @@ pub fn item_body(blanked: &str, from: usize) -> ItemBody {
     }
 }
 
+/// **An indirect site's key, parsed**: `<file>: <scope>: <head>`, the
+/// one spelling [`predicate_census`] writes ([`PredicateCensus::indirect`]),
+/// read back here and nowhere else. `<scope>` is the innermost `fn` the
+/// site stands in, or `-`; a `read_identity` key has no scope and answers
+/// `None`.
+#[must_use]
+pub fn indirect_key(key: &str) -> Option<(&str, &str, &str)> {
+    let (file, rest) = key.split_once(": ")?;
+    if rest.starts_with("read_identity#") {
+        return None;
+    }
+    let (scope, head) = rest.split_once(": ")?;
+    Some((file, scope, head))
+}
+
 /// **Every `fn` item with a body in a blanked view**: its name and its
 /// body's extent ([`item_body`]'s `Body`, both braces included), in
 /// order of appearance. A head is a `fn` keyword at a word boundary
@@ -1583,8 +1598,10 @@ pub struct PredicateCensus {
     /// `<file>: <fn>: <expression>` per call whose name-bearing argument
     /// is not a plain literal, and per declared carrier call that holds
     /// no literal argument — named by its first argument — where `<fn>`
-    /// is the innermost `fn` item it stands in ([`fn_items`]; `-` outside
-    /// any). One entry stands for every site of ONE function that spells
+    /// is the innermost `fn` item it stands in ([`fn_items`]), and `-`
+    /// outside any `fn`: a `static`'s or a `const`'s initializer, and a
+    /// `fn` a macro writes, which the walk cannot see as an item — all of
+    /// a file's such sites that spell one head share the `-` key. One entry stands for every site of ONE function that spells
     /// the same expression, so a second forwarder in a file is its own
     /// entry and reds until a roster declares it. A `read_identity` call
     /// is keyed `<file>: read_identity#<n>(<head>)` by its place in its
@@ -1678,9 +1695,25 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
     // Every `const` the walk declares, so a site whose name is a path to
     // one is told apart from a forwarded expression by what the tree
     // holds, not by how the path is spelled.
+    // Only a `const` that holds a name — a `&str`, or a tuple or array of
+    // them — makes a site a const site: a path that ends in a numeric
+    // `const`'s identifier (`NetChannel::U` beside a `const U: f64`), or
+    // in a row struct's `const`, names no name.
     let declared: std::collections::BTreeSet<String> = files
         .iter()
-        .flat_map(|(_, text)| const_names(&code_only(text)))
+        .flat_map(|(_, text)| {
+            let bare = code_only(text);
+            let code = code_and_literals(text);
+            const_names(&bare)
+                .into_iter()
+                .filter(|name| {
+                    const_decls(&bare, name).into_iter().any(|decl| {
+                        const_literal(&bare[decl..], &code[decl..])
+                            .is_some_and(|names| !names.is_empty())
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
         .collect();
     let mut found = std::collections::BTreeSet::new();
     for (rel, text) in &files {
@@ -1746,9 +1779,25 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                         let (heads, head_idents) =
                             tuple_heads(&bare[open + 1..end], &code[open + 1..end]);
                         let mut literals = direct_literals(&code[open + 1..end]);
+                        // An argument that is a whole array of names
+                        // (`&["a", "b"]`) hands over every one of them.
+                        for arg in top_level_split(&bare[open + 1..end], ',') {
+                            let at = skip_ws(&bare, open + 1 + arg.start);
+                            let at = if bare[at..].starts_with('&') {
+                                skip_ws(&bare, at + 1)
+                            } else {
+                                at
+                            };
+                            if bare[at..].starts_with('[')
+                                && let Some(names) = literal_tuple(&bare[at..], &code[at..])
+                            {
+                                literals.extend(names);
+                            }
+                        }
                         literals.extend(heads);
                         let consts: Vec<String> = arguments(&bare[open + 1..end])
                             .into_iter()
+                            .map(|arg| arg.trim_start_matches('&').trim().to_string())
                             .chain(head_idents)
                             .filter(|arg| names_a_const(arg, &declared))
                             .collect();
@@ -1897,9 +1946,50 @@ pub fn roster_violations(
                 .filter(|site| !census.indirect.contains(**site))
                 .map(|site| format!("a listed indirect site the census no longer finds: {site}")),
         );
+        // A `FORWARDS` line answers a site by naming a forwarder whose
+        // callers' names the census reads — which it does only where the
+        // forwarder is a declared `Call` carrier. A line naming one that
+        // is not would silence the site without reading anything.
+        let calls: std::collections::BTreeSet<&str> = carriers
+            .iter()
+            .filter_map(|carrier| match carrier {
+                NameCarrier::Call(token) => Some(*token),
+                NameCarrier::Const(_) | NameCarrier::Table(_) => None,
+            })
+            .collect();
+        for (site, reason) in listed {
+            if *reason != FORWARDS {
+                continue;
+            }
+            // The forwarder is the scope's innermost binding; a closure inside
+            // a declared forwarder is answered by that forwarder's callers. A
+            // `decide*`-spelled forwarder's calls are funnel sites the census
+            // reads already, and so is `read_identity`'s data.
+            let scope = indirect_key(site).map(|(_, scope, _)| scope);
+            let read = |name: &str| {
+                calls.contains(name) || name.starts_with("decide") || name == "read_identity"
+            };
+            let forwarder = scope.map(|scope| scope.rsplit("::").next().unwrap_or(scope));
+            match forwarder {
+                Some(_) if scope.is_some_and(|scope| scope.split("::").any(read)) => {}
+                Some(name) => out.push(format!(
+                    "a FORWARDS entry whose forwarder `{name}` is no declared Call carrier, so its \
+                     callers' names are not read: {site}"
+                )),
+                None => out.push(format!("a FORWARDS entry that names no forwarder: {site}")),
+            }
+        }
     }
     out
 }
+
+/// **The reason a roster gives a forwarding site**, one spelling for
+/// every roster: [`roster_violations`] holds each site listed with it to
+/// a forwarder its roster declares a `Call` carrier, so a line can only
+/// answer a site whose callers' names the census reads.
+pub const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its \
+                            callers call it, a declared carrier; each forwarding `fn` is its own \
+                            entry, so a new forwarder reds until it is declared";
 
 /// Whether the unwalked site `<file>:<line>` under `src` is one the
 /// walk covers after all: a `#[path = "…"]` mounting a file under
@@ -2716,7 +2806,16 @@ fn carrier_groups(code: &str, token: &str) -> Vec<usize> {
         {
             continue;
         }
-        let rest = code[at..].trim_start();
+        let mut rest = code[at..].trim_start();
+        // A turbofish is part of the call (`classify_len_as::<T>(`): read
+        // through it, as a `decide*` site does.
+        if rest.starts_with("::<") {
+            let lt = code.len() - rest.len() + 2;
+            match angle_end(code, lt) {
+                Some(close) => rest = code[close + 1..].trim_start(),
+                None => continue,
+            }
+        }
         let skipped = code[at..].len() - rest.len();
         if rest.starts_with('(') || rest.starts_with('{') {
             out.push(at + skipped);
@@ -3262,10 +3361,6 @@ mod tests {
         );
     }
 
-    /// **The roster harness reports each kind of gap once and passes a
-    /// clean tree**: a `#[path]` to a file under `src` is walked, one
-    /// outside it is not; a stale carrier, an undeclared const site, and
-    /// an indirect site missing from or stale in the list each red.
     /// **Each forwarder is its own indirect site**: two functions in one
     /// file handing on a parameter of the same name are two entries,
     /// keyed by the `fn` each stands in, so a new forwarder beside a
@@ -3296,6 +3391,43 @@ mod tests {
         );
     }
 
+    /// **A `FORWARDS` line answers only a declared forwarder**: one for a
+    /// forwarder no roster declares a `Call` carrier reds, since its
+    /// callers' literals are never read; and the key parses back to its
+    /// three parts.
+    #[test]
+    fn a_forwards_line_must_name_a_declared_carrier() {
+        let dir = std::env::temp_dir().join(format!("tu-fwd-check-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn zero_as(name: &'static str) { decide(name, m, band); }\n\
+             fn planted(name: &'static str) { decide(name, m, band); }\n\
+             fn f() { zero_as(\"row\"); planted(\"hidden\"); }\n",
+        )
+        .expect("write");
+        let carriers = [super::NameCarrier::Call("zero_as")];
+        let census = super::predicate_census(&dir, &carriers);
+        let listed = [
+            ("a.rs: planted: name", super::FORWARDS),
+            ("a.rs: zero_as: name", super::FORWARDS),
+        ];
+        let said = super::roster_violations(&dir, &census, &carriers, Some(&listed));
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert!(census.names.contains("row") && !census.names.contains("hidden"));
+        assert_eq!(said.len(), 1, "{said:#?}");
+        assert!(said[0].contains("`planted`"), "{said:#?}");
+        assert_eq!(
+            super::indirect_key("a.rs: f: name"),
+            Some(("a.rs", "f", "name"))
+        );
+        assert_eq!(super::indirect_key("a.rs: read_identity#1(x)"), None);
+    }
+
+    /// **The roster harness reports each kind of gap once and passes a
+    /// clean tree**: a `#[path]` to a file under `src` is walked, one
+    /// outside it is not; a stale carrier, an undeclared const site, and
+    /// an indirect site missing from or stale in the list each red.
     #[test]
     fn the_roster_harness_names_each_gap() {
         let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));
@@ -3677,6 +3809,35 @@ mod tests {
             .collect();
         assert_eq!(names, ["a", "c"]);
         assert!(super::fn_items("fn d() { {").is_err());
+    }
+
+    /// **A carrier handed a whole array of names reads every one.**
+    #[test]
+    fn a_carrier_reads_an_array_of_names() {
+        let dir = std::env::temp_dir().join(format!("tu-array-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn f() { slots_as(&[\"one\", \"two\"], None); slots_as([\"three\"], None); }\n",
+        )
+        .expect("write");
+        let census = super::predicate_census(&dir, &[super::NameCarrier::Call("slots_as")]);
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.names.iter().collect::<Vec<_>>(),
+            ["one", "three", "two"]
+        );
+        assert!(census.indirect.is_empty(), "{census:?}");
+    }
+
+    /// **A carrier's call reads through a turbofish**, as a `decide*`
+    /// site does.
+    #[test]
+    fn a_carrier_call_reads_through_a_turbofish() {
+        let raw = "fn f() { run_as::<T>(\"row\", m); }";
+        let groups = super::carrier_groups(&code_only(raw), "run_as");
+        assert_eq!(groups.len(), 1, "{groups:?}");
+        assert!(raw[groups[0]..].starts_with("(\"row\""), "{raw}");
     }
 
     /// **A return type is not a struct literal**: `-> Rows {` opens the

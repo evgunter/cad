@@ -507,7 +507,7 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/topo/src/boolean/boxes.rs",
+        path: "crates/topo/src/boxes.rs",
         subject: "axis_key",
         why: Payload(
             "the narrow phase's axis key: a vector's three brackets, compared for equality to \
@@ -515,7 +515,7 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/topo/src/boolean/boxes.rs",
+        path: "crates/topo/src/boxes.rs",
         subject: "cover_box",
         why: Payload(
             "a held cover's padded box, the one home `face_box`, `edge_box`, `circle_box` and \
@@ -524,14 +524,14 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/topo/src/boolean/boxes.rs",
+        path: "crates/topo/src/boxes.rs",
         subject: "circle_box",
         why: Payload(
             "the extent scan's section-circle box: its cover's box (`cover_box`), and stop",
         ),
     },
     Site {
-        path: "crates/topo/src/boolean/boxes.rs",
+        path: "crates/topo/src/boxes.rs",
         subject: "centred_box",
         why: Payload(
             "a ball's box, for the extent scan and the crossing layer's touch reading: a \

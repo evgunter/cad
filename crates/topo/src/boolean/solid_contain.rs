@@ -1068,11 +1068,11 @@ pub(crate) const POINT_AXIS: &str = "bool_point_axis";
 /// certified reach (`census::face_reach_in`, the box rules' one map),
 /// along some direction that turns with the body: a planar face's
 /// outward normal, or the axis from the faces' anchor to `q`
-/// ([`super::separating`]'s candidates, each read both ways; this
+/// ([`crate::separating`]'s candidates, each read both ways; this
 /// scalar carries no bracket to merge a normal with its negation by).
 /// World axes are not read: a turned body's world hull widens with the
 /// turn, so a verdict read on them would be the pose's. The hull is
-/// padded by the sweep pad, as [`super::separating`] pads each item it
+/// padded by the sweep pad, as [`crate::separating`] pads each item it
 /// reads; `q` is exact and takes none. A face with no claim to make
 /// answers `false`.
 fn past_every_reach<T: Decide>(
@@ -1081,12 +1081,12 @@ fn past_every_reach<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> bool {
-    use super::separating::{self, Item};
+    use crate::separating::{self, Item};
     let items = || faces.iter().map(|&f| Item::Face(f));
     let mut dirs = separating::face_axes(faces.iter().map(|&f| (body, f)), band, None);
     let anchor = separating::mean(items().filter_map(|i| separating::anchor(body, i)));
     dirs.extend(anchor.and_then(|a| geom_core::UnitVec3::new(q - a, POINT_AXIS, band).ok()));
-    let pad = T::from_f64(super::boxes::sweep_pad(band));
+    let pad = T::from_f64(crate::boxes::sweep_pad(band));
     dirs.into_iter().any(|dir| {
         let Some((lo, hi)) = separating::support_along(body, items(), dir, band) else {
             return false;
@@ -3000,12 +3000,12 @@ fn cast_ray<T: Decide>(
     reach: Lever<T>,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count(
+    let side = ray_crossings(body, geos, ray, reach, band, SCHEDULE_ROWS)?.first_count_as(
         SCHEDULE_ROWS.order(),
         band,
         RayHit::count,
         |a, b| {
-            a.pair(body, b, SCHEDULE_ROWS.order(), band)
+            a.pair_as(body, b, SCHEDULE_ROWS.order(), band)
                 .map_err(|f| f.map(|(face, diag, _)| PointInSolidError::Escalated { face, diag }))
         },
         |hits| {
@@ -3129,7 +3129,7 @@ impl<T: Copy> RayHit<T> {
     ///
     /// [`RayFault::InBand`] with the pair's first face, its gap and the
     /// other face; [`RayFault::Graze`] at a tie.
-    pub(crate) fn pair<U: Decide>(
+    pub(crate) fn pair_as<U: Decide>(
         &self,
         body: &Body<U>,
         other: &Self,
@@ -5704,14 +5704,14 @@ mod pair_margin_rows {
         let far = RayHit::crossing(b, 5.0 + 1e-8, 1e-7, -1);
         assert!(
             matches!(
-                near.pair(&body, &far, "bool_point_in_solid_order", band),
+                near.pair_as(&body, &far, "bool_point_in_solid_order", band),
                 Err(RayFault::Graze)
             ),
             "two faces that do not meet, within each other's slack, tie"
         );
         let same = RayHit::crossing(a, 5.0 + 1e-8, 1e-7, -1);
         assert!(
-            near.pair(&body, &same, "bool_point_in_solid_order", band)
+            near.pair_as(&body, &same, "bool_point_in_solid_order", band)
                 .is_ok(),
             "one face's two crossings within each other's slack are summed"
         );
@@ -5982,7 +5982,7 @@ mod torn_hop_rows {
 
     #[test]
     fn the_torus_region_panics_on_a_torn_curve() {
-        let (mut body, face) = crate::boolean::boxes::tests::torus_wall(
+        let (mut body, face) = crate::boxes::tests::torus_wall(
             Point3::origin(),
             Vec3::unit_z(),
             Vec3::unit_x(),
@@ -6110,7 +6110,7 @@ mod stated_periods_rows {
             )
         };
         for periods in [0.0, 5.0, 10.0] {
-            let (body, face) = crate::boolean::boxes::tests::torus_wall_below(
+            let (body, face) = crate::boxes::tests::torus_wall_below(
                 periods,
                 Point3::origin(),
                 Vec3::unit_z(),
@@ -6133,7 +6133,7 @@ mod stated_periods_rows {
                 }
             }
         }
-        let (body, face) = crate::boolean::boxes::tests::torus_wall_clockwise(
+        let (body, face) = crate::boxes::tests::torus_wall_clockwise(
             Point3::origin(),
             Vec3::unit_z(),
             Vec3::unit_x(),
@@ -6164,10 +6164,9 @@ mod stated_periods_rows {
         let band = Band::linear(Tol::witness()).unwrap();
         let (us, vs) = ((0.3, 1.9), (-0.7, 0.8));
         let frame = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x(), 2.0, 0.5);
-        let (wall, wf) = crate::boolean::boxes::tests::torus_wall(
-            frame.0, frame.1, frame.2, frame.3, frame.4, us, vs,
-        );
-        let (twin, tf) = crate::boolean::boxes::tests::torus_wall_clockwise(
+        let (wall, wf) =
+            crate::boxes::tests::torus_wall(frame.0, frame.1, frame.2, frame.3, frame.4, us, vs);
+        let (twin, tf) = crate::boxes::tests::torus_wall_clockwise(
             frame.0, frame.1, frame.2, frame.3, frame.4, us, vs,
         );
         let (wall, twin) = (

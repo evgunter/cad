@@ -727,7 +727,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
 /// loop's strands are fixed by the top and bottom rows, decided across
 /// it too.
 fn along_w<T: Decide>(xs: &mut [(T, Point3<T>)], cycle: T, band: Band) -> Result<(), Pinch> {
-    apart_in_order(xs, PARALLEL_TORI_ORDER, Margin::of, band)?;
+    apart_in_order_as(xs, PARALLEL_TORI_ORDER, Margin::of, band)?;
     if let [first, .., last] = xs
         && sign_as(
             PARALLEL_TORI_ORDER,
@@ -743,7 +743,7 @@ fn along_w<T: Decide>(xs: &mut [(T, Point3<T>)], cycle: T, band: Band) -> Result
 /// Sorts `xs` by their keys, every pair the sort compares decided apart
 /// on `margin` of their difference: two in one place within the band,
 /// or undecided, pinch naming `name`.
-fn apart_in_order<T: Decide, X>(
+fn apart_in_order_as<T: Decide, X>(
     xs: &mut [(T, X)],
     name: &'static str,
     margin: impl Fn(T) -> Margin<T>,
@@ -1178,7 +1178,7 @@ fn across_strip<T: Decide>(
 /// pair decided apart (as arc length): two in one place within the band
 /// pinch.
 fn along_k<T: Decide, X: Copy>(xs: &mut [(T, X)], rc: T, band: Band) -> Result<(), Pinch> {
-    apart_in_order(
+    apart_in_order_as(
         xs,
         SQUARE_ORDER,
         |m| Margin::metered(m, geom_core::InfSpeed::new(rc)),

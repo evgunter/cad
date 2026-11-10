@@ -35,18 +35,21 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violations};
+use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, roster_violations};
 
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
     // The layer's closed decision table, whose literal rows are names.
     NameCarrier::Table("decisions!"),
+    // geom-brep's public pairing classifier, handed this crate's rows.
+    NameCarrier::Call("classify_material_pairing_as"),
     // A name spelled in a `const` and handed to a funnel by it.
     NameCarrier::Const("ASSERT_BOUND"),
     NameCarrier::Const("AT_REST_QUIET_AXES_PARALLEL"),
     NameCarrier::Const("AT_REST_QUIET_BOUND"),
     NameCarrier::Const("AT_REST_QUIET_CENTRED"),
+    NameCarrier::Const("AT_REST_QUIET_OPPOSED"),
     NameCarrier::Const("AT_REST_QUIET_CONTACT_BOUND"),
     NameCarrier::Const("AXES_PARALLEL"),
     NameCarrier::Const("CHORD_ON_RIM"),
@@ -82,9 +85,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("measure_sign_as"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
-                        forwarder reds until it is declared here or as a carrier";
 const CLOSED_TYPE: &str = "a closed type's `name()`, whose names the census reads where the type \
                            spells them: the `decisions!` table, a declared `NameCarrier::Table`";
 const OTHER_CRATE: &str = "a `const` another crate declares, read by that crate's roster";
@@ -93,15 +93,23 @@ const NOT_FIRST: &str = "a declared carrier's call whose name is not its first a
                          or a caller whose literal is read";
 const NOT_A_NAME: &str = "another `decide*` call, whose first argument is not a name";
 
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
+
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
-    ("checks/at_rest.rs: constant_pairing: name", FORWARDS),
+    (
+        "checks/at_rest.rs: constant_pairing: name",
+        CLOSURE_FORWARDS,
+    ),
     (
         "checks/at_rest.rs: gap_sign_as: crate::measure::MeasureVerb::Gap",
         NOT_FIRST,
     ),
     ("checks/at_rest.rs: measure_sign_as: site", FORWARDS),
-    ("coincide/replay.rs: one_cylinder: name", FORWARDS),
+    ("coincide/replay.rs: one_cylinder: name", CLOSURE_FORWARDS),
     ("eval/measure.rs: parallel_as: predicate", FORWARDS),
     ("eval/wire.rs: turns_off: decision.name()", CLOSED_TYPE),
     ("eval/wire.rs: wire_assertion: value", NOT_A_NAME),
@@ -115,8 +123,8 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     ("names/emit_topo.rs: ahead_as: predicate", FORWARDS),
-    ("names/emit_topo.rs: cover_as: p", NOT_FIRST),
     ("names/emit_topo.rs: cover_as: &arc", NOT_FIRST),
+    ("names/emit_topo.rs: cover_as: p", NOT_FIRST),
     ("names/emit_topo.rs: cover_as: p - q", NOT_FIRST),
     ("names/emit_topo.rs: cover_as: p0", NOT_FIRST),
     ("names/emit_topo.rs: cover_as: p1", NOT_FIRST),

@@ -24,11 +24,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violations};
+use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, roster_violations};
 
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call's first argument.
 const CARRIERS: &[NameCarrier] = &[
+    NameCarrier::Const("SITE"),
+    // The forwarders a `FORWARDS` line names, declared so their callers'
+    // names are read (`roster_violations` holds each line to one).
+    NameCarrier::Call("divisor"),
+    NameCarrier::Call("forward"),
+    NameCarrier::Call("registered"),
+    NameCarrier::Call("render_as"),
+    NameCarrier::Call("turned_between"),
     // The unit-direction row the normalising doors read at.
     NameCarrier::Const("UNIT_DIRECTION_ARM"),
     // The rigidity check's table of rows, read in a loop.
@@ -52,14 +60,27 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("ARC_ROWS"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
-                        forwarder reds until it is declared here or as a carrier";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
 const IDENTITY: &str = "a `read_identity` call over data whose names are read where it is built";
 const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
                          here by that first argument; its literal names are read";
+const ROW_TABLE: &str = "a loop over the function's own table of rows, each a declared `const` \
+                         carrier the census reads";
+const PROVE_DOOR: &str = "`k_stats::prove`'s own name, handed to the door; the census reads no \
+                          `prove` call's name yet \
+                          (`work/onecopy/the-census-reads-no-prove-or-choose-call.md`)";
+const CROSS_CRATE: &str = "a public forwarder whose callers are in other crates, whose rosters \
+                           declare it a carrier and read their literals";
+const LOOP_ROWS: &str = "a loop variable over the test's own literal rows";
+const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
+                            its enclosing function's caller or a binding, named here by the call's \
+                            first argument";
 const NOT_A_NAME: &str = "another `decide*` call, whose first argument is not a name";
+
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
 
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
@@ -72,12 +93,12 @@ const INDIRECT: &[(&str, &str)] = &[
     ("k_stats.rs: decide_across_reported: floor", FORWARDS),
     ("k_stats.rs: decide_magnitude: name", FORWARDS),
     ("k_stats.rs: decide_passing: name", FORWARDS),
-    ("k_stats.rs: prove: name", FORWARDS),
+    ("k_stats.rs: prove: name", PROVE_DOOR),
     (
         "ladder.rs: an_agreeing_ladder_reads_every_rung_and_checks_its_answers: name",
-        FORWARDS,
+        LOOP_ROWS,
     ),
-    ("ladder.rs: data_beneath_sum: straddle", FORWARDS),
+    ("ladder.rs: data_beneath_sum: straddle", CROSS_CRATE),
     ("ladder.rs: decide_magnitude: name", FORWARDS),
     ("ladder.rs: decided: name", FORWARDS),
     (
@@ -90,11 +111,20 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("ladder.rs: read_identity: name", FORWARDS),
     (
-        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: check",
-        FORWARDS,
+        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: 0.5 * (band().zero() + band().escalate())",
+        CARRIER_CALL,
     ),
-    ("linalg/rigid_motion.rs: check_rigid: check", FORWARDS),
+    (
+        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: check",
+        CLOSURE_FORWARDS,
+    ),
+    (
+        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: f64::NAN",
+        CARRIER_CALL,
+    ),
+    ("linalg/rigid_motion.rs: check_rigid: check", ROW_TABLE),
     ("linalg/rigid_motion.rs: turned_between: site", FORWARDS),
+    ("linalg/rigid_motion.rs: turned_onto: self.w", CARRIER_CALL),
     ("linalg/unit_vec.rs: decide_direction_by: site", FORWARDS),
     ("linalg/unit_vec.rs: decide_unit_direction: v", NOT_FIRST),
     ("linalg/unit_vec.rs: levered: v", NOT_FIRST),
@@ -113,11 +143,16 @@ const INDIRECT: &[(&str, &str)] = &[
     ("period.rs: decide_signed: name", FORWARDS),
     ("period.rs: forward: name", FORWARDS),
     ("period.rs: forward_by_arc: chord_name", FORWARDS),
+    ("period.rs: forward_by_arc: name", FORWARDS),
     ("period.rs: forward_by_arc: sense_name", FORWARDS),
     ("period.rs: read: rows.straddle", ROW_FIELD),
     ("period.rs: read: rows.turn", ROW_FIELD),
     ("period.rs: registered: turn", FORWARDS),
     ("running.rs: divisor: name", FORWARDS),
+    (
+        "sym.rs: register_equal: return SymRegistration::Witnessed;",
+        NOT_A_NAME,
+    ),
     ("sym.rs: sign_within: band", NOT_A_NAME),
 ];
 

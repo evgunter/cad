@@ -2304,6 +2304,9 @@ fn mint_carrier<T: Decide>(
         };
         let old_dir = old.eval(old_span.1) - old.eval(old_span.0);
         let q_mid = old.mid_point(old_span.0, old_span.1);
+        // Each generator runs along a ruling of the moved cone's squared
+        // frame (`PlaneConeSection::ApexLinePair`), never the zero vector,
+        // so its distance and its normalized direction need no decision.
         let off = |l: &Curve3<T>| {
             let Some(line) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")
@@ -3154,7 +3157,7 @@ fn reauthor<T: Decide>(
                 })
             };
             let turn_as = |name, theta: Option<T>, s: T, moved: Point3<T>| {
-                azimuth_turn(
+                azimuth_turn_as(
                     name,
                     read(theta, moved).z,
                     axis,
@@ -3212,7 +3215,7 @@ fn reauthor<T: Decide>(
 /// out-of-plane coordinate there, a length, decided under `name`), and
 /// otherwise the signed turn about `axis` from the old corner's
 /// azimuth to the moved one's.
-fn azimuth_turn<T: Decide>(
+fn azimuth_turn_as<T: Decide>(
     name: &'static str,
     off: T,
     geom::Line { origin, dir }: geom::Line<T>,

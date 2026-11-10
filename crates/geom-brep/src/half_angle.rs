@@ -322,8 +322,31 @@ pub struct RootSlack<'a, T> {
 pub struct Touching<T> {
     /// The simple roots.
     pub roots: TrigRoots<T>,
-    /// The touches' parameters.
-    pub touches: Vec<T>,
+    /// The touches, each with its spread.
+    pub touches: Vec<Touch<T>>,
+}
+
+/// **A touch the subdivision placed** ([`certified_subdivision_touching`]):
+/// the parameter it is reported at, and how far in metres along the
+/// carrier that point can lie from the extremum's own.
+///
+/// `at` is the midpoint of a bisection bracket on `F′`, and `G″ ≥ c > 0`
+/// on the piece, read. So `|G′(θ*) − G′(θ_ext)| ≥ c·|θ* − θ_ext|`, and
+/// since `G′(θ_ext) = 0`, `θ*` lies within `(|G′(θ*)| + e₁)/c` of the
+/// extremum, `e₁` the bound on `F′`'s rounding. At the carrier's top
+/// speed that is `speed_hi·(|G′(θ*)| + e₁)/c` metres: the `spread`. Two
+/// readings of one `F` therefore place the touch within twice that of
+/// each other, which the reader holds to its band
+/// (`work/onecopy/touch-point-spread.md`). Read with the operands swapped,
+/// `F` is the other carrier's, and its point lies from this one's by up
+/// to twice the spread and the carriers' gap there (at most the zero
+/// band).
+#[derive(Clone, Copy, Debug)]
+pub struct Touch<T> {
+    /// The touch's parameter, within `π` of the arc's midpoint.
+    pub at: T,
+    /// How far in metres the reported point can lie from the extremum's.
+    pub spread: T,
 }
 
 /// Where [`half_angle_roots`] works: the subdivision's frame (`walk`)
@@ -773,7 +796,7 @@ fn subdivision<T: Decide>(
         }
     };
     let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
-    let definitely = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
+    let definitely_as = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
     // The first reading in the band's gap at a cut the walk tried: what a
     // walk that can cut nowhere definite refuses on.
     let first_in_gap = core::cell::Cell::new(None);
@@ -831,7 +854,7 @@ fn subdivision<T: Decide>(
     let mid = geom::mid_param(t0, t1);
     let reported = |t: T| geom_core::period::Period::new(T::tau()).near(t, mid);
     let mut roots: Vec<T> = Vec::new();
-    let mut touches: Vec<T> = Vec::new();
+    let mut touches: Vec<Touch<T>> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
         let half = (r - l) / two;
         let m = l + half;
@@ -846,13 +869,13 @@ fn subdivision<T: Decide>(
             + fourth_hi * half.powi(4) / twenty_four;
         let clear = (f0.abs() - fall - e0) / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
-        if definitely(rows.clear(), clear) {
+        if definitely_as(rows.clear(), clear) {
             return Step::Settled;
         }
         let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
         let least_slope =
             d1_lo - d2_hi * half - d3_hi * half.powi(2) / two - fourth_hi * half.powi(3) / six;
-        if definitely(rows.monotone(), speed_hi * least_slope / most_bend) {
+        if definitely_as(rows.monotone(), speed_hi * least_slope / most_bend) {
             if sl == sr {
                 return Step::Settled;
             }
@@ -948,7 +971,10 @@ fn subdivision<T: Decide>(
                     let fall = (e0 - toward * g0).max(T::zero()) + slope_hi.powi(2) / (two * curve);
                     match decide(touch.stretch(), Margin::of(fall / f_per_metre), band) {
                         Ok(Sign::Zero) => {
-                            touches.push(reported(at));
+                            touches.push(Touch {
+                                at: reported(at),
+                                spread: speed_hi * slope_hi / curve,
+                            });
                             return Step::Settled;
                         }
                         Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
@@ -960,7 +986,7 @@ fn subdivision<T: Decide>(
         // The clear margin is a lower bound on the residual, not a
         // reading of it: a looser bound reads it lower, so where it falls
         // says how good the bound is, not how near the carrier passes.
-        if !definitely(rows.width(), speed_hi * (r - l)) {
+        if !definitely_as(rows.width(), speed_hi * (r - l)) {
             return Step::Stop(Unsettled::Tangency.into());
         }
         first_in_gap.set(None);

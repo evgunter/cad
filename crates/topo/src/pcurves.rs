@@ -1819,7 +1819,7 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<Period<
         return Some(Period::new(T::tau()));
     };
     let (u0, u1) = payload.knot_values_u().domain();
-    net_closes(payload, NetChannel::U, band).then(|| Period::new(u1 - u0))
+    net_closes_as(payload, NetChannel::U, band).then(|| Period::new(u1 - u0))
 }
 
 /// The chart's SECOND channel period — the `v` companion of
@@ -1839,7 +1839,7 @@ fn chart_v_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<VPeriod
     }
     let payload = surface.spline_chart()?;
     let (v0, v1) = payload.knot_values_v().domain();
-    net_closes(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::new(v1 - v0)))
+    net_closes_as(payload, NetChannel::V, band).then(|| VPeriod::Net(Period::new(v1 - v0)))
 }
 
 /// **Which channels of `surface`'s chart close on themselves**, `[u, v]`,
@@ -1895,7 +1895,11 @@ enum NetChannel {
 /// vector's boundary, are
 /// `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s,
 /// for both channels.
-fn net_closes<T: Decide>(payload: &geom::NurbsSurface<T>, channel: NetChannel, band: Band) -> bool {
+fn net_closes_as<T: Decide>(
+    payload: &geom::NurbsSurface<T>,
+    channel: NetChannel,
+    band: Band,
+) -> bool {
     let (nu, nv) = payload.control_counts();
     let control = payload.control();
     let (name, pairs): (_, Vec<(usize, usize)>) = match channel {
@@ -5002,7 +5006,7 @@ pub(crate) fn lever_periods<T: Decide>(
 /// # Errors
 ///
 /// [`BranchMiss`] where `j`'s own marks miss.
-pub(crate) fn branches_astride<T: Decide>(
+pub(crate) fn branches_astride_as<T: Decide>(
     name: &'static str,
     gap: T,
     period: T,

@@ -457,7 +457,7 @@ BOUNDS_ALLOWLIST=(
   # evaluation-service seams, and `separation` under the same entry.
   # boxes.rs's two are the box builders (`face_box`, `edge_box`), each
   # its cover's bracketed box; its point read needs no `Bounds`.
-  'crates/topo/src/boolean/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/boxes.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
   # carrier_touch.rs's four are the crossing layer's touch reading:
   # `clusters`, the subdivision driver (a piece's half-length bracket
   # stops the bisection); `edge_clear_of_ball`, which prunes a boundary
@@ -2026,7 +2026,7 @@ plant_trait_generic_sole_bracket_ratified() {
 # naming the ratified entry it merely begins with.
 plant_colon_path_beside_entry() {
   printf 'pub fn f<T: Decide + Bounds>(_t: T) {}\n' \
-    > "$1/crates/topo/src/boolean/boxes.rs:x.rs"
+    > "$1/crates/topo/src/boxes.rs:x.rs"
 }
 
 # THE READER'S OWN HALF OF THE SAME SPLIT, planted in both directions on
@@ -2168,7 +2168,7 @@ gate_selftest() {
   gate_selftest_case "is not on this gate's alias roster" plant_bracket_only_alias_in_ratified_file
   gate_selftest_case "$want" plant_alias_declaration_moved
   gate_selftest_case "FILE NOT IN THE TREE" plant_roster_file_gone
-  gate_selftest_case "crates/topo/src/boolean/boxes.rs:x.rs" plant_colon_path_beside_entry
+  gate_selftest_case "crates/topo/src/boxes.rs:x.rs" plant_colon_path_beside_entry
   gate_selftest_case "crates/topo/src/boolean/a:Bounds.rs" plant_colon_path_compound_bound
   gate_selftest_case "MORE than the entry argues for" plant_ratified_file_gains_a_bound
   gate_selftest_case "FEWER than the entry argues for" plant_ratified_file_loses_a_bound

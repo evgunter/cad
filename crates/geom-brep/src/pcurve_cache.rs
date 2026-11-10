@@ -4651,7 +4651,7 @@ impl<T: Decide> PcurveCache<T> {
             // ones — no bracket obligation — so it shares this
             // `Decide`-scalar door.
             spiric @ Pcurve::Spiric { .. } => {
-                run_spiric_checks(spiric, t0, t1, carrier, surface, band)?
+                run_spiric_checks_as(spiric, t0, t1, carrier, surface, band)?
             }
             section @ Pcurve::FocalSection(_) => {
                 run_focal_section_checks(section, t0, t1, carrier, surface, band)?
@@ -4881,7 +4881,7 @@ impl<T: Decide> PcurveCache<T> {
                 surface,
                 band,
             ),
-            spiric @ Pcurve::Spiric { .. } => run_spiric_checks(
+            spiric @ Pcurve::Spiric { .. } => run_spiric_checks_as(
                 spiric,
                 self.param_start,
                 self.param_end,
@@ -7106,7 +7106,7 @@ fn focal_section_envelope<T: Real>(
 ///      whose residues are visible at every sample —
 ///      [`EnvelopeStatement::SpiricIdentity`], envelope `0` plus the
 ///      drift check 1 admitted.
-fn run_spiric_checks<T: Decide>(
+fn run_spiric_checks_as<T: Decide>(
     pcurve: &Pcurve<T>,
     t0: T,
     t1: T,
@@ -8983,7 +8983,7 @@ impl<T: Decide> Placement<T> {
             // no length) still has its carrier's direction: the reach of
             // the carrier over its own interval. Only a carrier wholly on
             // the axis has none.
-            if (T::one() / over_span).is_bounded() {
+            if geom_core::structure_nonzero(over_span) {
                 over_span
             } else {
                 at(own_interval(carrier))
@@ -9085,11 +9085,11 @@ impl<T: Decide> Placement<T> {
             Along::Tube => self.levers.tube,
             Along::Latitude => self.levers.latitude,
         };
-        // A zero lever (or an enclosure reaching zero: no bounded
-        // reciprocal, at every scalar alike) is an angle that moves
+        // A zero lever (or an enclosure reaching zero, the structure
+        // decision of `structure_nonzero`) is an angle that moves
         // nothing, a pole's zero-radius parallel: every copy names the same
         // points, and the angle as read is the copy (D9's tie-break).
-        if !(T::one() / lever).is_bounded() {
+        if !geom_core::structure_nonzero(lever) {
             return Ok(0);
         }
         let centre = window.centre::<T>();
@@ -9498,7 +9498,7 @@ fn read_shown<T: Decide>(
             Incidence::On(_) => Ok(None),
         };
     }
-    incidence::incident(
+    incidence::incident_as(
         carrier,
         surface,
         Placement::over((t0, t1), carrier, surface),
@@ -9540,7 +9540,7 @@ pub fn read_edge_incidence<T: Decide>(
     if surface.spline_chart().is_none() && carrier.kind() == geom::CurveKind::Nurbs {
         return read_incidence(carrier, t0, t1, surface, band);
     }
-    incidence::incident(
+    incidence::incident_as(
         carrier,
         surface,
         Placement::over((t0, t1), carrier, surface).edge_only(),
@@ -9596,7 +9596,7 @@ fn net_incidence<T: Decide>(
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     let span = span.unwrap_or_else(|| net.knot_values().domain());
-    incidence_over_span(
+    incidence_over_span_as(
         "pcurve_spline_chart_incident",
         surface,
         span,
@@ -9837,7 +9837,7 @@ fn derive_class_zero<T: Decide>(
             // show off the plane.
             note_zero(
                 zero,
-                incidence::incident(carrier, surface, place, band)?.margin(),
+                incidence::incident_as(carrier, surface, place, band)?.margin(),
             );
             // Affine chart: the coefficients map through one by one.
             let v_ref = normal.cross(u_ref);
@@ -9859,7 +9859,7 @@ fn derive_class_zero<T: Decide>(
             radius,
             u_ref,
         } => {
-            let shown = incidence::incident(carrier, surface, place, band)?;
+            let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             let cv = axis.cross(u_ref);
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
@@ -9986,7 +9986,7 @@ fn derive_class_zero<T: Decide>(
             half_angle,
             u_ref,
         } => {
-            let shown = incidence::incident(carrier, surface, place, band)?;
+            let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             let c_ha = half_angle.cos();
             let cv = axis.cross(u_ref);
@@ -10059,7 +10059,7 @@ fn derive_class_zero<T: Decide>(
                     // An anchor on the axis off the apex names no
                     // generator: the only ruling through an axis point is
                     // the apex's, so the line is no ruling.
-                    if !(T::one() / r_dir.norm()).is_bounded() {
+                    if r_dir.checked_direction().is_err() {
                         return Err(incidence::general_lane(shown, None));
                     }
                     let g = ruling_generator(axis, half_angle, r_dir);
@@ -10369,7 +10369,7 @@ fn derive_class_zero<T: Decide>(
             axis,
             u_ref,
         } => {
-            let shown = incidence::incident(carrier, surface, place, band)?;
+            let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             // Only circles are the sphere's classes: a bounded surface
             // holds no line, and its plane sections are circles. A line or
@@ -10645,7 +10645,7 @@ fn derive_class_zero<T: Decide>(
                 RevolvedTube::Sheet => Err(incidence::general_lane(shown, None)),
                 RevolvedTube::Ring => torus_oblique_circle(carrier, surface, place, band, shown),
             };
-            let shown = incidence::incident(carrier, surface, place, band)?;
+            let shown = incidence::incident_as(carrier, surface, place, band)?;
             note_zero(zero, shown.margin());
             let cv = axis.cross(u_ref);
             // A bounded surface holds no line, and a torus's plane
@@ -11640,7 +11640,7 @@ fn chart_incidence<T: Decide>(
     slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    incidence_over_span(name, surface, turn, |t| carrier.eval(t), slack, band)
+    incidence_over_span_as(name, surface, turn, |t| carrier.eval(t), slack, band)
 }
 
 /// **A carrier's sampled incidence test**: [`incidence_at`] over the
@@ -11649,7 +11649,7 @@ fn chart_incidence<T: Decide>(
 /// # Errors
 ///
 /// As [`incidence_at`].
-fn incidence_over_span<T: Decide>(
+fn incidence_over_span_as<T: Decide>(
     name: &'static str,
     surface: &Surface<T>,
     span: (T, T),
@@ -11948,7 +11948,7 @@ mod incidence {
             Some((_, moved, slack, _)) => (moved, slack),
             None => (surface.clone(), T::zero()),
         };
-        super::incidence_over_span(
+        super::incidence_over_span_as(
             "pcurve_point_chart_incident",
             &moved,
             (T::zero(), T::zero()),
@@ -11958,7 +11958,7 @@ mod incidence {
         )
     }
 
-    pub(super) fn incident<T: Decide>(
+    pub(super) fn incident_as<T: Decide>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         place: Placement<T>,
@@ -11984,7 +11984,7 @@ mod incidence {
                 Surface::Approx(_) => "pcurve_approx_chart_incident",
                 _ => "pcurve_nurbs_chart_incident",
             };
-            return match super::spline_incidence::spline_incidence(
+            return match super::spline_incidence::spline_incidence_as(
                 name,
                 chart,
                 place.span,
@@ -12206,7 +12206,7 @@ fn spiric_chart_pcurve<T: Decide>(
     // D3: whether the oval lies on the chart is read first, by the
     // chart's incidence test, before the cap or the wall is imaged.
     if matches!(surface, Surface::Plane { .. } | Surface::Torus { .. }) {
-        incidence::incident(carrier, surface, place, band)?;
+        incidence::incident_as(carrier, surface, place, band)?;
     }
     match *surface {
         Surface::Plane {

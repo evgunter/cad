@@ -24,10 +24,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violations};
+use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, roster_violations};
 
 /// The funnels whose literal arguments are names.
 const CARRIERS: &[NameCarrier] = &[
+    // The forwarders a `FORWARDS` line names, declared so their callers'
+    // names are read (`roster_violations` holds each line to one).
+    NameCarrier::Call("read_in_as"),
+    NameCarrier::Call("ring_half_as"),
     // A spiric regime's and a ring torus's rows, named at their readers'
     // `sites`.
     NameCarrier::Call("rows_as"),
@@ -37,24 +41,36 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("read_as"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
-                        forwarder reds until it is declared here or as a carrier";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
 const CALLERS_CRATE: &str = "a public door whose caller names the row (`Ray::ahead`), read in the \
                              calling crate's own census";
 
+const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
+                            its enclosing function's caller or a binding, named here by the call's \
+                            first argument";
+
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
+
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
-    ("azimuth.rs: read_in: row", FORWARDS),
+    ("azimuth.rs: principal_as: Window::Angle", CARRIER_CALL),
+    ("azimuth.rs: read_in_as: row", FORWARDS),
     ("azimuth.rs: stable_azimuth_as: row", FORWARDS),
-    ("chart_point.rs: point: name", FORWARDS),
+    ("chart_point.rs: point: name", CLOSURE_FORWARDS),
     ("curves.rs: ahead: site", CALLERS_CRATE),
     ("curves.rs: spiric_regime: sites.off_axis()", ROW_FIELD),
     ("curves.rs: spiric_regime: sites.two_ovals()", ROW_FIELD),
+    ("surfaces.rs: of_at: sites.ring()", CARRIER_CALL),
     ("surfaces.rs: of_at: sites.tube()", ROW_FIELD),
-    ("surfaces.rs: ring_half: name", FORWARDS),
-    ("surfaces.rs: spindle_sheet: name", FORWARDS),
+    ("surfaces.rs: ring_half_as: name", FORWARDS),
+    (
+        "surfaces.rs: ring_torus: RingReader::Convention.sites().ring()",
+        CARRIER_CALL,
+    ),
+    ("surfaces.rs: spindle_sheet: name", CLOSURE_FORWARDS),
     (
         "surfaces.rs: torus_tube: RingReader::Convention.sites().tube()",
         ROW_FIELD,

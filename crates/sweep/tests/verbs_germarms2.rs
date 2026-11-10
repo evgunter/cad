@@ -335,33 +335,70 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     }
 }
 
-/// **`same_door` matches an unglued coincidence arm for arm.** A
-/// margin just inside the zero band and one just past it into the
-/// ambiguity band lie closer than a band-width, yet one was decided
-/// zero and the other refused in band: two doors. Two margins inside
-/// the zero band are one.
+/// **`same_door` matches a gate's rejection by its whole reading.** Two
+/// rejections of one sign whose margins lie within the zero band of each
+/// other are one door; a band-width apart, two; and two whose gates pass
+/// different signs are two, whatever their margins.
 #[test]
-fn same_door_tells_a_decided_zero_from_a_coincidence_in_band() {
+fn same_door_matches_a_rejection_by_its_reading() {
+    use geom_core::{Decided, MarginDiag, SizedPass, k_stats::gate_rejection};
     let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-    let refusal = |m: f64| BooleanError::Escalated {
-        decision: topo::BooleanDecision::Coincidence(
-            topo::Coincide::Carriers,
-            topo::DeclarationRead::Moot,
-        ),
-        diag: geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::value(m * band.zero()),
-            band,
-            predicate: Some("carrier_unglued_coincidence"),
-            terminal_sliver: false,
-        },
+    let refusal = |sign: geom_core::Sign, m: f64| {
+        let passes = match sign {
+            geom_core::Sign::Zero => SizedPass::NonZero,
+            _ => SizedPass::Zero,
+        };
+        BooleanError::Escalated {
+            decision: topo::BooleanDecision::Coincidence(
+                topo::Coincide::Sectors,
+                topo::DeclarationRead::Moot,
+            ),
+            diag: gate_rejection(
+                "bool_faces_parallel",
+                Decided {
+                    sign,
+                    margin: MarginDiag::value(m),
+                },
+                band,
+                passes,
+            ),
+        }
     };
+    let (pos, zero) = (geom_core::Sign::Positive, geom_core::Sign::Zero);
+    let off = 100.0 * band.escalate();
     assert!(
-        !same_door(&refusal(0.9), &refusal(1.1)),
-        "a decided zero and an in-band margin are two doors"
+        same_door(&refusal(pos, off), &refusal(pos, off + 0.5 * band.zero())),
+        "two off margins within the zero band of each other are one door"
     );
     assert!(
-        same_door(&refusal(0.9), &refusal(0.2)),
-        "two decided zeros a band-width apart at most are one door"
+        !same_door(&refusal(pos, off), &refusal(pos, off + 2.0 * band.zero())),
+        "two off margins a band-width apart are two doors"
+    );
+    assert!(
+        same_door(
+            &refusal(zero, 0.9 * band.zero()),
+            &refusal(zero, 0.2 * band.zero())
+        ),
+        "two rejected zeros within the zero band of each other are one door"
+    );
+    let passing = |passes| BooleanError::Escalated {
+        decision: topo::BooleanDecision::Coincidence(
+            topo::Coincide::Sectors,
+            topo::DeclarationRead::Moot,
+        ),
+        diag: gate_rejection(
+            "bool_faces_parallel",
+            Decided {
+                sign: zero,
+                margin: MarginDiag::value(0.5 * band.zero()),
+            },
+            band,
+            passes,
+        ),
+    };
+    assert!(
+        !same_door(&passing(SizedPass::NonZero), &passing(SizedPass::Positive)),
+        "two gates rejecting one Zero that pass different signs are two doors"
     );
 }
 

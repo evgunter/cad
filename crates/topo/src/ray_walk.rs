@@ -218,7 +218,7 @@ impl core::fmt::Display for NoRaySettled {
 ///
 /// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
 /// [`Indeterminate`].
-pub(crate) fn advance<T: Decide>(
+pub(crate) fn advance_as<T: Decide>(
     row: &'static str,
     at: Margin<T>,
     band: Band,
@@ -254,7 +254,7 @@ pub(crate) fn crossing_side(
 ///
 /// [`RayFault::Graze`] or [`RayFault::InBand`], over the raw
 /// [`Indeterminate`].
-pub(crate) fn apart<T: Decide>(
+pub(crate) fn apart_as<T: Decide>(
     row: &'static str,
     at: Margin<T>,
     band: Band,
@@ -338,16 +338,16 @@ impl<T: Decide, H> Crossings<T, H> {
         band: Band,
         escalate: impl FnOnce(Indeterminate, &H, &H) -> E,
     ) -> Result<Option<H>, RayFault<E>> {
-        let gap =
+        let gap_as =
             |k: usize, b: usize| decide(order, Margin::of(self.ahead[k].0 - self.ahead[b].0), band);
         let mut best = 0;
         for k in 1..self.ahead.len() {
-            if gap(k, best) == Ok(Sign::Negative) {
+            if gap_as(k, best) == Ok(Sign::Negative) {
                 best = k;
             }
         }
         for k in (0..self.ahead.len()).filter(|&k| k != best) {
-            match gap(k, best) {
+            match gap_as(k, best) {
                 Ok(Sign::Positive) => {}
                 // A tie, or a crossing the scan above left behind the
                 // one it kept: the closest is not certain.
@@ -393,7 +393,7 @@ impl<T: Decide, H> Crossings<T, H> {
     /// # Errors
     ///
     /// [`RayFault::Graze`] or [`RayFault::InBand`].
-    pub(crate) fn first_count<E>(
+    pub(crate) fn first_count_as<E>(
         self,
         order: &'static str,
         band: Band,
@@ -743,7 +743,7 @@ mod tests {
             let got = walk(
                 rays.iter().copied(),
                 |ray| match ray {
-                    Some(margin) => advance("test_ray_walk_advance", Margin::of(margin), band())
+                    Some(margin) => advance_as("test_ray_walk_advance", Margin::of(margin), band())
                         .map_err(|fault| fault.map(|_| ())),
                     None => Err(RayFault::Unread),
                 },
@@ -772,7 +772,7 @@ mod tests {
         let got: Result<Sign, &str> = walk(
             [Some(5e-9), None],
             |ray| match ray {
-                Some(m) => advance("test_ray_walk_advance", Margin::of(m), band())
+                Some(m) => advance_as("test_ray_walk_advance", Margin::of(m), band())
                     .map_err(|f| f.map(|_| "in band")),
                 None => Err(RayFault::Fatal("corrupt")),
             },
@@ -1025,7 +1025,7 @@ mod tests {
         for &(at, count, party, sideless) in hits {
             c.push(at, (at, count, party), sideless);
         }
-        c.first_count(
+        c.first_count_as(
             "test_ray_walk_order",
             band(),
             |h| h.1,
@@ -1121,14 +1121,51 @@ mod tests {
     /// is set aside, and only [`advance`] reads a side of `q`.
     #[test]
     fn a_crossing_at_q_grazes() {
-        let a = |m: f64| advance("test_ray_walk_advance", Margin::of(m), band());
+        let a = |m: f64| advance_as("test_ray_walk_advance", Margin::of(m), band());
         assert!(matches!(a(1.0), Ok(Sign::Positive)));
         assert!(matches!(a(-1.0), Ok(Sign::Negative)));
         assert!(matches!(a(5e-10), Err(RayFault::Graze)));
         assert!(matches!(a(5e-9), Err(RayFault::InBand(_))));
-        let p = |m: f64| apart("test_ray_walk_advance", Margin::of(m), band());
+        let p = |m: f64| apart_as("test_ray_walk_advance", Margin::of(m), band());
         assert!(matches!(p(1.0), Ok(())));
         assert!(matches!(p(5e-10), Err(RayFault::Graze)));
         assert!(matches!(p(5e-9), Err(RayFault::InBand(_))));
+    }
+
+    /// **A ray that decides answers past rays set aside ahead of it**
+    /// ([`walk`], `Any`), and the kept rays rank where none decides. Rays
+    /// read as the test says:
+    /// - in band, then deciding → the verdict;
+    /// - in band, then at a limit, then grazing → the limit, ranked ahead
+    ///   of the earlier in-band ray;
+    /// - in band, then fatal, then deciding → the fatal error;
+    /// - grazing only → the exhaustion.
+    ///
+    /// The first-refusal loop refused at the first ray of each.
+    #[test]
+    fn a_deciding_ray_answers_past_one_in_band_and_a_limit_outranks_it() {
+        let run = |rays: &[(&'static str, char)]| {
+            walk(
+                rays.iter().copied(),
+                |(name, kind)| match kind {
+                    'v' => Ok(name),
+                    'i' => Err(RayFault::InBand(name)),
+                    'b' => Err(RayFault::Blocked(name)),
+                    'f' => Err(RayFault::Fatal(name)),
+                    _ => Err(RayFault::Graze),
+                },
+                || "exhausted",
+            )
+        };
+        assert_eq!(run(&[("in band", 'i'), ("decides", 'v')]), Ok("decides"));
+        assert_eq!(
+            run(&[("in band", 'i'), ("limit", 'b'), ("graze", 'g')]),
+            Err("limit")
+        );
+        assert_eq!(
+            run(&[("in band", 'i'), ("fatal", 'f'), ("decides", 'v')]),
+            Err("fatal")
+        );
+        assert_eq!(run(&[("graze", 'g')]), Err("exhausted"));
     }
 }

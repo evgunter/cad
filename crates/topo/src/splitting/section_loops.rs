@@ -22,7 +22,7 @@ use crate::body::Body;
 use crate::chord_join::ring_representative;
 use crate::entity::{LoopBoundary, LoopKey};
 use crate::validate::definitely_positive as positive;
-use crate::validate::{RingOuterVerdict, ring_outer_contact_about};
+use crate::validate::{RingOuterVerdict, ring_outer_contact_about_as};
 
 /// A traversal of a section loop met a dangling key: the scratch body
 /// is torn (a kernel bug).
@@ -277,7 +277,7 @@ pub(super) fn outlines_disjoint<T: Decide>(
     band: geom_core::Band,
 ) -> Result<bool, Torn> {
     if !matches!(
-        ring_outer_contact_about(body, a, b, Some(normal), band),
+        ring_outer_contact_about_as(body, a, b, Some(normal), band),
         RingOuterVerdict::Disjoint
     ) {
         return Ok(false);

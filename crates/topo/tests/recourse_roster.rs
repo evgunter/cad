@@ -48,7 +48,7 @@
 
 use std::collections::BTreeSet;
 use test_utils::source::{
-    NameCarrier, PredicateCensus, crate_dir, predicate_census, roster_violations,
+    FORWARDS, NameCarrier, PredicateCensus, crate_dir, predicate_census, roster_violations,
 };
 
 /// A door: the prefixes its names carry, and the error type its
@@ -174,6 +174,7 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     ("tangent_lump_senses", &BOOLEAN),
     ("vertex_section_clear", &BOOLEAN),
     ("vertex_section_side", &BOOLEAN),
+    ("vertex_section_resolution", &BOOLEAN),
     // The sector side the boolean's sectors and the split's rules both
     // read; the boolean's is the first door to raise it.
     ("enters_material", &BOOLEAN),
@@ -206,6 +207,13 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
     // `on_surface_as`'s unit test's `(name, side)` row.
     ("probe_on", &UNIT_TEST),
     ("probe_oracle", &UNIT_TEST),
+    // `test_support_samples`' cause named after geom-brep's arm row.
+    ("dihedral_arm", &UNIT_TEST),
+    ("param_span_meter", &UNIT_TEST),
+    ("walk_slot_a", &UNIT_TEST),
+    ("walk_slot_b", &UNIT_TEST),
+    ("walk_slot_c", &UNIT_TEST),
+    ("walk_slot_d", &UNIT_TEST),
     ("rh_straddle", &UNIT_TEST),
     ("t", &UNIT_TEST),
 ];
@@ -226,6 +234,53 @@ const CARRIERS: &[NameCarrier] = &[
     // sign batch and the tangent witness's `(name, side)`.
     NameCarrier::Call("signs_as"),
     NameCarrier::Call("on_surface_as"),
+    // `bound_side::first_order_as`'s two rows, picked by a `match` on the
+    // support.
+    NameCarrier::Const("BOOL_CHORD_SIDE"),
+    NameCarrier::Const("BOOL_ENTERS_MATERIAL"),
+    // A unit test's slot names, handed to `slots_as`.
+    NameCarrier::Const("NAMES"),
+    NameCarrier::Call("gate_as"),
+    NameCarrier::Call("left_as"),
+    NameCarrier::Call("slots_as"),
+    NameCarrier::Const("VERTEX_SECTION_RESOLUTION"),
+    NameCarrier::Const("SECTION_PIN_RESOLUTION"),
+    NameCarrier::Const("CROSS_TURN"),
+    NameCarrier::Const("ARM_INF"),
+    // The forwarders a `FORWARDS` line names, declared so their callers'
+    // names are read (`roster_violations` holds each line to one).
+    NameCarrier::Call("advance_as"),
+    NameCarrier::Call("all_as"),
+    NameCarrier::Call("apart_as"),
+    NameCarrier::Call("arc_leaving_as"),
+    NameCarrier::Call("azimuth_turn_as"),
+    NameCarrier::Call("before_as"),
+    NameCarrier::Call("branches_astride_as"),
+    NameCarrier::Call("clear_of_arc_as"),
+    NameCarrier::Call("clear_of_boundary_as"),
+    NameCarrier::Call("clears_as"),
+    NameCarrier::Call("coincident_over_extent_as"),
+    NameCarrier::Call("escalation_as"),
+    NameCarrier::Call("first_count_as"),
+    NameCarrier::Call("first_order_as"),
+    NameCarrier::Call("gap_as"),
+    NameCarrier::Call("gap_is_zero_as"),
+    NameCarrier::Call("gate_arm_as"),
+    NameCarrier::Call("held_zero_as"),
+    NameCarrier::Call("lex_cmp_as"),
+    NameCarrier::Call("near_as"),
+    NameCarrier::Call("net_closes_as"),
+    NameCarrier::Call("one_verdict_as"),
+    NameCarrier::Call("pair_as"),
+    NameCarrier::Call("parallel_same_as"),
+    NameCarrier::Call("period_fold_as"),
+    NameCarrier::Call("reach_as"),
+    NameCarrier::Call("rejected_negative_as"),
+    NameCarrier::Call("resolved_as"),
+    NameCarrier::Call("ring_outer_contact_about_as"),
+    NameCarrier::Call("side_at_closest_as"),
+    NameCarrier::Call("signed_is_zero_as"),
+    NameCarrier::Call("span_clear_as"),
     // The identity data's names ([`IDENTITY`], [`IDENTITY_DATA`]).
     NameCarrier::Const("BOOL_WRAP_RIM"),
     NameCarrier::Const("CARRIER_CONE_APEX"),
@@ -399,17 +454,11 @@ const CARRIERS: &[NameCarrier] = &[
     // The split order's two axis rows, read in a loop.
     NameCarrier::Const("SPLIT_JOIN_ORDER_U"),
     NameCarrier::Const("SPLIT_JOIN_ORDER_V"),
-    // A refusal's own row, which no door decides
-    // (`two-boolean-refusals-name-a-row-no-door-decides`).
-    NameCarrier::Const("CARRIER_UNGLUED_COINCIDENCE"),
     // The funnels the tree-wide reference row found their callers'
     // names behind.
     NameCarrier::Call("first_within"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
-                        forwarder reds until it is declared here or as a carrier";
 const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
                          here by its `fn` and that first argument; its literal names are read";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
@@ -421,9 +470,19 @@ const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinde
 const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names the census reads where the \
                            type spells them: `TangentRow`'s table, a declared `NameCarrier::Table`, \
                            or the consts `ClearanceBound`'s arms return, declared carriers";
+const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
+                           (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
+const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
+                            its enclosing function's caller or a binding, named here by the call's \
+                            first argument";
 const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
 const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the declared \
                           `ConicRows::bounded` carrier's token and takes no name";
+
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
 
 /// The indirect sites whose expression is not a declared `const`, as
 /// `<file>: <expr>`, with what carries the name there.
@@ -437,9 +496,10 @@ const INDIRECT: &[(&str, &str)] = &[
         FORWARDS,
     ),
     (
-        "boolean/carrier_eq.rs: coincident_over_extent: row",
+        "boolean/carrier_eq.rs: coincident_over_extent_as: row",
         FORWARDS,
     ),
+    ("boolean/carrier_eq.rs: pair_door_reading: c1", CARRIER_CALL),
     (
         "boolean/carrier_eq.rs: read_identity#1(margins.iter().copied())",
         IDENTITY_DATA,
@@ -465,25 +525,52 @@ const INDIRECT: &[(&str, &str)] = &[
         "boolean/contact_verify.rs: on_surface_as: row.predicate()",
         CLOSED_TYPE,
     ),
+    (
+        "boolean/contact_verify.rs: on_surface_pads_each_verdict_in_its_own_direction: (\"probe_on\", PairSide::Second)",
+        TUPLE_PAIRS,
+    ),
+    (
+        "boolean/contact_verify.rs: tangent_pass: (on, side)",
+        TUPLE_PAIRS,
+    ),
     ("boolean/contain.rs: face_placement: on_plane", FORWARDS),
-    ("boolean/join.rs: line_of: name", FORWARDS),
+    ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),
     ("boolean/join.rs: travel: name", FORWARDS),
-    ("boolean/ops.rs: apply_cut_ins: name", FORWARDS),
+    (
+        "boolean/offer_rows.rs: -: Vec3::new(1.0, 0.0, 0.0)",
+        NOT_A_NAME,
+    ),
+    ("boolean/ops.rs: apply_cut_ins: name", CLOSURE_FORWARDS),
     ("boolean/ops.rs: carried: pending", NOT_A_NAME),
     ("boolean/ops.rs: ledger: &mut pending", NOT_A_NAME),
     ("boolean/ops.rs: vertices_meet: predicate", FORWARDS),
+    (
+        "boolean/recl.rs: a_flanker_reads_its_side_of_the_other_faces_at_its_reach: band",
+        CARRIER_CALL,
+    ),
+    ("boolean/recl.rs: recl_edges: m.dir", CARRIER_CALL),
+    ("boolean/recl.rs: recl_edges: mentions[i].dir", CARRIER_CALL),
+    ("boolean/recl.rs: resolve_edge_edge: band", CARRIER_CALL),
     ("boolean/reduce.rs: vf: row", NOT_A_NAME),
     ("boolean/reduce.rs: vv: row", NOT_A_NAME),
+    ("boolean/region.rs: place: at", CARRIER_CALL),
     ("boolean/region.rs: short_of_end: end.row", ROW_FIELD),
-    ("boolean/region.rs: side_at_closest: cross", FORWARDS),
-    ("boolean/rim_wedge.rs: reach: name", FORWARDS),
+    ("boolean/region.rs: side_at_closest_as: cross", FORWARDS),
+    ("boolean/rim_wedge.rs: departures: a", CARRIER_CALL),
+    ("boolean/rim_wedge.rs: departures: b", CARRIER_CALL),
+    ("boolean/rim_wedge.rs: reach_as: name", FORWARDS),
     ("boolean/rim_wedge.rs: read_identity#1([)", IDENTITY),
     (
         "boolean/rim_wedge.rs: read_identity#2([t0, t1].map(|t| {)",
         IDENTITY,
     ),
     ("boolean/section_cert.rs: sign_as: name", FORWARDS),
-    ("boolean/section_cert/ruling.rs: before: row", FORWARDS),
+    ("boolean/section_cert/ruling.rs: assemble: lo", CARRIER_CALL),
+    (
+        "boolean/section_cert/ruling.rs: assemble: theta",
+        CARRIER_CALL,
+    ),
+    ("boolean/section_cert/ruling.rs: before_as: row", FORWARDS),
     (
         "boolean/section_cert/ruling.rs: read: rows.precision()",
         ROW_FIELD,
@@ -496,14 +583,44 @@ const INDIRECT: &[(&str, &str)] = &[
         "boolean/section_cert/ruling.rs: reading: rows.fold()",
         ROW_FIELD,
     ),
+    ("boolean/section_cert/ruling.rs: roots: o", CARRIER_CALL),
     (
-        "boolean/sectors.rs: parallel_same: reading.predicate",
+        "boolean/sectors.rs: a_zero_direction_refuses_rather_than_reading_parallel_or_apart: -tiny",
+        CARRIER_CALL,
+    ),
+    (
+        "boolean/sectors.rs: a_zero_direction_refuses_rather_than_reading_parallel_or_apart: p",
+        CARRIER_CALL,
+    ),
+    (
+        "boolean/sectors.rs: a_zero_direction_refuses_rather_than_reading_parallel_or_apart: tiny",
+        CARRIER_CALL,
+    ),
+    ("boolean/sectors.rs: coincident_run: a.dir", CARRIER_CALL),
+    ("boolean/sectors.rs: crescent: da", CARRIER_CALL),
+    ("boolean/sectors.rs: first_order_overlap: u", CARRIER_CALL),
+    (
+        "boolean/sectors.rs: parallel_same_as: reading.predicate",
         FORWARDS,
     ),
+    (
+        "boolean/sectors.rs: parallelism_reads_the_directions_and_not_their_norms: u * 1e3",
+        CARRIER_CALL,
+    ),
+    (
+        "boolean/sectors.rs: parallelism_reads_the_directions_and_not_their_norms: u * norm",
+        CARRIER_CALL,
+    ),
+    ("boolean/sectors.rs: runs_into: dir", CARRIER_CALL),
     (
         "boolean/solid_contain.rs: a_root_whose_reach_margin_lies_in_band_is_set_aside: SCHEDULE_ROWS.reaches()",
         ROW_FIELD,
     ),
+    (
+        "boolean/solid_contain.rs: cast_ray: SCHEDULE_ROWS.order()",
+        CARRIER_CALL,
+    ),
+    ("boolean/solid_contain.rs: cast_ray: body", CARRIER_CALL),
     (
         "boolean/solid_contain.rs: clear_of_carrier: rows.clearance()",
         ROW_FIELD,
@@ -516,7 +633,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "boolean/solid_contain.rs: edge_meets: rows.edge_span()",
         ROW_FIELD,
     ),
-    ("boolean/solid_contain.rs: pair: order", FORWARDS),
+    ("boolean/solid_contain.rs: pair_as: order", FORWARDS),
     (
         "boolean/solid_contain.rs: ray_crossings: rows.denom()",
         ROW_FIELD,
@@ -535,7 +652,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     (
         "boolean/solid_contain.rs: sphere_chart_trim: name",
-        FORWARDS,
+        CLOSURE_FORWARDS,
     ),
     ("boolean/solid_contain.rs: vertex: rows.vertex()", ROW_FIELD),
     (
@@ -547,20 +664,22 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     (
-        "boolean/surface_group.rs: read_identity#1(coaxial_margins(self.axis, rim).map(|margin| \
-         (BOOL_WRAP_RIM, margin)))",
+        "boolean/surface_group.rs: read_identity#1(coaxial_margins(self.axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)))",
         IDENTITY,
     ),
     ("boolean/trace.rs: sign_as: name", FORWARDS),
-    ("bound_side.rs: first_order: predicate", FORWARDS),
-    ("cell_region.rs: cell_region_lifted: row", FORWARDS),
+    ("bound_side.rs: first_order_as: predicate", FORWARDS),
+    ("bound_side.rs: read: dir", CARRIER_CALL),
+    ("bound_side.rs: read_plane_side: dir", CARRIER_CALL),
+    ("cell_region.rs: cell_region_lifted: boundary", CARRIER_CALL),
+    ("cell_region.rs: cell_region_lifted: row", CLOSURE_FORWARDS),
     ("cell_region.rs: clear_as: row", FORWARDS),
-    ("cell_region.rs: clear_of_arc: row", FORWARDS),
-    ("cell_region.rs: clear_of_boundary: row", FORWARDS),
+    ("cell_region.rs: clear_of_arc_as: row", FORWARDS),
+    ("cell_region.rs: clear_of_boundary_as: row", FORWARDS),
     ("census.rs: charged_cmp: name", FORWARDS),
     ("census.rs: enclosure_reading: straddle", FORWARDS),
     ("census.rs: face_holds: body", NOT_FIRST),
-    ("census.rs: gap_is_zero: name", FORWARDS),
+    ("census.rs: gap_is_zero_as: name", FORWARDS),
     ("census.rs: gap_zero_reading: name", FORWARDS),
     ("census.rs: magnitude_door: name", FORWARDS),
     ("census.rs: meeting_point: a.p0 + a.dir * s", SAME_NAMED),
@@ -568,36 +687,99 @@ const INDIRECT: &[(&str, &str)] = &[
         "census.rs: meeting_point: e.p0 + e.dir * ((f.origin - e.p0).dot(f.normal) / along)",
         SAME_NAMED,
     ),
-    ("census.rs: signed_is_zero: name", FORWARDS),
+    ("census.rs: pierce_inside: body", CARRIER_CALL),
+    ("census.rs: signed_is_zero_as: name", FORWARDS),
     ("census.rs: signed_zero_reading: name", FORWARDS),
-    ("census.rs: span_clear: [T::zero(), reach]", NOT_FIRST),
-    ("census.rs: span_clear: name", FORWARDS),
+    ("census.rs: span_clear_as: [T::zero(), reach]", NOT_FIRST),
+    ("census.rs: span_clear_as: name", FORWARDS),
     ("census/curved.rs: decided_as: name", FORWARDS),
-    ("chart_region.rs: cylinder_pair_overlap: name", FORWARDS),
-    ("chart_region.rs: gate_arm: name", FORWARDS),
-    ("chart_region.rs: period_fold: name", FORWARDS),
-    ("chord_join.rs: arc_leaving: name", FORWARDS),
+    (
+        "census/pierce_rows.rs: a_side_with_no_closed_form_clearance_is_not_read_clear: pair.body",
+        CARRIER_CALL,
+    ),
+    (
+        "census/pierce_rows.rs: a_spans_reach_counts_the_band_and_the_slope: pair.body",
+        CARRIER_CALL,
+    ),
+    ("census/pierce_rows.rs: clear: pair.body", CARRIER_CALL),
+    (
+        "chart_region.rs: cylinder_pair_overlap: name",
+        CLOSURE_FORWARDS,
+    ),
+    (
+        "chart_region.rs: cylinder_pair_overlap: window_mid(&uv_a) - window_mid(&uv_b)",
+        CARRIER_CALL,
+    ),
+    ("chart_region.rs: gate_arm_as: name", FORWARDS),
+    ("chart_region.rs: period_fold_as: name", FORWARDS),
+    ("chart_region.rs: spline_chart_arms: arm_u", CARRIER_CALL),
+    ("chart_region.rs: spline_chart_arms: arm_v", CARRIER_CALL),
+    (
+        "chart_region.rs: spline_chart_arms: inf.inf_u",
+        CARRIER_CALL,
+    ),
+    (
+        "chart_region.rs: spline_chart_arms: inf.inf_v",
+        CARRIER_CALL,
+    ),
+    ("chart_region.rs: spline_chart_arms: name", CLOSURE_FORWARDS),
+    (
+        "chart_region.rs: the_fold_is_its_whole_periods_as_a_theorem_over_a_box: a - b",
+        CARRIER_CALL,
+    ),
+    ("chord_join.rs: arc_leaving_as: name", FORWARDS),
+    ("chord_join.rs: bool_planar_chord_spec: face", CARRIER_CALL),
+    ("chord_join.rs: chord_spec: face", CARRIER_CALL),
+    (
+        "chord_join/torus_chord_rows.rs: a_chord_on_an_oval_is_an_arc_on_its_own_parameter: FaceKey::default()",
+        CARRIER_CALL,
+    ),
     ("clearance.rs: pair: bound.predicate()", CLOSED_TYPE),
     (
         "clearance.rs: reading: self.as_bound().predicate()",
         CLOSED_TYPE,
     ),
     ("injective.rs: interval_sign_as: row", FORWARDS),
-    ("link.rs: clears: name", FORWARDS),
+    ("injective.rs: of: carrier", CARRIER_CALL),
+    (
+        "link.rs: a_corner_off_the_point_by_its_tie_reads_nothing_in_band: band",
+        CARRIER_CALL,
+    ),
+    (
+        "link.rs: a_segment_of_no_length_clears_by_its_points_distance: iv(p)",
+        CARRIER_CALL,
+    ),
+    (
+        "link.rs: a_segment_of_no_length_clears_by_its_points_distance: p",
+        CARRIER_CALL,
+    ),
+    ("link.rs: clears_as: name", FORWARDS),
     ("link.rs: decided_as: name", FORWARDS),
-    ("link.rs: escalation: name", FORWARDS),
+    ("link.rs: escalation_as: name", FORWARDS),
+    (
+        "link.rs: nearly_opposite_ends_read_the_segments_own_clearance: p",
+        CARRIER_CALL,
+    ),
     ("link.rs: read_as: name", FORWARDS),
+    ("link.rs: reads_given: p", CARRIER_CALL),
     ("link.rs: settle_as: name", FORWARDS),
     ("link.rs: settle_reported: name", FORWARDS),
     ("link.rs: sign_as: name", FORWARDS),
     ("link.rs: sign_over: name", FORWARDS),
-    ("link.rs: touches: name", FORWARDS),
+    ("link.rs: touches: name", CLOSURE_FORWARDS),
     ("link.rs: why_as: name", FORWARDS),
+    ("link.rs: winds: p", CARRIER_CALL),
     ("link.rs: zero_refused: name", FORWARDS),
-    ("offset_axial.rs: azimuth_turn: name", FORWARDS),
-    ("offset_axial.rs: classify: what", FORWARDS),
-    ("offset_axial.rs: reauthor: name", FORWARDS),
-    ("offset_derive.rs: held_zero: name", FORWARDS),
+    ("offset_axial.rs: azimuth_turn_as: name", FORWARDS),
+    ("offset_axial.rs: classify: what", CLOSURE_FORWARDS),
+    ("offset_axial.rs: reauthor: name", CLOSURE_FORWARDS),
+    ("offset_derive.rs: held_zero_as: name", FORWARDS),
+    ("offset_derive.rs: holds_the_move: name", CLOSURE_FORWARDS),
+    (
+        "offset_derive.rs: normal_in_plane_along: name",
+        CLOSURE_FORWARDS,
+    ),
+    ("offset_derive.rs: translates_along: name", CLOSURE_FORWARDS),
     ("offset_derive.rs: zero_as: name", FORWARDS),
     (
         "pcurves.rs: a_half_turn_gap_answers_by_the_band_at_every_turn_count: chart(&cone)",
@@ -619,7 +801,9 @@ const INDIRECT: &[(&str, &str)] = &[
         "pcurves.rs: a_whole_turn_decides_one_period_on_each_channel: chart",
         NOT_A_NAME,
     ),
-    ("pcurves.rs: branches_astride: name", FORWARDS),
+    ("pcurves.rs: branches_astride_as: name", FORWARDS),
+    ("pcurves.rs: chart_u_period: payload", CARRIER_CALL),
+    ("pcurves.rs: chart_v_period: payload", CARRIER_CALL),
     (
         "pcurves.rs: joint: DescribedChart::of(&s).unwrap()",
         NOT_A_NAME,
@@ -629,7 +813,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "pcurves.rs: lift: DescribedChart::of(surface).unwrap()",
         NOT_A_NAME,
     ),
-    ("pcurves.rs: net_closes: name", FORWARDS),
+    ("pcurves.rs: net_closes_as: name", FORWARDS),
     (
         "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,
@@ -653,13 +837,14 @@ const INDIRECT: &[(&str, &str)] = &[
     ("props.rs: at_round_zero: faces", NOT_A_NAME),
     ("props.rs: decide_faces: items", NOT_A_NAME),
     ("props.rs: mass_properties_one_point: &faces", NOT_A_NAME),
-    ("props.rs: one_verdict: name", FORWARDS),
-    ("props.rs: read_sign: name", FORWARDS),
+    ("props.rs: one_verdict_as: name", FORWARDS),
+    ("props.rs: read_sign: name", CLOSURE_FORWARDS),
     ("props.rs: read_sign: names.high()", ROW_FIELD),
     ("props.rs: read_sign: names.low()", ROW_FIELD),
     ("props.rs: resolution_runs: faces", NOT_A_NAME),
     ("props.rs: resume_to: &wanted", NOT_A_NAME),
     ("props.rs: settle_on: e", NOT_FIRST),
+    ("props.rs: slots_as: name", FORWARDS),
     (
         "props.rs: the_enclosure_holds_the_vertex_polyhedrons_exact_volume: &faces",
         NOT_A_NAME,
@@ -678,18 +863,24 @@ const INDIRECT: &[(&str, &str)] = &[
     ("props/settle.rs: contains_step: e", NOT_FIRST),
     ("props/settle.rs: contains_step: name", FORWARDS),
     ("props/settle.rs: relation_step: name", FORWARDS),
-    ("ray_walk.rs: advance: row", FORWARDS),
-    ("ray_walk.rs: apart: row", FORWARDS),
-    ("ray_walk.rs: closest: order", FORWARDS),
-    ("ray_walk.rs: first_count: order", FORWARDS),
+    ("ray_walk.rs: advance_as: row", FORWARDS),
+    ("ray_walk.rs: apart_as: row", FORWARDS),
+    ("ray_walk.rs: closest: k", CARRIER_CALL),
+    ("ray_walk.rs: closest: order", CLOSURE_FORWARDS),
+    ("ray_walk.rs: first_count_as: order", FORWARDS),
     ("ray_walk.rs: on_segment_margin: rows.boundary()", ROW_FIELD),
     ("ray_walk.rs: on_segment_margin: rows.segment()", ROW_FIELD),
     ("ray_walk.rs: ray_crossings: rows.advance()", ROW_FIELD),
     ("ray_walk.rs: ray_crossings: rows.side()", ROW_FIELD),
-    ("ring_path.rs: path_parity: name", FORWARDS),
+    ("ring_path.rs: path_parity: name", CLOSURE_FORWARDS),
     ("rows.rs: line: self.line", ROW_FIELD),
     ("rows.rs: names: ", ACCESSOR_LIKE_A_DOOR),
     ("rows.rs: segment_rows: segment: self.segment", ROW_FIELD),
+    (
+        "side_reader.rs: aimed_ray: AIMED_ROWS.order()",
+        CARRIER_CALL,
+    ),
+    ("side_reader.rs: aimed_ray: body", CARRIER_CALL),
     (
         "splitting/containment.rs: old_span_rule: rows.rows().turn()",
         ROW_FIELD,
@@ -703,7 +894,15 @@ const INDIRECT: &[(&str, &str)] = &[
         ACCESSOR_LIKE_A_DOOR,
     ),
     ("splitting/containment.rs: walk_schedule: arm_row", FORWARDS),
-    ("splitting/order.rs: lex_cmp: name", FORWARDS),
+    ("splitting/order.rs: lex_cmp_as: name", FORWARDS),
+    (
+        "splitting/order.rs: one_ulp_apart_orders_strictly: &p",
+        CARRIER_CALL,
+    ),
+    (
+        "splitting/order.rs: sort_indices_by_point: &points[b]",
+        CARRIER_CALL,
+    ),
     ("splitting/pieced_arc.rs: contact: rows.end()", ROW_FIELD),
     (
         "splitting/pieced_arc.rs: pieces_contact: rows.clear()",
@@ -717,9 +916,13 @@ const INDIRECT: &[(&str, &str)] = &[
         "splitting/pieced_arc.rs: pieces_contact: rows.on()",
         ROW_FIELD,
     ),
-    ("splitting/spline_arc.rs: all: row", FORWARDS),
     (
-        "test_support_samples.rs: rejected_negative: predicate",
+        "splitting/section_loops.rs: outlines_disjoint: body",
+        CARRIER_CALL,
+    ),
+    ("splitting/spline_arc.rs: all_as: row", FORWARDS),
+    (
+        "test_support_samples.rs: rejected_negative_as: predicate",
         FORWARDS,
     ),
     ("validate.rs: decide: name", FORWARDS),
@@ -732,14 +935,29 @@ const INDIRECT: &[(&str, &str)] = &[
     ("validate.rs: decide_positive: name", FORWARDS),
     ("validate.rs: decide_reported: name", FORWARDS),
     ("validate.rs: definitely_positive: name", FORWARDS),
-    ("validate.rs: resolved: name", FORWARDS),
-    ("validate.rs: ring_outer_contact_about: $name", FORWARDS),
+    ("validate.rs: resolved_as: name", FORWARDS),
+    ("validate.rs: ring_outer_contact: body", CARRIER_CALL),
+    ("validate.rs: ring_outer_contact_about_as: $name", FORWARDS),
+    ("validate.rs: tier3_local_checks_marked: body", CARRIER_CALL),
     ("validate.rs: wedge_holds_named: ", ACCESSOR_LIKE_A_DOOR),
     (
         "validate.rs: wedge_holds_named: (name, names.straddle())",
-        FORWARDS,
+        CLOSURE_FORWARDS,
     ),
-    ("validate.rs: wedge_holds_named: name", FORWARDS),
+    ("validate.rs: wedge_holds_named: name", CLOSURE_FORWARDS),
+    (
+        "validate.rs: wedge_holds_named: names.after_leaving()",
+        CARRIER_CALL,
+    ),
+    (
+        "validate.rs: wedge_holds_named: names.before_arriving()",
+        CARRIER_CALL,
+    ),
+    (
+        "validate.rs: wedge_holds_named: names.straight()",
+        CARRIER_CALL,
+    ),
+    ("validate.rs: wedge_holds_named: names.turn()", CARRIER_CALL),
     ("vertex_section.rs: decide_vertex_on_plane: name", FORWARDS),
 ];
 

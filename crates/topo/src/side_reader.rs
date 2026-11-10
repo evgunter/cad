@@ -724,12 +724,12 @@ fn aimed_ray<T: Decide>(
         Err(RayFault::Graze | RayFault::Unread) => return Ok(Aimed::SetAside(SetAsideWhy::Graze)),
     };
     Ok(
-        match crossings.first_count(
+        match crossings.first_count_as(
             AIMED_ROWS.order(),
             band,
             RayHit::count,
             |a, b| {
-                a.pair(body, b, AIMED_ROWS.order(), band).map_err(|f| {
+                a.pair_as(body, b, AIMED_ROWS.order(), band).map_err(|f| {
                     f.map(|(near, gap, far)| {
                         Unread::Pair(AimedPair {
                             shell,

@@ -96,8 +96,11 @@
 //!   [`SelfTouch::SecondOrder`]) — a cone's apex or a vertex in the band
 //!   of its axis, a cusp corner whose edges' bends do not part it, a horn
 //!   beside a sheet along its ray or a ring of horns that reads as no
-//!   thorn, a spline face held off a corner, a face whose foot normal,
-//!   reach or corner face does not read, a curved edge with no certified
+//!   thorn, a spline face held off a corner, a face whose foot normal
+//!   or reach does not read, a spline corner face on a placeholder chart
+//!   or with no certified curve or pcurve there (a spline corner on a
+//!   crease reads its sector's side, or refuses by the crease's
+//!   standing; it is not left here), a curved edge with no certified
 //!   curve, sheets along a tied ray that one order down meet or do not
 //!   part, a curved sheet holding a tied ray inside it, two whole tangent
 //!   planes on one plane, or sectors read lying on each other (two
@@ -337,10 +340,10 @@ use geom_core::{
 };
 
 use crate::body::Body;
-use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
 use crate::boolean::{
     ContactKind, ContactRecords, ContainError, FaceContainment, SolidContainment, contfp,
 };
+use crate::boxes::{edge_box, face_box, sweep_pad};
 use crate::chart_region::{ChartRegionError, RegionLane};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::face_normal::NormalAbort;
@@ -495,6 +498,13 @@ struct FaceGeo<T: Real> {
     /// [`TouchUnread::Corrupt`] for a loop that does not walk, or else
     /// [`TouchUnread::LoneLoop`].
     walked: Result<(), TouchUnread>,
+}
+
+impl<T: Real> FaceGeo<T> {
+    /// The face and its plane's normal, as the planar door reads them.
+    fn plane(&self) -> (FaceKey, Vec3<T>) {
+        (self.key, self.normal)
+    }
 }
 
 /// The census snapshot: the exact planar geometry the vertex-granular
@@ -1611,7 +1621,7 @@ fn pair_holds_point<T: Decide>(
 ) -> bool {
     for f in [fa, fb] {
         let residual = geom::plane_offset(f.origin, f.normal, q);
-        if signed_is_zero(
+        if signed_is_zero_as(
             "pm_census_confined_carrier",
             Margin::of(residual),
             band,
@@ -1621,7 +1631,7 @@ fn pair_holds_point<T: Decide>(
             return false;
         }
         if !matches!(
-            contain(body, f, q, band, errors),
+            contain(body, f.plane(), q, band, errors),
             Some(FaceContainment::In | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_))
         ) {
             return false;
@@ -1660,7 +1670,7 @@ fn pair_holds_edges<T: Decide>(
         for e in [ea, eb] {
             for p in [e.p0, e.p1] {
                 let residual = geom::plane_offset(f.origin, f.normal, p);
-                if signed_is_zero(
+                if signed_is_zero_as(
                     "pm_census_confined_carrier",
                     Margin::of(residual),
                     band,
@@ -1934,27 +1944,43 @@ fn face_cone<T: Decide>(
     }
 }
 
-/// Where `q` lies against `f`, of any kind: `Some(None)` where no door
+/// **Where `held` lies against `f`, of any kind**: the census's held
+/// placement, the point checked on the face's carrier in debug builds
+/// ([`crate::held::Held::check`]) and placed with no on-carrier decision
+/// (a planar face by its plane, [`contfp`]; a curved one by its region,
+/// [`crate::boolean::curved_face_placement`]). A point read definitely
+/// off a curved face's carrier (a planar face's placement never says so)
+/// breaks the caller's premise, the kernel's fault ([`census_fault`]),
+/// as the boolean's held door answers it. `Some(None)` where no door
 /// reads it; `None` where the door refused (pushed).
 fn placed<T: Decide>(
     body: &Body<T>,
-    geo: &Geo<T>,
     f: FaceKey,
     held: crate::held::Held<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
-    if let Some(view) = body.face(f) {
+    let plane = body.face(f).and_then(|view| {
         held.check(view.surface(), band);
-    }
+        match *view.surface() {
+            geom::Surface::Plane { normal, .. } => Some(normal),
+            _ => None,
+        }
+    });
     let q = held.point();
-    match planar_face(geo, f) {
-        Some(g) => contain(body, g, q, band, errors).map(Some),
-        None => read_containment(
+    match plane {
+        Some(normal) => contain(body, (f, normal), q, band, errors).map(Some),
+        _ => match read_containment(
             f,
-            crate::boolean::curved_face_containment(body, f, q, band),
+            crate::boolean::curved_face_placement(body, f, q, band),
             errors,
-        ),
+        )? {
+            crate::boolean::CurvedPlacement::Trim(at) => Some(at),
+            crate::boolean::CurvedPlacement::OffCarrier => census_fault(
+                format_args!("face {f:?}"),
+                "a point the census holds on the face's carrier reads definitely off it",
+            ),
+        },
     }
 }
 
@@ -2018,13 +2044,13 @@ fn in_overlap_closure<T: Decide>(
     // The touch of the pair's cells lies on both faces' carriers: a
     // confirmed pair is one carrier.
     let touch = crate::held::Held::constructed(q, "the touch of a confirmed pair's cells");
-    let Some(cx) = placed(body, geo, fx, touch, band, errors)? else {
+    let Some(cx) = placed(body, fx, touch, band, errors)? else {
         return unbuilt(errors);
     };
     if cx == FaceContainment::Out {
         return Some(false);
     }
-    let Some(cy) = placed(body, geo, fy, touch, band, errors)? else {
+    let Some(cy) = placed(body, fy, touch, band, errors)? else {
         return unbuilt(errors);
     };
     if cy == FaceContainment::Out {
@@ -2929,7 +2955,7 @@ pub(crate) const CONFORMAL_REGION_WITNESS: &str = "their shared region";
 /// Every caller's gap is nonnegative by construction (a norm, an `abs`
 /// over a norm, a norm levered by a chord length), the magnitude door's
 /// precondition.
-fn gap_is_zero<T: Decide>(
+fn gap_is_zero_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -3264,7 +3290,7 @@ fn on_edge_interior_reading<T: Decide>(
 
 /// A signed residual as a trilean on-verdict: `Some(true)` on,
 /// `Some(false)` definitely off, `None` escalated (pushed).
-fn signed_is_zero<T: Decide>(
+fn signed_is_zero_as<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
@@ -3298,12 +3324,12 @@ fn signed_zero_reading<T: Decide>(
 /// already pushed).
 fn contain<T: Decide>(
     body: &Body<T>,
-    f: &FaceGeo<T>,
+    (face, normal): (FaceKey, Vec3<T>),
     q: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<FaceContainment> {
-    read_containment(f.key, contfp(body, f.key, f.normal, q, band), errors)
+    read_containment(face, contfp(body, face, normal, q, band), errors)
 }
 
 /// A containment door's answer about `face`, its refusal pushed
@@ -3432,7 +3458,7 @@ fn pair_vertex_face<T: Decide>(
             // Boundary coincidences are pass-1/2 findings; Out and
             // escalations (pushed) need nothing more here.
             let on_plane = |margin, errors: &mut Vec<ValidationError>| {
-                if contain(body, f, q, band, errors) == Some(FaceContainment::In)
+                if contain(body, f.plane(), q, band, errors) == Some(FaceContainment::In)
                     && !declared.vf.contains(&(vk, f.key))
                 {
                     errors.push(ValidationError::UnrecordedContact {
@@ -3499,12 +3525,12 @@ fn edge_vertex_at<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<VertexKey> {
-    match signed_is_zero("pm_census_bound_end", Margin::of(s), band, errors) {
+    match signed_is_zero_as("pm_census_bound_end", Margin::of(s), band, errors) {
         Some(true) => return Some(e.v0),
         Some(false) => {}
         None => return None,
     }
-    match signed_is_zero("pm_census_bound_end", Margin::of(e.len - s), band, errors) {
+    match signed_is_zero_as("pm_census_bound_end", Margin::of(e.len - s), band, errors) {
         Some(true) => Some(e.v1),
         _ => None,
     }
@@ -3533,7 +3559,7 @@ fn any_boundary_vertex_at<T: Decide>(
         let Some(&pw) = geo.vmap.get(&w) else {
             continue;
         };
-        if gap_is_zero(
+        if gap_is_zero_as(
             "pm_census_bound_vertex",
             Margin::norm3(pw - q),
             band,
@@ -4027,8 +4053,8 @@ fn pierce_inside<T: Decide>(
     use FaceContainment::{In, OnEdge, OnVertex, Out};
     let chord = e.p1 - e.p0;
     let [q_lo, q_hi] = [lo, hi].map(|t| e.p0 + chord * t);
-    let at_lo = contain(body, f, q_lo, band, errors)?;
-    let at_hi = contain(body, f, q_hi, band, errors)?;
+    let at_lo = contain(body, f.plane(), q_lo, band, errors)?;
+    let at_hi = contain(body, f.plane(), q_hi, band, errors)?;
     let length = (q_hi - q_lo).norm();
     let short = || {
         let half = [T::zero(), length * T::from_f64(0.5)];
@@ -4041,7 +4067,7 @@ fn pierce_inside<T: Decide>(
         (In, In) | (Out, Out) => {
             let half = short();
             if matches!(half, Ok(true))
-                || span_clear(body, geo, e, f, [lo, hi], lever, band, errors)?
+                || span_clear_as(body, geo, e, f, [lo, hi], lever, band, errors)?
             {
                 return (at_lo == In).then(|| e.p0 + chord * geom::mid_param(lo, hi));
             }
@@ -4090,13 +4116,16 @@ fn pierce_inside<T: Decide>(
 /// point `s` of `S`, stands within `g = h + ε` of `s`, and a boundary
 /// vertex over `S` has its foot on `S`'s line within `σg` of `s`. So
 /// `b` stands within `g·(1 + σ) + ε` of `S` along any path below. That
-/// reach, `g·(1 + σ)` charged its rounding, is read within `Kε` first:
-/// through the magnitude door at the band `[(K − 1)ε, Kε]`
+/// reach, `g·(1 + σ)` charged its rounding, is read within `Kε` through
+/// the magnitude door at the band `[(K − 1)ε, Kε]`
 /// (`pm_census_ef_pierce_height`, its straddle `…_height_straddle`), at
-/// most `(K − 1)ε` or refused. Past `Kε`, a boundary point over `S`
-/// could read apart from it.
+/// most `(K − 1)ε` or not clear; past `Kε`, a boundary point over `S`
+/// could read apart from it. That reading is the ladder's first rung, so
+/// an undecided height is kept, and a member meeting `S` still answers
+/// past it.
 ///
-/// Then no boundary vertex lies on `S`'s interior
+/// The members, every one read whatever an earlier one read: no boundary
+/// vertex lies on `S`'s interior
 /// ([`on_edge_interior_reading`]), no line boundary edge's interior meets
 /// `S`'s ([`interiors_meet`]), and every other boundary edge stands
 /// clear of `S` (below).
@@ -4129,7 +4158,7 @@ fn pierce_inside<T: Decide>(
 /// licenses there needs the curve to approach `S` near head-on, where
 /// the end's own containment reading refuses.
 #[allow(clippy::too_many_arguments)] // the clearance's whole state
-fn span_clear<T: Decide>(
+fn span_clear_as<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     e: &EdgeGeo<T>,
@@ -4579,7 +4608,10 @@ fn curved_overlap_cells<T: Decide>(
             }
         }
         let mid = e.p0 + e.dir * geom::mid_param(pair[0], pair[1]);
-        match face_holds(body, f, mid, band, "pm_census_ef_curved_contain", errors) {
+        // The midpoint is on `f`'s carrier as the edge is: decided there
+        // above (`line_on_quadric_carrier`, at the ends and the
+        // midpoint), with no margin of the point in hand, so held in band.
+        match placed(body, f, crate::held::Held::in_band(mid), band, errors) {
             Some(Some(FaceContainment::In)) => out.push(mid),
             Some(Some(_)) | None => {}
             Some(None) => errors.push(ValidationError::CensusUnsupported {
@@ -4777,7 +4809,7 @@ fn ef_overlap_cells<T: Decide>(
             }
         }
         let mid = e.p0 + e.dir * geom::mid_param(lo.s, hi.s);
-        if contain(body, f, mid, band, errors) != Some(FaceContainment::In) {
+        if contain(body, f.plane(), mid, band, errors) != Some(FaceContainment::In) {
             // Out: no overlap here. OnEdge: a collinear boundary rest —
             // the edge-edge overlap pass's finding. OnVertex: degenerate
             // cell, vertex passes cover it.
@@ -5314,7 +5346,7 @@ fn parallel_reading<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
     let (a, b) = (a.span(), b.span());
-    gap_is_zero(
+    gap_is_zero_as(
         "pm_census_ee_parallel",
         Margin::levered(
             a.dir.cross(b.dir).norm(),
@@ -7911,13 +7943,6 @@ impl TouchUnread {
                 "; otherwise ",
                 until_apart!()
             ),
-            Self::Curved(CurvedUnread::Crease) => concat!(
-                "they touch at a corner of a spline face that sits on a crease of its \
-                 surface, and the check cannot yet tell which side each is on. ",
-                designed_contact!(),
-                "; otherwise ",
-                until_apart!()
-            ),
             Self::Curved(CurvedUnread::NoSectorArm) => concat!(
                 "they touch at a corner of a face whose kind of surface the check cannot \
                  yet read at a corner. ",
@@ -8031,12 +8056,6 @@ impl TouchUnread {
             Self::Curved(CurvedUnread::NoTangentPlane) => concat!(
                 "a face meeting the point has no tangent plane there (a cone's apex, or a \
                  point on a surface's axis), so no side reads. ",
-                geom_core::not_yet_ending!(),
-                " for this shape"
-            ),
-            Self::Curved(CurvedUnread::Crease) => concat!(
-                "the point is a corner of a spline face on a crease of its surface, where \
-                 the check cannot yet read which side material lies on. ",
                 geom_core::not_yet_ending!(),
                 " for this shape"
             ),
@@ -8626,9 +8645,11 @@ enum SelfTouch {
     /// its ray or a ring of horns that reads as no thorn, a spline face
     /// held off a corner, a face whose normal at the foot or whose reach
     /// does not read, a corner face [`crate::sector_face::resolve`]
-    /// refuses (a crease, a surface with no sector arm, a spline edge not
-    /// placed: [`crate::CurvedUnread::Crease`], [`crate::CurvedUnread::NoSectorArm`],
-    /// [`crate::CurvedUnread::Unplaced`]), a curved edge with no certified curve, sheets along a
+    /// refuses (a surface with no sector arm, a spline edge not placed:
+    /// [`crate::CurvedUnread::NoSectorArm`], [`crate::CurvedUnread::Unplaced`];
+    /// a spline corner on a crease reads the normal on its sector's side,
+    /// and one the band cannot read refuses the reading by the crease's
+    /// standing, not here), a curved edge with no certified curve, sheets along a
     /// tied ray that one order down meet or do not part, a curved sheet
     /// holding such a ray inside it, or two whole tangent planes on one
     /// plane (two kissing balls at any pose included). A sign one order
@@ -8951,11 +8972,12 @@ impl<T: Decide> Link<T> {
     /// the link keeps beside its sectors ([`Link::of_tangent`]). A face
     /// with no tangent plane at the point (a cone's apex, or a vertex in
     /// the band of its axis: [`crate::CurvedUnread::NoTangentPlane`]), a corner
-    /// face [`crate::sector_face::resolve`] refuses (its named cause), a
-    /// cusp corner its bends do not part, a spline face held anywhere but
-    /// a corner, a curved edge with no certified curve, or a face whose
-    /// normal or reach does not read is [`crate::CurvedUnread::Unreadable`] or
-    /// that named cause, one control ([`TouchUnread::curved_unread`]); a
+    /// face [`crate::sector_face::resolve`] refuses (its named cause; a
+    /// corner on a crease is read on its sector's side), a cusp corner its
+    /// bends do not part, a spline face held anywhere but a corner, a
+    /// curved edge with no certified curve, or a face whose normal or reach
+    /// does not read is [`crate::CurvedUnread::Unreadable`] or that named
+    /// cause, one control ([`TouchUnread::curved_unread`]); a
     /// reading of it in band, [`TouchUnread::InBand`].
     fn tangent_of(
         body: &Body<T>,
@@ -9149,11 +9171,12 @@ fn corner_cause(why: &crate::sector_face::SectorFaceError) -> TouchUnread {
     use crate::sector_face::SectorFaceError;
     match why {
         SectorFaceError::ApexUndecided { .. } => TouchUnread::kept(Refusal::of_apex()),
-        // A corner on a spline crease is unread whatever its reading: the
-        // touch at it goes undetected (module docs), which
-        // `work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`
-        // weighs against refusing it by the crease's own standing.
-        SectorFaceError::Crease { .. } => TouchUnread::Curved(CurvedUnread::Crease),
+        // A corner on a spline crease reads the normal on its sector's
+        // side (`sector_face`); a crease that refuses still is an
+        // irregular point, a side the band cannot read or a corner that
+        // may hold both sides of a fold, and refuses by the crease's own
+        // standing: in band, or a limit where decided.
+        SectorFaceError::Crease { reading, .. } => TouchUnread::kept(Refusal::of_crease(*reading)),
         SectorFaceError::Unsupported { .. } => TouchUnread::Curved(CurvedUnread::NoSectorArm),
         SectorFaceError::Unplaced { .. } => TouchUnread::Curved(CurvedUnread::Unplaced),
     }
@@ -9425,7 +9448,7 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 /// read off the two faces.
 ///
 /// The test is the boolean's narrow phase
-/// ([`crate::boolean::separating::apart_by`]): both faces' covers are
+/// ([`crate::separating::apart_by`]): both faces' covers are
 /// read along the direction, a sphere face's with its pole-side cut
 /// along it ([`crate::cover::face_cover_toward`]), and the pair
 /// clears only on a gap, less both faces' [`sweep_pad`], decided
@@ -9439,7 +9462,7 @@ fn backstop_apart<T: Decide>(
     proposed: Vec<geom_core::UnitVec3<T>>,
     band: Band,
 ) -> bool {
-    use crate::boolean::separating::{Item, apart_by, planar_axis};
+    use crate::separating::{Item, apart_by, planar_axis};
     let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
         .into_iter()
         .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
@@ -10656,7 +10679,7 @@ fn confirm_vertex_vertex<T: Decide>(
         errors.push(stale);
         return;
     };
-    match gap_is_zero("pm_census_confirm_vv", Margin::norm3(pa - pb), band, errors) {
+    match gap_is_zero_as("pm_census_confirm_vv", Margin::norm3(pa - pb), band, errors) {
         Some(true) | None => {}
         Some(false) => errors.push(stale),
     }
@@ -10704,7 +10727,7 @@ fn confirm_edge_face<T: Decide>(
     let plane = planar_face(geo, face);
     if let (Some(e), Some(f)) = (line, plane) {
         for p in [e.p0, e.p1] {
-            match signed_is_zero(
+            match signed_is_zero_as(
                 "pm_census_confirm_ef",
                 Margin::of(geom::plane_offset(f.origin, f.normal, p)),
                 band,
@@ -10920,10 +10943,9 @@ pub(crate) fn in_both<E>(
 /// Where `face` holds `q`: the boolean's own placement
 /// ([`crate::boolean::face_placement`]), which decides `q` against the
 /// face's carrier rather than holding it there, a point decided off a
-/// planar face's plane read `Out`. Two callers state that `q` is on the
-/// carrier (`curved_overlap_cells`, `census/point.rs` `in_face`) and are
-/// rowed with the other unheld carrier-held sites
-/// (`work/onecopy/two-ops-placements-state-a-carrier-held-premise-unheld.md`). `Some(None)` where the curved door
+/// planar face's plane read `Out`: the reader for a point no one holds
+/// on the carrier. A point the caller holds there is placed by
+/// [`placed`]. `Some(None)` where the curved door
 /// leaves the point unread; `None` where a decision escalated or the door
 /// refused (pushed).
 pub(crate) fn face_holds<T: Decide>(
@@ -11867,7 +11889,7 @@ fn planar_interiors_meet<T: Decide>(
                 let Some(&p) = geo.vmap.get(&v) else {
                     return Rung::Aborts(Err(InteriorsUnread::Unbuilt));
                 };
-                match contain(body, y, p, band, &mut read) {
+                match contain(body, y.plane(), p, band, &mut read) {
                     None => Err(InteriorsUnread::Undecided),
                     Some(FaceContainment::Out) => Ok(false),
                     Some(at) => {
@@ -12286,7 +12308,7 @@ fn meets_at<T: Decide>(
     // `q` is a point of `x`'s closure, on `y`'s carrier only within Door
     // 1's levered carrier-equality band, which decided the two one carrier:
     // held in band, not by construction.
-    let Some(placed) = placed(body, geo, y, crate::held::Held::in_band(q), band, read) else {
+    let Some(placed) = placed(body, y, crate::held::Held::in_band(q), band, read) else {
         return Err(escalated_since(read, before));
     };
     match placed.ok_or(InteriorsUnread::Unbuilt)? {
@@ -14734,12 +14756,8 @@ mod tests {
                     "{what}, {f:?}: a net poisoned in x bounds its locus on no axis, got {reach:?}"
                 );
                 // The boolean lane's answer for the same net: the poison box.
-                let boxed = crate::boolean::boxes::face_box(
-                    &body,
-                    f,
-                    0.0,
-                    Band::linear(Tol::witness()).unwrap(),
-                );
+                let boxed =
+                    crate::boxes::face_box(&body, f, 0.0, Band::linear(Tol::witness()).unwrap());
                 assert!(
                     [
                         boxed.min_x,
@@ -14821,12 +14839,8 @@ mod tests {
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(|_| true));
-        let b = crate::boolean::boxes::face_box(
-            &body,
-            seeds[0],
-            1e-9,
-            Band::linear(Tol::witness()).unwrap(),
-        );
+        let b =
+            crate::boxes::face_box(&body, seeds[0], 1e-9, Band::linear(Tol::witness()).unwrap());
         eprintln!("[face_box] masquerade box = {b:?}");
         let far = bvh::Aabb::from_points([
             Point3::new(0.0, 100.0, 100.0),
@@ -18773,7 +18787,7 @@ mod torn_reach_rows {
     #[test]
     fn the_cone_window_panics_on_a_torn_curve() {
         let (mut body, face) =
-            crate::boolean::boxes::tests::cone_wall(30.0_f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
+            crate::boxes::tests::cone_wall(30.0_f64.to_radians(), 0.0, 1.0, 0.5, 1.0);
         assert!(reach(&body, face), "the sound cone wall has a reach");
         let edge = body.get_half_edge(first_member(&body, face)).unwrap().edge;
         let curve = body.get_edge(edge).unwrap().curve;
@@ -22664,9 +22678,10 @@ mod corner_cause_rows {
     use crate::sector_face::{ConeApex, SectorFaceError, VertexFace};
 
     /// **[`corner_normal`](super::corner_normal) names each cause of a
-    /// corner left unread**: a cone's apex no tangent plane, a crease a
-    /// crease, a surface with no sector arm and a spline edge not placed
-    /// their own, each the curved reading's abort ([`TouchUnread::Curved`]).
+    /// corner left unread**: a cone's apex no tangent plane, a surface with
+    /// no sector arm and a spline edge not placed their own, each the
+    /// curved reading's abort ([`TouchUnread::Curved`]); a crease refuses
+    /// by its own standing instead.
     /// Red where an arm reverts to another name.
     #[test]
     fn each_corner_cause_is_named_apart() {
@@ -22685,15 +22700,19 @@ mod corner_cause_rows {
             ),
             "a cone's apex"
         );
+        // A crease is no abort: it refuses by its own standing, a limit
+        // where decided and in band where the band cannot read it.
+        let crease = |reading| SectorFaceError::Crease {
+            face,
+            kind: SurfaceKind::Nurbs,
+            reading,
+        };
+        assert_eq!(
+            corner_cause(&crease(Ok(MarginDiag::value(0.0)))),
+            TouchUnread::Unanalysed,
+            "a crease decided"
+        );
         let causes = [
-            (
-                SectorFaceError::Crease {
-                    face,
-                    kind: SurfaceKind::Nurbs,
-                    reading: Ok(MarginDiag::value(0.0)),
-                },
-                CurvedUnread::Crease,
-            ),
             (
                 SectorFaceError::Unsupported {
                     face,

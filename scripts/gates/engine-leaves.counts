@@ -51,7 +51,6 @@ boolean-names-splitting     4  boolean/sphere_region.rs
 boolean-names-splitting     3  boolean/spline_region.rs
 boolean-names-splitting    18  boolean/torus_region.rs
 
-crate-visible              13  boolean/boxes.rs
 crate-visible               9  boolean/carrier_eq.rs
 crate-visible               5  boolean/carrier_pair.rs
 crate-visible               9  boolean/combine.rs
@@ -62,22 +61,21 @@ crate-visible              10  boolean/fate.rs
 crate-visible               5  boolean/glue.rs
 crate-visible               5  boolean/holdings.rs
 crate-visible               2  boolean/insert.rs
-crate-visible             173  boolean/mod.rs
+crate-visible             161  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              29  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
 crate-visible               2  boolean/planar_lane_carrier_rows.rs
-crate-visible               2  boolean/plane_eq.rs
+crate-visible               1  boolean/plane_eq.rs
 crate-visible              20  boolean/records.rs
 crate-visible               8  boolean/reduce.rs
-crate-visible              22  boolean/refusal_routes.rs
+crate-visible              19  boolean/refusal_routes.rs
 crate-visible              36  boolean/region.rs
 crate-visible               8  boolean/rim_wedge.rs
 crate-visible               6  boolean/ruled_region.rs
 crate-visible              12  boolean/section_cert.rs
 crate-visible              20  boolean/section_table.rs
 crate-visible              10  boolean/sectors.rs
-crate-visible              22  boolean/separating.rs
 crate-visible              41  boolean/solid_contain.rs
 crate-visible               4  boolean/sphere_region.rs
 crate-visible               1  boolean/spline_known.rs
@@ -102,50 +100,46 @@ crate-visible               3  splitting/spline_arc.rs
 names-boolean               2  contain_loop.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               9  cover.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               2  attach.rs
-names-boolean               4  bound_side.rs
+names-boolean               3  bound_side.rs
 names-boolean              11  cell_region.rs
-names-boolean             432  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
+names-boolean             411  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
-names-boolean               3  census/depth_gap.rs
-names-boolean              18  census/in_plane.rs
+names-boolean               7  census/in_plane.rs
 names-boolean               1  census/pierce_fuzz.rs
 names-boolean               3  census/point.rs
 names-boolean              40  census/self_touch.rs
 names-boolean               3  cert_m3r1_probes.rs
 names-boolean               4  chart_region.rs
-names-boolean              23  chord_join.rs
+names-boolean              22  chord_join.rs
 names-boolean               7  chord_join/island_rows.rs  # work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement
 names-boolean               1  chord_join/sphere_island_rows.rs
-names-boolean              10  clearance.rs
+names-boolean               9  clearance.rs
 names-boolean              14  coincidence.rs
 names-boolean              10  construction.rs
-names-boolean               4  contact.rs
+names-boolean               3  contact.rs
 names-boolean               1  euler.rs
-names-boolean               5  face_boxes.rs
-names-boolean               1  face_normal.rs
 names-boolean               1  fuse.rs
 names-boolean               3  injective.rs
 names-boolean              14  instance.rs
-names-boolean              76  lib.rs
-names-boolean              96  lineage.rs
+names-boolean              75  lib.rs
+names-boolean              95  lineage.rs
 names-boolean               1  link.rs
 names-boolean              85  link/cone_fuzz.rs
 names-boolean              42  merge_faces.rs
 names-boolean               1  merge_faces_kept_rows.rs
-names-boolean               3  offset_axial.rs
-names-boolean               2  offset_derive.rs
+names-boolean               2  offset_axial.rs
+names-boolean               1  offset_derive.rs
 names-boolean               1  offset_general.rs
 names-boolean               1  offset_together.rs
 names-boolean              20  one_region.rs
-names-boolean               1  pcurves.rs
-names-boolean               3  pieces.rs
+names-boolean               2  pieces.rs
 names-boolean              19  props.rs
 names-boolean              10  replace_face.rs
 names-boolean              31  review_d18.rs
 names-boolean               1  ring_path.rs
 names-boolean               1  ring_path/cone_islands.rs
 names-boolean               1  sector_shape.rs
-names-boolean              12  separation.rs
+names-boolean               6  separation.rs
 names-boolean              39  shell.rs
 names-boolean              77  side_reader.rs
 names-boolean               1  split.rs
@@ -157,7 +151,7 @@ names-boolean              31  test_support_samples.rs
 names-boolean              26  test_support_volume.rs
 names-boolean              48  tier3_tests.rs
 names-boolean               2  turn_rows.rs
-names-boolean              80  validate.rs
+names-boolean              76  validate.rs
 
 names-splitting            10  cell_region.rs
 names-splitting            53  census.rs
@@ -193,7 +187,7 @@ refused-binding             1  test_support_holdings.rs
 refused-binding             2  test_support_samples.rs
 refused-binding             6  validate.rs
 
-splitting-names-boolean     6  splitting/classify.rs
+splitting-names-boolean     5  splitting/classify.rs
 splitting-names-boolean    11  splitting/containment.rs
 splitting-names-boolean    41  splitting/finish.rs
 splitting-names-boolean     3  splitting/mod.rs
@@ -225,8 +219,6 @@ ambiguous Sheet                          # injective.rs, row_walk_proofs.rs
 ambiguous Side                           # bound_side.rs, clearance.rs, injective.rs
 ambiguous SplineArc                      # ring_path.rs
 ambiguous Touch                          # census/point.rs
-ambiguous anchor                         # injective.rs, validate.rs
-ambiguous apart                          # injective.rs, ray_walk.rs
 ambiguous boundary                       # link/cleared_rows.rs
 ambiguous certify                        # policy_lane.rs
 ambiguous classify                       # offset_axial.rs
@@ -249,7 +241,6 @@ ambiguous section_report                 # lib.rs
 ambiguous sheet                          # chart_region.rs, chord_join/cone_ring_rows.rs, chord_join/sphere_island_rows.rs, chord_join/torus_ring_rows.rs, injective.rs, row_walk_proofs.rs
 ambiguous spiric_cap                     # census.rs
 ambiguous split                          # census/depth_gap.rs, clearance.rs, link/cone_fuzz.rs, props.rs
-ambiguous sweep_pad                      # lib.rs
 ambiguous through_the_join               # both engines
 ambiguous uncrossable                    # test_support_samples.rs, validate.rs
 ambiguous vertex_at                      # chord_join/wall_ring_rows.rs

@@ -2,11 +2,13 @@
 id: decided-coincidence-carries-a-synthetic-invalid-margin
 kind: issue
 title: A coincidence decided Zero on every datum is reported with a synthetic MarginDiag::Invalid margin, as if a measurement had failed
-status: open
+status: closed
 opened: 2026-09-25
 priority: P3
 cost: M
 design: true
+closed: 2026-11-09
+parent: a-corner-reads-only-its-own-sectors
 ---
 
 ## What
@@ -61,3 +63,16 @@ E deletes the row's first reach. Rung 4 now glues, so `PlaneEqError::Undeclared`
 - The contradiction arms still mint `INVALID` (`contact_verify.rs:166` and its siblings; `vtxfac.rs:550`).
 
 The payload question stands. It overlaps CLEAVE's `topo-mints-indeterminates-outside-the-funnel` step 3.
+
+## Closed (2026-11-10, SEAL step 4, PR 6693)
+
+Claimed by SEAL's `a-corner-reads-only-its-own-sectors` and closed into it, as the parent's design (fork `glue-disagreements-carry`) closes it into step 4.
+
+- **Both reaches are gone.** No corner reads a carrier pair, so no decided Zero is dressed as an `Indeterminate`. Deleted with it:
+  - `unglued_coincidence` and its predicate `carrier_unglued_coincidence`;
+  - the corner's ladder arms, `undecided_coincidence`, and `Coincide::Carriers`, `Coincide::OnPlanes` and `BooleanDecision::PlaneOrientation`, which nothing mints any more.
+- **What an unglued corner refuses on now** (fork `unglued-corner-ending`): its own funnel reading.
+  - At a vertex pair, the tilt at the arm, rejected by `Coincide::CornerCrossing`'s Positive-only gate.
+  - On a plane face by its bounds, the steeper bound's tie under `Coincide::CornerBound`: a Zero rejected by the nonzero gate, or the slack's own reading.
+  - Each carries the margin it was decided on, and offers the tolerance that decides it.
+- **The contradiction arms' `INVALID`** retired in steps 1 and 3 (PRs 6634, 6673).

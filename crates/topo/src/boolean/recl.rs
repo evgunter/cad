@@ -1,7 +1,8 @@
 //! Vertex-vertex classification, part 2: reclassification of ON cases.
 //!
 //! - [`recl_sectors`] — Program 15.10 IN FULL (coplanar sector pairs
-//!   via [`super::oriented_plane_eq`] + Eq. 15.3, neighbor propagation,
+//!   read through the glue door's record ([`require_same`]) + Eq. 15.3,
+//!   neighbor propagation,
 //!   cancellation): a neighbor's shared-bound code is rewritten to the
 //!   Eq. 15.3 lump and uniform records cancel.
 //! - [`recl_edges`] — the unprinted `srecledges`, designed from TOG
@@ -41,53 +42,29 @@
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
 
-use geom_core::{Band, Decide, Margin, Sign, Vec3};
+use geom_core::{Band, Decide, Sign, Vec3};
 
-use super::carrier_eq::{CarrierDesc, CarrierVerdict};
-use super::plane_eq::{PlaneEqError, PlaneRelation};
+use super::plane_eq::PlaneRelation;
 use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
-    BoolSector, BoundSupport, Flank, PairRecord, crossing_flank, pair_codes, parallel_same,
+    BoolSector, BoundSupport, FaceShape, Flank, PairRecord, crossing_flank, pair_codes,
+    parallel_same_as,
 };
 use super::tables::{eq15_3_lump, kept_copy};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode, SlitLineGap};
 use crate::body::Body;
 use crate::entity::EntityId;
 use crate::live::{Proven, proven};
-use crate::validate::decide;
 
-/// The sector face's ORIENTED carrier description
-/// ([`super::carrier_pair::face_carrier`] —
-/// the face's material side with S10's sense bit already folded in,
-/// which is what the Same±-orientation verdict below has to mean: the
-/// whole point of the verdict is which way the two materials face).
-/// A kind outside the `Rest` ladder's [`super::carrier_eq::INVENTORY`]
-/// is the C5 typed refusal.
-fn carrier_of<T: Decide>(
-    body: &Body<T>,
-    operand: super::Operand,
-    s: &BoolSector<T>,
-) -> Result<CarrierDesc<T>, BooleanError> {
-    super::carrier_pair::face_carrier(body, s.face).ok_or_else(|| {
-        let kind = body.proven_face(s.face).surface().kind();
-        BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face: s.face,
-            kind,
-        }
-    })
-}
-
-/// The geometrically-ON sector pair's carrier identity check. A pair
-/// the operation glued one carrier reads the relation the glue door
-/// recorded ([`super::GluedPairs::glued_relation`]), and no ladder
-/// measures it again; any other pair is read by the ladder over the
-/// sectors `on` names about the corner, where a coincidence decided
-/// Zero is one the door did not glue and refuses on the reading that
-/// binds it ([`super::unglued_corner`]).
+/// **The carrier identity of a sector on another's plane at an edge**,
+/// which is the glue door's alone: a pair it glued one carrier reads the
+/// relation the door recorded ([`super::GluedPairs::glued_relation`]),
+/// and no ladder measures it again. Any other pair refuses:
 ///
-/// C8: a CURVED sector pair is one carrier only as a glued pair; an
-/// unglued on-carrier curved pair keeps the typed frontier refusal.
+/// - C8: a CURVED face's unglued on-carrier pair keeps the typed
+///   frontier refusal;
+/// - two planes, on `on`, the reading that put the first sector on the
+///   second's plane ([`super::unglued_corner`]).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn require_same<T: Decide>(
     body1: &Body<T>,
@@ -97,8 +74,7 @@ pub(super) fn require_same<T: Decide>(
     o2: super::Operand,
     s2: &BoolSector<T>,
     declared: &super::GluedPairs<T>,
-    on: ReadOn,
-    arm: geom_core::Lever<T>,
+    on: super::CornerOn,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
     // A glued tangency has no carrier-identity answer (its carriers are
@@ -112,150 +88,17 @@ pub(super) fn require_same<T: Decide>(
     if let Some(relation) = declared.glued_relation(o1, s1.face, o2, s2.face) {
         return Ok(relation);
     }
-    let c1 = carrier_of(body1, o1, s1)?;
-    let c2 = carrier_of(body2, o2, s2)?;
-    let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
-    let refusal = if curved(&c1) {
-        Some((o1, s1.face, body1))
-    } else if curved(&c2) {
-        Some((o2, s2.face, body2))
-    } else {
-        None
-    };
-    if let Some((operand, face, body)) = refusal {
-        let kind = body.proven_face(face).surface().kind();
-        return Err(BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        });
-    }
-    // Read over the region `on` read the pair coplanar on, about the
-    // corner.
-    let reach = match on {
-        ReadOn::Faces => arm,
-        ReadOn::FirstBounds => s1.span(),
-    };
-    // Unsourced lever: the ball about the corner out to `reach`, a lever
-    // read from the corner, which no extent constructor turns into a ball.
-    let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::unsourced(
-        corner_of(body1, s1),
-        reach.length(),
-    ));
-    let pair = (o1, s1.face, o2, s2.face);
-    match super::carrier_eq::carrier_eq_reading(&c1, &c2, &extent, band) {
-        Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds) if on == ReadOn::FirstBounds => {
-            Err(unglued_tilt(&c1, &c2, s1, reach, declared, pair, band))
+    for (body, operand, s) in [(body1, o1, s1), (body2, o2, s2)] {
+        let kind = body.proven_face(s.face).surface().kind();
+        if FaceShape::of_kind(kind) != FaceShape::Plane {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face: s.face,
+                kind,
+            });
         }
-        Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds) => {
-            Err(BooleanError::ClassificationInvariant {
-                what: "geometrically-ON sector pair with definitely-distinct carriers",
-            })
-        }
-        Ok(CarrierVerdict::One {
-            relation: rel,
-            margin,
-        }) => {
-            let bounds = match &c2 {
-                CarrierDesc::Plane { normal, .. } => s1.bounds_off(*normal, band).err(),
-                _ => None,
-            };
-            Err(super::unglued_corner(
-                declared,
-                pair,
-                super::plane_eq::senses(s1.tangent().vec(), s2.tangent().vec(), arm, band),
-                bounds,
-                || super::unglued_coincidence(margin, declared.carriers_read(pair, rel), band),
-            ))
-        }
-        Err(PlaneEqError::Escalated { rung, diag }) => Err(BooleanError::plane_identity(
-            rung,
-            declared.on_pair_door(
-                pair,
-                super::plane_eq::senses(s1.tangent().vec(), s2.tangent().vec(), arm, band),
-            ),
-            diag,
-        )),
-        Err(PlaneEqError::Undecided {
-            coincidence,
-            relation,
-        }) => Err(super::undecided_coincidence(
-            coincidence,
-            [(o1, s1.face), (o2, s2.face)],
-            declared.carriers_read(pair, relation),
-        )),
-        Err(PlaneEqError::OffRing { torus, refusal }) => Err(super::off_ring_torus(
-            torus,
-            refusal,
-            [(o1, s1.face), (o2, s2.face)],
-        )),
     }
-}
-
-/// What read a [`require_same`] pair coplanar: the region its
-/// coincidence speaks for, which the unglued pair's ladder reads over.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum ReadOn {
-    /// `pair_search` read the two faces parallel levered at the pair's
-    /// arm (an all-On record): the ball of that radius about the corner.
-    /// The ladder's parallel rung reads that same margin, so a
-    /// `Distinct` is the corner's standing off two planes it lies on.
-    Faces,
-    /// The first sector's bounds, each On the second's plane at its own
-    /// reach (a flanker's, or a wedge representative's): that sector,
-    /// out to its farther bound.
-    FirstBounds,
-}
-
-/// An unglued pair whose first sector's bounds read On the second's
-/// plane and whose carriers the plane ladder read apart over that
-/// sector's reach. Read at that reach, the two normals' tilt decided off
-/// is a thin sector tilted about a bound: its bounds lie on the other's
-/// plane to within the band and its plane does not, so the pair is
-/// undecided at this tolerance on the bounds' own margin, which a
-/// smaller tolerance reads off the plane (as `vtxfac`'s coplanar lump
-/// refuses its twin). The offset, read at the corner, is the corner's
-/// standing off two planes it lies on.
-fn unglued_tilt<T: Decide>(
-    c1: &CarrierDesc<T>,
-    c2: &CarrierDesc<T>,
-    s1: &BoolSector<T>,
-    reach: geom_core::Lever<T>,
-    declared: &super::GluedPairs<T>,
-    (o1, f1, o2, f2): (
-        Operand,
-        crate::entity::FaceKey,
-        Operand,
-        crate::entity::FaceKey,
-    ),
-    band: Band,
-) -> BooleanError {
-    let defect = BooleanError::ClassificationInvariant {
-        what: "geometrically-ON sector pair with definitely-distinct carriers",
-    };
-    let (CarrierDesc::Plane { normal: n1, .. }, CarrierDesc::Plane { normal: n2, .. }) = (c1, c2)
-    else {
-        return defect;
-    };
-    let tilted = decide(
-        "bool_plane_parallel",
-        Margin::levered(n1.cross(*n2).norm(), reach),
-        band,
-    );
-    if !matches!(tilted, Ok(Sign::Positive)) {
-        return defect;
-    }
-    match s1.bounds_off(*n2, band) {
-        Err(diag) => BooleanError::coincidence(
-            Coincide::Sectors,
-            // A tilt decided off admits no class: no declaration settles it.
-            super::sectors_read(declared, (o1, f1, o2, f2), None),
-            diag,
-        ),
-        Ok(_) => BooleanError::ClassificationInvariant {
-            what: "a sector bound read On departs definitely from the other's plane",
-        },
-    }
+    Err(super::unglued_corner(on, band))
 }
 
 /// The point of the vertex a sector of `body` stands at: a line
@@ -306,12 +149,13 @@ pub(super) fn recl_sectors<T: Decide>(
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     for i in 0..records.len() {
         let r = records[i];
-        if !r.coplanar() {
+        // Only the meeting's coincidence is lumped: a record of a pair it
+        // read crossing goes on as its codes say.
+        let Some(by) = r.coincident else {
             continue;
-        }
+        };
         let sa = &a_sectors[r.a];
         let sb = &b_sectors[r.b];
-        let arm = sa.arm.min(sb.arm);
         // Declared-`Tangent` (distinct carriers touching): the all-on
         // reading is the tangent-plane degeneracy — the sectors do
         // NOT coincide, only the tangency locus does — so the record
@@ -399,18 +243,22 @@ pub(super) fn recl_sectors<T: Decide>(
             first_read[i].sb = cb;
             continue;
         }
-        let rel = require_same(
-            a_body,
-            super::Operand::A,
-            sa,
-            b_body,
-            super::Operand::B,
-            sb,
-            declared,
-            ReadOn::Faces,
-            arm,
-            band,
-        )?;
+        // The pair is one carrier only as the glue door recorded it; C8:
+        // a curved face's unglued coincidence keeps the frontier refusal.
+        let rel = match by {
+            super::fan::Coincident::Glued(rel) => rel,
+            super::fan::Coincident::Frontier(operand) => {
+                let (body, face) = match operand {
+                    Operand::A => (a_body, sa.face),
+                    Operand::B => (b_body, sb.face),
+                };
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand,
+                    face,
+                    kind: body.proven_face(face).surface().kind(),
+                });
+            }
+        };
         if let Some(keeper) = kept_copy(op, rel) {
             covered.push((sa.face, sb.face));
             let (body, own, other) = match keeper {
@@ -488,7 +336,9 @@ pub(super) fn recl_sectors<T: Decide>(
 /// record has at most one On per side).
 fn on_bound(codes: (SideCode, SideCode)) -> Option<bool /* at start */> {
     match codes {
-        (SideCode::On, SideCode::On) => None, // handled by 15.10
+        // A coincidence's are lumped by 15.10 (`recl_sectors`); a crossing
+        // record's both On is not resolved here.
+        (SideCode::On, SideCode::On) => None,
         (SideCode::On, _) => Some(true),
         (_, SideCode::On) => Some(false),
         _ => None,
@@ -583,22 +433,44 @@ fn flank_read<T: Decide>(
 /// reading, as [`flank_read`] reads a flanker against its reference. A
 /// bound its descent leaves unparted from the face, on the band or over
 /// the cone's slack, is on the face, as [`flank_read`] keys it, and the
-/// coincidence ladder reads it ([`crate::link::Material::On`]).
+/// coincidence lump reads it ([`crate::link::Material::On`]); beside the
+/// side, the reading that tied it, or read it in band.
 fn sheet_side<T: Decide>(
     (dir, reach): Rep<T>,
     sheet: &BoolSector<T>,
     rd: crate::link::metric::Reading<T>,
-) -> Option<Sign> {
+) -> (Option<Sign>, Option<super::sectors::SheetRead<T>>) {
     use super::sectors::Unparted;
-    super::sectors::given_side(dir, reach, sheet.datum(), rd, Unparted::OnTheFace)
+    super::sectors::given_side_read(dir, reach, sheet.datum(), rd, Unparted::OnTheFace)
 }
 
-/// A flanker's key, and whether its bound tied with the
-/// reference at first order.
+/// **A flanker's key against a reference** ([`flank_keys`]), with its
+/// bound's first-order tie where it tied: what a flanker on the
+/// reference lies there by.
 #[derive(Clone, Copy, Debug)]
-struct FlankKey {
-    code: SideCode,
-    tied: bool,
+enum FlankKey {
+    /// Decided off the reference at first order: its side.
+    Off(SideCode),
+    /// Tied with the reference at first order, keyed by the side it
+    /// leaves to one order down, its twin tied too.
+    Leaves(SideCode),
+    /// On the reference: the tie that put it there.
+    On(super::sectors::OnReading),
+}
+
+impl FlankKey {
+    /// The key as a side code.
+    const fn code(self) -> SideCode {
+        match self {
+            Self::Off(code) | Self::Leaves(code) => code,
+            Self::On(_) => SideCode::On,
+        }
+    }
+
+    /// Whether the flanker's bound tied with the reference at first order.
+    const fn tied(self) -> bool {
+        !matches!(self, Self::Off(_))
+    }
 }
 
 /// **The two flankers' keys against a reference sector**
@@ -626,13 +498,10 @@ fn flank_keys<T: Decide>(
         flank_read(own, f_e, true, reference, band)?,
     ];
     let both = reads.iter().all(|r| r.tie.is_some());
-    Ok(reads.map(|r| FlankKey {
-        code: if r.tie.is_none() || both {
-            r.code
-        } else {
-            SideCode::On
-        },
-        tied: r.tie.is_some(),
+    Ok(reads.map(|r| match r.tie {
+        None => FlankKey::Off(r.code),
+        Some(_) if both && r.code != SideCode::On => FlankKey::Leaves(r.code),
+        Some(tie) => FlankKey::On(tie.on),
     }))
 }
 
@@ -806,7 +675,7 @@ pub(super) fn recl_edges<T: Decide>(
             // site between the same two points, their chords bit-equal.
             let arm = mentions[i].arm.min(mentions[j].arm);
             if !used[j]
-                && parallel_same(mentions[i].dir, mentions[j].dir, arm, RAY_COLLINEAR, band)?
+                && parallel_same_as(mentions[i].dir, mentions[j].dir, arm, RAY_COLLINEAR, band)?
             {
                 used[j] = true;
                 group.push(mentions[j]);
@@ -816,7 +685,7 @@ pub(super) fn recl_edges<T: Decide>(
         // one ray only if every pair reads so.
         for (p, &m) in group.iter().enumerate().skip(1) {
             for &n in &group[p + 1..] {
-                if !parallel_same(m.dir, n.dir, m.arm.min(n.arm), RAY_COLLINEAR, band)? {
+                if !parallel_same_as(m.dir, n.dir, m.arm.min(n.arm), RAY_COLLINEAR, band)? {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "a ray event's directions are each on the seed's ray but not \
                                on one another's",
@@ -1462,7 +1331,7 @@ impl<T: Decide> Folded<T> {
     /// a plane; `None` for a curved face.
     fn of(secs: &[BoolSector<T>], w: Wedge) -> Option<Self> {
         let sector = &secs[w.flankers[0]];
-        (sector.bend.shape() == super::sectors::FaceShape::Plane).then(|| Self {
+        (sector.bend.shape() == FaceShape::Plane).then(|| Self {
             wedge: w,
             datum: super::vtxfac::PierceDatum {
                 normal: sector.tangent(),
@@ -1574,9 +1443,10 @@ fn line_unread_of<T: Decide>(
 /// germ exists iff EXACTLY ONE of A's two flanking representatives (the
 /// noncoplanar bound of each flanking sector) lies in B's material —
 /// with a representative lying ON a B face resolved by the coincidence
-/// ladder: overlapping-coplanar (inside that face's half-plane) ⇒ the
-/// Eq. 15.3 lump decides (In ⇒ inside), touching (on its plane outside
-/// it) ⇒ outside. The symmetric B-vs-A evaluation must agree (checked;
+/// lump: overlapping-coplanar (inside that face's half-plane) ⇒ the
+/// Eq. 15.3 lump of a pair the glue door glued decides (In ⇒ inside), and
+/// an unglued pair refuses on the representative's own reading
+/// ([`require_same`]); touching (on its plane outside it) ⇒ outside. The symmetric B-vs-A evaluation must agree (checked;
 /// disagreement is a typed invariant failure). For all-pairwise-coplanar
 /// configurations every membership resolves by lump and the rule
 /// reproduces Table I's verdicts; for generic (tie-free) configurations
@@ -1598,7 +1468,7 @@ fn line_unread_of<T: Decide>(
 /// where it holds the line to a decided zero; a line within the band of
 /// it refuses typed. A representative the cone reads on one face, riding
 /// it to the orders read or its side there unresolved, is the
-/// ladder's; on two, or on a bound, it runs along the line or the other
+/// coincidence lump's; on two, or on a bound, it runs along the line or the other
 /// solid touches itself there ([`super::LineUnread::Along`]). A reading
 /// that refuses refuses by its cause ([`crate::link::Unread`]): the
 /// representative on a flank's plane, where in it in band, the
@@ -1745,8 +1615,13 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         cones.push((cone, from));
     }
     // A representative on the other solid's face `oi`, inside it:
-    // overlapping coplanar flanks, the coincidence ladder's.
-    let coplanar = |own: usize, own_idx: usize, oi: usize| -> Result<bool, BooleanError> {
+    // overlapping coplanar flanks, the glue door's record's to lump, or
+    // refused on `on`, what put the representative there.
+    let coplanar = |own: usize,
+                    own_idx: usize,
+                    oi: usize,
+                    on: super::CornerOn|
+     -> Result<bool, BooleanError> {
         let other = 1 - own;
         let (own_sec, other_sec) = (&secs_of(own)[own_idx], &secs_of(other)[oi]);
         let (own_body, other_body) = (body_of(own), body_of(other));
@@ -1754,9 +1629,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         // Declared-`Tangent` flanking pairs (distinct carriers touching
         // along the on-edge): the membership verdict is the second-order
         // descent — which side the OWN sector's carrier curves to
-        // relative to the other face's material — not the carrier
-        // identity ladder (whose Same± question is ill-posed across
-        // distinct carriers).
+        // relative to the other face's material — not carrier identity
+        // (whose Same± question is ill-posed across distinct carriers).
         let read = declared.read(
             &[(own_op, own_sec.face, other_op, other_sec.face)],
             Coincide::TangentSide,
@@ -1788,16 +1662,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             )?
         } else {
             let rel = require_same(
-                own_body,
-                own_op,
-                own_sec,
-                other_body,
-                other_op,
-                other_sec,
-                declared,
-                ReadOn::FirstBounds,
-                arm,
-                band,
+                own_body, own_op, own_sec, other_body, other_op, other_sec, declared, on, band,
             )?;
             eq15_3_lump(op, own_op, rel)
         };
@@ -1815,7 +1680,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         let planar = [(body_of(own), own_face), (body_of(other), other_face)]
             .iter()
             .all(|&(body, face)| {
-                body.proven_face(face).surface().kind() == geom::SurfaceKind::Plane
+                FaceShape::of_kind(body.proven_face(face).surface().kind()) == FaceShape::Plane
             });
         let which = if planar {
             Coincide::FlankSense
@@ -1841,9 +1706,14 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             // against its reference, the held face as the touch reads it.
             let rd = cone.reading(band);
             let mut given = Vec::with_capacity(from.len());
+            let mut on = vec![None; from.len()];
             for (k, sheet) in from.iter().enumerate() {
                 let side = match sheet {
-                    Sheet::Sector(oi) => sheet_side((dir, reach), &secs_of(other)[*oi], rd),
+                    Sheet::Sector(oi) => {
+                        let (side, read) = sheet_side((dir, reach), &secs_of(other)[*oi], rd);
+                        on[k] = read;
+                        side
+                    }
                     Sheet::Held(face) => face.datum.given(dir, reach, rd),
                 };
                 given.extend(side.map(|side| (k, side)));
@@ -1859,7 +1729,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             let unread_of = |cause: crate::link::Unread<T>| {
                 use crate::link::Unread;
                 let sheet = cause.sector().map(|k| from[k]);
-                let escalation = cause.escalation(band);
+                let escalation = cause.escalation_as(band);
                 if let Some(why) = line_unread_of(&cause, escalation.is_some()) {
                     return unread(why);
                 }
@@ -1881,7 +1751,20 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                 Ok(Material::Out) => Ok(false),
                 Ok(Material::Boundary) => Err(unread(super::LineUnread::Along)),
                 Ok(Material::On(k)) => match from[k] {
-                    Sheet::Sector(oi) => coplanar(own, own_idx, oi),
+                    // The representative's own reading of the face is what
+                    // put it there. A sheet that reading decided off the
+                    // face at first order was given its nonzero side, and
+                    // the cone reads `On` only a sheet given Zero or given
+                    // nothing (`link::Cone::reads_given`: a given side the
+                    // cone agrees with is that side, one it decides against
+                    // is `Unsettled::Contradicted`).
+                    Sheet::Sector(oi) => match on[k] {
+                        Some(read) => coplanar(own, own_idx, oi, read.corner_on(band)),
+                        None => Err(BooleanError::ClassificationInvariant {
+                            what: "a line cone read a representative on a sheet its own \
+                                   reading decided it off at first order",
+                        }),
+                    },
                     Sheet::Held(face) => Err(face.along(super::AlongFace::Flush)),
                 },
                 Err(cause) => Err(unread_of(cause)),
@@ -1969,6 +1852,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         sa,
         sb,
         intersect: true,
+        coincident: None,
     };
     Ok((EdgeEdge::Germ(germ), flank_read))
 }
@@ -1985,23 +1869,18 @@ pub(super) fn resolve_edge_edge<T: Decide>(
 /// read is no crossing: the edge lies in it with both its faces. Returns
 /// the flanker, and whether the other one is on the face.
 fn edge_sector_crossing(
-    keys: [SideCode; 2],
-    lumps_in: impl FnOnce(Flank) -> Result<bool, BooleanError>,
+    keys: [FlankKey; 2],
+    lumps_in: impl FnOnce(Flank, super::sectors::OnReading) -> Result<bool, BooleanError>,
 ) -> Result<Option<(Flank, bool)>, BooleanError> {
-    let on = match keys {
-        [SideCode::On, SideCode::On] => return Ok(None),
-        [SideCode::On, _] => Some(Flank::Before),
-        [_, SideCode::On] => Some(Flank::After),
-        _ => None,
+    let (on, tie, other) = match keys {
+        [FlankKey::On(_), FlankKey::On(_)] => return Ok(None),
+        [FlankKey::On(tie), other] => (Flank::Before, tie, other.code()),
+        [other, FlankKey::On(tie)] => (Flank::After, tie, other.code()),
+        [before, after] => {
+            return Ok(crossing_flank(before.code(), after.code()).map(|at| (at, false)));
+        }
     };
-    let Some(on) = on else {
-        return Ok(crossing_flank(keys[0], keys[1]).map(|at| (at, false)));
-    };
-    let other = match on {
-        Flank::Before => keys[1],
-        Flank::After => keys[0],
-    };
-    if lumps_in(on)? == (other == SideCode::In) {
+    if lumps_in(on, tie)? == (other == SideCode::In) {
         return Ok(None);
     }
     Ok(Some((
@@ -2085,14 +1964,18 @@ fn resolve_edge_sector<T: Decide>(
     // A fan of a cone's rulings has no plane to key the flankers by:
     // refused by name (`BoolSector::plane`).
     ref_sector.plane(ref_op)?;
-    let keys = flank_keys(own_secs, (f_s, f_e), ref_sector, band)?.map(|k| k.code);
+    let keys = flank_keys(own_secs, (f_s, f_e), ref_sector, band)?;
     let comparison = if a_side { Operand::A } else { Operand::B };
     // A flanker on the face lies in the reference's material as it lumps:
     // a glued tangency's by the side its carrier curves to
     // ([`super::sectors::tangent_lump`]), any other by its carrier
     // identity with the reference (Eq. 15.3). Either lumps In or Out.
-    let lumps_in = |idx: usize| -> Result<bool, BooleanError> {
-        let own_sec = &own_secs[idx];
+    let flanker = |k: Flank| match k {
+        Flank::Before => f_s,
+        Flank::After => f_e,
+    };
+    let lumps_in = |flank: Flank, tie| -> Result<bool, BooleanError> {
+        let own_sec = &own_secs[flanker(flank)];
         let arm = own_sec.arm.min(ref_sector.arm);
         let lump = if declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
             let read = tangent_read(own_sec.face);
@@ -2113,6 +1996,9 @@ fn resolve_edge_sector<T: Decide>(
                 band,
             )?
         } else {
+            // A flanker keyed `On` is a lone tie, or one its descent
+            // leaves riding the reference: its first-order tie is the
+            // reading that put it there.
             let relation = require_same(
                 own_body,
                 own_op,
@@ -2121,8 +2007,7 @@ fn resolve_edge_sector<T: Decide>(
                 ref_op,
                 ref_sector,
                 declared,
-                ReadOn::FirstBounds,
-                arm,
+                super::CornerOn::Tie(tie),
                 band,
             )?;
             eq15_3_lump(op, comparison, relation)
@@ -2135,11 +2020,7 @@ fn resolve_edge_sector<T: Decide>(
             }),
         }
     };
-    let flanker = |k: Flank| match k {
-        Flank::Before => f_s,
-        Flank::After => f_e,
-    };
-    let Some((at, on_face)) = edge_sector_crossing(keys, |k| lumps_in(flanker(k)))? else {
+    let Some((at, on_face)) = edge_sector_crossing(keys, lumps_in)? else {
         return Ok(None);
     };
     let flank = flanker(at);
@@ -2170,6 +2051,7 @@ fn resolve_edge_sector<T: Decide>(
         sa,
         sb,
         intersect: true,
+        coincident: None,
     })))
 }
 
@@ -2228,18 +2110,19 @@ fn resolve_bisector_graze<T: Decide>(
     // `±zero`. A key tied at first order leaves the bisector's Zero
     // its sector's tangency, not the band's: the keys' sides are their
     // second order, which the argument does not bound.
-    if k1.code == k2.code && k1.code != SideCode::On && !k1.tied && !k2.tied {
+    if k1.code() == k2.code() && k1.code() != SideCode::On && !k1.tied() && !k2.tied() {
         let on = super::sectors::OnReading {
             predicate: "bool_sector_bisector_side",
             decided: geom_core::Decided {
                 sign: geom_core::Sign::Zero,
                 margin: geom_core::MarginDiag::enclosure(-band.zero(), band.zero()),
             },
+            by: crate::bound_side::TiedBy::Band,
         };
         return Err(super::sectors::bisector_zero_refusal(on, band));
     }
     let crossing = matches!(
-        (k1.code, k2.code),
+        (k1.code(), k2.code()),
         (SideCode::In, SideCode::Out) | (SideCode::Out, SideCode::In)
     );
     if !crossing {
@@ -2396,7 +2279,7 @@ mod tests {
             matches!(unread, crate::link::Unread::Side { sector: 0, .. }),
             "the first face's side, named: {unread:?}"
         );
-        let diag = unread.escalation(band).expect("an escalation");
+        let diag = unread.escalation_as(band).expect("an escalation");
         assert_eq!(diag.predicate, Some(crate::link::LINK_PLANE));
         let margin = diag
             .margin
@@ -2888,6 +2771,7 @@ mod tests {
             sa,
             sb,
             intersect: true,
+            coincident: None,
         }
     }
 
@@ -3213,8 +3097,8 @@ mod tests {
     /// same reading on the cone's own ([`sheet_side`]), and the cone's
     /// membership is that side's: each flank in the other's material, a
     /// germ. Read at first order alone (the flank's tangent ray on the
-    /// face's plane) it would be the coincidence ladder's, which cannot
-    /// meet a plane and a cylinder.
+    /// face's plane) it would be the coincidence lump's, which cannot meet
+    /// a plane and a cylinder.
     #[test]
     fn a_curved_flank_pair_tied_at_first_order_reads_alike_at_both_sites() {
         use super::super::sectors::BoundSupport;
@@ -3334,17 +3218,19 @@ mod tests {
     /// face on `y = 0` (outward `+y`), and B's corner over it, B's face on
     /// that plane, face to face with A's, its flank dipped under A's face
     /// by `d`, B's vertex `tie` up the line from A's, on a band with
-    /// `K = 1.4`. Flush at one point, the flank lies on A's face and the
-    /// coincidence ladder asks for the faces' `Rest`. Dipped `1.5·zero` at
-    /// one point, the band decides the flank into A's material, and the
-    /// pass goes on to a parity arc read in band. Dipped `1.2·zero` at one
-    /// point, in band, the reading hands no side and the cone reads the
-    /// flank in band of A's face: its side. With the tie `0.9·zero`,
-    /// the band decides the dip and the slack (`1.8·zero`) does not: the
-    /// flank's side is unresolved, so it lies on A's face to the orders
-    /// read, and the ladder asks for the faces' `Rest`, as flush.
+    /// `K = 1.4`. Flush at one point, the flank lies on A's face, and the
+    /// pair, which no glue backs, refuses on the flank's own tie, Zero.
+    /// Dipped `1.5·zero` at one point, the band decides the flank into A's
+    /// material, and the pass goes on to a parity arc read in band. Dipped
+    /// `1.2·zero` at one point, in band, the reading hands no side and the
+    /// cone reads the flank in band of A's face: its side. With the tie
+    /// `0.9·zero`, the band decides the dip and the slack (`1.8·zero`) does
+    /// not: the flank's side is unresolved, so it lies on A's face to the
+    /// orders read, and the corner refuses on what put it there: the dip
+    /// moved by the slack either way, `[d − s, d + s]`, which straddles
+    /// the band.
     #[test]
-    fn a_sheets_side_decided_within_the_cones_tie_is_the_ladders() {
+    fn a_sheets_side_decided_within_the_cones_tie_is_the_corners() {
         use super::super::sectors::BoundSupport;
         use crate::boolean::{BooleanDecision, Glue, GluedPairs};
         use geom_brep::OutwardNormal;
@@ -3400,33 +3286,55 @@ mod tests {
                 Wedge::at_bound(&sb, 0),
                 None,
             ) {
-                Err(BooleanError::Escalated { decision, .. }) => decision,
+                Err(BooleanError::Escalated { decision, diag }) => (decision, diag),
                 other => panic!("a typed escalation: {other:?}"),
             }
         };
-        let carriers =
-            |d: &BooleanDecision| matches!(d, BooleanDecision::Coincidence(Coincide::Carriers, _));
+        // The corner's own reading: its predicate, and the sign it rejected.
+        let corner = |(d, diag): &(BooleanDecision, geom_core::Indeterminate)| {
+            matches!(d, BooleanDecision::Coincidence(Coincide::CornerBound, _))
+                .then(|| (diag.predicate, diag.margin.rejected_sign()))
+        };
         let flush = run(0.0, 0.0);
-        assert!(carriers(&flush), "flush, the ladder's question: {flush:?}");
+        assert_eq!(
+            corner(&flush),
+            Some((Some("bool_chord_side"), Some(geom_core::Sign::Zero))),
+            "flush, the flank's tie, Zero: {flush:?}"
+        );
         // Dipped in band at one point: no side, so the cone reads the flank
-        // in band of A's face, that side, not the ladder's question.
+        // in band of A's face, that side, not the corner's.
         let in_band = run(0.0, 1.2 * zero);
         assert!(
             matches!(
-                in_band,
+                in_band.0,
                 BooleanDecision::Coincidence(Coincide::SectorSide, _)
             ),
             "dipped in band, the flank's side: {in_band:?}"
         );
         let dipped = run(0.0, 1.5 * zero);
-        assert!(
-            !carriers(&dipped),
+        assert_eq!(
+            corner(&dipped),
+            None,
             "dipped at one point, decided: {dipped:?}"
         );
+        let slack = run(0.9 * zero, 1.5 * zero);
         assert_eq!(
-            run(0.9 * zero, 1.5 * zero),
-            flush,
-            "dipped within the slack, on the face to the orders read, as flush"
+            corner(&slack),
+            Some((Some("bool_corner_side_slack_straddle"), None)),
+            "dipped within the slack, on the face to the orders read: the dip moved by the \
+             slack either way straddles the band: {slack:?}"
+        );
+        // The straddle encloses the dip's reading over the slack either
+        // way: the flank dips under A's face, `d = −1.5·zero` as the side
+        // is read, so `[d − s, d + s] = [−3.3·zero, 0.3·zero]`.
+        let geom_core::ErrorTextReading::Enclosure { lo, hi } =
+            slack.1.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("an enclosure: {slack:?}");
+        };
+        assert!(
+            (lo - -3.3 * zero).abs() < 1e-3 * zero && (hi - 0.3 * zero).abs() < 1e-3 * zero,
+            "the straddle's enclosure is the dip over the slack: [{lo:e}, {hi:e}]"
         );
     }
 
@@ -4146,6 +4054,21 @@ mod tests {
         assert_eq!(twins(&[sector(false, false), sector(false, false)], 0), [0]);
     }
 
+    /// Flank keys from side codes, an `On` one tied on a Zero.
+    fn keyed(codes: [SideCode; 2]) -> [FlankKey; 2] {
+        codes.map(|code| match code {
+            SideCode::On => FlankKey::On(super::super::sectors::OnReading {
+                predicate: "bool_chord_side",
+                decided: geom_core::Decided {
+                    sign: geom_core::Sign::Zero,
+                    margin: geom_core::MarginDiag::value(0.0),
+                },
+                by: crate::bound_side::TiedBy::Band,
+            }),
+            code => FlankKey::Off(code),
+        })
+    }
+
     /// TOG's worked example (Fig. 18, ∪, identical orientation),
     /// through the fold: A's test sectors keyed (IN, ON) against B's
     /// reference cross on the IN sector, its ON one lumping Out (AonB⁺ →
@@ -4155,15 +4078,15 @@ mod tests {
     fn tog_fig18_worked_example() {
         use crate::boolean::plane_eq::PlaneRelation::SameOriented;
         let lumps = |side: Operand| {
-            move |_: Flank| Ok(eq15_3_lump(BooleanOp::Union, side, SameOriented) == In)
+            move |_: Flank, _| Ok(eq15_3_lump(BooleanOp::Union, side, SameOriented) == In)
         };
         assert_eq!(
-            edge_sector_crossing([In, On], lumps(Operand::A)).ok(),
+            edge_sector_crossing(keyed([In, On]), lumps(Operand::A)).ok(),
             Some(Some((Flank::Before, true))),
             "A's IN sector crosses"
         );
         assert_eq!(
-            edge_sector_crossing([Out, On], lumps(Operand::B)).ok(),
+            edge_sector_crossing(keyed([Out, On]), lumps(Operand::B)).ok(),
             Some(Some((Flank::Before, true))),
             "B's OUT sector crosses"
         );
@@ -4175,7 +4098,7 @@ mod tests {
     /// one, and nothing where both lie on one side or both on the face.
     #[test]
     fn an_edge_sector_crossing_is_recorded_on_the_flanker_table_ii_names() {
-        let lumping = |inside: bool| move |_: Flank| Ok(inside);
+        let lumping = |inside: bool| move |_: Flank, _| Ok(inside);
         let rows = [
             ([In, Out], false, Some((Flank::After, false))),
             ([Out, In], false, Some((Flank::Before, false))),
@@ -4191,7 +4114,7 @@ mod tests {
         ];
         for (keys, inside, want) in rows {
             assert_eq!(
-                edge_sector_crossing(keys, lumping(inside)).ok(),
+                edge_sector_crossing(keyed(keys), lumping(inside)).ok(),
                 Some(want),
                 "keys {keys:?}, the on-flanker lumping in: {inside}"
             );

@@ -363,7 +363,8 @@ pub(crate) fn departures<T: Decide>(
     locus: Locus<T>,
     band: Band,
 ) -> Result<Departure, RimUnread> {
-    let (Some(ra), Some(rb)) = (reach(a, fa, locus, band)?, reach(b, fb, locus, band)?) else {
+    let (Some(ra), Some(rb)) = (reach_as(a, fa, locus, band)?, reach_as(b, fb, locus, band)?)
+    else {
         return Ok(Departure::EdgeKindUnread);
     };
     let tau = T::from_f64(core::f64::consts::TAU);
@@ -548,6 +549,10 @@ impl<T: Decide> FaceOnLocus<T> {
                     == geom_core::Sign::Positive,
             )
         };
+        // Two decided rides of opposite sign answer `RidesBothWays` (a
+        // theorem), but a ride in band refuses first: a deviation from
+        // the ladder rule, scheduled on
+        // `work/onecopy/the-ladder-has-no-climb-for-a-disagreement-that-answers.md`.
         let mut seen: Option<geom_core::Sign> = None;
         for &(lo, hi, sign) in &self.rides {
             for &k in wraps {
@@ -662,7 +667,7 @@ fn contains<T: Decide>(
 /// The face's reach along `locus`; `None` when one of its boundary
 /// edges is a curve the read does not place (neither a line nor a
 /// circle).
-fn reach<T: Decide>(
+fn reach_as<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     locus: Locus<T>,

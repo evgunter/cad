@@ -2468,7 +2468,7 @@ mod face_walk_composition_tests {
     }
 
     /// A detached run that records exactly one verdict, under `name`.
-    fn one_verdict(name: &'static str) -> Detached {
+    fn one_verdict_as(name: &'static str) -> Detached {
         detached(|| {
             let _ = crate::validate::decide(name, Margin::of(1.0f64), band());
         })
@@ -2494,12 +2494,12 @@ mod face_walk_composition_tests {
 
     /// The slots, with a hard refusal at `refuse_at` when one is asked
     /// for; every slot carries a recording naming itself.
-    fn slots(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
+    fn slots_as(names: &[&'static str], refuse_at: Option<usize>) -> Vec<FaceDecision<f64>> {
         names
             .iter()
             .enumerate()
             .map(|(i, &name)| {
-                let recording = one_verdict(name);
+                let recording = one_verdict_as(name);
                 let run = if refuse_at == Some(i) {
                     Err(MassPropsError::Corrupt {
                         what: "the injected refusal",
@@ -2642,7 +2642,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn every_recording_splices_in_arena_order_when_no_face_refuses() {
-        let decided = slots(&NAMES, None);
+        let decided = slots_as(&NAMES, None);
         let bracket = Bracket::open();
         let runs = splice_in_arena_order(decided).expect("no face refused");
         let log = bracket.finish();
@@ -2717,7 +2717,7 @@ mod face_walk_composition_tests {
 
     #[test]
     fn the_refusing_faces_recording_splices_and_every_later_one_is_dropped() {
-        let decided = slots(&NAMES, Some(2));
+        let decided = slots_as(&NAMES, Some(2));
         let bracket = Bracket::open();
         let err = match splice_in_arena_order(decided) {
             Err(err) => err,
@@ -5611,7 +5611,7 @@ pub enum ShellClassifyError {
 /// definite gap. One decision and one lever, at rest and at a boolean's
 /// door alike (`BooleanDecision::ShellRole`).
 pub const AIMED_PAIR: SizedDecision = SizedDecision {
-    lever: "move the geometry so the two faces the aimed ray met are clearly apart",
+    lever: geom_core::move_lever!("so the two faces the aimed ray met are clearly apart"),
     size: "gap",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,

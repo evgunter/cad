@@ -311,14 +311,14 @@ impl<T: Decide> Azimuth<T> {
     /// read's one jump is the window's cut. A direction of no length reads
     /// `0`, in every window.
     pub fn principal_in(self, window: Window, band: Band) -> T {
-        self.read_in(window, "pcurve_chart_cut_side", band)
+        self.read_in_as(window, "pcurve_chart_cut_side", band)
     }
 
     /// The angle window's read ([`Azimuth::principal`]) for a reader
     /// that is not a chart's, its cut-side decision recorded under `row`,
     /// the reader's own predicate.
     pub fn principal_as(self, row: &'static str, band: Band) -> T {
-        self.read_in(Window::Angle, row, band)
+        self.read_in_as(Window::Angle, row, band)
     }
 
     /// **The angle's copy within half a turn of `reference`**: the
@@ -358,7 +358,7 @@ impl<T: Decide> Azimuth<T> {
             (Some(y), Some(x)) if y == 0.0 && x == 0.0 => return reference,
             (Some(_), Some(_)) => {}
             // An enclosure that reaches zero length may hold any angle.
-            _ if !(T::one() / self.length()).is_bounded() => {
+            _ if !geom_core::structure_nonzero(self.length()) => {
                 let window = (reference - T::pi()).enclosure_hull(reference + T::pi());
                 debug_assert!(!window.is_poison(), "an enclosure's window is no poison");
                 return window;
@@ -377,8 +377,8 @@ impl<T: Decide> Azimuth<T> {
         Period::new(T::tau()).near(read, reference)
     }
 
-    fn read_in(self, window: Window, row: &'static str, band: Band) -> T {
-        if !(T::one() / self.length()).is_bounded() {
+    fn read_in_as(self, window: Window, row: &'static str, band: Band) -> T {
+        if !geom_core::structure_nonzero(self.length()) {
             return T::zero();
         }
         stable_azimuth_as(row, self.y, self.x, window.start(), band)
