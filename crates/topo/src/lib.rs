@@ -145,6 +145,7 @@ pub mod coherence;
 pub mod coincidence;
 pub mod construction;
 pub mod contact;
+mod contain_loop;
 pub mod cover;
 pub mod entity;
 pub mod euler;

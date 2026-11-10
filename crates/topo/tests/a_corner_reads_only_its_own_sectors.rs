@@ -129,7 +129,7 @@ fn assert_corner_crossing(
         (want, got) => panic!("{label}: offers {got:?} where a run admits {want:?}: {text}"),
     }
     assert!(
-        text.contains("move the parts so the two faces clearly cross where their corners meet"),
+        text.contains("move the parts so the two faces clearly cross at that corner"),
         "{label}: the corner's lever: {text}"
     );
 }

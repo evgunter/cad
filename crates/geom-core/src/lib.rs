@@ -22,6 +22,7 @@ pub mod dual;
 pub mod exact;
 pub mod interval;
 pub mod k_stats;
+pub mod ladder;
 pub mod linalg;
 pub mod line2;
 pub mod one_line;
@@ -32,6 +33,7 @@ pub mod readable;
 pub mod real;
 pub mod running;
 pub mod spline;
+pub mod structure;
 pub mod sym;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
@@ -73,10 +75,10 @@ pub use predicate::{
     Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING,
     KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Lever,
     MOVE_RECOURSE, Margin, MarginDiag, MarginKind, MissReading, MissSource, MissingRecourse,
-    NOT_YET_ENDING, RANGE_ENDING, RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE,
-    Sign, SizedPass, SizedWords, StoredCulprit, SupSpeed, UNNAMED_DECISION, UNNAMED_PREDICATE,
-    UNREADABLE_FILE_MARGIN_NOTE, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE,
-    UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
+    NOT_YET_ENDING, NonzeroSign, RANGE_ENDING, RANGE_RECOURSE, Recourse, RefusedReading,
+    SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, StoredCulprit, SupSpeed, UNNAMED_DECISION,
+    UNNAMED_PREDICATE, UNREADABLE_FILE_MARGIN_NOTE, UNREADABLE_MARGIN_NOTE,
+    UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
 };
 pub use readable::Readable;
 pub use real::{
@@ -85,6 +87,7 @@ pub use real::{
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
+pub use structure::{structure_ascends, structure_nonzero};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
 pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,

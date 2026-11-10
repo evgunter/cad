@@ -709,8 +709,7 @@ const fn proximity(passes: SizedPass) -> SizedDecision {
 /// only a definite tilt between them goes on, and a smaller tolerance
 /// decides an in-band or Zero tilt definite.
 const CORNER_CROSSING: SizedDecision = SizedDecision {
-    lever: "move the parts so the two faces clearly cross where their corners meet, or so the \
-            corners clearly stand apart",
+    lever: "move the parts so the two faces clearly cross at that corner",
     size: "rise",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -721,8 +720,7 @@ const CORNER_CROSSING: SizedDecision = SizedDecision {
 /// ([`Coincide::CornerBound`]): either definite side of its bound goes
 /// on.
 const CORNER_BOUND: SizedDecision = SizedDecision {
-    lever: "move the parts so the corner's edges clearly leave the other face's plane, or so \
-            the corners clearly stand apart",
+    lever: "move the parts so the corner's edges clearly leave the other face's plane",
     size: "rise",
     passes: SizedPass::NonZero,
     side: RefusedSide::Lever,
@@ -2002,13 +2000,12 @@ pub(in crate::boolean) mod tests {
             ),
             Coincide::Sectors => Ending::Sized(MEET, SizedPass::AnySign),
             Coincide::CornerCrossing => Ending::Sized(
-                "Recourse: move the parts so the two faces clearly cross where their corners \
-                 meet, or so the corners clearly stand apart",
+                "Recourse: move the parts so the two faces clearly cross at that corner",
                 SizedPass::Positive,
             ),
             Coincide::CornerBound => Ending::Sized(
                 "Recourse: move the parts so the corner's edges clearly leave the other face's \
-                 plane, or so the corners clearly stand apart",
+                 plane",
                 SizedPass::NonZero,
             ),
             Coincide::EdgeOnEdge => Ending::Sized(MEET, SizedPass::NonNegative),
@@ -2074,7 +2071,7 @@ pub(in crate::boolean) mod tests {
     /// statement of the words `subject` and `ending` must produce, on a
     /// margin it can read (`readable`) or a poisoned one.
     fn want(decision: BooleanDecision, readable: bool) -> (&'static str, Ending) {
-        const CORNER: &str = "Recourse: reshape that corner so its edges span clearly more than \
+        const CORNER_RECOURSE: &str = "Recourse: reshape that corner so its edges span clearly more than \
                               the tolerance and are clearly not in line";
         const STRAIGHT: &str = "whether a corner is straight or folds back on itself";
         const SPHERES: &str = "Recourse: move the spheres so they clearly stand apart, or so one \
@@ -2344,13 +2341,14 @@ pub(in crate::boolean) mod tests {
             ),
             BooleanDecision::Corner(SectorRung::Arm) => (
                 "whether a corner's edges are long enough to measure its angle over",
-                Ending::Sized(CORNER, SizedPass::Positive),
+                Ending::Sized(CORNER_RECOURSE, SizedPass::Positive),
             ),
-            BooleanDecision::Corner(SectorRung::Straight { full_circle: false }) => {
-                (STRAIGHT, Ending::Sized(CORNER, SizedPass::Negative))
-            }
+            BooleanDecision::Corner(SectorRung::Straight { full_circle: false }) => (
+                STRAIGHT,
+                Ending::Sized(CORNER_RECOURSE, SizedPass::Negative),
+            ),
             BooleanDecision::Corner(SectorRung::Straight { full_circle: true }) => {
-                (STRAIGHT, Ending::Sized(CORNER, SizedPass::AnySign))
+                (STRAIGHT, Ending::Sized(CORNER_RECOURSE, SizedPass::AnySign))
             }
             BooleanDecision::PierceOnFace => (
                 "whether a point lies on a curved face, so the face's normal can be read there",

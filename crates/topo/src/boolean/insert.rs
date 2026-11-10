@@ -67,7 +67,7 @@
 //! after them, at the copy the innermost fan among them took its germs
 //! to.
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
@@ -2349,7 +2349,7 @@ fn walk_faces_first<T: Decide>(
             fan_turn(s, apex, first.line, second.line),
             band,
         )
-        .map(|sign| sign == geom_core::k_stats::NonzeroSign::Negative)
+        .map(|sign| sign == geom_core::NonzeroSign::Negative)
         .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag));
     }
     // The germs are read from the corner's arrival bound: the arrival

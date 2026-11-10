@@ -6070,7 +6070,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "unexaminable_tag",
-        values: &["corrupt", "non_iso_carrier", "null_scaffold_edge"],
+        values: &[
+            "corrupt",
+            "empty_loop",
+            "non_iso_carrier",
+            "null_scaffold_edge",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -6307,8 +6312,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("definition_var_kind", 2),
     // Overlapping, not one fact: at rest the word is the ring half's
     // decided refusal alone (a nonpositive tube is
-    // `unrepresentable_surface_datum` there); at the Boolean's pierce
-    // it is either half's (`topo::TorusConvention`).
+    // `unrepresentable_surface_datum` there); in the Boolean, wherever
+    // an operand's face normal is asked (the pierce, a section chord's
+    // region or holding face), it is either half's
+    // (`topo::TorusConvention`).
     ("degenerate_torus", 2),
     // Three, and ALL THREE are one fact: `parse_error_tag`,
     // `persist_error_tag` and `edit_error_tag` each mean "the document
@@ -6329,10 +6336,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("edge_edge_point", 2),
     ("empty", 2),
     ("empty_boolean", 2),
-    // Coincidence, not one fact: a profile loop authored with no vertex,
-    // refused at validation, and a body face's empty (scaffolding) loop,
-    // refused by the tessellator.
-    ("empty_loop", 2),
+    // Shared by coincidence: the profile validator's word for a loop
+    // authored with no vertex. Shared as one fact: the tessellator and the
+    // coherence check each name a body face's lone-vertex (scaffolding)
+    // loop with it.
+    ("empty_loop", 3),
     // One fact: the extrude, the revolve and the loft or path sweep each
     // refuse a profile with no loops at their own door;
     // `an_empty_profile_is_one_word_at_every_sweep` pins them.

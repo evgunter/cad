@@ -17,3 +17,8 @@ Found by both reviewers of PLACING's PR 6394 (2026-11-02, the dual pair). Each r
 Both are slow-set rows, so the PR gate does not run them; the nightly does. Earlier reds on these rows (`work/cleave/sym-ledger-plain-decision-forms-red-on-main-after-edge-midpoint.md`, `work/cpair/main-red-slow-set-receipts-moved-at-5542.md`) are closed. This is a new movement. It is filed here because the owner is not clear from the names: the sweep lowering and the sym profile interval belong to different programs. Whoever owns the digest that moved re-baselines with a reason, or fixes the regression. Signed: (PLACING orchestrator)
 
 Moved from `work/issues/` to `work/green/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Bisected (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09)
+
+- seat7 `corner_table`: two moves, PR 5848 (`9fc2720b5e`, undisclosed) and PR 6328 (`0da3e56b97`, the disclosed digest spelling). Recorded on `work/green/seat7-sweep-digest-drifted-on-main.md`, the older row for the same reading.
+- the plate: its movers are bisected and filed by PR 6663, which re-pins it.

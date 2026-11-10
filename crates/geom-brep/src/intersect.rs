@@ -2645,11 +2645,7 @@ pub enum PlaneTorusSection<T: Real> {
 
 /// The rows [`plane_torus_section`] reads the spiric regime under
 /// ([`geom::spiric_regime`]).
-const PT_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricRegimeSites::new(
-    "pt_spiric_off_axis",
-    "pt_spiric_two_ovals",
-    "pt_spiric_two_ovals_floor",
-);
+const PT_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::PlaneTorus.sites();
 
 /// Classifies and constructs the plane×torus axis-aligned sections.
 ///

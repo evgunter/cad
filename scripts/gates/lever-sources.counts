@@ -24,7 +24,7 @@ crates/topo/src/boolean/fate.rs 1
 crates/topo/src/boolean/join.rs 2
 crates/topo/src/boolean/overlap.rs 1
 crates/topo/src/boolean/reduce.rs 1
-crates/topo/src/boolean/rim_wedge.rs 2
+crates/topo/src/boolean/rim_wedge.rs 1
 crates/topo/src/boolean/sectors.rs 1
 crates/topo/src/boolean/solid_contain.rs 1
 crates/topo/src/boolean/trace.rs 2

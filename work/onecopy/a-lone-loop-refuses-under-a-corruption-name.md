@@ -2,10 +2,12 @@
 id: a-lone-loop-refuses-under-a-corruption-name
 kind: issue
 title: Readers that refuse a face holding a lone-vertex loop report it as corruption (Unbuilt, TouchUnread::Corrupt, CorruptLoop), though tier 1 admits the loop
-status: open
+status: closed
 opened: 2026-11-09
 priority: P3
 cost: E
+closed: 2026-11-09
+pr: 6683
 ---
 
 

@@ -17,8 +17,8 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    CertifyError, EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
-    MappedCurve, MappedSource,
+    EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
+    MappedSource,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -69,15 +69,9 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
     // The mint reads the chord off the wall before it images it, so
     // the refusal is that read, never the residual's meter.
     assert!(
-        matches!(
-            err,
-            CertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cylinder,
-                carrier: geom::CurveKind::Line,
-                ..
-            }
-        ),
-        "a secant must refuse as the mint's incidence read: {err:?}"
+        matches!(err.incidence_read(), Some(geom_brep::IncidenceRead::Off(_)))
+            && err.incidence_kinds() == Some((unit_cylinder().kind(), geom::CurveKind::Line)),
+        "a secant must refuse as the mint's incidence read, of the wall and the chord: {err:?}"
     );
 }
 

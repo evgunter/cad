@@ -105,11 +105,11 @@ use crate::validate::decide;
 
 /// A cell's control hull, or a foot candidate, against the point: how
 /// far the point lies off the spline face's carrier.
-pub(crate) const CARRIER: &str = "bool_spline_region_carrier";
+pub(crate) const SPLINE_REGION_CARRIER: &str = "bool_spline_region_carrier";
 /// A chart window's inf-side lever arm, gated as a length.
-pub(crate) const ARM: &str = "bool_spline_region_arm";
+pub(crate) const SPLINE_REGION_ARM: &str = "bool_spline_region_arm";
 /// A query's clearance from the face's trim along the chart.
-pub(crate) const TRIM: &str = "bool_spline_region_trim";
+pub(crate) const SPLINE_REGION_TRIM: &str = "bool_spline_region_trim";
 
 /// How many times a kept cell is quartered at most, a backstop behind
 /// the band's own floor ([`Patch::extent`]).
@@ -154,7 +154,8 @@ pub(super) fn spline_face_placement<T: Decide>(
         Reading::Unsettled(Some(diag)) => {
             // The carrier rows are the carrier decision's; the trim's and
             // the arm's have no decision of the door's to name.
-            let decision = (diag.predicate == Some(CARRIER)).then_some(ContainDecision::Carrier);
+            let decision =
+                (diag.predicate == Some(SPLINE_REGION_CARRIER)).then_some(ContainDecision::Carrier);
             return Err(ContainError::Escalated {
                 decision,
                 escalation: Escalation::Margin,
@@ -305,7 +306,7 @@ fn carrier_walk<T: Decide>(
     let mut visits = 0usize;
     let mut pending: Option<Indeterminate> = None;
     while let Some((cell, known, depth)) = queue.pop_front() {
-        match decide(CARRIER, Margin::of(cell.floor(q)), band) {
+        match decide(SPLINE_REGION_CARRIER, Margin::of(cell.floor(q)), band) {
             Ok(Sign::Positive) => continue,
             Ok(_) => {}
             Err(diag) => keep(&mut pending, Some(diag)),
@@ -338,7 +339,7 @@ fn carrier_walk<T: Decide>(
         }
         let (cu, cv) = cell.rect.centre();
         let at = chart.eval(T::from_computed(cu), T::from_computed(cv));
-        match decide(CARRIER, Margin::of((at - q).norm()), band) {
+        match decide(SPLINE_REGION_CARRIER, Margin::of((at - q).norm()), band) {
             Ok(Sign::Zero) => {
                 foot = true;
                 let placed = inside.or_else(|| match place(Rect::point(cu, cv)) {
@@ -1312,7 +1313,7 @@ impl Trim {
                 continue;
             }
             match decide(
-                TRIM,
+                SPLINE_REGION_TRIM,
                 Margin::metered(T::from_computed(room.max(0.0)), arm),
                 band,
             ) {
@@ -1393,7 +1394,11 @@ impl Trim {
             let mut diag = None;
             let mut clear = false;
             for (g, arm) in [(gu, au), (gv, av)] {
-                match decide(TRIM, Margin::metered(T::from_computed(g), arm), band) {
+                match decide(
+                    SPLINE_REGION_TRIM,
+                    Margin::metered(T::from_computed(g), arm),
+                    band,
+                ) {
                     Ok(Sign::Positive) => clear = true,
                     Ok(_) => {}
                     Err(d) => diag = diag.or(Some(d)),
@@ -1590,12 +1595,11 @@ fn window_arms<T: Decide>(
         let surface = cell.restricted(part).surface().ok_or(None)?;
         let floor = |x: T| x.structure_bracket().map_or(f64::NAN, |(lo, _)| lo);
         let (au, av) =
-            crate::chart_region::spline_chart_arms(&surface, ARM, floor, band).map_err(|gate| {
-                match gate {
+            crate::chart_region::spline_chart_arms(&surface, SPLINE_REGION_ARM, floor, band)
+                .map_err(|gate| match gate {
                     crate::chart_region::ArmGate::Unbounded => None,
                     crate::chart_region::ArmGate::Escalated(diag) => Some(diag),
-                }
-            })?;
+                })?;
         let (au, av) = (au.get(), av.get());
         least = Some(least.map_or((au, av), |(lu, lv)| (lu.min(au), lv.min(av))));
     }
