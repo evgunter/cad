@@ -1133,3 +1133,7 @@ E1c waits on the answer.
   - The m10 D-tab stays [18, 24] until sym's rule lands. Sym's row is narrowed: all 12 decisions need the rule, and `pcurve_envelope` reads the same term.
   - The alternative, re-anchoring the meridian azimuth at a span point so one read serves both, would move every cylinder line's image and check 4's lemma, and would buy no decision. Not taken.
   - Review tier: orchestrator's read. Its outcome changed no production code, only a row and two work files.
+- 2026-11-10 — **Main red: geom-brep's `recourse_roster` census, fixed** (PR below; reported by the ellipse lane). Two merges after PR 6755's forwarder rule (every crate-private name forwarder takes `_as` and is a declared carrier) each left a site unlisted. Neither PR's gate selected the census.
+  - PR 6531 (this track): `spline_incidence_as` stopped deciding and forwarded to `read_samples`. The forwarders are now `read_samples_as` and `spline_point_incidence_as`, declared carriers, with all three listed as FORWARDS.
+  - PR 6518 (sectarms): the pose test's `CylinderSpherePose::decide(x, …)` is listed NOT_A_NAME. A note is on sectarms' log.
+  - Review tier: orchestrator's read (a rename and roster rows).
