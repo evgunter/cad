@@ -821,6 +821,12 @@ fn coincident_over_extent<T: Decide>(
     }
 }
 
+/// [`reading`]'s rows: each kind's predicate and its straddle row.
+const PLANE_REACH: (&str, &str) = ("bool_plane_reach", "bool_plane_reach_straddle");
+const SPHERE_REACH: (&str, &str) = ("carrier_sphere_reach", "carrier_sphere_reach_straddle");
+const CYL_REACH: (&str, &str) = ("carrier_cyl_reach", "carrier_cyl_reach_straddle");
+const CONE_REACH: (&str, &str) = ("carrier_cone_reach", "carrier_cone_reach_straddle");
+
 /// The displacement's upper bound between a same-kind, non-torus pair
 /// over `reach`, with its predicate's name and its straddle row's
 /// ([`coincident_over_extent`]), the planes' orientation sign `sigma`
@@ -845,10 +851,7 @@ fn reading<T: Decide>(
             let centre = reach.center();
             let offset = n1.dot(o1 - centre) - sigma * n2.dot(o2 - centre);
             let swing = Margin::levered((n1 - n2 * sigma).norm(), reach.lever()).value();
-            (
-                ("bool_plane_reach", "bool_plane_reach_straddle"),
-                offset.abs() + swing,
-            )
+            (PLANE_REACH, offset.abs() + swing)
         }
         (
             CarrierDesc::Sphere {
@@ -861,10 +864,7 @@ fn reading<T: Decide>(
                 radius: r2,
                 ..
             },
-        ) => (
-            ("carrier_sphere_reach", "carrier_sphere_reach_straddle"),
-            (r1 - r2).abs() + (p1 - p2).norm(),
-        ),
+        ) => (SPHERE_REACH, (r1 - r2).abs() + (p1 - p2).norm()),
         (
             CarrierDesc::Cylinder {
                 origin: o1,
@@ -886,10 +886,7 @@ fn reading<T: Decide>(
             let apart = perpendicular(pivot - o1, a1).norm();
             let arm = reach.lever_from_within(pivot, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
-            (
-                ("carrier_cyl_reach", "carrier_cyl_reach_straddle"),
-                (r1 - r2).abs() + core,
-            )
+            (CYL_REACH, (r1 - r2).abs() + core)
         }
         (
             CarrierDesc::Cone {
@@ -908,7 +905,7 @@ fn reading<T: Decide>(
             let apart = (p1 - p2).norm();
             let arm = reach.lever_from_within(p1, apart);
             let core = apart + Margin::levered(line_tilt(a1, a2) + (t1 - t2).abs(), arm).value();
-            (("carrier_cone_reach", "carrier_cone_reach_straddle"), core)
+            (CONE_REACH, core)
         }
         _ => return None,
     })
@@ -1119,7 +1116,7 @@ mod tests {
                 ..
             }) => {
                 assert!(
-                    !diag.margin.is_invalid() && diag.predicate == Some("carrier_sphere_reach"),
+                    !diag.margin.is_invalid() && diag.predicate == Some(SPHERE_REACH.0),
                     "the sum in band: {diag:?}"
                 );
             }

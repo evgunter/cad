@@ -59,9 +59,9 @@ measured yet.
 
 | site | shape | port |
 |---|---|---|
-| `geom_brep::curve_pair::pose::one_line` | either line off the other answers "not one line" | `climb`, `Any` |
-| `geom_brep::props::curved::sphere_region_material_sign`, `pole_side` | an arc against the pole answers | `climb`, `Any` |
-| `profile::seg::arc_arc` | any end over the other arc answers `Overlap` | `climb`, `Any` |
+| ~~`geom_brep::curve_pair::pose::one_line`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `read_identity` over the four end offsets | — |
+| ~~`geom_brep::props::curved::sphere_region_material_sign`, `pole_side`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `climb(Any)` over the arcs, a theorem (the pole on any arc); `PropsError::refusal` is the standing | — |
+| ~~`profile::seg::arc_arc`~~ | **ported** (`onecopy/refusal-standing`, QML T3): `climb(Any)` over the four ends, a theorem, on `geom_core::ladder` (the ladder moved to geom-core so profile can reach it) | — |
 | `boolean::carrier_touch::off_face`, `ball_off_face` | any cluster or edge not off answers "not off" | `climb`, `Any` |
 | `boolean::region::on_boundary` | any edge holding the point | `climb`, `Any` |
 | `boolean::sectors::rays_within` | any ray not within answers "no" | `climb`, `Any` |
