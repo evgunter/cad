@@ -1697,7 +1697,7 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 .min_by_key(|(_, body)| body.len())
                 .map_or("-", |(name, _)| name.as_str())
         };
-        for (kind, payload, at) in funnel_sites_at(&bare, &code) {
+        for (kind, payload, at) in funnel_sites(&bare, &code) {
             match kind {
                 SiteKind::Name => {
                     out.names.insert(payload);
@@ -1954,16 +1954,10 @@ enum SiteKind {
 }
 
 /// Every `decide*` occurrence in a blanked view, classified.
-fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
-    funnel_sites_at(bare, code)
-        .into_iter()
-        .map(|(kind, payload, _)| (kind, payload))
-        .collect()
-}
-
-/// [`funnel_sites`], each with the offset of the occurrence that made
-/// it, so a caller can place an indirect site in its enclosing `fn`.
-fn funnel_sites_at(bare: &str, code: &str) -> Vec<(SiteKind, String, usize)> {
+///
+/// Each site carries the offset of the occurrence that made it, so a
+/// caller can place an indirect site in its enclosing `fn`.
+fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String, usize)> {
     let mut out = Vec::new();
     let mut at = 0usize;
     while let Some(hit) = bare[at..].find("decide") {
@@ -3112,8 +3106,8 @@ mod tests {
         let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
         let named: Vec<&str> = sites
             .iter()
-            .filter(|(kind, _)| matches!(kind, super::SiteKind::Name))
-            .map(|(_, name)| name.as_str())
+            .filter(|(kind, _, _)| matches!(kind, super::SiteKind::Name))
+            .map(|(_, name, _)| name.as_str())
             .collect();
         assert_eq!(
             named,
@@ -3123,7 +3117,7 @@ mod tests {
         assert!(
             sites
                 .iter()
-                .any(|(kind, expr)| matches!(kind, super::SiteKind::Indirect)
+                .any(|(kind, expr, _)| matches!(kind, super::SiteKind::Indirect)
                     && expr.starts_with("(\"lone\"")),
             "a part-literal tuple is indirect: {raw}"
         );
@@ -3137,7 +3131,7 @@ mod tests {
         let sites = super::funnel_sites(&code_only(raw), &code_and_literals(raw));
         let read: Vec<(bool, &str)> = sites
             .iter()
-            .map(|(kind, s)| (matches!(kind, super::SiteKind::Name), s.as_str()))
+            .map(|(kind, s, _)| (matches!(kind, super::SiteKind::Name), s.as_str()))
             .collect();
         assert_eq!(read, [(false, "name"), (true, "lit")], "{raw}");
     }
@@ -3145,7 +3139,7 @@ mod tests {
     /// **A declared carrier's call is read for its literals, else is a
     /// const site where an argument names a `const` the tree declares,
     /// else is named by its first argument**, so a forwarding hop is
-    /// named as a `decide*` site's is and the same hop twice in one file
+    /// named as a `decide*` site's is and the same hop twice in one `fn`
     /// is one entry.
     #[test]
     fn a_carrier_call_is_named_by_its_consts_or_its_first_argument() {
