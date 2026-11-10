@@ -22,6 +22,12 @@ readouts' rulings and the close.
   A/B (suspended 2026-09-23, concluded the same day as this opened;
   `docs/doc-ledger/model-ab-experiment-concludes.md`), not a
   continuation of it: its rows are not pooled with these.
+- **Dual tier joins (Ev, in-chat, 2026-11-10, on dual-review readout
+  6, PR 6797).** The dual Opus review stream
+  (`docs/DUAL-REVIEW-PROTOCOL.md`) is paused in favour of this
+  experiment: from now on every dual-tier unit gets a concurrent
+  Opus + Fable pair under rule 2, with the dual-review instrument
+  carried over, before any row here was recorded.
 - **Instrument note (Ev, in-chat, 2026-11-10): FABLE 5.2 RELEASE
   BOUNDARY.** Fable 5.2 released 2026-11-09, the day before this log
   opened, so every Fable row here is expected to be Fable 5.2 and

@@ -40,10 +40,21 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
    `/dev/urandom` byte, even → **Opus**, odd → **Fable**, 1:1:
    - the **implementer arm**, at the implementer's dispatch;
    - the **reviewer arm**, at the review's dispatch, for a
-     SINGLE-review unit only. A dual-tier unit's two reviewers stay
-     Opus under `docs/DUAL-REVIEW-PROTOCOL.md`, whose concordance
-     stream is Opus/Opus; such a unit is a row for the implementer
-     question and enters no reviewer count.
+     SINGLE-review unit;
+   - for a **DUAL-tier unit**, whatever its letter, the **slot
+     order**: its two reviewers are one Opus and one Fable,
+     dispatched CONCURRENTLY on the SAME FROZEN HEAD (named in both
+     briefs and the row), and the byte says which model is R1 (even →
+     Opus). R1/R2 are dispatch-order labels and nothing else. The
+     pair runs on the instrument of `docs/DUAL-REVIEW-PROTOCOL.md`
+     (paused 2026-11-10), carried over unchanged: identical briefs,
+     lane isolation on the read side (its rule 3), the fair-pair rule
+     (its rule 4), the verdict ladder, the BILATERAL / UNILATERAL
+     coding and tally criteria (its rule 6), and blinded coding (its
+     rule 7, A/B re-randomised by a recorded byte). The fix pass runs
+     off the adjudicated union of both reviews' findings. A dual-tier
+     unit is a paired observation for the reviewer question: the same
+     code, read by both models.
 
    Each byte, its arm and the date are committed at once to a branch
    under `analysis/model-compare/`, never to the unit's branch.
@@ -137,8 +148,10 @@ docs/MODEL-COMPARE-PROTOCOL.md`, after a fetch).
 9. **Record at merge.** The row rides the unit's own PR as its LAST
    commit, after every review is delivered, since it names the arms
    and reviewers read `git log`; a missing field blocks the row. A
-   dual-tier unit is a row here AND in `docs/DUAL-REVIEW-LOG.md`; the
-   two are recorded independently.
+   dual-tier unit's row also carries the pair's correspondence (the
+   bilateral headline, the unilateral findings each way with
+   severity, the tally candidates) and the blind coder's byte and
+   result.
 10. **Later escapes.** When a defect is later traced to a unit in this
     log (an issue, a red row, a fix PR), append a line to its row
     naming it, both arms, and whether any review raised it.

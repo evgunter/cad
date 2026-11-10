@@ -21,10 +21,6 @@ Both leave `docs/` when the experiment concludes.
 
 **Live:**
 
-- **Dual Opus review concordance** — `docs/DUAL-REVIEW-PROTOCOL.md`
-  (**read it before dispatching a dual**) and `docs/DUAL-REVIEW-LOG.md`.
-  What a second independent review buys; every unit the review tiers
-  ([[orchestration-model]]) send to the dual tier is a row.
 - **Design-fork review** — `docs/DESIGN-FORK-PROTOCOL.md` (**read it
   before dispatching the designers**) and `docs/DESIGN-FORK-LOG.md`.
   What the Opus and Fable designers (and, on a drawn third of forks,
@@ -35,7 +31,13 @@ Both leave `docs/` when the experiment concludes.
   `docs/MODEL-COMPARE-LOG.md`. Opus vs Fable as implementers and as
   reviewers, on quality, time and token cost; every unit sent to a
   single or dual review draws its implementer's model, a single
-  review draws its reviewer's, and the unit is a row.
+  review draws its reviewer's, a dual-tier unit gets one Opus and one
+  Fable reviewer, and the unit is a row.
+
+**Paused** (read only if Ev resumes it): **dual Opus review
+concordance** — `docs/DUAL-REVIEW-PROTOCOL.md` and
+`docs/DUAL-REVIEW-LOG.md`, paused 2026-11-10 in favour of the model
+comparison; its instrument runs the model comparison's dual pairs.
 
 **What binds under any experiment:**
 

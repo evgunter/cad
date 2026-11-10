@@ -23,19 +23,18 @@ standing rules:
   the work", except the switch runbook, which is read only when
   switching.
 - The protocol of each experiment it has in flight
-  (`docs/DUAL-REVIEW-PROTOCOL.md`, `docs/DESIGN-FORK-PROTOCOL.md`,
-  `docs/MODEL-COMPARE-PROTOCOL.md`).
+  (`docs/DESIGN-FORK-PROTOCOL.md`, `docs/MODEL-COMPARE-PROTOCOL.md`).
 
 Ev's standing instructions for implementation work:
 
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
-  delegated to subagents, which may spawn their own. Every phase —
-  dual reviewers, and the design, specs and rulings — runs on Opus
-  (Ev, 2026-09-23), except the Fable half of the designer pair
-  (below), and the implementer of a reviewed unit and a single
-  review, whose models are drawn by `docs/MODEL-COMPARE-PROTOCOL.md`
-  (Ev, 2026-11-10).
+  delegated to subagents, which may spawn their own. The design,
+  specs and rulings run on Opus (Ev, 2026-09-23), and so does every
+  other phase except the Fable half of the designer pair (below) and
+  the reviewed units under `docs/MODEL-COMPARE-PROTOCOL.md` (Ev,
+  2026-11-10): their implementer's model and a single review's are
+  drawn, and a dual's two reviewers are one Opus and one Fable.
 - **Review tiers — the orchestrator's call per unit, at spec time**
   (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
   the unit's item file names the tier and its one-line reason at
@@ -53,9 +52,9 @@ Ev's standing instructions for implementation work:
     it, the review carries the correctness claims too.
   - **Dual review**: logic that is especially tricky, or an
     architectural or design decision whose impact is broad or which
-    would be hard to change later. The tier is an experiment
-    ([[experiments]]): how its reviews run is
-    `docs/DUAL-REVIEW-PROTOCOL.md`'s alone, so read it at dispatch.
+    would be hard to change later. Its two reviewers are one Opus and
+    one Fable, and how they run is `docs/MODEL-COMPARE-PROTOCOL.md`'s
+    alone ([[experiments]]), so read it at dispatch.
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;

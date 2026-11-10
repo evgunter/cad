@@ -1,5 +1,16 @@
 # Dual Opus review — protocol
 
+**PAUSED (Ev, in-chat, 2026-11-10), on readout 6 (PR 6797), in
+favour of the Opus/Fable model comparison.** No unit dispatches a
+review under this protocol, and no new row is recorded, except that a
+unit whose reviews were already dispatched finishes here and records
+its row. From then on every dual-tier unit gets the cross-model pair
+of `docs/MODEL-COMPARE-PROTOCOL.md` rule 2, which carries this
+protocol's instrument (the pair, lane isolation, the fair-pair rule,
+the adjudication instrument and blinded coding) over to it. The M-tier
+arms of rule 1 stop with the pause. Resuming is Ev's call; the rules
+below stand as they were, so it needs no migration.
+
 Opened by Ev, in-chat, 2026-09-23. This file holds ONLY the protocol
 in force now; it is edited in place when the protocol changes and
 carries no history — git does. The rows live one file each in

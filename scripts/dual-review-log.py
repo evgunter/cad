@@ -329,6 +329,11 @@ recorded under by commit hash, so `git show
 <hash>:docs/DUAL-REVIEW-PROTOCOL.md` reads that version. Ev's rulings
 on the readouts are in `docs/dual-review-log/rulings.md`.
 
+**PAUSED (Ev, in-chat, 2026-11-10)** after readout 6, in favour of
+the Opus/Fable model comparison (`docs/MODEL-COMPARE-PROTOCOL.md`),
+which now gives every dual-tier unit a cross-model pair. Units whose
+reviews were already dispatched still finish here; nothing new enters.
+
 **Instrument note (Ev, in-chat, 2026-11-10): FABLE 5.2 RELEASE
 BOUNDARY.** Fable 5.2 released 2026-11-09. Every reviewer here is
 Opus 5.5, so the reviewing instrument does not cross the mark. What
