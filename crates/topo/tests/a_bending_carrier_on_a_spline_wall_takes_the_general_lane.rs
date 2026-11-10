@@ -2,10 +2,11 @@
 //! chart** (D3): a circle no boundary row holds, and an ellipse, which
 //! has no exact class there, mint the `General` image
 //! (`geom_brep::FittedLane::general_image`), climbed to the structure the
-//! bend asks for, and certify. Where its certificate still refuses, a
-//! pose in band of the wall among them, the refusal is the lane's gap,
-//! "not yet", and never a tolerance offer. A stored row read at rest
-//! keeps its own term.
+//! bend asks for, and certify. Where its certificate still refuses on a
+//! rim the wall holds, the refusal is the lane's gap, "not yet", never a
+//! tolerance offer; a rim in band of the wall ends in its incidence read's
+//! lever. A stated row, and a stored row read at rest, keep their own
+//! term.
 //!
 //! The fixture is the unit cylinder sheet over `[0, TURN] × [0, 1]`
 //! (`topo::test_support::cyl_wall_sheet_tilted`) with its analytic
@@ -262,11 +263,13 @@ fn a_bending_rim_certifies_at_interval() {
 }
 
 /// A ring bent within the band of the rim: the chart's incidence read
-/// does not show the rim off, so it takes the general image, whose
-/// certificate cannot bound its miss inside the band. No structure
-/// reaches a carrier the wall misses, and the refusal is the lane's gap,
-/// in every form.
-fn a_band_scale_pose_ends_not_yet<T: AtRestPolicy + geom_core::Bounds>() {
+/// does not show the rim off, so it takes the general image. The image's
+/// certificate refuses, and on a spline chart a refused certificate ends
+/// by the carrier's incidence read (`geom_brep`'s `incidence_ended`): in
+/// band, in its lever, which moves the geometry. It is the carrier's own
+/// pose, so it is neither the lane's gap nor a tolerance offer nor a
+/// defect, in every form.
+fn a_band_scale_pose_ends_in_its_incidence_lever<T: AtRestPolicy + geom_core::Bounds>() {
     for rim in RIMS {
         let (_, _, got) = minted::<T>(rim, in_band_push());
         let Err(error) = got else {
@@ -275,22 +278,30 @@ fn a_band_scale_pose_ends_not_yet<T: AtRestPolicy + geom_core::Bounds>() {
                 T::NAME
             )
         };
+        let read = geom_brep::IncidenceRead::of(&error);
+        let ending = error.ending(geom_brep::recourse::Reading::Build);
         assert!(
-            is_the_lanes_gap(&error),
-            "{rim:?}: a rim in band of the wall ends \"not yet\", at {}: {error:?}",
+            read.is_some_and(|r| !r.is_definite())
+                && !is_the_lanes_gap(&error)
+                && read.is_some_and(
+                    |r| ending.ends_with(&r.ending(geom_brep::recourse::Reading::Build))
+                )
+                && !ending.contains("loosen"),
+            "{rim:?}: a rim in band of the wall ends in its incidence read's lever, at {}: \
+             {error:?}: {ending}",
             T::NAME
         );
     }
 }
 
 #[test]
-fn a_band_scale_pose_ends_not_yet_at_f64() {
-    a_band_scale_pose_ends_not_yet::<f64>();
+fn a_band_scale_pose_ends_in_its_incidence_lever_at_f64() {
+    a_band_scale_pose_ends_in_its_incidence_lever::<f64>();
 }
 
 #[test]
-fn a_band_scale_pose_ends_not_yet_at_interval() {
-    a_band_scale_pose_ends_not_yet::<geom_core::Interval>();
+fn a_band_scale_pose_ends_in_its_incidence_lever_at_interval() {
+    a_band_scale_pose_ends_in_its_incidence_lever::<geom_core::Interval>();
 }
 
 /// A `General` row the mint certified, read at rest where it no longer

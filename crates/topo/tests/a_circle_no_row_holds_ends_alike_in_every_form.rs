@@ -6,8 +6,9 @@
 //! incidence read (`geom_brep::read_edge_incidence`, the control hulls'
 //! lower bound) shows it off the wall: its `General` image, whose
 //! certificate reads the wall itself. The mint ends a rim in band of the
-//! wall as that lane's gap, "not yet". Each is the same whatever form its
-//! description takes. Where the general image certifies, the mint's rows
+//! wall in that read's lever: its certificate refuses, and a refused
+//! certificate on a spline chart ends by the carrier's incidence read.
+//! Each is the same whatever form its description takes. Where the general image certifies, the mint's rows
 //! are `a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs`'s.
 //!
 //! The fixture is the unit cylinder sheet over `[0, TURN] × [0, 1]`
@@ -277,25 +278,21 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
                 T::NAME
             );
         }
-        // Bent in band, the mint ends that image as its lane's gap.
+        // Bent in band, the image's certificate refuses, and a refused
+        // certificate on a spline chart ends by the incidence read: in band,
+        // in its lever, never a tolerance offer.
         let near = minted::<T>(in_band_push, form);
-        let not_yet = near.as_ref().is_err_and(|e| {
-            matches!(
-                e,
-                PcurveCertifyError::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Image,
-                    ..
-                } | PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::GeneralLane,
-                    ..
-                }
-            ) && e
-                .ending(geom_brep::recourse::Reading::Build)
-                .contains(geom_core::NOT_YET_ENDING)
+        let lever = near.as_ref().err().is_some_and(|e| {
+            let ending = e.ending(geom_brep::recourse::Reading::Build);
+            geom_brep::IncidenceRead::of(e).is_some_and(|read| {
+                !read.is_definite()
+                    && ending.ends_with(&read.ending(geom_brep::recourse::Reading::Build))
+            }) && !ending.contains("loosen")
         });
         assert!(
-            not_yet,
-            "{form:?}: the mint ends a rim in band of the wall \"not yet\", at {}: {near:?}",
+            lever,
+            "{form:?}: the mint ends a rim in band of the wall in its incidence read's \
+             lever, at {}: {near:?}",
             T::NAME
         );
     }
