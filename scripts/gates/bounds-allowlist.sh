@@ -763,12 +763,14 @@ BOUNDS_ALLOWLIST=(
   # selection only narrows what the screen meters to what the exact
   # meter downstream meters whole.
   # 21 -> 23: `knife_end` (a cusp's or slit's end, under
-  # `material_wedge_side`) and `knife_room_at` (`fillet3_knife_room`) are
-  # predicate 5's knife reads, the same battery seam as
+  # `material_wedge_side`) and `room_at` (`fillet3_knife_room` at a
+  # knife, `fillet3_ball_room` at a rim) are the link's reads of its
+  # ball's side and existence, the same battery seam as
   # `radius_headroom`: each decides only through `classify`, and reads
   # a bracket only to report a refusal, the classified margin through
   # `classified` (whose `measured` is the payload read) and the request
-  # radius through `.lo()` for `KnifeRefusal::NoRoom`. The next tighter
+  # radius through `.lo()` for `KnifeRefusal::NoRoom` and
+  # `BlendError::BallDoesNotFit`. The next tighter
   # bound, `Decide` alone, fails there: `classified` takes `T: Bounds`.
   # Neither picks anything from a bracket.
   'crates/sweep/src/blend/battery.rs 23 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'

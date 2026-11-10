@@ -1437,6 +1437,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
         BlendError::FaceClearance { .. } => "face_clearance",
         BlendError::KnifeEdge { .. } => "knife_edge",
+        BlendError::BallDoesNotFit { .. } => "ball_does_not_fit",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
         BlendError::ConvexitySignFlip { .. } => "convexity_sign_flip",
