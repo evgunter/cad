@@ -180,18 +180,13 @@ pub fn body(
     evaluation: &d::Evaluation<f64>,
     tol: Tol,
 ) -> Result<topo::Body<f64>, d::ProductError> {
-    memo.with(doc, evaluation, tol, |product| standing(product, doc, tol))?
+    memo.with(doc, evaluation, tol, |product| standing(product, tol))?
 }
 
 /// The product's body composed into the world through the façade's
-/// read-out door, which builds the gather's `Frame` refusal itself.
-fn standing(
-    product: &d::Product<f64>,
-    doc: &d::ProfileDoc,
-    tol: Tol,
-) -> Result<topo::Body<f64>, d::ProductError> {
-    pncad::export::product_body_in_space(product, doc, tol)
-        .map(|body| body.into_owned().into_body())
+/// read-out door, which builds the composed product's refusal itself.
+fn standing(product: &d::Product<f64>, tol: Tol) -> Result<topo::Body<f64>, d::ProductError> {
+    pncad::export::product_body_in_space(product, tol).map(|body| body.into_owned().into_body())
 }
 
 /// **`product_named`'s body**: the aggregate as it stands in the world
@@ -205,7 +200,7 @@ pub fn body_and_names(
 ) -> Result<(topo::Body<f64>, Vec<pncad::prelude::StableName>), d::ProductError> {
     memo.with(doc, evaluation, tol, |product| {
         Ok((
-            standing(product, doc, tol)?,
+            standing(product, tol)?,
             product.names.iter().map(|(name, _)| name.clone()).collect(),
         ))
     })?

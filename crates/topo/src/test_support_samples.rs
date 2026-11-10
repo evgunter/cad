@@ -1706,6 +1706,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             margin: geom_core::MarginDiag::value(-2.5e3),
         },
     ));
+    s.push((
+        "Unmovable".into(),
+        ValidationError::Unmovable {
+            found: "a null scaffold",
+        },
+    ));
     for error in offset_fit_errors() {
         s.push((
             label("ApproxCertification", &error),

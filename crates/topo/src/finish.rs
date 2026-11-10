@@ -1,7 +1,9 @@
 //! **The finished body** (`docs/DESIGN.md` `[topology.tiers]`, the
 //! at-rest row of `[one-way.places]`): the scalar's
-//! [`AtRestPolicy::finish`], the one constructor of a finished body,
-//! the two types it constructs, and its refusal.
+//! [`AtRestPolicy::finish`], the one place a body's verdict is derived,
+//! the two types it constructs, and its refusal. A finished body moved
+//! by an isometry stays finished ([`FinishedBody::moved`]): the move
+//! carries its verdict and asks only the session box again.
 //!
 //! Each scalar names its finished type ([`AtRestPolicy::Finished`]),
 //! the way [`geom_core::Real::Carries`] names what an edge carries. At
@@ -47,6 +49,17 @@ pub trait FinishedBody:
     /// The body, its finish given up: construction state again.
     #[must_use]
     fn into_body(self) -> Body<Self::Scalar>;
+
+    /// **This finished body under an isometry**, finished: its data
+    /// mapped, every verdict and certificate carried, and every family
+    /// whose fact is not one of the shape up to isometry asked again
+    /// ([`FindingFamily::up_to_isometry`]), which is the session box.
+    ///
+    /// # Errors
+    ///
+    /// [`NotFinished`] holding that family's finding: the image reaches
+    /// past the session box.
+    fn moved(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, NotFinished>;
 }
 
 impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
@@ -54,6 +67,10 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
 
     fn into_body(self) -> Body<T> {
         AtRestBody::into_body(self)
+    }
+
+    fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
+        AtRestBody::moved(self, iso, tol)
     }
 }
 
@@ -114,11 +131,82 @@ impl<T: Real> Deref for Replay<T> {
     }
 }
 
+impl<T: AtRestPolicy> Replay<T> {
+    /// **This replay under an isometry**: its data mapped. A replay
+    /// carries no verdict and its tier 2 is topology, which no map moves,
+    /// so nothing is asked: at the box scalars the taker's tier 3 asks
+    /// the moved body everything, the session box included.
+    ///
+    /// # Errors
+    ///
+    /// [`NotFinished`] where the data map meets a state tier 2 refuses,
+    /// which a replay never holds, or a mirror's re-minted row refuses
+    /// ([`moved_body`]).
+    pub fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
+        Ok(Self {
+            body: moved_body(&self.body, iso, tol)?,
+        })
+    }
+}
+
+/// **Every family not up to isometry, asked of `image`**
+/// ([`FindingFamily::up_to_isometry`]): what a move asks again.
+///
+/// # Errors
+///
+/// [`NotFinished`] holding each such family's finding, or the band's.
+pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
+    image: &Body<T>,
+    tol: Tol,
+) -> Result<(), NotFinished> {
+    let band = geom_core::Band::linear(tol)
+        .map_err(|error| NotFinished::new(vec![ValidationError::Band { error }]))?;
+    let findings: Vec<ValidationError> = FindingFamily::ALL
+        .into_iter()
+        .filter(|family| !family.up_to_isometry())
+        .filter_map(|family| family.asked_again(image, band).err())
+        .collect();
+    if findings.is_empty() {
+        Ok(())
+    } else {
+        Err(NotFinished::new(findings))
+    }
+}
+
+/// **`body` under `iso`**, the reflection's reversal and re-minted rows
+/// included ([`crate::mirror`]): the data map behind every `moved` door.
+/// A refusal of the map is a state the gate refuses, which a finished
+/// body or a leaf never holds; it is returned typed
+/// ([`ValidationError::Unmovable`]) rather than panicked on. Under a
+/// reflection the re-mint of a row can refuse, as a [`ValidationError::Pcurve`].
+pub(crate) fn moved_body<T: AtRestPolicy>(
+    body: &Body<T>,
+    iso: &crate::Isometry<T>,
+    tol: Tol,
+) -> Result<Body<T>, NotFinished> {
+    use crate::transform::TransformError as E;
+    let unmovable = |found| NotFinished::new(vec![ValidationError::Unmovable { found }]);
+    let refused = |e| match e {
+        E::Pcurve { source } => NotFinished::new(vec![ValidationError::Pcurve { finding: source }]),
+        E::NullScaffold { .. } => unmovable("a null-scaffold edge"),
+        E::NurbsPlaceholder => unmovable("a placeholder net"),
+        E::Corrupt { found } => unmovable(found),
+    };
+    match iso {
+        crate::Isometry::Proper(_) => crate::transform::map_isometry(body, iso).map_err(refused),
+        crate::Isometry::Improper(r) => crate::mirror::mirror_body(body, r, tol).map_err(refused),
+    }
+}
+
 impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
     type Scalar = T;
 
     fn into_body(self) -> Body<T> {
         Replay::into_body(self)
+    }
+
+    fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
+        Replay::moved(self, iso, tol)
     }
 }
 
@@ -135,6 +223,20 @@ pub trait LeafBody:
     /// The body, construction state again.
     #[must_use]
     fn into_body(self) -> Body<Self::Scalar>;
+
+    /// **This leaf under an isometry**, a leaf of the same kind: the
+    /// image's leaf at `f64` and `Probe` ([`AtRestPolicy::leaf`] of the
+    /// moved body, its finish held off the log), [`Replay::moved`] where
+    /// it is a replay. While the box-scalar switch lives a leaf's held
+    /// record must be what the box lane's taker decides of the same body,
+    /// and that taker runs tier 3 on the image, so a moved leaf is
+    /// finished again on its image; that re-finish goes with the switch,
+    /// and a finished value's move ([`FinishedBody::moved`]) runs none.
+    ///
+    /// # Errors
+    ///
+    /// [`NotFinished`]: the image's leaf's findings.
+    fn moved(&self, iso: &crate::Isometry<Self::Scalar>, tol: Tol) -> Result<Self, NotFinished>;
 }
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
@@ -143,6 +245,10 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     fn into_body(self) -> Body<T> {
         AtRestBody::into_body(self)
     }
+
+    fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
+        T::leaf(moved_body(self, iso, tol)?, tol)
+    }
 }
 
 impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
@@ -150,6 +256,10 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
 
     fn into_body(self) -> Body<T> {
         Replay::into_body(self)
+    }
+
+    fn moved(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, NotFinished> {
+        Replay::moved(self, iso, tol)
     }
 }
 
@@ -389,6 +499,84 @@ pub enum FindingFamily {
 }
 
 impl FindingFamily {
+    /// **Whether this family decides a fact of the shape up to
+    /// isometry** (`[topology.tiers]`): a distance, an angle, a side or
+    /// an incidence of the body with itself, or a fact of the run. Every
+    /// family but the session box does, so an isometry's image keeps the
+    /// verdict; [`FinishedBody::moved`] asks again every family that
+    /// does not ([`Self::asked_again`]). A new family states its answer
+    /// here.
+    #[must_use]
+    pub const fn up_to_isometry(self) -> bool {
+        match self {
+            Self::SessionBox => false,
+            Self::Tolerance
+            | Self::Structure
+            | Self::Scaffolding
+            | Self::Description
+            | Self::Convention
+            | Self::Certificate
+            | Self::Planar
+            | Self::Dihedral
+            | Self::Join
+            | Self::FaceSense
+            | Self::FaceRegion
+            | Self::Orientation
+            | Self::Census
+            | Self::Embedding
+            | Self::Interference => true,
+        }
+    }
+
+    /// **This family's question, asked of an isometry's image**: its
+    /// finding where it finds one. A family up to isometry
+    /// ([`Self::up_to_isometry`]) is not asked; a family that is not
+    /// states its question here.
+    pub(crate) fn asked_again<T: geom_core::Decide>(
+        self,
+        image: &Body<T>,
+        band: geom_core::Band,
+    ) -> Result<(), ValidationError> {
+        match self {
+            Self::SessionBox => crate::session_box::in_session_box(image, band),
+            Self::Tolerance
+            | Self::Structure
+            | Self::Scaffolding
+            | Self::Description
+            | Self::Convention
+            | Self::Certificate
+            | Self::Planar
+            | Self::Dihedral
+            | Self::Join
+            | Self::FaceSense
+            | Self::FaceRegion
+            | Self::Orientation
+            | Self::Census
+            | Self::Embedding
+            | Self::Interference => Ok(()),
+        }
+    }
+
+    /// Every family, in declaration order.
+    pub const ALL: [Self; 16] = [
+        Self::SessionBox,
+        Self::Tolerance,
+        Self::Structure,
+        Self::Scaffolding,
+        Self::Description,
+        Self::Convention,
+        Self::Certificate,
+        Self::Planar,
+        Self::Dihedral,
+        Self::Join,
+        Self::FaceSense,
+        Self::FaceRegion,
+        Self::Orientation,
+        Self::Census,
+        Self::Embedding,
+        Self::Interference,
+    ];
+
     /// The family's one text: what its findings say about the body.
     #[must_use]
     pub const fn text(self) -> &'static str {
@@ -469,6 +657,7 @@ impl ValidationError {
             | Self::OrphanEntity { .. }
             | Self::MultiplyOwned { .. }
             | Self::OrphanGeometry { .. }
+            | Self::Unmovable { .. }
             | Self::SolidWithoutShells { .. }
             | Self::ShellWithoutFaces { .. }
             | Self::EdgeAcrossShells { .. }

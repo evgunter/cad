@@ -11,35 +11,23 @@
 //!
 //! # Contract
 //!
-//! [`transform_rigid`]'s map is a [`RigidMotion`] (orthonormal linear
-//! part, determinant +1, finite): rigidity is **carried by the witness
-//! it was minted as, or admitted within rounding at the `f64` door**
-//! ([`RigidMotion::check_rigid`]), and this door asks nothing about it. A mirror's map is a
-//! [`crate::Reflection`], a Householder matrix (determinant −1) decided
-//! at its own door. A uniform scale is affinely self-consistent on planar
-//! bodies, so re-certification alone would NOT catch one while it
-//! silently broke every unit-vector convention downstream; the type is
-//! what keeps one out, to the type's own standard: a minted or
-//! door-admitted motion is rigid up to rounding, and a product of `k`
-//! of them — not decided again — within about `k` times that rounding
-//! (`RigidMotion`'s module docs). On top of that, every edge
-//! carrier is **re-attached** against the mapped geometry through the
-//! scalar's edge door ([`crate::AtRestPolicy::attach_edge`]: certified in
-//! full where the scalar certifies, minted where it never does) — so a
-//! map that breaks carrier consistency
-//! surfaces as a typed [`TransformError::Certify`] refusal, never as
-//! silently corrupt geometry. Re-running the checks rather than
-//! copying the old certificate keeps the certificate honest (D4 ¶2).
-//! A rigid map preserves sampled distances and implicit-form residuals
-//! up to rounding. The plane × NURBS lane's limb 2 reads the norm of
-//! each vector coefficient of its residual composite, which no rotation
-//! moves; a residue remains, ≈6e-13 m on the
-//! near-ε reproduction and not scaling with the residual, so an edge
-//! certified within that width of ε can still refuse, typed
-//! [`TransformError::Certify`]. An `Approx` face's `hull_sup` reads its
-//! vector upper bounds from coefficient norms, but its lower bounds are
-//! box-assembled in the ambient frame, so it can re-derive above ε for
-//! a face certified near it; that face is re-fitted (see `map_approx`).
+//! The map is an [`Isometry`], exact apart from rounding: a
+//! [`RigidMotion`] (rigidity carried by the witness it was minted as,
+//! or admitted within rounding at the `f64` door,
+//! [`RigidMotion::check_rigid`]) or a [`crate::Reflection`] (a
+//! Householder matrix decided at its own door). A scale has no spelling
+//! as either; a uniform one is affinely self-consistent, so no check on
+//! the image would catch it, and the type is what keeps it out.
+//!
+//! Every certificate is **carried**, never re-derived. A certificate
+//! states distances (an edge's `{samples, max_residual}`, a pcurve
+//! row's norms, an offset fit's limbs) and a turn in the carrier's own
+//! parameter, and an isometry keeps every distance and every
+//! parameter, so each certificate of the source is one of the image.
+//! The map decides nothing: [`transform_rigid`] and [`crate::mirror`]
+//! return construction state, which the finish that follows decides,
+//! and a finished body's own door ([`crate::FinishedBody::moved`])
+//! carries its verdict as well.
 //!
 //! # What maps how
 //!
@@ -50,19 +38,9 @@
 //! - curve carriers: same treatment per [`Curve3`] variant;
 //! - edge descriptions: [`EdgeDescription::Intersection`] keeps its
 //!   surface keys (the arenas are key-stable) and **RE-MINTS its
-//!   witness construction-fresh** — `witness′ = carrier′(mid)`, the
-//!   mapped carrier evaluated at the pinned mid parameter (the S2
-//!   formula the `WitnessMidpoint` check verifies) — never the mapped
-//!   stored witness. Ruled with Ev on PR #83: mapping stored
-//!   witnesses consumes inherited residual slack (a body certified
-//!   near ε could refuse after an exact-in-principle isometry, and
-//!   transform chains would ratchet); re-minting is per-entity local,
-//!   D9-deterministic, and writes nothing to satisfy a check — it is
-//!   the same formula construction uses. Consequence, the two-class
-//!   contract: bodies re-certify with construction-fresh residual
-//!   headroom regardless of stored-data marginality (the provable
-//!   class); what can still refuse is authored VERDICT marginality
-//!   (in-band classifications — Q1 bedrock), typed as always;
+//!   witness** from the mapped carrier at the pinned mid parameter, the
+//!   formula construction uses (ruled with Ev on PR #83), never the
+//!   mapped stored witness: one evaluation, no decision;
 //!   [`MappedCurve`] pre-composes the isometry into its rigid
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
@@ -70,47 +48,21 @@
 //!   POINTS, with knots and weights carried over verbatim: a rigid map
 //!   is affine, and the Euclidean-storage section of `geom`'s
 //!   `curves::nurbs` data model is where the commutation that makes
-//!   the mapped net the exact IMAGE — never a re-fit — is argued. No
-//!   certificate rides on a net, so nothing has to be re-derived,
-//!   which is the whole of why this arm maps where `Approx` refuses;
+//!   the mapped net the exact IMAGE — never a re-fit — is argued;
 //! - the `Nurbs` PLACEHOLDER — and only it — is refused typed (its
 //!   evaluation is all-poison; transforming one would launder poison
-//!   as geometry).
-
-//! - approximating surfaces: the offset DESCRIPTION's base net and the
-//!   FIT net both by the full affine map (weights and knots are
-//!   invariants of it — [`geom::NurbsSurface::map_points`]), `d`, the
-//!   window unchanged, and the two-limb certificate **re-derived** at
-//!   the run's ε on the mapped pair through the injected fit door
-//!   ([`geom_brep::OffsetFitLane::remap`]) — never the stored one,
-//!   which is a claim about a different geometry. The
-//!   composition law is what makes the mapped pair a pair at all: an
-//!   isometry carries unit normals to unit normals, so
-//!   `M(S + d·n) = M(S) + d·M·n`, and `M·n` is the mapped net's chart
-//!   normal under a rigid map and its negation under a reflection, which
-//!   therefore negates `d`. The certificate's hull bound is not
-//!   frame-invariant, so the image of a face that certifies where it
-//!   stands can re-derive above ε on a limb; that face is re-fitted
-//!   construction-fresh on the mapped description through the same
-//!   door's mint, as the witnesses are re-minted, rather than refused.
-//!   A meter that goes in-band in the new frame, and an edge that rode
-//!   the replaced fit net, can still refuse (`map_approx` says which).
-//!   A run with no fit door refuses
-//!   [`TransformError::ApproxLaneUnsupported`] naming its scalar, and a fit
-//!   door that refuses — the image of a face that does not certify
-//!   where it stands, or the moved description itself — refuses
-//!   [`TransformError::ApproxRecertify`] with its own error verbatim;
+//!   as geometry);
+//! - approximating surfaces: the offset description's base net and the
+//!   fit net by the full affine map, `d` negated under a reflection,
+//!   the window and the certificate carried (`map_approx`).
 
 use std::sync::Arc;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{
-    CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, MappedSource,
-};
+use geom_brep::{EdgeDescription, MappedCurve, MappedSource};
 use geom_core::Tol;
-use geom_core::predicate::{Band, BandError};
-use geom_core::{Affine3, Decide, Point3, Real, RigidMotion, Vec3};
+use geom_core::{Affine3, Decide, Real, RigidMotion, Vec3};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -121,26 +73,13 @@ use crate::null::CurveGeom;
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum TransformError {
-    /// Re-deriving the body's pcurve caches against the mapped
-    /// geometry refused (M5 PR 6). A rigid map cannot break a valid
-    /// body's chart images, so this is loud by design rather than
-    /// expected.
+    /// The mirror's re-mint of the image's pcurve rows refused
+    /// ([`crate::mirror`]): a row on an analytic chart, restated with its
+    /// azimuth, lands on a branch other than the one a fresh mint takes,
+    /// so the mirror derives its rows afresh.
     Pcurve {
         /// The typed pcurve-pass refusal, nested whole.
         source: crate::pcurves::PcurveMintError,
-    },
-    /// The run's tolerance could not form a classification band.
-    Band(BandError),
-    /// Re-certification of a mapped edge carrier failed: the input
-    /// body's geometry was already out of certification, or the mapped
-    /// data no longer certify together (at an enclosure scalar, a
-    /// widened motion's images are enclosed apart). Read the nested
-    /// `source` for which check refused.
-    Certify {
-        /// The edge whose carrier failed.
-        edge: EdgeKey,
-        /// The certification refusal, unaltered.
-        source: CertifyError,
     },
     /// The body carries a null-scaffold edge: what an unfinished edit
     /// leaves behind (a lone `mev_null` on a fresh face, say). At a
@@ -158,25 +97,6 @@ pub enum TransformError {
     /// it would launder poison as geometry. A DESCRIBED net is not
     /// this arm: it maps, by its control points.
     NurbsPlaceholder,
-    /// An approximating surface with no fit door in hand: its
-    /// certificate cannot be re-derived on the mapped pair, and a
-    /// certificate is never carried across a geometry change.
-    ///
-    /// Where `Some` comes from, and what its absence means:
-    /// [`crate::AtRestPolicy::offset_fit_lane`].
-    ApproxLaneUnsupported {
-        /// The scalar the map ran at ([`geom_core::Real::NAME`]).
-        scalar: &'static str,
-    },
-    /// The fit door refused a mapped approximating surface: the image
-    /// of a fit that does not certify in its own frame either (a limb
-    /// above tolerance), a door meter, a window the derivation does not
-    /// cover, or the fresh fit of the mapped description that a sound
-    /// face's refused image falls back to.
-    ApproxRecertify {
-        /// The fit door's typed refusal, unaltered.
-        source: geom_brep::OffsetFitError,
-    },
     /// The body is corrupt (the validators would refuse it too): a
     /// reference that does not resolve, an arena entry nothing
     /// references, or an image no door builds.
@@ -188,8 +108,8 @@ pub enum TransformError {
 
 impl TransformError {
     /// This refusal's text, ended at `at` where it is `Some`: a nested
-    /// certification or pcurve refusal reads at that door, a defect ends
-    /// in the door's defect ending ([`geom_brep::recourse::defect_ending`]),
+    /// pcurve refusal reads at that door, a defect ends in the door's
+    /// defect ending ([`geom_brep::recourse::defect_ending`]),
     /// and scaffolding ends in its edit's lever at a build. `None` writes
     /// the payload alone, its `Display`.
     fn write(
@@ -197,17 +117,11 @@ impl TransformError {
         f: &mut core::fmt::Formatter<'_>,
         at: Option<geom_brep::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        use geom_brep::recourse::{ReadAt, read_at};
+        use geom_brep::recourse::ReadAt;
         let defect = at.map(geom_brep::recourse::defect_ending);
         let ended = |defect: Option<&str>| defect.map(|d| format!(". {d}")).unwrap_or_default();
         match self {
-            Self::Pcurve { source } => write!(f, "{}", read_at(source, at)),
-            Self::Band(e) => write!(f, "{e}"),
-            Self::Certify { source, .. } => write!(
-                f,
-                "an edge the map moved failed re-certification: {}",
-                read_at(source, at)
-            ),
+            Self::Pcurve { source } => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
             Self::NullScaffold { .. } if at.is_some_and(ReadAt::is_build) => write!(
                 f,
                 "the body still carries what an edit left behind, which the map cannot \
@@ -226,21 +140,6 @@ impl TransformError {
                      cannot move"
                 ),
             },
-            Self::ApproxLaneUnsupported { scalar } => write!(
-                f,
-                "an approximating surface cannot be moved at the {scalar} scalar with no \
-                 offset-fit door in hand: its certificate is re-derived on the moved pair, and \
-                 only {holders} holds that door (the fit is derived there alone). Recourse: \
-                 move the body at {holders}",
-                holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
-            ),
-            // The fit door's meter ends at a build at every door that
-            // reads the map's refusal.
-            Self::ApproxRecertify { source } => write!(
-                f,
-                "a moved approximating surface could not be re-certified or re-fitted: {}",
-                read_at(source, geom_brep::recourse::at_build(at))
-            ),
             Self::NurbsPlaceholder => write!(
                 f,
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
@@ -280,23 +179,32 @@ pub(crate) enum Hand {
     Improper,
 }
 
-/// **The map an isometry door applies**: a rigid motion, or a reflection
-/// as its affine map. A frame under a proper map is [`geom::Frame::moved`];
-/// under an improper one each kind states its own image ([`Hand`]).
+/// **An isometry exact apart from rounding** (`[topology.tiers]`): a
+/// rigid motion, or a reflection across a plane. These are the only two
+/// maps a finished body's verdict survives ([`crate::FinishedBody::moved`]):
+/// every finding but the session box decides a fact of the shape up to
+/// isometry. A map that is not one (a scale, a shear, an offset) has no
+/// spelling here, so its image is construction state and only
+/// [`crate::finish`] makes it a finished body: a scale changes every
+/// length the gate compares against ε.
+///
+/// Both arms are exact by construction or re-minted at their door
+/// ([`RigidMotion::check_rigid`], [`crate::Reflection::across`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum Isometry<T: Real> {
-    /// A rigid motion.
+pub enum Isometry<T: Real> {
+    /// A rigid motion (determinant `+1`).
     Proper(RigidMotion<T>),
-    /// An improper isometry's map (determinant `−1`).
-    Improper(Affine3<T>),
+    /// A reflection (determinant `−1`).
+    Improper(crate::Reflection<T>),
 }
 
 impl<T: Real> Isometry<T> {
     /// The map as an affine one.
-    fn affine(&self) -> Affine3<T> {
+    #[must_use]
+    pub fn to_affine(&self) -> Affine3<T> {
         match self {
             Self::Proper(motion) => motion.to_affine(),
-            Self::Improper(map) => *map,
+            Self::Improper(reflection) => reflection.to_affine(),
         }
     }
 
@@ -337,11 +245,10 @@ impl Hand {
 /// crosses as `−M·n`, already inside out, and its `sense` is kept.
 /// [`crate::Body::revert`]'s map then reverses every loop's cycle and
 /// every outward side once ([`crate::mirror`]).
-fn map_surface<T: Decide + crate::props::AtRestPolicy>(
+fn map_surface<T: Real>(
     map: &Affine3<T>,
     hand: Hand,
     s: &Surface<T>,
-    tol: Tol,
 ) -> Result<Surface<T>, TransformError> {
     Ok(match *s {
         // The normal is the face's outward side, so the inside-out
@@ -427,99 +334,46 @@ fn map_surface<T: Decide + crate::props::AtRestPolicy>(
             }
             Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
         }
-        Surface::Approx(ref a) => Surface::Approx(map_approx(
-            map,
-            hand,
-            a,
-            tol,
-            <T as crate::props::AtRestPolicy>::offset_fit_lane(),
-        )?),
+        Surface::Approx(ref a) => Surface::Approx(Arc::new(map_approx(map, hand, a))),
     })
 }
 
-/// The mapped approximating surface: the mapped description, and a fit
-/// certified against it at the run's ε (`tol`, the number tier 3
-/// classifies against) — the IMAGE of the operand's fit where that
-/// certifies, a fresh fit of the mapped description where it does not.
+/// **The mapped approximating surface**: the offset description's base
+/// net and the fit net by the full affine map (weights and knots are
+/// invariants of it), `d` negated under a reflection, the window and
+/// the certificate carried.
 ///
-/// The image is a pair by the composition law (module docs), but its
-/// certificate is re-derived, never carried: `hull_sup`'s lower bounds
-/// (the regularity floor and the floors on `‖E‖`) are assembled from
-/// ambient-frame control hulls and move under a rotation (`geom-brep`'s
-/// composition-law row pins that it does). The fit loop
-/// stops at the first round that certifies, so a sound face can sit
-/// within that drift of ε and its image re-derive above it.
-///
-/// **A LIMB refusal of a sound face's image is answered by re-fitting**:
-/// the mint door runs on the mapped description at the same `tol`, and
-/// what it certifies ships. "Sound" is decided, not assumed — the
-/// operand is re-derived at `tol` in its own frame first, and one that
-/// fails there (degraded, planted, minted at a looser ε) refuses with
-/// the image's limb, so the map cannot launder a body tier 3 rejects.
-/// `rounds` is carried onto an image; a re-fit carries its own.
-///
-/// **What this does not cover**, both open as
-/// `work/encl/a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters.md`:
-///
-/// - **Meters.** The regularity floor and the collapse headroom are
-///   box-assembled over the MAPPED base, so a sound face whose meter
-///   goes in-band after a rotation refuses `ApproxRecertify { Meter }`,
-///   and a re-fit runs the same meters on the same base, so it cannot
-///   answer. Meter and window refusals are passed on verbatim.
-/// - **Edges on a re-fitted face.** A re-fit replaces the fit net, and
-///   the edges whose carrier or chart image rides the old net's bits
-///   (a `Chart` image on the fit, the iso rows `replace_face` cuts from
-///   `approx.fit()`) are mapped control-point-wise and re-certified
-///   against the NEW net below, so they can still refuse
-///   [`TransformError::Certify`] or [`TransformError::Pcurve`].
-///
-/// A refusal of the re-fit itself — the loop cannot reach ε in the new
-/// frame — is `ApproxRecertify` with the mint door's error. `offset_fit`
-/// is the door, as a parameter ([`crate::AtRestPolicy::offset_fit_lane`]
-/// says what `None` means); with none the map refuses typed rather than
-/// carry a certificate across a geometry change.
-fn map_approx<T: Decide>(
+/// The image is a pair by the composition law: an isometry carries unit
+/// normals to unit normals, so `M(S + d·n) = M(S) + d·M·n`, and `M·n` is
+/// the mapped net's chart normal under a rigid map and its negation
+/// under a reflection. The certificate bounds the distance between the
+/// fit and the description, which the isometry keeps, so it is the
+/// image's. Re-deriving it would read hull bounds assembled in the
+/// ambient frame, which move under a rotation, and could refuse a sound
+/// face's image.
+fn map_approx<T: Real>(
     map: &Affine3<T>,
     hand: Hand,
     a: &geom::ApproxSurface<T>,
-    tol: Tol,
-    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
-) -> Result<Arc<geom::ApproxSurface<T>>, TransformError> {
-    let Some(lane) = offset_fit else {
-        return Err(TransformError::ApproxLaneUnsupported { scalar: T::NAME });
-    };
+) -> geom::ApproxSurface<T> {
     let old = a.spec();
     let geom::SurfaceDescription::Offset { ref base, d } = old.description;
     let base = Arc::new(base.map_points(|p| map.transform_point(p)));
-    // A reflected net's chart normal is the reflected normal negated,
-    // so the same offset surface stands at the opposite signed distance.
     let d = match hand {
         Hand::Proper => d,
         Hand::Improper => -d,
     };
     let spec = geom::SurfaceSpec {
-        description: geom::SurfaceDescription::Offset {
-            base: Arc::clone(&base),
-            d,
-        },
+        description: geom::SurfaceDescription::Offset { base, d },
         fit: old.fit.map_points(|p| map.transform_point(p)),
         window: old.window,
     };
-    let rounds = a.certificate().rounds;
-    let image = geom::ApproxSurface::certify(spec, |description, fit, window| {
-        lane.remap(description, fit, window, tol)
-            .map(|certificate| certificate.carrying_rounds(rounds))
-    });
-    match image {
-        Ok(image) => Ok(Arc::new(image)),
-        Err(source @ geom_brep::OffsetFitError::Limb { .. }) => {
-            if lane.recertify(a, tol).is_err() {
-                return Err(TransformError::ApproxRecertify { source });
-            }
-            lane.mint(base, d, tol)
-                .map_err(|source| TransformError::ApproxRecertify { source })
-        }
-        Err(source) => Err(TransformError::ApproxRecertify { source }),
+    let certificate = a.certificate().clone();
+    match geom::ApproxSurface::certify(spec, |_, _, _| {
+        Ok::<_, core::convert::Infallible>(certificate)
+    }) {
+        Ok(image) => image,
+        Err(never) => match never {},
     }
 }
 
@@ -527,12 +381,12 @@ fn map_approx<T: Decide>(
 /// carrier has no outward side, and keeping its parameter keeps every
 /// edge's range and its forward half-edge.
 fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {
-    let (map, hand) = (&iso.affine(), iso.hand());
+    let (map, hand) = (&iso.to_affine(), iso.hand());
     // A conic's frame: the frame's own image under a motion, and under a
     // reflection the axial axis, so the image keeps its parameter.
     let frame = |f: &geom::Frame<T>| match iso {
         Isometry::Proper(motion) => f.moved(motion),
-        Isometry::Improper(map) => geom::Frame::new(
+        Isometry::Improper(_) => geom::Frame::new(
             map.transform_point(f.origin),
             hand.axial(map, f.axis),
             map_vec(map, f.u_ref),
@@ -601,38 +455,20 @@ fn map_carrier<T: Real>(iso: &Isometry<T>, c: &Curve3<T>) -> Result<Curve3<T>, T
 /// operand's contact records therefore carry as
 /// [`crate::ContactRecords::carried_from`]`(0)`.
 ///
-/// Every edge carrier is re-certified against the mapped endpoints and
-/// mapped surfaces — see the module docs for the contract and the
-/// refusal doors.
-///
-/// # Panics
-///
-/// On a kernel bug: an edge the body stores, re-minted or restated on its
-/// own carrier and interval, whose span or winding reads certainly
-/// refused at the run's band.
+/// It is the construction-state map: every certificate is carried as
+/// data and nothing is decided, so the body is what the finish that
+/// follows it decides. A finished body moves through its own door,
+/// [`crate::FinishedBody::moved`], which carries the verdict too.
 ///
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
+pub fn transform_rigid<T: Decide>(
     body: &Body<T>,
     motion: &RigidMotion<T>,
-    tol: Tol,
+    _tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let mut out = map_isometry(body, &Isometry::Proper(*motion), tol)?;
-    // Pcurve caches (M5 PR 6, C4): the SAME posture as carriers and
-    // witnesses — construction-fresh re-derivation against the mapped
-    // geometry, never a mapped stored cache. A rigid map carries the
-    // chart frame with the surface, so chart coordinates are invariant
-    // and the re-derived caches are the same numbers; running the
-    // derivation anyway is what keeps the certificate honest (D4 ¶2).
-    // An operand at rest stores a row on every face that owes one, so an
-    // operand storing none has no face that does.
-    if out.pcurves().next().is_some() {
-        crate::pcurves::mint_pcurves(&mut out, tol)
-            .map_err(|source| TransformError::Pcurve { source })?;
-    }
-    Ok(out)
+    map_isometry(body, &Isometry::Proper(*motion))
 }
 
 /// The chart image `image` on `surface` of `body` under a map of `hand`:
@@ -656,7 +492,6 @@ fn mapped_image<T: Real>(
         }
     }
 }
-
 /// **An edge's chart image under a reflection, in the inside-out
 /// image's own terms** ([`map_isometry`] at [`Hand::Improper`]).
 ///
@@ -759,44 +594,43 @@ impl OrientationClass {
     }
 }
 
-/// The geometry half of [`transform_rigid`] and [`crate::mirror`]: every
-/// datum of `body` under `map`, topology and keys untouched, every edge
-/// re-certified. The pcurve rows are left as found, for the caller to
-/// re-mint once the body is whole.
+/// The data map behind [`transform_rigid`], [`crate::mirror`] and
+/// [`crate::FinishedBody::moved`]: every datum of `body` under `iso`,
+/// topology and keys untouched, every certificate carried. Nothing is
+/// decided and nothing is certified again: an isometry exact apart from
+/// rounding keeps every distance a certificate states, so each
+/// certificate of the source is one of the image. A witness is re-minted
+/// from the mapped carrier at its pinned mid parameter, as construction
+/// mints it.
 ///
 /// Under [`Hand::Improper`] the result is the reflected body INSIDE OUT
 /// ([`Hand`]): the analytic faces' outward side is flipped on their
 /// `sense`, since their mapped frames carry the outward normal across,
-/// and an edge image in an analytic chart has its azimuth negated with
-/// the chart.
-pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
+/// and an edge image on an analytic chart has its azimuth negated with
+/// the chart. Its pcurve rows and joints are left as found, for the
+/// mirror to re-mint ([`crate::mirror`]).
+pub(crate) fn map_isometry<T: Decide>(
     body: &Body<T>,
     iso: &Isometry<T>,
-    tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let (map, hand) = (&iso.affine(), iso.hand());
-    let band = Band::linear(tol).map_err(TransformError::Band)?;
+    let (map, hand) = (&iso.to_affine(), iso.hand());
     let mut out = body.clone();
 
-    // Points and surfaces first — edge re-certification below reads
-    // the MAPPED versions of both.
     for (_k, p) in &mut out.points {
         *p = map.transform_point(*p);
     }
     let mut mapped_surfaces = Vec::new();
     for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, hand, s, tol)?));
+        mapped_surfaces.push((k, map_surface(map, hand, s)?));
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
     }
 
     // Curves: walk the EDGES (each edge names its curve; tier 1 keeps
-    // the reference well-formed), map description + carrier, and
-    // re-certify against the mapped endpoints and surfaces. Track
-    // which curve keys were rewritten so an orphaned curve entry —
-    // which the walk would silently leave UNMAPPED — is refused as
-    // corruption instead.
+    // the reference well-formed). Track which curve keys were rewritten
+    // so an orphaned curve entry, which the walk would leave UNMAPPED,
+    // is refused as corruption instead.
     let mut rewritten: SecondaryMap<CurveKey, ()> = SecondaryMap::new();
     let edge_keys: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for ek in edge_keys {
@@ -804,8 +638,8 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             found: "an edge vanished mid-walk",
         })?;
         let curve_key = edge.curve;
-        let old = match out.curves.get(curve_key) {
-            Some(CurveGeom::Certified(ec)) => ec.clone(),
+        let old = match body.curves.get(curve_key) {
+            Some(CurveGeom::Certified(ec)) => ec,
             Some(CurveGeom::NullScaffold(_)) => {
                 return Err(TransformError::NullScaffold { edge: ek });
             }
@@ -815,24 +649,13 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
                 });
             }
         };
-        let (vs, ve) = out.edge_vertices(ek).ok_or(TransformError::Corrupt {
-            found: "an edge references a missing half-edge",
-        })?;
-        let (start, end) = (endpoint(&out, vs)?, endpoint(&out, ve)?);
+        if rewritten.contains_key(curve_key) {
+            continue;
+        }
         let (param_start, param_end) = old.params();
         let carrier = map_carrier(iso, old.carrier())?;
-        // A sketch pushforward is stated in 3-space, so the authority
-        // record travels with the map.
-        let declared = || {
-            old.authority()
-                .declared()
-                .map(|mc| map_mapped_curve(map, hand, &mc))
-        };
         let description = match old.description() {
-            // Re-mint (module docs above): construction-fresh witness
-            // from the MAPPED carrier at the pinned mid parameter
-            // (params are transform-invariant).
-            EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
+            EdgeDescription::Intersection { pair, selector } => EdgeDescription::Intersection {
                 pair: *pair,
                 selector: match selector {
                     witness @ geom_brep::CurveSelector::Witness(_) => {
@@ -855,64 +678,37 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
                     }
                 },
             },
-            // TangentIntersection maps as Intersection does: keys are
-            // stable, the witness re-mints from the mapped carrier.
             EdgeDescription::TangentIntersection { pair, .. } => {
-                EdgeDescriptionSpec::TangentIntersection {
+                EdgeDescription::TangentIntersection {
                     pair: *pair,
                     witness: carrier.mid_point(param_start, param_end),
                 }
             }
-            // The pair's keys are stable.
-            EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair {
-                pair: *pair,
-                declared: declared(),
-            },
-            // A chart image is a PARAMETER-SPACE fact, invariant under
-            // a rigid map: the mapped SURFACE carries the whole map,
-            // and the image on it is the image it always was (M6-3;
-            // a seam is likewise defined by its key-stable surface).
-            EdgeDescription::Chart(c) => {
-                let image = mapped_image(body, c.surface, &c.pcurve, hand)?;
-                EdgeDescriptionSpec::Chart {
-                    surface: c.surface,
-                    image: Some(image),
-                    wrap: c.wrap,
-                    declared: declared(),
-                }
-            }
+            EdgeDescription::OnPair { pair } => EdgeDescription::OnPair { pair: *pair },
+            // A chart image is a PARAMETER-SPACE fact: under a proper map
+            // the mapped surface carries the whole map, and under a
+            // reflection the image is restated with its chart.
+            EdgeDescription::Chart(c) => EdgeDescription::Chart(geom_brep::ChartCurve {
+                surface: c.surface,
+                pcurve: mapped_image(body, c.surface, &c.pcurve, hand)?,
+                wrap: c.wrap,
+            }),
             EdgeDescription::Scaffold(mc) => {
-                EdgeDescriptionSpec::Scaffold(map_mapped_curve(map, hand, mc))
+                EdgeDescription::Scaffold(map_mapped_curve(map, hand, mc))
             }
         };
-        let spec = EdgeCurveSpec {
-            description,
-            carrier,
-            param_start,
-            param_end,
+        // A sketch pushforward is stated in 3-space, so the authority
+        // record travels with the map.
+        let authority = match old.authority() {
+            geom_brep::EdgeAuthority::Derived => geom_brep::EdgeAuthority::Derived,
+            geom_brep::EdgeAuthority::Declared(mc) => {
+                geom_brep::EdgeAuthority::Declared(map_mapped_curve(map, hand, &mc))
+            }
         };
-        let surfaces = |k| out.surfaces.get(k).cloned();
-        // An isometry keeps every length, so the wedge's reach is the
-        // source body's, read before `out`'s curves are half mapped.
-        let reach = crate::wedge_reach(
-            body,
-            crate::edge_faces(body, ek),
-            old.carrier(),
-            (param_start, param_end),
-        );
-        let origin =
-            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::RigidTransform);
-        let mapped = crate::policy_lane::certify(origin, spec, start, end, surfaces, reach, band)
-            .map_err(|source| TransformError::Certify { edge: ek, source })?;
-        out.curves[curve_key] = CurveGeom::Certified(mapped);
+        out.curves[curve_key] = CurveGeom::Certified(old.carried(carrier, description, authority));
         rewritten.insert(curve_key, ());
     }
-    if let Some(_orphan) = out
-        .curves
-        .iter()
-        .map(|(k, _)| k)
-        .find(|&k| !rewritten.contains_key(k))
-    {
+    if out.curves.iter().any(|(k, _)| !rewritten.contains_key(k)) {
         return Err(TransformError::Corrupt {
             found: "a curve entry is referenced by no edge",
         });
@@ -934,22 +730,6 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     Ok(out)
-}
-
-/// The mapped world position of vertex `vk`.
-fn endpoint<T: Real>(
-    body: &Body<T>,
-    vk: crate::entity::VertexKey,
-) -> Result<Point3<T>, TransformError> {
-    let v = body.vertices.get(vk).ok_or(TransformError::Corrupt {
-        found: "a half-edge references a missing vertex",
-    })?;
-    body.points
-        .get(v.point)
-        .copied()
-        .ok_or(TransformError::Corrupt {
-            found: "a vertex references a missing point",
-        })
 }
 
 /// The pushforward under `map ∘ place`: the sketch datum stays as
@@ -997,6 +777,7 @@ mod tests {
 
     use super::*;
     use geom::{NurbsCurve3, NurbsSurface};
+    use geom_core::Point3;
     use geom_core::spline::KnotVector;
 
     /// A translation: rigid, with exact entries.
@@ -1045,12 +826,7 @@ mod tests {
     #[test]
     fn the_surface_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_surface(
-                &aside(),
-                Hand::Proper,
-                &Surface::nurbs_placeholder(),
-                Tol::witness()
-            ),
+            map_surface(&aside(), Hand::Proper, &Surface::nurbs_placeholder()),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -1070,8 +846,7 @@ mod tests {
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
-        let after =
-            map_surface(&map, Hand::Proper, &before, Tol::witness()).expect("a described net maps");
+        let after = map_surface(&map, Hand::Proper, &before).expect("a described net maps");
         let (Surface::Nurbs(b), Surface::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -1113,11 +888,11 @@ mod tests {
         }
     }
     /// A reflection across a plane tilted off every world axis.
-    fn reflection() -> Affine3<f64> {
-        let band = Band::linear(Tol::witness()).expect("the witness band");
+    fn reflection() -> crate::Reflection<f64> {
+        let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
         let n = geom_core::UnitVec3::new(Vec3::new(1.0, 2.0, 2.0) / 3.0, "mirror", band)
             .expect("a unit normal");
-        crate::mirror::Reflection::across_unit(Point3::new(0.3, -0.2, 0.1), n).to_affine()
+        crate::mirror::Reflection::across_unit(Point3::new(0.3, -0.2, 0.1), n)
     }
 
     /// **A reflection keeps each carrier kind's parameter**: the image
@@ -1125,7 +900,8 @@ mod tests {
     /// rule (a conic's axial axis; a spiric's seam and stand-off negated).
     #[test]
     fn a_reflection_keeps_a_carriers_parameter_kind_by_kind() {
-        let m = reflection();
+        let r = reflection();
+        let m = r.to_affine();
         let (c, a) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
         let u = Vec3::new(1.0, -2.0, 2.0) / 3.0;
         let frame = geom::Frame::new(c, a, u);
@@ -1148,7 +924,7 @@ mod tests {
             ),
         ];
         for (kind, carrier) in kinds {
-            let image = map_carrier(&Isometry::Improper(m), &carrier).expect("an analytic carrier");
+            let image = map_carrier(&Isometry::Improper(r), &carrier).expect("an analytic carrier");
             for k in 0..12 {
                 let t = f64::from(k) * 0.53 - 2.0;
                 let off = (image.eval(t) - m.transform_point(carrier.eval(t))).norm();
@@ -1165,7 +941,8 @@ mod tests {
     /// revolution with its azimuth negated (its frame forward).
     #[test]
     fn a_reflection_maps_each_analytic_chart_kind_by_kind() {
-        let m = reflection();
+        let r = reflection();
+        let m = r.to_affine();
         let (o, a) = (Point3::new(0.5, -1.0, 2.0), Vec3::new(2.0, 2.0, 1.0) / 3.0);
         let u_ref = Vec3::new(1.0, -2.0, 2.0) / 3.0;
         let kinds = [
@@ -1221,8 +998,7 @@ mod tests {
             ),
         ];
         for (kind, surface, azimuth) in kinds {
-            let image = map_surface(&m, Hand::Improper, &surface, Tol::witness())
-                .expect("an analytic surface");
+            let image = map_surface(&m, Hand::Improper, &surface).expect("an analytic surface");
             for k in 0..9 {
                 let (s, t) = (f64::from(k) * 0.61 - 2.0, f64::from(k) * 0.17 - 0.6);
                 let want = m.transform_point(surface.eval(azimuth * s, t));
@@ -1269,76 +1045,46 @@ mod tests {
     }
 }
 
-/// **The transform door's fit door, as the pass takes it** — the rows
-/// that say what each of its two answers costs.
-///
-/// [`map_approx`] is called directly because these rows are about the
-/// PARAMETER: [`map_surface`] reads the scalar's own seam
-/// (`crate::AtRestPolicy::offset_fit_lane`), and a row that could only reach the
-/// door the seam hands it could not tell an absent door from a scalar
-/// that has none.
+/// The offset face under a map: its certificate carried.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod offset_fit_door_rows {
-    use geom_brep::OffsetFitLane;
+mod approx_rows {
     use geom_core::{Affine3, Point3, Tol, Vec3};
 
-    use super::{TransformError, map_approx};
+    use super::map_approx;
 
-    /// A rotation about `z` — a rigid map that genuinely re-splits the
-    /// hull bound across the axes, so the re-derivation has work to do.
+    /// A rotation about `z`, which re-splits an ambient-frame hull bound
+    /// across the axes.
     fn turned() -> Affine3<f64> {
         Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 0.7)
     }
 
-    /// **No door: the map refuses**, naming the scalar it ran at — here
-    /// `f64`, the door's own scalar, handed none — and the certificate
-    /// is never carried across a geometry change.
+    /// **A mapped offset face is the image of its operand, its
+    /// certificate carried**: the description's base net and the fit net
+    /// by the map point for point, the certificate the operand's limb for
+    /// limb, and the mapped pair re-derives within the run's ε, so the
+    /// carried certificate's claim holds of the image.
     #[test]
-    fn no_door_refuses_the_mapped_surface_by_name() {
-        let tol = Tol::witness();
-        let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        match map_approx(&turned(), super::Hand::Proper, &approx, tol, None) {
-            Err(TransformError::ApproxLaneUnsupported { scalar }) => assert_eq!(scalar, "f64"),
-            other => panic!("the absence must name the scalar the map ran at: {other:?}"),
-        }
-    }
-
-    /// **The `f64` door re-derives on the mapped pair**, and what it
-    /// hands back is `geom-brep`'s own certifier run on that pair, limb
-    /// for limb, bit for bit — the assertion that the body moved rather
-    /// than being rewritten. `rounds` is the FIT's provenance and is
-    /// carried, which is why it is read off the operand.
-    ///
-    /// **The reference is the FREE FUNCTION, not the door**, the way
-    /// the mint and recertify twins pin theirs. Comparing the door
-    /// against its own `remap` would compare the door with itself and
-    /// could not see that body re-pointed — at `certify_offset_at`,
-    /// say, which drops the window rule. The free door here is the
-    /// `Tol` one, at the same witness the map was handed.
-    #[test]
-    fn the_f64_door_re_derives_the_mapped_pair() {
+    fn a_mapped_offset_face_carries_its_certificate() {
         let tol = Tol::witness();
         let map = turned();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        let mapped = map_approx(
-            &map,
-            super::Hand::Proper,
-            &approx,
-            tol,
-            Some(OffsetFitLane::fit()),
-        )
-        .expect("a rigid map of a certified fit re-certifies at the run's ε");
-        let spec = mapped.spec();
-        let reference =
-            geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol)
-                .expect("`geom-brep`'s certifier measures the mapped pair");
-        let got = mapped.certificate();
-        crate::fixtures::assert_certificates_agree("the mapped pair", got, &reference);
-        assert_eq!(
-            got.rounds,
-            approx.certificate().rounds,
-            "`rounds` is the fit's provenance and is carried, not re-measured"
+        let mapped = map_approx(&map, super::Hand::Proper, &approx);
+        crate::fixtures::assert_certificates_agree(
+            "the carried certificate",
+            mapped.certificate(),
+            approx.certificate(),
         );
+        for (p, q) in approx.fit().control().iter().zip(mapped.fit().control()) {
+            let want = map.transform_point(*p);
+            assert_eq!(
+                (q.x, q.y, q.z),
+                (want.x, want.y, want.z),
+                "the fit net maps by its points"
+            );
+        }
+        let spec = mapped.spec();
+        geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol)
+            .expect("the mapped pair certifies at the run's ε");
     }
 }

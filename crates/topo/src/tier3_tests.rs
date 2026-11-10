@@ -1368,16 +1368,12 @@ fn wrong_cache_at_rest_is_rejected_by_tier3() {
     );
 }
 
-/// **A stored arc past a full turn is typed at rest and a kernel bug
-/// where the kernel re-mints it** (`[failure]`): an arc minted at a band
-/// coarser than the run's, whose headroom to a full turn that band read
-/// as zero, planted in a body's arena (a state no door produces). The
-/// tier-3 validator reports it as a defect at rest; a rigid motion's
-/// re-mint of it, at the run's one band, panics as a kernel bug at its
-/// call site, rather than returning a refusal that names the caller's
-/// input.
+/// **A stored arc past a full turn is typed at rest** (`[failure]`): an
+/// arc minted at a band coarser than the run's, whose headroom to a full
+/// turn that band read as zero, planted in a body's arena (a state no
+/// door produces). The tier-3 validator reports it as a defect at rest.
 #[test]
-fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
+fn a_planted_arc_past_a_turn_is_typed_at_rest() {
     let tol = Tol::witness();
     let (mut body, split) = coplanar_pillow(tol);
     let past = 10.0 * tol.k() * tol.eps();
@@ -1410,10 +1406,6 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
         )),
         "at rest, typed: {errs:?}"
     );
-
-    panics_as_a_kernel_bug_at(KernelSite::RigidTransform, || {
-        let _ = crate::transform_rigid(&body, &geom_core::RigidMotion::identity(), tol);
-    });
 }
 
 /// The pillow with its split chord's curve swapped for an arc of the

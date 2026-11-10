@@ -894,7 +894,7 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
     let evaluation = evaluate::<f64>(doc, None, &cancel, &EvalOptions::default(), tol);
     let product = pncad::document::product_recorded(doc, &evaluation, tol)
         .map_err(|error| no_product(error, doc))?;
-    product_in_world(product, doc, tol).map_err(|error| no_product(error, doc))
+    product_in_world(product, tol).map_err(|error| no_product(error, doc))
 }
 
 /// **A gathered product as the picture draws it**: its body in the
@@ -906,14 +906,12 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
 ///
 /// # Errors
 ///
-/// The door's [`ProductError::Frame`] and [`ProductError::ProductInvalid`]
-/// refusals.
+/// The door's [`ProductError::ProductInvalid`] refusal.
 pub fn product_in_world(
     product: pncad::document::Product<f64>,
-    doc: &Doc<ProfileProgram>,
     tol: Tol,
 ) -> Result<Body<f64>, ProductError> {
-    let composed = match pncad::export::product_body_in_space(&product, doc, tol) {
+    let composed = match pncad::export::product_body_in_space(&product, tol) {
         Ok(std::borrow::Cow::Owned(body)) => Some(body.into_body()),
         Ok(std::borrow::Cow::Borrowed(_)) => None,
         Err(error) => return Err(error),

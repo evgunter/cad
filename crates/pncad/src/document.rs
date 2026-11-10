@@ -334,7 +334,7 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
     Framed, Held, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PoseValue, ReadIn, SplitSide, Stop, Stopped, ValuePayload, evaluate,
+    NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, evaluate,
 };
 // A dual evaluates bound to its build of record (DUAL-DESIGN DL3):
 // `evaluate_recorded` takes the base-scalar evaluation and refuses every

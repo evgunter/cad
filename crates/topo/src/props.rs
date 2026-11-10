@@ -2246,6 +2246,35 @@ pub(crate) struct KeptSign<T: Decide> {
 }
 
 impl<T: Decide> KeptSign<T> {
+    /// **This certificate over the body's image under an isometry**
+    /// `map`: every run's reference point moved with the body, and every
+    /// flux, area and carry kept. Each face's flux `∫(p − c)·n` about a
+    /// reference `c` that moves with the body is the image's, and so is
+    /// the volume; a reflection negates it and the mirror's reversal
+    /// restores it, so a mirrored body's runs are kept too.
+    pub(crate) fn moved(&self, map: &geom_core::Affine3<T>) -> Self {
+        let move_about = |about: ReadAbout<T>| match about {
+            ReadAbout::Shell(point) => ReadAbout::Shell(map.transform_point(point)),
+            ReadAbout::Region { point, carry } => ReadAbout::Region {
+                point: map.transform_point(point),
+                carry,
+            },
+        };
+        Self {
+            band: self.band,
+            tol: self.tol,
+            quad: self.quad,
+            runs: self
+                .runs
+                .iter()
+                .map(|run| FaceRun {
+                    about: move_about(run.about),
+                    ..run.clone()
+                })
+                .collect(),
+        }
+    }
+
     /// **This certificate over `body`**, the one body it was derived
     /// over, its rounds as the gate left them.
     pub(crate) fn of<'b>(&self, body: &'b Body<T>) -> SignCertificate<'b, T> {
@@ -6888,9 +6917,10 @@ pub trait AtRestPolicy: Decide {
     /// no verdict (DUAL-DESIGN DL3).
     type Finished: crate::FinishedBody<Scalar = Self>;
 
-    /// **The one constructor of a finished body**: tier 3, whose first
-    /// act is tiers 1 and 2, with the verdict kept beside the body, at a
-    /// certifying scalar; tier 2 alone at a dual.
+    /// **The one place a body's verdict is derived**: tier 3, whose
+    /// first act is tiers 1 and 2, with the verdict kept beside the body,
+    /// at a certifying scalar; tier 2 alone at a dual. A finished body
+    /// moved by an isometry stays finished ([`crate::FinishedBody::moved`]).
     ///
     /// # Errors
     ///
@@ -6911,9 +6941,13 @@ pub trait AtRestPolicy: Decide {
     /// The final state is every door finishing its own result
     /// ([`AtRestPolicy::finish`]). The doors behind the switch end in
     /// this leaf instead: the sweep doors (extrude, revolve, loft, sweep,
-    /// the tube) and, in the evaluator, the computing frame's twist, the
-    /// mirror and the `⊔` graft, so at the box scalars a twisted or
-    /// mirrored Boolean result is a [`crate::Replay`] too. At the box
+    /// the tube) and, in the evaluator, the `⊔` graft. A move of a leaf
+    /// is a leaf of the same kind ([`crate::LeafBody::moved`]): at `f64`
+    /// and `Probe` the image is finished again, held off the log, so its
+    /// record is what the box lane's taker decides of the same body, and
+    /// that re-finish goes with this switch. A twisted or mirrored
+    /// Boolean result is a finished value and stays finished, with no
+    /// finish. At the box
     /// scalars the leaf is tier 2 alone ([`crate::Replay`]): it does not
     /// run tier 3, and the consumer that takes a finished body runs it
     /// there, at the one taker door ([`crate::take`]): a Boolean's, a

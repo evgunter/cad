@@ -157,6 +157,24 @@ impl<T: topo::AtRestPolicy> Held<T> {
         }
     }
 
+    /// **What it holds under an isometry**, of the same kind
+    /// ([`topo::FinishedBody::moved`], [`topo::LeafBody::moved`]): the
+    /// verdict carried and the session box asked again.
+    ///
+    /// # Errors
+    ///
+    /// The move's [`topo::NotFinished`]: the image reaches past the
+    /// session box.
+    pub fn moved(&self, iso: &topo::Isometry<T>, tol: Tol) -> Result<Self, topo::NotFinished> {
+        use topo::{FinishedBody, LeafBody};
+        Ok(match self {
+            Self::Finished(body) => {
+                Self::Finished(Arc::new(FinishedBody::moved(&**body, iso, tol)?))
+            }
+            Self::Leaf(body) => Self::Leaf(Arc::new(LeafBody::moved(&**body, iso, tol)?)),
+        })
+    }
+
     /// Whether the two hold one body, by `Arc`.
     #[must_use]
     pub fn same(&self, other: &Self) -> bool {
@@ -349,88 +367,25 @@ impl<T: topo::AtRestPolicy> Framed<T> {
 }
 
 impl<T: topo::AtRestPolicy> Framed<T> {
-    /// **`other`'s body in this one's coordinates** ([`ReadIn`]): what it
-    /// holds, as it holds it, where the two are in one frame; else its
-    /// body mapped once ([`Self::relative`]), construction state no door
-    /// has finished. A reader reads it as a body; a taker finishes it,
-    /// once, through [`ReadIn::taken`].
+    /// **`other`'s body in this one's coordinates**: what it holds, as
+    /// it holds it, where the two are in one frame; else what it holds
+    /// moved once ([`Self::relative`], [`Held::moved`]), of the same
+    /// kind: a finished body stays finished, its verdict carried.
     ///
     /// # Errors
     ///
-    /// The relative map's overflow, or the kernel's own
-    /// [`topo::transform::TransformError`].
-    pub(crate) fn read_in(
-        &self,
-        other: &Self,
-        tol: Tol,
-    ) -> Result<ReadIn<T>, super::NodeErrorKind> {
+    /// The relative map's overflow, or the move's one refusal: the image
+    /// reaches past the session box.
+    pub(crate) fn read_in(&self, other: &Self, tol: Tol) -> Result<Held<T>, super::NodeErrorKind> {
         match self.relative(other).map_err(super::NodeErrorKind::Motion)? {
-            None => Ok(ReadIn::Held(other.body.clone())),
+            None => Ok(other.body.clone()),
             Some(map) => {
                 super::counters::rigid_map();
-                topo::transform::transform_rigid(&other.body, &map, tol)
-                    .map(|mapped| ReadIn::Mapped(Arc::new(mapped)))
-                    .map_err(super::NodeErrorKind::Transform)
+                other
+                    .body
+                    .moved(&topo::Isometry::Proper(map), tol)
+                    .map_err(|findings| super::NodeErrorKind::NotFinished { findings })
             }
-        }
-    }
-}
-
-/// **A body read into a frame** ([`Framed::read_in`]): a value's own
-/// [`Held`], or its body mapped into the frame, which is construction
-/// state. ReadIn as a body through [`Deref`](core::ops::Deref); a door
-/// that takes a finished body takes it through [`ReadIn::taken`], which
-/// finishes a mapped body once, where it is taken.
-#[derive(Debug)]
-pub enum ReadIn<T: topo::AtRestPolicy> {
-    /// What the value holds, as it holds it: the two are in one frame.
-    Held(Held<T>),
-    /// The value's body mapped into the frame: construction state.
-    Mapped(Arc<Body<T>>),
-}
-
-impl<T: topo::AtRestPolicy> Clone for ReadIn<T> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Held(held) => Self::Held(held.clone()),
-            Self::Mapped(body) => Self::Mapped(Arc::clone(body)),
-        }
-    }
-}
-
-impl<T: topo::AtRestPolicy> core::ops::Deref for ReadIn<T> {
-    type Target = Body<T>;
-
-    fn deref(&self) -> &Body<T> {
-        match self {
-            Self::Held(held) => held,
-            Self::Mapped(body) => body,
-        }
-    }
-}
-
-impl<T: topo::AtRestPolicy> ReadIn<T> {
-    /// **The finished body**, as a door that takes finished operands
-    /// takes it: a held one through [`Held::finished`], a mapped one
-    /// finished here ([`topo::finish`], logged where it is taken).
-    ///
-    /// # Errors
-    ///
-    /// The finish's findings; an evaluator node reads them as
-    /// [`super::NodeErrorKind::UnfinishedLeaf`].
-    pub fn taken(self, tol: Tol) -> Result<Arc<T::Finished>, topo::NotFinished> {
-        match self {
-            Self::Held(held) => held.finished(tol),
-            Self::Mapped(body) => topo::finish::<T>(Arc::unwrap_or_clone(body), tol).map(Arc::new),
-        }
-    }
-
-    /// The value's own [`Held`], where it was read as it holds it.
-    #[must_use]
-    pub fn held(&self) -> Option<&Held<T>> {
-        match self {
-            Self::Held(held) => Some(held),
-            Self::Mapped(_) => None,
         }
     }
 }

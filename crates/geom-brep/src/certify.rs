@@ -2122,7 +2122,7 @@ const WINDING_ROWS: TurnRows<&str> = crate::rows::INTERVAL_SPAN_WINDING.rows();
 /// [`EdgeCurve::uncertified`] where it never does), or from such a value
 /// by a map that carries what it carries
 /// ([`EdgeCurve::with_remapped_surfaces`],
-/// [`EdgeCurve::with_chart_v_mirrored`]) — fields are private, so an
+/// [`EdgeCurve::with_chart_v_mirrored`], [`EdgeCurve::carried`]) — fields are private, so an
 /// uncertified value at a certifying scalar is unrepresentable (D4 ¶2
 /// made structural).
 #[derive(Clone, Debug)]
@@ -3070,6 +3070,36 @@ impl<T: Real> EdgeCurve<T> {
             turn: self.turn,
             certificate: self.certificate,
         })
+    }
+
+    /// **This edge under an isometry, its certificate carried**: the
+    /// mapped `carrier`, `description` and `authority` on this edge's
+    /// own interval, with its turn and certificate verbatim.
+    ///
+    /// The certificate is `{samples, max_residual}`, a distance between
+    /// the description and its carrier at the schedule's parameters, and
+    /// the turn is the interval against one period. An isometry keeps
+    /// both, and a map keeps the carrier's parameter, so both are the
+    /// image's. That holds only where the three arguments are this
+    /// edge's data under one isometry, exact apart from rounding: the
+    /// caller's to keep, and `topo`'s data map (`map_isometry`) is the
+    /// one caller.
+    #[must_use]
+    pub fn carried(
+        &self,
+        carrier: Curve3<T>,
+        description: EdgeDescription<T>,
+        authority: EdgeAuthority<T>,
+    ) -> Self {
+        Self {
+            description,
+            authority,
+            carrier,
+            param_start: self.param_start,
+            param_end: self.param_end,
+            turn: self.turn,
+            certificate: self.certificate,
+        }
     }
 
     /// The carrier parameter at schedule sample `i` (i ∈ 0…8): the

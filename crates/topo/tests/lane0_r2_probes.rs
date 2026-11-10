@@ -4,9 +4,10 @@
 //! interval scalar.
 //!
 //! One scalar answers the seam and four do not, and the rows say what
-//! that costs at each public door: the transform door and the offset
-//! mint reach the seam and refuse by their own typed variant, naming
-//! the scalar; the two validators do NOT reach it on this
+//! that costs at each public door: the offset mint reaches the seam
+//! and refuses by its own typed variant, naming the scalar; the
+//! transform door carries the face's certificate and does not reach
+//! it; the two validators do NOT reach it on this
 //! subject — an `mvfs` seed carries an empty loop and tier 2 refuses
 //! first — which is recorded here as an assertion rather than left as
 //! a thing a reader would have to run the suite to learn.
@@ -83,9 +84,8 @@ fn turned<T: Real>() -> geom_core::RigidMotion<T> {
     geom_core::test_support::rigid(&map, tol()).computed_at::<T>()
 }
 
-/// The public doors at one scalar. `lane` is the name the transform
-/// door and the mint report for it, or `None` where the scalar answers
-/// the seam.
+/// The public doors at one scalar. `lane` is the name the mint
+/// reports for it, or `None` where the scalar answers the seam.
 fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option<&str>) {
     let (body, face) = approx_seed::<T>();
 
@@ -116,21 +116,13 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
         );
     }
 
-    // The transform door DOES reach the seam.
-    match topo::transform_rigid(&body, &turned::<T>(), tol()) {
-        Ok(_) => assert!(
-            lane.is_none(),
-            "{label}: this scalar has no fit, so the map may not carry the certificate"
-        ),
-        Err(topo::TransformError::ApproxLaneUnsupported { scalar: named }) => {
-            let expected = lane.unwrap_or_else(|| {
-                panic!("{label}: this scalar answers the seam, so the map must re-derive")
-            });
-            assert_eq!(named, expected, "{label}: the refusal names the scalar");
-        }
-        Err(other) => panic!("{label} transform_rigid: {other:?}"),
-    }
+    // The transform door does not reach the seam: it carries the
+    // offset face's certificate at every scalar, since an isometry keeps
+    // the distance it bounds.
+    topo::transform_rigid(&body, &turned::<T>(), tol())
+        .unwrap_or_else(|e| panic!("{label} transform_rigid carries the certificate: {e:?}"));
 
+    // The offset mint does, on a NURBS-faced seed.
     // So does the offset mint, on a NURBS-faced seed.
     let (mut nurbs, nface) = nurbs_seed::<T>();
     let minted = topo::replace_faces_offset(&mut nurbs, &[nface], T::from_f64(0.05), tol());

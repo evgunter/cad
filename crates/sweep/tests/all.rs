@@ -1354,6 +1354,8 @@ mod sphere_face_flips_are_refused;
 
 #[path = "a_body_built_turned_is_the_body_turned.rs"]
 mod a_body_built_turned_is_the_body_turned;
+#[path = "a_boxed_motion_moves_a_finished_body.rs"]
+mod a_boxed_motion_moves_a_finished_body;
 #[path = "a_closed_conic_in_the_partners_face.rs"]
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
@@ -1364,6 +1366,8 @@ mod a_cylinder_through_a_hole_tangent_to_its_wall;
 mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
+#[path = "a_moved_body_keeps_its_verdict.rs"]
+mod a_moved_body_keeps_its_verdict;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]

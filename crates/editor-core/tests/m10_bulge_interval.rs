@@ -243,7 +243,20 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// pcurve row is read on its chart before check 3 meters it
 /// (`PcurveCache::certify`), so a row the mint certifies there reads its
 /// carrier a second time: `pcurve_cylinder_chart_incident` 16/4 -> 24/6 and
-/// `pcurve_line_chart_incident` 20/4 -> 28/6.
+/// `pcurve_line_chart_incident` 20/4 -> 28/6.///
+/// **ONEHOME, a move carries its verdict** (`topo::FinishedBody::moved`,
+/// `Held::moved`): the placed copy is its source's body under the map,
+/// its certificates, rows and verdict carried. Its edges are not
+/// re-certified after the transform, its rows are not re-minted, and it
+/// is not finished again where it is taken. That removes the copy's
+/// share of every row the certificate, the pcurve mint and tier 3 read:
+/// `carrier_on_surface` 162/18 -> 126/18 per slot, `dihedral_*` 0/156 ->
+/// 0/128, the `pcurve_*` rows about four in ten, `ssi_hull_sup` 36/4 ->
+/// 28/4, `carrier_matches_mapped_source` 18 symbolic fewer in both
+/// spellings, and the rest as listed. `pcurve_chart_radial_moving` loses
+/// 8/8 to it: main pins it at 18/24 (four of PR 6504's decisions read
+/// numeric, the one ruling reading), and the carried verdict takes it to
+/// 10/16.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -252,45 +265,38 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("cap_plane_orientation", [0, 4]),
     ("carrier_circles_identity", [3, 0]),
     ("carrier_cyl_axis_parallel", [1, 0]),
-    ("carrier_endpoint_end", [42, 0]),
-    ("carrier_endpoint_start", [42, 0]),
+    ("carrier_endpoint_end", [36, 0]),
+    ("carrier_endpoint_start", [36, 0]),
     ("carrier_line_circle", [0, 3]),
-    ("carrier_on_surface_1", [162, 18]),
-    ("carrier_on_surface_2", [162, 18]),
+    ("carrier_on_surface_1", [126, 18]),
+    ("carrier_on_surface_2", [126, 18]),
     ("chord_side", [6, 12]),
     ("circle_side", [2, 2]),
     ("contact_at_shared_vertex", [12, 4]),
     ("pose_unit_norm", [0, 2]),
-    ("dihedral_arm", [0, 156]),
-    ("dihedral_wedge", [0, 156]),
+    ("dihedral_arm", [0, 128]),
+    ("dihedral_wedge", [0, 128]),
     ("extrusion_normal_component", [0, 2]),
-    ("interval_span_forward", [0, 42]),
-    ("interval_span_winding", [0, 16]),
+    ("interval_span_forward", [0, 36]),
+    ("interval_span_winding", [0, 12]),
     ("line_span", [6, 4]),
     ("mate_chart_pole", [0, 1]),
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 11]),
-    ("pcurve_chart_cut_side", [0, 42]),
-    ("pcurve_chart_orientation", [0, 20]),
-    ("pcurve_chart_placement", [0, 84]),
-    // One ruling reading (PCERT, PR 6504): a line's class gate reads the
-    // meridian form's whole miss, its lean over the span plus its
-    // origin's radial standoff. On the copied body the standoff is the
-    // wall-incidence identity, a value identity at the shipped rules, as
-    // `pcurve_*_chart_incident` decides four carriers at the witness:
-    // [22, 20] -> [18, 24]
-    // (`work/sym/a-rigidly-copied-cylinder-walls-incidence-identity-has-no-sym-rule.md`).
-    ("pcurve_chart_radial_moving", [18, 24]),
+    ("pcurve_chart_cut_side", [0, 26]),
+    ("pcurve_chart_orientation", [0, 12]),
+    ("pcurve_chart_placement", [0, 52]),
+    ("pcurve_chart_radial_moving", [10, 16]),
     // PCERT E1c (every mint reads incidence first, PR 5889):
     // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
     // and [28, 6] -> [20, 4].
-    ("pcurve_cylinder_chart_incident", [16, 4]),
-    ("pcurve_envelope", [16, 4]),
-    ("pcurve_interval_forward", [0, 20]),
-    ("pcurve_line_chart_incident", [20, 4]),
-    ("pcurve_loop_branch", [0, 42]),
-    ("pcurve_map_residual", [36, 0]),
+    ("pcurve_cylinder_chart_incident", [8, 4]),
+    ("pcurve_envelope", [8, 4]),
+    ("pcurve_interval_forward", [0, 12]),
+    ("pcurve_line_chart_incident", [10, 4]),
+    ("pcurve_loop_branch", [0, 25]),
+    ("pcurve_map_residual", [18, 0]),
     ("segment_gap", [0, 2]),
     ("segment_straightness", [6, 6]),
     ("side_cylinders_cosurface", [2, 0]),
@@ -302,14 +308,14 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     // as its identity (fork row 204), whose form is zero; the other 4
     // are the enclosure's own Zero, their identity not reaching the zero
     // form at the shipped rules.
-    ("ssi_hull_sup", [36, 4]),
+    ("ssi_hull_sup", [28, 4]),
     // ONEHOME (`mate::solve::admitted` removed: a placement composed as
     // motions decides no rigidity margin): the placement's seven
     // `transform_rigid_*` margins, [1, 0] each at this scalar, log no row.
     ("vertex_separation", [0, 12]),
-    ("witness_at_mid_parameter", [20, 0]),
-    ("witness_on_surface_1", [18, 2]),
-    ("witness_on_surface_2", [18, 2]),
+    ("witness_at_mid_parameter", [16, 0]),
+    ("witness_on_surface_1", [14, 2]),
+    ("witness_on_surface_2", [14, 2]),
 ];
 
 /// **The boss at `bulge = 2`, whole.** `carrier_matches_mapped_source`
@@ -446,6 +452,14 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// (`PcurveCache::certify`): a row the mint certifies there reads its
 /// carrier a second time, `pcurve_cylinder_chart_incident` 16/4 -> 24/6 and
 /// `pcurve_line_chart_incident` 20/4 -> 28/6. Nothing else moved.
+///
+/// **ONEHOME, a move carries its verdict** (`topo::FinishedBody::moved`,
+/// `Held::moved`): as on the D-tab, the placed copy's edges are not
+/// re-certified, its rows not re-minted and it is not finished again
+/// where it is taken: `carrier_on_surface` 126/0 -> 90/0 per slot,
+/// `dihedral_*` 0/108 -> 0/80, `carrier_matches_mapped_source` 144/0 ->
+/// 126/0, `pcurve_chart_radial_moving` 22/20 -> 14/12, the other
+/// `pcurve_*` rows about four in ten, `ssi_hull_sup` 28/0 -> 20/0.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -461,52 +475,52 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("cap_plane_orientation", [0, 4]),
             ("carrier_circles_identity", [3, 0]),
             ("carrier_cyl_axis_parallel", [1, 0]),
-            ("carrier_endpoint_end", [30, 0]),
-            ("carrier_endpoint_start", [30, 0]),
+            ("carrier_endpoint_end", [24, 0]),
+            ("carrier_endpoint_start", [24, 0]),
             ("carrier_line_circle", [0, 1]),
-            ("carrier_matches_mapped_source", [144, 0]),
-            ("carrier_on_surface_1", [126, 0]),
-            ("carrier_on_surface_2", [126, 0]),
+            ("carrier_matches_mapped_source", [126, 0]),
+            ("carrier_on_surface_1", [90, 0]),
+            ("carrier_on_surface_2", [90, 0]),
             ("contact_at_shared_vertex", [6, 3]),
             ("pose_unit_norm", [0, 2]),
-            ("dihedral_arm", [0, 108]),
-            ("dihedral_wedge", [0, 108]),
+            ("dihedral_arm", [0, 80]),
+            ("dihedral_wedge", [0, 80]),
             ("extrusion_normal_component", [0, 2]),
-            ("interval_span_forward", [0, 30]),
-            ("interval_span_winding", [0, 16]),
+            ("interval_span_forward", [0, 24]),
+            ("interval_span_winding", [0, 12]),
             ("line_span", [2, 0]),
             ("mate_chart_pole", [0, 1]),
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 5]),
-            ("pcurve_chart_cut_side", [0, 42]),
-            ("pcurve_chart_orientation", [0, 20]),
-            ("pcurve_chart_placement", [0, 84]),
-            ("pcurve_chart_radial_moving", [22, 20]),
+            ("pcurve_chart_cut_side", [0, 26]),
+            ("pcurve_chart_orientation", [0, 12]),
+            ("pcurve_chart_placement", [0, 52]),
+            ("pcurve_chart_radial_moving", [14, 12]),
             // PCERT E1c (every mint reads incidence first, PR 5889):
             // one read per carrier, the twin re-read gone: [24, 6] -> [16, 4]
             // and [28, 6] -> [20, 4].
-            ("pcurve_cylinder_chart_incident", [16, 4]),
-            ("pcurve_envelope", [20, 0]),
-            ("pcurve_interval_forward", [0, 20]),
-            ("pcurve_line_chart_incident", [20, 4]),
-            ("pcurve_loop_branch", [0, 42]),
-            ("pcurve_map_residual", [36, 0]),
+            ("pcurve_cylinder_chart_incident", [8, 4]),
+            ("pcurve_envelope", [12, 0]),
+            ("pcurve_interval_forward", [0, 12]),
+            ("pcurve_line_chart_incident", [10, 4]),
+            ("pcurve_loop_branch", [0, 25]),
+            ("pcurve_map_residual", [18, 0]),
             ("segment_straightness", [2, 6]),
             ("side_cylinders_cosurface", [2, 0]),
             // Limb 2's distance bound (C2), owed by every Intersection
             // carrier: 28 = the 14 Intersection edges (one witness each,
             // below) × 2 operands. Each a theorem on the carrier's
             // free-parameter residual (fork row 204).
-            ("ssi_hull_sup", [28, 0]),
+            ("ssi_hull_sup", [20, 0]),
             // ONEHOME (`mate::solve::admitted` removed: a placement composed
             // as motions decides no rigidity margin): the placement's seven
             // `transform_rigid_*` margins, [1, 0] each at this scalar, log no
             // row.
             ("vertex_separation", [0, 8]),
-            ("witness_at_mid_parameter", [14, 0]),
-            ("witness_on_surface_1", [14, 0]),
-            ("witness_on_surface_2", [14, 0]),
+            ("witness_at_mid_parameter", [10, 0]),
+            ("witness_on_surface_1", [10, 0]),
+            ("witness_on_surface_2", [10, 0]),
         ],
     );
 }
@@ -531,7 +545,7 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([192, 6]),
+        &d_tab_table([174, 6]),
     );
 }
 
@@ -557,6 +571,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        &d_tab_table([184, 14]),
+        &d_tab_table([166, 14]),
     );
 }

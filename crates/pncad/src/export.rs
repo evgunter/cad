@@ -39,15 +39,14 @@ use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
 use topo::AtRestBody;
 
-/// **Why a body could not be written as it stands in its space's
-/// coordinates**: the kernel refused the rigid map of its frame
-/// ([`body_in_space`]), or the mapped body, which the writer takes as a
-/// finished body ([`editor_core::ReadIn::taken`]), does not finish.
+/// **Why a body could not be read as it stands in its space's
+/// coordinates** ([`body_in_space`]): moved there, it reaches past the
+/// session box.
 #[derive(Debug)]
 pub enum ComposeError {
-    /// The kernel refused the rigid map ([`editor_core::in_space`]).
-    Transform(topo::TransformError),
-    /// The mapped body did not finish ([`topo::AtRestPolicy::finish`]).
+    /// The body moved into its space reaches past the session box: a
+    /// finished body moved by an isometry asks the box again
+    /// ([`topo::FinishedBody::moved`]).
     NotFinished(topo::NotFinished),
 }
 
@@ -61,10 +60,9 @@ impl ComposeError {
     ) -> core::fmt::Result {
         use geom_brep::recourse::read_at;
         match self {
-            Self::Transform(e) => write!(f, "{}", read_at(e, at)),
             Self::NotFinished(findings) => write!(
                 f,
-                "the mapped body is not a finished body: {}",
+                "the body as it stands in its space is not a finished body: {}",
                 read_at(findings, at)
             ),
         }
@@ -199,15 +197,14 @@ pub fn step_for_node(
     };
     let body = body_in_space(body, tol)
         .map_err(ExportError::Compose)?
-        .taken(tol)
+        .finished(tol)
         .map_err(|findings| ExportError::Compose(ComposeError::NotFinished(findings)))?;
     step_string(&body, options, tol).map_err(ExportError::Step)
 }
 
 /// **A body value as it stands in its space**, the façade's read-out
-/// door: the body composed through [`editor_core::in_space`], read as
-/// construction state ([`editor_core::ReadIn::Mapped`]) that a writer
-/// needing a finished body finishes ([`editor_core::ReadIn::taken`]);
+/// door: what the value holds, moved by [`editor_core::in_space`]'s map
+/// ([`editor_core::Held::moved`]), of the same kind, its verdict carried;
 /// shared as it is where it is in its space's coordinates already.
 ///
 /// A read-out is an export in D10 `[placement.world]`'s sense: what it
@@ -217,50 +214,43 @@ pub fn step_for_node(
 ///
 /// # Errors
 ///
-/// [`ComposeError::Transform`] when the kernel refuses the frame's rigid
-/// map.
+/// [`ComposeError::NotFinished`] when the moved body reaches past the
+/// session box.
 pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
     body: &editor_core::Framed<T>,
     tol: Tol,
-) -> Result<editor_core::ReadIn<T>, ComposeError> {
+) -> Result<editor_core::Held<T>, ComposeError> {
     match editor_core::in_space(body) {
-        None => Ok(editor_core::ReadIn::Held(body.holding().clone())),
-        Some(map) => topo::transform_rigid(body.body(), &map, tol)
-            .map(|mapped| editor_core::ReadIn::Mapped(std::sync::Arc::new(mapped)))
-            .map_err(ComposeError::Transform),
+        None => Ok(body.holding().clone()),
+        Some(map) => body
+            .holding()
+            .moved(&topo::Isometry::Proper(map), tol)
+            .map_err(ComposeError::NotFinished),
     }
 }
 
 /// **A product's body as it stands in the world**, [`body_in_space`]
-/// for the aggregate a gather computed ([`editor_core::Product`]) of
-/// `doc`: borrowed as it is where the gather computed in the world's
-/// coordinates. The rigid map keeps every arena key, so the product's
-/// names and records cite the composed body as they cite the gathered
-/// one.
+/// for the aggregate a gather computed ([`editor_core::Product`]):
+/// borrowed as it is where the gather computed in the world's
+/// coordinates, else moved, still finished. The move keeps every arena
+/// key, so the product's names and records cite the composed body as
+/// they cite the gathered one.
 ///
 /// # Errors
 ///
-/// [`ProductError::Frame`] naming the operation `doc`'s product slot
-/// reads, when the kernel refuses the frame's rigid map, or
-/// [`ProductError::ProductInvalid`] when the mapped aggregate does not
-/// finish: the one place a composed product's refusal is built.
-pub fn product_body_in_space<'p>(
-    product: &'p editor_core::Product<f64>,
-    doc: &ProfileDoc,
+/// [`ProductError::ProductInvalid`] when the moved aggregate reaches
+/// past the session box: the one place a composed product's refusal is
+/// built.
+pub fn product_body_in_space(
+    product: &editor_core::Product<f64>,
     tol: Tol,
-) -> Result<std::borrow::Cow<'p, AtRestBody<f64>>, ProductError> {
+) -> Result<std::borrow::Cow<'_, AtRestBody<f64>>, ProductError> {
     let Some(map) = editor_core::in_space(product) else {
         return Ok(std::borrow::Cow::Borrowed(&product.body));
     };
-    let mapped =
-        topo::transform_rigid(&product.body, &map, tol).map_err(|error| ProductError::Frame {
-            node: doc
-                .product()
-                .and_then(|var| doc.operation_of(var))
-                .unwrap_or_else(|| unreachable!("a gathered product reads an operation")),
-            kind: Box::new(editor_core::NodeErrorKind::Transform(error)),
-        })?;
-    topo::finish(mapped, tol)
+    product
+        .body
+        .moved(&topo::Isometry::Proper(map), tol)
         .map(std::borrow::Cow::Owned)
         .map_err(|findings| ProductError::ProductInvalid { findings })
 }
@@ -312,6 +302,6 @@ pub fn export_document_step(
         editor_core::product_recorded(doc, evaluation, tol).map_err(ExportError::Product)?;
     // The product is in the frame its gather computed in; it is written
     // in the world's coordinates.
-    let body = product_body_in_space(&product, doc, tol).map_err(ExportError::Product)?;
+    let body = product_body_in_space(&product, tol).map_err(ExportError::Product)?;
     step_string(&body, options, tol).map_err(ExportError::Step)
 }

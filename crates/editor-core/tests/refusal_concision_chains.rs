@@ -1547,11 +1547,11 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             "{name}: {text}"
         );
         // The shell user sets the curvature meter's size as a wall
-        // thickness, the transform's as an offset distance.
+        // thickness, an offset face's finish as an offset distance.
         let (arm, curvature) = match name.strip_prefix("Shell/Face/Fit/") {
             Some(arm) => (arm, WALL),
             None => (
-                name.strip_prefix("Transform/ApproxRecertify/")
+                name.strip_prefix("NotFinished/ApproxCertification/")
                     .expect("every offset-fit row is on one of the two routes"),
                 DISTANCE,
             ),
@@ -1606,19 +1606,19 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             );
         }
     }
-    // `MintLimb` on both routes, `Limb` on the transform's alone. A
+    // `MintLimb` at the shell's mint alone, `Limb` at rest alone. A
     // count over the rows `offset_fit_routes` builds: it holds the
     // roster's route split, not which arms the ops raise.
     assert_eq!(
         (mint_limbs, at_rest_limbs),
-        (4, 2),
+        (2, 2),
         "a limb row went missing"
     );
-    // Both routes raise `Meter`, so every pinned ending has two rows.
+    // The shell's route raises `Meter`, so every pinned ending has one
+    // row.
     assert_eq!(
         pinned,
-        2 * (meter_escalations(DISTANCE).len() + meter_verdicts(DISTANCE).len())
-            + wall_endings().len(),
+        meter_escalations(WALL).len() + meter_verdicts(WALL).len() + wall_endings().len(),
         "a pinned meter row went missing"
     );
 }
@@ -2852,20 +2852,6 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     use topo::TransformError as E;
     [
         ("Pcurve", E::Pcurve { source: pcurve() }),
-        ("Band", E::Band(band_error())),
-        (
-            "Certify",
-            E::Certify {
-                edge: topo::EdgeKey::default(),
-                source: geom_brep::CertifyError::StatedInterval {
-                    refused: geom_brep::StatedSpan::Forward(geom_brep::ForwardReading::Decided(
-                        geom_brep::recourse::Refused::Negative {
-                            margin: geom_core::MarginDiag::value(-1.0),
-                        },
-                    )),
-                },
-            },
-        ),
         (
             "NullScaffold",
             E::NullScaffold {
@@ -2873,10 +2859,6 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("NurbsPlaceholder", E::NurbsPlaceholder),
-        (
-            "ApproxLaneUnsupported",
-            E::ApproxLaneUnsupported { scalar: "interval" },
-        ),
         (
             "Corrupt",
             E::Corrupt {
@@ -2890,7 +2872,6 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
         "Mirror/NurbsPlaceholder",
         NodeErrorKind::Mirror(E::NurbsPlaceholder),
     )])
-    .chain(certify_refusal_routes())
     .chain(offset_fit_routes())
     .collect()
 }
@@ -3096,17 +3077,16 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
     ]
 }
 
-/// [`certify_refusals`] as the feature tree meets them: a transform's
-/// re-certification of a mapped edge.
+/// [`certify_refusals`] as the feature tree meets them at a build: a
+/// sweep's attachment of an edge it minted.
 fn certify_refusal_routes() -> Vec<(String, NodeErrorKind)> {
     certify_refusals()
         .into_iter()
         .map(|(route, source, _)| {
             row(
-                &format!("Transform/Certify/Routed/{route}"),
-                NodeErrorKind::Transform(topo::TransformError::Certify {
-                    edge: topo::EdgeKey::default(),
-                    source,
+                &format!("Extrude/Op/Certification/Routed/{route}"),
+                NodeErrorKind::Extrude(sweep::ExtrudeError::Op {
+                    source: topo::EulerOpError::Certification { error: source },
                 }),
             )
         })
@@ -3127,8 +3107,8 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
         if route == "transversality" {
             assert_eq!(
                 text,
-                "node 000000000005 failed: the transform op refused: an edge the map moved failed \
-                 re-certification: the crossing angle at sample 4 escalated: margin 5e-9 \
+                "node 000000000005 failed: the extrude op refused: an Euler operation refused: \
+                 geometry attachment gate: the crossing angle at sample 4 escalated: margin 5e-9 \
                  lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
                  surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"
@@ -3265,21 +3245,18 @@ fn wall_endings() -> [(&'static str, String); 2] {
 ///   mint is `MintLimb`) and `Band` (below). The loop's own
 ///   terminations — `SeedOverCap`, `WallReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
-///   and `NonFiniteSample` reach the user by this route and by the
-///   transform's re-fit, and so does `MintLimb`, whose re-fit is the
-///   call that refused, so it ends in the kernel-defect ending.
-/// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
-///   certifier's arms on the image — `certify_offset_over` runs the
-///   meters and the certificate limbs on a fit it did not make, so
-///   `Meter`, `PatchBound`, `WindowUnsupported` and `Limb` — and the
-///   mint's arms on a re-fit, when a sound face's image refuses a limb
-///   and the map fits the mapped description afresh: every arm the
-///   shell route raises. So every arm but `Band`.
+///   and `NonFiniteSample` reach the user by this route, and so does
+///   `MintLimb`, whose re-fit is the call that refused, so it ends in
+///   the kernel-defect ending.
+/// - **An offset face's finish** (`NotFinished/ApproxCertification/…`):
+///   tier 3 re-derives a stored face's certificate, so it raises the
+///   certifier's arms on a fit it did not make; the rows here are the
+///   ones no build route raises — `PatchBound`, `WindowUnsupported` and
+///   `Limb` — and `Meter` is the shell's route's.
 ///
-/// `Band` reaches neither route. The door derives the run's band from
-/// the witness, and both ops derive the same band before they reach the
-/// door and refuse on it themselves (`ShellError::Band`,
-/// `TransformError::Band`), so it has no row here.
+/// `Band` reaches neither route. Both derive the run's band before they
+/// reach the door and refuse on it themselves (`ShellError::Band`,
+/// `ValidationError::Band`), so it has no row here.
 ///
 /// The roster is `topo`'s: every `OffsetFitError` sample
 /// `validation_error_samples` carries, which `topo`'s coverage row holds
@@ -3345,7 +3322,22 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     let face = FaceKey::default();
     let mut rows = Vec::new();
     for (arm, source) in roster {
-        let transform = !matches!(source, O::Band(_));
+        if matches!(
+            source,
+            O::PatchBound(_) | O::WindowUnsupported { .. } | O::Limb { .. }
+        ) {
+            rows.push(row(
+                &format!("NotFinished/ApproxCertification/{arm}"),
+                NodeErrorKind::NotFinished {
+                    findings: topo::NotFinished::for_tests(vec![
+                        topo::ValidationError::ApproxCertification {
+                            face,
+                            error: source.clone(),
+                        },
+                    ]),
+                },
+            ));
+        }
         if !matches!(
             source,
             O::WindowUnsupported { .. } | O::Limb { .. } | O::Band(_)
@@ -3359,12 +3351,6 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
                         error: source.clone(),
                     }),
                 })),
-            ));
-        }
-        if transform {
-            rows.push(row(
-                &format!("Transform/ApproxRecertify/{arm}"),
-                NodeErrorKind::Transform(topo::TransformError::ApproxRecertify { source }),
             ));
         }
     }

@@ -88,19 +88,22 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
 
     /// **Its body taken in `into`'s frame**: `own`, its body already
     /// taken in its own frame ([`Self::taken`]), where the two are one
-    /// frame; else its body mapped at the placement's door
-    /// ([`crate::eval::Framed::read_in`]) and taken there.
+    /// frame; else `own` moved into it ([`topo::FinishedBody::moved`]),
+    /// still finished.
     pub(super) fn taken_in(
         &self,
         into: &crate::eval::Framed<T>,
         own: &Arc<T::Finished>,
         tol: Tol,
     ) -> Result<Arc<T::Finished>, NodeErrorKind> {
-        match into.read_in(&self.body, tol)? {
-            crate::eval::ReadIn::Held(_) => Ok(Arc::clone(own)),
-            mapped @ crate::eval::ReadIn::Mapped(_) => mapped
-                .taken(tol)
-                .map_err(NodeErrorKind::unfinished(self.node)),
+        match into.relative(&self.body).map_err(NodeErrorKind::Motion)? {
+            None => Ok(Arc::clone(own)),
+            Some(map) => {
+                crate::eval::counters::rigid_map();
+                topo::FinishedBody::moved(&**own, &topo::Isometry::Proper(map), tol)
+                    .map(Arc::new)
+                    .map_err(|findings| NodeErrorKind::NotFinished { findings })
+            }
         }
     }
 

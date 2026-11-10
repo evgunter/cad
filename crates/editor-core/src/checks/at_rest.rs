@@ -371,7 +371,7 @@ impl RowCell {
 /// one computing frame (`Framed::computing_among`), the other read into
 /// it through `relative`.
 struct ReadCells<'e, T: topo::AtRestPolicy + Decide> {
-    cells: Vec<(crate::eval::ReadIn<T>, EntityRef)>,
+    cells: Vec<(crate::eval::Held<T>, EntityRef)>,
     computing: &'e crate::eval::Framed<T>,
 }
 
@@ -447,7 +447,7 @@ impl Saying {
 /// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
 /// `None` for any other cell.
 fn pose_kind<T: Decide + topo::AtRestPolicy>(
-    (body, ent): &(crate::eval::ReadIn<T>, EntityRef),
+    (body, ent): &(crate::eval::Held<T>, EntityRef),
 ) -> Option<crate::VarKind> {
     use geom::SurfaceKind as S;
     let EntityKey::Face(face) = ent.key else {
@@ -1465,6 +1465,7 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::OrphanEntity { .. }
         | E::MultiplyOwned { .. }
         | E::OrphanGeometry { .. }
+        | E::Unmovable { .. }
         | E::SolidWithoutShells { .. }
         | E::ShellWithoutFaces { .. }
         | E::EdgeAcrossShells { .. }
@@ -1591,7 +1592,7 @@ fn intersection(
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
     // The intersection takes the two copies as finished bodies: a copy
     // the gather read through a placement's map is finished here, once.
-    let operand = |i: usize| product.copies[i].body.clone().taken(tol);
+    let operand = |i: usize| product.copies[i].body.clone().finished(tol);
     let (body_a, body_b) = match (operand(a), operand(b)) {
         (Ok(x), Ok(y)) => (x, y),
         (Err(refused), _) | (_, Err(refused)) => {
