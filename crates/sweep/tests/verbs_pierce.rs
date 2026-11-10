@@ -63,7 +63,7 @@ fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
     let a = cyl(1.0, 0.0, 2.0);
     let b = finished(
         "the box",
-        brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
+        brick::<f64>((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
         tol,
     );
     let out = match topo::union(&a, &b, tol) {
@@ -90,7 +90,7 @@ fn a_crossing_outside_the_disc_mints_no_event() {
     let a = cyl(1.0, 0.0, 2.0);
     let b = finished(
         "the box",
-        brick((1.05, 2.0), (-0.5, 0.5), (1.0, 3.0), tol),
+        brick::<f64>((1.05, 2.0), (-0.5, 0.5), (1.0, 3.0), tol),
         tol,
     );
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("no crossing to route")
@@ -115,7 +115,7 @@ fn a_box_buried_in_a_cylinder_unions_to_the_cylinder() {
     let a = cyl(1.0, 0.0, 2.0);
     let b = finished(
         "the box",
-        brick((-0.3, 0.3), (-0.3, 0.3), (0.5, 1.5), tol),
+        brick::<f64>((-0.3, 0.3), (-0.3, 0.3), (0.5, 1.5), tol),
         tol,
     );
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("containment decides")
@@ -171,7 +171,7 @@ fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
     let plate = finished("the holed plate", plate, tol);
     let boss = finished(
         "the boss",
-        brick((-0.2, 0.2), (-0.2, 0.2), (0.5, 2.0), tol),
+        brick::<f64>((-0.2, 0.2), (-0.2, 0.2), (0.5, 2.0), tol),
         tol,
     );
     let topo::BooleanResult::Body(out) =

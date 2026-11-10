@@ -172,7 +172,7 @@ use crate::props::rational_rim::{
     RationalEdgeQ, rational_integrals, rational_rate_bound, rational_vector_area_split,
 };
 use crate::props::taylor::{
-    Jet, W_SPIRIC, composite_over, rate_bound_over, trig_jets, trig_of, trig_range, w_rational,
+    Jet, W_SPIRIC, composite_over, rate_bound_over, trig_jets, trig_of, w_rational,
 };
 use crate::props::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
 
@@ -722,8 +722,7 @@ fn unit_weight(p: [Jet; 3], dp: [Jet; 3]) -> FrameJets {
 fn analytic_rate(carrier: &FramedQ, t: Interval) -> FrameJets {
     match carrier {
         FramedQ::Circle { centre, a, b, .. } => {
-            let (c, s) = trig_range(t.lo(), t.hi());
-            let (_, cj, sj) = trig_jets(t, c, s);
+            let (_, cj, sj) = trig_jets(t);
             circle_rate(*centre, *a, *b, cj, sj)
         }
         FramedQ::Line { point, dir, .. } => line_rate(*point, *dir, Jet::var(t)),
@@ -1513,7 +1512,7 @@ fn level_anchor(loops: &[Vec<EdgeTermQ>]) -> Result<f64, PropsError> {
             (lo.min(v), hi.max(v))
         });
     if lo <= hi {
-        Ok(lo + (hi - lo) * 0.5)
+        Ok(geom::bracket_mid((lo, hi)))
     } else {
         Err(PropsError::DegenerateFace)
     }

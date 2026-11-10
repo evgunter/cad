@@ -27,7 +27,7 @@
 
 use core::ops::ControlFlow;
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Real};
 
 use crate::dihedral::{

@@ -29,8 +29,7 @@ fn struts(body: &Body<f64>) -> Vec<EdgeKey> {
     let on_cylinder = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
-            .and_then(|l| body.get_face(l.face))
-            .and_then(|f| body.get_surface(f.surface))
+            .and_then(|l| body.face_surface(l.face))
             .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
     };
     let mut struts: Vec<EdgeKey> = body
@@ -134,9 +133,8 @@ pub(crate) fn edge_between(body: &Body<f64>, a: [f64; 3], b: [f64; 3]) -> EdgeKe
     };
     let found: Vec<EdgeKey> = body
         .edges()
-        .filter(|(_, e)| {
-            let he = body.get_half_edge(e.he_plus).unwrap();
-            let (s, t) = (he.start, body.half_edge_end(e.he_plus).unwrap());
+        .filter(|&(k, _)| {
+            let (s, t) = body.edge_vertices(k).unwrap();
             (at(s, a) && at(t, b)) || (at(s, b) && at(t, a))
         })
         .map(|(k, _)| k)
@@ -185,13 +183,13 @@ fn a_smooth_strut_requested_beside_a_line_reads_as_the_line_alone() {
 /// The slot's struts: edges whose two faces are a flat wall and an end's
 /// half-cylinder, meeting smoothly.
 fn struts_of(body: &Body<f64>) -> Vec<EdgeKey> {
-    let vertical = |e: &topo::Edge| {
-        let he = body.get_half_edge(e.he_plus).unwrap();
+    let vertical = |k: EdgeKey| {
+        let (start, end) = body.edge_vertices(k).unwrap();
         let z = |v| body.get_point(body.get_vertex(v).unwrap().point).unwrap().z;
-        (z(he.start) - z(body.half_edge_end(e.he_plus).unwrap())).abs() > 0.5
+        (z(start) - z(end)).abs() > 0.5
     };
     body.edges()
-        .filter(|(_, e)| vertical(e))
         .map(|(k, _)| k)
+        .filter(|&k| vertical(k))
         .collect()
 }

@@ -53,6 +53,7 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
@@ -194,7 +195,7 @@ fn coaxial_poses_build_every_op_at_their_volumes() {
 /// measure through the rotational lane, in both poses. The union is no
 /// legal operand only because a later boolean's point-in-solid walk
 /// cannot read its chorded sphere face
-/// (`crate::cylinder_sphere_frame::no_operand_at_the_sphere`).
+/// (`crate::cylinder_sphere_frame::far_union`).
 #[test]
 fn a_transversal_pose_builds_in_both_poses() {
     let c = cyl(1.0, -2.0, 2.0);
@@ -264,11 +265,12 @@ fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
     assert!(!spheres.is_empty(), "the union holds a sphere face");
     for k in spheres {
         let flipped = body.flipped_face_sense_for_tests(k).unwrap();
-        let errs = topo::AtRestBody::validate(flipped, tol)
+        let errs = topo::finish::<f64>(flipped, tol)
             .err()
-            .unwrap_or_else(|| panic!("{k:?} flipped validates"));
+            .unwrap_or_else(|| panic!("{k:?} flipped finishes"));
         assert!(
-            errs.iter()
+            errs.as_slice()
+                .iter()
                 .any(|e| matches!(e, topo::ValidationError::LaminaWedge { .. })),
             "{k:?} flipped: {errs:?}"
         );
@@ -447,10 +449,7 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
             .and_then(|e| torus.get_curve_geom(e.curve))
             .and_then(topo::CurveGeom::certified)
             .is_some_and(|c| matches!(c.carrier(), topo::Curve3::Circle(..)));
-        let wall = matches!(
-            a.get_face(*f).and_then(|f| a.get_surface(f.surface)),
-            Some(topo::Surface::Cylinder { .. })
-        );
+        let wall = matches!(a.face_surface(*f), Some(topo::Surface::Cylinder { .. }));
         circle && wall
     });
     assert!(
@@ -519,7 +518,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         },
     )
     .unwrap();
-    let errors = topo::AtRestBody::validate(b, Tol::witness())
+    let errors = topo::finish(b, Tol::witness())
         .expect_err("a NURBS placeholder wall is not a finished body");
     assert!(
         errors.iter().any(

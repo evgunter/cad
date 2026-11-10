@@ -17,7 +17,7 @@ use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{AtRestBody, Body, ValidationError};
+use topo::{Body, ValidationError};
 
 const R: f64 = 3.0 / 64.0;
 const H: f64 = 8.0 / 64.0;
@@ -44,7 +44,7 @@ fn drum(ccw: bool) -> Body<f64> {
 fn volume(body: &Body<f64>, right_way: bool) -> f64 {
     if right_way {
         topo::mass_properties(
-            &AtRestBody::validate(body.clone(), Tol::witness()).expect("the drum is finished"),
+            &topo::finish(body.clone(), Tol::witness()).expect("the drum is finished"),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -64,7 +64,7 @@ fn volume(body: &Body<f64>, right_way: bool) -> f64 {
 /// `body` finishes when `right_way`, and refuses on check 7 alone when
 /// not.
 fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
-    match AtRestBody::validate(body.clone(), Tol::witness()) {
+    match topo::finish(body.clone(), Tol::witness()) {
         Ok(_) => assert!(right_way, "{what}: the inside-out body finished"),
         Err(errors) => assert!(
             !right_way
@@ -81,7 +81,7 @@ fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
 fn caps_face_alike(what: &str, body: &Body<f64>) {
     let normals: Vec<f64> = body
         .faces()
-        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Plane { normal, .. }) => Some(normal.y),
             _ => None,
         })

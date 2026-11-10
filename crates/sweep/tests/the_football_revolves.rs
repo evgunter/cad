@@ -76,7 +76,7 @@ fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, (volume, area): 
     let sheets: Vec<f64> = built
         .body
         .faces()
-        .filter_map(|(_, f)| match built.body.get_surface(f.surface) {
+        .filter_map(|(fk, _)| match built.body.face_surface(fk) {
             Some(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
             _ => None,
         })
@@ -90,8 +90,7 @@ fn holds(what: &str, lp: profile::ProfileLoop<f64>, sheet: f64, (volume, area): 
         .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{what}: the mesh: {e:?}"));
     crate::common::differential::assert_meshed_geometry(what, &built.body, &mesh, delta);
-    let body = topo::AtRestBody::validate(built.body, tol)
-        .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
+    let body = built.body;
     let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{what}: {e:?}"));
     let got = props.enclosure;
@@ -200,7 +199,7 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
             tol,
         )
         .unwrap();
-        let mut body = built.body;
+        let mut body = built.body.into_body();
         let keys: Vec<_> = body
             .surfaces()
             .filter(|(_, s)| matches!(s, geom::Surface::Spindle { .. }))
@@ -231,18 +230,19 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
                 )
                 .unwrap();
         }
-        let errors = topo::AtRestBody::validate(body, tol).expect_err(what);
-        let off_sheet = |e: &topo::ValidationError| {
-            matches!(
-                e,
-                topo::ValidationError::EdgeCertification {
-                    error: geom_brep::CertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Spindle,
-                        ..
-                    },
-                    ..
-                }
-            )
+        let errors = topo::finish(body, tol).expect_err(what);
+        // An edge read off the moved sheet: its incidence read decided
+        // off, on the chart the refusal names a sheet.
+        let off_sheet = |e: &topo::ValidationError| match e {
+            topo::ValidationError::EdgeCertification { error, .. } => {
+                matches!(
+                    error.incidence_read(),
+                    Some(geom_brep::IncidenceRead::Off(_))
+                ) && error
+                    .chart_carrier_kinds()
+                    .is_some_and(|(chart, _)| chart == geom::SurfaceKind::Spindle)
+            }
+            _ => false,
         };
         assert!(
             errors.iter().any(off_sheet)
@@ -326,8 +326,7 @@ fn measures(what: &str, lp: profile::ProfileLoop<f64>, ax: RevolveAxis<f64>, (v,
     let tol = Tol::witness();
     let built = revolve(&validated(vec![lp]), ax, Revolution::Full, tol)
         .unwrap_or_else(|e| panic!("{what}: {e}"));
-    let body = topo::AtRestBody::validate(built.body, tol)
-        .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
+    let body = built.body;
     let g = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{what}: {e:?}"))
         .enclosure;
@@ -500,8 +499,8 @@ fn a_sheet_faces_boundary_encodes_its_side_where_a_rim_closes_it() {
             .unwrap()
             .body;
         let mut sheets = 0;
-        for (_, f) in body.faces() {
-            let s = body.get_surface(f.surface).unwrap();
+        for (fk, f) in body.faces() {
+            let s = body.face_surface(fk).unwrap();
             if !matches!(s, geom::Surface::Spindle { .. }) {
                 continue;
             }
@@ -541,11 +540,11 @@ fn a_football_with_a_sheet_faces_bit_flipped_is_refused() {
         .unwrap();
         let sheet: Vec<_> = built.body.faces().map(|(k, _)| k).collect();
         for keys in [vec![sheet[0]], sheet.clone()] {
-            let mut body = built.body.clone();
+            let mut body = built.body.clone().into_body();
             for &k in &keys {
                 body = body.flipped_face_sense_for_tests(k).unwrap();
             }
-            let errors = topo::AtRestBody::validate(body, tol).expect_err("a flipped bit");
+            let errors = topo::finish(body, tol).expect_err("a flipped bit");
             let refused = if keys.len() == 1 {
                 errors
                     .iter()
@@ -635,10 +634,8 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
             tol,
         )
         .unwrap_or_else(|e| panic!("R = 1 − {d:e}: {e}"));
-        for (_, f) in built.body.faces() {
-            if let Some(geom::Surface::Spindle { major_radius, .. }) =
-                built.body.get_surface(f.surface)
-            {
+        for (fk, _) in built.body.faces() {
+            if let Some(geom::Surface::Spindle { major_radius, .. }) = built.body.face_surface(fk) {
                 assert!(
                     (major_radius - big).abs() <= 1e-15,
                     "R = 1 − {d:e}: stored {major_radius}"

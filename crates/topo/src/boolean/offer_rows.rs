@@ -223,71 +223,88 @@ cases! {
         line_drifting_off_a_walls_axis(D);
     endpoint_inside_a_wall: "Coincidence(VertexOnCurvedFace)", -D, CURVED_ARM_SITE, Valued =>
         line_run([(1.0 - D, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0 - D, 2.0)]);
-    thin_wedge_on_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    thin_wedge_on_a_block: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
-    thin_wedge_cut_from_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    thin_wedge_cut_from_a_block: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Subtract, 5.0, D);
-    thin_wedge_meeting_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    thin_wedge_meeting_a_block: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Intersect, 5.0, D);
-    // Tilted past the band at the arm, so the normals decide it off, while
-    // its bounds still read On: the bounds' margin decides it.
-    thinner_wedge_tilted_past_the_band: "Coincidence(Sectors)", 1.5e-8 * sin_deg(2.0), Public,
+    // Tilted past the band across the sector, while its bounds still read
+    // On: the steeper bound's tie decides it.
+    thinner_wedge_tilted_past_the_band: "Coincidence(CornerBound)", 1.5e-8 * sin_deg(2.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 2.0, 1.5e-8);
     // Tilted in band over the two faces, so the glue door leaves the pair
-    // unglued: the corner's bounds' margin, not the glue door's, is the
-    // one a smaller tolerance clears.
-    thin_wedge_in_band_over_its_faces: "Coincidence(Sectors)", 2e-9 * sin_deg(5.0), Public,
+    // unglued: the steeper bound's tie, not the glue door's reading, is
+    // the one a smaller tolerance clears.
+    thin_wedge_in_band_over_its_faces: "Coincidence(CornerBound)", 2e-9 * sin_deg(5.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
-    // Tilted inside the zero band at its arm, so the corner reads the
-    // pair one plane, and in band over the two faces at the glue door:
-    // at every opening the bounds' margin is the one a smaller tolerance
-    // clears, not the glue door's and not the corner's offset.
-    flat_wedge_at_2_degrees: "Coincidence(Sectors)", Z * sin_deg(2.0), Public, Valued =>
+    // Tilted inside the zero band at its bound, and in band over the two
+    // faces at the glue door, which glues nothing: at every opening the
+    // steeper bound's tie is the one a smaller tolerance clears, not the
+    // glue door's reading.
+    flat_wedge_at_2_degrees: "Coincidence(CornerBound)", Z * sin_deg(2.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 2.0, Z);
-    flat_wedge_at_5_degrees: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+    flat_wedge_at_5_degrees: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, Z);
-    flat_wedge_at_20_degrees: "Coincidence(Sectors)", Z * sin_deg(20.0), Public, Valued =>
+    flat_wedge_at_20_degrees: "Coincidence(CornerBound)", Z * sin_deg(20.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 20.0, Z);
-    flat_wedge_at_60_degrees: "Coincidence(Sectors)", Z * sin_deg(60.0), Public, Valued =>
+    flat_wedge_at_60_degrees: "Coincidence(CornerBound)", Z * sin_deg(60.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 60.0, Z);
-    flat_wedge_at_90_degrees: "Coincidence(Sectors)", Z * sin_deg(90.0), Public, Valued =>
+    flat_wedge_at_90_degrees: "Coincidence(CornerBound)", Z * sin_deg(90.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 90.0, Z);
-    flat_wedge_cut_from_a_block: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+    flat_wedge_cut_from_a_block: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Subtract, 5.0, Z);
-    flat_wedge_meeting_a_block: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+    flat_wedge_meeting_a_block: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Intersect, 5.0, Z);
+    // Tilted down off the block's top: the bound's tie is negative, and
+    // either definite side passes the corner.
+    flat_wedge_tilted_down_at_5_degrees: "Coincidence(CornerBound)", -Z * sin_deg(5.0), Public,
+        Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, -Z);
+    // A tool cornered on a block's corner, its top tilted off the block's
+    // so that the two faces read parallel at the tool's 1 mm arm and its
+    // 10 m edge stands far off: a pair the glue door did not glue refuses
+    // on the arm's tilt, and every op in both orders builds just below it.
+    tool_on_a_block_corner_tilted_at_its_arm: "Coincidence(CornerCrossing)", Z, Public,
+        Valued => tool_on_a_block_corner(Z);
+    // Tilted into the band at the arm: the arm's tilt reads in band
+    // rather than Zero, and a smaller tolerance decides it.
+    corner_tilted_in_band_at_its_arm: "Coincidence(CornerCrossing)", D, Door::Site(
+        "the tool on a block's corner tilted in band at its arm meets a point within the band of \
+         the block's boundary first, generic or hinged (Containment)",
+    ), Valued => corner_tilted_at_its_arm(D);
     // Sunk into the block, its re-run meets the crossing insertion.
-    flat_wedge_sunk_at_5_degrees: "Coincidence(Sectors)", Z * sin_deg(5.0), Public, Valued =>
+    flat_wedge_sunk_at_5_degrees: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         sunk_wedge_in_a_block(5.0, Z);
-    flat_wedge_sunk_at_20_degrees: "Coincidence(Sectors)", Z * sin_deg(20.0), Public, Valued =>
+    flat_wedge_sunk_at_20_degrees: "Coincidence(CornerBound)", Z * sin_deg(20.0), Public, Valued =>
         sunk_wedge_in_a_block(20.0, Z);
     // The coincfr4 review's wedges (W1–W4), on its own poses: turned,
     // scaled, hanging from the bottom face, and tilted into the block,
     // each through the three public ops.
-    wedge_turned_on_a_block_union: "Coincidence(Sectors)", 2.0 * D * sin_deg(3.0), Public,
+    wedge_turned_on_a_block_union: "Coincidence(CornerBound)", 2.0 * D * sin_deg(3.0), Public,
         Valued => turned_wedge(0, true, 37.0, 3.0, 2.0, D);
-    wedge_turned_on_a_block_subtract: "Coincidence(Sectors)", 2.0 * D * sin_deg(3.0), Public,
+    wedge_turned_on_a_block_subtract: "Coincidence(CornerBound)", 2.0 * D * sin_deg(3.0), Public,
         Valued => turned_wedge(1, true, 37.0, 3.0, 2.0, D);
-    wedge_turned_on_a_block_intersect: "Coincidence(Sectors)", 2.0 * D * sin_deg(3.0), Public,
+    wedge_turned_on_a_block_intersect: "Coincidence(CornerBound)", 2.0 * D * sin_deg(3.0), Public,
         Valued => turned_wedge(2, true, 37.0, 3.0, 2.0, D);
-    small_wedge_on_a_block_union: "Coincidence(Sectors)", 0.5 * 5e-9 * sin_deg(8.0), Public,
+    small_wedge_on_a_block_union: "Coincidence(CornerBound)", 0.5 * 5e-9 * sin_deg(8.0), Public,
         Valued => turned_wedge(0, true, 120.0, 8.0, 0.5, 5e-9);
-    small_wedge_on_a_block_subtract: "Coincidence(Sectors)", 0.5 * 5e-9 * sin_deg(8.0), Public,
+    small_wedge_on_a_block_subtract: "Coincidence(CornerBound)", 0.5 * 5e-9 * sin_deg(8.0), Public,
         Valued => turned_wedge(1, true, 120.0, 8.0, 0.5, 5e-9);
-    small_wedge_on_a_block_intersect: "Coincidence(Sectors)", 0.5 * 5e-9 * sin_deg(8.0), Public,
+    small_wedge_on_a_block_intersect: "Coincidence(CornerBound)", 0.5 * 5e-9 * sin_deg(8.0), Public,
         Valued => turned_wedge(2, true, 120.0, 8.0, 0.5, 5e-9);
-    wedge_under_a_block_union: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    wedge_under_a_block_union: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         turned_wedge(0, false, 0.0, 5.0, 1.0, D);
-    wedge_under_a_block_subtract: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    wedge_under_a_block_subtract: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         turned_wedge(1, false, 0.0, 5.0, 1.0, D);
-    wedge_under_a_block_intersect: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    wedge_under_a_block_intersect: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         turned_wedge(2, false, 0.0, 5.0, 1.0, D);
     // Its re-run meets the crossing insertion, whose own offer is true.
-    wedge_tilted_into_a_block_union: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
+    wedge_tilted_into_a_block_union: "Coincidence(CornerBound)", -D * sin_deg(5.0), Public,
+        Valued =>
         turned_wedge(0, true, 200.0, 5.0, 1.0, -D);
-    wedge_tilted_into_a_block_subtract: "Coincidence(Sectors)", D * sin_deg(5.0), Public,
+    wedge_tilted_into_a_block_subtract: "Coincidence(CornerBound)", -D * sin_deg(5.0), Public,
         Valued => turned_wedge(1, true, 200.0, 5.0, 1.0, -D);
-    wedge_tilted_into_a_block_intersect: "Coincidence(Sectors)", D * sin_deg(5.0), Public,
+    wedge_tilted_into_a_block_intersect: "Coincidence(CornerBound)", -D * sin_deg(5.0), Public,
         Valued => turned_wedge(2, true, 200.0, 5.0, 1.0, -D);
     // The arms this pass withdrew, each on the raise that showed its
     // offer false.
@@ -328,7 +345,7 @@ cases! {
         turned_wedge(2, true, 10.0, 30.0, 1.0, 1.1e-8);
     // The rest of the census, one per arm and side.
     edge_nearly_along_an_edge: "Coincidence(EdgeOnEdge)", D, CORNER_SITE, Valued =>
-        super::super::sectors::parallel_same(
+        super::super::sectors::parallel_same_as(
             Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, D, 0.0), geom_core::test_support::fixture_lever(1.0),
             super::RAY_COLLINEAR, band()
         ).map(|_| ());
@@ -388,19 +405,14 @@ cases! {
         vertex_near_a_sheet_corner();
     germs_nearly_facing: "Coincidence(Join)", D, JOIN_SITE, Valued => germ_facing(D);
     germs_nearly_turned_away: "Coincidence(Join)", -D, JOIN_SITE, Valued => germ_facing(-D);
-    // Overlapping plane flanks lie on one plane, which the door then asks
-    // to be one face.
+    // Overlapping plane flanks lie on one plane, which the corner then
+    // refuses as a pair no glue door glued, on its own sector.
     flanks_along_a_short_arm: "Coincidence(FlankSense)", D, FLANK_SITE,
-        Withdrawn(Because::Refuses("Coincidence(Carriers)")) =>
+        Withdrawn(Because::Refuses("Coincidence(CornerBound)")) =>
         planar_flank_membership(false, false);
     // Declared `Rest`, the one face the door verified.
     flanks_along_a_short_arm_declared_rest: "Coincidence(FlankSense)", D, FLANK_SITE, Valued =>
         planar_flank_membership(false, true);
-    // Coincident planes facing opposite ways, read at a short arm: the
-    // offset rung asks next, and refuses a pair no glue door glued (the
-    // site is called directly here, past the operation's glue door).
-    planes_facing_at_a_short_arm: "PlaneOrientation", -D, FLANK_SITE,
-        Withdrawn(Because::Refuses("Coincidence(Carriers)")) => shared_side_plane(D);
     flanks_against_a_short_arm: "Coincidence(FlankSense)", -D, FLANK_SITE, Valued =>
         planar_flank_membership(true, false);
     neighbours_bent_at_the_band: "Neighbours(Parallel)", D, GATE_SITE, Valued =>
@@ -446,10 +458,6 @@ cases! {
     seam_barely_creased: "SeamWedge", D, SEAM_SITE, Valued =>
         seam(D, 1.0, Vec3::new(0.0, 0.0, 1.0));
     seam_barely_bending_apart: "SeamJet", D, SEAM_SITE, Valued => seam_bend(D);
-    // A ray aimed 10° off the normal (`AIM_INCIDENCE`) across two
-    // parallel faces `D·cos 10°` apart meets them `D` apart along it.
-    aimed_ray_across_a_pair_in_band: "ShellRole", D, ROLE_SITE, Valued =>
-        aimed_pair(D * crate::side_reader::AIM_INCIDENCE.0);
     sphere_barely_leaning: "Sphere(RecutAlign)", D, Door::Site(
         "a re-cut sphere's lean is read on a crossing-free escape, where an axis near the escape \
          normal carries a seam across the escape plane that the crossing layer meets first: no \
@@ -501,10 +509,6 @@ const RIM_PLANE_SITE: Door = Door::Site(
 );
 const SEAM_SITE: Door = Door::Site(
     "a seam of the result is read as its edges are re-described, on two surfaces set directly",
-);
-const ROLE_SITE: Door = Door::Site(
-    "the side at infinity is read of two faces set directly: no result shell is known whose every \
-     aimed ray meets a pair in band",
 );
 const GATE_SITE: Door = Door::Site(
     "the maximal-faces gate is asked of the operand directly: a solid whose neighbours are bent \
@@ -668,10 +672,14 @@ fn line_against_a_wall(x0: f64, y0: f64) -> Result<(), BooleanError> {
 fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     let z = Vec3::new(0.0, 0.0, 1.0);
     super::super::solid_contain::line_wall_roots(
-        Point3::new(0.5, 0.0, 0.0),
-        Vec3::new(drift, 0.0, 1.0),
-        Point3::new(0.0, 0.0, 0.0),
-        z,
+        geom::Line {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            dir: Vec3::new(drift, 0.0, 1.0),
+        },
+        geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: z,
+        },
         1.0,
         1.0,
         band(),
@@ -692,16 +700,13 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
     let (edge_key, edge) = x
         .edges()
-        .find(|(_, e)| {
-            let ends = [e.he_plus, e.he_minus].map(|he| x.get_half_edge(he).unwrap().start);
-            ends == [u, v] || ends == [v, u]
+        .find(|&(k, _)| {
+            let ends = crate::query::edge_ends(&x, k);
+            ends == (u, v) || ends == (v, u)
         })
         .map(|(k, e)| (k, e.clone()))
         .unwrap();
-    let (a, c) = (
-        x.get_half_edge(edge.he_plus).unwrap().start,
-        x.get_half_edge(edge.he_minus).unwrap().start,
-    );
+    let (a, c) = crate::query::edge_ends(&x, edge_key);
     let mut y: crate::body::Body<f64> = crate::body::Body::new();
     let wall = cyl_wall_sheet(
         &mut y,
@@ -770,8 +775,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
             )
         })
         .unwrap();
-    let start = |he| x.get_half_edge(he).unwrap().start;
-    let (a, c) = (start(edge.he_plus), start(edge.he_minus));
+    let (a, c) = crate::query::edge_ends(&x, edge_key);
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
     let mut acc = ContactAcc::default();
     curved_face_arm(
@@ -814,6 +818,50 @@ fn wedge_on_a_block(
     .map(|_| ())
 }
 
+/// The generic pose of [`crate::test_support_fixtures::tool_on_a_block_corner`],
+/// its top tilted so the two faces' tilt at the corner's 1 mm arm is
+/// `margin`: every op in both orders, the first refusal.
+fn tool_on_a_block_corner(margin: f64) -> Result<(), BooleanError> {
+    use super::super::BooleanOp::{Intersect, Subtract, Union};
+    let tol = Tol::witness();
+    let theta = margin / 1e-3;
+    let (block, tool) = crate::test_support_fixtures::tool_on_a_block_corner(theta, 0.0, tol);
+    let (block, tool) = (finished("block", block, tol), finished("tool", tool, tol));
+    for op in [Intersect, Subtract, Union] {
+        for (a, b) in [(&block, &tool), (&tool, &block)] {
+            super::super::boolean_op_with(
+                op,
+                a,
+                b,
+                &super::super::BooleanInputs::default(),
+                super::super::SweepStrategy::Realized,
+                tol,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Two quarter-turn plane sectors cornered at the origin, the glue door
+/// gluing neither: `A`'s on `z = 0`, `B`'s tilted to rise `margin` at
+/// their 1 mm arm. [`super::super::fan::meeting`] reads where they meet.
+fn corner_tilted_at_its_arm(margin: f64) -> Result<(), BooleanError> {
+    use super::super::fan::Meeting;
+    use super::super::sectors::flat_corner;
+    let (arm, plane) = (1e-3, crate::bound_side::FaceBend::Plane);
+    let flat = flat_corner(Vec3::new(0.0, 0.0, 1.0), arm, 1, plane);
+    let tilted = flat_corner(Vec3::new(margin / arm, 0.0, 1.0).normalize(), arm, 2, plane);
+    match super::super::fan::meeting(
+        (Operand::A, None, &flat),
+        (Operand::B, None, &tilted),
+        None,
+        band(),
+    )? {
+        Meeting::Rays(_) => Ok(()),
+        other => panic!("tilted past the band, the corner's faces meet along a line: {other:?}"),
+    }
+}
+
 /// The union of a block and a wedge sunk half its height into the
 /// block's top, cornered on it as [`wedge_on_a_block`]'s.
 fn sunk_wedge_in_a_block(opening_deg: f64, tilt: f64) -> Result<(), BooleanError> {
@@ -847,7 +895,7 @@ fn lane_wedge(opening_deg: f64, tilt: f64) -> (crate::AtRestBody<f64>, crate::At
 }
 
 /// The wedge `thin_wedge_in_band_over_its_faces` raises, every op in
-/// both orders: the first outcome other than a `Coincidence(Sectors)`
+/// both orders: the first outcome other than a `Coincidence(CornerBound)`
 /// refusal, or that refusal where every op gives it.
 #[test]
 #[ignore = "a child row: the_in_band_wedge_is_in_band_at_the_glue_door runs it"]
@@ -875,8 +923,7 @@ fn wedge_in_band_every_op() {
         run(Subtract, &wedge, &block),
     ]
     .map(outcome);
-    let sectors =
-        |o: &Outcome| matches!(o, Outcome::Refused { key, .. } if key == "Coincidence(Sectors)");
+    let sectors = |o: &Outcome| matches!(o, Outcome::Refused { key, .. } if key == "Coincidence(CornerBound)");
     let first = outcomes
         .iter()
         .find(|o| !sectors(o))
@@ -933,7 +980,7 @@ fn the_in_band_wedge_is_in_band_at_the_glue_door() {
         .split_once("::")
         .map_or(module_path!(), |(_, m)| m);
     match run(&format!("{module}::wedge_in_band_every_op"), below) {
-        Outcome::Refused { key, .. } if key == "Coincidence(Sectors)" => {}
+        Outcome::Refused { key, .. } if key == "Coincidence(CornerBound)" => {}
         other => panic!("every op refuses at the corner at {below:e}: {other:?}"),
     }
 }
@@ -988,7 +1035,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
             far: o + end * reach,
         },
         face,
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             start.cross(end),
             true,
         )),
@@ -1034,7 +1081,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             Vec3::new(0.0, 0.0, 1.0),
             true,
         )),
@@ -1086,7 +1133,7 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             Vec3::new(0.0, 0.0, 1.0),
             true,
         )),
@@ -1492,7 +1539,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
             far: o + end * reach,
         },
         face,
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             start.cross(end),
             true,
         )),
@@ -1540,52 +1587,6 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     .map(|_| ())
 }
 
-/// Two unit prisms' shared side plane `x = 1`, undeclared, read as an
-/// on-pair of corners at arm `arm`.
-fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::BoolSector;
-    let tol = Tol::witness();
-    let o = Point3::new(1.0, 0.0, 0.0);
-    let (y, z) = (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
-    let square = |x0: f64| [(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)];
-    let pa = prism_z::<f64>(&square(0.0), 0.0, 1.0, tol);
-    let pb = prism_z::<f64>(&square(1.0), 0.0, 1.0, tol);
-    let sector = |face| BoolSector {
-        he: crate::entity::HalfEdgeKey::default(),
-        start: y,
-        end: z,
-        start_reach: BoundSupport::Chord {
-            base: o,
-            far: o + y * arm,
-        },
-        end_reach: BoundSupport::Chord {
-            base: o,
-            far: o + z * arm,
-        },
-        face,
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
-            Vec3::new(1.0, 0.0, 0.0),
-            true,
-        )),
-        arm: geom_core::test_support::fixture_lever(arm),
-        bend: crate::bound_side::FaceBend::Plane,
-    };
-    let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
-    super::super::recl::require_same(
-        &pa.body,
-        Operand::A,
-        &sector(pa.side_faces[1]),
-        &pb.body,
-        Operand::B,
-        &sector(pb.side_faces[3]),
-        &declared,
-        super::super::recl::ReadOn::Faces,
-        geom_core::test_support::fixture_lever(arm),
-        band(),
-    )
-    .map(|_| ())
-}
-
 /// A unit prism's top split on its diagonal, one half bent about it by
 /// an angle whose sine over the diagonal is `margin`: the operand's
 /// maximal-faces gate.
@@ -1596,49 +1597,6 @@ fn bent_neighbours(margin: f64) -> Result<(), BooleanError> {
         plane_through(p0, along, up * theta.cos() + along.cross(up) * theta.sin())
     });
     super::super::reduce::gate_maximal_faces(&body, Operand::A, band())
-}
-
-/// A unit brick's top and the floor of a brick standing `gap` above it,
-/// read as one selection by the reader of the side at infinity
-/// ([`crate::side_reader::side_at_infinity`]): a ray aimed at the top
-/// meets the floor first and the top `gap` over the cosine of its
-/// incidence further on ([`crate::side_reader::AIM_INCIDENCE`]).
-/// An in-band pair is refused as the result gate refuses it.
-fn aimed_pair(gap: f64) -> Result<(), BooleanError> {
-    use super::super::solid_contain::SolidFaces;
-    use crate::side_reader::{SideUnread, side_at_infinity};
-    use crate::test_support_fixtures::brick;
-    let tol = Tol::witness();
-    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
-    let above = brick::<f64>((0.0, 1.0), (0.0, 1.0), (1.0 + gap, 2.0), tol);
-    crate::graft_disjoint_all_keyed(&mut body, &above).unwrap();
-    let solid = body.solids().next().unwrap().0;
-    let level = |z: f64| {
-        body.faces()
-            .map(|(k, _)| k)
-            .find(|&f| {
-                let (o, n) = crate::face_normal::face_plane(&body, f).unwrap();
-                n.z.abs() > 0.99 && (o.z - z).abs() < 1e-12
-            })
-            .unwrap()
-    };
-    let faces = vec![level(1.0), level(1.0 + gap)];
-    let sel = SolidFaces::select(&body, faces).unwrap();
-    match side_at_infinity(&body, &sel, band(), || {
-        Err::<crate::SolidContainment, ()>(())
-    }) {
-        Ok(Ok(_)) => Ok(()),
-        Ok(Err(SideUnread::InBand(pair))) => Err(super::super::ops::finished_body_refusal(vec![
-            crate::ValidationError::ShellRoleUndecided {
-                solid,
-                error: crate::ShellClassifyError::RayInBand {
-                    shell: pair.shell,
-                    pair: Box::new(pair),
-                },
-            },
-        ])),
-        other => panic!("the aimed ray reads the pair: {other:?}"),
-    }
 }
 
 /// A unit prism's top split on its diagonal, one half re-described on
@@ -1744,7 +1702,7 @@ fn big_block() -> crate::AtRestBody<f64> {
     let tol = Tol::witness();
     finished(
         "the review's big block",
-        crate::test_support_fixtures::brick((-4.0, 4.0), (-4.0, 4.0), (0.0, 1.0), tol),
+        crate::test_support_fixtures::brick::<f64>((-4.0, 4.0), (-4.0, 4.0), (0.0, 1.0), tol),
         tol,
     )
 }
@@ -1818,15 +1776,15 @@ fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
         .collect();
     let edges: Vec<_> = boundary.iter().map(|he| he.edge).collect();
     let vertices: Vec<_> = boundary.iter().map(|he| he.start).collect();
-    let errors = crate::AtRestBody::validate(body, Tol::witness())
-        .expect_err("a stranded body is not a finished body");
+    let errors =
+        crate::finish(body, Tol::witness()).expect_err("a stranded body is not a finished body");
     assert!(
         errors
             .iter()
             .any(|e| matches!(e, crate::ValidationError::PlanarFaceResidual { .. })),
         "the stranded half's vertices lie off its plane: {errors:?}"
     );
-    for e in &errors {
+    for e in errors.iter() {
         let own = match e {
             crate::ValidationError::PlanarFaceResidual { face, vertex } => {
                 *face == stranded && vertices.contains(vertex)
@@ -2147,6 +2105,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
                 verdict,
             })
             .collect(),
+        BooleanErrorKind::JoinPartnersTied => vec![BooleanError::JoinPartnersTied],
+        BooleanErrorKind::JoinPairsTied => vec![BooleanError::JoinPairsTied],
         // Every regularity reading is a magnitude: a distance from a
         // singularity, a wedge, a sagitta. It refuses on no negative.
         BooleanErrorKind::JoinUndecided => [BooleanError::JoinUndecided(crate::JoinUndecided {
@@ -2195,13 +2155,10 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::RechartedRowUnstated
         | BooleanErrorKind::CarryRefused
-        | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand
-        | BooleanErrorKind::UnjoinedOperand
         | BooleanErrorKind::NonMaximalFaces
         | BooleanErrorKind::NonFiniteSectorChord
         | BooleanErrorKind::UnderflowedSectorChord
-        | BooleanErrorKind::ContactContradicted
         | BooleanErrorKind::TangencyUnsupported
         | BooleanErrorKind::RimCuspArmUnbuilt
         | BooleanErrorKind::HeldPierceUnbuilt
@@ -2213,6 +2170,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::LineMaterialUnread
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
+        | BooleanErrorKind::TouchesItself
+        | BooleanErrorKind::ToolSeatCrossed
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2269,6 +2228,7 @@ fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
             let diag = Indeterminate {
                 margin: MarginDiag::value(m),
                 band,
+                // UNDECIDED-NAME: the cause every BooleanErrorKind is quoted on to read its offers
                 predicate: Some("census"),
                 terminal_sliver: false,
             };
@@ -2346,7 +2306,7 @@ fn every_site_names_the_decision_it_raises() {
                 function = name;
             }
             // A site that passes a parallelism reading raises its
-            // coincidence: `sectors::parallel_same` names none of its own.
+            // coincidence: `sectors::parallel_same_as` names none of its own.
             if !line.trim_start().starts_with("use ") {
                 for (name, reading) in PARALLEL_READINGS {
                     let passed = line
@@ -2573,13 +2533,15 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("fan.rs", "face_side_code", "Coincide::Sectors", 1),
     ("fan.rs", "fan_within_signs", "Coincide::Sectors", 1),
     ("fan.rs", "fans_overlap", "Coincide::Sectors", 1),
+    ("fan.rs", "fan_meeting", "Coincide::Sectors", 1),
+    ("fan.rs", "meeting", "Coincide::CornerCrossing", 1),
     ("fan.rs", "meeting", "Coincide::Sectors", 1),
+    ("fan.rs", "unglued_parallel", "Coincide::CornerCrossing", 1),
     ("fan.rs", "nappe_classes", "Coincide::Sectors", 1),
     ("fan.rs", "one_cone", "Coincide::Sectors", 1),
     ("fan.rs", "plane_fan", "Coincide::Sectors", 1),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
-    ("fate.rs", "normal_at", "BooleanDecision::of_normal", 1),
     (
         "fate.rs",
         "ring_winding",
@@ -2632,10 +2594,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "segment_arm", "Coincide::Section", 1),
     ("join.rs", "stands_on", "Coincide::Sectors", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
-    ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
-    ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
-    ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
-    ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
+    ("mod.rs", "unglued_corner", "Coincide::CornerBound", 1),
+    ("mod.rs", "off_ring_torus", "BooleanDecision::Torus", 1),
+    ("mod.rs", "rim_unread", "Coincide::Rim", 1),
     (
         "mod.rs",
         "decision_words",
@@ -2695,8 +2656,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
-    ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
-    ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
+    ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 1),
+    ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "pair_seam", "BooleanDecision::Sphere", 1),
@@ -2723,8 +2684,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "seam_refusal", "BooleanDecision::SeamJet", 1),
-    ("ops.rs", "binding", "BooleanDecision::ShellRole", 2),
-    ("ops.rs", "finding_arm", "BooleanDecision::ShellRole", 1),
     ("ops.rs", "seam_refusal", "LeverArm::Seam", 1),
     ("ops.rs", "sphere_extent_scan", "BooleanDecision::Sphere", 1),
     (
@@ -2747,9 +2706,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VertexOnVertex",
         1,
     ),
-    ("ops.rs", "piece_reading", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "piece_reading", "BooleanDecision::Containment", 1),
-    ("ops.rs", "piece_reading", "SelfCheck::CarriedLineage", 1),
+    ("ops.rs", "piece_reads", "BooleanDecision::Containment", 1),
     ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 2),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (
@@ -2763,7 +2720,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("recl.rs", "resolve_edge_edge", "Coincide::Sectors", 1),
     ("recl.rs", "resolve_edge_edge", "Coincide::TangentSide", 1),
     ("recl.rs", "resolve_edge_sector", "Coincide::TangentSide", 1),
-    ("recl.rs", "unglued_tilt", "Coincide::Sectors", 1),
     (
         "reduce.rs",
         "arc_chain_reaches",
@@ -2853,7 +2809,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "landing", "BooleanDecision::Containment", 1),
-    ("reduce.rs", "sheets_part", "BooleanDecision::of_normal", 1),
     ("reduce.rs", "sheets_part", "Coincide::Sectors", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
@@ -2930,7 +2885,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::BisectorSide",
         1,
     ),
-    ("sectors.rs", "extreme_directions", "Coincide::Sectors", 1),
+    ("sectors.rs", "star_fault", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
@@ -2982,10 +2937,22 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PartingOrder",
         1,
     ),
+    (
+        "slit.rs",
+        "spiric_on_curved",
+        "Coincide::EdgeOnCurvedFace",
+        1,
+    ),
     ("slit.rs", "spline_floor", "BooleanDecision::Containment", 1),
     ("slit.rs", "spline_floor", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
+    (
+        "standing_rows.rs",
+        "each_class_and_each_delegate_reads_as_its_doc_states",
+        "Coincide::Sectors",
+        1,
+    ),
     (
         "torus_frame_rows.rs",
         "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",
@@ -2994,14 +2961,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "BooleanDecision::ConicBend",
         1,
     ),
-    ("vtxfac.rs", "unglued_flat_sector", "Coincide::Sectors", 1),
+    ("vtxfac.rs", "bend_refusal", "BooleanDecision::ConicBend", 1),
     (
         "vtxfac.rs",
-        "classify_vertex_on_face",
+        "read_vertex_on_face",
         "Coincide::TangentSide",
         1,
     ),
@@ -3077,15 +3044,13 @@ lever_rows! {
     covered_vertex_on_its_glued_face: None => arc_on_its_glued_wall();
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
-    // refuses next, whose own story is the declaration, which passes.
-    overlapping_flanks_lengthened: Some("Coincidence(Carriers)") =>
+    // refuses next on its own sector, whose own story is the
+    // declaration, which passes.
+    overlapping_flanks_lengthened: Some("Coincidence(CornerBound)") =>
         planar_flank_membership_at(false, false, 1e-3);
     overlapping_flanks_lengthened_declared_rest: None =>
         planar_flank_membership_at(false, true, 1e-3);
     touching_flanks_lengthened: None => planar_flank_membership_at(true, false, 1e-3);
-    // `PlaneOrientation`: lengthened, the offset rung refuses the
-    // unglued pair next, as above.
-    facing_planes_lengthened: Some("Coincidence(Carriers)") => shared_side_plane(1e-3);
     // `VertexOnFace`: the vertices moved clearly off the face.
     vertex_moved_clearly_above_a_face: None => block_on_a_block(1.0 + 1e-3);
     vertex_moved_clearly_into_a_face: None => block_on_a_block(1.0 - 1e-3);

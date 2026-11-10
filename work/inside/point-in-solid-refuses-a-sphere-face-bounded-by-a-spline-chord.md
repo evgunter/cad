@@ -63,4 +63,4 @@ both.
 `point_in_solid` reads a sphere face bounded by projected chords (its
 region off the stored pcurves, as the cylinder's `ruled_region` reads
 its walls), and the rows above go SOUND: `cylinder_sphere_frame::at_its_volume`
-and `no_operand_at_the_sphere` are where they are pinned.
+and `far_union` are where they are pinned.

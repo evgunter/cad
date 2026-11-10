@@ -310,7 +310,7 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     use geom_brep::PropsError;
     use topo::{MassPropsError, PieceSortError, PointInSolidError, ValidationError};
     match e {
-        BooleanError::ResultInvalid { errors } => match errors.as_slice() {
+        BooleanError::ResultInvalid { findings: errors } => match errors.as_slice() {
             [ValidationError::VolumeUncomputable { source, .. }] => match source {
                 MassPropsError::Face {
                     source: PropsError::QuadratureUnsupported { what },
@@ -338,15 +338,6 @@ pub(crate) fn door(e: &BooleanError) -> Option<Door> {
     }
 }
 
-/// **Whether `body` is refused as an operand only at the point-in-solid
-/// door on a chorded sphere face**: its union with a far brick, the
-/// question `common::differential::outcome`'s legal-operand check asks,
-/// refuses `PartialSphereFace`
-/// (`work/inside/point-in-solid-refuses-a-sphere-face-bounded-by-a-spline-chord.md`).
-pub(crate) fn no_operand_at_the_sphere(body: &topo::AtRestBody<f64>) -> bool {
-    matches!(far_union(body), Operand::AtTheSphere)
-}
-
 /// How a run is pinned to end: a body at its volume, or the piece sort's
 /// refusal ([`Door::Pieces`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -362,7 +353,7 @@ pub(crate) enum Ends {
 /// holds `want` within `VOLUME_CLAIM` of its certified enclosure, no
 /// wider than `ceiling`; its union with a far brick builds (SOUND) or
 /// refuses `Containment(PartialSphereFace)` and nothing else
-/// ([`no_operand_at_the_sphere`]). A refusal is the piece sort's
+/// ([`far_union`]). A refusal is the piece sort's
 /// ([`Door::Pieces`]) where `ends` says so, and nothing else is.
 /// `guard`, where given, is a regression guard on the enclosure's
 /// half-width, not a soundness bound: four times the widest measured at
@@ -426,7 +417,8 @@ pub(crate) fn at_its_volume(
 pub(crate) enum Operand {
     Legal,
     AtTheSphere,
-    Refused(String),
+    /// The refusal, printed with the run's line.
+    Refused(#[allow(dead_code)] String),
 }
 
 /// `body`'s union with a far brick, the question
@@ -435,7 +427,7 @@ pub(crate) fn far_union(body: &topo::AtRestBody<f64>) -> Operand {
     let tol = Tol::witness();
     let far = finished(
         "the far brick",
-        sweep::test_support::brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+        sweep::test_support::brick::<f64>((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
         tol,
     );
     match topo::union(body, &far, tol) {

@@ -464,7 +464,10 @@ fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_
     for (what, carrier) in [("lifted", lifted), ("tilted", tilted)] {
         let got = chart_pcurve(&carrier, &surface, band());
         assert!(
-            matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            matches!(
+                got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "a {what} Villarceau circle is off the torus: {got:?}"
         );
     }
@@ -553,7 +556,10 @@ fn an_in_band_move_is_never_read_off_the_torus() {
         }
         let got = chart_pcurve(&moved(3.0 * k * eps()), &surface, band());
         assert!(
-            matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            matches!(
+                got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "r/R {ratio}, moved 3·K·ε: off the torus: {got:?}"
         );
     }
@@ -630,7 +636,10 @@ fn each_villarceau_gate_alone_refuses_typed() {
         });
         let got = chart_pcurve(&carrier, &surface, band());
         assert!(
-            matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            matches!(
+                got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "the {gate} gate failed alone by 3·K·ε: the incidence test refuses it first: {got:?}"
         );
     }

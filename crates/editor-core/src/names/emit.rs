@@ -467,9 +467,8 @@ pub enum NamingError {
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
-        /// The named predicate.
-        predicate: &'static str,
-        /// The escalation, unaltered.
+        /// The escalation, unaltered: the discriminator's name is the
+        /// one its funnel recorded ([`Indeterminate::predicate`]).
         source: Indeterminate,
     },
 }
@@ -960,14 +959,14 @@ impl crate::spoken::Say for NamingError {
                 "the naming band could not be built from the ambient tolerance, so no \
                  name can be decided: {error}"
             ),
-            Self::Escalated { predicate, source } => {
-                let what = crate::decision::words(predicate).unwrap_or(geom_core::UNNAMED_DECISION);
+            Self::Escalated { source } => {
+                let what = crate::decision::subject(source);
                 write!(
                     f,
                     "{}",
                     source.undecided(
                         format_args!("{what}, which a name rests on,"),
-                        crate::decision::ending(predicate, source)
+                        crate::decision::ending(source.predicate, source)
                     )
                 )
             }
@@ -1274,11 +1273,12 @@ pub(crate) fn to_u32(n: usize, what: &'static str) -> u32 {
 /// own output body, the members in index order. The wrapping is
 /// uniform: it wraps every name of a member, body rows included, so a
 /// name of one member is the same selector on every member but its
-/// `at`.
+/// `at`. A member with no body (`None` in `bodies`, a boolean's empty
+/// result) names nothing and keeps its place.
 pub(crate) fn name_family<T: geom_core::Real>(
     node: RecipeNodeId,
     members: &[(super::role::MemberAt, &NameTable)],
-    bodies: &[&Body<T>],
+    bodies: &[Option<&Body<T>>],
 ) -> Result<Arc<NameTable>, NamingError> {
     let mut t = NameTable::new();
     for (at_body, (at, member)) in members.iter().enumerate() {
@@ -1314,7 +1314,9 @@ pub(crate) fn name_family<T: geom_core::Real>(
         }
     }
     for (i, body) in bodies.iter().enumerate() {
-        check_total(&t, body, narrow(i, Numbered::OutputBody)?)?;
+        if let Some(body) = body {
+            check_total(&t, body, narrow(i, Numbered::OutputBody)?)?;
+        }
     }
     Ok(Arc::new(t))
 }
@@ -1634,17 +1636,13 @@ pub(crate) fn vertex_point<T: geom_core::Real>(
 /// # Panics
 ///
 /// For a dead face ([`LIVE_ARGUMENT`]: `f` is the caller's key), or
-/// where [`loop_half_edges`] panics on one of its loops ([`TIER1`]).
+/// where one of its loops is torn ([`TIER1`], [`topo::FaceView::half_edges`]).
 #[track_caller]
 pub(crate) fn face_half_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Vec<HalfEdgeKey> {
-    let Some(face) = body.get_face(f) else {
+    let Some(face) = body.face(f) else {
         unreachable!("face walk: dangling face {f:?}; {LIVE_ARGUMENT}")
     };
-    let mut out = Vec::new();
-    for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        out.extend(loop_half_edges(body, l));
-    }
-    out
+    face.half_edges()
 }
 
 /// The half-edges of loop `l`, in cycle order (none for an empty loop).
@@ -1676,22 +1674,9 @@ pub(crate) fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) ->
 /// broken link from its `he_plus` ([`TIER1`]).
 #[track_caller]
 pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
-    let Some(edge) = body.get_edge(e) else {
-        unreachable!("edge ends: dangling edge {e:?}; {LIVE_ARGUMENT}")
-    };
-    let Some(plus) = body.get_half_edge(edge.he_plus) else {
-        unreachable!(
-            "edge ends: dangling he_plus {:?} of edge {e:?}; {TIER1}",
-            edge.he_plus
-        )
-    };
-    let Some(end) = body.half_edge_end(edge.he_plus) else {
-        unreachable!(
-            "edge ends: he_plus has no end: {:?} of edge {e:?}; {TIER1}",
-            edge.he_plus
-        )
-    };
-    (plus.start, end)
+    body.edge_vertices(e).unwrap_or_else(|| {
+        unreachable!("edge ends: edge {e:?}, its he_plus or that half's next dangles; {LIVE_ARGUMENT}, {TIER1}")
+    })
 }
 
 /// TOTALITY (spec D4): every live face/edge/vertex of `body` (output
@@ -1773,6 +1758,7 @@ mod display_tests {
         Indeterminate {
             margin: MarginDiag::INVALID,
             band: Band::new(1e-9, 1e-6).unwrap(),
+            // UNDECIDED-NAME: the invalid-margin cause escalation() wraps; its name is never routed
             predicate: Some("side_of_plane"),
             terminal_sliver: false,
         }
@@ -1956,8 +1942,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: crate::names::discriminate::ON_MEMBER_EDGE,
-                    source: escalation(),
+                    source: Indeterminate {
+                        predicate: Some(crate::names::discriminate::ON_MEMBER_EDGE),
+                        ..escalation()
+                    },
                 },
                 vec!["a point's place along an edge"],
             ),
@@ -2615,7 +2603,9 @@ mod walk_tests {
 
     /// The half-edge's edge is gone: it has no mate.
     #[test]
-    #[should_panic(expected = "rim walk: unmated half-edge")]
+    // The face walk reads each member's edge as a link
+    // (`topo::FaceView::half_edges`), so the removed edge panics there.
+    #[should_panic(expected = "'s edge names edge")]
     fn the_rim_walk_panics_on_an_unmated_half_edge() {
         let r = rim1();
         rim_between(&r.without(EntityId::Edge(r.edge)), r.top, r.wall);
@@ -2656,7 +2646,8 @@ mod walk_tests {
     }
 
     #[test]
-    #[should_panic(expected = "chord mate missing")]
+    // As the rim walk's row: the face walk reads the removed edge first.
+    #[should_panic(expected = "'s edge names edge")]
     fn the_chord_walk_panics_on_an_unmated_half_edge() {
         let r = rim1();
         chord_walk(&r, &r.without(EntityId::Edge(r.edge)));
@@ -2694,7 +2685,7 @@ mod walk_tests {
     }
 
     #[test]
-    #[should_panic(expected = "face walk: dangling loop")]
+    #[should_panic(expected = "'s outer names loop")]
     fn the_face_walk_panics_on_a_dangling_loop() {
         let r = rim1();
         let outer = r.body().get_face(r.top).unwrap().outer;
@@ -2703,7 +2694,7 @@ mod walk_tests {
 
     /// A live loop whose cycle runs through a removed half-edge.
     #[test]
-    #[should_panic(expected = "face walk: unwalkable loop")]
+    #[should_panic(expected = "breaks at")]
     fn the_face_walk_panics_on_an_unwalkable_loop() {
         let r = rim1();
         let hes = face_half_edges(r.body(), r.top);
@@ -2718,23 +2709,26 @@ mod walk_tests {
     }
 
     #[test]
-    #[should_panic(expected = "edge ends: dangling edge")]
+    #[should_panic(expected = "edge ends: edge")]
     fn edge_ends_panics_on_a_dangling_edge() {
         let r = rim1();
         edge_ends(&r.without(EntityId::Edge(r.edge)), r.edge);
     }
 
+    /// `he_plus` dangling panics in the edge-ends voice: the first hop
+    /// `Body::edge_vertices` reads.
     #[test]
-    #[should_panic(expected = "edge ends: dangling he_plus")]
+    #[should_panic(expected = "edge ends: edge")]
     fn edge_ends_panics_on_a_dangling_he_plus() {
         let r = rim1();
         let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
         edge_ends(&r.without(EntityId::HalfEdge(he_plus)), r.edge);
     }
 
+    /// `he_plus`'s `next` dangling panics in the same voice: the second.
     #[test]
-    #[should_panic(expected = "edge ends: he_plus has no end")]
-    fn edge_ends_panics_on_a_he_plus_with_no_end() {
+    #[should_panic(expected = "edge ends: edge")]
+    fn edge_ends_panics_on_a_dangling_next() {
         let r = rim1();
         let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
         let next = r.body().get_half_edge(he_plus).unwrap().next;

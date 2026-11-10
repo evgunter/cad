@@ -46,6 +46,7 @@ fn ball() -> Body<f64> {
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body
+        .into_body()
 }
 
 fn donut() -> Body<f64> {
@@ -61,6 +62,7 @@ fn donut() -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// `b` turned by `angle` about `axis` through the origin, then moved by `t`.
@@ -96,7 +98,7 @@ fn torus_stop(e: &BooleanError) -> Option<&'static str> {
     if topo::boolean::refused_face_kind(e) != Some(geom::SurfaceKind::Torus) {
         return None;
     }
-    let BooleanError::ResultInvalid { errors } = e else {
+    let BooleanError::ResultInvalid { findings: errors } = e else {
         return None;
     };
     match errors.as_slice() {

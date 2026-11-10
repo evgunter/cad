@@ -373,7 +373,7 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
         let mut found: Vec<EdgeKey> = body
             .edges()
             .filter(|(k, _)| {
-                let Some(e) = body.get_edge(*k) else {
+                let Some((start, end)) = body.edge_vertices(*k) else {
                     return false;
                 };
                 let pt = |vk| {
@@ -381,10 +381,7 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
                         .and_then(|x| body.get_point(x.point))
                         .copied()
                 };
-                let (Some(a), Some(b)) = (
-                    body.get_half_edge(e.he_plus).map(|h| h.start).and_then(pt),
-                    body.half_edge_end(e.he_plus).and_then(pt),
-                ) else {
+                let (Some(a), Some(b)) = (pt(start), pt(end)) else {
                     return false;
                 };
                 corner(a) && corner(b)
@@ -404,7 +401,7 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
     .expect("the chamfered cavity carves");
     let cav_digest = digest(&cav.body);
 
-    let cube_body = cube(2.0, Tol::witness());
+    let cube_body = cube::<f64>(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cvx = chamfer_edges(
         &sweep::test_support::at_rest(&cube_body, Tol::witness()),

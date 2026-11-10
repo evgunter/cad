@@ -1082,7 +1082,7 @@ fn a_flipped_bit_reads_the_complement() {
         Point3::new(0.1, 0.5, -0.2),
         Name::Own,
     )
-    .expect("the flipped cap measures");
+    .unwrap_or_else(|e| panic!("the flipped cap measures: {e:?}"));
     encloses(got.area, ball.sphere_area() - cap, "the complement's area");
 }
 

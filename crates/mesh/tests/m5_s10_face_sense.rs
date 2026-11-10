@@ -77,7 +77,7 @@ fn tessellation_follows_the_band_sense() {
             .positions
             .iter()
             .zip(&lied.positions)
-            .all(|(a, b)| a.x.to_bits() == b.x.to_bits() && a.y.to_bits() == b.y.to_bits());
+            .all(|(a, b)| a.same_bits(*b));
     assert!(
         !same,
         "flipping a rimless band's sense must move its azimuth branch — \

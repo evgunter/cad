@@ -56,16 +56,16 @@ const H: f64 = 2.0;
 
 fn faces_of(b: &Body<f64>, kind: SurfaceKind) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(_, f)| b.get_surface(f.surface).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| b.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
         .map(|(k, _)| k)
         .collect()
 }
 
 fn planes_at_z(b: &Body<f64>, z: f64) -> Vec<FaceKey> {
     b.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                b.get_surface(f.surface),
+                b.face_surface(*fk),
                 Some(geom::Surface::Plane { origin, normal, .. })
                     if (origin.z - z).abs() < 1e-9 && normal.z.abs() > 0.5
             )
@@ -906,7 +906,7 @@ fn the_stadium_answers_every_op() {
     let tol = Tol::witness();
     let slab: AtRestBody<f64> = finished(
         "the slab",
-        brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol),
+        brick::<f64>((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol),
         tol,
     );
     let lp = profile::circle(Point2::new(2.0, 0.0), 0.5, tol).unwrap();
@@ -966,9 +966,9 @@ fn the_stadium_answers_every_op() {
 #[ignore = "disabled red: work/tangrim/a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op.md"]
 fn a_slab_on_a_bores_rulings_from_inside_answers_every_op() {
     let tol = Tol::witness();
-    let block = finished(
+    let block: AtRestBody<f64> = finished(
         "the block",
-        brick((-3.0, 3.0), (-3.0, 3.0), (0.1, 0.9), tol),
+        brick::<f64>((-3.0, 3.0), (-3.0, 3.0), (0.1, 0.9), tol),
         tol,
     );
     let rod = turned(&rod_z(0.5, 0.0, 1.0), 45.0);
@@ -978,7 +978,7 @@ fn a_slab_on_a_bores_rulings_from_inside_answers_every_op() {
     let bored = bored.body;
     let slab: AtRestBody<f64> = finished(
         "the slab",
-        brick((-0.5, 0.0), (0.0, 0.5), (0.1, 0.9), tol),
+        brick::<f64>((-0.5, 0.0), (0.0, 0.5), (0.1, 0.9), tol),
         tol,
     );
     let bore = 0.25 * PI * 0.8;
@@ -1033,7 +1033,7 @@ fn a_d_bar_on_the_slab_builds_as_a_line_seam() {
     let tol = Tol::witness();
     let slab: AtRestBody<f64> = finished(
         "the slab",
-        brick((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol),
+        brick::<f64>((-1.0, 2.0), (0.0, 1.0), (-0.5, 0.5), tol),
         tol,
     );
     let lp = profile::test_support::bulge_loop(vec![
@@ -1123,9 +1123,9 @@ fn a_puck_and_its_rounding_ring_build_as_a_seam() {
         let b = &bb.body;
         let closed: Vec<_> = b
             .edges()
-            .filter_map(|(_, e)| {
-                let v = b.get_half_edge(e.he_plus)?.start;
-                (b.get_half_edge(e.he_minus)?.start == v).then_some(v)
+            .filter_map(|(k, _)| {
+                let (v, w) = b.edge_vertices(k)?;
+                (v == w).then_some(v)
             })
             .collect();
         assert!(!closed.is_empty(), "{label}: a closed edge");
@@ -1214,7 +1214,7 @@ fn a_ball_seated_in_its_own_bore_refuses_at_the_crossing_layer() {
     let tol = Tol::witness();
     let block: AtRestBody<f64> = finished(
         "the block",
-        brick((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
         tol,
     );
     let bored = match topo::subtract(&block, &rod_z(R, -3.0, 6.0), tol).unwrap() {
@@ -1897,7 +1897,7 @@ fn narrow_review_corner_on_ball_battery() {
             poses.push((
                 format!("{bl} brick {kl}"),
                 ball.clone(),
-                finished("the brick", brick(x, y, z, tol), tol),
+                finished("the brick", brick::<f64>(x, y, z, tol), tol),
             ));
         }
         // A tube whose rim lies on the ball (radius 1 at height 1).

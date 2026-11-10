@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use topo::LeafBody as _;
 use topo::construction::Construct;
 
 use geom::{Curve3, Surface};
@@ -69,11 +70,7 @@ fn rim_surfaces(body: &Body<f64>, edge: topo::EdgeKey) -> (Surface<f64>, Surface
             .expect("loop")
             .face
     };
-    let surf = |f| {
-        body.get_surface(body.get_face(f).expect("face").surface)
-            .expect("surface")
-            .clone()
-    };
+    let surf = |f| body.face_surface(f).expect("surface").clone();
     let (a, b) = (surf(face_of(e.he_plus)), surf(face_of(e.he_minus)));
     match (&a, &b) {
         (Surface::Torus { .. }, Surface::Plane { .. }) => (a, b),
@@ -363,7 +360,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    let cavity = topo::AtRestBody::validate(cavity, tol())
+    let cavity = topo::finish(cavity, tol())
         .unwrap_or_else(|e| panic!("the cavity passes the at-rest gate, check 7 included: {e:?}"));
     let e =
         mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");
@@ -462,15 +459,10 @@ fn the_torus_walls_closed_form_parse_names_its_spiric_rim() {
     };
     let torus_face = [face_of(e.he_plus), face_of(e.he_minus)]
         .into_iter()
-        .find(|f| {
-            matches!(
-                cavity.get_surface(cavity.get_face(*f).expect("face").surface),
-                Some(Surface::Torus { .. })
-            )
-        })
+        .find(|f| matches!(cavity.face_surface(*f), Some(Surface::Torus { .. })))
         .expect("a spiric rim bounds a torus face");
     let face = cavity.get_face(torus_face).expect("face");
-    let surface = cavity.get_surface(face.surface).expect("surface");
+    let surface = cavity.face_surface(torus_face).expect("surface");
     let (edges, _) = topo::props::loop_edges(&cavity, face.outer).expect("the loop reads");
     let band = Band::linear(tol()).expect("band");
     let e = geom_brep::curved_face(surface, &edges, face.sense, band)
@@ -507,11 +499,7 @@ fn a_spiric_rim_is_no_iso_traversal_of_its_torus_chart() {
         };
         let chart_surface = [face_of(e.he_plus), face_of(e.he_minus)]
             .into_iter()
-            .map(|f| {
-                cavity
-                    .get_surface(cavity.get_face(f).expect("face").surface)
-                    .expect("surface")
-            })
+            .map(|f| cavity.face_surface(f).expect("surface"))
             .find(|s| matches!(s, Surface::Torus { .. }))
             .expect("a spiric rim bounds a torus face");
         let chart = topo::Chart::of(chart_surface).expect("the torus charts");
@@ -607,10 +595,7 @@ fn the_cavity_pcurves_certify_on_both_charts() {
                 .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
                 .expect("loop")
                 .face;
-            let surface = cavity
-                .get_surface(cavity.get_face(face).expect("face").surface)
-                .expect("surface")
-                .clone();
+            let surface = cavity.face_surface(face).expect("surface").clone();
             match surface {
                 Surface::Torus { .. } => {
                     walls += 1;
@@ -707,7 +692,7 @@ fn the_cavity_pcurves_certify_on_both_charts() {
     // harmonic caches too.
     let torus_face = cavity
         .faces()
-        .find(|(_, f)| matches!(cavity.get_surface(f.surface), Some(Surface::Torus { .. })))
+        .find(|(fk, _)| matches!(cavity.face_surface(*fk), Some(Surface::Torus { .. })))
         .expect("the cavity carries a torus wall");
     let lp = cavity.get_loop(torus_face.1.outer).expect("loop");
     let topo::LoopBoundary::Cycle { first } = lp.boundary else {
@@ -741,10 +726,7 @@ fn a_displaced_azimuth_constant_reds_at_every_sample() {
                 .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
                 .expect("loop")
                 .face;
-            let s = cavity
-                .get_surface(cavity.get_face(face).expect("face").surface)
-                .expect("surface")
-                .clone();
+            let s = cavity.face_surface(face).expect("surface").clone();
             matches!(s, Surface::Torus { .. }).then_some((he, s))
         })
         .expect("a spiric rim bounds a torus face");
@@ -1082,6 +1064,7 @@ mod interval_rows {
         )
         .expect("the vessel revolves")
         .body
+        .into_body()
     }
 
     /// **Row 8 — the `Interval` lane.** The sectioned vessel's cavity at
@@ -1191,10 +1174,7 @@ mod interval_rows {
                     .get_loop(cavity.get_half_edge(he).expect("he").parent_loop)
                     .expect("loop")
                     .face;
-                if !matches!(
-                    cavity.get_surface(cavity.get_face(face).expect("face").surface),
-                    Some(Surface::Torus { .. })
-                ) {
+                if !matches!(cavity.face_surface(face), Some(Surface::Torus { .. })) {
                     continue;
                 }
                 walls += 1;

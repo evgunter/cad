@@ -780,7 +780,7 @@ pub fn posed_prism(h: &Hole, pose: &Pose, tol: Tol) -> AtRestBody<f64> {
 /// body (a base wound clockwise from the apex is inside out).
 #[allow(clippy::panic)]
 pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
-    posed_pyramid_at(base, apex, pose, tol)
+    posed_pyramid_at::<f64>(base, apex, pose, tol)
 }
 
 /// [`posed_pyramid`] at any scalar the Euler operators take, its posed
@@ -795,8 +795,8 @@ pub fn posed_pyramid_at<T: geom_core::Decide + crate::AtRestPolicy>(
     apex: [f64; 3],
     pose: &Pose,
     tol: Tol,
-) -> AtRestBody<T> {
-    posed_pyramid_kept(base, apex, pose, tol)
+) -> T::Finished {
+    posed_pyramid_kept::<T>(base, apex, pose, tol)
         .unwrap_or_else(|e| panic!("a pyramid is not a finished body: {e:?}"))
 }
 
@@ -816,7 +816,7 @@ pub(crate) fn posed_pyramid_kept<T: geom_core::Decide + crate::AtRestPolicy>(
     apex: [f64; 3],
     pose: &Pose,
     tol: Tol,
-) -> Result<AtRestBody<T>, Vec<crate::ValidationError>> {
+) -> Result<T::Finished, crate::NotFinished> {
     let n = base.len();
     assert!(n >= 3, "a pyramid needs at least three base corners");
     let lift = |q: [f64; 3]| pose.at(q).map(T::from_f64);
@@ -901,7 +901,7 @@ pub(crate) fn posed_pyramid_kept<T: geom_core::Decide + crate::AtRestPolicy>(
     body.set_face_surface(seed.face, face(&[bot[n - 1], bot[0], top]))
         .unwrap();
     describe_as_intersections(&mut body, tol);
-    T::gate_at_rest_kept(body, tol)
+    T::finish(body, tol)
 }
 
 /// Three base corners relative to [`MEET`]: two at radius `r` 15° either
@@ -1076,7 +1076,7 @@ pub fn apex_pyramid_kept(
     base: &[[f64; 3]],
     pose: &Pose,
     tol: Tol,
-) -> Result<AtRestBody<f64>, Vec<crate::ValidationError>> {
+) -> Result<AtRestBody<f64>, crate::NotFinished> {
     let n = base.len();
     let (mut normal, mut centre) = ([0.0; 3], [0.0; 3]);
     for i in 0..n {
@@ -1095,7 +1095,7 @@ pub fn apex_pyramid_kept(
     if (0..3).map(|k| normal[k] * centre[k]).sum::<f64>() > 0.0 {
         at.reverse();
     }
-    posed_pyramid_kept(&at, MEET, pose, tol)
+    posed_pyramid_kept::<f64>(&at, MEET, pose, tol)
 }
 
 /// The ring of a [`posed_crown`] with a thin fin: two faces folded at
@@ -1164,7 +1164,7 @@ pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
     // where Newell's centroid sum cancels to about 1e-11: it takes the
     // plane through its corner at `c0`, where its two edges meet square.
     let plane_of = |corners: &[Point3<f64>]| {
-        let at = |q| corners.iter().position(|&p| same(p, q));
+        let at = |q| corners.iter().position(|&p| p.equals_exactly(q));
         match (at(c0), at(c2)) {
             (Some(k), Some(_)) => {
                 let n = corners.len();
@@ -1185,7 +1185,7 @@ pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
     let mut body = crown_faces(&outer, FIN_BOTTOM, pose, tol, plane_of);
     let vertex = |body: &Body<f64>, p: Point3<f64>| {
         body.vertices()
-            .find(|(_, v)| body.get_point(v.point).is_some_and(|q| same(*q, p)))
+            .find(|(_, v)| body.get_point(v.point).is_some_and(|q| q.equals_exactly(p)))
             .map(|(k, _)| k)
             .unwrap()
     };
@@ -1234,17 +1234,12 @@ pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
     let faces: Vec<_> = body.faces().map(|(f, _)| f).collect();
     for f in faces {
         let corners = corners_of(&body, f);
-        if corners.iter().any(|&p| same(p, c1)) {
+        if corners.iter().any(|&p| p.equals_exactly(c1)) {
             body.set_face_surface(f, face(&corners)).unwrap();
         }
     }
     describe_as_intersections(&mut body, tol);
     body
-}
-
-/// Whether two points are one, bit for bit.
-fn same(p: Point3<f64>, q: Point3<f64>) -> bool {
-    (p.x, p.y, p.z) == (q.x, q.y, q.z)
 }
 
 /// Whether an edge joins `a` and `b`.
@@ -1316,8 +1311,8 @@ pub fn posed_crown_kept(
     bottom: [f64; 3],
     pose: &Pose,
     tol: Tol,
-) -> Result<AtRestBody<f64>, Vec<crate::ValidationError>> {
-    <f64 as crate::AtRestPolicy>::gate_at_rest_kept(crown_body(ring, bottom, pose, tol), tol)
+) -> Result<AtRestBody<f64>, crate::NotFinished> {
+    crate::finish(crown_body(ring, bottom, pose, tol), tol)
 }
 
 /// [`posed_crown`]'s body as built, before the at-rest gate.

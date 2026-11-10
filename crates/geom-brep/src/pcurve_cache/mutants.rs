@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 22] = [
+pub(super) const SITES: [&str; 33] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -47,6 +47,17 @@ pub(super) const SITES: [&str; 22] = [
     "form-uncharged",
     "lane-envelope-bound",
     "cone-terms-unprojected",
+    "ruling-per-parameter",
+    "cone-ruling-gate",
+    "ruling-unplaced",
+    "meridian-standoff-unread",
+    "spline-floor-net",
+    "spline-charge-dropped",
+    "spline-cut-uncharged",
+    "spline-bound-undercut",
+    "spline-on-cut-short",
+    "spline-product-uncharged",
+    "sampled-line-incidence",
 ];
 
 fn on(site: &str) -> bool {
@@ -159,8 +170,8 @@ pub(super) fn cone_drift<T: Real>(d_sin: T, d_cos: T) -> Option<T> {
 }
 
 /// The cylinder class selector: the radial pair's coefficients added.
-pub(super) fn radial_amplitude<T: Real>(a_r: Vec3<T>, b_r: Vec3<T>, l_r: Vec3<T>) -> Option<T> {
-    on("radial-amplitude").then(|| a_r.norm() + b_r.norm() + l_r.norm())
+pub(super) fn radial_amplitude<T: Real>(a_r: Vec3<T>, b_r: Vec3<T>) -> Option<T> {
+    on("radial-amplitude").then(|| a_r.norm() + b_r.norm())
 }
 
 /// The sphere's and the torus tube's frame defects: radial and axial
@@ -183,11 +194,51 @@ fn the_named_mutant_is_a_site() {
     );
 }
 
-/// `incidence::incident`: the incidence test skipped, so a carrier off
+/// `incidence::incident_as`: the incidence test skipped, so a carrier off
 /// the chart reaches the general lane and a class reading's "not yet"
 /// (its rows are `off_chart_class_rows`).
 pub(super) fn skip_incidence() -> bool {
     on("skip-incidence")
+}
+
+/// A spline chart's floor read as the nearest control point's distance,
+/// with no hull: a sample between control points reads off a patch it
+/// lies on (its rows are `spline_incidence_rows`).
+pub(super) fn spline_floor_net() -> bool {
+    on("spline-floor-net")
+}
+
+/// A spline chart's floor read at `f64` with no rounding charge at all:
+/// a sample a band past a far or large patch reads off a patch it lies
+/// within the band of (its rows are `spline_incidence_rows`).
+pub(super) fn spline_charge_dropped() -> bool {
+    on("spline-charge-dropped")
+}
+
+/// A spline chart's floor charged the read's rounding but not the cut's
+/// (its rows are `spline_incidence_rows`).
+pub(super) fn spline_cut_uncharged() -> bool {
+    on("spline-cut-uncharged")
+}
+
+/// A spline chart cut's insertion blends charged the difference's
+/// rounding but not the product's by the ratio (its rows are
+/// `spline_incidence_rows`'s knotted cut-drift row).
+pub(super) fn spline_product_uncharged() -> bool {
+    on("spline-product-uncharged")
+}
+
+/// A spline chart cut's point rounding bound cut to a quarter (its rows
+/// are `spline_incidence_rows`'s cut-drift rows).
+pub(super) fn spline_bound_undercut() -> bool {
+    on("spline-bound-undercut")
+}
+
+/// A spline chart's walk stopped four cells past its first point read in
+/// band, before it reaches a point within the zero band (its row is
+/// `spline_incidence_rows`'s on-chart row).
+pub(super) fn spline_on_cut_short() -> bool {
+    on("spline-on-cut-short")
 }
 
 /// The cylinder arm's ruling reading folded again: an in-band reading
@@ -195,6 +246,38 @@ pub(super) fn skip_incidence() -> bool {
 /// `cylinder_line_rows`).
 pub(super) fn radial_fold() -> bool {
     on("radial-fold")
+}
+
+/// A line's ruling reading per unit of its parameter, the span unread
+/// (its rows are `ruling_reading_rows`).
+pub(super) fn ruling_per_parameter() -> bool {
+    on("ruling-per-parameter")
+}
+
+/// A line's ruling reading metered over the span's length from its
+/// origin, where the span lies unread: on a cylinder from the ruling
+/// through the span's start, on a cone the origin's distance plus the
+/// rate over the length (its rows are `ruling_reading_rows`).
+pub(super) fn ruling_unplaced() -> bool {
+    on("ruling-unplaced")
+}
+
+/// The cylinder arm's line class read on its lean alone, the origin's
+/// radial standoff unread (its row is `ruling_reading_rows`).
+pub(super) fn meridian_standoff_unread() -> bool {
+    on("meridian-standoff-unread")
+}
+
+/// A line's incidence read at the sampled schedule again, its critical
+/// points unread (its rows are `ruling_reading_rows`).
+pub(super) fn sampled_line_incidence() -> bool {
+    on("sampled-line-incidence")
+}
+
+/// The cone arm images a line as the ruling at its anchor's azimuth
+/// with no ruling reading (its rows are `ruling_reading_rows`).
+pub(super) fn cone_ruling_gate() -> bool {
+    on("cone-ruling-gate")
 }
 
 /// A line's chart form read at the segment's two ends only, dropping

@@ -251,11 +251,19 @@ jobs:
         if: needs.filter.outputs.run_filter_selftest == 'true'
         run: python3 scripts/ci-filter.py --selftest
       - name: install ruff (pinned, official prebuilt)
+        # The release download has gone 504 for whole mornings, failing every
+        # lint job on an outage. The same pinned version from PyPI is the
+        # fallback, so an outage of one host is not a red gate.
         run: |
           mkdir -p "$HOME/ruff-bin"
-          curl -LsSf --retry 5 "https://github.com/astral-sh/ruff/releases/download/$RUFF_VERSION/ruff-x86_64-unknown-linux-gnu.tar.gz" \
-            | tar zxf - -C "$HOME/ruff-bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
-          echo "$HOME/ruff-bin" >> "$GITHUB_PATH"
+          if curl -LsSf --retry 5 "https://github.com/astral-sh/ruff/releases/download/$RUFF_VERSION/ruff-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar zxf - -C "$HOME/ruff-bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff; then
+            echo "$HOME/ruff-bin" >> "$GITHUB_PATH"
+          else
+            echo "::warning::ruff release download failed; installing ruff==$RUFF_VERSION from PyPI"
+            python3 -m pip install --user --disable-pip-version-check "ruff==$RUFF_VERSION"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
       - name: python lint (ruff)
         run: python3 scripts/check-python-lint.py
         env:
@@ -273,9 +281,15 @@ jobs:
             | tar zxf - -C "$HOME/actionlint-bin" actionlint
           "$HOME/actionlint-bin/actionlint" -shellcheck=shellcheck
           find .github -name '*.sh' -exec shellcheck {} +
+      # A pin that only falls is compared with the merge base's
+      # (`gate_base_file`), and this checkout is one commit deep, so the
+      # base is fetched here. An unscoped run has no base and says so.
       - name: gates (scripts/gates)
+        env:
+          GATE_BASE: ${{ needs.filter.outputs.base }}
         run: |
           rc=0
+          if [ -n "$GATE_BASE" ]; then git fetch -q --no-tags --depth=1 origin "$GATE_BASE"; fi
           scripts/run-gates.sh || rc=1
           python3 scripts/payload-rung-sweep.py --check || rc=1
           exit $rc
@@ -305,6 +319,20 @@ jobs:
             # shellcheck disable=SC2086 # SCOPE is a list of -p flags
             cargo clippy $SCOPE --all-targets --all-features -- -D warnings
           fi
+      - name: rustdoc (the doc gate's workspace pass)
+        if: needs.filter.outputs.run_build == 'true'
+        # clippy is blind to rustdoc's lints, so without this a PR that
+        # renames an item reds no gate of its own, and its broken links
+        # reach main and fail the nightly. This is scripts/doc-gate.sh's
+        # pass 1, with the gate's own flags: every workspace member's lib,
+        # bins and examples at --all-features, viewer at default features.
+        # Nightly only, in the full gate's `rustdoc-roots` job: the cargo
+        # roots outside the workspace (benches, demos, tools,
+        # interval-transcendentals), the not(feature) halves that
+        # --all-features compiles out, and viewer's app-gated half. The
+        # full gate costs about 10 min on a hosted runner, which would
+        # double this job; this pass is where a PR's rename breaks a link.
+        run: scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit
 
   test:
     name: test (${{ matrix.shard }})

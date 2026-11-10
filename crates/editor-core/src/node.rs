@@ -3135,7 +3135,7 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// **This node re-authored**: every slot a formula reading its
     /// variable by id ([`crate::Formula::var`]), at the dimension the
     /// slot's address reads it at, its profile's payload re-authored
-    /// ([`crate::ProfilePayload::authored`]). The edit door lowers it
+    /// the same way ([`crate::ProfilePayload::authored_with`]). The edit door lowers it
     /// back to this node, bit for bit: a lone variable lowers to
     /// itself, so every unchanged argument keeps its variable and
     /// that variable's distribution.

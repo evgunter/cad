@@ -1184,7 +1184,10 @@ fn an_off_chart_spline_refuses_by_incidence() {
     );
     let err = super::super::chart_pcurve(&off, &torus, b).expect_err("off the torus");
     assert!(
-        matches!(err, PcurveCertifyError::CarrierOffChart { .. }),
+        matches!(
+            crate::IncidenceRead::of(&err),
+            Some(crate::IncidenceRead::Off(_))
+        ),
         "{err:?}"
     );
     let _ = Tol::witness();
@@ -1192,7 +1195,10 @@ fn an_off_chart_spline_refuses_by_incidence() {
 
 /// **A line near a cylinder's ruling images on the projected lane, and
 /// its envelope dominates** (`projected::line_off_cylinder_sup`): a line
-/// whose radial speed reads in the band or definite, standing up to
+/// whose ruling reading reads in the band or definite (its lean along the
+/// wall, drawn in the band or past it, times the span's reach from its
+/// origin, drawn at least 1, so the reading is no smaller than the lean:
+/// `ruling_miss`), standing up to
 /// half the zero band off the wall, over a span on which its lean along
 /// the wall moves it by at most `0.3·zero` more, derives the projected
 /// image, certifies at `f64` and at `Interval`, and its envelope covers
@@ -1226,7 +1232,7 @@ fn a_line_near_a_ruling_certifies_and_its_envelope_dominates() {
         let side = if s.below(2) == 0 { 1.0 } else { -1.0 };
         let dir = axis * s.range(0.3, 3.0) + tang * (side * lean);
         let off = b.zero() * s.range(-0.5, 0.5);
-        let mid = s.range(-2.0, 2.0);
+        let mid = if s.below(2) == 0 { 1.0 } else { -1.0 } * s.range(1.0, 2.0);
         let h = ((0.6 * b.zero() * radius).sqrt() / lean).min(2.0) * s.range(0.1, 1.0);
         let at_mid = origin + r * (radius + off) + axis * s.range(-1.0, 1.0);
         let carrier = Curve3::line(at_mid - dir * mid, dir);

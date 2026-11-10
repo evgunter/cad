@@ -127,12 +127,7 @@ fn ellipse_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Torus { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Torus { .. })))
         .map(|(k, _)| k)
         .collect()
 }
@@ -288,7 +283,10 @@ fn a_torus_crossing_the_rim_reaches_the_join() {
                 match &e {
                     BooleanError::GermSectionSpiric { .. } => true,
                     BooleanError::GermSectionUnbuilt {
-                        why: topo::SectionUnbuilt::March(geom_brep::SsiError::TubeStraddles { .. }),
+                        why:
+                            topo::SectionUnbuilt::Carry(geom_brep::CarryRefusal::March(
+                                geom_brep::SsiError::TubeStraddles { .. },
+                            )),
                         ..
                     } => coarse,
                     _ => false,

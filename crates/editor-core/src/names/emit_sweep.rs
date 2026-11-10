@@ -211,7 +211,7 @@ impl Sections<'_> {
 /// output body. A lateral and its two rims are named by its run of
 /// pieces (N1, "Swept walls over a run"); a strut and its two cap
 /// vertices exist at a run's leading vertex only.
-pub(crate) fn name_extrude<T: Decide>(
+pub(crate) fn name_extrude<T: topo::AtRestPolicy + Decide>(
     node: RecipeNodeId,
     built: &Extruded<T>,
     pieces: &ProfilePieces,
@@ -304,7 +304,7 @@ pub(crate) fn name_extrude<T: Decide>(
 /// section between them — with a wall and a seam named by the pieces
 /// the skin paired, one per section it spans (`sections` and their
 /// `ids`, first to last).
-pub(crate) fn name_loft<T: Decide>(
+pub(crate) fn name_loft<T: topo::AtRestPolicy + Decide>(
     node: RecipeNodeId,
     built: &sweep::Lofted<T>,
     sections: &[ProfilePieces],
@@ -473,7 +473,7 @@ fn name_loft_topology<T: Decide>(
 /// case's omitted axis run, a plane disc's centre), so nothing is named
 /// for it; had one been wrongly omitted, `check_total` would catch the
 /// unnamed body vertex.
-pub(crate) fn name_revolve<T: Decide>(
+pub(crate) fn name_revolve<T: topo::AtRestPolicy + Decide>(
     node: RecipeNodeId,
     built: &sweep::Revolved<T>,
     pieces: &ProfilePieces,
@@ -851,8 +851,7 @@ mod tests {
             let Some(face) = entry.entities()[0].key.face() else {
                 panic!("piece {k}'s wall name holds a face")
             };
-            let surface = built.body.get_face(face).unwrap().surface;
-            let fits = match (want, built.body.get_surface(surface).unwrap()) {
+            let fits = match (want, built.body.face_surface(face).unwrap()) {
                 (Wall::Plane(y), Surface::Plane { origin, .. }) => (origin.y - y).abs() < 1e-12,
                 (Wall::Cylinder(r), Surface::Cylinder { radius, .. }) => {
                     (*radius - r).abs() < 1e-12

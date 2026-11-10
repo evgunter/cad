@@ -13,7 +13,7 @@ fn tol() -> Tol {
 }
 
 fn box_of(x: (f64, f64), y: (f64, f64), z: (f64, f64), what: &str) -> AtRestBody<f64> {
-    finished(what, brick(x, y, z, tol()), tol())
+    finished(what, brick::<f64>(x, y, z, tol()), tol())
 }
 
 fn kiss() -> BooleanBody<f64> {
@@ -27,9 +27,9 @@ fn kiss() -> BooleanBody<f64> {
 
 fn faces_at_x(body: &Body<f64>, x: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.x.abs() == 1.0 && origin.x == x
             )

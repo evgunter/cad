@@ -121,9 +121,8 @@ fn report_the_seam_fillet_window() {
 // ------------------------------------------------------------------
 
 /// The incoming side is a `.tangent()` ray extension of the leg before
-/// it, so the fillet MERGES into that leg (`extend_leg_to`) instead of
-/// pushing its own straight piece — the emission whose incoming joint
-/// is the leg's own already-declared end.
+/// it: the fillet's straight run in is a segment of its own after the
+/// leg, both of its joints constructed.
 fn fused_bend(theta: f64, radius: f64) -> Result<ConstructedLoop<f64>, PathError<f64>> {
     let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     Open.at(Point2::new(0.0, 0.0))

@@ -29,7 +29,8 @@ fn symmetric_double_rim_split_volume_at_base() {
         Tol::witness(),
     )
     .unwrap()
-    .body;
+    .body
+    .into_body();
     let true_vol = std::f64::consts::PI * 0.25 * 1.0;
     let v0 = topo::test_support::pinned_volume(
         "the measured body",
@@ -45,12 +46,7 @@ fn symmetric_double_rim_split_volume_at_base() {
     // Find one cylinder wall face and its two circle-carrier edges.
     let wall = body
         .faces()
-        .find(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .unwrap();
     let mut rim_edges = Vec::new();
