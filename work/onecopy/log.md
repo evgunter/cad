@@ -1496,3 +1496,4 @@
 - 02:07Z held-and-pierce: probe shows all 4 held-premise sites Zero in production; ruled all four Held in PR 6705, line_through off-carrier → ClassificationInvariant via FaceUnread (test row becomes a defect pin); re-pin k-stats ledgers with reason.
 - 02:10Z 6701 delta: FIX (ratchet zero ≠ done-when: count test/doc spellings, refuse module-alias imports; stale ladder.rs cite in funnel-row row) → ladder lane.
 - 02:13Z doc-gate row (filed on 6701, 50 rustdoc errors in 6 crates) → new implementer session_013mPGJ43vk6aHdGjYJJqR2D on onecopy/doc-gate-clean.
+- 02:16Z 6694 delta: FIX (super:: via import silent; block-level path heads resolve wrong → one head resolution through lookup; closed records shrink by GATE_BASE gate, per-item keys, converted-entry check, confined NotScopeWhy) → scope-parser lane.
