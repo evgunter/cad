@@ -9079,8 +9079,8 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 ///
 /// [`PcurveCertifyError::UnsupportedChart`] for a spline chart;
 /// [`PcurveCertifyError::Incidence`] for a carrier the chart's
-/// incidence test shows off it, and `Escalated`
-/// ([`PcurveCheck::ChartIncidence`]) where that test lands in the sliver
+/// incidence test shows off it, read in band
+/// ([`IncidenceRead::Undecided`]) where that test lands in the sliver
 /// band. A carrier the test does not show off the chart whose class
 /// reading shows none of the chart's own classes takes the general lane
 /// (D3's lane choice) where one is written ([`projected::has_lane`]: a
