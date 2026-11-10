@@ -1504,8 +1504,11 @@ pub struct ConicTorusHarmonics<T> {
     pub sin: [T; 5],
     /// A bound on every magnitude the coefficients are built from (m⁴),
     /// the scale their rounding is charged against
-    /// ([`rounding_charge`]): `(|S + R² − r²|)² + 4R²(|S| + |h|²)` read
-    /// at the coefficients' magnitudes.
+    /// ([`rounding_charge`]): `(|S| + R² + r²)² + 4R²(|S| + |h|²)` read
+    /// at the coefficients' magnitudes. `R² − r²` is charged at
+    /// `R² + r²`: the rounding of `R²` and `r²` is relative to them, not
+    /// to their difference, which on a fat torus (`r` near `R`) is far
+    /// smaller.
     pub terms: T,
     /// A floor on `|F| / |res|`: `2r(R² − r²)`, `Q`'s least value on a
     /// ring torus.
@@ -1604,7 +1607,8 @@ pub fn conic_torus_harmonics<T: Real>(
             .chain(s.iter())
             .fold(T::zero(), |acc, &x| acc + x.abs())
     };
-    let (s_abs, p_abs, h_abs) = (abs_sum(s.0, s.1), abs_sum(p.0, p.1), abs_sum(h.0, h.1));
+    let (s_abs, h_abs) = (abs_sum(s.0, s.1), abs_sum(h.0, h.1));
+    let p_abs = s_abs + rr + minor_radius.powi(2);
     // `max_θ |a·û cos θ + b·v̂ sin θ|²`: the Gram matrix's larger
     // eigenvalue, `(A + B)/2 + |((A − B)/2, C)|`.
     let off = a * b * u.dot(v);

@@ -1072,7 +1072,7 @@ pub fn cursor_projection(
 /// asked where the overflow is rather than only where the caller's
 /// numbers are.
 ///
-/// **The centre is asked the same question.** [`geom::mid_param`]
+/// **The centre is asked the same question.** [`mid_param`](pncad::geom::mid_param)
 /// overflows when an endpoint is past half of `f64::MAX`. A box with
 /// any width there has an infinite radius too, but a point there has a
 /// radius of zero, and a point is framed at its centre.

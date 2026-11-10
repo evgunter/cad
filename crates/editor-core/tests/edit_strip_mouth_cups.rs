@@ -198,9 +198,9 @@ fn a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_ver
         };
         let edge = named(&ev0, operand, |k| match k {
             EntityKey::Edge(e) => {
-                let he = body.get_edge(e).expect("an edge").he_plus;
-                let s = point(body.get_half_edge(he).expect("a half").start);
-                let t = point(body.half_edge_end(he).expect("an end"));
+                let (v0, v1) = body.edge_vertices(e).expect("an edge");
+                let s = point(v0);
+                let t = point(v1);
                 (near(s, side.edge.0) && near(t, side.edge.1))
                     || (near(s, side.edge.1) && near(t, side.edge.0))
             }

@@ -410,7 +410,7 @@ pub enum NormalizationKind {
     /// — so the records' deltas still sum to the body's totals.
     JoinedEdges,
     /// **An edge carrier split at its interior C⁰ knots** (Ev's PR 5913
-    /// ruling; `docs/DESIGN.md` [topology]): a B-spline carrier with an
+    /// ruling; `docs/DESIGN.md` `[topology]`): a B-spline carrier with an
     /// interior knot run of multiplicity at least its degree has no
     /// derivative there by its structure, so the edge is cut into its
     /// sub-arcs, a vertex at each knot. Exact: each sub-arc is a

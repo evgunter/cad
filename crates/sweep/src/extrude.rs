@@ -516,8 +516,8 @@ impl ExtrudeError {
             Self::DegenerateExtrusion => write!(
                 f,
                 "the extrusion has no definite length across the sketch plane (it is \
-                 in-plane or sliver-thin). Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 in-plane or sliver-thin). {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::NegativeDepth { side, depth } => write!(
                 f,
@@ -580,15 +580,15 @@ impl ExtrudeError {
                 mixed: Some(stations),
             } => write!(
                 f,
-                "along the join {edge:?}, {stations}. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "along the join {edge:?}, {stations}. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::SmoothJoinRefuted { edge, mixed: None } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness \
                  but definitely a corner at every certification station, so the construction \
-                 refuses rather than choose a description for it. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 refuses rather than choose a description for it. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::CapPlane { source } => write!(f, "{source}"),
             Self::SidePlane {

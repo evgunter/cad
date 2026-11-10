@@ -1,7 +1,7 @@
 ---
 id: line-holders-the-line-placement-sweep-missed
 kind: issue
-title: Three line holders the line-placement sweep missed: link.rs's forward decision, sweep revolve's AxisFrame, blend's Meridian
+title: Two line holders the line-placement sweep missed: link.rs's forward decision and sweep revolve's AxisFrame (narrowed)
 status: open
 opened: 2026-11-09
 priority: P2
@@ -26,3 +26,11 @@ The port is a `Ray` door taking a point, its advance read as a length over a uni
 **3. `sweep/src/blend/arms.rs:852` `Meridian`.** It holds `origin` and the unit `axis` (a line) beside `rim`, and builds `geom::Line { origin: self.origin, dir: self.axis }` at `arms.rs:979`. The port is a `Line` field (or `Meridian::axis_line()`).
 
 **4. `geom/src/cover.rs` `Core` (arrived with main, 2026-11-09).** BOXES' redesign of the depth readings made `geom::cover::Core { center, axis, radius }` pub, read through `Around::Circle`. It holds the circle's axis as a loose `center` / `axis` pair, which a private `axis_line(center, axis)` in `cover.rs` rebuilds into a `Line` twice. This replaces PR 6665's private `Core { axis: Line, radius }` and `topo` `Depth::Core { axis: Line, major }`: the merge took main's side, because the redesign belongs to a program in flight. Porting `Core` to hold a `Line` is this row's.
+
+## Narrowed (2026-11-10, `onecopy/placement-holders`, PR 6713)
+
+Items 3 and 4 are done:
+- **3.** `arms::Meridian` holds its axis as a `geom::Line`, and the hand `Line { origin, dir }` build retires.
+- **4.** `cover::Core` holds `axis: Line` (its origin the circle's centre), and so do `Slab` and `Frustum`, so `cover.rs`'s private `axis_line(center, axis)` retires.
+
+What remains is items 1 (`link.rs`'s forward decision) and 2 (`AxisFrame::axis_line()` at its three hand builds).

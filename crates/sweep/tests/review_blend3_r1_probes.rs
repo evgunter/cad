@@ -151,10 +151,8 @@ fn r1_a_pocket_cannot_supply_an_all_concave_component() {
     let all = cavity_edges_of(&body, &poly, 2.0, 4.0);
     assert_eq!(all.len(), 12, "floor, walls and rim");
     let z_of = |k: &EdgeKey| -> Vec<f64> {
-        let e = body.get_edge(*k).expect("an edge");
-        let h = body.get_half_edge(e.he_plus).expect("a half-edge");
-        let end = body.half_edge_end(e.he_plus).expect("an end");
-        [h.start, end]
+        let (start, end) = body.edge_vertices(*k).expect("an edge's ends");
+        [start, end]
             .iter()
             .map(|v| {
                 body.get_vertex(*v)
