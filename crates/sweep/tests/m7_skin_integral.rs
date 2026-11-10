@@ -356,7 +356,7 @@ fn the_uniform_loft_is_bitwise_unchanged() {
             );
             for (i, (got, want)) in wall.control().iter().zip(&old_c).enumerate() {
                 assert!(
-                    got.x == want.x && got.y == want.y && got.z == want.z,
+                    got.equals_exactly(*want),
                     "wall [{l}][{j}] control {i} moved: {got:?} vs {want:?}"
                 );
             }
@@ -385,8 +385,8 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
         Ok(()),
         "tier 2 (watertight)"
     );
-    let body = topo::AtRestBody::validate(topo::Body::clone(&lofted.body), Tol::witness())
-        .expect("tier 3 at rest");
+    let body =
+        topo::finish(topo::Body::clone(&lofted.body), Tol::witness()).expect("tier 3 at rest");
     let m = topo::mass_properties(
         &body,
         Tol::witness(),
@@ -491,8 +491,8 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
         Ok(()),
         "tier 2 (watertight)"
     );
-    let body = topo::AtRestBody::validate(topo::Body::clone(&swept.body), Tol::witness())
-        .expect("tier 3 at rest");
+    let body =
+        topo::finish(topo::Body::clone(&swept.body), Tol::witness()).expect("tier 3 at rest");
 
     let m = topo::mass_properties(
         &body,

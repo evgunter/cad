@@ -858,10 +858,13 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // on the coefficient bound. Pinned at that loss, a defect
     // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`).
     // Then PCERT E1c (every mint reads incidence first, PR 5889): 1461 -> 1529
-    // symbolic, the read's decisions.
+    // symbolic, the read's decisions. Then a bare fillet's run in after a
+    // straight leg became a segment of its own, so each of the pad's
+    // filleted corners keeps its leg's end as a vertex inside a run:
+    // [1529, 1382] -> [1573, 1500], the retries holding.
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1529, 1382, 34],
+        [1573, 1500, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -877,8 +880,9 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // [1429, 1414, 0] -> [1427, 1416, 0], the last move rule H's
     // (`SymRules::without_angle_sum` reads [1429, 1414, 0]). Then PCERT
     // E1c (PR 5889): [1427, 1416, 0] -> [1495, 1416, 0], the read's
-    // decisions, as the shipped receipt's.
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1495, 1416, 0]);
+    // decisions, as the shipped receipt's. Then the run in as its own
+    // segment, as the shipped receipt's: [1495, 1416, 0] -> [1539, 1534, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1539, 1534, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

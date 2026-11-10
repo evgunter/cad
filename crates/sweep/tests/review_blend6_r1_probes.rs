@@ -76,6 +76,11 @@ fn seeds() -> Vec<BlendError> {
             margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
             refusal: KnifeRefusal::NoRoom { radius: 1.2 },
         },
+        BlendError::BallDoesNotFit {
+            edge: EdgeKey::default(),
+            margin: decided("fillet3_ball_room", -0.2, Sign::Negative),
+            radius: 0.6,
+        },
         BlendError::SpineIrregular {
             margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),
             radius: 0.5,
@@ -204,8 +209,9 @@ fn seeds() -> Vec<BlendError> {
 
 /// Whether a seeded arm is allowed to speak a verb's word mid-text —
 /// the PR's own dispositions: ball facts keep ball language
-/// (`RadiusHeadroom`, `SpineIrregular`, a knife with no room for the
-/// ball, and an escalation routed to a ball predicate's recourse), the
+/// (`RadiusHeadroom`, `SpineIrregular`, a knife or a rim with no room
+/// for the ball, and an escalation routed to a ball predicate's
+/// recourse), the
 /// chamfer's own arm speaks as the chamfer (`ChamferArmUnsupported`),
 /// and three recourse constants carry deliberately
 /// CONDITIONED per-verb clauses ("for a fillet, …", "a chamfer has no
@@ -216,6 +222,7 @@ fn verb_words_allowed(err: &BlendError) -> bool {
         BlendError::RadiusHeadroom { .. }
         | BlendError::SpineIrregular { .. }
         | BlendError::KnifeEdge { .. }
+        | BlendError::BallDoesNotFit { .. }
         | BlendError::ChamferArmUnsupported { .. }
         | BlendError::UnsupportedChain { .. }
         | BlendError::UnsupportedGeometry { .. } => true,
@@ -224,7 +231,12 @@ fn verb_words_allowed(err: &BlendError) -> bool {
         }
         BlendError::Escalated { source, .. } => matches!(
             source.predicate,
-            Some("fillet3_radius_headroom" | "fillet3_spine_regularity" | "fillet3_knife_room")
+            Some(
+                "fillet3_radius_headroom"
+                    | "fillet3_spine_regularity"
+                    | "fillet3_knife_room"
+                    | "fillet3_ball_room"
+            )
         ),
         _ => false,
     }
@@ -303,7 +315,7 @@ fn verb_words_appear_only_where_a_disposition_covers_them() {
 #[test]
 fn a_nonpositive_radius_fillet_refuses_as_invalid_input() {
     let t = Tol::witness();
-    let body = sweep::test_support::finished("body", cube(1.0, t), t);
+    let body = sweep::test_support::finished("body", cube::<f64>(1.0, t), t);
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for radius in [0.0, -0.1, f64::NAN] {
         let err = fillet_edges(&body, &edges, radius, t)

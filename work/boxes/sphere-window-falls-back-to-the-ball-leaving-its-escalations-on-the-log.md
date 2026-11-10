@@ -2,9 +2,9 @@
 id: sphere-window-falls-back-to-the-ball-leaving-its-escalations-on-the-log
 kind: issue
 title: sphere_window answers the ball on an undecided read and leaves that read's escalation on the log
-status: parked
+status: closed
 opened: 2026-10-14
-blocked_on: [cover-topo-faces]
+closed: 2026-11-08
 priority: P3
 cost: E
 ---
@@ -38,3 +38,12 @@ Fix shape: run each read under `detached` and splice it superseded on the
 fallback arm, normally where its answer is used (as `face_box_rule`'s
 cylinder arm does). Worth checking `torus_chart_window` (boxes.rs and
 census.rs) for the same shape in the same pass; this sweep did not.
+
+## Closed (`cover-topo-faces`, 2026-11-08)
+
+Every trim constraint a face reading leaves unproven is read under
+`k_stats::detached` and spliced superseded (`topo::cover`'s
+`constraint`): the sphere window's material sign, chart trim and axis
+reads, its seam reads (the zone in place of the rectangle), the cylinder
+and cone axes, the ring convention of the torus window, and the
+pole-side placements.

@@ -76,10 +76,7 @@ fn an_approx_faced_body_validates_at_tier_three() {
         let (body, faces) = prism_with_approx_walls(d, MINT_TARGET);
         let face = faces[0];
         assert!(
-            matches!(
-                body.get_surface(body.get_face(face).unwrap().surface),
-                Some(Surface::Approx(_))
-            ),
+            matches!(body.face_surface(face), Some(Surface::Approx(_))),
             "d = {d}: the face carries the approximating surface"
         );
         assert_eq!(
@@ -125,7 +122,7 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     let d = 0.05;
     let (mut body, faces) = prism_with_approx_walls(d, MINT_TARGET);
     let face = faces[0];
-    let Some(Surface::Approx(live)) = body.get_surface(body.get_face(face).unwrap().surface) else {
+    let Some(Surface::Approx(live)) = body.face_surface(face) else {
         panic!("the wall carries an approximating surface")
     };
     let geom::SurfaceDescription::Offset { base, .. } = live.description();
@@ -171,18 +168,29 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     // longer lie on it, which its incidence read shows. Tier 3's claim
     // is checked after.
     let minted = topo::mint_pcurves(&mut body, Tol::witness());
+    let Err(topo::PcurveMintError::Certify {
+        half_edge,
+        ref error,
+    }) = minted
+    else {
+        panic!("the re-mint refuses a row on the degraded chart: {minted:?}")
+    };
     assert!(
         matches!(
-            minted,
-            Err(topo::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Approx,
-                    ..
-                },
-                ..
-            })
+            geom_brep::IncidenceRead::of(error),
+            Some(geom_brep::IncidenceRead::Off(_))
         ),
         "the re-mint reads the degraded chart's carriers off it: {minted:?}"
+    );
+    assert_eq!(
+        topo::readback::face_carrier_kind(&body, body.face_of_half_edge(half_edge).unwrap()),
+        Ok(geom::SurfaceKind::Approx),
+        "the row read off is on the degraded chart"
+    );
+    assert_eq!(
+        error.chart_carrier_kinds().map(|(chart, _)| chart),
+        Some(geom::SurfaceKind::Approx),
+        "the refusal names the degraded chart: {minted:?}"
     );
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded fit must not validate");
@@ -280,7 +288,7 @@ fn rigid() -> Affine3<f64> {
 
 /// The approximating surface `face` wears.
 fn approx_face_surface(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurface<f64>> {
-    match body.get_surface(body.get_face(face).unwrap().surface) {
+    match body.face_surface(face) {
         Some(Surface::Approx(a)) => Arc::clone(a),
         other => panic!("{face:?} must wear an approximating surface, got {other:?}"),
     }
@@ -304,7 +312,7 @@ fn same_net(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>, what: &str) {
     assert_eq!(a.control().len(), b.control().len(), "{what}: net size");
     for (i, (p, q)) in a.control().iter().zip(b.control()).enumerate() {
         assert!(
-            p.x == q.x && p.y == q.y && p.z == q.z,
+            p.equals_exactly(*q),
             "{what}: control point {i} is {p:?}, not the mapped {q:?}"
         );
     }
@@ -878,12 +886,13 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         Tol::witness(),
     )
     .expect("a square prism extrudes at Interval")
-    .body;
+    .body
+    .into_body();
     let face = body
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 // The outward cap: `Interval` orders no better than its
                 // bracket does, so the choice reads the enclosure's low
                 // end — definite on these exact dyadic coordinates.
@@ -1020,10 +1029,7 @@ fn a_rim_stated_as_a_row_in_another_chart_takes_its_own_image() {
     )
     .unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let chart = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone();
+    let chart = body.face_surface(face).unwrap().clone();
     let rims: Vec<_> = body
         .half_edges()
         .map(|(k, _)| k)

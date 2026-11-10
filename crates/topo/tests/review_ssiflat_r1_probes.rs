@@ -34,6 +34,7 @@ fn the_four_margin_shapes_render_pairwise_distinguishably() {
             cause: Indeterminate {
                 margin,
                 band,
+                // UNDECIDED-NAME: a probe's cause under an SsiDecision, which carries the route
                 predicate: Some("probe"),
                 terminal_sliver: false,
             },

@@ -292,9 +292,9 @@ fn composite_rows<T: Real>(
     // axis, which the radial terms read; the stored twin is orthonormal
     // only to its rounding.
     let [u_ref, _, axis] = frame.map(vector);
-    let e2 = axis / axis.norm();
+    let e2 = axis.normalize();
     let radial = u_ref - e2 * u_ref.dot(e2);
-    let e0 = radial / radial.norm();
+    let e0 = radial.normalize();
     let e = [e0, e2.cross(e0), e2];
     if !e
         .iter()
@@ -455,6 +455,10 @@ fn end_value(piece: &Piece, at_start: bool) -> Interval {
 
 /// The sign every value of `values` holds, by its enclosure alone: `None`
 /// where one holds zero, does not certify, or there is none.
+///
+/// A fold over enclosures, not an agreeing ladder
+/// (`geom_core::ladder::climb_agreeing`): no value is a band decision,
+/// so none is kept in band to answer past, and the sign needs every one.
 fn one_signed(values: impl Iterator<Item = Interval>) -> Option<Sign> {
     let mut sign = None;
     for v in values {
@@ -643,7 +647,7 @@ fn bisect_row(
 ) -> Result<f64, CompositeRefusal> {
     let (mut lo, mut hi) = (piece.a, piece.b);
     for _ in 0..BISECTIONS {
-        let c = lo + (hi - lo) * 0.5;
+        let c = geom::bracket_mid((lo, hi));
         if !(lo < c && c < hi) {
             break;
         }
@@ -660,7 +664,7 @@ fn bisect_row(
             hi = c;
         }
     }
-    Ok(lo + (hi - lo) * 0.5)
+    Ok(geom::bracket_mid((lo, hi)))
 }
 
 /// The crossing of a knot's stretch: `before` ends at the knot within
@@ -691,7 +695,7 @@ fn settle<T: Decide>(
     meetings: Vec<Meeting>,
     residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
 ) -> Result<Vec<T>, CompositeRefusal> {
-    let apart =
+    let apart_as =
         |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
             Ok(Sign::Zero) => Ok(false),
             Ok(_) => Ok(true),
@@ -707,7 +711,7 @@ fn settle<T: Decide>(
         let (Meeting::Crossing(t) | Meeting::Touch(t, _)) = meeting;
         let p = net.eval(T::from_computed(t));
         for &crease in &creases {
-            if !apart("spline_composite_root_at_crease", p, crease)? {
+            if !apart_as("spline_composite_root_at_crease", p, crease)? {
                 return Err(Unsettled::Crease.into());
             }
         }
@@ -717,17 +721,20 @@ fn settle<T: Decide>(
         // Definitely off at the located crossing: the residual's step
         // between two adjacent scalars is past the band.
         if residual(t)? != Sign::Zero {
-            return Err(Unsettled::Meter.into());
+            return Err(Unsettled::Meter {
+                row: "spline_composite_root_on",
+            }
+            .into());
         }
         let mut at_end = false;
         for end in ends {
-            at_end |= !apart("spline_composite_root_at_end", p, end)?;
+            at_end |= !apart_as("spline_composite_root_at_end", p, end)?;
         }
         if at_end {
             continue;
         }
         if let Some(&(_, before)) = roots.last()
-            && !apart("spline_composite_roots_apart", p, before)?
+            && !apart_as("spline_composite_roots_apart", p, before)?
         {
             return Err(Unsettled::Tangency.into());
         }

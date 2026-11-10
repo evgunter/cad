@@ -12,11 +12,11 @@ use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
-use crate::boolean::boxes::BoxFrame;
 use crate::entity::{EdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 use crate::vertex_section::VertexRefusal;
+use geom::cover::BoxAxes;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -25,8 +25,8 @@ use crate::vertex_section::VertexRefusal;
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
 /// plane MAY meet it: when its padded reach along the plane's normal
-/// (`census::face_reach_in`, the boolean's `FaceBoxRule` at this
-/// body's scalar) is not definitely on one side of the plane
+/// (`census::face_reach_in`, the face's cover at this body's scalar)
+/// is not definitely on one side of the plane
 /// ([`reach_clears`]). Behind a reach that clears, the face has no
 /// vertex on or across the plane, no edge crossing it and no section
 /// through it, so every later stage carries it through whole. The
@@ -36,7 +36,7 @@ use crate::vertex_section::VertexRefusal;
 /// the approximation, not the surface the modeller described.
 ///
 /// The reach is read in the plane's own frame
-/// ([`crate::boolean::boxes::BoxFrame::aimed`]), never in the world's
+/// ([`geom::cover::BoxAxes::aimed`]), never in the world's
 /// axes, so whether a cut clears a face is a fact about the two of
 /// them and not about how the body is turned.
 ///
@@ -52,7 +52,7 @@ pub(super) fn carrier_gate<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let frame = BoxFrame::aimed(plane.normal);
+    let frame = BoxAxes::aimed(plane.normal);
     for face in body.face_views() {
         let face_key = face.key();
         let surface = face.surface();
@@ -98,11 +98,12 @@ pub(super) fn carrier_gate<T: Decide>(
 }
 
 /// Whether the plane certainly misses an edge: behind its own reach
-/// (`census::edge_reach_in`) or behind the reach of either face it
+/// (its cover's, `boolean::crate::cover::edge_cover`) or behind the reach of
+/// either face it
 /// bounds, since an edge lies on both its faces. A spline edge's own
 /// reach is its control net's hull (its cover), which its faces'
 /// reaches may beat. `frame` is the plane's
-/// ([`BoxFrame::aimed`] at its normal).
+/// ([`BoxAxes::aimed`] at its normal).
 ///
 /// `edge` is one this call's caller read out of the body: the gate's
 /// arena walk over the at-rest operand, or `insert_crossings`' snapshot
@@ -115,10 +116,13 @@ fn edge_clears<T: Decide>(
     edge: EdgeKey,
     plane: &SplitPlane<T>,
     band: Band,
-    frame: &BoxFrame<T>,
+    frame: &BoxAxes<T>,
 ) -> bool {
     let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
-    reach_clears(crate::census::edge_reach_in(body, edge, frame), plane, band)
+    let reach = crate::cover::edge_cover(body, edge)
+        .ok()
+        .map(|cover| cover.box_in(frame));
+    reach_clears(reach, plane, band)
         || [e.he_plus, e.he_minus].into_iter().any(|he| {
             let face = body.face_of_linked(he);
             reach_clears(
@@ -134,7 +138,7 @@ fn edge_clears<T: Decide>(
 const SPLIT_GATE_BOX_SIDE: &str = "split_gate_box_side";
 
 /// Whether the plane certainly misses a reach read in the plane's
-/// frame ([`BoxFrame::aimed`]), whose first coordinate is the
+/// frame ([`BoxAxes::aimed`]), whose first coordinate is the
 /// component along the plane's normal: the reach's gap from the
 /// plane's own offset along that normal, less the boolean sweep's pad,
 /// decided definitely positive. No reach (an entity the reach lane
@@ -147,11 +151,11 @@ fn reach_clears<T: Decide>(
     let Some((lo, hi)) = reach else {
         return false;
     };
-    let pad = T::from_f64(crate::boolean::boxes::sweep_pad(band));
+    let pad = T::from_f64(crate::boxes::sweep_pad(band));
     // The frame turns about the world origin, so a reach's first
     // coordinate is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
-    let origin = geom_brep::sector_shape::plane_offset(
+    let origin = geom::plane_offset(
         plane.origin,
         plane.normal.get(),
         Point3::new(T::zero(), T::zero(), T::zero()),
@@ -205,8 +209,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
     let mut offsets = SecondaryMap::new();
     let mut zero = Vec::new();
     for (vertex_key, p) in body.vertex_points() {
-        let offset =
-            geom_brep::sector_shape::plane_offset_rounded(plane.origin, plane.normal.get(), p);
+        let offset = geom::plane_offset_rounded(plane.origin, plane.normal.get(), p);
         let decided = crate::validate::decide_reported(
             "split_vertex_side",
             geom_core::Margin::of(offset.value),
@@ -260,7 +263,12 @@ pub(super) fn classify_vertices_margined<T: Decide>(
                 }
             }
             VertexRefusal::Walk(e) => e,
-            VertexRefusal::Sector(e) => e.split_refusal(vertex_key),
+            VertexRefusal::Star(fault) => fault.split_refusal(vertex_key, band),
+            VertexRefusal::Side { face, diag } => SplitReduceError::SliverSector {
+                vertex: vertex_key,
+                face,
+                reading: crate::splitting::SectorReading::Escalated(diag),
+            },
             VertexRefusal::Plane(what) => unreachable!(
                 "{vertex_key:?}: the split plane reads into the table whole, yet {what}"
             ),
@@ -298,7 +306,7 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   are not enough: a spline's belly can cross between them.
 ///
 /// Both crossing lanes are certified by `split_edge` itself (the
-/// `split_edge_param_interior` trilean + full child re-certification —
+/// span's place of the parameter (`curve_pair::Span::place_param_read`) + full child re-certification —
 /// the honest lane the raw book formula lacks). New vertices are ON by
 /// the decision that placed them: a crossing root lies on the plane, and
 /// a graze root within ε of it by `plane_crossing_belly_graze`'s Zero.
@@ -367,7 +375,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             // It passes only behind a box the plane cannot meet, read
             // here as at the gate, so its whole locus is on one side.
             PlaneCrossingLane::Unlaned => {
-                if edge_clears(body, edge_key, plane, band, &BoxFrame::aimed(plane.normal)) {
+                if edge_clears(body, edge_key, plane, band, &BoxAxes::aimed(plane.normal)) {
                     continue;
                 }
                 return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
@@ -384,7 +392,7 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 }
                 let dist = |vk: VertexKey| {
                     let p = body.resolve_vertex_point(vk, crate::live::Proven);
-                    (p - plane.origin).dot(plane.normal.get())
+                    geom::plane_offset(plane.origin, plane.normal.get(), p)
                 };
                 let (d1, d2) = (dist(u), dist(v));
                 vec![t0 + (t1 - t0) * (d1 / (d1 - d2))]
@@ -430,14 +438,14 @@ mod tests {
     /// parallel gate passes `R = 2ε`, the belly decides the graze
     /// (`R − |D| = ε`), and the graze's side `D = ±ε` decides zero, which
     /// only K ≤ 2 reaches. The nonzero gate rejects it carrying `D`, at
-    /// every ε, either side, either normal. Read as a margin, it ends as
+    /// every ε a run at K = 2 admits, either side, either normal. Read as a margin, it ends as
     /// one: the split's lever; the Boolean's edge-on-plane gap with
     /// its tighter tolerance; the census's coincidence menu, not the
     /// defect ending a poisoned margin takes.
     #[test]
     fn a_graze_side_decided_zero_keeps_its_margin() {
         use crate::boolean::refusal_routes::{BooleanDecision, DeclarationRead};
-        for e in [1e-3, 1e-6, 1e-9, 1e-12] {
+        for e in [1e-3, 1e-6, 1e-9, 1e-11] {
             let band = Band::new(e, 2.0 * e).unwrap();
             for (off, nz) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
                 let label = format!("ε = {e:e}, centre {off}·ε, normal {nz}·z");
@@ -511,9 +519,166 @@ mod tests {
     }
 }
 
+/// **A crossing past the band of a thin ellipse's fast end splits**
+/// (`work/onecopy/a-plane-crossing-past-the-band-of-a-thin-ellipses-fast-end-read-at-the-end.md`,
+/// `work/onecopy/the-euler-splits-interiority-gate-meters-an-end-gap-at-the-speed-floor.md`).
+/// A planar cap on the half of a 1000 × 1 ellipse (the unit cylinder cut
+/// by a plane `cos φ = 10⁻³` off its axis) from one minor vertex to the
+/// other, through its major end: its two ends are its fast ends, where it
+/// runs 1000 m/rad. A plane square to the major axis, `s` along it from
+/// the ends (50, 500 and 5000 zeros), crosses the arc `s` (by chord) from
+/// each end. Three readings of the speed floor (1 m/rad), which reads
+/// `s/1000` at the end or in band, stood between the crossing and its
+/// split, one after the other:
+/// - main's plane door placed the root at the end and dropped it;
+/// - PR 6687's door placed it inside, and `split_edge`'s interiority gate
+///   refused;
+/// - with that gate on the span's reading, certification's check 2
+///   refused the child from the end to the root (`IntervalNotForward`).
+///
+/// Each now reads the chord. A cut 10⁵ zeros in splits too, as a control.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod thin_ellipse_rows {
+    use geom::{Curve3, Surface};
+    use geom_brep::{CurveSelector, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use crate::body::Body;
+    use crate::construction::FaceSurface;
+    use crate::euler::{MefSite, MevSite};
+
+    /// The cap, and the ellipse's major direction.
+    fn thin_cap(tol: Tol) -> (Body<f64>, Vec3<f64>) {
+        let c = 1e-3_f64;
+        let s = (1.0 - c * c).sqrt();
+        let (axis, major) = (Vec3::new(-s, 0.0, c), Vec3::new(c, 0.0, s));
+        let carrier = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), axis, major),
+            1.0 / c,
+            1.0,
+        ));
+        let half = core::f64::consts::FRAC_PI_2;
+        let span = (half, 3.0 * half);
+        let (p0, p1) = (carrier.eval(span.0), carrier.eval(span.1));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p0, true).unwrap();
+        let wall = body.add_surface(Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        });
+        let plane = body.add_surface(Surface::Plane {
+            origin: Point3::origin(),
+            normal: axis,
+            u_ref: major,
+        });
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p1,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        pair: SurfacePair::new(wall, plane),
+                        selector: CurveSelector::Witness(carrier.eval(2.0 * half)),
+                    },
+                    carrier,
+                    param_start: span.0,
+                    param_end: span.1,
+                },
+                tol,
+            )
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+        (body, major)
+    }
+
+    #[test]
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits() {
+        splits_at_this_runs_band();
+    }
+
+    /// The row at ε 1e-12 and 1e-6 whatever ε this run reads: each in a
+    /// child process of this test binary at that ε (the child row
+    /// [`a_crossing_at_a_thin_ellipses_fast_end_splits_child`]), so a run
+    /// at the default ε holds the band's two ends too.
+    #[test]
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits_at_the_bands_ends() {
+        let row = "splitting::classify::thin_ellipse_rows::a_crossing_at_a_thin_ellipses_fast_end_splits_child";
+        for eps in [1e-12, 1e-6] {
+            let exe = std::env::current_exe().expect("a running test binary has a path");
+            let out = std::process::Command::new(&exe)
+                .args([row, "--exact", "--ignored", "--test-threads=1"])
+                .env(geom_core::tolerance::ENV_EPS, format!("{eps:e}"))
+                .env_remove("CAD_AMBIGUITY_K")
+                .output()
+                .expect("the child row spawns");
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            assert!(
+                out.status.success() && stdout.contains("1 passed"),
+                "at ε = {eps:e} the child row failed or did not run:\n{stdout}\n{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+    }
+
+    /// The child the row above runs at each ε: the row itself.
+    #[test]
+    #[ignore = "child row: run at a stated ε by a_crossing_at_a_thin_ellipses_fast_end_splits_at_the_bands_ends"]
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits_child() {
+        splits_at_this_runs_band();
+    }
+
+    /// The cuts and the control at the run's own band.
+    fn splits_at_this_runs_band() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let cut = |s: f64| {
+            let (mut body, major) = thin_cap(tol);
+            let plane = crate::test_support_fixtures::split_plane(
+                Point3::origin() + major * (-s),
+                major,
+                tol,
+            );
+            let (mut sides, mut on) = super::classify_vertices(&body, &plane, band).unwrap();
+            let edges = body.edges().count();
+            super::insert_crossings(&mut body, &plane, &mut sides, &mut on, tol)
+                .map(|_| body.edges().count() - edges)
+        };
+        // The chord past the band; its gap at the floor, `s/1000`, at a
+        // twentieth of the zero, half of it, and in the band's gap.
+        for s in [50.0, 500.0, 5000.0].map(|k| k * band.zero()) {
+            match cut(s) {
+                Ok(pieces) => assert_eq!(pieces, 2, "s = {s:e}: both crossings split"),
+                Err(e) => panic!("s = {s:e}: both crossings split, not {e:?}"),
+            }
+        }
+        assert_eq!(
+            cut(1e5 * band.zero()).unwrap(),
+            2,
+            "a hundred thousand zeros in, both crossings split"
+        );
+    }
+}
+
 /// **A torn curve panics at the split gate and at the crossing
-/// insertion**, where a read that took the miss for scaffolding refused
-/// it as `ScaffoldingOperand`.
+/// insertion**: the miss is a kernel defect, never an operand's
+/// scaffolding.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_rows {
@@ -553,8 +718,8 @@ mod torn_rows {
     /// would answer the census's box.
     #[test]
     fn the_gate_panics_on_a_torn_face_of_an_edge_and_a_torn_surface() {
-        use crate::boolean::boxes::BoxFrame;
         use crate::live::OPERATORS_KEEP_LINKS;
+        use geom::cover::BoxAxes;
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let fresh = || crate::test_support_fixtures::geometric_cube::<f64>(tol).body;
@@ -563,7 +728,7 @@ mod torn_rows {
             Vec3::unit_z(),
             tol,
         );
-        let frame = BoxFrame::aimed(plane.normal);
+        let frame = BoxAxes::aimed(plane.normal);
 
         let mut body = fresh();
         let crosses = |b: &crate::body::Body<f64>, e| {

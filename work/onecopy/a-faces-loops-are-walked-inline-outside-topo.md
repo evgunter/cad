@@ -2,10 +2,13 @@
 id: a-faces-loops-are-walked-inline-outside-topo
 kind: issue
 title: Crates outside topo walk a face's loops inline beside Face::loop_keys
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: E
+closed: 2026-11-06
+pr: 6552
+branch: onecopy/topo-handles
 ---
 
 Found by the second sweep of `a-faces-loops-are-walked-inline-beside-face-loops-linked`,

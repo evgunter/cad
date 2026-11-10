@@ -80,7 +80,7 @@ fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
         ),
         (
             "a cone generator",
-            geom::pole_form::cone_generator(o, z, PI / 6.0, x),
+            geom::pole_form::cone_generator(geom::Line { origin: o, dir: z }, PI / 6.0, x),
             &cone,
             (0.0, 1.0),
             (0.4, 1.7),
@@ -125,8 +125,8 @@ fn a_partial_edge_reads_the_family_its_whole_carrier_does() {
         ),
     ];
     for (what, carrier, surface, own, part, family) in rows {
-        let whole = chart_iso_family(&carrier, own, surface, band());
-        let edge = chart_iso_family(&carrier, part, surface, band());
+        let whole = chart_iso_family(&carrier, own, surface, band()).map(|r| r.map(|r| r.family));
+        let edge = chart_iso_family(&carrier, part, surface, band()).map(|r| r.map(|r| r.family));
         assert_eq!(whole, Ok(Some(family)), "{what}: its whole carrier");
         assert_eq!(edge, whole, "{what}: over {part:?}");
     }

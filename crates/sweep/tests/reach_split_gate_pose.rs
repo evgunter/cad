@@ -21,6 +21,13 @@ use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, split};
 use topo::{AtRestBody, Body, POSE_UNIT_NORM, transform_rigid};
 
+/// **The far scale**: every fixture lies within `1.6·s` of the origin
+/// and the skew pose moves it `0.7·s` more, so at `s = 350` a posed body
+/// reaches no farther than 805 m, in the 1 km session box
+/// (`[tolerance.units]`). A fixture past the box is refused by it
+/// ([`a_fixture_past_the_session_box_is_refused_by_it`]).
+pub(crate) const FAR: f64 = 350.0;
+
 /// One fixture: the revolved profile about `y`, its radius at height
 /// `y` (the slice integral's integrand), and the unarmed face's
 /// meridian `θ ↦ (ρ, y)`, sampled over its own parameter window.
@@ -113,14 +120,31 @@ fn rounded(s: f64) -> Fixture {
 }
 
 fn build(f: &Fixture) -> Body<f64> {
+    revolved(f).unwrap().body.into_body()
+}
+
+/// The revolve door's answer on `f`'s profile.
+fn revolved(f: &Fixture) -> Result<sweep::Revolved<f64>, sweep::RevolveError> {
     revolve(
         &validated(vec![bulge_loop(f.chain.clone())]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
-    .unwrap()
-    .body
+}
+
+/// **A fixture past the session box is refused by it**: the capped
+/// cylinder at ×700, its cap's crown 1050 m up. At ε = 1e-12 limb 2's
+/// kernel limit on its sphere reads first, and that is what the row
+/// asserts there.
+#[test]
+fn a_fixture_past_the_session_box_is_refused_by_it() {
+    crate::common::refused_by_the_box_or_limb_2(
+        "the capped cylinder ×700",
+        1.5 * 700.0,
+        &[1e-12],
+        revolved(&capped(700.0)),
+    );
 }
 
 /// The face's support along the body-frame unit normal `n`, as
@@ -275,7 +299,7 @@ fn poses(s: f64) -> [(&'static str, Affine3<f64>); 3] {
 #[test]
 #[ignore = "measurement probe: cargo nextest run -p sweep --run-ignored all reach_split_gate_pose::probe --no-capture"]
 fn probe() {
-    for s in [1e-3, 1.0, 1e3] {
+    for s in [1e-3, 1.0, FAR] {
         for f in [capped(s), truncated(s), rounded(s)] {
             let body = build(&f);
             for (pose, map) in poses(s) {
@@ -452,7 +476,7 @@ fn a_cut_clear_of_the_face_splits_in_every_pose_row() {
         0.7f64.cos(),
         0.7f64.sin() * 1.3f64.sin(),
     );
-    for (s, pose_set) in [(1.0, 0..3), (1e-3, 2..3), (1e3, 2..3)] {
+    for (s, pose_set) in [(1.0, 0..3), (1e-3, 2..3), (FAR, 2..3)] {
         if s < 1e4 * Tol::witness().eps() {
             test_utils::vacuity::stood_down(
                 &format!("scale {s}, eps = {:e}", Tol::witness().eps()),

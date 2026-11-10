@@ -2,10 +2,12 @@
 id: the-guided-replay-door-renders-the-shared-recourse-for-a-fillet-gate
 kind: issue
 title: replay_guided wraps an in-band fillet verdict so the caller reads the shared coincidence recourse, not the gate's sentence
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: E
+rides_with: the-path-doors-escalation-carries-its-gate
+closed: 2026-11-06
 ---
 
 
@@ -71,3 +73,7 @@ sentence when `validate::fillet_recourse_for` knows the name — the same
 shape `PathError::Escalated` already uses, and the one map is already
 the single home for the mapping. The characterization row above is the
 re-baseline target; nothing else in the tree asserts that text.
+
+## Closed (2026-11-06)
+
+PR 6546: one closed `profile::Gate` routes every in-band ending at the path door, validation and the guided door, derived from (gate, verdict) per D4 ¶1 (i)–(ii); see the carrier `the-path-doors-escalation-carries-its-gate` and the PR body for what this row's part became.

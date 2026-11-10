@@ -49,7 +49,7 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
         ValuePayload::Instances(v) => v
             .iter()
             .enumerate()
-            .map(|(i, b)| (u32::try_from(i).unwrap(), b.body()))
+            .filter_map(|(i, b)| Some((u32::try_from(i).unwrap(), b.as_ref()?.body())))
             .collect(),
         ValuePayload::Profile(_)
         // Neither sink denotes a body, so neither offers an entity to

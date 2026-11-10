@@ -11,8 +11,9 @@
 //! rational quotient statement narrowed their hulls, and the measured
 //! work wall gives the knot-cut walls their round 7), so the blade is
 //! the row that CERTIFIES, number and sign alike. The open number is
-//! carried by [`round_tube`], which stops at the wall short of the
-//! target at every ε row.
+//! carried by [`round_tube`], which stops at the wall short of its
+//! resolution at every ε row whose session box holds it (not 1e-6,
+//! where its refusal is asserted).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
@@ -72,35 +73,57 @@ fn blade(tol: Tol) -> topo::Body<f64> {
     loft_body::<f64>(&sections, &places, 3, tol)
         .expect("the lens blade lofts")
         .body
+        .into_body()
 }
 
-/// **A round tube big enough that its number stays open**: two
-/// circles (two semicircular arcs each, so every wall is rational) of
-/// radii `23.4·s` and `11.7·s`, lofted `125·s` apart, with
-/// `s = 512·(ε / 1e-9)`. The reporting target is `1024·ε` and the width
-/// a wall reaches at the work wall is a length that grows with the part,
-/// so scaling the part with ε puts the same crossing at every ε row.
-/// Measured at ε = 1e-9: the tube certifies its number at `s = 64`, and
-/// at 512 each wall stops at the work wall (the exact-v arm's round 11)
-/// with its bracket holding the frustum. It is `pncad-py`'s
-/// `oversized_round_loft`.
-fn round_tube(tol: Tol) -> topo::Body<f64> {
+/// **A round tube big enough, against its resolution, that its number
+/// stays open**: two circles (two semicircular arcs each, so every wall
+/// is rational) of radii `23.4·s` and `11.7·s`, lofted `125·s` apart,
+/// `s = 5.12e11` units (`common::box_unit`) measured at `1024` units, so
+/// the tube stands `5e8` resolutions across. The width a wall reaches at
+/// the work wall is a length that grows with the part, so that ratio
+/// puts the same crossing at every ε row. Measured at ε = 1e-9 and the
+/// pinned `1024·ε`: the tube certifies its number at `s = 64` and stops
+/// each wall at the work wall (the exact-v arm's round 11) at 512, with
+/// its bracket holding the frustum.
+///
+/// The unit is ε where the tube, `125·s` high, fits the far end of the
+/// session box (ε = 1e-12: 64 m), and less where it does not (1e-9: 900
+/// m at `s = 7.2`). It is never under `ε/1024`, so the resolution is
+/// never finer than ε, and at ε = 1e-6 that least tube is `s = 500`,
+/// 62.5 km high: its loft's refusal by the box is asserted, and the tube
+/// is `None`. Its 64 km form at 1e-9 is `pncad-py`'s
+/// `oversized_round_loft_refusal`, refused by the box.
+fn round_tube(tol: Tol) -> Option<(topo::Body<f64>, topo::Settle<f64>)> {
     let circle = |r: f64| {
         vec![bulge_loop(vec![
             (Point2::new(r, 0.0), -1.0),
             (Point2::new(-r, 0.0), -1.0),
         ])]
     };
-    let s = 512.0 * tol.eps() / geom_core::tolerance::DEFAULT_EPS;
-    loft_body::<f64>(
+    let reach = 125.0 * TUBE;
+    let unit = crate::common::box_unit(reach, crate::common::FAR_END, tol.eps() / 1024.0);
+    let s = TUBE * unit;
+    let tube = loft_body::<f64>(
         &[circle(23.4 * s), circle(11.7 * s)],
         &sweep::test_support::stacked_at(&[0.0, 125.0 * s]),
         1,
         tol,
-    )
-    .expect("the tube lofts")
-    .body
+    );
+    if !crate::common::in_the_box(reach, unit) {
+        crate::common::refused_by_the_session_box(
+            &format!("the tube {} m high at ε = {:e}", 125.0 * s, tol.eps()),
+            125.0 * s,
+            tube,
+        );
+        return None;
+    }
+    let body = tube.expect("the tube lofts").body.into_body();
+    Some((body, crate::common::unit_resolution(unit)))
 }
+
+/// The tube's scale, in [`crate::common::box_unit`]s: `512` at ε = 1e-9.
+const TUBE: f64 = 5.12e11;
 
 /// The blade certifies: tier 3 admits it on a positive enclosure, the
 /// reporting door measures it at the default ε and looser, and the
@@ -166,7 +189,14 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
 #[test]
 fn a_round_tube_certifies_its_sign_while_its_number_is_open() {
     let tol = Tol::witness();
-    let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
+    let Some((tube, resolution)) = round_tube(tol) else {
+        test_utils::vacuity::stood_down(
+            &format!("the open-number tube at ε = {:e}", tol.eps()),
+            "past the session box; its refusal by the box is asserted instead",
+        );
+        return;
+    };
+    let body = topo::test_support::finished("the round tube", tube, tol);
     let certificate = topo::validate_geometric_certificate(&body, tol)
         .unwrap_or_else(|e| panic!("check 7 refuses the tube at ε = {:e}: {e:?}", tol.eps()));
     let enclosure = certificate.enclosure();
@@ -174,7 +204,7 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_open() {
         enclosure.volume_lo > 0.0,
         "the admitted tube's volume enclosure is positive: {enclosure:?}"
     );
-    let door = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+    let door = topo::mass_properties(&body, tol, resolution)
         .unwrap_or_else(|e| panic!("the door measures the tube at ε = {:e}: {e:?}", tol.eps()));
     assert_eq!(
         door.stop,
@@ -186,7 +216,7 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_open() {
     // reached its wall; its continuation runs the walls on to the same
     // stop as the door.
     let continued = certificate
-        .measure(topo::test_support::pinned_resolution(tol))
+        .measure(resolution)
         .unwrap_or_else(|e| panic!("the continuation measures the tube: {e:?}"));
     assert_eq!(
         continued.stop, door.stop,

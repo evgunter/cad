@@ -314,7 +314,7 @@ impl BlendArm {
 /// never from a coordinate-axis tie-break. Poison propagates when `x`
 /// is parallel to `a`, which is the honest answer: there is no
 /// distinguished perpendicular there.
-fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
+pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
     // Named binding so the interval-square tripwire's self-multiplication
     // grep does not false-positive on `a * a.dot(x)` (a vector scaled by a
     // projection coefficient, not a scalar square) — the affine.rs
@@ -353,15 +353,20 @@ pub fn plane_plane_blend<T: Real>(
     let d = n_a.dot(n_b);
     let one = T::one();
     let center = p - (n_a + n_b) * (signed / (one + d));
-    let foot_a = center + n_a * signed;
-    let foot_b = center + n_b * signed;
+    let side = convexity.ball_side(true);
+    let (a, b) = (
+        SupportTrace::Straight { normal: n_a, side },
+        SupportTrace::Straight { normal: n_b, side },
+    );
+    let foot_a = a.contact(center, radius);
+    let foot_b = b.contact(center, radius);
     let setback = radius * ((one - d) / (one + d)).sqrt();
     EdgeBlend {
         surface: Surface::Cylinder {
             origin: center,
             axis: tau,
             radius,
-            u_ref: (foot_a - center).normalize(),
+            u_ref: a.foot(center),
         },
         spine_curvature: T::zero(),
         trim_a: (
@@ -437,19 +442,18 @@ pub fn plane_plane_blend<T: Real>(
 /// **Neither degenerate case is gated here**, and they are two
 /// different cases, not one:
 ///
-/// - `s² < 0` — no spine circle exists at all (the offsets do not
-///   meet). `s` is then POISON, `spine_curvature` is poison, and
-///   predicate 3 escalates with an `Invalid` margin.
+/// - `s² ≤ 0` — no spine circle exists: the offset plane misses the
+///   offset sphere, or touches it at one point, so no ball of radius
+///   `r` rolls along the rim touching both supports (on the dome, a
+///   ball inside the sphere and on its equator's plane, from
+///   `r = R/2`, where the one ball resting on both sits on the axis). `s` would be poison. The caller decides it first,
+///   from [`plane_sphere_room`], and refuses typed before this arm runs.
 /// - `0 < s ≤ r` — a spine circle exists but the tube swallows it: `s`
 ///   and `1/s` are ordinary finite numbers, and predicate 3 refuses
-///   `SpineIrregular` on the FINITE curvature, not on poison.
+///   `SpineIrregular` on the FINITE curvature.
 ///
-/// Both are refused before the surface is ever used, and at the verb
-/// level predicate 2's conservative consumption screen usually fires
-/// first on the setbacks such a radius implies (the battery's own
-/// stated ordering) — either refusal is honest and typed. Total
-/// arithmetic in, classification at the caller: the crate's standing
-/// posture.
+/// Total arithmetic in, classification at the caller: the crate's
+/// standing posture.
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn plane_sphere_blend<T: Real>(
@@ -462,23 +466,22 @@ pub fn plane_sphere_blend<T: Real>(
     sphere_convex: bool,
     convexity: Convexity,
 ) -> EdgeBlend<T> {
-    // The one fold (`Convexity::signed`): the ball is `r` INTO the
-    // plane's material on a convex chain and `r` out of it on a concave
-    // one.
-    let signed = convexity.signed(radius);
-    let depth = (sphere_c - origin).dot(n);
-    let h = depth + signed;
-    // The same fold read against the sphere's stored sense: the ball
-    // rests on the sphere's MATERIAL side — inside it — exactly when
-    // that sense agrees with the chain's convexity.
-    let side = convexity.ball_side(sphere_convex);
-    // The offset sphere the ball centre rides, selected STRUCTURALLY.
-    let offset = sphere_r - sided(side, radius);
+    let PlaneSphereFold {
+        signed,
+        depth,
+        h,
+        side,
+        offset,
+    } = PlaneSphereFold::of(
+        origin,
+        n,
+        sphere_c,
+        sphere_r,
+        radius,
+        sphere_convex,
+        convexity,
+    );
     let s2 = (offset - h) * (offset + h);
-    // No gate here (see the two degenerate cases in the doc above):
-    // `s² < 0` yields poison and escalates at predicate 3, `0 < s ≤ r`
-    // yields a finite curvature predicate 3 refuses `SpineIrregular`
-    // on. Total arithmetic in, classification at the caller.
     let s = s2.sqrt();
     let spine_center = sphere_c - n * h;
     let u_ref = perp_unit(plane_u_ref, n);
@@ -522,6 +525,93 @@ pub fn plane_sphere_blend<T: Real>(
     }
 }
 
+/// The plane–sphere pair's one fold, read by [`plane_sphere_blend`] and
+/// [`plane_sphere_room`] alike.
+struct PlaneSphereFold<T: Real> {
+    /// The ball's signed depth into the plane's material
+    /// ([`Convexity::signed`]).
+    signed: T,
+    /// The sphere centre's height over the plane along `n`.
+    depth: T,
+    /// The sphere centre's height over the OFFSET plane the ball
+    /// centre rides.
+    h: T,
+    /// The ball's side of the sphere.
+    side: SurfaceSide,
+    /// The signed radius of the offset sphere the ball centre rides.
+    offset: T,
+}
+
+impl<T: Real> PlaneSphereFold<T> {
+    fn of(
+        origin: Point3<T>,
+        n: Vec3<T>,
+        sphere_c: Point3<T>,
+        sphere_r: T,
+        radius: T,
+        sphere_convex: bool,
+        convexity: Convexity,
+    ) -> Self {
+        // The one fold (`Convexity::signed`): the ball is `r` INTO the
+        // plane's material on a convex chain and `r` out of it on a
+        // concave one.
+        let signed = convexity.signed(radius);
+        let depth = (sphere_c - origin).dot(n);
+        // The same fold read against the sphere's stored sense: the ball
+        // rests on the sphere's MATERIAL side — inside it — exactly when
+        // that sense agrees with the chain's convexity.
+        let side = convexity.ball_side(sphere_convex);
+        Self {
+            signed,
+            depth,
+            h: depth + signed,
+            side,
+            // The offset sphere the ball centre rides, selected
+            // STRUCTURALLY.
+            offset: sphere_r - sided(side, radius),
+        }
+    }
+}
+
+/// **`fillet3_ball_room`'s margin on the plane–sphere arm**, in METERS:
+/// the offset sphere's SIGNED radius less the offset plane's distance
+/// from its centre, `(R ∓ r) − |h|` in [`plane_sphere_blend`]'s terms —
+/// the line × circle margin [`offset_room`] reads in a sheet, here in
+/// the meridian. It is positive exactly where `s² = offset² − h² > 0`
+/// with the offset on the ball's side, so where the spine circle
+/// exists. The radius is signed, not taken in magnitude: past `r = R`
+/// with the ball inside the sphere, `R − r` is a ball holding the
+/// sphere, not resting on it, and the margin keeps falling with the
+/// overshoot rather than reading that tangency. With the ball outside
+/// the sphere the offset is `R + r`, positive at every radius.
+///
+/// On the dome (a ball inside a sphere of radius `R`, on the plane
+/// through its centre) it is `R − 2r` at every radius: the largest ball
+/// a hemisphere holds has `r = R/2`. On a plane at distance `d` from
+/// the centre it is `R − r − |d ± r|`, so a cap holds more room than the
+/// hemisphere on one side and less on the other.
+#[must_use]
+pub fn plane_sphere_room<T: Real>(
+    origin: Point3<T>,
+    n: Vec3<T>,
+    sphere_c: Point3<T>,
+    sphere_r: T,
+    radius: T,
+    sphere_convex: bool,
+    convexity: Convexity,
+) -> T {
+    let fold = PlaneSphereFold::of(
+        origin,
+        n,
+        sphere_c,
+        sphere_r,
+        radius,
+        sphere_convex,
+        convexity,
+    );
+    fold.offset - fold.h.abs()
+}
+
 // ------------------------------------------------------------------
 // The shared sheet reduction: one derivation for every curved-support
 // constant-radius arm.
@@ -545,8 +635,8 @@ pub fn plane_sphere_blend<T: Real>(
 /// the side the chart normal points into; [`Convexity::ball_side`] is
 /// where it is read, from stored structure and never from a sampled
 /// normal (S10/S11). It selects the `R ∓ r` fold: every consumer spells
-/// it as [`sided`], a conditional negation of the radius, so it is a
-/// side here and never a `±1`.
+/// it as [`sided`], a conditional negation of the radius or of the
+/// foot direction, so it is a side here and never a `±1`.
 #[derive(Clone, Copy, Debug)]
 pub enum SupportTrace<T: Real> {
     /// A STRAIGHT trace: the line through the rim point whose unit
@@ -585,12 +675,26 @@ impl<T: Real> SupportTrace<T> {
     /// centre by `radius` along the trace's own outward direction.
     fn contact(self, center: Point3<T>, radius: T) -> Point3<T> {
         match self {
-            Self::Straight { normal, side } => center + normal * sided(side, radius),
+            Self::Straight { .. } => center + self.foot(center) * radius,
             Self::Round {
                 center: c,
                 radius: rr,
                 side,
             } => c + (center - c) * (rr / (rr - sided(side, radius))),
+        }
+    }
+
+    /// The unit direction from the ball at `center` to its
+    /// [`Self::contact`], read off the trace. The contact's offset
+    /// from `center` is the radius against coordinates of the body's
+    /// size, so a direction read back off the two points keeps only
+    /// the digits the radius leaves.
+    fn foot(self, center: Point3<T>) -> Vec3<T> {
+        match self {
+            Self::Straight { normal, side } => sided(side, normal),
+            Self::Round {
+                center: c, side, ..
+            } => sided(side, (center - c).normalize()),
         }
     }
 }
@@ -609,31 +713,44 @@ pub enum Branch<T: Real> {
     Knife(Vec3<T>),
 }
 
-/// **`fillet3_knife_room`'s margin**: whether the ball of radius
-/// `radius` exists at a knife edge, in METERS. At a cusp or slit the
-/// supports meet tangentially, so the offset traces the ball's centre
-/// lies on cross away from the rim or not at all; this is their secant
-/// margin, positive exactly where they cross in two points.
+/// **The room the offset traces leave the ball**, in METERS: whether
+/// the `radius`-offsets of two traces in the link's sheet cross, where
+/// the ball's centre lies. It is one margin for both branches —
+/// `fillet3_ball_room` reads it at a rim and `fillet3_knife_room` at a
+/// knife — positive exactly where they cross in two points, so where
+/// [`sheet_center`] has a centre to return on either branch.
 ///
-/// - **circle × circle**: [`Circles::secant`] of the two offset
-///   circles. Two cylinders kissing externally (the valley between two
-///   touching tubes) always cross; two internally tangent ones (a lune)
-///   cross while `r < R_big − R_small`, the room their crescent opens
-///   to: the offsets' internal clearance is `(R_big − R_small) −
-///   |R_big − R_small − 2r|`, which reaches zero there.
-/// - **line × circle**: the offset circle's radius less the offset
-///   line's distance from its centre. A knife between a line and a
-///   circle has the ball outside the circle, so this is positive at
-///   every radius; it is decided all the same.
-/// - **line × line**: zero. Two straight traces tangent at the rim are
-///   one line, whose offsets are parallel: the supports never open, so
-///   there is no ball (and no valid body carries the pair).
+/// Each offset circle's radius is SIGNED, `R ∓ r` by the ball's side
+/// ([`sided`]): past `r = R` with the ball inside a circle the offset is
+/// negative, a ball holding the support rather than resting on it, and
+/// the margin falls with the overshoot instead of reading that circle's
+/// magnitude.
+///
+/// - **circle × circle**: [`Circles::secant`] of the two offsets, which
+///   is positive only where both are. Two cylinders kissing externally
+///   (the valley between two touching tubes) always cross; two
+///   internally tangent ones (a lune) cross while `r < R_big − R_small`,
+///   the room their crescent opens to; two convex spheres' offsets
+///   about centres `d` apart cross while `2(R − r) > d` (the lentil).
+/// - **line × circle**: the offset circle's signed radius less the
+///   offset line's distance from its centre.
+/// - **line × line**: `None`. The two offsets are two lines, and whether
+///   they cross is the branch's, not a margin's: at a rim the traces
+///   cross at the angle predicate 5 decided definite, and so do their
+///   offsets at every radius; at a knife the traces are one line and
+///   their offsets parallel, so the supports never open (no valid body
+///   carries the pair).
 #[must_use]
-pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T>, radius: T) -> T {
+pub fn offset_room<T: Real>(
+    rim: Point3<T>,
+    a: SupportTrace<T>,
+    b: SupportTrace<T>,
+    radius: T,
+) -> Option<T> {
     use SupportTrace::{Round, Straight};
-    let offset = |rr: T, side| (rr - sided(side, radius)).abs();
+    let offset = |rr: T, side| rr - sided(side, radius);
     match (a, b) {
-        (Straight { .. }, Straight { .. }) => T::zero(),
+        (Straight { .. }, Straight { .. }) => None,
         (
             Straight { normal, side },
             Round {
@@ -651,7 +768,7 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
             Straight { normal, side },
         ) => {
             let line = rim - normal * sided(side, radius);
-            offset(rr, sr) - (center - line).dot(normal).abs()
+            Some(offset(rr, sr) - (center - line).dot(normal).abs())
         }
         (
             Round {
@@ -664,7 +781,7 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
                 radius: r_b,
                 side: s_b,
             },
-        ) => Circles::new(c_a.distance(c_b), offset(r_a, s_a), offset(r_b, s_b)).secant(),
+        ) => Some(Circles::new(c_a.distance(c_b), offset(r_a, s_a), offset(r_b, s_b)).secant()),
     }
 }
 
@@ -699,17 +816,11 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
 ///   the rim branch, branch-free, poisoned at a tangential pair.
 ///
 /// Total arithmetic in, classification at the caller: nothing is gated
-/// here, exactly as [`plane_sphere_blend`] gates nothing.
-///
-/// **Where the poison goes differs by family, and only one of the two
-/// paths is predicate 3's.** A COAXIAL pair carries the poison into the
-/// spine radius `s` and so into `spine_curvature = 1/s`, which predicate
-/// 3 escalates. A RULED pair has a straight spine and
-/// [`Ruling::blend`] stores `spine_curvature = 0` unconditionally, so
-/// predicate 3 saturates and cannot see it; there the poisoned centre
-/// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
-/// arrives one step later — at the certification of the band the
-/// open-chain surgery mints between the link's plane caps.
+/// here, exactly as [`plane_sphere_blend`] gates nothing. Offset traces
+/// that do not cross have no centre, which the caller decides first from
+/// [`offset_room`] (`fillet3_ball_room` at a rim, `fillet3_knife_room`
+/// at a knife), so no root here is taken of a negative number on a pair
+/// those doors pass.
 ///
 /// **At a knife edge the rim branch is undefined, and `branch` names
 /// the ball's side instead** ([`Branch::Knife`]). There the two traces
@@ -720,7 +831,7 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
 /// supports open into, on the side both faces leave the edge by, so
 /// the knife branch keeps the crossing on that side of the rim. A
 /// line × line pair has no knife crossing at all (parallel offsets),
-/// which [`knife_room`] decides before any centre is read.
+/// which the caller refuses before any centre is read ([`offset_room`]).
 #[must_use]
 pub fn sheet_center<T: Real>(
     rim: Point3<T>,
@@ -831,10 +942,13 @@ pub fn sheet_center<T: Real>(
 /// blend already carries the axis, and nothing is fitted or guessed.
 #[derive(Clone, Copy, Debug)]
 pub struct Meridian<T: Real> {
-    /// A point of the common axis (the rim circle's centre).
-    pub origin: Point3<T>,
-    /// The unit common axis (the rim circle's axis).
-    pub axis: Vec3<T>,
+    /// The common axis, through the rim circle's centre, its `dir` the
+    /// rim circle's unit axis. The readings below take `dir` as unit
+    /// (each `·dir` is a length along the axis, and `dir × radial` the
+    /// sheet's unit normal), which the type does not carry: a circle's
+    /// axis is unit by convention
+    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+    pub axis: geom::Line<T>,
     /// The rim point the sheet passes through.
     pub rim: Point3<T>,
 }
@@ -844,13 +958,13 @@ impl<T: Real> Meridian<T> {
     /// where no meridian is distinguished ([`perp_unit`]).
     #[must_use]
     pub fn radial(&self) -> Vec3<T> {
-        perp_unit(self.rim - self.origin, self.axis)
+        perp_unit(self.rim - self.axis.origin, self.axis.dir)
     }
 
     /// The unit normal of the sheet (the meridian half-plane's own).
     #[must_use]
     pub fn sheet_normal(&self) -> Vec3<T> {
-        self.axis.cross(self.radial())
+        self.axis.dir.cross(self.radial())
     }
 
     /// The rim's radius — the **named lever arm** every angular
@@ -858,7 +972,7 @@ impl<T: Real> Meridian<T> {
     /// margin is a length in the same metres as every other one.
     #[must_use]
     pub fn lever(&self) -> T {
-        (self.rim - self.origin).dot(self.radial())
+        (self.rim - self.axis.origin).dot(self.radial())
     }
 
     /// Reduce one support to its meridian trace, with the **departure
@@ -882,7 +996,7 @@ impl<T: Real> Meridian<T> {
             // trace's normal, and it must be the axis itself.
             Surface::Plane { normal, .. } => Some((
                 SupportTrace::Straight { normal, side },
-                normal.cross(self.axis).norm() * lever,
+                normal.cross(self.axis.dir).norm() * lever,
             )),
             // A coaxial cylinder: the meridian trace is the line through
             // the rim with the radially outward normal. The stored
@@ -892,7 +1006,7 @@ impl<T: Real> Meridian<T> {
                     normal: radial,
                     side,
                 },
-                axis.cross(self.axis).norm() * lever,
+                axis.cross(self.axis.dir).norm() * lever,
             )),
             // A coaxial cone: the generator through the rim, whose chart
             // normal is `radial·cos α − k̂·(ω sin α)` for the NAPPE sign
@@ -906,13 +1020,13 @@ impl<T: Real> Meridian<T> {
                 ..
             } => {
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let nappe = T::one().copysign((self.rim - apex).dot(axis) * axis.dot(self.axis));
+                let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir)).unit_sign();
                 Some((
                     SupportTrace::Straight {
-                        normal: radial * cos_a - self.axis * (nappe * sin_a),
+                        normal: radial * cos_a - self.axis.dir * (nappe * sin_a),
                         side,
                     },
-                    axis.cross(self.axis).norm() * lever,
+                    axis.cross(self.axis.dir).norm() * lever,
                 ))
             }
             // A sphere centred on the axis: its meridian trace is the
@@ -920,15 +1034,14 @@ impl<T: Real> Meridian<T> {
             // level with the sphere's centre. The departure is the
             // centre's own distance off the axis.
             Surface::Sphere { center, radius, .. } => {
-                let off = center - self.origin;
-                let along = self.axis * off.dot(self.axis);
+                let level = self.axis.foot(center);
                 Some((
                     SupportTrace::Round {
-                        center: self.origin + along,
+                        center: level,
                         radius,
                         side,
                     },
-                    (off - along).norm(),
+                    (center - level).norm(),
                 ))
             }
             _ => None,
@@ -942,10 +1055,10 @@ impl<T: Real> Meridian<T> {
     /// and is stored SIGNED: a centre that has crossed the axis yields a
     /// negative major radius, which is a torus the surface inventory
     /// reports rather than one this arm quietly repairs (the `minor ≥
-    /// major` net). `spine_curvature` is `1/s`, so a spine that does not
-    /// exist at all reaches predicate 3 as poison and a spine the tube
-    /// swallows reaches it as a finite curvature — the two degenerate
-    /// cases [`plane_sphere_blend`] distinguishes, unchanged here.
+    /// major` net). `spine_curvature` is `1/s`, so a spine the tube
+    /// swallows reaches predicate 3 as a finite curvature. A spine that
+    /// does not exist at all never reaches this arm: the caller refuses
+    /// it from [`offset_room`] first, as it does [`plane_sphere_blend`]'s.
     #[must_use]
     pub fn blend(
         &self,
@@ -956,27 +1069,26 @@ impl<T: Real> Meridian<T> {
     ) -> EdgeBlend<T> {
         let radial = self.radial();
         let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius, branch);
-        let level = |q: Point3<T>| {
-            geom::Line {
-                origin: self.origin,
-                dir: self.axis,
-            }
-            .foot(q)
-        };
-        let s = (center - self.origin).dot(radial);
+        let level = |q: Point3<T>| self.axis.foot(q);
+        let s = (center - self.axis.origin).dot(radial);
         // The setback is the EUCLIDEAN displacement of the trimline from
         // the rim, the metric predicate 2 measures face extents in.
         let trim = |t: SupportTrace<T>| {
             let q = t.contact(center, radius);
             (
-                Curve3::circle(level(q), self.axis, (q - self.origin).dot(radial), radial),
+                Curve3::circle(
+                    level(q),
+                    self.axis.dir,
+                    (q - self.axis.origin).dot(radial),
+                    radial,
+                ),
                 (q - self.rim).norm(),
             )
         };
         EdgeBlend {
             surface: Surface::Torus {
                 center: level(center),
-                axis: self.axis,
+                axis: self.axis.dir,
                 major_radius: s,
                 minor_radius: radius,
                 u_ref: radial,
@@ -1023,7 +1135,7 @@ impl<T: Real> Ruling<T> {
             // A cylinder about the ruling: the cross-section circle,
             // centred where the cylinder's axis crosses this sheet.
             Surface::Cylinder { axis, radius, .. } => {
-                let on_axis = s.frame()?.axis_line().foot(self.rim);
+                let on_axis = s.axis_line()?.foot(self.rim);
                 Some((
                     SupportTrace::Round {
                         center: geom::Line {
@@ -1046,10 +1158,8 @@ impl<T: Real> Ruling<T> {
     ///
     /// `spine_curvature` is zero — a straight spine never folds, so
     /// predicate 3 saturates exactly as it does on [`plane_plane_blend`].
-    /// That is also why a degenerate ruled crossing does NOT reach
-    /// predicate 3: the zero is unconditional, so poison from
-    /// [`sheet_center`] rides the cylinder's `origin` and `u_ref`
-    /// instead (see that function's family note).
+    /// Offsets that do not cross never reach this arm: the caller
+    /// refuses them from [`offset_room`] first.
     #[must_use]
     pub fn blend(
         &self,
@@ -1065,7 +1175,7 @@ impl<T: Real> Ruling<T> {
                 origin: center,
                 axis: self.tau,
                 radius,
-                u_ref: (q_a - center).normalize(),
+                u_ref: a.foot(center),
             },
             spine_curvature: T::zero(),
             trim_a: (Curve3::line(q_a, self.tau), (q_a - self.rim).norm()),
@@ -1161,9 +1271,9 @@ pub fn corner_ball<T: Real>(
     let num = n2.cross(n3) * rhs[0] + n3.cross(n1) * rhs[1] + n1.cross(n2) * rhs[2];
     let c = anchor + num / det;
     // The feet lie along `n_i` from a convex rest and along `−n_i` from
-    // a concave one — the same fold as the centre's, `−signed/r`.
-    let side = -signed / radius;
-    let (u_ref, axis) = corner_chart([n1 * side, n2 * side, n3 * side]);
+    // a concave one — the same fold as the centre's.
+    let foot = |n: Vec3<T>| sided(convexity.ball_side(true), n);
+    let (u_ref, axis) = corner_chart([foot(n1), foot(n2), foot(n3)]);
     CornerBall {
         surface: Surface::Sphere {
             center: c,
@@ -1262,20 +1372,14 @@ pub fn chamfer_strip<T: Real>(
 /// point where the two incident strips' trimlines on this support
 /// cross.
 ///
-/// Closed form: `s = ((o₂ − o₁) × d₂)·n / ((d₁ × d₂)·n)`, exact and
-/// total. Two parallel trimlines (a "corner" whose two edges are
+/// Closed form, for the lines `a = o₁ + d₁·s` and `b = o₂ + d₂·t`:
+/// `s = ((o₂ − o₁) × d₂)·n / ((d₁ × d₂)·n)`, exact and total. Two parallel trimlines (a "corner" whose two edges are
 /// collinear) drive the denominator to zero and poison the foot, which
 /// is the honest answer — there is no crossing there.
 #[must_use]
-pub fn line_meet<T: Real>(
-    o1: Point3<T>,
-    d1: Vec3<T>,
-    o2: Point3<T>,
-    d2: Vec3<T>,
-    n: Vec3<T>,
-) -> Point3<T> {
-    let s = (o2 - o1).cross(d2).dot(n) / d1.cross(d2).dot(n);
-    o1 + d1 * s
+pub fn line_meet<T: Real>(a: geom::Line<T>, b: geom::Line<T>, n: Vec3<T>) -> Point3<T> {
+    let s = (b.origin - a.origin).cross(b.dir).dot(n) / a.dir.cross(b.dir).dot(n);
+    a.origin + a.dir * s
 }
 
 /// **The chamfer's corner patch**: the plane through the three feet at

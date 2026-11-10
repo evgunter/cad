@@ -40,7 +40,7 @@ fn tol() -> Tol {
 fn block() -> AtRestBody<f64> {
     finished(
         "the block",
-        brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), tol()),
         tol(),
     )
 }
@@ -62,7 +62,7 @@ fn tool(plane: SketchPlane<f64>, chain: &[(f64, f64, f64)], h: f64) -> Option<Bo
         tol(),
     )
     .ok()
-    .map(|e| e.body)
+    .map(|e| e.body.into_body())
 }
 
 fn volume(b: &Body<f64>) -> Option<f64> {
@@ -94,7 +94,7 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
                 let good = (v - want).abs() < 1e-7 * want.abs().max(1.0);
                 let far = finished(
                     "the far brick",
-                    brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
+                    brick::<f64>((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol()),
                     tol(),
                 );
                 let op = match topo::union(&bb.body, &far, tol()) {
@@ -119,7 +119,7 @@ fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -
 /// volume and the overlap volume. A tool the at-rest gate refuses is
 /// one `ERR` line.
 fn ops(tag: &str, t: Body<f64>, vt: f64, ov: f64) {
-    let t = match AtRestBody::validate(t, tol()) {
+    let t = match topo::finish(t, tol()) {
         Ok(t) => t,
         Err(e) => {
             let s: String = format!("{e:?}").chars().take(120).collect();
