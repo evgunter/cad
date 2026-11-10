@@ -730,7 +730,7 @@ pub enum SectionError {
         predicate: &'static str,
     },
     /// A plane and a spline's section is a march, and the reader handed
-    /// no march door ([`crate::pair_section`]): the scalar named
+    /// no march door ([`crate::pair_section`](fn@crate::pair_section)): the scalar named
     /// does not march.
     NoMarch {
         /// The scalar.

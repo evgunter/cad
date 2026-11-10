@@ -307,10 +307,11 @@ pub(crate) fn removal_pass_bound<T: Real, P: ControlPoint<T>>(
 /// needs to ([`rational_slope`]).
 ///
 /// The middle is [`geom_core::mid_param`], which is `∞` only where an
-/// enclosure's two ends sum past `f64::MAX`. A model's coordinates lie
-/// inside the session box (`geom_core::tolerance::SESSION_BOX_EXTENT`,
-/// D4), far below `f64::MAX / 2`, so an infinite middle is an evaluation
-/// that overflowed: poison, which this refuses, not a point lost.
+/// enclosure's two ends sum past `f64::MAX` (`[1e308, 1e308]` among
+/// them, finite). A model's coordinates lie inside the
+/// session box (`geom_core::tolerance::SESSION_BOX_EXTENT`, D4), far
+/// below that, so such an enclosure is no point of the model, and this
+/// refuses it as it refuses poison.
 pub(crate) fn cell_origin(p: Point3<Interval>) -> Option<Point3<f64>> {
     use geom_core::Bounds as _;
     let c = p.map(|x| geom_core::mid_param(x.lo(), x.hi()));

@@ -556,7 +556,7 @@ impl Band {
     ///   infinity: the run's ε is within a factor K of `f64::MAX`. The
     ///   one arm a run's tolerance reaches, at the top of the range
     ///   [`Tolerance`](crate::tolerance::Tolerance) admits (any finite
-    ///   ε ≥ [`eps_min`](crate::tolerance::eps_min) of its K, any finite
+    ///   ε ≥ [`eps_min`] of its K, any finite
     ///   K > 1), and unreachable for any
     ///   physically meaningful tolerance (D4 ¶4's session box is 1 km,
     ///   ε ≈ 1e-9). The repair is a smaller ε.
@@ -569,7 +569,7 @@ impl Band {
     ///   K = 1 + 2⁻⁵² clears the half-ulp) and a K near 1. **No normal ε
     ///   collapses at any admitted K**, so no run's ε does (every
     ///   admitted ε is at least its K's
-    ///   [`eps_min`](crate::tolerance::eps_min), never below a coordinate's
+    ///   [`eps_min`], never below a coordinate's
     ///   spacing at the box edge, which is normal): this arm is reached only through
     ///   [`Band::linear_at`], at a scale the caller names: a K near 1 is
     ///   admitted only with an ε whose angle over any finite arm is
@@ -675,7 +675,7 @@ impl Band {
     ///     the arm, not ε. θ never rounds to 0 at a run's ε: that needs
     ///     `lever_arm` ≥ ε·2¹⁰⁷⁵, past `f64::MAX` for every ε a run
     ///     admits, each at least its K's
-    ///     [`eps_min`](crate::tolerance::eps_min), never below a
+    ///     [`eps_min`], never below a
     ///     coordinate's spacing at the box edge.
     ///   - [`BandError::InvalidValue`] on `escalate` if θ is finite but
     ///     K·θ overflows — the same overflow residue [`Band::linear`]
