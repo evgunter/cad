@@ -501,7 +501,8 @@ where
                     b: &crate::eval::measure::Carrier<'_, T>| {
             said.verbs.iter().any(|&verb| {
                 [(a, b), (b, a)].into_iter().any(|(x, y)| {
-                    measure_sign(verb, x, y, AT_REST_QUIET_CONTACT_BOUND, band) == Some(Sign::Zero)
+                    measure_sign_as(verb, x, y, AT_REST_QUIET_CONTACT_BOUND, band)
+                        == Some(Sign::Zero)
                 })
             })
         };
@@ -566,18 +567,18 @@ where
 /// ([`crate::eval::measure::gap_value`]), `None` where it refuses or
 /// the decision does. Both halves of the quieting rule ask it of a pair
 /// an assertion could be written over.
-fn gap_sign<T: Decide>(
+fn gap_sign_as<T: Decide>(
     outer: &crate::eval::measure::Carrier<'_, T>,
     inner: &crate::eval::measure::Carrier<'_, T>,
     site: &'static str,
     band: Band,
 ) -> Option<Sign> {
-    measure_sign(crate::measure::MeasureVerb::Gap, outer, inner, site, band)
+    measure_sign_as(crate::measure::MeasureVerb::Gap, outer, inner, site, band)
 }
 
-/// [`gap_sign`] for a `Gap` or a `Distance`
+/// [`gap_sign_as`] for a `Gap` or a `Distance`
 /// ([`crate::eval::measure::value_of`]).
-fn measure_sign<T: Decide>(
+fn measure_sign_as<T: Decide>(
     verb: crate::measure::MeasureVerb,
     a: &crate::eval::measure::Carrier<'_, T>,
     b: &crate::eval::measure::Carrier<'_, T>,
@@ -1755,7 +1756,7 @@ fn could_quiet(
         for &y in &from_b {
             for (outer, inner) in [(x, y), (y, x)] {
                 let negative =
-                    gap_sign(&carrier(outer), &carrier(inner), AT_REST_QUIET_BOUND, band)
+                    gap_sign_as(&carrier(outer), &carrier(inner), AT_REST_QUIET_BOUND, band)
                         == Some(Sign::Negative);
                 if negative && opposed(body, outer, inner, band) {
                     candidates.push((outer, inner));

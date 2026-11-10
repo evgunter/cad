@@ -1394,7 +1394,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// Whether member edge `of` runs the same way as member edge `like`:
     /// `Some(true)` for the same edge, and for an edge lying on `like`'s
     /// line, straight or curved, the way their directions agree
-    /// ([`EdgeCarrier::runs_with`]); `None` where `of` does not lie on
+    /// ([`EdgeCarrier::runs_with_as`]); `None` where `of` does not lie on
     /// that line.
     fn same_way(
         &self,
@@ -1406,7 +1406,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         let (of_body, of_edge) = member_edge(self.members, of.0, of.1.name())?;
         let (like_body, like_edge) = member_edge(self.members, like.0, like.1.name())?;
-        EdgeCarrier::of_edge(like_body, like_edge)?.runs_with(
+        EdgeCarrier::of_edge(like_body, like_edge)?.runs_with_as(
             &EdgeCarrier::of_edge(of_body, of_edge)?,
             ON_MEMBER_EDGE,
             self.bnd,

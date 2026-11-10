@@ -1,6 +1,6 @@
-//! **The roster: every predicate name this crate decides is read, and
-//! every site the reader cannot read is listed with what carries its
-//! name.**
+//! **The roster: every predicate name this crate decides at a call is
+//! read, and every site the reader cannot read is listed with what
+//! carries its name.**
 //!
 //! The reader is `test_utils::source::predicate_census`, the tree's one
 //! home for this walk, and the checks every roster makes of it are
@@ -16,7 +16,19 @@
 //!
 //! A funnel that hands on the name its caller gives it is spelled so no
 //! other call shares its token — `*_as`, "decided as" the row it is
-//! handed — and declared in [`CARRIERS`], so its callers' names are read.
+//! handed — and declared in [`CARRIERS`], so its callers' names are read:
+//! measure's `parallel_as`, the `zero_as` closures, at_rest's
+//! `gap_sign_as`/`measure_sign_as`, and the topological naming's carrier
+//! reads (`on_line_as`, `place_as`, `sign_as`, `offset_as`, `span_as`,
+//! `stretches_as`, `holds_as`, `cover_as`, `runs_with_as`,
+//! `edge_holds_as`), whose name is not their first argument.
+//!
+//! **Not yet complete.** editor-core's own closed `decisions!` table
+//! (`decision.rs`) is decided through `.name()` ([`CLOSED_TYPE`]); a row
+//! spelled only there (`revolve_full_vs_partial`) is read by no census
+//! until `work/onecopy/the-census-reads-no-closed-type-name-table.md`
+//! lands.
+//!
 //! No door table: editor-core's names reach the user through its own
 //! refusal sentences, not a door's error type.
 
@@ -34,6 +46,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("AT_REST_QUIET_CENTRED"),
     NameCarrier::Const("AT_REST_QUIET_CONTACT_BOUND"),
     NameCarrier::Const("AXES_PARALLEL"),
+    NameCarrier::Const("CHORD_ON_RIM"),
     NameCarrier::Const("EVAL_DIRECTION_NORM"),
     NameCarrier::Const("GAP_AXIS_PARALLEL_TO_PLANE"),
     NameCarrier::Const("GAP_ROUND_LARGER"),
@@ -49,6 +62,20 @@ const CARRIERS: &[NameCarrier] = &[
     // The funnels that hand on their callers' names.
     NameCarrier::Call("parallel_as"),
     NameCarrier::Call("zero_as"),
+    // The topological naming's carrier reads and at_rest's measure signs,
+    // each handing on its caller's name.
+    NameCarrier::Call("on_line_as"),
+    NameCarrier::Call("place_as"),
+    NameCarrier::Call("sign_as"),
+    NameCarrier::Call("offset_as"),
+    NameCarrier::Call("span_as"),
+    NameCarrier::Call("stretches_as"),
+    NameCarrier::Call("holds_as"),
+    NameCarrier::Call("cover_as"),
+    NameCarrier::Call("runs_with_as"),
+    NameCarrier::Call("edge_holds_as"),
+    NameCarrier::Call("gap_sign_as"),
+    NameCarrier::Call("measure_sign_as"),
 ];
 
 const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
@@ -57,10 +84,17 @@ const FORWARDS: &str = "a funnel handing on the name its caller gives it, read w
 const CLOSED_TYPE: &str = "a closed type's `name()`, whose names are spelled in its own match, \
                            which the census does not read";
 const OTHER_CRATE: &str = "a `const` another crate declares, read by that crate's roster";
+const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
+                         here by that first argument: a forwarder handing on its caller's name, \
+                         or a caller whose literal is read";
 const NOT_A_NAME: &str = "another `decide*` call, whose first argument is not a name";
 
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
+    (
+        "checks/at_rest.rs: crate::measure::MeasureVerb::Gap",
+        NOT_FIRST,
+    ),
     ("checks/at_rest.rs: name", FORWARDS),
     ("checks/at_rest.rs: site", FORWARDS),
     ("coincide/replay.rs: name", FORWARDS),
@@ -73,7 +107,26 @@ const INDIRECT: &[(&str, &str)] = &[
     ("eval/wire.rs: value", NOT_A_NAME),
     ("measure.rs: measured", NOT_A_NAME),
     ("measure.rs: ten", NOT_A_NAME),
+    ("names/emit_topo.rs: &arc", NOT_FIRST),
+    ("names/emit_topo.rs: a1 - a0", NOT_FIRST),
+    ("names/emit_topo.rs: ahead", NOT_FIRST),
+    ("names/emit_topo.rs: arc", NOT_FIRST),
+    ("names/emit_topo.rs: arc.mid", NOT_FIRST),
+    ("names/emit_topo.rs: arc.p0", NOT_FIRST),
+    ("names/emit_topo.rs: arc.p1", NOT_FIRST),
+    ("names/emit_topo.rs: b", NOT_FIRST),
+    ("names/emit_topo.rs: d1 - dm", NOT_FIRST),
+    ("names/emit_topo.rs: other.carrier.eval(t)", NOT_FIRST),
+    ("names/emit_topo.rs: other.q0", NOT_FIRST),
+    ("names/emit_topo.rs: other.q1", NOT_FIRST),
+    ("names/emit_topo.rs: p", NOT_FIRST),
+    ("names/emit_topo.rs: p - q", NOT_FIRST),
+    ("names/emit_topo.rs: p0", NOT_FIRST),
+    ("names/emit_topo.rs: p1", NOT_FIRST),
+    ("names/emit_topo.rs: per - u", NOT_FIRST),
     ("names/emit_topo.rs: predicate", FORWARDS),
+    ("names/emit_topo.rs: self.len - u", NOT_FIRST),
+    ("names/emit_topo.rs: u", NOT_FIRST),
     ("trace.rs: Margin::levered(", NOT_A_NAME),
     ("trace.rs: Margin::of((origin - at).dot(z))", NOT_A_NAME),
 ];

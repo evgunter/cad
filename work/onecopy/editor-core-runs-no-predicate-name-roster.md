@@ -43,9 +43,10 @@ editor-core decides predicate names in its `src`, and no `tests/recourse_roster.
 **Done** when `crates/editor-core/tests/recourse_roster.rs` runs `test_utils::source::roster_violations`, declaring its const carriers and listing its indirect sites, and editor-core's entry is gone from `KNOWN_MISSING`.
 
 **Closed** (2026-11-10, ONECOPY roster-rest). `crates/editor-core/tests/recourse_roster.rs` runs `roster_violations` over editor-core's whole `src`, in the slow set.
-- **Eighteen const carriers declared** (`EVAL_DIRECTION_NORM` with them):
+- **Nineteen const carriers declared** (`EVAL_DIRECTION_NORM` and `CHORD_ON_RIM` with them):
   - the twelve the census reported;
   - five it found once the forwarders were declared. These are the replay's `ONE_CYLINDER` and `ONE_CYLINDER_AXIS`, at_rest's two quiet rows, and measure's `AXES_PARALLEL`.
-- **Three forwarders take `_as`:** measure's `parallel_as`, and the `zero_as` closures in at_rest and the replay. Their callers' names are now read.
+- **Fifteen forwarders take `_as` and are declared carriers.** These are measure's `parallel_as`, the `zero_as` closures in at_rest and the replay, at_rest's `gap_sign_as`/`measure_sign_as`, and ten of the topological naming's carrier reads in `names/emit_topo.rs` (`on_line_as`, `place_as`, `sign_as`, `offset_as`, `span_as`, `stretches_as`, `holds_as`, `cover_as`, `runs_with_as`, `edge_holds_as`). Their callers' names are now read: `CHORD_ON_RIM` (`name_chord_on_rim`) became a declared const carrier once they were, and a fixture naming it resolves.
+- **Not complete:** editor-core's closed `decisions!` table is decided through `.name()`, and `revolve_full_vs_partial` is spelled only there. That is `the-census-reads-no-closed-type-name-table`.
 - `CLEARANCE_MARGIN` is topo's const, read by topo's roster.
 - editor-core's entry is gone from `KNOWN_MISSING`.
