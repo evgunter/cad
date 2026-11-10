@@ -3212,7 +3212,7 @@ pub enum BooleanError {
     /// split's refusal of the same reading
     /// ([`crate::SplitReduceError::ApexSection`]).
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// it holds two readings of one apex that disagree, a kernel fault, and a table refusal of an
     /// open conic, a section not built. The first ladder that reads one splits it by cause.
     ApexSection {
@@ -4167,7 +4167,7 @@ pub enum BooleanError {
     /// PR 6 contract; loud rather than shipping uncertified caches,
     /// D4 ¶2).
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// the pcurve pass's refusal mixes limits and kernel faults. The first ladder that reads one
     /// splits it by cause.
     Pcurves {
@@ -4178,7 +4178,7 @@ pub enum BooleanError {
     /// (`UnpairedLooseEnds`, `SectionLoopMixed`, …): never a lineage row,
     /// which is [`Self::LineageRow`] ([`BooleanJoin`]).
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// the join's refusal mixes limits and kernel faults. The first ladder that reads one splits it
     /// by cause.
     Join(BooleanJoin),
@@ -4188,7 +4188,7 @@ pub enum BooleanError {
     ///
     /// Ranked by its margin where it carries one ([`edge_join::JoinUndecided::diag`], row 1(b)).
     /// Where the chart image's derivation refused, no ladder reads it, so
-    /// [`geom_brep::ladder::Aborts`] stands in for a class it does not have: that refusal mixes
+    /// [`geom_core::ladder::Aborts`] stands in for a class it does not have: that refusal mixes
     /// capability gaps with a body defect. The first ladder that reads one splits it by cause.
     JoinUndecided(edge_join::JoinUndecided),
     /// **A curved join on a carrier the stage cannot run on.** The join
@@ -4216,7 +4216,7 @@ pub enum BooleanError {
     /// images the census cannot read, or a record that lands on no pair
     /// with nothing removed to consume it.
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// the carry's refusal mixes limits and kernel faults. The first ladder that reads one splits
     /// it by cause.
     CarryRefused {
@@ -4292,7 +4292,7 @@ pub enum BooleanError {
     /// a corner at every station, refuting the smooth reading at its
     /// witness.
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// it holds a dihedral in band and a smooth reading refuted, a kernel fault. The first ladder
     /// that reads one splits it by cause.
     MixedSeam {
@@ -4343,7 +4343,7 @@ pub enum BooleanError {
     /// pair, its pairs disagree on orientation, or no shell of the
     /// other operand is covered back by it and reads `On` in turn.
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// it holds pairs that disagree on orientation, a kernel fault, and pairs not settled, a limit.
     /// The first ladder that reads one splits it by cause.
     CoincidentShell {
@@ -4382,7 +4382,7 @@ pub enum BooleanError {
     /// whole: never its re-description of a kept boundary, which refuses
     /// as the Boolean's own description does ([`BooleanMerge`]).
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// the merge's refusal mixes limits and kernel faults. The first ladder that reads one splits
     /// it by cause.
     Merge(BooleanMerge),
@@ -4392,7 +4392,7 @@ pub enum BooleanError {
     /// each is a defect in what the door built, a wrong verdict of the
     /// validator's own, or a reading in band its family's lever reaches.
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// its findings mix readings in band and kernel faults. The first ladder that reads one splits
     /// it by cause.
     ResultInvalid {
@@ -4419,7 +4419,7 @@ pub enum BooleanError {
     /// piece, and the result is not handed back under a guessed
     /// grouping.
     ///
-    /// No ladder reads it, so [`geom_brep::ladder::Aborts`] stands in for a class it does not have:
+    /// No ladder reads it, so [`geom_core::ladder::Aborts`] stands in for a class it does not have:
     /// the sort's refusal mixes readings in band, limits and kernel faults. The first ladder that
     /// reads one splits it by cause.
     Pieces(crate::pieces::PieceSortError),
