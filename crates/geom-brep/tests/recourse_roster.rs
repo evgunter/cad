@@ -85,7 +85,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("require_positive_as"),
     NameCarrier::Call("require_solid_angle_as"),
     NameCarrier::Call("run_spiric_checks_as"),
-    NameCarrier::Call("signs"),
     NameCarrier::Call("spline_incidence_as"),
     NameCarrier::Call("spread_readings"),
     NameCarrier::Call("torus_lift_as"),
@@ -202,8 +201,6 @@ const CROSS_CRATE: &str = "a public forwarder whose callers are in other crates,
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
                             its enclosing function's caller or a binding, named here by the call's \
                             first argument";
-const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
-                           (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
 const NOT_A_NAME: &str = "another `decide*` or `check*` call, whose first argument is not a name";
 
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
@@ -422,24 +419,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pair_section/torus.rs: radius_guard: name", FORWARDS),
     (
-        "pair_section/torus_arms.rs: across_strip: [(\"section_torus_square_wall_fold_side\", f.y - e)]",
-        TUPLE_PAIRS,
-    ),
-    (
-        "pair_section/torus_arms.rs: across_strip: [(SQUARE_EDGE_OVER, big_r - y.abs())]",
-        TUPLE_PAIRS,
-    ),
-    (
         "pair_section/torus_arms.rs: apart_in_order_as: name",
         FORWARDS,
-    ),
-    (
-        "pair_section/torus_arms.rs: inside_strip: [(\"section_torus_square_wall_sheet\", rho - y.abs())]",
-        TUPLE_PAIRS,
-    ),
-    (
-        "pair_section/torus_arms.rs: reaches_edge: [(name, m)]",
-        TUPLE_PAIRS,
     ),
     ("pair_section/torus_arms.rs: sign_as: name", FORWARDS),
     ("pair_section/torus_arms.rs: signs_as: name", FORWARDS),
@@ -447,22 +428,9 @@ const INDIRECT: &[(&str, &str)] = &[
         "pair_section/torus_arms.rs: signs_across: [far, floor]",
         PAIRED,
     ),
-    ("pair_section/torus_arms.rs: sphere_arm: [(", TUPLE_PAIRS),
-    (
-        "pair_section/torus_arms.rs: sphere_arm: [(SPHERE_NEAR, cuts(d_near)), (SPHERE_FAR, cuts(d_far))]",
-        TUPLE_PAIRS,
-    ),
     (
         "pair_section/torus_arms.rs: sphere_touch: name",
         CLOSURE_FORWARDS,
-    ),
-    (
-        "pair_section/torus_arms.rs: square_folds: [(\"section_torus_square_wall_tube\", tubes.secant())]",
-        TUPLE_PAIRS,
-    ),
-    (
-        "pair_section/torus_arms.rs: square_folds: [(SQUARE_FOLD_HALF, sigma * y - big_r)]",
-        TUPLE_PAIRS,
     ),
     (
         "pair_section/torus_coincidence.rs: read_identity#1(d.data.map(|(datum, m)| (datum.row(), m)))",

@@ -470,8 +470,6 @@ const IDENTITY_DATA: &str = "a `read_identity` call over `sphere_data`, `cylinde
 const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names the census reads where the \
                            type spells them: `TangentRow`'s table, a declared `NameCarrier::Table`, \
                            or the consts `ClearanceBound`'s arms return, declared carriers";
-const TUPLE_PAIRS: &str = "a batch of `(name, value)` pairs, which the census does not open yet \
-                           (`work/onecopy/the-census-opens-no-nested-tuple-of-names.md`)";
 const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
                             its enclosing function's caller or a binding, named here by the call's \
                             first argument";
@@ -489,11 +487,7 @@ const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its caller
 const INDIRECT: &[(&str, &str)] = &[
     (
         "boolean/section_cert.rs: cone_sphere: [(name, b)]",
-        FORWARDS,
-    ),
-    (
-        "boolean/contact_verify.rs: tangent_pass: (on, side)",
-        FORWARDS,
+        CLOSURE_FORWARDS,
     ),
     (
         "boolean/carrier_eq.rs: coincident_over_extent_as: row",
@@ -526,12 +520,8 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     (
-        "boolean/contact_verify.rs: on_surface_pads_each_verdict_in_its_own_direction: (\"probe_on\", PairSide::Second)",
-        TUPLE_PAIRS,
-    ),
-    (
         "boolean/contact_verify.rs: tangent_pass: (on, side)",
-        TUPLE_PAIRS,
+        CARRIER_CALL,
     ),
     ("boolean/contain.rs: face_placement: on_plane", FORWARDS),
     ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),
