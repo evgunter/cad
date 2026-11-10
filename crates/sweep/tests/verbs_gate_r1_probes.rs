@@ -452,7 +452,7 @@ fn read_off(finding: &topo::PcurveMintError, kinds: (geom::SurfaceKind, geom::Cu
         finding,
         topo::PcurveMintError::Certify { error, .. }
             if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
-                && error.kinds() == Some(kinds)
+                && error.chart_carrier_kinds() == Some(kinds)
     )
 }
 

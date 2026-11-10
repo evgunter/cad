@@ -2215,44 +2215,7 @@ impl PcurveCertifyError {
             // The payload says what was read; the ending says what to do,
             // and it is the read's at the door ([`IncidenceRead::ending`]),
             // so no recourse is written here.
-            Self::Incidence(refusal) => match refusal.0 {
-                IncidenceShape::Exceeded { sample, .. } => {
-                    write_exceeded(f, PcurveCheck::ChartIncidence, sample)
-                }
-                IncidenceShape::Undecided { sample, ref cause } => {
-                    write_escalated(f, PcurveCheck::ChartIncidence, sample, cause)
-                }
-                IncidenceShape::Decided {
-                    chart,
-                    carrier,
-                    why,
-                    margin,
-                } => match IncidenceRead::of_margin(margin) {
-                    IncidenceRead::Off(margin) => write!(
-                        f,
-                        "pcurve certification: the {} carrier does not lie on the {} chart — \
-                     {why}{}. The edge is not on its face",
-                        carrier.name(),
-                        chart.name(),
-                        margin
-                            .map(|m| format!(" (margin {m:e} m)"))
-                            .unwrap_or_default()
-                    ),
-                    // Not shown off the chart: the carrier is read AT a pose
-                    // where no carrier of its kind lies on it, which says
-                    // nothing about whether the edge is on its face.
-                    IncidenceRead::AtPose(m) => write!(
-                        f,
-                        "pcurve certification: the {} carrier is no curve of the {} chart at this \
-                     tolerance — {why} (margin {m:e} m, within the band)",
-                        carrier.name(),
-                        chart.name(),
-                    ),
-                    IncidenceRead::Undecided(_) => {
-                        unreachable!("a decided incidence refusal carries no undecided read")
-                    }
-                },
-            },
+            Self::Incidence(refusal) => refusal.write_at::<PcurveCheck>(f),
             Self::ImageMismatch { image, why } => write!(
                 f,
                 "pcurve certification: the {} image offered is not its carrier's image at \
@@ -2326,7 +2289,7 @@ impl PcurveCertifyError {
                 check,
                 sample,
                 cause,
-            } => write_escalated(f, *check, *sample, cause),
+            } => check.write_escalated(f, *sample, cause),
             Self::IntervalNotForward => write!(
                 f,
                 "pcurve certification: the carrier-parameter interval is not forward — a \
@@ -2374,55 +2337,10 @@ impl PcurveCertifyError {
                 "pcurve certification: the projected image's tube angle sweeps more than \
                  one full period of the torus (the winding gate, tube side)"
             ),
-            Self::ResidualExceeded { check, sample } => write_exceeded(f, *check, *sample),
+            Self::ResidualExceeded { check, sample } => check.write_exceeded(f, *sample),
             Self::Band(e) => write!(f, "pcurve certification: {}", e.payload()),
         }
     }
-}
-
-/// `check` as a general arm (`Escalated`, `ResidualExceeded`) carries
-/// it: never the incidence test's, which every mint refuses as
-/// [`PcurveCertifyError::Incidence`], so [`IncidenceRead::of`] reads
-/// every incidence refusal.
-fn general(check: PcurveCheck) -> PcurveCheck {
-    assert!(
-        check != PcurveCheck::ChartIncidence,
-        "an incidence refusal minted as a general arm: mint it as PcurveCertifyError::Incidence"
-    );
-    check
-}
-
-/// An escalated check's payload.
-fn write_escalated(
-    f: &mut core::fmt::Formatter<'_>,
-    check: PcurveCheck,
-    sample: u32,
-    cause: &Indeterminate,
-) -> core::fmt::Result {
-    write!(
-        f,
-        "pcurve certification: {check:?} at sample {sample} escalated: {}",
-        cause.payload()
-    )
-}
-
-/// A check's residual past the band, as its payload says it.
-fn write_exceeded(
-    f: &mut core::fmt::Formatter<'_>,
-    check: PcurveCheck,
-    sample: u32,
-) -> core::fmt::Result {
-    let claim = if check.bounds_a_miss() {
-        "the certificate cannot show the pcurve represents the carrier through the map"
-    } else {
-        "the pcurve does not represent the carrier through the map"
-    };
-    write!(
-        f,
-        "pcurve certification: {check:?} at sample {sample} definitely exceeds the \
-         tolerance band — {claim} (D4 ¶2; the residual is a 3-D displacement in \
-         metres)"
-    )
 }
 
 /// The payload alone: the ending is read at the door that reports the
@@ -2450,7 +2368,7 @@ impl PcurveCertifyError {
     /// checks a refusal names the face and edge it was read of here,
     /// against the body's own kinds.
     #[must_use]
-    pub fn kinds(&self) -> Option<(geom::SurfaceKind, geom::CurveKind)> {
+    pub fn chart_carrier_kinds(&self) -> Option<(geom::SurfaceKind, geom::CurveKind)> {
         match self {
             Self::Incidence(refusal) => refusal.kinds(),
             Self::NoGeneralLane { chart, carrier, .. } => Some((*chart, *carrier)),
@@ -5408,11 +5326,12 @@ fn check_residual_as<T: Decide>(
     };
     match decided {
         Ok(Sign::Zero) => Ok(()),
-        Ok(Sign::Positive | Sign::Negative) => {
-            Err(PcurveCertifyError::ResidualExceeded { check, sample })
-        }
+        Ok(Sign::Positive | Sign::Negative) => Err(PcurveCertifyError::ResidualExceeded {
+            check: general(check),
+            sample,
+        }),
         Err(cause) => Err(PcurveCertifyError::Escalated {
-            check,
+            check: general(check),
             sample,
             cause,
         }),
@@ -6581,7 +6500,7 @@ fn envelope_verdict<T: Decide>(
     match decide("pcurve_envelope", Margin::of(envelope), band) {
         Ok(Sign::Zero) => Ok(()),
         refused => {
-            let check = named();
+            let check = general(named());
             Err(match refused {
                 Err(cause) => PcurveCertifyError::Escalated {
                     check,
@@ -9468,9 +9387,9 @@ fn sample_schedule<T: Real>((t0, t1): (T, T)) -> impl Iterator<Item = T> {
 ///
 /// # Errors
 ///
-/// The read's refusal: [`PcurveCertifyError::Incidence`] for a
-/// definite miss or a pose, [`PcurveCertifyError::Escalated`]
-/// ([`PcurveCheck::ChartIncidence`]) in band.
+/// The read's refusal, [`PcurveCertifyError::Incidence`]: read off for
+/// a definite miss, at a pose for a pose, and in band
+/// ([`IncidenceRead::Undecided`]) otherwise.
 pub fn read_incidence<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
@@ -9530,9 +9449,9 @@ fn read_shown<T: Decide>(
 /// # Errors
 ///
 /// On an analytic chart, as [`read_incidence`]. On a spline chart:
-/// [`PcurveCertifyError::Incidence`] for a carrier a sample of
-/// which is shown off the chart; [`PcurveCertifyError::Escalated`]
-/// ([`PcurveCheck::ChartIncidence`]) where none is and some sample is
+/// [`PcurveCertifyError::Incidence`] read off for a carrier a sample of
+/// which is shown off the chart, and read in band
+/// ([`IncidenceRead::Undecided`]) where none is and some sample is
 /// read in band, unsettled at the walk's caps, or unreadable (a net that
 /// does not cut, a weight not shown positive); and
 /// [`PcurveCertifyError::PlaceholderChart`] on the placeholder chart.
@@ -9565,9 +9484,9 @@ pub fn read_edge_incidence<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`read_incidence`]: [`PcurveCertifyError::Incidence`] for a
-/// definite miss, [`PcurveCertifyError::Escalated`]
-/// ([`PcurveCheck::ChartIncidence`]) in band.
+/// As [`read_incidence`]: [`PcurveCertifyError::Incidence`], read off
+/// for a definite miss and in band ([`IncidenceRead::Undecided`])
+/// otherwise.
 pub fn read_point_incidence<T: Decide>(
     point: Point3<T>,
     surface: &Surface<T>,
@@ -10943,7 +10862,7 @@ pub enum IncidenceRead {
     /// of its kind; it is not shown off the chart.
     AtPose(geom_core::MarginDiag),
     /// The incidence test landed in the band
-    /// ([`PcurveCheck::ChartIncidence`] escalated).
+    /// ([`IncidenceRefusal::undecided`]).
     Undecided(Indeterminate),
 }
 
@@ -11153,13 +11072,133 @@ impl IncidenceRefusal {
         }
     }
 
-    /// The sampled test's schedule index; `None` for a closed-form arm's.
-    pub(crate) fn sample(&self) -> Option<u32> {
+    /// The payload's text at the door whose checks are `C`: a
+    /// closed-form arm's read in that door's words, and the sampled
+    /// test's as that door says its incidence check escalated or
+    /// exceeded.
+    pub(crate) fn write_at<C: IncidenceDoor>(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         match self.0 {
-            IncidenceShape::Decided { .. } => None,
-            IncidenceShape::Exceeded { sample, .. } | IncidenceShape::Undecided { sample, .. } => {
-                Some(sample)
+            IncidenceShape::Decided {
+                chart,
+                carrier,
+                why,
+                margin,
+            } => C::write_decided(f, (chart, carrier), why, margin),
+            IncidenceShape::Exceeded { sample, .. } => C::INCIDENCE.write_exceeded(f, sample),
+            IncidenceShape::Undecided { sample, ref cause } => {
+                C::INCIDENCE.write_escalated(f, sample, cause)
             }
+        }
+    }
+}
+
+/// **A certification door whose refusals carry [`IncidenceRefusal`]**:
+/// its checks, which name the incidence test ([`Self::INCIDENCE`]), and
+/// its words for a check's escalation, a check's residual past the band,
+/// and a closed-form arm's incidence read. The payload's text
+/// ([`IncidenceRefusal::write_at`]) and the general arms' guard
+/// ([`general`]) read each door through it.
+pub(crate) trait IncidenceDoor: Copy + PartialEq {
+    /// The door's incidence check.
+    const INCIDENCE: Self;
+
+    /// This check's escalation at `sample`, as the door's payload says it.
+    fn write_escalated(
+        self,
+        f: &mut core::fmt::Formatter<'_>,
+        sample: u32,
+        cause: &Indeterminate,
+    ) -> core::fmt::Result;
+
+    /// This check's residual past the band at `sample`, as the door's
+    /// payload says it.
+    fn write_exceeded(self, f: &mut core::fmt::Formatter<'_>, sample: u32) -> core::fmt::Result;
+
+    /// A closed-form arm's read of a carrier off its chart (`margin`
+    /// `None` or [`OffMargin::Past`]) or at a pose on it
+    /// ([`OffMargin::InBand`]), in the door's words.
+    fn write_decided(
+        f: &mut core::fmt::Formatter<'_>,
+        kinds: (geom::SurfaceKind, geom::CurveKind),
+        why: &'static str,
+        margin: Option<OffMargin>,
+    ) -> core::fmt::Result;
+}
+
+/// **`check` as a general arm (`Escalated`, `ResidualExceeded`) carries
+/// it**: never the door's incidence check, which every mint refuses as
+/// the door's `Incidence` variant. Asserted where a general arm is minted
+/// from a check held in a variable, and again where a refusal is decided
+/// (`decided()`), so an incidence refusal spelled as a general arm fails
+/// loud rather than read as another check's refusal.
+pub(crate) fn general<C: IncidenceDoor>(check: C) -> C {
+    assert!(
+        check != C::INCIDENCE,
+        "an incidence refusal minted as a general arm: mint it as the door's Incidence variant"
+    );
+    check
+}
+
+impl IncidenceDoor for PcurveCheck {
+    const INCIDENCE: Self = Self::ChartIncidence;
+
+    fn write_escalated(
+        self,
+        f: &mut core::fmt::Formatter<'_>,
+        sample: u32,
+        cause: &Indeterminate,
+    ) -> core::fmt::Result {
+        write!(
+            f,
+            "pcurve certification: {self:?} at sample {sample} escalated: {}",
+            cause.payload()
+        )
+    }
+
+    fn write_exceeded(self, f: &mut core::fmt::Formatter<'_>, sample: u32) -> core::fmt::Result {
+        let claim = if self.bounds_a_miss() {
+            "the certificate cannot show the pcurve represents the carrier through the map"
+        } else {
+            "the pcurve does not represent the carrier through the map"
+        };
+        write!(
+            f,
+            "pcurve certification: {self:?} at sample {sample} definitely exceeds the \
+             tolerance band — {claim} (D4 ¶2; the residual is a 3-D displacement in \
+             metres)"
+        )
+    }
+
+    fn write_decided(
+        f: &mut core::fmt::Formatter<'_>,
+        (chart, carrier): (geom::SurfaceKind, geom::CurveKind),
+        why: &'static str,
+        margin: Option<OffMargin>,
+    ) -> core::fmt::Result {
+        match margin {
+            None | Some(OffMargin::Past(_)) => write!(
+                f,
+                "pcurve certification: the {} carrier does not lie on the {} chart — \
+                 {why}{}. The edge is not on its face",
+                carrier.name(),
+                chart.name(),
+                margin
+                    .map(|m| format!(" (margin {:e} m)", m.diag()))
+                    .unwrap_or_default()
+            ),
+            // Not shown off the chart: the carrier is read AT a pose where
+            // no carrier of its kind lies on it, which says nothing about
+            // whether the edge is on its face.
+            Some(OffMargin::InBand(m)) => write!(
+                f,
+                "pcurve certification: the {} carrier is no curve of the {} chart at this \
+                 tolerance — {why} (margin {m:e} m, within the band)",
+                carrier.name(),
+                chart.name(),
+            ),
         }
     }
 }
@@ -11262,11 +11301,11 @@ fn identity_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// [`PcurveCertifyError::Incidence`] off the torus;
 /// [`Underived::General`] not shown off it and no Villarceau circle
 /// shown (in band: with the ladder's cause), through the incidence door
-/// ([`incidence::general_lane`]); [`PcurveCertifyError::Escalated`] when
-/// the incidence test lands in the sliver band
-/// ([`PcurveCheck::ChartIncidence`]), or a tangent's sign is not decided:
-/// [`PcurveCheck::ChartClass`], the class not shown (the comment at
-/// `decided_sense`).
+/// ([`incidence::general_lane`]); [`PcurveCertifyError::Incidence`] read
+/// in band ([`IncidenceRead::Undecided`]) when the incidence test lands
+/// in the sliver band; and [`PcurveCertifyError::Escalated`]
+/// ([`PcurveCheck::ChartClass`]) when a tangent's sign is not decided,
+/// the class not shown (the comment at `decided_sense`).
 fn torus_oblique_circle<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -11562,8 +11601,9 @@ fn incidence_over_span<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::Escalated`] ([`PcurveCheck::ChartIncidence`])
-/// when the distance lands in the sliver band, or is poisoned.
+/// [`PcurveCertifyError::Incidence`] read in band
+/// ([`IncidenceRead::Undecided`]) when the distance lands in the sliver
+/// band, or is poisoned.
 fn incidence_at<T: Decide>(
     name: &'static str,
     surface: &Surface<T>,
@@ -12230,8 +12270,9 @@ fn spiric_chart_pcurve<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::Escalated`] when `z_min` or the sampled
-/// distance lands in the sliver band.
+/// [`PcurveCertifyError::Incidence`]: at a pose where `z_min` lands in
+/// the sliver band, and read in band ([`IncidenceRead::Undecided`]) where
+/// the sampled distance does.
 fn cone_conic_incidence<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -15943,5 +15984,24 @@ mod cylinder_rim_rows {
             (1e-17, 0.0),
             "at f64 a nonzero term is kept, however small"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod general_arm_rows {
+    use super::{PcurveCheck, envelope_verdict};
+    use geom_core::{Band, Tol};
+
+    /// **A builder that mints a general arm from a check in a variable
+    /// refuses the incidence check** (`general`): `envelope_verdict`,
+    /// handed `ChartIncidence` and a definite envelope, panics rather
+    /// than mint `ResidualExceeded { check: ChartIncidence, .. }`, which
+    /// `IncidenceRead::of` would not read as an incidence refusal.
+    #[test]
+    #[should_panic(expected = "an incidence refusal minted as a general arm")]
+    fn a_general_arm_minted_with_the_incidence_check_panics() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let _ = envelope_verdict(1.0_f64, band, || PcurveCheck::ChartIncidence);
     }
 }

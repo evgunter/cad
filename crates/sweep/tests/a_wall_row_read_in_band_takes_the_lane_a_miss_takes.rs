@@ -141,7 +141,7 @@ fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
         matches!(
             got,
             Err(PcurveMintError::Certify { error, .. })
-                if error.kinds() == Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Circle))
+                if error.chart_carrier_kinds() == Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Circle))
                     && error.refused_check() == Some(geom_brep::PcurveCheck::ChartClass)
         )
     };
@@ -199,7 +199,7 @@ fn a_rim_in_the_band_ends_as_its_incidence_read<T: AtRestPolicy + Bounds>() {
                 &got,
                 Err(PcurveMintError::Certify { error, .. })
                     if matches!(geom_brep::IncidenceRead::of(error), Some(geom_brep::IncidenceRead::Off(_)))
-                        && error.kinds() == Some(kinds)
+                        && error.chart_carrier_kinds() == Some(kinds)
             ),
             "{h:?}: a rim its wall moved a millimetre from ends off the chart, at {}: {got:?}",
             T::NAME

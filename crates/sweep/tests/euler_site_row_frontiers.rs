@@ -375,7 +375,7 @@ fn a_strut_on_a_spline_wall_a_null_edge_holds_open_leaves_its_rows_as_found() {
             matches!(
                 &got,
                 Err(topo::PcurveMintError::Certify { error, .. })
-                    if error.kinds() == Some(kinds)
+                    if error.chart_carrier_kinds() == Some(kinds)
             ),
             "{h:?}: the refusal names the strut's chart and carrier: {got:?}"
         );

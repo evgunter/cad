@@ -258,7 +258,9 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
         let middle = derived::<T>((0.0, -0.5), form);
         let middle = refused(&middle);
         assert!(
-            middle.as_ref().and_then(PcurveCertifyError::kinds)
+            middle
+                .as_ref()
+                .and_then(PcurveCertifyError::chart_carrier_kinds)
                 == Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Circle))
                 && middle.as_ref().and_then(PcurveCertifyError::refused_check)
                     == Some(geom_brep::PcurveCheck::ChartClass),

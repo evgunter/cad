@@ -952,7 +952,7 @@ fn the_door_reads_a_circle_against_a_ring_wall<T: geom_core::Decide>() {
         matches!(
             off.as_ref().err().and_then(crate::IncidenceRead::of),
             Some(crate::IncidenceRead::Off(_))
-        ) && off.as_ref().err().and_then(|e| e.kinds())
+        ) && off.as_ref().err().and_then(|e| e.chart_carrier_kinds())
             == Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Circle)),
         "a circle a millimetre off the wall, at {}: {off:?}",
         T::NAME
