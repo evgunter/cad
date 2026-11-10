@@ -1530,3 +1530,4 @@
 - 04:16Z 6713 FULL: FIX (cover::Core kept for the wrong alternative → port to Line incl Slab/Frustum; stale line-holders row; ellipse bits move too; 3 missed holders; re-spelled readings S1/S2/S4) → bracket lane before turn-place. turn-place: probe span_readings from main, route via Span::place_param.
 - 04:20Z Merged 6711 (df6e92b0; gate green d1156f3f, merged main → e7a7e62b disjoint, check+gates clean) and 6712 (docs+rows only, read by orchestrator; lint/fmt clean).
 - 04:22Z torus-harmonics lane → onecopy/carry-copies (carry-refusal-copies-and-hand-spelled-move-recourses).
+- 04:25Z turn-place probe: span_readings hole real (box past the stop end read decided outside). Ruled (A): Period::span_margins as the one copy-rule door for Span::ends_place and span_readings, meters stay per site with reasons. 6708 gate green, in review.
