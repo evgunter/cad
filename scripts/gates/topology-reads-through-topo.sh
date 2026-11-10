@@ -44,7 +44,9 @@
 #     `half_edge_end(H)`; and `get_half_edge(E.he_plus)….start` followed
 #     within 3 lines by `get_half_edge(E.he_minus)….start`. A half-edge's
 #     own start and end are not this shape unless it is an edge's
-#     `he_plus`: a loop walk's `he` reads its own ends. EXEMPT (`HALF_READS`):
+#     `he_plus`: a loop walk's `he` reads its own ends. (Matching any
+#     half-edge's start and end found 99 sites at this shape's landing,
+#     most of them that walk; PR 6710.) EXEMPT (`HALF_READS`):
 #     the Euler rows that assert each half-edge of a fresh edge on its
 #     own, which is their subject.
 #
