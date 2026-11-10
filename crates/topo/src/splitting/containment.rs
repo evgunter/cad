@@ -859,8 +859,9 @@ impl<T: Decide> ConicArc<T> {
     /// circle or an ellipse.
     ///
     /// **The span is read for "not over"**, through the turn rule
-    /// ([`Period::turn`]): exact on a circle, between the smaller
-    /// semi-axis and the speed over the turn's defect on an ellipse.
+    /// ([`Period::turn`](geom_core::period::Period::turn)): exact on a
+    /// circle, between the smaller semi-axis and the speed over the
+    /// turn's defect on an ellipse.
     ///
     /// - **Wound past a period** — no edge at all — where the rule reads
     ///   [`Turn::Over`].
