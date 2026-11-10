@@ -34,13 +34,16 @@ crates/topo/src/census.rs span_clear 1 row t4-ports-unpinned-for-a-kept-reading-
 # by the production function in the one module.
 crates/topo/src/census.rs wedges_overlap 2 pin a_pair_whose_wedge_does_not_read_is_kept_and_a_later_pair_answers
 crates/topo/src/chord_join.rs holds_outer 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/chord_join.rs path_ring_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/chord_join.rs paths_rung 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+# path_ring_side and paths_rung: cone_ring_rows reads the outer reader at
+# every offset, among them offsets whose first path is in band, and holds
+# its answer; a first-refusal ladder refuses there.
+crates/topo/src/chord_join.rs path_ring_side 1 pin a_path_escalating_by_a_corner_hands_re_homing_to_the_next
+crates/topo/src/chord_join.rs paths_rung 1 pin a_path_escalating_by_a_corner_hands_the_winding_to_the_next
 crates/topo/src/chord_join.rs ring_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/link.rs place 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/offset_nappe.rs face_nappe_reading 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/ray_walk.rs on_boundary 1 pin a_segment_holding_the_point_answers_past_one_in_band
-crates/topo/src/ray_walk.rs walk 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/ray_walk.rs walk 1 pin a_deciding_ray_answers_past_one_in_band_and_a_limit_outranks_it
 crates/topo/src/replace_face.rs carried_alike 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/replace_face.rs gaps_apart 1 pin a_pair_past_eps_answers_past_a_pair_in_band
 crates/topo/src/ring_path.rs path_parity 1 pin a_pair_that_says_nothing_answers_past_a_pair_in_band
