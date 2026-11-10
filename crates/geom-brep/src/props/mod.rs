@@ -662,7 +662,8 @@ impl PropsError {
     ///
     /// # Errors
     ///
-    /// [`crate::ladder::Aborts`] for every kind but `Escalated`.
+    /// [`crate::ladder::Aborts`] for an invalid input, a stored-data
+    /// fault and a payload that mixes classes.
     pub(crate) const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
         match self {
             Self::Escalated { cause, .. } => Ok(crate::ladder::Refusal::Margin(*cause)),
