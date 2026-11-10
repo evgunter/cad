@@ -471,7 +471,9 @@ pub(super) fn lenses<T: Decide>(
             if i0.edge != j1.edge || i1.edge != j0.edge || i0.edge == i1.edge {
                 continue;
             }
-            if (ti.plane_exact && tj.plane_exact) || !on_each_other(link, [i, j], rd) {
+            if (super::rest::planar(link, i) && super::rest::planar(link, j))
+                || !on_each_other(link, [i, j], rd)
+            {
                 continue;
             }
             if out

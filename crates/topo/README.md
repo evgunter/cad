@@ -1328,14 +1328,17 @@ A link with lenses is read as its remainder, its other sectors and its
 horns (the horns read as thorns against the remainder's cone, which the
 lenses' doubled sheets would cloud), with each lens cut out of the
 remainder's material or added to it (`rest::lensed`). No other sector
-crosses a lens's wedge (a crossing, confirmed in the ball); no ray of
-another sector or horn lies on its closed wedge, decided, since such a
-sheet may enter the lens one order down, which is not read: that
-refuses in band, as a sheet meeting the wedge at a bound of it does;
-the remainder reads one material; and each lens's middle reads
+crosses a lens's wedge (a crossing, confirmed in the ball); no horn's
+ray lies on its closed wedge or in band of it, since such a horn may
+enter the lens one order down, which is not read: that refuses in
+band; the remainder reads one material; and each lens's middle reads
 decidedly inside that material for a void and outside it for a sliver.
-A sheet holding the middle has a ray on the wedge or the wedge's rays
-on it, or the remainder reads the middle on it. A remainder of no
+Another sector reaching the wedge is refused before this: a ray of it
+strictly inside the wedge and off its plane meets the wedge as a
+crossing read in band, and one on the wedge's plane or bound, a sheet
+in the lens plane holding the wedge among them, is a tie the first
+order reads one order down, where the lens's two sheets fold along
+their shared edge (`second_order::parts`). A remainder of no
 sector and no horn has no material to read, and its lenses are then all
 of one kind. So no sheet but its own meets a lens off `p`, the lens lies
 in one region of the remainder, and cutting it out or adding it moves

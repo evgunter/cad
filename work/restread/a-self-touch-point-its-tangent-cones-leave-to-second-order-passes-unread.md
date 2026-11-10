@@ -200,7 +200,10 @@ are 36 points (17 slits, 8 equal-cylinder). At `3f4161d8dc`:
 | foot normal | 1 | skipped |
 | `resolve` refusal | 1 | skipped |
 
-11 triples are still skipped. The slits are the counterbore split's
+These counts are exact at branch head `279faf4e51`, before main was
+merged at `6ff9bbe916`. After that merge the witnesses moved by ulps, so
+the triples no longer key one to one with these, and 11 are still
+skipped. The slits are the counterbore split's
 cut faces lying on each other, measured on
 `work/heldrecords/a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses.md`;
 `review_6020_seam_poses` asserts nothing at tier 3′, so no row goes

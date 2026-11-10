@@ -661,9 +661,11 @@ fn thorn<T: Decide>(
 /// thorn of material along `+x` touching a lens's point, its remainder
 /// the thorn's horns alone, whose region round them is no material. A
 /// sliver there rests; a void, which needs material round it, refuses;
-/// a thorn along the lens's middle, on its wedge, refuses in band. Red
-/// where the remainder leaves out its horns, reads their region as
-/// material, or a horn on the wedge is passed.
+/// a thorn along the lens's middle or its bound, on its closed wedge,
+/// or tipped off its middle by an angle the band leaves undecided,
+/// refuses in band. Red where the remainder leaves out its horns, reads
+/// their region as material, or a horn on the wedge, on its bound or in
+/// band of it is passed.
 fn a_lens_beside_a_thorn_is_read_against_its_region<T: Decide>() {
     let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     for p in apexes::<T>() {
@@ -690,7 +692,55 @@ fn a_lens_beside_a_thorn_is_read_against_its_region<T: Decide>() {
             TouchVerdict::Unread(TouchUnread::InBand),
             "a thorn along a sliver's middle at {p:?}"
         );
+        // The thorn along the lens's bound, and along its middle tipped
+        // off the lens plane by an angle the band leaves undecided at the
+        // horn's reach: each refused in band.
+        for (what, along) in [
+            (
+                "a thorn along a sliver's bound",
+                (|a, b, c| framed::<T>([0.0, 1.0, 1.0], [1.0, 0.0, 0.0], [a, b, c]))
+                    as fn(f64, f64, f64) -> Vec3<T>,
+            ),
+            ("a thorn tipped in band off a sliver's middle", |a, b, c| {
+                let t = (band().zero() + band().escalate()) / 4.0;
+                framed::<T>([t, 0.0, 1.0], [0.0, 1.0, 0.0], [a, b, c])
+            }),
+        ] {
+            let (rod, bore) = rod_and_bore(p, 1.0);
+            let mut pieces: Vec<_> =
+                lens(p, (bore, rod), quarter([0.0, 0.0, 1.0]), [k[0], k[1]]).into();
+            pieces.extend(thorn(p, [k[2], k[3], k[4]], along));
+            assert_eq!(
+                read(p, pieces),
+                TouchVerdict::Unread(TouchUnread::InBand),
+                "{what} at {p:?}"
+            );
+        }
     }
+}
+
+/// `a·d̂ + b·ê + c·(d̂ × ê)` in the rows' frame ([`v`]), `ê` the part of
+/// `e` square to `d`, both made unit: a thorn's own `x`, `y` and `z`
+/// placed along `d`.
+fn framed<T: Real>(d: [f64; 3], e: [f64; 3], [a, b, c]: [f64; 3]) -> Vec3<T> {
+    let unit = |[x, y, z]: [f64; 3]| {
+        let n = (x * x + y * y + z * z).sqrt();
+        [x / n, y / n, z / n]
+    };
+    let d = unit(d);
+    let along = e[0] * d[0] + e[1] * d[1] + e[2] * d[2];
+    let e = unit([
+        e[0] - along * d[0],
+        e[1] - along * d[1],
+        e[2] - along * d[2],
+    ]);
+    let f = [
+        d[1] * e[2] - d[2] * e[1],
+        d[2] * e[0] - d[0] * e[2],
+        d[0] * e[1] - d[1] * e[0],
+    ];
+    let at = |i: usize| a * d[i] + b * e[i] + c * f[i];
+    v(at(0), at(1), at(2))
 }
 
 #[test]
@@ -701,4 +751,137 @@ fn a_lens_beside_a_thorn_is_read_against_its_region_f64() {
 #[test]
 fn a_lens_beside_a_thorn_is_read_against_its_region_interval() {
     a_lens_beside_a_thorn_is_read_against_its_region::<Interval>();
+}
+
+/// A box corner at `p` whose face `(a, b)` lies in the lens plane
+/// `x = 0` and holds the quarter about `+z` strictly inside it, its
+/// third edge along `c` off that plane: three planar corners, a hole
+/// (`hole`, each outward normal into the corner) or solid.
+fn holding_corner<T: Decide>(
+    p: Point3<T>,
+    hole: bool,
+    c: [f64; 3],
+    k: [EdgeKey; 3],
+) -> Vec<TangentPiece<T>> {
+    let unit = |[x, y, z]: [f64; 3]| {
+        let n = (x * x + y * y + z * z).sqrt();
+        [x / n, y / n, z / n]
+    };
+    let cross =
+        |[a, b, c]: [f64; 3], [x, y, z]: [f64; 3]| [b * z - c * y, c * x - a * z, a * y - b * x];
+    let dot = |[a, b, c]: [f64; 3], [x, y, z]: [f64; 3]| a * x + b * y + c * z;
+    let a = unit([0.0, 1.0, 0.1]);
+    let (mut b, mut c) = (unit([0.0, -1.0, 0.1]), unit(c));
+    let (mut kb, mut kc) = (k[1], k[2]);
+    if dot(cross(a, b), c) < 0.0 {
+        std::mem::swap(&mut b, &mut c);
+        std::mem::swap(&mut kb, &mut kc);
+    }
+    let vec = |[x, y, z]: [f64; 3]| v::<T>(2.0 * x, 2.0 * y, 2.0 * z);
+    let into = |e: [f64; 3], f: [f64; 3]| {
+        let [x, y, z] = unit(cross(e, f));
+        if hole {
+            v::<T>(x, y, z)
+        } else {
+            v::<T>(-x, -y, -z)
+        }
+    };
+    [(a, b, k[0], kb), (b, c, kb, kc), (c, a, kc, k[0])]
+        .into_iter()
+        .map(|(e, f, ke, kf)| {
+            if hole {
+                flat(p, into(e, f), (vec(e), vec(f)), [ke, kf])
+            } else {
+                flat(p, into(e, f), (vec(f), vec(e)), [kf, ke])
+            }
+        })
+        .collect()
+}
+
+/// **A sheet in the lens plane holding its wedge never rests**: a box
+/// corner whose face lies in the lens plane and holds the whole wedge,
+/// hole or solid, its third edge either side of the plane, and a whole
+/// plane `x = 0` facing either way, each beside a void and a sliver.
+/// Such a sheet lies on both of the lens's sheets to first order and is
+/// refused before the lens is read. Red where any reads as a rest.
+fn a_sheet_holding_a_lens_never_rests<T: Decide>() {
+    for p in apexes::<T>() {
+        let k = edges(5);
+        let lensed = |void: bool| -> Vec<TangentPiece<T>> {
+            let (rod, bore) = rod_and_bore(p, 1.0);
+            let sheets = if void { (rod, bore) } else { (bore, rod) };
+            lens(p, sheets, quarter([0.0, 0.0, 1.0]), [k[0], k[1]]).into()
+        };
+        for void in [true, false] {
+            for hole in [true, false] {
+                for c in [[1.0, 0.0, -0.5], [-1.0, 0.0, -0.5]] {
+                    let mut pieces = lensed(void);
+                    pieces.extend(holding_corner(p, hole, c, [k[2], k[3], k[4]]));
+                    let got = read(p, pieces);
+                    assert!(
+                        !matches!(got, TouchVerdict::Rest(_)),
+                        "void {void}, hole {hole}, third edge {c:?} at {p:?}"
+                    );
+                }
+            }
+            for mx in [1.0, -1.0] {
+                let mut pieces = lensed(void);
+                pieces.push(whole(p, v(mx, 0.0, 0.0)));
+                let got = read(p, pieces);
+                assert!(
+                    !matches!(got, TouchVerdict::Rest(_)),
+                    "void {void}, the plane x = 0 facing {mx} at {p:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_sheet_holding_a_lens_never_rests_f64() {
+    a_sheet_holding_a_lens_never_rests::<f64>();
+}
+
+#[test]
+fn a_sheet_holding_a_lens_never_rests_interval() {
+    a_sheet_holding_a_lens_never_rests::<Interval>();
+}
+
+/// **Two planar faces on one wedge refuse before a tie of the link is
+/// read**: two faces in `z = 0` on the quarter from `x` to `y`, outward
+/// `±z`, bounded by the same two line edges, beside a sliver whose
+/// wedge holds `y`. First order would read the faces' bound along `y`
+/// inside the sliver's sheets and refuse it as unread, where the two
+/// faces fold; the faces lie on each other over the quarter, which
+/// refuses `Degenerate` first. Red where a slit of one wedge is read by
+/// its rays alone.
+fn a_slit_of_one_wedge_refuses_before_its_ties<T: Decide>() {
+    for p in apexes::<T>() {
+        let k = edges(4);
+        let (x, y) = (v::<T>(2.0, 0.0, 0.0), v::<T>(0.0, 2.0, 0.0));
+        let mut pieces: Vec<_> = lens(
+            p,
+            rod_and_bore(p, 1.0),
+            quarter([0.0, 1.0, 0.0]),
+            [k[0], k[1]],
+        )
+        .into();
+        pieces.push(flat(p, v(0.0, 0.0, 1.0), (x, y), [k[2], k[3]]));
+        pieces.push(flat(p, v(0.0, 0.0, -1.0), (y, x), [k[3], k[2]]));
+        assert_eq!(
+            read(p, pieces),
+            TouchVerdict::Unread(TouchUnread::Degenerate),
+            "a slit of one wedge beside a sliver at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_slit_of_one_wedge_refuses_before_its_ties_f64() {
+    a_slit_of_one_wedge_refuses_before_its_ties::<f64>();
+}
+
+#[test]
+fn a_slit_of_one_wedge_refuses_before_its_ties_interval() {
+    a_slit_of_one_wedge_refuses_before_its_ties::<Interval>();
 }

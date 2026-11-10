@@ -5027,17 +5027,24 @@ pub(crate) mod rest {
             if crosses_in_ball(link, &others, &rays, (a, b), rd, &mut notes) {
                 return TouchVerdict::Crossing;
             }
-            // Another sheet or horn reaching the wedge along a ray of it may
-            // enter the lens one order down, which nothing here reads:
-            // refused in band, as `crosses` refuses a sheet meeting the
-            // wedge at its bound. A sheet covering the middle has a ray on
-            // the wedge or the wedge's rays on it (that lens's own reading),
-            // or the remainder reads the middle on it below.
-            let reaches = others
+            // A horn whose ray reaches the closed wedge, or is read in band
+            // of it, may enter the lens one order down, which nothing here
+            // reads: refused in band. Another sector's ray needs no such
+            // read. Strictly inside the wedge, some sector bounded along it
+            // leaves the lens plane (the link closes there), and `crosses`
+            // notes in band where the wedge meets it on that bound; sectors
+            // bounded along it in the plane close into a sheet holding the
+            // middle, which the remainder reads on, or a pair on each other,
+            // refused as a slit, as coincident, or, a lens, where first order
+            // reads its bound inside this one and its sheets fold. On the
+            // wedge's bound it is a tie first order reads one order down,
+            // where this lens's two sheets fold along their shared edge
+            // (`parts`); so is a sheet in the lens plane holding the whole
+            // wedge, the wedge's bounds lying inside it.
+            let reaches = link
+                .horns
                 .iter()
-                .flat_map(|&k| sectors[k].wedges.iter().flat_map(|&(c, d)| [c, d]))
-                .chain(link.horns.iter().map(|h| h.apex + h.ends[0].0))
-                .any(|q| on_sector(&link.cone, s, q, rd) != Some(false));
+                .any(|h| on_sector(&link.cone, s, h.apex + h.ends[0].0, rd) != Some(false));
             if reaches {
                 notes.in_band = true;
             }
