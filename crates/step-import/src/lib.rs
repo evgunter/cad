@@ -820,7 +820,6 @@ pub fn import_step(
             // that finished copy is moved to every other instance: a
             // finished body moved by an isometry stays finished and asks
             // only the session box again.
-            let owed = topo::per_part_gate_owed(model.instances.len());
             // A placement is adopted at the file's own band: its re-mint
             // to an exact rigid motion may move a point by up to ε_in.
             let band = geom_core::FileCoincidence::new(eps_in)
@@ -883,7 +882,7 @@ pub fn import_step(
                     None => {
                         let (built, joins) = assemble::build_one_solid(spec, tol, file)?;
                         normalizations.extend(joins);
-                        let placed =
+                        let one =
                             match &motion {
                                 Some((m, transform)) => topo::transform_rigid(&built, m, tol)
                                     .map_err(|source| StepImportError::Placement {
@@ -893,15 +892,15 @@ pub fn import_step(
                                     })?,
                                 None => built,
                             };
-                        if owed {
-                            let one = gate(placed, Some(spec.id), tol)?;
+                        if topo::per_part_gate_owed(model.instances.len()) {
+                            let one = gate(one, Some(spec.id), tol)?;
                             finished.insert(
                                 instance.solid,
                                 (one.clone(), motion.as_ref().map(|(m, _)| *m)),
                             );
                             one.into_body()
                         } else {
-                            placed
+                            one
                         }
                     }
                 };
