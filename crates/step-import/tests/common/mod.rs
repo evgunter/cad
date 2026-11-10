@@ -221,8 +221,7 @@ pub fn halfcap_with_its_arc_through_the_pole(tol: Tol) -> Body<f64> {
         .filter_map(|(e, d)| {
             let c = body.get_curve_geom(d.curve)?.certified()?;
             let (plus, minus) = (d.he_plus, d.he_minus);
-            let start = body.get_half_edge(plus)?.start;
-            let end = body.get_half_edge(minus)?.start;
+            let (start, end) = body.edge_vertices(e)?;
             let toward = if end == pole {
                 plus
             } else if start == pole {
