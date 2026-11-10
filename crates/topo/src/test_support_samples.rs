@@ -2447,7 +2447,9 @@ mod tests {
             let pose = matches!(
                 e,
                 C::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Pose { .. } | geom_brep::LaneGap::Envelope,
+                    gap: geom_brep::LaneGap::Pose { .. }
+                        | geom_brep::LaneGap::Envelope
+                        | geom_brep::LaneGap::Image,
                     ..
                 }
             );
@@ -2902,6 +2904,7 @@ mod tests {
                 channel: geom_brep::SectorChannel::Azimuth,
             },
             geom_brep::LaneGap::Envelope,
+            geom_brep::LaneGap::Image,
         ] {
             let (chart, carrier) = (geom::SurfaceKind::Sphere, geom::CurveKind::Circle);
             let edge = CertifyError::NoGeneralLane {

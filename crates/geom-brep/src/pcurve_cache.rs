@@ -2248,6 +2248,18 @@ impl PcurveCertifyError {
                 carrier.name(),
                 chart.name(),
             ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: LaneGap::Image,
+            } => write!(
+                f,
+                "pcurve certification: the {} carrier is on the {} chart but is none of its own \
+                 curves, and its general image does not yet follow it over this edge. \
+                 Recourse: {IMAGE_LEVER}",
+                carrier.name(),
+                chart.name(),
+            ),
             // The payload says what was read; the ending says what to do,
             // and it is the read's at the door ([`IncidenceRead::ending`]),
             // so no recourse is written here.
@@ -2469,7 +2481,7 @@ impl PcurveCertifyError {
                 ..
             } => Decision::Check(PcurveCheck::ChartClass, definite),
             Self::NoGeneralLane {
-                gap: LaneGap::Pose { .. } | LaneGap::Envelope,
+                gap: LaneGap::Pose { .. } | LaneGap::Envelope | LaneGap::Image,
                 ..
             } => Decision::Check(PcurveCheck::GeneralLane, definite),
             // A stored image's copied structure: its identity, its
@@ -9476,6 +9488,11 @@ pub enum LaneGap {
     /// image's miss inside the band: check 4's envelope, an upper bound on
     /// the miss, refused it ([`ENVELOPE_LEVER`]).
     Envelope,
+    /// A spline chart's lane images this carrier, but its `General`
+    /// image, fitted through the carrier's feet at its finest structure,
+    /// does not follow the carrier inside the band: the certificate's
+    /// bound on the image's miss refused it ([`IMAGE_LEVER`]).
+    Image,
 }
 
 /// The lever of a [`LaneGap::Envelope`]: the one sentence both
@@ -9485,7 +9502,14 @@ pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds 
      miss from above, and over this edge that bound does not fit inside the band; a shorter \
      edge, away from the chart's singular set, reads a tighter one";
 
-/// **The projected lane's refusal at the mint**: the one place a
+/// The lever of a [`LaneGap::Image`]: the one sentence both
+/// [`PcurveCertifyError::NoGeneralLane`]'s and
+/// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
+pub(crate) const IMAGE_LEVER: &str = "the general image of a curved carrier on a spline chart \
+     is fitted through the carrier's feet, and over this edge its finest fit does not follow \
+     the carrier inside the band; a shorter edge reads a finer one";
+
+/// **The general lane's refusal at the mint**: the one place a
 /// general-lane refusal is relabelled, read from both of `chart_image`'s
 /// calls of the lane (a circle's lane choice and a spline's only image)
 /// and, through [`minted_refusal`], from the mint's certificate of a
@@ -9502,10 +9526,11 @@ pub(crate) const ENVELOPE_LEVER: &str = "the general image's certificate bounds 
 ///   [`PcurveCheck::bounds_a_miss`]), which only the certificate reads: in
 ///   band as the same escalation, decided as [`LaneGap::Envelope`].
 ///
-/// A `General` image's certificate ([`LaneImage::General`]) adds its
-/// sampled residual and the hull's two limbs, at its value and its sup:
-/// each bounds the image's miss, in band as the same escalation and
-/// decided as [`LaneGap::Envelope`].
+/// A spline chart's `General` image ([`LaneImage::General`]) is the
+/// lane's own fit, so every bound its certificate reads on the image's
+/// miss ends as that lane's gap: its sampled residual, the hull's two
+/// limbs at their value and their sup, and its envelope, in band as the
+/// same escalation and decided as [`LaneGap::Image`].
 ///
 /// Every other refusal stays as it is: the deck's placement
 /// (`Placement::turns`) refuses only a poisoned midpoint or one past every
@@ -9545,10 +9570,8 @@ fn general_lane_refusal<T: Real>(
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             ..
-        } if general => gap(LaneGap::Envelope),
-        PcurveCertifyError::FittedLimb { limb, .. } if general && hull(limb) => {
-            gap(LaneGap::Envelope)
-        }
+        } if general => gap(LaneGap::Image),
+        PcurveCertifyError::FittedLimb { limb, .. } if general && hull(limb) => gap(LaneGap::Image),
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Sector,
             sample,
@@ -9573,7 +9596,11 @@ fn general_lane_refusal<T: Real>(
         PcurveCertifyError::ResidualExceeded {
             check: check @ (PcurveCheck::Envelope | PcurveCheck::EnvelopeTerm(_)),
             ..
-        } if check.bounds_a_miss() => gap(LaneGap::Envelope),
+        } if check.bounds_a_miss() => gap(if general {
+            LaneGap::Image
+        } else {
+            LaneGap::Envelope
+        }),
         other => other,
     }
 }

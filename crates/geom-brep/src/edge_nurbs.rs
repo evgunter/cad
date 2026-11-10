@@ -1494,8 +1494,8 @@ fn exact_arc_rim<T: Decide>(
 /// **The certified NURBS × NURBS derivation** — [`plane_nurbs_limbs`]
 /// for an edge between two spline charts, a described wall or a fit on
 /// either side: the carrier's chart image on EACH chart, from the same
-/// fixed schedule of foot points ([`chart_image`], the one producer of
-/// that image), the normal angle between the two charts at each
+/// fixed schedule of foot points ([`chart_image`], the edge
+/// certificates' producer of that image), the normal angle between the two charts at each
 /// interior sample's feet decided definitely transverse, and C2's
 /// certificate against both, its limb 3 the two-chart tube
 /// ([`crate::ssi::SsiTube::TwoChart`]).
@@ -2773,8 +2773,9 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
     }
 }
 
-/// **The chart image of a declared carrier on a NURBS wall** — the one
-/// derivation of this object in the tree.
+/// **The degree-1 chart image of a declared carrier on a NURBS wall**:
+/// the edge certificates' image of any carrier, and the pcurve mint's of
+/// a line or a spline ([`curved_chart_image`] images a bending one).
 ///
 /// The foot points of the D9-fixed [`PXN_FIT_SAMPLES`] schedule,
 /// interpolated (not approximated, so the image is exact at every foot)
@@ -2785,14 +2786,13 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
 /// image is EVIDENCE, and what makes it sound is that its consumer
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span (module docs).
 ///
-/// **Two consumers, one producer.** [`plane_nurbs_limbs`] certifies the image as
-/// part of the plane × NURBS edge certificate at ADOPT time;
-/// [`crate::FittedLane::general_image`] hands the same image of a spline
-/// or a line to the pcurve mint, where it becomes a stored
+/// **Shared with the mint for a spline or a line.** [`plane_nurbs_limbs`]
+/// certifies the image as part of the plane × NURBS edge certificate at
+/// ADOPT time; [`crate::FittedLane::general_image`] hands the same image
+/// of a spline or a line to the pcurve mint, where it becomes a stored
 /// [`crate::Pcurve::General`] cache certified through
 /// [`crate::PcurveCache::certify_general`]. They are the same bits, so
 /// the row a spline's edge certificate read is the row the body stores.
-/// A bending carrier's mint image is [`curved_chart_image`]'s.
 ///
 /// `per_sample` is a hook run at every schedule sample in order, with
 /// the sample index and its foot; it is where [`plane_nurbs_limbs`] puts its

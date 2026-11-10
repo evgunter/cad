@@ -1658,7 +1658,10 @@ pub mod bounds_allowlist {
     //! by every carrier) puts a closed-form carrier's limb 2 at the rung-3
     //! limb's own bound, so `geom_brep::edge_nurbs`'s `analytic_edge_limbs`
     //! and `geom_brep::pcurve_cache`'s `limb2_offset_sup` ride the
-    //! M6-2/M7-8 entries above with nothing wider.
+    //! M6-2/M7-8 entries above with nothing wider. So does
+    //! `geom_brep::edge_nurbs`'s `curved_chart_image`, the pcurve mint's
+    //! image of a bending carrier: `chart_image`'s sibling producer, on the
+    //! same feet and at the same bound, with nothing wider.
     //!
     //! **M9-2 PR-1 (under the PR 11 precedent; retroactive Ev review) —
     //! `topo::chart_region`**, the chart-region overlap predicate: it decides

@@ -197,7 +197,7 @@ fn is_the_lanes_gap(error: &PcurveCertifyError) -> bool {
         error,
         PcurveCertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Nurbs,
-            gap: LaneGap::Envelope,
+            gap: LaneGap::Image,
             ..
         } | PcurveCertifyError::Escalated {
             check: geom_brep::PcurveCheck::GeneralLane,

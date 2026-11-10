@@ -22,26 +22,26 @@ Its volume reaches `props::quad::trimmed` `trimmed_patch_face_rounds`
 
     QuadratureUnsupported { what: "a RATIONAL chart reached the trimmed
     lane — the chord integrand is the polynomial ⟨S, S_u×S_v⟩, and a
-    quotient's is not polynomial in the chord parameter … the rational
-    chart carries IsoArc rims only on this head" }
+    quotient's is not polynomial in the chord parameter …" }
 
-The phrase "IsoArc rims only on this head" no longer holds.
+(PR 6532 dropped the message's closing claim, "the rational chart
+carries IsoArc rims only on this head", which no longer held.)
 
 ## Witness
 
-`step-import`'s dm1 (`tests/fixtures/wild/stepcode/dm1-id-214.stp`),
-pruned to the l-bracket (`r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit`),
-and whole in `tier_gate::every_corpus_import_passes_the_shared_gate`.
-Wall `#382` is rational, and its arc rim, which no row of its split
-one-span sub-patches holds, now mints its `General` row. The import
-then refuses `TierInvalid { VolumeUncomputable { QuadratureUnsupported } }`
-at every ε, where before this head it refused at the mint. Both rows
-are re-pinned on that message.
+`topo::test_support::cyl_wall_sheet_tilted` swapped onto a rational ring
+net in two sub-arcs carries such a face: its bottom rim, a circle or an
+ellipse no row holds, mints a `General` row on the rational chart
+(`crates/topo/tests/a_bending_carrier_on_a_spline_wall_takes_the_general_lane.rs`).
+That body is a sheet, so it has no volume and does not reach the lane.
+No shipped body does today. dm1's l-bracket did on PR 6532's first head,
+until PR 6528 gave its rim held end weights (`Pcurve::IsoArc`'s `ends`)
+and the rim took its row. A closed body on a rational wall whose rim no
+row holds would reach the lane; nothing here built one.
 
 ## Fix
 
 A rational chart in the trimmed lane: the integrand
 `⟨S, S_u×S_v⟩` is a quotient, so either a rule with a certified
 remainder for it, or a polynomial reparameterization of the face's
-region. Until then the refusal's text should say what it is, not what
-the head mints.
+region.

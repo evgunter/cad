@@ -1658,10 +1658,10 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
 /// spline chart over the edge's interval `params` — U2's `General`
 /// arm, at the honest Fitted grade.
 ///
-/// The producer is `geom_brep`'s one derivation of this object
-/// ([`geom_brep::FittedLane::general_image`], whose body is the same
-/// `edge_nurbs` foot schedule the plane × NURBS edge certificate uses
-/// at adopt time). Nothing is certified here: this returns EVIDENCE,
+/// The producer is [`geom_brep::FittedLane::general_image`]: a line's or
+/// a spline's image is the degree-1 one the plane × NURBS edge
+/// certificate reads at adopt time, and a bending carrier's the finer
+/// one `edge_nurbs::curved_chart_image` climbs to. Nothing is certified here: this returns EVIDENCE,
 /// and the mint's next move is `PcurveCache::certify_general`, which
 /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
 /// chart.

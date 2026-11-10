@@ -170,7 +170,10 @@ fn minted<T: AtRestPolicy + geom_core::Bounds>(
     match topo::mint_pcurves_of(&mut body, &[wall], tol()) {
         Ok(_) => Ok(()),
         Err(topo::PcurveMintError::Certify { half_edge, error }) => {
-            assert_eq!(half_edge, bottom, "{form:?}: only the bottom rim refuses: {error:?}");
+            assert_eq!(
+                half_edge, bottom,
+                "{form:?}: only the bottom rim refuses: {error:?}"
+            );
             Err(error)
         }
         Err(other) => panic!("{form:?}: the mint refuses the bottom rim's row: {other:?}"),
@@ -276,7 +279,7 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
             matches!(
                 e,
                 PcurveCertifyError::NoGeneralLane {
-                    gap: geom_brep::LaneGap::Envelope,
+                    gap: geom_brep::LaneGap::Image,
                     ..
                 } | PcurveCertifyError::Escalated {
                     check: geom_brep::PcurveCheck::GeneralLane,

@@ -77,7 +77,11 @@ and `geom-brep/tests/pcurve_general.rs`
 
 Filed:
 - `work/pcert/an-ellipse-stated-as-another-charts-image-on-a-spline-chart-takes-no-general-lane.md`;
+- `work/pcert/a-curved-spline-carrier-or-a-non-affine-line-ends-its-general-image-as-a-kernel-bug.md` (P1);
+- `work/pcert/two-homes-cut-a-chart-path-at-the-walls-knot-lines.md` (P3);
 - `work/quad/a-rational-spline-face-with-a-general-row-has-no-volume-lane.md`;
 - evidence on `work/ssiedge/plane-nurbs-limb-two-refuses-a-non-row-section.md`
   (the edge certificates' producers), `work/isotail/curved-trim-e2e-fixture-waits-for-a-producer.md`
-  and `work/nurbs/nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t.md`.
+  and `work/nurbs/nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t.md`;
+- evidence on `work/pcert/a-minted-refusals-provenance-is-guarded-only-by-its-doc.md`
+  (a stated image now keeps its term, `ChartImage::Stated`; the row stays open).

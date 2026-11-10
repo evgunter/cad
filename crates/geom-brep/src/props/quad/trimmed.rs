@@ -1517,8 +1517,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         return Err(PropsError::QuadratureUnsupported {
             what: "a RATIONAL chart reached the trimmed lane — the chord integrand is the \
                    polynomial `⟨S, S_u×S_v⟩`, and a quotient's is not polynomial in the \
-                   chord parameter, so the exact Newton–Cotes argument does not hold; the \
-                   rational chart carries IsoArc rims only on this head",
+                   chord parameter, so the exact Newton–Cotes argument does not hold",
         });
     }
     let (kv_u, kv_v) = (net.knots_u(), net.knots_v());
