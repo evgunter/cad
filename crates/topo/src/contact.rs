@@ -65,8 +65,8 @@ impl GlueClass {
     }
 
     /// **The relation that glues a face pair under this class**: the one
-    /// table between classes and relations. [`crate::Relation::glued_class`],
-    /// [`Self::of_senses`] and [`Self::carrier_relation`] read it.
+    /// table between classes and relations. [`crate::Relation::glued_class`]
+    /// and [`Self::carrier_relation`] read it.
     #[must_use]
     pub const fn relation(self) -> crate::Relation {
         match self {

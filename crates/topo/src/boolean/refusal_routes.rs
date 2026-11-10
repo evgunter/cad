@@ -347,8 +347,7 @@ pub struct Settling {
 
 impl Settling {
     /// The coincidence a declaration of which would settle the
-    /// question: the one the pair's senses make it, where the door read
-    /// them ([`GlueClass::of_senses`]).
+    /// question: the one-carrier class the door admitted.
     #[must_use]
     pub const fn class(self) -> GlueClass {
         self.class
@@ -830,8 +829,9 @@ const SEAM_JET: SizedDecision = SizedDecision {
 /// **The sense of two directions read parallel at a corner**: a
 /// cosine of unit directions levered at the corner's arm, `≈ ±arm`, so
 /// what it measures is the arm, and either definite sign passes. One
-/// decision wherever it is read: two at a corner ([`BooleanDecision::DirectionSense`]),
-/// and two flanks along a shared edge ([`Coincide::FlankSense`]).
+/// decision wherever it is read: two bound directions at a corner
+/// ([`BooleanDecision::DirectionSense`]), and two flanks along a shared
+/// edge ([`Coincide::FlankSense`]).
 pub(crate) const CORNER_SENSE: SizedDecision = SizedDecision {
     lever: CORNER_EDGES,
     size: "length of the corner's shorter edge",

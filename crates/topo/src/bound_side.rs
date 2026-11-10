@@ -166,11 +166,8 @@ impl<T: Decide> BoundSupport<T> {
     /// The bound's signed first-order departure from the plane through
     /// its base vertex with unit normal `n`, as [`read`] reads it: a
     /// line edge's far vertex, in metres; any other bound's direction
-    /// `dir` levered at its reach ([`rise`]). The vertex-on-face pass
-    /// quotes it for a sector whose bounds tie but whose tilt it cannot
-    /// decide (`bool_sector_coplanar`): the steeper bound's first-order
-    /// departure is what a smaller tolerance reads off the plane. A
-    /// conic's bend is [`Tie::descend`]'s.
+    /// `dir` levered at its reach ([`rise`]). A conic's bend is
+    /// [`Tie::descend`]'s.
     pub(crate) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
         match self {
             Self::Chord { base, far } => geom::plane_offset(base, n, far),
@@ -522,48 +519,52 @@ pub(crate) struct Tie<T: geom_core::Real> {
     /// The Zero, with the margin it was decided on; or, for a tie the
     /// slack made, the sign the band decided.
     pub decided: Decided,
-    /// For a tie the slack made, what the slack hid ([`Hidden`]).
-    pub hidden: Option<Hidden>,
 }
 
 /// **What a reading's slack hid** where it made a tie
-/// ([`TiedBy::Slack`]): the reading the band decided, beside the one the
-/// slack moved it to.
+/// ([`TiedBy::Slack`]): the distance moved by the slack either way.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Hidden {
-    /// Moved by the slack, the reading lies in band: its escalation.
+    /// Moved toward zero by the slack, the reading lies in band: its
+    /// escalation.
     Moved(Indeterminate),
-    /// Moved by the slack, the reading decided another sign: the band's
-    /// reading and the moved one, two decided bounds on one distance
-    /// that straddle the band.
+    /// Moved toward zero by the slack, the reading decided another sign:
+    /// the distance moved down by the slack and moved up by it, two
+    /// decided bounds on it that straddle the band.
     Across {
-        /// The band's reading.
-        decided: Decided,
-        /// The reading moved by the slack toward zero.
-        moved: Decided,
+        /// The distance less the slack, read.
+        lower: Decided,
+        /// The distance plus the slack, read.
+        upper: Decided,
     },
 }
 
-impl Hidden {
-    /// What `refusal` says the slack hid; `None` for a reading in band,
-    /// which no slack made.
-    fn of(refusal: Refusal) -> Option<Self> {
-        match refusal {
-            Refusal::InBand(_) => None,
-            Refusal::Moved { why, .. } => Some(Self::Moved(why)),
-            Refusal::Slack { decided, moved } => Some(Self::Across { decided, moved }),
-        }
-    }
-}
-
 /// **What made a first-order tie** ([`Tie::by`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum TiedBy {
     /// The band read the first order Zero.
     Band,
     /// The band decided a side and the reading's slack refused it: the
-    /// first order is the band's side, hidden in the slack.
-    Slack,
+    /// first order is the band's side, hidden in the slack, which hid
+    /// what this says.
+    Slack(Hidden),
+}
+
+impl TiedBy {
+    /// The tie a slack refusal makes: what it hid.
+    fn slack(refusal: SlackRefusal) -> Self {
+        Self::Slack(match refusal {
+            SlackRefusal::Moved(why) => Hidden::Moved(why),
+            SlackRefusal::Across { lower, upper } => Hidden::Across { lower, upper },
+        })
+    }
+}
+
+/// A slack's refusal, the band having decided the side
+/// ([`Refusal::Slack`], [`Refusal::Moved`]).
+enum SlackRefusal {
+    Moved(Indeterminate),
+    Across { lower: Decided, upper: Decided },
 }
 
 /// Why a reading with no curvature charge read no side: the first
@@ -662,7 +663,7 @@ fn first_order<T: Decide>(
             )
         }
     };
-    let tie = |by, decided, hidden| {
+    let tie = |by, decided| {
         Ok(Err(Tie {
             dir,
             reach,
@@ -671,7 +672,6 @@ fn first_order<T: Decide>(
             by,
             predicate,
             decided,
-            hidden,
         }))
     };
     match metric::settle_reported(predicate, d, rd) {
@@ -684,7 +684,6 @@ fn first_order<T: Decide>(
                 sign: Sign::Zero,
                 margin,
             },
-            None,
         ),
         Ok(decided) => Ok(Ok((
             if decided.sign == Sign::Negative {
@@ -696,8 +695,16 @@ fn first_order<T: Decide>(
             predicate,
             decided,
         ))),
-        Err(refusal @ (Refusal::Slack { decided, .. } | Refusal::Moved { decided, .. })) => {
-            tie(TiedBy::Slack, decided, Hidden::of(refusal))
+        Err(Refusal::Slack {
+            decided,
+            lower,
+            upper,
+        }) => tie(
+            TiedBy::slack(SlackRefusal::Across { lower, upper }),
+            decided,
+        ),
+        Err(Refusal::Moved { decided, why }) => {
+            tie(TiedBy::slack(SlackRefusal::Moved(why)), decided)
         }
         Err(Refusal::InBand(diag)) => Err(match reach {
             BoundSupport::Chord { .. } => ReadFault::Chord(diag),
@@ -810,18 +817,24 @@ pub(crate) fn read<T: Decide>(
             Some(refused) => Err(BoundSideFault::Charge(refused)),
         },
         Err(Refusal::InBand(diag)) => Err(BoundSideFault::ChargeEscalated(diag)),
-        Err(refusal @ (Refusal::Slack { .. } | Refusal::Moved { .. })) => {
-            Ok(FirstOrder::Tied(Tie {
-                dir,
-                reach,
-                face,
-                rd,
-                by: TiedBy::Slack,
-                predicate,
-                decided,
-                hidden: Hidden::of(refusal),
-            }))
-        }
+        Err(Refusal::Slack { lower, upper, .. }) => Ok(FirstOrder::Tied(Tie {
+            dir,
+            reach,
+            face,
+            rd,
+            by: TiedBy::slack(SlackRefusal::Across { lower, upper }),
+            predicate,
+            decided,
+        })),
+        Err(Refusal::Moved { why, .. }) => Ok(FirstOrder::Tied(Tie {
+            dir,
+            reach,
+            face,
+            rd,
+            by: TiedBy::slack(SlackRefusal::Moved(why)),
+            predicate,
+            decided,
+        })),
     }
 }
 
@@ -908,7 +921,6 @@ impl<T: Decide> Tie<T> {
                         sign: Sign::Zero,
                         margin: escalation.diag().margin,
                     },
-                    hidden: None,
                 })
             }
             _ => None,
@@ -963,7 +975,7 @@ impl<T: Decide> Tie<T> {
         // A tie of the slack's has a first order the band decided: the
         // descent's riding is no reading of it, nor a side read on the
         // band alone.
-        let slack_tie = self.by == TiedBy::Slack;
+        let slack_tie = matches!(self.by, TiedBy::Slack(_));
         let slack = Descent::Unresolved(Unresolved::Slack);
         let rides = if slack_tie { slack } else { Descent::Rides };
         // A slack that is not structurally nothing (a cone's tie of zero).
@@ -1503,7 +1515,7 @@ mod tests {
                     matches!(
                         got,
                         Ok(FirstOrder::Tied(Tie {
-                            by: TiedBy::Slack,
+                            by: TiedBy::Slack(_),
                             decided: Decided {
                                 sign: Sign::Positive,
                                 ..
@@ -1551,8 +1563,8 @@ mod tests {
             panic!("over the slack the rise is a tie");
         };
         assert_eq!(
-            (tie.by, tie.decided.sign),
-            (TiedBy::Slack, Sign::Positive),
+            (matches!(tie.by, TiedBy::Slack(_)), tie.decided.sign),
+            (true, Sign::Positive),
             "the tie is the slack's: the band decided the rise"
         );
         assert_eq!(

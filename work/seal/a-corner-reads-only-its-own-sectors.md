@@ -67,9 +67,12 @@ Built to the fork `unglued-corner-ending` design (PR 6693). The PR body has the 
 - A curved face keeps C8's frontier refusal.
 
 **A corner lying on a plane face by its bounds** (recl's flanks and line cones, vtxfac's flat sector):
-- It refuses on the reading that put it there, carried from where it was read: the flank's tie (`FlankKey::tie`), the representative's reading (`sectors::given_side_read`), and the steeper of the flat sector's two ties.
+- It refuses on the reading that put it there, carried from where it was read: the flank's tie (`recl::FlankKey::On`), the line cone's representative's own reading (`sectors::SheetRead`), and the steeper of the flat sector's two ties (`vtxfac::EntryTie`).
 - The refusal is `Coincide::CornerBound` (`boolean::unglued_corner`, which either definite side passes). A Zero tie is the nonzero gate's rejection. A slack's tie is the slack's own reading: the moved reading in band, or the band's reading and the slack's straddling the band (`bool_corner_side_slack_straddle`).
 - `bounds_off` is deleted.
+- A record the meeting read as one coincidence carries how (`fan::Coincident`: the glue door's relation, or the frontier's curved face), so `recl_sectors` never re-reads the glue record. Where a line cone reads its representative `On` but the representative's own reading decided it off the face, the pass ends `LineUnread::Contradicted`.
+
+**Fix pass (2026-11-10):** the in-band crossing is pinned (`fan::rows::only_a_glued_pair_opens_the_coplanar_branch` at 1.2·zero, `offer_rows`' `corner_tilted_in_band_at_its_arm`). The slack straddle pairs `d − s` with `d + s`. `bool_sector_coplanar`'s two rows are closed (HONEPAIR, HONEONE).
 
 **Retired:**
 - C22 (`unglued_coincidence`), `unglued_tilt`, `ReadOn`, and the three "definitely-distinct" and two "departs definitely" invariants;

@@ -15,7 +15,7 @@
 
 #![allow(clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, ErrorTextReading, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, ErrorTextReading, Point3, Sign, SizedPass, Tol, Vec3};
 use test_utils::offer::{Outcome, report, run};
 use topo::test_support::{HINGED_ALONG_B, finished, mapped_cube, tool_on_a_block_corner};
 use topo::{AtRestBody, BooleanDecision, BooleanError, Coincide, DeclarationRead};
@@ -100,8 +100,9 @@ fn assert_corner_crossing(
         Some(Sign::Zero),
         "{label}: a Zero, rejected"
     );
-    assert!(
-        format!("{:?}", diag.margin).contains("passes: Positive"),
+    assert_eq!(
+        diag.margin.rejected_passing(),
+        Some(SizedPass::Positive),
         "{label}: rejected by the question only a definite tilt passes: {:?}",
         diag.margin
     );

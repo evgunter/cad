@@ -1061,7 +1061,9 @@ A corner reads only a glued pair as one surface; an unglued pair that
 reaches its coplanar branch refuses on the corner's own reading: two
 plane faces read parallel at a vertex pair's arm, on that tilt
 (`boolean::fan::meeting`, `Coincidence(CornerCrossing)`), and a corner
-lying on a plane face by its bounds, on the steeper bound's tie
+lying on a plane face by its bounds, on the reading that put it there,
+carried from where it was read: a flank's or a line cone's
+representative's own tie, or the steeper of a flat sector's two ties
 (`boolean::unglued_corner`, `Coincidence(CornerBound)`).
 
 At rest a record is read as the glue door reads a pair: nothing is

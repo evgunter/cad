@@ -27,7 +27,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use geom_core::test_support::upper;
-use geom_core::{Band, Tol};
+use geom_core::{Band, SizedPass, Tol};
 use topo::test_support::{face_facing, finished, wedge_on_a_block_top};
 use topo::{BooleanDecision, BooleanError, Coincide, DeclarationRead, PlaneEqError, PlaneRung};
 
@@ -99,8 +99,9 @@ fn a_wedge_tilted_in_band_over_a_block_top_refuses_every_op_on_its_bounds_margin
                 Some(geom_core::Sign::Zero),
                 "{label}, {op}: a Zero tie"
             );
-            assert!(
-                format!("{:?}", diag.margin).contains("passes: NonZero"),
+            assert_eq!(
+                diag.margin.rejected_passing(),
+                Some(SizedPass::NonZero),
                 "{label}, {op}: either side passes: {:?}",
                 diag.margin
             );

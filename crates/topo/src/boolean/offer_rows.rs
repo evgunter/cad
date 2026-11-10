@@ -229,19 +229,19 @@ cases! {
         wedge_on_a_block(super::super::BooleanOp::Subtract, 5.0, D);
     thin_wedge_meeting_a_block: "Coincidence(CornerBound)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Intersect, 5.0, D);
-    // Tilted past the band at the arm, so the normals decide it off, while
-    // its bounds still read On: the bounds' margin decides it.
+    // Tilted past the band across the sector, while its bounds still read
+    // On: the steeper bound's tie decides it.
     thinner_wedge_tilted_past_the_band: "Coincidence(CornerBound)", 1.5e-8 * sin_deg(2.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 2.0, 1.5e-8);
     // Tilted in band over the two faces, so the glue door leaves the pair
-    // unglued: the corner's bounds' margin, not the glue door's, is the
-    // one a smaller tolerance clears.
+    // unglued: the steeper bound's tie, not the glue door's reading, is
+    // the one a smaller tolerance clears.
     thin_wedge_in_band_over_its_faces: "Coincidence(CornerBound)", 2e-9 * sin_deg(5.0), Public,
         Valued => wedge_on_a_block(super::super::BooleanOp::Union, 5.0, 2e-9);
-    // Tilted inside the zero band at its arm, so the corner reads the
-    // pair one plane, and in band over the two faces at the glue door:
-    // at every opening the bounds' margin is the one a smaller tolerance
-    // clears, not the glue door's and not the corner's offset.
+    // Tilted inside the zero band at its bound, and in band over the two
+    // faces at the glue door, which glues nothing: at every opening the
+    // steeper bound's tie is the one a smaller tolerance clears, not the
+    // glue door's reading.
     flat_wedge_at_2_degrees: "Coincidence(CornerBound)", Z * sin_deg(2.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 2.0, Z);
     flat_wedge_at_5_degrees: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
@@ -266,6 +266,12 @@ cases! {
     // on the arm's tilt, and every op in both orders builds just below it.
     tool_on_a_block_corner_tilted_at_its_arm: "Coincidence(CornerCrossing)", Z, Public,
         Valued => tool_on_a_block_corner(Z);
+    // Tilted into the band at the arm: the arm's tilt reads in band
+    // rather than Zero, and a smaller tolerance decides it.
+    corner_tilted_in_band_at_its_arm: "Coincidence(CornerCrossing)", D, Door::Site(
+        "the tool on a block's corner tilted in band at its arm meets a point within the band of \
+         the block's boundary first, generic or hinged (Containment)",
+    ), Valued => corner_tilted_at_its_arm(D);
     // Sunk into the block, its re-run meets the crossing insertion.
     flat_wedge_sunk_at_5_degrees: "Coincidence(CornerBound)", Z * sin_deg(5.0), Public, Valued =>
         sunk_wedge_in_a_block(5.0, Z);
@@ -834,6 +840,46 @@ fn tool_on_a_block_corner(margin: f64) -> Result<(), BooleanError> {
         }
     }
     Ok(())
+}
+
+/// Two quarter-turn plane sectors cornered at the origin, the glue door
+/// gluing neither: `A`'s on `z = 0`, `B`'s tilted to rise `margin` at
+/// their 1 mm arm. [`super::super::fan::meeting`] reads where they meet.
+fn corner_tilted_at_its_arm(margin: f64) -> Result<(), BooleanError> {
+    use super::super::sectors::BoolSector;
+    let arm = 1e-3;
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let sector = |normal: Vec3<f64>, n: u64| {
+        let start = normal.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
+        let end = normal.cross(start);
+        let chord = |d: Vec3<f64>| BoundSupport::Chord {
+            base: o,
+            far: o + d * arm,
+        };
+        let key = slotmap::KeyData::from_ffi((1 << 32) | n);
+        BoolSector {
+            he: crate::entity::HalfEdgeKey::from(key),
+            start,
+            end,
+            start_reach: chord(start),
+            end_reach: chord(end),
+            face: crate::entity::FaceKey::from(key),
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+                normal, true,
+            )),
+            bend: crate::bound_side::FaceBend::Plane,
+            arm: geom_core::test_support::fixture_lever(arm),
+        }
+    };
+    let flat = sector(Vec3::new(0.0, 0.0, 1.0), 1);
+    let tilted = sector(Vec3::new(margin / arm, 0.0, 1.0).normalize(), 2);
+    super::super::fan::meeting(
+        (Operand::A, None, &flat),
+        (Operand::B, None, &tilted),
+        None,
+        band(),
+    )
+    .map(|_| ())
 }
 
 /// The union of a block and a wedge sunk half its height into the
@@ -2504,6 +2550,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("fan.rs", "face_side_code", "Coincide::Sectors", 1),
     ("fan.rs", "fan_within_signs", "Coincide::Sectors", 1),
     ("fan.rs", "fans_overlap", "Coincide::Sectors", 1),
+    ("fan.rs", "fan_meeting", "Coincide::Sectors", 1),
     ("fan.rs", "meeting", "Coincide::CornerCrossing", 1),
     ("fan.rs", "meeting", "Coincide::Sectors", 1),
     ("fan.rs", "nappe_classes", "Coincide::Sectors", 1),
@@ -2936,6 +2983,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::ConicBend",
         1,
     ),
+    ("vtxfac.rs", "bend_refusal", "BooleanDecision::ConicBend", 1),
     (
         "vtxfac.rs",
         "read_vertex_on_face",

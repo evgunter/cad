@@ -122,15 +122,8 @@ pub fn same_door(a: &topo::BooleanError, b: &topo::BooleanError) -> bool {
         ) => (l1 - l2).abs() <= zero && (h1 - h2).abs() <= zero,
         _ => false,
     };
-    // The gate's tag as the margin's `Debug` spells it: the sign it
-    // rejected and the signs it passes, which no accessor reads whole.
-    let rejection = |m: MarginDiag| {
-        let text = format!("{m:?}");
-        text.find("Rejection {").map(|at| {
-            let tail = &text[at..];
-            tail[..tail.find('}').map_or(tail.len(), |end| end + 1)].to_owned()
-        })
-    };
+    // The gate's tag: the sign it rejected and the signs it passes.
+    let rejection = |m: MarginDiag| (m.rejected_sign(), m.rejected_passing());
     match (a, b) {
         (
             topo::BooleanError::CurvedSectorSideUnsupported { verdict: va },

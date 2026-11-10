@@ -354,7 +354,7 @@ fn same_door_matches_a_rejection_by_its_reading() {
                 topo::DeclarationRead::Moot,
             ),
             diag: gate_rejection(
-                "bool_sector_coplanar",
+                "bool_faces_parallel",
                 Decided {
                     sign,
                     margin: MarginDiag::value(m),
@@ -387,7 +387,7 @@ fn same_door_matches_a_rejection_by_its_reading() {
             topo::DeclarationRead::Moot,
         ),
         diag: gate_rejection(
-            "bool_sector_coplanar",
+            "bool_faces_parallel",
             Decided {
                 sign: zero,
                 margin: MarginDiag::value(0.5 * band.zero()),

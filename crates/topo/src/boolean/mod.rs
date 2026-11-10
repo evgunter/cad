@@ -1490,13 +1490,14 @@ pub(crate) fn unreadable_extent(face: geom_brep::PairSide) -> BooleanError {
 
 /// **What put a corner of one solid on a plane face of the other**, as
 /// the reading that put it there carries it ([`unglued_corner`]).
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 enum CornerOn {
     /// A bound's first-order tie with the face's plane: a Zero, or a side
     /// the reading's slack hid ([`sectors::OnReading`]).
     Tie(sectors::OnReading),
-    /// A bound's side read in band of the face's plane.
-    InBand(Indeterminate),
+    /// A bound's side reading that refused, reading no side: its refusal
+    /// (a line cone's representative handed to the face on it).
+    Refused(BooleanError),
 }
 
 /// **A corner on a plane face of the other solid, of a pair the glue door
@@ -1509,32 +1510,26 @@ enum CornerOn {
 /// - A Zero tie: the nonzero gate's rejection of it, under the predicate
 ///   that decided it, offering the tolerance that decides it a side.
 /// - A side a slack hid: the slack's own reading, in band
-///   ([`crate::bound_side::Hidden::Moved`]), or the band's reading and the
-///   slack's straddling the band ([`crate::bound_side::Hidden::Across`]).
-/// - A side read in band: that reading.
+///   ([`crate::bound_side::Hidden::Moved`]), or the distance moved down
+///   and up by the slack straddling the band
+///   ([`crate::bound_side::Hidden::Across`]).
+/// - A side reading that refused: that refusal.
 fn unglued_corner(on: CornerOn, band: Band) -> BooleanError {
-    use crate::bound_side::Hidden;
+    use crate::bound_side::{Hidden, TiedBy};
     let diag = match on {
-        CornerOn::InBand(diag)
-        | CornerOn::Tie(sectors::OnReading {
-            hidden: Some(Hidden::Moved(diag)),
+        CornerOn::Refused(refusal) => return refusal,
+        CornerOn::Tie(sectors::OnReading {
+            by: TiedBy::Slack(Hidden::Moved(diag)),
             ..
         }) => diag,
         CornerOn::Tie(sectors::OnReading {
-            hidden: Some(Hidden::Across { decided, moved }),
+            by: TiedBy::Slack(Hidden::Across { lower, upper }),
             ..
-        }) => {
-            let (lower, upper) = if moved.sign < decided.sign {
-                (moved, decided)
-            } else {
-                (decided, moved)
-            };
-            geom_core::k_stats::straddle("bool_corner_side_slack_straddle", lower, upper, band)
-        }
+        }) => geom_core::k_stats::straddle("bool_corner_side_slack_straddle", lower, upper, band),
         CornerOn::Tie(sectors::OnReading {
             predicate,
             decided,
-            hidden: None,
+            by: TiedBy::Band,
         }) => geom_core::k_stats::gate_rejection(
             predicate,
             decided,
@@ -6911,7 +6906,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             ([&a, &b], [c.a, c.b]),
             [&a_sectors, &b_sectors],
             &contacts,
-            |fa, fb| declared.class_of(Operand::A, fa, Operand::B, fb).is_some(),
+            |fa, fb| declared.glued_relation(Operand::A, fa, Operand::B, fb),
             band,
         )?;
         // A partner along the touched face, its side unread, refuses

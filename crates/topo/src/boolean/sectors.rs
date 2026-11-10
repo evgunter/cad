@@ -1056,7 +1056,7 @@ pub(super) fn bound_read<T: Decide>(
                     on: OnReading {
                         predicate: tie.predicate,
                         decided: tie.decided,
-                        hidden: tie.hidden,
+                        by: tie.by,
                     },
                 }),
             })
@@ -1088,29 +1088,28 @@ pub(crate) fn given_side<T: Decide>(
     given_side_read(dir, reach, face, rd, unparted).0
 }
 
-/// [`given_side`], with the reading that tied the bound with the face
-/// or read it in band ([`super::CornerOn`]): what a corner the side puts
-/// on the face refuses on where no glue backs it. `None` for a bound
-/// read off the face at first order, or for a fault no reading carries.
+/// [`given_side`], with what read the bound against the face where it
+/// tied or read no side ([`SheetRead`]): what a corner the side puts on
+/// the face refuses on where no glue backs it. `None` only for a bound
+/// read off the face at first order, whose side is given.
 pub(super) fn given_side_read<T: Decide>(
     dir: Vec3<T>,
     reach: BoundSupport<T>,
     face: FaceDatum<T>,
     rd: Reading<T>,
     unparted: Unparted,
-) -> (Option<Sign>, Option<super::CornerOn>) {
+) -> (Option<Sign>, Option<SheetRead<T>>) {
     let on_face = match unparted {
         Unparted::OnTheFace => Some(Sign::Zero),
         Unparted::Nothing => None,
     };
-    let in_band = |fault: ReadFault<T>| Some(super::CornerOn::InBand(fault.diag()));
     let (side, on) = match crate::bound_side::read(dir, reach, face, rd) {
         Ok(FirstOrder::Off(side)) => (side, None),
         Ok(FirstOrder::Tied(tie)) => {
-            let on = Some(super::CornerOn::Tie(OnReading {
+            let on = Some(SheetRead::Tie(OnReading {
                 predicate: tie.predicate,
                 decided: tie.decided,
-                hidden: tie.hidden,
+                by: tie.by,
             }));
             match tie.descend() {
                 Ok(Descent::Leaves(side)) => (side, on),
@@ -1119,11 +1118,33 @@ pub(super) fn given_side_read<T: Decide>(
                 Err(_) => return (None, on),
             }
         }
-        Err(BoundSideFault::Read(fault @ ReadFault::Bend(_))) => return (on_face, in_band(fault)),
-        Err(BoundSideFault::Read(fault)) => return (None, in_band(fault)),
-        Err(_) => return (None, None),
+        Err(fault @ BoundSideFault::Read(ReadFault::Bend(_))) => {
+            return (on_face, Some(SheetRead::Fault(fault)));
+        }
+        Err(fault) => return (None, Some(SheetRead::Fault(fault))),
     };
     (Some(code_of(side).plane_side()), on)
+}
+
+/// **What read a bound against a face where it tied or read no side**
+/// ([`given_side_read`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) enum SheetRead<T: geom_core::Real> {
+    /// Its first-order tie.
+    Tie(OnReading),
+    /// The reading's refusal: it read no side.
+    Fault(BoundSideFault<T>),
+}
+
+impl<T: Decide> SheetRead<T> {
+    /// What put the corner on the face, as [`super::unglued_corner`]
+    /// refuses on it.
+    pub(super) fn corner_on(self, band: Band) -> super::CornerOn {
+        match self {
+            Self::Tie(on) => super::CornerOn::Tie(on),
+            Self::Fault(fault) => super::CornerOn::Refused(bound_refusal(fault, band)),
+        }
+    }
 }
 
 /// **What a cone site hands for a bound tied with a face that parts from
@@ -1199,9 +1220,9 @@ pub(super) struct OnReading {
     /// reading's slack made, the sign the band decided and the slack
     /// refused ([`crate::bound_side::Tie::decided`]).
     pub(super) decided: Decided,
-    /// For a tie a reading's slack made, what the slack hid
-    /// ([`crate::bound_side::Tie::hidden`]).
-    pub(super) hidden: Option<crate::bound_side::Hidden>,
+    /// What made the tie: the band, or a reading's slack, with what it
+    /// hid ([`crate::bound_side::Tie::by`]).
+    pub(super) by: crate::bound_side::TiedBy,
 }
 
 /// What [`pierce_side`] read of a bound.
@@ -1493,12 +1514,16 @@ pub(super) struct PairRecord {
     pub sb: (SideCode, SideCode),
     /// Whether the pair still generates intersection geometry.
     pub intersect: bool,
+    /// Why the pair is one coincidence, where it is: the record
+    /// [`Self::coincident`] makes, every code `On`.
+    pub coincident: Option<super::fan::Coincident>,
 }
 
 impl PairRecord {
     /// The record of a coplanar pair that overlaps: every code `On`,
-    /// which sends it to the coincidence lump (`recl`).
-    pub(super) const fn coincident(a: usize, b: usize) -> Self {
+    /// which sends it to the coincidence lump (`recl`), with why it is
+    /// one coincidence.
+    pub(super) const fn coincident(a: usize, b: usize, by: super::fan::Coincident) -> Self {
         let on = (SideCode::On, SideCode::On);
         Self {
             a,
@@ -1506,6 +1531,7 @@ impl PairRecord {
             sa: on,
             sb: on,
             intersect: true,
+            coincident: Some(by),
         }
     }
 
@@ -2905,9 +2931,9 @@ pub(super) type PairSites<'a, T> = ([&'a Body<T>; 2], [VertexKey; 2]);
 /// pair becomes a [`PairRecord`] with its four side codes, in
 /// deterministic A-major order. Where the two faces meet at the vertex
 /// is [`super::fan::meeting`]'s: two planes in their line, or a
-/// coincidence where they are parallel and `glued(a face, b face)` says
-/// the glue door glued them (an unglued plane pair parallel there
-/// refuses); a fan of a cone's apex against a
+/// coincidence where they are parallel and `glued(a face, b face)` is the
+/// relation the glue door glued them one carrier under (an unglued plane
+/// pair parallel there refuses); a fan of a cone's apex against a
 /// plane or another fan in the rulings both hold, or a coincidence where
 /// the two fans are one cone's. A pair meeting along a ray within both
 /// sectors is a crossing; a coincident pair overlaps or only touches
@@ -2916,7 +2942,7 @@ pub(super) fn pair_search<T: Decide>(
     (bodies, vertices): PairSites<'_, T>,
     sectors: [&[BoolSector<T>]; 2],
     contacts: &super::ReductionContacts,
-    glued: impl Fn(FaceKey, FaceKey) -> bool,
+    glued: impl Fn(FaceKey, FaceKey) -> Option<super::PlaneRelation>,
     band: Band,
 ) -> Result<Vec<PairRecord>, BooleanError> {
     let mut records = Vec::new();
@@ -2945,14 +2971,14 @@ pub(super) fn pair_search<T: Decide>(
                 band,
             )?;
             match meeting {
-                super::fan::Meeting::Coincident => {
+                super::fan::Meeting::Coincident(by) => {
                     let overlap = if sa.apex().is_some() {
                         super::fan::fans_overlap(sa, sb, band)?
                     } else {
                         sector_overlap(corner(0, sa), corner(1, sb), contacts, band)?
                     };
                     if overlap {
-                        records.push(PairRecord::coincident(i, j));
+                        records.push(PairRecord::coincident(i, j, by));
                     }
                     continue;
                 }
@@ -2998,6 +3024,7 @@ pub(super) fn pair_search<T: Decide>(
                 sa: sa_codes,
                 sb: sb_codes,
                 intersect: true,
+                coincident: None,
             });
         }
     }
@@ -3145,10 +3172,19 @@ mod tests {
             geom_core::Sign::Positive,
             "the band decides it"
         );
+        let moved = crate::validate::decide_reported(
+            "enters_material",
+            geom_core::Margin::of(-0.3 * zero),
+            band,
+        )
+        .unwrap();
         let on = OnReading {
             predicate: "enters_material",
             decided,
-            hidden: None,
+            by: crate::bound_side::TiedBy::Slack(crate::bound_side::Hidden::Across {
+                lower: moved,
+                upper: decided,
+            }),
         };
         assert!(
             matches!(
@@ -3180,7 +3216,7 @@ mod tests {
             ([&body, &body], [vertex, vertex]),
             [a, b],
             &contacts,
-            |_, _| true,
+            |_, _| Some(super::super::PlaneRelation::SameOpposite),
             band,
         )
     }

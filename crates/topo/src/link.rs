@@ -361,8 +361,14 @@ pub(crate) mod metric {
         /// In band: the gate's escalation, on the log.
         InBand(Indeterminate),
         /// Decided by the band, as `decided`, and read another way over
-        /// the slack, as `moved`: no escalation.
-        Slack { decided: Decided, moved: Decided },
+        /// the slack: no escalation. `lower` and `upper` are the distance
+        /// moved down and up by the slack, each read, which straddle the
+        /// band.
+        Slack {
+            decided: Decided,
+            lower: Decided,
+            upper: Decided,
+        },
         /// Decided by the band, as `decided`, and in band once the slack
         /// moved it: the moved reading's escalation.
         Moved {
@@ -393,17 +399,30 @@ pub(crate) mod metric {
         let Some(slack) = r.slack else {
             return Ok(got);
         };
-        let moved = match got.sign {
+        let (moved, away) = match got.sign {
             Sign::Zero => return Ok(got),
-            Sign::Positive => d.0 - slack,
-            Sign::Negative => d.0 + slack,
+            Sign::Positive => (d.0 - slack, d.0 + slack),
+            Sign::Negative => (d.0 + slack, d.0 - slack),
         };
         match decided_as(name, moved, r.band) {
             Ok(m) if m.sign == got.sign => Ok(got),
-            Ok(moved) => Err(Refusal::Slack {
-                decided: got,
-                moved,
-            }),
+            // Farther from zero than the band's reading, `away` decides
+            // its sign wherever that reading's margin is readable.
+            Ok(moved) => match decided_as(name, away, r.band) {
+                Ok(away) => {
+                    let (lower, upper) = if got.sign == Sign::Positive {
+                        (moved, away)
+                    } else {
+                        (away, moved)
+                    };
+                    Err(Refusal::Slack {
+                        decided: got,
+                        lower,
+                        upper,
+                    })
+                }
+                Err(why) => Err(Refusal::Moved { decided: got, why }),
+            },
             Err(why) => Err(Refusal::Moved { decided: got, why }),
         }
     }
