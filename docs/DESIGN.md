@@ -1858,7 +1858,8 @@ by door, is `crates/editor-core/ASSEMBLY.md` and
   and its evaluation is one kernel `Body`, generally multi-solid and
   not connected: the kernel has no assembly type. Which solids are one
   part, and which mates hold, is recipe structure, never body state;
-  fusing copies is an explicit boolean, never implied.
+  fusing copies is never implied: only a request that names their
+  contact fuses them, a boolean or a blend of that contact.
 - **A reference pins content.** `[assemblies.pins]` A cross-document
   reference is a `DocRef`: a `DocumentId`, which says which document
   and survives every edit, and a `ContentPin`, the SHA-256 of the
