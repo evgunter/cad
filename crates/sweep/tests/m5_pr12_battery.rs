@@ -19,7 +19,9 @@ use sweep::ExtrudeSide;
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
-use sweep::test_support::{ball_poled_y, block, dome, one_edge_rim_at, realized};
+use sweep::test_support::{
+    ball_poled_y, block, circle_arcs_at_z, disc_of_arcs, realized,
+};
 use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
@@ -163,17 +165,19 @@ fn the_battery_passes_on_a_pip_rim_as_a_closed_chain() {
 // Predicate 1 — fillet3_radius_headroom.
 // ---------------------------------------------------------------------
 
-/// A dome of radius 0.5 cannot host a rolling ball of radius 0.9 on
-/// its equator: the ball rolls INSIDE the sphere there (a convex rim on
-/// a convex sphere), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0` of
-/// headroom. The refusal names the SPHERE support face and arrives with
-/// no surface minted.
+/// A disc of radius 0.5 cannot host a rolling ball of radius 0.9 on
+/// its base rim: the ball rolls INSIDE the cylinder there (a convex
+/// rim on a convex wall), so `κ = 1/0.5` leaves `(1 − 0.9/0.5)·0.9 < 0`
+/// of headroom. The refusal names the CYLINDER support face and
+/// arrives with no surface minted. (A sphere does not witness it: a
+/// ball inside a sphere and on a plane cutting it has no room past half
+/// the radius, so `fillet3_ball_room` answers first there.)
 #[test]
 fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
-    let body = dome(0.5, Tol::witness());
+    let body = disc_of_arcs(2, 0.5, 1.0, Tol::witness());
     let req = BlendRequest {
         body: &body,
-        edges: vec![one_edge_rim_at(&body, 0.5, 0.0)],
+        edges: circle_arcs_at_z(&body, 0.0),
         size: 0.9,
     };
     match run_battery(&req, band()) {
@@ -185,8 +189,8 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
             assert_eq!(margin.predicate, "fillet3_radius_headroom");
             assert_eq!(
                 query::face_surface_kind(&body, face),
-                Some(SurfaceKind::Sphere),
-                "the sphere's curvature ran out"
+                Some(SurfaceKind::Cylinder),
+                "the cylinder's curvature ran out"
             );
             let m = margin
                 .reading

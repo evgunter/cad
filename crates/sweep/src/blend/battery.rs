@@ -42,7 +42,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey}
 
 use super::arms::{
     BlendArm, Branch, EdgeBlend, Meridian, Ruling, chamfer_strip, inward_unit, knife_room,
-    line_meet, plane_plane_blend, plane_sphere_blend,
+    line_meet, plane_plane_blend, plane_sphere_blend, plane_sphere_room, rim_room,
 };
 use super::build::fan_at;
 use super::open::end_face::CycleReading;
@@ -853,31 +853,49 @@ pub fn knife_end<T: Decide + Bounds>(
     }
 }
 
-/// **`fillet3_knife_room`** — does the ball of this radius exist at a
-/// knife edge? The margin is [`super::arms::knife_room`]'s, in METERS:
-/// the offset traces' secant margin in the link's sheet, positive
-/// exactly where they cross away from the rim.
+/// **`fillet3_knife_room` / `fillet3_ball_room`** — does the ball of
+/// this radius exist at this link? The margin is the offset traces'
+/// secant margin in METERS ([`super::arms::knife_room`],
+/// [`super::arms::rim_room`], [`super::arms::plane_sphere_room`]),
+/// positive exactly where they cross, so where the ball's centre is a
+/// point and not a root of a negative number. A knife's is decided
+/// under `fillet3_knife_room` and a rim's under `fillet3_ball_room`:
+/// the two branches ask the same question of different crossings.
 ///
 /// # Errors
 ///
-/// [`BlendError::KnifeEdge`] on a definite `Zero`/`Negative`;
-/// [`BlendError::Escalated`] in band or on poison.
-fn knife_room_at<T: Decide + Bounds>(
+/// [`BlendError::KnifeEdge`] at a knife and
+/// [`BlendError::BallDoesNotFit`] at a rim, on a definite
+/// `Zero`/`Negative`; [`BlendError::Escalated`] in band or on poison.
+fn room_at<T: Decide + Bounds>(
     edge: EdgeKey,
+    branch: &Branch<T>,
     room: T,
     radius: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    let decision = BlendDecision::KnifeRoom;
+    let decision = match branch {
+        Branch::Knife(_) => BlendDecision::KnifeRoom,
+        Branch::Rim => BlendDecision::BallRoom,
+    };
     match classify(BlendSite::Link { edge }, decision, Margin::of(room), band)? {
         Sign::Positive => Ok(()),
-        sign => Err(BlendError::KnifeEdge {
-            edge,
-            margin: classified(decision, room, band, sign),
-            refusal: KnifeRefusal::NoRoom {
-                radius: radius.lo(),
-            },
-        }),
+        sign => {
+            let margin = classified(decision, room, band, sign);
+            let radius = radius.lo();
+            Err(match branch {
+                Branch::Knife(_) => BlendError::KnifeEdge {
+                    edge,
+                    margin,
+                    refusal: KnifeRefusal::NoRoom { radius },
+                },
+                Branch::Rim => BlendError::BallDoesNotFit {
+                    edge,
+                    margin,
+                    radius,
+                },
+            })
+        }
     }
 }
 
@@ -1414,6 +1432,12 @@ fn classify_arm<T: Decide + Bounds>(
         )
         .map(|(arm, blend, axis)| (arm, blend, Some(axis)));
     }
+    // The plane–sphere rows' ball exists where the offset plane meets
+    // the offset sphere, decided before the arm reads `√s²`.
+    let ball_room = |origin, n, center, r, sense| {
+        let room = plane_sphere_room(origin, n, center, r, radius, sense, convexity);
+        room_at(edge, &branch, room, radius, band)
+    };
     match (sa, sb) {
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
             BlendArm::PlanePlaneCylinder,
@@ -1425,26 +1449,30 @@ fn classify_arm<T: Decide + Bounds>(
             Surface::Sphere {
                 center, radius: r, ..
             },
-        ) => Ok((
-            BlendArm::PlaneSphereTorus,
-            plane_sphere_blend(
-                *origin,
-                n_a,
-                plane_u(sa),
-                *center,
-                *r,
-                radius,
-                senses.1,
-                convexity,
-            ),
-            None,
-        )),
+        ) => {
+            ball_room(*origin, n_a, *center, *r, senses.1)?;
+            Ok((
+                BlendArm::PlaneSphereTorus,
+                plane_sphere_blend(
+                    *origin,
+                    n_a,
+                    plane_u(sa),
+                    *center,
+                    *r,
+                    radius,
+                    senses.1,
+                    convexity,
+                ),
+                None,
+            ))
+        }
         (
             Surface::Sphere {
                 center, radius: r, ..
             },
             Surface::Plane { origin, .. },
         ) => {
+            ball_room(*origin, n_b, *center, *r, senses.0)?;
             let mut b = plane_sphere_blend(
                 *origin,
                 n_b,
@@ -1551,14 +1579,18 @@ fn curved_arm<T: Decide + Bounds>(
     edge: EdgeKey,
     band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>, SupportAxis), BlendError> {
-    // A knife's ball exists only where the offset traces cross away
-    // from the rim (`fillet3_knife_room`), decided once the pair is
-    // known to be coaxial or co-ruled and before any centre is read, and
-    // before the arm table is asked: a knife on a pair the table does
-    // not cover (two planes) has no room, and says so there.
-    let room = |ta, tb| match branch {
-        Branch::Rim => Ok(()),
-        Branch::Knife(_) => knife_room_at(edge, knife_room(p, ta, tb, radius), radius, band),
+    // The ball exists only where the offset traces cross
+    // (`fillet3_knife_room` at a knife, away from the rim;
+    // `fillet3_ball_room` at a rim), decided once the pair is known to be
+    // coaxial or co-ruled and before any centre is read, and before the
+    // arm table is asked: a knife on a pair the table does not cover
+    // (two planes) has no room, and says so there.
+    let room = |ta, tb| {
+        let room = match branch {
+            Branch::Rim => rim_room(p, ta, tb, radius),
+            Branch::Knife(_) => Some(knife_room(p, ta, tb, radius)),
+        };
+        room.map_or(Ok(()), |room| room_at(edge, &branch, room, radius, band))
     };
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {

@@ -280,6 +280,9 @@ pub enum BlendDecision {
     /// enough for the ball, whose centre lies where their offsets
     /// cross away from the edge.
     KnifeRoom,
+    /// `fillet3_ball_room`: a rim's supports leave room for the ball,
+    /// whose centre lies where their offsets cross.
+    BallRoom,
     /// `fillet3_ring_clearance`: a trimline clears a ring or edge in its
     /// support face.
     RingClearance,
@@ -338,7 +341,7 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 22] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
@@ -348,6 +351,7 @@ impl BlendDecision {
         Self::MaterialSide,
         Self::KnifeEnd,
         Self::KnifeRoom,
+        Self::BallRoom,
         Self::RingClearance,
         Self::SupportCoaxiality,
         Self::ContactArm,
@@ -386,6 +390,7 @@ impl BlendDecision {
             Self::MaterialSide => "material_wedge_side",
             Self::KnifeEnd => "fillet3_knife_end",
             Self::KnifeRoom => "fillet3_knife_room",
+            Self::BallRoom => "fillet3_ball_room",
             Self::RingClearance => "fillet3_ring_clearance",
             Self::SupportCoaxiality => "fillet3_support_coaxiality",
             Self::ContactArm => "dihedral_arm",
@@ -422,6 +427,7 @@ impl BlendDecision {
             Self::KnifeRoom => {
                 "whether a cusp or slit opens wide enough for the ball between its two faces"
             }
+            Self::BallRoom => "whether a ball of the radius can rest on both faces at once",
             Self::RingClearance => "whether a trimline clears a hole in its support face",
             Self::SupportCoaxiality => "whether the two support faces share an axis or a ruling",
             Self::ContactArm => concat!(
@@ -485,6 +491,7 @@ impl BlendDecision {
             Self::MaterialSide => FILLET3_CHAIN_RECOURSE,
             Self::KnifeEnd => FILLET3_KNIFE_END_RECOURSE,
             Self::KnifeRoom => FILLET3_KNIFE_RECOURSE,
+            Self::BallRoom => FILLET3_BALL_ROOM_RECOURSE,
             Self::RingClearance => FILLET3_RING_RECOURSE,
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactArm => FILLET3_CONTACT_ARM_RECOURSE,
@@ -509,7 +516,7 @@ impl BlendDecision {
                 Some(("curvature headroom", SizedPass::Positive))
             }
             Self::FaceClearance | Self::RingClearance => Some(("clearance", SizedPass::Positive)),
-            Self::KnifeRoom => Some(("room", SizedPass::Positive)),
+            Self::KnifeRoom | Self::BallRoom => Some(("room", SizedPass::Positive)),
             // The levered sagitta between the two faces: a smaller
             // tolerance decides it a cusp or a slit.
             Self::KnifeEnd => Some(("opening", SizedPass::NonZero)),
@@ -1126,6 +1133,13 @@ pub const FILLET3_WEDGE_RECOURSE: &str = "blend an edge whose supports meet at a
 /// crossing.
 pub const FILLET3_KNIFE_RECOURSE: &str = "reduce the fillet radius until the ball fits in the crescent between the \
      cusp's or slit's faces, or leave that edge out of the request";
+/// The recourse for a rim whose supports leave no room for the ball
+/// ([`BlendDecision::BallRoom`]): the ball's centre lies where the
+/// supports' offsets cross, and past some radius they do not. A smaller
+/// one always has room, since at a radius near zero the offsets cross
+/// near the rim, at the angle the faces meet at.
+pub const FILLET3_BALL_ROOM_RECOURSE: &str = "reduce the fillet radius until one ball can rest on both faces at \
+     once, or leave that edge out of the request";
 /// The recourse for a cusp or slit whose faces do not open measurably
 /// apart ([`BlendDecision::KnifeEnd`]): no radius has room between
 /// them, so it does not offer a smaller one. A definite reading here is
@@ -1595,6 +1609,21 @@ pub enum BlendError {
         /// Why the knife is not built.
         refusal: KnifeRefusal,
     },
+    /// **No ball of this radius rests on both supports of a rim**:
+    /// their offsets, where the ball's centre would lie, do not cross
+    /// (`fillet3_ball_room` decided Zero or negative). A ball inside a
+    /// sphere resting on the plane through its centre is the witness:
+    /// none is larger than half the sphere's radius.
+    BallDoesNotFit {
+        /// The edge whose ball does not exist.
+        edge: EdgeKey,
+        /// The offsets' secant margin, meters, as `fillet3_ball_room`
+        /// classified it.
+        margin: ClassifiedMargin,
+        /// The fillet radius, meters — the REQUEST quantity, a bare
+        /// `f64` for the reason [`BlendError::RadiusHeadroom`]'s is.
+        radius: f64,
+    },
     /// **Predicate 3**: the spine (the rolling-ball centre locus, an
     /// offset locus) folds on itself at this radius.
     SpineIrregular {
@@ -1993,6 +2022,7 @@ impl BlendError {
         match self {
             Self::ChainNotConnected { edge }
             | Self::KnifeEdge { edge, .. }
+            | Self::BallDoesNotFit { edge, .. }
             | Self::ConvexitySignFlip { edge, .. }
             | Self::SpineUnsupported { edge, .. }
             | Self::ChamferArmUnsupported { edge, .. }
@@ -2133,6 +2163,12 @@ impl BlendError {
                 "a cusp's or slit's faces do not open wide enough for a ball of radius \
                  {radius} m between them ({margin}){}",
                 ended(door.map(|door| BlendDecision::KnifeRoom.recourse(margin.arm(), door)))
+            ),
+            Self::BallDoesNotFit { margin, radius, .. } => write!(
+                f,
+                "no ball of radius {radius} m rests on both faces at the edge at once \
+                 ({margin}){}",
+                ended(door.map(|door| BlendDecision::BallRoom.recourse(margin.arm(), door)))
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
@@ -2318,7 +2354,7 @@ impl core::error::Error for BlendError {}
 /// `test-support` for the same reason `test_support` is — a `tests/`
 /// file cannot name a `#[cfg(test)]` item.
 #[cfg(any(test, feature = "test-support"))]
-pub const ALL_RECOURSES: [(&str, &str); 23] = [
+pub const ALL_RECOURSES: [(&str, &str); 24] = [
     ("radius", FILLET3_RADIUS_RECOURSE),
     ("contact", FILLET3_CONTACT_RECOURSE),
     ("contact-arm", FILLET3_CONTACT_ARM_RECOURSE),
@@ -2327,6 +2363,7 @@ pub const ALL_RECOURSES: [(&str, &str); 23] = [
     ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
     ("wedge", FILLET3_WEDGE_RECOURSE),
     ("knife", FILLET3_KNIFE_RECOURSE),
+    ("ball-room", FILLET3_BALL_ROOM_RECOURSE),
     ("knife-end", FILLET3_KNIFE_END_RECOURSE),
     ("spine", FILLET3_SPINE_RECOURSE),
     ("chain", FILLET3_CHAIN_RECOURSE),
@@ -2359,7 +2396,10 @@ mod recourse_tests {
         FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
         FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
     };
-    use super::{FILLET3_KNIFE_END_RECOURSE, FILLET3_KNIFE_RECOURSE, KnifeRefusal};
+    use super::{
+        FILLET3_BALL_ROOM_RECOURSE, FILLET3_KNIFE_END_RECOURSE, FILLET3_KNIFE_RECOURSE,
+        KnifeRefusal,
+    };
 
     /// **A contact edge's must-carry escalation ends as the decision its
     /// reading asks**: the first-order arm and wedge each on their own
@@ -2473,6 +2513,7 @@ mod recourse_tests {
                 refusal: KnifeRefusal::NoRoom { .. },
                 ..
             } => Recourse::Exactly(FILLET3_KNIFE_RECOURSE),
+            BlendError::BallDoesNotFit { .. } => Recourse::Exactly(FILLET3_BALL_ROOM_RECOURSE),
             BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
             BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
             BlendError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),
@@ -2570,6 +2611,11 @@ mod recourse_tests {
                 edge: EdgeKey::default(),
                 margin: decided("fillet3_knife_room", -1e-3, Sign::Negative),
                 refusal: KnifeRefusal::NoRoom { radius: 1.2 },
+            },
+            BlendError::BallDoesNotFit {
+                edge: EdgeKey::default(),
+                margin: decided("fillet3_ball_room", -0.2, Sign::Negative),
+                radius: 0.6,
             },
             BlendError::SpineIrregular {
                 margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),

@@ -26,7 +26,7 @@ use geom_brep::{
     CERT_SAMPLES, EdgeDescription, MustCarryVerdict, edge_extent_inf, must_carry_over_edge,
     sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Band, ErrorTextReading, Margin, Tol};
+use geom_core::{Band, ErrorTextReading, Margin, Sign, Tol};
 use sweep::blend::{
     BlendDecision, BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted,
     fillet_edges,
@@ -438,16 +438,26 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
 /// **A sphere support, taken toward osculation at ordinary scale.**
 /// The dome's equator rim is filleted against a sphere of radius 1 and
 /// a plane; the sphere side is the difference branch, so the closed
-/// form `(1/r − 1)·r²/2` collapses as `r → 1`. Every member the door
-/// admits reads jet-determinate and the closed form; the rest refuse
-/// definitely. So this family does not reach the rule either, and the
-/// row says where the door's boundary is rather than asserting it
-/// cannot be crossed.
+/// form `(1/r − 1)·r²/2` collapses as `r → 1`. This family does not
+/// reach the rule: every member the door admits reads jet-determinate
+/// and the closed form, and the rest refuse definitely, one class per
+/// stretch of the ladder:
+///
+/// - `r = 0.1, 0.25` build, the sphere side's contact edge the weakest
+///   at the closed form;
+/// - `r = 0.4` refuses the clearance screen on the base annulus, whose
+///   `0.5` between the equator and the bore is less than the plane
+///   setback `1 − √(1 − 2r)`;
+/// - from `r = 0.5` no ball rests on both supports: inside the sphere
+///   and on the plane through its centre the room is `R − 2r`, decided
+///   Zero at `r = 0.5` and negative past it (`fillet3_ball_room`).
 #[test]
 fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
     let body = sweep::test_support::finished("body", dome(1.0, tol()), tol());
     let rim = one_edge_rim_at(&body, 1.0, 0.0);
     let mut table = String::from("dome (sphere support, R = 1), equator rim:\n");
+    let b = band();
+    let close = |a: f64, b: f64| (a - b).abs() < 1e-12;
     for r in [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99] {
         let result = fillet_edges(&body, &[rim], r, tol());
         let _ = writeln!(
@@ -456,24 +466,74 @@ fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
             difference(r, 1.0),
             outcome(&result)
         );
-        match &result {
-            Ok(out) => assert!(
-                contacts(&out.body)
-                    .iter()
-                    .all(|c| c.verdict == MustCarryVerdict::JetDeterminate),
-                "r = {r} built, so the rule must have demanded the intrinsic description"
-            ),
-            Err(BlendRefusal { error, .. }) => assert!(
-                !matches!(
-                    error,
-                    BlendError::Escalated {
-                        source,
-                        ..
-                    } if source.predicate == Some("tangent_second_order")
-                ),
-                "r = {r} reached the rule in band at ordinary scale: {error_at}",
-                error_at = error.render(geom_brep::recourse::Reading::Build)
-            ),
+        let value = |m: &sweep::blend::ClassifiedMargin| match m
+            .reading
+            .diagnostic_f64_for_error_text()
+        {
+            ErrorTextReading::Value(v) => v,
+            other => panic!("r = {r}: the margin is a value, got {other:?}"),
+        };
+        match (r, &result) {
+            (0.1 | 0.25, Ok(out)) => {
+                let rows = contacts(&out.body);
+                assert_eq!(rows.len(), 2, "r = {r}: two contact edges");
+                assert!(
+                    rows.iter()
+                        .all(|c| c.verdict == MustCarryVerdict::JetDeterminate),
+                    "r = {r} built, so the rule must have demanded the intrinsic description"
+                );
+                let weakest = min_of(&rows, (SurfaceKind::Sphere, SurfaceKind::Torus));
+                assert!(
+                    (weakest - difference(r, 1.0)).abs() < 1e-9,
+                    "r = {r}: the sphere side's weakest margin is the closed form, got {weakest:e}"
+                );
+            }
+            (
+                0.4,
+                Err(BlendRefusal {
+                    error:
+                        BlendError::FaceClearanceUncertified {
+                            face, margin, gap, ..
+                        },
+                    ..
+                }),
+            ) => {
+                assert_eq!(
+                    query::face_surface_kind(&body, *face),
+                    Some(SurfaceKind::Plane),
+                    "r = {r}: the base annulus is the face the screen cannot certify"
+                );
+                assert_eq!(margin.sign, Sign::Negative, "r = {r}: definite");
+                assert_eq!(
+                    gap.diagnostic_f64_for_error_text(),
+                    ErrorTextReading::Value(0.5),
+                    "r = {r}: the equator stands 0.5 from the bore"
+                );
+                let want = 0.5 - (1.0 - (1.0 - 2.0 * r).sqrt());
+                assert!(
+                    (value(margin) - want).abs() < 1e-12,
+                    "r = {r}: gap less the plane setback, got {:e}",
+                    value(margin)
+                );
+            }
+            (
+                _,
+                Err(BlendRefusal {
+                    error: BlendError::BallDoesNotFit { margin, radius, .. },
+                    ..
+                }),
+            ) if r >= 0.5 => {
+                assert_eq!(margin.predicate, "fillet3_ball_room", "r = {r}");
+                assert!(close(*radius, r), "r = {r}: the refusal names the request");
+                let room = value(margin);
+                assert!(
+                    (room - (1.0 - 2.0 * r)).abs() < 1e-12,
+                    "r = {r}: the room is R − 2r, got {room:e}"
+                );
+                let want = if r == 0.5 { Sign::Zero } else { Sign::Negative };
+                assert_eq!(margin.sign, want, "r = {r}: {room:e} against {b:?}");
+            }
+            (_, other) => panic!("r = {r}: unexpected outcome {}", outcome(other)),
         }
     }
     println!("{table}");

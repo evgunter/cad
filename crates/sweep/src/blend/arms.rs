@@ -442,19 +442,17 @@ pub fn plane_plane_blend<T: Real>(
 /// **Neither degenerate case is gated here**, and they are two
 /// different cases, not one:
 ///
-/// - `s² < 0` — no spine circle exists at all (the offsets do not
-///   meet). `s` is then POISON, `spine_curvature` is poison, and
-///   predicate 3 escalates with an `Invalid` margin.
+/// - `s² ≤ 0` — no spine circle exists at all: the offset plane misses
+///   the offset sphere, so no ball of radius `r` rests on both supports
+///   (on the dome, a ball inside the sphere and on its equator's plane,
+///   past `r = R/2`). `s` would be poison. The caller decides it first,
+///   from [`plane_sphere_room`], and refuses typed before this arm runs.
 /// - `0 < s ≤ r` — a spine circle exists but the tube swallows it: `s`
 ///   and `1/s` are ordinary finite numbers, and predicate 3 refuses
-///   `SpineIrregular` on the FINITE curvature, not on poison.
+///   `SpineIrregular` on the FINITE curvature.
 ///
-/// Both are refused before the surface is ever used, and at the verb
-/// level predicate 2's conservative consumption screen usually fires
-/// first on the setbacks such a radius implies (the battery's own
-/// stated ordering) — either refusal is honest and typed. Total
-/// arithmetic in, classification at the caller: the crate's standing
-/// posture.
+/// Total arithmetic in, classification at the caller: the crate's
+/// standing posture.
 #[must_use]
 #[allow(clippy::too_many_arguments)]
 pub fn plane_sphere_blend<T: Real>(
@@ -467,23 +465,14 @@ pub fn plane_sphere_blend<T: Real>(
     sphere_convex: bool,
     convexity: Convexity,
 ) -> EdgeBlend<T> {
-    // The one fold (`Convexity::signed`): the ball is `r` INTO the
-    // plane's material on a convex chain and `r` out of it on a concave
-    // one.
-    let signed = convexity.signed(radius);
-    let depth = (sphere_c - origin).dot(n);
-    let h = depth + signed;
-    // The same fold read against the sphere's stored sense: the ball
-    // rests on the sphere's MATERIAL side — inside it — exactly when
-    // that sense agrees with the chain's convexity.
-    let side = convexity.ball_side(sphere_convex);
-    // The offset sphere the ball centre rides, selected STRUCTURALLY.
-    let offset = sphere_r - sided(side, radius);
+    let PlaneSphereFold {
+        signed,
+        depth,
+        h,
+        side,
+        offset,
+    } = PlaneSphereFold::of(origin, n, sphere_c, sphere_r, radius, sphere_convex, convexity);
     let s2 = (offset - h) * (offset + h);
-    // No gate here (see the two degenerate cases in the doc above):
-    // `s² < 0` yields poison and escalates at predicate 3, `0 < s ≤ r`
-    // yields a finite curvature predicate 3 refuses `SpineIrregular`
-    // on. Total arithmetic in, classification at the caller.
     let s = s2.sqrt();
     let spine_center = sphere_c - n * h;
     let u_ref = perp_unit(plane_u_ref, n);
@@ -524,6 +513,96 @@ pub fn plane_sphere_blend<T: Real>(
             Curve3::circle(sphere_trim_c, n, sphere_trim_r, u_ref),
             (con_pt - rim_pt).norm(),
         ),
+    }
+}
+
+/// The plane–sphere pair's one fold, read by [`plane_sphere_blend`] and
+/// [`plane_sphere_room`] alike.
+struct PlaneSphereFold<T: Real> {
+    /// The ball's signed depth into the plane's material
+    /// ([`Convexity::signed`]).
+    signed: T,
+    /// The sphere centre's height over the plane along `n`.
+    depth: T,
+    /// The sphere centre's height over the OFFSET plane the ball
+    /// centre rides.
+    h: T,
+    /// The ball's side of the sphere.
+    side: SurfaceSide,
+    /// The signed radius of the offset sphere the ball centre rides.
+    offset: T,
+}
+
+impl<T: Real> PlaneSphereFold<T> {
+    fn of(
+        origin: Point3<T>,
+        n: Vec3<T>,
+        sphere_c: Point3<T>,
+        sphere_r: T,
+        radius: T,
+        sphere_convex: bool,
+        convexity: Convexity,
+    ) -> Self {
+        // The one fold (`Convexity::signed`): the ball is `r` INTO the
+        // plane's material on a convex chain and `r` out of it on a
+        // concave one.
+        let signed = convexity.signed(radius);
+        let depth = (sphere_c - origin).dot(n);
+        // The same fold read against the sphere's stored sense: the ball
+        // rests on the sphere's MATERIAL side — inside it — exactly when
+        // that sense agrees with the chain's convexity.
+        let side = convexity.ball_side(sphere_convex);
+        Self {
+            signed,
+            depth,
+            h: depth + signed,
+            side,
+            // The offset sphere the ball centre rides, selected
+            // STRUCTURALLY.
+            offset: sphere_r - sided(side, radius),
+        }
+    }
+}
+
+/// **`fillet3_ball_room`'s margin on the plane–sphere arm**, in METERS:
+/// the offset sphere's radius less the offset plane's distance from its
+/// centre, `|R ∓ r| − |h|` in [`plane_sphere_blend`]'s terms — the
+/// line × circle secant [`knife_room`] reads in a sheet, here in the
+/// meridian. Its sign is the sign of `s² = offset² − h²`, so it is
+/// positive exactly where the spine circle exists and the ball of
+/// radius `r` rests on both supports. On the dome (a ball inside a
+/// sphere of radius `R`, on the plane through its centre) it is
+/// `R − 2r`: the largest ball a hemisphere holds has `r = R/2`.
+#[must_use]
+pub fn plane_sphere_room<T: Real>(
+    origin: Point3<T>,
+    n: Vec3<T>,
+    sphere_c: Point3<T>,
+    sphere_r: T,
+    radius: T,
+    sphere_convex: bool,
+    convexity: Convexity,
+) -> T {
+    let fold = PlaneSphereFold::of(origin, n, sphere_c, sphere_r, radius, sphere_convex, convexity);
+    fold.offset.abs() - fold.h.abs()
+}
+
+/// **`fillet3_ball_room`'s margin in a sheet, at a rim**: [`knife_room`]'s
+/// secant margin wherever a trace is round, positive exactly where the
+/// offset traces cross and so where [`sheet_center`]'s rim branch has a
+/// centre to return. `None` for two straight traces: at a rim whose
+/// wedge predicate 5 decided definite they cross at an angle, and so
+/// do their offsets, at every radius — there is no question to decide.
+#[must_use]
+pub fn rim_room<T: Real>(
+    rim: Point3<T>,
+    a: SupportTrace<T>,
+    b: SupportTrace<T>,
+    radius: T,
+) -> Option<T> {
+    match (a, b) {
+        (SupportTrace::Straight { .. }, SupportTrace::Straight { .. }) => None,
+        _ => Some(knife_room(rim, a, b, radius)),
     }
 }
 
@@ -718,17 +797,11 @@ pub fn knife_room<T: Real>(rim: Point3<T>, a: SupportTrace<T>, b: SupportTrace<T
 ///   the rim branch, branch-free, poisoned at a tangential pair.
 ///
 /// Total arithmetic in, classification at the caller: nothing is gated
-/// here, exactly as [`plane_sphere_blend`] gates nothing.
-///
-/// **Where the poison goes differs by family, and only one of the two
-/// paths is predicate 3's.** A COAXIAL pair carries the poison into the
-/// spine radius `s` and so into `spine_curvature = 1/s`, which predicate
-/// 3 escalates. A RULED pair has a straight spine and
-/// [`Ruling::blend`] stores `spine_curvature = 0` unconditionally, so
-/// predicate 3 saturates and cannot see it; there the poisoned centre
-/// reaches the CYLINDER's `origin` and its `u_ref`, and the refusal
-/// arrives one step later — at the certification of the band the
-/// open-chain surgery mints between the link's plane caps.
+/// here, exactly as [`plane_sphere_blend`] gates nothing. Offset traces
+/// that do not cross have no centre, which the caller decides first
+/// (`fillet3_ball_room` at a rim from [`rim_room`], `fillet3_knife_room`
+/// at a knife from [`knife_room`]), so the root's argument is negative
+/// only on a pair those doors pass.
 ///
 /// **At a knife edge the rim branch is undefined, and `branch` names
 /// the ball's side instead** ([`Branch::Knife`]). There the two traces
