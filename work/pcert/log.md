@@ -1137,3 +1137,15 @@ E1c waits on the answer.
   - PR 6531 (this track): `spline_incidence_as` stopped deciding and forwarded to `read_samples`. The forwarders are now `read_samples_as` and `spline_point_incidence_as`, declared carriers, with all three listed as FORWARDS.
   - PR 6518 (sectarms): the pose test's `CylinderSpherePose::decide(x, …)` is listed NOT_A_NAME. A note is on sectarms' log.
   - Review tier: orchestrator's read (a rename and roster rows).
+- 2026-11-10 — **`an-iso-arcs-envelope-omits-its-in-band-weight-margin` closed** (PR 6801). The arc-rim envelope now pays each sub-arc's in-band weight margin.
+  - The bound paid is `R·|w−c|·sin α·√(tan²α + 16/27)/((1+min(w,1))(1+min(c,1)))`. It is within 13% of the exact pointwise sup at every angle (mpmath oracle `scripts/oracles/iso_arc_weight_miss_mpmath.py`) and grows as `1/c`.
+  - Where `c ≤ 0`: at f64 the envelope refuses; at Interval it escalates (NaI), as does a straddle.
+  - Sibling fix: a span inside the band of an arc end pays its overshoot, as the overshoot's arc length through the circle's one metre reading.
+  - Review tier: single FULL, soundness-led. APPROVE-WITH-FIXES, 0 MAJOR: the bound held on 1500 arcs at 50 digits, independently, and the Möbius argument held.
+  - Fix list JJ, read by the orchestrator:
+    - a short sub-arc row (1°, 3°, 10°), red under the new `arc-rim-tangent-under` mutant (12/27 for 16/27);
+    - the `c ≤ 0` prose (NaI, not +∞);
+    - the oracle's f64 allowance scaled by radius, and derive mode extended;
+    - the off-arc clamp doc;
+    - the weight read once beside its margin.
+  - Filed P3 `a-margin-decided-through-a-bool-helper-or-outside-pcurve-cache-is-unswept`: the sweep's blind spot.
