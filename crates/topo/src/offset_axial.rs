@@ -2310,6 +2310,9 @@ fn mint_carrier<T: Decide>(
         };
         let old_dir = old.eval(old_span.1) - old.eval(old_span.0);
         let q_mid = old.mid_point(old_span.0, old_span.1);
+        // Each generator runs along a ruling of the moved cone's squared
+        // frame (`PlaneConeSection::ApexLinePair`), never the zero vector,
+        // so its distance and its normalized direction need no decision.
         let off = |l: &Curve3<T>| {
             let Some(line) = l.as_line() else {
                 unreachable!("{edge:?}: a generator pair is two lines")

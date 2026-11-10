@@ -505,8 +505,11 @@ mod tests {
                     .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     said.starts_with("which direction in the section plane to order points along")
-                        && said
-                            .ends_with(&format!("{}. Recourse: move the geometry", diag.payload())),
+                        && said.ends_with(&format!(
+                            "{}. {}",
+                            diag.payload(),
+                            geom_core::MOVE_RECOURSE
+                        )),
                     "{label}, {spread}: {said}"
                 );
             }
