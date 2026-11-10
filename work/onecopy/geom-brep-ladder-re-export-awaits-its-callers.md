@@ -29,13 +29,28 @@ spelling through the re-export (the review of PR 6701).
 
 ## Done when
 
-No code outside geom-brep spells `geom_brep::ladder`: every caller
-(91 at filing, `crates/topo` 90 and `crates/sweep` 1) is ported to
-`geom_core::ladder`. `scripts/gates/ladder-re-export-callers.sh`
-holds that count per crate and lets it only fall; it reds a new
-caller of the old path. At none, geom-brep's own
-`crate::ladder` spellings move to `geom_core::ladder`, and the
-re-export in `crates/geom-brep/src/lib.rs`, that gate and its register
-are deleted,
+Nothing outside geom-brep's library spells `geom_brep::ladder`: every
+spelling is ported to `geom_core::ladder` (156 at filing, counted raw,
+code, test modules, `tests/`, doc links and prose alike: `crates/topo`
+153, `crates/sweep` 2, geom-brep's own integration tests 1).
+`scripts/gates/ladder-re-export-callers.sh` holds that count per crate
+and lets it only fall: it reds a new spelling, and refuses a module
+alias (`use geom_brep::ladder;`, `as`, or `ladder` in a group) that would
+let a file drop its count without porting. At none, geom-brep's own
+`crate::ladder` spellings move to `geom_core::ladder`; the re-export in
+`crates/geom-brep/src/lib.rs`, that gate and its register are deleted;
 and `rung-holds-one-home.sh`'s `LADDER` pattern drops its `geom_brep::`
 alternative.
+
+**The open rows that cite an item by the old path** move with it (the
+gate reads `crates/` only, so these are listed here):
+- `work/pcert/gate-loops-return-on-an-in-band-gate-before-a-definite-one.md`;
+- `work/ciw/probe-gated-lib-unit-tests-never-run-in-ci.md`;
+- `work/germ/in-sector-escalates-on-an-in-band-bound-before-a-definite-one-reads-outside.md`;
+- `work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`;
+- `work/onecopy/side-at-infinity-aimed-rays-disagree.md`;
+- `work/onecopy/door-searches-left-on-the-hand-rolled-ladder.md`;
+- `work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md`.
+
+`a-walk-refusals-standing-lives-on-the-ladder-not-its-type` names the
+old path only in its record of what was moved.
