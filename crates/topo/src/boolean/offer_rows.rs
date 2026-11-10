@@ -980,7 +980,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
             far: o + end * reach,
         },
         face,
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             start.cross(end),
             true,
         )),
@@ -1026,7 +1026,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             Vec3::new(0.0, 0.0, 1.0),
             true,
         )),
@@ -1078,7 +1078,7 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             Vec3::new(0.0, 0.0, 1.0),
             true,
         )),
@@ -1484,7 +1484,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
             far: o + end * reach,
         },
         face,
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             start.cross(end),
             true,
         )),
@@ -1555,7 +1555,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
             far: o + z * arm,
         },
         face,
-        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::star::StarFace::Tangent(OutwardNormal::from_chart(
             Vec3::new(1.0, 0.0, 0.0),
             true,
         )),
@@ -2219,6 +2219,7 @@ fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
             let diag = Indeterminate {
                 margin: MarginDiag::value(m),
                 band,
+                // UNDECIDED-NAME: the cause every BooleanErrorKind is quoted on to read its offers
                 predicate: Some("census"),
                 terminal_sliver: false,
             };
@@ -2878,7 +2879,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::BisectorSide",
         1,
     ),
-    ("sectors.rs", "extreme_directions", "Coincide::Sectors", 1),
+    ("sectors.rs", "star_fault", "Coincide::Sectors", 1),
     ("sectors.rs", "sector_fault", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
