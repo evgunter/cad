@@ -23,12 +23,16 @@ crates/topo/src/boolean/rim_wedge.rs departures 1 row t4-ports-unpinned-for-a-ke
 crates/topo/src/boolean/rim_wedge.rs rim_exists 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs crescent 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/boolean/sectors.rs rays_within 1 pin a_sector_not_holding_the_line_answers_past_one_in_band
-# pieces_hold: holding's ladder over its pieces, its readings stubbed.
+# pieces_hold, search_meeting, lone_ring_outer_side: a ladder moved into a
+# helper and pinned with its rungs stubbed. Such a pin proves the helper
+# is `Any`, not that the site's own readings answer past a kept one; the
+# row keeps those sites scheduled for a reading-level pin.
+# pieces_hold: holding's ladder over its pieces.
 crates/topo/src/boolean/slit.rs pieces_hold 1 pin an_unread_piece_refuses_ahead_of_an_earlier_in_band_one
 crates/topo/src/boolean/solid_contain.rs point_in_faces 1 pin a_face_holding_the_point_answers_past_a_face_in_band
 crates/topo/src/census.rs arc_interiors_meet 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 # search_meeting: the one ladder shared_run, planar_interiors_meet and
-# shared_interior_witness search their probes through, its rungs stubbed.
+# shared_interior_witness search their probes through.
 crates/topo/src/census.rs search_meeting 1 pin an_unbuilt_reading_outranks_an_undecided_one_in_either_order
 crates/topo/src/census.rs probe_vertices 1 pin an_abort_stops_the_probe_and_a_limit_outranks_in_band
 crates/topo/src/census.rs span_clear 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
@@ -46,7 +50,8 @@ crates/topo/src/chord_join.rs path_ring_side 1 pin a_path_escalating_by_a_corner
 crates/topo/src/chord_join.rs paths_rung 1 pin a_path_in_band_hands_the_rung_to_the_next_path
 crates/topo/src/chord_join.rs ring_side 1 pin a_planar_ring_vertex_escalating_hands_re_homing_to_the_next
 crates/topo/src/link.rs place 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/offset_nappe.rs face_nappe_reading 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+# face_nappe_reading: no input reaches past a kept rung (min <= max).
+crates/topo/src/offset_nappe.rs face_nappe_reading 1 proof min-le-max
 crates/topo/src/ray_walk.rs on_boundary 1 pin a_segment_holding_the_point_answers_past_one_in_band
 crates/topo/src/ray_walk.rs walk 1 pin a_deciding_ray_answers_past_one_in_band_and_a_limit_outranks_it
 crates/topo/src/replace_face.rs carried_alike 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer

@@ -542,6 +542,7 @@ impl<A, E> Climb<A, E> {
 /// outcome rests on); where one does, spliced superseded under
 /// [`Answering::Any`] and whole under [`Answering::First`], or after a
 /// [`Rung::Aborts`].
+#[cfg_attr(any_first_mutant, track_caller)]
 pub fn climb<I, A, E>(
     answering: Answering,
     rungs: impl IntoIterator<Item = I>,
@@ -560,28 +561,75 @@ pub fn climb<I, A, E>(
 /// # Errors
 ///
 /// That evidence, where no rung answered or aborted.
+#[cfg_attr(any_first_mutant, track_caller)]
 pub fn climb_evidence<I, A, E>(
     answering: Answering,
     rungs: impl IntoIterator<Item = I>,
     mut read: impl FnMut(I) -> Rung<A, E>,
 ) -> Result<(usize, A), Evidence<E>> {
+    #[cfg(any_first_mutant)]
+    let caller = std::panic::Location::caller();
     let mut held = Held::default();
-    for (at, rung) in rungs.into_iter().enumerate() {
-        let (got, log) = detached(|| read(rung));
+    let mut rungs = rungs.into_iter();
+    let mut at = 0;
+    while let Some((got, log)) = next_rung(&mut rungs, &mut read) {
         let Some((answer, aborts)) = held.take(got, log) else {
             // The first-refusal mutant (`scripts/any-first-mutant.sh`): an
             // `Any` ladder refuses at its first kept rung, so a pin that
             // stays green under it does not reach the answer past one.
             #[cfg(any_first_mutant)]
-            if answering == Answering::Any && !held.kept.is_empty() {
+            if mutant_fires(caller) && answering == Answering::Any && !held.kept.is_empty() {
                 return Err(held.splice_all(false));
             }
+            at += 1;
             continue;
         };
         held.splice_all(!aborts && answering == Answering::Any);
         return Ok((at, answer));
     }
     Err(held.splice_all(false))
+}
+
+/// **The next rung, read**: the iterator's step and the reading under one
+/// [`detached`], so whatever the iterator itself records (a lazily mapped
+/// reading) is held with the rung's own run, and spliced as the rung's
+/// outcome says. The one way every entry point reads a rung. The run of an
+/// exhausted iterator's last step is spliced at once.
+fn next_rung<I, A, E>(
+    rungs: &mut impl Iterator<Item = I>,
+    read: &mut impl FnMut(I) -> Rung<A, E>,
+) -> Option<(Rung<A, E>, Detached)> {
+    let (got, log) = detached(|| rungs.next().map(&mut *read));
+    match got {
+        Some(got) => Some((got, log)),
+        None => {
+            splice(log);
+            None
+        }
+    }
+}
+
+/// **Where the first-refusal mutant fires** (`scripts/any-first-mutant.sh`):
+/// everywhere, or, where `AFM_ONLY` lists `<file>:<lo>-<hi>` ranges
+/// (comma-separated), only at a climb whose caller lies in one, so a pin
+/// is run against its own site's ladders alone.
+#[cfg(any_first_mutant)]
+fn mutant_fires(caller: &std::panic::Location<'_>) -> bool {
+    let Ok(only) = std::env::var("AFM_ONLY") else {
+        return true;
+    };
+    only.split(',').any(|range| {
+        let Some((file, lines)) = range.rsplit_once(':') else {
+            return false;
+        };
+        let Some((lo, hi)) = lines.split_once('-') else {
+            return false;
+        };
+        let (Ok(lo), Ok(hi)) = (lo.parse::<u32>(), hi.parse::<u32>()) else {
+            return false;
+        };
+        caller.file() == file && (lo..=hi).contains(&caller.line())
+    })
 }
 
 /// **The runs a ladder has read, held in rung order** until its outcome
@@ -675,19 +723,24 @@ pub struct Disagree<A> {
 /// the answers are readings of one fact (`seam_germ_side`, `tangent_lump`,
 /// which map it to `ClassificationInvariant`), or a valid answer of its
 /// own where two answers differing is the answer (a mixed departure).
+#[cfg_attr(any_first_mutant, track_caller)]
 pub fn climb_agreeing<I, A, E>(
     rungs: impl IntoIterator<Item = I>,
     mut read: impl FnMut(I) -> Rung<A, E>,
     agree: impl Fn(&A, &A) -> bool,
 ) -> Result<Climb<A, E>, Disagree<A>> {
+    #[cfg(any_first_mutant)]
+    let caller = std::panic::Location::caller();
     let mut held = Held::default();
     let mut first: Option<(usize, A)> = None;
-    for (at, rung) in rungs.into_iter().enumerate() {
-        let (got, log) = detached(|| read(rung));
+    let mut rungs = rungs.into_iter();
+    let mut index = 0..;
+    while let Some((got, log)) = next_rung(&mut rungs, &mut read) {
+        let at = index.next().unwrap_or(usize::MAX);
         let Some((answer, aborts)) = held.take(got, log) else {
             // The first-refusal mutant (`climb_evidence`'s).
             #[cfg(any_first_mutant)]
-            if !held.kept.is_empty() {
+            if mutant_fires(caller) && !held.kept.is_empty() {
                 return Ok(held
                     .splice_all(false)
                     .refusal()
@@ -762,6 +815,7 @@ pub enum Differing<A, E> {
 /// rests on the two decided rungs alone); an agreement has none kept; an
 /// abort and an undecided outcome keep every run live. Every run is
 /// spliced in rung order.
+#[cfg_attr(any_first_mutant, track_caller)]
 pub fn climb_differing<I, A, E>(
     rungs: impl IntoIterator<Item = I>,
     mut read: impl FnMut(I) -> Rung<A, E>,
@@ -769,12 +823,14 @@ pub fn climb_differing<I, A, E>(
 ) -> Differing<A, E> {
     let mut held = Held::default();
     let mut answers: Vec<A> = Vec::new();
-    for rung in rungs {
-        let (got, log) = detached(|| read(rung));
+    #[cfg(any_first_mutant)]
+    let caller = std::panic::Location::caller();
+    let mut rungs = rungs.into_iter();
+    while let Some((got, log)) = next_rung(&mut rungs, &mut read) {
         let Some((answer, aborts)) = held.take(got, log) else {
             // The first-refusal mutant (`climb_evidence`'s).
             #[cfg(any_first_mutant)]
-            if !held.kept.is_empty() {
+            if mutant_fires(caller) && !held.kept.is_empty() {
                 return held
                     .splice_all(false)
                     .refusal()
@@ -1558,6 +1614,61 @@ mod tests {
             escalations.is_empty() && verdicts.contains(&"b") && verdicts.contains(&"c"),
             "the kept reading is superseded, every answer's verdict stands: \
              {verdicts:?} {escalations:?}"
+        );
+    }
+
+    /// **An iterator's own reading is held with its rung**
+    /// ([`super::next_rung`]): a climb over a lazily mapped iterator, whose
+    /// first item records an escalation as it is produced and whose second
+    /// answers, supersedes the first's escalation as a climb whose reader
+    /// records it does. Pulling the item outside the rung's `detached`
+    /// spliced the iterator's run live.
+    #[test]
+    fn a_lazily_read_rung_is_superseded_like_one_its_reader_reads() {
+        let decide_now = |(name, m): (&'static str, f64)| {
+            Rung::<bool, crate::predicate::Indeterminate>::decide(
+                name,
+                Margin::of(m),
+                band(),
+                |d| (d.sign != Sign::Zero).then_some(true),
+            )
+        };
+        let (got, verdicts, escalations) = recorded(|| {
+            climb(
+                Answering::Any,
+                [("lazy_a", 5e-9), ("lazy_b", 1.0)]
+                    .into_iter()
+                    .map(decide_now),
+                |rung| rung,
+            )
+        });
+        assert!(
+            matches!(
+                got,
+                Climb::Answered {
+                    at: 1,
+                    answer: true
+                }
+            ),
+            "{got:?}"
+        );
+        assert!(
+            escalations.is_empty() && verdicts.contains(&"lazy_b"),
+            "the lazily read kept rung is superseded: {verdicts:?} {escalations:?}"
+        );
+        let (_, _, escalations) = recorded(|| {
+            climb(
+                Answering::Any,
+                [("lazy_a", 5e-9), ("lazy_c", 5e-9)]
+                    .into_iter()
+                    .map(decide_now),
+                |rung| rung,
+            )
+        });
+        assert_eq!(
+            escalations,
+            ["lazy_a", "lazy_c"],
+            "undecided: both stand, in order"
         );
     }
 

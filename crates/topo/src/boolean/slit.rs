@@ -1151,22 +1151,24 @@ fn holding<T: Decide>(
     let pieces = ends
         .windows(2)
         .map(|piece| carrier.eval(geom::mid_param(piece[0], piece[1])));
-    let readings = pieces.map(|mid| piece_reading(body, f, mid, band, DoorInBand::Containment));
-    match pieces_hold(readings, unread) {
+    let read = |mid| piece_reading(body, f, mid, band, DoorInBand::Containment);
+    match pieces_hold(pieces, read, unread) {
         Climb::Answered { answer, .. } => answer.map(|()| Some(divided)),
         Climb::Passed => Ok(None),
         Climb::Undecided(read) => unplaced(read),
     }
 }
 
-/// [`holding`]'s ladder over its pieces' readings, read lazily in piece
-/// order: the first piece `f` holds answers, past a piece kept ahead of it
-/// ([`Answering::Any`]: any piece in the face says the edge lies in it).
-fn pieces_hold(
-    readings: impl IntoIterator<Item = Result<PieceRead, BooleanError>>,
+/// [`holding`]'s ladder over its pieces, in piece order, each read by
+/// `read` inside its rung: the first piece `f` holds answers, past a piece
+/// kept ahead of it ([`Answering::Any`]: any piece in the face says the
+/// edge lies in it).
+fn pieces_hold<P>(
+    pieces: impl IntoIterator<Item = P>,
+    mut read: impl FnMut(P) -> Result<PieceRead, BooleanError>,
     unread: impl Fn(Option<ContainError>) -> BooleanError,
 ) -> Climb<Result<(), BooleanError>, BooleanError> {
-    climb(Answering::Any, readings, |r| piece_rung(r, &unread))
+    climb(Answering::Any, pieces, |p| piece_rung(read(p), &unread))
 }
 
 /// One piece's reading as a rung of [`holding`]'s ladder: `In` answers,
@@ -4176,6 +4178,7 @@ mod piece_rung_rows {
                 Ok(PieceRead::NotIn),
                 Ok(PieceRead::Unread(None)),
             ],
+            |reading| reading,
             unread,
         );
         let Climb::Undecided(refusal) = got else {
@@ -4191,7 +4194,11 @@ mod piece_rung_rows {
             ),
             "the unread piece: {refusal:?}"
         );
-        let got = pieces_hold([Err(in_band()), Ok(PieceRead::In)], unread);
+        let got = pieces_hold(
+            [Err(in_band()), Ok(PieceRead::In)],
+            |reading| reading,
+            unread,
+        );
         assert!(matches!(got, Climb::Answered { at: 1, .. }), "{got:?}");
     }
 }

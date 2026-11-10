@@ -1,7 +1,7 @@
 ---
 id: t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 kind: issue
-title: 26 of 53 production ladders that answer past a kept rung have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
+title: 25 of 53 production ladders that answer past a kept rung have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
 status: open
 opened: 2026-11-10
 priority: P3
@@ -66,7 +66,7 @@ The 19 beyond the seven above (18 at filing, and `loop_circle` since), each with
 - `topo` `boolean::sectors::crescent`: a sector pair whose first bound pair is in band, a later one opening a crescent.
 - `topo` `census::arc_interiors_meet`: two interiors whose first piece reads in band and a later one meets (its own `climb_evidence` over ordered steps). `a_lens_across_the_band_is_never_read_apart` reaches it but is not decided there (a site-restricted mutant leaves it green).
 - `topo` `link::place`: a link whose first piece reads in band ahead of a placing one. `a_degenerate_note_outranks_a_piece_in_band` reads `unread_or_rest`, not `place`.
-- `topo` `offset_nappe::face_nappe_reading`: **no input reaches past a kept rung**, since `station_min ≤ station_max`: once the max is decided below the apex, the min is too. It stays registered until the register can name a reason in place of a pin.
+- `topo` `offset_nappe::face_nappe_reading`: **no input reaches past a kept rung**, since `station_min ≤ station_max`: once the max is decided below the apex, the min is too. The register names it `proof min-le-max`, the reason stated at the site. The order holds by construction (`corner_stations` folds one set into its min and max); no assertion reads it, since `T` has no order of its own. Off this row.
 - `topo` `replace_face::carried_alike`: one side's transport escalating ahead of a side with no image.
 - `topo` `side_reader::cast_aims`: an aimed ray's `Pair` in band ahead of a ray that decides (the door row's cheapest-named case; no fixture builds the pair today).
 
@@ -87,6 +87,11 @@ Seven sites, each checked under `scripts/any-first-mutant.sh` (green plain, red 
 - `slit::holding`'s ladder is `pieces_hold` (its pieces' readings, lazily), pinned by `piece_rung_rows::an_unread_piece_refuses_ahead_of_an_earlier_in_band_one`, which now calls it.
 - `census::{shared_run, planar_interiors_meet, shared_interior_witness}` search through one ladder, `search_meeting`, pinned by `interiors_ranking::an_unbuilt_reading_outranks_an_undecided_one_in_either_order`, which now calls it.
 - `chord_join` `RimSide::holds_outer`'s ladder is `lone_ring_outer_side`, pinned by `side_ladder_rows::a_point_in_band_of_a_lone_rings_plane_hands_the_side_to_the_next`.
+
+**Scheduled for a reading-level pin** (PR 6783's review, S1). A pin by extraction proves the helper is `Any`, not that the site's own readings answer past a kept one. So these sites stay listed here, with the fixtures their readings need, though the register names their helpers' pins:
+- `slit::holding` (`pieces_hold`): an edge in a slit face whose first piece's placement reads in band, a later piece decided in the face.
+- `census::{shared_run, planar_interiors_meet, shared_interior_witness}` (`search_meeting`): two interiors whose first probe reads in band and a later one meets.
+- `chord_join` `RimSide::holds_outer` (`lone_ring_outer_side`): a lone ring on a sphere whose old face's first outer-loop point reads in band of the ring's plane, a later one decided.
 
 ## Done when
 

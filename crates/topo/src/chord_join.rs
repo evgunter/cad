@@ -5557,17 +5557,6 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Spli
     Ok(true)
 }
 
-/// Which side of `run` a bystander ring lies on, read at its first
-/// vertex off `run`'s boundary: a ring disjoint from the run cannot
-/// cross it, but it may touch it at a vertex — a pinch, where two
-/// sections meet at one point — so its anchor alone can land `OnBoundary`
-/// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
-/// every vertex does: each such verdict is decided, so the ring is on
-/// the run. A vertex whose reading refuses says nothing either, kept by
-/// its standing ([`PointInLoopError::refusal`]), and the next is asked;
-/// a kept refusal refuses only where no vertex decides ([`climb`]). The
-/// vertices agree because the ring does not cross the run, and a touch
-/// switches no side ([`paths_rung`]'s premise).
 /// The side of a lone ring's plane (through `center`, normal `axis`)
 /// the old face's outer loop lies on: the first point read definitely off
 /// the plane answers, past a point read in band ([`climb`],
@@ -5588,6 +5577,17 @@ fn lone_ring_outer_side<T: Decide>(
     })
 }
 
+/// Which side of `run` a bystander ring lies on, read at its first
+/// vertex off `run`'s boundary: a ring disjoint from the run cannot
+/// cross it, but it may touch it at a vertex — a pinch, where two
+/// sections meet at one point — so its anchor alone can land `OnBoundary`
+/// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
+/// every vertex does: each such verdict is decided, so the ring is on
+/// the run. A vertex whose reading refuses says nothing either, kept by
+/// its standing ([`PointInLoopError::refusal`]), and the next is asked;
+/// a kept refusal refuses only where no vertex decides ([`climb`]). The
+/// vertices agree because the ring does not cross the run, and a touch
+/// switches no side ([`paths_rung`]'s premise).
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
