@@ -370,10 +370,11 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
         "ring_torus_convention" => TorusConvention::Ring.subject(),
-        "split_edge_param_interior" | "plane_crossing_root_in_span" | "bool_wall_root_in_span" => {
+        "split_edge_param_interior" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
         "plane_crossing_root_order"
+        | "plane_crossing_roots_apart"
         | "spline_composite_roots_apart"
         | "spline_face_roots_apart" => CrossingDecision::Order.subject(),
         "spline_composite_root_at_end"
@@ -3023,19 +3024,23 @@ pub enum BooleanError {
         /// Its surface kind — the C5 table row the refusal cites.
         kind: geom::SurfaceKind,
     },
-    /// A pierced face's torus is definitely outside the ring convention
+    /// An operand's torus face is definitely outside the ring convention
     /// (D3: a horn or spindle torus, or one with no tube), a shape the
-    /// kernel has no representation for. The decided arm of the
-    /// convention half whose in-band arm is
+    /// kernel has no representation for, read where its normal is
+    /// asked: the pierced face's ([`Self::of_pierced_normal`]), or a
+    /// section chord's region or holding face
+    /// ([`Self::of_aborted_normal`]). No tier-3 premise keeps one out:
+    /// at a dual an operand is a `Replay`, tier 2 alone. The decided arm
+    /// of the convention half whose in-band arm is
     /// [`BooleanDecision::Torus`], and it ends in the same lever.
     ///
     /// As the convention states a torus decided outside it
     /// ([`geom_brep::TorusRefusal::refusal`]): an abort, a shape
     /// the kernel's model never represents (row 1(a)).
     DegenerateTorus {
-        /// The pierced face's operand.
+        /// The face's operand.
         operand: Operand,
-        /// The pierced face.
+        /// The torus face.
         face: FaceKey,
         /// The half of the convention that refused.
         convention: TorusConvention,
@@ -4435,8 +4440,9 @@ pub enum BooleanError {
     /// material, or a parting or division that left what it never
     /// makes, which are the kernel's own defects.
     ///
-    /// An abort where the gap is the kernel's defect ([`EdgeInFaceGap::is_defect`], row 4); a limit
-    /// otherwise, a parting not built (row 2).
+    /// An abort where the gap is the kernel's defect ([`EdgeInFaceGap::is_defect`], row 4) or a
+    /// torus outside the ring convention ([`EdgeInFaceGap::torus`], row 1(a), the convention's
+    /// own standing); a limit otherwise, a parting not built (row 2).
     EdgeInFace {
         /// The edge, in the result's keys.
         edge: crate::entity::EdgeKey,
@@ -4537,7 +4543,7 @@ pub enum BooleanError {
 }
 
 /// What [`BooleanError::LineWedges`] found on the result's line.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LineWedgeFault {
     /// The two edges' material wedges overlap: the line's material is
     /// counted twice.
@@ -4830,6 +4836,32 @@ impl BooleanError {
         }
     }
 
+    /// **A face's outward normal that aborted a reading**, by the abort's
+    /// own row ([`crate::face_normal::NormalAtError::standing`]), which is
+    /// all it takes, so a refusal that keeps its query cannot reach it:
+    /// an invalid input is the torus refusal on `operand`'s `face`
+    /// ([`Self::DegenerateTorus`]); a kernel fault is the invariant
+    /// `kernel` names.
+    pub(in crate::boolean) const fn of_aborted_normal(
+        abort: crate::face_normal::NormalAbort,
+        (operand, face): (Operand, FaceKey),
+        kernel: &'static str,
+    ) -> Self {
+        use crate::face_normal::NormalAbort;
+        match abort {
+            NormalAbort::InvalidInput {
+                convention,
+                verdict,
+            } => Self::DegenerateTorus {
+                operand,
+                face,
+                convention,
+                verdict,
+            },
+            NormalAbort::KernelFault => Self::ClassificationInvariant { what: kernel },
+        }
+    }
+
     /// The refusal of a pierced face's outward normal at a pierce point
     /// (`face_normal::face_outward_normal_at`), in the Boolean's words.
     pub(crate) fn of_pierced_normal(
@@ -5035,6 +5067,10 @@ impl BooleanError {
             }),
             Self::EdgeUndescribed { fitted: true, .. } => Ok(Refusal::Limit),
             Self::EdgeUndescribed { fitted: false, .. } => Err(Aborts),
+            Self::EdgeInFace {
+                gap: EdgeInFaceGap::DegenerateTorus(torus),
+                ..
+            } => torus.refusal(),
             Self::EdgeInFace { gap, .. } if gap.is_defect() => Err(Aborts),
             Self::EdgeInFace { .. } => Ok(Refusal::Limit),
             Self::CrossingAtConeApex { .. }
@@ -5237,13 +5273,7 @@ impl BooleanError {
                 convention,
                 verdict,
                 ..
-            } => {
-                f.write_str(&convention.refused("a torus face's", *verdict))?;
-                match at {
-                    Some(at) => write!(f, ". {}", convention.sized().recourse(verdict.arm(), at)),
-                    None => Ok(()),
-                }
-            }
+            } => f.write_str(&convention.refused_ended("a torus face's", *verdict, at)),
             Self::CurvedPierceUnsupported { operand, .. } => write!(
                 f,
                 "an edge of the {} operand touches or crosses a curved face of the \
@@ -6014,7 +6044,20 @@ impl BooleanError {
                 )
             }
             Self::EdgeInFace { edge, face, gap } => {
-                if gap.is_defect() {
+                if let Some(torus) = gap.torus() {
+                    write!(f, "edge {edge:?} of the result lies in face {face:?}, and ")?;
+                    match (torus.verdict, at) {
+                        (geom_brep::TorusVerdict::Refused(verdict), at) => f.write_str(
+                            &torus
+                                .convention
+                                .refused_ended("a torus face's", verdict, at),
+                        ),
+                        (geom_brep::TorusVerdict::Undecided(_), Some(at)) => {
+                            f.write_str(&torus.render(at))
+                        }
+                        (geom_brep::TorusVerdict::Undecided(_), None) => write!(f, "{torus}"),
+                    }
+                } else if gap.is_defect() {
                     write!(
                         f,
                         "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
@@ -6082,7 +6125,7 @@ impl BooleanError {
                     f,
                     "an edge on the line from {from} to {to}, where two or more of the \
                      result's edges lie, bounds material the check cannot read: {}",
-                    why.sentence_on_line()
+                    why.sentence_on_line(at)
                 ),
             },
         }

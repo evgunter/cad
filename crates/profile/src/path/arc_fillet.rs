@@ -130,7 +130,7 @@ pub(crate) struct ArcFilletTrims<T: Real> {
     /// The incoming side's carrier when it is circular — what the door
     /// re-emits the trimmed piece along (`(centre, winding)`).
     pub in_arc: Option<(Point2<T>, ArcSweep)>,
-    /// The fillet arc's own carrier, for the §4 item 4 identity checks.
+    /// The fillet arc's own carrier.
     pub arc: ArcData<T>,
     /// What the offset construction proved of the centre
     /// ([`crate::sugar::ArcFilletCandidate::centre_facts`]).

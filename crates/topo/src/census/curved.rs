@@ -560,9 +560,9 @@ mod tests {
             (TouchUnread::OffInterior, geom_core::kernel_defect_ending!()),
         ] {
             assert!(
-                why.sentence().ends_with(ending),
+                why.sentence(None).ends_with(ending),
                 "{why:?}: {}",
-                why.sentence()
+                why.sentence(None)
             );
         }
     }

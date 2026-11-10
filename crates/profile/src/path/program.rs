@@ -1142,9 +1142,8 @@ transition_table! {
     verb Line(T) = "line" bind (len) rows {
         row {
             /// A straight leg of length `len` along the bound departure,
-            /// terminating at a directed point. After a fillet this extends
-            /// the arrival side's one leg past its anchor (no collinear
-            /// neighbor is minted — §4 item 4's by-construction exemption).
+            /// terminating at a directed point. After a fillet it is emitted
+            /// from the fillet arc's end, so the arrival anchor lies inside it.
             ///
             /// A tangent straight continuation of a straight leg
             /// (`.tangent().line(len)` after a line) IS the same carrier, and
