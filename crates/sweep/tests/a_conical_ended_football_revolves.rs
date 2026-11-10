@@ -543,3 +543,69 @@ fn the_near_horn_ladder_reads_its_band() {
         );
     }
 }
+
+/// R1 probe (PR 6806 review): a wide apple's band wholly below
+/// `v = 1 − π` (`R = 0.8`, `v ∈ [−2.45, −2.2]`), revolved full and part
+/// way, then meshed and validated. Not a gate.
+#[test]
+#[ignore = "probe"]
+fn r1_probe_a_band_below_the_latitude_cut() {
+    let tol = Tol::witness();
+    let (big, r) = (0.8_f64, 1.0_f64);
+    let at = |v: f64| Point2::new(big + r * v.cos(), r * v.sin());
+    for (v0, v1) in [(-2.45, -2.2), (-2.45, -1.0), (-2.0, -1.0)] {
+        let (a, b) = (at(v0), at(v1));
+        let sweep = v1 - v0;
+        for (name, lp) in [
+            (
+                "ccw",
+                vec![
+                    (a, (sweep / 4.0).tan()),
+                    (b, 0.0),
+                    (Point2::new(0.0, b.y), 0.0),
+                    (Point2::new(0.0, a.y), 0.0),
+                ],
+            ),
+            (
+                "cw",
+                vec![
+                    (Point2::new(0.0, a.y), 0.0),
+                    (Point2::new(0.0, b.y), 0.0),
+                    (b, -(sweep / 4.0).tan()),
+                    (a, 0.0),
+                ],
+            ),
+        ] {
+            let prof = std::panic::catch_unwind(|| validated(vec![bulge_loop(lp.clone())]));
+            let Ok(prof) = prof else {
+                eprintln!("R1 [{v0}, {v1}] {name}: profile invalid");
+                continue;
+            };
+            for rev in [Revolution::Full, Revolution::Partial(2.0)] {
+                let axis = RevolveAxis {
+                    origin: Point2::new(0.0, 0.0),
+                    dir: Vec2::new(0.0, 1.0),
+                };
+                let built = revolve(&prof, axis, rev, tol);
+                let Ok(built) = built else {
+                    eprintln!("R1 [{v0}, {v1}] {name} {rev:?}: revolve {:?}", built.err());
+                    continue;
+                };
+                let mesh = mesh::tessellate(&built.body, 1e-2, tol);
+                let checked = mesh.as_ref().map(|m| mesh::validate::check_mesh(m).map(|_| "watertight"));
+                let sheets: Vec<String> = built
+                    .body
+                    .faces()
+                    .filter_map(|(fk, _)| match built.body.face_surface(fk) {
+                        Some(geom::Surface::Spindle { major_radius, .. }) => Some(format!("{major_radius}")),
+                        _ => None,
+                    })
+                    .collect();
+                eprintln!(
+                    "R1 [{v0}, {v1}] {name} {rev:?}: sheets {sheets:?}; mesh {:?}",
+                    checked.map_err(|e| format!("{e:?}").chars().take(200).collect::<String>()),
+                );
+            }
+        }
+    }
+}

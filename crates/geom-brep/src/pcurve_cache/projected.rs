@@ -3290,3 +3290,7 @@ mod one_reading_rows;
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod old_formula_rows;
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod r1_probe;

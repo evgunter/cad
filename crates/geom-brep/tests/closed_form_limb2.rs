@@ -698,3 +698,75 @@ fn limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp() {
         }
     }
 }
+
+/// R1 probe (PR 6806 review): what the off-circle half of
+/// `limb_2_against_a_horn_reads_the_sheet_up_to_its_cusp` refuses with,
+/// and the same at other offsets. Not a gate.
+#[test]
+#[ignore = "probe"]
+fn r1_probe_horn_off_circle() {
+    let horn = Surface::Spindle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 1.0,
+        minor_radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let (_, plane) = lemon_and_its_meridian_plane();
+    for band in [
+        Band::new(1e-9, 3e-9).unwrap(),
+        Band::new(1e-12, 3e-12).unwrap(),
+    ] {
+        for off in [1e-6, 1e-7, 1e-8, -1e-6, -1e-8] {
+            for span in [(PI / 2.0, PI), (-PI, -PI / 2.0), (2.5, PI), (3.0, PI), (3.1, PI)] {
+                let got = geom_brep::analytic_edge_limbs(&meridian(1.0 + off), span, &horn, &plane, band);
+                eprintln!("R1 band {:?} off {off:e} span {span:?}: {:?}", band, got.as_ref().map(|_| "Ok"));
+            }
+        }
+    }
+}
+
+/// R1 probe (PR 6806 review): a wide apple's parallels and meridian
+/// arcs, their pcurve `v` (placed in `Along::Latitude`'s window) against
+/// the chart's own read of the same point (now about zero). Not a gate.
+#[test]
+#[ignore = "probe"]
+fn r1_probe_wide_apple_pcurve_v() {
+    let (major, minor) = (0.8_f64, 1.0_f64);
+    let sheet = Surface::Spindle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: major,
+        minor_radius: minor,
+        u_ref: Vec3::unit_x(),
+    };
+    let band = Band::new(1e-9, 3e-9).unwrap();
+    for v in [-2.45, -2.4, -2.2, -2.0, -1.0, 1.0, 2.2, 2.4, 2.45] {
+        let par = Curve3::circle(
+            Point3::new(0.0, 0.0, minor * f64::sin(v)),
+            Vec3::unit_z(),
+            major + minor * f64::cos(v),
+            Vec3::unit_x(),
+        );
+        let pc = geom_brep::chart_pcurve(&par, &sheet, band);
+        let p = Point3::new(major + minor * f64::cos(v), 0.0, minor * f64::sin(v));
+        let cp = sheet.chart_point(p, band).unwrap();
+        eprintln!(
+            "R1 parallel v={v}: pcurve v(0) = {:?}; chart_point v = {}",
+            pc.as_ref().map(|c| c.eval(0.0).y),
+            cp.uv.y
+        );
+    }
+    for (t0, t1) in [(-2.45, -2.3), (-2.4, -1.0), (-2.4, -2.2), (-1.0, 1.0), (1.0, 2.4), (-2.45, 2.45)] {
+        let mer = meridian(major);
+        let pc = geom_brep::chart_pcurve_over(&mer, t0, t1, &sheet, band);
+        let mid: f64 = 0.5 * (t0 + t1);
+        let p = Point3::new(major + minor * mid.cos(), 0.0, minor * mid.sin());
+        let cp = sheet.chart_point(p, band).unwrap();
+        eprintln!(
+            "R1 meridian [{t0}, {t1}]: pcurve v(mid) = {:?}; chart_point v = {}",
+            pc.as_ref().map(|c| c.eval(mid).y).map_err(|e| format!("{e:?}").chars().take(120).collect::<String>()),
+            cp.uv.y
+        );
+    }
+}
