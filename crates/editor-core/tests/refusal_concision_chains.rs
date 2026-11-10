@@ -840,7 +840,8 @@ mod kernel {
             TooFewSections, SectionShapeMismatch, SectionProfile, EmptyProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
             PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
-            RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
+            RowMotionUndecided, ArcSweepUndecided, ParametersInvalid, Fit, KnotAlgebra,
+            Structure,
         ];
     }
 
@@ -991,7 +992,7 @@ mod kernel {
             EmptyGroup, GroupChartsDiffer, PlaceholderSurface, ApexWindow,
             NappeStraddles, ApexWindowUnknown, NeighborPairUnroutable,
             NeighborPoseUnroutable, FittedBoundaryUnsupported, CarrierLaneUnsupported,
-            IsoRow, Structure, VertexDisagreement, EdgeSection, CornerSection,
+            IsoRow, VertexDisagreement, EdgeSection, CornerSection,
             DeclaredEdgeTilted, MixedEdge, ReanchorPastCarrierEnd, ReanchorCollapse,
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
             TogetherPartialSet, TogetherCorner, TogetherChartMixed,
@@ -3416,12 +3417,23 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ),
         ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
+            "ParametersInvalid",
+            E::ParametersInvalid {
+                params: 2,
+                sections: 3,
+            },
+        ),
+        (
             "Fit",
-            E::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 }),
+            E::Fit(geom_core::spline::Built::new(
+                geom::FitError::TooFewPoints { have: 1, need: 2 },
+            )),
         ),
         (
             "KnotAlgebra",
-            E::KnotAlgebra(geom_core::spline::KnotAlgebraError::KnotNotPresent { u: 0.5 }),
+            E::KnotAlgebra(geom_core::spline::Built::new(
+                geom_core::spline::KnotAlgebraError::KnotNotPresent { u: 0.5 },
+            )),
         ),
         (
             "PathUndecided",
@@ -3435,7 +3447,9 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ("Band", E::Band(payloads::band_error())),
         (
             "Structure",
-            E::Structure(geom_core::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 }),
+            E::Structure(geom_core::spline::Built::new(
+                geom_core::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+            )),
         ),
     ]
 }
@@ -3479,7 +3493,10 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
         (
             "SeamStructure",
             E::SeamStructure {
-                source: geom_core::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+                source: geom_core::spline::Built::new(geom_core::SplineError::DomainInvalid {
+                    lo: 1.0,
+                    hi: 0.0,
+                }),
             },
         ),
         ("SectionStructure", E::SectionStructure),
@@ -5838,16 +5855,6 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 R::IsoRow {
                     edge,
                     error: geom_brep::IsoRowError::Escalated { source: diag() },
-                },
-            ),
-            (
-                "Structure",
-                R::Structure {
-                    edge,
-                    error: geom_core::spline::SplineError::WeightCountMismatch {
-                        weights: 3,
-                        control: 4,
-                    },
                 },
             ),
             (

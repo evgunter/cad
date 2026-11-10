@@ -1048,7 +1048,7 @@ impl<P: Partner> Pass<'_, P> {
 pub(crate) fn side_row(
     wall: &geom::NurbsSurface<f64>,
     side: ChartSide,
-) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::SplineError> {
+) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::Built<geom_core::spline::SplineError>> {
     let high = side.end == ChartEnd::High;
     match side.fixed {
         ChartAxis::U => boundary_iso_u(wall, high),
