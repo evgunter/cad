@@ -19,7 +19,7 @@ with a dated `## Slate triage` note. Nothing is dispatched.
 
 | pri | status | item | cost | title |
 |---|---|---|---|---|
-| P1 | open | `a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections` | H | a cut across its tool's declared seat leaves a sliver between the seat's two sections |
+| P1 | parked | `a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections` | H | a cut across its tool's declared seat leaves a sliver between the seat's two sections |
 | P2 | open | `a-cut-by-a-curved-seat-keeps-its-two-faces-held-apart-by-the-record` | M | a cut whose tool's seat is curved, crossed by faces alone, keeps the seat's two faces held apart |
 | P2 | open | `a-declared-wall-is-read-only-by-a-vertex-crossing-it` | H | a declared wall is read as one only by a vertex crossing it |
 | P3 | open | `the-torus-floor-row-and-across-have-no-reader` | E | filed by PR 6646 |

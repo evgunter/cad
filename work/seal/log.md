@@ -219,3 +219,8 @@
   - **Draw:** bytes 10 and 150, so three designers. Recorded on `analysis/design-fork/seat-crack`.
   - **The problem statement** gives the case, the prototype's measured facts and the four questions. It flags the row's two named directions as the filer's hypotheses.
   - The designers share one build target, because the disk cannot take three alongside PR 6555's lane.
+- 2026-11-10 — **Fork `seat-crack`: all three first reports agree.** A cut reads its tool as material, `t − (p ⊔ q) = t − (p ∪ q)`, fused on the `⊔`'s own records at the cut's door.
+  - No reconciliation round. Token counts are on the analysis branch.
+  - Opened `[ev]` PR 6765 with the new `[operations.operators]` sentence, fork row 260 (recommendation half) and each designer's For Ev section. Subscribed.
+  - The row is parked on 6765. The build waits on Ev, and checks first that a union can take the seat's record as a given verdict.
+  - PR 6555's fork row (258) collides with main's new 258. Its fix pass renumbers on its next main merge (259).
