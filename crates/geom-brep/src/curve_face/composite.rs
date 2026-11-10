@@ -455,6 +455,10 @@ fn end_value(piece: &Piece, at_start: bool) -> Interval {
 
 /// The sign every value of `values` holds, by its enclosure alone: `None`
 /// where one holds zero, does not certify, or there is none.
+///
+/// A fold over enclosures, not an agreeing ladder
+/// (`geom_core::ladder::climb_agreeing`): no value is a band decision,
+/// so none is kept in band to answer past, and the sign needs every one.
 fn one_signed(values: impl Iterator<Item = Interval>) -> Option<Sign> {
     let mut sign = None;
     for v in values {

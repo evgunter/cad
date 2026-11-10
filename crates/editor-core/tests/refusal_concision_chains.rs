@@ -771,7 +771,7 @@ test_utils::f6_variants! {
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
-        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, EmptyMember,
+        ToleranceConflict, ParamBox, Seed, RecordRefused, RecordMispaired, WrongOperand, EmptyOperand, EmptyMember,
         NotFinished, UnfinishedLeaf, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
@@ -1230,6 +1230,8 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::MissingInput { .. }
         | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::ToleranceConflict { .. }
+        | NodeErrorKind::RecordRefused
+        | NodeErrorKind::RecordMispaired(_)
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyMember { .. }
@@ -1679,6 +1681,16 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 document_eps: 1.0e-7,
                 process_eps: 1.0e-9,
             },
+        ),
+        row("RecordRefused", NodeErrorKind::RecordRefused),
+        row(
+            "RecordMispaired",
+            NodeErrorKind::RecordMispaired(editor_core::RecordMispairing::Document(
+                editor_core::ident::Mispaired {
+                    expected: editor_core::ident::DocumentId(1),
+                    found: editor_core::ident::DocumentId(2),
+                },
+            )),
         ),
         row(
             "WrongOperand",
@@ -5233,7 +5245,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
                 read: editor_core::VarId::new(0, tagged(2)),
                 refusal: Box::new(NodeErrorKind::Boolean(topo::BooleanError::Escalated {
                     decision: topo::BooleanDecision::Coincidence(
-                        topo::Coincide::Carriers,
+                        topo::Coincide::CornerCrossing,
                         topo::DeclarationRead::Moot,
                     ),
                     diag: diag(),

@@ -950,8 +950,8 @@ impl<T: Real> CornerReason<T> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Recourse<T: Real> {
     /// Anchor each overrun leg at least its setback from the corner,
-    /// or use a radius of at most `radius`, each named past the fit
-    /// gate's band ([`LeverValue::clear`]).
+    /// or use a radius of at most `radius`, each named within its
+    /// exact-fit window, where the fit gate still reads a Zero fit.
     AnchorOrRadius {
         /// Each overrun leg, with the distance from the corner along it
         /// at which its anchor has to lie, meters.

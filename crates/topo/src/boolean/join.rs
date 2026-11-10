@@ -3542,6 +3542,8 @@ pub(super) fn line_of<T: Decide>(
             .map_err(join_escalate)
     };
     let mut at_site = [false; 2];
+    // Each direction is a ruling, never the zero vector ([`ApexLines`]),
+    // so the distance's division by its length needs no decision.
     for (k, d) in lines.dirs.iter().enumerate() {
         let off = geom::Line {
             origin: lines.apex,
@@ -5614,11 +5616,9 @@ fn seam_germ_side<T: Decide>(
                 }
                 // A normal refused in band or at a limit is kept; an abort
                 // is answered by its own row. No row is assumed away:
-                // "tier 3 refuses a degenerate torus first" holds only at
-                // a certifying scalar, and at a dual the operand is a
-                // `Replay`, tier 2 alone, which can carry a horn or
-                // spindle torus here. That face is the operand's invalid
-                // input, not a kernel fault.
+                // a horn or spindle torus here is the operand's invalid
+                // input, not a kernel fault, whichever door it came
+                // through (`Replay`'s "A tier-3 premise at a dual").
                 Err(why) => {
                     return match why.standing() {
                         Ok(standing) => standing.rung(why),

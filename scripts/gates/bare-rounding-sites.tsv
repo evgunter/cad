@@ -200,7 +200,7 @@ crates/topo/src/census/segment_fuzz.rs	test	2	oracle
 crates/topo/src/chord_join.rs	prod	1	far-centre
 crates/topo/src/chord_join/section_end_rows.rs	test	2	oracle
 crates/topo/src/injective.rs	prod	1	re-pose
-crates/topo/src/link.rs	test	1	oracle
+crates/topo/src/link.rs	test	2	oracle
 crates/topo/src/offset_axial.rs	test	1	oracle
 crates/topo/src/props.rs	prod	2	re-pose
 crates/topo/src/props.rs	test	2	oracle
