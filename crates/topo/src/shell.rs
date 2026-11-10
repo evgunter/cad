@@ -383,7 +383,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::interval::Interval;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::{
