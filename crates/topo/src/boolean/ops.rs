@@ -1840,26 +1840,53 @@ fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
         .any(|(_, l, _)| matches!(l.boundary, LoopBoundary::Empty { .. }))
 }
 
-/// Places a witness point in one face ([`super::contain::face_placement`]).
-/// A point definitely OFF the carrier is no verdict: the witness was
-/// built on the carrier, so that answer contradicts its construction
-/// rather than placing it, and so does a margin from a plane in band.
+/// **Places a witness point in one face.** A section witness is built on
+/// its two carriers to within the band (a near-tangent pair's witness
+/// lies in band of a sphere's), so it is held in band
+/// ([`crate::held::Held::in_band`]) and placed with no on-plane decision
+/// ([`super::contain::placement_on_carrier`]). `None` is no verdict: a
+/// curved trim the door does not read, or the door's own refusal.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where the witness reads
+/// definitely off a curved face's carrier (a planar face's placement
+/// never says so): the section did not put it there
+/// ([`witness_reads`]).
 pub(crate) fn place_witness<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     band: Band,
-) -> Option<FaceContainment> {
-    use super::contain::{CurvedPlacement, PlacementError};
-    match super::contain::face_placement(body, face, p, band, "bool_section_witness_on_plane") {
-        Ok(CurvedPlacement::Trim(at)) => at,
-        Ok(CurvedPlacement::OffCarrier) | Err(PlacementError::OnPlane(_)) => None,
-        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
-            super::contain::driver_face_stale(face)
-        }
-        Err(PlacementError::Door(_)) => None,
+) -> Result<Option<FaceContainment>, BooleanError> {
+    let held = crate::held::Held::in_band(p);
+    witness_reads(super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at))
+}
+
+/// [`place_witness`]'s reading of the door: a trim's verdict, or none; a
+/// stale face the driver's; a witness off a curved carrier the
+/// section's defect.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] on `OffCarrier`.
+fn witness_reads(
+    read: Result<super::contain::CurvedPlacement, ContainError>,
+) -> Result<Option<FaceContainment>, BooleanError> {
+    use super::contain::CurvedPlacement;
+    match read {
+        Ok(CurvedPlacement::Trim(at)) => Ok(at),
+        Ok(CurvedPlacement::OffCarrier) => Err(BooleanError::ClassificationInvariant {
+            what: WITNESS_OFF_CARRIER,
+        }),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(_) => Ok(None),
     }
 }
+
+/// [`witness_reads`]' invariant where a section witness reads off a
+/// curved face's carrier.
+const WITNESS_OFF_CARRIER: &str = "a section witness reads off a curved face's carrier";
 
 /// One face as the section certificate reads it: its key, its surface's
 /// key and description, its cover and its certified box.
@@ -1963,7 +1990,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             super::spline_known::shared((a, fa.face, &fa.surface), (b, fb.face, &fb.surface), band),
         ),
     };
-    let mut torn = None;
+    let torn = core::cell::RefCell::new(None);
     let verdict = certify(
         &section,
         evented,
@@ -1976,7 +2003,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             charts
                 .describes(operand, body, row.face, &row.surface, band)
                 .unwrap_or_else(|e| {
-                    torn = Some(e);
+                    torn.borrow_mut().get_or_insert(e);
                     Sheet::Unread
                 })
         },
@@ -1985,9 +2012,15 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 place_witness(a, fa.face, p, band),
                 place_witness(b, fb.face, p, band),
             ]
+            .map(|placed| {
+                placed.unwrap_or_else(|e| {
+                    torn.borrow_mut().get_or_insert(e);
+                    None
+                })
+            })
         },
     );
-    match torn {
+    match torn.into_inner() {
         Some(e) => Err(e),
         None => Ok(verdict),
     }
@@ -11185,6 +11218,40 @@ mod join_row_rows {
         assert!(
             read >= a.edges().count(),
             "every edge of A, or a piece of it, reads A's"
+        );
+    }
+}
+
+/// **A section witness off a curved face's carrier is the section's
+/// defect** ([`witness_reads`]), in every build: the door's `OffCarrier`
+/// read with no held point to check first.
+#[cfg(test)]
+mod witness_rows {
+    use super::{WITNESS_OFF_CARRIER, witness_reads};
+    use crate::boolean::BooleanError;
+    use crate::boolean::contain::{ContainError, CurvedPlacement, FaceContainment};
+
+    #[test]
+    fn a_witness_off_a_curved_carrier_reads_as_the_invariant() {
+        assert!(
+            matches!(
+                witness_reads(Ok(CurvedPlacement::OffCarrier)),
+                Err(BooleanError::ClassificationInvariant {
+                    what: WITNESS_OFF_CARRIER
+                })
+            ),
+            "off the carrier: the defect"
+        );
+        assert!(
+            matches!(
+                witness_reads(Ok(CurvedPlacement::Trim(Some(FaceContainment::Out)))),
+                Ok(Some(FaceContainment::Out))
+            ),
+            "a trim's verdict"
+        );
+        assert!(
+            matches!(witness_reads(Err(ContainError::RayExhausted)), Ok(None)),
+            "a door's refusal is no verdict"
         );
     }
 }
