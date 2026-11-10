@@ -1738,6 +1738,7 @@ fn the_torus_charge_holds_on_every_family() {
     let unit = |s: &mut fuzz::Rng| {
         Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0)).normalize()
     };
+    let (mut ellipses, mut refused) = (0, 0);
     for i in 0..90 {
         let far = if s.below(2) == 0 {
             0.0
@@ -1777,6 +1778,10 @@ fn the_torus_charge_holds_on_every_family() {
         let carrier = if (i / 9) % 2 == 0 {
             Curve3::circle(centre, n, radius, u)
         } else {
+            ellipses += 1;
+            // The mint decides the minor semi-axis against the band in
+            // force, so at a coarse ε a small draw's is no ellipse: it is
+            // skipped and counted, and most still are.
             let Ok(c) = Curve3::ellipse(
                 centre,
                 n,
@@ -1785,7 +1790,8 @@ fn the_torus_charge_holds_on_every_family() {
                 u,
                 band(),
             ) else {
-                unreachable!("draw {i}: an ellipse of finite semi-axes")
+                refused += 1;
+                continue;
             };
             c
         };
@@ -1797,6 +1803,10 @@ fn the_torus_charge_holds_on_every_family() {
             "draw {i} ({family} torus, conic {place}): the coefficients' exact excess is over their charge"
         );
     }
+    assert!(
+        2 * refused < ellipses,
+        "{refused} of {ellipses} ellipse draws the band refused: the sweep reads too few ellipses"
+    );
 }
 
 /// Exact-rational vectors for the coefficient rows.
