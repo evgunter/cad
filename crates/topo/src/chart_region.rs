@@ -305,13 +305,26 @@ pub enum ChartRegionError {
     /// an endpoint, coincident-but-not-bit-identical loops): the
     /// overlap area is not decidable at this ε in either direction.
     TouchingBoundary,
-    /// A loop's chart polygon has no definite orientation (degenerate
-    /// at this ε).
+    /// A loop's chart polygon has no definite orientation: the band
+    /// decides its signed area `Zero` (degenerate at this ε), so a tighter
+    /// band may orient it.
     DegenerateLoop {
         /// The face whose loop degenerated.
         face: FaceKey,
         /// The loop.
         r#loop: LoopKey,
+    },
+    /// A loop's chart image has fewer than three straight segments, so it
+    /// is no polygon the area test reads. Mixed: a loop collapsed in its
+    /// structure beside one a periodic chart's wrap closes in one or two
+    /// iso-lines, a reading not built.
+    ShortLoop {
+        /// The face whose loop is short.
+        face: FaceKey,
+        /// The loop.
+        r#loop: LoopKey,
+        /// The chart vertices it images to.
+        vertices: usize,
     },
     /// A margin landed in the sliver band (in-band overlap, in-band
     /// crossing, in-band area) — the genuine escalation.
@@ -388,12 +401,15 @@ impl ChartRegionError {
     /// Exhaustive with no catch-all arm, so an added variant states its
     /// standing here before it compiles.
     ///
-    /// - Kept by its margin (row 1(b)): [`Self::Escalated`].
+    /// - Kept by its margin (row 1(b)): [`Self::Escalated`], and
+    ///   [`Self::TrimOffFace`] where its incidence read is undecided.
     /// - In band, with no margin carried (row 1(b): a tighter band may
     ///   decide it): [`Self::RayExhausted`] (every ray grazed),
-    ///   [`Self::TouchingBoundary`] (not decidable at this ε) and
+    ///   [`Self::TouchingBoundary`] (not decidable at this ε),
     ///   [`Self::PeriodFold`] (a gap decided on a half-period mark, the
-    ///   branches astride it disagreeing).
+    ///   branches astride it disagreeing), [`Self::DegenerateLoop`] (an
+    ///   orientation the band decides zero) and [`Self::TrimOffFace`]
+    ///   where its read is at a pose (a band-decided zero).
     /// - A limit (row 2: a reading not built, or a bound on the work):
     ///   [`Self::ChartDivergence`], [`Self::NonPlanarTrim`],
     ///   [`Self::ArmUnbounded`], [`Self::SeamBranch`] and both witness
@@ -403,13 +419,12 @@ impl ChartRegionError {
     ///   [`Self::EdgeScale`] (an edge length no ordinary number holds).
     /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
     ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
-    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4); and two
-    ///   payloads that mix classes, until they are split
-    ///   (`work/onecopy/chart-region-refusals-that-mix-classes-await-their-split.md`):
-    ///   [`Self::TrimOffFace`], whose incidence read is a decided miss, a
-    ///   pose, or an undecided read; and [`Self::DegenerateLoop`], raised
-    ///   both for a loop with under three chart points (structure) and for
-    ///   an orientation the band decides zero (in band).
+    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4);
+    ///   [`Self::TrimOffFace`] where its read is a decided miss (a trim
+    ///   its own plane contradicts, row 4 at a build); and
+    ///   [`Self::ShortLoop`], which mixes classes (a loop collapsed in its
+    ///   structure beside a periodic wrap not built), since a ladder must
+    ///   never read past what may be a fault.
     ///
     /// # Errors
     ///
@@ -420,7 +435,16 @@ impl ChartRegionError {
         use geom_core::ladder::{Aborts, Refusal};
         match self {
             Self::Escalated(diag) => Ok(Refusal::Margin(*diag)),
-            Self::RayExhausted | Self::TouchingBoundary | Self::PeriodFold => Ok(Refusal::InBand),
+            Self::RayExhausted
+            | Self::TouchingBoundary
+            | Self::PeriodFold
+            | Self::DegenerateLoop { .. } => Ok(Refusal::InBand),
+            // A plane trim's incidence read, by its class.
+            Self::TrimOffFace { read, .. } => match read {
+                geom_brep::IncidenceRead::Undecided(diag) => Ok(Refusal::Margin(*diag)),
+                geom_brep::IncidenceRead::AtPose(_) => Ok(Refusal::InBand),
+                geom_brep::IncidenceRead::Off(_) => Err(Aborts),
+            },
             Self::ChartDivergence { .. }
             | Self::NonPlanarTrim { .. }
             | Self::ArmUnbounded { .. }
@@ -431,8 +455,7 @@ impl ChartRegionError {
             Self::MissingCache { .. }
             | Self::CarrierTilt
             | Self::Corrupt
-            | Self::TrimOffFace { .. }
-            | Self::DegenerateLoop { .. } => Err(Aborts),
+            | Self::ShortLoop { .. } => Err(Aborts),
         }
     }
 
@@ -530,6 +553,17 @@ impl ChartRegionError {
                  apart or definitely across each other — a touch is the one \
                  configuration this test has no answer for — or read the pair at a \
                  tighter ε"
+            ),
+            Self::ShortLoop {
+                face,
+                r#loop,
+                vertices,
+            } => write!(
+                f,
+                "chart-region: loop {loop:?} of face {face:?} images to {vertices} straight \
+                 chart segment(s), too few to bound a polygon the area test reads. Repair \
+                 the loop so its chart image is three or more straight segments, or \
+                 re-mint its pcurves"
             ),
             Self::DegenerateLoop { face, r#loop } => write!(
                 f,
@@ -1095,7 +1129,7 @@ fn overlap_of_uv<T: Decide + Bounds>(
     //    typed refusal. Inf-side because the claim below is a
     //    POSITIVE-extent one (`certified_arms`).
     // The window is over BOTH faces' extracted loops, and neither can
-    // be empty: `loop_uv_polygon` refuses `DegenerateLoop` on any loop
+    // be empty: `loop_uv_polygon` refuses `ShortLoop` on any loop
     // with fewer than 3 vertices — the outer loop and every ring —
     // before extraction returns, so a `FaceUv` reaching here has at
     // least three vertices per polygon. A `None` therefore means the
@@ -1105,7 +1139,7 @@ fn overlap_of_uv<T: Decide + Bounds>(
     let Some((v_lo, v_hi)) = v_window(uv_a, uv_b) else {
         unreachable!(
             "chart-region: both faces' UV loops are empty, but \
-             `loop_uv_polygon` refuses `DegenerateLoop` below three \
+             `loop_uv_polygon` refuses `ShortLoop` below three \
              vertices on the outer loop and on every ring, so an \
              empty polygon cannot reach the arm stage"
         )
@@ -2685,7 +2719,11 @@ fn loop_uv_polygon<T: Decide + Bounds>(
         poly.push(entry);
     }
     if poly.len() < 3 {
-        return Err(ChartRegionError::DegenerateLoop { face, r#loop: lk });
+        return Err(ChartRegionError::ShortLoop {
+            face,
+            r#loop: lk,
+            vertices: poly.len(),
+        });
     }
     Ok(poly)
 }
@@ -3897,6 +3935,11 @@ mod tests {
                 face: FaceKey::default(),
                 r#loop: LoopKey::default(),
             },
+            ChartRegionErrorKind::ShortLoop => ChartRegionError::ShortLoop {
+                face: FaceKey::default(),
+                r#loop: LoopKey::default(),
+                vertices: 2,
+            },
             ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
             ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
             ChartRegionErrorKind::WitnessSegmentCapExceeded => {
@@ -3931,7 +3974,9 @@ mod tests {
                 },
                 ChartRegionErrorKind::RayExhausted
                 | ChartRegionErrorKind::TouchingBoundary
-                | ChartRegionErrorKind::PeriodFold => Ok(Refusal::InBand),
+                | ChartRegionErrorKind::PeriodFold
+                | ChartRegionErrorKind::DegenerateLoop
+                | ChartRegionErrorKind::TrimOffFace => Ok(Refusal::InBand),
                 ChartRegionErrorKind::ChartDivergence
                 | ChartRegionErrorKind::NonPlanarTrim
                 | ChartRegionErrorKind::ArmUnbounded
@@ -3942,10 +3987,47 @@ mod tests {
                 ChartRegionErrorKind::MissingCache
                 | ChartRegionErrorKind::CarrierTilt
                 | ChartRegionErrorKind::Corrupt
-                | ChartRegionErrorKind::DegenerateLoop
-                | ChartRegionErrorKind::TrimOffFace => Err(Aborts),
+                | ChartRegionErrorKind::ShortLoop => Err(Aborts),
             };
             assert_eq!(e.refusal(), want, "{kind:?}");
+        }
+    }
+
+    /// **A plane trim's incidence refusal stands by its read**: an
+    /// undecided read by its margin, a read at a pose in band, a decided
+    /// miss an abort. Red if [`ChartRegionError::TrimOffFace`] stands as
+    /// one class whatever its read.
+    #[test]
+    fn a_trim_off_its_face_stands_by_its_read() {
+        use geom_core::ladder::{Aborts, Refusal};
+        let diag = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-10),
+            band: band(),
+            predicate: Some("pcurve_incidence"),
+            terminal_sliver: false,
+        };
+        let trim = |read| ChartRegionError::TrimOffFace {
+            face: FaceKey::default(),
+            half_edge: HalfEdgeKey::default(),
+            read,
+        };
+        let rows = [
+            (
+                geom_brep::IncidenceRead::Undecided(diag),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                geom_brep::IncidenceRead::AtPose(geom_core::MarginDiag::value(4e-10)),
+                Ok(Refusal::InBand),
+            ),
+            (geom_brep::IncidenceRead::Off(None), Err(Aborts)),
+            (
+                geom_brep::IncidenceRead::Off(Some(geom_core::MarginDiag::value(0.5))),
+                Err(Aborts),
+            ),
+        ];
+        for (read, want) in rows {
+            assert_eq!(trim(read).refusal(), want, "{read:?}");
         }
     }
 

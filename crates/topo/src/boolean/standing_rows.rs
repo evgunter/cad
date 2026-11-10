@@ -163,7 +163,9 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         face_of: Operand::B,
         why,
     };
-    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 12] = [
+    let section =
+        |source| -> BooleanError { crate::SplitJoinError::Section { face, source }.into() };
+    let more: [(&str, BooleanError, Result<Refusal, Aborts>); 15] = [
         (
             "a result no model represents, non-manifold",
             BooleanError::NonManifoldResult {
@@ -241,6 +243,23 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         (
             "a join's mixed cause",
             crate::SplitJoinError::UnpairedLooseEnds { count: 2 }.into(),
+            Err(Aborts),
+        ),
+        (
+            "a section table's carrier in band, by its margin",
+            section(geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::Escalated(diag()),
+            )),
+            Ok(Refusal::Margin(diag())),
+        ),
+        (
+            "a section table's operand guard, mixed",
+            section(geom_brep::SectionError::DegenerateOperand { what: "a guard" }),
+            Err(Aborts),
+        ),
+        (
+            "a section table asked of the wrong pair",
+            section(geom_brep::SectionError::WrongLane { expected: "a pair" }),
             Err(Aborts),
         ),
     ];

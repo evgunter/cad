@@ -21,8 +21,15 @@ pub(super) enum ArmRefusal {
     /// A margin decided `Zero`, or undecided: the components pinch.
     Pinch(Pinch),
     /// A crossing of the carriers the closed form cannot place on either
-    /// side of a line it reads the section by, named.
-    Unordered(&'static str),
+    /// side of a line it reads the section by, named, with the side's
+    /// margin's diagnostics where it was undecided rather than decided
+    /// `Zero` ([`Pinch::undecided`]).
+    Unordered {
+        /// The reading.
+        predicate: &'static str,
+        /// The diagnostics, where the side was undecided.
+        undecided: Option<Indeterminate>,
+    },
 }
 
 impl From<Pinch> for ArmRefusal {
@@ -962,8 +969,12 @@ fn square_folds<T: Decide>(
             return Err(Pinch::named("section_torus_square_wall_fold_drift").into());
         }
         for Point2 { x: y, y: z, .. } in tubes.at(c1, c2).crossings() {
-            let [outer] = signs([(SQUARE_FOLD_HALF, sigma * y - big_r)], band)
-                .map_err(|_| ArmRefusal::Unordered(SQUARE_FOLD_HALF))?;
+            let [outer] = signs([(SQUARE_FOLD_HALF, sigma * y - big_r)], band).map_err(|p| {
+                ArmRefusal::Unordered {
+                    predicate: SQUARE_FOLD_HALF,
+                    undecided: p.undecided,
+                }
+            })?;
             out.push(Fold { plus, y, z, outer });
         }
     }
@@ -1111,8 +1122,12 @@ fn across_strip<T: Decide>(
         let w = ((rc - h) * (rc + h)).sqrt();
         for right in [true, false] {
             let y = if right { e + w } else { e - w };
-            let [over] = signs([(SQUARE_EDGE_OVER, big_r - y.abs())], band)
-                .map_err(|_| ArmRefusal::Unordered(SQUARE_EDGE_OVER))?;
+            let [over] = signs([(SQUARE_EDGE_OVER, big_r - y.abs())], band).map_err(|p| {
+                ArmRefusal::Unordered {
+                    predicate: SQUARE_EDGE_OVER,
+                    undecided: p.undecided,
+                }
+            })?;
             edges.push((
                 psi(y, z),
                 Edge {

@@ -626,10 +626,9 @@ impl SplitJoinError {
     /// must never read past what may be a fault or an in-band coincidence:
     /// [`Self::UnpairedLooseEnds`], [`Self::RingHomingAmbiguous`],
     /// [`Self::SectionLoopUndecided`],
-    /// [`Self::SectionInvariant`], [`Self::RunImageIncidence`] (its ending is
-    /// rendered, not typed) and [`Self::Section`] (the table's refusal, which
-    /// states no standing of its own:
-    /// `work/onecopy/the-section-tables-refusal-states-no-standing.md`).
+    /// [`Self::SectionInvariant`] and [`Self::RunImageIncidence`] (its ending
+    /// is rendered, not typed). [`Self::Section`] stands as the table's
+    /// refusal does ([`geom_brep::SectionError::refusal`]).
     ///
     /// A ladder reads a join refusal in two places, both over the
     /// Boolean's pierce germs ([`crate::BooleanError::refusal`]'s readers):
@@ -691,8 +690,9 @@ impl SplitJoinError {
             | Self::RingHomingAmbiguous { .. }
             | Self::SectionLoopUndecided { .. }
             | Self::SectionInvariant { .. }
-            | Self::RunImageIncidence { .. }
-            | Self::Section { .. } => Err(Aborts),
+            | Self::RunImageIncidence { .. } => Err(Aborts),
+            // The table's own standing, per its cause.
+            Self::Section { source, .. } => source.refusal(),
         }
     }
 }

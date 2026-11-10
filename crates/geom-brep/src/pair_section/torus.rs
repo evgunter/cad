@@ -453,7 +453,16 @@ fn undecided_symmetry(diag: Indeterminate) -> TorusPoseRefusal {
 fn arm_refused(refusal: ArmRefusal) -> SectionError {
     match refusal {
         ArmRefusal::Pinch(p) => pinched(p),
-        ArmRefusal::Unordered(predicate) => SectionError::Unordered { predicate },
+        // An undecided side is the value's escalation, as a pinch's is
+        // ([`pinched`]); a side decided `Zero` is the crossing unordered.
+        ArmRefusal::Unordered {
+            undecided: Some(diag),
+            ..
+        } => SectionError::Escalated(diag),
+        ArmRefusal::Unordered {
+            predicate,
+            undecided: None,
+        } => SectionError::Unordered { predicate },
     }
 }
 

@@ -724,7 +724,9 @@ pub enum SectionError {
         predicate: &'static str,
     },
     /// A crossing of the carriers the closed form cannot place on either
-    /// side of a line it reads the section by, named.
+    /// side of a line it reads the section by, named: the side decided
+    /// `Zero`, so a tighter band may place it (an undecided side is
+    /// [`Self::Escalated`]).
     Unordered {
         /// The reading.
         predicate: &'static str,
@@ -748,6 +750,65 @@ pub enum SectionError {
 impl From<EllipseInvalid> for SectionError {
     fn from(e: EllipseInvalid) -> Self {
         Self::Carrier(e)
+    }
+}
+
+impl SectionError {
+    /// **What this refusal is to a ladder** ([`crate::ladder::Refusal`]),
+    /// per cause and exhaustive, so a cause added here states its
+    /// standing before it compiles: an escalation by its margin, a
+    /// reading the band may part in band, an arm not built (or not built
+    /// that far) a limit, and a caller's defect, an invalid operand or a
+    /// constructor that disagrees with its arm an abort.
+    ///
+    /// **A cause that mixes classes stands as an abort**, since a ladder
+    /// must never read past what may be a fault or an in-band
+    /// coincidence: [`Self::DegenerateOperand`] (a guard decided `Zero`
+    /// beside one decided negative, a poisoned height, a partner the form
+    /// does not read), [`Self::Pinched`] (a tangency decided `Zero`
+    /// beside readings that drop an undecided margin) and
+    /// [`Self::Unaccounted`] (an accounting that did not close beside a
+    /// branch that did not certify).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::ladder::Aborts`] for a caller's defect, an invalid
+    /// operand, a constructor's disagreement or a mixed cause, and a
+    /// torus's own aborts ([`TorusRefusal::refusal`]).
+    pub const fn refusal(&self) -> Result<crate::ladder::Refusal, crate::ladder::Aborts> {
+        use crate::ladder::{Aborts, Refusal};
+        match self {
+            Self::Escalated(diag)
+            | Self::RadiusEscalated { diag, .. }
+            | Self::Carrier(EllipseInvalid::Escalated(diag))
+            | Self::Spiric(SpiricInvalid::Escalated(diag)) => Ok(Refusal::Margin(*diag)),
+            Self::DegenerateTorus(refusal) => refusal.refusal(),
+            // A tighter band may part each.
+            Self::CoincidentSurfaces | Self::Unordered { .. } => Ok(Refusal::InBand),
+            // An arm not built, or not built that far (row 2), and an
+            // ellipse past what the representation carries (row 1(b), no
+            // margin).
+            Self::RoutesToGeneralRung { .. }
+            | Self::NoMarch { .. }
+            | Self::BeyondOperandExtent { .. }
+            | Self::Carrier(EllipseInvalid::SemiAxisNotFinite) => Ok(Refusal::Limit),
+            // A caller's defect (row 4), and a constructor refusing what
+            // its arm classified as its own: two readings that disagree.
+            Self::WrongLane { .. }
+            | Self::NoRegion { .. }
+            | Self::Carrier(EllipseInvalid::MinorNotPositive)
+            | Self::Spiric(
+                SpiricInvalid::MinorNotPositive
+                | SpiricInvalid::NotARing
+                | SpiricInvalid::ThroughAxis
+                | SpiricInvalid::NotTwoOvals
+                | SpiricInvalid::FrameNotOrthogonal,
+            ) => Err(Aborts),
+            // Mixed (above).
+            Self::DegenerateOperand { .. } | Self::Pinched { .. } | Self::Unaccounted { .. } => {
+                Err(Aborts)
+            }
+        }
     }
 }
 
@@ -3274,5 +3335,166 @@ mod apex_fan_rows {
         // Touching: axes exactly 0.8 apart.
         let touch = cone_cone_apex_meeting((a1, h1.cos()), (tilt(0.8), h2.cos()));
         assert!(touch.disc.abs() < 1e-14, "{touch:?}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod section_error_standing_rows {
+    use super::*;
+    use crate::ladder::{Aborts, Refusal};
+    use crate::torus_convention::{TorusConvention, TorusVerdict};
+
+    /// **Each section refusal stands by its cause**
+    /// ([`SectionError::refusal`]): an escalation by its margin, a
+    /// reading the band may part in band, an arm not built a limit, and a
+    /// caller's defect, an invalid operand, a constructor's disagreement
+    /// or a mixed cause an abort.
+    #[test]
+    fn each_section_refusal_stands_by_its_cause() {
+        let band = Band::new(1e-9, 1e-8).expect("a valid band");
+        let diag = crate::dihedral::decide("t", Margin::of(5e-9_f64), band)
+            .expect_err("a margin between the band's edges is undecided");
+        let torus = |verdict| {
+            SectionError::DegenerateTorus(TorusRefusal {
+                convention: TorusConvention::Tube,
+                verdict,
+            })
+        };
+        let rows: [(&str, SectionError, Result<Refusal, Aborts>); 24] = [
+            (
+                "wrong lane",
+                SectionError::WrongLane { expected: "a pair" },
+                Err(Aborts),
+            ),
+            (
+                "escalated",
+                SectionError::Escalated(diag),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "radius escalated",
+                SectionError::RadiusEscalated {
+                    radius: SectionRadius::Cylinder,
+                    diag,
+                },
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "general rung",
+                SectionError::RoutesToGeneralRung {
+                    pair: "p",
+                    why: "w",
+                },
+                Ok(Refusal::Limit),
+            ),
+            (
+                "no region",
+                SectionError::NoRegion { pair: "p" },
+                Err(Aborts),
+            ),
+            (
+                "degenerate operand, mixed",
+                SectionError::DegenerateOperand { what: "w" },
+                Err(Aborts),
+            ),
+            (
+                "beyond extent",
+                SectionError::BeyondOperandExtent { what: "w" },
+                Ok(Refusal::Limit),
+            ),
+            (
+                "coincident",
+                SectionError::CoincidentSurfaces,
+                Ok(Refusal::InBand),
+            ),
+            (
+                "torus undecided",
+                torus(TorusVerdict::Undecided(diag)),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "torus decided outside",
+                torus(TorusVerdict::Refused(crate::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1.0),
+                })),
+                Err(Aborts),
+            ),
+            (
+                "carrier escalated",
+                SectionError::Carrier(EllipseInvalid::Escalated(diag)),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "carrier minor",
+                SectionError::Carrier(EllipseInvalid::MinorNotPositive),
+                Err(Aborts),
+            ),
+            (
+                "carrier not finite",
+                SectionError::Carrier(EllipseInvalid::SemiAxisNotFinite),
+                Ok(Refusal::Limit),
+            ),
+            (
+                "spiric escalated",
+                SectionError::Spiric(SpiricInvalid::Escalated(diag)),
+                Ok(Refusal::Margin(diag)),
+            ),
+            (
+                "spiric minor",
+                SectionError::Spiric(SpiricInvalid::MinorNotPositive),
+                Err(Aborts),
+            ),
+            (
+                "spiric ring",
+                SectionError::Spiric(SpiricInvalid::NotARing),
+                Err(Aborts),
+            ),
+            (
+                "spiric axis",
+                SectionError::Spiric(SpiricInvalid::ThroughAxis),
+                Err(Aborts),
+            ),
+            (
+                "spiric ovals",
+                SectionError::Spiric(SpiricInvalid::NotTwoOvals),
+                Err(Aborts),
+            ),
+            (
+                "spiric frame",
+                SectionError::Spiric(SpiricInvalid::FrameNotOrthogonal),
+                Err(Aborts),
+            ),
+            (
+                "pinched, mixed",
+                SectionError::Pinched { predicate: "p" },
+                Err(Aborts),
+            ),
+            (
+                "unordered, decided zero",
+                SectionError::Unordered { predicate: "p" },
+                Ok(Refusal::InBand),
+            ),
+            (
+                "no march",
+                SectionError::NoMarch { scalar: "s" },
+                Ok(Refusal::Limit),
+            ),
+            (
+                "unaccounted, mixed",
+                SectionError::Unaccounted {
+                    cause: String::new(),
+                },
+                Err(Aborts),
+            ),
+            (
+                "carrier from the constructor",
+                SectionError::from(EllipseInvalid::Escalated(diag)),
+                Ok(Refusal::Margin(diag)),
+            ),
+        ];
+        for (label, error, want) in rows {
+            assert_eq!(error.refusal(), want, "{label}");
+        }
     }
 }

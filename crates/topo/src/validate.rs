@@ -4348,6 +4348,11 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
             "a face's boundary encloses no definite area at this tolerance (a sliver)",
             "Recourse: widen the face well past the tolerance",
         ),
+        ChartRegionError::ShortLoop { .. } => (
+            "a face's boundary images to fewer than three straight segments on its \
+             surface's chart, too few for the check to read as a region",
+            "Recourse: split the boundary's edges so it has three or more",
+        ),
         ChartRegionError::EdgeScale => (
             crate::chart_region::EDGE_SCALE_REASON,
             crate::chart_region::EDGE_SCALE_RECOURSE,

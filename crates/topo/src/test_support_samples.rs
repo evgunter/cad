@@ -214,6 +214,11 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             face,
             r#loop: LoopKey::default(),
         },
+        ChartRegionError::ShortLoop {
+            face,
+            r#loop: LoopKey::default(),
+            vertices: 2,
+        },
         ChartRegionError::RayExhausted,
         ChartRegionError::WitnessSegmentCapExceeded {
             segments: crate::chart_region::WITNESS_SEGMENT_CAP + 1,
