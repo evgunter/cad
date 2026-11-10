@@ -212,7 +212,6 @@ impl<T> Reading<T> {
     }
 }
 
-/// The side of one end a foot lies on.
 /// What the ends say of a point ([`Span::ends_place`]): inside, at an
 /// end with its chord decided zero, or past an end with that end's chord
 /// and its side decided negative, for the caller to stand on.
@@ -222,6 +221,7 @@ enum EndsPlace {
     Past { chord: Decided, side: Decided },
 }
 
+/// The side of one end a foot lies on.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Side {
     /// Inside the span, clear of this end.

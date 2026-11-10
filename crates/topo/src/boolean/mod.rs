@@ -372,6 +372,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "ring_torus_convention" => TorusConvention::Ring.subject(),
         "bool_wall_root_in_span" => CrossingDecision::OnEdge.subject(),
         "plane_crossing_root_order"
+        | "plane_crossing_roots_apart"
         | "spline_composite_roots_apart"
         | "spline_face_roots_apart" => CrossingDecision::Order.subject(),
         "spline_composite_root_at_end"

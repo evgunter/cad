@@ -595,7 +595,7 @@ pub(crate) fn decide_nonzero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
-) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
+) -> Result<geom_core::NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
@@ -4140,10 +4140,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
             "a face the check asked about does not resolve in the body".into(),
             DEFECT.into(),
         ),
-        ContainError::EmptyLoop(_) => (
-            "a loop of its boundary is a lone vertex, which bounds no region".into(),
-            DEFECT.into(),
-        ),
+        ContainError::EmptyLoop(_) => (LONE_LOOP.into(), DEFECT.into()),
         ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
         ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET_ENDING.into()),
@@ -4176,6 +4173,8 @@ fn arc_end_clear_of_corners(
 }
 
 const UNWALKABLE: &str = "its boundary could not be walked";
+
+const LONE_LOOP: &str = "a loop of its boundary is a lone vertex, which bounds no region";
 
 /// No ray parity cast settled — each grazed or gave nothing to read —
 /// for a point a pre-pass had already placed off the boundary.
@@ -4248,6 +4247,7 @@ pub(crate) fn classify_point_in_solid(
             (GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
+        S::Loop(L::LoneLoop { .. }) => (LONE_LOOP.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
             (uncrossable(u), NOT_YET_ENDING.into())
         }
@@ -16747,6 +16747,56 @@ mod tests {
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             t0: from.to_radians(),
             t1: to.to_radians(),
+        }
+    }
+
+    /// **An arc's window reads a point off its circle at the point's
+    /// foot** (`work/restfront/check-9-reads-an-internal-tangencys-trims-at-the-radical-foot.md`).
+    /// A decided internal tangency's radical foot stands about `g·r/d`
+    /// off both circles: 0.029·r near-concentric. The window projects it
+    /// onto the circle, so an arc ending 0.01 rad short of the tangency
+    /// direction reads it OUT whether it stands inside or outside the
+    /// circle, and whether the arc's apex is 2.5 rad or 0.3 rad away.
+    /// The old chordal-defect reading put the inside point in at the far
+    /// apex (+0.0063) and the outside one in at the near one (+0.0116).
+    /// An arc holding the tangency reads it in from either side.
+    #[test]
+    fn an_arc_window_reads_an_off_circle_point_at_its_foot() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let short = 0.01_f64.to_degrees();
+        for (name, arc, off, inside) in [
+            (
+                "far apex, point inside",
+                arc_segment(o, 1.0, short, short + 2.0 * 2.49_f64.to_degrees()),
+                0.971,
+                false,
+            ),
+            (
+                "near apex, point outside",
+                arc_segment(o, 1.0, short, short + 2.0 * 0.29_f64.to_degrees()),
+                1.029,
+                false,
+            ),
+            (
+                "holding it, point inside",
+                arc_segment(o, 1.0, -30.0, 30.0),
+                0.971,
+                true,
+            ),
+            (
+                "holding it, point outside",
+                arc_segment(o, 1.0, -30.0, 30.0),
+                1.029,
+                true,
+            ),
+        ] {
+            let got = window(arc, Point3::new(off, 0.0, 0.0), band);
+            assert_eq!(
+                (matches!(got, Window::In), matches!(got, Window::Out)),
+                (inside, !inside),
+                "[{name}]"
+            );
         }
     }
 

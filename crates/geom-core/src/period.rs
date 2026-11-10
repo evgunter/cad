@@ -65,7 +65,8 @@
 //! let _ = Period::new(7.0_f64).turn(TurnRows::exact("t"), extent, Exact::new(1.0), band);
 //! ```
 
-use crate::k_stats::{NonzeroSign, decide, decide_nonzero_reported, decide_reported, straddle};
+use crate::NonzeroSign;
+use crate::k_stats::{decide, decide_nonzero_reported, decide_reported, straddle};
 use crate::predicate::{
     Band, Decide, Decided, Indeterminate, InfSpeed, Margin, MarginDiag, Sign, SupSpeed,
 };
@@ -1407,7 +1408,8 @@ mod period_rows {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 mod turn_rows {
-    use crate::k_stats::{Bracket, NonzeroSign};
+    use crate::NonzeroSign;
+    use crate::k_stats::Bracket;
     use crate::{Band, InfSpeed, MarginDiag, Real, SupSpeed};
 
     use super::{

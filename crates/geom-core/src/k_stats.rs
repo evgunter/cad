@@ -920,48 +920,7 @@ pub fn decide_negative<T: Decide>(
     )
 }
 
-/// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
-/// one of its values, which is what lets a caller match the gate's
-/// outcome exhaustively without an arm for an answer the gate escalated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NonzeroSign {
-    /// The margin classified definitely positive.
-    Positive,
-    /// The margin classified definitely negative.
-    Negative,
-}
-
-impl NonzeroSign {
-    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
-    /// spelling of a ±1 read off a sign already decided. Its hull twin,
-    /// read off a value rather than a decision, is
-    /// [`crate::Real::unit_sign`].
-    #[must_use]
-    pub fn unit<T: Real>(self) -> T {
-        match self {
-            Self::Positive => T::one(),
-            Self::Negative => -T::one(),
-        }
-    }
-
-    /// The other side.
-    #[must_use]
-    pub fn flip(self) -> Self {
-        match self {
-            Self::Positive => Self::Negative,
-            Self::Negative => Self::Positive,
-        }
-    }
-}
-
-impl From<NonzeroSign> for Sign {
-    fn from(side: NonzeroSign) -> Self {
-        match side {
-            NonzeroSign::Positive => Self::Positive,
-            NonzeroSign::Negative => Self::Negative,
-        }
-    }
-}
+use crate::predicate::NonzeroSign;
 
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
 /// for a predicate that reads a SIDE off the margin's sign and has no

@@ -54,7 +54,7 @@
 //! the above end ([`Body::mev_null_run`]). Each copy's side verdict is
 //! cached ON (the old vertex's own point: structural coincidence).
 
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Real, Sign, Vec3};
 use slotmap::SecondaryMap;
 

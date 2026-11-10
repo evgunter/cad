@@ -4,7 +4,8 @@
 //! conic's are the roots of the plane's residual along it, read over the
 //! span; a spiric or a spline has no closed form here.
 
-use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
+use geom_core::NonzeroSign;
+use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
@@ -125,8 +126,7 @@ impl ConicRootFault {
 ///    insertion (if in-span) leaves a same-side ON contact for the
 ///    sector classification (the established graze net); in-band ⇒
 ///    typed escalation (F6).
-/// 2. Each root, re-centred on the span's midpoint (retried on `t₀`
-///    where that reading is indeterminate), is classified
+/// 2. Each root, re-centred on the span's midpoint, is classified
 ///    against the span by the span's own reading of a parameter
 ///    ([`crate::curve_pair::Span::place_param`]): the root's point
 ///    within the band of an end's point, by their chord, sits at that
@@ -139,7 +139,7 @@ impl ConicRootFault {
 ///    one speed would put a root up to the speeds' ratio past the band
 ///    at a thin ellipse's fast end.
 /// 3. Two interior roots whose points are within the band of each
-///    other, by their chord (`plane_crossing_root_order`), collapse to
+///    other, by their chord (`plane_crossing_roots_apart`), collapse to
 ///    one insertion; apart, they are ordered ascending by their
 ///    parameters (never a raw comparison); in-band ⇒ escalation.
 ///
@@ -302,7 +302,7 @@ fn span_roots<T: Decide>(
     // their parameters, through the trilean door.
     if roots.len() == 2 {
         let chord = span.carrier().eval(roots[1]) - span.carrier().eval(roots[0]);
-        match decide("plane_crossing_root_order", Margin::norm3(chord), band) {
+        match decide("plane_crossing_roots_apart", Margin::norm3(chord), band) {
             Ok(Sign::Zero) => roots.truncate(1),
             // Apart past the band by their chord, so by their parameters
             // at the carrier's greatest speed (a chord is at most its arc).
@@ -342,8 +342,8 @@ pub struct SpanRoot<T> {
     /// The carrier's parameter, within half a turn of the span's middle
     /// on a periodic carrier.
     pub t: T,
-    /// Where it lies against the span's ends, metered as
-    /// [`plane_crossing_lane`] meters it.
+    /// Where it lies against the span's ends, read as
+    /// [`plane_crossing_lane`] reads it ([`span_place`]).
     pub place: RootPlace,
 }
 
@@ -633,6 +633,38 @@ mod tests {
         }
         assert!(lane(1e-9).is_err(), "a crossing in the gap escalates");
         assert_eq!(lane(5e-11).unwrap(), Vec::<f64>::new(), "at the end");
+    }
+
+    /// **Two roots apart by their chord are two, however close their
+    /// parameters.** An ellipse 10 × 10⁻⁶ (major along `x`) crossed by the
+    /// plane through its points at `φ ± α`, `φ` a few micro-radians off
+    /// the major vertex, where it runs about `10·sin φ` m/rad against its
+    /// 10⁻⁶ floor. The roots' chord is past the band (`Kε` = 10⁻⁸), so
+    /// both are inserted; their parameter gap at the floor, `2α·10⁻⁶`, is
+    /// inside the zero. Red where the pair is collapsed on that gap
+    /// (`(r₁ − r₀)` at the inf speed), which drops a crossing. The window
+    /// is narrow (the floor below `√(Rε/8K)`); these are two poses in it.
+    #[test]
+    fn two_roots_apart_by_their_chord_are_two() {
+        let m = 1e-6_f64;
+        let e = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            10.0,
+            m,
+        ));
+        for (phi, alpha) in [(2e-6, 4e-4), (5e-6, 4.5e-4)] {
+            let (p, q) = (e.eval(phi - alpha), e.eval(phi + alpha));
+            let d = q - p;
+            assert!(d.norm() > band().escalate() && 2.0 * alpha * m < band().zero());
+            let n = Vec3::new(-d.y, d.x, 0.0).normalize();
+            let got = roots_of(plane_crossing_lane(&e, -0.3, 0.3, p, n, band())).unwrap();
+            assert!(
+                got.len() == 2
+                    && (got[0] - (phi - alpha)).abs() < 1e-9
+                    && (got[1] - (phi + alpha)).abs() < 1e-9,
+                "φ = {phi:e}, α = {alpha:e}: both roots, {got:?}"
+            );
+        }
     }
 
     /// The roots arm's payload; any other arm fails the row.
