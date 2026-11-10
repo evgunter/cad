@@ -1439,7 +1439,7 @@ pub use entity::{
     LoopKey, LoopRole, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 pub use euler::{BadArgument, EulerOpError, RechartDoor};
-pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
+pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
 pub use live::FaceView;
 pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
