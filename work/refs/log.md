@@ -273,3 +273,12 @@
   - **The viewer's fallbacks author the form-1 shape.** They refuse in the tool instead.
   - **Rows to file:** a document the door admits fails to save on a rank change; `traced_frame`'s `NotAFace`; `OtherBody`; continuation and the conservative sites.
   - **Question for Ev, `[ev]` back on the title** with the question at the top of the body: the form-1 shape type-checks as a per-member selection and fails at evaluation like any unresolved name. The alternative (families kinded at body seats, `xs[k]` stored explicitly) reverses the one-stored-form rule. Recommended: accept.
+- 2026-11-10 — **PR 6555 fix pass in** (head `a23aadf022`; local gates green, including the tour build and viewer `--features app`). Changes:
+  - **Sited conversion:** deleted. `SitedFace` carries a native member, and flatten and inline keep a private unwinding of a different body's names.
+  - **Load:** load walks selections read through poses.
+  - **Viewer:** the fallbacks refuse with typed errors.
+  - **Python:** one `MemberOr` enum.
+  - **F9:** fixed in this PR.
+  - **Rows:** F3, F10 and F11, plus a sketch-on-member row, filed.
+
+  `written_count` now accepts a named free count, not only a literal, which fixes the reviewer's rename probe. DM3 still says "a written count", so that goes to the delta review: within Ev's read-from-the-document principle, and the exact sentence. **Delta review dispatched.** Lane target reclaimed.
