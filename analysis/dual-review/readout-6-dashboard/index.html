@@ -196,51 +196,63 @@
         hide() { t.hidden = true; },
       };
     }
-    // A forest plot: one item per row, label above, interval line, dot at the estimate.
+    // Wrap a text element's words into tspans no wider than w; returns its line count.
+    function wrap(textSel, str, w) {
+      const words = String(str).split(/\s+/);
+      const x = +textSel.attr('x') || 0;
+      let line = [], ts = textSel.append('tspan').attr('x', x).attr('dy', 0), n = 1;
+      words.forEach((wd) => {
+        line.push(wd);
+        ts.text(line.join(' '));
+        if (line.length > 1 && ts.node().getComputedTextLength() > w) {
+          line.pop(); ts.text(line.join(' ')); line = [wd];
+          ts = textSel.append('tspan').attr('x', x).attr('dy', '1.25em').text(wd); n += 1;
+        }
+      });
+      return n;
+    }
+    // A forest plot: one item per row, label above (wrapped), interval line, dot at the estimate.
     function forest(el, items, opts) {
       el.replaceChildren();
-      const w = Math.max(280, el.clientWidth || 600);
-      const rowH = 34, headH = 22, axisH = 22;
-      let y = 0;
-      const placed = [];
-      let lastGroup = null;
-      items.forEach((it) => {
-        if (opts.groupOf && opts.groupOf(it) !== lastGroup) { lastGroup = opts.groupOf(it); placed.push({ head: lastGroup, y: y + 14 }); y += headH; }
-        placed.push({ it, y: y + 14 });
-        y += rowH;
-      });
-      const h = y + axisH;
+      const w = Math.max(240, el.clientWidth || 600);
+      const lineH = 15, axisH = 22;
       const xmax = opts.xmax || Math.min(1, d3.max(items, (d) => +d.hi) * 1.1);
       const x = d3.scaleLinear().domain([0, xmax]).range([4, w - 8]).nice();
-      const svg = d3.select(el).append('svg').attr('viewBox', `0 0 ${w} ${h}`).attr('height', h)
-        .attr('role', 'img').attr('aria-label', opts.aria);
-      svg.append('g').selectAll('line').data(x.ticks(5)).join('line')
-        .attr('x1', (d) => x(d)).attr('x2', (d) => x(d)).attr('y1', 0).attr('y2', y)
-        .style('stroke', 'var(--cds-chart-grid)');
-      const ax = svg.append('g').attr('transform', `translate(0,${y})`).call(d3.axisBottom(x).ticks(5).tickFormat(d3.format('.0%')));
-      ax.select('.domain').style('stroke', 'var(--cds-chart-axis)');
-      ax.selectAll('line').style('stroke', 'var(--cds-chart-axis)');
+      const svg = d3.select(el).append('svg').attr('role', 'img').attr('aria-label', opts.aria);
+      const grid = svg.append('g');
       const t = tip(el);
-      placed.forEach((p) => {
-        if (p.head) {
-          svg.append('text').attr('class', 'r6-strong').attr('x', 0).attr('y', p.y).text(p.head);
-          return;
+      let y = 0, lastGroup = null;
+      items.forEach((it) => {
+        if (opts.groupOf && opts.groupOf(it) !== lastGroup) {
+          lastGroup = opts.groupOf(it);
+          const n = wrap(svg.append('text').attr('class', 'r6-strong').attr('x', 0).attr('y', y + 13), lastGroup, w);
+          y += n * lineH + 6;
         }
-        const it = p.it, c = opts.color(it);
-        svg.append('text').attr('x', 0).attr('y', p.y).text(`${opts.label(it)} · ${it.k}/${it.n} = ${pct(+it.rate)}`);
-        const cy = p.y + 10;
+        const c = opts.color(it), top = y;
+        const n = wrap(svg.append('text').attr('x', 0).attr('y', y + 12), `${opts.label(it)} · ${it.k}/${it.n} = ${pct(+it.rate)}`, w);
+        y += n * lineH;
+        const cy = y + 6;
         svg.append('line').attr('x1', x(+it.lo)).attr('x2', x(+it.hi)).attr('y1', cy).attr('y2', cy)
           .style('stroke', c).style('stroke-width', 2);
         svg.append('circle').attr('cx', x(+it.rate)).attr('cy', cy).attr('r', 4.5).style('fill', c);
-        svg.append('rect').attr('x', 0).attr('y', p.y - 12).attr('width', w).attr('height', rowH).style('fill', 'transparent')
+        y += 18;
+        svg.append('rect').attr('x', 0).attr('y', top).attr('width', w).attr('height', y - top).style('fill', 'transparent')
           .on('pointermove pointerdown', (ev) => t.show(ev, [opts.label(it), `${it.k} of ${it.n} = ${pct(+it.rate)}`, `95% CI ${pct(+it.lo)} – ${pct(+it.hi)}`].concat(opts.extra ? opts.extra(it) : [])))
           .on('pointerleave', () => t.hide());
       });
+      grid.selectAll('line').data(x.ticks(5)).join('line')
+        .attr('x1', (d) => x(d)).attr('x2', (d) => x(d)).attr('y1', 0).attr('y2', y)
+        .style('stroke', 'var(--cds-chart-grid)');
+      const ax = svg.append('g').attr('transform', `translate(0,${y})`).call(d3.axisBottom(x).ticks(w < 360 ? 4 : 6).tickFormat(d3.format('.0%')));
+      ax.select('.domain').style('stroke', 'var(--cds-chart-axis)');
+      ax.selectAll('line').style('stroke', 'var(--cds-chart-axis)');
+      const h = y + axisH;
+      svg.attr('viewBox', `0 0 ${w} ${h}`).attr('height', h);
     }
     // Horizontal bars, label above each bar, value at its end.
     function bars(el, items, opts) {
       el.replaceChildren();
-      const w = Math.max(280, el.clientWidth || 600);
+      const w = Math.max(240, el.clientWidth || 600);
       const rowH = 36;
       const h = items.length * rowH + 4;
       const vmax = opts.max || d3.max(items, opts.value) || 1;
@@ -279,7 +291,7 @@
         return tr;
       }));
     }
-    return { pct, dec3, rows, failed, forest, bars, table };
+    return { pct, dec3, rows, failed, wrap, forest, bars, table };
   })();
 </script>
 
@@ -371,7 +383,7 @@
       if (!rs) return R.failed(el, 'escapes_by_arm');
       R.forest(el, rs, {
         aria: 'Units with a traced red on main per unit, by arm, since readout 5, with 95% intervals; the intervals overlap.',
-        label: (d) => `${d.arm}: ${d.recorded_lines} rule-11 lines; units with a traced red`,
+        label: (d) => `${d.arm} (${d.recorded_lines} rule-11 lines)`,
         color: () => dash.colors[0],
         xmax: 0.3,
         extra: (d) => [`pin ${d.pin}, build ${d.build}, behaviour ${d.behaviour}`],
