@@ -32,3 +32,5 @@ closed: 2026-11-10
 The draw is pinned as `pcurve_cache::circle_lane_rows::a_fat_toruss_coefficients_charge_its_radii_whole`, red without the fix and green with it. The fuzz row and the pin share one torus check, `torus_coefficients_within`.
 
 **The class, swept.** Every `rounding_charge` and `terms` site in geom-brep, topo and geom, and every difference of squared radii in their non-test source: `conic_torus_harmonics` was the only charge that bounds a term by a cancelled difference. `slit::torus_between` divides by `R² − r²` as a multiplicative floor (its relative error stays about 18ε). The ray–torus quartic (`solid_contain::line_torus_roots` → `quartic::depressed_quartic_roots`) builds `R² − r²` into coefficients that no decision charges at all, a different defect already filed as `work/inside/ray-torus-count-certifies-on-an-uncharged-discriminant.md`.
+
+**Figures, named (follow-up, 2026-11-10).** The measured excess on draw 367 lies between 1.1 and 1.5 times the old charge (it passes at ×1.5, not at ×1.1). The "about 4e-6 against 1.07e-6" above is the analytic worst case, `2·p₀·δk` with `δk` the rounding `R² − r²` can carry, not the measured excess.
