@@ -3491,8 +3491,7 @@ impl<T: Decide> Link<T> {
         // it stands decidedly off.
         let meets = |t: T, foot: &dyn Fn(Point3<T>) -> Point3<T>| {
             let x = x0 + e * t.max(T::zero()).min(T::one());
-            let f = foot(x);
-            joined(Distance::apart(x, f)).then_some(x)
+            on_foot(x, foot(x), point, band).then_some(x)
         };
         // Each ray once: an edge's ray is a bound of both its faces'
         // sectors.
@@ -3707,12 +3706,10 @@ impl<T: Decide> Link<T> {
                     && near(Distance::of(q, s.apex, s.outward), LINK_PLANE);
                 plane
                     || [a, b].into_iter().any(|r| {
-                        let ray = geom::Line {
-                            origin: s.apex,
-                            dir: r - s.apex,
-                        };
-                        let foot = ray.foot_from(q, T::zero());
-                        near(Distance::apart(q, foot), LINK_TIE)
+                        !matches!(
+                            off_ray(q, s.apex, r, rd.band),
+                            Some(Sign::Positive | Sign::Negative)
+                        )
                     })
             })
         })
@@ -3730,6 +3727,28 @@ fn joins<T: Decide>(d: Distance<T>, point: bool, band: Band) -> bool {
         None => point,
         Some(_) => false,
     }
+}
+
+/// **Whether the point `x` of a segment stands on its foot `f` on a
+/// piece** ([`Link::lowest_on`]'s `meets`): their distance apart,
+/// [`joins`]. A norm, so `x` on `f` reads `0`, joined.
+fn on_foot<T: Decide>(x: Point3<T>, f: Point3<T>, point: bool, band: Band) -> bool {
+    joins(Distance::apart(x, f), point, band)
+}
+
+/// **`q`'s distance from the closed ray from `apex` through `r`**
+/// ([`Link::touches`]' tie, `LINK_TIE`): its distance apart from its
+/// foot on the ray. A norm, so `q` on the ray reads Zero.
+fn off_ray<T: Decide>(q: Point3<T>, apex: Point3<T>, r: Point3<T>, band: Band) -> Option<Sign> {
+    let ray = geom::Line {
+        origin: apex,
+        dir: r - apex,
+    };
+    metric::sign_as(
+        LINK_TIE,
+        Distance::apart(q, ray.foot_from(q, T::zero())),
+        band,
+    )
 }
 
 /// A ray's line as [`Link::lowest_on`] reads it along a segment: its
@@ -6440,58 +6459,46 @@ mod clearance_rows {
 /// its own direction** (PR 6734): a point on its foot reads `0` apart,
 /// Zero, where the old spelling `Distance::of(x, f, (x − f).normalize())`
 /// read a 0/0 NaN, unread.
-/// - `Link::lowest_on`'s `meets`: on a segment of enclosures
-///   (`point == false`), a candidate on its foot is joined, where the NaN
-///   fell to the `point` flag and the candidate was dropped. Red under the
-///   old spelling.
-/// - `Link::touches`' ray tie: `q` exactly on a closed ray reads the tie
-///   Zero, near, where the NaN read near by being unread; the verdict is
-///   the same and is pinned with its reading.
+/// - `Link::lowest_on`'s `meets` ([`super::on_foot`]): on a segment of
+///   enclosures (`point == false`), a candidate on its foot is joined,
+///   where the NaN fell to the `point` flag and the candidate was dropped.
+///   Red under the old spelling.
+/// - `Link::touches`' ray tie ([`super::off_ray`]): `q` exactly on a
+///   closed ray reads the tie Zero, where the NaN left it unread. Red
+///   under the old spelling. `touches`' verdict, near, is the same either
+///   way, and is pinned with its reading.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tie_rows {
-    use geom_core::{Band, Interval, Point3, Sign, Tol, Vec3};
+    use geom_core::{Band, Interval, Point3, Sign, Tol};
 
-    use super::{LINK_TIE, Reading, joins, metric, metric::Distance, tests::ridge};
+    use super::{Reading, off_ray, on_foot, tests::ridge};
 
     #[test]
     fn a_point_on_its_foot_is_joined_and_touches() {
         let band = Band::linear(Tol::witness()).expect("a band");
         let x = Point3::new(0.25, -0.5, 0.75);
-        // `meets` on a segment of enclosures: joined.
-        assert!(joins(Distance::apart(x, x), false, band));
-        assert!(
-            !joins(Distance::of(x, x, (x - x).normalize()), false, band),
-            "the old spelling dropped the candidate"
-        );
+        // `meets` on a segment of enclosures: a point on its foot joins.
+        assert!(on_foot(x, x, false, band));
         let w = 1e-15;
         let b = |c: f64| Interval::from_bounds(c - w, c + w);
         let xi = Point3::new(b(x.x), b(x.y), b(x.z));
-        assert!(
-            joins(Distance::apart(xi, xi), false, band),
-            "an enclosure on its own foot"
-        );
+        assert!(on_foot(xi, xi, false, band), "an enclosure on its own foot");
+        assert!(!on_foot(
+            x,
+            x + geom_core::Vec3::new(0.0, 0.0, 1e-3),
+            false,
+            band
+        ));
         // `touches` with `q` on the ridge's `+y` ray: the tie reads Zero.
-        let ridge = ridge();
+        let (o, y) = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0));
         let q = Point3::new(0.0, 0.5, 0.0);
-        let foot = geom::Line {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 1.0, 0.0),
-        }
-        .foot_from(q, 0.0);
+        assert_eq!(off_ray(q, o, y, band), Some(Sign::Zero));
         assert_eq!(
-            metric::sign_as(LINK_TIE, Distance::apart(q, foot), band),
-            Some(Sign::Zero)
+            off_ray(Point3::new(0.0, 0.5, 1e-3), o, y, band),
+            Some(Sign::Positive)
         );
-        assert_eq!(
-            metric::sign_as(
-                LINK_TIE,
-                Distance::of(q, foot, (q - foot).normalize()),
-                band
-            ),
-            None,
-            "the old spelling read it unread"
-        );
+        let ridge = ridge();
         assert!(ridge.touches(q, Reading::plain(band)));
         assert!(!ridge.touches(Point3::new(-0.5, 0.5, -0.5), Reading::plain(band)));
     }
