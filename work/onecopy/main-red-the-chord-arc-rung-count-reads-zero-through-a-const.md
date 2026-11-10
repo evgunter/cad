@@ -4,6 +4,8 @@ kind: issue
 title: main red: chord_join's the_chord_arc_rung_is_decided_in_one_place counts the literal decision name, which e57e5d868e moved into a const, so it reads 0 sites
 status: open
 opened: 2026-11-10
+priority: P0
+cost: E
 ---
 
 
