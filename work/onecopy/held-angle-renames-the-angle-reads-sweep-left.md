@@ -2,8 +2,11 @@
 id: held-angle-renames-the-angle-reads-sweep-left
 kind: issue
 title: The forward reductions into [0, τ) that the angle-reads sweep left are extents, the turn rule's question, not swept site by site
-status: open
+status: closed
 opened: 2026-11-03
+closed: 2026-11-10
+pr: 6710
+branch: onecopy/edge-ends-turns
 ---
 
 

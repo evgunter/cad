@@ -2,11 +2,14 @@
 id: an-edges-end-vertices-are-spelled-inline-beside-query-edge-ends
 kind: issue
 title: About fifty test sites read an edge's end as half_edge_end(e.he_plus) beside Body::edge_vertices
-status: open
+status: closed
 opened: 2026-11-03
 priority: P2
 cost: M
 refs: [6327, 6552]
+closed: 2026-11-10
+pr: 6710
+branch: onecopy/edge-ends-turns
 ---
 
 Found by the sweep of `the-curve-pair-units-follow-ups-from-its-review` item 1, which moved `carrier_cross::face_boundary` onto `query::edge_ends`.

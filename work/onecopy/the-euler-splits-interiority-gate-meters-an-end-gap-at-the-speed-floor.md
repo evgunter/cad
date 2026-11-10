@@ -8,6 +8,7 @@ priority: P1
 cost: E
 closed: 2026-11-10
 branch: onecopy/edge-ends-turns
+pr: 6710
 ---
 
 
