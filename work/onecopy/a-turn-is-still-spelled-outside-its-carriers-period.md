@@ -7,6 +7,7 @@ opened: 2026-11-10
 priority: P3
 closed: 2026-11-10
 branch: onecopy/turn-spellings
+pr: 6788
 ---
 
 Filed from PR 6776's review: the spellings of a turn that are left.
