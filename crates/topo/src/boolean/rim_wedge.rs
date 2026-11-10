@@ -44,7 +44,9 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Vec3};
 use super::contain::{ContainError, CurvedPlacement, FaceContainment, placement_on_carrier};
 use crate::{Body, FaceKey};
 use geom_brep::PairSide;
-use geom_brep::ladder::{Answering, IdentityLadder, Rung, climb, read_identity};
+use geom_core::ladder::{
+    Answering, Differing, IdentityLadder, Rung, climb, climb_differing, read_identity,
+};
 
 /// A rim circle, in the data the curve carries: centre, unit axis,
 /// radius and the seam reference the sampling phase starts from.
@@ -543,28 +545,34 @@ impl<T: Decide> FaceOnLocus<T> {
             Locus::Rim(_) => &[-1.0, 0.0, 1.0],
             Locus::Line(_) => &[0.0],
         };
-        let inside = |m: T| -> Result<bool, Indeterminate> {
-            Ok(
-                crate::validate::decide("seam_cover_ride", Margin::of(m * scale), band)?
-                    == geom_core::Sign::Positive,
-            )
+        // A ride covers the point where it is inside both ends of its
+        // span. Two covering rides of opposite sign answer
+        // `RidesBothWays`, a theorem whatever the other rides read, so
+        // they answer past a ride kept in band (`climb_differing`); only
+        // where every ride decided does one sign, or none, stand.
+        let inside = |m: T| {
+            crate::validate::decide("seam_cover_ride", Margin::of(m * scale), band)
+                .map(|sign| sign == geom_core::Sign::Positive)
         };
-        // Two decided rides of opposite sign answer `RidesBothWays` (a
-        // theorem), but a ride in band refuses first: a deviation from
-        // the ladder rule, scheduled on
-        // `work/onecopy/the-ladder-has-no-climb-for-a-disagreement-that-answers.md`.
-        let mut seen: Option<geom_core::Sign> = None;
-        for &(lo, hi, sign) in &self.rides {
-            for &k in wraps {
-                let s = s + tau * T::from_f64(k);
-                if inside(s - lo)? && inside(hi - s)? {
-                    if seen.is_some_and(|x| x != sign) {
-                        return Ok(Cover::RidesBothWays);
-                    }
-                    seen = Some(sign);
-                }
-            }
-        }
+        // A start in band is kept without reading the end: on a span
+        // (`lo ≤ hi`) the end then reads at least the start's band short
+        // of inside, so it cannot decide the ride off the point.
+        let ride = |&(lo, hi, sign): &(T, T, geom_core::Sign), k: f64| {
+            let s = s + tau * T::from_f64(k);
+            let covers = inside(s - lo).and_then(|lo_in| Ok(lo_in && inside(hi - s)?));
+            Rung::of_reading(covers.map(|covers| covers.then_some(sign)))
+        };
+        let rides = self
+            .rides
+            .iter()
+            .flat_map(|r| wraps.iter().map(move |&k| (r, k)));
+        let seen = match climb_differing(rides, |(r, k)| ride(r, k), |a, b| a != b) {
+            Differing::Differ(_) => return Ok(Cover::RidesBothWays),
+            Differing::Undecided(cause) => return Err(cause.into()),
+            // No ride aborts: a ride's reading is a margin's alone.
+            Differing::Aborted(sign) => Some(sign),
+            Differing::Agreed(signs) => signs.first().copied(),
+        };
         Ok(match seen {
             Some(sign) => Cover::Rides(sign),
             None => match contains((body, face, side), locus_point(locus, s), band)? {
@@ -643,7 +651,7 @@ fn contains<T: Decide>(
         // a margin is the escalation, the rest leave the piece unread.
         Err(e) => {
             return Err(match e.refusal() {
-                Ok(geom_brep::ladder::Refusal::Margin(diag)) => diag.into(),
+                Ok(geom_core::ladder::Refusal::Margin(diag)) => diag.into(),
                 _ => unread(Unplaced::Door(e)),
             });
         }
@@ -1191,6 +1199,32 @@ mod cover_rows {
             at(vec![(0.0, 1.0, Positive), (0.2, 0.8, Positive)]),
             Cover::Rides(Positive),
             "two edges one way are one side"
+        );
+        // A ride whose end is in band of the point is kept: two decided
+        // rides of opposite sign still answer mixed past it
+        // (`climb_differing`), and with no difference it refuses. A
+        // first-refusal loop escalated on it in both.
+        let h = 0.5 * (band.zero() + band.escalate());
+        let reads = |rides: Vec<(f64, f64, geom_core::Sign)>| {
+            FaceOnLocus {
+                rides,
+                cuts: Vec::new(),
+            }
+            .at((&body, face, PairSide::First), line, 0.5, 1.0, band)
+        };
+        assert_eq!(
+            reads(vec![
+                (0.0, 0.5 + h, Positive),
+                (0.0, 1.0, Positive),
+                (0.0, 1.0, Negative)
+            ])
+            .unwrap(),
+            Cover::RidesBothWays,
+            "mixed past a ride in band"
+        );
+        assert!(
+            reads(vec![(0.0, 0.5 + h, Positive), (0.0, 1.0, Positive)]).is_err(),
+            "one sign with a ride in band refuses"
         );
     }
 }

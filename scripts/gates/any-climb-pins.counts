@@ -61,3 +61,18 @@ crates/topo/src/stands.rs insides_at 1 row t4-ports-unpinned-for-a-kept-reading-
 # ladder, the witness ladder: sweep's integration row reads it through
 # the production Boolean with a corner in band ahead of an answering one.
 crates/topo/src/stands.rs ladder 1 pin a_box_edge_resting_on_a_rim_answers_past_its_in_band_corner
+# The entry points that take no `Answering` (`climb_agreeing`,
+# `climb_differing`): every answer supersedes the kept rungs, so each call
+# is a site. Pins found by the mutant run with only those two mutated.
+crates/topo/src/boolean/rim_wedge.rs at 1 pin a_stretch_ridden_both_ways_reads_mixed
+crates/topo/src/boolean/vtxfac.rs partner_side 1 pin a_partners_side_of_a_face_is_read_off_its_bounds
+# read_paths: the agreeing ladder over the outer references, with a
+# reference whose paths read in band ahead of one that decides.
+crates/topo/src/chord_join.rs read_paths 1 pin a_path_escalating_by_a_corner_hands_the_winding_to_the_next
+crates/geom-brep/src/props/curved.rs unanimous_rim_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/join.rs seam_germ_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/boolean/sectors.rs tangent_lump 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/link/second_order.rs thorns 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/loop_side.rs inside_at_every_vertex 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/offset_nappe.rs group_nappe 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
+crates/topo/src/stands.rs ladder_agreeing 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
