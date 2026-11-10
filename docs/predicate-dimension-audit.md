@@ -1860,6 +1860,28 @@ Flagged, NOT fixed here (dispositions):
   `edge_join_carried_far`. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.
 
+- **F40** (added by ONECOPY's link-bisector unit) `edge_join_crease_at`
+  — `topo/src/boolean/edge_join.rs` `crease_at`: whether an edge's end
+  parameter `t` is one of its spline carrier's own creases, a clamped end
+  or an interior knot of multiplicity at least the degree (`t − k`, at
+  `Band::least()`). Zero is a crease. Anything else, a straddling
+  enclosure included, is not. It picks which of a join's two edges is
+  kept, the one whose carrier runs on through the vertex, and, where
+  both crease, that the vertex is not joined. What keeps it off the log
+  is that **it is a structural equality, not a reading**: a split
+  restates its parent's carrier verbatim, so at `f64` a parameter on a
+  knot is that knot's stored value and the difference is exactly zero,
+  and no band applies. An interval straddling a knot reads "no crease"
+  by design; it is an answer, and logging it would hand the subdivision
+  driver an escalation that no narrower box is asked to resolve.
+
+  **Carried as `k_stats::check_unlogged(.., Band::least(), "F40")`**,
+  read as `Ok(Sign::Zero)`. It was a raw `sign_within` (registered in
+  `scripts/gates/raw-sign-within.counts`), so the outcomes and the log are
+  unchanged; its K samples now reach the sink under
+  `edge_join_crease_at`. Not a `decide_flagged` site;
+  `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved
