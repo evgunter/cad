@@ -450,7 +450,11 @@ fn carrier_verdict(
     let probed = one_cylinder((&a_in, fa), (&b_in, fb), wanted, band, stated);
     if let (Some(read), Ok(path)) = (&probed, std::env::var("PROBE_CYLDATA_OUT")) {
         use std::io::Write as _;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
             let _ = writeln!(f, "PROBE-CYLDATA stated={stated} read={read:?}");
         }
     }
@@ -464,8 +468,9 @@ fn carrier_verdict(
     }
 }
 
-/// The name [`one_cylinder`]'s metre data — the axes' offset, the
-/// radii's differences — are each decided Zero under.
+/// The name [`one_cylinder`]'s metre data — the second axis's offset at
+/// the foot of the pair's extent, the radii's differences — are each
+/// decided Zero under.
 const ONE_CYLINDER: &str = "replay_one_cylinder";
 /// The name [`one_cylinder`]'s axis parallelism is decided Zero under:
 /// the axes' tilt `|da × db|`, levered at the pair's reach.
@@ -480,6 +485,13 @@ const ONE_CYLINDER_AXIS: &str = "replay_one_cylinder_axis";
 /// alone; the material sides' bits giving `wanted`. The first component
 /// not established and why; `None` where either face is not on a
 /// cylinder.
+///
+/// The axis's tilt and offset and the radii's difference are the kernel's
+/// own data (`topo::boolean::cylinder_pair_data`), decided under the
+/// replay's names; the rims and the sense are the replay's. Those data
+/// are read over the pair's extent, so an extent that does not read
+/// leaves the axis unestablished (the radius, where the axis is stated),
+/// with the pair door's reason.
 fn one_cylinder(
     (a, fa): (&topo::Body<Lane>, FaceKey),
     (b, fb): (&topo::Body<Lane>, FaceKey),
@@ -490,16 +502,14 @@ fn one_cylinder(
     use topo::boolean::CarrierDesc::Cylinder;
     let (
         Some(Cylinder {
-            origin: oa,
-            axis: da,
             radius: ra,
             outward: sa,
+            ..
         }),
         Some(Cylinder {
-            origin: ob,
-            axis: db,
             radius: rb,
             outward: sb,
+            ..
         }),
     ) = (
         topo::boolean::face_carrier(a, fa),
@@ -515,26 +525,28 @@ fn one_cylinder(
             })
             .map_err(Unestablished::Undischarged)
     };
+    // The pair's data, as the kernel's ladder reads them
+    // (`topo::boolean::cylinder_pair_data`): the tilt `|da × db|` levered
+    // at the pair's reach, the second axis's offset at the foot of that
+    // extent, and the radii's difference, so the replay and the kernel
+    // decide one cylinder's data alike.
+    let data = topo::boolean::cylinder_pair_data(a, fa, b, fb, band);
     let established = || {
-        if !stated {
-            // The tilt, one datum (`|da × db|`, the sine of the angle
-            // between the axes), levered at the arm the kernel's pair
-            // door reads it at: the reach of the ball enclosing both
-            // faces from the foot of its centre on the second axis
-            // (`topo::boolean::carrier_pair_arm`), so the replay and the
-            // kernel judge one tilt alike.
-            let arm = topo::boolean::carrier_pair_arm(a, fa, b, fb, band)
-                .map_err(|unread| (Component::Axis, Unestablished::ExtentUnread(unread)))?;
-            zero_as(
-                ONE_CYLINDER_AXIS,
-                geom_core::Margin::levered(da.cross(db).norm(), arm),
-            )
-            .map_err(|why| (Component::Axis, why))?;
-            let off = (ob - oa).cross(db);
-            for r in [off.x, off.y, off.z] {
-                zero_as(ONE_CYLINDER, geom_core::Margin::of(r))
-                    .map_err(|why| (Component::Axis, why))?;
+        let data = match data {
+            Ok(Some(data)) => data,
+            Ok(None) => unreachable!("two faces on cylinders read a cylinder pair's data"),
+            Err(unread) => {
+                let at = if stated {
+                    Component::Radius
+                } else {
+                    Component::Axis
+                };
+                return Err((at, Unestablished::ExtentUnread(unread)));
             }
+        };
+        if !stated {
+            zero_as(ONE_CYLINDER_AXIS, data.tilt).map_err(|why| (Component::Axis, why))?;
+            zero_as(ONE_CYLINDER, data.offset).map_err(|why| (Component::Axis, why))?;
         }
         let radius = |why| (Component::Radius, why);
         for ((body, face), r) in [((a, fa), &ra), ((b, fb), &rb)] {
@@ -548,7 +560,7 @@ fn one_cylinder(
                 zero_as(ONE_CYLINDER, geom_core::Margin::of(rim - *r)).map_err(radius)?;
             }
         }
-        zero_as(ONE_CYLINDER, geom_core::Margin::of(ra - rb)).map_err(radius)?;
+        zero_as(ONE_CYLINDER, data.radius).map_err(radius)?;
         if (sa == sb) != (wanted == CarrierRelation::SameOriented) {
             return Err((
                 Component::Sense,
@@ -616,6 +628,76 @@ fn face_of<'e>(
 mod tests {
     use super::*;
     use topo::test_support::{CylFrame, cyl_wall_sheet};
+
+    /// **The axis offset is one distance, as the kernel reads it, not
+    /// three projections of it.** Two 2 cm walls of a 1 cm cylinder on
+    /// parallel axes, the second slid `1.2·zero` along the diagonal of
+    /// `x` and `y`. Each component of `(ob − oa) × db`, the reading the
+    /// replay took until it read the kernel's data, is `0.85·zero`: Zero.
+    /// The kernel's offset (`topo::boolean::cylinder_pair_data`,
+    /// `Margin::norm3`) is the distance itself, `1.2·zero`: in the band,
+    /// so the replay's offset escalates there, on the margin the kernel's
+    /// ladder reads.
+    #[test]
+    fn the_axis_offset_is_one_distance_not_three_projections() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let d = 1.2 * band.zero();
+        let slid = CylFrame {
+            origin: geom_core::Point3::new(d / 2f64.sqrt(), d / 2f64.sqrt(), 0.0),
+            ..CylFrame::canonical(0.01)
+        };
+        let (u, v) = ((0.2, 1.6), (0.0, 0.02));
+        let (read, recording) = geom_core::k_stats::detached(|| {
+            deferred::with_deferred_session(
+                BUDGET,
+                SymRules::shipped(),
+                crate::drive::DEFAULT_SYM_RETRY,
+                || {
+                    let mut a = topo::Body::<Lane>::new();
+                    let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(0.01), u, v, tol);
+                    let mut b = topo::Body::<Lane>::new();
+                    let fb = cyl_wall_sheet(&mut b, slid, u, v, tol);
+                    one_cylinder(
+                        (&a, fa),
+                        (&b, fb),
+                        CarrierRelation::SameOriented,
+                        band,
+                        false,
+                    )
+                },
+            )
+            .0
+        });
+        assert!(
+            band.zero() < d && d < band.escalate() && d / 2f64.sqrt() <= band.zero(),
+            "a distance in band whose projections are Zero: {d:e}"
+        );
+        let recorded = recording.recorded();
+        let offset: Vec<_> = recorded
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == ONE_CYLINDER)
+            .collect();
+        assert!(offset.is_empty(), "no projection decided Zero: {offset:?}");
+        let escalated: Vec<_> = recorded
+            .escalations
+            .iter()
+            .filter(|e| e.predicate() == ONE_CYLINDER)
+            .map(|e| e.source.margin)
+            .collect();
+        let dx = d / 2f64.sqrt();
+        assert_eq!(
+            escalated,
+            [geom_core::MarginDiag::value((dx * dx + dx * dx).sqrt())],
+            "one offset, in band, the distance itself: {:?}",
+            recorded.escalations
+        );
+        assert!(
+            matches!(read, Some(Err((Component::Axis, _)))),
+            "the axis is not established: {read:?}"
+        );
+    }
 
     /// **The axis tilt is levered at the pair's reach, not at a metre.**
     /// Two 2 cm walls of a 1 cm cylinder, the second tilted about `y`

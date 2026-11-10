@@ -319,6 +319,30 @@ pub fn carrier_pair_arm<T: Decide>(
     Ok(super::carrier_eq::consumed_arm(&ca, &cb, extent.reach))
 }
 
+/// **Two cylinder faces' data, as [`carrier_pair_decided`]'s ladder
+/// reads them**: the tilt levered at the pair's arm ([`carrier_pair_arm`]),
+/// the second axis's offset at the foot of the pair's extent, and the
+/// radii's difference, from the one computation the ladder decides them
+/// on. A reader deciding one cylinder under its own names reads them
+/// here, so it and the kernel decide one cylinder's data alike. `None`
+/// where either face is not on a cylinder.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`]'s [`PairUnread`].
+pub fn cylinder_pair_data<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<Option<super::carrier_eq::CylinderPairData<T>>, PairUnread> {
+    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
+    Ok(super::carrier_eq::cylinder_data_at(&ca, &cb, extent.reach))
+}
+
 /// The row a torus face's witness of two carriers is decided on
 /// ([`torus_pair_witnessed`]).
 const TORUS_WITNESS: &str = "carrier_torus_witness";
@@ -625,6 +649,48 @@ mod lever_rows {
                 );
             }
             other => panic!("the tilt in band escalates at the face-pair door: {other:?}"),
+        }
+    }
+
+    /// **The data the door hands out are the ladder's**
+    /// ([`cylinder_pair_data`]). A 1 m wall against its parallel twin slid
+    /// `1.2·zero` along the diagonal of `x` and `y`: the tilt is exactly
+    /// 0, so the ladder reads the offset next, finds it in band and
+    /// escalates on it. The refusal's margin is the door's `offset`, bit
+    /// for bit, and its `tilt` and `radius` are exactly 0.
+    #[test]
+    fn the_cylinder_pair_data_are_the_ladders() {
+        use super::super::carrier_eq::{CARRIER_CYL_AXIS_OFFSET, CoincidenceMeasure};
+        let tol = Tol::witness();
+        let d = 1.2 * band().zero();
+        let (u, v) = ((0.2, 1.6), (0.0, 1.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), u, v, tol);
+        let slid = CylFrame {
+            origin: Point3::new(d / 2f64.sqrt(), d / 2f64.sqrt(), 0.0),
+            ..CylFrame::canonical(1.0)
+        };
+        let mut b = Body::<f64>::new();
+        let fb = cyl_wall_sheet(&mut b, slid, u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        b.set_face_sense(fb, !sense).unwrap();
+        let data = cylinder_pair_data(&a, fa, &b, fb, band())
+            .unwrap()
+            .expect("two cylinder walls");
+        assert_eq!((data.tilt.value(), data.radius.value()), (0.0, 0.0));
+        match carrier_pair_decided(&a, fa, &b, fb, band()) {
+            Ok(Err(CarrierEqError::Undecided {
+                coincidence: CoincidenceMeasure::Undecided(diag),
+                ..
+            })) => {
+                assert_eq!(diag.predicate, Some(CARRIER_CYL_AXIS_OFFSET), "{diag:?}");
+                assert_eq!(
+                    diag.margin,
+                    geom_core::MarginDiag::value(data.offset.value()),
+                    "the ladder's offset is the door's: {diag:?}"
+                );
+            }
+            other => panic!("an offset in band escalates at the face-pair door: {other:?}"),
         }
     }
 

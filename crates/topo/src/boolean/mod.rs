@@ -227,7 +227,7 @@ use geom_brep::ladder::{Answering, Evidence, Rung, climb_evidence};
 
 pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CarrierVerdict, CoincidenceMeasure,
-    ConsumedExtent, carrier_eq,
+    ConsumedExtent, CylinderPairData, carrier_eq,
 };
 pub use contain::{
     ArcEndGaps, CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
@@ -282,8 +282,8 @@ pub use zip::{SharedClass, swap_split_roles, take_shared_points};
 // candidate-generation mode BY CONSTRUCTION.
 pub use crate::side_reader::AimedPair;
 pub use carrier_pair::{
-    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, face_carrier,
-    flush_pair_relation, rest_locus,
+    PairUnread, carrier_pair_arm, carrier_pair_decided, carrier_pair_relation, cylinder_pair_data,
+    face_carrier, flush_pair_relation, rest_locus,
 };
 pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
