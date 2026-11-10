@@ -4,7 +4,7 @@ kind: issue
 title: k-lint (dev-probe): the large-K lint fails on 51,730 crowding margins (24,045 in band) once the probe sweep runs to the end
 status: open
 opened: 2026-10-29
-priority: P1
+priority: P2
 cost: M
 ---
 
@@ -187,3 +187,41 @@ The r2·3 columns count flags. At 1e-9 rule 2 is 2565 and rule 3 is
 reaches A, and B fills every decade from `Kε` upward. A floor re-cut
 now would clear C's 74 definite rows at 1e-6 and at 1e-9; that is 148
 of the 6036 flags under rules 2 and 3, and the step would still exit 2.
+
+## Routed (2026-11-10)
+
+The ruling is the split. Rule 1 stays with the owners of the deciding
+sites. Rules 2 and 3 go to the rulings named below. No threshold is
+re-cut at this reading: `docs/K-REPORT.md`'s INSTR addendum
+(2026-11-10) gives the four reasons. The nightly's `large-K lint` step
+stays pinned red at exit 2, unchanged.
+
+**Demoted P1 → P2.** The step is pinned, not red. Closing this row waits
+on the rows below, so INSTR has no P1 work left on it.
+
+The row closes when all of these hold:
+
+1. **Rule 1 is 0 at all three ε rows.** Its owners' rows:
+   - `cpair/lily-walls-curve-walks-decide-24045-margins-in-band-under-k-lint`;
+   - `splice/the-spline-region-carrier-walk-records-in-band-margins-by-construction-under-k-lint`;
+   - `cpair/the-pose-screens-clear-and-parallel-record-minus-k-eps-and-land-in-band-under-k-lint`;
+   - `inside/a-lily-wall-ray-reads-the-torus-quartic-disc-in-band-at-1e-6`;
+   - `germ/a-lily-wall-conic-quadric-sub-clearance-of-3-microns-is-in-band-at-1e-6`;
+   - `splice/a-lily-wall-tangent-sector-order2-margin-of-8-microns-escalates-at-1e-6`.
+2. **The lily is recorded at 1e-12.** Until then that row is silent on
+   the lily, so "0 at all three rows" is not yet true of it:
+   `shell/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728`.
+3. **A, the ε-coupled pads, is ruled.** This is the rule (4) fork on
+   `instr/bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint`,
+   and the pose names join it.
+4. **B, the refinement walks, is ruled:**
+   `instr/refinement-walks-flag-rules-2-and-3-by-construction-in-the-gated-sweep`.
+5. **C's floor is re-cut.** `instr/k-lints-definite-floor-is-read-off-a-retired-predicate`
+   re-derives it at a new committed era that a fresh sweep at a stated
+   head byte-reproduces, after 1 and 2.
+6. **The step is restored.** It goes back to a plain `cargo run` whose
+   non-zero exit fails the job, as "Un-pinning owes" above says.
+
+Until then, a new rule-1 family landing inside the pinned count is
+invisible:
+`instr/the-large-k-pin-cannot-see-a-new-rule-1-family-inside-its-count`.
