@@ -444,13 +444,11 @@ fn crease_at<T: Decide>(body: &Body<T>, e: EdgeKey, d: &crate::entity::Edge, w: 
     let (a, b) = knots.domain();
     // Equal as an exact comparison reads it: the least band, where only
     // a zero difference is Zero and an enclosure straddling it is no
-    // answer, so no crease. Read off the log under its ledger row (F40):
-    // a structural equality with the carrier's own knot, not a reading a
-    // certificate states, whose straddle is an answer ("no crease") and
-    // not a cue a narrower box should chase.
+    // answer, so no crease.
     [a, b].into_iter().chain(knots.crease_values()).any(|k| {
-        geom_core::k_stats::check_unlogged("edge_join_crease_at", t - k, Band::least(), "F40")
-            == Ok(Sign::Zero)
+        (t - k)
+            .sign_within(Band::least())
+            .is_ok_and(|d| d.sign == Sign::Zero)
     })
 }
 
