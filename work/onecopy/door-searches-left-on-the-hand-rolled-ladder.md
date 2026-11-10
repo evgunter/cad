@@ -2,11 +2,13 @@
 id: door-searches-left-on-the-hand-rolled-ladder
 kind: issue
 title: The Any ports' unreached record rows, left after four tranches onto geom_brep::ladder::climb
-status: open
+status: closed
 opened: 2026-11-03
 priority: P1
 cost: E
 refs: [6495, 6598]
+closed: 2026-11-10
+pr: 6758
 ---
 
 The remainder of `witness-and-door-searches-hand-roll-the-ladder`, after
