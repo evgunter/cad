@@ -3472,7 +3472,7 @@ impl<T: Decide> IntersectionDraft<T> {
 /// reads each wall by it, and so does the boolean's interior-loop guard
 /// when it hands a rim two spline faces share to their section's reading.
 ///
-/// A [`ChartImage::Certified`] image whose certificate is over exactly
+/// A [`ChartImage::Certified`](crate::ChartImage::Certified) image whose certificate is over exactly
 /// `span` (the same scalars, [`geom_core::bit_identity::eq_bits`]) is
 /// one its derivation already certified on this wall over this carrier
 /// at this band, and is not certified again. Over any other interval it
