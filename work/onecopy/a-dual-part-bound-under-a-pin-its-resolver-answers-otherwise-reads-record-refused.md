@@ -2,10 +2,12 @@
 id: a-dual-part-bound-under-a-pin-its-resolver-answers-otherwise-reads-record-refused
 kind: issue
 title: A dual's part run bound to the record's build by pin alone reads RecordRefused where the resolver answered that pin with other content
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: E
+closed: 2026-11-10
+pr: 6790
 ---
 
 
@@ -28,3 +30,5 @@ Filed from PR 6735's re-review (N1). In 6735, a dual's descent binds each part's
 - a mismatch refuses the part's every node as `RecordMispaired(Revision)` (or a resolver arm by content).
 
 The cost is one canonicalization per part per dual run. The other route is the kernel checking A4 itself at `Entered::enter`, for every scalar, which would also make `ReferenceCycle` unreachable. That is the broader question, and it is not this row's to decide.
+
+**Resolved (PR 6790).** A part's `Refusals` tree carries the document its build read. `RecordBinding::of_part` compares the run's document against it by content pin and refuses the part's every node as `RecordMispaired(Revision)` on a mismatch. On main the flat case (other content under the pin, no nested parts) did not mislabel but built, from a document the record never read.
