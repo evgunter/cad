@@ -339,7 +339,6 @@ const CARRIERS: &[NameCarrier] = &[
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),
     NameCarrier::Call("ArcRows"),
-    NameCarrier::Call("ArcTrimRows"),
     NameCarrier::Call("ChartRows"),
     NameCarrier::Call("FirstHarmonicRows"),
     NameCarrier::Call("HalfAngleRows"),
@@ -386,7 +385,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("walk_schedule"),
     NameCarrier::Call("why_as"),
     NameCarrier::Call("zero_as"),
-    NameCarrier::Call("ends_as"),
     NameCarrier::Call("turn_as"),
     NameCarrier::Call("zero_refused"),
 ];
@@ -536,8 +534,6 @@ const INDIRECT: &[(&str, &str)] = &[
     ("validate.rs: name", FORWARDS),
     ("validate.rs: names", ROW_FIELD),
     ("validate.rs: names.0", ROW_FIELD),
-    ("validate.rs: rows.end", ROW_FIELD),
-    ("validate.rs: rows.trim", ROW_FIELD),
     ("validate.rs: straddle", FORWARDS),
     ("vertex_section.rs: name", FORWARDS),
 ];
