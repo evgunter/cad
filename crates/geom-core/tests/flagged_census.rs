@@ -27,8 +27,11 @@
 //! resolves to its innermost binding, a `use`, a `let`, a closure's or a
 //! pattern's binding, a parameter or an item, as Rust resolves it, so a
 //! call inside another binding of the door's name is that other meaning
-//! and a field or a method binds nothing. This census asks only its own
-//! question of what the parse resolves.
+//! and a field or a method binds nothing. An import whose path stays in
+//! the file (`use super::choose`, `use self::m::choose`, a glob of a
+//! glob) and a `self::`/`super::` call are followed to the import that
+//! leaves it. This census asks only its own question of what the parse
+//! resolves.
 //!
 //! **What the census cannot read, it lists rather than skips**: a row
 //! that is not a string literal and not a forwarded parameter; a
@@ -36,7 +39,9 @@
 //! without a call (a fn pointer, a binding); a door's name inside a
 //! macro whose arguments do not parse as expressions, or in a
 //! `macro_rules!` body; a bare call of a door's name that nothing in its
-//! file resolves (a `use super::*` child, no import); a `pub use`
+//! file resolves (no import, or a glob that leaves the file with nothing
+//! behind it); a `self::`/`super::` call whose path leaves the file; a
+//! name with two `#[cfg]`-kept bindings, the door among them; a `pub use`
 //! re-export of a door or of the module under another name. Each is a
 //! site citing no row. A home fn with two row-like parameters, a stale
 //! [`NON_ROW_DOORS`] entry and a file that does not parse stop it.
@@ -44,8 +49,9 @@
 //! **Blind spots, stated:** a call a macro generates; a door whose row
 //! reaches it inside a struct argument, or as a type named for text
 //! outside the home (the shape `k_stats`' header rules out); and what a
-//! glob other than `k_stats::*` brings in, which is read as binding
-//! nothing.
+//! glob other than `k_stats::*` brings in: the binding behind it is read
+//! in its place, so a glob that does define the door's name over an
+//! outer import of the door is read as the door.
 //!
 //! The `decide_flagged` total is hand-synced and spelled ONCE, at
 //! [`LEDGER_FLAGGED_SITES`]; the rows are computed from the document.
@@ -227,9 +233,11 @@ fn home_doors_but(home: &Path, text: &str, but: &[&str]) -> Vec<Door> {
     doors
 }
 
-/// A source file read once for every door, its events indexed by the
-/// name they reach: their own, and for a bare name bound by an import,
-/// the imported item's (`choose as pick` is found under `choose`).
+/// A source file read once for every door, its events indexed by every
+/// name they reach ([`Event::reaches`]: their own, and the item each
+/// import they resolve through ends at, so `choose as pick` is found
+/// under `choose`). [`reach`] matches a binding by the same followed
+/// paths, so the index and the match are one alias rule.
 struct Scanned<'a> {
     path: &'a Path,
     src: Source,
@@ -242,11 +250,8 @@ impl<'a> Scanned<'a> {
         let mut by_name: std::collections::HashMap<String, Vec<usize>> =
             std::collections::HashMap::new();
         for (i, ev) in src.events.iter().enumerate() {
-            by_name.entry(ev.name.clone()).or_default().push(i);
-            if let Callee::Bare(Some(Bound::Use { path, .. })) = &ev.callee
-                && let Some(last) = path.last().filter(|l| **l != ev.name)
-            {
-                by_name.entry(last.clone()).or_default().push(i);
+            for name in ev.reaches() {
+                by_name.entry(name.to_string()).or_default().push(i);
             }
         }
         Scanned { path, src, by_name }
@@ -265,10 +270,55 @@ enum Reach {
     /// A bare call of the door's own name that nothing in the file
     /// resolves.
     Unresolved,
+    /// A `self::`/`super::` call of the door's own name whose path leaves
+    /// the file's modules.
+    LeavesFile,
     /// The door's name inside macro tokens this census cannot parse.
     InMacro,
+    /// The name resolves to more than one binding here, one of them the
+    /// door (`#[cfg]`-kept declarations, or globs that each bring it in).
+    Ambiguous,
     /// Not the door.
     No,
+}
+
+/// How a binding of `ev`'s name reaches `door`. A followed import
+/// reaches it when its path ends at the home's item
+/// ([`Bound::targets`], the rule [`Scanned::of`] indexes by); a glob of
+/// the home brings in the door's own name; what lies behind any other
+/// glob is read in its place.
+fn reach_bound(b: Option<&Bound>, ev: &Event, door: &Door, in_home: bool) -> Reach {
+    let own = ev.name == door.name;
+    let called = ev.args.is_some();
+    match b {
+        Some(Bound::Use { path, .. }) if ends(path, &[HOME_MODULE, &door.name]) => {
+            Reach::Site(door.cite)
+        }
+        Some(Bound::Glob { paths, behind }) => {
+            if own && paths.iter().any(|g| ends(g, &[HOME_MODULE, "*"])) {
+                Reach::Site(door.cite)
+            } else if behind.is_some() {
+                reach_bound(behind.as_deref(), ev, door, in_home)
+            } else if own && called {
+                Reach::Unresolved
+            } else {
+                Reach::No
+            }
+        }
+        Some(Bound::Item) if own && in_home => Reach::Site(door.cite),
+        Some(Bound::Ambiguous(all)) => {
+            if all
+                .iter()
+                .any(|b| matches!(reach_bound(Some(b), ev, door, in_home), Reach::Site(_)))
+            {
+                Reach::Ambiguous
+            } else {
+                Reach::No
+            }
+        }
+        None if own && called => Reach::Unresolved,
+        _ => Reach::No,
+    }
 }
 
 /// How `ev` reaches `door`, given the file's module qualifiers `quals`.
@@ -282,23 +332,32 @@ fn reach(ev: &Event, door: &Door, quals: &[String], in_home: bool) -> Reach {
         };
     }
     match &ev.callee {
-        Callee::Bare(Some(Bound::Use { path, .. })) if ends(path, &[HOME_MODULE, &door.name]) => {
-            Reach::Site(door.cite)
-        }
-        Callee::Bare(Some(Bound::Glob(globs)))
-            if own && globs.iter().any(|g| ends(g, &[HOME_MODULE, "*"])) =>
-        {
-            Reach::Site(door.cite)
-        }
-        Callee::Bare(Some(Bound::Item)) if own && in_home => Reach::Site(door.cite),
-        Callee::Bare(None | Some(Bound::Glob(_))) if own && ev.args.is_some() => Reach::Unresolved,
-        Callee::Path { qualifier } if own => {
+        Callee::Bare(b) => reach_bound(b.as_ref(), ev, door, in_home),
+        Callee::Path {
+            qualifier,
+            resolved,
+        } => {
+            if resolved.is_some() {
+                let r = reach_bound(resolved.as_ref(), ev, door, in_home);
+                if !matches!(r, Reach::No) {
+                    return r;
+                }
+            }
+            if !own {
+                return Reach::No;
+            }
             let q = qualifier.as_deref().unwrap_or("");
             let through = quals.iter().any(|m| m == q);
             let typed = door.method && q.starts_with(char::is_uppercase);
+            let in_file_head = matches!(q, "self" | "super");
             match (through, typed) {
                 (true, _) => Reach::Site(door.cite),
                 (false, true) => Reach::Site(door.cite + usize::from(door.receiver)),
+                // `self::`/`super::` the parse could not follow: the path
+                // leaves this file's modules, so it may be the door.
+                (false, false) if in_file_head && resolved.is_none() && ev.args.is_some() => {
+                    Reach::LeavesFile
+                }
                 (false, false) => Reach::No,
             }
         }
@@ -364,6 +423,28 @@ fn door_calls_in(file: &Scanned, door: &Door) -> Vec<(usize, Cite)> {
                 ));
                 continue;
             }
+            Reach::LeavesFile => {
+                out.push((
+                    ev.line,
+                    Cite::Row(format!(
+                        "<calls `{name}` by a `self::`/`super::` path that leaves this file's \
+                         modules, so this census cannot follow it: import it from \
+                         `{HOME_MODULE}`, or qualify it>"
+                    )),
+                ));
+                continue;
+            }
+            Reach::Ambiguous => {
+                out.push((
+                    ev.line,
+                    Cite::Row(format!(
+                        "<calls `{name}` where it resolves to more than one binding, the door \
+                         among them (`#[cfg]`-kept declarations, or globs): this census reads \
+                         none of them; give the name one binding>"
+                    )),
+                ));
+                continue;
+            }
             Reach::InMacro => {
                 out.push((
                     ev.line,
@@ -421,13 +502,18 @@ fn door_calls_in(file: &Scanned, door: &Door) -> Vec<(usize, Cite)> {
 /// ([`forwarding_door`]).
 fn door_sites(files: &[(PathBuf, String)], doors: &[Door]) -> Vec<Site> {
     let scanned: Vec<Scanned> = files.iter().map(|(p, t)| Scanned::of(p, t)).collect();
+    door_sites_in(&scanned, doors)
+}
+
+/// [`door_sites`] over files already read.
+fn door_sites_in(scanned: &[Scanned], doors: &[Door]) -> Vec<Site> {
     let mut known: Vec<Door> = doors.to_vec();
     let mut hits: Vec<Site> = Vec::new();
     let mut next = 0;
     while next < known.len() {
         let door = known[next].clone();
         next += 1;
-        for file in &scanned {
+        for file in scanned {
             let path = &file.path.to_path_buf();
             for (line, found) in door_calls_in(file, &door) {
                 match found {
@@ -554,7 +640,22 @@ fn flagged_sites() -> Vec<Site> {
         !flagged.is_empty(),
         "the home defines no decide_flagged door"
     );
-    door_sites(&shipped_files(), &flagged)
+    door_sites_in(shipped_scanned(), &flagged)
+}
+
+/// The shipped files, read and parsed once per process: both shipped
+/// rows read the same parse. (Under nextest each row is its own
+/// process, so there the parse is once per row.)
+fn shipped_scanned() -> &'static [Scanned<'static>] {
+    static FILES: std::sync::OnceLock<Vec<(PathBuf, String)>> = std::sync::OnceLock::new();
+    static SCANNED: std::sync::OnceLock<Vec<Scanned<'static>>> = std::sync::OnceLock::new();
+    SCANNED.get_or_init(|| {
+        FILES
+            .get_or_init(shipped_files)
+            .iter()
+            .map(|(p, t)| Scanned::of(p, t))
+            .collect()
+    })
 }
 
 #[test]
@@ -572,7 +673,7 @@ fn shipped_decide_flagged_sites_match_the_ledger() {
 
 #[test]
 fn every_shipped_site_cites_a_ledger_row_that_exists() {
-    let hits = door_sites(&shipped_files(), &shipped_doors());
+    let hits = door_sites_in(shipped_scanned(), &shipped_doors());
     let audit = crates_root()
         .parent()
         .expect("workspace root")
@@ -1036,4 +1137,91 @@ fn a_patterns_binding_holds_only_over_what_the_pattern_governs() {
     let mut got = rows_of(&door_sites(&files, &roster));
     got.sort();
     assert_eq!(got, want, "each pattern's own scope");
+}
+
+/// **A door reached through an in-file path is a site**: an import of a
+/// parent's or a child's import (`use super::choose`, `use
+/// self::inner::choose`, an alias through `super`), a `self::`/`super::`
+/// path call, and a glob of a glob of the home. Each is followed to the
+/// import that leaves the file. A block's glob that leaves the file
+/// keeps the outer import behind it. `super::` past the file's own
+/// module, and two `#[cfg]`-kept imports of one name, are rows that say
+/// what the census cannot read, never a silent drop.
+#[test]
+fn a_door_reached_through_an_in_file_path_is_a_site() {
+    let home = "k_stats.rs";
+    let files = [
+        planted(
+            home,
+            "pub fn choose<T: Decide>(name: &'static str, m: M<T>, ledger_row: &'static str) -> Pick {\n    Pick::Tie\n}\n",
+        ),
+        planted(
+            "use_super.rs",
+            "use crate::k_stats::choose;\nmod tests {\n    use super::choose;\n    fn a() { choose(\"n\", m, \"R1\"); }\n}\n",
+        ),
+        planted(
+            "use_self_child.rs",
+            "use self::inner::choose;\nmod inner { pub use crate::k_stats::choose; }\nfn a() { choose(\"n\", m, \"R2\"); }\n",
+        ),
+        planted(
+            "self_path.rs",
+            "use crate::k_stats::choose;\nfn a() { self::choose(\"n\", m, \"R3\"); }\n",
+        ),
+        planted(
+            "super_path.rs",
+            "use crate::k_stats::choose;\nmod t {\n    fn a() { super::choose(\"n\", m, \"R4\"); }\n}\n",
+        ),
+        planted(
+            "glob_of_glob.rs",
+            "use crate::k_stats::*;\nmod a {\n    use super::*;\n    mod b {\n        use super::*;\n        fn f() { choose(\"n\", m, \"R5\"); }\n    }\n}\n",
+        ),
+        planted(
+            "block_glob.rs",
+            "use crate::k_stats::choose;\nfn f() {\n    use other::*;\n    choose(\"n\", m, \"R6\");\n}\n",
+        ),
+        planted(
+            "alias_through_super.rs",
+            "use crate::k_stats::choose as pick;\nmod t {\n    use super::pick;\n    fn a() { pick(\"n\", m, \"R7\"); }\n}\n",
+        ),
+        planted(
+            "super_leaves.rs",
+            "fn a() { super::choose(\"n\", m, \"R8\"); }\n",
+        ),
+        planted(
+            "cfg_kept.rs",
+            "#[cfg(test)]\nuse crate::k_stats::choose;\n#[cfg(not(test))]\nuse other::choose;\nfn a() { choose(\"n\", m, \"R9\"); }\n",
+        ),
+        planted(
+            "another_meaning_through_super.rs",
+            "use other::choose;\nmod t {\n    use super::choose;\n    fn a() { choose(1, 2); }\n}\n",
+        ),
+    ];
+    let roster = home_doors_but(Path::new(home), &files[0].1, &[]);
+    let mut got = rows_of(&door_sites(&files, &roster));
+    got.sort();
+    let leaves = "<calls `choose` by a `self::`/`super::` path that leaves this file's modules, \
+                  so this census cannot follow it: import it from `k_stats`, or qualify it>";
+    let ambiguous = "<calls `choose` where it resolves to more than one binding, the door among \
+                     them (`#[cfg]`-kept declarations, or globs): this census reads none of \
+                     them; give the name one binding>";
+    // The child's `pub use` is a re-export in its own right.
+    let reexport = "<re-exports `choose` (`pub use crate::k_stats::choose`): its importers reach \
+                    the door by a path this census does not read>";
+    let mut want: Vec<(String, String)> = [
+        ("alias_through_super.rs", "R7"),
+        ("block_glob.rs", "R6"),
+        ("cfg_kept.rs", ambiguous),
+        ("glob_of_glob.rs", "R5"),
+        ("self_path.rs", "R3"),
+        ("super_leaves.rs", leaves),
+        ("super_path.rs", "R4"),
+        ("use_self_child.rs", "R2"),
+        ("use_self_child.rs", reexport),
+        ("use_super.rs", "R1"),
+    ]
+    .into_iter()
+    .map(|(f, r)| (f.to_string(), r.to_string()))
+    .collect();
+    want.sort();
+    assert_eq!(got, want, "each in-file path, followed");
 }

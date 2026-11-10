@@ -195,8 +195,110 @@ fn any_other_glob_is_reported_as_the_paths_it_reads() {
     let got = probes("use k_stats::*; fn g() { probe(row); }");
     assert_eq!(
         got,
-        vec![Some(Bound::Glob(vec![vec!["k_stats".into(), "*".into()]]))]
+        vec![Some(Bound::Glob {
+            paths: vec![vec!["k_stats".into(), "*".into()]],
+            behind: None,
+        })]
     );
+}
+
+#[test]
+fn a_use_of_a_parents_import_is_followed_to_the_path_that_leaves_the_file() {
+    let got = probes(
+        "use crate::k_stats::row;
+        mod tests {
+            use super::row;
+            fn g() { probe(row); }
+            mod deeper { use super::row as r; fn h() { probe(r); } }
+        }",
+    );
+    let r = Some(Bound::Use {
+        path: vec!["crate".into(), "k_stats".into(), "row".into()],
+        alias: Some("r".into()),
+    });
+    assert_eq!(got, vec![used(&["crate", "k_stats", "row"]), r]);
+}
+
+#[test]
+fn a_use_into_a_child_module_is_followed_to_its_item_or_import() {
+    let got = probes(
+        "use self::m::row;
+        use self::m::HERE;
+        mod m { pub use k_stats::row; pub const HERE: &str = \"F1\"; }
+        fn g() { probe(row); probe(HERE); }",
+    );
+    assert_eq!(got, vec![used(&["k_stats", "row"]), Some(Bound::Item)]);
+}
+
+#[test]
+fn a_self_or_super_path_call_resolves_where_it_points() {
+    let src = parsed(
+        "use crate::k_stats::door;
+        fn local() {}
+        fn f() { self::door(); self::local(); }
+        mod tests { fn t() { super::door(); super::super::door(); } }",
+    );
+    let resolved: Vec<Option<Bound>> = src
+        .events
+        .iter()
+        .filter(|e| e.args.is_some() && matches!(e.callee, Callee::Path { .. }))
+        .map(|e| e.bound().cloned())
+        .collect();
+    let door = used(&["crate", "k_stats", "door"]);
+    assert_eq!(resolved, vec![door.clone(), Some(Bound::Item), door, None]);
+}
+
+#[test]
+fn cfg_kept_declarations_of_one_name_are_ambiguous_not_the_last_one() {
+    let got = probes(
+        "#[cfg(test)] use a::row;
+        #[cfg(not(test))] use b::row;
+        fn g() { probe(row); }",
+    );
+    assert_eq!(
+        got,
+        vec![Some(Bound::Ambiguous(vec![
+            used(&["a", "row"]).unwrap(),
+            used(&["b", "row"]).unwrap(),
+        ]))]
+    );
+}
+
+#[test]
+fn a_super_glob_of_a_super_glob_reaches_the_glob_that_leaves_the_file() {
+    let got = probes(
+        "use k_stats::*;
+        mod a { use super::*; mod b { use super::*; fn g() { probe(row); } } }",
+    );
+    assert_eq!(
+        got,
+        vec![Some(Bound::Glob {
+            paths: vec![vec!["k_stats".into(), "*".into()]],
+            behind: None,
+        })]
+    );
+}
+
+#[test]
+fn a_blocks_glob_leaves_the_outer_import_behind_it_not_hidden() {
+    let got = probes(
+        "use crate::k_stats::row;
+        fn g() { use other::*; probe(row); }",
+    );
+    assert_eq!(
+        got,
+        vec![Some(Bound::Glob {
+            paths: vec![vec!["other".into(), "*".into()]],
+            behind: Some(Box::new(used(&["crate", "k_stats", "row"]).unwrap())),
+        })]
+    );
+}
+
+#[test]
+fn an_events_reached_names_follow_its_imports() {
+    let src = parsed("use mod_a::choose as pick; mod b { use super::pick; fn g() { pick(); } }");
+    let ev = src.events.iter().find(|e| e.name == "pick").unwrap();
+    assert_eq!(ev.reaches(), ["pick", "choose"]);
 }
 
 #[test]
@@ -242,7 +344,8 @@ fn a_calls_callee_kind_and_arguments_are_read() {
     assert_eq!(
         doors[0].callee,
         Callee::Path {
-            qualifier: Some("b".into())
+            qualifier: Some("b".into()),
+            resolved: None,
         }
     );
     assert_eq!(
@@ -259,7 +362,8 @@ fn a_calls_callee_kind_and_arguments_are_read() {
     assert_eq!(
         doors[1].callee,
         Callee::Path {
-            qualifier: Some("T".into())
+            qualifier: Some("T".into()),
+            resolved: None,
         }
     );
     assert_eq!(doors[2].callee, Callee::Method);
