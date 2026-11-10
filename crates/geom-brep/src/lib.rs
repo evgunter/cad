@@ -100,6 +100,7 @@ pub mod props;
 pub mod quartic;
 pub mod recourse;
 pub mod roots;
+pub mod rows;
 pub mod sector_shape;
 pub(crate) mod shape_operator;
 pub mod ssi;

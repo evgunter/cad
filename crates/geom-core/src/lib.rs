@@ -30,6 +30,7 @@ pub mod period;
 pub mod predicate;
 pub mod readable;
 pub mod real;
+pub mod rows;
 pub mod running;
 pub mod spline;
 pub mod structure;

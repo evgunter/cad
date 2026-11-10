@@ -86,11 +86,12 @@
 //! division, the rescale, the depression) is left to its band decisions.
 
 use crate::ladder::{Answering, Climb, Rung, climb, decided};
+pub use crate::rows::{HalfAngleRows, SubdivisionRows, TouchRows};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign};
 
-use crate::quartic::{QuarticRows, depressed_quartic_roots};
+use crate::quartic::depressed_quartic_roots;
 use crate::roots::{RootFault, RootRefusal, Roots, Unsettled, touch_or_tangency};
 
 /// The most harmonics [`certified_subdivision`] reads: a conic against a
@@ -308,58 +309,6 @@ pub struct RootSlack<'a, T> {
     pub f_per_metre_hi: T,
 }
 
-/// The predicate rows one caller of [`half_angle_roots`] meters under.
-pub struct HalfAngleRows {
-    /// The pole is definitely off the surface (a residual, metres).
-    pub pole: &'static str,
-    /// The pole is well conditioned (module docs; metres).
-    pub conditioning: &'static str,
-    /// The harmonics' rounding, as a residual, is past the band, and the
-    /// ladder does not run (the noise meter; metres).
-    pub noise: &'static str,
-    /// The quartic ladder's own rows.
-    pub quartic: QuarticRows,
-    /// The certified subdivision's rows ([`certified_subdivision`]).
-    pub verify: SubdivisionRows,
-}
-
-/// The predicate rows one caller of [`certified_subdivision`] meters
-/// under, every one a residual in metres.
-pub struct SubdivisionRows {
-    /// A piece is definitely root-free: `|F(m)|` exceeds the most `F` can
-    /// fall over the half-width.
-    pub clear: &'static str,
-    /// A piece is definitely monotone: `|F′(m)|` exceeds the most `F′`
-    /// can fall over the half-width, read as the rise it certifies.
-    pub monotone: &'static str,
-    /// The residual's sign at a monotone piece's ends, and ON the surface
-    /// at a located root.
-    pub side: &'static str,
-    /// A piece is still wider, as arc length, than the zero band: below
-    /// it a piece that is neither clear nor monotone holds a double root
-    /// the band cannot resolve.
-    pub width: &'static str,
-}
-
-/// **The rows a caller of [`certified_subdivision_touching`] places a
-/// touch under**: where a piece neither clear nor monotone is convex
-/// toward its ends' common side, the walk reads its extremum as a
-/// touch ([`certified_subdivision_touching`]).
-pub struct TouchRows {
-    /// The least of `F″` toward the ends' side over the piece is
-    /// positive, read exactly (a sign, not a length), and so are the
-    /// slopes toward the extremum at the piece's ends.
-    pub convex: &'static str,
-    /// The most residual, in metres, over the arc of the piece where `F`
-    /// lies on the far side of zero from its ends: zero is one touch.
-    /// Where `F` does not reach zero on the piece (no root: `G(θ*)` is
-    /// past zero and the fall's first term clamps at zero), the arc is
-    /// empty and the fall is the slope's share alone; the touch is then
-    /// the extremum's near-miss, whose own residual reads in the zero
-    /// band (`side`).
-    pub stretch: &'static str,
-}
-
 /// The roots and touches [`certified_subdivision_touching`] certifies:
 /// `roots` as [`certified_subdivision`]'s, and `touches` the double
 /// roots it placed, each standing for every root of `F` on its piece.
@@ -431,7 +380,7 @@ pub fn half_angle_roots<T: Decide>(
         frame.jet.map_or(Terms::Harmonics(&poly), Terms::Local),
         &residual,
         &frame.walk,
-        &rows.verify,
+        rows.verify(),
         Some(slack),
         band,
     )
@@ -466,7 +415,7 @@ fn ladder_roots<T: Decide>(
     // depression, discriminant) round again; those are left to the
     // ladder's own band decisions, which is the premise the module docs
     // state.
-    match decide(rows.noise, Margin::of(frame.noise_reading()), band) {
+    match decide(rows.noise(), Margin::of(frame.noise_reading()), band) {
         Ok(Sign::Positive) => return Ok(()),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
     }
@@ -503,7 +452,7 @@ fn ladder_roots<T: Decide>(
         let anchor = mid + shift;
         // The pole decided apart from a root goes on; a root passes.
         let pole = Margin::of(residual(anchor + T::pi()));
-        match decided(rows.pole, pole, band) {
+        match decided(rows.pole(), pole, band) {
             Ok(d) if d.sign == Sign::Zero => return Rung::Passes,
             Ok(_) => {}
             Err(kept) => return kept.into(),
@@ -529,7 +478,7 @@ fn ladder_roots<T: Decide>(
             speed_lo * (lead.abs() - T::from_f64(POLE_CONDITIONING) * amplitude),
             amplitude,
         );
-        match decided(rows.conditioning, conditioning, band) {
+        match decided(rows.conditioning(), conditioning, band) {
             Ok(d) if d.sign == Sign::Positive => {}
             Ok(_) => return Rung::Passes,
             Err(kept) => return kept.into(),
@@ -554,7 +503,7 @@ fn ladder_roots<T: Decide>(
         // rounding nothing meters (module docs), and the module docs
         // record it disagreeing across definite crossings.
         Rung::Answers(
-            match depressed_quartic_roots(p, q, s, lever, &rows.quartic, band) {
+            match depressed_quartic_roots(p, q, s, lever, rows.quartic(), band) {
                 Err(RootRefusal::Escalated(diag)) => Err(diag),
                 Ok(_)
                 | Err(RootRefusal::Touch(_) | RootRefusal::Unsettled(_) | RootRefusal::Fault(_)) => {
@@ -821,7 +770,7 @@ fn subdivision<T: Decide>(
     // The first reading in the band's gap at a cut the walk tried: what a
     // walk that can cut nowhere definite refuses on.
     let first_in_gap = core::cell::Cell::new(None);
-    let side = |t: T| match decide(rows.side, Margin::of(residual(t)), band) {
+    let side = |t: T| match decide(rows.side(), Margin::of(residual(t)), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         Ok(Sign::Zero) => None,
         Err(diag) => {
@@ -890,13 +839,13 @@ fn subdivision<T: Decide>(
             + fourth_hi * half.powi(4) / twenty_four;
         let clear = (f0.abs() - fall - e0) / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
-        if definitely(rows.clear, clear) {
+        if definitely(rows.clear(), clear) {
             return Step::Settled;
         }
         let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
         let least_slope =
             d1_lo - d2_hi * half - d3_hi * half.powi(2) / two - fourth_hi * half.powi(3) / six;
-        if definitely(rows.monotone, speed_hi * least_slope / most_bend) {
+        if definitely(rows.monotone(), speed_hi * least_slope / most_bend) {
             if sl == sr {
                 return Step::Settled;
             }
@@ -911,7 +860,7 @@ fn subdivision<T: Decide>(
             };
             let on = |t: T| {
                 matches!(
-                    decide(rows.side, Margin::of(residual(t)), band),
+                    decide(rows.side(), Margin::of(residual(t)), band),
                     Ok(Sign::Zero)
                 )
             };
@@ -924,13 +873,13 @@ fn subdivision<T: Decide>(
                 // by that turn, on the scalars the root is reported at.
                 let turn = lo - reported(lo);
                 root = nearer(close(l - turn, r - turn));
-                match decide(rows.side, Margin::of(residual(root)), band) {
+                match decide(rows.side(), Margin::of(residual(root)), band) {
                     Ok(Sign::Zero) => {}
                     Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
                     // Definitely off beside a sign change: the residual's
                     // step between adjacent scalars is past the band.
                     Ok(Sign::Positive | Sign::Negative) => {
-                        return Step::Stop(Unsettled::Meter { row: rows.side }.into());
+                        return Step::Stop(Unsettled::Meter { row: rows.side() }.into());
                     }
                 }
             }
@@ -970,7 +919,7 @@ fn subdivision<T: Decide>(
             } else {
                 T::zero() - T::one()
             };
-            let exactly = |x: T| geom_core::k_stats::prove(touch.convex, Margin::of(x)).ok();
+            let exactly = |x: T| geom_core::k_stats::prove(touch.convex(), Margin::of(x)).ok();
             let curve = toward * f2 - e2 - d3_hi * half - fourth_hi * half.powi(2) / two;
             let slope = |t: T| toward * taylor(t)[1].0;
             if exactly(curve) == Some(Sign::Positive)
@@ -980,7 +929,7 @@ fn subdivision<T: Decide>(
                 let (lo, hi) = sign_change(&slope, l, r);
                 let at = (lo + hi) / two;
                 if matches!(
-                    decide(rows.side, Margin::of(residual(at)), band),
+                    decide(rows.side(), Margin::of(residual(at)), band),
                     Ok(Sign::Zero)
                 ) {
                     // Convex on the piece (`curve`, read above), `G` is
@@ -990,7 +939,7 @@ fn subdivision<T: Decide>(
                     let [(g0, e0), (g1, e1), _, _] = taylor(at);
                     let slope_hi = g1.abs() + e1;
                     let fall = (e0 - toward * g0).max(T::zero()) + slope_hi.powi(2) / (two * curve);
-                    match decide(touch.stretch, Margin::of(fall / f_per_metre), band) {
+                    match decide(touch.stretch(), Margin::of(fall / f_per_metre), band) {
                         Ok(Sign::Zero) => {
                             touches.push(reported(at));
                             return Step::Settled;
@@ -1004,7 +953,7 @@ fn subdivision<T: Decide>(
         // The clear margin is a lower bound on the residual, not a
         // reading of it: a looser bound reads it lower, so where it falls
         // says how good the bound is, not how near the carrier passes.
-        if !definitely(rows.width, speed_hi * (r - l)) {
+        if !definitely(rows.width(), speed_hi * (r - l)) {
             return Step::Stop(Unsettled::Tangency.into());
         }
         first_in_gap.set(None);
@@ -1056,12 +1005,7 @@ mod subdivision_guard_rows {
 
     use super::*;
 
-    const ROWS: SubdivisionRows = SubdivisionRows {
-        clear: "bool_conic_quadric_sub_clear",
-        monotone: "bool_conic_quadric_sub_monotone",
-        side: "bool_conic_quadric_sub_side",
-        width: "bool_conic_quadric_sub_width",
-    };
+    const ROWS: SubdivisionRows = *crate::rows::CONIC_QUADRIC_LADDER.verify();
 
     fn walk(
         f: &TrigPoly<f64>,
@@ -1362,12 +1306,7 @@ mod review_5993_recut_rows {
 
     use super::*;
 
-    const ROWS: SubdivisionRows = SubdivisionRows {
-        clear: "bool_conic_quadric_sub_clear",
-        monotone: "bool_conic_quadric_sub_monotone",
-        side: "bool_conic_quadric_sub_side",
-        width: "bool_conic_quadric_sub_width",
-    };
+    const ROWS: SubdivisionRows = *crate::rows::CONIC_QUADRIC_LADDER.verify();
 
     fn walk(f: &TrigPoly<f64>, eps: f64) -> Result<TrigRoots<f64>, RootRefusal> {
         let frame = SubdivisionFrame {
@@ -1430,7 +1369,7 @@ mod review_5993_recut_rows {
                 let from = base + piece * f64::from(k);
                 !SPLITS.iter().any(|&s| {
                     matches!(
-                        decide(ROWS.side, Margin::of(value(from + piece * s)), band),
+                        decide(ROWS.side(), Margin::of(value(from + piece * s)), band),
                         Ok(Sign::Positive | Sign::Negative)
                     )
                 })
@@ -1557,12 +1496,7 @@ mod review3_fault_rows {
 
     use super::*;
 
-    const ROWS: SubdivisionRows = SubdivisionRows {
-        clear: "bool_conic_quadric_sub_clear",
-        monotone: "bool_conic_quadric_sub_monotone",
-        side: "bool_conic_quadric_sub_side",
-        width: "bool_conic_quadric_sub_width",
-    };
+    const ROWS: SubdivisionRows = *crate::rows::CONIC_QUADRIC_LADDER.verify();
 
     #[test]
     #[ignore = "review probe"]

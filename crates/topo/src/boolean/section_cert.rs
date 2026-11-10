@@ -1483,13 +1483,7 @@ fn cone_plane_pair<T: Decide>(
 }
 
 /// The subdivision rows every ruling chart walks under.
-const RULING_WALK: geom_brep::half_angle::SubdivisionRows =
-    geom_brep::half_angle::SubdivisionRows {
-        clear: "section_ruling_clear",
-        monotone: "section_ruling_monotone",
-        side: "section_ruling_side",
-        width: "section_ruling_width",
-    };
+const RULING_WALK: geom_brep::half_angle::SubdivisionRows = geom_brep::rows::SECTION_RULING_WALK;
 
 /// **Cone × plane**, the plane through `p0` with unit normal `n`.
 ///

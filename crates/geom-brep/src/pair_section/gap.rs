@@ -109,6 +109,7 @@
 //! goes on; the cell that spends the budget escalates at once, on the
 //! held escalation if there is one, without reading the cells left.
 
+pub(crate) use crate::rows::GapRows;
 use geom::Conic as _;
 use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
@@ -179,25 +180,6 @@ impl<T: Real> Spine<T> {
             Self::Circle { axis, radius } => (axis.origin, radius),
         }
     }
-}
-
-/// The rows a sweep decides on, each a pair's own name.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct GapRows {
-    /// The gap itself: a Zero verdict, and the floor's escalation.
-    pub(crate) gap: &'static str,
-    /// A cell's branch stands past the band from both levels.
-    pub(crate) clear: &'static str,
-    /// A cell's branch is monotone.
-    pub(crate) monotone: &'static str,
-    /// A cell's branch is smooth: off the kinks.
-    pub(crate) smooth: &'static str,
-    /// The sign of `D′` at a cell's or a window's end.
-    pub(crate) turn: &'static str,
-    /// A cell at the floor.
-    pub(crate) floor: &'static str,
-    /// The floor's two bounds on the gap straddling the band.
-    pub(crate) straddle: &'static str,
 }
 
 /// **What the gap decided.**
@@ -401,7 +383,7 @@ impl<T: Decide> Sweep<'_, T> {
         let far = r.reach + reach;
         match (self.spine, r.kink) {
             (Spine::Circle { radius, .. }, Some(rho)) => {
-                if !self.positive(self.rows.smooth, Margin::of(rho - reach)) {
+                if !self.positive(self.rows.smooth(), Margin::of(rho - reach)) {
                     return None;
                 }
                 let lo = rho - reach;
@@ -422,7 +404,7 @@ impl<T: Decide> Sweep<'_, T> {
     fn turn(&self, far: bool, phi: T) -> Option<Sign> {
         let r = read(self.core, self.spine, far, phi);
         match decide(
-            self.rows.turn,
+            self.rows.turn(),
             self.slope(
                 geom_core::Rounded {
                     value: r.g1,
@@ -444,7 +426,7 @@ impl<T: Decide> Sweep<'_, T> {
         let reach = big * w;
         let r = read(self.core, self.spine, far, m);
         if self.positive(
-            self.rows.clear,
+            self.rows.clear(),
             Margin::of(nearest(r.d, self.levels) - reach - r.err.d),
         ) {
             return Cell::Clear;
@@ -453,7 +435,7 @@ impl<T: Decide> Sweep<'_, T> {
             sign: Sign::Zero,
             margin,
         }) = decide_reported(
-            self.rows.gap,
+            self.rows.gap(),
             Margin::of((r.d + r.err.d).max(self.levels[1])),
             self.band,
         ) {
@@ -475,7 +457,7 @@ impl<T: Decide> Sweep<'_, T> {
         let (d_lo, d_hi) = ((g - swing).max(T::zero()).sqrt(), (g + swing).sqrt());
         let apart = |level: T| (level - d_hi).max(d_lo - level);
         if self.positive(
-            self.rows.clear,
+            self.rows.clear(),
             Margin::of(apart(self.levels[0]).min(apart(self.levels[1]))),
         ) {
             return Cell::Clear;
@@ -483,7 +465,10 @@ impl<T: Decide> Sweep<'_, T> {
         // The least `|G′|` over the cell, less its rounding, as the least
         // crossing it bounds against `D`'s most over the cell.
         let least = r.g1.abs() - r.err.g1 - (r.g2.abs() + r.err.g2) * w - third * w.powi(2) / two;
-        if self.positive(self.rows.monotone, self.slope(least, r.d + r.err.d + reach)) {
+        if self.positive(
+            self.rows.monotone(),
+            self.slope(least, r.d + r.err.d + reach),
+        ) {
             return Cell::Clear;
         }
         // Read across the cell padded by half its width each side, so a
@@ -532,7 +517,7 @@ impl<T: Decide> Sweep<'_, T> {
                         if let Ok(Decided {
                             sign: Sign::Zero,
                             margin,
-                        }) = decide_reported(self.rows.gap, Margin::of(bound), self.band)
+                        }) = decide_reported(self.rows.gap(), Margin::of(bound), self.band)
                         {
                             return Some(Gap::Tangent {
                                 margin,
@@ -555,14 +540,14 @@ impl<T: Decide> Sweep<'_, T> {
     fn floor_refusal(&self, r: Reading<T>, reach: T) -> Indeterminate {
         let near = nearest(r.d, self.levels);
         let reach = reach + r.err.d;
-        let bound = |m: T| decide_reported(self.rows.gap, Margin::of(m), self.band);
+        let bound = |m: T| decide_reported(self.rows.gap(), Margin::of(m), self.band);
         match (bound(near - reach), bound(near + reach)) {
             (Err(e), _) | (_, Err(e)) => e,
             (Ok(lower), Ok(upper)) if lower.sign < upper.sign => {
-                straddle(self.rows.straddle, lower, upper, self.band)
+                straddle(self.rows.straddle(), lower, upper, self.band)
             }
             (Ok(_), Ok(upper)) => {
-                gate_rejection(self.rows.gap, upper, self.band, SizedPass::Positive)
+                gate_rejection(self.rows.gap(), upper, self.band, SizedPass::Positive)
             }
         }
     }
@@ -629,7 +614,7 @@ pub(crate) fn critical_gap<T: Decide>(
         };
         let reach = core.circle.radius * w;
         let floored = matches!(
-            decide(rows.floor, Margin::of(reach * T::from_f64(4.0)), band),
+            decide(rows.floor(), Margin::of(reach * T::from_f64(4.0)), band),
             Ok(Sign::Zero)
         );
         if spent >= GAP_CELLS {
