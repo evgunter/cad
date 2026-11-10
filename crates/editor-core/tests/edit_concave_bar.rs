@@ -126,9 +126,9 @@ fn a_bar_a_size_edit_puts_inside_a_concave_fill_vanishes_on_the_blends_verdict()
     };
     let floor = named(&ev0, union, |k| match k {
         EntityKey::Edge(e) => {
-            let he = body.get_edge(e).expect("an edge").he_plus;
-            let s = point(body.get_half_edge(he).expect("a half").start);
-            let t = point(body.half_edge_end(he).expect("an end"));
+            let (v0, v1) = body.edge_vertices(e).expect("an edge");
+            let s = point(v0);
+            let t = point(v1);
             let on =
                 |p: geom_core::Point3<f64>| (p.y - 0.25).abs() < 1e-12 && (p.z - 0.5).abs() < 1e-12;
             on(s) && on(t) && ((s.x - t.x).abs() - 0.5).abs() < 1e-12

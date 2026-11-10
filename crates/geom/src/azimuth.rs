@@ -161,7 +161,7 @@ pub const ANGLE_WINDOW_START: f64 = -1.0;
 /// latitude `δ = −1`, the footing the angle window's offset arms are on.
 /// Every latitude below `1` reads on the direct side, bit-identical to
 /// `atan2`; those in `(1, π/2]` read through the turned formula
-/// (`stable_azimuth`), so their bits are not `atan2`'s. No pinned row
+/// (`stable_azimuth_as`), so their bits are not `atan2`'s. No pinned row
 /// reads one, but unpinned rows do (the delta-6 review counted 257 reads
 /// strictly inside, in 13 rows, and 122 k exactly at `π/2`, from pole
 /// starts, which are bit-equal at `f64` and a different enclosure at
@@ -286,7 +286,7 @@ impl Quarter {
 impl<T: Decide> Azimuth<T> {
     /// The principal angle in the angle window ([`Window::Angle`],
     /// `principal_in`): `atan2`'s, read on whichever side of the
-    /// window's cut line the direction lies (`stable_azimuth`): a choice
+    /// window's cut line the direction lies (`stable_azimuth_as`): a choice
     /// between two formulas equal modulo a turn, so the angle is one of
     /// the direction's names. A direction decided on either side reads in
     /// `(−1, τ − 1]`, and one on the cut reads the closed end `τ − 1`. One
@@ -366,7 +366,7 @@ impl<T: Decide> Azimuth<T> {
             _ => {}
         }
         let read = unlogged("F31", || {
-            stable_azimuth(
+            stable_azimuth_as(
                 "azimuth_near_cut_side",
                 self.y,
                 self.x,
@@ -381,7 +381,7 @@ impl<T: Decide> Azimuth<T> {
         if !(T::one() / self.length()).is_bounded() {
             return T::zero();
         }
-        stable_azimuth(row, self.y, self.x, window.start(), band)
+        stable_azimuth_as(row, self.y, self.x, window.start(), band)
     }
 }
 
@@ -417,7 +417,7 @@ pub enum Window {
     Latitude,
 }
 
-/// Every window's start lies in `(−π, 0]`, which `stable_azimuth`'s two
+/// Every window's start lies in `(−π, 0]`, which `stable_azimuth_as`'s two
 /// formulas need to cover `(start, start + τ]`; a start moved outside it
 /// fails the build.
 const _: () = {
@@ -455,7 +455,7 @@ impl Window {
 /// at `start`, on the angle-`0` side of it (`Azimuth::principal`'s doc
 /// says what a direction in that band reads); the geom-brep README's C4
 /// says why the windows' starts are generic angles.
-fn stable_azimuth<T: Decide>(row: &'static str, y: T, x: T, start: T, band: Band) -> T {
+fn stable_azimuth_as<T: Decide>(row: &'static str, y: T, x: T, start: T, band: Band) -> T {
     let (s, c) = start.sin_cos();
     match decide(row, Margin::of(c * y - s * x), band) {
         Ok(Sign::Positive) => y.atan2(x),

@@ -482,8 +482,10 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     let top_n = Vec3::new(0.0, 1.0, 0.0);
     let shoulder = Point3::new(SHOULDER.0, SHOULDER.1, 0.0);
     let sheet_at = |p: Point3<f64>| Meridian {
-        origin,
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        axis: geom::Line {
+            origin,
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        },
         rim: p,
     };
     let sphere = |side: SurfaceSide| SupportTrace::Round {

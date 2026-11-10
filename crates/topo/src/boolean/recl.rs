@@ -2738,6 +2738,7 @@ mod tests {
                 "the graze between two Out keys refuses as the bisector's own decision: {got:?}"
             );
         };
+        // UNDECIDED-NAME: the bisector's hand-built Zero, which no door decides (a row)
         assert_eq!(diag.predicate, Some("bool_sector_bisector_side"));
         assert_eq!(
             diag.margin.rejected_sign(),

@@ -8,7 +8,5 @@
 # see the crate from outside.
 crates/geom-brep 1
 crates/sweep 2
-# topo 144 -> 143: QML T4's shell.rs imports geom_core::ladder.
-# topo 143 -> 137: QML T5's stands.rs imports geom_core::ladder.
-# topo 137 -> 135: span_clear's port moves census.rs to geom_core::ladder.
-crates/topo 135
+# topo 141 -> 133: QML T5 and T6 move stands.rs and census.rs to geom_core::ladder.
+crates/topo 133
