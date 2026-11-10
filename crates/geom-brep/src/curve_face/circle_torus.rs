@@ -38,8 +38,10 @@
 //! `ρ⁴` for a large circle — which cancel to the small values `F` takes
 //! where the carrier passes the tube. `F = 2r·res·Q` with `Q ≥ R² − r²`
 //! on a ring torus, so the floor on `|F|` per metre of residual is
-//! `2r(R² − r²)`, and the harmonics' rounding is a residual error past
-//! the band once `ρ⁴ ≳ 10ε·r·R²/(u·SHORT_CHAIN_ULPS)`: from
+//! `2r(R² − r²)`. The door asks the convention whether the torus is a
+//! ring before its meridian rung and its ladder ([`DoorRefusal::ring`]),
+//! and refuses one that is not. The harmonics' rounding is a residual
+//! error past the band once `ρ⁴ ≳ 10ε·r·R²/(u·SHORT_CHAIN_ULPS)`: from
 //! `ρ ≈ 50` at the default band against a torus `R = 1, r = 0.25`.
 //!
 //! So the subdivision does not read its Taylor terms from the harmonics.
