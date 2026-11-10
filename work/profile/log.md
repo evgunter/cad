@@ -18,3 +18,4 @@ At Interval, a lower `apart()` can turn a definite Zero into an in-band
 escalation, which `editor-core`'s driver charges even on an Ok node.
 That question, and the range-width cost, are on
 `work/cpair/a-line-pairs-gap-reading-is-a-range-boundary-where-no-contact-changes.md`.
+- 2026-11-06 — (ROUND orchestrator) Re-banded `a-real-junction-on-a-short-leg-refuses-as-tangent` P2 → P1 on PR 6544's review evidence (reached on legs ≥ ε).

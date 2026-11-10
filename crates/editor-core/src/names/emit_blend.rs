@@ -41,15 +41,15 @@
 //! panics.
 //!
 //! That guard cannot fire while `topo::Body`'s arenas reissue no
-//! retired key. The kernel owns that statement: [`sweep::blend::naming`]'s
-//! module doc says what [`Retired`](sweep::blend::naming::Retired) is
-//! for in this consumer — a guard that cannot fire, holding the
-//! invariant against the arenas' numbering changing. It is kept here
-//! because the property it rests on lives in another crate's choice of
-//! container: were a retired key ever reissued, an unrecorded mint
-//! would be named `From` of an unrelated entity, caught only if
-//! the name's real owner happened to collide at insertion. Same
-//! posture as `wire_blend`'s panic on `naming: None`.
+//! retired key ([`sweep::blend::naming`]'s module doc), and it is kept
+//! because that property is another crate's choice of container: were
+//! a retired key reissued, an unrecorded mint would be named `From` of
+//! an unrelated entity. It sees only a retired key that is IN the
+//! output. A retirement naming a key the carve minted and killed is in
+//! neither arena this pass walks; the surgery's epilogue
+//! (`sweep::blend::surgery::blend_surgery`), which still holds the
+//! source body, is that direction's check, a `debug_assertions` one
+//! (which the release profile keeps on, `Cargo.toml`).
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!
@@ -332,12 +332,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
     for (kind, key) in rows {
         let (seg, from_tie) = match minted.get(&key) {
             Some((seg, tied)) => (seg.clone(), *tied),
-            // Not minted, so it must be a survivor keeping its source
-            // arena key — UNLESS the records say that key was retired,
-            // in which case the match is not provenance.
-            //
-            // Unreachable while the arenas reissue no retired key (the
-            // module doc, citing `sweep::blend::naming`).
+            // Not minted, so a survivor keeping its source arena key —
+            // unless retired, which is unreachable (the module doc).
             None => {
                 let dead = match key {
                     EntityKey::Edge(k) => retired_e.contains(&k),
@@ -420,7 +416,7 @@ mod tie_tests {
             ),
         )
         .expect("the extrude names");
-        (built.body, table)
+        (built.body.into_body(), table)
     }
 
     /// **A join that takes an edge the blend minted outright refuses**:

@@ -31,7 +31,7 @@ fn cyl(z0: f64, h: f64, r: f64) -> AtRestBody<f64> {
 /// The bored plate: a through-hole subtract (the shipped transverse
 /// lane) leaving three bore-wall faces on one cylinder carrier.
 fn bored_plate() -> AtRestBody<f64> {
-    let plate = finished("the plate", plate(), Tol::witness());
+    let plate = finished("the plate", plate::<f64>(), Tol::witness());
     match topo::subtract(&plate, &cyl(-0.2, 1.4, 0.5), Tol::witness())
         .expect("the through-hole subtract is the shipped transverse lane")
     {
@@ -142,7 +142,7 @@ fn lying_cyl(zc: f64) -> AtRestBody<f64> {
 /// in the plate top's interior: an edge–face record, no face–face one.
 #[test]
 fn tangent_door_escalates_and_verifies() {
-    let a = finished("the plate", plate(), Tol::witness());
+    let a = finished("the plate", plate::<f64>(), Tol::witness());
     // An in-band gap (the geometric mean of the run's band, so the
     // row holds at every sampled ε): ESCALATES — the sliver is a
     // sliver (C4's must-verify-DEFINITE list is never bridged).

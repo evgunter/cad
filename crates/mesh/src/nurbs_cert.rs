@@ -1077,7 +1077,7 @@ impl NurbsCellGrid {
             let (va, vb) = (w[0], w[1]);
             // The band is found by the slab midpoint — strictly inside
             // one band, since no interior cut crosses a slab.
-            let bound = self.row_bound(self.row_of(0.5 * (va + vb)));
+            let bound = self.row_bound(self.row_of(geom::mid_param(va, vb)));
             let steps = bound.split_steps(budget);
             let nuc = crate::sizing::ceil_count(du, steps.hu)?;
             let nvc = crate::sizing::ceil_count(vb - va, steps.hv)?;
@@ -2211,8 +2211,8 @@ pub(crate) mod tests {
     fn a_lofted_circle_straddler_reads_its_true_deviation() {
         let body = sweep::test_support::lofted_cylinder(1.0, Tol::witness());
         let mut walls = 0;
-        for (fk, face) in body.faces() {
-            let Some(geom::Surface::Nurbs(wall)) = body.get_surface(face.surface) else {
+        for (fk, _) in body.faces() {
+            let Some(geom::Surface::Nurbs(wall)) = body.face_surface(fk) else {
                 continue;
             };
             walls += 1;
@@ -2857,8 +2857,8 @@ pub(crate) mod tests {
         let body = sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
             .expect("the rational pie lofts")
             .body;
-        for (_, face) in body.faces() {
-            if let Some(geom::Surface::Nurbs(p)) = body.get_surface(face.surface)
+        for (fk, _) in body.faces() {
+            if let Some(geom::Surface::Nurbs(p)) = body.face_surface(fk)
                 && p.constant_weight().is_none()
             {
                 return (**p).clone();

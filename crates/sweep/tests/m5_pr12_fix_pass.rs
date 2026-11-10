@@ -36,6 +36,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A unit-side regular hexagonal prism (circumradius 1 ⇒ side 1,
@@ -285,7 +286,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     // off nothing the flux arm reads.
     for &corner in &f.corner_faces {
         let face = f.body.get_face(corner).expect("the corner face resolves");
-        let Some(&geom::Surface::Sphere { center, radius, .. }) = f.body.get_surface(face.surface)
+        let Some(&geom::Surface::Sphere { center, radius, .. }) = f.body.face_surface(corner)
         else {
             panic!("corner face {corner:?} is a sphere patch");
         };
@@ -306,7 +307,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
                 .dot(u[1].cross(u[2]))
                 .abs()
                 .atan2(1.0 + u[0].dot(u[1]) + u[1].dot(u[2]) + u[2].dot(u[0]));
-        let surface = f.body.get_surface(face.surface).unwrap();
+        let surface = f.body.face_surface(corner).unwrap();
         let area = geom_brep::props::curved_face(surface, &outer, face.sense, band)
             .expect("the patch measures")
             .area;
@@ -348,7 +349,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
                     panic!("a minted row's edge has a certified carrier");
                 };
                 let ((t0, t1), carrier) = (curve.params(), curve.carrier());
-                let surface = f.body.get_surface(face.surface).unwrap();
+                let surface = f.body.face_surface(corner).unwrap();
                 let lift = Interval::from_f64;
                 let (ci, si) = (carrier.map_scalar(lift), surface.map_scalar(lift));
                 let (i0, i1) = (lift(t0), lift(t1));
@@ -386,7 +387,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
             }
         }
         if face_projected {
-            let chart = f.body.get_surface(face.surface).unwrap().clone();
+            let chart = f.body.face_surface(corner).unwrap().clone();
             if let Err(e) = topo::pcurves::loop_windings(&f.body, corner, &chart, band) {
                 assert!(
                     !matches!(e, topo::pcurves::PcurveMintError::Certify { .. }),

@@ -384,7 +384,7 @@ fn a_hairline_slot_cut_nearly_along_its_axis_answers() {
 /// gap under the band and another over it: no lean refuses at the
 /// join, the unleaned pose answers, and every pose that answers is at
 /// rest. A lean that puts a crossing vertex's sector bisector in the
-/// band refuses at the reduction (`split_bisector_side`), and one the
+/// band refuses at the reduction (the divider's side, `topo::bound_side`), and one the
 /// pcurve mint cannot certify refuses there — stages before and after
 /// the join's order, not this row's subject.
 /// (Review R1's concern.)
@@ -1439,12 +1439,7 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
         .clone();
     let ringed_walls = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .filter(|(_, f)| !f.rings.is_empty())
         .count();
     assert_eq!(
@@ -1460,11 +1455,9 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
     for (side, h) in [("below", &below), ("above", &above)] {
         let ringed = h
             .faces()
-            .filter(|(_, f)| {
-                matches!(
-                    h.get_surface(f.surface),
-                    Some(geom::Surface::Cylinder { .. })
-                ) && !f.rings.is_empty()
+            .filter(|(fk, f)| {
+                matches!(h.face_surface(*fk), Some(geom::Surface::Cylinder { .. }))
+                    && !f.rings.is_empty()
             })
             .count();
         assert_eq!(

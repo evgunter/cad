@@ -85,9 +85,7 @@ fn column(cx: f64) -> Lofted<I> {
 
 /// A face's chart point at the middle of its knot domain, as `f64`.
 fn centre<T: Lane>(body: &Body<T>, face: FaceKey) -> Point3<f64> {
-    let surface = body
-        .get_surface(body.get_face(face).unwrap().surface)
-        .unwrap();
+    let surface = body.face_surface(face).unwrap();
     let Surface::Nurbs(net) = surface else {
         panic!("a wall is a NURBS face, got {surface:?}");
     };
@@ -118,11 +116,7 @@ fn verify<'a, T: Lane>(
 ) -> impl FnMut(Candidate<'_, '_, T>) -> Result<f64, String> + 'a {
     move |candidate| {
         let (fa, fb) = candidate.faces();
-        let surface = |body: &Body<T>, f: FaceKey| {
-            body.get_surface(body.get_face(f).unwrap().surface)
-                .unwrap()
-                .clone()
-        };
+        let surface = |body: &Body<T>, f: FaceKey| body.face_surface(f).unwrap().clone();
         let (sa, sb) = (surface(a, fa), surface(b, fb));
         let (la, lb) = candidate.on_face_stations();
         let mut best = f64::INFINITY;
@@ -200,7 +194,7 @@ fn facing() -> ((Lofted<I>, FaceKey), (Lofted<I>, FaceKey)) {
 #[test]
 fn facing_loft_walls_hold_above_the_gap_and_violate_below_it() {
     let ((left, lw), (right, rw)) = facing();
-    let (a, b) = ((&left.body, lw), (&right.body, rw));
+    let (a, b) = ((&*left.body, lw), (&*right.body, rw));
     assert_eq!(
         bound(a, b, 0.5 * GAP),
         BoundVerdict::Holds,
@@ -313,8 +307,8 @@ fn a_sweep_wall_against_a_plane_holds_above_the_gap_and_violates_below_it() {
         Tol::witness(),
     )
     .expect("the slab lofts");
-    let a = (&swept.body, outer);
-    let b = (&slab.body, slab.top);
+    let a = (&*swept.body, outer);
+    let b = (&*slab.body, slab.top);
     let (holds, violated) = (0.5 * separation, 5.0 * separation);
     assert_eq!(
         bound(a, b, holds),
@@ -336,9 +330,9 @@ fn a_sweep_wall_against_a_plane_holds_above_the_gap_and_violates_below_it() {
 #[test]
 fn every_face_of_an_arc_railed_loft_has_a_window() {
     let prism = crate::common::arc_prism();
-    let rational = prism.faces().any(|(_, f)| {
+    let rational = prism.faces().any(|(fk, _)| {
         matches!(
-            prism.get_surface(f.surface),
+            prism.face_surface(fk),
             Some(Surface::Nurbs(net)) if net.weights().iter().any(|&w| w != 1.0)
         )
     });
@@ -361,7 +355,7 @@ fn a_wall_cell_enclosure_narrows_as_it_halves() {
     let (swept, outer) = bowl();
     let surface = swept
         .body
-        .get_surface(swept.body.get_face(outer).unwrap().surface)
+        .face_surface(outer)
         .unwrap()
         .map_scalar(I::from_certified);
     let Surface::Nurbs(net) = &surface else {
@@ -448,10 +442,7 @@ fn curved_walls_are_violated_just_above_their_separation() {
     let (left, right) = (pillow(0.0), pillow(d));
     let lw = wall_by(&left, |p| p.x);
     let rw = wall_by(&right, |p| -p.x);
-    let surface = left
-        .body
-        .get_surface(left.body.get_face(lw).unwrap().surface)
-        .unwrap();
+    let surface = left.body.face_surface(lw).unwrap();
     let Surface::Nurbs(net) = surface else {
         panic!("the bulging wall is a NURBS face");
     };

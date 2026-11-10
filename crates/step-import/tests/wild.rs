@@ -255,16 +255,16 @@ fn assert_sub_tolerance_obligation(row: &str) {
         match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
                 assert_eq!(
-                    topo::validate(body.body()),
+                    topo::validate(&*body),
                     Ok(()),
                     "{row}/{name}: tier 1 at ε {eps:e}"
                 );
                 assert_eq!(
-                    topo::validate_closed(body.body()),
+                    topo::validate_closed(&*body),
                     Ok(()),
                     "{row}/{name}: tier 2 at ε {eps:e}"
                 );
-                match topo::validate_geometric(body.body(), Tol::witness()) {
+                match topo::validate_geometric(&*body, Tol::witness()) {
                     Ok(()) => certified += 1,
                     Err(errs) => {
                         assert!(
@@ -468,7 +468,7 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         };
         assert_eq!(
             arena_census(&body),
-            arena_census(again.body()),
+            arena_census(&again),
             "{name}: census across the wire"
         );
         // Volume across the wire: the same per-face contributions,
@@ -495,7 +495,7 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
                 "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
-                    again.body().clone(),
+                    again.clone().into_body(),
                     Tol::witness(),
                 ),
                 Tol::witness(),
@@ -506,12 +506,9 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),
             "{name}: volume across the wire, to summation order: {v1} vs {v2}"
         );
-        let second = step_export::step_string(
-            &crate::common::at_rest(again.body()),
-            &options,
-            Tol::witness(),
-        )
-        .unwrap();
+        let second =
+            step_export::step_string(&crate::common::at_rest(&again), &options, Tol::witness())
+                .unwrap();
         assert_eq!(
             first, second,
             "{name}: the second export must be byte-identical"

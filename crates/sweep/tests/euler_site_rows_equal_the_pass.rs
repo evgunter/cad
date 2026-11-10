@@ -53,9 +53,10 @@ fn rows_deep(body: &Body<f64>) -> Vec<String> {
 
 /// Every half-edge of every loop of `face`.
 fn halves_of(body: &Body<f64>, face: FaceKey) -> Vec<HalfEdgeKey> {
-    let f = body.get_face(face).unwrap();
-    core::iter::once(f.outer)
-        .chain(f.rings.iter().copied())
+    body.face(face)
+        .unwrap()
+        .loops()
+        .map(|(lk, _, _)| lk)
         .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
             topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
             topo::LoopBoundary::Empty { .. } => None,
@@ -96,9 +97,7 @@ fn curve_of(body: &Body<f64>, e: EdgeKey) -> geom_brep::EdgeCurve<f64> {
 }
 
 fn surface_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
-    body.get_surface(body.get_face(face).unwrap().surface)
-        .unwrap()
-        .clone()
+    body.face_surface(face).unwrap().clone()
 }
 
 /// The rims of `face`: its circle edges about the revolve axis, world

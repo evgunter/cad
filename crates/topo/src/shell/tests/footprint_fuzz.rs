@@ -1,5 +1,5 @@
 //! The counterexample search behind [`super::super::cover_box_in`] of an
-//! edge's cover (`boolean::boxes::edge_cover_over`): arcs
+//! edge's cover (`boolean::crate::cover::edge_cover_over`): arcs
 //! of every curved carrier kind nobody chose, in frames nobody chose,
 //! sampled densely against the box the clearance gate folds for them.
 
@@ -31,12 +31,12 @@ fn pair(rng: &mut Rng) -> (Vec3<f64>, Vec3<f64>) {
         if a.norm() < 0.2 {
             continue;
         }
-        let a = a * (1.0 / a.norm());
+        let a = a.normalize();
         let b = b - a * b.dot(a);
         if b.norm() < 0.2 {
             continue;
         }
-        return (a, b * (1.0 / b.norm()));
+        return (a, b.normalize());
     }
 }
 
@@ -147,7 +147,7 @@ fn every_arc_lies_in_its_footprint_box() {
             n,
         };
         let ends = (curve.eval(t0), curve.eval(t1));
-        let cover = crate::boolean::boxes::edge_cover_over(&curve, (t0, t1), ends).unwrap();
+        let cover = crate::cover::edge_cover_over(&curve, (t0, t1), ends).unwrap();
         let [(ulo, vlo), (uhi, vhi)] = cover_box_in(&cover, &frame);
         for k in 0..=400 {
             let p = frame.point(curve.eval(t0 + (t1 - t0) * k as f64 / 400.0));

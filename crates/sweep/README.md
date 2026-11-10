@@ -429,6 +429,25 @@ chamfer reaches no knife refusal of its own: its one arm is
 plane–plane, a knife's supports are never two planes on a valid body,
 and a knife meets `ChamferArmUnsupported` as any curved pair does.
 
+**A rim's ball is decided to exist before any arm reads it.** At a
+rim the ball's centre is the crossing of the supports' `r`-offsets that
+returns the rim as `r → 0`, and past some radius the offsets do not
+cross: a ball inside a sphere and resting on the plane through its
+centre has no path along the rim past half the sphere's radius, and
+two convex spheres' offsets part once the ball outgrows the lens
+between them. `fillet3_ball_room` decides the crossing when the link
+resolves, on the offsets' room in meters, each offset's radius signed
+by the ball's side (`arms::plane_sphere_room` for the plane–sphere
+arm; `arms::offset_room` in the sheet, the knife's margin too, where
+two straight traces cross at every radius of a definite wedge and are
+not asked), and a radius past it refuses `BlendError::BallDoesNotFit`.
+The decision mints the token the battery calls those arms with, so no
+arm takes the root of a negative number, and no later predicate — the
+clearance screen above all — is handed the poison such a root would
+carry. It is the knife's question asked of the other crossing; the
+two keep their own names and refusals because a knife's ball rests in
+the crescent its tangent faces open, and a rim's rolls in a wedge.
+
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth
 latitude rim, the vertex has valence four: two rim arcs carrying one

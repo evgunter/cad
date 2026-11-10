@@ -84,6 +84,7 @@ pub fn prism() -> Body<f64> {
     sweep::loft_body::<f64>(&[square(), square()], &places, 1, Tol::witness())
         .expect("the square prism lofts")
         .body
+        .into_body()
 }
 
 /// A loft between a square and the SAME square rotated `theta` about
@@ -93,7 +94,7 @@ pub fn prism() -> Body<f64> {
 /// on. [`twisted_lofted`] is the same build with its keys kept, which
 /// is what an orientation row needs.
 pub fn twisted_loft(theta: f64) -> Body<f64> {
-    twisted_lofted(theta).body
+    twisted_lofted(theta).body.into_body()
 }
 
 /// The authored-ROLL loft, keyed: the tree's one lofted chart whose
@@ -163,9 +164,9 @@ pub fn moved_box() -> Body<f64> {
 /// The box's `z = 1` cap.
 pub fn top_face(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.z.abs() > 0.5 && origin.z > 0.5
             )
@@ -360,7 +361,7 @@ pub fn box_with_bumped_cap(bump: f64) -> (Body<f64>, FaceKey) {
 /// Every non-placeholder spline wall of `body`, keyed.
 pub fn nurbs_walls(body: &Body<f64>) -> Vec<(FaceKey, Arc<NurbsSurface<f64>>)> {
     body.faces()
-        .filter_map(|(key, face)| match body.get_surface(face.surface) {
+        .filter_map(|(key, _)| match body.face_surface(key) {
             Some(Surface::Nurbs(payload)) if !payload.is_placeholder() => {
                 Some((key, Arc::clone(payload)))
             }
@@ -581,14 +582,11 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
     let Some(curve) = body.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
         return false;
     };
-    let Some(plus) = body.get_half_edge(e.he_plus) else {
-        return false;
-    };
-    let Some(end_v) = body.half_edge_end(e.he_plus) else {
+    let Some((start_v, end_v)) = body.edge_vertices(edge) else {
         return false;
     };
     let (Some(start), Some(end)) = (
-        body.get_vertex(plus.start)
+        body.get_vertex(start_v)
             .and_then(|v| body.get_point(v.point)),
         body.get_vertex(end_v).and_then(|v| body.get_point(v.point)),
     ) else {

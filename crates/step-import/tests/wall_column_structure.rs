@@ -28,7 +28,7 @@ use crate::common;
 
 use common::{FREECAD_FIXTURES, SOLID_FIXTURES, import_body};
 use geom::{NurbsSurface, Surface};
-use geom_core::spline::{KnotVector, SplineError};
+use geom_core::spline::{Built, KnotVector, SplineError};
 use geom_core::{Point3, Tol};
 use step_import::StepImportError;
 
@@ -122,7 +122,7 @@ fn a_validated_wall_never_refuses_its_own_boundary_column() {
             &step_import::ImportOptions::default(),
             Tol::witness(),
         ) {
-            walk(name, body.body());
+            walk(name, &body);
         }
     }
     assert!(
@@ -207,9 +207,16 @@ fn the_refusal_names_which_invariant_the_wall_broke() {
         },
     ] {
         // Built from its own type, never read back out of the enum that
-        // wraps it.
+        // wraps it: the column is read from the file, so its fact is
+        // carried and the spline layer's recourse, addressed to whoever
+        // supplied the column, is not.
+        let source = Built::new(source);
         let inner = format!("{source}");
         let rendered = StepImportError::WallColumnStructure { id: 4271, source }.render();
+        assert!(
+            !rendered.contains("Recourse:"),
+            "the file's writer, not the user, built the column: {rendered}"
+        );
         assert!(
             rendered.contains("#4271"),
             "the refusal must name the edge: {rendered}"

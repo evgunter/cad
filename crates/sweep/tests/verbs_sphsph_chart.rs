@@ -51,7 +51,10 @@ fn lune(turn: Revolution<f64>) -> Body<f64> {
         origin: geom_core::Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, turn, Tol::witness()).unwrap().body
+    revolve(&vp, axis, turn, Tol::witness())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 /// A unit ball pierced by a tiny flat disc at the SOUTH pole, so its
@@ -98,7 +101,10 @@ fn rimmed_ball(u_r: f64, turn: Revolution<f64>) -> Body<f64> {
         origin: geom_core::Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, turn, Tol::witness()).unwrap().body
+    revolve(&vp, axis, turn, Tol::witness())
+        .unwrap()
+        .body
+        .into_body()
 }
 
 fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
@@ -113,13 +119,12 @@ fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
 /// The face's own chart frame: `(centre, radius, polar axis, seam, the
 /// seam's quadrature partner)`.
 fn chart(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let fd = body.get_face(face).unwrap();
     let Some(&geom::Surface::Sphere {
         center,
         radius,
         axis,
         u_ref,
-    }) = body.get_surface(fd.surface)
+    }) = body.face_surface(face)
     else {
         panic!("a sphere face")
     };
@@ -377,7 +382,7 @@ fn probes_on_the_boundary_land_on_the_boundary_at_a_rim_and_at_a_meridian() {
 /// (`meridian`) or latitude rims.
 fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::EdgeKey> {
     let fd = body.get_face(face).unwrap();
-    let axis = match body.get_surface(fd.surface) {
+    let axis = match body.face_surface(face) {
         Some(&geom::Surface::Sphere { axis, .. }) => axis,
         _ => panic!("a sphere face"),
     };
@@ -809,9 +814,11 @@ fn a_sphere_face_with_a_straight_edge_refuses_at_both_doors() {
     let ch = chart(&planted, f);
     let disc = flat_disc(&planted);
     let rows = |body: &Body<f64>| -> (usize, usize) {
-        let fd = body.get_face(f).unwrap();
-        let halves: Vec<_> = core::iter::once(fd.outer)
-            .chain(fd.rings.iter().copied())
+        let halves: Vec<_> = body
+            .face(f)
+            .unwrap()
+            .loops()
+            .map(|(lk, _, _)| lk)
             .filter_map(|lk| match body.get_loop(lk).unwrap().boundary {
                 topo::LoopBoundary::Cycle { first } => Some(body.loop_cycle(first).unwrap()),
                 topo::LoopBoundary::Empty { .. } => None,
@@ -859,9 +866,9 @@ fn a_sphere_face_with_a_straight_edge_refuses_at_both_doors() {
 /// normal is the polar axis.
 fn flat_disc(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(_, fd)| {
+        .find(|(fk, _)| {
             matches!(
-                body.get_surface(fd.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Plane { normal, .. }) if normal.y.abs() > 0.9
             )
         })
@@ -891,7 +898,7 @@ fn boundary_pick(
     meridian: bool,
 ) -> (topo::EdgeKey, geom::Curve3<f64>, topo::SurfaceKey) {
     let fd = body.get_face(face).unwrap();
-    let axis = match body.get_surface(fd.surface) {
+    let axis = match body.face_surface(face) {
         Some(&geom::Surface::Sphere { axis, .. }) => axis,
         _ => panic!("sphere"),
     };

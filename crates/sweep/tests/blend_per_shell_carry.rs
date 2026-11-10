@@ -17,7 +17,7 @@ use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::finished;
-use topo::{AtRestBody, Body, EdgeKey, EntityId, ShellKey};
+use topo::{Body, EdgeKey, EntityId, ShellKey};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -71,11 +71,11 @@ fn snapshot(body: &Body<f64>, shell: ShellKey) -> String {
         writeln!(
             s,
             "face {f:?} {face:?} surf {:?} prov {:?}",
-            body.get_surface(face.surface),
+            body.face_surface(f),
             body.provenance(EntityId::Face(f))
         )
         .unwrap();
-        for lp in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lp, _, _) in body.face(f).unwrap().loops() {
             let l = body.get_loop(lp).unwrap();
             writeln!(s, " loop {lp:?} {l:?}").unwrap();
             let topo::LoopBoundary::Cycle { first: start } = l.boundary else {
@@ -107,8 +107,7 @@ fn snapshot(body: &Body<f64>, shell: ShellKey) -> String {
 }
 
 fn validate(what: &str, body: &Body<f64>) {
-    AtRestBody::validate(body.clone(), tol())
-        .unwrap_or_else(|e| panic!("{what}: tier 3 refuses: {e:?}"));
+    topo::finish(body.clone(), tol()).unwrap_or_else(|e| panic!("{what}: tier 3 refuses: {e:?}"));
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -218,7 +217,7 @@ fn a_shell_carved_in_place_matches_it_carved_alone_then_unioned() {
     let surfaces = |b: &Body<f64>| {
         let mut v: Vec<String> = b
             .faces()
-            .map(|(_, f)| format!("{:?}", b.get_surface(f.surface)))
+            .map(|(fk, _)| format!("{:?}", b.face_surface(fk)))
             .collect();
         v.sort();
         v

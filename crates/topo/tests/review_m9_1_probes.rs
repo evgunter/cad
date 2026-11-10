@@ -12,10 +12,7 @@ use common::{brick, finished};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
-use topo::{
-    CarrierDesc, CarrierRelation, ContactRefusal, ValidationError, carrier_eq,
-    validate_pseudomanifold,
-};
+use topo::{CarrierDesc, CarrierRelation, ValidationError, carrier_eq, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -143,18 +140,19 @@ fn probe_mm_vs_metre_twin_and_margin_naming() {
 fn probe_tangent_definite_separation_contradicts() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let down = plane_s([0.0, 0.0, 1e-3], [0.0, 0.0, 1.0]);
-    let err =
-        tangent_locus_relation(&up, true, &down, false, &xline(), -1.0, 1.0, band()).unwrap_err();
-    match err {
-        topo::ContactRefusal::Contradicted { diag } => {
-            assert_eq!(diag.predicate, Some("contact_tangent_gap"));
-            let gap = diag.margin.diagnostic_f64_for_error_text().value();
-            assert!(
-                gap.is_some_and(|g| g > 0.0),
-                "apart, not crossing: {diag:?}"
+    let out = tangent_locus_relation(&up, true, &down, false, &xline(), -1.0, 1.0, band());
+    match out {
+        topo::TangentVerdict::Ruled(topo::TangentRuling::Row {
+            row: topo::TangentRow::Gap,
+            by,
+        }) => {
+            assert_eq!(
+                by.sign,
+                geom_core::Sign::Positive,
+                "apart, not crossing: {by:?}"
             );
         }
-        other => panic!("expected Contradicted, got {other:?}"),
+        other => panic!("expected the gap row, got {other:?}"),
     }
 }
 
@@ -166,8 +164,8 @@ fn probe_tangent_definite_crossing_contradicts() {
     let tilted = plane_s([0.0, 0.0, 0.0], [0.0, 1e-3, 1.0]);
     let out = tangent_locus_relation(&up, true, &tilted, false, &xline(), -1.0, 1.0, band());
     assert!(
-        matches!(out, Err(topo::ContactRefusal::Contradicted { .. })),
-        "a definite crossing must contradict, got {out:?}"
+        matches!(out, topo::TangentVerdict::Ruled(_)),
+        "a definite crossing must be ruled out, got {out:?}"
     );
 }
 
@@ -180,11 +178,10 @@ fn probe_tangent_escalates_an_inband_residual() {
     let up = plane_s([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     // A genuine (authored) gap of 3 eps: in the sliver band.
     let gapped = plane_s([0.0, 0.0, 3.0 * eps], [0.0, 0.0, 1.0]);
-    let refusal = tangent_locus_relation(&up, true, &gapped, false, &xline(), -1.0, 1.0, band())
-        .expect_err("an in-band residual refuses");
+    let read = tangent_locus_relation(&up, true, &gapped, false, &xline(), -1.0, 1.0, band());
     assert!(
-        matches!(refusal, ContactRefusal::Escalated { .. }),
-        "in-band residual must escalate: {refusal:?}"
+        matches!(read, topo::TangentVerdict::InBand(_)),
+        "in-band residual must escalate: {read:?}"
     );
 }
 
@@ -196,7 +193,7 @@ fn probe_at_rest_gate_refuses_a_false_edge_face_record() {
     let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let z_face = |z: f64| {
         body.faces()
-            .find(|(_, f)| match body.get_surface(f.surface) {
+            .find(|(fk, _)| match body.face_surface(*fk) {
                 Some(&topo::Surface::Plane { origin, normal, .. }) => {
                     normal.z.abs() > 0.5 && (origin.z - z).abs() < 1e-12
                 }

@@ -40,13 +40,10 @@ fn strut_at_the_turn(body: &Body<f64>, h: f64, tol: Tol) -> topo::EdgeKey {
     let at = |p: Point3<f64>, q: Point3<f64>| p.distance(q) <= tol.eps();
     let (o, top) = (Point3::origin(), Point3::new(0.0, 0.0, h));
     body.edges()
-        .find(|&(_, e)| {
-            let he = body.get_half_edge(e.he_plus).unwrap();
+        .find(|&(k, _)| {
+            let (start, end) = body.edge_vertices(k).unwrap();
             let point = |v| topo::readback::vertex_point(body, v).unwrap();
-            let (a, b) = (
-                point(he.start),
-                point(body.half_edge_end(e.he_plus).unwrap()),
-            );
+            let (a, b) = (point(start), point(end));
             (at(a, o) && at(b, top)) || (at(a, top) && at(b, o))
         })
         .map(|(k, _)| k)
@@ -77,11 +74,7 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
     );
 
     let [f, g] = topo::edge_faces(&body, strut);
-    let surface = |f| {
-        body.get_surface(body.get_face(f).unwrap().surface)
-            .unwrap()
-            .clone()
-    };
+    let surface = |f| body.face_surface(f).unwrap().clone();
     let (sf, sg) = (surface(f), surface(g));
     let mid = Point3::new(0.0, 0.0, h / 2.0);
     let reach = topo::edge_wedge_reach(&body, strut).unwrap();

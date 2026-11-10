@@ -79,6 +79,24 @@ pub fn successors(table: &NameTable, reads: &[VarId]) -> BTreeMap<StableName, St
         .collect()
 }
 
+/// **Where a rewrite carries a name carried in from a read**: the name
+/// `of`, carried in from `read`, carries instead, or `None` where it
+/// stays. The one question [`recarried_by`]'s walk asks: the takeover
+/// answers it from a successor map ([`recarried`]), a delete's splice
+/// from the names themselves (`continuation`).
+pub(crate) trait Carries {
+    /// What `of`, carried in from `read`, carries instead.
+    fn carried(&self, read: VarId, of: &StableName) -> Option<StableName>;
+}
+
+impl<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>> Carries for BTreeMap<VarId, M> {
+    fn carried(&self, read: VarId, of: &StableName) -> Option<StableName> {
+        self.get(&read)
+            .and_then(|map| map.borrow().get(of))
+            .cloned()
+    }
+}
+
 /// **`name` with every entity it carries in from one of `moved`'s
 /// reads carried on**: each `From { read, of }` segment, at any depth,
 /// whose `read` is a key of `moved` and whose `of` that read's map
@@ -88,18 +106,26 @@ pub(crate) fn recarried<M: core::borrow::Borrow<BTreeMap<StableName, StableName>
     name: &StableName,
     moved: &BTreeMap<VarId, M>,
 ) -> Option<StableName> {
-    let Ok(now) = name.clone().rewrite_path(&mut Recarry(moved));
+    recarried_by(name, moved)
+}
+
+/// **`name` with every entity it carries in carried as `carries`
+/// says**: each `From { read, of }` segment, at any depth, `carries`
+/// answers for carries its answer instead. `None` where nothing moved.
+pub(crate) fn recarried_by<C: Carries + ?Sized>(
+    name: &StableName,
+    carries: &C,
+) -> Option<StableName> {
+    let Ok(now) = name.clone().rewrite_path(&mut Recarry(carries));
     (now != *name).then_some(now)
 }
 
-/// [`recarried`]'s walk: a carry is answered from the pair it is, its
+/// [`recarried_by`]'s walk: a carry is answered from the pair it is, its
 /// read and its name ([`super::SegRewrite::carried`]); every other carried
 /// name is descended, for the carries inside it.
-struct Recarry<'m, M>(&'m BTreeMap<VarId, M>);
+struct Recarry<'m, C: Carries + ?Sized>(&'m C);
 
-impl<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>> super::SegRewrite
-    for Recarry<'_, M>
-{
+impl<C: Carries + ?Sized> super::SegRewrite for Recarry<'_, C> {
     type Error = core::convert::Infallible;
 
     /// A successor stays in its document: a section id is kept.
@@ -111,12 +137,10 @@ impl<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>> super::SegRewrit
     }
 
     fn carried(&mut self, read: VarId, of: &StableName) -> Result<super::Carry, Self::Error> {
-        Ok(
-            match self.0.get(&read).and_then(|map| map.borrow().get(of)) {
-                Some(to) => super::Carry::Replace(to.clone()),
-                None => super::Carry::Descend,
-            },
-        )
+        Ok(match self.0.carried(read, of) {
+            Some(to) => super::Carry::Replace(to),
+            None => super::Carry::Descend,
+        })
     }
 
     fn name(&mut self, _: &StableName) -> Result<super::Carry, Self::Error> {

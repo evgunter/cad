@@ -72,6 +72,12 @@ pub(crate) enum RelOp {
 /// **The names a sign is decided under**: the walk's own sums under
 /// `walk`, and the round re-derived in interval arithmetic under
 /// `certified` ([`super::Round::certify`]).
+///
+/// **No row registry of its own, and why**: it is two [`super::RoleNames`],
+/// each a registered bundle (`crate::rows::PLUS_V`) or a name passed in
+/// through [`super::RoleNames::one`], so it mints no name of its own and
+/// `topo::rows` holds the bundles it is built of. Plain sites' uniqueness is the tree-wide census's question
+/// (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`).
 #[derive(Clone, Copy, Debug)]
 pub struct SignNames {
     /// The names on the walk's sums.
@@ -227,7 +233,7 @@ pub(crate) fn relation_step<T: Decide>(
     name: &'static str,
     band: Band,
 ) -> Step {
-    let decide = |volume: T| {
+    let at_volume = |volume: T| {
         geom_core::k_stats::decide_reported(
             name,
             Margin::over_lever(bound - volume, e.surface_area),
@@ -245,7 +251,7 @@ pub(crate) fn relation_step<T: Decide>(
         RelOp::Le => (e.volume_hi, e.volume_lo),
         RelOp::Ge => (e.volume_lo, e.volume_hi),
     };
-    let first = decide(first);
+    let first = at_volume(first);
     if let Some(cause) = poisoned(&first) {
         return Step::Poisoned(cause);
     }
@@ -256,7 +262,7 @@ pub(crate) fn relation_step<T: Decide>(
     if holds(&first) {
         return Step::Settled(true);
     }
-    let second = decide(second);
+    let second = at_volume(second);
     if let Some(cause) = poisoned(&second) {
         return Step::Poisoned(cause);
     }

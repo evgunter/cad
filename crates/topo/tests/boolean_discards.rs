@@ -35,8 +35,7 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
     let face_of = |he| body.face_of_half_edge(he).unwrap();
     let mut by_ends: BTreeMap<(VertexKey, VertexKey), Stretch> = BTreeMap::new();
     for (k, e) in body.edges() {
-        let s = body.get_half_edge(e.he_plus).unwrap().start;
-        let t = body.half_edge_end(e.he_plus).unwrap();
+        let (s, t) = body.edge_vertices(k).unwrap();
         by_ends
             .entry((s.min(t), s.max(t)))
             .or_default()
@@ -159,10 +158,16 @@ fn a_through_slot_records_the_strip_it_discards_between_two_kept_pieces() {
 #[test]
 fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
     let tol = Tol::witness();
-    let a: topo::AtRestBody<f64> =
-        finished("a", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol), tol);
-    let b: topo::AtRestBody<f64> =
-        finished("b", brick((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol), tol);
+    let a: topo::AtRestBody<f64> = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b: topo::AtRestBody<f64> = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
     let out = match topo::union(&a, &b, tol) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the union builds: {other:?}"),
@@ -214,14 +219,21 @@ fn an_edge_split_and_joined_away_in_one_step_records_its_parent() {
 #[test]
 fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
     let tol = Tol::witness();
-    let plate: topo::AtRestBody<f64> =
-        finished("plate", brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol), tol);
-    let pocket = finished(
-        "pocket",
-        brick((1.0, 3.0), (1.0, 3.0), (0.5, 2.0), tol),
+    let plate: topo::AtRestBody<f64> = finished(
+        "plate",
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), tol),
         tol,
     );
-    let slot = finished("slot", brick((2.0, 5.0), (1.5, 2.5), (0.5, 2.0), tol), tol);
+    let pocket = finished(
+        "pocket",
+        brick::<f64>((1.0, 3.0), (1.0, 3.0), (0.5, 2.0), tol),
+        tol,
+    );
+    let slot = finished(
+        "slot",
+        brick::<f64>((2.0, 5.0), (1.5, 2.5), (0.5, 2.0), tol),
+        tol,
+    );
     let pocketed = match subtract(&plate, &pocket, tol) {
         Ok(BooleanResult::Body(r)) => r,
         other => panic!("the pocket cuts: {other:?}"),
@@ -258,16 +270,13 @@ fn an_edge_split_and_merged_away_in_one_step_records_its_parent() {
             );
         }
         let live = naming.joined_edge(up);
-        let edge = out
+        let (start, end) = out
             .body
-            .get_edge(live)
+            .edge_vertices(live)
             .unwrap_or_else(|| panic!("{g:?}'s lineage reaches a live edge, not {up:?}"));
         // It lies on the pocket's bottom rim under the wall the slot runs
         // through: both ends on the line x = 3, z = 0.5.
-        let ends = [
-            out.body.get_half_edge(edge.he_plus).unwrap().start,
-            out.body.half_edge_end(edge.he_plus).unwrap(),
-        ];
+        let ends = [start, end];
         let points: BTreeMap<VertexKey, _> = out.body.vertex_points().collect();
         for v in ends {
             let p = points[&v];
@@ -292,7 +301,7 @@ fn an_edge_the_carve_kills_records_its_parent() {
     let mm = 1e-3;
     let block: topo::AtRestBody<f64> = finished(
         "block",
-        brick(
+        brick::<f64>(
             (-20.0 * mm, 20.0 * mm),
             (-10.0 * mm, 10.0 * mm),
             (0.0, 10.0 * mm),
@@ -302,7 +311,7 @@ fn an_edge_the_carve_kills_records_its_parent() {
     );
     let boss: topo::AtRestBody<f64> = finished(
         "boss",
-        brick(
+        brick::<f64>(
             (10.0 * mm, 20.0 * mm),
             (-5.0 * mm, 5.0 * mm),
             (10.0 * mm, 14.0 * mm),
@@ -359,15 +368,12 @@ fn an_edge_the_carve_kills_records_its_parent() {
         }
         // The block's own edge, read in the block: its top `+x` edge,
         // both ends at x = 20, z = 10, one at each y = ±10 (mm).
-        let edge = block
-            .get_edge(up)
+        let (start, end) = block
+            .edge_vertices(up)
             .unwrap_or_else(|| panic!("{g:?}'s lineage reaches an edge of the block, not {up:?}"));
         let points: BTreeMap<VertexKey, _> = block.vertex_points().collect();
-        let mut ys: Vec<f64> = [
-            block.get_half_edge(edge.he_plus).unwrap().start,
-            block.half_edge_end(edge.he_plus).unwrap(),
-        ]
-        .into_iter()
+        let mut ys: Vec<f64> = [start, end]
+            .into_iter()
         .map(|v| {
             let p = points[&v];
             assert!(

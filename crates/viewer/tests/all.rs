@@ -94,8 +94,6 @@ mod docm9_range_vs_probe;
 mod door_at_rest;
 #[path = "drive.rs"]
 mod drive;
-#[path = "duplicate_beside.rs"]
-mod duplicate_beside;
 #[path = "edge_pick.rs"]
 mod edge_pick;
 #[path = "edit_maintenance.rs"]
@@ -108,6 +106,8 @@ mod eval_seam;
 mod focus_highlight;
 #[path = "frame_policy.rs"]
 mod frame_policy;
+#[path = "gesture_placements.rs"]
+mod gesture_placements;
 #[path = "gesture_table.rs"]
 mod gesture_table;
 #[path = "gui_variables.rs"]
@@ -155,6 +155,8 @@ mod pick3_acceptance;
 mod pick_windows;
 #[path = "picture_draws_bodies.rs"]
 mod picture_draws_bodies;
+#[path = "place_live.rs"]
+mod place_live;
 #[path = "prefs.rs"]
 mod prefs;
 #[path = "probe_6356.rs"]
