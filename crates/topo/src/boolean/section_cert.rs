@@ -877,9 +877,14 @@ fn torus_pair<T: Decide>(
     }
     let a = axis.normalize();
     match *p {
-        geom::Surface::Plane { origin, normal, .. } => {
-            torus_plane(c, a, big_r, r, origin, normal.normalize(), band)
-        }
+        geom::Surface::Plane { origin, normal, .. } => torus_plane(
+            geom::Line { origin: c, dir: a },
+            big_r,
+            r,
+            origin,
+            normal.normalize(),
+            band,
+        ),
         geom::Surface::Cone {
             apex,
             axis: d,
@@ -892,7 +897,16 @@ fn torus_pair<T: Decide>(
             // station from the pivot times `1 − cos` (at most `sin²`),
             // and by the offset's part along the tilted axis.
             let turn = |t: &Turn<T>| (c - t.at).dot(a).abs() * t.tilt.powi(2) + t.offset * t.tilt;
-            match axis_pose((c, a), (apex, d), turn, reach.ball(), band) {
+            match axis_pose(
+                geom::Line { origin: c, dir: a },
+                geom::Line {
+                    origin: apex,
+                    dir: d,
+                },
+                turn,
+                reach.ball(),
+                band,
+            ) {
                 AxisPose::Coaxial { slack, .. } => {
                     // In the meridian half-plane about the apex, each
                     // nappe's generator is a line through it at `α` from
@@ -934,14 +948,14 @@ fn torus_pair<T: Decide>(
 
 /// **Torus × plane**, the plane through `p0` with unit normal `n`.
 fn torus_plane<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
+    axis: geom::Line<T>,
     big_r: T,
     r: T,
     p0: Point3<T>,
     n: Vec3<T>,
     band: Band,
 ) -> Section<T> {
+    let geom::Line { origin: c, dir: a } = axis;
     let h = n.dot(p0 - c);
     let na = n.dot(a);
     let (s, in_pi) = meridian(c, a, n);
@@ -1039,16 +1053,16 @@ fn plane_cut<T: Decide>(big_r: T, r: T, h: T, s: T, band: Band) -> PlaneCut {
 /// margins, so a refusal naming them and the certificate read one
 /// decision: `Ok(None)` where those margins decide a tangency or no
 /// section, and the diagnostics of the first margin they leave
-/// undecided. The plane runs through `p0` with normal `n`, the torus is
-/// `(c, a, R, r)`; neither direction need be unit.
+/// undecided. The plane runs through `p0` with normal `n`, the torus
+/// about `axis` has radii `(R, r)`; neither direction need be unit.
 pub(super) fn torus_plane_loops<T: Decide>(
-    (c, a, big_r, r): (Point3<T>, Vec3<T>, T, T),
+    (axis, big_r, r): (geom::Line<T>, T, T),
     (p0, n): (Point3<T>, Vec3<T>),
     band: Band,
 ) -> Result<Option<super::SpiricLoops>, geom_core::Indeterminate> {
-    let (a, n) = (a.normalize(), n.normalize());
+    let (a, n) = (axis.dir.normalize(), n.normalize());
     let (_, s) = perp_to(n, a);
-    match plane_cut(big_r, r, n.dot(p0 - c), s, band) {
+    match plane_cut(big_r, r, n.dot(p0 - axis.origin), s, band) {
         PlaneCut::AroundAxis => Ok(Some(super::SpiricLoops::AroundAxis)),
         PlaneCut::AroundTube => Ok(Some(super::SpiricLoops::AroundTube)),
         PlaneCut::Null { .. } => Ok(Some(super::SpiricLoops::Null)),
@@ -1088,8 +1102,14 @@ fn cone_pair<T: Decide>(
             radius: rc,
             ..
         } => match axis_pose(
-            (apex, cone.a),
-            (origin, d.normalize()),
+            geom::Line {
+                origin: apex,
+                dir: cone.a,
+            },
+            geom::Line {
+                origin,
+                dir: d.normalize(),
+            },
             |_| T::zero(),
             reach.ball(),
             band,
@@ -1101,9 +1121,16 @@ fn cone_pair<T: Decide>(
             }
             // The ruling charts read the pose as it stands, with nothing
             // bridged, so an offset neither reading claims is theirs.
-            AxisPose::Undecided(_) | AxisPose::Other => {
-                cone_cylinder(&cone, origin, d.normalize(), rc, reach, band)
-            }
+            AxisPose::Undecided(_) | AxisPose::Other => cone_cylinder(
+                &cone,
+                geom::Line {
+                    origin,
+                    dir: d.normalize(),
+                },
+                rc,
+                reach,
+                band,
+            ),
         },
         geom::Surface::Cone {
             apex: apex2,
@@ -1111,8 +1138,14 @@ fn cone_pair<T: Decide>(
             half_angle: half_angle2,
             u_ref: u_ref2,
         } => match axis_pose(
-            (apex, cone.a),
-            (apex2, d.normalize()),
+            geom::Line {
+                origin: apex,
+                dir: cone.a,
+            },
+            geom::Line {
+                origin: apex2,
+                dir: d.normalize(),
+            },
             // The apexes' gap is read off `apex2` itself, which the turn
             // onto the first axis moves along it by its station from the
             // pivot times `1 − cos`, at most `sin²`.
@@ -1188,7 +1221,15 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
 
     /// A point's signed distance from the double carrier, in metres.
     fn elevation(&self, p: Point3<T>) -> T {
-        geom_brep::cone_elevation(self.apex, self.a, self.alpha, None, p)
+        geom_brep::cone_elevation(
+            geom::Line {
+                origin: self.apex,
+                dir: self.a,
+            },
+            self.alpha,
+            None,
+            p,
+        )
     }
 
     /// The generator lines as a ruling chart: the azimuth `θ` from
@@ -1209,8 +1250,10 @@ impl<T: geom_core::spline::SpanLocate> Cone<T> {
 
     fn quadric(&self) -> ruling::Quadric<T> {
         ruling::Quadric::Cone {
-            apex: self.apex,
-            a: self.a,
+            axis: geom::Line {
+                origin: self.apex,
+                dir: self.a,
+            },
             sc: self.sc,
         }
     }
@@ -1253,12 +1296,12 @@ fn charted<T: Real>(
 /// the apex.
 fn cone_cylinder<T: Decide>(
     cone: &Cone<T>,
-    o: Point3<T>,
-    d: Vec3<T>,
+    wall: geom::Line<T>,
     rc: T,
     reach: &Reach<T>,
     band: Band,
 ) -> Section<T> {
+    let geom::Line { origin: o, dir: d } = wall;
     let (_, c) = cone.sc;
     let (off, dist) = perp_to(cone.apex - o, d);
     let foot = cone.apex - off;
@@ -1291,7 +1334,13 @@ fn cone_cylinder<T: Decide>(
     };
     let on_cone = ruling::read(
         &cone.chart(reach),
-        &ruling::Quadric::Cylinder { o: foot, d, r: rc },
+        &ruling::Quadric::Cylinder {
+            axis: geom::Line {
+                origin: foot,
+                dir: d,
+            },
+            r: rc,
+        },
         &ruling::ChartRows {
             fold: "section_cone_cylinder_fold",
             asymptote: "section_cone_cylinder_asymptote",
@@ -1697,12 +1746,11 @@ fn sphere_plane<T: Decide>(
 
 /// **Sphere × sphere**: one circle.
 fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Band) -> Section<T> {
-    let dd = (c2 - c1).norm();
+    let (k, dd) = (c2 - c1).direction_and_length();
     const REACH: &str = "section_sphere_pair_reach";
     const NEST: &str = "section_sphere_pair_nest";
     match signs([(REACH, r1 + r2 - dd), (NEST, dd - (r1 - r2).abs())], band) {
         Ok([true, true]) => {
-            let k = (c2 - c1) / dd;
             let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
             let rad = ((r1 - x) * (r1 + x)).sqrt();
             // Picked off the axes, as `sphere_plane`'s witness is.
@@ -1722,7 +1770,6 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
             tan.into()
         }
         Err(tan) => touch(tan, &[REACH, NEST], || {
-            let k = (c2 - c1) / dd;
             c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
         }),
     }
@@ -1926,20 +1973,22 @@ fn bounding<'a, T: Decide>(
 pub(super) fn of_carried<T: Decide>(
     carried: Result<&geom_brep::CarriedSection<T>, &geom_brep::CarryError>,
 ) -> Section<T> {
-    use geom_brep::CarryError;
+    use geom_brep::{CarryError, CarryRefusal};
     let section = match carried {
         Ok(section) => section,
-        Err(CarryError::NoLane { scalar }) => return Section::NoLane(scalar),
+        Err(CarryError::Refused(CarryRefusal::NoLane { scalar })) => {
+            return Section::NoLane(scalar);
+        }
         Err(
-            CarryError::Unminted(_)
-            | CarryError::March(_)
-            | CarryError::Winds(_)
-            | CarryError::PadShort { .. }
-            | CarryError::TubeUnread
+            CarryError::Refused(CarryRefusal::Unminted(_))
+            | CarryError::Refused(CarryRefusal::March(_))
+            | CarryError::Refused(CarryRefusal::Winds(_))
+            | CarryError::Refused(CarryRefusal::PadShort { .. })
+            | CarryError::Refused(CarryRefusal::TubeUnread(_))
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
-            | CarryError::Seat(_)
-            | CarryError::Unwalked(_),
+            | CarryError::Refused(CarryRefusal::Seat(_))
+            | CarryError::Refused(CarryRefusal::Unwalked(_)),
         ) => return Section::Unmarched,
     };
     let components = section.components();

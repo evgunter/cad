@@ -80,7 +80,7 @@
 //! bracket fits carries no witness.
 //!
 //! The fitted carriers the reading certifies are not kept: no reader
-//! carries a plane × spline section ([`UNCARRIED`]), and a carried
+//! carries a plane × spline section ([`super::NoCarrier::SplineImplicitWhole`]), and a carried
 //! component's pad is a closeness bound a chart tube does not give.
 //!
 //! A refusal maps by name: a tangency the reading reports (the march's
@@ -94,7 +94,7 @@
 
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::{Magnitude, decide, decide_magnitude};
-use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec2, Vec3};
 
 use super::{
     ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
@@ -534,18 +534,6 @@ impl Bracketed<'_> {
     }
 }
 
-/// **Why a plane × spline component has no carrier to carry**: the
-/// section is read whole for the section certificate alone, the glue
-/// door's table never holds it, and no seat certifies against a wall's
-/// chart.
-pub(super) const UNCARRIED: &str = "a spline × implicit section is read whole for the section \
-    certificate alone, which carries none of its components";
-
-/// The note a region's component carries.
-const REGION: &str = "a Side or Corner region: the section runs along a side of the wall's \
-                      rectangle, or leaves it at a corner, within the band, and no carrier is \
-                      minted for it";
-
 /// **A branch's witness and how far it may stand from its arc**: the
 /// wall's point `q = S(P(mid))` at the middle of the branch's pcurve on
 /// the wall, bracketed on the section within the tube window of the
@@ -562,7 +550,7 @@ fn witness(
     else {
         return None;
     };
-    let mid = 0.5 * (b.params.0 + b.params.1);
+    let mid = geom::mid_param(b.params.0, b.params.1);
     let window = crate::ssi::certify::chart_tube_windows(pcurve, (pad_u, pad_v))?
         .into_iter()
         .find(|w| w.ends.0 <= mid && mid <= w.ends.1)?;
@@ -610,11 +598,8 @@ fn bracket<'p>(
     let jet = net.ders(at.0, at.1);
     let (phi, m, least) = partner.at(jet.point);
     let (gu, gv) = (m.dot(jet.du), m.dot(jet.dv));
-    let g = gu.hypot(gv);
-    if !(g.is_finite() && g > 0.0) {
-        return None;
-    }
-    let (du, dv) = (gu / g, gv / g);
+    let (d, g) = Vec2::new(gu, gv).checked_direction().ok()?;
+    let (du, dv) = (d.x, d.y);
     let point = |t: f64| (at.0 + du * t, at.1 + dv * t);
     let base = phi.max(least) / g;
     let (u_domain, v_domain) = (net.knot_values_u().domain(), net.knot_values_v().domain());
@@ -646,7 +631,7 @@ fn bracket<'p>(
         return None;
     }
     for _ in 0..BRACKET_HALVINGS {
-        let middle = 0.5 * (low + high);
+        let middle = geom::mid_param(low, high);
         if middle <= low || middle >= high {
             break;
         }
@@ -777,10 +762,6 @@ pub(super) fn witnesses(
 /// touches: its decision's name.
 pub(super) const CRITICAL: &str = "spline_critical_value";
 
-/// Why a touch's component has no carrier.
-const TOUCH: &str = "a touch decided Zero at a critical point of the composite: the surfaces \
-                     meet at one point within the band, and no carrier is minted for it";
-
 /// **The section a loop-free sweep's verdict is** (module docs), the
 /// pass's ends `reach` and the critical points `decided` Zero:
 ///
@@ -823,7 +804,7 @@ pub(super) fn loop_free(
             winds: [false, false],
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
-            carrier: ClassCarrier::Unminted(TOUCH),
+            carrier: ClassCarrier::Unminted(super::NoCarrier::Touch),
             cut_ends: None,
         });
         verdicts.push(super::ZeroVerdict {
@@ -915,7 +896,7 @@ fn listed(
             winds: [false, false],
             witness: witness.map(|(q, _)| q),
             pad: witness.map_or(0.0, |(_, pad)| pad),
-            carrier: ClassCarrier::Unminted(UNCARRIED),
+            carrier: ClassCarrier::Unminted(super::NoCarrier::SplineImplicitWhole),
             cut_ends: None,
         });
     }
@@ -924,7 +905,7 @@ fn listed(
         winds: [false, false],
         witness: None,
         pad: 0.0,
-        carrier: ClassCarrier::Unminted(REGION),
+        carrier: ClassCarrier::Unminted(super::NoCarrier::WallRegion),
         cut_ends: None,
     }));
     Ok(pose.section(Components::Counted(components)))

@@ -520,7 +520,7 @@ enum EndVerdict<T: Real> {
 /// both consumers read it as geometry (a dot, a mean).
 pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
-    let s = body.get_surface(f.surface)?;
+    let s = body.face_surface(face)?;
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
@@ -621,10 +621,10 @@ pub fn radius_headroom<T: Decide + Bounds>(
             "a link's support face, for the curvature headroom predicate",
         ));
     };
-    let Some(s) = body.get_surface(f.surface) else {
+    let Some(s) = body.face_surface(face) else {
         return Err(unresolved(
             EntityId::Face(face),
-            "a support face's stored surface, for the curvature headroom predicate",
+            "a link's support face, for the curvature headroom predicate",
         ));
     };
     let arm = geom_brep::min_radius_of_curvature_toward(s, p, convexity.ball_side(f.sense));
@@ -1173,14 +1173,8 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
-    let sa = body
-        .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
-        .ok_or_else(broken)?
-        .clone();
-    let sb = body
-        .get_surface(body.get_face(face_b).ok_or_else(broken)?.surface)
-        .ok_or_else(broken)?
-        .clone();
+    let sa = body.face_surface(face_a).ok_or_else(broken)?.clone();
+    let sb = body.face_surface(face_b).ok_or_else(broken)?.clone();
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
     // The convexity is the wedge between the edge's two faces, levered
@@ -2476,7 +2470,7 @@ fn turn_at<T: Decide + Bounds>(
     let requested = [l1.edge, l2.edge];
     let (foot, run_out) = match turn_verdict(vertex, gap, chords, band)? {
         TurnVerdict::Mitre(margin) => (
-            feet[0] + (feet[1] - feet[0]) * T::from_f64(0.5),
+            feet[0].mid(feet[1]),
             TurnRunOut::Mitre(row(
                 requested.map(|e| topo::RowCell::edge(topo::Operand::A, e)),
                 topo::Relation::CommonFoot,
@@ -2618,14 +2612,9 @@ pub(crate) fn turn_reading<T: Decide>(
     let p = point_at(body, vertex)?;
     // Each edge's unit direction out of the vertex.
     let out = |e: EdgeKey| {
-        let far = body.get_edge(e).and_then(|d| {
-            let start = body.get_half_edge(d.he_plus)?.start;
-            if start == vertex {
-                body.half_edge_end(d.he_plus)
-            } else {
-                Some(start)
-            }
-        });
+        let far = body
+            .edge_vertices(e)
+            .map(|(start, end)| if start == vertex { end } else { start });
         far.and_then(|v| body.get_vertex(v))
             .and_then(|v| body.get_point(v.point))
             .map(|q| (*q - p).normalize())
@@ -2915,9 +2904,7 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) =
-            body.get_face(cap).and_then(|f| body.get_surface(f.surface))
-        else {
+        let Some(Surface::Plane { normal, .. }) = body.face_surface(cap) else {
             return Err(super::surgery::unbuilt_run_out(
                 EntityId::Vertex(vertex),
                 END_FACE_CURVED,
@@ -2977,9 +2964,7 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Some(Surface::Plane { normal, .. }) =
-            body.get_face(end).and_then(|f| body.get_surface(f.surface))
-        else {
+        let Some(Surface::Plane { normal, .. }) = body.face_surface(end) else {
             return Err(super::surgery::unbuilt_run_out(
                 EntityId::Vertex(vertex),
                 END_FACE_CURVED,
@@ -3243,17 +3228,22 @@ fn consumption_sweep<T: Decide + Bounds>(
         touches_any(body, &members(a), &members(b))
     };
     for face in faces {
-        let fa = body.get_face(face).ok_or_else(|| {
+        let fa = body.face(face).ok_or_else(|| {
             unresolved(
                 EntityId::Face(face),
                 "a support face, for its boundary pairs",
             )
         })?;
         let mut boundary: Vec<ScreenedEdge<T>> = Vec::new();
-        for lp in core::iter::once(fa.outer).chain(fa.rings.iter().copied()) {
+        for (lp, _, _) in fa.loops() {
             boundary.extend(screened_loop(body, lp)?);
         }
-        let decided = strip_decided(body, chains, face, &fa.rings, band)?;
+        let rings: Vec<topo::LoopKey> = fa
+            .loops()
+            .filter(|(_, _, role)| !role.is_outer())
+            .map(|(lk, _, _)| lk)
+            .collect();
+        let decided = strip_decided(body, chains, face, &rings, band)?;
         for i in 0..boundary.len() {
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].2);

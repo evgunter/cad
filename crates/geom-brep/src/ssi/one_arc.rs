@@ -221,7 +221,7 @@ fn edge_runs<'p, T: CertifiedBounds>(
         let slope = partner.partial(boxes, UvWindow::new(r0, r1, r2, r3), along_u);
         // `[m − h, m + h]` holds `[s, t]`: `h` is the larger half,
         // rounded up.
-        let m = 0.5 * (s + t);
+        let m = geom::mid_param(s, t);
         let h = (m - s).max(t - m).next_up();
         let mean = phi_over(boxes, partner, piece(m, m)) + slope * Interval::from_bounds(-h, h);
         if let Some(s) = sign(mean).or_else(|| sign(phi_over(boxes, partner, piece(s, t)))) {
@@ -814,7 +814,10 @@ pub(crate) fn one_arc<'p, T: CertifiedBounds>(
         let Some(p) = pcurve_at(pcurve, t) else {
             return (f64::NAN, f64::NAN);
         };
-        (0.5 * (p.x.lo() + p.x.hi()), 0.5 * (p.y.lo() + p.y.hi()))
+        (
+            geom::mid_param(p.x.lo(), p.x.hi()),
+            geom::mid_param(p.y.lo(), p.y.hi()),
+        )
     };
     let clipped = windows
         .iter()
@@ -1016,7 +1019,10 @@ fn krawczyk<T: CertifiedBounds>(
     (i, j): (usize, usize),
 ) -> Option<Krawczyk> {
     let (xi, xj) = (side(x, i), side(x, j));
-    let (mi, mj) = (0.5 * (xi.lo() + xi.hi()), 0.5 * (xj.lo() + xj.hi()));
+    let (mi, mj) = (
+        geom::mid_param(xi.lo(), xi.hi()),
+        geom::mid_param(xj.lo(), xj.hi()),
+    );
     let m = with_side(with_side(x, i, pt(mi)), j, pt(mj));
     let (f1, f2) = (implicit_enclosure(s1, m), implicit_enclosure(s2, m));
     let (g1, g2) = (
@@ -1024,7 +1030,7 @@ fn krawczyk<T: CertifiedBounds>(
         implicit_gradient_enclosure(s2, x),
     );
     let jac = [[g1[i], g1[j]], [g2[i], g2[j]]];
-    let mid = |v: Interval| 0.5 * (v.lo() + v.hi());
+    let mid = |v: Interval| geom::mid_param(v.lo(), v.hi());
     let (a, b, c, d) = (
         mid(jac[0][0]),
         mid(jac[0][1]),
@@ -1082,7 +1088,7 @@ fn r3_reaches_end<T: CertifiedBounds>(
     {
         return Err(Shortfall::Undecided);
     }
-    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+    let mid = |i: Interval| geom::mid_param(i.lo(), i.hi());
     let c = mid(side(at, k));
     if !(side(r, k).lo() <= c && c <= side(r, k).hi()) {
         return Err(Shortfall::Undecided);

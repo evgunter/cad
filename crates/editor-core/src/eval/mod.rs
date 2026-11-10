@@ -2399,14 +2399,14 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UnderflowedDirection { role } => write!(
                 f,
                 "the {role} underflowed to zero length, though it still names a \
-                 direction. Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 direction. {}",
+                geom_core::RANGE_ENDING
             ),
             Self::NonFiniteDirection { role } => write!(
                 f,
                 "the {role} has no finite length (a component overflows the norm or is \
-                 not a number). Recourse: {}",
-                geom_core::RANGE_RECOURSE
+                 not a number). {}",
+                geom_core::RANGE_ENDING
             ),
             Self::Band(e) => write!(
                 f,
@@ -3536,7 +3536,7 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
 impl crate::mate::SolveScalar for geom_core::Interval {
     fn quoted(self) -> f64 {
         use geom_core::Bounds;
-        0.5 * self.lo() + 0.5 * self.hi()
+        geom::mid_param(self.lo(), self.hi())
     }
 
     fn upper(self) -> f64 {

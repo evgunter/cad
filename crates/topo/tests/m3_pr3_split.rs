@@ -106,14 +106,9 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> Vec<topo::VertexKey>
 /// `n` and origin `o` — the section-face identification (mirror pin).
 fn section_faces_with(body: &Body<f64>, o: Point3<f64>, n: Vec3<f64>) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
+        .filter(|(fk, _)| match body.face_surface(*fk) {
             Some(Surface::Plane { origin, normal, .. }) => {
-                origin.x == o.x
-                    && origin.y == o.y
-                    && origin.z == o.z
-                    && normal.x == n.x
-                    && normal.y == n.y
-                    && normal.z == n.z
+                origin.equals_exactly(o) && normal.equals_exactly(n)
             }
             _ => false,
         })
@@ -368,7 +363,7 @@ fn notched_block_end_to_end() {
     }
     let up_faces = below
         .faces()
-        .filter(|(_, f)| match below.get_surface(f.surface) {
+        .filter(|(fk, _)| match below.face_surface(*fk) {
             Some(Surface::Plane { normal, .. }) => {
                 normal.x == 0.0 && normal.y == 1.0 && normal.z == 0.0
             }
@@ -1264,8 +1259,7 @@ fn offset_one_plane(
     let moves: Vec<topo::ChartMove<f64>> = by_surface
         .into_values()
         .map(|faces| {
-            let f = above.get_face(faces[0]).unwrap();
-            let hit = match above.get_surface(f.surface) {
+            let hit = match above.face_surface(faces[0]) {
                 Some(Surface::Plane { origin, normal, .. }) => pick(*origin, *normal),
                 _ => false,
             };

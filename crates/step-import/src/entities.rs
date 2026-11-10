@@ -457,18 +457,17 @@ impl<'a> Resolver<'a> {
         // the same argument, the assembly pass already spends on a
         // direction field: dimensionless, but a unit vector's slack is
         // bounded by it just as tightly.
-        let norm = ratios.norm();
-        if !(norm.is_finite() && norm > 0.0) {
+        let Some((unit, norm)) = ratios.checked_direction().ok() else {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "three direction ratios that are not all zero and are finite \
                            (a zero triple names no direction)",
             });
-        }
+        };
         Ok(if (norm - 1.0).abs() <= self.eps_in {
             ratios
         } else {
-            ratios.normalize()
+            unit
         })
     }
 
@@ -537,19 +536,18 @@ impl<'a> Resolver<'a> {
         // two DIFFERENT vectors, and this crate is f64-only besides).
         let along = axis.dot(candidate);
         let perpendicular = candidate - axis * along;
-        let norm = perpendicular.norm();
-        if !(norm.is_finite() && norm > 0.0) {
+        let Some((unit, norm)) = perpendicular.checked_direction().ok() else {
             return Err(StepImportError::MalformedRecord {
                 id,
                 expected: "AXIS2_PLACEMENT_3D(name, #location, #axis, #ref_direction) \
                            whose reference direction is not parallel to its axis (a \
                            parallel pair states no frame)",
             });
-        }
+        };
         let u_ref = if (norm - 1.0).abs() <= self.eps_in {
             perpendicular
         } else {
-            perpendicular.normalize()
+            unit
         };
         Ok(geom::Frame::new(origin, axis, u_ref))
     }
@@ -1585,8 +1583,13 @@ impl<'a> Resolver<'a> {
         // meridians (`geom::pole_form`), through u = 0 and u = π, each
         // starting AT the north pole (angle 0) and reaching the south
         // at angle π.
-        let [(_, north), (_, south)] =
-            geom_brep::chart_singularity::sphere_poles(center, axis, radius);
+        let [(_, north), (_, south)] = geom_brep::chart_singularity::sphere_poles(
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            radius,
+        );
         let (north, south) = (
             signed_zero::plus_zero_point(north),
             signed_zero::plus_zero_point(south),
@@ -2407,11 +2410,9 @@ impl Resolver<'_> {
             // tripwire watches for — no square is taken here).
             let along = z.dot(f.u_ref);
             let x = f.u_ref - z * along;
-            let n = x.norm();
-            (n.is_finite() && n > 0.0).then(|| {
-                let x = x.normalize();
-                Mat3::from_cols(x, z.cross(x), z)
-            })
+            x.checked_direction()
+                .ok()
+                .map(|(x, _)| Mat3::from_cols(x, z.cross(x), z))
         };
         let refuse = |what: &'static str| StepImportError::Structure { id, what };
         let (ba, bb) = (

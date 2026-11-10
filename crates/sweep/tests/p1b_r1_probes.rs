@@ -407,8 +407,8 @@ fn fillet_products_carry_no_scaffold_at_rest() {
 
 fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-9)
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no planar face at y = {y}"))
@@ -416,8 +416,8 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> topo::FaceKey {
 
 fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| {
-            matches!(body.get_surface(f.surface), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
+        .find(|(fk, _)| {
+            matches!(body.face_surface(*fk), Some(Surface::Cylinder { radius: r, .. }) if (*r - radius).abs() < 1e-9)
         })
         .map(|(k, _)| k)
         .unwrap_or_else(|| panic!("no cylinder face at r = {radius}"))
@@ -590,8 +590,10 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
         declared: Some(MappedCurve::whole(MappedSource::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
-            axis_origin: Point3::new(0.0, 0.0, 0.0),
-            axis_dir: Vec3::unit_y(),
+            axis: geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::unit_y(),
+            },
             angle: 0.5,
         })),
     };

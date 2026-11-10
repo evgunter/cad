@@ -546,7 +546,7 @@ fn clear_of(
     // The region's knot cells: an enclosure is tightest inside one.
     let breaks = |kv: &Knots<f64>, (a, b): (f64, f64)| -> Vec<f64> {
         let mut out = vec![a];
-        out.extend(kv.runs().map(|(k, _)| k).filter(|&k| a < k && k < b));
+        out.extend(kv.breakpoints().filter(|&k| a < k && k < b));
         out.push(b);
         out
     };
@@ -588,7 +588,7 @@ fn clear_of(
             worst(corners.map(|c| segment_reach(c, ends))) + bent <= eps_in
         });
         across || {
-            let mid = |c: &Interval| 0.5 * (c.lo() + c.hi());
+            let mid = |c: &Interval| geom::mid_param(c.lo(), c.hi());
             let centre = Point3::new(mid(&bx[0]), mid(&bx[1]), mid(&bx[2]));
             let Ok(foot) = s.project(centre) else {
                 return false;
@@ -727,7 +727,7 @@ fn parts(
     }
     let mut finer = Vec::with_capacity(4 * hit.len());
     for c in &hit {
-        let (um, vm) = (0.5 * (c.u.0 + c.u.1), 0.5 * (c.v.0 + c.v.1));
+        let (um, vm) = (geom::mid_param(c.u.0, c.u.1), geom::mid_param(c.v.0, c.v.1));
         for u in [(c.u.0, um), (um, c.u.1)] {
             for v in [(c.v.0, vm), (vm, c.v.1)] {
                 let Some(q) = cell(u, v) else {
@@ -737,7 +737,7 @@ fn parts(
             }
         }
     }
-    let m = 0.5 * (a + b);
+    let m = geom::mid_param(a, b);
     parts(piece, near, (a, m), finer.clone(), pad, cell)
         && parts(piece, near, (m, b), finer, pad, cell)
 }

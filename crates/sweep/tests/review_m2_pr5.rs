@@ -90,8 +90,8 @@ fn dense_loop_points(body: &Body<f64>, lk: topo::LoopKey, m: usize) -> Vec<Point
 /// the sampling refines (chordal).
 fn my_signed_volume(body: &Body<f64>) -> f64 {
     let mut six_v = 0.0;
-    for (_, face) in body.faces() {
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+    for (fk, _) in body.faces() {
+        for (lk, _, _) in body.face(fk).expect("a live face").loops() {
             let pts = dense_loop_points(body, lk, 64);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {
@@ -1136,8 +1136,10 @@ fn survives_near_full_period_rim_span_escalates() {
             geom_brep::MappedSource::RevolvedPoint {
                 point: Point2::new(1.0, 0.0),
                 place: geom_core::Affine3::identity(),
-                axis_origin: center,
-                axis_dir: Vec3::new(0.0, 1.0, 0.0),
+                axis: geom::Line {
+                    origin: center,
+                    dir: Vec3::new(0.0, 1.0, 0.0),
+                },
                 angle: span,
             },
         )),
@@ -1224,7 +1226,7 @@ fn probe_fan_oracle_coned_volume() {
     println!("impl oracle: {}", signed_volume(&t.body));
     for (fk, face) in t.body.faces() {
         let mut six_v = 0.0;
-        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        for (lk, _, _) in t.body.face(fk).expect("a live face").loops() {
             let pts = dense_loop_points(&t.body, lk, 64);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {
@@ -1234,10 +1236,7 @@ fn probe_fan_oracle_coned_volume() {
                 six_v += a.dot(b.cross(c));
             }
         }
-        let surf = t
-            .body
-            .get_surface(t.body.get_face(fk).unwrap().surface)
-            .unwrap();
+        let surf = t.body.face_surface(fk).unwrap();
         println!(
             "face {fk:?} contrib {} surf {:?}",
             six_v / 6.0,

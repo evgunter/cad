@@ -809,7 +809,7 @@ pub fn pcurve_of<T: AtRestPolicy>(
     // derivation, not the closed-form harmonic table. An approximating
     // surface's chart IS its fit's, so it takes the same route.
     if surface.spline_chart().is_some() {
-        return nurbs_iso_derive(body, half_edge, &surface, band);
+        return nurbs_iso_derive(body, half_edge, &surface, band).map(|d| d.into_parts().0);
     }
     analytic_derive(&carrier, t0, t1, &surface, band, half_edge)
 }
@@ -1212,6 +1212,28 @@ impl RowSpace {
     }
 }
 
+/// **A spline chart's image as its derivation leaves it**: the image
+/// alone, or its certificate where the derivation's lane choice already
+/// read one ([`nurbs_iso_derive`]'s arc rim), so the minting walk's
+/// certification ([`certify_walked`]) takes that certificate rather than
+/// asking the same question of the same image again.
+pub(crate) enum DerivedImage<T: Real> {
+    /// The image, not yet certified.
+    Image(Pcurve<T>),
+    /// The image with the certificate its lane choice read.
+    Certified(PcurveCache<T>),
+}
+
+impl<T: Real> DerivedImage<T> {
+    /// The image, and the certificate where one was read.
+    fn into_parts(self) -> (Pcurve<T>, Option<PcurveCache<T>>) {
+        match self {
+            Self::Image(image) => (image, None),
+            Self::Certified(cache) => (cache.pcurve().clone(), Some(cache)),
+        }
+    }
+}
+
 /// Derives the **exact iso chart image** of `half_edge` on a described
 /// NURBS chart (M6-3; arc rims since M8-3) — the NURBS-chart
 /// counterpart of `geom_brep::chart_pcurve`, driven by the edge's
@@ -1271,7 +1293,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     half_edge: HalfEdgeKey,
     surface: &Surface<T>,
     band: Band,
-) -> Result<Pcurve<T>, PcurveMintError> {
+) -> Result<DerivedImage<T>, PcurveMintError> {
     use geom_core::{Point2, Vec2};
     let refuse = |what: &'static str| PcurveMintError::Certify {
         half_edge,
@@ -1312,7 +1334,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
     // only where the pick fails, since a row the certificate holds is the
     // circle on the wall. Any other certificate refusal is about the chart
     // or the run, not the candidate, and leaves with its own words.
-    let arc_rim = || -> Result<Pcurve<T>, PcurveMintError> {
+    let arc_rim = || -> Result<PcurveCache<T>, PcurveMintError> {
         let no_lane = || PcurveMintError::Certify {
             half_edge,
             error: match geom_brep::read_edge_incidence(&carrier, t0, t1, surface, band) {
@@ -1327,8 +1349,8 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         let Ok(Some(rim)) = geom_brep::pick_arc_rim(&carrier, (t0, span), surface, band) else {
             return Err(no_lane());
         };
-        match PcurveCache::certify(rim.clone(), t0, t1, &carrier, surface, band) {
-            Ok(_) => Ok(rim),
+        match PcurveCache::certify(rim, t0, t1, &carrier, surface, band) {
+            Ok(cache) => Ok(cache),
             Err(
                 PcurveCertifyError::Escalated { .. }
                 | PcurveCertifyError::FittedEscalated { .. }
@@ -1500,7 +1522,9 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         // as an image in THIS chart carries the image itself — there
         // is nothing left to derive, and re-deriving it would be a
         // second opinion about a locus the description already states.
-        geom_brep::EdgeDescription::Chart(ref c) if c.surface == own => Ok(c.pcurve.clone()),
+        geom_brep::EdgeDescription::Chart(ref c) if c.surface == own => {
+            Ok(DerivedImage::Image(c.pcurve.clone()))
+        }
         // **The M8-3 ARC-RIM arm.** An ARC cap rim's chart image is
         // the same boundary line the LINE arm mints, but its moving
         // channel is the chart's own rational-quadratic parameter
@@ -1526,7 +1550,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         | geom_brep::EdgeDescription::Intersection { .. }
             if matches!(carrier, geom::Curve3::Circle(..)) =>
         {
-            arc_rim()
+            arc_rim().map(DerivedImage::Certified)
         }
         // **The wall–wall seam stated on the OTHER wall.** An iso LINE
         // image in another chart, read as a column of this one: the
@@ -1554,7 +1578,7 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
                 .flatten()
                 .map(|foot| column(computed_foot::<T>(foot).x));
             let stated = [cu0, cu1].map(column).into_iter().chain(at_foot).collect();
-            iso_schedule("pcurve_iso_wall_seam", stated)
+            iso_schedule("pcurve_iso_wall_seam", stated).map(DerivedImage::Image)
         }
         // **The boundary-iso arms: an INTERSECTION seam, and a LINE rim
         // in any other form.** The same wall–wall seam the `IsoCurve`
@@ -1599,13 +1623,13 @@ fn nurbs_iso_derive<T: AtRestPolicy>(
         | geom_brep::EdgeDescription::OnPair { .. }
             if !carrier.is_curved() =>
         {
-            iso_schedule("pcurve_iso_line_rim", Vec::new())
+            iso_schedule("pcurve_iso_line_rim", Vec::new()).map(DerivedImage::Image)
         }
         // An `OnPair` names the same two surfaces an `Intersection`
         // does, and its locus is the same question about the carrier.
         geom_brep::EdgeDescription::Intersection { .. }
         | geom_brep::EdgeDescription::OnPair { .. } => {
-            iso_schedule("pcurve_iso_seam_column", Vec::new())
+            iso_schedule("pcurve_iso_seam_column", Vec::new()).map(DerivedImage::Image)
         }
         // No lane is written for the rest, a capability gap reached only
         // behind the chart's incidence read: a carrier shown off the wall,
@@ -2129,6 +2153,9 @@ pub(crate) struct Walked<T: Real, K = HalfEdgeKey> {
     t0: T,
     t1: T,
     element: Option<JointElement>,
+    /// The image's certificate, where its derivation's lane choice
+    /// already read it ([`DerivedImage::Certified`]).
+    certified: Option<PcurveCache<T>>,
 }
 
 /// One face's boundary as this module's passes walk it: each loop's
@@ -3226,9 +3253,10 @@ fn certify_walked<T: Decide, K: Copy>(
 ) -> Result<Certified<T, K>, Vec<(K, PcurveCertifyError)>> {
     let mut rows = Vec::with_capacity(walked.len());
     let mut refused = Vec::new();
-    for w in walked {
-        let cache = match (&w.pcurve, fitted) {
-            (Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_), Some(fitted)) => {
+    for mut w in walked {
+        let cache = match (w.certified.take(), &w.pcurve, fitted) {
+            (Some(cache), ..) => Ok(cache),
+            (None, Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_), Some(fitted)) => {
                 fitted(&w)
             }
             _ => PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, surface, band),
@@ -3845,6 +3873,7 @@ pub(crate) fn site_rows<T: Decide>(
                     t0,
                     t1,
                     element: None,
+                    certified: None,
                 }),
             }
         }
@@ -3918,12 +3947,14 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
 ) -> Result<(), PcurveMintError> {
     let surface = chart.surface();
     let cycle = loop_rows(body, lp);
-    let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(cycle.len());
+    let mut carriers: Vec<(geom::Curve3<T>, Option<PcurveCache<T>>)> =
+        Vec::with_capacity(cycle.len());
     let item = |i: usize| -> Result<WalkItem<'_, T>, PcurveMintError> {
         let he = cycle[i];
-        let (carrier, t0, t1, base) = derive_image(body, he, surface, band)?;
+        let (carrier, t0, t1, derived) = derive_image(body, he, surface, band)?;
+        let (base, certified) = derived.into_parts();
         let plus = is_plus(body, he);
-        carriers.push(carrier);
+        carriers.push((carrier, certified));
         Ok(WalkItem {
             base: Cow::Owned(base),
             t0,
@@ -3958,13 +3989,14 @@ pub(crate) fn walk_loop<T: AtRestPolicy>(
             WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
         })?;
     out.extend(cycle.iter().zip(carriers).zip(walked).map(
-        |((&key, carrier), (pcurve, t0, t1, element))| Walked {
+        |((&key, (carrier, certified)), (pcurve, t0, t1, element))| Walked {
             key,
             carrier,
             pcurve: pcurve.into_owned(),
             t0,
             t1,
             element,
+            certified,
         },
     ));
     Ok(())
@@ -3988,26 +4020,32 @@ fn walk_runs<T: AtRestPolicy>(
     refused: &mut Vec<PcurveMintError>,
 ) {
     let surface = chart.surface();
-    type Derived<'a, T> = (HalfEdgeKey, geom::Curve3<T>, WalkItem<'a, T>);
+    type Derived<'a, T> = (
+        HalfEdgeKey,
+        (geom::Curve3<T>, Option<PcurveCache<T>>),
+        WalkItem<'a, T>,
+    );
     let mut items: Vec<Option<Derived<T>>> = cycle
         .iter()
         .map(|&he| {
-            let derived = derive_image(body, he, surface, band).map(|(carrier, t0, t1, base)| {
-                let plus = is_plus(body, he);
-                let base = Cow::Owned(base);
-                let vertex = entry_vertex(body, he);
-                (
-                    he,
-                    carrier,
-                    WalkItem {
-                        base,
-                        t0,
-                        t1,
-                        plus,
-                        vertex,
-                    },
-                )
-            });
+            let derived =
+                derive_image(body, he, surface, band).map(|(carrier, t0, t1, derived)| {
+                    let (base, certified) = derived.into_parts();
+                    let plus = is_plus(body, he);
+                    let base = Cow::Owned(base);
+                    let vertex = entry_vertex(body, he);
+                    (
+                        he,
+                        (carrier, certified),
+                        WalkItem {
+                            base,
+                            t0,
+                            t1,
+                            plus,
+                            vertex,
+                        },
+                    )
+                });
             derived.map_err(|e| refused.push(e)).ok()
         })
         .collect();
@@ -4037,13 +4075,14 @@ fn walk_runs<T: AtRestPolicy>(
         };
         match walk_cycle(chart, keys.len(), item, |_| None, band, false) {
             Ok(pinned) => out.extend(keys.iter().zip(carriers).zip(pinned).map(
-                |((&key, carrier), (pcurve, t0, t1, element))| Walked {
+                |((&key, (carrier, certified)), (pcurve, t0, t1, element))| Walked {
                     key,
                     carrier,
                     pcurve: pcurve.into_owned(),
                     t0,
                     t1,
                     element,
+                    certified,
                 },
             )),
             Err(WalkFail::Miss {
@@ -4088,14 +4127,14 @@ fn derive_image<T: AtRestPolicy>(
     he: HalfEdgeKey,
     surface: &Surface<T>,
     band: Band,
-) -> Result<(geom::Curve3<T>, T, T, Pcurve<T>), PcurveMintError> {
+) -> Result<(geom::Curve3<T>, T, T, DerivedImage<T>), PcurveMintError> {
     let (carrier, t0, t1) = half_edge_carrier(body, he)?;
     let base = if surface.spline_chart().is_some() {
         // Spline charts derive from the edge's intensional
         // description (M6-3) — see `nurbs_iso_derive`.
         nurbs_iso_derive(body, he, surface, band)?
     } else {
-        analytic_derive(&carrier, t0, t1, surface, band, he)?
+        DerivedImage::Image(analytic_derive(&carrier, t0, t1, surface, band, he)?)
     };
     Ok((carrier, t0, t1, base))
 }
@@ -5158,7 +5197,7 @@ pub fn loop_windings<T: AtRestPolicy>(
     chart: &Surface<T>,
     band: Band,
 ) -> Result<Vec<LoopWinding>, PcurveMintError> {
-    let view = body.passed_face(face).ok_or(PcurveMintError::Stale {
+    let view = body.face(face).ok_or(PcurveMintError::Stale {
         role: "face",
         key: EntityId::Face(face),
     })?;
@@ -5399,7 +5438,8 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                     (cache.pcurve().clone(), t0, t1)
                 }
                 None => {
-                    let (_, t0, t1, base) = derive_image(body, he, surface, band).ok()?;
+                    let (_, t0, t1, derived) = derive_image(body, he, surface, band).ok()?;
+                    let base = derived.into_parts().0;
                     (base, t0, t1)
                 }
             };

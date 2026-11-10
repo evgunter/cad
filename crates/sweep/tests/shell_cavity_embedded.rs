@@ -131,8 +131,7 @@ fn with_void<T: Decide>(mut dst: Body<T>, cavity: Body<T>) -> Body<T> {
 }
 
 fn surface<T: Decide>(body: &Body<T>, face: FaceKey) -> &geom::Surface<T> {
-    body.get_surface(body.get_face(face).expect("a face of the operand").surface)
-        .expect("its surface")
+    body.face_surface(face).expect("its surface")
 }
 
 fn is_cylinder<T: Decide>(body: &Body<T>, face: FaceKey) -> bool {

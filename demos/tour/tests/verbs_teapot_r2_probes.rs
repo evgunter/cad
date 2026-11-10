@@ -104,8 +104,8 @@ fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
 /// Every planar face whose plane origin sits at station `y`.
 fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
@@ -412,7 +412,7 @@ fn r2_ring_anatomy_on_a_drum() {
         if f.rings.is_empty() {
             continue;
         }
-        let plane = matches!(cup.get_surface(f.surface),
+        let plane = matches!(cup.face_surface(k),
             Some(Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-12);
         println!(
             "[r2-4] face {k:?} (mouth plane = {plane}) rings = {}",
@@ -466,8 +466,8 @@ fn r2_box_control_is_right() {
     let body = extruded(lp, h, tol);
     let top: Vec<FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(body.get_surface(f.surface),
+        .filter(|(fk, _)| {
+            matches!(body.face_surface(*fk),
                 Some(Surface::Plane { origin, normal, .. })
                     if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
                         && (origin.z - h).abs() < 1e-12)
@@ -869,7 +869,7 @@ fn r2_annular_mouth_anatomy() {
         pncad::topo::validate_geometric(&cup, tol)
     );
     for (k, f) in cup.faces() {
-        let s = match cup.get_surface(f.surface) {
+        let s = match cup.face_surface(k) {
             Some(Surface::Plane { origin, .. }) => format!("plane(y={:.3})", origin.y),
             Some(Surface::Cylinder { radius, .. }) => format!("cyl(r={radius:.3})"),
             other => format!("{other:?}"),
@@ -969,7 +969,7 @@ fn r2_the_scene_numbers() {
     );
     let planes: Vec<(f64, f64, f64)> = sharp
         .faces()
-        .filter_map(|(_, f)| match sharp.get_surface(f.surface) {
+        .filter_map(|(fk, f)| match sharp.face_surface(fk) {
             Some(Surface::Plane { origin, normal, .. }) => Some((
                 origin.y,
                 normal.y,
@@ -1087,9 +1087,7 @@ fn r2_the_scene_numbers() {
     let e = pncad::topo::union(&pot, &spout, tol).err();
     println!("[r2-12] pot u spout: {e:?}");
     if let Some(pncad::topo::BooleanError::CurvedPairUnsupported { other_face, .. }) = &e {
-        let s = pot
-            .get_face(*other_face)
-            .and_then(|f| pot.get_surface(f.surface));
+        let s = pot.face_surface(*other_face);
         println!("[r2-12]   the face the gate NAMED on the pot: {s:?}");
     }
 }

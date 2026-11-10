@@ -17,7 +17,7 @@
 //! selection under that rule. The generic solve's refusals
 //! ([`interpolate_columns_in`]) read the value channel at a point
 //! scalar and hold for every value of a bracket at an enclosure scalar
-//! ([`geom_core::spline::structure_ascends`], [`Real::is_bounded`](geom_core::Real::is_bounded)):
+//! ([`geom_core::structure_ascends`], [`Real::is_bounded`](geom_core::Real::is_bounded)):
 //! a refusal, never a choice among structures.
 //!
 //! # OUR bound semantics (not Eq. 9.77's)
@@ -97,10 +97,12 @@ pub enum FitError {
         /// Index of the offending point.
         index: usize,
     },
-    /// Two consecutive data points coincide: chord-length
-    /// parameterization has no valid parameter step there.
+    /// The chord between two consecutive data points has no length the
+    /// format holds: the points coincide, or the chord's length leaves
+    /// the format at either end ([`geom_core::NoDirection`]).
+    /// Chord-length parameterization has no valid parameter step there.
     DegenerateChord {
-        /// Index of the second point of the zero-length chord.
+        /// Index of the second point of the chord.
         index: usize,
     },
     /// The tolerance is not a finite positive number.
@@ -170,9 +172,11 @@ impl core::fmt::Display for FitError {
             ),
             FitError::DegenerateChord { index } => write!(
                 f,
-                "the fit's chord ending at point {index} has zero length, and chord-length \
-                 parameterization has no parameter step across a repeated sample. Recourse: \
-                 drop the duplicate point"
+                "the fit's chord ending at point {index} has no length the format holds (the \
+                 two points coincide, or lie too near or too far apart for their distance to \
+                 be represented), and chord-length parameterization has no parameter step \
+                 there. Recourse: drop the duplicate point, or scale the data into the \
+                 session's range"
             ),
             FitError::InvalidTolerance { tolerance } => write!(
                 f,
@@ -330,14 +334,14 @@ fn check_degree(n: usize, degree: usize) -> Result<(), FitError> {
 /// strictly ascending, which is what makes the averaged knot vector
 /// valid and the collocation matrix nonsingular (Schoenberg–Whitney).
 /// The ends are the points `0` and `1`, and each step ascends for every
-/// value it stands for ([`geom_core::spline::structure_ascends`]): at `f64`
+/// value it stands for ([`geom_core::structure_ascends`]): at `f64`
 /// that is `a < b`, which a NaN parameter fails.
 fn check_ordered<T: SpanLocate>(params: &[T]) -> Result<(), FitError> {
     let ordered = params.first().and_then(|u| u.point_value()) == Some(0.0)
         && params.last().and_then(|u| u.point_value()) == Some(1.0)
         && params
             .windows(2)
-            .all(|w| geom_core::spline::structure_ascends(w[0], w[1]));
+            .all(|w| geom_core::structure_ascends(w[0], w[1]));
     if ordered {
         Ok(())
     } else {
@@ -415,7 +419,7 @@ pub fn interpolate_columns(
 /// functions of them too. The refusals are [`interpolate_columns`]',
 /// decided for every value a datum or parameter stands for: a datum
 /// that is not finite ([`Real::is_bounded`](geom_core::Real::is_bounded)), a step that
-/// does not ascend ([`geom_core::spline::structure_ascends`]), and in the
+/// does not ascend ([`geom_core::structure_ascends`]), and in the
 /// banded solve a pivot that is not certainly nonzero
 /// (`curves/banded.rs`). So at an enclosure scalar a datum or an
 /// interior parameter may be wider than a point, and so may an averaged
@@ -714,12 +718,9 @@ macro_rules! nurbs_fit {
                 let mut chords = Vec::with_capacity(points.len() - 1);
                 let mut total = 0.0f64;
                 for (k, pair) in points.windows(2).enumerate() {
-                    let d = (pair[1] - pair[0]).norm();
-                    // `!(d > 0)` is NaN-catching (structure selection).
-                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                    if !(d > 0.0) {
+                    let Ok(d) = (pair[1] - pair[0]).checked_nonzero_length() else {
                         return Err(FitError::DegenerateChord { index: k + 1 });
-                    }
+                    };
                     chords.push(d);
                     total += d;
                 }
@@ -808,7 +809,8 @@ macro_rules! nurbs_fit {
             /// # Errors
             ///
             /// [`FitError`]: too few points (`degree + 1` minimum),
-            /// non-finite input, a zero-length chord, a degenerate
+            /// non-finite input, a chord with no length the format holds
+            /// (zero, or too short or too long to represent), a degenerate
             /// collocation system, or structure refusals.
             pub fn interpolate(points: &[$Point<f64>], degree: usize) -> Result<Self, FitError> {
                 check_degree(points.len(), degree)?;
@@ -1358,6 +1360,25 @@ mod tests {
         dup[2] = dup[1];
         assert!(matches!(
             NurbsCurve3::interpolate(&dup, 2),
+            Err(FitError::DegenerateChord { index: 2 })
+        ));
+        // A chord whose length overflows the format: finite points
+        // 2e200 apart. Its length is not a parameter step either.
+        let far = [0.0, 1.0, 2.0, 2e200, 2e200 + 1e185].map(|x| Point3::new(x, 0.0, 0.0));
+        assert!(matches!(
+            NurbsCurve3::interpolate(&far, 2),
+            Err(FitError::DegenerateChord { index: 3 })
+        ));
+        // And one whose length underflows: two points 1e-170 apart.
+        let tiny = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1e-170, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(3.0, 0.0, 0.0),
+        ];
+        assert!(matches!(
+            NurbsCurve3::interpolate(&tiny, 2),
             Err(FitError::DegenerateChord { index: 2 })
         ));
         let mut bad = quarter_arc_samples(5);

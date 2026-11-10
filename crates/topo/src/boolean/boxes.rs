@@ -108,7 +108,8 @@
 //!   clear (`bool4r1_probes::probe_d`).
 //! - `census::depth_gap`, arm 1's clear on a gap in depth, GRANTS: it
 //!   reads each face's cover's distance range from an axis or a centre
-//!   ([`face_cover`]), and its boundary's ([`boundary_cover`]) where a
+//!   ([`face_cover`]), and its boundary's
+//!   ([`boundary_cover`](crate::cover::boundary_cover)) where a
 //!   plane face's least lies on it. A cover that holds more than its
 //!   face can only raise a face's greatest depth and lower its least,
 //!   so a looser reading REFUSES a pair that is apart and can never
@@ -158,25 +159,26 @@
 //!   reads transversality on, so it is more exact work, never a crossing
 //!   claimed on box overlap.
 //! - `splitting::containment`'s loop extent (`extent_from`, each edge's
-//!   [`edge_cover`](crate::cover::edge_cover) folded into a ball about the point) sizes the lever
+//!   [`edge_cover`] folded into a ball about the point) sizes the lever
 //!   the point-in-loop decisions are read on: a bigger cover lengthens
 //!   it, so a decision lands in band more readily and the walk REFUSES
 //!   more, never a wrong side. A cover TIGHTER than its edge is the
 //!   unsound direction: the lever could under-state a reading's reach.
 //! - `boolean::ruled_region`'s reach bound (`reach_bound`, each boundary
-//!   edge's [`edge_cover`](crate::cover::edge_cover)) sizes the lever of a ruled face's crossings
+//!   edge's [`edge_cover`]) sizes the lever of a ruled face's crossings
 //!   in the same direction: a bigger cover lengthens it and can only
 //!   REFUSE more, never place a crossing wrongly.
-//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`](crate::cover::edge_cover)
-//!   read from below through `geom_brep::edge_reach_bounds`) reads NO
-//!   looseness: on a line the cover's far distance is its segment's
-//!   farther end, and on a circle arc its crest where the window holds it
-//!   or its farther end (`Arc::point_far`, exact for a circle in an
-//!   orthonormal frame), each hulled only with the edge's own end
-//!   vertices, so it is the edge's exact reach; on any other carrier the
-//!   bound from below is the edge's own sampled points, which the cover
-//!   does not move. So the box refuses (`OutsideSessionBox`) only on a
-//!   true lower bound of the body's reach
+//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`]
+//!   read along the world axes, `Cover::box_in`, from below through
+//!   `geom_brep::edge_coordinate_reach_below`) reads NO looseness: on a
+//!   line the cover's box is its segment's, at its ends, and on a circle
+//!   arc its support along each axis is the arc's own extreme (the
+//!   window's, exact for a circle in an orthonormal frame), each hulled
+//!   only with the edge's own end vertices, so it is the edge's exact
+//!   largest `|coordinate|`; on any other carrier, and on an edge with no
+//!   cover, the bound from below is the edge's own sampled points. So the
+//!   box refuses (`OutsideSessionBox`) only on a true lower bound of the
+//!   body's largest `|coordinate|`
 //!   (`line_and_arc_edges_in_the_box_read_their_exact_reach`, sweep). A
 //!   line or arc arm made looser than exact would be the unsound
 //!   direction: it could refuse a body that lies in the box.
@@ -201,7 +203,8 @@
 //! [`face_cover`], its carrier's cover (`geom`'s `Surface::cover`, the
 //! carrier kind match) met with the trim constraints its one arm per
 //! kind proves. Every bound a door reads is a method on one of them:
-//! [`face_box`] and [`edge_box`] the bracketed world box, the census
+//! [`face_box`] and [`edge_box`] the bracketed world box (both read
+//! through [`cover_box`], as is a held cover's box), the census
 //! its box in a frame (`Cover::box_in`), the narrow phase its support
 //! along a direction. Where an entity has no cover, a pruning door
 //! takes the poison box, which overlaps everything, and a granting door
@@ -215,6 +218,7 @@
 //! the other three.
 
 use bvh::Aabb;
+use geom::cover::Cover;
 use geom_core::{Band, Bounds, Decide, Point3, Vec3};
 
 use crate::body::Body;
@@ -249,9 +253,8 @@ pub(crate) fn sweep_pad(band: Band) -> f64 {
 }
 
 /// The face's padded box: its cover's bracketed world box
-/// ([`face_cover`], [`Cover::aabb`](geom::cover::Cover::aabb)), or the
-/// poison box where it has no cover, which every door reads in its own
-/// fail-loud direction ([`face_box_of`]).
+/// ([`face_cover`], [`cover_box`]), or the poison box where it has no
+/// cover, which every door reads in its own fail-loud direction.
 ///
 /// # Panics
 ///
@@ -262,15 +265,20 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     pad: f64,
     band: Band,
 ) -> Aabb {
-    face_box_of(&face_cover(body, face, band), pad)
+    cover_box(&face_cover(body, face, band), pad)
 }
 
-/// A face's padded box read off a cover a caller already holds: the
-/// cover's bracketed box, or the poison box where there is none.
-pub(in crate::boolean) fn face_box_of<T: Bounds>(
-    cover: &crate::cover::FaceCovered<T>,
-    pad: f64,
-) -> Aabb {
+/// **A held cover's padded box, the one home of the PRUNING
+/// direction**: its bracketed world box ([`Cover::aabb`]), or the poison
+/// box where the cover is refused, whatever the refusal. A face's, an
+/// edge's and a section circle's box each read it off the cover they
+/// hold.
+///
+/// A GRANTING reader refuses where there is no cover instead of
+/// poisoning, and then refuses the box by its own test, so it reads
+/// [`Cover::aabb`], the one home of a cover's box, directly rather than
+/// through this door.
+pub(in crate::boolean) fn cover_box<T: Bounds, E>(cover: &Result<Cover<T>, E>, pad: f64) -> Aabb {
     cover
         .as_ref()
         .map_or_else(|_| Aabb::poison(), |c| c.aabb(pad))
@@ -290,9 +298,7 @@ pub(crate) fn axis_key<T: Bounds>(v: Vec3<T>) -> [(f64, f64); 3] {
 /// extent, which turns with it. The poison box where a datum is not a
 /// finite number.
 pub(crate) fn circle_box<T: Bounds>(circle: &super::separating::Circle<T>, pad: f64) -> Aabb {
-    circle
-        .cover()
-        .map_or_else(Aabb::poison, |cover| cover.aabb(pad))
+    cover_box(&circle.cover().ok_or(()), pad)
 }
 
 /// The box of the ball about `c` of radius `r`, from their enclosures,
@@ -311,7 +317,7 @@ pub(crate) fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> Aabb {
 }
 
 /// The edge's box, padded: its cover's bracketed world box
-/// ([`edge_cover`], [`Cover::aabb`]), or the poison box where it has no
+/// ([`edge_cover`], [`cover_box`]), or the poison box where it has no
 /// cover.
 ///
 /// # Panics
@@ -322,7 +328,7 @@ pub(crate) fn centred_box<T: Bounds>(c: Point3<T>, r: T, pad: f64) -> Aabb {
 /// the separation and the operand gate) or the reduction's working
 /// copies, whose links hold by [`crate::live::OPERATORS_KEEP_LINKS`].
 pub(crate) fn edge_box<T: Decide + Bounds>(body: &Body<T>, edge: EdgeKey, pad: f64) -> Aabb {
-    edge_cover(body, edge).map_or_else(|_| Aabb::poison(), |c| c.aabb(pad))
+    cover_box(&edge_cover(body, edge), pad)
 }
 
 #[cfg(test)]
@@ -1592,7 +1598,7 @@ pub(crate) mod tests {
         const HOMES: [&str; 2] = ["boolean/boxes.rs", "cover.rs"];
         const DOORS: [&str; 12] = [
             "face_box",
-            "face_box_of",
+            "cover_box",
             "face_cover",
             "face_cover_toward",
             "face_nearest",
@@ -2583,8 +2589,8 @@ pub(crate) mod tests {
 
     /// **The §Geometry ORACLE**: the exact extremes of `e·S` over the
     /// chart rectangle, in closed form, spelled from the geometry
-    /// rather than from [`torus_rect_extent`]: what the rows measure
-    /// the lanes against, and not what any lane computes.
+    /// rather than from the patch cover's [`Cover::support`]: what the
+    /// rows measure the lanes against, and not what any lane computes.
     ///
     /// At fixed `v`, `f = e·c + (R + r cos v)·a(u) + r sin v·e_n` is
     /// affine in `a(u) = |e_⊥|·cos(u − u*)` with POSITIVE slope

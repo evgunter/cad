@@ -1856,7 +1856,7 @@ impl NurbsCurve3<Interval> {
 
     fn read_span_deriv(&self, lo: f64, hi: f64) -> Option<Vec3<Interval>> {
         let about = |a: f64, b: f64| {
-            let m = net::middle(a, b);
+            let m = geom_core::mid_param(a, b);
             net::cell_origin(self.eval(Interval::from_bounds(m, m)))
         };
         let mut acc: Option<Vec3<Interval>> = None;

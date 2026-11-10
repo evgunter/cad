@@ -285,7 +285,7 @@ fn mean_value_excludes<T: CertifiedBounds>(
     free: [usize; 3],
     jac: &[[Interval; 4]; 3],
 ) -> bool {
-    let mid = |s: (f64, f64)| 0.5 * (s.0 + s.1);
+    let mid = |s: (f64, f64)| geom::mid_param(s.0, s.1);
     let mut m = x;
     for &k in &free {
         m = m.holding(k, mid(x.0[k]));
@@ -355,14 +355,14 @@ fn image<T: CertifiedBounds>(
     free: [usize; 3],
     jac: [[Interval; 4]; 3],
 ) -> Option<Box4> {
-    let mid = |s: (f64, f64)| 0.5 * (s.0 + s.1);
+    let mid = |s: (f64, f64)| geom::mid_param(s.0, s.1);
     let mut m = x;
     for &k in &free {
         m = m.holding(k, mid(x.0[k]));
     }
     let f = pair.residual(m);
     let j: [[Interval; 3]; 3] = core::array::from_fn(|r| core::array::from_fn(|c| jac[r][free[c]]));
-    let jm: [[f64; 3]; 3] = j.map(|row| row.map(|v| 0.5 * (v.lo() + v.hi())));
+    let jm: [[f64; 3]; 3] = j.map(|row| row.map(|v| geom::mid_param(v.lo(), v.hi())));
     let y = inverse3(jm)?;
     let d: [Interval; 3] =
         free.map(|k| Interval::from_bounds(x.0[k].0, x.0[k].1) - Interval::point(mid(x.0[k])));
@@ -885,7 +885,7 @@ pub(crate) fn row_piece(ends: [[(f64, f64); 2]; 4]) -> (Box4, [f64; 4]) {
             (p.0.min(q.0), p.1.max(q.1))
         }
     });
-    let mid = |x: (f64, f64)| x.0 * 0.5 + x.1 * 0.5;
+    let mid = |x: (f64, f64)| geom::mid_param(x.0, x.1);
     let chord = ends.map(|e| {
         let [p, q] = e;
         if nan(e) {
@@ -1038,7 +1038,7 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
                 Step::Settled
             }
             None if depth < ROW_DEPTH => {
-                let half = lo * 0.5 + hi * 0.5;
+                let half = geom::mid_param(lo, hi);
                 Step::Halve([(lo, half, depth + 1), (half, hi, depth + 1)])
             }
             None if give_up => Step::Stop(()),

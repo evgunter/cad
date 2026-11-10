@@ -160,6 +160,7 @@ HELD); class 3 — 2; class 4 — 0. No site was left unclassified:
 ### MSOLVE — placement (no row: HELD)
 
 - `editor-core/src/mate/reach.rs` `Display`, `MalformedBody` (~118) — the mate solve's reach — **2**, likely: a face whose surface resolves to nothing is a tier-1 break — **HELD** (placement).
+  - (ONECOPY, `onecopy/topo-handles`, 2026-11-06.) Every other face-to-surface walk outside topo now reads `Body::face_surface`, which answers `None` only for a stale face key and panics on a torn surface link. `reach_from` was left on `get_surface(face.surface)` because porting it makes `MalformedBody` unreachable, so the variant's fate is this row's question.
 
 ### Mentions that append nothing
 
@@ -236,7 +237,7 @@ caller renders them (`topo/src/offset_derive.rs` prints the payload,
 ### TOPO — `crates/topo/src/merge_faces.rs` (row `merge-faces-undescribed-ending-is-a-typed-kernel-defect`)
 
 - `MergeDecision::ending`, `DeclaredPlanes(Parallel | Norm)` and `DeclaredOffset` (~1108) — `merge_coplanar_faces` — **2**, likely: the declared rung bridges in-band parallelism, so only an unreadable norm escalates — **HELD** (declared pairs).
-- `MergeDecision::ending`, `PairReach` (~1114) — `merge_coplanar_faces` — **2**, unsure: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only.
+- `MergeCoplanarError::PairExtentUnread`'s `Display` (was `MergeDecision::ending`'s `PairReach`, retired by PR 6634) — `merge_coplanar_faces` — **2**, unsure: the merge reads a caller's body under a build reading. An extent that does not read over stored geometry is the file's at rest, so the reading may be mislabelled rather than the state bug-only.
 
 ### FLUX — `crates/topo/src/props.rs` (row `shell-classification-volume-refusals-end-as-a-kernel-defect`)
 

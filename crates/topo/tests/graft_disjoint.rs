@@ -55,10 +55,7 @@ fn a_placed_copy_grafts_and_the_union_certifies() {
                 shells
                     .iter()
                     .flat_map(|&sh| dst.get_shell(sh).unwrap().faces.clone())
-                    .flat_map(|f| {
-                        let face = dst.get_face(f).unwrap();
-                        std::iter::once(face.outer).chain(face.rings.iter().copied())
-                    })
+                    .flat_map(|f| dst.face(f).unwrap().loops().map(|(lk, _, _)| lk))
                     .filter_map(|l| match dst.get_loop(l).unwrap().boundary {
                         topo::LoopBoundary::Cycle { first } => dst.loop_cycle(first),
                         topo::LoopBoundary::Empty { .. } => None,

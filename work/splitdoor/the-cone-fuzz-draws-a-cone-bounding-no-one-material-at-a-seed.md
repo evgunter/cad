@@ -55,3 +55,21 @@ message.
 **A third seed from the same lane** (found by PR 6422's review):
 seed `0x5a8a9d9e82406bc6` at ε 1e-12 reports `cone 31, split`, the
 same message, and is red at that branch's merge base `dc4e9b279e` too.
+
+**A fourth seed** (SEAL's lane, a full local `topo` run, 2026-11-09):
+seed `0xec7d0a99c56b41cc` (`CAD_FUZZ_EFFORT=1`) at ε 1e-9 reports
+`cone 2, split` and `cone 2, conic`, the same message. The lane's diff
+touches no file under `crates/topo/src/link/`.
+
+**Another, from ONECOPY's `onecopy/length-rule`**: seed
+`0x85b149a16ec6139e` with `CAD_FUZZ_EFFORT=30` reports `ε 1e-12,
+cone 806, split`, the same message, and is red identically with the
+branch's whole diff stashed (main `2fee45b9`).
+
+**Two more, from PR 6637's delta review (ONECOPY, 2026-11-09)**, both red identically on that PR's base:
+- `0x18045dcd4522ddd8` at ε 1e-12 reports `cone 29, split`, the same message;
+- `0xce1d0edd5fbb1372` at ε 1e-9 reports `cone 22, split` and `cone 22, conic`, the same message.
+
+The reviewer measured about 10% of random seeds red at `CAD_FUZZ_EFFORT=1`. The fuzzer is not fixed there.
+
+**One more (2026-11-09, reported to ONECOPY's orchestrator; recorded by `onecopy/main-reds-triage`)**: seed `0xb699506f073b8f0f` reports `cone 21`, `split` and `conic`, the same message, at ε 1e-6 and at the default ε (reproduced by PR 6691's review).

@@ -199,7 +199,7 @@ fn spin_moves_nothing(
         let Ok(origin) = b.space_origin() else {
             return false;
         };
-        let Ok(r) = super::part_reach_from(b.body(), origin) else {
+        let Ok(r) = super::part_reach_from(b.body(), origin, band) else {
             continue;
         };
         reach = Some(reach.map_or(r, |h: f64| h.max(r)));

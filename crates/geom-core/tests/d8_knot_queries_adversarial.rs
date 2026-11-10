@@ -703,7 +703,7 @@ fn simulate_decomposition(name: &str, kv: &KnotVector, extra: &[f64]) {
         .with_coeffs(&lifted)
         .expect("the vector's own count")
         .bernstein_spans(extra);
-    let mut want: Vec<f64> = kv.knot_runs().map(|(k, _)| k).collect();
+    let mut want: Vec<f64> = kv.breakpoints().collect();
     want.extend(extra.iter().copied().filter(|&v| v > lo && v < hi));
     want.sort_by(f64::total_cmp);
     want.dedup_by(|a, b| a == b);

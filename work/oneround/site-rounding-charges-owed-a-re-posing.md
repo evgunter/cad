@@ -45,7 +45,10 @@ re-posing that empties a file lowers or drops its row in the same change.
   rounding charge.
 - `topo::census`, `pierce_span` / `span_reach` / the curve-clear
   charges: the pierce parameter `r0 / (r0 − r1)` and its reach, charged
-  through the division by the lever.
+  through the division by the lever. `span_reach` also charges
+  `rounding_charge(|p₀| + len·|t|)`, a world-origin term that grows with
+  the edge's distance from the origin rather than with what it sums
+  (PR 6638's review).
 - `topo::boolean::solid_contain`: the ray–plane crossing's `slack`, over
   `denom` (a near-grazing ray), the wall roots' `over_root_slope`, and the
   torus roots' slack.
@@ -65,8 +68,11 @@ re-posing that empties a file lowers or drops its row in the same change.
   form changes the enclosure's function.
 - `topo::boolean::section_cert::ruling` (`Rounded` throughout, its own
   `CEILING_PAD`), `geom_brep::curve_pair::pose` and `pose::window`
-  (the window polynomials' `noise`, six of `pose`'s seven sites and all
-  of `window`'s), `geom_brep::half_angle`,
+  (`pose`'s sites are the gate's row for it; its line router's two
+  world-origin mints are scheduled by
+  `work/onecopy/the-line-router-charges-its-margins-with-world-origin-noise.md`,
+  and `window`'s polynomials read locally since PR 6525),
+  `geom_brep::half_angle`,
   `geom_brep::chart_singularity`, `topo::sector_shape`.
 - `geom_brep::props::curved::require_turn_read`: a sign of an exact norm
   of two cancelling tangents, which a charge holds off zero; owed a
@@ -141,6 +147,26 @@ re-posing that empties a file lowers or drops its row in the same change.
   `pcurve_cache::projected`, and one more site each in
   `curve_pair::pose`, `implicit` and `pair_section::spline_implicit`.
   These entered main before the gate did, so nothing ratcheted them.
+
+- 2026-11-09 — the gate derives its doors from `geom_core::running`'s
+  `pub` items (`onecopy/gate-blind-spots`), so the rows above now also
+  count `direction_rounding`, `exact_vec`, `unit_defect`, `running::dot`
+  and `cross`, `SHORT_CHAIN_ULPS` and `DIRECTION_UNITS`. The same charges
+  are now seen through doors the hand-spelled list missed:
+  `section_cert::ruling`, `implicit`, `pcurve_cache`, `props::curved`,
+  `geom::frame`, `geom::curves::conic`, `topo::vertex_section` (its
+  `direction_rounding` over the section's sine) and `conic_quadric::mod`
+  (a `direction_rounding` term). **New row**: `topo::boolean::fan`
+  (`pose`): `conditioned` reads `direction_rounding(arm)/s` against the
+  band to decide whether two fans' crossing is read. That is rounding
+  read as the zero of a pose, owed a decision at the band on `s` itself.
+  The same lane swept `rounding_charge` terms that grow with distance
+  from the world origin. Each hit is already scheduled, here or under
+  the far-centre row: `curve_face::circle_torus`'s centre term
+  (`(C − O) + (c − O) + R`, beside its harmonic rung), `implicit`'s
+  `sample_rounding`, `profile::seg`'s `reach(q) + reach(centre)`, and
+  `curve_pair::pose`'s `one_curve_gap`. `conic_conic`'s `noise` is filed
+  as `work/onecopy/transverse-range-charges-the-global-height-with-world-origin-noise.md`.
 
 ## Slate triage (2026-11-08, ONEHOME split)
 

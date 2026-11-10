@@ -198,7 +198,7 @@ struct Cell([(f64, f64); 3]);
 
 impl Cell {
     fn mid(self) -> [f64; 3] {
-        self.0.map(|(a, b)| a + (b - a) * 0.5)
+        self.0.map(geom::bracket_mid)
     }
 
     fn interval(self, k: usize) -> Interval {
@@ -228,8 +228,7 @@ impl Cell {
 
     /// The halves along coordinate `k`, lower first.
     fn halves(self, k: usize) -> [Self; 2] {
-        let (a, b) = self.0[k];
-        let c = a + (b - a) * 0.5;
+        let c = geom::bracket_mid(self.0[k]);
         let (mut lo, mut hi) = (self, self);
         lo.0[k].1 = c;
         hi.0[k].0 = c;
@@ -644,10 +643,7 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         }
         let pt = |v: Vec3<f64>| [exact(v.x), exact(v.y), exact(v.z)];
         let v3 = |v: [f64; 3]| Vec3::new(v[0], v[1], v[2]);
-        let unit = |v: Vec3<f64>| {
-            let n = v.norm();
-            (n > 0.0 && n.is_finite()).then(|| v.normalize())
-        };
+        let unit = |v: Vec3<f64>| v.checked_direction().ok().map(|(d, _)| d);
         for reach in SECTOR_REACHES {
             let r = rho * reach;
             let dt = (r / self.speeds[0]).min(domain.0[0].1 - domain.0[0].0);

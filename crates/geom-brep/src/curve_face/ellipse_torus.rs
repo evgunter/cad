@@ -116,9 +116,26 @@ fn torus_walk<T: Decide>(
     band: Band,
 ) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal> {
     let (center, axis, major_radius, minor_radius) = torus;
-    let h = crate::conic_torus_harmonics(conic, center, axis, major_radius, minor_radius);
+    let h = crate::conic_torus_harmonics(
+        conic,
+        geom::Line {
+            origin: center,
+            dir: axis,
+        },
+        major_radius,
+        minor_radius,
+    );
     let placed = |theta: T| {
-        crate::conic_torus_residual(conic, center, axis, major_radius, minor_radius, theta)
+        crate::conic_torus_residual(
+            conic,
+            geom::Line {
+                origin: center,
+                dir: axis,
+            },
+            major_radius,
+            minor_radius,
+            theta,
+        )
     };
     let meter = slack.map(|row| RootSlack {
         row,
@@ -266,15 +283,22 @@ mod tests {
                     unreachable!("a torus")
                 };
                 let conic = e.conic().unwrap();
-                let h =
-                    crate::conic_torus_harmonics(&conic, center, axis, major_radius, minor_radius);
+                let h = crate::conic_torus_harmonics(
+                    &conic,
+                    geom::Line {
+                        origin: center,
+                        dir: axis,
+                    },
+                    major_radius,
+                    minor_radius,
+                );
                 let noise = rounding_charge(h.terms) / h.f_per_metre_lo;
                 let slope = truth
                     .iter()
                     .map(|&r| {
                         let d = 1e-7;
                         let rise = distance(s, e.eval(r + d)) - distance(s, e.eval(r - d));
-                        (rise / (2.0 * d * e.deriv(r).norm())).abs()
+                        (rise / (2.0 * d * geom::carrier_speed::speed_at_any(e, r))).abs()
                     })
                     .fold(f64::INFINITY, f64::min);
                 let resolvable = 100.0 * noise / slope <= band.zero();
@@ -450,7 +474,9 @@ mod torus_rows {
     fn arc_off(e: &geom::Curve3<f64>, t: f64, roots: &[f64]) -> f64 {
         roots
             .iter()
-            .map(|&r| ((t - r + PI).rem_euclid(TAU) - PI).abs() * e.deriv(r).norm())
+            .map(|&r| {
+                ((t - r + PI).rem_euclid(TAU) - PI).abs() * geom::carrier_speed::speed_at_any(e, r)
+            })
             .fold(f64::INFINITY, f64::min)
     }
 
@@ -1050,8 +1076,10 @@ mod torus_rows {
                         .map(|&t| {
                             let r = crate::conic_torus_residual(
                                 &conic,
-                                *hub,
-                                *t_axis,
+                                geom::Line {
+                                    origin: *hub,
+                                    dir: *t_axis,
+                                },
                                 *major_radius,
                                 *minor_radius,
                                 t,

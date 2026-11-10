@@ -1498,7 +1498,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::UnderflowedSectorChord => "underflowed_sector_chord",
         BooleanErrorKind::Escalated => "escalated",
         BooleanErrorKind::PoisonedCarrierDatum => "poisoned_carrier_datum",
-        BooleanErrorKind::ContactContradicted => "contact_contradicted",
         BooleanErrorKind::TangencyUnsupported => "tangency_unsupported",
         BooleanErrorKind::RimCuspArmUnbuilt => "rim_cusp_arm_unbuilt",
         BooleanErrorKind::HeldPierceUnbuilt => "held_pierce_unbuilt",
@@ -1510,6 +1509,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::LineMaterialUnread => "line_material_unread",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
+        BooleanErrorKind::TouchesItself => "touches_itself",
+        BooleanErrorKind::ToolSeatCrossed => "tool_seat_crossed",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1842,7 +1843,8 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// could not be read along the piece says how
 /// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
 /// no region, a grazing or
-/// on-carrier piece, a sign in the band, an uncertified root count.
+/// on-carrier piece, a sign in the band, an uncertified root count; or
+/// the face has no cover to lever the piece over.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
     use pncad::topo::boolean::trace::TraceFault as C;
@@ -1865,6 +1867,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::Carrier(C::OnCarrier) => "on_carrier",
         F::Carrier(C::Escalated(_)) => "escalated",
         F::Carrier(C::Unsettled(_)) => "unsettled",
+        F::Uncovered(_) => "uncovered",
     }
 }
 
@@ -3021,13 +3024,14 @@ pub fn coherence_condition_tag(condition: CoherenceCondition) -> &'static str {
 ///
 /// **A word about the DATA, never about the configuration.** A check
 /// a caller turned off is `ChecksReport.skipped` and is not a finding
-/// at all; these three are loops the body itself put out of reach, and
+/// at all; these are loops the body itself put out of reach, and
 /// no configuration makes them examinable. The alphabets are disjoint
 /// from [`coherence_condition_tag`]'s, which is what lets both ride
 /// one attribute.
 pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
     match why {
         Unexaminable::Corrupt { .. } => "corrupt",
+        Unexaminable::LoneLoop { .. } => "empty_loop",
         Unexaminable::NullScaffoldEdge { .. } => "null_scaffold_edge",
         Unexaminable::NonIsoCarrier { .. } => "non_iso_carrier",
     }
@@ -3168,6 +3172,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SameSideInterference { .. } => "same_side_interference",
         ValidationError::TouchInterference { .. } => "touch_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
+        ValidationError::MaterialOnBothSides { .. } => "material_on_both_sides",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
         ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",

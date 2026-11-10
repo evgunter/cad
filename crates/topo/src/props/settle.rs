@@ -227,7 +227,7 @@ pub(crate) fn relation_step<T: Decide>(
     name: &'static str,
     band: Band,
 ) -> Step {
-    let decide = |volume: T| {
+    let at_volume = |volume: T| {
         geom_core::k_stats::decide_reported(
             name,
             Margin::over_lever(bound - volume, e.surface_area),
@@ -245,7 +245,7 @@ pub(crate) fn relation_step<T: Decide>(
         RelOp::Le => (e.volume_hi, e.volume_lo),
         RelOp::Ge => (e.volume_lo, e.volume_hi),
     };
-    let first = decide(first);
+    let first = at_volume(first);
     if let Some(cause) = poisoned(&first) {
         return Step::Poisoned(cause);
     }
@@ -256,7 +256,7 @@ pub(crate) fn relation_step<T: Decide>(
     if holds(&first) {
         return Step::Settled(true);
     }
-    let second = decide(second);
+    let second = at_volume(second);
     if let Some(cause) = poisoned(&second) {
         return Step::Poisoned(cause);
     }

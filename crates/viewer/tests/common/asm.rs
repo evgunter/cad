@@ -100,7 +100,7 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
     let ev: Evaluation<f64> =
         evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
     let placement = *doc.placements().first().expect("the part places its body");
-    let body = viewer::world::seat_of(doc, placement);
+    let body = viewer::world::original_of(doc, placement);
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let found = pncad::select::select(&ev, body, &sel);

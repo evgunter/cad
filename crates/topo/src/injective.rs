@@ -130,9 +130,10 @@ pub(crate) const CUSP: &str = "self_intersection_cusp";
 /// symmetric part of the projected chart's Jacobian, each column scaled
 /// by the rectangle's span on its axis, metres.
 pub(crate) const MONOTONE: &str = "self_intersection_monotone";
-/// The funnel site of a torus's ring condition: major radius less minor
-/// radius, metres.
-pub(crate) const RING_TORUS: &str = "self_intersection_ring_torus";
+/// The funnel rows of a torus's ring condition
+/// ([`geom::RingTorus::of_at`]): its minor radius, then its major radius
+/// less its minor radius, metres.
+pub(crate) const RING_TORUS: geom::RingSites = geom::RingReader::SelfIntersection.sites();
 
 // ------------------------------------------------- the lifted boundary
 
@@ -513,8 +514,11 @@ pub(crate) enum Outcome {
 ///
 /// # Errors
 ///
-/// The torus that is not decided a ring, and a free-form carrier, which
-/// no kind makes injective: its own pairs go to the monotone arm.
+/// The torus that is not decided a ring, carrying the convention's
+/// refusal ([`geom_brep::TorusRefusal`]): a half decided outside it, or
+/// a half the band cannot decide, which escalates as its own margin and
+/// is never read as the definite miss. A free-form carrier, which no
+/// kind makes injective: its own pairs go to the monotone arm.
 pub(crate) fn by_kind(
     face: FaceKey,
     surface: &Surface<Interval>,
@@ -529,13 +533,13 @@ pub(crate) fn by_kind(
             major_radius,
             minor_radius,
             ..
-        } => match decide(RING_TORUS, Margin::of(*major_radius - *minor_radius), band) {
-            Ok(Sign::Positive) => Ok(()),
-            _ => Err(EngineRefusal::TorusNotRing {
+        } => geom_brep::TorusRefusal::require_at(*major_radius, *minor_radius, RING_TORUS, band)
+            .map(|_| ())
+            .map_err(|refusal| EngineRefusal::TorusNotRing {
                 face,
                 side: Which::First,
+                refusal: Box::new(refusal),
             }),
-        },
         Surface::Nurbs(_) | Surface::Approx(_) => Err(EngineRefusal::Unsupported {
             carrier: "a free-form face, which no carrier kind makes injective",
             face,
@@ -673,8 +677,7 @@ fn rect_jet(
 }
 
 fn unit(v: Vec3<f64>) -> Option<Vec3<f64>> {
-    let n = v.norm();
-    (n.is_finite() && n > 0.0).then(|| v * (1.0 / n))
+    v.checked_direction().ok().map(|(d, _)| d)
 }
 
 fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {
@@ -2203,12 +2206,12 @@ impl Trig {
                 if !(exactly(h.pa[0], 0.0) && exactly(h.pb[0], 0.0) && exactly(h.pl[1], 0.0)) {
                     return None;
                 }
-                let v_ref = axis.cross(u_ref);
-                let (s, c) = h.p0[0].sin_cos();
+                let frame = geom::Frame::new(origin, axis, u_ref);
                 // cos(φ + w·t) = cos φ·cos t − w·sin φ·sin t, and
-                // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t.
-                let at_cos = (u_ref * c + v_ref * s) * radius;
-                let at_sin = (v_ref * c - u_ref * s) * (radius * at(w));
+                // sin(φ + w·t) = sin φ·cos t + w·cos φ·sin t: the radial
+                // and its derivative at φ.
+                let at_cos = frame.radial(h.p0[0]) * radius;
+                let at_sin = frame.tangential(h.p0[0]) * (radius * at(w));
                 Some(Self {
                     c: origin + axis * h.p0[1],
                     a: axis * h.pa[1] + at_cos,
@@ -4847,6 +4850,60 @@ mod rows {
     }
 }
 
+/// **`by_kind` keeps the torus convention's verdict** (D3,
+/// escalate-never-guess): a torus whose ring half falls in the band is
+/// refused as that half undecided, never as a torus decided not a ring,
+/// and one whose tube is wider than its ring as the half decided.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod by_kind_rows {
+    use super::{EngineRefusal, by_kind};
+    use geom::Surface;
+    use geom_brep::{TorusConvention, TorusVerdict};
+    use geom_core::interval::Interval;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn torus(major: f64) -> Surface<Interval> {
+        let p = |x: f64| Interval::from_bounds(x, x);
+        Surface::Torus {
+            center: Point3::new(p(0.0), p(0.0), p(0.0)),
+            axis: Vec3::new(p(0.0), p(0.0), p(1.0)),
+            major_radius: p(major),
+            minor_radius: p(1.0),
+            u_ref: Vec3::new(p(1.0), p(0.0), p(0.0)),
+        }
+    }
+
+    #[test]
+    fn a_torus_the_band_cannot_decide_a_ring_escalates_its_half() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let face = crate::FaceKey::default();
+        let verdict = |major: f64| match by_kind(face, &torus(major), band) {
+            Err(EngineRefusal::TorusNotRing { refusal, .. }) => {
+                assert_eq!(refusal.convention, TorusConvention::Ring, "{major}");
+                refusal.verdict
+            }
+            other => panic!("{major}: a torus not decided a ring: {other:?}"),
+        };
+        assert!(
+            matches!(
+                verdict(1.0 + 0.5 * (band.zero() + band.escalate())),
+                TorusVerdict::Undecided(_)
+            ),
+            "a ring half in band escalates as its own margin"
+        );
+        assert!(
+            matches!(verdict(0.5), TorusVerdict::Refused(_)),
+            "a tube wider than its ring is decided outside the convention"
+        );
+        assert_eq!(
+            by_kind(face, &torus(2.0), band),
+            Ok(()),
+            "a ring is injective"
+        );
+    }
+}
+
 /// **Presentations, read directly**: a face built by hand, its local
 /// edges named, and what [`present_chart`] / [`present_plane`] make of a
 /// cell. Each row names the failure it catches.
@@ -4854,6 +4911,22 @@ mod rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod presentation_rows {
     use super::*;
+
+    /// **`unit` reads a heading as every refusing door does**: an
+    /// overflowed, underflowed or zero vector names no heading, and one
+    /// past the squares' range but in the format names its own.
+    #[test]
+    fn unit_refuses_a_vector_out_of_the_format_or_zero() {
+        for v in [
+            Vec3::new(1e200, 0.0, 0.0),
+            Vec3::new(1e-170, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 0.0),
+        ] {
+            assert!(unit(v).is_none(), "{v:?} names no heading");
+        }
+        let d = unit(Vec3::new(0.0, 3e-160, -4e-160)).expect("in the format");
+        assert_eq!(d.to_array(), [0.0, 0.6, -0.8], "a small heading");
+    }
     use crate::test_support_fixtures::trv;
     use geom_core::Tol;
 

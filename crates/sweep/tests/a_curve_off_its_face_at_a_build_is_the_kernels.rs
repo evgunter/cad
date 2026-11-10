@@ -131,11 +131,8 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
     for refusal in [&declared, &derived] {
         assert!(
             matches!(
-                refusal,
-                CertifyError::CarrierOffChart {
-                    margin: Some(geom_brep::OffMargin::Past(_)),
-                    ..
-                }
+                refusal.incidence_read(),
+                Some(geom_brep::IncidenceRead::Off(Some(_)))
             ),
             "{lane}: {refusal:?}"
         );

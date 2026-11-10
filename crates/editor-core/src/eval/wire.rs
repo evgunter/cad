@@ -556,7 +556,7 @@ where
             let each = project_each(&[(O::Source, source.read)])?;
             let values = each[0].as_ref().unwrap_or(unprojected);
             let of = at(O::Source, source.read)?;
-            let reach = copy_reach(values, of);
+            let reach = copy_reach(values, of, band(tol)?);
             let placed = fold_with(
                 doc,
                 unprojected,
@@ -614,7 +614,7 @@ where
             // The copy before placement is what its mates' `on` poses
             // read: the part's product where the part put it.
             let unplaced = wire_instantiate_part(id, doc_ref, interface, None, env, tol)?;
-            let reach = payload_reach(&unplaced.payload, id);
+            let reach = payload_reach(&unplaced.payload, id, band(tol)?);
             // `on` reads the copy alone (the door's `on_reads_the_copy`),
             // so the copy is all its reads need.
             let own: Results<T> =
@@ -664,9 +664,10 @@ fn twisted<T: Decide + topo::AtRestPolicy>(
 fn copy_reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     results: &Results<T>,
     at: RecipeNodeId,
+    band: Band,
 ) -> Result<f64, crate::mate::LeverRefusal> {
     match results.get(&at) {
-        Some(NodeResult::Ok(value)) => payload_reach(&value.payload, at),
+        Some(NodeResult::Ok(value)) => payload_reach(&value.payload, at, band),
         _ => Ok(0.0),
     }
 }
@@ -677,14 +678,15 @@ fn copy_reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
 fn payload_reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     payload: &ValuePayload<T>,
     at: RecipeNodeId,
+    band: Band,
 ) -> Result<f64, crate::mate::LeverRefusal> {
     let farthest = |bodies: &mut dyn Iterator<Item = &super::Framed<T>>| {
         bodies
-            .map(|body| body_reach(body, at))
+            .map(|body| body_reach(body, at, band))
             .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r)))
     };
     if let Some(body) = payload.one_body() {
-        return body.map_or(Ok(0.0), |body| body_reach(body, at));
+        return body.map_or(Ok(0.0), |body| body_reach(body, at, band));
     }
     match payload {
         ValuePayload::Instances(bodies) => farthest(&mut bodies.iter().flatten()),
@@ -703,10 +705,11 @@ fn payload_reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
 fn body_reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     body: &super::Framed<T>,
     at: RecipeNodeId,
+    band: Band,
 ) -> Result<f64, crate::mate::LeverRefusal> {
     body.space_origin()
         .map_err(|_| crate::mate::ReachRefusal::NoFiniteBound)
-        .and_then(|about| crate::mate::part_reach_from(body.body(), about))
+        .and_then(|about| crate::mate::part_reach_from(body.body(), about, band))
         .map(crate::mate::SolveScalar::upper)
         .and_then(|hi| {
             if hi.is_finite() {
@@ -2455,7 +2458,7 @@ fn wire_measure<'r, T: Decide + topo::AtRestPolicy + crate::mate::SolveScalar>(
         carriers.push((
             *index,
             match kind {
-                None => super::measure::carrier_of(body, *ent),
+                None => super::measure::carrier_of(body, *ent, b),
                 Some(kind) => pose::read_off_cell(body, *ent, *kind, b)?,
             },
         ));

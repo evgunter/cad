@@ -34,7 +34,7 @@ test_utils::f6_variants! {
     /// what it does NOT weld are documented on
     /// [`test_utils::f6::assert_f6_every_variant`].
     const CONTACT_REFUSAL: ContactRefusal =
-        [Contradicted, Escalated, NotCertifiable];
+        [Escalated, NotCertifiable];
 }
 
 /// Every `Debug` field name `ContactRefusal`'s payloads carry, as the
@@ -69,16 +69,6 @@ const READBACK_ERROR_FIELDS: &[&str] = &["what:", "carrier:"];
 #[test]
 fn contact_refusal_display_names_its_content_not_its_struct() {
     let cases = [
-        (
-            ContactRefusal::Contradicted { diag: in_band() },
-            // The one reason true at every contradiction site; the
-            // predicate and margin are developer detail in `Debug`.
-            vec![
-                "contradicted",
-                topo::CONTRADICTION_REASON,
-                topo::CONTRADICTION_RECOURSE,
-            ],
-        ),
         (
             ContactRefusal::Escalated { diag: in_band() },
             vec!["escalated", topo::CONTACT_RECOURSE],
