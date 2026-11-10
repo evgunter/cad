@@ -12,6 +12,7 @@ Track size). Nothing dispatched.
 
 | pri | item | cost | title |
 |---|---|---|---|
+| P0 | `dome-clearance-screen-escalates-an-invalid-margin` | H | the dome's equator at r ≥ 0.6 escalates `fillet3_face_clearance` with `MarginDiag::Invalid` |
 | P3 | `blend-reach-meters-a-nurbs-face-on-its-box-alone` | M | the reach has no surface distance for a NURBS face, so a loft wall whose box meets a band refuses |
 | P3 | `blend-reach-takes-an-open-arc-link-over-the-whole-turn` | M | an open arc link's reach is taken over the whole turn |
 | P3 | `blend-reach-refuses-a-bore-clear-of-a-ruled-cut-offs-sliver` | M | the reach refuses D-rod bores that stay clear of the sliver the cut-off removes |
