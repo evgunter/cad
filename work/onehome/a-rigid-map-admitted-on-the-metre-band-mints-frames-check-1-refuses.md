@@ -62,10 +62,16 @@ apart from rounding, which the carried verdict
 this row is built first, before the `moved` door.
 
 Done when: `check_rigid` returns the re-minted motion; F10's
-`decide_flagged` site is gone and the census count drops by one; a
-STEP file and a literal frame with a column 1e-10 off unit place a
-2.5 m-radius cylinder at 1 km and pass check 1, and one beyond the
-levered band refuses `NotRigid` at the frame.
+`decide_flagged` site is gone and the census count drops by one; at
+the kernel band, a literal frame with a column inside ε/(2S) passes,
+is re-minted and places a 2.5 m-radius cylinder about 1 km out that
+passes check 1, and one 1e-10 off unit at the default ε refuses
+`NotRigid` naming the column; a STEP file whose ε_in admits a column
+1e-10 off unit passes, is re-minted, and places the cylinder at 1 km
+past check 1, and one beyond its band refuses `PlacementMap` naming
+the transform. A map whose every entry is a plain `f64` is decided and
+re-minted at `f64` at every scalar, so the box lanes receive the
+`f64` lane's frame (`computed_at`).
 
 ## Fence
 
@@ -74,3 +80,4 @@ territory`, shared with offset). Cross-reference F10.
 
 - 2026-11-02 — moved from SHELF to SHELL by `git mv` when SHELF merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SHELF had fallen far under it).
 - 2026-11-10 — moved from SHELL to ONEHOME and raised P3 → P1 by Ev's PR 6589 comment; decided by fork 256; built first in the rigid-motion unit. (ONEHOME orchestrator)
+- 2026-11-10 — the done-when's numbers corrected: "a column 1e-10 off unit passes" was the orchestrator's error. Levered by the session box, 1e-10 is about 200ε at the default ε, so it refuses at the kernel band, and passes only at a STEP file's band that admits it (`[import]`, adoption). A point map is decided at `f64` (an application of fork 256, not a fork). (ONEHOME orchestrator, via the rigid-motion lane)
