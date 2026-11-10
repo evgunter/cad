@@ -14,7 +14,10 @@
 # needs every face (point_in_faces's on-face reads climb).
 crates/topo/src/solid_contain.rs 1
 # rim_wedge: sort_params, a sort, needs every comparison; reach reads
-# every arc's traversal. (departures's abut and rides climb.)
+# every arc's traversal. (departures's abut climbs; rides reads its two
+# ends as one identity. FaceOnLocus::at's ride reads, the disagreement
+# shape, are scheduled on the-ladder-has-no-climb-for-a-disagreement-
+# that-answers.)
 crates/topo/src/rim_wedge.rs 2
 # containment: conic_crossings, a crossing count, needs both roots.
 # (certify_plane reads its data as one identity.)

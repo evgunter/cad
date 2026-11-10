@@ -3542,6 +3542,8 @@ pub(super) fn line_of<T: Decide>(
             .map_err(join_escalate)
     };
     let mut at_site = [false; 2];
+    // Each direction is a ruling, never the zero vector ([`ApexLines`]),
+    // so the distance's division by its length needs no decision.
     for (k, d) in lines.dirs.iter().enumerate() {
         let off = geom::Line {
             origin: lines.apex,
