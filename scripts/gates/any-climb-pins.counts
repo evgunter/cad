@@ -34,11 +34,13 @@ crates/topo/src/census.rs span_clear 1 row t4-ports-unpinned-for-a-kept-reading-
 # by the production function in the one module.
 crates/topo/src/census.rs wedges_overlap 2 pin a_pair_whose_wedge_does_not_read_is_kept_and_a_later_pair_answers
 crates/topo/src/chord_join.rs holds_outer 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-# path_ring_side and paths_rung: cone_ring_rows reads the outer reader at
-# every offset, among them offsets whose first path is in band, and holds
-# its answer; a first-refusal ladder refuses there.
+# path_ring_side: cone_ring_rows reads the outer reader at every offset,
+# among them offsets whose first path is in band, and holds its answer; a
+# first-refusal ladder refuses there. paths_rung is read on the rung
+# itself: through read_paths, the agreeing ladder over the outer
+# references answers from another reference past it.
 crates/topo/src/chord_join.rs path_ring_side 1 pin a_path_escalating_by_a_corner_hands_re_homing_to_the_next
-crates/topo/src/chord_join.rs paths_rung 1 pin a_path_escalating_by_a_corner_hands_the_winding_to_the_next
+crates/topo/src/chord_join.rs paths_rung 1 pin a_path_in_band_hands_the_rung_to_the_next_path
 crates/topo/src/chord_join.rs ring_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/link.rs place 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/offset_nappe.rs face_nappe_reading 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
@@ -52,7 +54,8 @@ crates/topo/src/shell.rs walls_cross 1 pin a_piece_crossing_answers_past_a_piece
 crates/topo/src/shell.rs wraps_its_period 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/side_reader.rs cast_aims 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 crates/topo/src/splitting/finish.rs shell_side 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
-crates/topo/src/splitting/pieced_arc.rs contact 1 pin a_poisoned_leaf_outranks_an_earlier_leaf_in_band
+# contact: the ends' ladder, the second end at the point past the first in band.
+crates/topo/src/splitting/pieced_arc.rs contact 1 pin an_end_in_band_blocks_the_walk_but_not_the_other_end
 crates/topo/src/stands.rs insides_at 1 row t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 # ladder, the witness ladder: sweep's integration row reads it through
 # the production Boolean with a corner in band ahead of an answering one.

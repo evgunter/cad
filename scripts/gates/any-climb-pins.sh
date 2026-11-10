@@ -66,11 +66,25 @@ for rec in os.environ.get("GATE_HITS", "").split("\n"):
     live[(path, name)] += 1
 want = collections.Counter()
 problems = []
+# A pin names a test: a fn under a `#[test]` or `#[rstest]` attribute,
+# with any other attributes and doc comments between them.
+TEST_ATTR = re.compile(r"^\s*#\[(?:test|rstest)\b")
+SKIP = re.compile(r"^\s*(?:#\[|///|//)")
 tests = set()
 for p in glob.glob("crates/**/*.rs", recursive=True):
     with open(p, errors="replace") as fh:
-        for m in re.finditer(r"\bfn\s+([A-Za-z_0-9]+)", fh.read()):
-            tests.add(m.group(1))
+        armed = False
+        for l in fh:
+            if TEST_ATTR.match(l):
+                armed = True
+                continue
+            m = FN.match(l)
+            if m:
+                if armed:
+                    tests.add(m.group(1))
+                armed = False
+            elif armed and l.strip() and not SKIP.match(l):
+                armed = False
 rows = {os.path.basename(p)[:-3] for p in glob.glob("work/**/*.md", recursive=True)}
 with open(register) as fh:
     for n, raw in enumerate(fh, 1):
@@ -83,7 +97,7 @@ with open(register) as fh:
         path, name, count, kind, ref = line
         want[(path, name)] += int(count)
         if kind == "pin" and ref not in tests:
-            problems.append(f"{register}:{n}: pin `{ref}` names no fn under crates/")
+            problems.append(f"{register}:{n}: pin `{ref}` names no #[test] or #[rstest] fn under crates/")
         if kind == "row" and ref not in rows:
             problems.append(f"{register}:{n}: row `{ref}` names no work/**/{ref}.md")
 for key in sorted(set(live) | set(want), key=lambda k: (k[0], k[1] or "")):
@@ -114,13 +128,24 @@ plant_unregistered() {
 
 plant_pinned() {
   plant_unregistered "$1"
-  printf '#[cfg(test)]\nmod rows { #[test]\nfn a_later_rung_answers() {} }\n' >> "$1/crates/planted/src/lib.rs"
+  printf '#[cfg(test)]\nmod rows {\n    /// A later rung answers.\n    #[test]\n    #[ignore]\n    fn a_later_rung_answers() {}\n}\n' >> "$1/crates/planted/src/lib.rs"
   printf 'crates/planted/src/lib.rs search 1 pin a_later_rung_answers\n' >> "$1/$REGISTER"
 }
 
 plant_pin_gone() {
   plant_unregistered "$1"
   printf 'crates/planted/src/lib.rs search 1 pin no_such_test\n' >> "$1/$REGISTER"
+}
+
+plant_pin_not_a_test() {
+  plant_unregistered "$1"
+  printf 'crates/planted/src/lib.rs search 1 pin search\n' >> "$1/$REGISTER"
+}
+
+plant_count_short() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn search() {\n    climb(Answering::Any, xs, f);\n    climb(Answering::Any, ys, g);\n}\n' > "$1/crates/planted/src/lib.rs"
+  printf 'crates/planted/src/lib.rs search 1 row carrier\n' >> "$1/$REGISTER"
 }
 
 plant_on_a_row() {
@@ -148,12 +173,14 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_unregistered
   gate_selftest_case "$want" plant_pin_gone
+  gate_selftest_case "$want" plant_pin_not_a_test
+  gate_selftest_case "$want" plant_count_short
   gate_selftest_case "$want" plant_row_gone
   gate_selftest_case "$want" plant_stale_entry
   gate_selftest_passes "a pinned ladder" plant_pinned
   gate_selftest_passes "a ladder on a row" plant_on_a_row
   gate_selftest_passes "a ladder in a test module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, a pinned ladder, one on a row and one in a test module; fires on an unregistered ladder, a pin or row that names nothing, and a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, a pinned ladder, one on a row and one in a test module; fires on an unregistered ladder, a pin or row that names nothing, a pin that names a fn that is no test, a function with more ladders than registered, and a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

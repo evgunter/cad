@@ -159,6 +159,12 @@ truck-stepio = "0.3.0"
 # unsafe (the exception budget lives in vetted dependencies). Public API is
 # documented.
 [workspace.lints.rust]
+# `any_first_mutant`: `geom_core::ladder::climb_evidence` refuses an
+# `Answering::Any` ladder at its first kept rung, the first-refusal loop
+# every `Any` port replaced. Set only by `scripts/any-first-mutant.sh`,
+# which runs each pin `scripts/gates/any-climb-pins.counts` names under it
+# and reds one that stays green.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(any_first_mutant)'] }
 unsafe_code = "forbid"
 missing_docs = "warn"
 # A `pub` item that no path from the crate root reaches is invisible to

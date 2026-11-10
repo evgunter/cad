@@ -61,10 +61,10 @@ There is nothing left for this row's code to do. On main at `origin/main` (2026-
 
 No code changed, so no outcome moves.
 
-## The fold, split by the any-pins unit (`onecopy/refusal-standing`, after PR 6739)
+## The fold, split by the any-pins unit (`onecopy/refusal-standing`, PR 6758)
 
 `ConicArc::hit` no longer folds both walk refusals into `ConicHit::Unsettled`:
 - **`Exhausted`** (the walk's budget) stays `Unsettled`. It still reads as `RayExhausted` in region and as `EdgeContact::Unread` in containment.
-- **`Unbounded`** (no speed bound) is the new `ConicHit::Uncertified`: a construction fault (orchestrator ruling (b)), not a limit. A certified conic cannot reach it: `geom`'s `conic` module holds a radius and both semi-axes to positive lengths, and certification's speed floor refuses one that is not. So containment refuses the loop as `PointInLoopError::CorruptLoop`, and region refuses the face as `RegionRefusal::WoundPastPeriod`, whose image is `CorruptFace`.
+- **`Unbounded`** (no speed bound) is an `unreachable!` naming its premise, the idiom `ConicArc::of` and `::read` use two functions up. A `ConicArc` is built only from a `CertifiedTurn`, which only certification mints (`geom_brep::certify`, its fields private). Certification decides the carrier's speed floor positive or refuses (`IntervalNotForward`), and the walk refuses `Unbounded` only where the greatest speed, at least that floor, is non-finite or not positive. So the arm is an impossible state, not a refusal.
 
-`containment::tests::a_conic_with_no_speed_bound_is_a_corrupt_loop` pins the containment walk. No input reaches `hit`'s `Unbounded` arm: an infinite, zero or poisoned size already reads `Off`, or as a poisoned escalation, earlier. So the test hands the walk the reading directly.
+PR 6758 first typed it as `ConicHit::Uncertified`, carried through `EdgeContact`, `OffEdge` and region's match. The review replaced that: a typed variant threaded an impossible state through four enums.

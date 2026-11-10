@@ -53,6 +53,8 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 
 A new `Any` ladder reds until it is named there. So **the register is this row's list**, and this row closes when no entry names it.
 
+A pin's name is checked by the gate (it must be a `#[test]` or `#[rstest]` fn); that it reaches the answer past a kept rung is checked by `scripts/any-first-mutant.sh`, nightly, which runs every pin under `--cfg any_first_mutant` (`climb_evidence` refusing an `Any` ladder at its first kept rung) and reds one that stays green. A new pin is run under it before it is registered.
+
 The 18 beyond the seven above, each with the fixture its pin needs (a kept rung read ahead of an answering one, through the production function):
 - `geom-brep` `chart_singularity::holds`: a chart point whose first bounding reading is in band of the singular point, a later one decided outside.
 - `geom-brep` `edge_nurbs::measured_ends`: a spline edge whose first end measures in band, its second decided.

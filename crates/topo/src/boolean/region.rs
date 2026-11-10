@@ -60,9 +60,7 @@ pub(crate) enum RegionRefusal {
         outer: LoopKey,
     },
     /// A boundary arc winds definitely past a whole turn, which bounds
-    /// no region; or a conic arc whose carrier bounds no speed, which its
-    /// certification should have refused (`ConicHit::Uncertified`). Either
-    /// way the face is corrupt.
+    /// no region.
     WoundPastPeriod,
     /// The boundary reading of an edge on its own carrier ran out of depth
     /// or budget before it placed the point: no reading in the band, and
@@ -138,17 +136,6 @@ pub(crate) fn circle_edge_hit<T: Decide>(
         ConicHit::On(_) | ConicHit::End => Ok(true),
         ConicHit::Off | ConicHit::Carrier => Ok(false),
         ConicHit::Unsettled => Err(RegionRefusal::RayExhausted { outer }),
-        // `ConicHit::Uncertified`, the one variant left: a conic its
-        // certification should have refused (no speed bound), so a corrupt
-        // face, `WoundPastPeriod`'s image, not a reading. It is caught by
-        // elimination, not by name, because `engine-leaves` counts every
-        // name of a splitting item here and its cross-engine pin cannot
-        // rise. The assertion reads the variant by its `Debug` name, which
-        // names no item, so a future variant still fails loud in debug.
-        other => {
-            debug_assert_eq!(format!("{other:?}"), "Uncertified");
-            Err(RegionRefusal::WoundPastPeriod)
-        }
     }
 }
 

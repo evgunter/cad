@@ -5688,6 +5688,50 @@ mod side_ladder_rows {
             "a later decided side answers"
         );
     }
+
+    /// **A path read in band hands the rung to the next path**
+    /// ([`super::paths_rung`], `Any`): on a cylinder's two ruled paths, the
+    /// first read in band and the second decided, the rung answers the
+    /// second's side; read in band on both, it is kept. A first-refusal
+    /// ladder kept the first. Read on the rung itself, since
+    /// [`super::IslandReading::read_paths`]' agreeing ladder over the outer
+    /// references would answer from another reference past it.
+    #[test]
+    fn a_path_in_band_hands_the_rung_to_the_next_path() {
+        use crate::ring_path::Quadric;
+        use geom_core::{Point3, Vec3};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cylinder = geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let quadric = Quadric::of(&cylinder).unwrap();
+        let ends = (Point3::new(1.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.5));
+        assert_eq!(
+            quadric.paths(ends, band).unwrap().len(),
+            2,
+            "a cylinder offers two ruled paths"
+        );
+        let rung = |margins: [f64; 2]| {
+            let mut next = margins.into_iter();
+            super::paths_rung(&quadric, ends, band, |_| {
+                let m = next.next().unwrap();
+                crate::validate::decide("test_side", Margin::of(m), band)
+                    .map(|sign| (sign != Sign::Zero).then_some(sign))
+            })
+        };
+        assert_eq!(
+            rung([5e-9, -1.0]),
+            Rung::Answers(Sign::Negative),
+            "the second path answers past the first in band"
+        );
+        assert!(
+            matches!(rung([5e-9, 5e-9]), Rung::InBand(_)),
+            "both in band: kept"
+        );
+    }
 }
 
 #[cfg(test)]
