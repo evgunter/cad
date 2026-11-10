@@ -840,12 +840,14 @@ mod nested_at_the_door {
             let error = StepImportError::Pcurves {
                 source: topo::PcurveMintError::Certify {
                     half_edge: topo::HalfEdgeKey::default(),
-                    error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                        chart: geom::SurfaceKind::Cone,
-                        carrier: geom::CurveKind::Circle,
-                        why: "the circle dips below the apex",
-                        margin,
-                    },
+                    error: geom_brep::PcurveCertifyError::Incidence(
+                        geom_brep::IncidenceRefusal::off_chart(
+                            geom::SurfaceKind::Cone,
+                            geom::CurveKind::Circle,
+                            "the circle dips below the apex",
+                            margin,
+                        ),
+                    ),
                 },
                 file: FileCoincidence::new(1e-6),
             };

@@ -113,7 +113,6 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign,
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::SphereQuestion;
-use super::boxes;
 use super::combine::{GraftMap, graft_solids_disjoint};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
@@ -133,9 +132,10 @@ use super::{BooleanDecision, LineWedgeFault};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
     EeContact, EfContact, FfContact, Glue, GlueVerdict, Operand, OperandRecords, ReductionContacts,
-    SelfCheck, SweepStrategy, VeContact, VfContact, VvContact,
+    SweepStrategy, VeContact, VfContact, VvContact,
 };
 use crate::body::Body;
+use crate::boxes;
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
@@ -1684,25 +1684,19 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         | M::JointWithoutRoom { .. }
         | M::Band(_) => WalkRefusal::Unread,
         M::Unminted { .. } => WalkRefusal::NotRaised,
-        // An incidence refusal is read by the one classifier and its one
-        // policy: a definite read (decided off, or a margin that could
-        // not be read) is torn, a read in band unread.
-        M::Certify { error, .. } => match geom_brep::IncidenceRead::of(error) {
-            Some(read) if read.is_definite() => WalkRefusal::Torn,
-            Some(_) => WalkRefusal::Unread,
-            None => walk_certify_refusal(error),
-        },
+        M::Certify { error, .. } => walk_certify_refusal(error),
     }
 }
 
-/// [`walk_refusal`] of a certification refusal that carries no incidence
-/// read (the incidence variants are listed for the match, and read by
-/// the classifier before they reach it).
+/// [`walk_refusal`] of a certification refusal.
 fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
     use geom_brep::PcurveCertifyError as C;
     match error {
+        // By the one incidence policy: a definite read (decided off, or a
+        // margin that could not be read) is torn, a read in band unread.
+        C::Incidence(refusal) if refusal.read().is_definite() => WalkRefusal::Torn,
+        C::Incidence(_) => WalkRefusal::Unread,
         C::PlaceholderChart
-        | C::CarrierOffChart { .. }
         | C::ChartRow { .. }
         | C::ImageMismatch { .. }
         | C::ChannelKindMismatch { .. }
@@ -1840,26 +1834,53 @@ fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
         .any(|(_, l, _)| matches!(l.boundary, LoopBoundary::Empty { .. }))
 }
 
-/// Places a witness point in one face ([`super::contain::face_placement`]).
-/// A point definitely OFF the carrier is no verdict: the witness was
-/// built on the carrier, so that answer contradicts its construction
-/// rather than placing it, and so does a margin from a plane in band.
+/// **Places a witness point in one face.** A section witness is built on
+/// its two carriers to within the band (a near-tangent pair's witness
+/// lies in band of a sphere's), so it is held in band
+/// ([`crate::held::Held::in_band`]) and placed with no on-plane decision
+/// ([`super::contain::placement_on_carrier`]). `None` is no verdict: a
+/// curved trim the door does not read, or the door's own refusal.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where the witness reads
+/// definitely off a curved face's carrier (a planar face's placement
+/// never says so): the section did not put it there
+/// ([`witness_reads`]).
 pub(crate) fn place_witness<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     band: Band,
-) -> Option<FaceContainment> {
-    use super::contain::{CurvedPlacement, PlacementError};
-    match super::contain::face_placement(body, face, p, band, "bool_section_witness_on_plane") {
-        Ok(CurvedPlacement::Trim(at)) => at,
-        Ok(CurvedPlacement::OffCarrier) | Err(PlacementError::OnPlane(_)) => None,
-        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
-            super::contain::driver_face_stale(face)
-        }
-        Err(PlacementError::Door(_)) => None,
+) -> Result<Option<FaceContainment>, BooleanError> {
+    let held = crate::held::Held::in_band(p);
+    witness_reads(super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at))
+}
+
+/// [`place_witness`]'s reading of the door: a trim's verdict, or none; a
+/// stale face the driver's; a witness off a curved carrier the
+/// section's defect.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] on `OffCarrier`.
+fn witness_reads(
+    read: Result<super::contain::CurvedPlacement, ContainError>,
+) -> Result<Option<FaceContainment>, BooleanError> {
+    use super::contain::CurvedPlacement;
+    match read {
+        Ok(CurvedPlacement::Trim(at)) => Ok(at),
+        Ok(CurvedPlacement::OffCarrier) => Err(BooleanError::ClassificationInvariant {
+            what: WITNESS_OFF_CARRIER,
+        }),
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(_) => Ok(None),
     }
 }
+
+/// [`witness_reads`]' invariant where a section witness reads off a
+/// curved face's carrier.
+const WITNESS_OFF_CARRIER: &str = "a section witness reads off a curved face's carrier";
 
 /// One face as the section certificate reads it: its key, its surface's
 /// key and description, its cover and its certified box.
@@ -1917,7 +1938,11 @@ fn overlap_reach<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ChartCache::describes`]'s, for a torn face.
+/// The first refusal the certificate's two readers meet, in the order it
+/// asks them (per component, a side's description before the witness):
+/// [`ChartCache::describes`]'s, for a torn face; or
+/// [`BooleanError::ClassificationInvariant`] (`WITNESS_OFF_CARRIER`),
+/// where a witness reads off a curved face's carrier ([`witness_pair`]).
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
@@ -1963,7 +1988,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             super::spline_known::shared((a, fa.face, &fa.surface), (b, fb.face, &fb.surface), band),
         ),
     };
-    let mut torn = None;
+    let torn = core::cell::RefCell::new(None);
     let verdict = certify(
         &section,
         evented,
@@ -1976,27 +2001,51 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             charts
                 .describes(operand, body, row.face, &row.surface, band)
                 .unwrap_or_else(|e| {
-                    torn = Some(e);
+                    tear(&torn, e);
                     Sheet::Unread
                 })
         },
         |p, band| {
-            [
-                place_witness(a, fa.face, p, band),
-                place_witness(b, fb.face, p, band),
-            ]
+            witness_pair(
+                [
+                    place_witness(a, fa.face, p, band),
+                    place_witness(b, fb.face, p, band),
+                ],
+                &torn,
+            )
         },
     );
-    match torn {
+    match torn.into_inner() {
         Some(e) => Err(e),
         None => Ok(verdict),
     }
 }
 
+/// Keeps `e` for [`pair_verdict`] to return, if it is the first refusal
+/// either of the certificate's readers met: the first one met wins.
+fn tear(torn: &core::cell::RefCell<Option<BooleanError>>, e: BooleanError) {
+    torn.borrow_mut().get_or_insert(e);
+}
+
+/// The witness pair's placements as the certificate reads them: a
+/// placement, or no verdict where the witness's placement refused, that
+/// refusal kept ([`tear`]) for [`pair_verdict`] to return.
+fn witness_pair(
+    placed: [Result<Option<FaceContainment>, BooleanError>; 2],
+    torn: &core::cell::RefCell<Option<BooleanError>>,
+) -> [Option<FaceContainment>; 2] {
+    placed.map(|placed| {
+        placed.unwrap_or_else(|e| {
+            tear(torn, e);
+            None
+        })
+    })
+}
+
 /// **Whether a boundary edge of `face` may meet `circle`**: some edge of
 /// one of its loops has a certified box, padded by `pad`, overlapping
 /// `region` (the circle's box), and the two are not apart along a
-/// direction that turns with them ([`super::separating::apart`]).
+/// direction that turns with them ([`crate::separating::apart`]).
 /// `face` is one the caller read out of `body`.
 ///
 /// # Panics
@@ -2009,7 +2058,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
 fn face_boundary_meets<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
-    (circle, region): (super::separating::Item<T>, &bvh::Aabb),
+    (circle, region): (crate::separating::Item<T>, &bvh::Aabb),
     axes: &[geom_core::UnitVec3<T>],
     pad: f64,
     band: Band,
@@ -2020,8 +2069,8 @@ fn face_boundary_meets<T: Decide + Bounds>(
             continue;
         };
         if boxes::edge_box(body, ek, pad).overlaps(region)
-            && !super::separating::apart(
-                (body, super::separating::Item::Edge(ek)),
+            && !crate::separating::apart(
+                (body, crate::separating::Item::Edge(ek)),
                 (body, circle),
                 axes,
                 pad,
@@ -2036,7 +2085,7 @@ fn face_boundary_meets<T: Decide + Bounds>(
 
 /// **The section certificate over pairs of rows**: every `(A row, B
 /// row)` pair whose certified boxes overlap, which the narrow phase
-/// ([`super::separating::apart`]) does not part and which `admit`
+/// ([`crate::separating::apart`]) does not part and which `admit`
 /// takes, in the rows' order, each [`pair_verdict`]'s. `evented` says whether
 /// the reduction recorded an event on the pair `(A face, B face)`;
 /// `named` says whether A's face is the one a refusal names. With
@@ -2056,7 +2105,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     evented: impl Fn(FaceKey, FaceKey) -> bool,
     named: impl Fn(&geom::Surface<T>) -> bool,
     stop: bool,
-    axes: &super::separating::OperandAxes<T>,
+    axes: &crate::separating::OperandAxes<T>,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
     let pad = boxes::sweep_pad(band);
@@ -2068,9 +2117,9 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             }
             // The overlap is a world-axis one; a pair apart along a
             // direction that turns with the operands has no section.
-            if super::separating::apart(
-                (a, super::separating::Item::Face(fa.face)),
-                (b, super::separating::Item::Face(fb.face)),
+            if crate::separating::apart(
+                (a, crate::separating::Item::Face(fa.face)),
+                (b, crate::separating::Item::Face(fb.face)),
                 axes.of(a, b, band),
                 pad,
                 band,
@@ -2136,7 +2185,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         evented,
         |s| path.names(s),
         stop,
-        &super::separating::OperandAxes::new(boxes::axis_key),
+        &crate::separating::OperandAxes::new(boxes::axis_key),
     )
 }
 
@@ -3631,16 +3680,22 @@ pub(super) enum DoorInBand {
     Containment,
 }
 
-/// Whether `face` holds `q` strictly inside it, placed as the census
-/// confirms a vertex-on-face record ([`super::contain::face_placement`]),
-/// typing an in-band margin of the containment door as `door` says. The
-/// on-plane margin re-reads a plane the census already put the point on,
-/// so it escalates as the carry's check.
+/// Whether `face` holds `q` strictly inside it, typing an in-band margin
+/// of the containment door as `door` says. `q` is the midpoint of a
+/// piece of an edge whose carrier the slit's parting decided lies on the
+/// face's surface (`slit::holding`, after `carrier_on_surface` read
+/// `Placed::On`), on it to within the band with no margin carried here,
+/// so `q` is held in band ([`crate::held::Held::in_band`]) and placed
+/// with no on-plane decision ([`super::contain::placement_on_carrier`]).
+/// A reading definitely off a curved face's carrier (a planar face's
+/// placement never says so) contradicts that decision, a kernel defect
+/// ([`piece_reads`]).
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] on a margin in band: `SelfCheck(CarriedLineage)`
-/// for the on-plane one, `door`'s for the door's.
+/// [`BooleanError::Escalated`] on the door's margin in band, typed as
+/// `door` says; [`BooleanError::ClassificationInvariant`] where the point
+/// reads off the carrier.
 pub(super) fn piece_reading<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3648,26 +3703,37 @@ pub(super) fn piece_reading<T: Decide>(
     band: Band,
     door: DoorInBand,
 ) -> Result<PieceRead, BooleanError> {
-    use super::contain::{CurvedPlacement, PlacementError};
-    let in_band = |diag| BooleanError::Escalated {
-        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
-        diag,
-    };
-    match super::contain::face_placement(body, face, q, band, "bool_carry_vf_on_plane") {
+    let held = crate::held::Held::in_band(q);
+    piece_reads(
+        super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at),
+        door,
+    )
+}
+
+/// [`piece_reading`]'s reading of the door's answer.
+///
+/// # Errors
+///
+/// As [`piece_reading`].
+fn piece_reads(
+    read: Result<super::contain::CurvedPlacement, ContainError>,
+    door: DoorInBand,
+) -> Result<PieceRead, BooleanError> {
+    use super::contain::CurvedPlacement;
+    match read {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(PieceRead::In),
-        Ok(
-            CurvedPlacement::OffCarrier
-            | CurvedPlacement::Trim(Some(
-                FaceContainment::Out | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
-            )),
-        ) => Ok(PieceRead::NotIn),
+        Ok(CurvedPlacement::Trim(Some(
+            FaceContainment::Out | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
+        ))) => Ok(PieceRead::NotIn),
+        Ok(CurvedPlacement::OffCarrier) => Err(BooleanError::ClassificationInvariant {
+            what: PIECE_OFF_CARRIER,
+        }),
         Ok(CurvedPlacement::Trim(None)) => Ok(PieceRead::Unread(None)),
-        Err(PlacementError::OnPlane(diag)) => Err(in_band(diag)),
-        Err(PlacementError::Door(ContainError::Escalated {
+        Err(ContainError::Escalated {
             decision,
             escalation,
             diag,
-        })) => Err(match door {
+        }) => Err(match door {
             DoorInBand::Containment => BooleanError::Escalated {
                 decision: BooleanDecision::Containment {
                     decision,
@@ -3676,21 +3742,24 @@ pub(super) fn piece_reading<T: Decide>(
                 diag,
             },
         }),
-        Err(PlacementError::Door(ContainError::StaleFace(face))) => {
-            super::contain::driver_face_stale(face)
-        }
+        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
         // Listed rather than wildcarded: a new door refusal is routed
         // here deliberately.
-        Err(PlacementError::Door(
+        Err(
             refusal @ (ContainError::RayExhausted
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Uncrossable(_)
             | ContainError::Curved(_)
             | ContainError::ArcEndClearOfCorners(_)),
-        )) => Ok(PieceRead::Unread(Some(refusal))),
+        ) => Ok(PieceRead::Unread(Some(refusal))),
     }
 }
+
+/// [`piece_reading`]'s invariant where a piece's midpoint reads off the
+/// curved face's carrier the slit's parting decided its edge lies on.
+const PIECE_OFF_CARRIER: &str = "a piece of an edge reads off the curved face's carrier its edge \
+     was decided to lie on";
 
 /// **What a result's records are carried from**, read off the reduction
 /// before its finish: each operand's carried records as the cell pairs
@@ -5695,8 +5764,8 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     tol: Tol,
 ) -> Result<T::Finished, BooleanError> {
     let mut body = body;
-    let pad = super::boxes::sweep_pad(band);
-    let face_box = |body: &Body<T>, f| Some(super::boxes::face_box(body, f, pad, band));
+    let pad = crate::boxes::sweep_pad(band);
+    let face_box = |body: &Body<T>, f| Some(crate::boxes::face_box(body, f, pad, band));
     crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
         .map_err(BooleanError::Pieces)?;
     held.apart(&body)?;
@@ -5989,7 +6058,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
     let pad = boxes::sweep_pad(band);
-    let axes = super::separating::OperandAxes::new(boxes::axis_key);
+    let axes = crate::separating::OperandAxes::new(boxes::axis_key);
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
     // The NURBS re-gate (M5 S13, pinned), REACH FIRST: a NURBS face
@@ -6007,9 +6076,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
             let reaches = y_rows.iter().any(|y_row| {
                 row.bbox.overlaps(&y_row.bbox)
-                    && !super::separating::apart(
-                        (x, super::separating::Item::Face(row.face)),
-                        (y, super::separating::Item::Face(y_row.face)),
+                    && !crate::separating::apart(
+                        (x, crate::separating::Item::Face(row.face)),
+                        (y, crate::separating::Item::Face(y_row.face)),
                         axes.of(a, b, band),
                         pad,
                         band,
@@ -6134,7 +6203,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // witness extends to the whole circle.
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
-                                let circle = super::separating::Circle {
+                                let circle = crate::separating::Circle {
                                     center: foot,
                                     u_ref,
                                     v_ref: normal.cross(u_ref),
@@ -6144,7 +6213,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     y,
                                     yf,
                                     (
-                                        super::separating::Item::Circle(circle),
+                                        crate::separating::Item::Circle(circle),
                                         &boxes::circle_box(&circle, pad),
                                     ),
                                     axes.of(a, b, band),
@@ -6579,7 +6648,7 @@ fn cut_holder(held: Option<(FaceKey, SectionRefusal)>) -> Result<Option<FaceKey>
 /// **Whether the ball about `center` of radius `radius` may reach
 /// `y`'s face `yf`**: their boxes (`face_box`, the ball's `ball_box`)
 /// overlap, and the narrow phase does not part the face from the WHOLE
-/// ball ([`super::separating::Item::Ball`]). The question is the ball's
+/// ball ([`crate::separating::Item::Ball`]). The question is the ball's
 /// escape, so it is asked of the ball whatever part of the sphere the
 /// faces on it keep: a reach of those faces is a subset of the ball, and
 /// a face clear of that subset may still lie inside the ball.
@@ -6591,9 +6660,9 @@ fn ball_may_reach<T: Decide>(
     band: Band,
 ) -> bool {
     face_box.overlaps(ball_box)
-        && !super::separating::apart(
-            (y, super::separating::Item::Face(yf)),
-            (y, super::separating::Item::Ball { center, radius }),
+        && !crate::separating::apart(
+            (y, crate::separating::Item::Face(yf)),
+            (y, crate::separating::Item::Ball { center, radius }),
             axes,
             pad,
             band,
@@ -6617,7 +6686,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     events: &BTreeSet<(FaceKey, FaceKey)>,
     band: Band,
     charts: &mut ChartCache,
-    axes: &super::separating::OperandAxes<T>,
+    axes: &crate::separating::OperandAxes<T>,
 ) -> Result<Vec<(FaceKey, SectionRefusal)>, BooleanError> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
@@ -8178,12 +8247,12 @@ mod tests {
         use geom_brep::{OffMargin, PcurveCertifyError};
         let off = |margin| crate::pcurves::PcurveMintError::Certify {
             half_edge: crate::HalfEdgeKey::default(),
-            error: PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "a circle no cone holds here",
+            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "a circle no cone holds here",
                 margin,
-            },
+            )),
         };
         let m = geom_core::MarginDiag::value(4e-10);
         let poisoned = geom_core::MarginDiag::INVALID;
@@ -8201,22 +8270,20 @@ mod tests {
             half_edge: crate::HalfEdgeKey::default(),
             error,
         };
-        let undecided = |margin| PcurveCertifyError::Escalated {
-            check: geom_brep::PcurveCheck::ChartIncidence,
-            sample: 0,
-            cause: geom_core::Indeterminate {
-                margin,
-                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("pcurve_cone_chart_incident"),
-                terminal_sliver: false,
-            },
+        let undecided = |margin| {
+            PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::undecided(
+                0,
+                geom_core::Indeterminate {
+                    margin,
+                    band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("pcurve_cone_chart_incident"),
+                    terminal_sliver: false,
+                },
+            ))
         };
         for (error, want) in [
             (
-                PcurveCertifyError::ResidualExceeded {
-                    check: geom_brep::PcurveCheck::ChartIncidence,
-                    sample: 0,
-                },
+                PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::exceeded(0, None)),
                 WalkRefusal::Torn,
             ),
             (
@@ -10180,7 +10247,7 @@ mod tests {
     #[test]
     fn the_approx_arm_asks_whether_the_ball_reaches_the_face() {
         use super::ball_may_reach;
-        use crate::boolean::boxes;
+        use crate::boxes;
         use crate::test_support::brick;
         let tol = geom_core::Tol::witness();
         let band = Band::linear(tol).unwrap();
@@ -10236,7 +10303,7 @@ mod tests {
         ] {
             let other = brick::<f64>(x, y, z, tol);
             // Each brick its own cell: the axes are read off this pair.
-            let axes = crate::boolean::separating::OperandAxes::new(boxes::axis_key);
+            let axes = crate::separating::OperandAxes::new(boxes::axis_key);
             for (yf, _) in other.faces() {
                 let face_box = boxes::face_box(&other, yf, pad, band);
                 assert!(face_box.overlaps(&ball_box), "{what}: the boxes overlap");
@@ -10350,7 +10417,7 @@ mod torn_hop_rows {
             max_y: 11.0,
             max_z: 11.0,
         };
-        let circle = super::super::separating::Item::Circle(super::super::separating::Circle {
+        let circle = crate::separating::Item::Circle(crate::separating::Circle {
             center: Point3::new(10.5, 10.5, 10.5),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
             v_ref: Vec3::new(0.0, 1.0, 0.0),
@@ -10426,7 +10493,7 @@ mod from_computed_rows {
     fn the_reach_is_the_covers_meet_in_the_bodys_scalar() {
         use geom::cover::Cover;
         let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
-        let pad = crate::boolean::boxes::sweep_pad(band);
+        let pad = crate::boxes::sweep_pad(band);
         let found = crate::revalue_pin::revalued([1.0, 1.0 + 1.0e-3], |_, p| {
             let cube = |lo: S, hi: S| {
                 Cover::points(vec![
@@ -11162,6 +11229,105 @@ mod join_row_rows {
         assert!(
             read >= a.edges().count(),
             "every edge of A, or a piece of it, reads A's"
+        );
+    }
+}
+
+/// **A section witness off a curved face's carrier is the section's
+/// defect** ([`witness_reads`]), in every build: the door's `OffCarrier`
+/// read with no held point to check first.
+#[cfg(test)]
+mod witness_rows {
+    use super::{WITNESS_OFF_CARRIER, witness_reads};
+    use crate::boolean::BooleanError;
+    use crate::boolean::contain::{ContainError, CurvedPlacement, FaceContainment};
+
+    #[test]
+    fn a_witness_off_a_curved_carrier_reads_as_the_invariant() {
+        assert!(
+            matches!(
+                witness_reads(Ok(CurvedPlacement::OffCarrier)),
+                Err(BooleanError::ClassificationInvariant {
+                    what: WITNESS_OFF_CARRIER
+                })
+            ),
+            "off the carrier: the defect"
+        );
+        assert!(
+            matches!(
+                witness_reads(Ok(CurvedPlacement::Trim(Some(FaceContainment::Out)))),
+                Ok(Some(FaceContainment::Out))
+            ),
+            "a trim's verdict"
+        );
+        assert!(
+            matches!(witness_reads(Err(ContainError::RayExhausted)), Ok(None)),
+            "a door's refusal is no verdict"
+        );
+    }
+
+    /// **A witness's defect leaves the pair's verdict**
+    /// ([`super::witness_pair`]): the witness reads no verdict and the
+    /// defect is kept for `pair_verdict` to return, the first one met
+    /// winning.
+    #[test]
+    fn a_witness_defect_is_kept_for_the_pairs_verdict() {
+        let torn = core::cell::RefCell::new(None);
+        let defect = || {
+            Err(BooleanError::ClassificationInvariant {
+                what: WITNESS_OFF_CARRIER,
+            })
+        };
+        assert!(
+            matches!(
+                super::witness_pair([defect(), Ok(Some(FaceContainment::In))], &torn),
+                [None, Some(FaceContainment::In)]
+            ),
+            "the torn witness reads no verdict, its partner its own"
+        );
+        super::witness_pair(
+            [
+                Err(BooleanError::ClassificationInvariant { what: "later" }),
+                Ok(None),
+            ],
+            &torn,
+        );
+        assert!(
+            matches!(
+                torn.into_inner(),
+                Some(BooleanError::ClassificationInvariant {
+                    what: WITNESS_OFF_CARRIER
+                })
+            ),
+            "the first defect met is the one kept"
+        );
+    }
+
+    /// **A piece off a curved face's carrier is the parting's defect**
+    /// ([`super::piece_reads`]), in every build: never `NotIn`.
+    #[test]
+    fn a_piece_off_a_curved_carrier_reads_as_the_invariant() {
+        assert!(
+            matches!(
+                super::piece_reads(
+                    Ok(CurvedPlacement::OffCarrier),
+                    super::DoorInBand::Containment
+                ),
+                Err(BooleanError::ClassificationInvariant {
+                    what: super::PIECE_OFF_CARRIER
+                })
+            ),
+            "off the carrier: the defect"
+        );
+        assert!(
+            matches!(
+                super::piece_reads(
+                    Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
+                    super::DoorInBand::Containment
+                ),
+                Ok(super::PieceRead::NotIn)
+            ),
+            "a trim's Out is NotIn"
         );
     }
 }

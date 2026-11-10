@@ -21,7 +21,7 @@
 //! `γ ⊂ F ∩ G` and `x` is a point of `γ` on a boundary, or `x` is a
 //! relative boundary point of the proper closed subset `γ ∩ F ∩ G` of
 //! the connected `γ`. The sweep examines every edge × face pair whose
-//! boxes overlap and which the narrow phase (`boolean::separating`)
+//! boxes overlap and which the narrow phase (`separating`)
 //! does not certify apart, and records the contact there, or refuses
 //! (premise **S**); a pair certified apart has no point to record. So the components no event can evidence are exactly those
 //! with `γ ⊂ int F ∩ int G`, and the certificate's job is to prove, per
@@ -1341,23 +1341,13 @@ fn cone_cylinder<T: Decide>(
             },
             r: rc,
         },
-        &ruling::ChartRows {
-            fold: "section_cone_cylinder_fold",
-            asymptote: "section_cone_cylinder_asymptote",
-            precision: "section_cone_cylinder_precision",
-            walk: RULING_WALK,
-        },
+        &crate::rows::SECTION_CONE_CYLINDER,
         band,
     );
     let on_wall = ruling::read(
         &wall,
         &cone.quadric(),
-        &ruling::ChartRows {
-            fold: "section_cylinder_cone_fold",
-            asymptote: "section_cylinder_cone_asymptote",
-            precision: "section_cylinder_cone_precision",
-            walk: RULING_WALK,
-        },
+        &crate::rows::SECTION_CYLINDER_CONE,
         band,
     );
     charted(on_cone, on_wall, "section_cone_cylinder_charts")
@@ -1438,12 +1428,7 @@ fn cone_cone<T: Decide>(
             None => return Section::Tangent(APERTURE),
         }
     }
-    let rows = ruling::ChartRows {
-        fold: "section_cone_pair_fold",
-        asymptote: "section_cone_pair_asymptote",
-        precision: "section_cone_pair_precision",
-        walk: RULING_WALK,
-    };
+    let rows = crate::rows::SECTION_CONE_PAIR;
     let first = ruling::read(&one.chart(reach), &two.quadric(), &rows, band);
     let second = ruling::read(&two.chart(reach), &one.quadric(), &rows, band);
     charted(first, second, "section_cone_pair_charts")
@@ -1481,15 +1466,6 @@ fn cone_plane_pair<T: Decide>(
         other => other,
     }
 }
-
-/// The subdivision rows every ruling chart walks under.
-const RULING_WALK: geom_brep::half_angle::SubdivisionRows =
-    geom_brep::half_angle::SubdivisionRows {
-        clear: "section_ruling_clear",
-        monotone: "section_ruling_monotone",
-        side: "section_ruling_side",
-        width: "section_ruling_width",
-    };
 
 /// **Cone × plane**, the plane through `p0` with unit normal `n`.
 ///

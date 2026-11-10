@@ -30,19 +30,7 @@ use crate::live::proven;
 use crate::ray_walk::RayFault;
 
 /// An aimed ray's rows ([`side_at_infinity`]).
-pub(crate) const AIMED_ROWS: RayRows = RayRows {
-    advance: "side_at_infinity_advance",
-    denom: "side_at_infinity_denom",
-    clearance: "side_at_infinity_clearance",
-    beside: "side_at_infinity_beside",
-    order: "side_at_infinity_order",
-    vertex: "side_at_infinity_vertex",
-    edge: "side_at_infinity_edge",
-    edge_span: "side_at_infinity_edge_span",
-    winding: "side_at_infinity_winding",
-    represents: "side_at_infinity_met_edge_represents",
-    reaches: "side_at_infinity_met_edge_reaches",
-};
+pub(crate) const AIMED_ROWS: RayRows = crate::rows::AIMED_RAY;
 
 /// **Two crossings of an aimed ray in band of each other along it** —
 /// what a side-at-infinity reading that lies in band found
@@ -504,7 +492,7 @@ fn aim_turn() -> (f64, f64) {
 ///
 /// **A pair is two crossings of faces that do not meet** (`meet`), in
 /// band of each other along the ray, each read where the ray meets its
-/// faces ([`RayHit::pair`]): a face's crossing, or the point where the
+/// faces ([`RayHit::pair_as`]): a face's crossing, or the point where the
 /// ray passes an edge, in band of both its faces; an edge the ray passes
 /// without crossing is no party. Two faces `t` apart are met about `t`
 /// apart along the ray, less what the band lets an edge's passage slide
@@ -514,7 +502,7 @@ fn aim_turn() -> (f64, f64) {
 /// beside another face.
 ///
 /// **A corner or a wedge reads nothing, and is read before a pair** in
-/// the same cluster ([`crate::ray_walk::Crossings::first_count`]): D10
+/// the same cluster ([`crate::ray_walk::Crossings::first_count_as`]): D10
 /// refuses only on a pair, which restricts refusal and does not demand
 /// it, and a ray that meets a corner or a wedge reads nothing. A ray
 /// that grazes a face, meets a corner (a vertex in band of it) or a
@@ -736,12 +724,12 @@ fn aimed_ray<T: Decide>(
         Err(RayFault::Graze | RayFault::Unread) => return Ok(Aimed::SetAside(SetAsideWhy::Graze)),
     };
     Ok(
-        match crossings.first_count(
-            AIMED_ROWS.order,
+        match crossings.first_count_as(
+            AIMED_ROWS.order(),
             band,
             RayHit::count,
             |a, b| {
-                a.pair(body, b, AIMED_ROWS.order, band).map_err(|f| {
+                a.pair_as(body, b, AIMED_ROWS.order(), band).map_err(|f| {
                     f.map(|(near, gap, far)| {
                         Unread::Pair(AimedPair {
                             shell,

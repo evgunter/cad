@@ -970,7 +970,7 @@ pub(crate) fn torus_chart_window<T: SpanLocate>(
 /// ([`geom::Curve3::cover_over`], which holds the one kind match),
 /// hulled with its two end vertices, which sit on the carrier only to
 /// its certification residual. Every bound on where an edge is reads
-/// this ([`edge_box`](crate::boolean::boxes::edge_box), the census's
+/// this ([`edge_box`](crate::boxes::edge_box), the census's
 /// and the narrow phase's reads in a frame, the containment, shell and
 /// reduction doors) through the cover's methods, and none matches on
 /// the carrier's kind.

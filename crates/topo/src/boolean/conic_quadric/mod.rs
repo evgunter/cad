@@ -176,9 +176,8 @@ use geom_brep::curve_face::circle_roots::{
     CircleRoots, FirstHarmonic, FirstHarmonicRows, door_half_angle_roots, first_harmonic_roots,
 };
 use geom_brep::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame,
 };
-use geom_brep::quartic::QuarticRows;
 use geom_brep::roots::{OnCarrier, Roots, Unsettled};
 use geom_core::rounding_charge;
 
@@ -201,36 +200,10 @@ mod shallow_sweep;
 const SECOND_HARMONIC: &str = "bool_conic_quadric_second_harmonic";
 
 /// The first-harmonic arm's rows.
-const FIRST_ROWS: FirstHarmonicRows = FirstHarmonicRows {
-    noise: "bool_conic_quadric_first_noise",
-    coaxial: "bool_conic_quadric_first_constant",
-    extreme: "bool_conic_quadric_first_extreme",
-    root_slack: "bool_conic_quadric_first_root_slack",
-};
-
-/// The ladder's noise meter's row (module docs, "Two arms").
-const LADDER_NOISE: &str = "bool_conic_quadric_ladder_noise";
+const FIRST_ROWS: FirstHarmonicRows = geom_brep::rows::CONIC_QUADRIC_FIRST;
 
 /// The ladder's rows.
-const LADDER_ROWS: HalfAngleRows = HalfAngleRows {
-    pole: "bool_conic_quadric_pole",
-    conditioning: "bool_conic_quadric_pole_conditioning",
-    noise: LADDER_NOISE,
-    quartic: QuarticRows {
-        disc: "bool_conic_quadric_disc",
-        shape: "bool_conic_quadric_shape",
-        depth: "bool_conic_quadric_depth",
-        odd: "bool_conic_quadric_odd",
-        split: "bool_conic_quadric_split",
-        split_lead: "bool_conic_quadric_split_lead",
-    },
-    verify: SubdivisionRows {
-        clear: "bool_conic_quadric_sub_clear",
-        monotone: "bool_conic_quadric_sub_monotone",
-        side: "bool_conic_quadric_sub_side",
-        width: "bool_conic_quadric_sub_width",
-    },
-};
+const LADDER_ROWS: HalfAngleRows = geom_brep::rows::CONIC_QUADRIC_LADDER;
 
 /// The certified crossings of the `carrier` circle or ellipse with
 /// `surface`, a sphere, a cylinder wall or a cone, reported within `π`
@@ -547,7 +520,7 @@ fn through_the_apex<T: Decide>(
     use ThroughTheApex::{Clear, Read};
     let two = T::from_f64(2.0);
     let mid = geom::mid_param(t0, t1);
-    let near_mid = |theta: T| geom_core::period::Period::new(T::tau()).near(theta, mid);
+    let near_mid = |theta: T| geom::conic_period().near(theta, mid);
     // Past every bound: a reading no bound holds refuses.
     let unbounded = T::from_f64(f64::INFINITY);
     // The apex's parameter on the conic, its projection's off the plane.

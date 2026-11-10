@@ -766,8 +766,9 @@ fn require_chord_adjacent<T: Real>(
 /// The lever of an edge at rest whose faces' join reads in band or mixed
 /// along it ([`EulerOpError::RestJoinUndecided`],
 /// [`EulerOpError::RestJoinMixed`]).
-pub(crate) const REST_JOIN_LEVER: &str =
-    "move the geometry so the faces meet clearly smoothly or clearly at a corner along the edge";
+pub(crate) const REST_JOIN_LEVER: &str = geom_core::move_lever!(
+    "so the faces meet clearly smoothly or clearly at a corner along the edge"
+);
 
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
@@ -1960,14 +1961,16 @@ pub(crate) fn every_euler_op_error_once()
             // Read in band at a pose: the geometry's lever. A definite miss
             // names the kernel's defect, the one exception
             // `no_refusal_names_a_defect` pins.
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "the circle sits at the apex's height",
-                margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
-                    5e-10,
-                ))),
-            },
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Cone,
+                    geom::CurveKind::Circle,
+                    "the circle sits at the apex's height",
+                    Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                        5e-10,
+                    ))),
+                ),
+            ),
         },
         EulerOpError::PcurveMint {
             face: fc,
@@ -7085,12 +7088,14 @@ mod tests {
         let split = EulerOpError::PcurveSplit {
             edge: EdgeKey::default(),
             half_edge: HalfEdgeKey::default(),
-            error: geom_brep::PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Spiric,
-                why: "the spiric lies on neither its own torus nor that torus's mirror",
-                margin: None,
-            },
+            error: geom_brep::PcurveCertifyError::Incidence(
+                geom_brep::IncidenceRefusal::off_chart(
+                    geom::SurfaceKind::Torus,
+                    geom::CurveKind::Spiric,
+                    "the spiric lies on neither its own torus nor that torus's mirror",
+                    None,
+                ),
+            ),
         };
         assert!(
             split

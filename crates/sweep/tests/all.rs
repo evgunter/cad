@@ -455,6 +455,8 @@ mod band_co_requested_boundary;
 mod band_concave_bar;
 #[path = "band_dihedral_cups.rs"]
 mod band_dihedral_cups;
+#[path = "band_mixed_vertex.rs"]
+mod band_mixed_vertex;
 #[path = "band_one_cycle_members.rs"]
 mod band_one_cycle_members;
 #[path = "band_planar_consume.rs"]
@@ -1412,3 +1414,6 @@ mod review_6020_seam_probes;
 mod review_r1_roots_split;
 #[path = "the_football_revolves.rs"]
 mod the_football_revolves;
+
+#[path = "a_ball_with_no_room_at_its_rim_refuses_typed.rs"]
+mod a_ball_with_no_room_at_its_rim_refuses_typed;

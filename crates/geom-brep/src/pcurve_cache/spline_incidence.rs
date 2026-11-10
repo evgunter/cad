@@ -1,7 +1,7 @@
 //! **A spline chart's incidence test** (D3): whether a carrier lies on a
 //! NURBS chart (a [`geom::Surface::Nurbs`] payload, or an
 //! [`geom::Surface::Approx`]'s fit, which is its geometry), read at the
-//! samples [`super::incidence_over_span`] reads an analytic chart at,
+//! samples [`super::incidence_over_span_as`] reads an analytic chart at,
 //! and decided one-sidedly as that test is: `Off` only on a certified
 //! LOWER bound on a sample's distance from the chart past the band.
 //!
@@ -115,11 +115,12 @@ const CELL_VISITS: usize = 1 << 12;
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::Escalated`] ([`super::PcurveCheck::ChartIncidence`])
-/// where no sample is shown off and some sample is unsettled: in band,
+/// [`PcurveCertifyError::Incidence`] read in band
+/// ([`crate::IncidenceRead::Undecided`]) where no sample is shown off and
+/// some sample is unsettled: in band,
 /// at a straddle, or with an unreadable floor (the cell structure does
 /// not decompose, or a weight not shown positive).
-pub(super) fn spline_incidence<T: Decide>(
+pub(super) fn spline_incidence_as<T: Decide>(
     name: &'static str,
     chart: &NurbsSurface<T>,
     (t0, t1): (T, T),

@@ -1091,3 +1091,22 @@ E1c waits on the answer.
   - Filed:
     - `a-closed-conics-and-a-spline-nets-incidence-on-an-analytic-chart-is-sampled` (P2);
     - `a-lines-sup-on-a-chart-is-spelled-twice` (P3).
+- 2026-11-10 — **the E2 and E5 main reds merged** (PR 6528). Closes `main-red-the-arc-rim-pins-read-the-retired-refusal` and `main-red-a-near-node-cap-loses-its-volume-to-a-projected-ruling-image`.
+  - E5/dm1: the arc-rim pick missed a rim the row holds. dm1's sub-patch row (weights 1, 1, 2) is the circle exactly, through a Möbius reparametrization.
+    - `Pcurve::IsoArc` carries the row's held end weights (`ends`), and the map applies each sub-arc's Möbius change.
+    - The certificate compares the ends exactly in T and decides each span's normalized weight against cos(h/2).
+    - The mesher scales the UV rate by max(λ, 1/λ) (`iso_arc_rate`).
+    - The l-bracket imports. Full dm1 now refuses one door later, at the aggregate at-rest gate (filed on importgate).
+  - E5/loft: 18 Zeros was a repeated read. `Derivation` is now a struct, and it hands its certificate to pass 2 beside its image, so the count is back to 10.
+  - E2: green on main since PR 6478 (bisected), with no code change. Two consumers were added to the class row.
+  - m10_bulge_interval's radial_moving tally re-pinned [22,20] → [18,24]. That is 6504's standoff term, shown by a mutant.
+  - Review tier: single FULL. APPROVE-WITH-FIXES, 0 MAJOR: the rational IsoArc certificate held for λ² to 1e15 and to 1e-50 in mpmath. A separate delta review approved the m10 re-pin.
+  - Fix list EE (one home for the weight and λ spellings, typed certificate provenance, tighter rows) was read by the orchestrator.
+  - Paused 2026-11-04→10 at the weekly limit. Resumed with a main merge: an error type boxed for clippy, and a stale slow-set name dropped.
+  - Filed:
+    - `an-iso-arcs-envelope-omits-its-in-band-weight-margin` (P1: understates the miss about 1e8×; the meter fails past about 131°);
+    - `a-cylinder-lines-class-gate-re-decides-its-incidence-as-the-standoff` (P1: 6504's AB1 second read);
+    - sym `a-rigidly-copied-cylinder-walls-incidence-identity-has-no-sym-rule`;
+    - tess's crease-gap row widened (δ-dependent);
+    - evidence on `loft-builds-at-interval-and-refuses-a-rational-column-at-sym`;
+    - onecopy's axis-foot antipode row.

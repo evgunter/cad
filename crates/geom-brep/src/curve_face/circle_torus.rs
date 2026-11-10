@@ -38,8 +38,9 @@
 //! `ρ⁴` for a large circle — which cancel to the small values `F` takes
 //! where the carrier passes the tube. `F = 2r·res·Q` with `Q ≥ R² − r²`
 //! on a ring torus, so the floor on `|F|` per metre of residual is
-//! `2r(R² − r²)`, and the harmonics' rounding is a residual error past
-//! the band once `ρ⁴ ≳ 10ε·r·R²/(u·SHORT_CHAIN_ULPS)`: from
+//! `2r(R² − r²)`. The door asks the convention for the ring before any
+//! pose, and refuses a torus outside it ([`DoorRefusal::Torus`]). The harmonics' rounding is a residual
+//! error past the band once `ρ⁴ ≳ 10ε·r·R²/(u·SHORT_CHAIN_ULPS)`: from
 //! `ρ ≈ 50` at the default band against a torus `R = 1, r = 0.25`.
 //!
 //! So the subdivision does not read its Taylor terms from the harmonics.
@@ -148,33 +149,14 @@ use super::circle_roots::{
     CircleRoots, DoorRefusal, constant_residual_roots, door_half_angle_roots, door_refusal,
 };
 use crate::half_angle::{
-    DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame, SubdivisionRows,
+    DegreeTwo, HalfAngleFrame, HalfAngleRows, Local, RootSlack, SubdivisionFrame,
 };
-use crate::quartic::QuarticRows;
 use crate::roots::{OnCarrier, RootRefusal, Roots, Unsettled};
 use geom_core::k_stats::decide;
 use geom_core::rounding_charge;
 
 /// The circle × torus lane's ladder rows.
-const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
-    pole: "circle_torus_pole",
-    conditioning: "circle_torus_pole_conditioning",
-    noise: "circle_torus_noise",
-    quartic: QuarticRows {
-        disc: "circle_torus_disc",
-        shape: "circle_torus_shape",
-        depth: "circle_torus_depth",
-        odd: "circle_torus_odd",
-        split: "circle_torus_split",
-        split_lead: "circle_torus_split_lead",
-    },
-    verify: SubdivisionRows {
-        clear: "circle_torus_sub_clear",
-        monotone: "circle_torus_sub_monotone",
-        side: "circle_torus_sub_side",
-        width: "circle_torus_sub_width",
-    },
-};
+const CIRCLE_TORUS_ROWS: HalfAngleRows = crate::rows::CIRCLE_TORUS;
 
 /// The general arm's root-slack row (module docs, "The root slack").
 const ROOT_SLACK: &str = "circle_torus_sub_root_slack";
@@ -187,7 +169,8 @@ const ROOT_SLACK: &str = "circle_torus_sub_root_slack";
 ///
 /// [`DoorRefusal::Invariant`] when `carrier` is not a
 /// circle or `torus` not a torus — the caller dispatched on those kinds.
-/// [`DoorRefusal::Escalated`] for an in-band
+/// [`DoorRefusal::Torus`] for a torus outside the ring convention, asked
+/// before any pose. [`DoorRefusal::Escalated`] for an in-band
 /// classifying sign: a coaxial carrier's constant residual, a rung of the
 /// parallel arm, a meridian deviation, or one of the ladder's. An
 /// in-band sign at the coaxial tilt is not an error: the pose takes the
@@ -227,6 +210,11 @@ pub fn circle_torus_roots<T: Decide>(
                    or a surface that is not a torus",
         ));
     };
+    // The door reads only a ring, asked of the convention before any pose:
+    // its harmonics take the witness, whose floor on `|F|` per metre and
+    // whose meridian bound lean on `R − r > 0`.
+    let ring = crate::TorusRefusal::require(major_radius, minor_radius, band)
+        .map_err(DoorRefusal::Torus)?;
     let two = T::from_f64(2.0);
     let v_ref = axis.cross(u_ref);
     let point_at = |theta: T| {
@@ -303,13 +291,8 @@ pub fn circle_torus_roots<T: Decide>(
     }
 
     // A meridian: `F ≡ 0`, which the ladder cannot answer, decided on
-    // its point deviation (module docs, "The special poses"). Its bound
-    // leans on the ring (`R − r > 0`); a torus off D3's convention takes
-    // the ladder.
-    if matches!(
-        geom::ring_torus(major_radius, minor_radius, band).map(|d| d.sign),
-        Ok(Sign::Positive)
-    ) {
+    // its point deviation (module docs, "The special poses").
+    {
         // The centre term's rounding: `w₀` and its split along the axis
         // are read off coordinates as large as `|C| + |c|`.
         let origin = Point3::new(T::zero(), T::zero(), T::zero());
@@ -384,7 +367,7 @@ pub fn circle_torus_roots<T: Decide>(
                 t1,
                 speed_hi: radius,
                 noise,
-                f_per_metre: h.f_per_metre_lo,
+                f_per_metre: crate::ring_floor(ring),
                 // The clear margin is read through the torus's ceiling on
                 // `|F|` per metre, as the ellipse × torus door reads it:
                 // a lower bound on the residual, so a piece reads clear
@@ -703,7 +686,7 @@ fn parallel_axes_roots<T: Decide>(
         // span's ends (or as the point it names), never as an identity
         // between two calls.
         for theta in [theta0 + spread, theta0 - spread] {
-            thetas[count] = geom_core::period::Period::new(T::tau()).near(theta, middle);
+            thetas[count] = geom_core::period::Period::angle().near(theta, middle);
             count += 1;
         }
     }

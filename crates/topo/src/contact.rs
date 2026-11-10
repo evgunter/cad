@@ -65,8 +65,8 @@ impl GlueClass {
     }
 
     /// **The relation that glues a face pair under this class**: the one
-    /// table between classes and relations. [`crate::Relation::glued_class`],
-    /// [`Self::of_senses`] and [`Self::carrier_relation`] read it.
+    /// table between classes and relations. [`crate::Relation::glued_class`]
+    /// and [`Self::carrier_relation`] read it.
     #[must_use]
     pub const fn relation(self) -> crate::Relation {
         match self {
@@ -74,17 +74,6 @@ impl GlueClass {
             Self::Continuation => crate::Relation::SameOriented,
             Self::Tangent => crate::Relation::SurfaceTangent,
         }
-    }
-
-    /// **The one-carrier class two faces' senses make them**, the one
-    /// place a sense is read as a class: the class whose
-    /// [`Self::carrier_relation`] it is. Two distinct carriers are
-    /// neither, and name no class.
-    pub(crate) fn of_senses(relation: crate::boolean::CarrierRelation) -> Option<Self> {
-        Self::ALL
-            .iter()
-            .copied()
-            .find(|class| class.carrier_relation() == Some(relation))
     }
 
     /// The carrier relation a one-carrier class glues under: its
@@ -107,13 +96,22 @@ impl GlueClass {
 /// glues a pair whose margin decides Zero and refuses one in band under
 /// every setting (D10), so a contact that is too close to call is
 /// settled only by geometry that is not.
-pub const CONTACT_RECOURSE: &str = "move the geometry so the faces clearly touch or clearly part";
+pub const CONTACT_RECOURSE: &str = geom_core::move_lever!(contact_condition!());
+
+/// The condition [`CONTACT_RECOURSE`] moves the geometry to, one
+/// literal for both spellings.
+macro_rules! contact_condition {
+    () => {
+        "so the faces clearly touch or clearly part"
+    };
+}
+use contact_condition;
 
 /// [`CONTACT_RECOURSE`] with the recourse marker, as a finding the
-/// viewer shows ends on it (`contact_recourse_is_one_sentence` holds
-/// the two spellings to one).
-pub(crate) const CONTACT_RECOURSE_MARKED: &str =
-    "Recourse: move the geometry so the faces clearly touch or clearly part";
+/// viewer shows ends on it
+/// (`recourse_moves_the_geometry_and_has_no_tolerance_lever` holds the
+/// two spellings to one).
+pub(crate) const CONTACT_RECOURSE_MARKED: &str = geom_core::move_recourse!(contact_condition!());
 
 /// **A contact verification's typed refusal**.
 ///

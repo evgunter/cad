@@ -31,15 +31,19 @@ fn read(a: (&Curve3<f64>, (f64, f64)), b: (&Curve3<f64>, (f64, f64)), band: Band
 
 /// Whether two hits on one span are one place: the same end, or
 /// parameters within `slack`, modulo a turn on a closed carrier.
-fn same_hit(x: &Hit<f64>, y: &Hit<f64>, closed: bool, slack: f64) -> bool {
+fn same_hit(
+    x: &Hit<f64>,
+    y: &Hit<f64>,
+    period: Option<geom_core::period::Period<f64>>,
+    slack: f64,
+) -> bool {
     match (x, y) {
         (Hit::On { t: s, .. }, Hit::On { t, .. }) => {
             let d = s - t;
-            let d = if closed {
-                d.rem_euclid(TAU).min(TAU - d.rem_euclid(TAU))
-            } else {
-                d.abs()
-            };
+            let d = period.map_or(d.abs(), |p| {
+                let p = p.length();
+                d.rem_euclid(p).min(p - d.rem_euclid(p))
+            });
             d <= slack
         }
         (Hit::End(p), Hit::End(q)) => p == q,
@@ -75,8 +79,8 @@ fn agree(
     for p in &got.points {
         let partner = back.points.iter().any(|q| {
             (p.point - q.point).norm() <= e
-                && same_hit(&p.on_a, &q.on_b, a.is_periodic(), slack)
-                && same_hit(&p.on_b, &q.on_a, b.is_periodic(), slack)
+                && same_hit(&p.on_a, &q.on_b, a.period(), slack)
+                && same_hit(&p.on_b, &q.on_a, b.period(), slack)
         });
         if !partner {
             return Some(format!("{label}: {p:?} has no swapped partner in {back:?}"));
@@ -1074,12 +1078,20 @@ fn thin_ellipses_tangent_at_a_vertex_meet_once_on_the_local_distance() {
 /// **A height's extreme in the band's gap, beside no meeting, reads
 /// apart.** The near-circle turned about the cross by `±10⁻⁵`, its height
 /// above the long ellipse's plane dipping into the band's gap, then moved
-/// back by `10⁻⁶` and `10⁻⁵`, or by `10⁻⁴` and `10⁻³` either way, along the
-/// line the two planes share: each height
-/// above the other's plane is unchanged, so the near-circle is still the
-/// one read across, and the spans part past the band ([`span_gap`]). The touch it
-/// places reads off throughout its window: no meeting, in both orders.
-/// Red where an extreme of a height in the gap escalates.
+/// along the line the two planes share by `10⁻⁶` to `10⁻³` either way,
+/// wherever the spans part past the band ([`span_gap`]): each height above
+/// the other's plane is unchanged, so the near-circle is still the one
+/// read across. The touch it places reads off throughout its window: no
+/// meeting, in both orders. Red where an extreme of a height in the gap
+/// escalates, or where a piece of the window whose distance grows away
+/// from its near end is not read off by that end: turned `10⁻⁵` and moved
+/// `10⁻⁶` (`1.9·10⁻¹²` past the escalation), or moved `10⁻⁵` with the
+/// foot inside the long ellipse's span. Moved less, at turned `−10⁻⁵` by
+/// `10⁻⁶` or at either tilt by `3·10⁻⁷`, the spans part within the band's
+/// gap, and each pose escalates in both orders: the near-miss is the band's
+/// question, which no reading of the window may decide apart. Its window
+/// holds a piece about the near-miss that neither recedes nor reads off,
+/// so the pin holds the outcome, not a particular reading.
 #[test]
 fn a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart() {
     let [(a, sa), (b0, sb)] = needle_pair();
@@ -1089,26 +1101,48 @@ fn a_heights_extreme_in_the_gap_beside_no_meeting_reads_apart() {
     let tangent = tangent.normalize();
     let normal = a.conic().unwrap().frame().axis;
     let cross = tangent.cross(normal).normalize();
-    let mut bad = Vec::new();
-    for t in [1e-5, -1e-5] {
+    let posed = |t: f64, d: f64| {
         let turned = spun(&b0, vertex, cross, t);
         let shared = normal
             .cross(turned.conic().unwrap().frame().axis)
             .normalize();
-        for d in [-1e-6, -1e-5, 1e-4, -1e-4, 1e-3, -1e-3] {
-            let b = turned.translated(shared * d).unwrap();
-            let gap = span_gap(&a, sa, &b, sb);
-            let label = format!("turned {t:e}, moved {d:e}, gap {gap:e}");
+        let b = turned.translated(shared * d).unwrap();
+        let gap = span_gap(&a, sa, &b, sb);
+        (b, gap, format!("turned {t:e}, moved {d:e}, gap {gap:e}"))
+    };
+    let both = |b: &Curve3<f64>| {
+        [
+            ("first first", read((&a, sa), (b, sb), at)),
+            ("second first", read((b, sb), (&a, sa), at)),
+        ]
+    };
+    let mut bad = Vec::new();
+    let far = [-1e-6, 3e-6, 1e-5, -1e-5, 1e-4, -1e-4, 1e-3, -1e-3];
+    for (t, near) in [(1e-5, &[1e-6][..]), (-1e-5, &[][..])] {
+        for &d in near.iter().chain(&far) {
+            let (b, gap, label) = posed(t, d);
             if gap <= at.escalate() {
                 bad.push(format!("{label}: the oracle's gap is not past the band"));
             }
-            for (order, r) in [
-                ("first first", read((&a, sa), (&b, sb), at)),
-                ("second first", read((&b, sb), (&a, sa), at)),
-            ] {
+            for (order, r) in both(&b) {
                 if !matches!(&r, Ok(m) if m.points.is_empty()) {
                     bad.push(format!("{label}, {order}: not apart: {r:?}"));
                 }
+            }
+        }
+    }
+    // In the band's gap the near-miss is the band's question: it
+    // escalates, in both orders, rather than reading apart.
+    for (t, d) in [(-1e-5, 1e-6), (1e-5, 3e-7), (-1e-5, 3e-7)] {
+        let (b, gap, label) = posed(t, d);
+        if gap <= at.zero() || gap > at.escalate() {
+            bad.push(format!(
+                "{label}: the oracle's gap is not in the band's gap"
+            ));
+        }
+        for (order, r) in both(&b) {
+            if !matches!(&r, Err(e) if matches!(e.fault, MeetFault::Escalated(_))) {
+                bad.push(format!("{label}, {order}: not escalated: {r:?}"));
             }
         }
     }

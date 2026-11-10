@@ -1413,6 +1413,44 @@ pub(crate) struct Evaluation {
 }
 
 impl Evaluation {
+    /// **The table a name door reads `name` in, and the name there**: a
+    /// node or a variable as itself; one member of a family, `xs[i]`, by
+    /// the member's own name, read at the family as the family's table
+    /// names that entity ([`pncad::select::family_entity`]). A name no
+    /// entity of the member answers to raises `ReadbackError`
+    /// `no_such_name`.
+    fn named_at(
+        &self,
+        py: Python<'_>,
+        node: super::doc::SelectAt,
+        name: &str,
+    ) -> PyResult<(pncad::select::At, pncad::prelude::StableName)> {
+        let name = super::doc::name_from_text(name)?;
+        match node {
+            super::doc::SelectAt::Plain(at) => Ok((at.at(), name)),
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member(&self.doc)?;
+                let whole = pncad::select::family_entity(&self.inner, at, &member, &name)
+                    .ok_or_else(|| {
+                        super::readback::readback_err(
+                            py,
+                            &pncad::select::InterrogateError::NoSuchName,
+                            &self.doc,
+                        )
+                    })?;
+                Ok((at, whole))
+            }
+        }
+    }
+
+    /// **`at` read as one body**: a selector reads one body, and a
+    /// family read whole raises `SelectRefusal` (`reason="family"`),
+    /// naming the member read to write, `xs[i]`.
+    fn one_body(&self, py: Python<'_>, at: pncad::select::At) -> PyResult<()> {
+        pncad::select::one_body(&self.inner, at)
+            .map_err(|refusal| super::select::select_refusal(py, &refusal, &self.doc, &self.inner))
+    }
+
     /// The stop the run was evaluated under ([`Self::stop`]).
     pub(crate) fn stop(&self) -> &d::Stop {
         &self.stop
@@ -1657,13 +1695,23 @@ impl Evaluation {
     fn select(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         selector: &super::select::Selector,
     ) -> PyResult<Vec<String>> {
-        names(
-            py,
-            pncad::select::select(&self.inner, node.at(), &selector.0),
-        )
+        let found = match node {
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member(&self.doc)?;
+                pncad::select::select_member(&self.inner, at, &member, &selector.0).map_err(
+                    |refusal| super::select::select_refusal(py, &refusal, &self.doc, &self.inner),
+                )?
+            }
+            super::doc::SelectAt::Plain(at) => {
+                let at = at.at();
+                self.one_body(py, at)?;
+                pncad::select::select(&self.inner, at, &selector.0)
+            }
+        };
+        names(py, found)
     }
 
     /// **Materialize a selection narrowed by GEOMETRY**: `selector`
@@ -1693,20 +1741,31 @@ impl Evaluation {
     fn select_where(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         selector: &super::select::Selector,
         geom: Vec<super::select::GeomPred>,
     ) -> PyResult<Vec<String>> {
         let tol = Tol::witness();
         let atoms: Vec<pncad::select::GeomPred> = geom.into_iter().map(|g| g.0).collect();
-        match pncad::select::select_where(
-            &self.inner,
-            node.at(),
-            &selector.0,
-            &atoms,
-            &self.params,
-            tol,
-        ) {
+        let found = match node {
+            super::doc::SelectAt::Member(read) => {
+                let (at, member) = read.member(&self.doc)?;
+                pncad::select::select_where_member(
+                    &self.inner,
+                    at,
+                    &member,
+                    &selector.0,
+                    &atoms,
+                    (&self.params, tol),
+                )
+            }
+            super::doc::SelectAt::Plain(at) => {
+                let at = at.at();
+                self.one_body(py, at)?;
+                pncad::select::select_where(&self.inner, at, &selector.0, &atoms, &self.params, tol)
+            }
+        };
+        match found {
             Ok(found) => names(py, found),
             Err(refusal) => Err(super::select::select_refusal(
                 py,
@@ -1739,11 +1798,11 @@ impl Evaluation {
     fn face_frame(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         name: &str,
     ) -> PyResult<super::readback::Pose> {
-        let name = super::doc::name_from_text(name)?;
-        pncad::select::face_frame(&self.inner, node.at(), &name)
+        let (at, name) = self.named_at(py, node, name)?;
+        pncad::select::face_frame(&self.inner, at, &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
@@ -1762,10 +1821,10 @@ impl Evaluation {
     /// or has no vertex off the axis.
     fn traced_frame(
         &self,
-        plane: (super::doc::OperandArg, String),
-        traced: (super::doc::OperandArg, String),
+        plane: (super::doc::BodyArg, String),
+        traced: (super::doc::BodyArg, String),
     ) -> PyResult<super::pose::PoseDef> {
-        let face = |(body, name): (super::doc::OperandArg, String)| {
+        let face = |(body, name): (super::doc::BodyArg, String)| {
             Ok::<_, PyErr>(d::Operand::select(
                 body.read(),
                 vec![super::doc::name_from_text(&name)?],
@@ -1865,11 +1924,11 @@ impl Evaluation {
     fn denotation(
         &self,
         py: Python<'_>,
-        node: super::doc::AtArg,
+        node: super::doc::SelectAt,
         name: &str,
     ) -> PyResult<super::readback::Denotation> {
-        let name = super::doc::name_from_text(name)?;
-        pncad::select::denotation(&self.inner, node.at(), &name)
+        let (at, name) = self.named_at(py, node, name)?;
+        pncad::select::denotation(&self.inner, at, &name)
             .map(super::readback::Denotation)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }

@@ -2950,7 +2950,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, ShellError<T>> {
     let surface = body.proven_face(faces[0]).surface();
     let (Some(_), Some(chart)) = (
-        crate::pcurves::chart_period(surface, band),
+        crate::pcurves::chart_u_period(surface, band),
         crate::chart::Chart::of(surface),
     ) else {
         return Ok(false);
@@ -3840,12 +3840,12 @@ mod mint_endings {
     fn the_shell_ops_mint_refusal_ends_by_its_own_ending() {
         let mint = |margin| PcurveMintError::Certify {
             half_edge: HalfEdgeKey::default(),
-            error: PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "WHY",
+            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
                 margin,
-            },
+            )),
         };
         let in_band = Some(OffMargin::InBand(MarginDiag::value(4e-9)));
         for (margin, defect) in [(in_band, false), (None, true)] {
@@ -5311,8 +5311,8 @@ impl<T: Decide> MovedWall<T> {
                     }
                     // A piece in the half-turn after `φ` holds `φ + root`,
                     // one in the half-turn before it `φ − root`.
-                    let half = geom_core::period::Period::new(T::tau())
-                        .run_from(phi, geom::mid_param(lo, hi));
+                    let half =
+                        geom_core::period::Period::angle().run_from(phi, geom::mid_param(lo, hi));
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
                     crossings.push(line.height(at(theta)));
                 }

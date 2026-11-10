@@ -592,7 +592,7 @@ impl<T: SolveScalar> Chart<T> {
                     Seat::Depth(_) => Some(d.dot(u)),
                     Seat::Line { .. } => {
                         let c = d.cross(u);
-                        Some(c.dot(c).sqrt())
+                        Some(c.norm())
                     }
                     Seat::Free => None,
                 };

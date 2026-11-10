@@ -1092,7 +1092,7 @@ mod tests {
     const ALPHA: f64 = 0.5;
 
     fn frustum_wall(axis_sign: f64) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
-        let (mut body, face) = crate::boolean::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
+        let (mut body, face) = crate::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
         let cone = geom::Surface::Cone {
             apex: Point3::origin(),
             axis: Vec3::new(0.0, 0.0, axis_sign),

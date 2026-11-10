@@ -312,6 +312,8 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::NotALength { .. } => "not_a_length",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
+        R::Family { .. } => "family",
+        R::NoMember { .. } => "no_member",
         _ => unmirrored_select_tag(UnmirroredSelect::Refusal),
     }
 }
@@ -904,6 +906,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // recourse is "evaluate at a dual scalar, or drop the seed" (or
         // seed a free length, angle or scalar variable), not the box's.
         C::Seed => "seed",
+        C::RecordRefused => "record_refused",
+        C::RecordMispaired => "record_mispaired",
         C::WrongOperand => "wrong_operand",
         // A pick of one piece of a copy: a path naming no piece, and
         // a read at the piece's other shape.
@@ -1052,6 +1056,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ToleranceConflict { .. } => None,
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
+        NodeErrorKind::RecordRefused | NodeErrorKind::RecordMispaired(_) => None,
         NodeErrorKind::WrongOperand { .. } => None,
         NodeErrorKind::NoSuchPiece { .. } => None,
         NodeErrorKind::PieceShape { .. } => None,
@@ -1434,6 +1439,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::FaceClearanceUncertified { .. } => "face_clearance_uncertified",
         BlendError::FaceClearance { .. } => "face_clearance",
         BlendError::KnifeEdge { .. } => "knife_edge",
+        BlendError::BallDoesNotFit { .. } => "ball_does_not_fit",
         BlendError::SpineIrregular { .. } => "spine_irregular",
         BlendError::ChainNotG1 { .. } => "chain_not_g1",
         BlendError::ConvexitySignFlip { .. } => "convexity_sign_flip",
@@ -1530,6 +1536,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::JoinUndecided => "join_undecided",
         BooleanErrorKind::JoinPartnersTied => "join_partners_tied",
+        BooleanErrorKind::JoinPairsTied => "join_pairs_tied",
         BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
         BooleanErrorKind::CarryRefused => "carry_refused",
         BooleanErrorKind::JoinDesync => "join_desync",
@@ -1846,7 +1853,8 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
 /// could not be read along the piece says how
 /// (`topo::boolean::trace::TraceFault`): no closed form, data that bounds
 /// no region, a grazing or
-/// on-carrier piece, a sign in the band, an uncertified root count; or
+/// on-carrier piece, a sign in the band, an uncertified root count, a
+/// torus carrier its gate refused or left in band; or
 /// the face has no cover to lever the piece over.
 pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static str {
     use pncad::document::TraceStepFault as F;
@@ -1870,6 +1878,7 @@ pub fn trace_step_fault_tag(fault: &pncad::document::TraceStepFault) -> &'static
         F::Carrier(C::OnCarrier) => "on_carrier",
         F::Carrier(C::Escalated(_)) => "escalated",
         F::Carrier(C::Unsettled(_)) => "unsettled",
+        F::Carrier(C::Torus(_)) => "torus",
         F::Uncovered(_) => "uncovered",
     }
 }
@@ -1945,6 +1954,8 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
+        PinRefusal::UnwrittenIndex => "pin_unwritten_index",
+        PinRefusal::NoMember { .. } => "pin_no_member",
     }
 }
 
@@ -2566,6 +2577,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::VarNameConflict { .. } => "var_name_conflict",
         InlineError::UnreadPose { .. } => "unread_pose",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
+        InlineError::SelectionSpansMembers { .. } => "selection_spans_members",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
@@ -2584,6 +2596,7 @@ pub fn flatten_error_tag(err: &FlattenError) -> &'static str {
         FlattenError::NotANewSpace { .. } => "not_a_new_space",
         FlattenError::SpaceShared { .. } => "space_shared",
         FlattenError::ReadUncarried { .. } => "read_uncarried",
+        FlattenError::SelectionSpansMembers { .. } => "selection_spans_members",
         FlattenError::BothNamed { .. } => "both_named",
         FlattenError::Edit { .. } => "flatten_edit",
     }
@@ -3484,5 +3497,7 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
         F::Kind { .. } => "name_kind",
         F::Repeated { .. } => "repeated",
         F::OtherBody => "other_body",
+        F::Input(fault) => input_fault_tag(fault),
+        F::SideIndex { .. } => "side_index",
     }
 }

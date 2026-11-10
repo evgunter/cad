@@ -58,7 +58,7 @@ pub fn flush_pair_relation<T: Decide>(
 
 /// Why a face pair has no carrier reading: the door's input, not a
 /// verdict.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PairUnread {
     /// A face's surface kind is outside the ladder's
     /// [`super::carrier_eq::INVENTORY`], or its key does not resolve:
@@ -296,6 +296,29 @@ pub fn carrier_pair_decided<T: Decide>(
     )
 }
 
+/// **The arm [`carrier_pair_decided`] levers the pair's angular data
+/// at**: the reach of the ball enclosing both faces, from the pivot the
+/// ladder reads the pair's position datum at (two cylinders: the foot of
+/// the ball's centre on the second axis). A reader deciding the same
+/// tilt on its own reading of the two carriers levers it here, so the
+/// two judge one tilt alike.
+///
+/// # Errors
+///
+/// As [`carrier_pair_relation`]'s [`PairUnread`].
+pub fn carrier_pair_arm<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    band: Band,
+) -> Result<geom_core::Lever<T>, PairUnread> {
+    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
+    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
+    Ok(super::carrier_eq::consumed_arm(&ca, &cb, extent.reach))
+}
+
 /// The row a torus face's witness of two carriers is decided on
 /// ([`torus_pair_witnessed`]).
 const TORUS_WITNESS: &str = "carrier_torus_witness";
@@ -446,7 +469,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod lever_rows {
     use super::*;
-    use crate::boolean::boxes::tests::torus_wall;
+    use crate::boxes::tests::torus_wall;
     use crate::contact::ContactRefusal;
     use crate::test_support::{CylFrame, cyl_wall_sheet};
     use geom_core::{Point3, Tol, Vec3};
@@ -548,6 +571,61 @@ mod lever_rows {
             apart(&read),
             "the tilt at the far rim reads the carriers apart: {read:?}"
         );
+    }
+
+    /// **The pair's arm is the one the ladder levers the cylinder tilt
+    /// at** ([`carrier_pair_arm`]). A 2 m cylinder wall against its twin
+    /// tilted about `y` through the shared axis point, by the angle the
+    /// arm puts in the middle of the band (`√(zero·escalate) / arm`), so
+    /// the tilt escalates and the ladder's margin is read back off its
+    /// refusal: `|a1 × a2|` times exactly the door's arm. A door that read
+    /// another length (the radius, the session box, a pivot the ladder
+    /// does not use) reads a different margin here.
+    #[test]
+    fn the_pair_arm_is_the_arm_the_cylinder_tilt_is_levered_at() {
+        use super::super::carrier_eq::{CARRIER_CYL_AXIS_PARALLEL, CoincidenceMeasure};
+        let tol = Tol::witness();
+        let (u, v) = ((0.2, 1.6), (0.0, 2.0));
+        let mut a = Body::<f64>::new();
+        let fa = cyl_wall_sheet(&mut a, CylFrame::canonical(1.0), u, v, tol);
+        let sense = a.get_face(fa).unwrap().sense;
+        let twin = |theta: f64| {
+            let mut b = Body::<f64>::new();
+            let fb = cyl_wall_sheet(&mut b, CylFrame::tilted(1.0, theta), u, v, tol);
+            b.set_face_sense(fb, !sense).unwrap();
+            (b, fb)
+        };
+        let (b, fb) = twin(0.0);
+        let level = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
+        let theta = (band().zero() * band().escalate()).sqrt() / level;
+        let (b, fb) = twin(theta);
+        let arm = carrier_pair_arm(&a, fa, &b, fb, band()).unwrap().length();
+        let (
+            Some(CarrierDesc::Cylinder { axis: a1, .. }),
+            Some(CarrierDesc::Cylinder { axis: a2, .. }),
+        ) = (face_carrier(&a, fa), face_carrier(&b, fb))
+        else {
+            panic!("two cylinder walls read as cylinders")
+        };
+        let levered = a1.cross(a2).norm() * arm;
+        assert!(
+            band().zero() < levered && levered < band().escalate(),
+            "the tilt at the arm is in band: {levered:e}"
+        );
+        match carrier_pair_decided(&a, fa, &b, fb, band()) {
+            Ok(Err(CarrierEqError::Undecided {
+                coincidence: CoincidenceMeasure::Undecided(diag),
+                ..
+            })) => {
+                assert_eq!(diag.predicate, Some(CARRIER_CYL_AXIS_PARALLEL), "{diag:?}");
+                assert_eq!(
+                    diag.margin,
+                    geom_core::MarginDiag::value(levered),
+                    "the ladder's tilt is levered at the door's arm: {diag:?}"
+                );
+            }
+            other => panic!("the tilt in band escalates at the face-pair door: {other:?}"),
+        }
     }
 
     /// **A torus pair in band over its patch escalates.** The torus
@@ -721,7 +799,7 @@ mod lever_rows {
     /// apart, wherever a run admits it (not at `ε = 10⁻¹²`).
     #[test]
     fn a_sphere_pair_straddles_from_its_first_datum_and_offers_its_tolerance() {
-        use crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet;
+        use crate::boxes::sphere_rect_rows::sphere_zone_sheet;
         let tol = Tol::witness();
         let e = band().zero();
         let pinned = Band::new(e, 1.5 * e).unwrap();

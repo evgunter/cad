@@ -148,8 +148,10 @@ use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 /// zero needs a stored radius below zero, which a profile refuses at a
 /// build and the at-rest representability check reports first.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
-    lever: "move the geometry so that edge's faces clearly run farther and none curves tightly \
-            there",
+    lever: geom_core::move_lever!(
+        "so that edge's faces clearly run farther and none curves tightly \
+            there"
+    ),
     size: "width or the gap its faces open",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
@@ -2111,13 +2113,13 @@ pub fn classify_material_pairing_as<T: Decide>(
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
-    pairing_reading(name, s_plus, sense_plus, s_minus, sense_minus, p, arm, band).0
+    pairing_reading_as(name, s_plus, sense_plus, s_minus, sense_minus, p, arm, band).0
 }
 
 /// The pairing decided as `name`, with the `cos θ` it decided on and the
 /// `sin θ` of the same normals.
 #[allow(clippy::too_many_arguments)]
-fn pairing_reading<T: Decide>(
+fn pairing_reading_as<T: Decide>(
     name: &'static str,
     s_plus: &Surface<T>,
     sense_plus: bool,
@@ -2136,7 +2138,7 @@ fn pairing_reading<T: Decide>(
     )
 }
 
-/// [`pairing_reading`] on two outward normals already read.
+/// [`pairing_reading_as`] on two outward normals already read.
 fn pairing_of_normals<T: Decide>(
     name: &'static str,
     n_plus: geom_core::Vec3<T>,

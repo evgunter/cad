@@ -62,8 +62,13 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         legs,
         vec![(
             Coord::slide(TargetAxis::X),
-            Formula::mul(common::len(1e200), common::scl(1e200))
-                .expect("length times scalar is a length"),
+            Formula::mul(
+                Formula::mul(common::len(1e200), common::scl(1e200))
+                    .expect("length times scalar is a length"),
+                Formula::add(crate::fixture::scalar_of(k), common::scl(1.0))
+                    .expect("a scalar plus a scalar"),
+            )
+            .expect("length times scalar is a length"),
         )],
     );
     let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
@@ -106,8 +111,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     assert_eq!(
         error.spoken(&doc, &ev),
         format!(
-            "Place {} failed: the expression at slot slide value failed to evaluate: the \
-             evaluated result is not finite — the arithmetic overflowed or hit a pole (1/0, \
+            "Place {} failed: the member at k = 0 refused: the expression at slot slide value \
+             failed to evaluate: the evaluated result is not finite — the arithmetic overflowed or hit a pole (1/0, \
              0/0). Recourse: fix the expression or the values feeding it",
             test_utils::refusal::tag(pattern.0.digest()),
         ),
@@ -150,13 +155,12 @@ fn copies(label: &str, copy: u32, tol: Tol) -> Copies {
     let (doc, pattern) =
         fixture::family_of(doc, legs, fixture::slides_along(k, [1.0, 0.0, 0.0], 0.05));
     let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
-    let named = fixture::in_copy(pattern, k, copy, in_part(legs, leg_body, CapEnd::End));
     let (doc, _) = viewer::test_support::mated(
         &doc,
         cap,
         fixture::rest(
             common::head(in_part(cap, top_body, CapEnd::Start)),
-            common::head_at(pattern, named),
+            fixture::member_head(pattern, &[copy], in_part(legs, leg_body, CapEnd::End)),
         ),
         Vec::new(),
         tol,

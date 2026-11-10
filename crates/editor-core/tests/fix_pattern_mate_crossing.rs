@@ -35,10 +35,9 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CapEnd, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{in_copy, in_member, insert, len, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// The unit cube `[0,1]³`, as a whole part document, and its body.
@@ -150,7 +149,7 @@ fn four_legs(
     let (doc, mate) = seat(
         doc,
         top,
-        in_copy(pattern, k, COPY, in_part(leg, leg_body, CapEnd::End)),
+        fixture::copy_site(pattern, k, COPY, in_part(leg, leg_body, CapEnd::End)),
         in_part(top, top_body, CapEnd::Start),
     );
     (doc, leg, pattern, top, mate, leg_body)
@@ -336,50 +335,53 @@ fn the_recorded_map_rewrites_a_family_head_s_ids_and_never_its_member_value() {
         panic!("the seat's target reads a face");
     };
     let a = editor_core::head_of(&out.part, a).expect("the moved head resolves");
+    assert_eq!(
+        a,
+        // The side's head, natively: the family, the member's value, and
+        // the member's own face.
+        crate::fixture::member_head(
+            new_pattern,
+            &[COPY],
+            in_part(new_leg, leg_body, CapEnd::End)
+        ),
+        "ids remap through the recorded map; the member's value does not"
+    );
+    // The walk reads it under the family's spelling, at the part's index.
     let new_k = out
         .part
         .var_named("k")
         .expect("the index crosses with its family");
     assert_eq!(
-        a,
-        crate::fixture::head(in_copy(
-            new_pattern,
-            new_k,
-            COPY,
-            in_part(new_leg, leg_body, CapEnd::End)
-        )),
-        "ids remap through the recorded map; the member's value does not"
-    );
-    let RoleSeg::Member { ref at, .. } = a.name.path[0] else {
-        panic!("the head keeps its Member qualifier");
-    };
-    assert_eq!(
-        at.as_slice(),
-        [(new_k, COPY)],
+        editor_core::member_of(&out.part, &a).map(|m| m.chain),
+        editor_core::member_of(
+            &out.part,
+            &crate::fixture::head_at(
+                new_pattern,
+                crate::fixture::in_copy(
+                    new_pattern,
+                    new_k,
+                    COPY,
+                    in_part(new_leg, leg_body, CapEnd::End)
+                )
+            )
+        )
+        .map(|m| m.chain),
         "the index is the part's, its value the member's"
     );
 }
 
-/// A head whose `Member` qualifier keys FEWER indices than its family
-/// is over is outside A11's member vocabulary, so the constraint is not
-/// an edge, and its two ends reach opposite sides of an accepted cut.
+/// A side reading a family of families at FEWER indices than the
+/// family is keyed by names no member: `outer[1]`, one index of two. The
+/// door refuses it as the read's rank (`InputFault::IndexRank`,
+/// REFERENCES DM3), the refusal a node seat's `outer[1]` takes too, so
+/// the constraint is never written. A head that reaches the seam from a
+/// stored side is read off a read the door admitted; one a later edit
+/// leaves at another rank is `work/refs/a-rank-change-leaves-readers-unsaveable.md`.
 ///
-/// A member of a family of families is keyed by both indices, and a
-/// name keying both resolves. The name here keys ONE of the two — the
-/// name the family's table never mints — so the walk refuses it at the
-/// family, structurally, before any value is read.
-///
-/// INVARIANT (AQ8 option (b), SKIP — `crates/editor-core/ASSEMBLY.md`'s
-/// AQ8 clause):
-/// such a constraint contributes NO crossing however its names fall,
-/// because it never solved and a record minted from it would be
-/// trusted-at-rest state. This is the row that separates a gate asking
-/// the member vocabulary from one matching a head's SPELLING: admitting
-/// a family's placement by shape mints a record here, for a constraint the
-/// member walk never resolved.
+/// *Breaks if* a side reading a family of families at one index is
+/// admitted.
 #[test]
-fn an_underqualified_family_head_reaches_the_seam_and_contributes_no_crossing() {
-    let o = blocks_reach(&["fix-xs-n-leg"]);
+fn an_underqualified_member_side_is_refused_at_the_door() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-nested"), Tol::witness());
     let (doc, leg, leg_body) = pinned_block(doc, "fix-xs-n-leg");
     let (doc, i, inner) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
@@ -388,36 +390,30 @@ fn an_underqualified_family_head_reaches_the_seam_and_contributes_no_crossing() 
         fixture::family_of(doc, inner, fixture::slides_along(j, [0.0, 1.0, 0.0], 5.0));
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    // The constraint door is structural, so a target whose head
-    // resolves to no member is admitted as written.
-    let (doc, mate) = seat(
-        doc,
-        top,
-        in_member(outer, vec![(j, 1)], in_part(leg, leg_body, CapEnd::End)),
-        in_part(top, top_body, CapEnd::Start),
-    );
-
-    // No member at the nested head: only the top's side resolves.
-    assert_eq!(
-        seam_members(&doc, mate),
-        vec![(mate, top)],
-        "an underqualified head resolves to no member"
-    );
-
-    // The cut is accepted, with the constraint's ends on opposite
-    // sides — the reachable seam a spelling-matched gate would mint on.
-    let out = editor_core::split(
+    let refused = editor_core::apply(
         &doc,
-        &cut(&doc, [leg, inner, outer]),
-        DocumentId::derive("fix-xs-nested-part"),
+        &editor_core::DocEdit::AddConstraint {
+            placement: top,
+            mate: Box::new(fixture::rest(
+                fixture::head(in_part(top, top_body, CapEnd::Start)),
+                fixture::member_head(outer, &[1], in_part(leg, leg_body, CapEnd::End)),
+            )),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
-        o.resolver.as_ref(),
-        &editor_core::Stop::default(),
-    )
-    .expect("the cut is closed: the kept top reads the cut side");
+    );
     assert!(
-        crossings(&out.remainder, out.instance).is_empty(),
-        "a constraint that is not an edge says nothing about the seam (AQ8 SKIP)"
+        matches!(
+            refused,
+            Err(editor_core::EditError::SelectionShape {
+                fault: editor_core::SelectionFault::Input(ref fault),
+                ..
+            }) if matches!(
+                **fault,
+                editor_core::InputFault::IndexRank { found: 1, rank: 2, .. }
+            )
+        ),
+        "an underqualified head refuses its read's rank at the door: {refused:?}"
     );
 }
 
