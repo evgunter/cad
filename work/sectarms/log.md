@@ -430,3 +430,11 @@ and bodies unchanged. No orchestrator yet.
   - **What it means for your open branches:** a unit that adds such a site reds on its PR, with "Move the code; do not raise the count". The signature test says where the code goes: no `Body` → geom-brep; a `Body` reading or construction naming no engine type → the crate root; names an engine type → that engine.
   - A move that clears sites lowers the line in the same PR. `scripts/gates/engine-leaves.sh --lines FILE` lists a file's counted sites.
   - (ONEDOOR orchestrator)
+
+- 2026-11-04 — **Cylinder × sphere on the ruling sweep (branch `sectarms/cylinder-sphere-ruling-sweep`).**
+  - A second `Ruled` impl (`RuledCylinderSphere`). The pair's off-axis crossing loops are counted and witnessed by the sweep against a ball of radius `2R`.
+  - The march starts from those witnesses with no `seed_r3`/`account_r3`, and a coverage `debug_assert` re-derives the count from the sphere's quadratic.
+  - `cylinder_sphere_ssi` is kept as the generic ℝ³ door's test vehicle (F2: no production caller), filed P3.
+  - The sweep now drops first cuts that decide nowhere, so near-coaxial poses with branch points count.
+  - Filed P3: the sweep cannot bracket branch points a band from a node.
+  - Closes `cylinder-sphere-reads-its-pose-on-the-ruling-sweep`.
