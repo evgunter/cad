@@ -4116,13 +4116,16 @@ fn pierce_inside<T: Decide>(
 /// point `s` of `S`, stands within `g = h + ε` of `s`, and a boundary
 /// vertex over `S` has its foot on `S`'s line within `σg` of `s`. So
 /// `b` stands within `g·(1 + σ) + ε` of `S` along any path below. That
-/// reach, `g·(1 + σ)` charged its rounding, is read within `Kε` first:
-/// through the magnitude door at the band `[(K − 1)ε, Kε]`
+/// reach, `g·(1 + σ)` charged its rounding, is read within `Kε` through
+/// the magnitude door at the band `[(K − 1)ε, Kε]`
 /// (`pm_census_ef_pierce_height`, its straddle `…_height_straddle`), at
-/// most `(K − 1)ε` or refused. Past `Kε`, a boundary point over `S`
-/// could read apart from it.
+/// most `(K − 1)ε` or not clear; past `Kε`, a boundary point over `S`
+/// could read apart from it. That reading is the ladder's first rung, so
+/// an undecided height is kept, and a member meeting `S` still answers
+/// past it.
 ///
-/// Then no boundary vertex lies on `S`'s interior
+/// The members, every one read whatever an earlier one read: no boundary
+/// vertex lies on `S`'s interior
 /// ([`on_edge_interior_reading`]), no line boundary edge's interior meets
 /// `S`'s ([`interiors_meet`]), and every other boundary edge stands
 /// clear of `S` (below).
