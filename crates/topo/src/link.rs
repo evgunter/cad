@@ -78,7 +78,9 @@
 //! other reading takes such a link ([`rest::judge`] and
 //! [`rest::by_round`] refuse it).
 
-use geom_brep::ladder::{Aborts, Answering, Climb, Nearer, Refusal, Rung, argmin_decided, climb};
+use geom_brep::ladder::{
+    Aborts, Answering, Climb, FreeOf, Refusal, Rung, Undecided, Unpicked, argmin_decided, climb,
+};
 
 use crate::validate::EdgeTangentUnread;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
@@ -1163,7 +1165,7 @@ pub(crate) fn face_piece<T: Decide>(
     // sector is that full turn.
     let end = match at {
         PieceAt::Corner(..) | PieceAt::Edge(..) => {
-            let mut best: Option<(Turn, Point3<T>)> = None;
+            let mut passes: Vec<(Turn, Point3<T>)> = Vec::new();
             for &pass in core::iter::once(&at).chain(also) {
                 let q = match pass {
                     PieceAt::Corner(rr, kk) => {
@@ -1177,16 +1179,34 @@ pub(crate) fn face_piece<T: Decide>(
                 if item.0 == Turn::Ahead {
                     continue;
                 }
-                let nearer = |c: &(Turn, Point3<T>), b: &(Turn, Point3<T>)| {
-                    Ok(match order(*c, *b)? {
-                        Less => Nearer::Candidate,
-                        Equal => Nearer::Tie,
-                        Greater => Nearer::Incumbent,
-                    })
-                };
-                best = Some(argmin_decided(best, item, nearer)?.keep_incumbent());
+                passes.push(item);
             }
-            best.map(|b| b.1)
+            // The nearest incoming ray by turn. Free of ties: two rays at
+            // one turn end the sector at one place, so either stands for
+            // the other.
+            let cmp = |a: &(Turn, Point3<T>), b: &(Turn, Point3<T>)| {
+                order(*a, *b)
+                    .map(|o| match o {
+                        Less => Sign::Negative,
+                        Equal => Sign::Zero,
+                        Greater => Sign::Positive,
+                    })
+                    .map_err(Undecided::InBand)
+            };
+            match argmin_decided(passes, cmp, FreeOf::Ties) {
+                Ok(best) => best.map(|b| b.1),
+                Err(
+                    Unpicked::Contested {
+                        in_band: Some(why), ..
+                    }
+                    | Unpicked::Aborted(why),
+                ) => {
+                    return Err(why);
+                }
+                Err(Unpicked::Contested { in_band: None, .. }) => {
+                    unreachable!("free of ties, an argmin with no in-band pair picks")
+                }
+            }
         }
         PieceAt::Inside => None,
     };

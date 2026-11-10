@@ -2098,6 +2098,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
             .collect(),
         // Every regularity reading is a magnitude: a distance from a
         // singularity, a wedge, a sagitta. It refuses on no negative.
+        BooleanErrorKind::JoinPartnersTied => vec![BooleanError::JoinPartnersTied],
         BooleanErrorKind::JoinUndecided => [BooleanError::JoinUndecided(crate::JoinUndecided {
             vertex: crate::entity::VertexKey::default(),
             reading: crate::JoinReading::Regularity(diag),

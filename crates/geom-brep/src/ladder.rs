@@ -972,88 +972,151 @@ impl<E> Evidence<E> {
     }
 }
 
-/// **A candidate's decided order against the incumbent nearest**, the
-/// one comparison [`argmin_decided`] folds: the candidate is nearer, the
-/// incumbent is, or the two are decided equally near.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Nearer {
-    /// The candidate is decided nearer.
-    Candidate,
-    /// The incumbent is decided nearer.
-    Incumbent,
-    /// The two are decided equally near.
-    Tie,
-}
-
-/// **One step of an argmin over decided comparisons**: the nearer of the
-/// incumbent and a candidate, or the tie between them, resolved by the
-/// caller's tie rule ([`Step::keep_incumbent`], [`Step::refuse_tie`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[must_use]
-pub enum Step<C> {
-    /// The nearer of the two, or the candidate where there was no
-    /// incumbent.
-    Nearest(C),
-    /// The two were decided equally near.
-    Tied {
-        /// The incumbent.
-        incumbent: C,
-        /// The candidate.
-        candidate: C,
-    },
-}
-
-impl<C> Step<C> {
-    /// The tie rule **keep the incumbent**: a tie keeps the one met
-    /// first, the deterministic scan order (D9).
-    pub fn keep_incumbent(self) -> C {
-        match self {
-            Self::Nearest(c) | Self::Tied { incumbent: c, .. } => c,
-        }
-    }
-
-    /// The tie rule **refuse a tie**: `None` where the two were decided
-    /// equally near, for the caller to refuse as its own.
-    #[must_use]
-    pub fn refuse_tie(self) -> Option<C> {
-        match self {
-            Self::Nearest(c) => Some(c),
-            Self::Tied { .. } => None,
-        }
-    }
-}
-
-/// **One step of an argmin over decided comparisons**: `candidate`
-/// against the nearest so far, `incumbent`, by `order` (the candidate's
-/// [`Nearer`] order against the incumbent, `order(candidate, incumbent)`).
-/// The first candidate is the nearest with nothing to compare. The caller
-/// folds its candidates through it in its own scan order and resolves
-/// each step by its tie rule ([`Step`]).
+/// **What an argmin's caller has proved its minimum free of**
+/// ([`argmin_decided`]): which undecided pairs among the candidates left
+/// in contention cannot change what the caller does with the minimum, so
+/// that the first of them in candidate order may stand for it. The
+/// levels nest: `Band` covers what `Ties` does.
 ///
-/// A comparison `order` cannot decide refuses by its `Err`, at once:
-/// what an undecided comparison leaves of the minimum is
-/// `work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md`'s
-/// open question.
+/// Every declaration above [`FreeOf::Nothing`] carries its proof at the
+/// call.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FreeOf {
+    /// Nothing: any two candidates left in contention refuse.
+    Nothing,
+    /// Exact ties: candidates decided equally near may stand for each
+    /// other.
+    Ties,
+    /// Ties and in-band readings: candidates no reading parts may stand
+    /// for each other.
+    Band,
+}
+
+/// **A comparison [`argmin_decided`] could not decide**, as the caller's
+/// comparison states it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Undecided<E> {
+    /// In band: a tighter tolerance may decide it. The argmin keeps it,
+    /// and [`FreeOf::Band`] covers it.
+    InBand(E),
+    /// Any other undecided reading (a poisoned margin, an enclosure
+    /// straddling the band's edge): the argmin stops on it at once.
+    Aborts(E),
+}
+
+/// **Why [`argmin_decided`] picked no minimum.**
+#[derive(Clone, Debug, PartialEq)]
+pub enum Unpicked<C, E> {
+    /// Several candidates are left in contention, and what the caller is
+    /// free of does not cover them: every one of them, in candidate
+    /// order, and the first in-band reading among them, if any. With
+    /// none, they are exact ties the caller refuses as its own.
+    Contested {
+        /// The candidates no candidate is decided nearer than.
+        members: Vec<C>,
+        /// The first in-band reading between two of them.
+        in_band: Option<E>,
+    },
+    /// A comparison stopped the argmin ([`Undecided::Aborts`]).
+    Aborted(E),
+}
+
+/// **The nearest of `candidates` by decided comparisons.** `cmp(a, b)`
+/// is the sign of `a`'s distance less `b`'s: `Negative` where `a` is
+/// decided nearer, `Zero` for a decided tie, or an [`Undecided`] reading.
+///
+/// **The set rule.** A candidate drops out only where some candidate is
+/// decided nearer than it, read directly between the two. Every pair is
+/// compared, so what is left in contention is the same in every order of
+/// the candidates. Each pair left in contention is a tie or undecided.
+///
+/// **The ending.** One candidate left is the minimum. Several are, where
+/// `free_of` covers every pair between them ([`FreeOf`]): then the first
+/// in candidate order stands for them. Otherwise they are
+/// [`Unpicked::Contested`].
+///
+/// **How it differs from [`climb`] under [`Answering::First`]**: a
+/// ladder wants the first rung that answers, so a kept rung ahead of it
+/// may be that answer, and it refuses there. An argmin wants the minimum,
+/// so a later candidate can close the question: one decided nearer than
+/// both of an undecided pair puts neither of them in contention.
+///
+/// **Recording**, in pair order, as a serial read of the same pairs
+/// would: a decided reading live; an undecided one superseded where the
+/// minimum does not rest on it (a candidate of the pair dropped out, or
+/// `free_of` covers it at the ending), and live otherwise. An abort
+/// splices every run read so far live.
 ///
 /// # Errors
 ///
-/// Whatever `order` refuses with.
+/// [`Unpicked`].
 pub fn argmin_decided<C, E>(
-    incumbent: Option<C>,
-    candidate: C,
-    order: impl FnOnce(&C, &C) -> Result<Nearer, E>,
-) -> Result<Step<C>, E> {
-    let Some(incumbent) = incumbent else {
-        return Ok(Step::Nearest(candidate));
+    candidates: impl IntoIterator<Item = C>,
+    mut cmp: impl FnMut(&C, &C) -> Result<Sign, Undecided<E>>,
+    free_of: FreeOf,
+) -> Result<Option<C>, Unpicked<C, E>> {
+    /// A pair's reading, held with its run until the ending.
+    enum Read<E> {
+        Decided,
+        InBand(E),
+    }
+    let candidates: Vec<C> = candidates.into_iter().collect();
+    let n = candidates.len();
+    let mut out = vec![false; n];
+    let mut reads: Vec<((usize, usize), Read<E>, Detached)> = Vec::new();
+    for i in 0..n {
+        for j in i + 1..n {
+            let (got, log) = detached(|| cmp(&candidates[i], &candidates[j]));
+            match got {
+                Ok(sign) => {
+                    match sign {
+                        Sign::Negative => out[j] = true,
+                        Sign::Positive => out[i] = true,
+                        Sign::Zero => {}
+                    }
+                    reads.push(((i, j), Read::Decided, log));
+                }
+                Err(Undecided::InBand(e)) => reads.push(((i, j), Read::InBand(e), log)),
+                Err(Undecided::Aborts(e)) => {
+                    for (_, _, run) in reads {
+                        splice(run);
+                    }
+                    splice(log);
+                    return Err(Unpicked::Aborted(e));
+                }
+            }
+        }
+    }
+    let live = |(i, j): (usize, usize)| !out[i] && !out[j];
+    let tied = reads
+        .iter()
+        .filter(|&&(pair, ..)| live(pair))
+        .all(|(_, read, _)| matches!(read, Read::Decided));
+    let covered = match free_of {
+        FreeOf::Nothing => false,
+        FreeOf::Ties => tied,
+        FreeOf::Band => true,
     };
-    Ok(match order(&candidate, &incumbent)? {
-        Nearer::Candidate => Step::Nearest(candidate),
-        Nearer::Incumbent => Step::Nearest(incumbent),
-        Nearer::Tie => Step::Tied {
-            incumbent,
-            candidate,
-        },
-    })
+    let mut in_band = None;
+    for (pair, read, run) in reads {
+        match read {
+            Read::Decided => splice(run),
+            Read::InBand(e) if live(pair) && !covered => {
+                splice(run);
+                in_band.get_or_insert(e);
+            }
+            Read::InBand(_) => splice_superseded(run),
+        }
+    }
+    let mut members: Vec<C> = candidates
+        .into_iter()
+        .zip(out)
+        .filter_map(|(c, out)| (!out).then_some(c))
+        .collect();
+    if members.len() <= 1 || covered {
+        return Ok((!members.is_empty()).then(|| members.swap_remove(0)));
+    }
+    Err(Unpicked::Contested { members, in_band })
 }
 
 #[cfg(test)]
@@ -1553,43 +1616,118 @@ mod tests {
         assert_eq!(rank(e), (1, 3), "the first limit");
     }
 
-    /// **One argmin step answers each decided order, under each tie
-    /// rule**: the candidate or the incumbent where one is decided
-    /// nearer, the incumbent kept or the step refused on a tie, the first
-    /// candidate taken with nothing to compare, and a comparison that
-    /// does not decide refused as itself.
-    #[test]
-    fn an_argmin_step_reads_its_order_and_its_tie_rule() {
-        use super::{Nearer, Step, argmin_decided};
-        let step = |order: Nearer| {
-            argmin_decided(Some("incumbent"), "candidate", |_, _| Ok::<_, ()>(order))
-                .expect("a decided order")
-        };
-        for (order, kept, refused) in [
-            (Nearer::Candidate, "candidate", Some("candidate")),
-            (Nearer::Incumbent, "incumbent", Some("incumbent")),
-            (Nearer::Tie, "incumbent", None),
-        ] {
-            assert_eq!(step(order).keep_incumbent(), kept, "{order:?} kept");
-            assert_eq!(step(order).refuse_tie(), refused, "{order:?} refused");
+    /// A decided comparison over named candidates, read off `table`'s
+    /// unordered pairs (`(a, b, sign of a less b)`), in band where a pair
+    /// is missing; `poison` aborts.
+    fn table_cmp<'a>(
+        table: &'a [(&'a str, &'a str, Sign)],
+        poison: Option<(&'a str, &'a str)>,
+    ) -> impl FnMut(&&'a str, &&'a str) -> Result<Sign, super::Undecided<String>> + 'a {
+        use super::Undecided;
+        move |a: &&str, b: &&str| {
+            let (a, b) = (*a, *b);
+            if poison.is_some_and(|(x, y)| (x, y) == (a, b) || (x, y) == (b, a)) {
+                return Err(Undecided::Aborts(format!("poison {a}{b}")));
+            }
+            for &(x, y, sign) in table {
+                if (x, y) == (a, b) {
+                    return Ok(sign);
+                }
+                if (x, y) == (b, a) {
+                    return Ok(match sign {
+                        Sign::Negative => Sign::Positive,
+                        Sign::Positive => Sign::Negative,
+                        Sign::Zero => Sign::Zero,
+                    });
+                }
+            }
+            Err(Undecided::InBand(format!("{a}{b}")))
         }
+    }
+
+    /// **A decided argmin's result is the same in every order of its
+    /// candidates**: `a` and `b` read in band of each other, and `c` is
+    /// decided farther than `a` and nearer than `b`. Every order leaves
+    /// `a` alone, which is the minimum. Red where a candidate is compared
+    /// only against the ones still in contention, which in the order
+    /// `c, a, b` leaves `a` and `b` contested.
+    #[test]
+    fn a_decided_argmin_is_free_of_its_candidates_order() {
+        use super::{FreeOf, argmin_decided};
+        let table = [("c", "a", Sign::Positive), ("c", "b", Sign::Negative)];
+        for order in [
+            ["a", "b", "c"],
+            ["a", "c", "b"],
+            ["b", "a", "c"],
+            ["b", "c", "a"],
+            ["c", "a", "b"],
+            ["c", "b", "a"],
+        ] {
+            assert_eq!(
+                argmin_decided(order, table_cmp(&table, None), FreeOf::Nothing),
+                Ok(Some("a")),
+                "{order:?}"
+            );
+        }
+    }
+
+    /// **What a decided argmin is free of decides what is left in
+    /// contention**: `a` and `b` tied, `c` in band of `a` and decided
+    /// farther than `b`. Under `Nothing` the tie is contested with no
+    /// in-band reading; under `Ties` it stands, the first in order. Adding
+    /// `d`, in band of the tied pair and decided nearer than `c`, leaves a
+    /// tie and an in-band pair: `Ties` leaves it contested with the
+    /// in-band reading, and `Band` covers it. A poisoned pair stops the
+    /// argmin whatever it is free of, and no candidates are no minimum.
+    #[test]
+    fn a_decided_argmin_ends_by_what_it_is_free_of() {
+        use super::{FreeOf, Unpicked, argmin_decided};
+        let ties = [("a", "b", Sign::Zero), ("b", "c", Sign::Negative)];
         assert_eq!(
-            argmin_decided(None, "first", |_, _| Err::<Nearer, _>("never asked")),
-            Ok(Step::Nearest("first")),
-            "the first candidate is nearest with nothing to compare"
+            argmin_decided(["a", "b", "c"], table_cmp(&ties, None), FreeOf::Nothing),
+            Err(Unpicked::Contested {
+                members: vec!["a", "b"],
+                in_band: None,
+            }),
+            "an exact tie, contested"
         );
         assert_eq!(
-            argmin_decided(Some("incumbent"), "candidate", |_, _| Err::<Nearer, _>(
-                "in band"
-            )),
-            Err("in band"),
-            "an undecided comparison refuses"
+            argmin_decided(["a", "b", "c"], table_cmp(&ties, None), FreeOf::Ties),
+            Ok(Some("a")),
+            "an exact tie, covered"
         );
-        let mut asked = None;
-        let _ = argmin_decided(Some(1), 2, |c, b| {
-            asked = Some((*c, *b));
-            Ok::<_, ()>(Nearer::Tie)
-        });
-        assert_eq!(asked, Some((2, 1)), "the order is asked candidate first");
+        let banded = [
+            ("a", "b", Sign::Zero),
+            ("b", "c", Sign::Negative),
+            ("d", "c", Sign::Negative),
+        ];
+        let four = ["a", "b", "c", "d"];
+        assert_eq!(
+            argmin_decided(four, table_cmp(&banded, None), FreeOf::Ties),
+            Err(Unpicked::Contested {
+                members: vec!["a", "b", "d"],
+                in_band: Some("ad".to_owned()),
+            }),
+            "a tie and an in-band pair are past Ties"
+        );
+        assert_eq!(
+            argmin_decided(four, table_cmp(&banded, None), FreeOf::Band),
+            Ok(Some("a")),
+            "Band covers them"
+        );
+        assert_eq!(
+            argmin_decided(four, table_cmp(&banded, Some(("c", "d"))), FreeOf::Band),
+            Err(Unpicked::Aborted("poison cd".to_owned())),
+            "a poisoned pair stops the argmin"
+        );
+        assert_eq!(
+            argmin_decided(
+                Vec::<&str>::new(),
+                table_cmp(&banded, None),
+                FreeOf::Nothing
+            ),
+            Ok(None),
+            "no candidate"
+        );
     }
 }
