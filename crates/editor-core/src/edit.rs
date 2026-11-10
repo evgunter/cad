@@ -3104,7 +3104,7 @@ pub enum EditError {
     },
     /// A `ReWitnessBulk` with no entries — a recorded no-op, refused.
     EmptyWitnessBulk,
-    /// A takeover ([`crate::take_over`]) given the same copy twice:
+    /// A takeover ([`crate::take_over`](fn@crate::take_over)) given the same copy twice:
     /// re-pointed once, it no longer copies the body the second would
     /// read its names from, so the second's answer would be empty —
     /// refused.

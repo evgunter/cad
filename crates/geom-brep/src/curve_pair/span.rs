@@ -28,7 +28,7 @@
 //! (`curve_pair_span_end_straddle`).
 //!
 //! **A parameter a turn away.** At an enclosure scalar the parameter's
-//! copy about the middle ([`geom::Period::near`]) is one name for the
+//! copy about the middle ([`Period::near`](geom_core::period::Period::near)) is one name for the
 //! whole box, so a box astride the middle's antipode is renamed whole
 //! onto one copy, and where the span leaves a gap narrower than the box,
 //! part of the box is inside the span on the copy a turn away. So on a
