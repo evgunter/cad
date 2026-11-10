@@ -1,7 +1,7 @@
 ---
 id: main-red-four-sweep-slow-rows-refuse-outside-session-box
 kind: issue
-title: main red: four sweep slow-set rows refuse their fixtures' extrude with OutsideSessionBox, likely since 8a97c7fab5 (the session box's edge reach as a true lower bound)
+title: main red: five sweep slow-set rows refuse their fixtures' extrude with OutsideSessionBox, likely since 8a97c7fab5 (the session box's edge reach as a true lower bound)
 status: open
 opened: 2026-11-09
 priority: P0
@@ -45,4 +45,4 @@ None is BOXES'. (BOXES nightly-reds triage, 2026-11-09)
 
 `torus_touch_off_faces`'s `the_off_face_touches_build_at_every_scale` (listed above) refuses `OutsideSessionBox` at margin −1500 on PR 6668's base as well as its head, so it is this family and not that PR.
 
-**A fifth row** (2026-11-10, found by `onecopy/crease-at`'s slow run): `crates/sweep/tests/parallel_cylinder_join.rs` `a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings` fails at default ε in its fixture's extrude, with `NotFinished { findings: [OutsideSessionBox { margin: -99000.0 }] }` (`sweep/src/test_support.rs:917`). It is the same on `origin/main` `223107e2`, and it passes at 1e-12.
+**A fifth row** (the id keeps "four": other rows and logs cite it; 2026-11-10, found by `onecopy/crease-at`'s slow run): `crates/sweep/tests/parallel_cylinder_join.rs` `a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings` fails at default ε in its fixture's extrude, with `NotFinished { findings: [OutsideSessionBox { margin: -99000.0 }] }` (`sweep/src/test_support.rs:917`). It is the same on `origin/main` `223107e2`, and it passes at 1e-12.
