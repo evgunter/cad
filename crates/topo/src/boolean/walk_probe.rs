@@ -38,7 +38,7 @@ pub(crate) fn enabled() -> bool {
 }
 
 /// One walk's entry: half-edge, real or not, unit direction.
-struct Ent<T: geom_core::Real> {
+pub(crate) struct Ent<T: geom_core::Real> {
     he: crate::entity::HalfEdgeKey,
     edge: bool,
     dir: Vec3<T>,
@@ -261,6 +261,15 @@ pub(crate) fn at_split<T: Decide>(
                 refusal_words(&refused, &sectors, |_| normal, band)
             ));
         }
+        star_vs(
+            "split",
+            body,
+            vertex,
+            &[crate::star::Datum::Plane(normal)],
+            &sv,
+            tips,
+            band,
+        );
         let bv = bool_view(&sectors);
         let (geo, detail) = compare(&sv, &bv);
         // Sides, where the geometry agrees: the Boolean's bound reading
@@ -359,4 +368,62 @@ pub(crate) fn note(line: String) {
     if let Some(mut f) = sink() {
         let _ = writeln!(f, "{line}");
     }
+}
+
+/// The new star against an old walk's entries: same bounds (half-edge,
+/// real or not, unit direction within 1e-4), or the first difference.
+pub(crate) fn star_vs<T: Decide>(
+    site: &str,
+    body: &Body<T>,
+    vertex: VertexKey,
+    datums: &[crate::star::Datum<T>],
+    old: &[Ent<T>],
+    tips: &SlitTips,
+    band: Band,
+) {
+    let Some(mut f) = sink() else { return };
+    let line = match crate::star::Star::walk(body, vertex, tips, band).and_then(|mut star| {
+        star.refine(datums, band)?;
+        Ok(star)
+    }) {
+        Err(fault) => format!("star {site} star-fault {fault:?}"),
+        Ok(star) => {
+            let new: Vec<Ent<T>> = star
+                .bounds
+                .iter()
+                .map(|b| Ent {
+                    he: b.he,
+                    edge: b.real,
+                    dir: b.dir.normalize(),
+                })
+                .collect();
+            let apex = star
+                .sectors
+                .iter()
+                .any(|s| matches!(s.at, crate::star::StarFace::Apex(_)));
+            let (geo, detail) = compare(old, &new);
+            format!(
+                "star {site} {geo} old={} new={} apex={apex} {detail}",
+                old.len(),
+                new.len()
+            )
+        }
+    };
+    let _ = writeln!(f, "{line}");
+}
+
+pub(crate) fn datums_of<T: Decide>(
+    faces: &[super::sectors::BoolFace<T>],
+) -> Vec<crate::star::Datum<T>> {
+    faces
+        .iter()
+        .map(|f| match f {
+            super::sectors::BoolFace::Tangent(n) => crate::star::Datum::Plane(n.vec()),
+            super::sectors::BoolFace::Apex(a) => crate::star::Datum::Cone(*a),
+        })
+        .collect()
+}
+
+pub(crate) fn bool_ents<T: Decide>(sectors: &[BoolSector<T>]) -> Vec<Ent<T>> {
+    bool_view(sectors)
 }

@@ -805,6 +805,17 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         &super::sectors::Partners::Pierced(n_pierced.vec()),
         band,
     )?;
+    if super::walk_probe::enabled() {
+        super::walk_probe::star_vs(
+            "pierce",
+            piercing_body,
+            vertex,
+            &[crate::star::Datum::Plane(n_pierced.vec())],
+            &super::walk_probe::bool_ents(&sectors),
+            tips,
+            band,
+        );
+    }
     let n = sectors.len();
     // At a cone's apex the pierce reads the pierced face's plane: a
     // curved face's section of the cone there curves off the ruling its

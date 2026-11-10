@@ -90,7 +90,9 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{ConeApex, SectorCarrier, SectorFaceError, VertexFace};
 
-use crate::sector_shape::{ApexShape, SlitTips, apex_corner_shape};
+use crate::sector_shape::{
+    OldApexShape as ApexShape, SlitTips, old_apex_corner_shape as apex_corner_shape,
+};
 use crate::validate::decide;
 use geom_brep::sector_shape::{
     CornerBounds, CornerShape, FullTurn, SectorFault, SectorShape, TurnOrder, corner_shape,

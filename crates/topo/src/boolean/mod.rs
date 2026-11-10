@@ -6940,6 +6940,24 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         let a_plain = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &none, band)?;
         let b_plain = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &none, band)?;
         let z = geom_core::Vec3::new(T::from_f64(0.0), T::from_f64(0.0), T::from_f64(1.0));
+        walk_probe::star_vs(
+            "vv-none",
+            &a,
+            c.a,
+            &[],
+            &walk_probe::bool_ents(&a_plain),
+            &tips[0],
+            band,
+        );
+        walk_probe::star_vs(
+            "vv-none",
+            &b,
+            c.b,
+            &[],
+            &walk_probe::bool_ents(&b_plain),
+            &tips[1],
+            band,
+        );
         walk_probe::at_bool(
             "vv-none",
             &a,
@@ -6969,6 +6987,26 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &faces(&a_plain), band)?,
             );
             if walk_probe::enabled() {
+                let fa: Vec<_> = b_plain.iter().map(|s| s.at_vertex).collect();
+                let fb: Vec<_> = a_plain.iter().map(|s| s.at_vertex).collect();
+                walk_probe::star_vs(
+                    "vv-faces",
+                    &a,
+                    c.a,
+                    &walk_probe::datums_of(&fa),
+                    &walk_probe::bool_ents(&pair.0),
+                    &tips[0],
+                    band,
+                );
+                walk_probe::star_vs(
+                    "vv-faces",
+                    &b,
+                    c.b,
+                    &walk_probe::datums_of(&fb),
+                    &walk_probe::bool_ents(&pair.1),
+                    &tips[1],
+                    band,
+                );
                 walk_probe::note(format!(
                     "vv-faces cut a {}->{} b {}->{}",
                     a_plain.len(),

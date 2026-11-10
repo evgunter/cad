@@ -148,9 +148,193 @@ const SECTOR_APEX_TILT: &str = "sector_apex_tilt";
 /// and an extremal ruling's distance in from each bound.
 const SECTOR_APEX_WINDOW: &str = "sector_apex_window";
 
+/// What [`apex_shape`] decided about a corner at a cone's apex.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ApexShape<T: Real> {
+    /// The metering arm, as [`geom_brep::sector_shape::SectorShape::arm`].
+    pub arm: T,
+    /// The azimuth the face's sweep turns through from the next bound to
+    /// its own ([`crate::sector_face::ConeApex::azimuth_from`]), as the
+    /// window was decided: the whole turn `2π` where the corner is one
+    /// (a strut's one edge, a wrap edge's tip), whatever the two bounds'
+    /// rounding reads.
+    pub window: T,
+    /// Whether the window is the whole turn, decided by the corner's
+    /// bounds ([`Self::window`]).
+    pub whole_turn: bool,
+}
+
+/// The chord between the points a lever out along two rulings of `apex`
+/// `angle` apart, levered at `arm`.
+fn ruling_chord<T: Decide>(apex: &crate::sector_face::ConeApex<T>, angle: T, arm: T) -> Margin<T> {
+    Margin::levered(
+        (angle * T::from_f64(0.5)).sin() * apex.half_angle.sin() * T::from_f64(2.0),
+        metering_arm(arm),
+    )
+}
+
+/// **A corner at a cone's apex, in its own geometry.**
+///
+/// The corner's interior is not the positive cone of its bounds: its
+/// directions are the cone's rulings between them, round the axis, at
+/// every width. The window is read in the face's own sweep: azimuth zero
+/// along `dir_next`, increasing into the sector (the interior leaves a
+/// bound along `n × b̂`, `n` the outward normal along it), to `dir_own`,
+/// or the whole turn where `full_circle`.
+///
+/// # Errors
+///
+/// As [`geom_brep::sector_shape::sector_shape`]'s arm rungs; a window
+/// between distinct edges whose width is not decided positive as
+/// [`SectorRung::Straight`] (whether the corner folds back on itself).
+fn apex_shape<T: Decide>(
+    dir_own: Vec3<T>,
+    dir_next: Vec3<T>,
+    apex: &crate::sector_face::ConeApex<T>,
+    full_circle: bool,
+    band: Band,
+) -> Result<ApexShape<T>, SectorFault> {
+    let arm = sector_arm(dir_own, dir_next, band)?;
+    let window = if full_circle {
+        T::tau()
+    } else {
+        let w = apex.azimuth_from(dir_next.normalize(), dir_own.normalize());
+        decide_positive(SECTOR_APEX_WINDOW, ruling_chord(apex, w, arm), band)
+            .map_err(|diag| straight(full_circle, diag))?;
+        w
+    };
+    Ok(ApexShape {
+        arm,
+        window,
+        whole_turn: full_circle,
+    })
+}
+
+fn straight(full_circle: bool, diag: geom_core::Indeterminate) -> SectorFault {
+    SectorFault::Rung {
+        rung: SectorRung::Straight { full_circle },
+        diag,
+    }
+}
+
+/// [`apex_shape`], with a window that reads no width read by `bounds`
+/// ([`reads_slit_tip_turn`]): at a slit's tip the face's whole turn round
+/// the apex, otherwise the refusal.
+///
+/// # Errors
+///
+/// As [`apex_shape`], but for the whole turn at a slit's tip.
+pub(crate) fn apex_corner_shape<T: Decide>(
+    (dir_own, dir_next): (Vec3<T>, Vec3<T>),
+    apex: &crate::sector_face::ConeApex<T>,
+    bounds: CornerBounds,
+    band: Band,
+) -> Result<ApexShape<T>, SectorFault> {
+    let shape = |full_circle| apex_shape(dir_own, dir_next, apex, full_circle, band);
+    match shape(bounds == CornerBounds::OneEdge) {
+        Err(fault) if reads_slit_tip_turn(bounds, &fault, Sign::Zero) => shape(true),
+        read => read,
+    }
+}
+
+/// **Whether a window at a cone's apex is not under a half-turn**: the
+/// chord across the rest of the half-turn, `π − window`, not decided
+/// positive. Such a window is halved ([`crate::star::Star`]): every
+/// sector at an apex then spans less than a half-turn, which is what
+/// makes its rulings' sides monotone between its bounds against any
+/// datum with no extremum inside it.
+///
+/// # Errors
+///
+/// A reading in the band, as [`SectorRung::Straight`].
+pub(crate) fn apex_over_half_turn<T: Decide>(
+    apex: &crate::sector_face::ConeApex<T>,
+    window: T,
+    arm: T,
+    band: Band,
+) -> Result<bool, SectorFault> {
+    let rest = T::tau() * T::from_f64(0.5) - window;
+    Ok(
+        decide(SECTOR_APEX_WINDOW, ruling_chord(apex, rest, arm), band)
+            .map_err(|diag| straight(false, diag))?
+            != Sign::Positive,
+    )
+}
+
+/// **The extremal rulings of a plane through the apex strictly inside a
+/// window**, in orbit order (the larger azimuth first).
+///
+/// Along the ruling at azimuth `φ` the plane (unit normal `across`)
+/// reads `s(φ) = n·d(φ) = σ cos α (n·a) + sin α (n_r·r̂(φ))`, monotone
+/// between its two extrema, the rulings along `±n_r`: the apex lane's own
+/// ([`geom_brep::plane_cone_apex_extrema`]), each turned onto the face's
+/// nappe. The window runs from the unit ruling `from` through `window`
+/// in the face's sweep. A plane square to the axis
+/// (`sector_apex_tilt`, `sin α·‖n_r‖` levered at `arm`) has none, and an
+/// extremum within the band of a bound is that bound
+/// (`sector_apex_window`), which reads its side already.
+///
+/// # Errors
+///
+/// A reading in the band, as [`SectorRung::Straight`].
+pub(crate) fn apex_extrema_inside<T: Decide>(
+    apex: &crate::sector_face::ConeApex<T>,
+    (from, window): (Vec3<T>, T),
+    across: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<Vec<Vec3<T>>, SectorFault> {
+    let rung = |diag| straight(false, diag);
+    let axis = apex.axis;
+    let n_r = across - axis * across.dot(axis);
+    if decide(
+        SECTOR_APEX_TILT,
+        Margin::levered(n_r.norm() * apex.half_angle.sin(), metering_arm(arm)),
+        band,
+    )
+    .map_err(rung)?
+        != Sign::Positive
+    {
+        return Ok(Vec::new());
+    }
+    let [toward, away] = geom_brep::plane_cone_apex_extrema(&apex.surface(), across)
+        .unwrap_or_else(|| unreachable!("an apex reading's surface is a cone"))
+        .map(|g| apex.onto_nappe_of(g, from));
+    let (psi_toward, psi_away) = (
+        apex.azimuth_from(from, toward),
+        apex.azimuth_from(from, away),
+    );
+    let later_first = psi_away - psi_toward;
+    let mut rulings = Vec::with_capacity(2);
+    for (g, psi) in [
+        (
+            Vec3::select(later_first, toward, away),
+            psi_toward.max(psi_away),
+        ),
+        (
+            Vec3::select(later_first, away, toward),
+            psi_toward.min(psi_away),
+        ),
+    ] {
+        let from_start =
+            decide(SECTOR_APEX_WINDOW, ruling_chord(apex, psi, arm), band).map_err(rung)?;
+        let to_end = decide(
+            SECTOR_APEX_WINDOW,
+            ruling_chord(apex, window - psi, arm),
+            band,
+        )
+        .map_err(rung)?;
+        if from_start == Sign::Positive && to_end == Sign::Positive {
+            rulings.push(g);
+        }
+    }
+    Ok(rulings)
+}
+
+// TEMPORARY: the pre-star apex reading, kept only for the side-by-side probe.
 /// What [`apex_shape`] decided about a sector at a cone's apex.
 #[derive(Clone, Debug)]
-pub(crate) struct ApexShape<T: Real> {
+pub(crate) struct OldApexShape<T: Real> {
     /// The metering arm, as [`geom_brep::sector_shape::SectorShape::arm`].
     pub arm: T,
     /// The azimuth the face's sweep turns through from the next bound to
@@ -195,14 +379,14 @@ pub(crate) struct ApexShape<T: Real> {
 /// As [`geom_brep::sector_shape::sector_shape`]'s arm rungs; a window between distinct edges
 /// whose width is not decided positive, or a reading in the band, as
 /// [`SectorRung::Straight`] (whether the corner folds back on itself).
-fn apex_shape<T: Decide>(
+fn old_apex_shape<T: Decide>(
     dir_own: Vec3<T>,
     dir_next: Vec3<T>,
     apex: &crate::sector_face::ConeApex<T>,
     full_circle: bool,
     across: Vec3<T>,
     band: Band,
-) -> Result<ApexShape<T>, SectorFault> {
+) -> Result<OldApexShape<T>, SectorFault> {
     let arm = sector_arm(dir_own, dir_next, band)?;
     let rung = |diag| SectorFault::Rung {
         rung: SectorRung::Straight { full_circle },
@@ -237,7 +421,7 @@ fn apex_shape<T: Decide>(
     .map_err(rung)?
         != Sign::Positive
     {
-        return Ok(ApexShape {
+        return Ok(OldApexShape {
             arm,
             window,
             whole_turn: full_circle,
@@ -270,7 +454,7 @@ fn apex_shape<T: Decide>(
             rulings.push(g);
         }
     }
-    Ok(ApexShape {
+    Ok(OldApexShape {
         arm,
         window,
         whole_turn: full_circle,
@@ -285,14 +469,14 @@ fn apex_shape<T: Decide>(
 /// # Errors
 ///
 /// As [`apex_shape`], but for the whole turn at a slit's tip.
-pub(crate) fn apex_corner_shape<T: Decide>(
+pub(crate) fn old_apex_corner_shape<T: Decide>(
     (dir_own, dir_next): (Vec3<T>, Vec3<T>),
     apex: &crate::sector_face::ConeApex<T>,
     bounds: CornerBounds,
     across: Vec3<T>,
     band: Band,
-) -> Result<ApexShape<T>, SectorFault> {
-    let shape = |full_circle| apex_shape(dir_own, dir_next, apex, full_circle, across, band);
+) -> Result<OldApexShape<T>, SectorFault> {
+    let shape = |full_circle| old_apex_shape(dir_own, dir_next, apex, full_circle, across, band);
     match shape(bounds == CornerBounds::OneEdge) {
         Err(fault) if reads_slit_tip_turn(bounds, &fault, Sign::Zero) => shape(true),
         read => read,
@@ -322,8 +506,8 @@ mod tests {
 
     /// At a cone's apex the window between a slit's two coincident
     /// rulings reads no width: between distinct edges it refuses, at a
-    /// slit's tip it is the whole turn, subdivided at both extremal
-    /// rulings. A corner between two rulings apart reads the same
+    /// slit's tip it is the whole turn, which holds both extremal rulings
+    /// of a tilted plane. A corner between two rulings apart reads the same
     /// whichever bounds it is given, so a tip's reading reaches no other
     /// corner of its face.
     #[test]
@@ -336,8 +520,17 @@ mod tests {
             sense: true,
         };
         let across = Vec3::new(0.3, 1.0, -0.2);
-        let read =
-            |own, next, bounds| apex_corner_shape((own, next), &apex, bounds, across, band());
+        let read = |own, next, bounds| apex_corner_shape((own, next), &apex, bounds, band());
+        let inside = |next: Vec3<f64>, shape: ApexShape<f64>| {
+            apex_extrema_inside(
+                &apex,
+                (next.normalize(), shape.window),
+                across,
+                shape.arm,
+                band(),
+            )
+            .unwrap()
+        };
         let ruling = Vec3::new(0.0, 1.0, 1.0);
         let refused = read(ruling, ruling, CornerBounds::Distinct)
             .expect_err("a window of no width between distinct edges");
@@ -352,8 +545,9 @@ mod tests {
             "the window's own rung refuses: {refused:?}"
         );
         let turn = read(ruling, ruling, CornerBounds::SlitTip).expect("the slit tip's whole turn");
+        assert!(turn.whole_turn, "the tip reads its whole turn: {turn:?}");
         assert_eq!(
-            turn.rulings.len(),
+            inside(ruling, turn).len(),
             2,
             "both extremal rulings lie inside the turn: {turn:?}"
         );
@@ -364,18 +558,12 @@ mod tests {
                 read(own, next, CornerBounds::SlitTip).unwrap(),
             );
             assert!(
-                distinct.arm == tip.arm
-                    && distinct.rulings.len() == tip.rulings.len()
-                    && distinct
-                        .rulings
-                        .iter()
-                        .zip(&tip.rulings)
-                        .all(|(&a, &b)| a.same_bits(b)),
+                distinct.arm == tip.arm && distinct.window == tip.window,
                 "a corner between rulings apart reads alike under either bounds: {distinct:?} \
                  against {tip:?}"
             );
             assert_eq!(
-                distinct.rulings.len(),
+                inside(next, distinct).len(),
                 1,
                 "one extremal ruling lies inside it"
             );
