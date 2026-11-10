@@ -110,6 +110,15 @@ pub enum SetAsideWhy {
         /// The ray's distance from the nearer edge met in band.
         gap: Indeterminate,
     },
+    /// It met a face at an edge where the passage's two crossings could
+    /// not be ordered at this tolerance, and reads nothing there: an
+    /// unordered crossing, never a pair.
+    Order {
+        /// The two faces of the edge.
+        faces: [FaceKey; 2],
+        /// The in-band reading of which crossing is nearer.
+        gap: Indeterminate,
+    },
     /// A crossing it could not place: in band of a face's boundary, or
     /// of a face it met tangentially.
     Crossing(PointInSolidError),
@@ -204,6 +213,14 @@ impl core::fmt::Display for UnreadRays<'_> {
                     f,
                     ", it passed in band of two edges of {}, narrower than the band there \
                      (one of them shared with {}): {}",
+                    EntityId::Face(faces[0]),
+                    EntityId::Face(faces[1]),
+                    gap.payload()
+                )?,
+                SetAsideWhy::Order { faces, gap } => write!(
+                    f,
+                    ", it met the edge between {} and {} where its two crossings could not be \
+                     ordered: {}",
                     EntityId::Face(faces[0]),
                     EntityId::Face(faces[1]),
                     gap.payload()
@@ -743,11 +760,12 @@ fn aimed_ray<T: Decide>(
                 })
             },
             |hits| {
-                RayHit::unread(hits, |wedge, faces, gap| {
-                    Unread::Mark(if wedge {
-                        SetAsideWhy::Wedge { faces, gap }
-                    } else {
-                        SetAsideWhy::Corner { faces, gap }
+                RayHit::unread(hits, |kind, faces, gap| {
+                    use crate::boolean::solid_contain::MarkKind;
+                    Unread::Mark(match kind {
+                        MarkKind::Wedge => SetAsideWhy::Wedge { faces, gap },
+                        MarkKind::Corner => SetAsideWhy::Corner { faces, gap },
+                        MarkKind::Order => SetAsideWhy::Order { faces, gap },
                     })
                 })
             },

@@ -249,8 +249,13 @@ fn the_curved_dumbbell_is_the_window_at_f64_and_waits_on_the_offset_door_at_inte
 /// **The box with a cylindrical void refuses at both scalars before
 /// the cavity gate**: its dilated void crosses the cavity's planar
 /// `x = 3.9` wall at an angle the planar `moved_walls_cross` reads, so
-/// `f64` refuses `OffsetsCross`, and at `Interval` that read's overlap
-/// encloses zero and escalates at `shell_moved_walls_overlap`.
+/// `f64` refuses `OffsetsCross`. At `Interval` the walls' crossings along
+/// the cut line are ordered first (`shell_moved_wall_order`), and two of
+/// them read as an enclosure 1.5 m wide straddling the band's edge: the
+/// order escalates there, one read before the overlap
+/// (`shell_moved_walls_overlap`) would. The fold that ordered them kept
+/// its walk order over that straddle, a silent guess; the decided argmin
+/// refuses it (`work/onecopy/an-argmin-by-decided-comparison-is-spelled-three-ways.md`).
 #[test]
 fn the_box_with_a_cylindrical_void_refuses_at_the_moved_walls_read() {
     let at_f64 = shell(box_with_void::<f64>(), 0.1);
@@ -261,7 +266,7 @@ fn the_box_with_a_cylindrical_void_refuses_at_the_moved_walls_read() {
     );
     match shell(box_with_void::<Interval>(), 0.1) {
         Err(ShellError::Escalated { source })
-            if source.predicate == Some("shell_moved_walls_overlap") => {}
+            if source.predicate == Some("shell_moved_wall_order") => {}
         other => panic!("at Interval: {:?}", other.map(|_| ())),
     }
 }

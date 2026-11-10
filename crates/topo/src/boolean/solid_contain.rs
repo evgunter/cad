@@ -3066,9 +3066,25 @@ pub(crate) enum Mark {
     /// A face the ray passes within the band of at two of its edges,
     /// narrower than the band there, `gap` the nearer edge's distance.
     Wedge(Indeterminate),
+    /// A face met at an edge whose two crossings the passage could not
+    /// order in band, `gap` the reading ([`curved_edges`]'s nearest
+    /// crossing): a graze that keeps its margin, as a corner's and a
+    /// wedge's do.
+    Order(Indeterminate),
     /// A vertex on the ray, a wedge whose edges it passes through, or a
     /// crossing no reading here places.
     Graze,
+}
+
+/// Which in-band mark set a ray aside ([`RayHit::unread`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MarkKind {
+    /// [`Mark::Corner`].
+    Corner,
+    /// [`Mark::Wedge`].
+    Wedge,
+    /// [`Mark::Order`].
+    Order,
 }
 
 impl<T: Copy> RayHit<T> {
@@ -3167,21 +3183,22 @@ impl<T: Copy> RayHit<T> {
     }
 
     /// The fault a sideless hit the count reached reads, `unread` a
-    /// corner's or a wedge's (`true` for a wedge): a corner or wedge in
-    /// band of the ray, else a graze.
+    /// corner's, a wedge's or an unordered crossing's ([`MarkKind`]): a
+    /// mark in band of the ray, else a graze.
     pub(crate) fn unread<E>(
         hits: &[&Self],
-        unread: impl FnOnce(bool, [FaceKey; 2], Indeterminate) -> E,
+        unread: impl FnOnce(MarkKind, [FaceKey; 2], Indeterminate) -> E,
     ) -> RayFault<E> {
         match hits.iter().find_map(|h| {
             let faces = [h.face, h.other.unwrap_or(h.face)];
             match h.mark {
-                Some(Mark::Corner(gap)) => Some((false, faces, gap)),
-                Some(Mark::Wedge(gap)) => Some((true, faces, gap)),
-                _ => None,
+                Some(Mark::Corner(gap)) => Some((MarkKind::Corner, faces, gap)),
+                Some(Mark::Wedge(gap)) => Some((MarkKind::Wedge, faces, gap)),
+                Some(Mark::Order(gap)) => Some((MarkKind::Order, faces, gap)),
+                Some(Mark::Graze) | None => None,
             }
         }) {
-            Some((wedge, faces, gap)) => RayFault::InBand(unread(wedge, faces, gap)),
+            Some((kind, faces, gap)) => RayFault::InBand(unread(kind, faces, gap)),
             None => RayFault::Graze,
         }
     }
@@ -4968,11 +4985,12 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
             if let Some(e) = unread.limit() {
                 kept.blocked(e.clone());
             }
-            // A ray set aside at a corner or a wedge read in band there:
-            // it is this point's evidence, not a pair.
+            // A ray set aside at a corner, a wedge or an unordered crossing
+            // read in band there: it is this point's evidence, not a pair.
             for s in set_aside {
                 if let crate::side_reader::SetAsideWhy::Corner { faces, gap }
-                | crate::side_reader::SetAsideWhy::Wedge { faces, gap } = &s.why
+                | crate::side_reader::SetAsideWhy::Wedge { faces, gap }
+                | crate::side_reader::SetAsideWhy::Order { faces, gap } = &s.why
                 {
                     kept.in_band(PointInSolidError::Escalated {
                         face: faces[1],

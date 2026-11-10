@@ -205,12 +205,27 @@ pub(super) fn read<T: Decide>(
                 .map(|f| f.1)
                 .find(|g| matches!(g, Gap::Zero))
                 .unwrap_or(found[0].1);
-            let (Some(xa), Some(xb)) = (
+            let (xa, xb) = match (
                 nearest(&ca, (lo, hi), band, rows),
                 nearest(&cb, (lo, hi), band, rows),
-            ) else {
-                meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
-                continue;
+            ) {
+                (Nearest::Cross(xa), Nearest::Cross(xb)) => (xa, xb),
+                (Nearest::Fatal(diag), _) | (_, Nearest::Fatal(diag)) => {
+                    return Err(RayFault::Fatal(PointInSolidError::Escalated {
+                        face: faces[0],
+                        diag,
+                    }));
+                }
+                (Nearest::Order(gap), _) | (_, Nearest::Order(gap)) => {
+                    meets
+                        .marks
+                        .push(RayHit::marked(faces, at, Mark::Order(gap)));
+                    continue;
+                }
+                (Nearest::Graze, _) | (_, Nearest::Graze) => {
+                    meets.marks.push(RayHit::marked(faces, at, Mark::Graze));
+                    continue;
+                }
             };
             meets.meet(Met {
                 edge: e,
@@ -330,31 +345,56 @@ fn passes<T: Decide>(
     }
 }
 
+/// What [`nearest`] reads of a passage's crossings.
+enum Nearest {
+    /// The one nearest.
+    Cross(Cross),
+    /// No one is decided nearer than every other, on decided readings (a
+    /// tie, or two crossings the span's ends order apart): the ray grazes.
+    Graze,
+    /// An in-band reading is left in contention: the ray grazes, keeping
+    /// the margin ([`Mark::Order`]).
+    Order(geom_core::Indeterminate),
+    /// A poisoned reading, or an enclosure straddling the band's edge:
+    /// the ray refuses the query ([`RayFault::Fatal`]).
+    Fatal(geom_core::Indeterminate),
+}
+
 /// The crossing of `cs` nearest the passage spanning `(lo, hi)` along
-/// the ray: the only one, or the one decided nearer than every other
-/// (`order`, a magnitude) from both ends of the span; `None` where no
-/// one is.
-fn nearest<T: Decide>(
-    cs: &[(Cross, T)],
-    (lo, hi): (T, T),
-    band: Band,
-    rows: RayRows,
-) -> Option<Cross> {
-    cs.iter()
-        .enumerate()
-        .find(|&(i, &(_, t))| {
-            cs.iter().enumerate().all(|(j, &(_, u))| {
-                j == i
-                    || [lo, hi].iter().all(|&at| {
-                        decide(
-                            rows.order(),
-                            Margin::of((u - at).abs() - (t - at).abs()),
-                            band,
-                        ) == Ok(Sign::Positive)
-                    })
-            })
+/// the ray, through the decided argmin free of nothing
+/// ([`geom_core::ladder::argmin_decided`]): the only one, or the one
+/// decided nearer than every other (`order`, a magnitude) from both ends
+/// of the span. Two crossings the two ends order apart are no nearer
+/// either way, a tie.
+fn nearest<T: Decide>(cs: &[(Cross, T)], (lo, hi): (T, T), band: Band, rows: RayRows) -> Nearest {
+    use geom_core::ladder::{FreeOf, Undecided, Unpicked, argmin_decided};
+    let cmp = |&(_, t): &(Cross, T), &(_, u): &(Cross, T)| {
+        let mut signs = [Sign::Zero; 2];
+        for (k, at) in [lo, hi].into_iter().enumerate() {
+            signs[k] = decide(
+                rows.order(),
+                Margin::of((t - at).abs() - (u - at).abs()),
+                band,
+            )
+            .map_err(Undecided::of)?;
+        }
+        Ok(if signs[0] == signs[1] {
+            signs[0]
+        } else {
+            Sign::Zero
         })
-        .map(|(_, &(c, _))| c)
+    };
+    match argmin_decided(cs.iter().copied(), cmp, FreeOf::Nothing) {
+        Ok(Some((c, _))) => Nearest::Cross(c),
+        Ok(None) | Err(Unpicked::Contested { in_band: None, .. }) => Nearest::Graze,
+        Err(Unpicked::Contested {
+            in_band: Some(gap), ..
+        }) => Nearest::Order(gap),
+        Err(Unpicked::Aborted(diag)) => Nearest::Fatal(diag),
+        // Nearer from both ends is the meet of two orders by distance,
+        // which ranks in no cycle.
+        Err(Unpicked::Cyclic) => unreachable!("an order from two ends ranks in no cycle"),
+    }
 }
 
 #[cfg(test)]

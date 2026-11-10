@@ -30,6 +30,11 @@
 #   refusal-only    a best kept only to say which refusal a search
 #                   reports, every definite answer certified elsewhere
 #                   (the row's site cites the step)
+#   lex-total       a minimum under a strict total order on what the fold
+#                   reads (no two candidates tie, every undecided read
+#                   escalates), so its n − 1 reads find the door's answer;
+#                   the door's strict-total-order mode is its home once a
+#                   second site has that premise (the argmin row)
 #   pair            two candidates read by one decided comparison, its
 #                   tie and its undecided reading each the site's own
 #                   refusal: an argmin of two is that comparison
@@ -38,7 +43,8 @@
 # function, a binding declared `let mut NAME` that is reassigned
 # (`NAME = …`, or `NAME.0 = …`, not `==`) within six lines after a
 # decided call (`decide(`, `decide_reported(`, `decide_magnitude(`,
-# `prove(`, `sign_within(`, `nearest_sign(`, `along_sign(`) whose
+# `prove(`, `sign_within(`, `nearest_sign(`, `along_sign(`, and the
+# named deciding helper `lex_less(`) whose
 # argument text names NAME: the fold compares a candidate against its
 # incumbent. ALSO, by name alone: a `let mut` binding named best, least,
 # nearest, closest, incumbent, winner or min, in a function holding a
@@ -46,8 +52,8 @@
 # bindings once.
 #
 # BLIND SPOTS, stated as this gate's own: a fold whose comparison is
-# a helper's (`lex_less(p, best)` where the helper decides) and whose
-# binding has none of the names above; a fold over `.min_by`/`.fold`
+# a helper's that the list above does not name, and whose binding has
+# none of the names above; a fold over `.min_by`/`.fold`
 # with a decided closure; an incumbent reassigned more than six lines
 # after its comparison; a call through a path or a macro. A raised
 # count, a new row, or a class changed within a row passes here; the
@@ -73,9 +79,11 @@ import glob, os, re, sys
 
 table_path = sys.argv[1]
 EXEMPT = {"crates/geom-core/src/ladder.rs"}
-CLASSES = {"nearest-unique", "cluster", "refusal-only", "pair"}
+CLASSES = {"nearest-unique", "cluster", "refusal-only", "pair", "lex-total"}
 TEST_NAME = re.compile(r"(?:_rows|_fuzz)\.rs$|^test_support")
-DECIDED = re.compile(r"\b(?:decide|decide_reported|decide_magnitude|prove|sign_within|nearest_sign|along_sign)\s*\(")
+# The decided calls, and the named helpers that decide (a helper's own
+# decide is in another function, out of this gate's sight).
+DECIDED = re.compile(r"\b(?:decide|decide_reported|decide_magnitude|prove|sign_within|nearest_sign|along_sign|lex_less)\s*\(")
 NAMES = {"best", "least", "nearest", "closest", "incumbent", "winner", "min"}
 LOOP = re.compile(r"\b(?:for|while|loop)\b")
 
