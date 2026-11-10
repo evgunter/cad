@@ -466,9 +466,9 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         at: Point2::new(-1.0, 0.0),
         reason: CornerReason::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint),
     };
-    for corners in [
-        vec![anchor.clone(), radius.clone()],
-        vec![radius.clone(), anchor.clone()],
+    for (corners, which) in [
+        (vec![anchor.clone(), radius.clone()], "the first corner"),
+        (vec![radius.clone(), anchor.clone()], "the second"),
     ] {
         let said = PathError::NoCornerOfPair {
             radius: 0.3,
@@ -476,10 +476,10 @@ fn a_pairs_radius_levers_fold_into_moving_the_anchor() {
         }
         .to_string();
         assert!(
-            said.ends_with(
-                ". Recourse: anchor the outgoing leg at least 0.4000000001 m from the corner, \
-                 or use a radius of 0.22499999999 m or less"
-            ),
+            said.ends_with(&format!(
+                ". Recourse: anchor the outgoing leg at least 0.4000000001 m from {which}, or use \
+                 a radius of 0.22499999999 m or less"
+            )),
             "the pair names the wider menu once: {said}"
         );
     }

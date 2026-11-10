@@ -3,35 +3,20 @@
 //! At one corner the offset carriers admit up to two candidate
 //! circles, and both can round the corner the author named yet push a
 //! tangent point off the far end of a leg. The refusal that follows
-//! (`CornerReason::AnchorOutsideTrimmedExtent { side, carrier, setback,
-//! available }`) names one candidate's numbers on one leg, so the rows
-//! here pin WHICH:
-//!
-//! - the candidate nearest to fitting IN THE SETBACK METRIC —
-//!   `fillet_select::nearest_candidate`'s ladder over the candidates'
-//!   setback pairs, the crate's one home of "the nearest candidate at
-//!   one corner" (a candidate tie is unreachable by geometry: one
-//!   candidate is shallower on both legs);
-//! - on that candidate's WORSE leg — the one whose setback outruns its
-//!   extent by more — ties to the incoming leg.
+//! (`CornerReason::AnchorOutsideTrimmedExtent { legs, radius_at_anchor }`)
+//! carries one candidate's numbers on both legs, so the rows here pin
+//! WHICH: the candidate nearest to fitting —
+//! `fillet_select::nearest_candidate`'s ladder over the candidates'
+//! setback pairs, the crate's one home of "the nearest candidate at
+//! one corner" (a candidate tie is unreachable by geometry: one
+//! candidate is shallower on both legs).
 //!
 //! The pick is `path::arc_fillet::map_refusal`'s, by `f64` enclosure
-//! reads of setbacks and margins `sugar::arc_fillet_trims` already
-//! classified; the construction carries every corner-side overrun out
-//! at the scalar and compares nothing.
-//!
-//! **What the reported number is not.** `setback − available` is the
-//! reported leg's overrun in the setback metric. It is NOT the radius
-//! reduction that would make the corner fit, and the recourse the
-//! sentence ends in ("reduce the radius or move the anchor") is
-//! un-metered on purpose: a setback does not scale 1:1 with the radius
-//! on either leg kind. Followed as a radius reduction over grid A it is
-//! not a request at 469 entries, leaves the same corner refusing at
-//! 2 111 and builds at 605, never tight — the census and its
-//! counter-fixtures are `review_fillet_overrun_nearest_fit_r1_probes`
-//! and `_r2_probes`, and `fillet_recourse_followability`'s fit row is
-//! an unremarked instance of the same class. The residue is
-//! `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
+//! reads of setbacks `sugar::arc_fillet_trims` already classified; the
+//! construction carries every corner-side overrun out at the scalar and
+//! compares nothing. The census's side counts read the candidate's
+//! worse leg (`common::worse_leg`). The radius lever's number is
+//! `fillet_radius_at_anchor`'s subject.
 //!
 //! The fixtures are authorings of FILLET-ATTR's grid A
 //! (`common::grid_a`; `n` names the authoring's ordinal in that
@@ -187,12 +172,12 @@ fn a_single_candidate_carries_both_legs_on_the_line_arc_channel() {
 /// **The grid-A census.** Over the 3 185 anchor-fit entries grid A
 /// reports: the 19 entries whose CANDIDATE differs from the
 /// first-enumerated one carry the nearest fit's numbers and not the
-/// first's (both measured, per authoring); and the leg rule names the
+/// first's (both measured, per authoring); and the worse leg is the
 /// outgoing side at 230 entries where the incoming leg also overran
 /// (one of them also a candidate change), so the side census is
 /// `Incoming 1555, Outgoing 1630` where naming the incoming leg
-/// whenever it overran gives `1785 / 1400`. Restoring either pick
-/// turns a cell red.
+/// whenever it overran gives `1785 / 1400`. Restoring the
+/// first-enumerated candidate turns a cell red.
 #[test]
 fn grid_a_census_of_the_reports_that_changed() {
     /// One report the rule moves off enumeration order: the authoring,
@@ -405,7 +390,7 @@ fn grid_a_census_of_the_reports_that_changed() {
     assert_eq!(
         (incoming, outgoing),
         (1_555 - inside_in, 1_630 - inside_out),
-        "the side census under the leg rule"
+        "the worse-leg side census"
     );
 }
 

@@ -3255,7 +3255,7 @@ pub fn pen<T: ArcCarrierScalar>(
     })
 }
 
-/// **A side one fused fillet step fillets between**, whole, as its fit
+/// **A side one fillet step fillets between**, whole, as its fit
 /// was handed it: the carrier and the on-path point that anchors it.
 #[derive(Clone, Copy, Debug)]
 pub enum Carrier<T: Real> {

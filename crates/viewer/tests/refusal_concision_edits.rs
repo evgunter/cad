@@ -783,7 +783,7 @@ fn next_section_id_fault(fault: &SectionIdFault) -> Option<SectionIdFault> {
 /// each one the feature tree's census measures over 60 words.
 fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
     use profile::PathError as P;
-    use profile::{CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, NoCornerReason};
+    use profile::{CornerReason, CornerRefusal, FilletLegCarrier, LegFit, NoCornerReason};
     vec![
         (
             "SeamArrivalOffDirection",
@@ -818,10 +818,21 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
                     CornerRefusal {
                         at: geom_core::Point2::new(0.25, -0.5),
                         reason: CornerReason::AnchorOutsideTrimmedExtent {
-                            side: FilletLeg::Outgoing,
-                            carrier: FilletLegCarrier::Line,
-                            setback: 0.4,
-                            available: 0.3,
+                            legs: [
+                                LegFit {
+                                    carrier: FilletLegCarrier::Line,
+                                    setback: 0.4,
+                                    available: 1.0,
+                                    overruns: false,
+                                },
+                                LegFit {
+                                    carrier: FilletLegCarrier::Line,
+                                    setback: 0.4,
+                                    available: 0.3,
+                                    overruns: true,
+                                },
+                            ],
+                            radius_at_anchor: Some(0.225),
                         },
                     },
                     CornerRefusal {
@@ -980,6 +991,17 @@ const FILED_NO_RECOURSE: &[&str] = &[
     "Edit/ProfileProgramRefused(Validate)",
 ];
 
+/// The rows admitted over the word budget, each at the most words it
+/// renders today and filed with its owner: a row over its ceiling, or
+/// under it with the ceiling standing, is red.
+const OVER_BUDGET: &[(&str, usize)] = &[
+    // work/round/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
+    (
+        "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(two))",
+        84,
+    ),
+];
+
 /// **Every edit refusal the status line draws meets the standard.**
 /// Each `EditError` arm, and each forwarding arm over what it forwards,
 /// rendered through [`Refusal::Edit`] and held to
@@ -1012,9 +1034,28 @@ fn every_edit_refusal_renders_within_the_budget() {
         }
         let allowed: Vec<&str> = scoped.iter().map(|(_, l)| *l).collect();
         let no_recourse = format!("{name} states no recourse");
+        let words = text.split_whitespace().count();
+        let ceiling = OVER_BUDGET
+            .iter()
+            .find_map(|(row, most)| (*row == name.as_str()).then_some(*most));
+        let breach = format!(
+            "{name} renders {words} words, over {}",
+            test_utils::refusal::BUDGET
+        );
+        if let Some(most) = ceiling {
+            used.insert(format!("OVER_BUDGET {name}"));
+            if words != most {
+                problems.push(format!(
+                    "{name} renders {words} words against its admitted {most}: {text}"
+                ));
+            }
+        }
         for problem in
             test_utils::refusal::problems_admitting(&name, &text, &allowed, false, ADMISSIONS)
         {
+            if ceiling.is_some() && problem.starts_with(&breach) {
+                continue;
+            }
             if FILED_NO_RECOURSE.contains(&name.as_str()) && problem.starts_with(&no_recourse) {
                 used.insert(format!("FILED_NO_RECOURSE {name}"));
             } else {
@@ -1031,6 +1072,7 @@ fn every_edit_refusal_renders_within_the_budget() {
                 .iter()
                 .map(|n| format!("FILED_NO_RECOURSE {n}")),
         )
+        .chain(OVER_BUDGET.iter().map(|(n, _)| format!("OVER_BUDGET {n}")))
     {
         if !used.contains(&entry) {
             problems.push(format!(

@@ -1024,7 +1024,7 @@ impl std::error::Error for StructureRefusal {}
 #[derive(Clone, Debug)]
 pub(crate) enum Guide<T: Real> {
     /// Selecting freely and recording what was selected — and, where
-    /// the pass draws its construction, what each arc fillet's fit was
+    /// the pass draws its construction, what each fillet's fit was
     /// handed.
     Recording(ReplayStructure, Option<crate::path::program::Drawing<T>>),
     /// Consuming a prior pass's selections and re-verifying each.

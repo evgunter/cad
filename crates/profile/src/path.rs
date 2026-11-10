@@ -564,7 +564,7 @@ impl sealed::Sealed for ArrivesTangent {}
 /// typed). Named `Path…` to keep it distinct from the crate-root
 /// [`crate::NoCornerReason`] (the verify layer's fillet-constructor
 /// vocabulary) — different doors, different conditions.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub enum PathNoCornerReason<T: Real> {
     /// The two carriers touch tangentially at tolerance — a ray tangent
     /// to its circle, or two circles tangent to each other — read on an
@@ -594,6 +594,12 @@ pub enum PathNoCornerReason<T: Real> {
         lever: T,
         /// Which length that is.
         lever_of: TurnLever,
+        /// The corner whose turn this is, where one was derived: the
+        /// arc-carrier door derives each corner before its turn gate,
+        /// so on a pair with two corners this names which. The straight
+        /// pair's turn gate is what places its one corner, so a turn at
+        /// tolerance leaves it `None`.
+        corner: Option<Point2<T>>,
     },
 }
 
@@ -785,32 +791,33 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                     "every tangent circle of that radius touches a side past this corner"
                 ),
             },
-            // The carriers ride the payload; the sentence names the
-            // anchors the trim eats and both legs' lengths that decide
-            // it. The recourse is the pair's, stated once after every
-            // corner.
+            // The carriers, and the legs that fit, ride the payload; the
+            // sentence names each anchor the trim eats and the two
+            // lengths that decide it. The recourse is the pair's, stated
+            // once after every corner.
             Self::AnchorOutsideTrimmedExtent { legs, .. } => {
-                match [legs[0].overruns, legs[1].overruns] {
-                    [true, true] => f.write_str("the fillet trim would eat both legs' anchors")?,
-                    [true, false] => {
-                        write!(f, "the fillet trim would eat the {}'s anchor", LEGS[0])?
+                match (legs[0].overruns, legs[1].overruns) {
+                    (true, false) | (false, true) => {
+                        let k = usize::from(legs[1].overruns);
+                        write!(
+                            f,
+                            "the fillet trim would eat the {side}'s anchor (setback {setback} m, \
+                             {available} m available)",
+                            side = LEGS[k],
+                            setback = num(&legs[k].setback),
+                            available = num(&legs[k].available)
+                        )
                     }
-                    [false, true] => {
-                        write!(f, "the fillet trim would eat the {}'s anchor", LEGS[1])?
-                    }
-                    [false, false] => f.write_str("the fillet trim would eat a leg's anchor")?,
+                    (true, true) | (false, false) => write!(
+                        f,
+                        "the fillet trim would eat both legs' anchors (incoming setback {s0} m, \
+                         {a0} m available; outgoing {s1} m, {a1} m)",
+                        s0 = num(&legs[0].setback),
+                        a0 = num(&legs[0].available),
+                        s1 = num(&legs[1].setback),
+                        a1 = num(&legs[1].available),
+                    ),
                 }
-                write!(
-                    f,
-                    " ({in_leg}: setback {s0} m, {a0} m available; {out_leg}: setback {s1} m, \
-                     {a1} m available)",
-                    in_leg = LEGS[0],
-                    out_leg = LEGS[1],
-                    s0 = num(&legs[0].setback),
-                    a0 = num(&legs[0].available),
-                    s1 = num(&legs[1].setback),
-                    a1 = num(&legs[1].available),
-                )
             }
             // The offset radius rho that decides the swallow rides the
             // payload; the sentence names the carrier's own radius.
@@ -1078,7 +1085,7 @@ fn write_pair_recourse<T: Real>(
     match merged {
         PairRecourse::Unnamed => Ok(()),
         PairRecourse::AnchorOrRadius { anchors, radius } => {
-            let ordinals = anchors.iter().filter(|(_, a)| !a.is_empty()).count() > 1;
+            let ordinals = recourses.len() > 1;
             let mut sep = "anchor ";
             for (k, targets) in anchors.iter().filter(|(_, a)| !a.is_empty()) {
                 f.write_str(sep)?;
@@ -1168,6 +1175,16 @@ pub enum PathError<T: Real> {
         margin: T,
         /// The lever arm, meters.
         arm: T,
+    },
+    /// **A declared cusp on a straight leg is left by a straight run**:
+    /// `.cusp()` reverses the leg's own line exactly, so the run after
+    /// it — a `line`, or the incoming run of the fillet that follows —
+    /// lies back over the leg, and the loop is never simple. Refused at
+    /// the close, naming the cusp, rather than handed to validation as
+    /// an overlap of two segment indices.
+    CuspDoublesBackOverLeg {
+        /// The cusp: the straight leg's end.
+        at: Point2<T>,
     },
     /// **The SEAM's own junction is tangent and nothing declared it**:
     /// the arriving direction is within ε_input of the entry's outgoing
@@ -1814,6 +1831,8 @@ pub enum PathErrorKind {
     JunctionTangent,
     /// [`PathError::JunctionCusp`].
     JunctionCusp,
+    /// [`PathError::CuspDoublesBackOverLeg`].
+    CuspDoublesBackOverLeg,
     /// [`PathError::SeamTangent`].
     SeamTangent,
     /// [`PathError::SeamArrivalOffDirection`].
@@ -1929,6 +1948,7 @@ impl<T: Real> PathError<T> {
         match self {
             Self::JunctionTangent { .. } => PathErrorKind::JunctionTangent,
             Self::JunctionCusp { .. } => PathErrorKind::JunctionCusp,
+            Self::CuspDoublesBackOverLeg { .. } => PathErrorKind::CuspDoublesBackOverLeg,
             Self::SeamTangent { .. } => PathErrorKind::SeamTangent,
             Self::SeamArrivalOffDirection { .. } => PathErrorKind::SeamArrivalOffDirection,
             Self::SeamArrivalLeverTooShort { .. } => PathErrorKind::SeamArrivalLeverTooShort,
@@ -2166,6 +2186,14 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 margin = num(margin),
                 arm = num(arm)
             ),
+            Self::CuspDoublesBackOverLeg { at } => write!(
+                f,
+                "the cusp at ({x}, {y}) reverses a straight leg, and the straight run after it \
+                 lies back over that leg. Recourse: leave the cusp on an arc (a tangent arc, or a \
+                 fillet whose tangent point is the leg's end), or turn instead of reversing",
+                x = num(&at.x),
+                y = num(&at.y)
+            ),
             Self::JunctionCusp { margin, arm } => write!(
                 f,
                 "this junction reverses onto the incoming direction at any precision you \
@@ -2229,6 +2257,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         align,
                         lever,
                         lever_of,
+                        corner,
                     } => {
                         let (lever_name, recourse) = match lever_of {
                             TurnLever::ShorterLeg => (
@@ -2240,8 +2269,11 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                                 crate::fillet_recourse::FILLET_ANCHOR_TURN_RECOURSE,
                             ),
                         };
+                        let at = corner.map_or_else(String::new, |at| {
+                            format!(" at corner ({x}, {y})", x = num(&at.x), y = num(&at.y))
+                        });
                         format!(
-                            "its turn, sin φ = {sin} (cos φ = {cos}) over {lever_name} of \
+                            "its turn{at}, sin φ = {sin} (cos φ = {cos}) over {lever_name} of \
                              {lever} m, is zero at tolerance. Recourse: {recourse}",
                             sin = num(sin_turn),
                             cos = num(align),
@@ -3055,6 +3087,9 @@ pub struct Core<T: Real> {
     /// The joints the chain's constructors made tangent
     /// ([`ConstructedLoop::constructed_joints`]).
     tangent: Vec<usize>,
+    /// The declared cusps that reverse a straight leg, as vertex
+    /// indices: a straight run leaving one lies back over the leg.
+    cusps_on_lines: Vec<usize>,
     start_pos: Option<Point2<T>>,
     start_ang: Option<Dir<T>>,
     first_seg: FirstSeg,
@@ -3130,6 +3165,7 @@ impl<T: Real> Core<T> {
         Self {
             verts: Vec::new(),
             tangent: Vec::new(),
+            cusps_on_lines: Vec::new(),
             start_pos: None,
             start_ang: None,
             first_seg: FirstSeg::NotYet,
@@ -3451,6 +3487,28 @@ impl<T: Real> Core<T> {
         if let Some(last) = self.verts.len().checked_sub(1) {
             self.tangent.push(last);
         }
+    }
+
+    /// Notes a declared cusp at the chain's last vertex when the leg it
+    /// ends is straight ([`Core::cusps_leave_on_arcs`]).
+    fn cusp_on_a_line(&mut self) {
+        if let Some(last) = self.verts.len().checked_sub(1)
+            && last > 0
+            && self.verts[last - 1].1.is_none()
+        {
+            self.cusps_on_lines.push(last);
+        }
+    }
+
+    /// **A cusp on a straight leg leaves on an arc**: the line leaving
+    /// it would lie back over the leg ([`PathError::CuspDoublesBackOverLeg`]).
+    fn cusps_leave_on_arcs(&self) -> Result<(), PathError<T>> {
+        for &k in &self.cusps_on_lines {
+            if let Some(&(at, None)) = self.verts.get(k) {
+                return Err(PathError::CuspDoublesBackOverLeg { at });
+            }
+        }
+        Ok(())
     }
 
     /// Records that the radius argument at `(step, role)` drew the arc
@@ -4486,6 +4544,7 @@ impl<T: Decide> Core<T> {
     /// carries and whose arcs pass through their authored points, or it
     /// is a refusal.
     fn build(self, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>> {
+        self.cusps_leave_on_arcs()?;
         self.fillets_carry_their_tangency(tol)?;
         let band = linear_band(tol)?;
         let n = self.verts.len();
@@ -4676,6 +4735,7 @@ impl<T: Decide> Core<T> {
                     align: u1.dot(u2),
                     lever: wn,
                     lever_of: TurnLever::AnchorSeparation,
+                    corner: None,
                 },
                 radius: pending.radius,
             });
@@ -5450,6 +5510,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     fn cusp_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
         self.tip.ang = self.inherited(true);
         self.core.construct_last();
+        self.core.cusp_on_a_line();
         in_state(self.core, self.tip)
     }
 
@@ -6830,10 +6891,7 @@ mod tests {
             },
         }
         .to_string();
-        assert!(
-            s.contains("(incoming leg: setback 0.008 m, 0.0035 m available;"),
-            "{s}"
-        );
+        assert!(s.contains("(setback 0.008 m, 0.0035 m available)"), "{s}");
         assert!(!s.contains("0.008000000000000002"), "{s}");
         assert!(!s.contains("0.0034999999999999996"), "{s}");
 

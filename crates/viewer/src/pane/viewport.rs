@@ -106,7 +106,7 @@ pub(crate) struct CameraFrame<'a> {
     pub(crate) profiles: marks::LegLane,
     /// The doors' previews.
     pub(crate) previews: &'a Previews,
-    /// What the doors' fused fillet steps construct.
+    /// What the doors' fillet steps construct.
     pub(crate) constructions: &'a Constructions,
     /// Whether a fit is owed this frame.
     pub(crate) fit: bool,
@@ -3614,6 +3614,73 @@ mod tests {
             built.max_x > kept.max_x + 0.5 && built.min_y < kept.min_y - 0.5,
             "{built:?} vs {kept:?}"
         );
+    }
+
+    /// **An anchor-fit refusal draws the circle that overran, and marks
+    /// its corner**: the ray east from the origin, filleted at 2.5 and
+    /// arriving north at (3, 2), refuses — the setback 2.5 outruns the
+    /// arrival's 2 m — and the construction holds the two lines, the
+    /// radius-2.5 circle about (0.5, 2.5) its trim would cut, a cross on
+    /// the diagonals at the corner (3, 0), and a square cross at each
+    /// tangent point, (0.5, 0) and (3, 2.5).
+    ///
+    /// Red if a refused line fillet draws no circle, or its refusal's
+    /// corner is not marked.
+    #[test]
+    fn an_anchor_fit_refusal_draws_its_overrun_and_marks_its_corner() {
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+        let steps = vec![
+            Step::At(Point2::new(0.0, 0.0)),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::Fillet { radius: 2.5 },
+            Step::Toward { dx: 0.0, dy: 1.0 },
+            Step::FarEndTo(Point2::new(3.0, 2.0)),
+            Step::LineTo(Target::Start),
+        ];
+        let (previews, constructions) = door(&[steps]);
+        assert!(
+            matches!(&previews.edit, Some(Err(_))),
+            "a fixture whose fillet refuses: {previews:?}"
+        );
+        let drawn = construction_legs(&constructions);
+        let turn = super::CONSTRUCTION_LEGS_PER_TURN as usize;
+        assert_eq!(
+            legs_on(&drawn, [0.5, 2.5], 2.5),
+            turn,
+            "the overrunning circle: {drawn:?}"
+        );
+        assert_eq!(drawn.len(), turn + 2, "two lines beside it: {drawn:?}");
+        let viewport = ViewportSize {
+            width_px: 800.0,
+            height_px: 600.0,
+        };
+        let view = crate::screen::view_of(&framed(), viewport).ok();
+        let marked = seen_construction_legs(&constructions, view);
+        let crossed = |at: [f64; 2], diagonal: bool| {
+            marked
+                .iter()
+                .filter(|leg| {
+                    let mid = [
+                        0.5 * (f64::from(leg[0][0]) + f64::from(leg[1][0])),
+                        0.5 * (f64::from(leg[0][1]) + f64::from(leg[1][1])),
+                    ];
+                    let (dx, dy) = (
+                        f64::from(leg[1][0] - leg[0][0]),
+                        f64::from(leg[1][1] - leg[0][1]),
+                    );
+                    let square = dx.abs() < 1.0e-6 || dy.abs() < 1.0e-6;
+                    (mid[0] - at[0]).hypot(mid[1] - at[1]) < 1.0e-6 && square != diagonal
+                })
+                .count()
+        };
+        assert_eq!(crossed([3.0, 0.0], true), 2, "the corner's cross");
+        assert_eq!(
+            crossed([0.5, 0.0], false),
+            2,
+            "the incoming tangent point's"
+        );
+        assert_eq!(crossed([3.0, 2.5], false), 2, "the arrival tangent point's");
     }
 
     /// **A wrong-side refusal draws the side it names**: the vesica

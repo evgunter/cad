@@ -1618,9 +1618,9 @@ pub fn drawn(
         .iter()
         .filter_map(|replayed| replayed.as_ref().err())
         .flat_map(|refused| match &refused.kind {
-            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerOfPair { corners, .. }) => {
-                corners.iter().map(|c| c.at).collect()
-            }
+            ReplayErrorKind::Path(pncad::profile::PathError::NoCornerOfPair {
+                corners, ..
+            }) => corners.iter().map(|c| c.at).collect(),
             _ => Vec::new(),
         })
         .collect();

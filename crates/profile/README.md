@@ -553,7 +553,8 @@ another gate, in that gate's own words. Where `radius_at_anchor` is
 is a closed `Recourse`, and a pair's one recourse is their exhaustive
 merge, taking the largest radius bound among its corners. The pins are
 `tests/fillet_overrun_nearest_fit.rs` and the two review probe suites
-beside it (`review_fillet_overrun_nearest_fit_r1_probes`, `_r2_probes`).
+beside it (`review_fillet_overrun_nearest_fit_r1_probes`, `_r2_probes`),
+and the radius lever's `tests/fillet_radius_at_anchor.rs`.
 
 ## The profile loop: format and tangency
 

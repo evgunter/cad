@@ -484,8 +484,9 @@ fn map_refusal<T: Bounds>(
             })
         }
         // The corner's turn does not clear the band at the derived
-        // corner: a statement about the PAIR rather than about one
-        // crossing, carrying both factors of the levered margin.
+        // corner: the side both carriers offset toward is undecided, a
+        // statement the pair's channel carries, with both factors of
+        // the levered margin and the corner it was taken at.
         ArcTrimRefusal::TurnInBand {
             sin_turn,
             align,
@@ -496,6 +497,7 @@ fn map_refusal<T: Bounds>(
                 align,
                 lever: arm,
                 lever_of: TurnLever::ShorterLeg,
+                corner: Some(corner),
             },
             radius,
         )),

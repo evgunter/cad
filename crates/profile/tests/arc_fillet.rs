@@ -810,7 +810,10 @@ fn an_already_tangent_corner_asks_for_the_tangent_construction_instead() {
         .expect_err("a tangent corner must refuse");
     match err {
         PathError::NoCornerForFillet { reason, radius } => {
-            assert_eq!(reason, PathNoCornerReason::CarriersTangent);
+            assert!(
+                matches!(reason, PathNoCornerReason::CarriersTangent),
+                "{reason:?}"
+            );
             assert_eq!(radius, 0.5);
         }
         other => panic!("expected NoCornerForFillet, got {other:?}"),
