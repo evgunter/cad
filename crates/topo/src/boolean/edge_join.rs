@@ -1452,7 +1452,10 @@ mod crease {
             "a point interval on the crease"
         );
         // Straddling it: the join's undecided reading, not a guess.
-        let got = reading(Interval::from_bounds(0.5 - 1e-12, 0.5 + 1e-12));
+        // Narrow against the band, so the split's point certifies: the
+        // straddle is in the parameter, not in the point's place.
+        let half = 1e-4 * Band::linear(Tol::witness()).unwrap().zero();
+        let got = reading(Interval::from_bounds(0.5 - half, 0.5 + half));
         assert!(
             matches!(
                 got,
