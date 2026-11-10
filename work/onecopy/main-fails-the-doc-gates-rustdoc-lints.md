@@ -2,10 +2,12 @@
 id: main-fails-the-doc-gates-rustdoc-lints
 kind: issue
 title: Main fails doc-gate.sh's rustdoc pass: 50 broken or ambiguous intra-doc links and redundant targets in 33 files
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: C
+closed: 2026-11-10
+pr: 6708
 ---
 
 
@@ -69,3 +71,7 @@ Each is an unresolved link, an ambiguous one (an item that is both a function an
 ## Done when
 
 The command above passes, and `scripts/doc-gate.sh` passes on main. A renamed or deleted target is re-pointed at what replaced it, or the link becomes plain code.
+
+## Closed (2026-11-10, PR 6708)
+
+Main at `f2d5c0639` had 51 sites in 35 files (one new since filing). All are re-pointed, the command above exits 0, and `scripts/doc-gate.sh` and its `--selftest` pass. `doc_pass_with` now passes `--keep-going`, which closes ciw's `main-red-the-doc-gates-workspace-pass-masks-35-broken-links`. For whoever owns CI cost: the workspace pass alone took 62 s wall on 4 cores with a fresh target, which is the price of a per-PR rustdoc step. Rustdoc stays nightly-only, by the latency cut's deliberate trade.
