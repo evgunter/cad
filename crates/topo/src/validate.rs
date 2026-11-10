@@ -245,7 +245,7 @@
 //!
 //! **Two doors sit beside the table rather than in it**, the pair
 //! [`AtRestBody`] carries: its construction at the certifying scalars'
-//! finish ([`crate::finish`]), which is [`validate_geometric`] keeping
+//! finish ([`crate::finish`](fn@crate::finish)), which is [`validate_geometric`] keeping
 //! its verdict with the body, and
 //! [`AtRestBody::validate_pseudomanifold`], the tier-3′ pass over that
 //! body, which runs the census and reads the battery's half off the
@@ -433,14 +433,9 @@ pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
 
 /// Whether an undecided reading lies inside the band: a point margin,
 /// or an enclosure wholly inside one sliver band.
+/// One home: [`geom_core::ladder::in_band`].
 pub(crate) fn in_band(diag: &geom_core::Indeterminate) -> bool {
-    match diag.margin.kind() {
-        geom_core::MarginKind::Value => true,
-        // An interval-lane reading; one straddling the band's edge is
-        // not in band.
-        geom_core::MarginKind::Enclosure => diag.terminal_sliver,
-        geom_core::MarginKind::Invalid => false,
-    }
+    geom_core::ladder::in_band(diag)
 }
 
 /// The crate's plain classification door (the `geom-brep` pattern):
@@ -2064,7 +2059,7 @@ pub enum ValidationError {
     },
     /// **Tier 3, one region per face, on a torus**: the face's essential
     /// surface cycles (those whose joint elements compose to a nonzero
-    /// deck element, [`crate::surface_boundary::cycle_winding`]) are not a
+    /// deck element, [`crate::surface_boundary::surface_cycle_windings`]) are not a
     /// separating pair. A face holds none or two, and two only where
     /// their windings are opposite, so that they bound one band of the
     /// torus between them.
@@ -4601,7 +4596,8 @@ impl ValidationError {
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
             Self::DegenerateTorus { verdict, .. } => f.write_str(
-                &geom_brep::TorusConvention::Ring.refused_ended("a torus face's", *verdict, at),
+                &geom_brep::TorusRefusal::decided(geom_brep::TorusConvention::Ring, *verdict)
+                    .said("a torus face's", at),
             ),
             Self::DegenerateSpindle { miss, .. } => match miss.verdict {
                 Ok(decided) => write!(

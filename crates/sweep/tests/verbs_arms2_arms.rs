@@ -249,8 +249,7 @@ impl Row {
     ) -> (EdgeBlend<f64>, Point3<f64>) {
         if let Some((origin, axis)) = self.axis {
             let sheet = Meridian {
-                origin,
-                axis,
+                axis: geom::Line { origin, dir: axis },
                 rim: self.rim,
             };
             let (ta, da) = sheet.trace(&self.a, senses.0).expect("a coaxial trace");
@@ -487,8 +486,10 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
             Convexity::Convex,
         );
         let sheet = Meridian {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            axis: geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 1.0, 0.0),
+            },
             rim,
         };
         // The plane's stored normal IS `n` and its material side is the

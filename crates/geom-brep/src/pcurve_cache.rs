@@ -5690,9 +5690,7 @@ impl<T: Decide> EnvelopeTerms<T> {
     }
 }
 
-/// Check 4 on a periodic chart: the carrier's incidence under the
-/// structure [`derive_harmonic`] selects for it, plus the stored
-/// image's fidelity to the image it derives.
+/// [`periodic_envelope_shown`] with no incidence read taken.
 #[cfg(test)]
 fn periodic_envelope<T: Decide>(
     stored: (Channel<T>, Channel<T>),
@@ -5715,9 +5713,12 @@ fn periodic_envelope<T: Decide>(
     )
 }
 
-/// [`periodic_envelope`] behind the stored chart's incidence read the
-/// certification already took (`shown`), carried to the re-derivation
-/// on the chart's orthonormalised twin rather than read there again.
+/// Check 4 on a periodic chart: the carrier's incidence under the
+/// structure [`derive_harmonic`] selects for it, plus the stored
+/// image's fidelity to the image it derives. An incidence read the
+/// certification already took on the stored chart (`shown`) is
+/// carried to the re-derivation on the chart's orthonormalised twin
+/// rather than read there again.
 #[allow(clippy::too_many_arguments)]
 fn periodic_envelope_shown<T: Decide>(
     stored: (Channel<T>, Channel<T>),
@@ -11707,7 +11708,8 @@ mod incidence {
 
     /// **The chart's incidence test of one point** ([`super::read_point_incidence`]):
     /// the point's distance from the analytic chart, decided by
-    /// [`incidence_over_span`] in the point's own frame ([`anchored`]).
+    /// [`incidence_over_span`](super::incidence_over_span) in the point's
+    /// own frame ([`anchored`]).
     pub(super) fn point_incident<T: Decide>(
         point: geom_core::Point3<T>,
         surface: &Surface<T>,

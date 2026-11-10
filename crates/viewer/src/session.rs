@@ -735,7 +735,7 @@ struct LandedRun {
     files: PartFiles,
     /// **What the certifying scalar said of this pair's clearance
     /// requirements** ([`Clearances`]): owed by the landing, and settled
-    /// into it when the certify seam answers ([`DocSession::certified`]).
+    /// into it when the certify seam answers ([`DocSession::settle`]).
     clearances: Clearances,
 }
 

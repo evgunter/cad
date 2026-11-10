@@ -19,6 +19,12 @@
 //! layer, under a placement rule stated and argued in `geom-brep`'s
 //! `nurbs_iso` module docs.
 //!
+//! **One roster of the readers' funnel rows** lives at this root, in the
+//! interior module `reader_rows`: every reader of the ring convention
+//! ([`RingReader`], the only minter of [`RingSites`]) and of the spiric
+//! regime ([`SpiricReader`], the only minter of [`SpiricRegimeSites`]),
+//! read off the two enums and checked distinct when this crate compiles.
+//!
 //! # Conventions (normative, stated once)
 //!
 //! These are the parameterization conventions every consumer — edges,

@@ -4585,7 +4585,7 @@ fn far_from(
     let curved = every.iter().any(|(_, plane)| plane.is_none());
     let (mut near, mut extent) = (f64::INFINITY, 0.0_f64);
     for (e, plane) in every {
-        let mid = (e.t0 + e.t1) * Interval::from_f64(0.5);
+        let mid = geom::mid_param(e.t0, e.t1);
         for t in [e.t0, mid, e.t1] {
             let p = e.carrier.eval(t);
             let (to_c, to_g) = (lever(p, c, *plane).lo(), lever(p, c_g, *plane).hi());
