@@ -299,3 +299,21 @@ so the fix-pass delta gets a second FULL review before merge.
   new for the ray and arc-tip extensions and already on main for
   authored runs. The fix belongs in validation's span reading, so it
   gets a ROUND P2 issue.
+
+## 2026-11-10 — the extensions unit landed (PR 6682); handed back (`ready`)
+
+PR 6682 merged as `e7acc15c96` after the review, two fix passes and a
+second FULL review. The carriers row and the fit-gate row are closed.
+The span window just past the band is filed at P2. The second fix pass
+added a small `decide_passing` door in geom-core so the fit's in-band
+overrun offers no tighten; I read that pass myself and did not
+re-review it, since each fix carries a mutation-checked row.
+
+No P0 or P1 row is dispatchable: the refused-corner pair waits on Ev's
+answer on PR 6547. The two cost-E P3 refusal-sentence rows ride with
+that unit, since it rewrites the same sentences. ROUND goes back
+`ready`, with the P2/P3 tail on the board. When Ev answers 6547:
+- record the decision and the label mapping in its DESIGN-FORK-LOG row,
+  renumbered past main's last;
+- refresh its PR body;
+- unpark the two rows.
