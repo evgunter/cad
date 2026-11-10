@@ -245,7 +245,7 @@
 //!
 //! **Two doors sit beside the table rather than in it**, the pair
 //! [`AtRestBody`] carries: its construction at the certifying scalars'
-//! finish ([`crate::finish`]), which is [`validate_geometric`] keeping
+//! finish ([`crate::finish`](fn@crate::finish)), which is [`validate_geometric`] keeping
 //! its verdict with the body, and
 //! [`AtRestBody::validate_pseudomanifold`], the tier-3′ pass over that
 //! body, which runs the census and reads the battery's half off the
@@ -2064,7 +2064,7 @@ pub enum ValidationError {
     },
     /// **Tier 3, one region per face, on a torus**: the face's essential
     /// surface cycles (those whose joint elements compose to a nonzero
-    /// deck element, [`crate::surface_boundary::cycle_winding`]) are not a
+    /// deck element, [`crate::surface_boundary::surface_cycle_windings`]) are not a
     /// separating pair. A face holds none or two, and two only where
     /// their windings are opposite, so that they bound one band of the
     /// torus between them.
