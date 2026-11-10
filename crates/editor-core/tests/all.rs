@@ -223,6 +223,8 @@ mod eval6_placers_over_instances;
 mod eval6_placers_over_instances_interval;
 #[path = "eval9_nominal_in_the_key.rs"]
 mod eval9_nominal_in_the_key;
+#[path = "every_predicate_name_is_minted_once.rs"]
+mod every_predicate_name_is_minted_once;
 #[path = "f64_lane_validates_once.rs"]
 mod f64_lane_validates_once;
 #[path = "face_face_touch_carry.rs"]

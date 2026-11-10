@@ -117,18 +117,10 @@ use crate::validate::decide;
 const TORUS_REGION_CORNER: &str = "bool_torus_region_corner";
 
 /// A circle edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_torus_region_arc_span",
-    "bool_torus_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::TORUS_REGION_CONIC;
 
 /// An oval edge's boundary reading's rows (module docs).
-const SPIRIC: ArcRows = ArcRows {
-    end: "bool_torus_region_spiric_end",
-    clear: "bool_torus_region_spiric_clear",
-    on: "bool_torus_region_spiric_on",
-    leaf: "bool_torus_region_spiric_leaf",
-};
+const SPIRIC: ArcRows = crate::rows::TORUS_REGION_SPIRIC;
 
 /// A trimmed torus face's boundary: every edge of every loop, each with
 /// the direction its loop traverses it.
