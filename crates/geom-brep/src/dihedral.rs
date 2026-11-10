@@ -375,9 +375,24 @@ pub fn dihedral_class<T: Decide>(
     reach: geom_core::Lever<T>,
     band: Band,
 ) -> Result<DihedralClass, LeverEscalation> {
-    wedge_decided(s1, s2, p, reach, band)
-        .map(|(class, _)| class)
-        .map_err(FirstOrderEscalation::into_lever)
+    dihedral_decided(s1, s2, p, reach, band).map(|(class, _)| class)
+}
+
+/// [`dihedral_class`] with the wedge decision's margin: a caller that
+/// decides a coincidence from a smooth join records that margin as the
+/// decision's row.
+///
+/// # Errors
+///
+/// As [`dihedral_class`].
+pub fn dihedral_decided<T: Decide>(
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    p: Point3<T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> Result<(DihedralClass, geom_core::MarginDiag), LeverEscalation> {
+    wedge_decided(s1, s2, p, reach, band).map_err(FirstOrderEscalation::into_lever)
 }
 
 /// The first-order reading at `p` as its token, with the wedge

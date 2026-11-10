@@ -393,8 +393,8 @@ pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> EdgeK
 /// per on-axis segment the shared edge classifies the two caps against
 /// each other — `Intersection { start, end }` when definitely
 /// transverse (θ ≠ π), conventional when definitely smooth (θ = π),
-/// where the caps are one carrier and are left on one record: that
-/// decision's row is returned.
+/// where the caps are one carrier and that verdict leaves them on one
+/// record ([`topo::Body::one_record_across`]): its row is returned.
 #[allow(clippy::too_many_arguments)] // one internal call site.
 fn finish_partial<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
@@ -428,7 +428,7 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                 }
                 None => {
                     debug_assert!(matches!(col.cls.walls[j], WallClass::OnAxis));
-                    upgrade_intersection(
+                    let smooth = upgrade_intersection(
                         body,
                         bottom,
                         start_surface,
@@ -437,21 +437,38 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                         sliver,
                         tol,
                     )?;
-                    // Caps the axis edge rests in one chart of are one
-                    // carrier: they are left on one record, and the
-                    // decision recorded.
-                    if let Some(row) = body.unify_across(bottom, tol)? {
-                        let Ok(sides) = topo::readback::edge_sides(body, bottom) else {
-                            unreachable!("axis edge {bottom:?} was read a moment ago")
-                        };
-                        (start_surface, end_surface) = sides.surfaces();
-                        coplanar = Some(row);
+                    // Two caps the axis edge joins smoothly are one
+                    // carrier (a half turn): the verdict that read the
+                    // join leaves them on one record, the start cap's,
+                    // and its row is recorded.
+                    if let Some(margin) = smooth {
+                        let start_cap = face_wearing(body, bottom, start_surface);
+                        if let Some(row) = body.one_record_across(bottom, start_cap, margin, tol)? {
+                            let Ok(sides) = topo::readback::edge_sides(body, bottom) else {
+                                unreachable!("axis edge {bottom:?} was read a moment ago")
+                            };
+                            (start_surface, end_surface) = sides.surfaces();
+                            coplanar = Some(row);
+                        }
                     }
                 }
             }
         }
     }
     Ok(coplanar)
+}
+
+/// The face of `edge` that wears `surface`.
+///
+/// # Panics
+///
+/// Where neither does: the revolve upgraded `edge` between a face on
+/// `surface` and another a moment ago.
+fn face_wearing<T: Decide>(body: &Body<T>, edge: EdgeKey, surface: topo::SurfaceKey) -> FaceKey {
+    topo::edge_faces(body, edge)
+        .into_iter()
+        .find(|&f| body.get_face(f).is_some_and(|face| face.surface == surface))
+        .unwrap_or_else(|| unreachable!("axis edge {edge:?} bounds a face on {surface:?}"))
 }
 
 /// One loop's sweep products, per collapsed segment (`None` = on-axis

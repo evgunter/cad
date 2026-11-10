@@ -45,8 +45,8 @@ pub enum RowCell {
     /// A cell of the body the row was decided on, for a decision about
     /// one body rather than about an operation's inputs: the at-rest
     /// census's rows ([`crate::census_rest_decision`] and its contact
-    /// rows), and two records an edge lies between decided one carrier
-    /// ([`crate::Body::unify_across`]).
+    /// rows), and a sweep's two faces decided one carrier across a
+    /// smooth join ([`crate::Body::one_record_across`]).
     Result {
         /// The cell, in the result's keys.
         cell: Cell,
@@ -217,6 +217,11 @@ pub enum DecisionSite {
     /// rest (two copies, two imported instances) decided one, or two
     /// placed faces decided one carrier, opposed.
     CensusAtRest,
+    /// A sweep's join decided smooth by the dihedral read across it,
+    /// between two faces whose carriers that makes one (a half
+    /// revolve's two caps across its axis edge,
+    /// [`crate::Body::one_record_across`]).
+    SmoothJoin,
 }
 
 /// **How a row's Zero was discharged**: against the band, or, in a

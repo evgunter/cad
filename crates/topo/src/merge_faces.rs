@@ -21,10 +21,13 @@
 //! reads an operand the same way, so the ladder is consistent end to
 //! end). A pair a Boolean glued one carrier reaches the merge on one
 //! surface record already: the glue left its faces there
-//! ([`Body::unify_surfaces`]), so the one-key rung reads it. Where two
-//! faces on distinct keys glue on their margins, the merged face keeps
-//! its arena-first member's description, a fixed rule that reads no
-//! values. Which face survives the surgery does not enter: a plug in
+//! ([`Body::one_record`]), so the one-key rung reads it. A run whose
+//! faces glue on their margins across distinct keys is the act that
+//! leaves them one record followed by the surgery
+//! ([`Body::one_record_of_run`]): the record kept is the one alone also
+//! worn by faces outside the run, else its arena-first member's, fixed
+//! rules that read no values; a curved run whose surgery the inventory
+//! stops is left on that record unmerged. Which face survives the surgery does not enter: a plug in
 //! another member's hole is read like any other member
 //! ([`MergedGroup::kept`]). A face on the `mvfs` seed's placeholder
 //! surface is a THIRD kind ([`MergeKind::Placeholder`]): the door
@@ -1701,9 +1704,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// survivor), `kef` leaves the edge's vertex as a lone-vertex ring of
     /// the survivor, which `mekr` then `kev` delete.
     ///
-    /// **The merged face keeps one member's description**: its
-    /// arena-first member's, a fixed rule that reads no values.
-    /// The face arena reuses freed slots, so arena-first is not
+    /// **The merged face keeps one member's description**: the run's
+    /// faces are first left on one record (module docs), and the merged
+    /// face keeps its arena-first member's, a fixed rule that reads no
+    /// values. The face arena reuses freed slots, so arena-first is not
     /// first-written. The survivor wears the description from before the
     /// surgery, whether or not it is that member's face.
     ///
@@ -1857,7 +1861,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// what it minted and joins after (`boolean::ops::finish_output`).
     /// Its result is construction state a later step must join. A pair
     /// the Boolean glued one carrier reaches it on one surface record
-    /// ([`Body::unify_surfaces`]).
+    /// ([`Body::one_record`]).
     pub(crate) fn merge_coplanar_faces_unjoined(
         &mut self,
         tol: Tol,
@@ -1868,36 +1872,37 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         self.merge_coplanar_faces_staged(tol, false)
     }
 
-    /// [`Body::merge_coplanar_faces`] after each of `glued` is left on
-    /// one record, the first's ([`Body::unify_surfaces`]), its two
-    /// surfaces' faces facing the same way: the merge rows' stand-in for
-    /// a Boolean's glue, staged so a refusal leaves the body as found. A
-    /// body that is not tier-2 valid is refused as the door's entry gate
-    /// refuses it ([`MergeCoplanarError::InputNotClosed`]), nothing glued.
+    /// [`Body::merge_coplanar_faces`] after each pair of `glued`, two
+    /// faces facing the same way, is left on one record by the token a
+    /// glue would mint for it ([`Body::one_record`]): the second face and
+    /// its closure under same-record adjacency onto the first's record.
+    /// The merge rows' stand-in for a Boolean's glue, staged so a refusal
+    /// leaves the body as found. A body that is not tier-2 valid is
+    /// refused as the door's entry gate refuses it
+    /// ([`MergeCoplanarError::InputNotClosed`]), nothing glued.
     #[cfg(test)]
     pub(crate) fn merge_coplanar_faces_glued(
         &mut self,
-        glued: &[(SurfaceKey, SurfaceKey)],
+        glued: &[(FaceKey, FaceKey)],
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
         }
         let mut work = self.clone();
-        let sense = |body: &Self, k: SurfaceKey| {
-            body.faces()
-                .find(|(_, face)| face.surface == k)
-                .is_some_and(|(_, face)| face.sense)
-        };
         for &(kept, other) in glued {
-            let agree = sense(&work, kept) == sense(&work, other);
-            work.unify_surfaces(
-                crate::policy_lane::KernelSite::OneRecord,
-                (kept, other),
-                agree,
-                tol,
-            )
-            .map_err(|error| MergeCoplanarError::Op { error })?;
+            let (k, o) = (
+                work.proven_face(kept).record(),
+                work.proven_face(other).record(),
+            );
+            let token = crate::one_record::OneRecord::minted(
+                (k.surface, o.surface),
+                k.sense == o.sense,
+                crate::one_record::moved_closure(&work, &[other]),
+                None,
+            );
+            work.one_record(crate::policy_lane::KernelSite::OneRecord, &token, tol)
+                .map_err(|error| MergeCoplanarError::Op { error })?;
         }
         let outcome = work.merge_coplanar_faces(tol)?;
         *self = work;
@@ -2034,6 +2039,17 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 GroupContract::Runs { regime, kind } => (regime, kind),
                 GroupContract::SetAside => continue,
             };
+            // The run's verdicts leave its faces on one record first
+            // (`[coincidence.door]`): the act, then the surgery, which a
+            // curved run's inventory may stop and record as skipped.
+            let run: Vec<FaceKey> = surgery
+                .faces()
+                .map(|(k, _)| k)
+                .filter(|k| group.contains(k))
+                .collect();
+            surgery
+                .one_record_of_run(&run, tol)
+                .map_err(|error| MergeCoplanarError::Op { error })?;
             let description = surgery.kept_description(&group);
             match regime {
                 GroupRegime::RefusesTheCall => {
@@ -2321,7 +2337,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
 
     /// **The description a group's merged face keeps**, `(surface,
     /// sense)`: its arena-first member's, a fixed rule that reads no
-    /// values.
+    /// values, once the run's act has left every member on one record
+    /// ([`Body::one_record_of_run`]).
     ///
     /// # Panics
     ///
@@ -3189,6 +3206,18 @@ mod tests {
         }
     }
 
+    /// The face wearing each record of `pairs`, where each record is
+    /// one face's ([`declare_planes_pairwise`]).
+    fn worn_by(body: &Body<f64>, pairs: &[(SurfaceKey, SurfaceKey)]) -> Vec<(FaceKey, FaceKey)> {
+        let face = |k: SurfaceKey| {
+            body.faces()
+                .find(|(_, f)| f.surface == k)
+                .map(|(f, _)| f)
+                .expect("a face wears the record")
+        };
+        pairs.iter().map(|&(a, b)| (face(a), face(b))).collect()
+    }
+
     /// Gives every face of `body` its OWN plane key carrying one
     /// description, and returns the declared pairs that glue them:
     /// planar and licensed only by the declaration.
@@ -3267,7 +3296,7 @@ mod tests {
     fn escaped_refusal(
         point: TearPoint,
         body: &mut Body<f64>,
-        declared: &[(SurfaceKey, SurfaceKey)],
+        declared: &[(FaceKey, FaceKey)],
         tol: Tol,
     ) -> EulerOpError {
         let outcome = {
@@ -3535,6 +3564,7 @@ mod tests {
         ];
         for (what, tear) in tears {
             let (mut body, declared) = declared_planar_cube(tol);
+            let declared = worn_by(&body, &declared);
             tear(&mut body);
             let before = format!("{body:?}");
             let got = body.merge_coplanar_faces_glued(&declared, tol);
@@ -3860,7 +3890,7 @@ mod tests {
             }
             assert_eq!(validate_closed(&body), Ok(()));
             let outcome = body
-                .merge_coplanar_faces_glued(&glued, tol)
+                .merge_coplanar_faces_glued(&worn_by(&body, &glued), tol)
                 .expect("the plug merges into the face it plugs");
             let [group] = &outcome.groups[..] else {
                 panic!("one group: {:?}", outcome.groups)

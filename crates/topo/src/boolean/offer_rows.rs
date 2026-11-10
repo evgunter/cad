@@ -2203,6 +2203,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Merge
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
+        | BooleanErrorKind::OneRecordUncertified
         | BooleanErrorKind::Join
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces

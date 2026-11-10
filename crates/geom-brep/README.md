@@ -1535,6 +1535,45 @@ least-squares solvers with fixed elimination order
 (`geom-core/src/linalg`). (9) The curvo audit is `docs/CURVO-AUDIT.md`
 (it has no SSI); the stance is DESIGN.md Q5.
 
+### A face's measure, read at the face `[geom-brep.face-anchored]`
+
+A face's measure reads its surface over the face alone
+(DESIGN `[tolerance.epsilon]`): no datum its record's kind forgets
+enters a face's term at a lever beyond the face.
+
+- **`[geom-brep.face-anchored.datum]` One re-anchoring.**
+  `extent::anchored_at` slides a datum along the orbit its kind's
+  symmetry forgets (`Forgets`) to the point of it nearest a given
+  point: a plane's origin to that point's foot on the plane, a
+  cylinder's axis origin to its foot on the axis. `surface_anchored_at`
+  applies it to a surface. The carrier is unmoved; only where a reading
+  takes the datum from moves. Intrinsic data stay: a sphere's or a
+  torus's centre and a cone's apex. The coincidence verdict re-anchors
+  a cylinder pair at the foot of its extent's centre (`topo`'s
+  `carrier_eq::at_consumed_extent`), and a face's measure at the first
+  point of its loops (`topo`'s `props::face_anchored`), at every scalar.
+- **`[geom-brep.face-anchored.plane]` A plane's term is its boundary's
+  flux about a point of the face.** `props::planar_face` sums the vector
+  area `A⃗` about `a`, the first point of the face's loops, and takes
+  `a·A⃗`: the fan the face's own boundary spans from a point of the
+  face. The surface's origin is never read. Over a closed shell the
+  fans meet at their shared points, so the sum is the volume they bound
+  about any reference. The interval lane encloses the same flux
+  (`topo`'s `props::quad_lane::planar_face_about`: its part along the
+  normal and a slack for the part across it), so the two scalars read
+  one flux. A face whose loops stand off its record — a face moved onto
+  a record in band of its own — reads the fan of its own boundary,
+  whatever the record's origin, so a union whose glue moves a face onto
+  a record anchored far off measures its operands' sum to within the
+  band times the face's area.
+- **`[geom-brep.face-anchored.bound]`** `topo`'s `props::rounding_bound`
+  levers each face's terms from the same re-anchored datum.
+
+The guard is `topo`'s
+`sliding_every_record_along_its_symmetry_moves_no_reading`: every
+record slid far along its own symmetry, after each is turned off its
+face's loops, changes no reading beyond rounding.
+
 ## Offsets and shell (OFFSET-DESIGN O1–O6)
 
 The *offset* of a surface `S` at signed distance `d` is the normal

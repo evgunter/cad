@@ -603,8 +603,8 @@ const TURNS: [f64; 9] = [0.0, 0.4, 1.3, 1.5, PI / 2.0, 2.0, 2.9, PI, 1.5 * PI];
 /// lying across a wall: between two faces of one cylinder record (a
 /// union leaves two members' walls one carrier on one record, DESIGN
 /// `[coincidence.door]`). Each edge between cylinder faces is first
-/// checked to rest where it lies, in its one record's chart, with no
-/// edge between two records of one carrier; a declared one must be a
+/// checked to rest where it lies, in its one record's chart, so no edge
+/// lies between two records of one wall; a declared one must be a
 /// member's own seam ruling, its extrusion's line along `z` at one of
 /// `seams` (each member's turn, its rulings at that azimuth and the
 /// opposite one): nothing in these scenes declared a rim, so a
@@ -615,7 +615,6 @@ fn across_a_wall(
     label: &str,
     seams: &[f64],
 ) -> Vec<(CurveKind, Point3<f64>)> {
-    topo::assert_one_record_per_carrier(body, Tol::witness());
     let mut kinds = Vec::new();
     for (key, edge) in body.edges() {
         let face = |he| body.face_of_half_edge(he).unwrap();

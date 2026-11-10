@@ -6061,10 +6061,10 @@ pub(crate) mod staleness_posture {
              (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
             ),
             (
-                "unify_across",
+                "one_record_across",
                 Transfers,
-                "`set_face_surfaces_describing`'s move of every face on one record onto the \
-             other (`unify_surfaces`), on its terms: the moved faces' rows are dropped where \
+                "`set_face_surfaces_describing`'s move of a smooth join's moved faces onto the \
+             kept record (`one_record`), on its terms: the moved faces' rows are dropped where \
              the two charts differ, for the caller's re-mint",
             ),
             (

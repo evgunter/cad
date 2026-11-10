@@ -822,26 +822,32 @@ crate::ended_by_write!(PropsError);
 impl std::error::Error for PropsError {}
 
 /// The flux and area of a **planar** face from its loops (outer +
-/// rings, all traversed as stored): `A⃗ = Σ_loops (1/2)∮(p−origin)×dp`,
-/// `flux = origin·A⃗` (the plane through `origin` makes
-/// `(p−origin)·n = 0`), `area = ‖A⃗‖` (rings subtract via their stored
+/// rings, all traversed as stored), read at the face: its boundary's
+/// flux about `a`, the first point of its loops — the vector area `A⃗ =
+/// Σ_loops (1/2)∮(p−a)×dp` about `a`, and `flux = a·A⃗`, the fan from a
+/// point of the face. `area = ‖A⃗‖` (rings subtract via their stored
 /// opposite winding; the loop orientation convention points `A⃗` along
-/// the face's outward normal). `origin` doubles as the translation
-/// reference (Mäntylä's far-from-origin conditioning remedy).
+/// the face's outward normal). The surface's origin is never read: the
+/// term is the face's own wherever its record is anchored
+/// (`[tolerance.epsilon]`), and a face whose loops stand off its record
+/// — a face moved onto a record in band of its own — reads the fan its
+/// own boundary spans. Over a closed shell the fans meet at the shared
+/// points, so the sum is the volume they bound, about any point. The
+/// interval lane encloses this same flux at the face
+/// (`topo`'s `props::quad_lane::planar_face_about`: the part along the
+/// normal and a slack for the part across it).
 ///
 /// **Sense-invariant by derivation** (M5 S10). This function takes no
 /// sense at all — not the bit its curved sibling takes — and
 /// deliberately must not: `A⃗` is a boundary integral
 /// in the face's STORED traversal order, and the interior-left rule
 /// already points it along the *outward* normal, whichever side that
-/// is. A planar face's entire flux is `origin·A⃗` (the anchored term
-/// vanishes on the plane), so orientation reaches this computation
-/// exclusively through the winding, never through the surface's chart
-/// normal. `revert` reverses loops and flips `Face::sense` together;
+/// is. `revert` reverses loops and flips `Face::sense` together;
 /// applying the sense here as well would negate the volume twice.
 ///
 /// # Errors
 ///
+/// [`PropsError::DegenerateFace`] where no loop has a point;
 /// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier, which
 /// the certified lane reads instead ([`rational_rim`]); non-rational
 /// spline boundaries integrate exactly through
@@ -849,16 +855,19 @@ impl std::error::Error for PropsError {}
 /// at-rest case is a stage-1-promoted plane keeping its parsed spline
 /// boundary carriers).
 pub fn planar_face<T: SpanLocate>(
-    origin: Point3<T>,
     loops: &[Vec<LoopEdge<T>>],
 ) -> Result<FaceContribution<T>, PropsError> {
+    let anchor = loops
+        .first()
+        .and_then(|edges| edges.first())
+        .map(|e| e.carrier.eval(e.t0))
+        .ok_or(PropsError::DegenerateFace)?;
     let mut va = Vec3::zero();
     for lp in loops {
-        va = va + loop_vector_area(lp, origin)?;
+        va = va + loop_vector_area(lp, anchor)?;
     }
-    let flux = (origin - Point3::origin()).dot(va);
     Ok(FaceContribution {
-        flux,
+        flux: (anchor - Point3::origin()).dot(va),
         area: va.norm(),
     })
 }
@@ -909,7 +918,7 @@ mod tests {
                 for i in 0..4 {
                     edges.push(line_edge(order[i], order[(i + 1) % 4]));
                 }
-                let c = planar_face(order[0], &[edges]).unwrap();
+                let c = planar_face(&[edges]).unwrap();
                 flux += c.flux;
                 area += c.area;
             }

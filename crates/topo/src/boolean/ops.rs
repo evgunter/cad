@@ -1113,7 +1113,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let mut vertex_merges = desc.vertex_merges();
     let mut cone_splits = cones.splits().clone();
-    let glued_pairs = OneCarrierPairs::of_result(op, &body, a, b, decls, &fin.graft);
+    let glued_pairs = OneRecordTokens::of_result(op, &body, (a, b), decls, (&desc, &fin.graft));
     let mut discarded = [BTreeSet::new(), BTreeSet::new()];
     // A substituted fragment leaves the result as a discard does.
     for (operand, face) in fin
@@ -1167,8 +1167,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // Each parted edge now bounds a face of each operand, as a seam does.
     seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
-    #[cfg(debug_assertions)]
-    super::carrier_pair::assert_one_record_per_carrier(&finished, tol);
     let body = gate(finished, &Held::of(op, &contacts, decls), band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
@@ -2787,7 +2785,7 @@ pub(super) struct OutputStage {
 pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
-    glued: &OneCarrierPairs,
+    glued: &OneRecordTokens,
     (seam_edges, struts): (&mut SeamEdges, &[EdgeKey]),
     recorded: &BTreeSet<VertexKey>,
     band: Band,
@@ -2835,9 +2833,9 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     }
     seam_edges.retain(|e| !closed.iter().any(|c| c.edge == *e));
     // The closing sweeps the arena, so a glued surface no face held (a
-    // dropped copy's) is gone now: its pair licenses nothing, as a
-    // consumed side does at `OneCarrierPairs::of_result`.
-    glued.surviving(body).unify(body, tol)?;
+    // dropped copy's) is gone now: its token licenses nothing, as a
+    // consumed side does at `OneRecordTokens::of_result`.
+    glued.act(body, tol)?;
     let merged = body.merge_coplanar_faces_unjoined(tol)?;
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,
@@ -3205,13 +3203,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     // distinct surfaces, or an image in the chart of the
                     // one surface both faces lie on.
                     let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let rest = crate::rest_locus(
-                        body,
-                        [(s1, Some(sides.plus.face)), (s2, Some(sides.minus.face))],
-                        c.carrier(),
-                        c.params(),
-                        band,
-                    );
+                    let rest = crate::rest_locus([s1, s2]);
                     let failure = match rest {
                         geom_brep::RestLocus::Chart(_) => EdgeDescribeFailure::Chart,
                         geom_brep::RestLocus::Pair(_) => EdgeDescribeFailure::Pair,
@@ -5533,45 +5525,30 @@ fn record<T: Real>(body: &Body<T>, out: &mut ContactRecords, x: End, y: End, cit
     }
 }
 
-/// **The surface pairs a Boolean glued one carrier**, in its result's
-/// keys, which its output stage leaves on one record each before the
-/// merge ([`Self::unify`]). Only the Boolean's result lowering builds
-/// one ([`Self::of_result`]).
+/// **The one-record tokens a Boolean's glue minted**, lowered to its
+/// result's faces, which its output stage acts on before the merge
+/// ([`Self::act`]). Only the Boolean's result lowering builds them
+/// ([`Self::of_result`]).
 #[derive(Clone, Debug, Default)]
-pub(crate) struct OneCarrierPairs {
-    pairs: Vec<GluedSurfacePair>,
+pub(crate) struct OneRecordTokens {
+    tokens: Vec<crate::one_record::OneRecord>,
 }
 
-/// **Two surfaces a Boolean glued one carrier**, the kept side's first
-/// ([`super::glue::kept_first`]: the record the faces are left on), and whether their charts face the same way in the result. A
-/// face's material side is its sense applied to its surface's chart,
-/// and fragments inherit both from their parent, so which way the two
-/// charts face holds for every face either surface carries.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct GluedSurfacePair {
-    /// The kept side's surface.
-    pub(crate) kept: SurfaceKey,
-    /// The other side's surface.
-    pub(crate) other: SurfaceKey,
-    /// Whether the two charts face the same way.
-    pub(crate) charts_agree: bool,
-}
-
-impl OneCarrierPairs {
-    /// No glued pair.
+impl OneRecordTokens {
+    /// No token.
     pub(crate) fn none() -> Self {
         Self::default()
     }
 
-    /// **The glued face pairs lowered to SURVIVING result SURFACE
-    /// pairs**: the equivalence rides surfaces because fragments
-    /// inherit their parent's surface key — face-key churn (a glued face
-    /// whose original key died with a discarded fragment) cannot strand
-    /// the glue as long as any fragment keeps the surface alive. A pair
-    /// with a consumed side (surface gone from the result) licenses
-    /// nothing and drops — its contact material did not survive the op
-    /// (the same consumed-record rule as contact rows). A `Tangent`
-    /// pair's carriers are distinct, and never merge.
+    /// **Each glued one-carrier pair's token lowered to the result's
+    /// faces through the Boolean's face lineage**, never through records
+    /// ([`lowered_faces`]): the kept and other records are the two
+    /// decided faces' records in the result's keys, and the moved set is
+    /// every result face the moved operand faces the glue read over
+    /// ([`super::glue::GlueCensus`]) left: their fragments, read through
+    /// the faces the join merged back. A pair one of whose records no
+    /// result face wears licenses nothing. A pair whose two faces share a
+    /// record asks nothing.
     ///
     /// The record's relation says whether the two operand faces'
     /// material sides agree, and each face's sense turns its material
@@ -5581,13 +5558,14 @@ impl OneCarrierPairs {
     pub(super) fn of_result<T: Real>(
         op: BooleanOp,
         result: &Body<T>,
-        a: &Body<T>,
-        b: &Body<T>,
+        (a, b): (&Body<T>, &Body<T>),
         decls: &Glue<T>,
-        graft: &GraftMap,
+        (desc, graft): (&Descendants, &GraftMap),
     ) -> Self {
+        let views = [KeyView::Direct, KeyView::Graft(graft)];
+        let decided = decls.one_carrier_faces();
         Self {
-            pairs: decls
+            tokens: decls
                 .pairs
                 .iter()
                 .filter_map(|pair| {
@@ -5601,7 +5579,11 @@ impl OneCarrierPairs {
                         && result.get_surface(ka).is_some()
                         && result.get_surface(kb).is_some())
                     .then_some(())?;
-                    let (kept, other) = super::glue::kept_first((Operand::A, ka), kb);
+                    let census = pair.census(a, b, &decided);
+                    let (kept, other) = match census.kept {
+                        Operand::A => (ka, kb),
+                        Operand::B => (kb, ka),
+                    };
                     // ∖ reads B reverted, and a reverted plane turns its
                     // chart where every other kind turns its faces' senses.
                     let turned = op == BooleanOp::Subtract
@@ -5612,79 +5594,71 @@ impl OneCarrierPairs {
                     let charts_agree = ((relation == super::CarrierRelation::SameOriented)
                         == (fa.sense == fb.sense))
                         != turned;
-                    Some(GluedSurfacePair {
-                        kept,
-                        other,
+                    let side = census.moving();
+                    let view = &views[usize::from(side == Operand::B)];
+                    let moved = census
+                        .moved
+                        .iter()
+                        .flat_map(|&f| lowered_faces(result, desc, (side, view), f))
+                        .collect();
+                    Some(crate::one_record::OneRecord::minted(
+                        (kept, other),
                         charts_agree,
-                    })
+                        moved,
+                        None,
+                    ))
                 })
                 .collect(),
         }
     }
 
-    /// **Leaves each glued pair's faces on one surface record**, the
-    /// kept side's ([`Body::unify_surfaces`]), in glue order: a pair
-    /// whose side an earlier pair moved is read through that move, and
-    /// one whose two sides already share a record asks nothing.
+    /// **Each token's act** ([`Body::one_record`]), in glue order. A
+    /// face an earlier token moved keeps the record it was left on: a
+    /// token moves only faces that still wear its other record, so no
+    /// two verdicts compose into one neither decided.
     ///
     /// # Errors
     ///
-    /// The re-chart's ([`BooleanError::Euler`]).
-    ///
-    /// # Panics
-    ///
-    /// Where pairs already on one record disagree on how its charts
-    /// face: the glue pairs two surfaces only on one kind and one
-    /// relation, so the cycle's facings compose.
-    pub(super) fn unify<T: Decide + crate::props::AtRestPolicy>(
+    /// [`BooleanError::OneRecordUncertified`]: a moved boundary that
+    /// does not certify on the kept record after the glue decided it one
+    /// carrier over every face it moves, a kernel defect.
+    pub(super) fn act<T: Decide + crate::props::AtRestPolicy>(
         &self,
         body: &mut Body<T>,
         tol: Tol,
     ) -> Result<(), BooleanError> {
-        let mut moved: BTreeMap<SurfaceKey, (SurfaceKey, bool)> = BTreeMap::new();
-        let find = |moved: &BTreeMap<SurfaceKey, (SurfaceKey, bool)>, mut k: SurfaceKey| {
-            let mut agree = true;
-            while let Some(&(to, with)) = moved.get(&k) {
-                agree = agree == with;
-                k = to;
-            }
-            (k, agree)
-        };
-        for p in &self.pairs {
-            let ((kept, xk), (other, xo)) = (find(&moved, p.kept), find(&moved, p.other));
-            let agree = (xk == xo) == p.charts_agree;
-            if kept == other {
-                assert!(
-                    agree,
-                    "the glue's pairs on {kept:?} disagree on how its charts face: {}",
-                    geom_core::KERNEL_DEFECT_ENDING
-                );
+        for token in &self.tokens {
+            if body.get_surface(token.kept()).is_none() {
                 continue;
             }
-            body.unify_surfaces(
-                crate::policy_lane::KernelSite::OneRecord,
-                (kept, other),
-                agree,
-                tol,
-            )?;
-            moved.insert(other, (kept, agree));
+            body.one_record(crate::policy_lane::KernelSite::OneRecord, token, tol)
+                .map_err(|source| BooleanError::OneRecordUncertified { source })?;
         }
         Ok(())
     }
+}
 
-    /// The pairs both of whose surfaces `body` still holds.
-    pub(super) fn surviving<T: Real>(&self, body: &Body<T>) -> Self {
-        Self {
-            pairs: self
-                .pairs
-                .iter()
-                .copied()
-                .filter(|p| {
-                    body.get_surface(p.kept).is_some() && body.get_surface(p.other).is_some()
-                })
-                .collect(),
+/// **The result faces operand face `f` left**, in `side`'s view: its
+/// fragments through the join's divisions ([`crate::lineage::Descent`]),
+/// each read through the faces the join merged back
+/// ([`Descendants::holding`]), carried into the result's keys, and live.
+fn lowered_faces<T: Real>(
+    result: &Body<T>,
+    desc: &Descendants,
+    (side, view): (Operand, &KeyView<'_>),
+    f: FaceKey,
+) -> Vec<FaceKey> {
+    let rows = desc.fragments[usize::from(side == Operand::B)].rows();
+    let mut out: Vec<FaceKey> = Vec::new();
+    for g in crate::lineage::Descent::of(f, rows).cells() {
+        let Some(g) = view.face(desc.holding(side, g)) else {
+            continue;
+        };
+        if result.get_face(g).is_some() && !out.contains(&g) {
+            out.push(g);
         }
     }
+    out
 }
 
 /// **The face–face records an operand carried into a result**, which
@@ -7801,9 +7775,14 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 BooleanOp::Subtract => BooleanResultKind::Voided,
                 _ => BooleanResultKind::Assembly,
             };
-            let glued_pairs =
-                OneCarrierPairs::of_result(op, &body, a_pristine, b_pristine, decls, &graft);
             let mut desc = Descendants::default();
+            let glued_pairs = OneRecordTokens::of_result(
+                op,
+                &body,
+                (a_pristine, b_pristine),
+                decls,
+                (&desc, &graft),
+            );
             let none = BTreeSet::new();
             let ledger = ledger(red, decls, [&none, &none])?;
             let views = [&KeyView::Direct, &KeyView::Graft(&graft)];
@@ -7852,8 +7831,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 crate::pcurves::mint_pcurves(&mut body, tol)
                     .map_err(|source| BooleanError::Pcurves { source })?;
             }
-            #[cfg(debug_assertions)]
-            super::carrier_pair::assert_one_record_per_carrier(&body, tol);
             let body = gate(body, &Held::of(op, &contacts, decls), band, tol)?;
             let FallbackFates {
                 substituted,
@@ -8182,7 +8159,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     } = finish_output(
         &mut body,
         &mut desc,
-        &OneCarrierPairs::none(),
+        &OneRecordTokens::none(),
         (&mut SeamEdges::default(), &[]),
         &recorded,
         band,
@@ -8206,8 +8183,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&a_view, &b_view],
         band,
     )?;
-    #[cfg(debug_assertions)]
-    super::carrier_pair::assert_one_record_per_carrier(&body, tol);
     let body = gate(body, &Held::of(op, &contacts, decls), band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;

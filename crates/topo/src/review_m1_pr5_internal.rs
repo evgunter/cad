@@ -335,8 +335,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          swaps and re-descriptions can orphan keys",
     ),
     (
-        "unify_across",
-        "reads the edge's two records and writes only through `unify_surfaces`, whose \
+        "one_record_across",
+        "reads the edge's two faces' keys and writes only through `one_record`, whose \
          re-chart (`set_face_surfaces_certifying`, `set_face_surfaces_describing`'s body) \
          declares the tier-1 postcondition",
     ),

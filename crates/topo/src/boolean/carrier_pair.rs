@@ -282,18 +282,96 @@ pub fn carrier_pair_decided<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<Result<CarrierVerdict, CarrierEqError>, PairUnread> {
-    let ca = face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?;
-    let cb = face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?;
+    let carriers = carriers_of(a, fa, b, fb)?;
     let extent = pair_extent(a, fa, b, fb, band).map_err(PairUnread::Extent)?;
-    Ok(
-        match super::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band) {
-            Ok(PairDoorReading::RingApart {
-                relation, upper, ..
-            }) => torus_pair_witnessed((a, fa, &ca), (b, fb, &cb), (relation, upper), band),
-            Ok(PairDoorReading::Verdict(verdict)) => Ok(verdict),
-            Err(refusal) => Err(refusal),
-        },
-    )
+    Ok(decided_over((a, fa), (b, fb), carriers, &extent, band))
+}
+
+/// **The glue's reading of a one-carrier pair**: [`carrier_pair_decided`]
+/// over the faces the verdict moves as well as the two it decides
+/// ([`glue_extent`]), so it is read once over everything it acts on
+/// (`[coincidence.door]`). `moved` is the moving side and its faces
+/// ([`super::glue::GlueCensus`]).
+///
+/// # Errors
+///
+/// As [`carrier_pair_decided`]; a moved face whose extent does not
+/// read is its side's.
+///
+/// # Panics
+///
+/// As [`carrier_pair_decided`].
+pub(crate) fn carrier_pair_decided_over<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    moved: (super::Operand, &std::collections::BTreeSet<FaceKey>),
+    band: Band,
+) -> Result<Result<CarrierVerdict, CarrierEqError>, PairUnread> {
+    let carriers = carriers_of(a, fa, b, fb)?;
+    let extent = glue_extent(a, fa, b, fb, moved, band).map_err(PairUnread::Extent)?;
+    Ok(decided_over((a, fa), (b, fb), carriers, &extent, band))
+}
+
+/// **The extent a glue verdict is read over**: one ball enclosing the
+/// two decided faces and every face the verdict moves ([`face_ball`]).
+///
+/// # Errors
+///
+/// The side whose face's extent cannot be read.
+pub(crate) fn glue_extent<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+    (side, moved): (super::Operand, &std::collections::BTreeSet<FaceKey>),
+    band: Band,
+) -> Result<PairExtent<T>, PairSide> {
+    let PairExtent { reach } = pair_extent(a, fa, b, fb, band)?;
+    let (body, blame) = match side {
+        super::Operand::A => (a, PairSide::First),
+        super::Operand::B => (b, PairSide::Second),
+    };
+    let mut parts = vec![reach];
+    for &f in moved {
+        parts.push(face_ball(body, f, band).ok_or(blame)?);
+    }
+    let reach = ExtentBall::enclosing(&parts)
+        .and_then(ExtentBall::readable)
+        .ok_or(blame)?;
+    Ok(PairExtent { reach })
+}
+
+/// The two faces' carrier descriptions ([`face_carrier`]), read before
+/// their extent: a kind outside the inventory has no extent to read.
+fn carriers_of<T: Decide>(
+    a: &Body<T>,
+    fa: FaceKey,
+    b: &Body<T>,
+    fb: FaceKey,
+) -> Result<(CarrierDesc<T>, CarrierDesc<T>), PairUnread> {
+    Ok((
+        face_carrier(a, fa).ok_or(PairUnread::OutsideInventory)?,
+        face_carrier(b, fb).ok_or(PairUnread::OutsideInventory)?,
+    ))
+}
+
+/// [`carrier_pair_decided`]'s reading of `(ca, cb)` over `extent`.
+fn decided_over<T: Decide>(
+    (a, fa): (&Body<T>, FaceKey),
+    (b, fb): (&Body<T>, FaceKey),
+    (ca, cb): (CarrierDesc<T>, CarrierDesc<T>),
+    extent: &PairExtent<T>,
+    band: Band,
+) -> Result<CarrierVerdict, CarrierEqError> {
+    match super::carrier_eq::pair_door_reading(&ca, &cb, &extent.consumed(), band) {
+        Ok(PairDoorReading::RingApart {
+            relation, upper, ..
+        }) => torus_pair_witnessed((a, fa, &ca), (b, fb, &cb), (relation, upper), band),
+        Ok(PairDoorReading::Verdict(verdict)) => Ok(verdict),
+        Err(refusal) => Err(refusal),
+    }
 }
 
 /// The row a torus face's witness of two carriers is decided on
@@ -853,86 +931,19 @@ mod lever_rows {
     }
 }
 
-/// A surface's carrier description as its chart reads it — the outward
-/// side the chart's own normal, since the coincidence question
-/// ([`rest_locus`]) does not read material sides. `None` for a kind
-/// outside the ladder's inventory, as [`face_carrier`].
-fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>> {
-    match surface {
-        geom::Surface::Plane { origin, normal, .. } => Some(CarrierDesc::Plane {
-            origin: *origin,
-            normal: *normal,
-        }),
-        geom::Surface::Sphere { center, radius, .. } => Some(CarrierDesc::Sphere {
-            center: *center,
-            radius: *radius,
-            outward: true,
-        }),
-        geom::Surface::Cylinder {
-            origin,
-            axis,
-            radius,
-            ..
-        } => Some(CarrierDesc::Cylinder {
-            origin: *origin,
-            axis: *axis,
-            radius: *radius,
-            outward: true,
-        }),
-        geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            minor_radius,
-            ..
-        } => Some(CarrierDesc::Torus {
-            center: *center,
-            axis: *axis,
-            major_radius: *major_radius,
-            minor_radius: *minor_radius,
-            outward: true,
-        }),
-        geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => Some(CarrierDesc::Cone {
-            apex: *apex,
-            axis: *axis,
-            half_angle: *half_angle,
-            outward: true,
-        }),
-        geom::Surface::Spindle { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => None,
-    }
-}
-
 /// **Where a conventional edge between two surfaces rests** — the one
 /// home of D2's split between a locus one chart defines and one two
 /// surfaces under-determine ([`geom_brep::RestLocus`]); every door
-/// states what it decides.
+/// states what it decides. A key reading: one surface record on both
+/// sides is one surface, and the edge rests in its chart; two records
+/// are two surfaces at rest (DESIGN `[coincidence.door]`), and the edge
+/// rests on their pair. Where an act decided two faces one carrier it
+/// left them on one record ([`crate::one_record`]), so no value is read
+/// here.
 ///
-/// - One surface record on both sides is one surface: its chart.
-/// - Two records are read by the carrier-equality ladder
-///   ([`super::carrier_eq::carrier_eq`]) over the region
-///   the description is consumed on: a ball enclosing the edge's own
-///   extent and each named face's boundary vertices (`sides`' faces,
-///   where the face exists yet; a chord minted before its section face
-///   names only the face it divides). The faces, not the edge alone:
-///   two planes meeting smoothly over a short edge are still two
-///   surfaces where their faces spread. A coincidence decided **Zero**
-///   is one carrier, and incidence on both of one carrier is incidence
-///   on one, which determines nothing: the edge rests in the chart of
-///   the pair's first key.
-/// - Definitely **distinct** carriers are the pair, and so is a kind
-///   outside the ladder's [`super::carrier_eq::INVENTORY`], which has no
-///   coincidence to read.
-/// - A coincidence **in band**, a rung that cannot decide, or a region
-///   that does not read is the pair too, and that is an answer, not a
-///   guess (D4 forbids guessing): the pair's certificate is incidence
-///   on both surfaces, which holds whether or not they are one carrier,
-///   so the description is true under both readings and needs no
-///   decision. D2's same-surface clause covers surfaces decided one.
+/// The pair's certificate is incidence on both surfaces, which holds
+/// whether or not they are one carrier, so the description is true
+/// under either reading and needs no decision.
 ///
 /// **What a reader must not do with a pair.** An `OnPair` here may lie
 /// between two near-coincident surfaces — two planes `ε` apart — whose
@@ -943,332 +954,11 @@ fn chart_carrier<T: Decide>(surface: &geom::Surface<T>) -> Option<CarrierDesc<T>
 /// ([`geom_brep::reask_pair`]); a door that would re-derive a section
 /// from the moved surfaces refuses typed where that section does not
 /// certify.
-///
-/// Each side's surface is `body`'s at its key, a link of the edge being
-/// described.
-///
-/// # Panics
-///
-/// Where a side's surface or face does not resolve: links of the edge
-/// being described.
-pub fn rest_locus<T: Decide>(
-    body: &Body<T>,
-    sides: [(crate::SurfaceKey, Option<FaceKey>); 2],
-    carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
-    band: Band,
-) -> geom_brep::RestLocus {
-    let [(ka, _), (kb, _)] = sides;
+#[must_use]
+pub fn rest_locus([ka, kb]: [crate::SurfaceKey; 2]) -> geom_brep::RestLocus {
     if ka == kb {
-        return geom_brep::RestLocus::Chart(ka);
-    }
-    let pair = geom_brep::SurfacePair::new(ka, kb);
-    match one_carrier_at_rest(body, sides, carrier, (t0, t1), band) {
-        Some(_) => geom_brep::RestLocus::Chart(pair.keys()[0]),
-        None => geom_brep::RestLocus::Pair(pair),
-    }
-}
-
-/// **The coincidence [`rest_locus`] reads between two records**: the
-/// relation of their charts and the margin that decided them one
-/// carrier ([`super::carrier_eq::CarrierReading`]), where the carrier-equality ladder decides them one over
-/// the region [`rest_locus`] reads; `None` wherever it reads the pair.
-/// Each side's surface is `body`'s at its key, a link of the edge.
-///
-/// # Panics
-///
-/// As [`rest_locus`].
-pub fn one_carrier_at_rest<T: Decide>(
-    body: &Body<T>,
-    sides: [(crate::SurfaceKey, Option<FaceKey>); 2],
-    carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
-    band: Band,
-) -> Option<(CarrierRelation, Option<geom_core::MarginDiag>)> {
-    let [(ka, fa), (kb, fb)] = sides;
-    let surface = |k: crate::SurfaceKey| {
-        body.get_surface(k)
-            .unwrap_or_else(|| unreachable!("{k:?} is a surface the described edge lies on"))
-    };
-    let (Some(ca), Some(cb)) = (chart_carrier(surface(ka)), chart_carrier(surface(kb))) else {
-        return None;
-    };
-    let on = |f: Option<FaceKey>| {
-        f.map_or_else(Vec::new, |f| {
-            face_witnesses(body, f)
-                .unwrap_or_else(|| unreachable!("{f:?} is a face the described edge bounds"))
-        })
-    };
-    let (on_a, on_b) = (on(fa), on(fb));
-    // The ball about the edge's middle at its reach from there encloses
-    // it, and is no larger than the edge's own measure from that point.
-    let mid = carrier.mid_point(t0, t1);
-    let edge = ExtentBall::of_edge_from(carrier, (t0, t1), mid);
-    let parts: Vec<_> = core::iter::once(edge)
-        .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
-        .collect();
-    let reach = ExtentBall::enclosing(&parts).and_then(ExtentBall::readable)?;
-    super::carrier_eq::carrier_eq_reading(&ca, &cb, &super::ConsumedExtent::new(reach), band)
-        .ok()?
-        .one()
-        .map(|(relation, margin)| (relation, Some(margin)))
-}
-
-/// **No edge of an operation's result lies between two records of one
-/// carrier** (DESIGN `[coincidence.door]`): the act that decided two
-/// surface records one leaves their faces on one record, so an edge
-/// whose two faces wear distinct records that its rest reads one chart
-/// ([`crate::rest_locus`]) is a producer that decided a coincidence and
-/// kept both records. Read only where the edge is stored in a chart
-/// across two records, the shape such an edge rests in. A body built by
-/// hand may hold one (a non-maximal operand), so this is asked of the
-/// deciding operations' results (the boolean's, under debug; a suite's
-/// of an operation outside this crate), not at the at-rest gate.
-///
-/// # Panics
-///
-/// On such an edge: a kernel defect.
-pub fn assert_one_record_per_carrier<T: Decide>(body: &Body<T>, tol: geom_core::Tol) {
-    let Ok(band) = geom_core::Band::linear(tol) else {
-        return;
-    };
-    for (edge, data) in body.edges() {
-        let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
-            continue;
-        };
-        if !matches!(curve.description(), geom_brep::EdgeDescription::Chart(c) if !c.wrap) {
-            continue;
-        }
-        let sides = crate::readback::edge_sides_of(body, edge, data);
-        let (ka, kb) = sides.surfaces();
-        if ka == kb {
-            continue;
-        }
-        let rest = rest_locus(
-            body,
-            [(ka, Some(sides.plus.face)), (kb, Some(sides.minus.face))],
-            curve.carrier(),
-            curve.params(),
-            band,
-        );
-        assert!(
-            !matches!(rest, geom_brep::RestLocus::Chart(_)),
-            "{edge:?} lies at rest between {ka:?} and {kb:?}, two records of one carrier: \
-             the act that decided them one left both. {}",
-            geom_core::KERNEL_DEFECT_ENDING
-        );
-    }
-}
-
-impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
-    /// **The records `edge` lies between, left one where they are one
-    /// carrier**: a door that read a smooth join of two surface records
-    /// its rest reads one chart ([`crate::rest_locus`]) decided them one
-    /// carrier, and leaves their faces on the first of the pair
-    /// ([`Body::unify_surfaces`]), the record the edge rests in. The
-    /// row ([`crate::Coincidence`]) is the door's to record: the two
-    /// faces as cells of the body decided on, the relation of their
-    /// charts, and the margin that decided it. `None`, and nothing
-    /// written, where the edge lies on one record or on two carriers.
-    ///
-    /// # Errors
-    ///
-    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) where
-    /// `edge` does not resolve, [`EulerOpError::NullScaffoldCurve`] on
-    /// an edge that carries no certified curve, and the re-chart's
-    /// ([`Body::unify_surfaces`]).
-    pub fn unify_across(
-        &mut self,
-        edge: crate::entity::EdgeKey,
-        tol: geom_core::Tol,
-    ) -> Result<Option<crate::Coincidence>, crate::euler::EulerOpError>
-    where
-        T: crate::props::AtRestPolicy,
-    {
-        let data =
-            crate::live::lookup(&self.edges, edge, EntityId::Edge, crate::live::Arg("edge"))?;
-        let Some(curve) = self.edge_curve_linked(edge, data).certified() else {
-            return Err(crate::euler::EulerOpError::NullScaffoldCurve { curve: data.curve });
-        };
-        let sides = crate::readback::edge_sides_of(self, edge, data);
-        let (ka, kb) = sides.surfaces();
-        if ka == kb {
-            return Ok(None);
-        }
-        let band = Band::linear(tol).map_err(|e| crate::euler::EulerOpError::Certification {
-            error: geom_brep::CertifyError::Band(e),
-        })?;
-        let Some((relation, margin)) = one_carrier_at_rest(
-            self,
-            [(ka, Some(sides.plus.face)), (kb, Some(sides.minus.face))],
-            curve.carrier(),
-            curve.params(),
-            band,
-        ) else {
-            return Ok(None);
-        };
-        let charts_agree = relation == CarrierRelation::SameOriented;
-        let planes = [ka, kb]
-            .iter()
-            .all(|&k| matches!(self.get_surface(k), Some(geom::Surface::Plane { .. })));
-        let Some(margin) = margin else {
-            unreachable!("{edge:?}: the ladder decided its records one carrier and read no margin")
-        };
-        let [kept, other] = geom_brep::SurfacePair::new(ka, kb).keys();
-        self.unify_surfaces(
-            crate::policy_lane::KernelSite::OneRecord,
-            (kept, other),
-            charts_agree,
-            tol,
-        )?;
-        Ok(Some(crate::Coincidence {
-            cells: [sides.plus.face, sides.minus.face].map(|face| crate::RowCell::Result {
-                cell: crate::Cell::Face(face),
-            }),
-            more: [None; 3],
-            relation: if charts_agree {
-                crate::Relation::SameOriented
-            } else {
-                crate::Relation::SameOpposite
-            },
-            site: if planes {
-                crate::DecisionSite::PlaneLadder
-            } else {
-                crate::DecisionSite::CarrierLadder
-            },
-            margin,
-            discharge: crate::Discharge::of(margin),
-        }))
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod extent_rows {
-    use super::*;
-    use geom_core::{Point3, Tol, Vec3};
-
-    /// **A steep spline edge rests on the pair two hinged planes make,
-    /// read over the whole edge.** A rational quadratic arc (weights
-    /// `1, 10, 1`) 2 m across its ends rises some 45 m to its vertex,
-    /// in the plane `x = 0`. A second plane through the vertex is
-    /// hinged off it by `θ = 0.45·ε` about the line along `ŷ` there,
-    /// so it stands `θ·s` off at `s` metres down the arc: under a band
-    /// within the chord's 2 m, past `K·ε` at the arc's ends. The rest
-    /// locus reads the planes over a ball about the arc's middle (its
-    /// vertex) at the edge's extent from above, which holds the ends:
-    /// the pair. A ball at the chord reads them one chart.
-    #[test]
-    fn a_steep_spline_rests_on_the_pair_its_ends_separate() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let arc = geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(
-                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
-                    .unwrap(),
-                vec![
-                    Point3::new(0.0, -1.0, 0.0),
-                    Point3::new(0.0, 0.0, 50.0),
-                    Point3::new(0.0, 1.0, 0.0),
-                ],
-                vec![1.0, 10.0, 1.0],
-            )
-            .unwrap(),
-        ));
-        let vertex = arc.mid_point(0.0, 1.0);
-        let chord = arc.eval(0.0).distance(arc.eval(1.0));
-        let theta = 0.45 * band.zero();
-        assert!(
-            chord * theta <= band.zero()
-                && vertex.distance(arc.eval(0.0)) * theta >= band.escalate(),
-            "the hinge is under a band within the chord and past K·ε at the ends"
-        );
-        let mut body = Body::<f64>::new();
-        let mut plane = |normal: Vec3<f64>| {
-            body.add_surface(geom::Surface::Plane {
-                origin: vertex,
-                normal,
-                u_ref: Vec3::unit_y(),
-            })
-        };
-        let (ka, kb) = (
-            plane(Vec3::unit_x()),
-            plane(Vec3::new(theta.cos(), 0.0, theta.sin())),
-        );
-        match rest_locus(&body, [(ka, None), (kb, None)], &arc, (0.0, 1.0), band) {
-            geom_brep::RestLocus::Pair(pair) => assert_eq!(
-                pair,
-                geom_brep::SurfacePair::new(ka, kb),
-                "the pair of the two planes"
-            ),
-            geom_brep::RestLocus::Chart(k) => {
-                panic!("the hinged planes read one chart {k:?} over the steep edge")
-            }
-        }
-    }
-
-    /// **The rest ball reaches a spike the edge's samples miss.** A
-    /// polyline spline (degree 1) runs about a metre each way of its
-    /// middle `C`, but between `t = 0.19` and `0.21` it spikes 100 m off
-    /// it, between every one of the samples the extent from below reads.
-    /// Two planes through `C` hinged by `θ` stand under a band apart over
-    /// that bound from below and past `K·ε` at the spike, so a ball at the
-    /// bound from below reads one chart. The ball reads the edge's reach
-    /// from its middle, which holds the spike: the pair.
-    #[test]
-    fn the_rest_ball_reaches_a_spike_the_samples_miss() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let p = Point3::new;
-        let arc = geom::Curve3::Nurbs(std::sync::Arc::new(
-            geom::NurbsCurve3::new(
-                geom_core::spline::KnotVector::clamped(
-                    vec![0.0, 0.0, 0.19, 0.2, 0.21, 0.5, 1.0, 1.0],
-                    1,
-                )
-                .unwrap(),
-                vec![
-                    p(0.0, -1.0, 0.0),
-                    p(0.0, -0.95, 0.0),
-                    p(0.0, 0.0, 100.0),
-                    p(0.0, -0.05, 0.0),
-                    p(0.0, 0.0, 0.0),
-                    p(0.0, 1.0, 0.0),
-                ],
-                vec![1.0; 6],
-            )
-            .unwrap(),
-        ));
-        let mid = arc.mid_point(0.0, 1.0);
-        let below =
-            geom_brep::edge_extent_inf(&arc, 0.0, 1.0, (arc.eval(0.0), arc.eval(1.0))).length();
-        let reach = ExtentBall::of_edge_from(&arc, (0.0, 1.0), mid)
-            .lever_from(mid)
-            .length();
-        let theta = 0.45 * band.zero() / below;
-        assert!(
-            reach * theta >= band.escalate(),
-            "the spike stands past K·ε: reach {reach}, the bound from below {below}"
-        );
-        let mut body = Body::<f64>::new();
-        let mut plane = |normal: Vec3<f64>| {
-            body.add_surface(geom::Surface::Plane {
-                origin: mid,
-                normal,
-                u_ref: Vec3::unit_y(),
-            })
-        };
-        let (ka, kb) = (
-            plane(Vec3::unit_x()),
-            plane(Vec3::new(theta.cos(), 0.0, theta.sin())),
-        );
-        match rest_locus(&body, [(ka, None), (kb, None)], &arc, (0.0, 1.0), band) {
-            geom_brep::RestLocus::Pair(pair) => assert_eq!(
-                pair,
-                geom_brep::SurfacePair::new(ka, kb),
-                "the pair of the two planes"
-            ),
-            geom_brep::RestLocus::Chart(k) => {
-                panic!("the hinged planes read one chart {k:?} past the spike")
-            }
-        }
+        geom_brep::RestLocus::Chart(ka)
+    } else {
+        geom_brep::RestLocus::Pair(geom_brep::SurfacePair::new(ka, kb))
     }
 }

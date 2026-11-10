@@ -79,8 +79,8 @@ pub(crate) enum KernelSite {
     SectionRechart,
     /// A shell's re-chart of a promoted rim face, its edges restated.
     RimRechart,
-    /// The re-chart that leaves two surface records decided one carrier
-    /// one record (`Body::unify_surfaces`), its stranded edges restated.
+    /// The re-chart that leaves faces decided one carrier on one record
+    /// (`Body::one_record`), its stranded edges restated.
     OneRecord,
     /// [`crate::Body::describe_at_rest`](crate::construction::Construct::describe_at_rest)'s restatement.
     AtRest,

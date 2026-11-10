@@ -708,6 +708,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::IsoJoin => "two edges read on one iso family of one chart and joined",
         topo::DecisionSite::CensusAtRest => "two cells at rest the census read as one",
         topo::DecisionSite::ProfileJunction => "a profile junction no constructor made",
+        topo::DecisionSite::SmoothJoin => "two faces a sweep read joined smoothly, one carrier",
     }
 }
 

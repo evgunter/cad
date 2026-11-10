@@ -24,6 +24,7 @@
 //! never touch.
 
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 
 use geom_core::{Band, Bounds, Decide};
 
@@ -52,10 +53,84 @@ const _: () = assert!(
 );
 
 /// A glued pair's two sides as `(kept, other)` ([`KEPT`]): given
-/// `side`'s `x` and the other operand's `y`. The boolean leaves each
-/// glued pair's faces on its kept side's record (`ops::OneCarrierPairs::unify`).
+/// `side`'s `x` and the other operand's `y`.
 pub(crate) fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
     if side == KEPT { (x, y) } else { (y, x) }
+}
+
+/// **What a one-carrier glue of `fa` on `a` and `fb` on `b` keeps and
+/// moves**, a census of keys (`[coincidence.door]`; this crate's README
+/// `[topo.one-record.kept]`): the side whose record is kept — the one
+/// alone also worn by a face of its operand the glue decided no pair of
+/// (`decided`, each operand's faces in a one-carrier pair), else
+/// [`KEPT`]'s ([`crate::one_record::kept_of`]) — and the faces of the
+/// other side the verdict moves: its decided face and that face's
+/// closure under same-record adjacency
+/// ([`crate::one_record::moved_closure`]). The verdict is read once,
+/// over the two decided faces and every face it moves
+/// ([`super::carrier_pair::glue_extent`]).
+#[derive(Clone, Debug)]
+pub(crate) struct GlueCensus {
+    /// The side whose record the moved faces are left on.
+    pub(crate) kept: Operand,
+    /// The moved side's faces the verdict moves, in its keys.
+    pub(crate) moved: BTreeSet<FaceKey>,
+}
+
+/// Each operand's faces the glue decided in a one-carrier pair: A's,
+/// then B's.
+pub(crate) type Decided = [BTreeSet<FaceKey>; 2];
+
+impl GlueCensus {
+    /// The census of `fa` on `a` and `fb` on `b`, `kept` where the
+    /// deciding reading took it already.
+    ///
+    /// # Panics
+    ///
+    /// Where a face's loop does not walk ([`crate::one_record::moved_closure`]).
+    pub(crate) fn of<T: geom_core::Real>(
+        (a, fa): (&Body<T>, FaceKey),
+        (b, fb): (&Body<T>, FaceKey),
+        decided: &Decided,
+        kept: Option<Operand>,
+    ) -> Self {
+        let kept = kept.unwrap_or_else(|| {
+            crate::one_record::kept_of(
+                [
+                    (
+                        Operand::A,
+                        crate::one_record::worn_outside(a, fa, &decided[0]),
+                    ),
+                    (
+                        Operand::B,
+                        crate::one_record::worn_outside(b, fb, &decided[1]),
+                    ),
+                ],
+                KEPT,
+            )
+        });
+        let moved = match kept {
+            Operand::A => crate::one_record::moved_closure(b, &[fb]),
+            Operand::B => crate::one_record::moved_closure(a, &[fa]),
+        };
+        Self { kept, moved }
+    }
+
+    /// The side whose faces move.
+    pub(crate) fn moving(&self) -> Operand {
+        match self.kept {
+            Operand::A => Operand::B,
+            Operand::B => Operand::A,
+        }
+    }
+
+    /// The moving side's decided face, of `fa` and `fb`.
+    fn decided_face(&self, (fa, fb): (FaceKey, FaceKey)) -> FaceKey {
+        match self.kept {
+            Operand::A => fb,
+            Operand::B => fa,
+        }
+    }
 }
 
 /// `decls` with every undeclared pair the operation decides one carrier
@@ -77,24 +152,58 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
         return Ok(Cow::Borrowed(decls));
     }
     let declared = |fa, fb| decls.pairs.iter().any(|d| d.a == fa && d.b == fb);
+    // Each pair is read over its two faces first: which pairs are one
+    // carrier is what says which faces the glue decides.
     let mut found = Vec::new();
+    let mut ones = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
         if declared(fa, fb) {
             continue;
         }
-        let glued = match carrier_pair_decided(a, fa, b, fb, band) {
+        match carrier_pair_decided(a, fa, b, fb, band) {
             Ok(Ok(CarrierVerdict::One { relation, margin })) => {
-                GluedPair::one_carrier(fa, fb, relation, margin)
+                ones.push((fa, fb, relation, margin));
             }
             Ok(Ok(CarrierVerdict::Apart(_) | CarrierVerdict::TwoKinds))
-            | Err(PairUnread::OutsideInventory) => {
-                tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency))
-            }
+            | Err(PairUnread::OutsideInventory) => found.extend(
+                tangency(a, fa, b, fb, band)?.map(|tangency| GluedPair::tangent(fa, fb, tangency)),
+            ),
             // In band, or unread: left to the stage that meets the pair
             // (module doc).
-            Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
-        };
-        found.extend(glued);
+            Ok(Err(_)) | Err(PairUnread::Extent(_)) => {}
+        }
+    }
+    let mut decided = decls.one_carrier_faces();
+    for &(fa, fb, ..) in &ones {
+        decided[0].insert(fa);
+        decided[1].insert(fb);
+    }
+    // A one-carrier pair's verdict is the one read over every face it
+    // moves: the pair's own where it moves its decided face alone, read
+    // again over the closure where that moves more.
+    for (fa, fb, relation, margin) in ones {
+        let census = GlueCensus::of((a, fa), (b, fb), &decided, None);
+        let verdict =
+            if census.moved.len() == 1 && census.moved.contains(&census.decided_face((fa, fb))) {
+                Some((relation, margin))
+            } else {
+                match super::carrier_pair::carrier_pair_decided_over(
+                    a,
+                    fa,
+                    b,
+                    fb,
+                    (census.moving(), &census.moved),
+                    band,
+                ) {
+                    Ok(Ok(CarrierVerdict::One { relation, margin })) => Some((relation, margin)),
+                    // Apart or in band over what it moves: left to the stage
+                    // that meets the pair (module doc).
+                    _ => None,
+                }
+            };
+        found.extend(verdict.and_then(|(relation, margin)| {
+            GluedPair::one_carrier(fa, fb, relation, margin, census.kept)
+        }));
     }
     if found.is_empty() {
         return Ok(Cow::Borrowed(decls));
