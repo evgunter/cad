@@ -1133,3 +1133,15 @@ E1c waits on the answer.
   - The m10 D-tab stays [18, 24] until sym's rule lands. Sym's row is narrowed: all 12 decisions need the rule, and `pcurve_envelope` reads the same term.
   - The alternative, re-anchoring the meridian azimuth at a span point so one read serves both, would move every cylinder line's image and check 4's lemma, and would buy no decision. Not taken.
   - Review tier: orchestrator's read. Its outcome changed no production code, only a row and two work files.
+- 2026-11-10 — **`an-iso-arcs-envelope-omits-its-in-band-weight-margin` closed** (PR 6801). The arc-rim envelope now pays each sub-arc's in-band weight margin.
+  - The bound paid is `R·|w−c|·sin α·√(tan²α + 16/27)/((1+min(w,1))(1+min(c,1)))`. It is within 13% of the exact pointwise sup at every angle (mpmath oracle `scripts/oracles/iso_arc_weight_miss_mpmath.py`) and grows as `1/c`.
+  - Where `c ≤ 0`: at f64 the envelope refuses; at Interval it escalates (NaI), as does a straddle.
+  - Sibling fix: a span inside the band of an arc end pays its overshoot, as the overshoot's arc length through the circle's one metre reading.
+  - Review tier: single FULL, soundness-led. APPROVE-WITH-FIXES, 0 MAJOR: the bound held on 1500 arcs at 50 digits, independently, and the Möbius argument held.
+  - Fix list JJ, read by the orchestrator:
+    - a short sub-arc row (1°, 3°, 10°), red under the new `arc-rim-tangent-under` mutant (12/27 for 16/27);
+    - the `c ≤ 0` prose (NaI, not +∞);
+    - the oracle's f64 allowance scaled by radius, and derive mode extended;
+    - the off-arc clamp doc;
+    - the weight read once beside its margin.
+  - Filed P3 `a-margin-decided-through-a-bool-helper-or-outside-pcurve-cache-is-unswept`: the sweep's blind spot.
