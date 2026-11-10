@@ -67,7 +67,7 @@
 //! out to that radius, which bounds the link's ball, and carried past
 //! the face's reach so that its readings are taken where the face's
 //! would be ([`FaceSector::cleared`]). A curved face, or such a face held at
-//! its corner, refuses ([`TouchUnread::Unreadable`]); a sphere or
+//! its corner, refuses ([`crate::CurvedUnread::Unreadable`]); a sphere or
 //! cylinder face is read by its carrier instead, as above, and a cylinder
 //! or cone face along a line edge of it that lies in a planar face of its
 //! own solid, as the half-plane through its chord across the edge, which
@@ -520,7 +520,8 @@ pub enum TouchUnread {
     /// does not read it — held at a corner, or bounded by a curve no
     /// clearance reads; and where the faces' tangent cones are read
     /// ([`FaceSector::tangent`]), a face with no tangent plane at the
-    /// point (a cone's apex), or a cusp corner or a bound or plane lying
+    /// point (a cone's apex; [`CurvedUnread::NoTangentPlane`] where the census
+    /// reads it at a corner), or a cusp corner or a bound or plane lying
     /// on another sheet's to first order only (a tangency) that the
     /// reading one order down does not part ([`second_order`]). (A tied
     /// edge whose key does not
@@ -529,33 +530,12 @@ pub enum TouchUnread {
     /// [`Self::Corrupt`].)
     ///
     /// An abort: no later face rescues a germ one face makes unreadable,
-    /// so it decides the outcome now. It and the four causes beside it
-    /// ([`Self::NoTangentPlane`], [`Self::Crease`], [`Self::NoSectorArm`],
-    /// [`Self::Unplaced`]) are one control: each aborts the planar reading
-    /// and is what its callers read the tangent cones past
-    /// ([`TouchUnread::curved_unread`]). They are named apart so a refusal says
-    /// which cause it was, not to stand apart.
-    Unreadable,
-    /// A corner face has no tangent plane at the vertex: a cone's apex, or
-    /// a vertex in the band of a carrier's axis
-    /// ([`crate::sector_face::VertexFace`]). One control with
-    /// [`Self::Unreadable`].
-    NoTangentPlane,
-    /// A corner of a spline face sits on a crease of its surface
-    /// ([`crate::sector_face::SectorFaceError::Crease`]). One control with
-    /// [`Self::Unreadable`]: kept an abort, since refusing it by the
-    /// crease's own standing would let a solid touching itself there
-    /// finish undetected
-    /// (`work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`).
-    Crease,
-    /// A corner face's surface has no sector arm wired
-    /// ([`crate::sector_face::SectorFaceError::Unsupported`]). One control
-    /// with [`Self::Unreadable`].
-    NoSectorArm,
-    /// A spline half-edge at a corner has no chart image to read the
-    /// vertex off ([`crate::sector_face::SectorFaceError::Unplaced`]). One
-    /// control with [`Self::Unreadable`].
-    Unplaced,
+    /// so it decides the outcome now. One control whatever the cause
+    /// ([`CurvedUnread`]): each aborts the planar reading and is what its
+    /// callers read the tangent cones past ([`TouchUnread::curved_unread`]).
+    /// The causes are named apart so a refusal says which it was, not to
+    /// stand apart.
+    Curved(CurvedUnread),
     /// A face's piece at the touch point does not close on decided
     /// readings (a gap between neighbouring turns of half a turn or
     /// more, or no edge met across one, [`face_piece`]); or a link's
@@ -570,7 +550,7 @@ pub enum TouchUnread {
     ChordScale,
     /// A curved edge's tangent at the touch point did not read, for the
     /// reason it carries. It is no tangency a reading of second order
-    /// would part ([`Self::Unreadable`]). Its standing is the reason's
+    /// would part ([`Self::Curved`]). Its standing is the reason's
     /// ([`EdgeTangentUnread::refusal`]).
     EdgeTangent(EdgeTangentUnread),
     /// A curved edge's span does not certify the touch point on its
@@ -598,6 +578,34 @@ pub enum TouchUnread {
     /// Its standing is the crate's one lone-loop standing
     /// (`live::LONE_LOOP_REFUSAL`).
     LoneLoop,
+}
+
+/// **Which cause left a curved face or edge unread**
+/// ([`TouchUnread::Curved`]): one control, named apart so a refusal says
+/// which it was.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
+pub enum CurvedUnread {
+    /// A curved face or edge the planar reading does not reach, as
+    /// [`TouchUnread::Curved`] lists it, where no cause below is named.
+    #[default]
+    Unreadable,
+    /// A corner face has no tangent plane at the vertex: a cone's apex, or
+    /// a vertex in the band of a carrier's axis
+    /// ([`crate::sector_face::VertexFace`]).
+    NoTangentPlane,
+    /// A corner of a spline face sits on a crease of its surface
+    /// ([`crate::sector_face::SectorFaceError::Crease`]). Kept an abort,
+    /// since refusing it by the crease's own standing would let a solid
+    /// touching itself there finish undetected
+    /// (`work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`).
+    Crease,
+    /// A corner face's surface has no sector arm wired
+    /// ([`crate::sector_face::SectorFaceError::Unsupported`]).
+    NoSectorArm,
+    /// A spline half-edge at a corner has no chart image to read the
+    /// vertex off ([`crate::sector_face::SectorFaceError::Unplaced`]).
+    Unplaced,
 }
 
 impl TouchUnread {
@@ -629,30 +637,19 @@ impl TouchUnread {
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
             Self::LoneLoop => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::EdgeTangent(why) => Ok(why.refusal()),
-            Self::Unreadable
-            | Self::NoTangentPlane
-            | Self::Crease
-            | Self::NoSectorArm
-            | Self::Unplaced
+            Self::Curved(_)
             | Self::OffInterior
             | Self::NormalFault(_)
             | Self::Corrupt => Err(Aborts),
         }
     }
 
-    /// **Whether this is the curved reading's abort**: [`Self::Unreadable`]
-    /// or one of its named causes, the one control a caller reads the
-    /// tangent cones, or a chord, past.
+    /// **Whether this is the curved reading's abort**
+    /// ([`Self::Curved`]), whichever cause: the one control a caller reads
+    /// the tangent cones, or a chord, past.
     #[must_use]
     pub const fn curved_unread(self) -> bool {
-        matches!(
-            self,
-            Self::Unreadable
-                | Self::NoTangentPlane
-                | Self::Crease
-                | Self::NoSectorArm
-                | Self::Unplaced
-        )
+        matches!(self, Self::Curved(_))
     }
 }
 
@@ -2524,7 +2521,7 @@ impl<T: Decide> FaceSector<T> {
     /// Face `f` of a live `body` as its sectors at `p`, held there as
     /// `holds` say ([`FaceSector::of_face`]), or as the disc its edges clear
     /// where one of them is not a line ([`FaceSector::cleared`]): a face off
-    /// a plane is [`TouchUnread::Unreadable`].
+    /// a plane is [`crate::CurvedUnread::Unreadable`].
     fn of_body_face(
         body: &Body<T>,
         f: FaceKey,
@@ -2535,10 +2532,10 @@ impl<T: Decide> FaceSector<T> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
-            return Err(TouchUnread::Unreadable);
+            return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
         let outward = crate::face_normal::face_outward_normal(body, f)
-            .ok_or(TouchUnread::Unreadable)?
+            .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?
             .vec();
         let mut loops = Vec::new();
         let mut rings = Vec::new();
@@ -2596,7 +2593,7 @@ impl<T: Decide> FaceSector<T> {
     ///
     /// A corner hold, a curved edge held, two edges held at once, a face
     /// off a plane, or an edge no clearance reads is
-    /// [`TouchUnread::Unreadable`]; a radius or a reach that is not a
+    /// [`crate::CurvedUnread::Unreadable`]; a radius or a reach that is not a
     /// positive number, [`TouchUnread::ChordScale`].
     pub(crate) fn cleared(
         body: &Body<T>,
@@ -2608,10 +2605,10 @@ impl<T: Decide> FaceSector<T> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face.surface().clone();
         let geom::Surface::Plane { u_ref, .. } = surface else {
-            return Err(TouchUnread::Unreadable);
+            return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         };
         if holds.iter().any(|h| matches!(h, Hold::Corner(_))) {
-            return Err(TouchUnread::Unreadable);
+            return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
         let mut held = holds.iter().filter_map(|h| match *h {
             Hold::Edge(a, b) => Some((a, b)),
@@ -2619,7 +2616,7 @@ impl<T: Decide> FaceSector<T> {
         });
         let edge = held.next();
         if held.next().is_some() {
-            return Err(TouchUnread::Unreadable);
+            return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
         // The held edge's ends bound the radius too: a spur's tip is the
         // end of no other edge.
@@ -2668,7 +2665,7 @@ impl<T: Decide> FaceSector<T> {
         let along: Vec<(Vec3<T>, bool)> = match edge {
             None => vec![((u_ref - outward * outward.dot(u_ref)).normalize(), false)],
             // No line edge between the held ends: a curved edge held.
-            Some(_) if passes.is_empty() => return Err(TouchUnread::Unreadable),
+            Some(_) if passes.is_empty() => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
             Some(_) => passes.into_iter().map(|d| (d, true)).collect(),
         };
         Ok(along
@@ -2708,7 +2705,7 @@ impl<T: Decide> FaceSector<T> {
     /// about the ray is the whole turn, its two bounds on the ray; a
     /// horn about it is no sector, and is kept as its [`Horn`]
     /// ([`TangentPiece::Horn`]); one the bends do not part is
-    /// [`TouchUnread::Unreadable`]. A spur's tip, the loop back along the
+    /// [`crate::CurvedUnread::Unreadable`]. A spur's tip, the loop back along the
     /// half-edge it came in by, is the whole turn. One whose turn reads in
     /// band is [`TouchUnread::InBand`].
     pub(crate) fn tangent(
@@ -2883,10 +2880,10 @@ fn corner_fan<T: Decide>(
                 return match second_order::cusp(apex, m, (d0, d1), bends, band) {
                     Some(second_order::Cusp::Whole) => Ok(whole(&mut rays, b)),
                     Some(second_order::Cusp::Horn) => Ok(CornerTurn::Horn),
-                    None => Err(TouchUnread::Unreadable),
+                    None => Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
                 };
             }
-            Some(Sign::Zero) => return Err(TouchUnread::Unreadable),
+            Some(Sign::Zero) => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
             None => return Err(TouchUnread::InBand),
         },
         None => return Err(TouchUnread::InBand),
@@ -2955,7 +2952,7 @@ impl<T: Decide> FaceSector<T> {
     ///
     /// A face on another carrier, an edge off the carrier's ruling
     /// through `p`, or a cone's apex decidedly inside the edge, is
-    /// [`TouchUnread::Unreadable`]; a reading in band, or an arc decided
+    /// [`crate::CurvedUnread::Unreadable`]; a reading in band, or an arc decided
     /// to cross the plane short of `q`, [`TouchUnread::InBand`]; the arc
     /// lying in the plane to `q`, [`TouchUnread::Degenerate`]; a lever
     /// that is not a positive number, [`TouchUnread::ChordScale`].
@@ -2969,9 +2966,9 @@ impl<T: Decide> FaceSector<T> {
         let apex = match face.surface {
             geom::Surface::Cylinder { .. } => None,
             geom::Surface::Cone { apex, .. } => Some(apex),
-            _ => return Err(TouchUnread::Unreadable),
+            _ => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
         };
-        let line = face.surface.axis_line().ok_or(TouchUnread::Unreadable)?;
+        let line = face.surface.axis_line().ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         let (centre, axis) = (line.foot(p), line.dir);
         let (along, m0) = (face.along, face.outward);
         let radial = p - centre;
@@ -2994,7 +2991,7 @@ impl<T: Decide> FaceSector<T> {
             match (on_plane, on_ruling) {
                 (Some(Zero), Some(Zero)) => {}
                 (None, _) | (_, None) => return Err(TouchUnread::InBand),
-                _ => return Err(TouchUnread::Unreadable),
+                _ => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
             }
         }
         // A cone's sections along the edge are one another scaled about
@@ -3009,7 +3006,7 @@ impl<T: Decide> FaceSector<T> {
             match (past(b, d), past(a, -d)) {
                 (Some(Positive | Zero), _) | (_, Some(Positive | Zero)) => {}
                 (None, _) | (_, None) => return Err(TouchUnread::InBand),
-                _ => return Err(TouchUnread::Unreadable),
+                _ => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
             }
         }
         // The parallel circle's point at chord `lever` from `p`: it rises
@@ -3072,7 +3069,7 @@ impl<T: Decide> RuledChord<T> {
         Err(if in_band {
             TouchUnread::InBand
         } else {
-            TouchUnread::Unreadable
+            TouchUnread::Curved(CurvedUnread::Unreadable)
         })
     }
 }
@@ -3084,7 +3081,7 @@ impl<T: Decide> RuledChord<T> {
 /// chord's lens, so the lenses meet no other face of the edge, nor one
 /// another. The one way a chord's sector leaves this module. A direction
 /// inside a lens or on its bound (a sheet that the chord would cross, or
-/// one tangent to the face) is [`TouchUnread::Unreadable`]; a reading in
+/// one tangent to the face) is [`crate::CurvedUnread::Unreadable`]; a reading in
 /// band, [`TouchUnread::InBand`].
 pub(crate) fn chords_clear<T: Decide>(
     p: Point3<T>,
@@ -3152,7 +3149,7 @@ fn fan<T: Real>(
 
 /// **How far `p` stands from the edge of half-edge `he`, at least**, in
 /// metres: a line's distance from its segment, another curve's from its
-/// whole carrier ([`geom::Curve3::clearance`]). [`TouchUnread::Unreadable`]
+/// whole carrier ([`geom::Curve3::clearance`]). [`crate::CurvedUnread::Unreadable`]
 /// for a spline, which has no closed-form bound, or an edge with no
 /// certified curve; [`TouchUnread::Corrupt`] where it does not read.
 pub(crate) fn clearance<T: Decide>(
@@ -3166,7 +3163,7 @@ pub(crate) fn clearance<T: Decide>(
         .get(half.edge)
         .and_then(|d| body.curves.get(d.curve))
         .and_then(crate::null::CurveGeom::certified)
-        .ok_or(TouchUnread::Unreadable)?;
+        .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
     if !curve.carrier().is_curved() {
         let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
         return Ok(to_segment(
@@ -3174,7 +3171,7 @@ pub(crate) fn clearance<T: Decide>(
             (position(body, half.start)?, position(body, end)?),
         ));
     }
-    curve.carrier().clearance(p).ok_or(TouchUnread::Unreadable)
+    curve.carrier().clearance(p).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))
 }
 
 impl<T: Decide> Link<T> {
@@ -3184,7 +3181,7 @@ impl<T: Decide> Link<T> {
     /// # Errors
     ///
     /// The [`TouchUnread`] a sector's build refused with: a curved face
-    /// or edge at the vertex is [`TouchUnread::Unreadable`].
+    /// or edge at the vertex is [`crate::CurvedUnread::Unreadable`].
     pub fn at_point(body: &Body<T>, v: VertexKey, band: Band) -> Result<Self, TouchUnread> {
         let p = position(body, v)?;
         let mut sectors = Vec::new();
@@ -3207,7 +3204,7 @@ impl<T: Decide> Link<T> {
     /// # Errors
     ///
     /// As [`Link::at_point`]; an edge that is not a line is
-    /// [`TouchUnread::Unreadable`].
+    /// [`crate::CurvedUnread::Unreadable`].
     pub fn on_edge(
         body: &Body<T>,
         e: EdgeKey,
@@ -3215,7 +3212,7 @@ impl<T: Decide> Link<T> {
         band: Band,
     ) -> Result<Self, TouchUnread> {
         if !crate::census::edge_is_line(body, e) {
-            return Err(TouchUnread::Unreadable);
+            return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
         let he = body.edges.get(e).ok_or(TouchUnread::Corrupt)?.he_plus;
         let v0 = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?.start;
@@ -4012,7 +4009,7 @@ pub(crate) mod rest {
     /// clears.
     pub(crate) fn judge<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> TouchVerdict {
         if a.tangent() || b.tangent() {
-            return TouchVerdict::Unread(TouchUnread::Unreadable);
+            return TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
         // Every reading over the pair is taken about `p`, while each
         // sector stands on its own apex, off `p` by at most its link's
@@ -4253,7 +4250,7 @@ pub(crate) mod rest {
         band: Band,
     ) -> TouchVerdict {
         if a.tangent() {
-            return TouchVerdict::Unread(TouchUnread::Unreadable);
+            return TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
         }
         let rd = Reading::tied(band, a.cone.tie);
         if let Some(open) = held_closed(&[a], rd) {
@@ -4297,14 +4294,14 @@ pub(crate) mod rest {
     /// **The one test of two solids' materials at a touch point**: two
     /// links by [`judge`], a link and a round face by [`by_round`]. Two
     /// round faces are a face pair, which the touch analysis does not
-    /// read ([`TouchUnread::Unreadable`]).
+    /// read ([`crate::CurvedUnread::Unreadable`]).
     pub(crate) fn meet<T: Decide>(a: &Germ<T>, b: &Germ<T>, band: Band) -> TouchVerdict {
         match (a, b) {
             (Germ::Link(x), Germ::Link(y)) => judge(x, y, band),
             (Germ::Link(x), Germ::Round { round, reach })
             | (Germ::Round { round, reach }, Germ::Link(x)) => by_round(x, round, *reach, band),
             (Germ::Round { .. }, Germ::Round { .. }) => {
-                TouchVerdict::Unread(TouchUnread::Unreadable)
+                TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable))
             }
         }
     }
@@ -4370,7 +4367,7 @@ pub(crate) mod rest {
     /// cylinder's sector as a line on its carrier, a ruling
     /// ([`on_carrier`]); else it is a tangency, kept where the sheets
     /// along that ray part one order down ([`super::second_order::parts`])
-    /// and [`TouchUnread::Unreadable`] where they do not.
+    /// and [`crate::CurvedUnread::Unreadable`] where they do not.
     /// Two closed sectors have no bounds, so each pair of them with a plane
     /// not its face's own is read for one plane, each against the other:
     /// two rays of one's fan a quarter turn apart on the other's plane,
@@ -4413,7 +4410,7 @@ pub(crate) mod rest {
                         Err(_) => return Some(TouchUnread::InBand),
                     };
                     if !kept && !super::second_order::parts(link, r, rd) {
-                        return Some(TouchUnread::Unreadable);
+                        return Some(TouchUnread::Curved(CurvedUnread::Unreadable));
                     }
                 }
             }
@@ -4453,7 +4450,7 @@ pub(crate) mod rest {
                 return Some(if reads.iter().flatten().any(Option::is_none) {
                     TouchUnread::InBand
                 } else {
-                    TouchUnread::Unreadable
+                    TouchUnread::Curved(CurvedUnread::Unreadable)
                 });
             }
         }
