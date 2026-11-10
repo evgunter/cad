@@ -64,6 +64,6 @@ None of those PRs runs a pncad-py slow row (`work/onecopy/main-red-prose-census-
 ## The class is wider than censuses (2026-11-09, `onecopy/loft-rim-red`)
 
 A behaviour test in the slow set has the same blind spot: `sweep::all a_loft_computes_its_walls_in_t::a_lofted_arc_wall_is_a_function_of_the_sections_bulge` counts the iso-boundary decisions a loft records.
-- **The mover.** PR 6484 (`bc927bc4b3`, 2026-11-03) changed what `topo::pcurves` certifies at the mint, so the test reads 18 Zeros where it pins 10. The PR neither touches sweep nor spells the test's name, so its CI never ran the test.
+- **The mover.** PR 6484 (`bc927bc4b3`, 2026-11-03) changed what `topo::pcurves` certifies at the mint, so the test reads 18 Zeros where it pins 10. The PR touched six of sweep's test files (two new test modules, `tests/all.rs`, `tests/common/mod.rs`, `tests/common/semicircle_wall.rs` and `tests/euler_site_row_frontiers.rs`) and still did not seed this row: its added lines never spell the test's name, so its CI never ran the test.
 - **How long it stood.** The nightly went red the next day. Two lanes filed it separately on 2026-11-04, and it stood red for six days (`work/green/main-red-a-lofted-arc-walls-rim-zeros-count-eighteen.md`).
 - **What the options above catch.** Option A, as written, does not reach this case: no `gated_to!` marker could name every path that moves the decisions a loft makes, which is most of topo and geom-brep. The gap is the slow set's `is_new` rule for every cross-crate slow test, not only the source walks.
