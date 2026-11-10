@@ -45,3 +45,11 @@ The four carriers with no standing of their own point at `PieceWalkRefusal::refu
 The sweep above named `CarryError::Unwalked` and `SectionUnbuilt::Unwalked`. Neither exists: both are the one `CarryRefusal::Unwalked`, carried.
 
 **Left on this row:** the fold in `splitting/containment.rs` (`ConicArc::hit`, `CarrierRefusal::Unwalked(_) => ConicHit::Unsettled`, read by `boolean/region.rs` as `RegionRefusal::RayExhausted`). Splitting it needs a `RegionRefusal` arm for a missing bound, and the fold is unreached today, since a conic's speed bound is its radius.
+
+## Closed by the any-pins unit (`onecopy/refusal-standing`, after PR 6739)
+
+`ConicArc::hit` no longer folds both walk refusals into `ConicHit::Unsettled`:
+- **`Exhausted`** (the walk's budget) stays `Unsettled`. It still reads as `RayExhausted` in region and as `EdgeContact::Unread` in containment.
+- **`Unbounded`** (no speed bound) is the new `ConicHit::Uncertified`: a construction fault (orchestrator ruling (b)), not a limit. A certified conic cannot reach it: `geom`'s `conic` module holds a radius and both semi-axes to positive lengths, and certification's speed floor refuses one that is not. So containment refuses the loop as `PointInLoopError::CorruptLoop`, and region refuses the face as `RegionRefusal::WoundPastPeriod`, whose image is `CorruptFace`.
+
+`containment::tests::a_conic_with_no_speed_bound_is_a_corrupt_loop` pins the containment walk. No input reaches `hit`'s `Unbounded` arm: an infinite, zero or poisoned size already reads `Off`, or as a poisoned escalation, earlier. So the test hands the walk the reading directly.

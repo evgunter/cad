@@ -89,3 +89,11 @@ that can abort; `ladder`'s module docs):
 `census`'s fold of `MeetFault::Unsettled` into `InteriorsUnread::Unbuilt`
 is a consumer-side rank of that kind, filed as
 `work/splitdoor/census-interiors-fold-a-meetings-fault-into-unbuilt.md` (its 2026-11-05 section).
+
+## Closed by the any-pins unit (`onecopy/refusal-standing`, after PR 6739)
+
+The rerouted rows are closed (`a-ladder-that-checks-its-answers-agree-has-no-home`, `cone-reads-given-reference-loop-waits-on-its-unsettled-classes`), as is the class row (`kept-refusal-loops-the-ladder-row-never-listed`). The "not ported, by design" items stand as written.
+
+What was left, "the `Any` record paths are unreached", was owed by every `Any` port. It is now a gate: `scripts/gates/any-climb-pins.sh` registers every production `Answering::Any` ladder, keyed by its function, with its pin or its row.
+- 19 of 44 have a pin. Among them, `ray_walk::walk`'s is new here, and `chord_join::paths_rung` and `path_ring_side` are pinned by `cone_ring_rows`' every-offset rows.
+- The other 25 carry on `t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer`, each with the fixture it needs. `side_reader::cast_aims`, the case this row named, is among them.
