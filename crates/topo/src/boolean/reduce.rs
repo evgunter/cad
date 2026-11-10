@@ -4998,15 +4998,6 @@ fn wall_crossing<T: Decide + Bounds>(
             });
         }
     };
-    // The carrier's speed at a parameter: only the kinds `found` was
-    // read for reach here, and an ellipse whose frame cannot be read is
-    // a kernel bug, refused — never a zero speed that would read every
-    // root as at the span's end.
-    let speed_at = |t: T| {
-        geom::carrier_speed::speed_at(carrier, t).ok_or(BooleanError::ClassificationInvariant {
-            what: "a wall root's carrier is neither a line nor a conic",
-        })
-    };
     let found = match found {
         CircleRoots::Certified(found) => found,
         // A conic ON the surface: its residual is a zero constant — the
@@ -5024,30 +5015,28 @@ fn wall_crossing<T: Decide + Bounds>(
     // [`SpanVerdict::NoInterior`].
     let mut at_end = false;
     let mut crossed_elsewhere = false;
+    // Each root against the span's ends, as the span reads a parameter
+    // ([`geom_brep::curve_pair::Span::place_param`]): at an end by its
+    // chord, else inside, else past by its side of the ends, each side
+    // also read on its copy a turn away. The door names the roots within
+    // half a turn of the span's middle, so on an edge of near a full turn
+    // a root's enclosure astride the middle's antipode can have its other
+    // copy inside the span, which that copy's reading keeps.
+    let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
     for &t in ts {
-        let mut interior = true;
-        for (gap, end) in [(t - t0, t0), (t1 - t, t1)] {
-            match decide(
-                "bool_wall_root_in_span",
-                Margin::of(gap * speed_at(end)?),
-                band,
-            ) {
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Zero) => {
-                    interior = false;
-                    at_end = true;
-                }
-                Ok(Sign::Negative) => interior = false,
-                Err(diag) => {
-                    return Err(BooleanError::Escalated {
-                        decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-                        diag,
-                    });
-                }
+        match span.place_param(t, band) {
+            Ok(geom_brep::curve_pair::Place::Inside) => {}
+            Ok(geom_brep::curve_pair::Place::End(_)) => {
+                at_end = true;
+                continue;
             }
-        }
-        if !interior {
-            continue;
+            Ok(geom_brep::curve_pair::Place::Past) => continue,
+            Err(diag) => {
+                return Err(BooleanError::Escalated {
+                    decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                    diag,
+                });
+            }
         }
         let p = carrier.eval(t);
         match place_crossing(y, face, p, nappe, band)? {

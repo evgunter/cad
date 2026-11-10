@@ -591,24 +591,30 @@ fn nearest_on_edge<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near
     let Some(t) = foot(&e.carrier, x, t0) else {
         return sampled_near(e, x, band);
     };
-    let Some(speed) = geom::carrier_speed::speed_at(&e.carrier, t) else {
-        unreachable!(
-            "`foot` places a closed-form foot only on a line or a circle (`Curve3::nearest`), \
-             whose speed `speed_at` reads in closed form"
-        )
-    };
-    if !(strictly_inside(t - t0, speed) && strictly_inside(t1 - t, speed)) {
+    let span = crate::curve_pair::Span::new(&e.carrier, (t0, t1));
+    let inside = |end| strictly_inside(span.end_gap(t, end, crate::curve_pair::GapMeter::Clear));
+    if !(inside(crate::curve_pair::SpanEnd::Start) && inside(crate::curve_pair::SpanEnd::Stop)) {
         return Near::Off;
     }
     decide_near(t, (e.carrier.eval(t) - x).norm(), band)
 }
 
-/// A parameter step `m` at `speed` is strictly positive, an exact order
-/// (`chart_singularity_in_span`): an edge's interval ends at its
-/// vertices, read before it.
-fn strictly_inside<T: Decide>(m: T, speed: T) -> bool {
+/// **A gap from an edge's end is strictly positive**, an exact order
+/// (`chart_singularity_in_span`): the edge's interval ends at its
+/// vertices, read before it. The gap is the span's
+/// ([`crate::curve_pair::Span::end_gap`]), metered at the least speed
+/// over it, under which a decided `Positive` is sound.
+///
+/// It reads no period, and needs none. [`foot`] names the parameter at or
+/// past the edge's first end, a turn on at most (`Period::at_or_above`),
+/// not about the edge's middle, so the one place an enclosure can lie
+/// astride two copies is that end, a vertex [`locate`] reads before the
+/// edge. Off it, a box is named whole on the copy the edge's interval
+/// runs from, and its other copy lies a full turn on, past any edge's
+/// last end.
+fn strictly_inside<T: Decide>(gap: Margin<T>) -> bool {
     matches!(
-        geom_core::k_stats::prove("chart_singularity_in_span", Margin::of(m * speed)),
+        geom_core::k_stats::prove("chart_singularity_in_span", gap),
         Ok(Sign::Positive)
     )
 }

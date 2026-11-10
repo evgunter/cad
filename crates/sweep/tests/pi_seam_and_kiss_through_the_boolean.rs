@@ -789,9 +789,9 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                     matches!(
                         &e,
                         BooleanError::Escalated { diag, .. }
-                            if diag.predicate == Some("bool_wall_root_in_span")
+                            if diag.predicate == Some("curve_pair_span_end_chord")
                     ),
-                    "{label}: the meridian's root, by arc length: {e:?}"
+                    "{label}: the meridian's root, by its chord to the span's end: {e:?}"
                 ),
                 _ => assert!(
                     matches!(e, BooleanError::Escalated { .. }),
