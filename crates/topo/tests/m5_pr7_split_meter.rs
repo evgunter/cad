@@ -1,11 +1,14 @@
-//! M5 PR 7 → PR 9: the rung-3 arm of `split_edge`'s
-//! parameter-interiority meter (C12.3), and the end-to-end `Nurbs`
-//! split row PR 7 named this PR as the trigger for.
+//! M5 PR 7 → PR 9: splitting a rung-3 (`Nurbs`) edge (C12.3), and the
+//! end-to-end `Nurbs` split row PR 7 named this PR as the trigger for.
 //!
-//! `split_edge` states its interiority margin in metres by multiplying
-//! a parameter distance by a per-carrier meter. PR 7 gave the `Nurbs`
-//! arm a real one — `NurbsCurve3::speed_lower_bound`, a certified lower
-//! bound on `‖C′(t)‖` from the derivative net's convex hull — and PR 9
+//! `split_edge`'s interiority is the edge span's reading of the
+//! parameter (`geom_brep::curve_pair::Span::place_param_read`): an end by
+//! the split point's chord to it, then the side at the carrier's sup
+//! speed. It no longer multiplies a parameter distance by the speed
+//! floor (PR 6710). The floor, `NurbsCurve3::speed_lower_bound` (a
+//! certified lower bound on `‖C′(t)‖` from the derivative net's convex
+//! hull, PR 7), is read by each child's certification instead: check 2
+//! meters the child's span at it (`nurbs_span_meter`). PR 9
 //! flipped `EdgeCurve::certify`'s carrier gate for the rung-3 class
 //! (a `Nurbs` carrier under an `Intersection` description of two
 //! analytic surfaces), so the arm is now reachable from an at-rest
@@ -227,17 +230,22 @@ fn the_end_to_end_nurbs_split_row() {
 
 #[test]
 fn a_split_at_the_endpoint_band_escalates_or_refuses_in_metres() {
-    // The meter's other face: a parameter distance whose metred span
-    // is NOT definitely positive must refuse/escalate, scaled from
-    // the resolved band (multi-ε honesty) — never accepted.
+    // A split point whose chord to the edge's start is NOT definitely
+    // past the band must refuse/escalate, scaled from the resolved band
+    // (multi-ε honesty) — never accepted. The split's interiority reads
+    // that chord (`Span::place_param_read`); the point is placed from the
+    // band the run resolved, at the carrier's speed at the start, so its
+    // chord lies in the band's gap.
     let (mut body, edge, carrier, (h0, _h1)) = body_with_rung3_edge();
-    // A split parameter whose distance-to-endpoint, METERED through
-    // the certified speed bound, sits inside the band: place it from
-    // the band the run resolved, through the carrier's own meter.
-    let meter = carrier.speed_lower_bound().get();
-    assert!(meter > 0.0);
+    let speed = carrier.deriv(h0).norm();
+    assert!(speed > 0.0);
     let band = Band::linear(Tol::witness()).unwrap();
-    let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / meter;
+    let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / speed;
+    let chord = (carrier.eval(t_bad) - carrier.eval(h0)).norm();
+    assert!(
+        band.zero() < chord && chord < band.escalate(),
+        "the split point's chord to the start is in the band's gap: {chord:e}"
+    );
     assert!(
         body.split_edge(edge, t_bad, Tol::witness()).is_err(),
         "an in-band interiority margin must never split"
@@ -246,11 +254,12 @@ fn a_split_at_the_endpoint_band_escalates_or_refuses_in_metres() {
 
 #[test]
 fn the_meter_the_split_arm_will_use_is_a_real_lower_bound() {
-    // The arm itself: `split_edge` computes `(t − t₀) · meter` in
-    // metres, so the meter must never exceed the true speed — a meter
-    // that overstated it would accept a split that is NOT clear of the
-    // endpoints, which is the failure the conservative posture exists
-    // to prevent (`Circle` ⇒ radius, `Ellipse` ⇒ the MINOR semi-axis).
+    // The floor each split child's certification reads: check 2 meters
+    // the child's span at it (`nurbs_span_meter`), so the meter must
+    // never exceed the true speed — a meter that overstated it would
+    // certify a child that is NOT clear of its own ends, which is the
+    // failure the conservative posture exists to prevent (`Circle` ⇒
+    // radius, `Ellipse` ⇒ the MINOR semi-axis).
     let n = nurbs_carrier();
     let m = n.speed_lower_bound().get();
     assert!(m > 0.0, "a monotone carrier meters positively: {m}");
@@ -305,8 +314,8 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     // non-rational derivative net, but `speed_lower_bound` no longer
     // stops there: its rational arm assembles the bound from the
     // HOMOGENEOUS net through the quotient rule (derivation on the
-    // method). So the `split_edge_param_interior` trilean now has a
-    // real metre-per-parameter for a rational carrier, and the arm
+    // method). So a rational carrier's split children have a real
+    // metre-per-parameter at check 2 (`nurbs_span_meter`), and the split
     // runs end to end instead of escalating.
     //
     // The fixture is the plainest rational carrier there is: an exact

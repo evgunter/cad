@@ -532,3 +532,33 @@ fn an_import_of_an_in_file_module_is_walked_on_wherever_it_stands() {
     });
     assert_eq!(got, vec![x, leaf, y, g]);
 }
+
+#[test]
+fn two_in_file_globs_that_each_bring_a_paths_head_are_ambiguous() {
+    // One rule for a bare name and a path's head: `m` brought in by two
+    // globs, each a different module, is ambiguous either way.
+    let src = parsed(
+        "mod a { pub mod m { pub use x::door; } pub use x::row; }
+        mod b { pub mod m { pub use y::door; } pub use y::row; }
+        use self::a::*;
+        use self::b::*;
+        fn f() { m::door(); probe(row); }",
+    );
+    let door = src.events.iter().find(|e| e.name == "door").unwrap();
+    assert_eq!(
+        door.bound().cloned(),
+        Some(Bound::Ambiguous(vec![
+            used(&["x", "door"]).unwrap(),
+            used(&["y", "door"]).unwrap(),
+        ]))
+    );
+    assert_eq!(
+        probes(
+            "mod a { pub use x::row; }\nmod b { pub use y::row; }\nuse self::a::*;\nuse self::b::*;\nfn f() { probe(row); }"
+        ),
+        vec![Some(Bound::Ambiguous(vec![
+            used(&["x", "row"]).unwrap(),
+            used(&["y", "row"]).unwrap(),
+        ]))]
+    );
+}

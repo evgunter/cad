@@ -94,8 +94,8 @@ use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{Built, KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
-    Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate,
-    KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, MarginDiag, Point2, Point3, RANGE_ENDING, Real,
+    Affine3, Arc2, Band, BandError, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    KERNEL_LIMIT_RECOURSE, MOVE_RECOURSE, MarginDiag, Point2, Point3, RANGE_ENDING, Real,
     RigidMotion, TurnError, Turns, UnitVec3, UnitVec3Error,
 };
 use profile::{
@@ -453,7 +453,7 @@ impl core::fmt::Display for SkinError {
             ),
             Self::DegenerateSection { section, what } => write!(
                 f,
-                "section {section} is degenerate ({what}). Recourse: {COINCIDENCE_RECOURSE}"
+                "section {section} is degenerate ({what}). {MOVE_RECOURSE}"
             ),
             Self::NoParameterStep { section } => write!(
                 f,

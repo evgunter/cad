@@ -961,12 +961,12 @@ impl NoCarrier {
     pub const fn recourse(self) -> &'static str {
         match self {
             Self::Tangent | Self::Pinch => {
-                "Recourse: move one face so the surfaces clearly cross or clearly part"
+                geom_core::move_recourse!("so the surfaces clearly cross or clearly part")
             }
             // A spline × implicit pair that clearly crosses is not carried
             // either (`SplineImplicitWhole`), so parting is the one way
             // through.
-            Self::Touch => "Recourse: move one face so the surfaces clearly part",
+            Self::Touch => geom_core::move_recourse!("so the surfaces clearly part"),
             Self::WallRegion
             | Self::RowRegion
             | Self::SplineImplicitWhole
@@ -1457,7 +1457,20 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     }
 }
 
+/// The desync of a component whose tube pads no band, read by the carry
+/// ([`CarryError::Desync`]) and by a site ([`SiteRefusal::Desync`]).
+const TUBE_PADS_NO_BAND: &str = "a component's tube pads no band";
+
 /// **Why a site has no component of its section**, or more than one.
+///
+/// A narrowing of [`CarryError`]: each arm is one of its arms
+/// (`From<SiteRefusal> for CarryError`), and the carry's own refusals
+/// ([`CarryRefusal`]'s other arms) are not among them. It is a type of
+/// its own for the site's readers in `topo`, which map exactly these
+/// three into their own sorts and must not be handed a march, a lane or
+/// a seat refusal no site makes: `chord_join`'s
+/// `From<(FaceKey, SiteRefusal)> for SplitJoinError`, `boolean::join`'s
+/// `site_refusal`, and `boolean::section_table`'s `FootRefusal::Site`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SiteRefusal {
     /// The reading in the band or poisoned.
@@ -1470,6 +1483,16 @@ pub enum SiteRefusal {
     /// ([`geom::PieceWalkRefusal::refusal`]): unsettled past its budget,
     /// a limit where the spline bounds no speed.
     Unwalked(geom::PieceWalkRefusal),
+}
+
+impl From<SiteRefusal> for CarryError {
+    fn from(refusal: SiteRefusal) -> Self {
+        match refusal {
+            SiteRefusal::Escalated(diag) => Self::Escalated(diag),
+            SiteRefusal::Desync(what) => Self::Desync(what),
+            SiteRefusal::Unwalked(why) => Self::Refused(CarryRefusal::Unwalked(why)),
+        }
+    }
 }
 
 impl From<geom::CarrierRefusal> for SiteRefusal {
@@ -1862,7 +1885,7 @@ impl<T: Decide> PairSection<T> {
                 // branch that runs on past the cut end is not its arc's.
                 let padded = band
                     .padded(b.pad)
-                    .map_err(|_| CarryError::Desync("a component's tube pads no band"))?;
+                    .map_err(|_| CarryError::Desync(TUBE_PADS_NO_BAND))?;
                 let there = if at_start { start } else { end };
                 let gap = geom_core::k_stats::decide_reported(
                     "carry_cut_end_at_end",
@@ -2716,7 +2739,7 @@ impl<T: Decide> CarriedComponent<T> {
         use geom::OnCarrier;
         let padded = band
             .padded(self.pad)
-            .map_err(|_| SiteRefusal::Desync("a component's tube pads no band"))?;
+            .map_err(|_| SiteRefusal::Desync(TUBE_PADS_NO_BAND))?;
         match self.carrier.on_carrier(p, self.span.0, padded) {
             Ok(OnCarrier::On { t, .. }) => self.within_span(t, band),
             Ok(OnCarrier::Off) => Ok(None),
@@ -2757,7 +2780,7 @@ impl<T: Decide> CarriedComponent<T> {
             ));
         }
         let (lo, hi) = self.span;
-        let t = lo + (t - lo).reduce_periodic(T::pi() * T::from_f64(2.0));
+        let t = geom_core::period::Period::new(T::tau()).at_or_above(t, lo);
         let speed = self.carrier.ders1(t).1.norm();
         use geom_core::NonzeroSign;
         use geom_core::k_stats::decide_nonzero;
@@ -2832,13 +2855,7 @@ impl<T: Decide> CarriedComponent<T> {
 
     /// [`Self::reads`] as the carry reads it.
     fn holds(&self, w: Point3<T>, band: Band) -> Result<bool, CarryError> {
-        self.reads(w, band)
-            .map(|t| t.is_some())
-            .map_err(|e| match e {
-                SiteRefusal::Escalated(diag) => CarryError::Escalated(diag),
-                SiteRefusal::Desync(what) => CarryError::Desync(what),
-                SiteRefusal::Unwalked(why) => CarryError::Refused(CarryRefusal::Unwalked(why)),
-            })
+        Ok(self.reads(w, band)?.is_some())
     }
 }
 
