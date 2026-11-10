@@ -533,7 +533,7 @@ pub enum TouchUnread {
     /// ([`Self::NoTangentPlane`], [`Self::Crease`], [`Self::NoSectorArm`],
     /// [`Self::Unplaced`]) are one control: each aborts the planar reading
     /// and is what its callers read the tangent cones past
-    /// ([`Self::curved_unread`]). They are named apart so a refusal says
+    /// ([`TouchUnread::curved_unread`]). They are named apart so a refusal says
     /// which cause it was, not to stand apart.
     Unreadable,
     /// A corner face has no tangent plane at the vertex: a cone's apex, or
