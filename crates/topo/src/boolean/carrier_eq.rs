@@ -597,8 +597,7 @@ fn ladder_reading<T: Decide>(
 /// coincidence already stands on that bound
 /// ([`geom_brep::tori_coincide`]), and a torus pair the ring reads apart
 /// comes back as such, for the door to ask the faces for a witness
-/// ([`PairDoorReading::RingApart`]). The corner sites read their own arm,
-/// not a pair's extent, and take [`carrier_eq_reading`] as it is.
+/// ([`PairDoorReading::RingApart`]).
 ///
 /// # Errors
 ///

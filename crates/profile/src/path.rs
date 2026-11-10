@@ -950,8 +950,8 @@ impl<T: Real> CornerReason<T> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Recourse<T: Real> {
     /// Anchor each overrun leg at least its setback from the corner,
-    /// or use a radius of at most `radius`, each named past the fit
-    /// gate's band ([`LeverValue::clear`]).
+    /// or use a radius of at most `radius`, each named within its
+    /// exact-fit window, where the fit gate still reads a Zero fit.
     AnchorOrRadius {
         /// Each overrun leg, with the distance from the corner along it
         /// at which its anchor has to lie, meters.
@@ -2261,10 +2261,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "the declared seam arrival (Start.arrives_tangent()) does not continue the \
                  entry\'s outgoing direction: it misses by {margin} m over the arriving \
-                 leg\'s {arm} m arm. Recourse: move the geometry so the leg arrives along \
-                 that side, or drop the declaration and author the seam at a CORNER; for a \
-                 closing ARC tangent at BOTH ends, use the seam FILLET \
-                 (.angle(theta).fillet(r).to(Start))",
+                 leg\'s {arm} m arm. {recourse}",
+                recourse = geom_core::move_recourse!(
+                    "so the leg arrives along that side, or drop the declaration and author the \
+                     seam at a CORNER; for a closing ARC tangent at BOTH ends, use the seam \
+                     FILLET (.angle(theta).fillet(r).to(Start))"
+                ),
                 margin = num(margin),
                 arm = num(arm)
             ),

@@ -20,6 +20,7 @@ use super::{
 };
 use crate::entity::EdgeKey;
 use geom_core::Lever;
+use geom_core::ladder::{Climb, Rung, climb_agreeing};
 
 /// The arm of a departure `d` from `apex`: the point it reaches, read
 /// from `apex` (the link's own idiom, [`Link::of`]).
@@ -141,19 +142,37 @@ pub(super) fn thorns<T: Decide>(link: &Link<T>, rd: Reading<T>) -> Result<(), To
             .fold(reach(p, horns[start].ends[0].0), Lever::min);
         let l = arm.length();
         let vertex = |i: usize| horns[cycle[i]].ends[0];
-        let mut side = None;
-        for i in 0..cycle.len() {
-            let face = &horns[cycle[i]];
-            let (ta, a) = vertex(i);
-            for j in (0..cycle.len()).filter(|&j| j != i && j != (i + 1) % cycle.len()) {
-                let (tc, c) = vertex(j);
-                let s = beside(p, (ta, a), (tc, c), face.outward, arm, rd).ok_or(unread)?;
-                if side.is_some_and(|x| x != s) {
-                    return Err(unread);
+        let n = cycle.len();
+        let pairs = (0..n).flat_map(|i| {
+            (0..n)
+                .filter(move |&j| j != i && j != (i + 1) % n)
+                .map(move |j| (i, j))
+        });
+        // Every vertex off a side on one side of that side's face
+        // ([`climb_agreeing`]): two that differ, or one that does not
+        // read, leave the polygon unread. A pair that does not read aborts
+        // rather than being kept: the polygon's convexity needs every
+        // pair, so an agreement read past an unread pair would claim a
+        // convexity no reading showed.
+        let side = match climb_agreeing(
+            pairs,
+            |(i, j)| {
+                let (ta, a) = vertex(i);
+                match beside(p, (ta, a), vertex(j), horns[cycle[i]].outward, arm, rd) {
+                    Some(s) => Rung::Answers(Some(s)),
+                    None => Rung::Aborts(None),
                 }
-                side = Some(s);
+            },
+            |x: &Option<Sign>, y: &Option<Sign>| x == y,
+        ) {
+            Ok(Climb::Answered {
+                answer: Some(s), ..
+            }) => Some(s),
+            Ok(Climb::Passed) => None,
+            Ok(Climb::Answered { answer: None, .. } | Climb::Undecided(())) | Err(_) => {
+                return Err(unread);
             }
-        }
+        };
         let ray = along(horns[start].ends[0].0, l);
         let around = if link.cone.sectors.is_empty() {
             Material::Out
