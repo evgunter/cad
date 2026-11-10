@@ -629,11 +629,21 @@ pub(super) fn pair_door_reading<T: Decide>(
 /// A margin the ladder reads, by its predicate's name.
 type Datum<T> = (&'static str, Margin<T>);
 
+/// The names the sphere's, cylinder's and cone's data are decided under.
+const CARRIER_SPHERE_CENTER: &str = "carrier_sphere_center";
+const CARRIER_SPHERE_RADIUS: &str = "carrier_sphere_radius";
+pub(super) const CARRIER_CYL_AXIS_PARALLEL: &str = "carrier_cyl_axis_parallel";
+const CARRIER_CYL_AXIS_OFFSET: &str = "carrier_cyl_axis_offset";
+const CARRIER_CYL_RADIUS: &str = "carrier_cyl_radius";
+const CARRIER_CONE_APEX: &str = "carrier_cone_apex";
+const CARRIER_CONE_AXIS_PARALLEL: &str = "carrier_cone_axis_parallel";
+const CARRIER_CONE_HALF_ANGLE: &str = "carrier_cone_half_angle";
+
 /// The sphere's data: centre separation, radius difference.
 fn sphere_data<T: Decide>(p1: Point3<T>, r1: T, p2: Point3<T>, r2: T) -> Vec<Datum<T>> {
     vec![
-        ("carrier_sphere_center", Margin::norm3(p1 - p2)),
-        ("carrier_sphere_radius", Margin::of(r1 - r2)),
+        (CARRIER_SPHERE_CENTER, Margin::norm3(p1 - p2)),
+        (CARRIER_SPHERE_RADIUS, Margin::of(r1 - r2)),
     ]
 }
 
@@ -649,14 +659,14 @@ fn cylinder_data<T: Decide>(
 ) -> Vec<Datum<T>> {
     vec![
         (
-            "carrier_cyl_axis_parallel",
+            CARRIER_CYL_AXIS_PARALLEL,
             Margin::levered(a1.cross(a2).norm(), arm),
         ),
         (
-            "carrier_cyl_axis_offset",
+            CARRIER_CYL_AXIS_OFFSET,
             Margin::norm3(perpendicular(p2 - p1, a1)),
         ),
-        ("carrier_cyl_radius", Margin::of(r1 - r2)),
+        (CARRIER_CYL_RADIUS, Margin::of(r1 - r2)),
     ]
 }
 
@@ -669,12 +679,12 @@ fn cone_data<T: Decide>(
     arm: geom_core::Lever<T>,
 ) -> Vec<Datum<T>> {
     vec![
-        ("carrier_cone_apex", Margin::norm3(p1 - p2)),
+        (CARRIER_CONE_APEX, Margin::norm3(p1 - p2)),
         (
-            "carrier_cone_axis_parallel",
+            CARRIER_CONE_AXIS_PARALLEL,
             Margin::levered(a1.cross(a2).norm(), arm),
         ),
-        ("carrier_cone_half_angle", Margin::levered(t1 - t2, arm)),
+        (CARRIER_CONE_HALF_ANGLE, Margin::levered(t1 - t2, arm)),
     ]
 }
 
@@ -1172,7 +1182,7 @@ mod tests {
                     ..
                 }) => {
                     assert!(diag.margin.is_invalid(), "{radius}: {diag:?}");
-                    assert_eq!(diag.predicate, Some("carrier_sphere_radius"), "{radius}");
+                    assert_eq!(diag.predicate, Some(CARRIER_SPHERE_RADIUS), "{radius}");
                 }
                 other => panic!("a radius of {radius} is unreadable: {other:?}"),
             }
