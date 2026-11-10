@@ -2,10 +2,12 @@
 id: two-ops-placements-state-a-carrier-held-premise-unheld
 kind: issue
 title: Four placements (ops.rs place_witness and piece_reading, census curved_overlap_cells and point.rs in_face) state a carrier-held premise and read through the unheld face_placement
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 refs: [6669, 6705, carrier-held-points-are-trusted-not-decided]
+closed: 2026-11-10
+pr: 6741
 ---
 
 
