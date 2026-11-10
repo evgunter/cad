@@ -7,6 +7,7 @@ opened: 2026-11-10
 priority: P2
 closed: 2026-11-10
 branch: onecopy/torus-floor-ring-gate
+pr: 6777
 ---
 
 Filed from PR 6761's review (the torus harmonics charge), on its one finding that matters.
