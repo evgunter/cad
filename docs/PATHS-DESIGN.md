@@ -223,12 +223,19 @@ authoring act.
   the tip's binding bits, so tangency holds by construction, and
   the incoming run extends FORWARD from the tip along the derived
   carrier as a segment of its own, and the joint at the tip is a
-  constructed tangency onto that carrier — sound for every
-  authored `r`. No emission asks whether the derived carrier is
-  the incoming segment's own (§4 item 4): where `r` equals the
-  incoming radius, the loop holds two arcs on one circle with a
-  declared tangent joint between them, and the lowering, not the
-  path, makes them one curve. A trim that would eat the tip's authored anchor
+  constructed tangency onto that carrier, for every authored `r`.
+  No emission asks whether the derived carrier is the incoming
+  segment's own (§4 item 4): where `r` equals the incoming
+  radius, the loop holds two arcs on one circle with a declared
+  tangent joint between them, and the lowering, not the path,
+  makes them one curve. Where `r` lies within the band of the
+  incoming radius the two carriers are one circle only to within
+  it, and validation escalates `carrier_circles_identity` at the
+  tip pair: whether the run is one swept wall or two turns on
+  that answer. A run the trim leaves within the band of no
+  length is no run (`fillet_leg_fit` reads it on the band
+  validation reads a segment's length on), and one in that band
+  escalates at the fit. A trim that would eat the tip's authored anchor
   refuses (`CornerReason::AnchorOutsideTrimmedExtent`, an entry
   of the `NoCornerOfPair` envelope). `Center` from a
   directed tip stays EXCLUDED — the tip's direction is bound, so
@@ -1004,7 +1011,9 @@ typestate, and it retires:
   it FORWARD as a segment of its own, with a constructed
   tangency at the tip, for every `r` (one equal to the
   incoming radius is a value coincidence, two arcs on one
-  circle that item 4 admits) — sound for every authored `r`, where the retired row was UNGUARDED for
+  circle that item 4 admits, and one within the band of it
+  escalates at validation) — every authored `r` names a
+  construction, where the retired row was UNGUARDED for
   mismatched `r` (`bulge_from_center` computes from angles
   alone; the emitted run's bulge, claimed centre, and declared
   tangency went mutually inconsistent — a latent defect this
@@ -1145,6 +1154,18 @@ Compile-time, from §2a: `circle`'s result is a loop, so no chain
 verb follows it; `.toward` is a second director exactly as
 `.angle` is; the far-end `.to(p)` needs the position slot empty
 and the angle slot bound.
+
+**What a refused fillet hands back.** A refusal states what the
+fit decided, in that decision's own numbers; it carries no carriers
+and no partial loop, and `ReplayError` is the same for every caller.
+What the fit was handed, and what it found, is the drawing replay's
+construction record (`replay_drawn`, `crates/profile/README.md`):
+each side recorded when it is bound, and the fit's answer after it.
+Both come out of one replay, so the editor draws a refused step's
+sides beside its refusal and they cannot disagree. The anchor-fit
+entry (`AnchorOutsideTrimmedExtent`) carries each overrunning leg's
+setback and available extent, and the radius of the fillet that
+ends exactly at the anchor, so its recourse values both levers.
 
 ## 4. Safety invariants
 

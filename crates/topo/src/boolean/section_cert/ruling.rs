@@ -105,7 +105,7 @@
 use geom_core::running::{self, Rounded};
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::sign;
+use super::sign_as;
 use geom_brep::half_angle::{
     DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision,
 };
@@ -373,14 +373,21 @@ impl<T: Real> Quadric<T> {
                     value: reach.value.abs(),
                     ..reach
                 };
-                let across = running::dot(m, m).sqrt().divisor()?;
+                let across = running::dot(m, m)
+                    .sqrt()
+                    .divisor("ruling_clearance_across")?;
                 Some(Rounded::exact(r) - reach.quotient(across))
             }
             Self::Cone { .. } => {
                 let along = running::dot(u, w);
                 let perp = [0, 1, 2].map(|i| u[i] - w[i] * along);
                 let apart = running::dot(perp, perp).sqrt();
-                Some(e.quotient((apart * Rounded::exact(T::from_f64(16.0))).divisor()?))
+                Some(
+                    e.quotient(
+                        (apart * Rounded::exact(T::from_f64(16.0)))
+                            .divisor("ruling_clearance_across")?,
+                    ),
+                )
             }
         }
     }
@@ -598,7 +605,7 @@ fn before<T: Decide>(
         value: (y - x) * speed,
         error: slacks,
     };
-    match sign(row, Margin::of(gap.toward_zero()), band) {
+    match sign_as(row, Margin::of(gap.toward_zero()), band) {
         Some(Sign::Positive) => Ok(true),
         Some(Sign::Negative) => Ok(false),
         _ => Err(row),
@@ -628,7 +635,7 @@ pub(super) fn read<T: Decide>(
 ) -> Result<Reading<T>, &'static str> {
     reading(chart, partner, rows, true, band).map_err(|(row, resolution)| {
         let resolved = matches!(
-            sign(rows.precision, Margin::of(resolution), band),
+            sign_as(rows.precision, Margin::of(resolution), band),
             Some(Sign::Zero)
         );
         if !resolved || reading(chart, partner, rows, false, band).is_ok() {
@@ -749,7 +756,8 @@ fn reading<T: Decide>(
             for theta in found {
                 let p1_at = at_line(theta)[1];
                 let half = p1_at.div_exact(two);
-                let leaving = match sign(rows.asymptote, Margin::of(shrunk(half, charged)), band) {
+                let leaving = match sign_as(rows.asymptote, Margin::of(shrunk(half, charged)), band)
+                {
                     Some(Sign::Positive) => Sign::Negative,
                     Some(Sign::Negative) => Sign::Positive,
                     _ => return Err(refused(rows.asymptote)),
@@ -793,7 +801,7 @@ fn reading<T: Decide>(
             b + w * t
         };
         let side = |theta: T| {
-            sign(
+            sign_as(
                 rows.fold,
                 Margin::of(shrunk(clearance(theta), charged)),
                 band,
