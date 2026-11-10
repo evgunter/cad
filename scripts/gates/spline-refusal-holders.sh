@@ -13,11 +13,15 @@
 # that keeps the bare type passes its caller's own input back to that
 # caller, and says so with a row in the register below.
 #
-# WHAT THE MATCHER SEES: an enum tuple arm `Name(SplineError),` or a
-# field `name: SplineError,` (either type, bare, through `spline::`, or
-# through `geom_core::spline::`) in production code, test modules
-# skipped. WHAT IT CANNOT SEE: a holder through a type alias, a generic
-# parameter, a wrapper enum of its own, a field declared on two lines,
+# WHAT THE MATCHER SEES, in production code with test modules skipped,
+# either type bare or through `spline::` or `geom_core::spline::`:
+#  - a field on one line, `name: SplineError,`;
+#  - an element of a one-line tuple arm or tuple struct, alone or among
+#    others: `Name(SplineError),`, `Name(SplineError, usize),`,
+#    `pub struct C(pub SplineError);`.
+# WHAT IT CANNOT SEE: a holder through a type alias, a generic parameter
+# or a container (`Box<SplineError>`, `Option<SplineError>`, `Vec<…>`), a
+# wrapper enum of its own, a field or tuple declared over several lines,
 # or one that stringifies the refusal (`String`). Nor does the register
 # say WHICH arm of a file is the registered one: a second bare holder in
 # a registered file raises its count and fails, but a swap within one
@@ -27,7 +31,11 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 REGISTER=scripts/gates/spline-refusal-holders.counts
-HOLDER_RE='^[^:]*:[0-9]+:[[:space:]]*(pub(\([a-z]+\))?[[:space:]]+)?([A-Z][A-Za-z0-9]*\(|[a-z_][a-z0-9_]*:[[:space:]]*)((pncad::)?geom_core::)?(spline::)?(SplineError|KnotAlgebraError)\)?,$'
+TYPE_RE='((pncad::)?geom_core::)?(spline::)?(SplineError|KnotAlgebraError)'
+VIS_RE='(pub(\([a-z]+\))?[[:space:]]+)?'
+FIELD_RE="^[^:]*:[0-9]+:[[:space:]]*${VIS_RE}[a-z_][a-z0-9_]*:[[:space:]]*${TYPE_RE},\$"
+TUPLE_RE="[A-Z][A-Za-z0-9]*\\(([^()]*,[[:space:]]*)?${VIS_RE}${TYPE_RE}[[:space:]]*(,[^()]*)?\\)"
+HOLDER_RE="${FIELD_RE}|${TUPLE_RE}"
 
 gate() {
   gate_require_crate_sources
@@ -67,6 +75,22 @@ plant_unregistered_field() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+plant_multi_field_arm() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub enum E {\n    Y(SplineError, usize),\n}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_tuple_struct() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub struct C(pub geom_core::spline::SplineError);\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_built_in_a_tuple() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub enum E {\n    Y(Built<SplineError>, usize),\n}\npub fn f() -> Result<(), SplineError> { Err(SplineError::X) }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 plant_stale_entry() {
   printf 'crates/clean/src/lib.rs 1\n' >> "$1/$REGISTER"
 }
@@ -94,11 +118,14 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_unregistered
   gate_selftest_case "$want" plant_unregistered_field
+  gate_selftest_case "$want" plant_multi_field_arm
+  gate_selftest_case "$want" plant_tuple_struct
   gate_selftest_case "$want" plant_stale_entry
   gate_selftest_passes "a registered holder" plant_registered
   gate_selftest_passes "a Built holder" plant_built
+  gate_selftest_passes "a Built element of a tuple, and a bare return type" plant_built_in_a_tuple
   gate_selftest_passes "a holder inside a #[cfg(test)] module" plant_in_a_test_module
-  printf '%s selftest OK: passes a clean tree, a registered holder, a Built one and one in a test module; fires on an unregistered tuple arm and field, and on a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean tree, a registered holder, a Built one and one in a test module; fires on an unregistered tuple arm, multi-field tuple arm, tuple struct and field, and on a register entry the tree no longer carries, and stays RED when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

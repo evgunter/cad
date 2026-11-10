@@ -350,8 +350,17 @@ pub enum SkinError {
         /// The sweep's distance to the breakpoint, as read.
         margin: MarginDiag,
     },
-    /// The v-direction interpolation refused.
-    Fit(FitError),
+    /// The parameterization a caller gave [`skin_on`] is not one per
+    /// section, clamped `0 → 1` and strictly ascending.
+    ParametersInvalid {
+        /// The parameters given.
+        params: usize,
+        /// The sections they are for.
+        sections: usize,
+    },
+    /// The v-direction interpolation over the kernel's parameters
+    /// refused.
+    Fit(Built<FitError>),
     /// A knot-algebra operation the skin asked of its sections (degree
     /// elevation, refinement) refused.
     KnotAlgebra(Built<KnotAlgebraError>),
@@ -365,13 +374,35 @@ pub enum SkinError {
 /// scalar it is evaluated in.
 const POINT_SCALAR_LEVER: &str = "evaluate the loft at a point scalar";
 
-/// Whether a refusal of what the skin built is over a knot or weight
-/// that is no point, which the scalar the loft is evaluated in decides.
-const fn no_point(e: &SplineError) -> bool {
+/// Whether a refusal of what the skin built is over a value that is no
+/// point, or undecided over the values it stands for: the scalar the
+/// loft is evaluated in decides it.
+const fn scalar_limit(e: &SplineError) -> bool {
     matches!(
         e,
-        SplineError::CarrierKnotNotAPoint { .. } | SplineError::CarrierWeightNotAPoint { .. }
+        SplineError::CarrierKnotNotAPoint { .. }
+            | SplineError::CarrierWeightNotAPoint { .. }
+            | SplineError::KnotRunsUndecided { .. }
+            | SplineError::WeightSignUndecided { .. }
     )
+}
+
+/// The ending of a knot edit the skin asked of its sections, decided on
+/// the payload: the scalar for a value the scalar leaves undecided, the
+/// last resort for a weight the format's range lost, and the defect
+/// ending for an edit no valid section reaches.
+fn knot_edit_ending(e: &KnotAlgebraError) -> String {
+    match e {
+        KnotAlgebraError::Structure(s) if scalar_limit(s) => {
+            format!("Recourse: {POINT_SCALAR_LEVER}")
+        }
+        KnotAlgebraError::ParameterUndecided { .. }
+        | KnotAlgebraError::UnboundedAtEnclosure { .. } => {
+            format!("Recourse: {POINT_SCALAR_LEVER}")
+        }
+        KnotAlgebraError::WeightCollapse { .. } => KERNEL_LIMIT_RECOURSE.to_owned(),
+        _ => KERNEL_DEFECT_ENDING.to_owned(),
+    }
 }
 
 /// The recourse a path sweep's vanishing tangent ends with.
@@ -488,22 +519,34 @@ impl core::fmt::Display for SkinError {
                  stands for: what it reads is {margin} from the breakpoint. Recourse: narrow the \
                  range of that sweep or those endpoints until it clears the breakpoint; the width \
                  may be rounding alone (a constant sweep of exactly a full turn), and then \
-                 evaluate at a point scalar"
+                 {POINT_SCALAR_LEVER}"
             ),
-            Self::Fit(e) => write!(f, "{e}"),
-            Self::KnotAlgebra(e) => match e.refusal() {
-                KnotAlgebraError::Structure(s) if no_point(s) => {
-                    write!(
-                        f,
-                        "a knot edit of the sections refused: {e}. Recourse: {POINT_SCALAR_LEVER}"
-                    )
-                }
+            Self::ParametersInvalid { params, sections } => write!(
+                f,
+                "the skin was given {params} parameters for {sections} sections, and it needs \
+                 one strictly-ascending parameter per section running exactly 0 to 1. \
+                 Recourse: supply that, or skin through the door that parameterizes the \
+                 sections itself"
+            ),
+            // The fit ran over the kernel's own parameters and rows: an
+            // approximation the kernel chose, or a knot edit no valid
+            // section reaches.
+            Self::Fit(e) => match e.refusal() {
+                FitError::KnotAlgebra(_) => write!(
+                    f,
+                    "the skin's interpolation refused: {e}. {KERNEL_DEFECT_ENDING}"
+                ),
                 _ => write!(
                     f,
-                    "a knot edit of the sections refused: {e}. {KERNEL_DEFECT_ENDING}"
+                    "the skin's interpolation refused: {e}. {KERNEL_LIMIT_RECOURSE}"
                 ),
             },
-            Self::Structure(e) if no_point(e.refusal()) => {
+            Self::KnotAlgebra(e) => write!(
+                f,
+                "a knot edit of the sections refused: {e}. {}",
+                knot_edit_ending(e.refusal())
+            ),
+            Self::Structure(e) if scalar_limit(e.refusal()) => {
                 write!(
                     f,
                     "the skin's spline refused: {e}. Recourse: {POINT_SCALAR_LEVER}"
@@ -517,12 +560,6 @@ impl core::fmt::Display for SkinError {
 }
 
 impl core::error::Error for SkinError {}
-
-impl From<FitError> for SkinError {
-    fn from(e: FitError) -> Self {
-        Self::Fit(e)
-    }
-}
 
 // ---------------------------------------------------------------------
 // Analytic → NURBS: the section curves
@@ -1041,7 +1078,7 @@ pub fn skin<T: SpanLocate>(
         }
     }
     let params = skin_parameters(sections)?;
-    skin_on(sections, v_degree, &params)
+    skin_with(sections, v_degree, &params)
 }
 
 /// [`skin`] on an EXPLICIT v-parameterization — the entry a multi-wall
@@ -1050,9 +1087,33 @@ pub fn skin<T: SpanLocate>(
 ///
 /// # Errors
 ///
-/// Exactly [`skin`]'s, plus [`SkinError::Fit`] for a parameterization
-/// that is not clamped `0 → 1` and strictly ascending.
+/// Exactly [`skin`]'s, plus [`SkinError::ParametersInvalid`] for a
+/// parameterization that is not one per section, clamped `0 → 1` and
+/// strictly ascending.
 pub fn skin_on<T: SpanLocate>(
+    sections: &[NurbsCurve3<T>],
+    v_degree: usize,
+    params: &[T],
+) -> Result<NurbsSurface<T>, SkinError> {
+    let ordered = params.len() == sections.len()
+        && params.first().and_then(|u| u.point_value()) == Some(0.0)
+        && params.last().and_then(|u| u.point_value()) == Some(1.0)
+        && params
+            .windows(2)
+            .all(|w| geom_core::structure_ascends(w[0], w[1]));
+    if !ordered {
+        return Err(SkinError::ParametersInvalid {
+            params: params.len(),
+            sections: sections.len(),
+        });
+    }
+    skin_with(sections, v_degree, params)
+}
+
+/// [`skin_on`] past its check of the caller's parameters: the body
+/// [`skin`] and the loft reach with parameters the kernel chose, so a
+/// refusal of the fit over them is the kernel's.
+fn skin_with<T: SpanLocate>(
     sections: &[NurbsCurve3<T>],
     v_degree: usize,
     params: &[T],
@@ -1111,7 +1172,8 @@ pub fn skin_on<T: SpanLocate>(
             row
         })
         .collect();
-    let (knots_v, solved) = interpolate_columns_in(params, v_degree, &rows)?;
+    let (knots_v, solved) = interpolate_columns_in(params, v_degree, &rows)
+        .map_err(|e| SkinError::Fit(Built::new(e)))?;
     // Into the surface's u-major layout, `idx = iu · nv + iv`.
     let nv = solved.len();
     let mut control = Vec::with_capacity(n * nv);
@@ -1574,7 +1636,7 @@ fn skin_strips<T: SpanLocate>(
         .iter()
         .map(|lp| {
             lp.iter()
-                .map(|strip| skin_on(strip, v_degree, params).map(Arc::new))
+                .map(|strip| skin_with(strip, v_degree, params).map(Arc::new))
                 .collect()
         })
         .collect::<Result<_, _>>()?;
@@ -1972,9 +2034,11 @@ mod ending_tests {
     use super::*;
 
     /// **What the skin built ends at the skin's door, decided on the
-    /// payload**: a knot or weight that is no point ends in the lever the
-    /// loft's user holds, the scalar; any other arm in the kernel's own
-    /// ending; and none passes the spline layer's caller recourse on.
+    /// payload**: a value the scalar leaves no point or undecided ends in
+    /// the lever the loft's user holds, the scalar; a weight the format's
+    /// range lost, or the kernel's own interpolation, in the last resort;
+    /// an edit no valid section reaches in the defect ending; and none
+    /// passes the payload's caller recourse on.
     #[test]
     fn a_refusal_of_what_the_skin_built_ends_on_its_payload() {
         let no_point = SplineError::CarrierWeightNotAPoint { index: 1 };
@@ -1995,6 +2059,20 @@ mod ending_tests {
             (
                 SkinError::KnotAlgebra(Built::new(KnotAlgebraError::KnotNotPresent { u: 0.5 })),
                 KERNEL_DEFECT_ENDING,
+            ),
+            (
+                SkinError::KnotAlgebra(Built::new(KnotAlgebraError::WeightCollapse { index: 1 })),
+                KERNEL_LIMIT_RECOURSE,
+            ),
+            (
+                SkinError::KnotAlgebra(Built::new(KnotAlgebraError::UnboundedAtEnclosure {
+                    index: 1,
+                })),
+                POINT_SCALAR_LEVER,
+            ),
+            (
+                SkinError::Fit(Built::new(FitError::TooFewPoints { have: 1, need: 2 })),
+                KERNEL_LIMIT_RECOURSE,
             ),
         ];
         for (refusal, ending) in &rows {

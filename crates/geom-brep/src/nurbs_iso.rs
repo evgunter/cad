@@ -269,7 +269,8 @@ pub enum IsoRowError<T: Real> {
     },
     /// The row is not valid spline structure — unreachable for a surface
     /// `NurbsSurface::new` built, surfaced rather than swallowed
-    /// (D4 ¶2).
+    /// (D4 ¶2). Its text is the fact alone: the holder ends it, by
+    /// whether the surface was built or read at rest.
     Structure {
         /// The spline layer's typed refusal of the row this door built.
         source: Built<SplineError>,

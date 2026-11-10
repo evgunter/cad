@@ -154,7 +154,7 @@ fn section_payload(e: &pncad::geom_brep::SectionError) {
 fn skin_payload(e: &pncad::sweep::SkinError) {
     use pncad::geom_core::spline::Built;
     match e {
-        pncad::sweep::SkinError::Fit(inner) => named::<&pncad::geom::FitError>(inner),
+        pncad::sweep::SkinError::Fit(inner) => named::<&Built<pncad::geom::FitError>>(inner),
         pncad::sweep::SkinError::KnotAlgebra(inner) => {
             named::<&Built<pncad::geom_core::spline::KnotAlgebraError>>(inner);
         }

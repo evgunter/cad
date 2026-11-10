@@ -273,11 +273,11 @@ fn review_skin_on_refuses_unclamped_params() {
     };
     assert!(matches!(
         skin_on(&compat, 2, &[0.0, 0.5, 2.0]),
-        Err(SkinError::Fit(_))
+        Err(SkinError::ParametersInvalid { .. })
     ));
     assert!(matches!(
         skin_on(&compat, 2, &[0.1, 0.5, 1.0]),
-        Err(SkinError::Fit(_))
+        Err(SkinError::ParametersInvalid { .. })
     ));
 }
 

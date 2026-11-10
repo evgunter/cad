@@ -260,7 +260,13 @@ impl core::fmt::Display for ConicArcError {
                 "the open conic's window is too long for its spans' weight to be read: its \
                  half span's cosh is not finite"
             ),
-            Self::Carrier(e) => write!(f, "the open conic's arc refused as a NURBS curve: {e}"),
+            // The net is minted from a window whose weights were read
+            // finite and bounded, so its structure refusing is the kernel's.
+            Self::Carrier(e) => write!(
+                f,
+                "the open conic's arc refused as a NURBS curve: {e}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
         }
     }
 }

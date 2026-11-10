@@ -1538,9 +1538,11 @@ impl SsiError {
             // is the kernel's.
             Self::Fit(FitError::TooFewPoints { .. }) => defect_ending(reading).to_owned(),
             // Interpolation takes no tolerance, runs no knot algebra and
-            // reads no rows: these are the approximating fits' refusals.
+            // reads no rows: these are the approximating fits' refusals,
+            // and the march asks no degree 0 (`Structure`).
             Self::Fit(
                 FitError::InvalidTolerance { .. }
+                | FitError::Structure(_)
                 | FitError::KnotAlgebra(_)
                 | FitError::RaggedRows { .. }
                 | FitError::BudgetExhausted { .. },
@@ -1549,7 +1551,7 @@ impl SsiError {
             // 3-D images and chord parameters are computed afterwards in
             // f64. A chord below the running total's rounding is absorbed,
             // so two parameters tie (`ParamCountMismatch`, its knots
-            // `Structure`); a step below an image's resolution repeats a
+            // `Assembly`); a step below an image's resolution repeats a
             // point, and two images too far apart or too near for their
             // distance to be represented leave a chord with no length
             // (`DegenerateChord`); an image can overflow
@@ -1560,7 +1562,6 @@ impl SsiError {
                 FitError::NonFinitePoint { .. }
                 | FitError::DegenerateChord { .. }
                 | FitError::ParamCountMismatch { .. }
-                | FitError::Structure(_)
                 | FitError::Assembly(_)
                 | FitError::Lsq(_),
             ) => Unsized::Fit.recourse(RefusedArm::SignCertain(None), reading),

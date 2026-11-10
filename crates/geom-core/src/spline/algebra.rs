@@ -2534,6 +2534,58 @@ mod tests {
         }
     }
 
+    /// **Every arm's fact is its text's prefix and names no recourse**,
+    /// so a holder of [`super::Built`] renders the refusal's own words
+    /// with the caller's repair left out. Exhaustive by the compiler.
+    #[test]
+    fn every_knot_algebra_error_arm_states_its_fact_first() {
+        use super::super::Fact as _;
+        let arms = [
+            KnotAlgebraError::Structure(SplineError::ControlCountMismatch {
+                control: 3,
+                expected: 4,
+            }),
+            KnotAlgebraError::ParameterOutsideDomain { u: 1.5 },
+            KnotAlgebraError::MultiplicityOverflow {
+                u: 0.5,
+                have: 3,
+                budget: 3,
+            },
+            KnotAlgebraError::KnotNotPresent { u: 0.25 },
+            KnotAlgebraError::RemovalExceedsMultiplicity {
+                u: 0.5,
+                have: 1,
+                requested: 2,
+            },
+            KnotAlgebraError::ParameterUndecided {
+                u: 0.5,
+                run: 1,
+                margin: crate::MarginDiag::enclosure(-0.25, 0.5),
+            },
+            KnotAlgebraError::StandInPlan,
+            KnotAlgebraError::WeightCollapse { index: 2 },
+            KnotAlgebraError::UnboundedAtEnclosure { index: 1 },
+        ];
+        for e in &arms {
+            match e {
+                KnotAlgebraError::Structure(_)
+                | KnotAlgebraError::ParameterOutsideDomain { .. }
+                | KnotAlgebraError::MultiplicityOverflow { .. }
+                | KnotAlgebraError::KnotNotPresent { .. }
+                | KnotAlgebraError::RemovalExceedsMultiplicity { .. }
+                | KnotAlgebraError::ParameterUndecided { .. }
+                | KnotAlgebraError::StandInPlan
+                | KnotAlgebraError::WeightCollapse { .. }
+                | KnotAlgebraError::UnboundedAtEnclosure { .. } => {}
+            }
+            let (text, fact) = (e.to_string(), e.fact().to_string());
+            assert!(
+                !fact.contains("Recourse") && text.starts_with(&fact),
+                "{fact} | {text}"
+            );
+        }
+    }
+
     /// **A written weight that rounds out of the positive regime is
     /// refused, at every writer.** On a net of the least subnormal
     /// weight a half-and-half blend rounds each half to zero (a tie, to

@@ -91,7 +91,8 @@
 
 use geom_core::spline::{Built, KnotAlgebraError, KnotVector, SplineError};
 use geom_core::{
-    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, Point3, Readable, Sign, Vec3, k_stats,
+    Band, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE, Margin, Point3, Readable,
+    Sign, Vec3, k_stats,
 };
 
 use crate::curves::NurbsCurve3;
@@ -214,11 +215,17 @@ impl core::fmt::Display for ComposeError {
                     "leg {leg} has no tangent (degree 0 or a single control point)"
                 )
             }
+            // An elevation's blend underflowing a subnormal weight is
+            // the format's limit; any other refusal of a valid leg's
+            // elevation is the kernel's.
             Self::ElevationRefused { leg, source } => {
+                let ending = match source.refusal() {
+                    KnotAlgebraError::WeightCollapse { .. } => KERNEL_LIMIT_RECOURSE,
+                    _ => KERNEL_DEFECT_ENDING,
+                };
                 write!(
                     f,
-                    "leg {leg} could not be raised to the chain's degree: {source}. \
-                     {KERNEL_DEFECT_ENDING}"
+                    "leg {leg} could not be raised to the chain's degree: {source}. {ending}"
                 )
             }
             Self::SeamTangentUndefined { seam, side } => {
@@ -265,6 +272,11 @@ impl core::fmt::Display for ComposeError {
                     Readable(*total)
                 )
             }
+            // The legs are the caller's valid curves; the remapped knots
+            // and the rescaled net are the kernel's, so a refusal of them
+            // names no lever the caller holds. Rounding in the remap or
+            // the weight rescale may reach these (a precision limit), and
+            // the defect report covers that case too.
             Self::Knots(e) => write!(
                 f,
                 "the legs' knots, remapped onto one parameter, did not stay a clamped knot \

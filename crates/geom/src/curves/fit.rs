@@ -159,65 +159,101 @@ pub enum FitError {
     },
 }
 
-impl core::fmt::Display for FitError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
+impl geom_core::spline::Fact for FitError {
+    fn fact(&self) -> impl core::fmt::Display + '_ {
+        core::fmt::from_fn(move |f| match self {
             FitError::TooFewPoints { have, need } => write!(
                 f,
                 "the fit has {have} points and needs at least {need}: a degree-p interpolant \
                  needs p+1 of them and any fit needs 2, so a lower degree lowers this floor \
-                 only down to 2. Recourse: supply the missing samples"
+                 only down to 2"
             ),
             FitError::NonFinitePoint { index } => write!(
                 f,
                 "fit point {index} has a non-finite coordinate, and the fit never repairs \
-                 data it was handed. Recourse: supply a finite point there, or drop the sample"
+                 data it was handed"
             ),
             FitError::DegenerateChord { index } => write!(
                 f,
                 "the fit's chord ending at point {index} has no length the format holds (the \
                  two points coincide, or lie too near or too far apart for their distance to \
                  be represented), and chord-length parameterization has no parameter step \
-                 there. Recourse: drop the duplicate point, or scale the data into the \
-                 session's range"
+                 there"
             ),
             FitError::InvalidTolerance { tolerance } => write!(
                 f,
                 "the fit's tolerance {} is invalid: it is the loop's acceptance budget and \
-                 has to be a number to compare against. Recourse: ask with a finite tolerance \
-                 strictly above zero",
+                 has to be a number to compare against",
                 Readable(*tolerance)
             ),
             FitError::ParamCountMismatch { params, points } => write!(
                 f,
-                "the fit was given {params} explicit parameters for {points} points, and the fitting \
-                 stack needs one strictly-ascending finite parameter per point running \
-                 exactly 0 to 1. Recourse: supply that, or ask through the door that takes no \
-                 parameters and chord-parameterizes the data itself"
+                "the fit was given {params} explicit parameters for {points} points, and the \
+                 fitting stack needs one strictly-ascending finite parameter per point running \
+                 exactly 0 to 1"
             ),
-            FitError::Lsq(e) => write!(f, "the fit refused: {e}"),
-            FitError::Structure(e) => write!(f, "the fit refused: {e}"),
+            FitError::Lsq(e) => write!(f, "the fit refused: {}", e.fact()),
+            FitError::Structure(e) => write!(f, "the fit refused: {}", e.fact()),
             FitError::Assembly(e) => write!(
                 f,
                 "the fit could not assemble a spline from the knots and control points it \
-                 computed: {e}. {KERNEL_LIMIT_RECOURSE}"
+                 computed: {e}"
             ),
-            FitError::KnotAlgebra(e) => write!(
-                f,
-                "a knot edit of the fit refused: {e}. {KERNEL_DEFECT_ENDING}"
-            ),
+            FitError::KnotAlgebra(e) => write!(f, "a knot edit of the fit refused: {e}"),
             FitError::RaggedRows { row, width, found } => write!(
                 f,
                 "the fit's column row {row} is {found} wide, row 0 is {width}, and every row of \
-                 an interpolated column block must describe the same tensor structure. \
-                 Recourse: supply {width} scalars in row {row}, or re-block the data so every \
-                 row agrees"
+                 an interpolated column block must describe the same tensor structure"
             ),
             FitError::BudgetExhausted { budget, achieved } => write!(
                 f,
                 "the fit's removal budget {budget}, sized for a few hundred samples, ran out \
-                 at bound {achieved:e}. Recourse: fit the data in pieces, or raise \
-                 FIT_REMOVAL_BUDGET for a genuinely larger fit"
+                 at bound {achieved:e}"
+            ),
+        })
+    }
+}
+
+impl core::fmt::Display for FitError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use geom_core::spline::Fact as _;
+        let fact = self.fact();
+        match self {
+            // The payload ends itself: its fact, then its own recourse.
+            FitError::Lsq(e) => write!(f, "the fit refused: {e}"),
+            FitError::Structure(e) => write!(f, "the fit refused: {e}"),
+            FitError::Assembly(_) => write!(f, "{fact}. {KERNEL_LIMIT_RECOURSE}"),
+            FitError::KnotAlgebra(_) => write!(f, "{fact}. {KERNEL_DEFECT_ENDING}"),
+            FitError::TooFewPoints { .. } => {
+                write!(f, "{fact}. Recourse: supply the missing samples")
+            }
+            FitError::NonFinitePoint { .. } => write!(
+                f,
+                "{fact}. Recourse: supply a finite point there, or drop the sample"
+            ),
+            FitError::DegenerateChord { .. } => write!(
+                f,
+                "{fact}. Recourse: drop the duplicate point, or scale the data into the \
+                 session's range"
+            ),
+            FitError::InvalidTolerance { .. } => write!(
+                f,
+                "{fact}. Recourse: ask with a finite tolerance strictly above zero"
+            ),
+            FitError::ParamCountMismatch { .. } => write!(
+                f,
+                "{fact}. Recourse: supply that, or ask through the door that takes no \
+                 parameters and chord-parameterizes the data itself"
+            ),
+            FitError::RaggedRows { row, width, .. } => write!(
+                f,
+                "{fact}. Recourse: supply {width} scalars in row {row}, or re-block the data so \
+                 every row agrees"
+            ),
+            FitError::BudgetExhausted { .. } => write!(
+                f,
+                "{fact}. Recourse: fit the data in pieces, or raise FIT_REMOVAL_BUDGET for a \
+                 genuinely larger fit"
             ),
         }
     }
@@ -316,11 +352,14 @@ fn averaged_knots(params: &[f64], degree: usize) -> Result<KnotVector, FitError>
 /// # Errors
 ///
 /// [`FitError::TooFewPoints`] when `params.len() < degree + 1`;
-/// [`FitError::Structure`] for degree zero, and
-/// [`FitError::Assembly`] if the resulting vector is not a valid
-/// clamped knot vector.
+/// [`FitError::Structure`] for degree zero;
+/// [`FitError::ParamCountMismatch`] for parameters that are not a
+/// clamped ascending `0 → 1` parameterization; and
+/// [`FitError::Assembly`] if the averaged vector of valid parameters is
+/// not a valid clamped knot vector.
 pub fn averaged_knot_vector(params: &[f64], degree: usize) -> Result<KnotVector, FitError> {
     check_degree(params.len(), degree)?;
+    check_ordered(params)?;
     averaged_knots(params, degree)
 }
 
@@ -1480,6 +1519,11 @@ mod tests {
         assert_eq!(arms.len(), 11, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
+            let fact = geom_core::spline::Fact::fact(arm).to_string();
+            assert!(
+                !fact.contains("Recourse") && msg.starts_with(&fact),
+                "the fact is the text's prefix: {fact} | {msg}"
+            );
             let carrier = match arm {
                 FitError::Lsq(e) => Some(e.to_string()),
                 _ => None,

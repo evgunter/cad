@@ -227,7 +227,8 @@ use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, Surf
 use geom_core::k_stats::decide;
 use geom_core::{
     Affine3, Band, BandError, COINCIDENCE_RECOURSE, Decide, Decided, Indeterminate,
-    KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign, Tol, Vec3,
+    KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, Margin, NOT_YET_ENDING, Point3, Real, Sign,
+    Tol, Vec3,
 };
 
 use crate::attach::Rechart;
@@ -937,6 +938,13 @@ impl<T: Real> ReplaceFaceError<T> {
             Self::Fit { error, .. } => {
                 write!(f, "{}", read_at(error, geom_brep::recourse::at_build(at)))
             }
+            // The row is read off the face's own fitted surface: a row
+            // that is not valid structure is the kernel's
+            // (`IsoRowError::Structure`, which its holders end).
+            Self::IsoRow {
+                error: error @ geom_brep::IsoRowError::Structure { .. },
+                ..
+            } => write!(f, "{error}. {KERNEL_DEFECT_ENDING}"),
             Self::IsoRow { error, .. } => write!(f, "{error}"),
             Self::ApproxLaneUnsupported { scalar, .. } => write!(
                 f,

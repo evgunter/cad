@@ -839,7 +839,8 @@ mod kernel {
             TooFewSections, SectionShapeMismatch, SectionProfile, EmptyProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
             PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
-            RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
+            RowMotionUndecided, ArcSweepUndecided, ParametersInvalid, Fit, KnotAlgebra,
+            Structure,
         ];
     }
 
@@ -3415,8 +3416,17 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
         ),
         ("NoParameterStep", E::NoParameterStep { section: 2 }),
         (
+            "ParametersInvalid",
+            E::ParametersInvalid {
+                params: 2,
+                sections: 3,
+            },
+        ),
+        (
             "Fit",
-            E::Fit(geom::FitError::TooFewPoints { have: 1, need: 2 }),
+            E::Fit(geom_core::spline::Built::new(
+                geom::FitError::TooFewPoints { have: 1, need: 2 },
+            )),
         ),
         (
             "KnotAlgebra",
