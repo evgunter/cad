@@ -15,16 +15,19 @@
 # cheap fixture names the row that carries it, and that row must exist.
 #
 # WHAT IS READ: production sources (`crates/*/src`, less test-only mounts
-# and `#[cfg(test)]` items) for `Answering::Any`, each keyed by the
-# nearest `fn` above it (the function the ladder runs in), counted per
-# (file, function). The register lists every (file, function, count) with
+# and `#[cfg(test)]` items) for every ladder that answers past a kept rung:
+# `Answering::Any` (the argument of an entry point that takes an
+# `Answering`), and each call of an entry point that takes none
+# (`climb_agreeing`, `climb_differing`), the entry points read off
+# `crates/geom-core/src/ladder.rs` (`gate_ladder_entry_points`). Each is
+# keyed by the nearest `fn` above it (the function the ladder runs in),
+# counted per (file, function). The register lists every (file, function, count) with
 # its disposition, `pin <test fn>` (that `fn` must exist under `crates/`)
 # or `row <id>` (that `work/**/<id>.md` must exist).
 #
 # WHAT IT CANNOT SEE: a ladder whose `Answering` value is a variable, or
-# `Any` through `read_identity` and `climb_agreeing` (their own rows pin
-# them); a pin that no longer reaches the site (the register names it, a
-# reviewer reads it).
+# `Any` through `read_identity` (its own rows pin it); and whether a pin
+# reaches its site, which `scripts/any-first-mutant.sh` runs nightly.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -131,7 +134,7 @@ PY
     gate_error "Any ladders differ from $REGISTER (above): name each one's pin (a test with a kept reading ahead of an answer, red under a first-refusal loop), or the row that carries it"
     exit 1
   fi
-  gate_ok "every production Any ladder names its pin or its row"
+  gate_ok "every production ladder that answers past a kept rung names its pin or its row"
 }
 
 gate_plant_clean() {

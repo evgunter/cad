@@ -685,6 +685,14 @@ pub fn climb_agreeing<I, A, E>(
     for (at, rung) in rungs.into_iter().enumerate() {
         let (got, log) = detached(|| read(rung));
         let Some((answer, aborts)) = held.take(got, log) else {
+            // The first-refusal mutant (`climb_evidence`'s).
+            #[cfg(any_first_mutant)]
+            if !held.kept.is_empty() {
+                return Ok(held
+                    .splice_all(false)
+                    .refusal()
+                    .map_or(Climb::Passed, Climb::Undecided));
+            }
             continue;
         };
         if aborts {
@@ -764,6 +772,14 @@ pub fn climb_differing<I, A, E>(
     for rung in rungs {
         let (got, log) = detached(|| read(rung));
         let Some((answer, aborts)) = held.take(got, log) else {
+            // The first-refusal mutant (`climb_evidence`'s).
+            #[cfg(any_first_mutant)]
+            if !held.kept.is_empty() {
+                return held
+                    .splice_all(false)
+                    .refusal()
+                    .map_or(Differing::Agreed(answers), Differing::Undecided);
+            }
             continue;
         };
         if aborts {
