@@ -8,6 +8,7 @@ priority: P2
 cost: E
 branch: onecopy/link-oracle-least
 closed: 2026-11-10
+pr: 6794
 ---
 
 
