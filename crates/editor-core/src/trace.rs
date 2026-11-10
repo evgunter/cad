@@ -234,6 +234,12 @@ impl core::fmt::Display for TraceStepFault {
             TraceStepFault::Carrier(fault @ TraceFault::Escalated(_)) => {
                 return write!(f, "{fault}");
             }
+            // The convention's refusal, in its own words, ended in its
+            // half's lever.
+            TraceStepFault::Carrier(TraceFault::Torus(refusal)) => {
+                f.write_str(&refusal.said("the face's", None))?;
+                refusal.convention.sized().lever
+            }
             TraceStepFault::Carrier(fault) => {
                 write!(f, "{fault}")?;
                 "turn the piece so it crosses the face, or move the frame"

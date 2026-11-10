@@ -1689,24 +1689,6 @@ fn a_thin_toruss_coefficients_charge_their_scale() {
 fn a_ring_a_float_from_fat_keeps_its_floor() {
     use crate::exact_q::Q;
     let (big, small) = (1000.0_f64, 1000.0_f64.next_down());
-    let carrier = Curve3::circle(
-        Point3::new(3.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        1.0,
-        Vec3::new(1.0, 0.0, 0.0),
-    );
-    let Some(conic) = carrier.conic() else {
-        unreachable!("a circle")
-    };
-    let h = crate::implicit::conic_torus_harmonics(
-        conic,
-        geom::Line {
-            origin: Point3::origin(),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        },
-        big,
-        small,
-    );
     let (bq, sq) = (Q::of(big), Q::of(small));
     let exact = Q::of(2.0).mul(&sq).mul(&bq.mul(&bq).sub(&sq.mul(&sq)));
     let difference = Q::of(2.0 * small * (big * big - small * small));
@@ -1714,11 +1696,12 @@ fn a_ring_a_float_from_fat_keeps_its_floor() {
         exact.le(&difference) && !difference.le(&exact),
         "the difference's floor stands above the exact one"
     );
-    let floor = Q::of(h.f_per_metre_lo);
+    // `R − r` here is one ulp of 1000, under the band, so no witness
+    // holds these radii: the floor's formula is read on them directly.
+    let lo = crate::implicit::ring_floor_of(big, small);
     assert!(
-        h.f_per_metre_lo > 0.0 && floor.le(&exact),
-        "the floor {} is not a positive floor under {}",
-        h.f_per_metre_lo,
+        lo > 0.0 && Q::of(lo).le(&exact),
+        "the floor {lo} is not a positive floor under {}",
         exact.ratio(&Q::of(1.0))
     );
 }

@@ -690,9 +690,9 @@ pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 /// `(aa − bb)/2`, to the sum beside it that dominates it. To first order
 /// the ceiling is off by well under `32u`, and `64u` doubles that for
 /// the second-order terms. A ROUNDING estimate, as
-/// [`geom_core::SHORT_CHAIN_ULPS`] is. The torus's floor
-/// ([`ConicTorusHarmonics::f_per_metre_lo`], four operations from the
-/// radii, each off by `u` relative) is divided by it.
+/// [`geom_core::SHORT_CHAIN_ULPS`] is. The torus's floor ([`ring_floor`],
+/// four operations from the radii, each off by `u` relative) is divided
+/// by it.
 const CEILING_PAD: f64 = 1.0 + 64.0 * geom_core::UNIT_ROUNDOFF;
 
 /// `|F″|` over the whole carrier for a harmonic residual: the true
@@ -1495,8 +1495,8 @@ pub fn conic_cone_residual<T: Real>(
 ///
 /// `F = 2r·res·Q` with `res` the torus's [`implicit_residual`] and
 /// `Q = (ρ + R)² + h² − r²` (`ρ` the distance from the axis), so
-/// `|F|` per metre of residual is at least [`Self::f_per_metre_lo`]
-/// everywhere, at most [`Self::f_per_metre_hi`] along the carrier, and at
+/// `|F|` per metre of residual is at least [`ring_floor`] everywhere on a
+/// ring, at most [`Self::f_per_metre_hi`] along the carrier, and at
 /// most [`Self::f_per_metre_surface`] within `r` of the surface.
 #[derive(Debug, Clone, Copy)]
 pub struct ConicTorusHarmonics<T> {
@@ -1519,30 +1519,14 @@ pub struct ConicTorusHarmonics<T> {
     ///
     /// The bound is first order: it drops `δp ⊗ δp`, which stays below
     /// `u·|p|·δp`'s scale only while `|p| ≳ δp`. Since `|p| ≥ R² − r²` on a
-    /// ring, that is the premise `R² − r² ≳ u(R² + r²)`. On a torus nearer
-    /// horn than that, the charge is no longer first-order sound.
+    /// ring, that is the premise `R² − r² ≳ u(R² + r²)`. A ring the band
+    /// certifies ([`geom::RingTorus`], which every reader of the charge
+    /// against a floor holds, [`ring_floor`]) meets it: such a ring has
+    /// `R − r > ε`, so `R² − r² > ε(R + r)`. And `ε` is at least
+    /// `geom_core::tolerance::COORDINATE_FLOOR`, one unit roundoff of the
+    /// 1 km session box, so `ε(R + r)` stands within a factor of two of
+    /// `u(R + r)²` or above it for any torus the box holds.
     pub terms: T,
-    /// A floor on `|F| / |res|`: `2r(R² − r²)`, `Q`'s least value on a
-    /// ring torus, formed as `2r(R − r)(R + r)` and padded down
-    /// ([`CEILING_PAD`]). Each of its four operations is off by `u`
-    /// relative to what it forms. `R − r` is exact once `r ≥ R/2`
-    /// (Sterbenz), and below that it is off by `u` of itself, as any
-    /// rounded difference of two positive lengths is. So the product's
-    /// rounding is relative to `R² − r²` itself, and the padded value
-    /// stands at or below the exact floor and above zero, however near `r`
-    /// is to `R`. `R² − r²` formed as a difference rounds relative to
-    /// `R² + r²`, and there it can stand above the true floor.
-    ///
-    /// **The premise is a product in f64's normal range.** Below about
-    /// `1e-300` the product goes subnormal, its rounding is no longer
-    /// relative, and the floor can stand above the exact value or at zero.
-    /// A ring the band certifies is clear of that: [`geom::RingTorus::of`]
-    /// decides `r` and `R − r` against a band whose ε is at least
-    /// `geom_core::tolerance::COORDINATE_FLOOR` (about 1.1e-13 m), so the
-    /// floor there is at least `4ε³`. The doors that read this floor
-    /// without that decision are filed as
-    /// `work/onecopy/the-torus-floor-is-read-by-doors-no-ring-gate-guards.md`.
-    pub f_per_metre_lo: T,
     /// A ceiling on `|F| / |res|` along the whole carrier:
     /// `2r(|C₀ − c| + ‖C − C₀‖ + R)²` (`(ρ + R)² + h² ≤ (|q| + R)²`), the
     /// carrier's reach `‖C − C₀‖` read off the frame AS STORED — the root
@@ -1588,7 +1572,9 @@ fn trig_product<T: Real>(a: ([T; 5], [T; 5]), b: ([T; 5], [T; 5])) -> ([T; 5], [
 /// [`ConicTorusHarmonics`] of `conic` against the torus
 /// `(t_center, t_axis, major_radius, minor_radius)`. `t_axis` unit,
 /// unchecked; the conic's frame need not be orthonormal (module docs of
-/// the struct). Total arithmetic.
+/// the struct). Total arithmetic, on any torus: the floor on `|F|` per
+/// metre, which holds only on a ring, is [`ring_floor`]'s, read off the
+/// convention's witness.
 #[must_use]
 pub fn conic_torus_harmonics<T: Real>(
     conic: &dyn Conic<T>,
@@ -1652,20 +1638,43 @@ pub fn conic_torus_harmonics<T: Real>(
         cos,
         sin,
         terms: p_abs * p_inputs + four_rr * (s_abs + h_abs.powi(2)),
-        // `R² − r²` as `(R − r)(R + r)`: off by a few `u` RELATIVE to
-        // itself (`R − r` is exact once `r ≥ R/2`, and off by `u` of
-        // itself below), so on a ring it stays positive, and the pad takes
-        // the floor below the exact value (the field's docs).
-        f_per_metre_lo: two
-            * minor_radius
-            * ((major_radius - minor_radius) * (major_radius + minor_radius))
-            / pad,
         f_per_metre_hi: two * minor_radius * reach.powi(2),
         f_per_metre_surface: two
             * minor_radius
             * (tube.powi(2) + T::from_f64(3.0) * minor_radius.powi(2))
             * pad,
     }
+}
+
+/// **The floor on `|F| / |res|` along any carrier, on a ring**:
+/// `2r(R² − r²)`, `Q`'s least value on a ring torus
+/// ([`ConicTorusHarmonics`]), formed as `2r(R − r)(R + r)` and padded
+/// down ([`CEILING_PAD`]). Each of its four operations is off by `u`
+/// relative to what it forms. `R − r` is exact once `r ≥ R/2`
+/// (Sterbenz), and below that it is off by `u` of itself, as any rounded
+/// difference of two positive lengths is. So the product's rounding is
+/// relative to `R² − r²` itself, and the padded value stands at or below
+/// the exact floor and above zero, however near `r` is to `R`. `R² − r²`
+/// formed as a difference rounds relative to `R² + r²`, and there it can
+/// stand above the true floor.
+///
+/// It takes the convention's witness ([`geom::RingTorus`]): off a ring
+/// `Q` has no positive floor, and the witness is decided against a band
+/// whose ε is at least `geom_core::tolerance::COORDINATE_FLOOR` (about
+/// 1.1e-13 m), so the product is at least `4ε³`, a normal number whose
+/// rounding is relative.
+#[must_use]
+pub fn ring_floor<T: Real>(ring: geom::RingTorus<T>) -> T {
+    ring_floor_of(ring.major_radius(), ring.minor_radius())
+}
+
+/// [`ring_floor`]'s formula on radii no witness holds: the floor rows'
+/// reading of radii the band does not certify.
+pub(crate) fn ring_floor_of<T: Real>(major_radius: T, minor_radius: T) -> T {
+    T::from_f64(2.0)
+        * minor_radius
+        * ((major_radius - minor_radius) * (major_radius + minor_radius))
+        / T::from_f64(CEILING_PAD)
 }
 
 /// The torus's [`implicit_residual`] at the [`Conic`] point of parameter
@@ -3698,10 +3707,10 @@ mod conic_tests {
                     if res.abs() > 1e-6 {
                         let ratio = direct.abs() / res.abs();
                         assert!(
-                            ratio >= h.f_per_metre_lo * (1.0 - 1e-9)
+                            ratio >= ring_floor_of(big, small) * (1.0 - 1e-9)
                                 && ratio <= h.f_per_metre_hi * (1.0 + 1e-9),
                             "conic {k}: |F|/|res| = {ratio} outside [{}, {}]",
-                            h.f_per_metre_lo,
+                            ring_floor_of(big, small),
                             h.f_per_metre_hi
                         );
                     }
