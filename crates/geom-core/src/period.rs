@@ -180,13 +180,14 @@ impl<T: Real> Period<T> {
     /// `2(mid − t) − P`, at most `0`, and likewise at the stop), so on a
     /// point named about the middle the margins are its own. They are
     /// equal only at the tie, `t` half a period from the middle, the
-    /// antipode, which a point there is past on either copy: there the
-    /// copy's rounding can move the margin's last bit, never its sign
-    /// past the band (measured over topo, sweep, editor-core, step-import
-    /// and mesh at ε 1e-9 and 1e-12: every moved point reading is such a
-    /// tie). `geom_brep::curve_pair::Span` reads its ends' sides through
-    /// this on a closed carrier, and so does `topo`'s ring lane, each
-    /// with its own meter.
+    /// antipode, which a point there is past on either copy: at or within
+    /// rounding of it the copy's rounding can move the margin's last bit,
+    /// never its sign past the band (measured over topo, sweep,
+    /// editor-core, step-import and mesh at ε 1e-9 and 1e-12: every moved
+    /// point reading is at or within rounding of such a tie).
+    /// `geom_brep::curve_pair::Span` reads its ends' sides through this
+    /// on a closed carrier, and so does `topo`'s ring lane, each with its
+    /// own meter.
     pub fn span_margins(self, t: T, (lo, hi): (T, T)) -> (T, T) {
         let p = self.length;
         ((t - lo).max(hi - (t + p)), (hi - t).max((t - p) - lo))
@@ -355,8 +356,9 @@ impl<T: Decide> Period<T> {
     /// middle's antipode lands on one copy, and where the span's gap is
     /// narrower than the box, part of it lies inside the span on the copy
     /// a turn away: a reader of such a box against the ends reads each
-    /// side on both copies (`geom_brep::curve_pair::Span`, "A parameter a
-    /// turn away").
+    /// side on both copies, through [`Period::span_margins`], the copy
+    /// rule's home (`geom_brep::curve_pair::Span`, "A parameter a turn
+    /// away", and `topo`'s ring lane read it).
     ///
     /// `k = 0` returns `t` itself, bit for bit. A `t` or `reference` that
     /// is not finite, or a gap no `i32` of periods names, has no copy, and

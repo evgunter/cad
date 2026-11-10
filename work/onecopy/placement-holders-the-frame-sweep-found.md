@@ -52,8 +52,7 @@ Every holder above that needed no new type now holds the one it restated:
 - **Ported earlier** (`onecopy/line-tuples`, PR 6601; `onecopy/line-placement`, PR 6665): `offset::ConeOffset`, `offset_axial::Frame`, `join::Turn` and `SectionLoop`, `surface_group::WrapRims`, `gap::Spine::Circle`, `contain::TorusCarrier`, `MappedSource::RevolvedPoint` and `reach::Bound`. `census/depth_gap.rs` `Ring` no longer exists.
 - **Kept, each with its reason at the type:**
   - sweep `swept::Turn` holds a decided unit axis (`UnitVec3`), the value its rotation takes; `Line` reads any nonzero direction.
-  - geom `cover::Core` is not a `geom::Circle`: it reads no seam, and its axis need not be unit. It now holds its axis as a `geom::Line` (below).
-- **Ported in the review's fix pass:** geom `cover::Core`, `Slab` and `Frustum` hold their axis as a `geom::Line`, so `cover.rs`'s private `axis_line(center, axis)` rebuild retires (`line-holders-the-line-placement-sweep-missed` item 4).
+- **Ported in the review's fix pass:** geom `cover::Core`, `Slab` and `Frustum` hold their axis as a `geom::Line`, so `cover.rs`'s private `axis_line(center, axis)` rebuild retires (`line-holders-the-line-placement-sweep-missed` item 4). `Core` is not a `geom::Circle`, as its doc says: it reads no seam, and its axis need not be unit, which a `Line` reads.
 - **Kept, not placement copies:**
   - editor-core `mate::coset` `Cylindrical` and `Revolute`: decided unit axes, the same ruling as `Turn`.
   - `pose::AxisLine`: the editor's typed line, its foot normalized.
