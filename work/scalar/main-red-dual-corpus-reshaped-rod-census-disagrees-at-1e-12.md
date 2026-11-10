@@ -6,8 +6,7 @@ status: closed
 opened: 2026-10-28
 priority: P3
 cost: M
-closed: 2026-11-10
-pr: 6687
+closed: 2026-11-09
 ---
 
 
@@ -44,11 +43,7 @@ goes red the day the row passes. Not bisected here.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
 
-## Closed by `onecopy/needle-basin` (PR 6687)
 
-Measured at ε 1e-12, each on its own fresh build:
-- main (`7c1424abbfb`): the pin stops where it says.
-- PR 6687's head (`1179cda7d7c`): the pin's stop no longer occurs, and the row passes.
-- Unpinned (on `onecopy/edge-ends-turns`, which carries PR 6687): every corpus document's census reads alike at f64 and Interval. `reshaped_rod` reads `Some(false)` at both, so the Interval census now looks where it could not. The witness the row needs, a document Interval cannot look at, is still there: `kitchen_sink` and `cut_cylinder` read `Some(true)` at both.
+## Closed (ONECOPY, `onecopy/main-reds-triage`, 2026-11-09)
 
-The re-measure the pin owed is that unpinned run: the whole row, every document. Not bisected within PR 6687. Its change to at-rest reading is check 9's arc window, now `curve_pair::Span::place` (the point's foot) rather than `arc_trim`'s chordal defects, so that is the likely cause. The pin is removed.
+The row is green at 1e-12 since PR 6482 (`onecopy/angle-reads`, merge `a6f0b5e99c`: the F31 angle reads). Which of its reads moved this row was not traced. A first-parent bisect of the pinned row finds it "stopped otherwise" from at least `e9eaae651d` up to `a6f0b5e99c^1`, and "it passed" from `a6f0b5e99c` on. Before PR 6482 the row stopped earlier, on `die_composed_tour`, with the same cross-scalar census disagreement, which 6482 also cleared without disclosing it (6691's review). So `reshaped_rod`'s own reading before 6482 was never measured: the row stopped before it reached that document. Which of 6482's reads cleared both is filed as `work/onecopy/the-angle-reads-cleared-two-cross-scalar-census-disagreements-untraced.md`. At `a6f0b5e99c` and on main (merged 2026-11-09) both scalars read `reshaped_rod` the same way: no could-not-look finding at f64 or at Interval (`Ok(false)` each). So the two scalars now agree, on the f64 reading. The pin is removed in `crates/editor-core/tests/m10_di_dual_corpus.rs`, and `at_rest_census_verdicts_match_f64_at_interval` passes unpinned at 1e-6, 1e-9 and 1e-12.

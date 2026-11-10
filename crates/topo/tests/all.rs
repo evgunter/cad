@@ -285,6 +285,8 @@ mod r2_probes;
 mod readback_sense_kind;
 #[path = "records_cite_their_decision.rs"]
 mod records_cite_their_decision;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
 #[path = "review_4996_carry_probes.rs"]
