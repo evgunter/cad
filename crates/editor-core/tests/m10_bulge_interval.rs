@@ -309,10 +309,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     // are the enclosure's own Zero, their identity not reaching the zero
     // form at the shipped rules.
     ("ssi_hull_sup", [28, 4]),
-    // ONEHOME (a written frame's rigidity is decided at the f64 it was
-    // written in, `RigidMotion::check_rigid`): the placement's seven
-    // `transform_rigid_*` margins, [1, 0] each at this scalar, are
-    // decided once at f64 and log no row here.
+    // ONEHOME (`RigidMotion::check_rigid`: a map within its own
+    // rounding is admitted as given and decides nothing): the
+    // placement's seven `transform_rigid_*` margins, [1, 0] each at
+    // this scalar, log no row.
     ("vertex_separation", [0, 12]),
     ("witness_at_mid_parameter", [16, 0]),
     ("witness_on_surface_1", [14, 2]),
@@ -514,10 +514,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             // below) × 2 operands. Each a theorem on the carrier's
             // free-parameter residual (fork row 204).
             ("ssi_hull_sup", [20, 0]),
-            // ONEHOME (a written frame's rigidity is decided at the f64 it was
-            // written in, `RigidMotion::check_rigid`): the placement's seven
-            // `transform_rigid_*` margins, [1, 0] each at this scalar, are
-            // decided once at f64 and log no row here.
+            // ONEHOME (`RigidMotion::check_rigid`: a map within its own
+            // rounding is admitted as given and decides nothing): the
+            // placement's seven `transform_rigid_*` margins, [1, 0] each at
+            // this scalar, log no row.
             ("vertex_separation", [0, 8]),
             ("witness_at_mid_parameter", [10, 0]),
             ("witness_on_surface_1", [10, 0]),

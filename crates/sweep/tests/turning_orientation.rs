@@ -328,15 +328,11 @@ fn an_inflecting_path_sweep_faces_out_through_the_reversal() {
 /// about the tangent. A centred
 /// square is invariant under that quarter turn and the sweep carries
 /// the start frame rigidly, so every station's ring is the same set of
-/// world points in both builds, and only which edge is wall 0 differs.
-/// The sections sit at their stations' path parameters, which no roll
-/// enters, so the walls' knots and weights are bit-identical, shifted by
-/// one edge. Their control points agree to rounding, not to the bit:
-/// the quarter turn is the exact column permutation, but the frame door
-/// re-mints what it admits (`RigidMotion::check_rigid`, Gram–Schmidt
-/// from the first column), and the start frame is a computed one, so a
-/// permutation of its columns re-mints to a turn that differs from the
-/// permuted re-mint by an ulp or so. A parameterization read off one wall moved the volume in the
+/// world points in both builds; the quarter turn is the exact column
+/// permutation, so they are the same BITS, and only which edge is wall
+/// 0 differs. The sections sit at their stations' path parameters,
+/// which no roll enters, so the walls are bit-identical, shifted by one
+/// edge. A parameterization read off one wall moved the volume in the
 /// fifth digit with the roll, and where `v = 0.5` lands on the spine by
 /// 0.354.
 #[test]
@@ -380,14 +376,12 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
             wall.knots_u_f64_interim().knots() == want.knots_u_f64_interim().knots()
                 && wall.knots_v_f64_interim().knots() == want.knots_v_f64_interim().knots()
                 && wall.weights() == want.weights()
-                && wall.control().len() == want.control().len()
                 && wall
                     .control()
                     .iter()
                     .zip(want.control())
-                    .all(|(p, q)| (*p - *q).norm() <= 1e-14),
-            "rolled wall {j} must be wall {} of the unrolled duct, its knots and weights \
-             bit for bit and its control points to rounding",
+                    .all(|(p, q)| p.equals_exactly(*q)),
+            "rolled wall {j} must be wall {} of the unrolled duct, bit for bit",
             (j + n - 1) % n
         );
     }

@@ -1,6 +1,6 @@
-//! Placement: the literal [`Frame`], the evaluated value of a rigid
-//! motion, which an explicit pattern rule lists until patterns are
-//! index variables.
+//! Placement: the literal [`Frame`], a rigid motion stored as the
+//! `f64` numbers a layout or a gesture writes, admitted as a motion at
+//! `f64` alone ([`Frame::admission_fault`]).
 
 use geom_core::predicate::Band;
 use geom_core::{Affine3, Mat3, Real, RigidMotion, RigidMotionError, Vec3};
@@ -55,10 +55,10 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// every pose is proper, and a mirror is a construction
 /// ([`crate::Node::Mirror`]).
 ///
-/// Rigidity is not a field invariant — it is a decided predicate with
-/// one home, [`RigidMotion::check_rigid`], which a listed frame asks
-/// when it evaluates and [`Frame::admission_fault`] asks of every frame
-/// a document admits.
+/// Rigidity is not a field invariant — it is a predicate with one home,
+/// [`RigidMotion::check_rigid`], the `f64` door, which
+/// [`Frame::admission_fault`] asks of every frame a layout or a gesture
+/// hands in.
 ///
 /// # Exactness
 ///
@@ -66,9 +66,8 @@ pub(crate) const PLACEMENT_AXIS_ROLE: &str = "placement rotation axis";
 /// do not restate it.
 ///
 /// A frame's stored coordinates are CARRIED, never recomputed:
-/// [`Frame::affine`] reads them back at any scalar as a structural map
-/// through [`Real::from_f64`], so it is exact wherever that conversion
-/// is and the identity at `f64`. Where a door does arithmetic the
+/// [`Frame::affine`] reads them back as the `f64` map they are, bit for
+/// bit; no scalar but `f64` reads a frame. Where a door does arithmetic the
 /// claim is weaker, deliberately — D9-deterministic, not exact:
 /// [`Mat3::determinant`]'s fixed evaluation order for the sign,
 /// [`Affine3`]'s own product in that operator's fixed association for
@@ -235,20 +234,19 @@ impl Frame {
         Affine3::from_parts(self.linear_f64(), Vec3::from_array(self.translation))
     }
 
-    /// The affine map this frame denotes, in the backend scalar — what
-    /// the kernel's placement door consumes: the stored map through
-    /// [`Affine3::map`] ([`Frame`]'s exactness rule).
+    /// The affine map this frame denotes, at the `f64` it is stored in:
+    /// the stored arrays carried ([`Frame`]'s exactness rule). A frame is
+    /// a stored `f64` value; no scalar but `f64` reads one.
     #[must_use]
-    pub fn affine<T: Real>(&self) -> Affine3<T> {
-        self.affine_f64().map(T::from_f64)
+    pub fn affine(&self) -> Affine3<f64> {
+        self.affine_f64()
     }
 
-    /// The motion this frame denotes in the backend scalar, with a
-    /// bit-exact identity marked as such ([`Motion`]) — which only a
-    /// stored frame can know, by its bits. A general map
-    /// ([`Frame::compose`] composes any two).
+    /// The motion this frame denotes, with a bit-exact identity marked
+    /// as such ([`Motion`]) — which only a stored frame can know, by its
+    /// bits. A general map ([`Frame::compose`] composes any two).
     #[must_use]
-    pub(crate) fn motion<T: Real>(&self) -> Motion<T> {
+    pub(crate) fn motion(&self) -> Motion<f64> {
         if self.is_identity_bits() {
             Motion::Identity
         } else {
@@ -271,7 +269,7 @@ impl Frame {
     /// `inner` first, then by `self`, by [`Motion::compose`] at `f64`.
     #[must_use]
     pub fn compose(&self, inner: &Frame) -> Frame {
-        Frame::from_motion(self.motion::<f64>().compose(inner.motion()))
+        Frame::from_motion(self.motion().compose(inner.motion()))
     }
 
     /// Whether this frame is the stored identity, BY BITS — D-3's
@@ -283,8 +281,8 @@ impl Frame {
     }
 
     /// **The frame half of A11/A6's admission rule, stated once**: a
-    /// frame the document admits carries only numbers and is a rigid
-    /// motion, so it preserves orientation.
+    /// frame handed in carries only numbers and is a rigid motion, so it
+    /// preserves orientation.
     ///
     /// One predicate with one home, asked wherever a frame is admitted
     /// — the viewer's drawn frame — so no door can come to hold frames to
@@ -292,21 +290,18 @@ impl Frame {
     /// is at fault in its own vocabulary, and forwards
     /// this answer's sentence rather than restating it.
     ///
-    /// Rigidity is [`RigidMotion::check_rigid`] at `tol`'s linear band,
-    /// the door a listed frame's evaluation asks, so a frame admitted
-    /// here is one the evaluation moves a body by. A determinant that is
-    /// not positive is refused first, at any tolerance: a reflection is
-    /// no pose (every pose is proper; a mirror is
-    /// [`crate::Node::Mirror`]). A tolerance that forms no band decides
-    /// nothing else, and every evaluation at it refuses before it reads
-    /// a frame, so the rest of rigidity is left to the next door that
-    /// holds a band: the load door asks it again at the loading
-    /// tolerance.
+    /// Rigidity is [`RigidMotion::check_rigid`], the `f64` door: a frame
+    /// whose seven rigidity margins each lie within the rounding its own
+    /// arithmetic carries is admitted with its bits kept, and any other is
+    /// refused, naming the first margin beyond it. No band enters, so a
+    /// frame's admission is the same at every tolerance. A determinant
+    /// that is not positive is refused first: a reflection is no pose
+    /// (every pose is proper; a mirror is [`crate::Node::Mirror`]).
     ///
     /// It lives on [`Frame`] because the rule is about a frame and
     /// nothing else: it reads no document and no node.
     #[must_use]
-    pub fn admission_fault(&self, tol: geom_core::Tol) -> Option<FrameFault> {
+    pub fn admission_fault(&self) -> Option<FrameFault> {
         if !self.is_finite() {
             return Some(FrameFault::NonFinite);
         }
@@ -317,8 +312,7 @@ impl Frame {
                 check: "transform_rigid_det_plus_one",
             });
         }
-        let band = Band::linear(tol).ok()?;
-        match RigidMotion::check_rigid(&self.affine_f64(), band) {
+        match RigidMotion::check_rigid(&self.affine_f64()) {
             Ok(_) => None,
             Err(
                 RigidMotionError::NotRigid { check } | RigidMotionError::Undecided { check, .. },
@@ -519,7 +513,7 @@ mod tests {
     #[test]
     fn affine_at_f64_carries_the_stored_bits() {
         for f in [sample(), bit_zoo()] {
-            let a = f.affine::<f64>();
+            let a = f.affine();
             for (j, c) in [a.linear.c0, a.linear.c1, a.linear.c2]
                 .into_iter()
                 .enumerate()

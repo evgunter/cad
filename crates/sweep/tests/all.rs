@@ -1360,6 +1360,8 @@ mod a_closed_conic_in_the_partners_face;
 mod a_cone_with_a_tilted_seam;
 #[path = "a_cylinder_through_a_hole_tangent_to_its_wall.rs"]
 mod a_cylinder_through_a_hole_tangent_to_its_wall;
+#[path = "a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses.rs"]
+mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
 #[path = "a_moved_body_keeps_its_verdict.rs"]
@@ -1368,8 +1370,6 @@ mod a_moved_body_keeps_its_verdict;
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
 mod a_seam_inside_a_face_is_no_boundary_of_it;
-#[path = "an_admitted_frame_is_re_minted_at_its_door.rs"]
-mod an_admitted_frame_is_re_minted_at_its_door;
 #[path = "an_aimed_ray_from_far_reads_a_split_side_right.rs"]
 mod an_aimed_ray_from_far_reads_a_split_side_right;
 #[path = "join_lever_is_the_joined_edge.rs"]

@@ -228,9 +228,9 @@ pub(crate) struct Study {
 /// reading) the bracket door shut (1544, 1224) -> (1542, 1226) and the
 /// pad's `frozen` 3257 -> 3281; PR 6594 (the planar line's home) the pad
 /// 1660 -> 1684; PR 6682 (an extension's run is its own segment) the pad
-/// 1684 -> 1704; ONEHOME (a written frame's turn is decided at the `f64`
-/// it was written in, `RigidMotion::check_rigid`) each placed map's seven
-/// `transform_rigid_*` margins, which leave this scalar: 7 symbolic per
+/// 1684 -> 1704; ONEHOME (`RigidMotion::check_rigid`: a map within its
+/// own rounding is admitted as given and decides nothing) each placed
+/// map's seven `transform_rigid_*` margins: 7 symbolic per
 /// map, numeric and frozen unmoved, the plate 1203 -> 1189, the annulus
 /// 720 -> 713, the link 998 -> 991, the bracket 1613 -> 1599 (door shut
 /// 1542 -> 1528) and the pad 1704 -> 1697 (door shut alike); ONEHOME's
@@ -904,9 +904,9 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // ruling reading's forms), -> 3294 with PR 6594, 3637 at PR 6682's
     // first parent (the step from 3294 is not bisected: `frozen` alone,
     // over 175 first-parent commits) and 3751 with PR 6682. Then ONEHOME's
-    // seven rigidity margins, decided at f64: 1704 -> 1697 symbolic. Then
-    // ONEHOME's moved copy, its verdict carried and not re-certified:
-    // (1697, 1368, 3751) -> (1523, 1213, 3683).
+    // seven rigidity margins, a map within its rounding deciding none:
+    // 1704 -> 1697 symbolic. Then ONEHOME's moved copy, its verdict
+    // carried and not re-certified: (1697, 1368, 3751) -> (1523, 1213, 3683).
     assert_eq!(got[0], (1523, 1213, 3683), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],

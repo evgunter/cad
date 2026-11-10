@@ -1530,9 +1530,8 @@ pub enum NodeErrorKind {
     /// The mirror refused: the kernel's reflection door
     /// (`topo::mirror_body`), its refusal verbatim.
     Mirror(TransformError),
-    /// A placement's rigid motion was not minted (a part of it is not
-    /// a finite number) or not admitted (a literal frame, or a map the
-    /// mate solve composed, that the decided door refuses).
+    /// A placement's rigid motion was not minted: a part of it, or of a
+    /// motion the mate solve composed, is not a finite number.
     Motion(geom_core::RigidMotionError),
     /// The §10.3/§10.4 construction refused (M5 PR 10 §2's typed
     /// compatibility door): section shapes that do not correspond,

@@ -354,10 +354,10 @@ re-evaluation, which re-verifies crossings (A4).
 
 **A6 — Mirror and improper frames.** Every pose is proper. `Frame`
 stores a general linear part, and a frame that is not a rigid motion, a
-mirror (det = −1) among them, is refused wherever a document admits a
-frame, by one predicate (`Frame::admission_fault`): a placement rule's
-listed frame refuses `EditError::NonRigidPlacement`, naming which frame,
-and the load validator refuses the same. A mirror is not a placement: a
+mirror (det = −1) among them, is refused wherever a frame is handed in,
+by one predicate (`Frame::admission_fault`, the `f64` door
+`RigidMotion::check_rigid`): a saved layout's frame and a gesture's are
+refused, naming the margin that fails. A mirror is not a placement: a
 reflection is not a pose, so a mirrored body is the construction
 `Mirror { body, plane }`, which defines a new `Body` (MIRROR-DESIGN
 P1–P4), and no placement needs an improper frame. STEP import refuses a

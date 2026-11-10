@@ -19,6 +19,7 @@ pub struct LeastTurn<T: geom_core::Real> {
     c: T,
     k: Vec3<T>,
     one_plus_c: T,
+    arm: geom_core::OnePlusC,
 }
 
 impl<T: SolveScalar> LeastTurn<T> {
@@ -30,12 +31,21 @@ impl<T: SolveScalar> LeastTurn<T> {
         let c = from.dot(to);
         // Which formula is a choice of arithmetic, not a verdict: the two
         // are one number, and the first loses no digit near the pole.
-        let one_plus_c = if c.quoted() < 0.0 {
-            k.dot(k) / (one - c)
+        let arm = if c.quoted() < 0.0 {
+            geom_core::OnePlusC::ByTheCross
         } else {
-            one + c
+            geom_core::OnePlusC::Direct
         };
-        Self { c, k, one_plus_c }
+        let one_plus_c = match arm {
+            geom_core::OnePlusC::ByTheCross => k.dot(k) / (one - c),
+            geom_core::OnePlusC::Direct => one + c,
+        };
+        Self {
+            c,
+            k,
+            one_plus_c,
+            arm,
+        }
     }
 
     /// `1 + c`: zero at the pole, two where the directions agree.
@@ -50,6 +60,13 @@ impl<T: SolveScalar> LeastTurn<T> {
     #[must_use]
     pub fn at_pole(&self) -> bool {
         self.one_plus_c.quoted() <= 0.0
+    }
+
+    /// **Which arithmetic `1 + c` took** ([`geom_core::OnePlusC`]): the
+    /// arm [`geom_core::RigidMotion::least_turn`] mints the same turn by.
+    #[must_use]
+    pub fn arm(&self) -> geom_core::OnePlusC {
+        self.arm
     }
 
     /// `S·v`.

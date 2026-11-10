@@ -9,7 +9,6 @@ crates/editor-core/src/eval/mod.rs	1	constant	v[2]	a computing twist's stated pa
 crates/editor-core/src/eval/mod.rs	1	constant	self.angle	a computing twist's stated angle (EvalOptions::computing_twist, test-facing), written in f64 by its caller
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
 crates/editor-core/src/expr.rs	1	constant	q.value	an authored quantity literal
-crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
 crates/editor-core/src/ratio.rs	1	constant	self.den as f64	an authored ratio's denominator
 crates/editor-core/src/ratio.rs	1	constant	self.num as f64	an authored ratio's numerator
 crates/geom-brep/src/carrier_net.rs	1	constant	a	a span's start break, f64 structure, entered at the concrete Interval (never Sym)
@@ -82,7 +81,6 @@ crates/geom-core/src/linalg/angle.rs	1	constant	(4 * den) as f64	the denominator
 crates/geom-core/src/linalg/angle.rs	1	constant	n as f64	a written fraction's numerator or denominator, an exact integer of magnitude at most 2^53
 crates/geom-core/src/linalg/angle.rs	1	constant	hi as f64	the high half of a written fraction's integer past 2^53, an exact integer below 2^32
 crates/geom-core/src/linalg/angle.rs	1	constant	lo as f64	the low half of a written fraction's integer past 2^53, an exact integer below 2^32
-crates/geom-core/src/linalg/rigid_motion.rs	1	constant	<fn>	check_rigid: the turn of a map whose every linear entry is a plain f64, decided and re-minted at that f64: a function of no parameter, and once admitted the motion the model stores, not a computation standing in for one (E12), so a literal and not from_computed's unknown (the shift is kept as the scalar it is)
 crates/geom-core/src/period.rs	1	constant	f64::from(-i)	a half-period mark's branch below it
 crates/geom-core/src/period.rs	1	constant	f64::from(i)	a half-period mark's index
 crates/geom-core/src/period.rs	1	constant	f64::from(k)	a whole-period count as a length (`Period::times`, through which a stored winding's rate reads too, `Period::rate`)

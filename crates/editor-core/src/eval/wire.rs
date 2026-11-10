@@ -892,15 +892,10 @@ where
         None
     };
     match crate::mate::solve::solve_bundle(id, &equations, &mates, &values, chart, lever)? {
-        crate::mate::solve::Folded::Chained(motion) => Ok(Some(motion)),
-        // Every placement but the identity bundle runs its map, at every
-        // value and in every lane: a map the solve composed as motions
-        // is placed as the motion it is, any other admitted from its
-        // entries, by one door.
-        crate::mate::solve::Folded::Pinned(map, composed) => Ok(Some(match composed {
-            Some(composed) => composed.motion(b)?,
-            None => crate::mate::solve::admitted(&map, b)?,
-        })),
+        // Every placement is the motion its solve composed, at every value
+        // and in every lane: nothing re-derives its rigidity.
+        crate::mate::solve::Folded::Chained(motion)
+        | crate::mate::solve::Folded::Pinned(motion) => Ok(Some(motion)),
     }
 }
 

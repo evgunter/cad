@@ -426,7 +426,36 @@ pub enum NormalizationKind {
     /// own splits) and the faces it became with every edge and vertex
     /// they use.
     FaceSplitAtC0Knot,
+    /// **An assembly placement whose stated fields `build_axes` moved**
+    /// (`[import]`, `[tolerance.boundary]`): every placement frame is
+    /// minted from its fields by ISO 10303-42's `build_axes` (the axis
+    /// normalized, the reference direction projected perpendicular and
+    /// normalized), and a frame of this `ITEM_DEFINED_TRANSFORMATION`
+    /// whose fields as stated are no rigid frame within their own
+    /// rounding was moved by that construction. A STEP `direction` is a
+    /// ratio vector, so the normalization is the file's own semantics,
+    /// not a heal; it is reported so the move is on record. `moved_by` is
+    /// measured against the raw stated matrix: its columns the reference
+    /// direction, the axis crossed with it and the axis, as the file
+    /// states them, unnormalized. Over the session box it is the
+    /// farthest a point moves between that matrix and the built frame,
+    /// summed over the pair. A file's ε_in bounds no such move
+    /// (`work/onehome/a-step-files-input-tolerance-has-no-bound-the-ratified-text-states.md`).
+    /// Keyed by the transformation's instance id, not a face; its census
+    /// pair is empty, since no face, edge or vertex changes.
+    PlacementReMinted {
+        /// The `ITEM_DEFINED_TRANSFORMATION` whose frames were moved.
+        transform: u64,
+        /// The move (metres): over the session box, the farthest a point
+        /// moves between a frame's raw stated matrix and its built one,
+        /// summed over the pair.
+        moved_by: f64,
+    },
 }
+
+/// The K row a placement frame's two directions are decided under where
+/// `build_axes` mints it ([`NormalizationKind::PlacementReMinted`]).
+pub const STEP_PLACEMENT_AXES: &str = "step_placement_axes";
 
 /// Where a file put a chart singularity that is not yet a vertex in
 /// the pole form ([`NormalizationKind::ChartSingularityVertex`]).
@@ -797,10 +826,10 @@ pub fn import_step(
             // maps are keyed by the file's entity ids, so two copies
             // assembled into one arena would collide id for id.
             //
-            // Each placement is decided rigid, and re-minted, at
-            // `RigidMotion::check_rigid`, so a map this reader let
-            // through that the kernel will not is a typed refusal,
-            // never a silently skewed body.
+            // Each placement is the motion its placement pair minted
+            // (`build_axes`, then `B ∘ A⁻¹` composed as motions), so it is
+            // rigid by construction, and the per-solid finish below moves a
+            // finished copy by it.
             //
             // The copies meet in one arena through
             // `topo::graft_disjoint` — the disjoint half of the
@@ -820,14 +849,6 @@ pub fn import_step(
             // that finished copy is moved to every other instance: a
             // finished body moved by an isometry stays finished and asks
             // only the session box again.
-            // A placement is adopted at the file's own band: its re-mint
-            // to an exact rigid motion may move a point by up to ε_in.
-            let band = geom_core::FileCoincidence::new(eps_in)
-                .adoption_band(tol)
-                .map_err(|error| StepImportError::TierInvalid {
-                    solid: None,
-                    errors: vec![topo::ValidationError::Band { error }],
-                })?;
             let mut finished: std::collections::BTreeMap<
                 usize,
                 (topo::AtRestBody<f64>, Option<geom_core::RigidMotion<f64>>),
@@ -837,16 +858,19 @@ pub fn import_step(
                 let file = geom_core::FileCoincidence::new(eps_in);
                 let motion = match instance.placed {
                     Some(entities::Placed {
-                        map: Some(map),
+                        map: Some(motion),
                         transform,
                         ..
-                    }) => Some((
-                        geom_core::RigidMotion::check_rigid(&map, band).map_err(|source| {
-                            StepImportError::PlacementMap { transform, source }
-                        })?,
-                        transform,
-                    )),
+                    }) => Some((motion, transform)),
                     _ => None,
+                };
+                // The motion from the copy first finished to this one, a
+                // product of minted motions: only an overflow refuses.
+                let not_finite = |transform: u64| StepImportError::Structure {
+                    id: transform,
+                    what: "an assembly placement whose motion from the copy first finished is \
+                           not a finite number — its placements stand too far from the origin \
+                           to compose",
                 };
                 let one = match finished.get(&instance.solid) {
                     Some((source, at)) => {
@@ -855,17 +879,11 @@ pub fn import_step(
                         };
                         let relative = match (&motion, at) {
                             (None, None) => None,
-                            (Some((m, transform)), _) => Some(relative(m).map_err(|source| {
-                                StepImportError::PlacementMap {
-                                    transform: *transform,
-                                    source,
-                                }
-                            })?),
-                            (None, Some(at)) => Some(at.inverse().map_err(|source| {
-                                StepImportError::PlacementMap {
-                                    transform: instance.placed.map_or(0, |p| p.transform),
-                                    source,
-                                }
+                            (Some((m, transform)), _) => {
+                                Some(relative(m).map_err(|_| not_finite(*transform))?)
+                            }
+                            (None, Some(at)) => Some(at.inverse().map_err(|_| {
+                                not_finite(instance.placed.map_or(0, |p| p.transform))
                             })?),
                         };
                         match relative {
@@ -923,7 +941,7 @@ pub fn import_step(
                     occurrence: instance.placed.and_then(|p| p.occurrence),
                     relationship: instance.placed.map(|p| p.relationship),
                     transform: instance.placed.map(|p| p.transform),
-                    placement: instance.placed.and_then(|p| p.map),
+                    placement: motion.map(|(m, _)| m.to_affine()),
                 });
             }
             // **The shared at-rest validation gate** (M7-7, the #260

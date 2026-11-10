@@ -2,10 +2,12 @@
 id: the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted
 kind: issue
 title: the boolean's sphere re-cut builds its alignment rotation as twelve numbers and decides it at the rigid-motion door; its by-construction route is turned_between
-status: open
+status: review
 opened: 2026-10-13
 priority: P2
 cost: E
+pr: 6717
+branch: onehome/rigid-motion
 refs: [SYM-17]
 ---
 
@@ -44,3 +46,17 @@ opposed. The one decision, `1 + a·b > 0`, is unchanged.
 
 - Re-banded P3 → P2: a rigid-by-construction rotation re-decided at an enclosure scalar can refuse: interval and error propagation, P2 by `work/README.md` Priority.
 - Moved to HONEPAIR (`work/honepair/`) by `git mv`, id and body unchanged: the P2 track opened for one verdict decided on one margin at its own reach: rows that decide two margins one at a time, compose two readings, or lever a reading at the wrong extent. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Taken into ONEHOME's rigid-motion unit (PR 6717, 2026-11-10)
+
+`apply_recuts` now mints both turns as `RigidMotion::turned_between`
+over `UnitVec3` witnesses of the axis, the escape normal, the rotated
+`u_ref` and the seam, about the sphere's centre, and composes the seam
+spin after the alignment. No rigidity door is asked of twelve numbers.
+The door's revision in that PR (a map within its rounding is admitted
+as given; beyond it the levered band decides) refuses this map at
+`Interval` at ε = 1e-12, since an enclosure computed at `Interval`
+carries its computation's width. Minting is the answer:
+`emit_ball_cut_by_brick::a_ball_cut_by_a_brick_refuses_to_name_its_turned_seam_or_pole`
+passes at 1e-9 and 1e-12.
+

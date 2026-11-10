@@ -12,8 +12,9 @@
 //! # Contract
 //!
 //! The map is an [`Isometry`], exact apart from rounding: a
-//! [`RigidMotion`] (rigidity carried by the witness or re-minted at its
-//! door, [`RigidMotion::check_rigid`]) or a [`crate::Reflection`] (a
+//! [`RigidMotion`] (rigidity carried by the witness it was minted as,
+//! or admitted within rounding at the `f64` door,
+//! [`RigidMotion::check_rigid`]) or a [`crate::Reflection`] (a
 //! Householder matrix decided at its own door). A scale has no spelling
 //! as either; a uniform one is affinely self-consistent, so no check on
 //! the image would catch it, and the type is what keeps it out.

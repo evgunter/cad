@@ -105,7 +105,7 @@ fn target_world(
     let placed = solve(doc, o, Tol::witness())
         .placement(doc, instance)
         .expect("the member is placed")
-        .affine::<f64>();
+        .affine();
     let origin = placed.transform_point(pose.origin);
     let axis = placed.transform_vec(pose.axis);
     let u = placed.transform_vec(pose.u_ref.expect("a cap fixes its reference"));

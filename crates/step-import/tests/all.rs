@@ -59,8 +59,8 @@ mod a_conic_quarter_torus_measures_a_bracket_at_the_wall;
 mod a_foreign_carrier_splits_at_each_c0_knot;
 #[path = "a_line_beside_a_straight_spline_joins.rs"]
 mod a_line_beside_a_straight_spline_joins;
-#[path = "a_step_placement_is_re_minted_at_its_door.rs"]
-mod a_step_placement_is_re_minted_at_its_door;
+#[path = "a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported.rs"]
+mod a_step_placement_is_built_by_its_axes_and_a_move_beyond_rounding_reported;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
 mod an_off_iso_line_on_a_spline_wall_imports_its_general_row;
 #[path = "cert1_r1_import_probes.rs"]
