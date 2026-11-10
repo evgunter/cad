@@ -153,9 +153,9 @@ const LINK_NORMAL: &str = "link_normal";
 /// Two of them are not a point's exact distance: a round carrier's is its
 /// lowest point's along the segment, and a bound's departure one order
 /// down is the leading Taylor term of its point's distance from the
-/// face (`κ·l²/2`, [`Departure::Parted`]), in metres and read as that
-/// distance to the order read. The door admits those, and no lever or
-/// product of other quantities.
+/// face (`κ·l²/2`, [`Departure::Parted`](metric::Departure::Parted)),
+/// in metres and read as that distance to the order read. The door
+/// admits those, and no lever or product of other quantities.
 ///
 /// What the type cannot hold: that `n` is a unit normal. Every caller
 /// passes a normalized direction or a face's outward normal, and a

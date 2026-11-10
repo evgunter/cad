@@ -312,7 +312,7 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
 /// function of that span's ends (clipped to the range) and `pieces`
 /// alone, never of how many other spans share the range: a patch read
 /// whole and the same patch split into one face per span
-/// (`docs/DESIGN.md` [topology]'s C⁰-knot split) are read on the same
+/// (`docs/DESIGN.md` `[topology]`'s C⁰-knot split) are read on the same
 /// cells. A knot is a span end by construction, so no grid point needs
 /// a clearance from one.
 ///

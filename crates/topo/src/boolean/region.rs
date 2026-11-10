@@ -265,7 +265,7 @@ pub(in crate::boolean) enum ReadAcross {
 /// **Where `leg` meets `edge`**: each meeting's point, the edge's
 /// parameter there, and whether it lies within the band of an end of the
 /// edge ([`Landing`]). One curve is read across the other's plane through
-/// the plane door ([`span_plane_meet`]), the pair's orientation the
+/// the plane door ([`span_plane_meet`](geom_brep::curve_face::plane_crossing::span_plane_meet)), the pair's orientation the
 /// door's choice ([`Legs::across`]), and each root is a meeting where it
 /// lies on both curves: on the leg's section of its plane
 /// ([`Section`](geom_brep::curve_pair::on_surface::Section)), or where the door places it on the edge. Where along
