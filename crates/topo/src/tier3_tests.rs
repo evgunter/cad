@@ -3716,25 +3716,13 @@ pub(crate) fn half_disc(
         } else {
             segment(&p.body, e)
         };
-        let he = p.body.get_edge(e).unwrap().he_plus;
-        let p0 = *p
-            .body
-            .get_point(
-                p.body
-                    .get_vertex(p.body.get_half_edge(he).unwrap().start)
-                    .unwrap()
-                    .point,
-            )
-            .unwrap();
-        let p1 = *p
-            .body
-            .get_point(
-                p.body
-                    .get_vertex(p.body.half_edge_end(he).unwrap())
-                    .unwrap()
-                    .point,
-            )
-            .unwrap();
+        let (v0, v1) = p.body.edge_vertices(e).unwrap();
+        let at = |v| {
+            *p.body
+                .get_point(p.body.get_vertex(v).unwrap().point)
+                .unwrap()
+        };
+        let (p0, p1) = (at(v0), at(v1));
         let t1 = if is_arc {
             std::f64::consts::PI
         } else {

@@ -1588,9 +1588,11 @@ Flagged, NOT fixed here (dispositions):
   - `geom_core::Period::run_from` (`period_run_behind`, a `k_stats::choose`
     under this row): the side of `from` on which `near`'s copy of `to`
     about `from` lies, which decides whether the run is that copy's gap
-    or a period more. A tie takes the zero run, as `at_or_above`'s closed
-    end does; a point lift is not folded onto `from`, so a `to` a hair
-    behind `from` runs a hair short of a turn. Its readers
+    or a period more. A tie on a point takes the zero run, as
+    `at_or_above`'s closed end does; a tie on an enclosure astride `from`
+    takes the hull of both runs, held to `[0, P]`, so it encloses every
+    run of its points. A point lift is not folded onto `from`, so a `to`
+    a hair behind `from` runs a hair short of a turn. Its readers
     (`topo::chord_join`'s oriented arcs and arc middles, `topo::shell`'s
     half-turn test) form an extent off it at `f64`, where the side is a
     float difference's sign and is exact; an enclosure caller would need

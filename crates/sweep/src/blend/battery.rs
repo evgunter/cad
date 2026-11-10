@@ -3446,15 +3446,9 @@ fn touches_any<T: Decide>(
     ys: &[EdgeKey],
 ) -> Result<bool, BlendError> {
     let ends = |e: EdgeKey| -> Result<[VertexKey; 2], BlendError> {
-        let he = body
-            .get_edge(e)
-            .ok_or_else(|| unresolved(EntityId::Edge(e), "a boundary edge, for its ends"))?
-            .he_plus;
-        body.get_half_edge(he)
-            .map(|h| h.start)
-            .zip(body.half_edge_end(he))
+        body.edge_vertices(e)
             .map(|(s, t)| [s, t])
-            .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a boundary edge's ends"))
+            .ok_or_else(|| unresolved(EntityId::Edge(e), "a boundary edge's ends"))
     };
     for x in xs {
         let ex = ends(*x)?;

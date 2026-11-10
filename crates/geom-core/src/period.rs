@@ -398,7 +398,11 @@ impl<T: Decide> Period<T> {
     /// one point and mean a whole turn says so itself. A `to` a hair
     /// behind `from` runs a hair short of a whole turn, which may round to
     /// `length` itself, never to nothing ([`Period::at_or_above`]'s point
-    /// fold onto `from` is the window's, not the run's). A run is a raw
+    /// fold onto `from` is the window's, not the run's). **A tie** (the
+    /// copy's side of `from` decided zero or undecided): a point on
+    /// `from` runs nothing; an enclosure astride `from` runs the hull of
+    /// both readings, nothing and a whole turn, so it encloses every run
+    /// of its points. A run is a raw
     /// extent, read against a period only by the turn rule
     /// ([`Period::turn`]); a sketch's own forward turn is
     /// `profile::sugar::swept`, which folds a turn's fraction instead.
@@ -406,9 +410,17 @@ impl<T: Decide> Period<T> {
     pub fn run_from(self, from: T, to: T) -> T {
         use crate::k_stats::{Pick, choose};
         let n = self.near(to, from);
+        let (ahead, behind) = (n - from, n + self.length - from);
         match choose("period_run_behind", Margin::of(n - from), "F31") {
-            Pick::Positive | Pick::Tie => n - from,
-            Pick::Negative => n + self.length - from,
+            Pick::Positive => ahead,
+            Pick::Negative => behind,
+            // A point on `from` runs nothing. An enclosure astride it holds
+            // runs of nothing and of nearly a whole turn at once, so its
+            // run is the hull of both readings, held to `[0, length]`,
+            // where every run lies: the whole span, as the fold into
+            // `[0, τ)` gave.
+            Pick::Tie if ahead.point_value().is_some() => ahead,
+            Pick::Tie => ahead.enclosure_hull(behind).max(T::zero()).min(self.length),
         }
     }
 
@@ -1230,6 +1242,39 @@ mod period_rows {
                 Err(NotForward::Zero(_))
             ),
             "a chord in the zero"
+        );
+    }
+
+    /// **`run_from` at `Interval` encloses every run of its points.** A `to`
+    /// astride `from` holds points just ahead of it (runs near nothing)
+    /// and just behind it (runs near a whole turn): its run is the hull,
+    /// `[0, τ]` up to rounding. A `to` a whole turn on, as an enclosure of
+    /// `from + τ`, is astride `from`'s copy the same way.
+    #[test]
+    fn run_from_at_an_enclosure_astride_the_start_holds_both_runs() {
+        use crate::Bounds;
+        let period = Period::new(Interval::tau());
+        let from = Interval::from_f64(1.0);
+        let tau = f64::tau();
+        for (what, to) in [
+            ("a whole turn on", from + Interval::tau()),
+            ("a box about the start", Interval::from_bounds(0.999, 1.001)),
+        ] {
+            let r = period.run_from(from, to);
+            assert!(
+                r.lo() <= 1e-12 && r.hi() >= tau - 1e-3,
+                "{what}: the run encloses both nothing and nearly a whole turn, {r:?}"
+            );
+            assert!(
+                r.lo() >= -1e-12 && r.hi() <= tau + 1e-12,
+                "{what}: within [0, τ], {r:?}"
+            );
+        }
+        let point = period.run_from(from, from);
+        assert_eq!(
+            (point.lo(), point.hi()),
+            (0.0, 0.0),
+            "a point on the start runs nothing"
         );
     }
 
