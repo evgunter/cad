@@ -1232,7 +1232,10 @@ fn circular_reach<T: Decide + Bounds>(
             "a circular spine's band is not a torus",
         ));
     };
-    let meridian @ geom::Line { dir: a, .. } = canonical_axis(center, axis);
+    let meridian @ geom::Line { dir: a, .. } = canonical_axis(geom::Line {
+        origin: center,
+        dir: axis,
+    });
     let (c, _) =
         st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?;
     let reach = (st.p - c).norm();
@@ -1347,13 +1350,14 @@ fn circular_reach<T: Decide + Bounds>(
     })
 }
 
-/// **An axis's canonical frame**: the point of the line nearest the
-/// origin, and its unit direction signed so that its largest component is
-/// positive. Coaxial bands share it, so the bounds of one are functions
+/// **An axis's canonical frame**: the same line through the point of it
+/// nearest the origin, with its unit direction signed so that its
+/// largest component is positive. Coaxial bands share it, so the bounds of one are functions
 /// of the other's sheet too ([`Stretch::sheet`]); a frame that differs in
 /// a bit only loses that sharing.
-fn canonical_axis<T: Bounds>(p: Point3<T>, axis: Vec3<T>) -> geom::Line<T> {
-    let a = axis.normalize();
+fn canonical_axis<T: Bounds>(axis: geom::Line<T>) -> geom::Line<T> {
+    let geom::Line { origin: p, dir } = axis;
+    let a = dir.normalize();
     let k = [a.x, a.y, a.z]
         .into_iter()
         .max_by(|x, y| x.lo().abs().total_cmp(&y.lo().abs()))

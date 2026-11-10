@@ -35,3 +35,22 @@ Items 1 to 3 are settled. What stays open is item 4, BOXES' `geom::cover::Core`,
 - **2, revolve `AxisFrame`:** `o3` / `a3` became one `line3: geom::Line`, and the three hand-built lines read it.
 - **3, blend `Meridian`:** `origin` / `axis` became `axis: geom::Line`. `battery.rs` passes the rim circle's `frame.axis_line()`.
 - Found by the same pass: `sweep::blend::arms::line_meet` took two lines as four loose arguments. It now takes two `Line`s, and its callers pass their trimlines whole.
+
+## Review of PR 6699 (2026-11-10)
+
+The review's pass over the same shapes found 41 sites against this unit's 33. The three missed line holders are ported:
+- `sweep/src/blend/open/end_face.rs` `line_clearance(line, span)`, fed whole from `as_line()`;
+- `sweep/src/blend/reach.rs` `canonical_axis(axis: Line)`, whose torus arm (`circular_reach`) builds the line from its bindings and is listed on the analytic-surfaces row;
+- `topo/src/link.rs` pub `Round::cylinder(axis: Line, radius, convex)`, whose cylinder arm (`Round::of`) is listed there too.
+
+Two further changes:
+- **`AxisFrame` holds its direction once.** The fields are `origin3` and the decided `axis: UnitVec3`, and `line3()` derives the line from them.
+- **`FaceSector::chord`'s `past` is `Ray::ahead`'s decision bit for bit.** It is kept in link's metric door for organisation only. The one comparison of link's ahead readings with `Ray::ahead` is now at link's `ahead`, and `Ray`'s docs point to it.
+
+**Borderline, left as is (ray-ish, not a holder):**
+- `link::ArcReach::reference(p, q, c, ray)` builds a point along `c` from `p` and holds no line.
+- `link::RuledChord::leaves(p, d, band)` reads a unit direction from `p` against the lens's planes, a plane reading.
+
+Each takes a point and a direction for one computation and keeps neither.
+
+The row stays narrowed to `cover::Core`, at `cost: E`.

@@ -1686,7 +1686,14 @@ mod tests {
             axis: v(0.0, 0.0, 1.0),
             radius: 1.0,
             reach: 5.0,
-            round: topo::Round::cylinder(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), 1.0, convex),
+            round: topo::Round::cylinder(
+                geom::Line {
+                    origin: p(0.0, 0.0, 0.0),
+                    dir: v(0.0, 0.0, 1.0),
+                },
+                1.0,
+                convex,
+            ),
         };
         let out = vertex(p(1.01, 0.0, 0.0));
         close(read(&sphere(true), &out), 0.01, "outside a ball");
@@ -1790,7 +1797,7 @@ mod tests {
             axis,
             radius,
             reach: 10.0,
-            round: topo::Round::cylinder(origin, axis, radius, convex),
+            round: topo::Round::cylinder(geom::Line { origin, dir: axis }, radius, convex),
         }
     }
 

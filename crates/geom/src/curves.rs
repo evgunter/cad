@@ -984,8 +984,10 @@ impl<T: Real> Line<T> {
 /// advance is in units of `|dir|`, as [`Line::param`]'s parameter is:
 /// a length only where the caller's `dir` is unit, which nothing here
 /// makes it (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
-/// The forward reading has one home, [`Ray::ahead`], decided under the
-/// reader's own row.
+/// A root's forward reading is [`Ray::ahead`], decided under the
+/// reader's own row. The touch analysis decides its own ahead readings
+/// through its verdict door (`topo` `link.rs`'s `ahead`, whose doc says
+/// how they differ, and which of them is this one's twin).
 #[derive(Clone, Copy, Debug)]
 pub struct Ray<T: Real> {
     /// The line the ray runs along, from its origin.
@@ -1018,12 +1020,8 @@ impl<T: Decide> Ray<T> {
     /// ray does not re-derive `at`; a reader that passes a parameter of
     /// another line decides nothing about this ray.
     ///
-    /// The touch analysis's ahead reading (`topo` `link.rs`, `LINK_AHEAD`)
-    /// is a different decision and does not come here. It reads a
-    /// point's offset in metres over a normalized direction, under a
-    /// slack that must hold across a set of sectors, through that
-    /// module's one verdict door. This method has no slack, and its
-    /// margin is in units of `|dir|`.
+    /// The touch analysis's ahead readings (`LINK_AHEAD`) do not come
+    /// here; `topo` `link.rs`'s `ahead` says why.
     ///
     /// # Errors
     ///

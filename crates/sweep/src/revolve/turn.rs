@@ -72,7 +72,7 @@ pub(super) fn sweep_turn<T: Decide + topo::AtRestPolicy>(
         MappedCurve::whole(MappedSource::RevolvedPoint {
             point: seg.a,
             place: frame.place,
-            axis: frame.line3,
+            axis: frame.line3(),
             angle,
         })
     };

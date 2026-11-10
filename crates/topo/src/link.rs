@@ -1370,24 +1370,26 @@ fn wedge_distance<T: Decide>(
 /// Whether `x` lies ahead of `p` along the ray through `r` or behind it,
 /// read no further out than `r` (as [`wedge_side`]).
 ///
-/// **Not [`geom::Ray::ahead`]**, whose question looks the same. That one
-/// decides a bare parameter a reader computed on its own ray, a root, in
-/// units of `|dir|`, against the run band alone. This one decides a
+/// **The touch analysis's ahead readings against [`geom::Ray::ahead`]**
+/// (the one statement of how they differ; `Ray`'s docs point here).
+/// `Ray::ahead` decides a parameter a reader computed on its own ray, in
+/// units of `|dir|`, against the run band alone. This reading decides a
 /// *point's* offset across the plane through `p` square to the direction
-/// to `r`, in metres (the direction is normalized here), and it decides
-/// it as a touch verdict:
-/// - through [`metric::settle`]'s [`Reading`], whose slack must hold the
-///   sign over every sector within the tie. The ahead line turns with the
-///   ray through the tie ([`Reading::tied`]), and a metre slack moves
-///   only a margin in metres;
-/// - drawn in first to the ray's reach ([`within`]) unless the reading is
-///   the cone's own;
-/// - through the module's one verdict door ([`metric`], whose single
-///   `Margin::of` a row pins), which a `Ray::ahead` call would step
-///   around.
+/// to `r`, in metres (the direction is normalized here), and it is a
+/// different decision in two ways:
+/// - it is decided through [`metric::settle`]'s [`Reading`], whose slack
+///   must hold the sign over every sector within the tie. The ahead line
+///   turns with the ray through the tie ([`Reading::tied`]), and a metre
+///   slack moves only a margin in metres;
+/// - the point is drawn in first to the ray's reach ([`within`]), unless
+///   the reading is the cone's own.
 ///
-/// The cone-apex test in [`FaceSector::chord`]'s `past` closure reads under the
-/// same row and door on the plain band.
+/// [`FaceSector::chord`]'s `past` closure has neither: on the plain band,
+/// over a unit direction, it is `Ray::ahead`'s decision bit for bit
+/// (`Ray::new(from, d).ahead(d·(apex − from), ..)`). It stays here, under
+/// `LINK_AHEAD`, for organisation only: every verdict sign of the touch
+/// analysis comes through the module's one door ([`metric`], whose
+/// single `Margin::of` a row pins).
 fn ahead<T: Decide>(p: Point3<T>, r: Point3<T>, x: Point3<T>, rd: Reading<T>) -> Option<Sign> {
     ahead_settle(p, r, x, rd).ok()
 }
@@ -2977,6 +2979,7 @@ impl<T: Decide> FaceSector<T> {
         if let Some(apex) = apex {
             let [a, b] = face.ends;
             let d = unit(b - a);
+            // `Ray::ahead`'s decision, kept in the touch door ([`ahead`]).
             let past = |from: Point3<T>, dir: Vec3<T>| {
                 metric::sign_as(LINK_AHEAD, Distance::of(apex, from, dir), band)
             };
@@ -3751,7 +3754,11 @@ impl<T: Decide> Round<T> {
                 axis,
                 radius,
                 ..
-            } => Some(Self::cylinder(origin, axis, radius, sense)),
+            } => Some(Self::cylinder(
+                geom::Line { origin, dir: axis },
+                radius,
+                sense,
+            )),
             _ => None,
         }
     }
@@ -3765,13 +3772,13 @@ impl<T: Decide> Round<T> {
         }
     }
 
-    /// A cylinder's material about the line through `origin` along
-    /// `axis`, normalised here, `convex` a pin's.
-    pub fn cylinder(origin: Point3<T>, axis: Vec3<T>, radius: T, convex: bool) -> Self {
+    /// A cylinder's material about the line `axis`, its direction
+    /// normalised here, `convex` a pin's.
+    pub fn cylinder(axis: geom::Line<T>, radius: T, convex: bool) -> Self {
         Self {
             at: Axis::Line(geom::Line {
-                origin,
-                dir: axis.normalize(),
+                origin: axis.origin,
+                dir: axis.dir.normalize(),
             }),
             radius,
             convex,
