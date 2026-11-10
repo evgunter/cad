@@ -2,10 +2,12 @@
 id: the-certified-endpoint-census-counts-lines-not-reads
 kind: issue
 title: The certified-endpoint census counts lines carrying .lo()/.hi(), not reads, so a rustfmt reflow moves its pins
-status: open
+status: closed
 opened: 2026-11-10
 priority: P3
 cost: M
+closed: 2026-11-10
+pr: 0
 ---
 
 
@@ -18,3 +20,10 @@ Found by ONECOPY's endpoint-census-reads unit, fixing `main-red-the-certified-en
 **The shape that ends it:** count parsed read sites (`.lo()`/`.hi()` method calls in the CODE view), each attributed to its enclosing function by its item extent rather than by the nearest `fn` line above. Re-pin all 51 with their notes recounted, and retire blind spot 4. A reflow then moves nothing.
 
 **Done** when the census counts reads, its pins and notes match, and a plant splitting a two-read line in a pinned file leaves it green.
+
+**Closed** (2026-11-10, ONECOPY endpoint-census-sites).
+- **What it counts:** the census now counts read SITES (`endpoint_reads`), each `.lo()`/`.hi()` call in the file's production text.
+- **How a site is attributed:** to its innermost `fn` item by extent (`fn_items`, from the keyword past its parameter list to the close of its body), not to the nearest `fn` line above.
+- **The pins:** all 51 are re-pinned, and 42 of them move. The 26 notes that gave counts are recounted per function from the walk's own attribution; the 16 with no note needed only the number.
+- **Blind spot 4** loses its rustfmt clause.
+- **Tests:** `a_reflowed_read_moves_no_count` plants one function's reads on one line and split across several, plus a signature whose bracketed type holds a `;`. Reflowing `krawczyk.rs::midpoint`'s two-read line across five lines left the census green.
