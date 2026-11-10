@@ -5380,13 +5380,9 @@ mod tests {
             circle.he_minus
         };
         body.kev_ungated(kill).unwrap();
-        let e = body.get_edge(nul.edge).unwrap();
-        let (hp, hm) = (e.he_plus, e.he_minus);
-        assert_eq!(
-            body.get_half_edge(hp).unwrap().start,
-            body.get_half_edge(hm).unwrap().start,
-            "the null edge is a self-loop"
-        );
+        let hp = body.get_edge(nul.edge).unwrap().he_plus;
+        let (s, t) = body.edge_vertices(nul.edge).unwrap();
+        assert_eq!(s, t, "the null edge is a self-loop");
         let strut = body
             .mev_line(
                 MevSite::Fan { he1: hp, he2: hp },

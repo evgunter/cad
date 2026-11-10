@@ -1,7 +1,7 @@
 ---
 id: three-raw-sign-within-reads-predate-their-gate
 kind: issue
-title: Three production files read sign_within raw, outside a named k_stats door: each is either no decision (say so) or an unnamed one (route it)
+title: edge_join's crease_at reads sign_within raw at the least band, and whether its straddle is a crease is a design call
 status: open
 opened: 2026-11-06
 priority: P3
@@ -27,3 +27,9 @@ For each: if no outcome changes what is certified, say so where it is read (or t
 So the read stays registered.
 
 **An open question it raises.** Reading a straddle as "no crease" lets a join run a spline carrier on through a knot it cannot tell it is not on. The module docs rest the join on Ev's PR 5913 ruling, that every edge carrier is C¹ by its knot structure strictly inside its cell. A straddle read as "crease" (keep the other edge, or do not join) is the side that ruling allows. That reading is `choose` with its tie taken as a crease, and it moves outcomes only at an interval scalar, where a straddle can occur. Whether to take it is a design call, not a routing one.
+
+**Two of the three are done** (2026-11-10, ONECOPY roster-reach):
+- `coincide/replay.rs::one_cylinder` decides (discharged or deferred), so it goes through `k_stats::decide_reported`. The metre data are under `replay_one_cylinder`, and the axis sines under `replay_one_cylinder_axis` at an unsourced metre of lever: bit-identical, audit F40. The lever's real source is `the-replays-cylinder-axis-is-levered-at-an-unsourced-metre`. editor-core's `ci` suite does not move.
+- `pair_section/cylinders.rs::placement` decides nothing (a choice of listing, each sound), and says so at the read: `// NO-DECISION: …`. `raw-sign-within.sh` now reads that marker on the line directly above a raw read and does not count the read. Its selftest plants a marked read, one with no why, and one not directly above.
+
+**What remains is `edge_join::crease_at`**, registered with the reason above. Its next step is the design call on whether a straddle reads as a crease, not a routing.
