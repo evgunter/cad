@@ -514,23 +514,24 @@ mod tests {
     }
 }
 
-/// **A crossing past the band of a thin ellipse's fast end refuses at
-/// the split's child, today** (`work/onecopy/a-plane-crossing-past-the-band-of-a-thin-ellipses-fast-end-read-at-the-end.md`).
+/// **A crossing past the band of a thin ellipse's fast end splits**
+/// (`work/onecopy/a-plane-crossing-past-the-band-of-a-thin-ellipses-fast-end-read-at-the-end.md`,
+/// `work/onecopy/the-euler-splits-interiority-gate-meters-an-end-gap-at-the-speed-floor.md`).
 /// A planar cap on the half of a 1000 × 1 ellipse (the unit cylinder cut
 /// by a plane `cos φ = 10⁻³` off its axis) from one minor vertex to the
 /// other, through its major end: its two ends are its fast ends, where it
 /// runs 1000 m/rad. A plane square to the major axis, `s` along it from
-/// the ends, crosses the arc `s` (by chord) from each end. The plane door
-/// places the roots inside past the band for every `s` here (50, 500 and
-/// 5000 zeros), and so does the split's interiority gate, the span's own
-/// reading (`curve_pair::Span::place_param_read`). The child piece from
-/// the end to the root is then certified: check 2 decides its span
-/// forward at the speed floor 1 m/rad, reads `s/1000`, at the end or in
-/// band, and refuses (`IntervalNotForward`, or escalates). Main dropped the crossings and split
-/// nothing; PR 6687 refused at the split's interiority gate, which this
-/// branch routed. A cut 10⁵ zeros in splits, as a control. Flips to a
-/// split with check 2 read at the child's chord
-/// (`the-euler-splits-interiority-gate-meters-an-end-gap-at-the-speed-floor`).
+/// the ends (50, 500 and 5000 zeros), crosses the arc `s` (by chord) from
+/// each end. Three readings of the speed floor (1 m/rad), which reads
+/// `s/1000` at the end or in band, stood between the crossing and its
+/// split, one after the other:
+/// - main's plane door placed the root at the end and dropped it;
+/// - PR 6687's door placed it inside, and `split_edge`'s interiority gate
+///   refused;
+/// - with that gate on the span's reading, certification's check 2
+///   refused the child from the end to the root (`IntervalNotForward`).
+///
+/// Each now reads the chord. A cut 10⁵ zeros in splits too, as a control.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod thin_ellipse_rows {
@@ -603,7 +604,7 @@ mod thin_ellipse_rows {
     }
 
     #[test]
-    fn a_crossing_at_a_thin_ellipses_fast_end_refuses_at_the_split() {
+    fn a_crossing_at_a_thin_ellipses_fast_end_splits() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let cut = |s: f64| {
@@ -622,20 +623,8 @@ mod thin_ellipse_rows {
         // twentieth of the zero, half of it, and in the band's gap.
         for s in [50.0, 500.0, 5000.0].map(|k| k * band.zero()) {
             match cut(s) {
-                Err(crate::SplitReduceError::CrossingInsertion { source, .. }) => assert!(
-                    matches!(
-                        *source,
-                        EulerOpError::Certification {
-                            error: geom_brep::CertifyError::IntervalNotForward { .. }
-                                | geom_brep::CertifyError::Escalated {
-                                    check: geom_brep::CertCheck::ParamSpan,
-                                    ..
-                                },
-                        }
-                    ),
-                    "s = {s:e}: the child's span refuses at check 2, {source:?}"
-                ),
-                other => panic!("s = {s:e}: a typed refusal at the split, not {other:?}"),
+                Ok(pieces) => assert_eq!(pieces, 2, "s = {s:e}: both crossings split"),
+                Err(e) => panic!("s = {s:e}: both crossings split, not {e:?}"),
             }
         }
         assert_eq!(

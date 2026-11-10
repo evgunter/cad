@@ -3690,3 +3690,18 @@ side by the parameter metered at the span's greatest speed
 points: Zero collapses them to one root. `plane_crossing_root_order` stays and
 changes its quantity: the roots' parameter gap metered at the span's greatest
 speed, read only where their chord is past the band.
+
+## ONECOPY addendum (2026-11-10): the split's interiority and check 2 read the chord
+
+**Roster change: one name leaves, two join.** A crossing past the band of a
+thin ellipse's fast end met two readings at the speed floor after the plane
+door, each reading `Δt·inf`, up to `sup/inf` under the arc:
+- `split_edge_param_interior` leaves. `split_edge`'s interiority is the
+  span's own reading (`curve_pair::Span::place_param_read`), and its
+  population joins `curve_pair_span_end_chord`/`_side`.
+- Two join: `interval_span_chord`, the chord between a periodic span's end
+  points, and `interval_span_sense`, the span at the carrier's sup speed.
+  Certification's check 2 reads them only where `interval_span_forward` at the
+  floor is short of positive (`geom_core::period::Extent::forward_by_arc`).
+  Both readings bound the arc from below, so the forward claim keeps its
+  direction.

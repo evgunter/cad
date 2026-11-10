@@ -601,6 +601,52 @@ impl<T: Decide> Extent<T> {
         }
     }
 
+    /// **A span forward by its arc's lower bounds**: [`Extent::forward`]
+    /// at the `inf` rate, or, where that reads short of positive, the
+    /// chord between the span's end points past the band (`chord_name`)
+    /// with the span's sense positive at the `sup` rate (`sense_name`).
+    /// Both readings bound the arc from below (`Δt·inf ≤ arc`, `|chord| ≤
+    /// arc`), so either past the band certifies the span is not
+    /// degenerate. The chord alone carries no sense; the sup reading
+    /// does, and is positive wherever the arc is past the band and the
+    /// span runs forward (`Δt·sup ≥ arc ≥ |chord|`). On a carrier whose
+    /// speed varies (an ellipse's fast vertex), the floor under-reads a
+    /// short span by up to `sup/inf`, which the chord does not.
+    ///
+    /// # Errors
+    ///
+    /// [`Extent::forward`]'s, where neither reading settles it.
+    pub fn forward_by_arc(
+        (name, chord_name, sense_name): (&'static str, &'static str, &'static str),
+        t0: T,
+        t1: T,
+        (inf, sup): (InfSpeed<T>, SupSpeed<T>),
+        chord: crate::Vec3<T>,
+        band: Band,
+    ) -> Result<Self, NotForward> {
+        let short = match Self::forward(name, t0, t1, inf, band) {
+            Ok(extent) => return Ok(extent),
+            Err(NotForward::Reversed(margin)) => return Err(NotForward::Reversed(margin)),
+            Err(short) => short,
+        };
+        let apart = matches!(
+            decide_reported(chord_name, Margin::norm3(chord), band),
+            Ok(Decided {
+                sign: Sign::Positive,
+                ..
+            })
+        );
+        let ahead = apart
+            && matches!(
+                decide_reported(sense_name, Margin::metered_sup(t1 - t0, sup), band),
+                Ok(Decided {
+                    sign: Sign::Positive,
+                    ..
+                })
+            );
+        if ahead { Ok(Self(t1 - t0)) } else { Err(short) }
+    }
+
     /// The magnitude of a signed net quantity (a revolve's angle, a
     /// loop's net turn), with its sign, decided definitely nonzero under
     /// `name` at `rate`.
@@ -1111,6 +1157,43 @@ mod period_rows {
                 "{from} → {to}: the forward fold's value, {r}"
             );
         }
+    }
+
+    /// **`forward_by_arc` reads the chord where the floor under-reads.**
+    /// Rates 1 and 1000 m per unit (a 1000 × 1 ellipse's): a span of
+    /// `5·10⁻¹¹` reads `5·10⁻¹¹` m at the floor, in the zero, but its
+    /// chord of `5·10⁻⁸` m is past the band, so it is forward. The same
+    /// span run backwards, and a span whose chord is in the zero too, are
+    /// not.
+    #[test]
+    fn forward_by_arc_reads_the_chord_where_the_floor_under_reads() {
+        use super::{Extent, NotForward};
+        use crate::{InfSpeed, SupSpeed};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let rates = (InfSpeed::new(1.0_f64), SupSpeed::new(1000.0));
+        let rows = ("t_forward", "t_chord", "t_sense");
+        let chord = |x: f64| crate::Vec3::new(x, 0.0, 0.0);
+        let dt = 5e-11;
+        assert!(matches!(
+            Extent::forward("t_forward", 0.0, dt, rates.0, band),
+            Err(NotForward::Zero(_))
+        ));
+        let extent = Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-8), band).unwrap();
+        assert_eq!(extent.get(), dt);
+        assert!(
+            matches!(
+                Extent::forward_by_arc(rows, dt, 0.0, rates, chord(-5e-8), band),
+                Err(NotForward::Zero(_))
+            ),
+            "run backwards"
+        );
+        assert!(
+            matches!(
+                Extent::forward_by_arc(rows, 0.0, dt, rates, chord(5e-10), band),
+                Err(NotForward::Zero(_))
+            ),
+            "a chord in the zero"
+        );
     }
 
     /// **A `t` that has no copy reads NaN**, rather than answering.
