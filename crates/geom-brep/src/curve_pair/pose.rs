@@ -222,21 +222,30 @@
 //! Its readers match it by distance against the band (census pass 5′'s
 //! `Declared::confine`, the boolean's curved pierce `held_on`), so two
 //! readings of one touch (two spans, two operand orders, two callers)
-//! must place it within the band of each other. Each path bounds how far
-//! two readings of its point can lie apart, and that is read in the zero
-//! band: zero keeps the touch; in the gap it escalates
-//! ([`MeetFault::Escalated`]); decided past the band it refuses on that
-//! row's meter ([`Unsettled::Meter`]).
+//! must place it within the band of each other. Each **coplanar** path
+//! bounds how far two readings of its point on one carrier can lie
+//! apart, and that is read in the zero band: zero keeps the touch; in the
+//! gap it escalates ([`MeetFault::Escalated`]); decided past the band it
+//! refuses on that row's meter ([`Unsettled::Meter`]).
 //! - **The subdivision**: `θ*` is a bisection midpoint on `F′`, and
 //!   `G″ ≥ c` on the piece, read, so it lies within `(|G′(θ*)| + e₁)/c`
 //!   of the extremum; at the carrier's top speed that is its spread
-//!   ([`crate::half_angle::Touch`]), and two readings lie within twice
-//!   that.
+//!   ([`crate::half_angle::Touch`]), and two readings of one `F` lie
+//!   within twice that.
 //! - **The closed forms**: the touch is `C(θ_hi)`, `θ_hi` the angle of the
 //!   first harmonic's coefficients, a well-conditioned reading of them.
 //!   At a point scalar it is exact by `[simple.conditioned]`, so two
 //!   readings are one; at `Interval` the angle's own enclosure is the
-//!   spread, read as `r·(θ − θ)` (`angle_spread`).
+//!   spread, read as `r·width(θ_hi)` (`angle_spread`).
+//!
+//! **Two operand orders read two carriers.** Swapped, the touch is
+//! placed on the other carrier, whose point lies from the first's by up
+//! to twice the spread and the gap between the carriers there (at most
+//! the zero band, the touch read in it). The spread held is the
+//! reading's own; the gap is the touch's, and C5 admits it.
+//!
+//! **The across-planes touch and the walk's are not held here**:
+//! `work/onecopy/a-touch-point-read-across-planes-or-by-the-walk-carries-an-unheld-spread.md`.
 //!
 //! Whether one point may stand for the whole in-band arc, where a
 //! reader's question straddles the arc, is a separate question, open on
@@ -1835,21 +1844,34 @@ fn spread_held<T: Decide>(apart: T, band: Band) -> Result<(), MeetFault> {
 }
 
 /// **A closed-form touch's spread** (module docs, "A touch's spread"):
-/// `radius·(θ − θ)`, how far in metres along the carrier the touch at
-/// `θ` can lie from another reading of it, `radius` the carrier's top
-/// speed. `θ` is the angle of the first harmonic's coefficients, a
-/// well-conditioned reading of them (its rounding is relative to their
-/// length, however near the centres or however close the conic to the
-/// line), so at a point scalar it is treated as exact and the spread is
-/// zero (`[simple.conditioned]`: no site charges rounding). At
-/// `Interval` it is the angle's own enclosure, `θ − θ` its width either
-/// side of zero, so the spread is certified there and charges nothing.
+/// `radius·width(θ)` ([`geom_core::width`]), how far in metres along the
+/// carrier the touch at `θ` can lie from another reading of it on the
+/// same carrier, `radius` the carrier's top speed.
+///
+/// **Why `θ` is well conditioned** (the premise the zero spread at a
+/// point scalar rests on). `θ` is the angle of the first harmonic's
+/// coefficients, and an angle moves by at most its components' error
+/// over their length. The coefficients' error is relative to that length:
+/// - two circles' coefficients are `w`'s components in the first frame,
+///   `w` the centres' difference. Where the centres are near, each
+///   component of `w` subtracts exactly (Sterbenz: `a − b` is exact for
+///   `b/2 ≤ a ≤ 2b`); otherwise it rounds at `u` of its own size. The
+///   projection square to the axis and the frame's dots then round at
+///   `u` of `|w|`. So `w`'s error is a few `u` of `|w|`, however near the
+///   centres;
+/// - a conic beside a line reads `(a·(u_ref·m), b·(v_ref·m))`, `m` a
+///   computed unit direction, each a product and a short dot, at a few
+///   `u` of the semi-axes.
+///
+/// A refactor that computes `w` another way (from points far from it,
+/// say, not from the two centres) breaks this premise.
+///
+/// So at a point scalar `θ` is treated as exact and the spread is zero
+/// (`[simple.conditioned]`: no site charges rounding). At `Interval` it
+/// is the angle's own enclosure, its width either side of zero, so the
+/// spread is certified there and charges nothing.
 fn angle_spread<T: Decide>(radius: T, theta: T) -> T {
-    // The enclosure's own width, as `geom_core::is_finite_length` reads
-    // its residual: zero at a point scalar, the width at `Interval`.
-    #[allow(clippy::eq_op)]
-    let width = theta - theta;
-    radius * width
+    radius * geom_core::width(theta)
 }
 
 /// What a first harmonic's extremes and root gap decide.

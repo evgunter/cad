@@ -28,7 +28,9 @@ Not in scope: whether one point may stand for the whole in-band arc where a read
 
 ## Closed (2026-11-10, `onecopy/touch-point-spread`)
 
-**Measured first.** A temporary log of every coplanar touch's spread, over geom-brep, topo, sweep and editor-core's ci profile, read about 610 touches at each ε: 48 placed by the subdivision, about 280 conic beside a line, and about 287 circle pair. None read a spread that the band does not hold.
+**Scope: the coplanar paths only.** The across-planes touch (`Polish::closest`'s reach `m₋`, about `√e` near tangency) and the walk's polished pairs near `tangency_floor` are not held here. They are `work/onecopy/a-touch-point-read-across-planes-or-by-the-walk-carries-an-unheld-spread.md` (P1), from this PR's review.
+
+**Measured first** (measured once, on 2026-11-10, at `onecopy/touch-point-spread`'s first head; no row guards these counts, and a later change may move them). A temporary log of every coplanar touch's spread, over geom-brep, topo, sweep and editor-core's ci profile, read about 610 touches at each ε: 48 placed by the subdivision, about 280 conic beside a line, and about 287 circle pair. None read a spread that the band does not hold.
 - The worst subdivision touch reads `3·10⁻⁴` of the band's zero.
 - A first circle-pair bound that charged the centres' size, not their difference's, would have escalated 17 touches of `meet_oracle`'s pinned draw. That would have taken it under its seven-in-ten floor, so it was the wrong bound: a correctly rounded difference of two near centres errs by `u` of its own size.
 
@@ -36,9 +38,9 @@ Not in scope: whether one point may stand for the whole in-band arc where a read
 
 **The closed forms** (`crates/geom-brep/src/curve_pair/pose.rs`, `angle_spread`). The touch is `C(θ_hi)`, `θ_hi` the angle of the first harmonic's coefficients. That angle is a well-conditioned reading of them: its rounding is relative to their length, however near the centres or however close the conic to the line.
 - So at a point scalar it is treated as exact, and the spread is zero. This applies ratified DESIGN `[simple.conditioned]`, under which no site charges rounding; it is not a departure from the row's "Done when". The row's "a certified bound on `θ_hi`'s rounding" is, under that rule, the angle's own enclosure. (A `geom_core::running` charge, tried first, is what `scripts/gates/bare-rounding-allowlist.sh` refuses.)
-- At `Interval` the spread is the angle's own enclosure, `r·(θ − θ)`, which is certified and charges nothing.
+- At `Interval` the spread is the angle's own enclosure, `r·width(θ)` (`geom_core::width`), which is certified and charges nothing.
 
-**Held to the band** (`spread_held`, `curve_pair_pose_touch_spread`). The most two readings can lie apart is read: twice the subdivision's spread, or the angle enclosure's width.
+**Held to the band** (`spread_held`, `curve_pair_pose_touch_spread`). The most two readings of one `F` can lie apart is read: twice the subdivision's spread, or the angle enclosure's width (`geom_core::width`). Read with the operands swapped, the touch lies on the other carrier, a further gap of at most the zero band away.
 - Zero keeps the touch.
 - In the gap it escalates (`MeetFault::Escalated`).
 - Decided past the band it refuses on the row's meter (`Unsettled::Meter`), as a root's slack past the band does.

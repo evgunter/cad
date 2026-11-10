@@ -335,9 +335,12 @@ pub struct Touching<T> {
 /// since `G′(θ_ext) = 0`, `θ*` lies within `(|G′(θ*)| + e₁)/c` of the
 /// extremum, `e₁` the bound on `F′`'s rounding. At the carrier's top
 /// speed that is `speed_hi·(|G′(θ*)| + e₁)/c` metres: the `spread`. Two
-/// readings of one touch therefore place it within twice that of each
-/// other, which the reader holds to its band
-/// (`work/onecopy/touch-point-spread.md`).
+/// readings of one `F` therefore place the touch within twice that of
+/// each other, which the reader holds to its band
+/// (`work/onecopy/touch-point-spread.md`). Read with the operands swapped,
+/// `F` is the other carrier's, and its point lies from this one's by up
+/// to twice the spread and the carriers' gap there (at most the zero
+/// band).
 #[derive(Clone, Copy, Debug)]
 pub struct Touch<T> {
     /// The touch's parameter, within `π` of the arc's midpoint.
