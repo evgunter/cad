@@ -3441,7 +3441,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         // An arc rim's refusal reads as its exact image's check where
         // that names a limb, and as its fitted path's otherwise, as its
         // decision does (`ArcRimRefusal::decision`).
-        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal { iso, limb, bound })) => {
+        CertifyError::PlaneNurbs(P::ArcRim(geom_brep::ArcRimRefusal {
+            iso, limb, bound, ..
+        })) => {
             let limb = iso
                 .and_then(geom_brep::PcurveCheck::incidence_limb)
                 .unwrap_or(*limb);

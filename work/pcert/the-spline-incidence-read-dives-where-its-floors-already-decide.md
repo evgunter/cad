@@ -47,3 +47,22 @@ Order the walk by an upper bound that falls with the sample's distance, such as
 the chart's point at the cell's centre, which the walk already evaluates on a
 visit, rather than the box's gap. Or stop the dive once the kept cells' floors
 and points bracket the sample within the band. Re-measure all three rows.
+
+## Re-measured after `pcert/spline-certificate-door`
+
+That unit gave the read a foot: before the walk, each sample's foot on the
+chart by Gauss–Newton on an `f64` shadow, from the last sample's foot, its
+point evaluated in the scalar and decided as a cell centre is. An on-chart
+sample reads on there; one in band arms the S9 prune from the walk's first
+visit. At opt-level 1, `--test-threads 1`, the least of two runs:
+
+- `an_in_band_seam_takes_the_general_image_at_interval`: 0.354 s on main
+  (`f6e97bd62`, this row's 7.8×) to 0.053 s;
+- `each_edge_takes_its_own_image_at_interval`: 0.035 s to 0.023 s.
+
+The first bullet is so far cut below its pre-6498 cost. The thin sheet's
+on-chart samples now read on at their foot, so the third bullet's cap is met
+only where the foot misses; not re-measured on the sheet itself. The second
+bullet (a definite miss on a high-degree, wide-weight patch walking to the
+visit cap at `f64`) is untouched: the foot reads only an upper bound. Open
+for it.
