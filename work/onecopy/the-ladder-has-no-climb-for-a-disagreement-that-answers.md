@@ -5,6 +5,7 @@ title: The ladder has no climb for a disagreement that answers: two loops hand-r
 status: closed
 opened: 2026-11-10
 closed: 2026-11-10
+pr: 6774
 priority: P3
 cost: M
 ---
