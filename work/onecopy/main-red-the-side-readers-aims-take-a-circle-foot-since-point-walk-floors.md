@@ -7,7 +7,7 @@ opened: 2026-11-09
 priority: P2
 cost: E
 closed: 2026-11-10
-pr: 6714
+pr: 6666
 ---
 
 
@@ -44,12 +44,6 @@ without an azimuth (the row stands, and the read moves).
 Reproduce: `CAD_TOLERANCE_EPS=1e-9 cargo test -p sweep --features probe
 --test all -- side_reader_aims_ask_nothing::`.
 
-## Closed
+## Closed (2026-11-10): fixed by PR 6666
 
-Closed by PR 6666 (`onecopy/distance-homes`). The aim should ask nothing, and it does again; the row's claim stands. The leak was the question being asked in two places:
-- `side_reader::loop_aim` reads `solid_contain::edge_clearance`, which PR 6645 moved from a foot-free sampler onto `geom::Curve3::distance_within`.
-- `distance_within`'s circle arm then decided the arc's nearest point by an azimuth offset from the arc's middle, which is a circle foot (`Azimuth::near`, F31).
-
-PR 6666 gave the circle arm a reading that asks no foot. It decides whether the foot lies in the arc by a cosine against the half span: `|v|·|m|·cos(min(half, π)) − v·m`, between the clearance and the nearer end, with no azimuth. So every reader of `distance_within`, the aim included, takes none.
-
-Re-run on main (`origin/main` at this row's close), `--features probe`, `side_reader_aims_ask_nothing`: 2/2 pass at default ε, 1e-9 and 1e-12.
+PR 6666 (`onecopy/distance-homes`), commit `3cad686a`: `distance_within`'s circle arm reads the foot's place by a cosine against the half span, with no azimuth and no foot, "the side reader's aims take none again". On main `e1b1d4b9`, `CAD_TOLERANCE_EPS=1e-9 cargo test -p sweep --features probe --test all -- side_reader_aims_ask_nothing::` passes both rows, `the_aims_at_cylinder_walls_take_no_circle_foot` included. The row's claim stands unmoved: the read moved, as its second branch asked.

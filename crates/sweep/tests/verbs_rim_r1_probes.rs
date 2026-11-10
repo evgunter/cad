@@ -75,8 +75,8 @@ fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
 
 /// Whether an edge is closed: its `he_plus` returns to its own start.
 fn closed_edge(body: &Body<f64>, edge: EdgeKey) -> bool {
-    let e = body.get_edge(edge).unwrap();
-    Some(body.get_half_edge(e.he_plus).unwrap().start) == body.half_edge_end(e.he_plus)
+    let (start, end) = body.edge_vertices(edge).unwrap();
+    start == end
 }
 
 /// Every edge matching a two-sided support predicate and a closedness

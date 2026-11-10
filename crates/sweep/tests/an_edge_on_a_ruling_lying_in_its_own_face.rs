@@ -174,11 +174,8 @@ fn at(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
 }
 
 fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
-    let h = body.get_edge(e).unwrap().he_plus;
-    [
-        body.get_half_edge(h).unwrap().start,
-        body.half_edge_end(h).unwrap(),
-    ]
+    let (v0, v1) = body.edge_vertices(e).unwrap();
+    [v0, v1]
 }
 
 /// The points of each loop of `face`, in walk order.

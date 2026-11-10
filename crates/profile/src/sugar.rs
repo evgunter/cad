@@ -794,6 +794,10 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
 /// quantity — where a near-zero difference is the interesting case —
 /// goes through [`signed_swept`], which folds the raw difference once
 /// rather than composing on this reduction.
+///
+/// A carrier's raw run between two angles is
+/// `geom_core::period::Period::run_from`'s, which decides its side at
+/// `Decide`; this one is the sketch's own, at `Real`, with its sense.
 fn swept<T: Real>(from: T, to: T, turn: T) -> T {
     ((to - from) * turn).reduce_periodic(T::tau())
 }

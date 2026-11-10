@@ -3458,6 +3458,24 @@ quantity is new: the segment `q`–`w`'s nearest point's distance from
 (`LINK_ARC_REACH`), `link_arc_reach`, and does not pool with
 `link_arc` (`docs/predicate-dimension-audit.md`'s row of that name).
 
+## ONECOPY addendum (2026-11-10): `link_arc` re-posed as the segment's clearance
+
+**No roster change; one name's sample changes.** `link::ArcReach::clears`
+read a near arc (two ends at `q`'s distance) as both ends' distances
+along their directions' bisector `normalize(q̂ + ŵ)`: two `link_arc`
+samples per arc. Where the ends are nearly opposite, `q̂ + ŵ` vanishes and
+those samples were rounding noise. On six witnesses, `|q̂ + ŵ|` reached
+`0` (a NaN sample) and `8e-17`, where the ends read up to `±1.9` m against
+a clearance of `1e-16` m, decided negative 123 times at default ε and 142
+at 1e-12. `link_arc` now records **one** sample per near arc: the
+segment's clearance of `p`, `link::metric::Distance::clearance` (the
+distance to its nearest point, `link::to_segment`), as `link_arc_reach`
+does for the far arc. On a well-conditioned arc the two old samples and
+the new one are the same quantity to rounding (`ρ·cos(θ/2)`), so
+`link_arc` keeps pooling with `census_touch_arc`. The count halves, and
+the noise samples near opposite ends are gone
+(`work/onecopy/link-near-clearance-divides-by-a-vanishing-bisector.md`).
+
 ## ONEREAD addendum (2026-11-02): a bound's side decided at the link's metric door
 
 **Roster: no name joins or leaves; three names change their door.** The
@@ -3690,3 +3708,18 @@ side by the parameter metered at the span's greatest speed
 points: Zero collapses them to one root. `plane_crossing_root_order` stays and
 changes its quantity: the roots' parameter gap metered at the span's greatest
 speed, read only where their chord is past the band.
+
+## ONECOPY addendum (2026-11-10): the split's interiority and check 2 read the chord
+
+**Roster change: one name leaves, two join.** A crossing past the band of a
+thin ellipse's fast end met two readings at the speed floor after the plane
+door, each reading `Δt·inf`, up to `sup/inf` under the arc:
+- `split_edge_param_interior` leaves. `split_edge`'s interiority is the
+  span's own reading (`curve_pair::Span::place_param_read`), and its
+  population joins `curve_pair_span_end_chord`/`_side`.
+- Two join: `interval_span_chord`, the chord between a periodic span's end
+  points, and `interval_span_sense`, the span at the carrier's sup speed.
+  Certification's check 2 reads them only where `interval_span_forward` at the
+  floor is short of positive (`geom_core::period::Extent::forward_by_arc`).
+  Both readings bound the arc from below, so the forward claim keeps its
+  direction.

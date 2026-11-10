@@ -60,9 +60,8 @@ fn edge_face_records(r: &BooleanResult<f64>) -> Vec<EdgeInPlane> {
         .filter_map(|pair| match pair {
             (topo::Cell::Edge(e), topo::Cell::Face(f))
             | (topo::Cell::Face(f), topo::Cell::Edge(e)) => {
-                let d = body.get_edge(e).unwrap();
-                let p = point(body, body.get_half_edge(d.he_plus).unwrap().start);
-                let q = point(body, body.half_edge_end(d.he_plus).unwrap());
+                let (start, end) = body.edge_vertices(e).unwrap();
+                let (p, q) = (point(body, start), point(body, end));
                 let plane = match body.face_surface(f) {
                     Some(geom::Surface::Plane { origin, normal, .. }) => {
                         let d = origin.x * normal.x + origin.y * normal.y + origin.z * normal.z;
