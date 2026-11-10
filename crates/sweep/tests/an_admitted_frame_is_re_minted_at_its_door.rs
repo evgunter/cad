@@ -7,9 +7,9 @@
 //! Inside the band, read at the box's extent, the frame is admitted as
 //! the rigid motion nearest it, and the placed cylinder passes tier 3's
 //! check 1, which reads its frame's unit-ness at the radius. A stretch
-//! of 0.4 of the band unlevered would move a point at the box's edge by
-//! hundreds of bands. The door refuses it `NotRigid`, naming the
-//! column, before any body is placed.
+//! of a hundred bands at the box's extent (1e-10 at the default ε)
+//! would move a point at the box's edge by a hundred bands. The door
+//! refuses it `NotRigid`, naming the column, before any body is placed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -87,7 +87,8 @@ fn a_frame_inside_the_levered_band_is_re_minted_and_its_cylinder_passes_check_1(
 
 #[test]
 fn a_frame_beyond_the_levered_band_refuses_at_its_door() {
-    let stretch = 0.4 * band().zero();
+    // A hundred bands at the box's extent: 1e-10 at the default ε.
+    let stretch = 100.0 * band().zero() / SESSION_BOX_EXTENT;
     assert!(
         matches!(
             RigidMotion::check_rigid(&frame(stretch), band()),

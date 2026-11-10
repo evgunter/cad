@@ -320,14 +320,13 @@ fn the_overlap_is_its_grid_integral() {
 /// `Interval` (the cone revolved from the same triangle, the box turned
 /// and moved by the same maps, lifted): ∪ and cone ∖ box, which keep
 /// the lune as a ring on the cone face, pass tier 3 and their volume
-/// enclosures bracket the closed forms (about 1.3e-11 wide, measured).
-/// At the 1e-12 row the build stops before the volume, typed: the join
-/// certifies each section on its surfaces, and that residual's
-/// enclosure, ±1.3e-12 wide, escalates against the band's 1e-12.
+/// enclosures bracket the closed forms, at every ε row. Each map is the
+/// `f64` row's lifted, a point map, which the decided door admits as
+/// the `f64` lane's frame.
 #[test]
 fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
-    use crate::common::interval::{iv, p2, p3, v2, v3};
-    use geom_core::{Bounds, Interval};
+    use crate::common::interval::{p2, v2};
+    use geom_core::{Bounds, Interval, Real};
     use profile::{Profile, SketchPlane};
     let tol = Tol::witness();
     let tri = ProfileLoop::polygon([p2(0.0, 0.0), p2(R, 0.0), p2(0.0, height())]);
@@ -339,7 +338,14 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         dir: v2(0.0, 1.0),
     };
     let raw = revolve(&profile, axis, Revolution::Full, tol).unwrap().body;
-    let spin = Affine3::rotation_about_axis(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), iv(FRAC_PI_2));
+    // Each map is the `f64` row's, lifted: a point map, which the decided
+    // door admits as the `f64` lane's frame.
+    let lift = |m: Affine3<f64>| m.map(Interval::from_f64);
+    let spin = lift(Affine3::rotation_about_axis(
+        Point3::origin(),
+        Vec3::new(0.0, 1.0, 0.0),
+        FRAC_PI_2,
+    ));
     let c = finished(
         "the cone",
         topo::transform_rigid(&raw, &geom_core::test_support::rigid(&spin, tol), tol).unwrap(),
@@ -347,20 +353,15 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     );
     let e = edge_point(0.6);
     let turn = Affine3::rotation_about_axis(
-        p3(0.0, 0.0, 0.0),
-        v3(0.0, 0.0, 1.0),
-        iv(-50f64.to_radians()),
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        -50f64.to_radians(),
     );
-    let to = Affine3::translation(v3(e.x, e.y, e.z));
+    let placed = lift(Affine3::translation(Vec3::new(e.x, e.y, e.z)) * turn);
     let raw = brick::<Interval>((0.0, 6.0), (0.0, 6.0), (-3.0, 3.0), tol);
     let x = finished(
         "the box",
-        topo::transform_rigid(
-            &raw,
-            &geom_core::test_support::rigid(&(to * turn), tol),
-            tol,
-        )
-        .unwrap(),
+        topo::transform_rigid(&raw, &geom_core::test_support::rigid(&placed, tol), tol).unwrap(),
         tol,
     );
     let vc = core::f64::consts::PI * R * R * height() / 3.0;
@@ -370,23 +371,6 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
         ("cone ∖ box", topo::subtract(&c, &x, tol), vc - i),
     ] {
-        if tol.eps() <= 1e-12 {
-            assert!(
-                matches!(
-                    &r,
-                    Err(topo::BooleanError::Join(j)) if matches!(
-                        j.error(),
-                        topo::SplitJoinError::Euler(topo::EulerOpError::Certification {
-                            error: topo::CertifyError::Escalated { .. }
-                        })
-                    )
-                ),
-                "{op}: at ε = {}, the join's certification escalates, got {:?}",
-                tol.eps(),
-                r.as_ref().map(|r| r.body().map(|b| b.kind))
-            );
-            continue;
-        }
         let bb = match r.as_ref().map(topo::BooleanResult::body) {
             Ok(Some(bb)) => bb,
             _ => panic!("{op}: wanted a body, got {r:?}"),

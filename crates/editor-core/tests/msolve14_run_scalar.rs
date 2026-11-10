@@ -796,10 +796,10 @@ fn run_at<T: editor_core::EvalScalar>(
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
-const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb45f_83ac_32e6_ae67),
-    (1e-6, 0x1480_cddd_152c_b481),
-    (1e-12, 0xabc4_cdbd_523f_e822),
+const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
+    (1e-9, 0xef62_f049_afe9_19e6),
+    (1e-6, 0xb5ee_3bc3_5cd8_863b),
+    (1e-12, 0x8045_6828_d687_0626),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -849,7 +849,8 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 }
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
-/// evaluations are byte-identical to the pre-generic tree's.
+/// evaluations hash to the pinned digest. It was first the pre-generic
+/// tree's.
 ///
 /// RE-BLESSED three times for the edge curve's `Debug` the digest feeds:
 /// when check 2's turn moved from the edge's `Certificate` onto the edge
@@ -859,14 +860,18 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// it spelled `Line { .. }`). Each time, with
 /// that `Debug` written in main's shape, every digest here reproduced
 /// main's value at all three ε rows, so nothing else moved.
+///
+/// RE-PINNED when the decided door came to re-mint what it admits: a
+/// solved map's columns are its Gram–Schmidt re-mint, which moves them
+/// by rounding, and with them every mapped coordinate the digest feeds.
 #[test]
-fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
+fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();
-    let Some(&(_, main)) = MAIN_CORPUS_DIGEST
+    let Some(&(_, pinned)) = PINNED_CORPUS_DIGEST
         .iter()
         .find(|(e, _)| e.to_bits() == eps.to_bits())
     else {
-        panic!("no main digest was measured at ε = {eps:e}; measure one on main's tree")
+        panic!("no digest is pinned at ε = {eps:e}; measure one")
     };
     let mut h = Fnv::new();
     for (label, doc, opts) in corpus() {
@@ -874,7 +879,7 @@ fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
         solve_digest(&mut h, &doc, &opts);
     }
     assert_eq!(
-        h.0, main,
+        h.0, pinned,
         "the f64 solve moved on the mate corpus at ε = {eps:e}: {:#018x}",
         h.0
     );

@@ -799,8 +799,9 @@ pub fn import_step(
             // for id.
             //
             // Each instance then goes through the kernel's own
-            // placement doors (M7-4 Leg D): the map is decided rigid at
-            // `RigidMotion::check_rigid`, and `transform_rigid`
+            // placement doors (M7-4 Leg D): the map is decided rigid, and
+            // re-minted, at `RigidMotion::check_rigid` at the file's band,
+            // and `transform_rigid`
             // RE-CERTIFIES every carrier against the mapped geometry,
             // so a placed copy is as first-class as an unplaced one —
             // and a map this reader let through that the kernel will
@@ -835,7 +836,10 @@ pub fn import_step(
                         transform,
                         ..
                     }) => {
-                        let band = geom_core::Band::linear(tol).map_err(|source| {
+                        // A placement is adopted at the file's own band: its
+                        // re-mint to an exact rigid motion may move a point
+                        // by up to ε_in.
+                        let band = file.adoption_band(tol).map_err(|source| {
                             StepImportError::Placement {
                                 transform,
                                 source: topo::TransformError::Band(source),
