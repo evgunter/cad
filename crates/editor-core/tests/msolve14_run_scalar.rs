@@ -1845,6 +1845,33 @@ fn structure<T: editor_core::EvalScalar>(
         .collect()
 }
 
+/// A dual lane's structure read against its `f64` build of record
+/// (DUAL-DESIGN DL3): a placement the record refused is refused at the
+/// dual as `RecordRefused`, which reads as the record's own failure
+/// there; every other entry is the dual's own.
+fn bound_structure(
+    doc: &ProfileDoc,
+    dual: &Evaluation<Dual64>,
+    record: &[(RecipeNodeId, String)],
+) -> Vec<(RecipeNodeId, String)> {
+    structure(doc, dual)
+        .into_iter()
+        .zip(record)
+        .map(|((id, said), (rid, theirs))| {
+            assert_eq!(id, *rid, "one placement order in both lanes");
+            if said == "failed: RecordRefused" {
+                assert!(
+                    theirs.starts_with("failed: "),
+                    "a placement refused by its record failed there: {theirs}"
+                );
+                (id, theirs.clone())
+            } else {
+                (id, said)
+            }
+        })
+        .collect()
+}
+
 /// A failed result's class: the error kind's variant, and for a mate
 /// fault the fault's — never its numbers, which are the lane's.
 fn fault_class<T: topo::AtRestPolicy + geom_core::Decide>(r: &NodeResult<T>) -> String {
@@ -1969,7 +1996,11 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
         let d = run_at::<Dual64>(&doc, &opts, None);
         let i = run_at::<Interval>(&doc, &opts, None);
         let want = structure(&doc, &f);
-        assert_eq!(structure(&doc, &d), want, "{label}: Dual64's structure");
+        assert_eq!(
+            bound_structure(&doc, &d, &want),
+            want,
+            "{label}: Dual64's structure"
+        );
         assert_interval_structure(&doc, &f, &i, label);
         // Every free continuous variable is a seed; a defined one takes
         // none (its derivative is its inputs').
@@ -1985,7 +2016,11 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
                 ..opts.clone()
             };
             let d = run_at::<Dual64>(&doc, &o, None);
-            assert_eq!(structure(&doc, &d), want, "{label}: seeded {seed:?}");
+            assert_eq!(
+                bound_structure(&doc, &d, &want),
+                want,
+                "{label}: seeded {seed:?}"
+            );
             for id in doc.ids() {
                 if !matches!(doc.node(id), Some(Node::InstantiatePart { .. }))
                     || f.node_error(id).is_some()
