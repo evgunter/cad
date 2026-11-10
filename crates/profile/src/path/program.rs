@@ -3054,14 +3054,14 @@ pub fn replay_recording<T: ArcCarrierScalar>(
 type Replaying<T> = Result<ConstructedLoop<T>, ReplayError<T>>;
 
 /// **[`replay`], drawing its construction**: the replay's own result,
-/// and each fused fillet step's construction as the replay reached it
-/// ([`FusedConstruction`]) — the refused step's included, carrying the
-/// sides its fit was handed. Recording the construction changes
+/// and each fillet step's construction as far as the replay reached it
+/// ([`FilletConstruction`]) — a refused step's included, carrying what
+/// was bound before it refused. Recording the construction changes
 /// nothing about what is computed.
 pub fn replay_drawn<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> (Replaying<T>, Vec<FusedConstruction<T>>) {
+) -> (Replaying<T>, Vec<FilletConstruction<T>>) {
     let drawing = Drawing::default();
     let replayed = drive(steps, tol, Guide::drawing(drawing.clone())).map(|closed| closed.loop_);
     (replayed, drawing.take())
@@ -3255,7 +3255,7 @@ pub fn pen<T: ArcCarrierScalar>(
     })
 }
 
-/// **A side one fused fillet step fillets between**, whole, as its fit
+/// **A side one fillet step fillets between**, whole, as its fit
 /// was handed it: the carrier and the on-path point that anchors it.
 #[derive(Clone, Copy, Debug)]
 pub enum Carrier<T: Real> {
@@ -3298,31 +3298,82 @@ impl<T: Real> Carrier<T> {
     }
 }
 
-/// **What one fused fillet step constructs** (`fillet_arc`,
-/// `arc_fillet`, `arc_fillet_arc`): the two sides its fit was handed
-/// and the fillet circle it found, recorded where the replay hands the
-/// fit its sides — at the step itself, or at the later step that
-/// completes its arrival.
-#[derive(Clone, Copy, Debug)]
-pub struct FusedConstruction<T: Real> {
-    /// The fused step, in program order.
+/// **What one fillet step constructs** — every fillet verb's, the bare
+/// `fillet(r)` included: the sides its fit was handed, each recorded
+/// when it is bound, and the fit's answer once it has one. The record
+/// is filed against the fillet step, which may differ from the step a
+/// refusal names: an arrival a later binder fixes is recorded, and
+/// refused, at that binder.
+#[derive(Clone, Debug)]
+pub struct FilletConstruction<T: Real> {
+    /// The fillet step, in program order.
     pub step: usize,
-    /// The fillet radius the fit was handed.
+    /// The fillet radius the step authored.
     pub radius: T,
-    /// The incoming side.
+    /// The incoming side, recorded when the step opens it.
     pub incoming: Carrier<T>,
-    /// The arrival side.
-    pub arrival: Carrier<T>,
-    /// The fillet circle, anchored at its incoming tangent point and
-    /// travelled the corner's turn — `None` where the fit refused.
-    pub fillet: Option<Carrier<T>>,
+    /// The arrival side, recorded when its binder fixes it — `None`
+    /// where the replay stopped before one did.
+    pub arrival: Option<Carrier<T>>,
+    /// The fit's answer — `None` where the fit has not run, or refused
+    /// with no candidate circle to show.
+    pub fit: Option<FilletFit<T>>,
 }
 
-/// Where a drawing pass records each arc fillet's construction. Shared
-/// with the chain's guide, so what a refused step was handed outlives
-/// the core its refusal drops.
+/// What a fillet's fit answered.
 #[derive(Clone, Debug)]
-pub(crate) struct Drawing<T: Real>(std::sync::Arc<std::sync::Mutex<Vec<FusedConstruction<T>>>>);
+pub enum FilletFit<T: Real> {
+    /// The fillet circle it found, anchored at its incoming tangent
+    /// point and travelled the corner's turn.
+    Fillet(Carrier<T>),
+    /// An anchor-fit refusal: at each corner that refused on the
+    /// anchor fit, the candidate circle its refusal reports, whose trim
+    /// overruns a leg.
+    Overrun(Vec<Overrun<T>>),
+}
+
+/// The candidate circle an anchor-fit refusal reports at one corner
+/// ([`crate::CornerReason::AnchorOutsideTrimmedExtent`]).
+#[derive(Clone, Copy, Debug)]
+pub struct Overrun<T: Real> {
+    /// The corner it rounds (the refusal's [`crate::CornerRefusal::at`]).
+    pub corner: Point2<T>,
+    /// The circle, anchored at its incoming tangent point and travelled
+    /// the corner's turn.
+    pub circle: Carrier<T>,
+    /// Its `[incoming, outgoing]` tangent points, at least one of them
+    /// past its leg's anchor.
+    pub tangents: [Point2<T>; 2],
+}
+
+impl<T: Real> Overrun<T> {
+    /// The candidate about `centre` touching its legs at `tangents`,
+    /// rounding `corner` in `sense`.
+    pub(crate) fn new(
+        corner: Point2<T>,
+        centre: Point2<T>,
+        radius: T,
+        tangents: [Point2<T>; 2],
+        sense: ArcSweep,
+    ) -> Self {
+        Self {
+            corner,
+            circle: Carrier::Circle {
+                centre,
+                radius,
+                anchor: tangents[0],
+                winding: sense,
+            },
+            tangents,
+        }
+    }
+}
+
+/// Where a drawing pass records each fillet step's construction.
+/// Shared with the chain's guide, so what a refused step was handed
+/// outlives the core its refusal drops.
+#[derive(Clone, Debug)]
+pub(crate) struct Drawing<T: Real>(std::sync::Arc<std::sync::Mutex<Vec<FilletConstruction<T>>>>);
 
 impl<T: Real> Default for Drawing<T> {
     fn default() -> Self {
@@ -3331,48 +3382,69 @@ impl<T: Real> Default for Drawing<T> {
 }
 
 impl<T: Real> Drawing<T> {
-    fn with<R>(&self, f: impl FnOnce(&mut Vec<FusedConstruction<T>>) -> R) -> R {
-        // Held only across a push, which cannot leave the list torn.
+    fn with<R>(&self, f: impl FnOnce(&mut Vec<FilletConstruction<T>>) -> R) -> R {
+        // Held only across a push or a field write, which cannot leave
+        // the list torn.
         f(&mut self
             .0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner))
     }
 
-    /// The sides one fit is about to be handed.
-    pub(crate) fn sides(
+    /// The fillet step `step` opened its incoming side.
+    pub(crate) fn opened(
         &self,
         step: usize,
         radius: T,
         incoming: super::arc_fillet::FilletSide<T>,
-        arrival: super::arc_fillet::FilletSide<T>,
     ) {
         self.with(|drawn| {
-            drawn.push(FusedConstruction {
+            drawn.push(FilletConstruction {
                 step,
                 radius,
                 incoming: Carrier::of(incoming),
-                arrival: Carrier::of(arrival),
-                fillet: None,
+                arrival: None,
+                fit: None,
             });
         });
     }
 
-    /// The fillet the last fit handed its sides found.
-    pub(crate) fn fillet(&self, trims: &super::arc_fillet::ArcFilletTrims<T>) {
-        self.with(|drawn| {
-            if let Some(last) = drawn.last_mut() {
-                last.fillet = Some(Carrier::Circle {
-                    centre: trims.arc.center,
-                    radius: trims.arc.radius,
-                    anchor: trims.t1,
-                    winding: trims.sense,
-                });
-            }
+    /// A binder fixed the arrival side of the fillet `step` opened.
+    pub(crate) fn arrival(&self, step: usize, arrival: super::arc_fillet::FilletSide<T>) {
+        self.on(step, |built| built.arrival = Some(Carrier::of(arrival)));
+    }
+
+    /// The fit of the fillet `step` opened answered.
+    pub(crate) fn fit(&self, step: usize, fit: FilletFit<T>) {
+        self.on(step, |built| built.fit = Some(fit));
+    }
+
+    /// The fit of the fillet `step` opened refused on the anchor fit,
+    /// reporting these candidates.
+    pub(crate) fn overran(&self, step: usize, overruns: Vec<Overrun<T>>) {
+        self.on(step, |built| built.fit = Some(FilletFit::Overrun(overruns)));
+    }
+
+    /// Writes into the record of the fillet `step` opened. Only one
+    /// fillet is open at a time, so it is the last one filed.
+    ///
+    /// # Panics
+    ///
+    /// Where the last record filed is not `step`'s, or none is: a
+    /// binder or fit writing to a fillet that did not open, which only
+    /// a defect in the lattice's recording reaches, never an authoring.
+    fn on(&self, step: usize, f: impl FnOnce(&mut FilletConstruction<T>)) {
+        self.with(|drawn| match drawn.last_mut() {
+            Some(built) if built.step == step => f(built),
+            last => unreachable!(
+                "kernel defect: fillet step {step} wrote its construction, but the open \
+                 record is {:?}",
+                last.map(|built| built.step)
+            ),
         });
     }
 
-    fn take(&self) -> Vec<FusedConstruction<T>> {
+    fn take(&self) -> Vec<FilletConstruction<T>> {
         self.with(core::mem::take)
     }
 }

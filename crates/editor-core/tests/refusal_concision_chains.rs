@@ -107,6 +107,10 @@ const KERNEL_KEYED: &[&str] = &[
 const OVER_BUDGET: &[(&str, usize)] = &[
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Profile/ArcBelowSceneResolution", 85),
+    // work/round/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
+    ("ProfileReplay/Path/NoCornerOfPair(two)", 80),
+    ("ProfileReplay/Path/NoCornerOfPair(swallow and anchor)", 83),
+    ("ProfileReplay/Path/NoCornerForFillet(turn, leg)", 77),
 ];
 
 /// The clause labels a surface legitimately opens with that read, by
@@ -890,7 +894,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `PathError`'s arms, for the `ProfileReplay/Path/` rows.
         pub(super) const PATH_ERROR: PathError = [
-            JunctionTangent, JunctionCusp, SeamTangent, SeamArrivalOffDirection,
+            JunctionTangent, JunctionCusp, CuspDoublesBackOverLeg, SeamTangent, SeamArrivalOffDirection,
             SeamArrivalLeverTooShort, ContinuationTargetOffRay, NoCornerForFillet,
             NoCornerOfPair, FilletOffsetLeverTooShort, FilletArcFlattenedInStorage,
             FilletCarrierBelowSceneResolution, ArcLegOnOpenFillet,
@@ -4083,7 +4087,10 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     use geom_core::Point2;
     use payloads::*;
     use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
-    use profile::{CornerReason, CornerRefusal, FilletLegCarrier, NoCornerReason};
+    use profile::{
+        CornerReason, CornerRefusal, FilletLegCarrier, LegFit, LeverValue, NoCornerReason,
+        OverrunLegs,
+    };
     use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
@@ -4098,6 +4105,12 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::JunctionCusp {
                 margin: 1e-12,
                 arm: 0.5,
+            },
+        ),
+        (
+            "CuspDoublesBackOverLeg",
+            P::CuspDoublesBackOverLeg {
+                at: Point2::new(2.0, 0.0),
             },
         ),
         ("SeamTangent", P::SeamTangent { margin: 1e-12 }),
@@ -4281,6 +4294,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     align: -0.99995,
                     lever: 5e-8,
                     lever_of: TurnLever::ShorterLeg,
+                    corner: Some(Point2::new(0.25, -0.5)),
                 },
                 radius: 0.05,
             },
@@ -4293,6 +4307,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     align: 0.44,
                     lever: 6e-10,
                     lever_of: TurnLever::AnchorSeparation,
+                    corner: None,
                 },
                 radius: 0.05,
             },
@@ -4320,10 +4335,24 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     CornerRefusal {
                         at: Point2::new(0.25, -0.5),
                         reason: CornerReason::AnchorOutsideTrimmedExtent {
-                            side: FilletLeg::Outgoing,
-                            carrier: FilletLegCarrier::Line,
-                            setback: 0.4,
-                            available: 0.3,
+                            legs: [
+                                LegFit {
+                                    carrier: FilletLegCarrier::Line,
+                                    setback: 0.4,
+                                    available: 1.0,
+                                },
+                                LegFit {
+                                    carrier: FilletLegCarrier::Line,
+                                    setback: 0.4,
+                                    available: 0.3,
+                                },
+                            ],
+                            overrun: OverrunLegs::One(FilletLeg::Outgoing),
+                            fit_reach: 5e-10,
+                            radius_at_anchor: Some(LeverValue {
+                                boundary: 0.225,
+                                exact_fit_edge: 0.225 - 3.75e-10,
+                            }),
                         },
                     },
                     CornerRefusal {
@@ -4404,10 +4433,24 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                     CornerRefusal {
                         at: Point2::new(-1.234_567, 0.987_654),
                         reason: CornerReason::AnchorOutsideTrimmedExtent {
-                            side: FilletLeg::Outgoing,
-                            carrier: FilletLegCarrier::Line,
-                            setback: 0.412_345_678,
-                            available: 0.301_234_567,
+                            legs: [
+                                LegFit {
+                                    carrier: FilletLegCarrier::Line,
+                                    setback: 0.412_345_678,
+                                    available: 1.0,
+                                },
+                                LegFit {
+                                    carrier: FilletLegCarrier::Line,
+                                    setback: 0.412_345_678,
+                                    available: 0.301_234_567,
+                                },
+                            ],
+                            overrun: OverrunLegs::One(FilletLeg::Outgoing),
+                            fit_reach: 5e-10,
+                            radius_at_anchor: Some(LeverValue {
+                                boundary: 0.225,
+                                exact_fit_edge: 0.225 - 3.75e-10,
+                            }),
                         },
                     },
                 ],

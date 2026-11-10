@@ -165,14 +165,14 @@ pub(super) fn open_ray<T: geom_core::Decide>(
         bound_at: core.current_step()?,
         incoming_radius: false,
     };
-    core.pending = Some((
+    core.open_pending(
         verbs::Pending::Ray(verbs::PendingRay {
             origin: at,
             dir,
             radius,
         }),
         meta,
-    ));
+    );
     Ok(())
 }
 
@@ -191,7 +191,7 @@ pub(super) fn open_arc<T: ArcCarrierScalar>(
         bound_at: core.current_step()?,
         incoming_radius,
     };
-    core.pending = Some((verbs::Pending::Arc(arc), meta));
+    core.open_pending(verbs::Pending::Arc(arc), meta);
     Ok(())
 }
 
@@ -227,6 +227,10 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
         winding,
         through,
     } = circle;
+    core.bound_arrival(arc_fillet::FilletSide {
+        anchor,
+        carrier: arc_fillet::SideCarrier::Circle { centre, winding },
+    });
     let band = linear_band(tol)?;
     let dir = carrier_tangent(anchor, centre, winding, band)?;
     let (pending, meta) =
@@ -320,6 +324,10 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry position is bound",
     })?;
+    core.bound_arrival(arc_fillet::FilletSide {
+        anchor: start_pos,
+        carrier: arc_fillet::SideCarrier::Circle { centre, winding },
+    });
     let start_ang = core.start_ang.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry direction is bound",
     })?;

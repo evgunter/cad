@@ -5372,6 +5372,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "circle_split_count",
             "continuation_target_off_ray",
+            "cusp_doubles_back_over_leg",
             "degenerate_arc_center",
             "degenerate_arc_chord",
             "degenerate_arc_spec",
