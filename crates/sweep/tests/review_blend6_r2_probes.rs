@@ -438,13 +438,7 @@ fn l_bracket() -> Body<f64> {
 fn concave_edge(body: &Body<f64>) -> EdgeKey {
     let near = |p: geom_core::Point3<f64>| (p.x - 0.5).abs() < 1e-9 && (p.y - 0.5).abs() < 1e-9;
     let vertical = |e: EdgeKey| -> bool {
-        let Some(edge) = body.get_edge(e) else {
-            return false;
-        };
-        let (Some(start), Some(end)) = (
-            body.get_half_edge(edge.he_plus).map(|h| h.start),
-            body.half_edge_end(edge.he_plus),
-        ) else {
+        let Some((start, end)) = body.edge_vertices(e) else {
             return false;
         };
         [start, end].into_iter().all(|v| {
