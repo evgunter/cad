@@ -303,7 +303,8 @@ fn r2_corner_arcs_are_sub_pi_turns_about_the_stored_centre_on_both_sides() {
 /// matches `MixedConvexity { .. }` and drops the count, so the
 /// discipline the retired row articulated left the tree with it.
 /// This restores it at the surviving fixture: the bracket's reflex
-/// edge ends at corners where exactly two of three edges are convex.
+/// edge ends at corners where exactly two of three edges are convex,
+/// requested whole with every other edge of the bracket.
 #[test]
 fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     let lp = ProfileLoop::polygon([
@@ -350,7 +351,7 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
     let refused = fillet_edges(
         &sweep::test_support::at_rest(&bracket, Tol::witness()),
-        &reflex,
+        &topo::query::all_edges(&bracket),
         0.1,
         Tol::witness(),
     )
