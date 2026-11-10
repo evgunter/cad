@@ -420,3 +420,86 @@ fn a_parseable_macros_arguments_are_read_as_expressions() {
 fn a_file_that_does_not_parse_is_an_error_not_an_empty_reading() {
     assert!(read("fn f( {").is_err());
 }
+
+#[test]
+fn an_import_beside_an_item_of_its_name_is_another_namespace_not_ambiguous() {
+    let src = parsed("use std::fmt;\nfn fmt() {}\nfn g() { fmt(); fmt::write(); }");
+    let got: Vec<Option<Bound>> = src
+        .events
+        .iter()
+        .filter(|e| e.args.is_some())
+        .map(|e| e.bound().cloned())
+        .collect();
+    assert_eq!(got, vec![Some(Bound::Item), used(&["std", "fmt", "write"])]);
+}
+
+#[test]
+fn a_paths_head_is_read_in_the_block_around_it_first() {
+    let src = parsed(
+        "mod m { pub use x::door; }
+        use other::m2;
+        fn a() {
+            use other::m;
+            m::door();
+            mod inner { pub use y::door; }
+            inner::door();
+            use self::m as m2;
+            m2::door();
+        }",
+    );
+    let got: Vec<Option<Bound>> = src
+        .events
+        .iter()
+        .filter(|e| e.name == "door")
+        .map(|e| e.bound().cloned())
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            used(&["other", "m", "door"]),
+            used(&["y", "door"]),
+            used(&["x", "door"]),
+        ]
+    );
+}
+
+#[test]
+fn an_import_past_the_files_own_module_is_kept_as_written() {
+    let got = probes(
+        "use super::row;\nmod t { use super::super::row as r; fn g() { probe(r); } }\nfn h() { probe(row); }",
+    );
+    assert_eq!(
+        got,
+        vec![
+            Some(Bound::Use {
+                path: vec!["super".into(), "super".into(), "row".into()],
+                alias: Some("r".into()),
+            }),
+            used(&["super", "row"]),
+        ]
+    );
+}
+
+#[test]
+fn an_import_named_after_its_own_head_does_not_name_itself() {
+    // `use quantity::quantity;`: the import's head is the crate, not the
+    // import; another path's head is the import.
+    let src = parsed(
+        "use quantity::quantity;\nfn g() { quantity(); quantity::f(); }\n\
+         use other::m;\nfn h() { use m::m; m(); }",
+    );
+    let got: Vec<Option<Bound>> = src
+        .events
+        .iter()
+        .filter(|e| e.args.is_some())
+        .map(|e| e.bound().cloned())
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            used(&["quantity", "quantity"]),
+            used(&["quantity", "quantity", "f"]),
+            used(&["other", "m", "m"]),
+        ]
+    );
+}

@@ -10,9 +10,12 @@ Five guards answer *what does this name mean here* by reading text, from
 before `crates/source-scope` was the home for that question. The
 `reader_census` scope ledger
 (`crates/test-utils/tests/reader_census.rs`, `SCOPE_LEDGER`) lists each one
-as `HandRolled` against this row. A `HandRolled` line must name one
-of the paths in `HAND_ROLLED_AT_THE_HOMES_ARRIVAL`, the list as it
-stood when the home landed, so the set only shrinks.
+as `HandRolled` against this row, keyed by item (`path::fn`) in
+`HAND_ROLLED_AT_THE_HOMES_ARRIVAL`. That record holds the readers as
+they stood when the home landed. The census refuses an entry no line
+holds, which makes a converted reader leave, and
+`scripts/gates/scope-readers-only-shrink.sh` refuses an entry the merge
+base does not hold.
 
 - `crates/pncad-py/src/prose_census.rs:352` `use_bindings` and `:564`
   `normalize`. These resolve a name through the file's `use` items and
@@ -34,7 +37,7 @@ stood when the home landed, so the set only shrinks.
 
 **Fix.** Move each one onto `source_scope::read`, either `Source::uses`
 or the `Bound` an event resolves to. Then change its ledger line to
-`Parsed` and drop its path from the arrival list. `test-utils` has to stay zero-dependency,
+`Parsed` and drop its `path::fn` entries from the record. `test-utils` has to stay zero-dependency,
 so `hand_written_impl_census.rs` needs a dev-dependency on source-scope
 from test-utils' test graph. Check first that this adds no cycle, since
 source-scope dev-depends on test-utils.

@@ -1045,6 +1045,11 @@ struct ScopeEntry {
     /// How the entry is found.
     seen: Seen,
     disposition: ScopeDisposition,
+    /// The `fn` items of the file this line answers for. For a
+    /// [`HandRolled`] or a [`NotScope`] line, every needle hit in the file
+    /// lies in one of its lines' items, and each item holds one: a reader
+    /// added to a file beside a listed one is a hit no item answers for.
+    items: &'static [&'static str],
 }
 
 /// How a scope-ledger entry is held to the tree.
@@ -1053,9 +1058,9 @@ enum Seen {
     /// ledger is that set.
     Needle,
     /// By review, for a shape the needle cannot see: the file's code
-    /// still holds this item (the walk must NOT find the file, or the
-    /// line belongs under [`Seen::Needle`]).
-    Anchor(&'static str),
+    /// still holds the line's items (the walk must NOT find the file, or
+    /// the line belongs under [`Seen::Needle`]).
+    Anchor,
 }
 
 enum ScopeDisposition {
@@ -1065,24 +1070,26 @@ enum ScopeDisposition {
     /// file calls the home's reader ([`calls_the_scope_home`]).
     Parsed,
     /// Spells a binding keyword for a reason that is not a scope
-    /// question: one of a closed set of reasons, each of which says which
-    /// needles it can answer for. The text says where.
+    /// question: one of a closed set of reasons, each confined to the
+    /// files it was written for and to the needles they hold. The text
+    /// says where.
     NotScope(NotScopeWhy, &'static str),
     /// A hand-rolled scope reader that predates the home. The payload
-    /// names the work row that owes its conversion, and the path must be
-    /// in [`HAND_ROLLED_AT_THE_HOMES_ARRIVAL`]. **A new hand-rolled
-    /// scope reader does not get this line**: use `source_scope`.
+    /// names the work row that owes its conversion, and each of the
+    /// line's items must be in [`HAND_ROLLED_AT_THE_HOMES_ARRIVAL`]. **A
+    /// new hand-rolled scope reader does not get this line**: use
+    /// `source_scope`.
     HandRolled(&'static str),
 }
 
 /// **Why a site spells a binding keyword without asking a scope
-/// question.** Closed: a new reason is a new variant, reviewed as one,
-/// not free text a hand reader can wear.
+/// question.** Closed: a new reason, or a new file for one, is an edit
+/// here reviewed as one, not free text a hand reader can wear.
 #[derive(Clone, Copy, Debug)]
 enum NotScopeWhy {
-    /// The keyword is the text of a message (a panic, an `expect`).
+    /// The keyword is the text of a message (an `expect`).
     Message,
-    /// A `pub(super)`/`pub(in …)` visibility, read as a word.
+    /// A `pub(super)` visibility, read as a word.
     Visibility,
     /// The shared lexer's keyword tables, and its call census's skip of
     /// the `let` that declares a name: where an item head or a binding
@@ -1093,24 +1100,41 @@ enum NotScopeWhy {
     /// A `use` declaration located to be skipped or blanked: a
     /// declaration reaches nothing, and nothing it binds is resolved.
     SkipsUseDeclarations,
+    /// A call census's skip of the `let` that declares the name it
+    /// counts (`let f = …` is no call of `f`), resolving nothing.
+    SkipsADeclaringLet,
 }
 
 impl NotScopeWhy {
-    /// The needles this reason can answer for, and the one file it is
-    /// confined to, if any.
-    fn admits(self) -> (&'static [&'static str], Option<&'static str>) {
+    /// The needles this reason answers for, and the only files it may
+    /// be claimed in.
+    fn admits(self) -> (&'static [&'static str], &'static [&'static str]) {
         match self {
-            NotScopeWhy::Message => (&SCOPE_KEYWORD_LITERALS, None),
-            NotScopeWhy::Visibility => (&["\"super\"", "\"super::\""], None),
+            NotScopeWhy::Message => (
+                &["\"use\""],
+                &["crates/step-import/tests/inst_review_probes.rs"],
+            ),
+            NotScopeWhy::Visibility => (
+                &["\"super\""],
+                &["crates/sweep/tests/review_fillet_split_r2_probes.rs"],
+            ),
             NotScopeWhy::LexerTables => (
                 &["\"let\"", "\"use\""],
-                Some("crates/test-utils/src/source.rs"),
+                &["crates/test-utils/src/source.rs"],
             ),
             NotScopeWhy::OwnNeedles => (
                 &SCOPE_KEYWORD_LITERALS,
-                Some("crates/test-utils/tests/reader_census.rs"),
+                &["crates/test-utils/tests/reader_census.rs"],
             ),
-            NotScopeWhy::SkipsUseDeclarations => (&["\"use\"", "\"use \""], None),
+            NotScopeWhy::SkipsUseDeclarations => (
+                &["\"use\"", "\"use \""],
+                &[
+                    "crates/pncad-py/src/tests.rs",
+                    "crates/topo/src/boolean/offer_rows.rs",
+                    "crates/topo/src/source_walk.rs",
+                ],
+            ),
+            NotScopeWhy::SkipsADeclaringLet => (&["\"let\""], &["crates/pncad/tests/all.rs"]),
         }
     }
 }
@@ -1120,86 +1144,119 @@ use ScopeDisposition::{HandRolled, NotScope, Parsed, ScopeHome};
 /// The work row every pre-existing hand-rolled scope reader is owed by.
 const SCOPE_CONVERSION_ROW: &str = "work/onecopy/hand-rolled-scope-readers-predate-source-scope.md";
 
-/// **The hand-rolled scope readers as they stood when the home landed:
-/// a recorded maximum, closed.** A [`HandRolled`] line must name one of
-/// these, so the set only shrinks: a converted reader leaves its line,
-/// and its path here stays as the record. A new hand-rolled reader has
-/// no honest line to take; adding a path here is the act this list
-/// exists to make visible, not a step in landing one.
-const HAND_ROLLED_AT_THE_HOMES_ARRIVAL: [&str; 5] = [
-    "crates/geom-core/tests/bounds_census.rs",
-    "crates/pncad-py/src/prose_census.rs",
-    "crates/pncad-py/src/tests.rs",
-    "crates/pncad/tests/all.rs",
-    "crates/test-utils/tests/hand_written_impl_census.rs",
+/// **The hand-rolled scope readers as they stood when the home landed,
+/// by item (`path::fn`): a record that only shrinks.** Every
+/// [`HandRolled`] line's items are in it, and every entry in it is a
+/// [`HandRolled`] item that still reads: a converted reader leaves its
+/// line and its entry together
+/// ([`the_hand_rolled_scope_readers_are_the_ones_this_tree_still_owes`]).
+/// `scripts/gates/scope-readers-only-shrink.sh` refuses an entry the
+/// merge base does not hold, which is what keeps a new reader out of it.
+const HAND_ROLLED_AT_THE_HOMES_ARRIVAL: [&str; 6] = [
+    "crates/geom-core/tests/bounds_census.rs::is_sole_bracket",
+    "crates/pncad-py/src/prose_census.rs::normalize",
+    "crates/pncad-py/src/prose_census.rs::use_bindings",
+    "crates/pncad-py/src/tests.rs::parse_tag_body",
+    "crates/pncad/tests/all.rs::use_statement_roots",
+    "crates/test-utils/tests/hand_written_impl_census.rs::self_aliases",
 ];
 
-/// **The scope ledger.** One line per site [`asks_a_scope_question`]
-/// finds, and one per site of a shape it cannot see ([`Seen::Anchor`]).
-/// Sorted by path.
+/// **The scope ledger.** One line per reason a site [`asks_a_scope_question`]
+/// (a file may hold more than one), and one per site of a shape it cannot
+/// see ([`Seen::Anchor`]). Sorted by path.
 const SCOPE_LEDGER: &[ScopeEntry] = &[
     ScopeEntry {
         path: "crates/geom-core/tests/bounds_census.rs",
-        seen: Seen::Anchor("fn is_sole_bracket("),
+        seen: Seen::Anchor,
         disposition: HandRolled(SCOPE_CONVERSION_ROW), // a bound's path matched by spelling
+        items: &["is_sole_bracket"],
     },
     ScopeEntry {
         path: "crates/geom-core/tests/flagged_census.rs",
         seen: Seen::Needle,
         disposition: Parsed, // the flagged doors' call sites and forwarding wrappers
+        items: &[],
     },
     ScopeEntry {
         path: "crates/pncad-py/src/prose_census.rs",
         seen: Seen::Needle,
-        disposition: HandRolled(SCOPE_CONVERSION_ROW), // `use_bindings` / `normalize`
+        disposition: HandRolled(SCOPE_CONVERSION_ROW),
+        items: &["normalize", "use_bindings"],
     },
     ScopeEntry {
         path: "crates/pncad-py/src/tests.rs",
         seen: Seen::Needle,
         disposition: HandRolled(SCOPE_CONVERSION_ROW), // a fn's `use … as R;` shorthands
+        items: &["parse_tag_body"],
+    },
+    ScopeEntry {
+        path: "crates/pncad-py/src/tests.rs",
+        seen: Seen::Needle,
+        disposition: NotScope(
+            NotScopeWhy::SkipsUseDeclarations,
+            "the tag table's top-level form classifier",
+        ),
+        items: &["matches", "top_form"],
     },
     ScopeEntry {
         path: "crates/pncad/tests/all.rs",
         seen: Seen::Needle,
-        disposition: HandRolled(SCOPE_CONVERSION_ROW), // `use_statement_roots`
+        disposition: HandRolled(SCOPE_CONVERSION_ROW),
+        items: &["use_statement_roots"],
+    },
+    ScopeEntry {
+        path: "crates/pncad/tests/all.rs",
+        seen: Seen::Needle,
+        disposition: NotScope(
+            NotScopeWhy::SkipsADeclaringLet,
+            "the struct-literal census skips a `let` declaring the name",
+        ),
+        items: &["first_arg_literals"],
     },
     ScopeEntry {
         path: "crates/source-scope/src/lib.rs",
         seen: Seen::Needle,
         disposition: ScopeHome,
+        items: &[],
     },
     ScopeEntry {
         path: "crates/source-scope/tests/scopes.rs",
         seen: Seen::Needle,
         disposition: Parsed, // the home's own resolution rows
+        items: &[],
     },
     ScopeEntry {
         path: "crates/step-import/tests/inst_review_probes.rs",
         seen: Seen::Needle,
         disposition: NotScope(NotScopeWhy::Message, "an `.expect(\"use\")`"),
+        items: &["solid_clouds"],
     },
     ScopeEntry {
         path: "crates/sweep/tests/review_fillet_split_r2_probes.rs",
         seen: Seen::Needle,
         disposition: NotScope(NotScopeWhy::Visibility, "the open bands' `pub(super)`"),
+        items: &[],
     },
     ScopeEntry {
         path: "crates/test-utils/src/source.rs",
         seen: Seen::Needle,
         disposition: NotScope(
             NotScopeWhy::LexerTables,
-            "the item-head keyword table, and `funnel_sites`' skip of a `let` declaring the name",
+            "the item-head keyword tables, and `funnel_sites`' skip of a `let` declaring the name",
         ),
+        items: &[],
     },
     ScopeEntry {
         path: "crates/test-utils/tests/hand_written_impl_census.rs",
         seen: Seen::Needle,
-        disposition: HandRolled(SCOPE_CONVERSION_ROW), // `self_aliases`, one `let` deep
+        disposition: HandRolled(SCOPE_CONVERSION_ROW), // one `let` deep
+        items: &["self_aliases"],
     },
     ScopeEntry {
         path: "crates/test-utils/tests/reader_census.rs",
         seen: Seen::Needle,
         disposition: NotScope(NotScopeWhy::OwnNeedles, "SCOPE_KEYWORD_LITERALS"),
+        items: &[],
     },
     ScopeEntry {
         path: "crates/topo/src/boolean/offer_rows.rs",
@@ -1208,11 +1265,13 @@ const SCOPE_LEDGER: &[ScopeEntry] = &[
             NotScopeWhy::SkipsUseDeclarations,
             "a `use` line is no passing site",
         ),
+        items: &[],
     },
     ScopeEntry {
         path: "crates/topo/src/source_walk.rs",
         seen: Seen::Needle,
-        disposition: NotScope(NotScopeWhy::SkipsUseDeclarations, "`uses_blanked`"),
+        disposition: NotScope(NotScopeWhy::SkipsUseDeclarations, "blanks `use` items"),
+        items: &["uses_blanked"],
     },
 ];
 
@@ -1240,13 +1299,40 @@ fn asks_a_scope_question(code: &str) -> bool {
     SCOPE_KEYWORD_LITERALS.iter().any(|n| code.contains(n)) || code.contains(SCOPE_HOME_DOOR)
 }
 
-/// The keyword needles `code` holds.
-fn scope_needles_in(code: &str) -> Vec<&'static str> {
-    SCOPE_KEYWORD_LITERALS
+/// Each keyword needle `code` holds, with its offset.
+fn scope_needle_hits(code: &str) -> Vec<(usize, &'static str)> {
+    let mut out: Vec<(usize, &'static str)> = SCOPE_KEYWORD_LITERALS
         .iter()
-        .copied()
-        .filter(|n| code.contains(n))
+        .flat_map(|n| code.match_indices(n).map(move |(at, _)| (at, *n)))
+        .collect();
+    out.sort_unstable();
+    out
+}
+
+/// Every `fn` item of `code` (a code-only view) with its body's range.
+fn fn_bodies(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
+    code.match_indices("fn ")
+        .filter(|(at, _)| test_utils::source::boundary_before(code, *at))
+        .filter_map(|(at, _)| {
+            let name_at = test_utils::source::skip_ws(code, at + "fn ".len());
+            let name = test_utils::source::ident(code, name_at);
+            match test_utils::source::item_body(code, at) {
+                test_utils::source::ItemBody::Body(body) if !name.is_empty() => {
+                    Some((name.to_string(), body))
+                }
+                _ => None,
+            }
+        })
         .collect()
+}
+
+/// The innermost `fn` whose body holds offset `at`.
+fn innermost_fn(bodies: &[(String, std::ops::Range<usize>)], at: usize) -> Option<&str> {
+    bodies
+        .iter()
+        .filter(|(_, r)| r.contains(&at))
+        .min_by_key(|(_, r)| r.len())
+        .map(|(n, _)| n.as_str())
 }
 
 /// Whether `code` (a code-only view) calls the home's reader: by its
@@ -1298,11 +1384,12 @@ fn every_site_that_asks_a_scope_question_is_in_the_scope_ledger() {
         })
         .collect();
     found.sort();
-    let ledger: Vec<&str> = SCOPE_LEDGER
+    let mut ledger: Vec<&str> = SCOPE_LEDGER
         .iter()
         .filter(|e| matches!(e.seen, Seen::Needle))
         .map(|e| e.path)
         .collect();
+    ledger.dedup();
     let unlisted: Vec<&String> = found
         .iter()
         .filter(|f| !ledger.contains(&f.as_str()))
@@ -1323,83 +1410,132 @@ fn every_site_that_asks_a_scope_question_is_in_the_scope_ledger() {
 /// **Each line's claim, checked against its file.**
 ///
 /// - [`Parsed`]: the file calls the home's reader, not merely names it.
-/// - [`NotScope`]: every needle the file holds is one its reason admits,
-///   in the file the reason is confined to.
-/// - [`Seen::Anchor`]: the anchored item is still in the file's code,
-///   and the needle does not find the file.
+/// - [`NotScope`]: its reason may be claimed in this file, and admits
+///   every needle its items hold.
+/// - Items: every needle hit in a file with a [`HandRolled`] or
+///   [`NotScope`] line lies in an item one of its lines lists (a hit
+///   outside every `fn` belongs to a line with no items), and each
+///   listed item still holds one. A converted reader's item holds none:
+///   remove it, and its record entry.
+/// - [`Seen::Anchor`]: the line's items are still in the file, and the
+///   needle does not find the file.
 #[test]
 fn every_scope_line_holds_of_its_file() {
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let mut wrong: Vec<String> = Vec::new();
-    for e in SCOPE_LEDGER {
-        let text = std::fs::read_to_string(root.join(e.path))
-            .unwrap_or_else(|err| panic!("reading {}: {err}", e.path));
+    let mut paths: Vec<&str> = SCOPE_LEDGER.iter().map(|e| e.path).collect();
+    paths.dedup();
+    for path in paths {
+        let text = std::fs::read_to_string(root.join(path))
+            .unwrap_or_else(|err| panic!("reading {path}: {err}"));
         let code = code_only(&text);
         let lexed = code_and_literals(&text);
-        match e.disposition {
-            Parsed if !calls_the_scope_home(&code) => wrong.push(format!(
-                "{}: Parsed, but it does not call `{SCOPE_HOME_DOOR}::{SCOPE_HOME_READ}`",
-                e.path
-            )),
-            NotScope(why, where_) => {
-                if where_.trim().is_empty() {
-                    wrong.push(format!(
-                        "{}: NotScope({why:?}) says where in the file",
-                        e.path
-                    ));
+        let bodies = fn_bodies(&code);
+        let lines: Vec<&ScopeEntry> = SCOPE_LEDGER.iter().filter(|e| e.path == path).collect();
+        let itemised = lines
+            .iter()
+            .any(|e| matches!(e.disposition, HandRolled(_) | NotScope(..)) && !e.items.is_empty());
+        let hits = scope_needle_hits(&lexed);
+        for e in &lines {
+            match e.disposition {
+                Parsed if !calls_the_scope_home(&code) => wrong.push(format!(
+                    "{path}: Parsed, but it does not call `{SCOPE_HOME_DOOR}::{SCOPE_HOME_READ}`"
+                )),
+                NotScope(why, where_) => {
+                    if where_.trim().is_empty() {
+                        wrong.push(format!("{path}: NotScope({why:?}) says where in the file"));
+                    }
+                    let (admitted, files) = why.admits();
+                    if !files.contains(&path) {
+                        wrong.push(format!(
+                            "{path}: NotScope({why:?}) is not a reason this file may claim \
+                             ({files:?})"
+                        ));
+                    }
+                    for (at, n) in &hits {
+                        let in_line = e.items.is_empty()
+                            || innermost_fn(&bodies, *at).is_some_and(|f| e.items.contains(&f));
+                        if in_line
+                            && !admitted.contains(n)
+                            && (e.items.is_empty() || lines.len() == 1)
+                        {
+                            wrong.push(format!(
+                                "{path}: NotScope({why:?}) does not answer for {n} (byte {at})"
+                            ));
+                        }
+                    }
                 }
-                let (admitted, only_in) = why.admits();
-                let foreign: Vec<&str> = scope_needles_in(&lexed)
-                    .into_iter()
-                    .filter(|n| !admitted.contains(n))
+                _ => {}
+            }
+            for item in e.items {
+                let named: Vec<&std::ops::Range<usize>> = bodies
+                    .iter()
+                    .filter(|(n, _)| n == item)
+                    .map(|(_, r)| r)
                     .collect();
-                if !foreign.is_empty() {
-                    wrong.push(format!(
-                        "{}: NotScope({why:?}) does not answer for {foreign:?}",
-                        e.path
-                    ));
+                if named.is_empty() {
+                    wrong.push(format!("{path}: its item `{item}` is gone"));
+                    continue;
                 }
-                if only_in.is_some_and(|p| p != e.path) {
+                let holds = hits
+                    .iter()
+                    .any(|(at, _)| named.iter().any(|r| r.contains(at)));
+                if matches!(e.seen, Seen::Needle) && !holds {
                     wrong.push(format!(
-                        "{}: NotScope({why:?}) belongs to {} alone",
-                        e.path,
-                        only_in.unwrap_or_default()
+                        "{path}: `{item}` holds no binding keyword now: converted, so remove it \
+                         from the line (and from HAND_ROLLED_AT_THE_HOMES_ARRIVAL)"
                     ));
                 }
             }
-            _ => {}
-        }
-        if let Seen::Anchor(anchor) = e.seen {
-            if !code.contains(anchor) {
-                wrong.push(format!("{}: its anchor `{anchor}` is gone", e.path));
-            }
-            if asks_a_scope_question(&lexed) {
+            if matches!(e.seen, Seen::Anchor) && asks_a_scope_question(&lexed) {
                 wrong.push(format!(
-                    "{}: the needle finds it now, so its line is Seen::Needle",
-                    e.path
+                    "{path}: the needle finds it now, so its line is Seen::Needle"
                 ));
+            }
+        }
+        if itemised {
+            let listed: Vec<&str> = lines.iter().flat_map(|e| e.items.iter().copied()).collect();
+            for (at, n) in &hits {
+                match innermost_fn(&bodies, *at) {
+                    Some(f) if listed.contains(&f) => {}
+                    f => wrong.push(format!(
+                        "{path}: {n} at byte {at} (in {}) is in no item a line lists: a new \
+                         scope reader beside the listed ones resolves through `{SCOPE_HOME_DOOR}`",
+                        f.map_or("no fn".to_string(), |f| format!("`{f}`"))
+                    )),
+                }
             }
         }
     }
     assert!(wrong.is_empty(), "scope lines that do not hold: {wrong:#?}");
 }
 
-/// **A hand-rolled scope reader is refused**: each [`HandRolled`] line
-/// names a path recorded at the home's arrival, and the row that owes its
-/// conversion, which must exist. The home is source-scope alone.
+/// **A hand-rolled scope reader is refused**: each [`HandRolled`] item
+/// is in the record of the home's arrival, each record entry is a
+/// [`HandRolled`] item (a converted one leaves both), and the row that
+/// owes the conversion exists. The home is source-scope alone.
 #[test]
 fn the_hand_rolled_scope_readers_are_the_ones_this_tree_still_owes() {
     let root = repo_root(env!("CARGO_MANIFEST_DIR"));
+    let mut held: Vec<String> = Vec::new();
     for e in SCOPE_LEDGER {
         match e.disposition {
             HandRolled(row) => {
                 assert!(
-                    HAND_ROLLED_AT_THE_HOMES_ARRIVAL.contains(&e.path),
-                    "{} is dispositioned HandRolled, and it was no hand-rolled scope reader \
-                     when the home landed: a new scope reader resolves through \
-                     `{SCOPE_HOME_DOOR}`",
+                    !e.items.is_empty(),
+                    "{}: a HandRolled line names its reader's items",
                     e.path
                 );
+                for item in e.items {
+                    let key = format!("{}::{item}", e.path);
+                    assert!(
+                        HAND_ROLLED_AT_THE_HOMES_ARRIVAL.contains(&key.as_str()),
+                        "{key} is dispositioned HandRolled, and it was no hand-rolled scope \
+                         reader when the home landed: a new scope reader resolves through \
+                         `{SCOPE_HOME_DOOR}`"
+                    );
+                    held.push(key);
+                }
                 assert!(
                     root.join(row).is_file(),
                     "{} owes its conversion to {row}, which does not exist",
@@ -1414,6 +1550,15 @@ fn the_hand_rolled_scope_readers_are_the_ones_this_tree_still_owes() {
             Parsed | NotScope(..) => {}
         }
     }
+    let converted: Vec<&&str> = HAND_ROLLED_AT_THE_HOMES_ARRIVAL
+        .iter()
+        .filter(|r| !held.iter().any(|h| h == *r))
+        .collect();
+    assert!(
+        converted.is_empty(),
+        "these record entries are no HandRolled item now: converted, so remove them from \
+         HAND_ROLLED_AT_THE_HOMES_ARRIVAL: {converted:#?}"
+    );
 }
 
 /// **The scope needle's own plants.** Each is assembled at run time, so

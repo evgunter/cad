@@ -11,8 +11,11 @@
 //!
 //! Lexing — *is this text code, a comment or a literal* — stays in
 //! `test_utils::source`, which is a zero-dependency leaf on purpose.
-//! `test-utils/tests/reader_census.rs` is the ledger that sends a scope
-//! question here and refuses a hand-rolled scope reader.
+//! `test-utils/tests/reader_census.rs` keeps the scope ledger: every
+//! site that asks a scope question has a line there, and the hand-rolled
+//! scope readers that predate this crate are recorded by item, in a
+//! record `scripts/gates/scope-readers-only-shrink.sh` holds against the
+//! merge base.
 //!
 //! # What [`read`] gives
 //!
@@ -46,9 +49,16 @@
 //! super::name`, `use self::m::name`, a glob of `super`, `self` or an
 //! inline module, and a name a parent or child module imports, resolve
 //! where they point, recursively. The [`Bound::Use`] a guard sees is the
-//! import that leaves the file. A path call whose head is in the file
-//! (`self::f()`, `super::f()`, `m::f()`, a name an import binds) is
-//! resolved the same way ([`Callee::Path`]'s `resolved`). Two item
+//! import that leaves the file. A path's head is resolved once, in the
+//! scopes around it: `self`/`super` from its module, and any other name
+//! first in the innermost block that declares an inline module or an
+//! import of it, then outward to its module. So a block's own
+//! `use other::m` names `m` before the module's `mod m` does. A path
+//! call whose head is in the file (`self::f()`, `super::f()`, `m::f()`,
+//! a name an import binds) is resolved the same way
+//! ([`Callee::Path`]'s `resolved`). An import still headed by `super`
+//! or `self` after following points past the file's own module and is
+//! kept as written. Two item
 //! bindings of one name in one scope are [`Bound::Ambiguous`], not the
 //! last one read. A method or an associated fn in an `impl` or a
 //! `trait` binds no bare name, and neither does a struct field.
@@ -70,9 +80,12 @@
 //! - **Anything outside the file.** `super::` from the file's own module,
 //!   `crate::`, and another file's `mod m;` are where a path leaves; the
 //!   path is reported as written.
-//! - **Types, traits and macros by name.** A name is resolved in the
-//!   value namespace only; a method call's receiver type is not inferred,
-//!   and a path through a type (`T::f`) is not followed.
+//! - **Types, traits and macros by name.** A bare name is resolved in
+//!   the value namespace; a path's head and middle segments read modules
+//!   and imports (an import beside an item of its name is taken as the
+//!   other namespace's, where no `#[cfg]` keeps them apart). Types and
+//!   traits are not tracked: a method call's receiver type is not
+//!   inferred, and a path through a type (`T::f`) is not followed.
 
 use std::collections::HashMap;
 
@@ -310,8 +323,8 @@ pub enum Arg {
 pub fn read(text: &str) -> Result<Source, syn::Error> {
     let file = syn::parse_file(text)?;
     let mut r = Reader::default();
-    let root = r.build_mod(None, &file.items);
-    r.frames.push(Frame::module(root));
+    let root = r.build_node(None, true, file.items.iter());
+    r.frames.push(Frame::scope(Kind::Module, Some(root)));
     for item in &file.items {
         r.visit_item(item);
     }
@@ -331,67 +344,77 @@ enum Kind {
     Local,
 }
 
-/// A scope on the stack. A module's names live in [`Reader::mods`], so
-/// a path can reach a module that is not open; every other scope's live
-/// here.
+/// A scope on the stack: its locals (`let`s, patterns, parameters),
+/// and the node in [`Reader::nodes`] that holds its items, imports and
+/// inline modules, where it has any. Items live in the table so a path
+/// can reach a scope the visit has not opened.
 #[derive(Debug)]
 struct Frame {
     kind: Kind,
-    /// For a module frame, its index in [`Reader::mods`].
-    module: Option<usize>,
+    node: Option<usize>,
     names: HashMap<String, Bound>,
-    globs: Vec<Vec<String>>,
 }
 
 impl Frame {
     fn new(kind: Kind) -> Self {
-        Self {
-            kind,
-            module: None,
-            names: HashMap::new(),
-            globs: Vec::new(),
-        }
+        Self::scope(kind, None)
     }
 
-    fn module(index: usize) -> Self {
+    fn scope(kind: Kind, node: Option<usize>) -> Self {
         Self {
-            module: Some(index),
-            ..Self::new(Kind::Module)
+            kind,
+            node,
+            names: HashMap::new(),
         }
     }
 }
 
-/// A module of the file (the file itself, or an inline `mod`): its
-/// value-namespace items and imports, its globs, and its in-file
-/// parent and children, so that `self::`, `super::` and a child's name
-/// can be followed.
+/// One declaration of a name in a scope, and whether a `#[cfg]` keeps
+/// it (so a second one beside it is not a compile error).
+#[derive(Clone, Debug)]
+struct Decl {
+    bound: Bound,
+    cfg: bool,
+}
+
+/// **A scope of the file that declares items**: a module (the file, or
+/// an inline `mod`) or a block holding items, imports or inline modules.
+/// `parent` is the scope around it. A module is a barrier to names and
+/// is what `self` and `super` count; a block is neither.
 #[derive(Debug, Default)]
-struct ModNode {
+struct Node {
     parent: Option<usize>,
+    module: bool,
+    /// Inline modules declared here (the type namespace's modules).
     children: HashMap<String, usize>,
-    names: HashMap<String, Bound>,
+    /// Every declaration of each name: `fn`, `const`, `static`, `use`.
+    names: HashMap<String, Vec<Decl>>,
     globs: Vec<Vec<String>>,
 }
 
-/// How deep a chain of in-file imports is followed before it is called
-/// unresolved: a cycle (`a::x` importing `b::x` importing `a::x`) is a
-/// compile error, and this bounds the walk over one.
-const FOLLOW_DEPTH: usize = 32;
+/// **The longest chain of resolution steps followed before a name is
+/// called unresolved.** One unit is one step: a name looked up in one
+/// scope, a path segment walked, or an import followed; every step
+/// passes `depth + 1` to the next. A cycle of imports is a compile error,
+/// and this bounds the walk over one.
+const FOLLOW_DEPTH: usize = 64;
 
-/// Adds `bound` for `name` to one scope's item names: a second binding
-/// of the name there is [`Bound::Ambiguous`], not a silent replacement.
-fn insert_item(names: &mut HashMap<String, Bound>, name: String, bound: Bound) {
-    match names.remove(&name) {
-        None => {
-            names.insert(name, bound);
-        }
-        Some(Bound::Ambiguous(mut all)) => {
-            all.push(bound);
-            names.insert(name, Bound::Ambiguous(all));
-        }
-        Some(old) => {
-            names.insert(name, Bound::Ambiguous(vec![old, bound]));
-        }
+/// What a path reaches: an in-file module, or a binding.
+#[derive(Debug)]
+enum Target {
+    Module(usize),
+    Bound(Bound),
+}
+
+/// `found`, wrapped in the globs `held` that leave the file, if any.
+fn wrap(held: Vec<Vec<String>>, found: Option<Bound>) -> Option<Bound> {
+    if held.is_empty() {
+        found
+    } else {
+        Some(Bound::Glob {
+            paths: held,
+            behind: found.map(Box::new),
+        })
     }
 }
 
@@ -401,13 +424,41 @@ fn mod_key(m: &syn::ItemMod) -> (usize, usize) {
     (at.line, at.column)
 }
 
+/// Whether an item carries a `#[cfg(…)]`.
+fn has_cfg(attrs: &[syn::Attribute]) -> bool {
+    attrs.iter().any(|a| a.path().is_ident("cfg"))
+}
+
+/// What a name's declarations in one scope give in the value namespace.
+///
+/// One is itself. Beside a `#[cfg]`, more than one is
+/// [`Bound::Ambiguous`]: the build takes one of them. Without one, two
+/// declarations of a name in one scope compile only where they are in
+/// different namespaces, so one item (`fn`, `const`, `static`) beside
+/// imports is the value, and an import beside it names a module or a
+/// type. Anything else is ambiguous.
+fn value_of(decls: &[Decl]) -> Bound {
+    if let [one] = decls {
+        return one.bound.clone();
+    }
+    let all = || Bound::Ambiguous(decls.iter().map(|d| d.bound.clone()).collect());
+    if decls.iter().any(|d| d.cfg) {
+        return all();
+    }
+    let items: Vec<&Decl> = decls.iter().filter(|d| d.bound == Bound::Item).collect();
+    match items.as_slice() {
+        [one] => one.bound.clone(),
+        _ => all(),
+    }
+}
+
 #[derive(Default)]
 struct Reader {
     out: Source,
     frames: Vec<Frame>,
-    /// Every module of the file the visit has reached or will reach.
-    mods: Vec<ModNode>,
-    /// Each inline module's index in `mods`, by its `mod` token.
+    /// Every scope of the file that declares items.
+    nodes: Vec<Node>,
+    /// Each inline module's node, by its `mod` token.
     mod_at: HashMap<(usize, usize), usize>,
     /// The indices in `out.fns` of the fn items around the point read.
     fns: Vec<usize>,
@@ -419,12 +470,12 @@ fn line(span: Span) -> usize {
     span.start().line
 }
 
-/// **Whether `attrs` hold `#[cfg(test)]`, spelled exactly so**: the
-/// parse-level home of the rule the tree's text readers apply by the
-/// literal `#[cfg(test)]` (`test_utils::source::attributed_extent`'s
-/// callers). A compound `cfg(all(test, …))` is not read as a test item,
-/// the same as there.
-pub fn is_cfg_test(attrs: &[syn::Attribute]) -> bool {
+/// **Whether `attrs` hold `#[cfg(test)]`, spelled exactly so**: the one
+/// reading of the rule at the parse level, which [`FnItem::in_test`]
+/// carries. A compound `cfg(all(test, …))` is not read as a test item.
+/// (The text readers that match the literal spell it themselves;
+/// `work/onecopy/the-cfg-test-rule-is-spelled-by-eight-text-readers.md`.)
+fn is_cfg_test(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|a| {
         a.path().is_ident("cfg")
             && matches!(&a.meta, syn::Meta::List(l) if l.tokens.to_string().trim() == "test")
@@ -521,15 +572,9 @@ fn use_leaves(
     use syn::UseTree;
     match tree {
         UseTree::Path(p) => {
-            let seg = p.ident.to_string();
-            let pushed = seg != "self";
-            if pushed {
-                prefix.push(seg);
-            }
+            prefix.push(p.ident.to_string());
             use_leaves(&p.tree, prefix, out);
-            if pushed {
-                prefix.pop();
-            }
+            prefix.pop();
         }
         UseTree::Name(n) => {
             let mut path = prefix.clone();
@@ -576,82 +621,83 @@ impl Reader {
         }
     }
 
-    /// The module the innermost module frame opens.
-    fn here(&self) -> usize {
-        self.frames.iter().rev().find_map(|f| f.module).unwrap_or(0)
+    /// The innermost scope node open here.
+    fn current(&self) -> usize {
+        self.frames.iter().rev().find_map(|f| f.node).unwrap_or(0)
+    }
+
+    /// The module `n` is, or sits in: what `self` names there.
+    fn module_of(&self, mut n: usize) -> usize {
+        while !self.nodes[n].module {
+            match self.nodes[n].parent {
+                Some(p) => n = p,
+                None => break,
+            }
+        }
+        n
     }
 
     /// **The binding `name` resolves to here**, innermost scope first.
     ///
-    /// A local is seen up to the nearest fn frame; an item or an import
-    /// through it. A block's globs that leave the file are held while
-    /// the walk goes on outward, and wrap what it finds
-    /// ([`Bound::Glob`]'s `behind`). The first module frame answers for
-    /// the rest ([`Reader::in_mod`]).
+    /// A frame's locals are seen up to the nearest fn frame; then its
+    /// node's items and imports, by the one rule ([`Reader::in_node`]).
+    /// A node's globs that leave the file are held while the walk goes on
+    /// outward, and wrap what it finds ([`Bound::Glob`]'s `behind`). The
+    /// first module frame is a barrier.
     fn lookup(&self, name: &str) -> Option<Bound> {
-        let here = self.here();
         let mut locals = true;
         let mut held: Vec<Vec<String>> = Vec::new();
-        let wrap = |held: Vec<Vec<String>>, found: Option<Bound>| {
-            if held.is_empty() {
-                found
-            } else {
-                Some(Bound::Glob {
-                    paths: held,
-                    behind: found.map(Box::new),
-                })
-            }
-        };
         for frame in self.frames.iter().rev() {
-            if let Some(m) = frame.module {
-                return wrap(held, self.in_mod(m, name, 0));
+            if let Some(b) = frame.names.get(name)
+                && locals
+            {
+                return wrap(held, Some(b.clone()));
             }
-            if let Some(b) = frame.names.get(name) {
-                let item = matches!(b, Bound::Item | Bound::Use { .. } | Bound::Ambiguous(_));
-                if locals || item {
-                    return wrap(held, Some(self.follow(here, b.clone(), 0)));
+            if let Some(n) = frame.node {
+                match self.in_node(n, name, 0) {
+                    Some(Bound::Glob {
+                        paths,
+                        behind: None,
+                    }) if frame.kind != Kind::Module => held.extend(paths),
+                    found @ Some(_) => return wrap(held, found),
+                    None => {}
                 }
             }
-            for g in &frame.globs {
-                match self.module_at(here, &g[..g.len() - 1], 0) {
-                    Some(m) => {
-                        if let Some(found) = self.in_mod(m, name, 0) {
-                            return wrap(held, Some(found));
-                        }
-                    }
-                    None => held.push(g.clone()),
-                }
-            }
-            if frame.kind == Kind::Fn {
-                locals = false;
+            match frame.kind {
+                Kind::Module => return wrap(held, None),
+                Kind::Fn => locals = false,
+                Kind::Block | Kind::Local => {}
             }
         }
         wrap(held, None)
     }
 
-    /// What `name` resolves to in module `m`: its own item or import
-    /// (followed), else what its in-file globs reach, wrapped in the
-    /// globs that leave the file.
-    fn in_mod(&self, m: usize, name: &str, depth: usize) -> Option<Bound> {
+    /// **What `name` resolves to in scope node `n` alone**: its own
+    /// declarations, followed; else what its globs bring in, by one rule.
+    /// An in-file glob's module is read for the name; two that bring it in
+    /// are [`Bound::Ambiguous`]; globs that leave the file wrap what the
+    /// in-file ones found ([`Bound::Glob`]).
+    fn in_node(&self, n: usize, name: &str, depth: usize) -> Option<Bound> {
         if depth > FOLLOW_DEPTH {
             return None;
         }
-        let node = &self.mods[m];
-        if let Some(b) = node.names.get(name) {
-            return Some(self.follow(m, b.clone(), depth + 1));
+        let node = &self.nodes[n];
+        if let Some(decls) = node.names.get(name) {
+            return Some(self.follow(n, value_of(decls), depth + 1, name));
         }
         let mut found: Vec<Bound> = Vec::new();
         let mut held: Vec<Vec<String>> = Vec::new();
         for g in &node.globs {
-            match self.module_at(m, &g[..g.len() - 1], depth + 1) {
-                Some(target) => {
-                    if let Some(b) = self.in_mod(target, name, depth + 1)
+            let target = &g[..g.len() - 1];
+            match self.path_from(n, target, depth + 1, None) {
+                Some(Target::Module(m)) => {
+                    if let Some(b) = self.in_node(m, name, depth + 1)
                         && !found.contains(&b)
                     {
                         found.push(b);
                     }
                 }
-                None => held.push(g.clone()),
+                _ => held.push(g.clone()),
             }
         }
         let found = match found.len() {
@@ -659,100 +705,229 @@ impl Reader {
             1 => found.pop(),
             _ => Some(Bound::Ambiguous(found)),
         };
-        if held.is_empty() {
-            found
-        } else {
-            Some(Bound::Glob {
-                paths: held,
-                behind: found.map(Box::new),
-            })
-        }
+        wrap(held, found)
     }
 
-    /// `b`, bound in module `m`, followed where it is an import whose
-    /// path stays in the file.
-    fn follow(&self, m: usize, b: Bound, depth: usize) -> Bound {
+    /// `b`, declared as `name` in node `n`, followed where it is an
+    /// import whose path stays in the file. The import's own head is not
+    /// itself (`use foo::foo;` names an outer `foo`), so it is skipped
+    /// while its head is read.
+    fn follow(&self, n: usize, b: Bound, depth: usize, name: &str) -> Bound {
         match b {
-            Bound::Use { path, alias } => match self.in_file_path(m, &path, depth + 1) {
-                Some(Bound::Use {
-                    path: p,
-                    alias: inner,
-                }) => Bound::Use {
-                    path: p,
-                    alias: alias.or(inner),
-                },
-                Some(other) => other,
-                None => Bound::Use { path, alias },
-            },
+            Bound::Use { path, alias } => {
+                match self.path_from(n, &path, depth + 1, Some((n, name))) {
+                    Some(Target::Bound(Bound::Use {
+                        path: p,
+                        alias: inner,
+                    })) => Bound::Use {
+                        path: p,
+                        alias: alias.or(inner),
+                    },
+                    Some(Target::Bound(other)) => other,
+                    Some(Target::Module(_)) | None => Bound::Use { path, alias },
+                }
+            }
             Bound::Ambiguous(all) => Bound::Ambiguous(
                 all.into_iter()
-                    .map(|b| self.follow(m, b, depth + 1))
+                    .map(|b| self.follow(n, b, depth + 1, name))
                     .collect(),
             ),
             other => other,
         }
     }
 
-    /// The in-file module `path` names from module `m` (`self`, `super`,
-    /// a child by name), if it stays in the file.
-    fn module_at(&self, m: usize, path: &[String], depth: usize) -> Option<usize> {
+    /// **What `path`, written in scope node `n`, reaches — the one home of
+    /// a path's head.** The head is resolved once: `self` and `super` from
+    /// `n`'s module, `crate` as leaving the file, and any other name in
+    /// the scopes around `n` (an inline module declared there, or an
+    /// import, whose followed path then stands in for the head). Each
+    /// further segment is walked the same way from the module reached.
+    /// `None` where the head is not in the file (an extern crate) or a
+    /// `super` climbs past it. `declaring` is the import whose own path
+    /// this is, by its node and name: its head is not that import.
+    fn path_from(
+        &self,
+        n: usize,
+        path: &[String],
+        depth: usize,
+        declaring: Option<(usize, &str)>,
+    ) -> Option<Target> {
         if depth > FOLLOW_DEPTH {
             return None;
         }
-        let Some((head, rest)) = path.split_first() else {
-            return Some(m);
+        let (head, rest) = path.split_first()?;
+        let start = match head.as_str() {
+            "self" => self.module_of(n),
+            "super" => {
+                let m = self.module_of(n);
+                self.module_of(self.nodes[m].parent?)
+            }
+            "crate" => return None,
+            name => match self.head_in_scopes(n, name, depth + 1, declaring)? {
+                Target::Module(m) => m,
+                Target::Bound(Bound::Use { path: through, .. }) => {
+                    let mut whole = through;
+                    whole.extend(rest.iter().cloned());
+                    return Some(Target::Bound(Bound::Use {
+                        path: whole,
+                        alias: None,
+                    }));
+                }
+                Target::Bound(Bound::Ambiguous(all)) => {
+                    let each = all
+                        .into_iter()
+                        .map(|b| match b {
+                            Bound::Use { path: through, .. } => {
+                                let mut whole = through;
+                                whole.extend(rest.iter().cloned());
+                                Bound::Use {
+                                    path: whole,
+                                    alias: None,
+                                }
+                            }
+                            other => other,
+                        })
+                        .collect();
+                    return Some(Target::Bound(Bound::Ambiguous(each)));
+                }
+                Target::Bound(_) => return None,
+            },
         };
-        let next = match head.as_str() {
-            "self" => m,
-            "super" => self.mods[m].parent?,
-            child => *self.mods[m].children.get(child)?,
-        };
-        self.module_at(next, rest, depth + 1)
+        self.walk(start, rest, depth + 1)
     }
 
-    /// What `path`, written in module `m`, reaches where its head is in
-    /// the file: `self::`, `super::`, a child module, or a name an import
-    /// of `m` binds (whose path then stands in for the head). `None`
-    /// where the head is not in the file, or the path leaves it.
-    fn in_file_path(&self, m: usize, path: &[String], depth: usize) -> Option<Bound> {
+    /// The rest of a path, from module `m`: a last segment is a name in
+    /// `m`; a middle one is `self`, `super`, a child module, or an import
+    /// (whose path then stands in).
+    fn walk(&self, m: usize, segs: &[String], depth: usize) -> Option<Target> {
         if depth > FOLLOW_DEPTH {
             return None;
         }
-        let (last, init) = path.split_last()?;
-        if init.is_empty() {
-            return None;
+        let Some((seg, rest)) = segs.split_first() else {
+            return Some(Target::Module(m));
+        };
+        let next = match seg.as_str() {
+            "self" => m,
+            "super" => self.module_of(self.nodes[m].parent?),
+            child => match self.nodes[m].children.get(child) {
+                Some(&c) => c,
+                None if rest.is_empty() => {
+                    return self.in_node(m, child, depth + 1).map(Target::Bound);
+                }
+                None => {
+                    return match self.import_in(m, child, depth + 1)? {
+                        Bound::Use { path: through, .. } => {
+                            let mut whole = through;
+                            whole.extend(rest.iter().cloned());
+                            Some(Target::Bound(Bound::Use {
+                                path: whole,
+                                alias: None,
+                            }))
+                        }
+                        _ => None,
+                    };
+                }
+            },
+        };
+        self.walk(next, rest, depth + 1)
+    }
+
+    /// The followed import of `name` in node `n`'s own declarations (a
+    /// path's head or middle names a module or a type, which only an
+    /// import can bring in by that name).
+    fn import_in(&self, n: usize, name: &str, depth: usize) -> Option<Bound> {
+        let imports: Vec<Bound> = self.nodes[n]
+            .names
+            .get(name)?
+            .iter()
+            .filter(|d| matches!(d.bound, Bound::Use { .. }))
+            .map(|d| self.follow(n, d.bound.clone(), depth + 1, name))
+            .collect();
+        match imports.len() {
+            0 => None,
+            1 => imports.into_iter().next(),
+            _ => Some(Bound::Ambiguous(imports)),
         }
-        let (head, _) = init.split_first()?;
-        if matches!(head.as_str(), "self" | "super") || self.mods[m].children.contains_key(head) {
-            let target = self.module_at(m, init, depth + 1)?;
-            return self.in_mod(target, last, depth + 1);
-        }
-        match self.mods[m].names.get(head) {
-            Some(Bound::Use { path: through, .. }) => {
-                let mut whole = through.clone();
-                whole.extend(path[1..].iter().cloned());
-                Some(
-                    self.in_file_path(m, &whole, depth + 1)
-                        .unwrap_or(Bound::Use {
-                            path: whole,
+    }
+
+    /// A path's head `name`, from node `n` outward to its module: an
+    /// inline module declared in a scope, or an import there (an import
+    /// of an in-file module is that module). The import `skip` names is
+    /// the one being declared, and is passed over.
+    fn head_in_scopes(
+        &self,
+        mut n: usize,
+        name: &str,
+        depth: usize,
+        skip: Option<(usize, &str)>,
+    ) -> Option<Target> {
+        loop {
+            if let Some(&c) = self.nodes[n].children.get(name) {
+                return Some(Target::Module(c));
+            }
+            let imports: Vec<&Vec<String>> = if skip == Some((n, name)) {
+                Vec::new()
+            } else {
+                self.nodes[n]
+                    .names
+                    .get(name)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|d| match &d.bound {
+                        Bound::Use { path, .. } => Some(path),
+                        _ => None,
+                    })
+                    .collect()
+            };
+            let mut found: Vec<Target> = imports
+                .into_iter()
+                .map(
+                    |path| match self.path_from(n, path, depth + 1, Some((n, name))) {
+                        Some(t) => t,
+                        None => Target::Bound(Bound::Use {
+                            path: path.clone(),
                             alias: None,
                         }),
+                    },
                 )
+                .collect();
+            match found.len() {
+                0 => {}
+                1 => return found.pop(),
+                _ => {
+                    return Some(Target::Bound(Bound::Ambiguous(
+                        found
+                            .into_iter()
+                            .filter_map(|t| match t {
+                                Target::Bound(b) => Some(b),
+                                Target::Module(_) => None,
+                            })
+                            .collect(),
+                    )));
+                }
             }
-            _ => None,
+            match (self.nodes[n].module, self.nodes[n].parent) {
+                (false, Some(p)) => n = p,
+                _ => return None,
+            }
         }
     }
 
-    /// One scope's item names and globs, and its `use` leaves recorded:
-    /// `fn`, `const` and `static` items, and each import.
-    fn item_names(&mut self, items: &[syn::Item]) -> (HashMap<String, Bound>, Vec<Vec<String>>) {
-        let mut names = HashMap::new();
+    /// One scope's declarations and globs, and its `use` leaves recorded.
+    fn item_names<'i>(
+        &mut self,
+        items: impl Iterator<Item = &'i syn::Item>,
+    ) -> (HashMap<String, Vec<Decl>>, Vec<Vec<String>>) {
+        let mut names: HashMap<String, Vec<Decl>> = HashMap::new();
         let mut globs = Vec::new();
+        let mut add = |name: String, bound: Bound, cfg: bool| {
+            names.entry(name).or_default().push(Decl { bound, cfg });
+        };
         for item in items {
             match item {
-                syn::Item::Fn(f) => insert_item(&mut names, f.sig.ident.to_string(), Bound::Item),
-                syn::Item::Const(c) => insert_item(&mut names, c.ident.to_string(), Bound::Item),
-                syn::Item::Static(s) => insert_item(&mut names, s.ident.to_string(), Bound::Item),
+                syn::Item::Fn(f) => add(f.sig.ident.to_string(), Bound::Item, has_cfg(&f.attrs)),
+                syn::Item::Const(c) => add(c.ident.to_string(), Bound::Item, has_cfg(&c.attrs)),
+                syn::Item::Static(s) => add(s.ident.to_string(), Bound::Item, has_cfg(&s.attrs)),
                 syn::Item::Use(u) => {
                     let mut leaves = Vec::new();
                     use_leaves(&u.tree, &mut Vec::new(), &mut leaves);
@@ -762,13 +937,13 @@ impl Reader {
                         } else if let Some(name) = alias.clone().or_else(|| path.last().cloned())
                             && name != "_"
                         {
-                            insert_item(
-                                &mut names,
+                            add(
                                 name,
                                 Bound::Use {
                                     path: path.clone(),
                                     alias: alias.clone(),
                                 },
+                                has_cfg(&u.attrs),
                             );
                         }
                         self.out.uses.push(UseLeaf {
@@ -785,14 +960,20 @@ impl Reader {
         (names, globs)
     }
 
-    /// Builds the module of `items` under `parent`, and every inline
-    /// module inside it, before any of it is visited: a path may name a
-    /// module the visit has not reached yet.
-    fn build_mod(&mut self, parent: Option<usize>, items: &[syn::Item]) -> usize {
-        let (names, globs) = self.item_names(items);
-        let index = self.mods.len();
-        self.mods.push(ModNode {
+    /// Builds the scope node of `items` under `parent` (a module, or a
+    /// block), and every inline module inside it, before any of it is
+    /// visited: a path may name a module the visit has not reached yet.
+    fn build_node<'i>(
+        &mut self,
+        parent: Option<usize>,
+        module: bool,
+        items: impl Iterator<Item = &'i syn::Item> + Clone,
+    ) -> usize {
+        let (names, globs) = self.item_names(items.clone());
+        let index = self.nodes.len();
+        self.nodes.push(Node {
             parent,
+            module,
             children: HashMap::new(),
             names,
             globs,
@@ -801,33 +982,14 @@ impl Reader {
             if let syn::Item::Mod(m) = item
                 && let Some((_, inner)) = &m.content
             {
-                let child = self.build_mod(Some(index), inner);
+                let child = self.build_node(Some(index), true, inner.iter());
                 self.mod_at.insert(mod_key(m), child);
-                self.mods[index].children.insert(m.ident.to_string(), child);
+                self.nodes[index]
+                    .children
+                    .insert(m.ident.to_string(), child);
             }
         }
         index
-    }
-
-    /// Declares a block's items on the open frame before the block is
-    /// read (an item is in scope over all of it), and builds the inline
-    /// modules among them.
-    fn declare_items(&mut self, items: &[syn::Item]) {
-        let (names, globs) = self.item_names(items);
-        let here = self.here();
-        for item in items {
-            if let syn::Item::Mod(m) = item
-                && let Some((_, inner)) = &m.content
-            {
-                let child = self.build_mod(Some(here), inner);
-                self.mod_at.insert(mod_key(m), child);
-            }
-        }
-        let top = self.top();
-        for (name, b) in names {
-            insert_item(&mut top.names, name, b);
-        }
-        top.globs.extend(globs);
     }
 
     fn arg(&self, e: &syn::Expr) -> Arg {
@@ -853,28 +1015,13 @@ impl Reader {
         }
     }
 
-    /// What a path of more than one segment reaches from here, where its
-    /// head is in this file: `self::` and `super::` from the innermost
-    /// module, a child module, or a name an import binds in scope.
+    /// What a path of more than one segment reaches from here: the one
+    /// home of a path's head ([`Reader::path_from`]), from the innermost
+    /// scope open.
     fn path_binding(&self, segs: &[String]) -> Option<Bound> {
-        let here = self.here();
-        let head = segs.first()?;
-        if let Some(found) = self.in_file_path(here, segs, 0) {
-            return Some(found);
-        }
-        if matches!(head.as_str(), "self" | "super") {
-            return None;
-        }
-        match self.lookup(head) {
-            Some(Bound::Use { path, .. }) => {
-                let mut whole = path;
-                whole.extend(segs[1..].iter().cloned());
-                Some(Bound::Use {
-                    path: whole,
-                    alias: None,
-                })
-            }
-            _ => None,
+        match self.path_from(self.current(), segs, 0, None)? {
+            Target::Bound(b) => Some(b),
+            Target::Module(_) => None,
         }
     }
 
@@ -1086,11 +1233,11 @@ impl<'ast> Visit<'ast> for Reader {
         let index = match self.mod_at.get(&mod_key(m)) {
             Some(&i) => i,
             None => {
-                let parent = self.here();
-                self.build_mod(Some(parent), items)
+                let parent = self.current();
+                self.build_node(Some(parent), true, items.iter())
             }
         };
-        self.frames.push(Frame::module(index));
+        self.frames.push(Frame::scope(Kind::Module, Some(index)));
         for item in items {
             self.visit_item(item);
         }
@@ -1100,7 +1247,7 @@ impl<'ast> Visit<'ast> for Reader {
     }
 
     fn visit_item_use(&mut self, _: &'ast syn::ItemUse) {
-        // Declared with its scope's items (`declare_items`).
+        // Declared with its scope's items (`build_node`).
     }
 
     fn visit_item_type(&mut self, t: &'ast syn::ItemType) {
@@ -1124,16 +1271,26 @@ impl<'ast> Visit<'ast> for Reader {
     }
 
     fn visit_block(&mut self, b: &'ast syn::Block) {
-        self.frames.push(Frame::new(Kind::Block));
-        let items: Vec<syn::Item> = b
-            .stmts
-            .iter()
-            .filter_map(|s| match s {
-                syn::Stmt::Item(i) => Some(i.clone()),
-                _ => None,
-            })
-            .collect();
-        self.declare_items(&items);
+        let items = b.stmts.iter().filter_map(|s| match s {
+            syn::Stmt::Item(i) => Some(i),
+            _ => None,
+        });
+        let node = if items.clone().any(|i| {
+            matches!(
+                i,
+                syn::Item::Fn(_)
+                    | syn::Item::Const(_)
+                    | syn::Item::Static(_)
+                    | syn::Item::Use(_)
+                    | syn::Item::Mod(_)
+            )
+        }) {
+            let parent = self.current();
+            Some(self.build_node(Some(parent), false, items))
+        } else {
+            None
+        };
+        self.frames.push(Frame::scope(Kind::Block, node));
         for stmt in &b.stmts {
             match stmt {
                 syn::Stmt::Local(l) => {
