@@ -3463,10 +3463,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         } => chart_speed_reason(*r),
         // An incidence refusal, decided or escalated, reads its reason
         // off the one table, by what was read.
-        _ if let Some(read) = e.incidence_read() => incidence_reason(read),
-        CertifyError::CarrierOffChart { .. } => {
-            unreachable!("a carrier off its chart carries its incidence read")
-        }
+        CertifyError::Incidence(refusal) => incidence_reason(refusal.read()),
         CertifyError::NoGeneralLane { .. } => {
             "it is on its face but is none of the face's own curves, and the kernel cannot yet \
              write where such a curve sits on that face"
@@ -3633,7 +3630,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::NoGeneralLane { .. }
-            | CertifyError::CarrierOffChart { .. }
+            | CertifyError::Incidence(_)
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
@@ -3985,7 +3982,7 @@ const CLOSE: &str = geom_core::undecided!("the boundary");
 /// **Why an incidence refusal refused at rest, by what was read**
 /// ([`geom_brep::IncidenceRead`]): one reason per read, the one table an
 /// edge's certification (`classify_certify`) and a face boundary's row
-/// (`off_face_ending`) both read. A definite miss is a stored
+/// (`incidence_ending`) both read. A definite miss is a stored
 /// contradiction; a read in band, not decided off, is not called a miss.
 pub(crate) mod incidence_reasons {
     /// Decided off its face.
@@ -4008,20 +4005,16 @@ fn incidence_reason(read: geom_brep::IncidenceRead) -> &'static str {
     }
 }
 
-/// **A boundary curve not shown on its face, at rest** (D3): a
-/// carrier-off-chart refusal or an undecided incidence reading
-/// ([`geom_brep::IncidenceRead::of`]) takes its reason from the one table
+/// **A boundary curve not shown on its face, at rest** (D3): an
+/// incidence refusal takes its reason from the one table
 /// ([`incidence_reason`]) and its ending from the one map
 /// ([`geom_brep::IncidenceRead::ending`]), which the build-time render
-/// reads too. `None` for any other refusal.
-fn off_face_ending(
-    error: &geom_brep::PcurveCertifyError,
-) -> Option<(&'static str, Cow<'static, str>)> {
-    let read = geom_brep::IncidenceRead::of(error)?;
-    Some((
+/// reads too.
+fn incidence_ending(read: geom_brep::IncidenceRead) -> (&'static str, Cow<'static, str>) {
+    (
         incidence_reason(read),
         Cow::Owned(read.ending(Reading::AtRest)),
-    ))
+    )
 }
 
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
@@ -4064,9 +4057,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             crate::pcurves::PLACEHOLDER_RECOURSE,
         ),
         M::Certify { error, .. } => {
-            if let Some(ending) = off_face_ending(error) {
-                return ending;
-            }
             // Why it refused, worded for a body at rest; its ending is the
             // refusal's own at rest (`PcurveCertifyError::ending`).
             let why = match error {
@@ -4088,7 +4078,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                      to be stored"
                 }
                 C::CarrierEnclosure(_) => CARRIER_ENCLOSURE,
-                C::CarrierOffChart { .. } => unreachable!("`off_face_ending` ends it"),
+                C::Incidence(refusal) => return incidence_ending(refusal.read()),
                 // Its reason follows the decision it ends by.
                 C::FittedCertificate { ending, .. } => match ending {
                     FittedEnding::NotYet => KIND,
@@ -7790,9 +7780,11 @@ pub(crate) fn tier3_local_checks_marked<
                 let Some(&point) = body.points.get(vertex_data.point) else {
                     continue;
                 };
-                match geom_brep::read_point_incidence(point, plane, band) {
+                match geom_brep::read_point_incidence(point, plane, band)
+                    .map_err(|e| geom_brep::IncidenceRead::of(&e))
+                {
                     Ok(()) => {}
-                    Err(geom_brep::PcurveCertifyError::Escalated { cause, .. }) => {
+                    Err(Some(geom_brep::IncidenceRead::Undecided(cause))) => {
                         errors.push(ValidationError::PlanarFaceEscalated {
                             face: face_key,
                             vertex,
@@ -7940,9 +7932,11 @@ pub(crate) fn tier3_local_checks_marked<
             let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(surface_key) else {
                 continue;
             };
-            match geom_brep::read_edge_incidence(curve.carrier(), t0, t1, plane, band) {
+            match geom_brep::read_edge_incidence(curve.carrier(), t0, t1, plane, band)
+                .map_err(|e| geom_brep::IncidenceRead::of(&e))
+            {
                 Ok(()) => {}
-                Err(geom_brep::PcurveCertifyError::Escalated { cause, .. }) => {
+                Err(Some(geom_brep::IncidenceRead::Undecided(cause))) => {
                     errors.push(ValidationError::PlanarBoundaryEscalated {
                         face: face_key,
                         edge: edge_key,
@@ -12901,7 +12895,7 @@ mod tests {
     }
 
     /// **A boundary row not shown on its face ends by the door, and a read
-    /// in band by its lever** (D3, D4 ¶1 (iv)): `off_face_ending` at rest,
+    /// in band by its lever** (D3, D4 ¶1 (iv)): `incidence_ending` at rest,
     /// and the finding's own build-door text. A boundary decided off its
     /// face is a stored contradiction at rest (the kernel-or-file ending)
     /// and the kernel's defect at a build; one read in band, at a
@@ -12911,32 +12905,31 @@ mod tests {
     #[test]
     fn a_boundary_curve_off_its_face_ends_by_the_door_and_in_band_by_its_lever() {
         use crate::pcurves::PcurveMintError as M;
-        use geom_brep::{PcurveCertifyError as C, PcurveCheck};
+        use geom_brep::PcurveCertifyError as C;
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let off = C::CarrierOffChart {
-            chart: geom::SurfaceKind::Sphere,
-            carrier: geom::CurveKind::Line,
-            why: "the line's points are not on the chart (its distance from the chart is past the band somewhere in its span)",
-            margin: None,
-        };
-        let undecided = C::Escalated {
-            check: PcurveCheck::ChartIncidence,
-            sample: 0,
-            cause: Indeterminate {
+        let off = C::Incidence(geom_brep::IncidenceRefusal::off_chart(
+            geom::SurfaceKind::Sphere,
+            geom::CurveKind::Line,
+            "the line's points are not on the chart (its distance from the chart is past the band somewhere in its span)",
+            None,
+        ));
+        let undecided = C::Incidence(geom_brep::IncidenceRefusal::undecided(
+            0,
+            Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band,
                 predicate: Some("pcurve_sphere_chart_incident"),
                 terminal_sliver: false,
             },
-        };
-        let at_pose = C::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            carrier: geom::CurveKind::Line,
-            why: "the line is not shown off the plane through the apex",
-            margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+        ));
+        let at_pose = C::Incidence(geom_brep::IncidenceRefusal::off_chart(
+            geom::SurfaceKind::Cone,
+            geom::CurveKind::Line,
+            "the line is not shown off the plane through the apex",
+            Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
                 4e-10,
             ))),
-        };
+        ));
         // (refusal, its reason at rest, the lever of a read in band)
         for (error, reason, lever) in [
             (off, incidence_reasons::OFF, None),
@@ -13018,14 +13011,16 @@ mod tests {
     /// its lever. A read in band never ends in a defect.
     #[test]
     fn an_edge_certificate_at_rest_reads_its_incidence() {
-        use geom_brep::{CertCheck, OffMargin};
+        use geom_brep::OffMargin;
         use geom_core::MarginDiag;
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let off = |margin| CertifyError::CarrierOffChart {
-            chart: geom::SurfaceKind::Cone,
-            carrier: geom::CurveKind::Circle,
-            why: "WHY",
-            margin,
+        let off = |margin| {
+            CertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
+                margin,
+            ))
         };
         let rows = [
             (off(None), incidence_reasons::OFF, None),
@@ -13040,16 +13035,15 @@ mod tests {
                 Some(geom_brep::recourse::INCIDENCE_AT_POSE.lever),
             ),
             (
-                CertifyError::Escalated {
-                    check: CertCheck::ChartIncidence,
-                    sample: 0,
-                    cause: Indeterminate {
+                CertifyError::Incidence(geom_brep::IncidenceRefusal::undecided(
+                    0,
+                    Indeterminate {
                         margin: MarginDiag::value(5e-9),
                         band,
                         predicate: Some("pcurve_sphere_chart_incident"),
                         terminal_sliver: false,
                     },
-                },
+                )),
                 incidence_reasons::UNSHOWN,
                 Some(geom_brep::recourse::INCIDENCE_UNSHOWN.lever),
             ),
