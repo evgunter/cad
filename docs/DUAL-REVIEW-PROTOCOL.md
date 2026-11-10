@@ -179,7 +179,9 @@ under.
   separately.
 - **Fable 5.2 era (2026-11-09).** The reviewers are unaffected (Opus
   5.5 throughout), but from 2026-11-10 a reviewed unit's implementer
-  is drawn Opus 5.5 or Fable 5.2 by `docs/IMPL-MODEL-PROTOCOL.md`,
+  is drawn Opus 5.5 or Fable 5.2 by `docs/MODEL-COMPARE-PROTOCOL.md`,
   where every earlier unit was Opus-implemented. A readout reports
   units by implementer model and version, and keeps Fable-implemented
-  units apart from the Opus-implemented record before them.
+  units apart from the Opus-implemented record before them. That
+  protocol draws the REVIEWER's model only for single-review units;
+  a dual's two reviewers stay Opus under this protocol.

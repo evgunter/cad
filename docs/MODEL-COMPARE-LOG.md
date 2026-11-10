@@ -1,21 +1,24 @@
-# Implementer model comparison — experiment log
+# Model comparison — experiment log
 
 **This is process data (an experiment log), not a design
 reference** — nothing here binds kernel design; it moves out of
 `docs/` when the experiment concludes.
 
 Standing experiment (Ev, in-chat, 2026-11-10). **The protocol in
-force lives in `docs/IMPL-MODEL-PROTOCOL.md`.** Each row is one file,
-`docs/impl-model-log/rows/PR-<n>.md`, naming the protocol it was
+force lives in `docs/MODEL-COMPARE-PROTOCOL.md`.** Each row is one file,
+`docs/model-compare-log/rows/PR-<n>.md`, naming the protocol it was
 recorded under by commit hash, so `git show
-<hash>:docs/IMPL-MODEL-PROTOCOL.md` reads that version. This file
+<hash>:docs/MODEL-COMPARE-PROTOCOL.md` reads that version. This file
 holds the dated entries: opening, instrument notes, protocol changes,
 readouts' rulings and the close.
 
 ## Entries
 
 - **Opened (Ev, in-chat, 2026-11-10).** Opus vs Fable implementers,
-  compared on quality, time and token cost. Successor to the model
+  compared on quality, time and token cost; widened the same day,
+  before any row, to Opus vs Fable reviewers too (single-review
+  units draw the reviewer's model independently of the
+  implementer's). Successor to the model
   A/B (suspended 2026-09-23, concluded the same day as this opened;
   `docs/doc-ledger/model-ab-experiment-concludes.md`), not a
   continuation of it: its rows are not pooled with these.

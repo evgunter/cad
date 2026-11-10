@@ -30,11 +30,12 @@ Both leave `docs/` when the experiment concludes.
   What the Opus and Fable designers (and, on a drawn third of forks,
   a second Opus) recommended, and what Ev then decided; every
   design fork put to Ev is a row.
-- **Implementer model comparison** — `docs/IMPL-MODEL-PROTOCOL.md`
-  (**read it before dispatching an implementer**) and
-  `docs/IMPL-MODEL-LOG.md`. Opus vs Fable implementers on quality,
-  time and token cost; every unit sent to a single or dual review
-  draws its implementer's model, and is a row.
+- **Model comparison** — `docs/MODEL-COMPARE-PROTOCOL.md` (**read it
+  before dispatching an implementer or a reviewer**) and
+  `docs/MODEL-COMPARE-LOG.md`. Opus vs Fable as implementers and as
+  reviewers, on quality, time and token cost; every unit sent to a
+  single or dual review draws its implementer's model, a single
+  review draws its reviewer's, and the unit is a row.
 
 **What binds under any experiment:**
 

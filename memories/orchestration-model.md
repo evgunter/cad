@@ -24,17 +24,18 @@ standing rules:
   switching.
 - The protocol of each experiment it has in flight
   (`docs/DUAL-REVIEW-PROTOCOL.md`, `docs/DESIGN-FORK-PROTOCOL.md`,
-  `docs/IMPL-MODEL-PROTOCOL.md`).
+  `docs/MODEL-COMPARE-PROTOCOL.md`).
 
 Ev's standing instructions for implementation work:
 
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
   delegated to subagents, which may spawn their own. Every phase —
-  reviewers, and the design, specs and rulings — runs on Opus (Ev,
-  2026-09-23), except the Fable half of the designer pair (below)
-  and the implementer of a reviewed unit, whose model is drawn by
-  `docs/IMPL-MODEL-PROTOCOL.md` (Ev, 2026-11-10).
+  dual reviewers, and the design, specs and rulings — runs on Opus
+  (Ev, 2026-09-23), except the Fable half of the designer pair
+  (below), and the implementer of a reviewed unit and a single
+  review, whose models are drawn by `docs/MODEL-COMPARE-PROTOCOL.md`
+  (Ev, 2026-11-10).
 - **Review tiers — the orchestrator's call per unit, at spec time**
   (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
   the unit's item file names the tier and its one-line reason at
@@ -42,7 +43,8 @@ Ev's standing instructions for implementation work:
   - **Orchestrator's read**: a mechanical change, where neither
     correctness nor style is meaningfully at risk, merges on green CI
     and the orchestrator's own read — no review lane.
-  - **Single review** (the default): one Opus reviewer. A STYLE review
+  - **Single review** (the default): one reviewer, its model drawn
+    by the model comparison. A STYLE review
     (`docs/prompts/reviewer-style-lane.md`), or a FULL review — claims
     to falsify alongside the style questions — where the unit carries
     a meaningful chance of correctness bugs. That is a feel for the

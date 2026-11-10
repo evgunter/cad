@@ -2,7 +2,8 @@
 
 The Opus 5 vs Fable 5.x implementation A/B (opened 2026-07-25,
 suspended 2026-09-23) was concluded by Ev on 2026-11-10, when the
-implementer model comparison (`docs/IMPL-MODEL-PROTOCOL.md`) succeeded
+model comparison (`docs/MODEL-COMPARE-PROTOCOL.md`, implementers and
+reviewers) succeeded
 it on the current models. Its one file, `docs/MODEL-AB-LOG.md` — the
 protocol as amendment history (v1–v7, the suspension and the release
 instrument notes), the block and band records and every row — is
@@ -16,7 +17,7 @@ What survives elsewhere:
 - its review instrument (correspondence coding, pre-registered
   adjudication, blinded coding, lane isolation, the fair-pair rule)
   lives on in `docs/DUAL-REVIEW-PROTOCOL.md`; its blinding, per-phase
-  recording and fair-row rules in `docs/IMPL-MODEL-PROTOCOL.md`;
+  recording and fair-row rules in `docs/MODEL-COMPARE-PROTOCOL.md`;
 - the `ab_band` field in older programs' `program.md` names a band
   of the log's ordinals; it is historical and claims nothing now.
 
