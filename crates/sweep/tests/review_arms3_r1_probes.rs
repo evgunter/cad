@@ -338,8 +338,10 @@ fn an_oversized_ball_on_the_lentil_refuses_typed() {
 fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     use sweep::blend::arms::{Branch, Meridian, SupportTrace, sheet_center};
     let sheet = Meridian {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
+        axis: geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        },
         rim: Point3::new(0.8, 0.0, 0.0),
     };
     let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {

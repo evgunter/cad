@@ -1094,15 +1094,14 @@ fn rim_piece<T: Decide + Bounds>(
     vertex: VertexKey,
     foot: Point3<T>,
 ) -> Result<Piece<'_, T>, BlendError> {
-    let he_plus = body
-        .get_edge(rim)
-        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?
-        .he_plus;
+    let (start, end) = body
+        .edge_vertices(rim)
+        .ok_or_else(|| unresolved(EntityId::Edge(rim), "an end face's rim"))?;
     let (carrier, (t0, t1)) = stored_piece(body, rim)?;
     let t = foot_param(body, rim, vertex, foot)?;
-    if body.get_half_edge(he_plus).map(|h| h.start) == Some(vertex) {
+    if start == vertex {
         Ok((carrier, (t0, t)))
-    } else if body.half_edge_end(he_plus) == Some(vertex) {
+    } else if end == vertex {
         Ok((carrier, (t, t1)))
     } else {
         Err(disagrees(

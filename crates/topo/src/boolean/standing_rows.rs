@@ -281,10 +281,7 @@ fn each_class_and_each_delegate_reads_as_its_doc_states() {
         };
         let text = in_face(super::slit::EdgeInFaceGap::DegenerateTorus(torus))
             .render(geom_brep::recourse::Reading::Build);
-        let lever = torus.convention.sized().recourse(
-            verdict.arm(),
-            geom_brep::recourse::ReadAt::from(geom_brep::recourse::Reading::Build),
-        );
+        let lever = torus.recourse(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(torus.convention.refused("a torus face's", verdict).as_str())
                 && text.ends_with(lever.as_str())
@@ -495,10 +492,8 @@ fn an_aborted_normal_is_answered_by_its_row() {
             "an invalid input: {input:?}"
         );
         let text = input.render(geom_brep::recourse::Reading::Build);
-        let lever = convention.sized().recourse(
-            verdict.arm(),
-            geom_brep::recourse::ReadAt::from(geom_brep::recourse::Reading::Build),
-        );
+        let lever = geom_brep::TorusRefusal::decided(convention, verdict)
+            .recourse(geom_brep::recourse::Reading::Build);
         assert!(
             text.ends_with(lever.as_str()),
             "{convention:?} ends on its own lever: {text}"
@@ -550,7 +545,11 @@ fn a_line_wedge_on_an_invalid_torus_ends_on_its_half() {
         .render(geom_brep::recourse::Reading::Build);
         assert!(
             text.contains(convention.refused("its", verdict).as_str())
-                && text.ends_with(convention.sized().recourse(verdict.arm(), at).as_str())
+                && text.ends_with(
+                    geom_brep::TorusRefusal::decided(convention, verdict)
+                        .recourse(at)
+                        .as_str(),
+                )
                 && !text.contains(geom_core::KERNEL_DEFECT_ENDING),
             "{convention:?}: {text}"
         );
