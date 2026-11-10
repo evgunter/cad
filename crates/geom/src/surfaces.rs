@@ -604,7 +604,10 @@ pub struct RingTorus<T> {
 
 /// **The site names one reader decides the ring convention under**, one
 /// per half, so a refusal and its `k_stats` stream name the reading that
-/// met them ([`RingTorus::of_at`]).
+/// met them ([`RingTorus::of_at`]). Minted only by its reader
+/// ([`RingReader::sites`]), so no two readers share a name: the roster
+/// of every reader's rows is one const, checked distinct when this crate
+/// compiles (`reader_rows`, in this crate's root).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RingSites {
     tube: &'static str,
@@ -616,13 +619,14 @@ impl RingSites {
     pub const CONVENTION: Self = Self::new("torus_tube_positive", "ring_torus_convention");
 
     /// The rows for the tube half (`r`) and the ring half (`R − r`).
+    /// Private: a reader names its rows at [`RingReader::sites`].
     ///
     /// # Panics
     ///
     /// Where the two names are equal: each names its own margin. In a
     /// `const` item the panic is a compile error.
     #[must_use]
-    pub const fn new(tube: &'static str, ring: &'static str) -> Self {
+    pub(crate) const fn new(tube: &'static str, ring: &'static str) -> Self {
         assert!(
             !crate::str_eq(tube, ring),
             "the ring convention's two halves need two names"
@@ -640,6 +644,51 @@ impl RingSites {
     #[must_use]
     pub const fn tube(self) -> &'static str {
         self.tube
+    }
+}
+
+/// **Every reader of the ring convention**, each with its own rows
+/// ([`Self::sites`]): a new reader is a variant here, which the roster
+/// (`reader_rows`, in this crate's root) reads off this enum, so its names are
+/// checked against every other reader's when this crate compiles.
+///
+/// **This enum is the registry of who reads the convention.** It spells
+/// its callers' row names, `topo`'s and `geom-brep`'s, as strings only:
+/// those names are global to the `k_stats` stream and the ledger
+/// (`docs/predicate-dimension-audit.md`) already, and this crate depends
+/// on nothing of its callers to hold them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::VariantArray)]
+pub enum RingReader {
+    /// The convention's own rows ([`torus_tube`], [`ring_torus`]), which
+    /// tier 3, the pierce normal and the plane×torus section read.
+    Convention,
+    /// `topo`'s self-intersection engine, deciding a torus face
+    /// injective by its kind.
+    SelfIntersection,
+    /// The Boolean's spline-sheet reduction, deciding a torus carrier a
+    /// ring before reading a sheet off it.
+    BooleanSheet,
+    /// The Boolean's rider, deciding a torus face a ring before reading
+    /// an edge's carrier on it.
+    BooleanRider,
+}
+
+impl RingReader {
+    /// The reader's rows, its tube half's and then its ring half's.
+    #[must_use]
+    pub const fn sites(self) -> RingSites {
+        match self {
+            Self::Convention => RingSites::CONVENTION,
+            Self::SelfIntersection => RingSites::new(
+                "self_intersection_torus_tube",
+                "self_intersection_ring_torus",
+            ),
+            Self::BooleanSheet => RingSites::new(
+                "bool_spline_sheet_torus_tube",
+                "bool_spline_sheet_ring_torus",
+            ),
+            Self::BooleanRider => RingSites::new("bool_rider_torus_tube", "bool_rider_ring_torus"),
+        }
     }
 }
 

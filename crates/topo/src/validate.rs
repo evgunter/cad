@@ -595,7 +595,7 @@ pub(crate) fn decide_nonzero<T: Decide>(
     name: &'static str,
     margin: Margin<T>,
     band: Band,
-) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
+) -> Result<geom_core::NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
@@ -4140,10 +4140,7 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
             "a face the check asked about does not resolve in the body".into(),
             DEFECT.into(),
         ),
-        ContainError::EmptyLoop(_) => (
-            "a loop of its boundary is a lone vertex, which bounds no region".into(),
-            DEFECT.into(),
-        ),
+        ContainError::EmptyLoop(_) => (LONE_LOOP.into(), DEFECT.into()),
         ContainError::LoopUnreadable(_) => (UNWALKABLE.into(), DEFECT.into()),
         ContainError::Curved(e) => classify_point_in_solid(e),
         ContainError::Uncrossable(u) => (uncrossable(u), NOT_YET_ENDING.into()),
@@ -4176,6 +4173,8 @@ fn arc_end_clear_of_corners(
 }
 
 const UNWALKABLE: &str = "its boundary could not be walked";
+
+const LONE_LOOP: &str = "a loop of its boundary is a lone vertex, which bounds no region";
 
 /// No ray parity cast settled — each grazed or gave nothing to read —
 /// for a point a pre-pass had already placed off the boundary.
@@ -4248,6 +4247,7 @@ pub(crate) fn classify_point_in_solid(
             (GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
+        S::Loop(L::LoneLoop { .. }) => (LONE_LOOP.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
             (uncrossable(u), NOT_YET_ENDING.into())
         }
@@ -6041,9 +6041,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     ([`ValidationError::SolidOuterShells`] for two or more), and the
 ///     solid's shells bound winding number 0 or 1 everywhere — an
 ///     `Outer` shell adds `+1` inside itself, a `Void` `-1` inside its
-///     cavity — decided at one vertex of each shell (the first that
-///     touches no other shell) from the other shells' point-in-solid
-///     answers ([`ValidationError::ShellWinding`]). An ordinary cavity
+///     cavity — read at every witness of each shell that touches no
+///     other shell, from the other shells' point-in-solid answers, so a
+///     shell crossing another stands at a wrong winding somewhere
+///     ([`ValidationError::ShellWinding`]). An ordinary cavity
 ///     passes; a `Void` outside the `Outer` and a `Void` inside a `Void`
 ///     refuse. Silent where the walk or a shell's sign cannot answer
 ///     (the list below).
@@ -6721,10 +6722,15 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// the `Outer` (`-1` in its cavity), or a `Void` inside another `Void`
 /// (`-1`). Check 7's per-solid total is positive on both.
 ///
-/// **One decisive witness per shell, under the no-crossing premise**
-/// ([`crate::stands::witness_insides`], the witness ladder): the winding
-/// the OTHER shells put on shell `s` is `Σ ±[s inside t]` over them,
-/// which must be `0` if `s` is `Outer` and `1` if `s` is a `Void`.
+/// **Every witness of each shell** ([`crate::stands::witness_insides_everywhere`],
+/// the witness ladder read at every witness): the winding the OTHER
+/// shells put on shell `s` is `Σ ±[s inside t]` over them, which must be
+/// `0` if `s` is `Outer` and `1` if `s` is a `Void`. No check before this
+/// one establishes that shells do not cross (the embedding certificate
+/// is not built), so no one witness is taken for the shell: where two
+/// read different insides, the shell crosses another, and one of them
+/// stands at a wrong winding (behind one `Outer`, only one set of
+/// insides winds what a role requires), which is the finding.
 ///
 /// **A shell whose role does not read refuses the solid**
 /// ([`ValidationError::ShellRoleUndecided`], naming the shell's
@@ -6755,7 +6761,7 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Vec<ValidationError> {
     use crate::props::ShellRole;
-    use crate::stands::{Insides, ShellRead, witness_insides};
+    use crate::stands::{EveryInside, ShellRead, witness_insides_everywhere};
 
     let mut errors = Vec::new();
     for (solid, record) in body.solids.iter() {
@@ -6780,31 +6786,45 @@ fn shell_winding_errors<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         for (i, read) in reads.iter().enumerate() {
-            let Insides::Read(inside) = witness_insides(body, i, &reads, &|_| true, band, tol)
-            else {
-                continue;
+            let winding = |inside: &[bool]| -> i32 {
+                reads
+                    .iter()
+                    .zip(inside)
+                    .filter(|(_, inside)| **inside)
+                    .map(|(t, _)| match t.role {
+                        ShellRole::Outer => 1,
+                        ShellRole::Void => -1,
+                    })
+                    .sum()
             };
-            let winding: i32 = reads
-                .iter()
-                .zip(&inside)
-                .filter(|(_, inside)| **inside)
-                .map(|(t, _)| match t.role {
-                    ShellRole::Outer => 1,
-                    ShellRole::Void => -1,
-                })
-                .sum();
             // The winding the shell's own contribution puts just across
             // it, and the one place its role is read.
-            let (required, bounded) = match read.role {
-                ShellRole::Outer => (0, winding + 1),
-                ShellRole::Void => (1, winding - 1),
+            let (required, own) = match read.role {
+                ShellRole::Outer => (0, 1),
+                ShellRole::Void => (1, -1),
             };
-            if winding != required {
+            // A shell whose witnesses read different insides crosses
+            // another, and stands at a wrong winding at one of them: one
+            // `Outer` at most, so only one set of insides winds what the
+            // role requires.
+            let read_at = match witness_insides_everywhere(body, i, &reads, band, tol) {
+                EveryInside::Read(inside) => winding(&inside),
+                EveryInside::Crosses(first, other) => {
+                    let first = winding(&first);
+                    if first == required {
+                        winding(&other)
+                    } else {
+                        first
+                    }
+                }
+                EveryInside::Unread => continue,
+            };
+            if read_at != required {
                 errors.push(ValidationError::ShellWinding {
                     solid,
                     shell: read.shell,
-                    winding,
-                    bounded,
+                    winding: read_at,
+                    bounded: read_at + own,
                 });
             }
         }
@@ -10052,111 +10072,20 @@ fn meet_at<T: Decide>(
     open.map_or(EdgePair::Apart, EdgePair::Unsure)
 }
 
-/// Check 9's rows for [`arc_trim`].
-const RING_OUTER_ARC_TRIM: ArcTrimRows = ArcTrimRows {
-    end: "ring_outer_arc_end",
-    trim: "ring_outer_arc_trim",
-};
-
-/// Check 9's two rows for [`arc_trim`].
-struct ArcTrimRows {
-    /// A point's distance to either end of the arc.
-    end: &'static str,
-    /// The two-term chordal margin: which side of the ends.
-    trim: &'static str,
-}
-
-/// **Whether `p`, a point on a circle, lies inside the arc of it whose
-/// ends are `ends` and whose apex is `apex`** (`anti` the apex's
-/// antipode) — decided as DISTANCES, never as an angle, and the one
-/// home of that rule, beside its one consumer, check 9 (a ray's crossing of
-/// a loop's arc is the plane door's, placed on the arc's span there:
-/// `containment::conic_crossings`). The points are in metres, so every
-/// length is a margin as it stands.
-///
-/// 1. **At an end**: `p` within the band of either end, measured as
-///    `|p − end|`, answers `Zero`. That is the ONLY way an endpoint
-///    neighbourhood counts: an angular window compresses arc length
-///    near an end by `sin(w/2)`, so on a short arc (and by `sin` of the
-///    complement on a near-full one) its `Zero` reaches `ε / sin(w/2)`
-///    along the carrier, a hundred times `ε` at `w = 0.02`.
-/// 2. **Otherwise, which side of the ends**: the sum of two chordal
-///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
-///    is an end, `m` the apex and `m′` its antipode. Chord length is
-///    monotone in angular distance up to a half turn, so each term is
-///    positive exactly on the arc; near an end they move as `cos(w/4)`
-///    and `sin(w/4)` times the arc length, whose sum is at least 1, so
-///    the margin is never compressed below the distance it measures —
-///    on a short arc, a near-full one, or a whole circle (where `m′` is
-///    the end and every point is inside). Its `Zero` is therefore within
-///    the band of an end, which step 1 has already answered.
-///
-/// `Positive` inside, `Negative` past an end, `Zero` at an end or in
-/// the trim's band.
-///
-/// **A DECIDED membership, and so not
-/// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
-/// the one place that says why, for this trim. That door answers "may hold" wherever
-/// exclusion is unproved, which is the sound answer for a caller
-/// selecting between two bounds that each hold either way. A decided
-/// membership has no such free answer: an uncertain one escalates, and
-/// its band is a length — measured along the carrier here, levered by
-/// the radius there — never a bare angle.
-///
-/// # Errors
-///
-/// An in-band end distance with neither end definitely `Zero`, or an
-/// in-band trim margin.
-fn arc_trim<T: Decide>(
-    p: geom_core::Point3<T>,
-    ends: [geom_core::Point3<T>; 2],
-    apex: geom_core::Point3<T>,
-    anti: geom_core::Point3<T>,
-    rows: &ArcTrimRows,
-    band: Band,
-) -> Result<Sign, Indeterminate> {
-    let [a, b] = ends;
-    let at = [
-        decide(rows.end, Margin::of((p - a).norm()), band),
-        decide(rows.end, Margin::of((p - b).norm()), band),
-    ];
-    if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
-        return Ok(Sign::Zero);
-    }
-    if let Some(diag) = at.into_iter().find_map(Result::err) {
-        return Err(diag);
-    }
-    decide(
-        rows.trim,
-        Margin::of(arc_trim_margin(p, a, apex, anti)),
-        band,
-    )
-}
-
-/// [`arc_trim`]'s step 2, the sum of two chordal defects,
-/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`: positive on the arc,
-/// and never compressed below the angle to the nearer end.
-fn arc_trim_margin<T: Decide>(
-    p: geom_core::Point3<T>,
-    a: geom_core::Point3<T>,
-    apex: geom_core::Point3<T>,
-    anti: geom_core::Point3<T>,
-) -> T {
-    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
-}
-
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
 /// an end included, since arm 5 runs only once no vertex arm has
 /// spoken ([`ring_outer_meeting`]).
 ///
 /// A line's trim is its two signed spans from its ends, each a length
-/// at unit speed. An arc's is decided as DISTANCES, never through the
-/// radial band: `p` is a point on the carrier (or a candidate whose
-/// distance from it the caller has already decided), so its distance
-/// from the circle says nothing about the trim, and deciding it first
-/// let an in-band radius escalate a point half a turn away from the
-/// arc. The rule, and why its margin never compresses near an end, is
-/// [`arc_trim`]'s; an end's neighbourhood reads inside.
+/// at unit speed. An arc's is the span's own reading of where a point
+/// sits against its ends ([`geom_brep::curve_pair::Span::place`]): an
+/// end by the point's chord to it, otherwise the side of each end by the
+/// foot's parameter in metres. It decides no carrier membership: `p` is
+/// a point on the carrier (or a candidate whose distance from it the
+/// caller has already decided), so its distance from the circle says
+/// nothing about the trim, and deciding it first let an in-band radius
+/// escalate a point half a turn away from the arc. An end's
+/// neighbourhood reads inside.
 fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
     match segment {
         MeetSegment::Line { a, b } => {
@@ -10194,18 +10123,15 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 },
                 radius,
             });
-            let mid = geom::mid_param(t0, t1);
-            match arc_trim(
-                p,
-                [carrier.eval(t0), carrier.eval(t1)],
-                carrier.eval(mid),
-                carrier.eval(mid + T::pi()),
-                &RING_OUTER_ARC_TRIM,
-                band,
-            ) {
-                Ok(Sign::Positive | Sign::Zero) => Window::In,
-                Ok(Sign::Negative) => Window::Out,
-                Err(source) => Window::Unsure(source),
+            let span = geom_brep::curve_pair::Span::new(&carrier, (t0, t1));
+            match span.place(p, geom::mid_param(t0, t1), band) {
+                Ok(geom_brep::curve_pair::Place::Inside | geom_brep::curve_pair::Place::End(_)) => {
+                    Window::In
+                }
+                Ok(geom_brep::curve_pair::Place::Past) => Window::Out,
+                Err(refusal) => Window::Unsure(refusal.escalation().unwrap_or_else(|_| {
+                    unreachable!("a circle's foot is its nearest point: its place walks nothing")
+                })),
             }
         }
     }
@@ -10373,13 +10299,13 @@ fn ring_nesting<T: Decide>(
     // contact half's question, not this one.
     match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
         let Some(rp) = vertex_point(body, rv) else {
-            return geom_brep::ladder::Rung::Passes;
+            return Ok(None);
         };
         match crate::splitting::containment::point_in_loop(body, outer, normal, rp, band) {
-            Ok(crate::splitting::LoopContainment::In) => geom_brep::ladder::Rung::Answers(true),
-            Ok(crate::splitting::LoopContainment::Out) => geom_brep::ladder::Rung::Answers(false),
-            Ok(crate::splitting::LoopContainment::OnBoundary) => geom_brep::ladder::Rung::Passes,
-            Err(source) => geom_brep::ladder::Rung::InBand(ContainError::from(source)),
+            Ok(crate::splitting::LoopContainment::In) => Ok(Some(true)),
+            Ok(crate::splitting::LoopContainment::Out) => Ok(Some(false)),
+            Ok(crate::splitting::LoopContainment::OnBoundary) => Ok(None),
+            Err(source) => Err(geom_brep::ladder::Kept::InBand(ContainError::from(source))),
         }
     }) {
         crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::Unplaced => {
@@ -16821,6 +16747,56 @@ mod tests {
             u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
             t0: from.to_radians(),
             t1: to.to_radians(),
+        }
+    }
+
+    /// **An arc's window reads a point off its circle at the point's
+    /// foot** (`work/restfront/check-9-reads-an-internal-tangencys-trims-at-the-radical-foot.md`).
+    /// A decided internal tangency's radical foot stands about `g·r/d`
+    /// off both circles: 0.029·r near-concentric. The window projects it
+    /// onto the circle, so an arc ending 0.01 rad short of the tangency
+    /// direction reads it OUT whether it stands inside or outside the
+    /// circle, and whether the arc's apex is 2.5 rad or 0.3 rad away.
+    /// The old chordal-defect reading put the inside point in at the far
+    /// apex (+0.0063) and the outside one in at the near one (+0.0116).
+    /// An arc holding the tangency reads it in from either side.
+    #[test]
+    fn an_arc_window_reads_an_off_circle_point_at_its_foot() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let short = 0.01_f64.to_degrees();
+        for (name, arc, off, inside) in [
+            (
+                "far apex, point inside",
+                arc_segment(o, 1.0, short, short + 2.0 * 2.49_f64.to_degrees()),
+                0.971,
+                false,
+            ),
+            (
+                "near apex, point outside",
+                arc_segment(o, 1.0, short, short + 2.0 * 0.29_f64.to_degrees()),
+                1.029,
+                false,
+            ),
+            (
+                "holding it, point inside",
+                arc_segment(o, 1.0, -30.0, 30.0),
+                0.971,
+                true,
+            ),
+            (
+                "holding it, point outside",
+                arc_segment(o, 1.0, -30.0, 30.0),
+                1.029,
+                true,
+            ),
+        ] {
+            let got = window(arc, Point3::new(off, 0.0, 0.0), band);
+            assert_eq!(
+                (matches!(got, Window::In), matches!(got, Window::Out)),
+                (inside, !inside),
+                "[{name}]"
+            );
         }
     }
 

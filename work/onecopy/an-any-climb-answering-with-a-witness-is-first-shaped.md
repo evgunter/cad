@@ -2,10 +2,12 @@
 id: an-any-climb-answering-with-a-witness-is-first-shaped
 kind: issue
 title: A climb under Answering::Any whose answer names a witness (which gap, which vertex, which limb) reports whichever rung answered first: First-shaped under Any
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: M
+closed: 2026-11-09
+pr: 6678
 ---
 
 

@@ -94,7 +94,7 @@
 
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::{Magnitude, decide, decide_magnitude};
-use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec2, Vec3};
 
 use super::{
     ChartReach, ClassCarrier, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
@@ -598,11 +598,8 @@ fn bracket<'p>(
     let jet = net.ders(at.0, at.1);
     let (phi, m, least) = partner.at(jet.point);
     let (gu, gv) = (m.dot(jet.du), m.dot(jet.dv));
-    let g = gu.hypot(gv);
-    if !(g.is_finite() && g > 0.0) {
-        return None;
-    }
-    let (du, dv) = (gu / g, gv / g);
+    let (d, g) = Vec2::new(gu, gv).checked_direction().ok()?;
+    let (du, dv) = (d.x, d.y);
     let point = |t: f64| (at.0 + du * t, at.1 + dv * t);
     let base = phi.max(least) / g;
     let (u_domain, v_domain) = (net.knot_values_u().domain(), net.knot_values_v().domain());
