@@ -4960,9 +4960,10 @@ pub(crate) mod rest {
                 .filter(|&j| j != k && planar(link, j) && in_plane_of(link, k, j, rd))
                 .any(|j| {
                     let inside = |q| sectors[j].place(p, q, rd).ok() == Some(Place::Inside);
-                    sectors[k].wedges.iter().any(|&(a, b)| {
-                        inside(a) || inside(b) || inside(a + (b - a) * T::from_f64(0.5))
-                    })
+                    sectors[k]
+                        .wedges
+                        .iter()
+                        .any(|&(a, b)| inside(a) || inside(b) || inside(a.mid(b)))
                 })
         })
     }
@@ -5040,7 +5041,7 @@ pub(crate) mod rest {
             if reaches {
                 notes.in_band = true;
             }
-            let probe = a + (b - a) * T::from_f64(0.5);
+            let probe = a.mid(b);
             let around = match &remainder {
                 // A remainder of horns alone is thorns of material.
                 Some(r) if r.cone.sectors.is_empty() => Some(Material::Out),
