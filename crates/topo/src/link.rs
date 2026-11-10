@@ -529,8 +529,33 @@ pub enum TouchUnread {
     /// [`Self::Corrupt`].)
     ///
     /// An abort: no later face rescues a germ one face makes unreadable,
-    /// so it decides the outcome now.
+    /// so it decides the outcome now. It and the four causes beside it
+    /// ([`Self::NoTangentPlane`], [`Self::Crease`], [`Self::NoSectorArm`],
+    /// [`Self::Unplaced`]) are one control: each aborts the planar reading
+    /// and is what its callers read the tangent cones past
+    /// ([`Self::curved_unread`]). They are named apart so a refusal says
+    /// which cause it was, not to stand apart.
     Unreadable,
+    /// A corner face has no tangent plane at the vertex: a cone's apex, or
+    /// a vertex in the band of a carrier's axis
+    /// ([`crate::sector_face::VertexFace`]). One control with
+    /// [`Self::Unreadable`].
+    NoTangentPlane,
+    /// A corner of a spline face sits on a crease of its surface
+    /// ([`crate::sector_face::SectorFaceError::Crease`]). One control with
+    /// [`Self::Unreadable`]: kept an abort, since refusing it by the
+    /// crease's own standing would let a solid touching itself there
+    /// finish undetected
+    /// (`work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`).
+    Crease,
+    /// A corner face's surface has no sector arm wired
+    /// ([`crate::sector_face::SectorFaceError::Unsupported`]). One control
+    /// with [`Self::Unreadable`].
+    NoSectorArm,
+    /// A spline half-edge at a corner has no chart image to read the
+    /// vertex off ([`crate::sector_face::SectorFaceError::Unplaced`]). One
+    /// control with [`Self::Unreadable`].
+    Unplaced,
     /// A face's piece at the touch point does not close on decided
     /// readings (a gap between neighbouring turns of half a turn or
     /// more, or no edge met across one, [`face_piece`]); or a link's
@@ -604,10 +629,30 @@ impl TouchUnread {
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
             Self::LoneLoop => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::EdgeTangent(why) => Ok(why.refusal()),
-            Self::Unreadable | Self::OffInterior | Self::NormalFault(_) | Self::Corrupt => {
-                Err(Aborts)
-            }
+            Self::Unreadable
+            | Self::NoTangentPlane
+            | Self::Crease
+            | Self::NoSectorArm
+            | Self::Unplaced
+            | Self::OffInterior
+            | Self::NormalFault(_)
+            | Self::Corrupt => Err(Aborts),
         }
+    }
+
+    /// **Whether this is the curved reading's abort**: [`Self::Unreadable`]
+    /// or one of its named causes, the one control a caller reads the
+    /// tangent cones, or a chord, past.
+    #[must_use]
+    pub const fn curved_unread(self) -> bool {
+        matches!(
+            self,
+            Self::Unreadable
+                | Self::NoTangentPlane
+                | Self::Crease
+                | Self::NoSectorArm
+                | Self::Unplaced
+        )
     }
 }
 

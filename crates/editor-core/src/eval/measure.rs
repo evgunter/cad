@@ -1371,7 +1371,15 @@ fn link_reads<T: Decide>(
             LinkRefusal::Undecided(source) => {
                 return Err(PrimitiveRefusal::Escalated(source));
             }
-            LinkRefusal::Unread(TouchUnread::Unreadable) => match reading {
+            // One control ([`TouchUnread::curved_unread`]): a curved
+            // cell the planar reading does not reach, whichever cause.
+            LinkRefusal::Unread(
+                TouchUnread::Unreadable
+                | TouchUnread::NoTangentPlane
+                | TouchUnread::Crease
+                | TouchUnread::NoSectorArm
+                | TouchUnread::Unplaced,
+            ) => match reading {
                 Cell::Vertex(..) => NO_CORNER,
                 Cell::Edge(..) => NO_WEDGE,
             },

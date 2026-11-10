@@ -7857,6 +7857,10 @@ impl TouchUnread {
             Self::InBand
             | Self::PieceInBand
             | Self::Unreadable
+            | Self::NoTangentPlane
+            | Self::Crease
+            | Self::NoSectorArm
+            | Self::Unplaced
             | Self::Unanalysed
             | Self::Degenerate
             | Self::ChordScale
@@ -7895,6 +7899,35 @@ impl TouchUnread {
             Self::Unreadable => concat!(
                 "they touch at a curved face or edge, and the check cannot yet tell which \
                  side each is on. ",
+                designed_contact!(),
+                "; otherwise ",
+                until_apart!()
+            ),
+            Self::NoTangentPlane => concat!(
+                "they touch at a corner where a face of one has no tangent plane (a cone's \
+                 apex, or a point on a surface's axis), and the check cannot yet tell which \
+                 side each is on. ",
+                designed_contact!(),
+                "; otherwise ",
+                until_apart!()
+            ),
+            Self::Crease => concat!(
+                "they touch at a corner of a spline face that sits on a crease of its \
+                 surface, and the check cannot yet tell which side each is on. ",
+                designed_contact!(),
+                "; otherwise ",
+                until_apart!()
+            ),
+            Self::NoSectorArm => concat!(
+                "they touch at a corner of a face whose kind of surface the check cannot \
+                 yet read at a corner. ",
+                designed_contact!(),
+                "; otherwise ",
+                until_apart!()
+            ),
+            Self::Unplaced => concat!(
+                "they touch at a corner of a spline face whose edge there could not be \
+                 placed on the face, so the check cannot yet tell which side each is on. ",
                 designed_contact!(),
                 "; otherwise ",
                 until_apart!()
@@ -7992,6 +8025,30 @@ impl TouchUnread {
             Self::Unreadable => concat!(
                 "a curved face meets the point, and the check cannot yet read which side of \
                  a curved face material lies on. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::NoTangentPlane => concat!(
+                "a face meeting the point has no tangent plane there (a cone's apex, or a \
+                 point on a surface's axis), so no side reads. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Crease => concat!(
+                "the point is a corner of a spline face on a crease of its surface, where \
+                 the check cannot yet read which side material lies on. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::NoSectorArm => concat!(
+                "a face meeting the point has a kind of surface the check cannot yet read \
+                 at a corner. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Unplaced => concat!(
+                "an edge of a spline face at the point could not be placed on the face, \
+                 so no side reads. ",
                 geom_core::not_yet_ending!(),
                 " for this shape"
             ),
@@ -8434,7 +8491,7 @@ fn edge_in_own_face<T: Decide>(
         Link::touch_in_face(body, geo, face, p, band),
     ) {
         (Ok(a), Ok(b)) => rest::judge(&a, &b, band),
-        (Err(TouchUnread::Unreadable), Ok(b)) => {
+        (Err(why), Ok(b)) if why.curved_unread() => {
             match Link::chord_on_edge(body, geo, edge, face, p, band) {
                 Ok(a) => rest::judge(&a, &b, band),
                 Err(v) => v.into(),
@@ -8601,14 +8658,16 @@ fn self_touch_verdict<T: Decide>(
     };
     match Link::planar_of(body, geo, &holds, at, band) {
         Ok(link) => SelfTouch::Read(rest::one_material(&link, band)),
-        Err(TouchUnread::Unreadable) => {
+        Err(why) if why.curved_unread() => {
             match Link::tangent_of(body, geo, &holds, at, band)
                 .map(|link| rest::one_material(&link, band))
             {
-                Ok(TouchVerdict::Unread(
-                    why @ (TouchUnread::Unreadable | TouchUnread::Degenerate),
-                ))
-                | Err(why @ TouchUnread::Unreadable) => SelfTouch::SecondOrder(why),
+                Ok(TouchVerdict::Unread(why))
+                    if why.curved_unread() || why == TouchUnread::Degenerate =>
+                {
+                    SelfTouch::SecondOrder(why)
+                }
+                Err(why) if why.curved_unread() => SelfTouch::SecondOrder(why),
                 Ok(verdict) => SelfTouch::Read(verdict),
                 Err(why) => SelfTouch::Read(TouchVerdict::Unread(why)),
             }
@@ -9056,18 +9115,16 @@ fn corner_normal<T: Decide>(
     match crate::sector_face::resolve(body, v, he, band) {
         Ok(face) => match face.at_vertex {
             VertexFace::Tangent(n) => Ok(n.vec()),
-            VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(TouchUnread::Unreadable),
+            VertexFace::NearAxis(_) | VertexFace::Apex(_) => Err(TouchUnread::NoTangentPlane),
         },
         Err(SectorFaceError::ApexUndecided { .. }) => Err(TouchUnread::kept(Refusal::of_apex())),
         // A corner on a spline crease is unread whatever its reading: the
         // touch at it goes undetected (module docs), which
         // `work/onecopy/a-solid-touching-itself-at-a-spline-crease-corner-finishes-undetected.md`
         // weighs against refusing it by the crease's own standing.
-        Err(
-            SectorFaceError::Crease { .. }
-            | SectorFaceError::Unsupported { .. }
-            | SectorFaceError::Unplaced { .. },
-        ) => Err(TouchUnread::Unreadable),
+        Err(SectorFaceError::Crease { .. }) => Err(TouchUnread::Crease),
+        Err(SectorFaceError::Unsupported { .. }) => Err(TouchUnread::NoSectorArm),
+        Err(SectorFaceError::Unplaced { .. }) => Err(TouchUnread::Unplaced),
     }
 }
 
