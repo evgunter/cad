@@ -1498,3 +1498,4 @@
 - 02:13Z doc-gate row (filed on 6701, 50 rustdoc errors in 6 crates) → new implementer session_013mPGJ43vk6aHdGjYJJqR2D on onecopy/doc-gate-clean.
 - 02:16Z 6694 delta: FIX (super:: via import silent; block-level path heads resolve wrong → one head resolution through lookup; closed records shrink by GATE_BASE gate, per-item keys, converted-entry check, confined NotScopeWhy) → scope-parser lane.
 - 02:20Z 6698 fold (f46f3a98, gate green; one line_loops reading) → delta review. Argmin: first_pair tie free only for straight germs, mutual pairs (proof at the call); remeasure running.
+- 02:30Z 6701 re-review: MERGE. Merged main → ladder ratchet red (6689 added face_normal spellings); ported face_normal.rs to geom_core::ladder (topo 144) over the lane's bump; head 31655de7, gating. (Note: I pushed one merged head 600a676b before gates were read; superseded.)
