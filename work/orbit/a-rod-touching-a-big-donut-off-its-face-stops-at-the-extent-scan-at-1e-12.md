@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-10
 priority: P2
 cost: M
+refs: [a-torus-near-a-tilted-cut-stops-at-the-extent-scan]
 ---
 
 
@@ -18,6 +19,6 @@ Found by ONEHOME's session-box fixtures lane (`onehome/session-box-fixtures`, ma
 
 The rod lies 1.5 units clear of the donut except at the touch, and the touch is off the rod's face. So this looks like the extent scan's tangency reading at a scale where ε is a few dozen ulps of the coordinates, not a near-tangency the band cannot decide. That is the regime `[tolerance.units]`'s admission floor says is admissible.
 
-The row pins the refusal at that ε and scale (the 64-ulp predicate in `the_off_face_touches_build_at_every_scale`), so it goes red when this is fixed. Then remove the pin.
+The row pins the refusal at that ε and scale (`torus_touch_off_faces::ROD_SCAN_STOPS`, keyed to the measured band), so it goes red when this is fixed. Then remove the pin.
 
 Signed: (ONEHOME session-box-fixtures lane)

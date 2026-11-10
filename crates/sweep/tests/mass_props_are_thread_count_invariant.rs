@@ -98,7 +98,7 @@ fn strip_loft(s: f64, delta: f64) -> Body<f64> {
 /// arc lofts scaled against the run's own ε so no row goes vacuous at
 /// one point of the matrix, and the thin strip.
 fn roster() -> Vec<(String, Body<f64>, topo::Settle<f64>)> {
-    let eps = unit();
+    let unit = unit();
     let pinned = topo::test_support::pinned_resolution(Tol::witness());
     let mut out: Vec<(String, Body<f64>, topo::Settle<f64>)> = vec![
         ("quintic_prism".to_string(), quintic_prism(), pinned),
@@ -117,13 +117,13 @@ fn roster() -> Vec<(String, Body<f64>, topo::Settle<f64>)> {
     out.extend([1.0e11, 1.0e9].iter().map(|k| {
         (
             format!("arc_loft_{k:e}eps"),
-            arc_loft(k * eps),
+            arc_loft(k * unit),
             resolution(),
         )
     }));
     out.push((
         "thin_strip".to_string(),
-        strip_loft(1.0e12 * eps, 1.0e9 * eps),
+        strip_loft(1.0e12 * unit, 1.0e9 * unit),
         resolution(),
     ));
     out
@@ -131,12 +131,19 @@ fn roster() -> Vec<(String, Body<f64>, topo::Settle<f64>)> {
 
 /// **The roster's unit** ([`crate::common::box_unit`]): ε, or less
 /// where the strip at `1e12` units, reaching `1e12` (its half width and
-/// its height), would pass the session box: at ε = 1e-6 the unit is
-/// `1e-9`, and the bodies there are the 1e-9 row's. The scaled bodies are
+/// its height), would pass the session box's own extent: at ε = 1e-6
+/// the unit is `1e-9`, and the bodies there are the 1e-9 row's. The
+/// extent and not the far end (`common::FAR_END`) because the 1e-9
+/// row's strip already reaches the box's edge, and its golden is kept. The scaled bodies are
 /// measured at `1024` units, the fixed ones at the pinned `1024·ε`. The
 /// names keep `eps` for the unit.
 fn unit() -> f64 {
-    crate::common::box_unit(1.0e12)
+    let eps = Tol::witness().get().eps;
+    crate::common::box_unit(
+        1.0e12,
+        geom_core::tolerance::SESSION_BOX_EXTENT,
+        eps / 1024.0,
+    )
 }
 
 fn resolution<T: geom_core::Real>() -> topo::Settle<T> {
@@ -232,14 +239,14 @@ fn sym_arc_loft() -> Body<Sym<f64>> {
 
 /// The thin strip at `Sym<f64>`.
 fn sym_thin_strip() -> Body<Sym<f64>> {
-    let eps = unit();
+    let unit = unit();
     loft_body::<Sym<f64>>(
         &sweep::test_support::lift_sections::<Sym<f64>>(&[
-            strip_section(1.0e12 * eps, 1.0e9 * eps, false),
-            strip_section(1.0e12 * eps, 1.0e9 * eps, false),
+            strip_section(1.0e12 * unit, 1.0e9 * unit, false),
+            strip_section(1.0e12 * unit, 1.0e9 * unit, false),
         ]),
         &sweep::test_support::lift_places::<Sym<f64>>(
-            &stacked(&[0.0, 1.0], 1.0e12 * eps),
+            &stacked(&[0.0, 1.0], 1.0e12 * unit),
             geom_core::Tol::witness(),
         ),
         1,

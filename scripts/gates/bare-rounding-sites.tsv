@@ -160,6 +160,7 @@ crates/sweep/tests/m9_3_zip.rs	test	2	oracle
 crates/sweep/tests/mate2_common/mod.rs	test	1	oracle
 crates/sweep/tests/mate2_r2_probes.rs	test	2	oracle
 crates/sweep/tests/near_circular_sections.rs	test	4	oracle
+crates/sweep/tests/parallel_cylinder_join.rs	test	2	oracle
 crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs	test	1	oracle
 crates/sweep/tests/r1_probes_m9_3.rs	test	1	oracle
 crates/sweep/tests/reach_continuation.rs	test	1	oracle
@@ -171,7 +172,6 @@ crates/sweep/tests/spiric_rim.rs	test	1	oracle
 crates/sweep/tests/split_through_a_ruling.rs	test	2	oracle
 crates/sweep/tests/the_football_revolves.rs	test	1	oracle
 crates/sweep/tests/torax_axial.rs	test	1	oracle
-crates/sweep/tests/torus_touch_off_faces.rs	test	1	oracle
 crates/sweep/tests/vrev_acceptance_set.rs	test	1	oracle
 crates/topo/src/boolean/boxes.rs	test	9	oracle
 crates/topo/src/boolean/conic_quadric/circle_sphere_rows.rs	test	1	oracle

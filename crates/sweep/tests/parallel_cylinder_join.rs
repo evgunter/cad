@@ -520,6 +520,15 @@ fn cut_and_tipped(
 /// builds SOUND at the closed-form volume, in both orders. A long rod
 /// past the box is refused at its extrude
 /// ([`a_long_rod_past_the_session_box_is_refused_by_it`]).
+///
+/// A pose runs only inside D4 ¶4's size range at the run's ε: the long
+/// rod reaches `|z| = far`, where f64 spaces coordinates
+/// `ulp(far) ≈ far·2⁻⁵²`, so a residual between two points evaluated
+/// there can read a whole ulp of rounding, and past `far ≈ 2⁵²·zero` no
+/// stored datum certifies within the zero band. At 1 km that ceiling is
+/// `2.2e-13` m, above the least ε a run admits
+/// (`geom_core::tolerance::EPS_MIN`, ≈ 2.0e-13 at K = 10), so at an
+/// admitted ε below it the 1 km pose stands down.
 #[test]
 fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     const R: f64 = 0.5;
@@ -528,6 +537,20 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
     let (area, _) = lens((0.0, 0.0), R, c, r);
     let poses: Vec<Pose> = [2.0, geom_core::tolerance::SESSION_BOX_EXTENT]
         .into_iter()
+        .filter(|&far| {
+            let in_range = far * f64::EPSILON <= zero;
+            if !in_range {
+                test_utils::vacuity::stood_down(
+                    &format!("rod cut from ±{far} m"),
+                    &format!(
+                        "f64 spaces coordinates {:e} m apart at |z| = {far}, past the zero band \
+                         {zero:e}: no pose this far certifies at this ε",
+                        far * f64::EPSILON
+                    ),
+                );
+            }
+            in_range
+        })
         .map(|far| Pose {
             label: format!("rod cut from ±{far} m, tipped 0.2·zero"),
             a: rod(R, (0.0, 0.0), (-1.0, 1.0)),
@@ -537,6 +560,10 @@ fn a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings() {
             shared: area * (span.1 - span.0),
         })
         .collect();
+    assert!(
+        !poses.is_empty(),
+        "every pose stood down at zero band {zero:e}"
+    );
     let bad = unsound(&poses);
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
@@ -559,6 +586,7 @@ fn a_long_rod_past_the_session_box_is_refused_by_it() {
     .expect("the rod's disc is a valid profile");
     crate::common::refused_by_the_session_box(
         &format!("the rod over z ∈ [−{far}, {far}]"),
+        far,
         sweep::extrude(
             &profile,
             sweep::Extrusion::Distance {

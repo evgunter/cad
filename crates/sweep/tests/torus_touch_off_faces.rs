@@ -272,9 +272,9 @@ fn near_misses_answer_by_the_closed_form_distance() {
 /// closed form scaled by `l³`. ×250 is the largest round scale whose
 /// partners, reaching `3.5·l`, lie in the 1 km session box
 /// (`[tolerance.units]`); a donut past it is refused by the box
-/// ([`a_donut_past_the_session_box_is_refused_by_it`]). Where ε is within
-/// 64 ulps of the donut's largest coordinate (`2.5·l`; ×250 at
-/// ε = 1e-12), the rod refuses every op `FallbackExtentUnsupported`
+/// ([`a_donut_past_the_session_box_is_refused_by_it`]). Where the scale
+/// is [`ROD_SCAN_STOPS`] ε or more (×250 at ε = 1e-12), the rod refuses
+/// every op `FallbackExtentUnsupported`
 /// (`work/orbit/a-rod-touching-a-big-donut-off-its-face-stops-at-the-extent-scan-at-1e-12.md`),
 /// which the row pins.
 #[test]
@@ -282,14 +282,14 @@ fn the_off_face_touches_build_at_every_scale() {
     let eps = Tol::witness().eps();
     for l in [1e-3, 250.0] {
         let d = donut(l);
-        let fine = eps < 64.0 * f64::EPSILON * 2.5 * l;
+        let rod_stops = l >= ROD_SCAN_STOPS * eps;
         for (label, (b, vb)) in [
             ("brick", plane_brick(false, 0.0, l)),
             ("ball", top_ball(false, 0.0, l)),
             ("rod", top_rod(false, 0.0, l)),
         ] {
             let label = format!("donut ×{l:e}, {label}");
-            if fine && label.ends_with("rod") {
+            if rod_stops && label.ends_with("rod") {
                 assert_every_op_refuses(&label, &d, &b, |e| {
                     format!("{e:?}").contains("FallbackExtentUnsupported")
                 });
@@ -304,12 +304,20 @@ fn the_off_face_touches_build_at_every_scale() {
     }
 }
 
+/// **The scale, in units of ε, from which the rod's touch stops at the
+/// extent scan**: measured, it refuses every op at ×100 to ×250 at
+/// ε = 1e-12 (`1e14` to `2.5e14` ε) and builds at ×10 there (`1e13` ε)
+/// and at ×250 at 1e-9 (`2.5e11` ε). A fix that moves the band reads as
+/// this row's pin going red, at the scale it moved.
+const ROD_SCAN_STOPS: f64 = 1.0e14;
+
 /// **A donut past the session box is refused by it**: at ×401 its outer
 /// equator reaches 1002.5 m.
 #[test]
 fn a_donut_past_the_session_box_is_refused_by_it() {
     crate::common::refused_by_the_session_box(
         "the donut ×401",
+        2.5 * 401.0,
         sweep::test_support::try_revolved_about_y_at(
             donut_disc(401.0),
             Revolution::Full,

@@ -670,6 +670,7 @@ fn a_tilted_cap_past_the_session_box_is_refused_by_it() {
     let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
     crate::common::refused_by_the_session_box(
         "the slab reaching 1003 m",
+        1003.0,
         tilted_slab_extruded(0.2, 0.9 * band.zero() / 2.5, 500.0),
     );
 }

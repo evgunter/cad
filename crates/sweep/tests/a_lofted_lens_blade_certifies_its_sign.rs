@@ -79,19 +79,21 @@ fn blade(tol: Tol) -> topo::Body<f64> {
 /// **A round tube big enough, against its resolution, that its number
 /// stays open**: two circles (two semicircular arcs each, so every wall
 /// is rational) of radii `23.4·s` and `11.7·s`, lofted `125·s` apart,
-/// measured at the resolution `s/5e8`. The width a wall reaches at the
-/// work wall is a length that grows with the part, so the ratio of the
-/// part to its resolution puts the same crossing at every ε row.
-/// Measured at ε = 1e-9 and the pinned `1024·ε`: the tube certifies its
-/// number at `s = 64` and stops each wall at the work wall (the exact-v
-/// arm's round 11) at 512, with its bracket holding the frustum.
+/// `s = 5.12e11` units (`common::box_unit`) measured at `1024` units, so
+/// the tube stands `5e8` resolutions across. The width a wall reaches at
+/// the work wall is a length that grows with the part, so that ratio
+/// puts the same crossing at every ε row. Measured at ε = 1e-9 and the
+/// pinned `1024·ε`: the tube certifies its number at `s = 64` and stops
+/// each wall at the work wall (the exact-v arm's round 11) at 512, with
+/// its bracket holding the frustum.
 ///
-/// `s` is `512·(ε / 1e-9)`, the pinned resolution's, where the tube fits
-/// in the session box (ε = 1e-12), and `7` (875 m high) where it does
-/// not. The resolution is never finer than ε, so at ε = 1e-6 the least
-/// tube is `s = 500`, 62.5 km high: its loft's refusal by the box is
-/// asserted, and the tube is `None`. Its 64 km form at 1e-9 is
-/// `pncad-py`'s `oversized_round_loft_refusal`, refused by the box.
+/// The unit is ε where the tube, `125·s` high, fits the far end of the
+/// session box (ε = 1e-12: 64 m), and less where it does not (1e-9: 900
+/// m at `s = 7.2`). It is never under `ε/1024`, so the resolution is
+/// never finer than ε, and at ε = 1e-6 that least tube is `s = 500`,
+/// 62.5 km high: its loft's refusal by the box is asserted, and the tube
+/// is `None`. Its 64 km form at 1e-9 is `pncad-py`'s
+/// `oversized_round_loft_refusal`, refused by the box.
 fn round_tube(tol: Tol) -> Option<(topo::Body<f64>, topo::Settle<f64>)> {
     let circle = |r: f64| {
         vec![bulge_loop(vec![
@@ -99,33 +101,29 @@ fn round_tube(tol: Tol) -> Option<(topo::Body<f64>, topo::Settle<f64>)> {
             (Point2::new(-r, 0.0), -1.0),
         ])]
     };
-    // The least tube whose resolution is not finer than ε, where the
-    // session box leaves room for none larger.
-    let s = (512.0 * tol.eps() / geom_core::tolerance::DEFAULT_EPS)
-        .min(7.0)
-        .max(TUBE_OVER_RESOLUTION * tol.eps());
-    let resolution = s / TUBE_OVER_RESOLUTION;
+    let reach = 125.0 * TUBE;
+    let unit = crate::common::box_unit(reach, crate::common::FAR_END, tol.eps() / 1024.0);
+    let s = TUBE * unit;
     let tube = loft_body::<f64>(
         &[circle(23.4 * s), circle(11.7 * s)],
         &sweep::test_support::stacked_at(&[0.0, 125.0 * s]),
         1,
         tol,
     );
-    if 125.0 * s > geom_core::tolerance::SESSION_BOX_EXTENT {
-        assert!(
-            format!("{tube:?}").contains("OutsideSessionBox"),
-            "the tube {} m high at ε = {:e} is past the session box: {tube:?}",
+    if !crate::common::in_the_box(reach, unit) {
+        crate::common::refused_by_the_session_box(
+            &format!("the tube {} m high at ε = {:e}", 125.0 * s, tol.eps()),
             125.0 * s,
-            tol.eps()
+            tube,
         );
         return None;
     }
     let body = tube.expect("the tube lofts").body.into_body();
-    Some((body, topo::test_support::resolution(resolution)))
+    Some((body, crate::common::unit_resolution(unit)))
 }
 
-/// The tube's scale over its resolution: `512` against `1024·1e-9`.
-const TUBE_OVER_RESOLUTION: f64 = 5e8;
+/// The tube's scale, in [`crate::common::box_unit`]s: `512` at ε = 1e-9.
+const TUBE: f64 = 5.12e11;
 
 /// The blade certifies: tier 3 admits it on a positive enclosure, the
 /// reporting door measures it at the default ε and looser, and the
@@ -192,9 +190,9 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
 fn a_round_tube_certifies_its_sign_while_its_number_is_open() {
     let tol = Tol::witness();
     let Some((tube, resolution)) = round_tube(tol) else {
-        println!(
-            "at ε = {:e} the open-number tube is past the session box; its refusal is asserted",
-            tol.eps()
+        test_utils::vacuity::stood_down(
+            &format!("the open-number tube at ε = {:e}", tol.eps()),
+            "past the session box; its refusal by the box is asserted instead",
         );
         return;
     };

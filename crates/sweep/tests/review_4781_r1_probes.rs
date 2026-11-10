@@ -30,10 +30,21 @@ fn circle(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 }
 
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
+    finished("cyl", extruded_cyl(cx, cy, r, z0, z1).unwrap().body, tol())
+}
+
+/// The extrude door's answer on the cylinder [`cyl`] builds.
+fn extruded_cyl(
+    cx: f64,
+    cy: f64,
+    r: f64,
+    z0: f64,
+    z1: f64,
+) -> Result<sweep::Extruded<f64>, sweep::ExtrudeError> {
     let profile = Profile::new(sketch_at(z0), vec![circle(cx, cy, r)])
         .validate(tol())
         .unwrap();
-    let body = extrude(
+    extrude(
         &profile,
         Extrusion::Distance {
             depth: z1 - z0,
@@ -41,9 +52,6 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
         },
         tol(),
     )
-    .unwrap()
-    .body;
-    finished("cyl", body, tol())
 }
 
 fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
@@ -395,7 +403,7 @@ fn touch_pairs() -> Vec<(&'static str, Shape, Shape)> {
 /// scales** (×1e-3, ×1 and the scale that puts the pair's largest
 /// `|coordinate|` at 900 m, the far end of the 1 km session box,
 /// `[tolerance.units]`; a pair past it is refused by the box,
-/// [`a_touch_pair_past_the_session_box_is_refused_by_it`]), edges of
+/// [`a_touch_pairs_cylinder_past_the_session_box_is_refused_by_it`]), edges of
 /// unequal extent along the line included, read
 /// against the running ε through [`coarse_at`] and
 /// [`past_f64_headroom`]. Prints each line; red on any other outcome.
@@ -422,7 +430,7 @@ fn review_4781_touch_pairs_every_op_row() {
     let eps = tol().get().eps;
     let mut bad = Vec::new();
     for (name, a, b) in touch_pairs() {
-        let far = 900.0 / a.reach().max(b.reach());
+        let far = crate::common::FAR_END / a.reach().max(b.reach());
         for s in [1e-3, 1.0, far] {
             for (order, x, y) in [("ab", a, b), ("ba", b, a)] {
                 let (x, y) = (x.scaled(s), y.scaled(s));
@@ -450,22 +458,24 @@ fn review_4781_touch_pairs_every_op_row() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-/// **A touch pair past the session box is refused by it**: a box of the
-/// touch pairs, scaled until it reaches 1001 m. (A cylinder there meets
-/// limb 2's kernel limit first at ε = 1e-12.)
+/// **A touch pair's cylinder past the session box is refused by it**:
+/// the equal cylinders' first, scaled until it reaches 1001 m. At
+/// ε = 1e-12 limb 2's kernel limit on the cylinder reads first, and that
+/// is what the row asserts there.
 #[test]
-fn a_touch_pair_past_the_session_box_is_refused_by_it() {
-    let shape = touch_pairs()
+fn a_touch_pairs_cylinder_past_the_session_box_is_refused_by_it() {
+    let (_, a, _) = touch_pairs()
         .into_iter()
-        .flat_map(|(_, a, b)| [a, b])
-        .find(|shape| matches!(shape, Shape::Box { .. }))
-        .expect("a touch pair has a box");
-    let Shape::Box { x, y, z } = shape.scaled(1001.0 / shape.reach()) else {
-        unreachable!("a box scaled is a box");
+        .find(|(name, ..)| *name == "cyl r1 / r1 equal")
+        .expect("the equal cylinders are a touch pair");
+    let Shape::Cyl { c, r, z } = a.scaled(1001.0 / a.reach()) else {
+        unreachable!("the equal cylinders' first is a cylinder");
     };
-    crate::common::refused_by_the_session_box(
-        "the box reaching 1001 m",
-        crate::common::brick_door(x, y, z),
+    crate::common::refused_by_the_box_or_limb_2(
+        "the cylinder reaching 1001 m",
+        1001.0,
+        &[1e-12],
+        extruded_cyl(c.0, c.1, r, z.0, z.1),
     );
 }
 

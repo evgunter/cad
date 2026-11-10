@@ -26,7 +26,7 @@ use topo::{AtRestBody, Body, POSE_UNIT_NORM, transform_rigid};
 /// reaches no farther than 805 m, in the 1 km session box
 /// (`[tolerance.units]`). A fixture past the box is refused by it
 /// ([`a_fixture_past_the_session_box_is_refused_by_it`]).
-const FAR: f64 = 350.0;
+pub(crate) const FAR: f64 = 350.0;
 
 /// One fixture: the revolved profile about `y`, its radius at height
 /// `y` (the slice integral's integrand), and the unarmed face's
@@ -120,27 +120,30 @@ fn rounded(s: f64) -> Fixture {
 }
 
 fn build(f: &Fixture) -> Body<f64> {
+    revolved(f).unwrap().body.into_body()
+}
+
+/// The revolve door's answer on `f`'s profile.
+fn revolved(f: &Fixture) -> Result<sweep::Revolved<f64>, sweep::RevolveError> {
     revolve(
         &validated(vec![bulge_loop(f.chain.clone())]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
     )
-    .unwrap()
-    .body
-    .into_body()
 }
 
-/// **A fixture past the session box is refused by it**: a brick the
-/// size of the capped cylinder at ×700, its top 1050 m up. (The revolved
-/// fixture there meets limb 2's kernel limit on its sphere first at
-/// ε = 1e-12.)
+/// **A fixture past the session box is refused by it**: the capped
+/// cylinder at ×700, its cap's crown 1050 m up. At ε = 1e-12 limb 2's
+/// kernel limit on its sphere reads first, and that is what the row
+/// asserts there.
 #[test]
 fn a_fixture_past_the_session_box_is_refused_by_it() {
-    let s = 700.0;
-    crate::common::refused_by_the_session_box(
-        "the brick 1050 m tall",
-        crate::common::brick_door((-s, s), (-s, s), (0.0, 1.5 * s)),
+    crate::common::refused_by_the_box_or_limb_2(
+        "the capped cylinder ×700",
+        1.5 * 700.0,
+        &[1e-12],
+        revolved(&capped(700.0)),
     );
 }
 
