@@ -161,6 +161,17 @@ pub enum EdgeInFaceGap {
     /// midpoint (a spline or approximating face, which this reading does
     /// not read, among them), to read the side by.
     NoNormal,
+    /// The face the edge lies in, or one of the edge's own faces, is a
+    /// torus decided outside the ring convention, whose normal there
+    /// refuses as an invalid input
+    /// ([`crate::face_normal::NormalAbort::InvalidInput`], DESIGN
+    /// `[failure.taxonomy]` row 1(a)): a shape the kernel's model never
+    /// represents, carried whole. Its standing is the convention's own
+    /// ([`geom_brep::TorusRefusal::refusal`]), and it ends on the
+    /// convention's lever. The operand that carried it in is not in scope
+    /// here, so the gap names it rather than
+    /// [`crate::BooleanError::DegenerateTorus`].
+    DegenerateTorus(geom_brep::TorusRefusal),
     /// One of the edge's faces is tangent to the face along the line,
     /// so each of the two edges would bound a cusp, a wedge of no angle
     /// (D1's doubled cusp), whose reading on a line of coincident edges
@@ -258,6 +269,15 @@ impl EdgeInFaceGap {
         matches!(self, Self::Crossed | Self::TwinIncident | Self::Redivided)
     }
 
+    /// The torus convention's refusal the gap carries, whose standing and
+    /// lever are its own; `None` for a parting gap.
+    pub const fn torus(&self) -> Option<geom_brep::TorusRefusal> {
+        match self {
+            Self::DegenerateTorus(refusal) => Some(*refusal),
+            _ => None,
+        }
+    }
+
     /// The words a refusal says it in: after "where" for a construction
     /// gap, after "and" for a defect.
     pub(super) const fn words(&self) -> &'static str {
@@ -267,6 +287,8 @@ impl EdgeInFaceGap {
                  the edge's own faces none at the midpoint (a spline face among them), to read \
                  the side by"
             }
+            // Rendered by its own refusal ([`Self::torus`]), never by words.
+            Self::DegenerateTorus(_) => "the face, or one of the edge's own faces, is a torus",
             Self::Shared => {
                 "an end of the edge lies on the face's boundary more than once, or the edge's \
                  faces go into the material of two faces it lies in, wholly in one of them"
@@ -1941,11 +1963,14 @@ fn walls_inside<T: Decide>(
             })
         }
         // A normal kept as its refusal states it is this reading's limit;
-        // the midpoint off the surface of a face it bounds is a defect.
-        Err(why) => Err(match why.refusal() {
+        // an abort is answered by its own row.
+        Err(why) => Err(match why.standing() {
             Ok(_) => refused(EdgeInFaceGap::NoNormal),
-            Err(geom_brep::ladder::Aborts) => BooleanError::ClassificationInvariant {
-                what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+            Err(abort) => match abort.torus() {
+                Some(torus) => refused(EdgeInFaceGap::DegenerateTorus(torus)),
+                None => BooleanError::ClassificationInvariant {
+                    what: "an edge's midpoint reads off the surface of a face it lies in or bounds",
+                },
             },
         }),
     };

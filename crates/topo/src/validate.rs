@@ -4592,11 +4592,9 @@ impl ValidationError {
                  {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
-            Self::DegenerateTorus { verdict, .. } => write!(
-                f,
-                "{}{}",
-                geom_brep::TorusConvention::Ring.refused("a torus face's", *verdict),
-                ended(at.map(|at| RING_TORUS.recourse(verdict.arm(), at)))
+            Self::DegenerateTorus { verdict, .. } => f.write_str(
+                &geom_brep::TorusRefusal::decided(geom_brep::TorusConvention::Ring, *verdict)
+                    .said("a torus face's", at),
             ),
             Self::DegenerateSpindle { miss, .. } => match miss.verdict {
                 Ok(decided) => write!(
@@ -5179,7 +5177,7 @@ impl ValidationError {
                 f,
                 "an edge lies in a face of its own part at {witness}, and whether the face \
                  passes through the material the edge bounds is undecided: {}",
-                why.sentence()
+                why.sentence(at)
             ),
             Self::CoincidentWedgesOverlap { witness, .. } => write!(
                 f,
@@ -5190,7 +5188,7 @@ impl ValidationError {
                 f,
                 "two edges lie along one line at {witness}, and whether the material each \
                  bounds overlaps the other's is undecided: {}",
-                why.sentence_on_line()
+                why.sentence_on_line(at)
             ),
             Self::BoundaryCrossesItself { witness, .. } => write!(
                 f,
@@ -5201,7 +5199,7 @@ impl ValidationError {
                 f,
                 "a part touches itself at {witness}, and whether its faces there bound one \
                  material is undecided: {}",
-                why.sentence()
+                why.sentence(at)
             ),
             Self::InstanceInterference { .. } => write!(
                 f,

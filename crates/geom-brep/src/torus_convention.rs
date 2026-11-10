@@ -213,33 +213,48 @@ impl TorusRefusal {
     }
 }
 
-/// `at` ends the refusal by its convention's sized decision at the door
-/// that reads it ([`TorusRefusal::recourse`]); `None` writes the payload
-/// alone, as `Display` does.
 impl TorusRefusal {
+    /// A torus decided outside `convention`'s half on `verdict`.
+    #[must_use]
+    pub const fn decided(convention: TorusConvention, verdict: Refused) -> Self {
+        Self {
+            convention,
+            verdict: TorusVerdict::Refused(verdict),
+        }
+    }
+
+    /// **The refusal said about `whose` torus, ended at the door `at`
+    /// reads it**: a half decided outside the convention in the half's own
+    /// words ([`TorusConvention::refused`]), a half in band as its
+    /// undecided read, each ended by [`Self::recourse`]; the clause alone
+    /// where `at` is `None`, as a `Display` writes it. Every door that
+    /// renders a torus refusal says it so, naming the torus its own way
+    /// (`whose`, which an undecided read does not use).
+    #[must_use]
+    pub fn said(&self, whose: &str, at: Option<crate::recourse::ReadAt>) -> String {
+        match &self.verdict {
+            TorusVerdict::Undecided(diag) => crate::recourse::undecided_at(
+                diag,
+                self.convention.subject(),
+                at.map(|at| self.recourse(at)),
+            )
+            .to_string(),
+            TorusVerdict::Refused(verdict) => {
+                let clause = self.convention.refused(whose, *verdict);
+                match at {
+                    Some(at) => format!("{clause}. {}", self.recourse(at)),
+                    None => clause,
+                }
+            }
+        }
+    }
+
     fn write(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         at: Option<crate::recourse::ReadAt>,
     ) -> core::fmt::Result {
-        match (&self.verdict, at) {
-            (TorusVerdict::Undecided(diag), at) => write!(
-                f,
-                "{}",
-                crate::recourse::undecided_at(
-                    diag,
-                    self.convention.subject(),
-                    at.map(|at| self.recourse(at)),
-                )
-            ),
-            (TorusVerdict::Refused(verdict), at) => {
-                f.write_str(&self.convention.refused("a torus's", *verdict))?;
-                match at {
-                    Some(at) => write!(f, ". {}", self.recourse(at)),
-                    None => Ok(()),
-                }
-            }
-        }
+        f.write_str(&self.said("a torus's", at))
     }
 }
 
