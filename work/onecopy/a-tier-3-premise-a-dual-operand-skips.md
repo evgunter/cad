@@ -2,10 +2,12 @@
 id: a-tier-3-premise-a-dual-operand-skips
 kind: issue
 title: A reader that leans on a premise tier 3 holds is reached by a dual's operand, a Replay that tier 3 never read
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 refs: [6689]
+closed: 2026-11-10
+pr: 6735
 ---
 
 
