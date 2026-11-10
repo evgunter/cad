@@ -8,5 +8,6 @@
 # see the crate from outside.
 crates/geom-brep 1
 crates/sweep 2
-# topo 141 -> 133: QML T5 and T6 move stands.rs and census.rs to geom_core::ladder.
+# topo 141 -> 133: QML T5 and T6 move stands.rs and census.rs to geom_core::ladder;
+# 133 -> 132: topo's recourse roster's header stopped spelling the path (ONECOPY).
 crates/topo 132

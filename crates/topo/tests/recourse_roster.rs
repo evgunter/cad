@@ -48,7 +48,7 @@
 
 use std::collections::BTreeSet;
 use test_utils::source::{
-    NameCarrier, PredicateCensus, crate_dir, predicate_census, roster_violations,
+    FORWARDS, NameCarrier, PredicateCensus, crate_dir, predicate_census, roster_violations,
 };
 
 /// A door: the prefixes its names carry, and the error type its
@@ -392,9 +392,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("first_within"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
-                        forwarder reds until it is declared here or as a carrier";
 const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
                          here by its `fn` and that first argument; its literal names are read";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
@@ -425,7 +422,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "boolean/cone_frame_rows.rs: declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops: x",
+        "boolean/cone_frame_rows.rs: declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops::pose: x",
         NOT_A_NAME,
     ),
     (
@@ -442,9 +439,9 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     ("boolean/contain.rs: face_placement: on_plane", FORWARDS),
-    ("boolean/join.rs: line_of: name", FORWARDS),
+    ("boolean/join.rs: line_of::on_as: name", FORWARDS),
     ("boolean/join.rs: travel: name", FORWARDS),
-    ("boolean/ops.rs: apply_cut_ins: name", FORWARDS),
+    ("boolean/ops.rs: apply_cut_ins::sign_as: name", FORWARDS),
     ("boolean/ops.rs: carried: pending", NOT_A_NAME),
     ("boolean/ops.rs: ledger: &mut pending", NOT_A_NAME),
     ("boolean/ops.rs: vertices_meet: predicate", FORWARDS),
@@ -469,7 +466,7 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     (
-        "boolean/section_cert/ruling.rs: reading: rows.fold()",
+        "boolean/section_cert/ruling.rs: reading::side: rows.fold()",
         ROW_FIELD,
     ),
     (
@@ -510,7 +507,7 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     (
-        "boolean/solid_contain.rs: sphere_chart_trim: name",
+        "boolean/solid_contain.rs: sphere_chart_trim::zero_as: name",
         FORWARDS,
     ),
     ("boolean/solid_contain.rs: vertex: rows.vertex()", ROW_FIELD),
@@ -523,17 +520,19 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     (
-        "boolean/surface_group.rs: read_identity#1(coaxial_margins(self.axis, rim).map(|margin| \
-         (BOOL_WRAP_RIM, margin)))",
+        "boolean/surface_group.rs: read_identity#1(coaxial_margins(self.axis, rim).map(|margin| (BOOL_WRAP_RIM, margin)))",
         IDENTITY,
     ),
     ("boolean/trace.rs: sign_as: name", FORWARDS),
     ("bound_side.rs: first_order: predicate", FORWARDS),
-    ("cell_region.rs: cell_region_lifted: row", FORWARDS),
+    (
+        "cell_region.rs: cell_region_lifted::clear_as: row",
+        FORWARDS,
+    ),
     ("cell_region.rs: clear_as: row", FORWARDS),
     ("cell_region.rs: clear_of_arc: row", FORWARDS),
     ("cell_region.rs: clear_of_boundary: row", FORWARDS),
-    ("census.rs: charged_cmp: name", FORWARDS),
+    ("census.rs: charged_cmp::read: name", FORWARDS),
     ("census.rs: enclosure_reading: straddle", FORWARDS),
     ("census.rs: face_holds: body", NOT_FIRST),
     ("census.rs: gap_is_zero: name", FORWARDS),
@@ -541,7 +540,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("census.rs: magnitude_door: name", FORWARDS),
     ("census.rs: meeting_point: a.p0 + a.dir * s", SAME_NAMED),
     (
-        "census.rs: meeting_point: e.p0 + e.dir * ((f.origin - e.p0).dot(f.normal) / along)",
+        "census.rs: meeting_point::line_plane: e.p0 + e.dir * ((f.origin - e.p0).dot(f.normal) / along)",
         SAME_NAMED,
     ),
     ("census.rs: signed_is_zero: name", FORWARDS),
@@ -549,7 +548,14 @@ const INDIRECT: &[(&str, &str)] = &[
     ("census.rs: span_clear: [T::zero(), reach]", NOT_FIRST),
     ("census.rs: span_clear: name", FORWARDS),
     ("census/curved.rs: decided_as: name", FORWARDS),
-    ("chart_region.rs: cylinder_pair_overlap: name", FORWARDS),
+    (
+        "chart_region.rs: cylinder_pair_overlap::norm_gate: name",
+        FORWARDS,
+    ),
+    (
+        "chart_region.rs: cylinder_pair_overlap::signed_gate: name",
+        FORWARDS,
+    ),
     ("chart_region.rs: gate_arm: name", FORWARDS),
     ("chart_region.rs: period_fold: name", FORWARDS),
     ("chord_join.rs: arc_leaving: name", FORWARDS),
@@ -567,16 +573,16 @@ const INDIRECT: &[(&str, &str)] = &[
     ("link.rs: settle_reported: name", FORWARDS),
     ("link.rs: sign_as: name", FORWARDS),
     ("link.rs: sign_over: name", FORWARDS),
-    ("link.rs: touches: name", FORWARDS),
+    ("link.rs: touches::near: name", FORWARDS),
     ("link.rs: why_as: name", FORWARDS),
     ("link.rs: zero_refused: name", FORWARDS),
     ("offset_axial.rs: azimuth_turn: name", FORWARDS),
-    ("offset_axial.rs: classify: what", FORWARDS),
-    ("offset_axial.rs: reauthor: name", FORWARDS),
+    ("offset_axial.rs: classify::sine: what", FORWARDS),
+    ("offset_axial.rs: reauthor::shift_as: name", FORWARDS),
     ("offset_derive.rs: held_zero: name", FORWARDS),
     ("offset_derive.rs: zero_as: name", FORWARDS),
     (
-        "pcurves.rs: a_half_turn_gap_answers_by_the_band_at_every_turn_count: chart(&cone)",
+        "pcurves.rs: a_half_turn_gap_answers_by_the_band_at_every_turn_count::at: chart(&cone)",
         NOT_A_NAME,
     ),
     (
@@ -584,7 +590,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pcurves.rs: a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point: chart(surface)",
+        "pcurves.rs: a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point::at_gap: chart(surface)",
         NOT_A_NAME,
     ),
     (
@@ -607,11 +613,12 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pcurves.rs: net_closes: name", FORWARDS),
     (
-        "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
+        "pcurves.rs: only_a_net_closed_in_v_decides_a_v_element::joint: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,
     ),
     ("pcurves.rs: pcurve_pass: chart", NOT_A_NAME),
     ("pcurves.rs: split_cache: chart", NOT_A_NAME),
+    ("pcurves.rs: split_cache::pin: chart", NOT_A_NAME),
     ("pcurves.rs: turn_element: chart", NOT_A_NAME),
     (
         "pcurves.rs: u_crossing: DescribedChart::of(&s).unwrap()",
@@ -630,9 +637,9 @@ const INDIRECT: &[(&str, &str)] = &[
     ("props.rs: decide_faces: items", NOT_A_NAME),
     ("props.rs: mass_properties_one_point: &faces", NOT_A_NAME),
     ("props.rs: one_verdict: name", FORWARDS),
-    ("props.rs: read_sign: name", FORWARDS),
     ("props.rs: read_sign: names.high()", ROW_FIELD),
     ("props.rs: read_sign: names.low()", ROW_FIELD),
+    ("props.rs: read_sign::sign_as: name", FORWARDS),
     ("props.rs: resolution_runs: faces", NOT_A_NAME),
     ("props.rs: resume_to: &wanted", NOT_A_NAME),
     ("props.rs: settle_on: e", NOT_FIRST),
@@ -653,16 +660,16 @@ const INDIRECT: &[(&str, &str)] = &[
     ("props/quad_lane.rs: runs: &faces", NOT_A_NAME),
     ("props/settle.rs: contains_step: e", NOT_FIRST),
     ("props/settle.rs: contains_step: name", FORWARDS),
-    ("props/settle.rs: relation_step: name", FORWARDS),
+    ("props/settle.rs: relation_step::at_volume: name", FORWARDS),
     ("ray_walk.rs: advance: row", FORWARDS),
     ("ray_walk.rs: apart: row", FORWARDS),
-    ("ray_walk.rs: closest: order", FORWARDS),
+    ("ray_walk.rs: closest::gap: order", FORWARDS),
     ("ray_walk.rs: first_count: order", FORWARDS),
     ("ray_walk.rs: on_segment_margin: rows.boundary()", ROW_FIELD),
     ("ray_walk.rs: on_segment_margin: rows.segment()", ROW_FIELD),
     ("ray_walk.rs: ray_crossings: rows.advance()", ROW_FIELD),
     ("ray_walk.rs: ray_crossings: rows.side()", ROW_FIELD),
-    ("ring_path.rs: path_parity: name", FORWARDS),
+    ("ring_path.rs: path_parity::decide_m: name", FORWARDS),
     ("rows.rs: line: self.line", ROW_FIELD),
     ("rows.rs: names: ", ACCESSOR_LIKE_A_DOOR),
     ("rows.rs: segment_rows: segment: self.segment", ROW_FIELD),
@@ -710,12 +717,15 @@ const INDIRECT: &[(&str, &str)] = &[
     ("validate.rs: definitely_positive: name", FORWARDS),
     ("validate.rs: resolved: name", FORWARDS),
     ("validate.rs: ring_outer_contact_about: $name", FORWARDS),
-    ("validate.rs: wedge_holds_named: ", ACCESSOR_LIKE_A_DOOR),
     (
-        "validate.rs: wedge_holds_named: (name, names.straddle())",
+        "validate.rs: wedge_holds_named::read: ",
+        ACCESSOR_LIKE_A_DOOR,
+    ),
+    (
+        "validate.rs: wedge_holds_named::read: (name, names.straddle())",
         FORWARDS,
     ),
-    ("validate.rs: wedge_holds_named: name", FORWARDS),
+    ("validate.rs: wedge_holds_named::read: name", FORWARDS),
     ("vertex_section.rs: decide_vertex_on_plane: name", FORWARDS),
 ];
 

@@ -24,7 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violations};
+use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, roster_violations};
 
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call's first argument.
@@ -50,9 +50,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("ARC_ROWS"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
-                        forwarder reds until it is declared here or as a carrier";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
 const IDENTITY: &str = "a `read_identity` call over data whose names are read where it is built";
 const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
@@ -84,7 +81,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("ladder.rs: read_identity: name", FORWARDS),
     (
-        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin: check",
+        "linalg/rigid_motion.rs: an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin::render: check",
         FORWARDS,
     ),
     ("linalg/rigid_motion.rs: check_rigid: check", FORWARDS),
@@ -99,11 +96,12 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_FIRST,
     ),
     (
-        "linalg/unit_vec.rs: the_direction_door_tells_an_underflowed_length_from_a_zero_one: v",
+        "linalg/unit_vec.rs: the_direction_door_tells_an_underflowed_length_from_a_zero_one::ask: v",
         NOT_FIRST,
     ),
     ("line2.rs: meet: det", NOT_A_NAME),
-    ("period.rs: decide: name", FORWARDS),
+    ("period.rs: decide::mark: name", FORWARDS),
+    ("period.rs: decide::unnamed: name", FORWARDS),
     ("period.rs: decide_signed: name", FORWARDS),
     ("period.rs: forward: name", FORWARDS),
     ("period.rs: forward_by_arc: chord_name", FORWARDS),

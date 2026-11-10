@@ -642,6 +642,72 @@ pub fn item_body(blanked: &str, from: usize) -> ItemBody {
     }
 }
 
+/// **Every closure bound to a name in a blanked view** (`let NAME = |…|`,
+/// `let NAME = move |…|`), with its extent from the `let` to the end of
+/// the closure's body: the close of a `{ … }` body, or the `;` ending an
+/// expression body at bracket depth zero.
+fn closure_bindings(bare: &str) -> Vec<(String, std::ops::Range<usize>)> {
+    let mut out = Vec::new();
+    for (at, _) in bare.match_indices("let ") {
+        if !boundary_before(bare, at) {
+            continue;
+        }
+        let name_at = skip_ws(bare, at + 4);
+        let name = ident(bare, name_at);
+        if name.is_empty() {
+            continue;
+        }
+        let mut cursor = skip_ws(bare, name_at + name.len());
+        if !bare[cursor..].starts_with('=') || bare[cursor..].starts_with("==") {
+            continue;
+        }
+        cursor = skip_ws(bare, cursor + 1);
+        if bare[cursor..].starts_with("move") && boundary_after(bare, cursor + 4) {
+            cursor = skip_ws(bare, cursor + 4);
+        }
+        if !bare[cursor..].starts_with('|') {
+            continue;
+        }
+        let Some(params_end) = bare[cursor + 1..].find('|').map(|i| cursor + 1 + i) else {
+            continue;
+        };
+        let body = skip_ws(bare, params_end + 1);
+        let end = if bare[body..].starts_with('{') {
+            balanced_end(bare, body).map(|close| close + 1)
+        } else {
+            let mut depth = 0i64;
+            bare[body..].char_indices().find_map(|(i, c)| {
+                match c {
+                    '(' | '[' | '{' => depth += 1,
+                    ')' | ']' | '}' => depth -= 1,
+                    ';' if depth == 0 => return Some(body + i + 1),
+                    _ => {}
+                }
+                (depth < 0).then_some(body + i)
+            })
+        };
+        if let Some(end) = end {
+            out.push((name.to_string(), at..end));
+        }
+    }
+    out
+}
+
+/// **An indirect site's key, parsed**: `<file>: <scope>: <head>`, the
+/// one spelling [`predicate_census`] writes ([`PredicateCensus::indirect`]),
+/// read back here and nowhere else. `<scope>` is the innermost `fn` the
+/// site stands in, `<fn>::<closure>` for a closure bound to a name inside
+/// it, or `-`; a `read_identity` key has no scope and answers `None`.
+#[must_use]
+pub fn indirect_key(key: &str) -> Option<(&str, &str, &str)> {
+    let (file, rest) = key.split_once(": ")?;
+    if rest.starts_with("read_identity#") {
+        return None;
+    }
+    let (scope, head) = rest.split_once(": ")?;
+    Some((file, scope, head))
+}
+
 /// **Every `fn` item with a body in a blanked view**: its name and its
 /// body's extent ([`item_body`]'s `Body`, both braces included), in
 /// order of appearance. A head is a `fn` keyword at a word boundary
@@ -1568,8 +1634,11 @@ pub struct PredicateCensus {
     /// `<file>: <fn>: <expression>` per call whose name-bearing argument
     /// is not a plain literal, and per declared carrier call that holds
     /// no literal argument — named by its first argument — where `<fn>`
-    /// is the innermost `fn` item it stands in ([`fn_items`]; `-` outside
-    /// any). One entry stands for every site of ONE function that spells
+    /// is the innermost `fn` item it stands in ([`fn_items`]), with
+    /// `::<binding>` for a closure bound to a name inside it, and `-`
+    /// outside any `fn`: a `static`'s or a `const`'s initializer, and a
+    /// `fn` a macro writes, which the walk cannot see as an item — all of
+    /// a file's such sites that spell one head share the `-` key. One entry stands for every site of ONE function that spells
     /// the same expression, so a second forwarder in a file is its own
     /// entry and reds until a roster declares it. A `read_identity` call
     /// is keyed `<file>: read_identity#<n>(<head>)` by its place in its
@@ -1690,12 +1759,27 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
                 Vec::new()
             }
         };
-        let enclosing = |at: usize| -> &str {
-            items
+        // A closure bound to a name (`let zero_as = |name, m| …`) is a
+        // forwarder too, keyed by its binding inside its `fn`, so a second
+        // one beside it is its own entry rather than folding into the
+        // `fn`'s.
+        let closures = closure_bindings(&bare);
+        let enclosing = |at: usize| -> String {
+            let item = items
                 .iter()
                 .filter(|(_, body)| body.contains(&at))
-                .min_by_key(|(_, body)| body.len())
-                .map_or("-", |(name, _)| name.as_str())
+                .min_by_key(|(_, body)| body.len());
+            let closure = closures
+                .iter()
+                .filter(|(_, extent)| extent.contains(&at))
+                .filter(|(_, extent)| item.is_none_or(|(_, body)| body.start <= extent.start))
+                .min_by_key(|(_, extent)| extent.len());
+            match (item, closure) {
+                (Some((f, _)), Some((c, _))) => format!("{f}::{c}"),
+                (Some((f, _)), None) => f.clone(),
+                (None, Some((c, _))) => format!("-::{c}"),
+                (None, None) => "-".to_string(),
+            }
         };
         for (kind, payload, at) in funnel_sites(&bare, &code) {
             match kind {
@@ -1867,9 +1951,51 @@ pub fn roster_violations(
                 .filter(|site| !census.indirect.contains(**site))
                 .map(|site| format!("a listed indirect site the census no longer finds: {site}")),
         );
+        // A `FORWARDS` line answers a site by naming a forwarder whose
+        // callers' names the census reads — which it does only where the
+        // forwarder is a declared `Call` carrier. A line naming one that
+        // is not would silence the site without reading anything.
+        let calls: std::collections::BTreeSet<&str> = carriers
+            .iter()
+            .filter_map(|carrier| match carrier {
+                NameCarrier::Call(token) => Some(*token),
+                NameCarrier::Const(_) => None,
+            })
+            .collect();
+        for (site, reason) in listed {
+            if *reason != FORWARDS {
+                continue;
+            }
+            // The forwarder is the scope's innermost binding; a closure inside
+            // a declared forwarder is answered by that forwarder's callers. A
+            // `decide*`-spelled forwarder's calls are funnel sites the census
+            // reads already, and so is `read_identity`'s data.
+            let scope = indirect_key(site).map(|(_, scope, _)| scope);
+            let read = |name: &str| {
+                calls.contains(name) || name.starts_with("decide") || name == "read_identity"
+            };
+            let forwarder = scope.map(|scope| scope.rsplit("::").next().unwrap_or(scope));
+            match forwarder {
+                Some(_) if scope.is_some_and(|scope| scope.split("::").any(read)) => {}
+                Some(name) => out.push(format!(
+                    "a FORWARDS entry whose forwarder `{name}` is no declared Call carrier, so its \
+                     callers' names are not read: {site}"
+                )),
+                None => out.push(format!("a FORWARDS entry that names no forwarder: {site}")),
+            }
+        }
     }
     out
 }
+
+/// **The reason a roster gives a forwarding site**, one spelling for
+/// every roster: [`roster_violations`] holds each site listed with it to
+/// a forwarder its roster declares a `Call` carrier, so a line can only
+/// answer a site whose callers' names the census reads.
+pub const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its \
+                            callers call it, a declared carrier; each forwarding `fn` (or closure \
+                            bound in one) is its own entry, so a new forwarder reds until it is \
+                            declared";
 
 /// Whether the unwalked site `<file>:<line>` under `src` is one the
 /// walk covers after all: a `#[path = "…"]` mounting a file under
@@ -3171,10 +3297,6 @@ mod tests {
         );
     }
 
-    /// **The roster harness reports each kind of gap once and passes a
-    /// clean tree**: a `#[path]` to a file under `src` is walked, one
-    /// outside it is not; a stale carrier, an undeclared const site, and
-    /// an indirect site missing from or stale in the list each red.
     /// **Each forwarder is its own indirect site**: two functions in one
     /// file handing on a parameter of the same name are two entries,
     /// keyed by the `fn` each stands in, so a new forwarder beside a
@@ -3205,6 +3327,52 @@ mod tests {
         );
     }
 
+    /// **A closure bound to a name is its own forwarder, and a `FORWARDS`
+    /// line answers only a declared one**: two closures in one `fn` handing
+    /// on `name` are two keys (`<fn>::<binding>`), and a `FORWARDS` line for
+    /// the one no roster declares a `Call` carrier reds, since its callers'
+    /// literals are never read.
+    #[test]
+    fn a_closure_forwarder_is_keyed_by_its_binding_and_must_be_declared() {
+        let dir = std::env::temp_dir().join(format!("tu-closure-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(
+            dir.join("a.rs"),
+            "fn constant_pairing() {\n    \
+             let zero_as = |name, margin| decide(name, margin, band) == Ok(Sign::Zero);\n    \
+             let pos_planted = |name, margin| { decide(name, margin, band) };\n    \
+             zero_as(\"row\", m);\n    pos_planted(\"planted\", m);\n}\n",
+        )
+        .expect("write");
+        let carriers = [super::NameCarrier::Call("zero_as")];
+        let census = super::predicate_census(&dir, &carriers);
+        let listed = [
+            ("a.rs: constant_pairing::pos_planted: name", super::FORWARDS),
+            ("a.rs: constant_pairing::zero_as: name", super::FORWARDS),
+        ];
+        let said = super::roster_violations(&dir, &census, &carriers, Some(&listed));
+        std::fs::remove_dir_all(&dir).expect("cleanup");
+        assert_eq!(
+            census.indirect.iter().collect::<Vec<_>>(),
+            [
+                "a.rs: constant_pairing::pos_planted: name",
+                "a.rs: constant_pairing::zero_as: name"
+            ]
+        );
+        assert!(census.names.contains("row") && !census.names.contains("planted"));
+        assert_eq!(said.len(), 1, "{said:#?}");
+        assert!(said[0].contains("`pos_planted`"), "{said:#?}");
+        assert_eq!(
+            super::indirect_key("a.rs: f::g: name"),
+            Some(("a.rs", "f::g", "name"))
+        );
+        assert_eq!(super::indirect_key("a.rs: read_identity#1(x)"), None);
+    }
+
+    /// **The roster harness reports each kind of gap once and passes a
+    /// clean tree**: a `#[path]` to a file under `src` is walked, one
+    /// outside it is not; a stale carrier, an undeclared const site, and
+    /// an indirect site missing from or stale in the list each red.
     #[test]
     fn the_roster_harness_names_each_gap() {
         let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));

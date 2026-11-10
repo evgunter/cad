@@ -36,7 +36,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violations};
+use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, roster_violations};
 
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
@@ -81,9 +81,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("measure_sign_as"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
-                        forwarder reds until it is declared here or as a carrier";
 const CLOSED_TYPE: &str = "a closed type's `name()`, whose names are spelled in its own match, \
                            which the census does not read";
 const OTHER_CRATE: &str = "a `const` another crate declares, read by that crate's roster";
@@ -94,13 +91,16 @@ const NOT_A_NAME: &str = "another `decide*` call, whose first argument is not a 
 
 /// The indirect sites, as `<file>: <expr>`, with what carries the name.
 const INDIRECT: &[(&str, &str)] = &[
-    ("checks/at_rest.rs: constant_pairing: name", FORWARDS),
+    (
+        "checks/at_rest.rs: constant_pairing::zero_as: name",
+        FORWARDS,
+    ),
     (
         "checks/at_rest.rs: gap_sign_as: crate::measure::MeasureVerb::Gap",
         NOT_FIRST,
     ),
     ("checks/at_rest.rs: measure_sign_as: site", FORWARDS),
-    ("coincide/replay.rs: one_cylinder: name", FORWARDS),
+    ("coincide/replay.rs: one_cylinder::zero_as: name", FORWARDS),
     ("eval/measure.rs: parallel_as: predicate", FORWARDS),
     ("eval/wire.rs: turns_off: decision.name()", CLOSED_TYPE),
     ("eval/wire.rs: wire_assertion: value", NOT_A_NAME),
@@ -114,8 +114,8 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     ("names/emit_topo.rs: ahead_as: predicate", FORWARDS),
-    ("names/emit_topo.rs: cover_as: p", NOT_FIRST),
     ("names/emit_topo.rs: cover_as: &arc", NOT_FIRST),
+    ("names/emit_topo.rs: cover_as: p", NOT_FIRST),
     ("names/emit_topo.rs: cover_as: p - q", NOT_FIRST),
     ("names/emit_topo.rs: cover_as: p0", NOT_FIRST),
     ("names/emit_topo.rs: cover_as: p1", NOT_FIRST),
@@ -124,10 +124,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("names/emit_topo.rs: holds_as: per - u", NOT_FIRST),
     ("names/emit_topo.rs: holds_as: self.len - u", NOT_FIRST),
     ("names/emit_topo.rs: holds_as: u", NOT_FIRST),
-    ("names/emit_topo.rs: offset_as: predicate", FORWARDS),
+    ("names/emit_topo.rs: offset_as::gap: predicate", FORWARDS),
     ("names/emit_topo.rs: on_line_as: predicate", FORWARDS),
     ("names/emit_topo.rs: place_as: p", NOT_FIRST),
-    ("names/emit_topo.rs: place_as: predicate", FORWARDS),
+    ("names/emit_topo.rs: place_as::sign: predicate", FORWARDS),
     ("names/emit_topo.rs: runs_with_as: ahead", NOT_FIRST),
     ("names/emit_topo.rs: runs_with_as: b", NOT_FIRST),
     (

@@ -40,7 +40,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violations};
+use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, roster_violations};
 
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call: the `const`s names are spelled in, then the calls (row
@@ -136,9 +136,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("data_beneath_sum"),
 ];
 
-const FORWARDS: &str = "a funnel handing on the name its caller gives it, read where its callers \
-                        call a declared carrier; each forwarding `fn` is its own entry, so a new \
-                        forwarder reds until it is declared here or as a carrier";
 const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
 const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name (`.turn()`, \
      `.straddle()`), read as that door's call with no first argument";
@@ -182,14 +179,14 @@ const INDIRECT: &[(&str, &str)] = &[
         "curve_face/circle_roots.rs: harmonic_crossing: rows.root_slack()",
         ROW_FIELD,
     ),
-    ("curve_face/composite.rs: settle: row", FORWARDS),
-    ("curve_face/spline_face.rs: settle: row", FORWARDS),
+    ("curve_face/composite.rs: settle::apart_as: row", FORWARDS),
+    ("curve_face/spline_face.rs: settle::gap_as: row", FORWARDS),
     ("curve_pair/on_surface.rs: decided: row", FORWARDS),
     ("curve_pair/on_surface.rs: section_of: row", FORWARDS),
     ("curve_pair/pose.rs: constant: row", FORWARDS),
     ("curve_pair/pose.rs: definite_as: row", FORWARDS),
     ("curve_pair/pose.rs: read_identity#1(offsets)", IDENTITY),
-    ("curve_pair/walk.rs: stops: row", FORWARDS),
+    ("curve_pair/walk.rs: stops::within: row", FORWARDS),
     ("curve_pair/walk.rs: surely: name", FORWARDS),
     ("dihedral.rs: classify_edge_wedge: name", FORWARDS),
     ("dihedral.rs: decide: name", FORWARDS),
@@ -227,9 +224,11 @@ const INDIRECT: &[(&str, &str)] = &[
     ("half_angle.rs: dropped: ROWS.side()", ROW_FIELD),
     ("half_angle.rs: ladder_roots: rows.noise()", ROW_FIELD),
     ("half_angle.rs: subdivision: meter.row", ROW_FIELD),
-    ("half_angle.rs: subdivision: row", FORWARDS),
     ("half_angle.rs: subdivision: rows.side()", ROW_FIELD),
     ("half_angle.rs: subdivision: touch.stretch()", ROW_FIELD),
+    ("half_angle.rs: subdivision::definitely: row", FORWARDS),
+    ("half_angle.rs: subdivision::on: rows.side()", ROW_FIELD),
+    ("half_angle.rs: subdivision::side: rows.side()", ROW_FIELD),
     ("intersect.rs: cone_cylinder_section: name", FORWARDS),
     ("intersect.rs: cylinder_cylinder_section: c1", NOT_A_NAME),
     ("intersect.rs: plane_cone_section: name", FORWARDS),
@@ -250,11 +249,12 @@ const INDIRECT: &[(&str, &str)] = &[
         "pair_section.rs: decide: geom::Line { origin, dir: axis }",
         NOT_A_NAME,
     ),
+    ("pair_section.rs: decide_stance: name", FORWARDS),
     (
-        "pair_section.rs: decide_stance: decision.name()",
+        "pair_section.rs: decide_stance::pose: decision.name()",
         CLOSED_TYPE,
     ),
-    ("pair_section.rs: decide_stance: name", FORWARDS),
+    ("pair_section.rs: decide_stance::read_as: name", FORWARDS),
     ("pair_section.rs: pair_section: a", NOT_A_NAME),
     ("pair_section/cylinders.rs: decide: lines", NOT_A_NAME),
     (
@@ -262,7 +262,7 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSED_TYPE,
     ),
     (
-        "pair_section/cylinders.rs: decide_stance: [decision.name(), decision.floor()]",
+        "pair_section/cylinders.rs: decide_stance::across: [decision.name(), decision.floor()]",
         PAIRED,
     ),
     (
@@ -275,11 +275,11 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pair_section/gap.rs: critical_gap: rows.floor()", ROW_FIELD),
     ("pair_section/gap.rs: floor_refusal: ", ACCESSOR_LIKE_A_DOOR),
     (
-        "pair_section/gap.rs: floor_refusal: self.rows.gap()",
+        "pair_section/gap.rs: floor_refusal: self.rows.straddle()",
         ROW_FIELD,
     ),
     (
-        "pair_section/gap.rs: floor_refusal: self.rows.straddle()",
+        "pair_section/gap.rs: floor_refusal::bound: self.rows.gap()",
         ROW_FIELD,
     ),
     ("pair_section/gap.rs: positive_as: name", FORWARDS),
@@ -290,11 +290,11 @@ const INDIRECT: &[(&str, &str)] = &[
         ROW_FIELD,
     ),
     ("pair_section/ruling.rs: escalate: ", SAME_NAMED),
-    ("pair_section/ruling.rs: escalate: name", FORWARDS),
     (
         "pair_section/ruling.rs: escalate: row.straddle()",
         CLOSED_TYPE,
     ),
+    ("pair_section/ruling.rs: escalate::bound: name", FORWARDS),
     ("pair_section/ruling.rs: positive: row.name()", CLOSED_TYPE),
     ("pair_section/ruling.rs: ruled: a", NOT_A_NAME),
     (
@@ -302,7 +302,7 @@ const INDIRECT: &[(&str, &str)] = &[
         NOT_A_NAME,
     ),
     (
-        "pair_section/spline_implicit/sweep.rs: sweep: name",
+        "pair_section/spline_implicit/sweep.rs: sweep::off_as: name",
         FORWARDS,
     ),
     (
@@ -325,7 +325,10 @@ const INDIRECT: &[(&str, &str)] = &[
         "pair_section/torus_arms.rs: signs_across: [far, floor]",
         PAIRED,
     ),
-    ("pair_section/torus_arms.rs: sphere_touch: name", FORWARDS),
+    (
+        "pair_section/torus_arms.rs: sphere_touch::positive_as: name",
+        FORWARDS,
+    ),
     (
         "pair_section/torus_coincidence.rs: read_identity#1(d.data.map(|(datum, m)| (datum.row(), m)))",
         IDENTITY,
@@ -339,7 +342,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("pcurve_cache.rs: read_identity#2(data)", IDENTITY),
     ("pcurve_cache.rs: read_identity#3(gates)", IDENTITY),
     ("pcurve_cache.rs: run_spiric_checks: name", FORWARDS),
-    ("pcurve_cache.rs: torus_oblique_circle: name", FORWARDS),
+    (
+        "pcurve_cache.rs: torus_oblique_circle::decided_sense: name",
+        FORWARDS,
+    ),
     ("pcurve_cache/projected.rs: positive_as: name", FORWARDS),
     (
         "pcurve_cache/projected.rs: require_positive: name",
@@ -349,9 +355,9 @@ const INDIRECT: &[(&str, &str)] = &[
         "pcurve_cache/spline_incidence.rs: spline_incidence: name",
         FORWARDS,
     ),
-    ("props/closure.rs: loop_turns: name", FORWARDS),
+    ("props/closure.rs: loop_turns::classify_as: name", FORWARDS),
     ("props/curved.rs: classify_as: name", FORWARDS),
-    ("props/curved.rs: cone_loop_winding: name", FORWARDS),
+    ("props/curved.rs: cone_loop_winding::off: name", FORWARDS),
     ("props/curved.rs: level_coincides: name", FORWARDS),
     ("props/curved.rs: mean_width_side: name", FORWARDS),
     (
