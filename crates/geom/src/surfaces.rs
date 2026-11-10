@@ -868,6 +868,10 @@ pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
     }
 }
 
+/// An analytic chart's `(u, v)` angle periods ([`Surface::angle_periods`]):
+/// `Some` on a channel that is an angle, `None` on one that is a length.
+pub type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
@@ -919,7 +923,7 @@ impl<T: Real> Surface<T> {
     /// which the chart owns"), matched exhaustively so a new kind decides
     /// here.
     #[must_use]
-    pub fn angle_periods(&self) -> Option<(Option<Period<T>>, Option<Period<T>>)> {
+    pub fn angle_periods(&self) -> Option<AnglePeriods<T>> {
         let angle = || Some(Period::angle());
         match *self {
             Surface::Plane { .. } => Some((None, None)),

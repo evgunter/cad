@@ -200,7 +200,7 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    AnalyticPairs, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
+    AnalyticPairs, AnglePeriods, ApproxSurface, ApproxWindow, NetState, NotARing, NurbsSurface,
     OffsetCertificate, PLACEHOLDER_SURFACE, RingTorus, SheetApex, SpindleEnd, SpindleMiss, Surface,
     SurfaceData, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceKind,
     SurfacePairing, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
