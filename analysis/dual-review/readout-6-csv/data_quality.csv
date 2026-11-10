@@ -1,0 +1,15 @@
+problem,detail,rows
+Rule 11 under-recorded,5 later-escape lines; work items attribute a main red or regression to 28 units since readout 5,see escapes
+Arm mislabelled,front matter says concurrent; class cell says HOLDOUT (byte 198),DR-410
+"One pair, two rows",one stacked-unit holdout pair recorded as two holdout rows,"DR-207, DR-208"
+Table shape,"127 rows lack the 11 cells (74 fewer, 53 more from unescaped pipes); DR-150 truncated",74 + 53 rows
+Foot tally mixes holdouts,"foot reads 91; concurrent-only tally is 82, against the Seams",foot
+major field contradicts cells,false with a MAJOR on both sides; true with none; true from a delta read,"DR-66, DR-57, DR-376"
+Ruling not recorded,Ev's PR 4645 ruling on readout 5 missing from rulings.md; DR-144 and DR-104 questions unruled,rulings.md
+Protocol hashes,124 rows cite a non-touching commit; 4 cite the pre-PR-4645 text; one does not resolve,"DR-166, 167, 169, 174, 455"
+Cost fields sparse,"tokens on 23 of 526 reviews since readout 5, minutes on 132, mixed units",since DR-166
+Weak coding of tallied pairs,"8 of 38 tallied pairs since readout 5 coded unblinded, by the orchestrator, or unnamed","DR-166, 171, 208, 254, 304, 308, 353, 411"
+Sequential deviations,second review on the first's head (2); briefed blind (1),"DR-246, DR-263, DR-316"
+Draw time missing,on 67 of 126 arm rows since readout 5,since DR-166
+Stale Running: counters,hand-kept counters left in tally cells,"DR-366, DR-448"
+Model version,"reviewers recorded only as Opus, never a version",all rows

@@ -1,0 +1,11 @@
+option,cost,measures,risk
+Continue unchanged,"2 reviews per H unit, about 1.5 per M unit",M miss rate narrows slowly: halving its interval takes about 150 more holdouts (about four months),"H estimate already stationary; H pairs now buy defects, not information"
+"End the H experiment, keep H pairs as policy",saves a coder lane per MAJOR pair and the row-keeping,nothing more on H,loses nothing the estimate needs at 258 fair H pairs
+Raise the holdout share (mod 2),about 0.12 more reviews per M unit (1.64 vs 1.52),holdouts accrue 1.5x as fast,fewer sequential units and second reviews
+Make the sequential second review unconditional,"2 reviews per sequential unit, no concurrency",what a fix-head review finds when the first raised no MAJOR (63 such units since readout 5),the conditional trigger is no longer measured
+End the M arms: single review,saves 0.28 reviews per unit vs today's sequential arm,nothing in this log,loses the second review's 7 new MAJORs in 24 runs
+End the M arms: all pairs,0.5 more reviews per unit than today's mix,the unilateral-MAJOR rate at M directly,buys back about 0.05-0.07 misses per unit
+End the stream,none further,none further,"record stands: 281 fair concurrent pairs, 48 holdouts, 113 sequential units"
+Alongside any: record escapes and fix bookkeeping,a line per traced red; one docs pass and a cell-count lint,"escapes, the only test of single-review units",none to the method
+Alongside any: spend on CI selection,run the slow set and eps rows for touched crates,fewer escapes of the class both reviewers miss,CI time
+Cross-model pairs (Opus + Fable),ends this Opus/Opus stream,"the Opus/Opus H baseline (0.217, 0.168-0.272) becomes the reference",muddles the M holdout counterfactual unless the M arms stay Opus/Opus or stop in one recorded step

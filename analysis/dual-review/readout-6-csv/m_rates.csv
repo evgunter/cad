@@ -1,0 +1,13 @@
+key,window,measure,k,n,rate,lo,hi
+before readout 5|M-tier misses per holdout pair,before readout 5,M-tier misses per holdout pair,3,9,0.3333,0.0749,0.7007
+"before readout 5|No-MAJOR holdout review, twin raised a tallied MAJOR",before readout 5,"No-MAJOR holdout review, twin raised a tallied MAJOR",3,12,0.25,0.0549,0.5719
+before readout 5|Sequential first review raised a MAJOR,before readout 5,Sequential first review raised a MAJOR,7,26,0.2692,0.1157,0.4779
+before readout 5|Sequential second review raised a new MAJOR,before readout 5,Sequential second review raised a new MAJOR,2,7,0.2857,0.0367,0.7096
+since readout 5|M-tier misses per holdout pair,since readout 5,M-tier misses per holdout pair,4,39,0.1026,0.0287,0.2422
+"since readout 5|No-MAJOR holdout review, twin raised a tallied MAJOR",since readout 5,"No-MAJOR holdout review, twin raised a tallied MAJOR",4,55,0.0727,0.0202,0.1759
+since readout 5|Sequential first review raised a MAJOR,since readout 5,Sequential first review raised a MAJOR,24,87,0.2759,0.1854,0.3821
+since readout 5|Sequential second review raised a new MAJOR,since readout 5,Sequential second review raised a new MAJOR,7,24,0.2917,0.1262,0.5109
+all arms|M-tier misses per holdout pair,all arms,M-tier misses per holdout pair,7,48,0.1458,0.0607,0.2776
+"all arms|No-MAJOR holdout review, twin raised a tallied MAJOR",all arms,"No-MAJOR holdout review, twin raised a tallied MAJOR",7,67,0.1045,0.043,0.2035
+all arms|Sequential first review raised a MAJOR,all arms,Sequential first review raised a MAJOR,31,113,0.2743,0.1946,0.3663
+all arms|Sequential second review raised a new MAJOR,all arms,Sequential second review raised a new MAJOR,9,31,0.2903,0.1422,0.4804

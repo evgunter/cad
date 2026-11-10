@@ -1,0 +1,4 @@
+arm,recorded_lines,k,n,rate,lo,hi,pin,build,behaviour
+sequential,0,10,87,0.1149,0.0565,0.2012,6,2,2
+holdout,1,2,39,0.0513,0.0063,0.1732,1,1,0
+concurrent,2,16,166,0.0964,0.0561,0.1518,7,0,9

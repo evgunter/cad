@@ -1,0 +1,425 @@
+<meta name="dash-one-writer">
+<style>
+  .r6 { font-family: var(--font-anthropic-sans); color: var(--color-fg); max-width: 920px; }
+  .r6 h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0 0 var(--cds-gap-sm); }
+  .r6 h2 { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: var(--cds-gap-xl) 0 var(--cds-gap-xs); }
+  .r6 p, .r6 li { font-size: var(--cds-font-size-body); line-height: 1.5; }
+  .r6 .r6-muted { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+  .r6 .r6-lede { font-size: var(--cds-font-size-body); margin: 0 0 var(--cds-gap-md); }
+  .r6 .r6-num { font-variant-numeric: tabular-nums; font-weight: var(--cds-font-weight-medium); }
+  .r6 .r6-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--cds-gap-sm); margin: var(--cds-gap-md) 0; }
+  .r6 .r6-tile { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); }
+  .r6 .r6-tile .r6-big { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; display: block; margin: var(--cds-gap-xs) 0; }
+  .r6 .r6-tile .r6-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .r6 .r6-chart { position: relative; min-height: 120px; width: 100%; }
+  .r6 .r6-chart svg { display: block; width: 100%; overflow: visible; }
+  .r6 .r6-chart text { font-family: var(--font-anthropic-sans); font-size: var(--cds-font-size-caption); fill: var(--cds-text-secondary); }
+  .r6 .r6-chart text.r6-strong { fill: var(--color-fg); }
+  .r6 .r6-tip { position: absolute; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); box-shadow: var(--cds-shadow-popover); border-radius: var(--cds-radius); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); color: var(--color-fg); max-width: 240px; z-index: 2; }
+  .r6 .r6-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: var(--cds-gap-xs) 0; }
+  .r6 .r6-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .r6 .r6-scroll { overflow-x: auto; }
+  .r6 table { border-collapse: collapse; width: 100%; font-size: var(--cds-font-size-caption); }
+  .r6 th, .r6 td { text-align: left; padding: var(--cds-pad-xs) var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); vertical-align: top; }
+  .r6 th { color: var(--color-fg-muted); font-weight: var(--cds-font-weight-medium); }
+  .r6 td.r6-n { font-variant-numeric: tabular-nums; text-align: right; }
+  .r6 [data-dash-source-state=refreshing] { opacity: .5; }
+</style>
+
+<div class="r6">
+  <h1 id="title">Dual Opus review: readout 6</h1>
+  <p class="r6-muted">DR-1..458, 2026-09-24 to 2026-11-09. Every reviewer was Opus. Derived from the log's row files by <code>analysis/dual-review/readout-6-csv.py</code> on branch <code>analysis/dual-review/readout-6</code>.</p>
+
+  <p class="r6-lede" id="lede">A second review found a demonstrated, blocking defect the first missed in
+    <span class="r6-num" data-draw="lede_h" data-source="headline" data-field="k" data-where="id=h_tally">—</span> of
+    <span class="r6-num" data-draw="lede_hn" data-source="headline" data-field="n" data-where="id=h_tally">—</span> fair H pairs, flat over time.
+    At M, holdout pairs missed
+    <span class="r6-num" data-draw="lede_m" data-source="headline" data-field="k" data-where="id=holdout_miss_since">—</span> in
+    <span class="r6-num" data-draw="lede_mn" data-source="headline" data-field="n" data-where="id=holdout_miss_since">—</span> since readout 5.
+    Escapes are under-recorded:
+    <span class="r6-num" data-draw="lede_rec" data-source="escape_totals" data-field="recorded" data-row="0">—</span> rule-11 lines against
+    <span class="r6-num" data-draw="lede_tr" data-source="escape_totals" data-field="traced" data-row="0">—</span> units with a traced red since readout 5.</p>
+
+  <div class="r6-tiles" id="tiles">
+    <div class="r6-tile" id="tile-h">
+      <span class="r6-label">H fair pairs with a tallied finding</span>
+      <span class="r6-big" data-draw="tile_h" data-source="headline" data-field="value" data-where="id=h_tally">—</span>
+      <span class="r6-muted">95% CI <span data-draw="tile_h_lo" data-source="headline" data-field="lo" data-where="id=h_tally">—</span>–<span data-draw="tile_h_hi" data-source="headline" data-field="hi" data-where="id=h_tally">—</span>, whole log</span>
+    </div>
+    <div class="r6-tile" id="tile-fpp">
+      <span class="r6-label">Tallied findings per fair H pair</span>
+      <span class="r6-big" data-draw="tile_fpp" data-source="headline" data-field="value" data-where="id=h_findings_per_pair">—</span>
+      <span class="r6-muted">a lone review ships about half of these</span>
+    </div>
+    <div class="r6-tile" id="tile-miss">
+      <span class="r6-label">M-tier misses per holdout pair, since readout 5</span>
+      <span class="r6-big" data-draw="tile_miss" data-source="headline" data-field="value" data-where="id=holdout_miss_since">—</span>
+      <span class="r6-muted">95% CI <span data-draw="tile_miss_lo" data-source="headline" data-field="lo" data-where="id=holdout_miss_since">—</span>–<span data-draw="tile_miss_hi" data-source="headline" data-field="hi" data-where="id=holdout_miss_since">—</span></span>
+    </div>
+    <div class="r6-tile" id="tile-missall">
+      <span class="r6-label">M-tier misses per holdout pair, all arms</span>
+      <span class="r6-big" data-draw="tile_missall" data-source="headline" data-field="value" data-where="id=holdout_miss_all">—</span>
+      <span class="r6-muted">95% CI <span data-draw="tile_missall_lo" data-source="headline" data-field="lo" data-where="id=holdout_miss_all">—</span>–<span data-draw="tile_missall_hi" data-source="headline" data-field="hi" data-where="id=holdout_miss_all">—</span></span>
+    </div>
+    <div class="r6-tile" id="tile-seq">
+      <span class="r6-label">Reviews per sequential M unit, since readout 5</span>
+      <span class="r6-big" data-draw="tile_seq" data-source="headline" data-field="value" data-where="id=seq_reviews_per_unit">—</span>
+      <span class="r6-muted">a concurrent pair costs two</span>
+    </div>
+  </div>
+
+  <h2 id="h-trend">At H, the second review's yield is flat</h2>
+  <p class="r6-muted">Share of fair concurrent pairs with at least one tallied finding (unilateral, MAJOR, code / test / contract class, demonstrated by execution), by block of the log, with exact 95% intervals. Every block's interval contains every other block's estimate.</p>
+  <div class="r6-chart" id="chart-h" data-draw="chart_h" data-source="h_blocks"></div>
+
+  <h2 id="m-arms">At M: holdout pairs against the sequential arm</h2>
+  <p class="r6-muted">Rates with exact 95% intervals, before readout 5 (DR-48..165), since (DR-166..458) and over all arms. An M-tier miss is a tallied finding in a holdout pair whose other review raised no MAJOR: taken alone, that review would have shipped it.</p>
+  <div class="r6-legend" id="m-legend">
+    <span><span class="r6-sw" data-draw="sw0"></span>before readout 5</span>
+    <span><span class="r6-sw" data-draw="sw1"></span>since readout 5</span>
+    <span><span class="r6-sw" data-draw="sw2"></span>all arms</span>
+  </div>
+  <div class="r6-chart" id="chart-m" data-draw="chart_m" data-source="m_rates"></div>
+
+  <h2 id="m-cost">What each arm costs, in reviews per unit</h2>
+  <p class="r6-muted">A holdout is a concurrent pair (2 reviews). A sequential unit gets one review, and a second after the fix pass only if the first raised a MAJOR.</p>
+  <div class="r6-chart" id="chart-cost" data-draw="chart_cost" data-source="m_cost"></div>
+
+  <h2 id="escapes">Escapes: recorded lines against traced reds</h2>
+  <p class="r6-muted">Since readout 5. "Traced" means a work item attributes a red on main or a regression to the unit's PR, by its title or a bisection; these are not adjudicated under rule 6(b) and (d). Rates are units with a traced red per unit, with exact 95% intervals.</p>
+  <div class="r6-chart" id="chart-esc" data-draw="chart_esc" data-source="escapes_by_arm"></div>
+  <div class="r6-legend" id="kind-legend">
+    <span><span class="r6-sw" data-draw="swk0"></span>pin (a pinned value, digest or census moved)</span>
+    <span><span class="r6-sw" data-draw="swk1"></span>build</span>
+    <span><span class="r6-sw" data-draw="swk2"></span>behaviour (refusal, wrong value, slowdown)</span>
+  </div>
+  <div class="r6-chart" id="chart-kind" data-draw="chart_kind" data-source="escapes_by_arm"></div>
+
+  <h3 id="where-head">Where the traced reds sit</h3>
+  <p class="r6-muted">Read from each work item. Most are rows the per-PR gate does not run, so both reviewers share the blind spot.</p>
+  <div class="r6-chart" id="chart-where" data-draw="chart_where" data-source="escape_where"></div>
+
+  <details id="escape-list">
+    <summary>Every traced red, whole log</summary>
+    <div class="r6-scroll">
+      <table data-source="escape_list" data-row-key="dr">
+        <thead><tr><th data-field="dr">Row</th><th data-field="arm">Arm</th><th data-field="kind">Kind</th><th data-field="where">Where</th><th data-field="recorded">Rule-11 line</th><th data-field="note">From the work item</th></tr></thead>
+        <tbody data-draw="tbl_esc"></tbody>
+      </table>
+    </div>
+  </details>
+
+  <h2 id="cost">Cost per review, where recorded</h2>
+  <p class="r6-muted">Share of reviews whose row records tokens or minutes. Coverage collapsed after readout 5, so per-arm figures since then are anecdotes. Minutes mix harness time, wall time across pauses and estimates.</p>
+  <div class="r6-legend" id="cov-legend">
+    <span><span class="r6-sw" data-draw="swc0"></span>tokens recorded</span>
+    <span><span class="r6-sw" data-draw="swc1"></span>minutes recorded</span>
+  </div>
+  <div class="r6-chart" id="chart-cov" data-draw="chart_cov" data-source="cost_coverage"></div>
+  <div class="r6-scroll">
+    <table id="cost-table" data-source="cost" data-row-key="key">
+      <thead><tr><th data-field="window">Window</th><th data-field="arm">Arm</th><th data-field="reviews">Reviews</th><th data-field="tokens_recorded">With tokens</th><th data-field="tokens_median">Median tokens</th><th data-field="minutes_recorded">With minutes</th><th data-field="minutes_median">Median minutes</th></tr></thead>
+      <tbody data-draw="tbl_cost"></tbody>
+    </table>
+  </div>
+
+  <h2 id="dq">Data-quality problems in the log</h2>
+  <div class="r6-scroll">
+    <table data-source="data_quality" data-row-key="problem">
+      <thead><tr><th data-field="problem">Problem</th><th data-field="detail">Detail</th><th data-field="rows">Rows</th></tr></thead>
+      <tbody data-draw="tbl_dq"></tbody>
+    </table>
+  </div>
+
+  <h2 id="options">Options for Ev</h2>
+  <p class="r6-muted">Unranked. The arms continue until Ev rules (rule 9).</p>
+  <div class="r6-scroll">
+    <table data-source="options" data-row-key="option">
+      <thead><tr><th data-field="option">Option</th><th data-field="cost">Cost</th><th data-field="measures">Measures</th><th data-field="risk">Risk or note</th></tr></thead>
+      <tbody data-draw="tbl_opt"></tbody>
+    </table>
+  </div>
+  <p id="fable-note">On cross-model pairs (one Opus, one Fable): the Opus/Opus H baseline is precise and stationary, so it can serve as the reference a cross-model stream is read against, and ending this stream's H pairs loses little. The M question is the one a switch would muddle; keep the M arms Opus/Opus until answered, or stop them in one recorded step. The escapes both reviewers miss are mostly rows neither runs, which a different model running the same brief would likely share.</p>
+</div>
+
+<script>
+  dash.calc('escape_totals', {
+    title: 'Escape totals since readout 5',
+    description: 'Rule-11 lines recorded and units with a traced red, summed over the three arms.',
+    inputs: ['escapes_by_arm'],
+    fn: (escapes_by_arm) => [{
+      recorded: escapes_by_arm.reduce((s, r) => s + Number(r.recorded_lines), 0),
+      traced: escapes_by_arm.reduce((s, r) => s + Number(r.k), 0),
+    }],
+  });
+  dash.calc('cost_coverage', {
+    title: 'Share of reviews with a recorded cost',
+    description: 'Reviews whose row records tokens, or minutes, over all reviews, by window and arm.',
+    inputs: ['cost'],
+    fn: (cost) => cost.map((r) => ({
+      key: r.key, window: r.window, arm: r.arm, reviews: Number(r.reviews),
+      tokens_recorded: Number(r.tokens_recorded), minutes_recorded: Number(r.minutes_recorded),
+      tokens_share: Number(r.reviews) ? Number(r.tokens_recorded) / Number(r.reviews) : 0,
+      minutes_share: Number(r.reviews) ? Number(r.minutes_recorded) / Number(r.reviews) : 0,
+    })),
+  });
+
+  window.R6 = (function () {
+    const pct = d3.format('.1%');
+    const dec3 = d3.format('.3f');
+    function rows(id) {
+      const d = dash.data(id);
+      return d.status === 'ok' && Array.isArray(d.data) ? d.data : null;
+    }
+    function failed(el, id) {
+      const d = dash.data(id);
+      el.replaceChildren();
+      const p = document.createElement('p');
+      p.className = 'r6-muted';
+      p.textContent = d.status === 'error' ? 'Failed to load' : '—';
+      el.append(p);
+    }
+    function tip(el) {
+      const t = document.createElement('div');
+      t.className = 'r6-tip';
+      t.hidden = true;
+      el.append(t);
+      return {
+        show(ev, lines) {
+          t.replaceChildren(...lines.map((s, i) => { const d = document.createElement('div'); d.textContent = s; if (i === 0) d.style.fontWeight = 'var(--cds-font-weight-medium)'; return d; }));
+          t.hidden = false;
+          const b = el.getBoundingClientRect();
+          let x = ev.clientX - b.left + 12, y = ev.clientY - b.top + 12;
+          if (x + t.offsetWidth > b.width) x = Math.max(0, ev.clientX - b.left - t.offsetWidth - 12);
+          t.style.left = x + 'px'; t.style.top = y + 'px';
+        },
+        hide() { t.hidden = true; },
+      };
+    }
+    // A forest plot: one item per row, label above, interval line, dot at the estimate.
+    function forest(el, items, opts) {
+      el.replaceChildren();
+      const w = Math.max(280, el.clientWidth || 600);
+      const rowH = 34, headH = 22, axisH = 22;
+      let y = 0;
+      const placed = [];
+      let lastGroup = null;
+      items.forEach((it) => {
+        if (opts.groupOf && opts.groupOf(it) !== lastGroup) { lastGroup = opts.groupOf(it); placed.push({ head: lastGroup, y: y + 14 }); y += headH; }
+        placed.push({ it, y: y + 14 });
+        y += rowH;
+      });
+      const h = y + axisH;
+      const xmax = opts.xmax || Math.min(1, d3.max(items, (d) => +d.hi) * 1.1);
+      const x = d3.scaleLinear().domain([0, xmax]).range([4, w - 8]).nice();
+      const svg = d3.select(el).append('svg').attr('viewBox', `0 0 ${w} ${h}`).attr('height', h)
+        .attr('role', 'img').attr('aria-label', opts.aria);
+      svg.append('g').selectAll('line').data(x.ticks(5)).join('line')
+        .attr('x1', (d) => x(d)).attr('x2', (d) => x(d)).attr('y1', 0).attr('y2', y)
+        .style('stroke', 'var(--cds-chart-grid)');
+      const ax = svg.append('g').attr('transform', `translate(0,${y})`).call(d3.axisBottom(x).ticks(5).tickFormat(d3.format('.0%')));
+      ax.select('.domain').style('stroke', 'var(--cds-chart-axis)');
+      ax.selectAll('line').style('stroke', 'var(--cds-chart-axis)');
+      const t = tip(el);
+      placed.forEach((p) => {
+        if (p.head) {
+          svg.append('text').attr('class', 'r6-strong').attr('x', 0).attr('y', p.y).text(p.head);
+          return;
+        }
+        const it = p.it, c = opts.color(it);
+        svg.append('text').attr('x', 0).attr('y', p.y).text(`${opts.label(it)} · ${it.k}/${it.n} = ${pct(+it.rate)}`);
+        const cy = p.y + 10;
+        svg.append('line').attr('x1', x(+it.lo)).attr('x2', x(+it.hi)).attr('y1', cy).attr('y2', cy)
+          .style('stroke', c).style('stroke-width', 2);
+        svg.append('circle').attr('cx', x(+it.rate)).attr('cy', cy).attr('r', 4.5).style('fill', c);
+        svg.append('rect').attr('x', 0).attr('y', p.y - 12).attr('width', w).attr('height', rowH).style('fill', 'transparent')
+          .on('pointermove pointerdown', (ev) => t.show(ev, [opts.label(it), `${it.k} of ${it.n} = ${pct(+it.rate)}`, `95% CI ${pct(+it.lo)} – ${pct(+it.hi)}`].concat(opts.extra ? opts.extra(it) : [])))
+          .on('pointerleave', () => t.hide());
+      });
+    }
+    // Horizontal bars, label above each bar, value at its end.
+    function bars(el, items, opts) {
+      el.replaceChildren();
+      const w = Math.max(280, el.clientWidth || 600);
+      const rowH = 36;
+      const h = items.length * rowH + 4;
+      const vmax = opts.max || d3.max(items, opts.value) || 1;
+      const x = d3.scaleLinear().domain([0, vmax]).range([0, w - 70]);
+      const svg = d3.select(el).append('svg').attr('viewBox', `0 0 ${w} ${h}`).attr('height', h)
+        .attr('role', 'img').attr('aria-label', opts.aria);
+      const t = tip(el);
+      items.forEach((it, i) => {
+        const y = i * rowH;
+        svg.append('text').attr('x', 0).attr('y', y + 12).text(opts.label(it));
+        if (opts.segments) {
+          let x0 = 0;
+          opts.segments.forEach((s, j) => {
+            const v = Number(it[s]);
+            if (!v) return;
+            svg.append('rect').attr('x', x(x0)).attr('y', y + 17).attr('width', Math.max(1, x(x0 + v) - x(x0))).attr('height', 12)
+              .style('fill', dash.colors[j % dash.colors.length]);
+            x0 += v;
+          });
+          svg.append('text').attr('class', 'r6-strong').attr('x', x(x0) + 6).attr('y', y + 27).text(opts.fmt(opts.value(it)));
+        } else {
+          const v = opts.value(it);
+          svg.append('rect').attr('x', 0).attr('y', y + 17).attr('width', Math.max(1, x(v))).attr('height', 12)
+            .style('fill', opts.color ? opts.color(it) : dash.colors[0]);
+          svg.append('text').attr('class', 'r6-strong').attr('x', x(v) + 6).attr('y', y + 27).text(opts.fmt(v));
+        }
+        svg.append('rect').attr('x', 0).attr('y', y).attr('width', w).attr('height', rowH).style('fill', 'transparent')
+          .on('pointermove pointerdown', (ev) => t.show(ev, opts.tip(it))).on('pointerleave', () => t.hide());
+      });
+    }
+    function table(tbody, data, cols, key) {
+      tbody.replaceChildren(...data.map((r) => {
+        const tr = document.createElement('tr');
+        tr.dataset.key = encodeURIComponent(r[key]);
+        cols.forEach((c) => { const td = document.createElement('td'); td.textContent = r[c] ?? ''; if (/^-?[\d.]+$/.test(r[c] ?? '')) td.className = 'r6-n'; tr.append(td); });
+        return tr;
+      }));
+    }
+    return { pct, dec3, rows, failed, forest, bars, table };
+  })();
+</script>
+
+<script>
+  (function () {
+    const R = window.R6;
+    function cell(id, where, field, fmt) {
+      return (el) => {
+        const rs = R.rows(id);
+        const r = rs && rs.find((x) => x.id === where);
+        el.textContent = r ? fmt(r[field]) : '—';
+      };
+    }
+    const asInt = (v) => String(Number(v));
+    const asPct = (v) => R.pct(Number(v));
+    dash.draw('lede_h', cell('headline', 'h_tally', 'k', asInt));
+    dash.draw('lede_hn', cell('headline', 'h_tally', 'n', asInt));
+    dash.draw('lede_m', cell('headline', 'holdout_miss_since', 'k', asInt));
+    dash.draw('lede_mn', cell('headline', 'holdout_miss_since', 'n', asInt));
+    dash.draw('tile_h', cell('headline', 'h_tally', 'value', asPct));
+    dash.draw('tile_h_lo', cell('headline', 'h_tally', 'lo', asPct));
+    dash.draw('tile_h_hi', cell('headline', 'h_tally', 'hi', asPct));
+    dash.draw('tile_fpp', cell('headline', 'h_findings_per_pair', 'value', (v) => Number(v).toFixed(3)));
+    dash.draw('tile_miss', cell('headline', 'holdout_miss_since', 'value', asPct));
+    dash.draw('tile_miss_lo', cell('headline', 'holdout_miss_since', 'lo', asPct));
+    dash.draw('tile_miss_hi', cell('headline', 'holdout_miss_since', 'hi', asPct));
+    dash.draw('tile_missall', cell('headline', 'holdout_miss_all', 'value', asPct));
+    dash.draw('tile_missall_lo', cell('headline', 'holdout_miss_all', 'lo', asPct));
+    dash.draw('tile_missall_hi', cell('headline', 'holdout_miss_all', 'hi', asPct));
+    dash.draw('tile_seq', cell('headline', 'seq_reviews_per_unit', 'value', (v) => Number(v).toFixed(3)));
+    function total(field) {
+      return (el) => {
+        const d = dash.data('escape_totals');
+        el.textContent = d.status === 'ok' && d.data && d.data[0] ? String(d.data[0][field]) : '—';
+      };
+    }
+    dash.draw('lede_rec', total('recorded'));
+    dash.draw('lede_tr', total('traced'));
+    ['sw0', 'sw1', 'sw2', 'swk0', 'swk1', 'swk2', 'swc0', 'swc1'].forEach((n) => {
+      const i = Number(n.slice(-1));
+      dash.draw(n, (el) => { el.style.background = dash.colors[i % dash.colors.length]; });
+    });
+  })();
+</script>
+
+<script>
+  (function () {
+    const R = window.R6;
+    const WIN = ['before readout 5', 'since readout 5', 'all arms'];
+    dash.draw('chart_h', (el) => {
+      const rs = R.rows('h_blocks');
+      if (!rs) return R.failed(el, 'h_blocks');
+      R.forest(el, rs, {
+        aria: 'Share of fair concurrent pairs with a tallied finding, by block of the log, with 95% intervals; all blocks overlap.',
+        label: (d) => `${d.block} (${d.from.slice(5)} to ${d.to.slice(5)})`,
+        color: () => dash.colors[0],
+        xmax: 0.5,
+        extra: (d) => [`${d.major} of ${d.fair} pairs had a MAJOR`, `${d.findings} tallied findings`],
+      });
+    });
+    dash.draw('chart_m', (el) => {
+      const rs = R.rows('m_rates');
+      if (!rs) return R.failed(el, 'm_rates');
+      const order = [...new Set(rs.map((r) => r.measure))];
+      const items = order.flatMap((m) => WIN.map((w) => rs.find((r) => r.measure === m && r.window === w)).filter(Boolean));
+      R.forest(el, items, {
+        aria: 'M-tier rates before and since readout 5 and over all arms, with 95% intervals.',
+        groupOf: (d) => d.measure,
+        label: (d) => d.window,
+        color: (d) => dash.colors[WIN.indexOf(d.window) % dash.colors.length],
+        xmax: 0.8,
+      });
+    });
+    dash.draw('chart_cost', (el) => {
+      const rs = R.rows('m_cost');
+      if (!rs) return R.failed(el, 'm_cost');
+      R.bars(el, rs.filter((r) => r.window !== 'all arms'), {
+        aria: 'Reviews per M unit by arm, before and since readout 5.',
+        label: (d) => `${d.arm}, ${d.window}`,
+        value: (d) => Number(d.per_unit),
+        max: 2,
+        fmt: (v) => v.toFixed(2),
+        color: (d) => dash.colors[WIN.indexOf(d.window) % dash.colors.length],
+        tip: (d) => [`${d.arm}, ${d.window}`, `${d.reviews} reviews over ${d.units} units`, `${Number(d.per_unit).toFixed(3)} per unit`],
+      });
+    });
+    dash.draw('chart_esc', (el) => {
+      const rs = R.rows('escapes_by_arm');
+      if (!rs) return R.failed(el, 'escapes_by_arm');
+      R.forest(el, rs, {
+        aria: 'Units with a traced red on main per unit, by arm, since readout 5, with 95% intervals; the intervals overlap.',
+        label: (d) => `${d.arm}: ${d.recorded_lines} rule-11 lines; units with a traced red`,
+        color: () => dash.colors[0],
+        xmax: 0.3,
+        extra: (d) => [`pin ${d.pin}, build ${d.build}, behaviour ${d.behaviour}`],
+      });
+    });
+    dash.draw('chart_kind', (el) => {
+      const rs = R.rows('escapes_by_arm');
+      if (!rs) return R.failed(el, 'escapes_by_arm');
+      R.bars(el, rs, {
+        aria: 'Traced reds since readout 5 by kind, per arm.',
+        label: (d) => `${d.arm} (${d.n} units)`,
+        segments: ['pin', 'build', 'behaviour'],
+        value: (d) => Number(d.pin) + Number(d.build) + Number(d.behaviour),
+        fmt: (v) => String(v),
+        tip: (d) => [d.arm, `pin ${d.pin}`, `build ${d.build}`, `behaviour ${d.behaviour}`],
+      });
+    });
+    dash.draw('chart_where', (el) => {
+      const rs = R.rows('escape_where');
+      if (!rs) return R.failed(el, 'escape_where');
+      R.bars(el, rs, {
+        aria: 'Where the traced reds since readout 5 sit: mostly eps rows, the slow set, and suites the PR gate did not select.',
+        label: (d) => d.where,
+        value: (d) => Number(d.units),
+        fmt: (v) => String(v),
+        tip: (d) => [d.where, `${d.units} units`],
+      });
+    });
+    dash.draw('chart_cov', (el) => {
+      const d = dash.data('cost_coverage');
+      if (d.status !== 'ok' || !Array.isArray(d.data)) return R.failed(el, 'cost_coverage');
+      const items = d.data.flatMap((r) => [
+        { ...r, what: 'tokens', share: r.tokens_share, got: r.tokens_recorded, c: dash.colors[0] },
+        { ...r, what: 'minutes', share: r.minutes_share, got: r.minutes_recorded, c: dash.colors[1 % dash.colors.length] },
+      ]);
+      R.bars(el, items, {
+        aria: 'Share of reviews with tokens or minutes recorded, by window and arm; token coverage fell after readout 5.',
+        label: (r) => `${r.arm}, ${r.window}: ${r.what}`,
+        value: (r) => r.share,
+        max: 1,
+        fmt: (v) => R.pct(v),
+        color: (r) => r.c,
+        tip: (r) => [`${r.arm}, ${r.window}`, `${r.what} recorded on ${r.got} of ${r.reviews} reviews`],
+      });
+    });
+    dash.draw('tbl_esc', (tb) => { const rs = R.rows('escape_list'); if (!rs) { tb.replaceChildren(); return; } R.table(tb, rs, ['dr', 'arm', 'kind', 'where', 'recorded', 'note'], 'dr'); });
+    dash.draw('tbl_cost', (tb) => { const rs = R.rows('cost'); if (!rs) { tb.replaceChildren(); return; } R.table(tb, rs, ['window', 'arm', 'reviews', 'tokens_recorded', 'tokens_median', 'minutes_recorded', 'minutes_median'], 'key'); });
+    dash.draw('tbl_dq', (tb) => { const rs = R.rows('data_quality'); if (!rs) { tb.replaceChildren(); return; } R.table(tb, rs, ['problem', 'detail', 'rows'], 'problem'); });
+    dash.draw('tbl_opt', (tb) => { const rs = R.rows('options'); if (!rs) { tb.replaceChildren(); return; } R.table(tb, rs, ['option', 'cost', 'measures', 'risk'], 'option'); });
+  })();
+</script>

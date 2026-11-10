@@ -1,0 +1,6 @@
+id,label,value,k,n,rate,lo,hi
+h_tally,H fair pairs with a tallied finding,0.2171,56,258,0.2171,0.1683,0.2724
+holdout_miss_since,"M-tier misses per holdout pair, since readout 5",0.1026,4,39,0.1026,0.0287,0.2422
+holdout_miss_all,"M-tier misses per holdout pair, all arms",0.1458,7,48,0.1458,0.0607,0.2776
+seq_reviews_per_unit,"Reviews per sequential unit, since readout 5",1.276,111,87,,,
+h_findings_per_pair,Tallied findings per fair H pair,0.283,73,258,,,

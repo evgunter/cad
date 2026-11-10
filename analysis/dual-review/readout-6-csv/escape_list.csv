@@ -1,0 +1,30 @@
+dr,arm,letter,kind,where,recorded,since_readout_5,note
+DR-158,sequential,M,pin,slow set,no,no,"#4553 slow set red: sweep digest moved, arc-loft round trip sums faces in another order"
+DR-174,sequential,M,"build, crossed",main build (crossed merge),no,yes,"#4591 main does not compile (sweep loft), a semantic conflict with 73e852f2a"
+DR-176,sequential,M,pin,slow set,no,yes,#4703 arc-loft thread-count digest red; the item calls 4703's lost decision class a regression
+DR-177,sequential,M,pin,suite the PR gate did not select,no,yes,#4677 test-utils impl census red; its own CI never selected test-utils
+DR-200,holdout,M,build,feature-gated / nightly job,yes,yes,#4791 seven probe-feature rows red (recorded rule-11 line)
+DR-237,concurrent,H,pin,eps rows,no,yes,#4952 thread-count digest pads moved at 1e-12
+DR-259,sequential,M,pin,suite the PR gate did not select,no,yes,#5152 copysign census row red: an unregistered site
+DR-264,concurrent,H,behaviour,eps rows,no,yes,#5227 three 1e-12 rows refuse their census (bisected)
+DR-266,sequential,M,pin,suite the PR gate did not select,no,yes,#5238 step-export fixture not regenerated after the libm atan2 move
+DR-279,concurrent,H,behaviour,eps rows,no,yes,"#5269 torus_region_probe reads OnBoundary where In at 1e-6, red since the test landed"
+DR-284,sequential,M,pin,eps rows,no,yes,#5297 pinned EdgeEdgeCross finding moved at 1e-6 (bisected)
+DR-288,concurrent,H,pin,slow set,no,yes,#5225 review_pick_r2 pinned tally moved (bisected)
+DR-308,concurrent,H,behaviour,eps rows,no,yes,#5156 meeting-axes pose refuses its endpoint at 1e-12; a NaN semi-axis refused earlier
+DR-331,concurrent,H,behaviour,eps rows,no,yes,#5664 meeting-axes pose refuses on a ruled-region span at Interval (bisected)
+DR-335,concurrent,H,pin,suite the PR gate did not select,no,yes,#5692 copysign census row red: three unregistered sites
+DR-343,sequential,M,"behaviour, crossed?",fast set (CI profile),no,yes,"#5529 CoincidentWedgesOverlap fires on flush copies, 7-9 CI-profile rows; the item suspects a crossed base"
+DR-345,holdout,M,pin,slow set,no,yes,#5734 two slow-set backstop rows red; thread-count digest moved
+DR-348,concurrent,H,behaviour,eps rows,no,yes,#5704 lofted cylinders' far union 3.2e-5 off its closed form at 1e-6 (not bisected; excluded pair)
+DR-360,concurrent,H,pin,slow set,no,yes,#5817 perf12 census golden 28 vs 29 findings (excluded pair)
+DR-363,concurrent,H,behaviour,eps rows,no,yes,"#5728 several rows: KernelLimit refusals at 1e-12, M10 interval pins moved"
+DR-368,concurrent,H,behaviour,eps rows,no,yes,#5872 cylinder x sphere section exhausts its cell budget at 1e-6 (P0)
+DR-377,concurrent,H,behaviour,eps rows,no,yes,"#5894 a door row 8 s -> 127 s, cancelling the nightly's 1e-12 job"
+DR-382,concurrent,H,pin,slow set,yes,yes,#5955 stale slow-set fixture (recorded rule-11 line)
+DR-390,concurrent,H,behaviour,eps rows,no,yes,#6011 five torus section rows refuse at 1e-6
+DR-392,sequential,M,behaviour,not stated,no,yes,#6053 a prism tilted within the zero escalates where it built (bisected)
+DR-397,concurrent,H,pin,suite the PR gate did not select,no,yes,#6079 prose census cannot decide a new site
+DR-405,concurrent,H,pin,slow set,no,yes,#6171 certified-endpoint census drifted in four files
+DR-435,sequential,M,pin,suite the PR gate did not select,no,yes,#6430 prose census site count fell under its floor (bisected)
+DR-455,sequential,M,build,feature-gated / nightly job,no,yes,#6371 rustdoc rejects a link and demos/tour no longer compiles (nightly)

@@ -1,0 +1,7 @@
+key,window,arm,reviews,tokens_recorded,tokens_median,minutes_recorded,minutes_median
+before readout 5|concurrent,before readout 5,concurrent,163,50,260528,55,43
+before readout 5|holdout,before readout 5,holdout,18,4,228108,4,34
+before readout 5|sequential,before readout 5,sequential,36,9,203000,11,41
+since readout 5|concurrent,since readout 5,concurrent,332,15,279289,83,105
+since readout 5|holdout,since readout 5,holdout,80,4,200000,14,112
+since readout 5|sequential,since readout 5,sequential,114,4,172639,35,135

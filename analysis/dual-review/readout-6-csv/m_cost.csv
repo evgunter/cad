@@ -1,0 +1,10 @@
+key,window,arm,units,reviews,per_unit
+before readout 5|holdout,before readout 5,holdout,9,18,2.0
+before readout 5|sequential,before readout 5,sequential,26,33,1.269
+before readout 5|arms together,before readout 5,arms together,35,51,1.457
+since readout 5|holdout,since readout 5,holdout,39,78,2.0
+since readout 5|sequential,since readout 5,sequential,87,111,1.276
+since readout 5|arms together,since readout 5,arms together,126,189,1.5
+all arms|holdout,all arms,holdout,48,96,2.0
+all arms|sequential,all arms,sequential,113,144,1.274
+all arms|arms together,all arms,arms together,161,240,1.491
