@@ -874,13 +874,12 @@ pub(crate) enum LoopSplit<T: Real> {
         /// That plane's unit normal.
         dir: Vec3<T>,
     },
-    /// `p`'s distance from the axis `(origin, axis)` less `radius`,
-    /// `axis` unit.
+    /// `p`'s distance from the axis less `radius`.
     Radius {
-        /// A point of the axis.
-        origin: Point3<T>,
-        /// The axis.
-        axis: Vec3<T>,
+        /// The axis. Only [`geom::Line::distance`] reads it, which is
+        /// correct for any nonzero `dir`, so a unit `dir` is not a premise
+        /// here (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+        axis: geom::Line<T>,
         /// The radius between the loops.
         radius: T,
     },
@@ -891,11 +890,7 @@ impl<T: Real> LoopSplit<T> {
     pub(crate) fn margin(&self, p: Point3<T>) -> T {
         match *self {
             Self::Side { origin, dir } => geom::plane_offset(origin, dir, p),
-            Self::Radius {
-                origin,
-                axis,
-                radius,
-            } => geom::Line { origin, dir: axis }.distance(p) - radius,
+            Self::Radius { axis, radius } => axis.distance(p) - radius,
         }
     }
 
@@ -935,8 +930,10 @@ impl<T: Real> LoopSplit<T> {
                 dir: axis.cross(n).normalize(),
             }),
             geom_brep::PlaneTorusSection::ConcentricCircles { .. } => Some(Self::Radius {
-                origin: centre,
-                axis: axis.normalize(),
+                axis: geom::Line {
+                    origin: centre,
+                    dir: axis.normalize(),
+                },
                 radius: major,
             }),
             geom_brep::PlaneTorusSection::MeridianCircles { .. }
@@ -1142,8 +1139,10 @@ impl<T: Decide> Quadric<T> {
         };
         Ok(Some(arc(ArcLoop {
             split: LoopSplit::Radius {
-                origin: centre,
-                axis,
+                axis: geom::Line {
+                    origin: centre,
+                    dir: axis,
+                },
                 radius: major,
             },
             positive,

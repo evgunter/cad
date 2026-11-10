@@ -850,10 +850,13 @@ pub fn sheet_center<T: Real>(
 /// blend already carries the axis, and nothing is fitted or guessed.
 #[derive(Clone, Copy, Debug)]
 pub struct Meridian<T: Real> {
-    /// A point of the common axis (the rim circle's centre).
-    pub origin: Point3<T>,
-    /// The unit common axis (the rim circle's axis).
-    pub axis: Vec3<T>,
+    /// The common axis, through the rim circle's centre, its `dir` the
+    /// rim circle's unit axis. The readings below take `dir` as unit
+    /// (each `·dir` is a length along the axis, and `dir × radial` the
+    /// sheet's unit normal), which the type does not carry: a circle's
+    /// axis is unit by convention
+    /// (`an-axis-reads-its-direction-as-unit-by-convention-not-type`).
+    pub axis: geom::Line<T>,
     /// The rim point the sheet passes through.
     pub rim: Point3<T>,
 }
@@ -863,13 +866,13 @@ impl<T: Real> Meridian<T> {
     /// where no meridian is distinguished ([`perp_unit`]).
     #[must_use]
     pub fn radial(&self) -> Vec3<T> {
-        perp_unit(self.rim - self.origin, self.axis)
+        perp_unit(self.rim - self.axis.origin, self.axis.dir)
     }
 
     /// The unit normal of the sheet (the meridian half-plane's own).
     #[must_use]
     pub fn sheet_normal(&self) -> Vec3<T> {
-        self.axis.cross(self.radial())
+        self.axis.dir.cross(self.radial())
     }
 
     /// The rim's radius — the **named lever arm** every angular
@@ -877,7 +880,7 @@ impl<T: Real> Meridian<T> {
     /// margin is a length in the same metres as every other one.
     #[must_use]
     pub fn lever(&self) -> T {
-        (self.rim - self.origin).dot(self.radial())
+        (self.rim - self.axis.origin).dot(self.radial())
     }
 
     /// Reduce one support to its meridian trace, with the **departure
@@ -901,7 +904,7 @@ impl<T: Real> Meridian<T> {
             // trace's normal, and it must be the axis itself.
             Surface::Plane { normal, .. } => Some((
                 SupportTrace::Straight { normal, side },
-                normal.cross(self.axis).norm() * lever,
+                normal.cross(self.axis.dir).norm() * lever,
             )),
             // A coaxial cylinder: the meridian trace is the line through
             // the rim with the radially outward normal. The stored
@@ -911,7 +914,7 @@ impl<T: Real> Meridian<T> {
                     normal: radial,
                     side,
                 },
-                axis.cross(self.axis).norm() * lever,
+                axis.cross(self.axis.dir).norm() * lever,
             )),
             // A coaxial cone: the generator through the rim, whose chart
             // normal is `radial·cos α − k̂·(ω sin α)` for the NAPPE sign
@@ -925,13 +928,13 @@ impl<T: Real> Meridian<T> {
                 ..
             } => {
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis)).unit_sign();
+                let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir)).unit_sign();
                 Some((
                     SupportTrace::Straight {
-                        normal: radial * cos_a - self.axis * (nappe * sin_a),
+                        normal: radial * cos_a - self.axis.dir * (nappe * sin_a),
                         side,
                     },
-                    axis.cross(self.axis).norm() * lever,
+                    axis.cross(self.axis.dir).norm() * lever,
                 ))
             }
             // A sphere centred on the axis: its meridian trace is the
@@ -939,15 +942,14 @@ impl<T: Real> Meridian<T> {
             // level with the sphere's centre. The departure is the
             // centre's own distance off the axis.
             Surface::Sphere { center, radius, .. } => {
-                let off = center - self.origin;
-                let along = self.axis * off.dot(self.axis);
+                let level = self.axis.foot(center);
                 Some((
                     SupportTrace::Round {
-                        center: self.origin + along,
+                        center: level,
                         radius,
                         side,
                     },
-                    (off - along).norm(),
+                    (center - level).norm(),
                 ))
             }
             _ => None,
@@ -975,27 +977,26 @@ impl<T: Real> Meridian<T> {
     ) -> EdgeBlend<T> {
         let radial = self.radial();
         let center = sheet_center(self.rim, self.sheet_normal(), a, b, radius, branch);
-        let level = |q: Point3<T>| {
-            geom::Line {
-                origin: self.origin,
-                dir: self.axis,
-            }
-            .foot(q)
-        };
-        let s = (center - self.origin).dot(radial);
+        let level = |q: Point3<T>| self.axis.foot(q);
+        let s = (center - self.axis.origin).dot(radial);
         // The setback is the EUCLIDEAN displacement of the trimline from
         // the rim, the metric predicate 2 measures face extents in.
         let trim = |t: SupportTrace<T>| {
             let q = t.contact(center, radius);
             (
-                Curve3::circle(level(q), self.axis, (q - self.origin).dot(radial), radial),
+                Curve3::circle(
+                    level(q),
+                    self.axis.dir,
+                    (q - self.axis.origin).dot(radial),
+                    radial,
+                ),
                 (q - self.rim).norm(),
             )
         };
         EdgeBlend {
             surface: Surface::Torus {
                 center: level(center),
-                axis: self.axis,
+                axis: self.axis.dir,
                 major_radius: s,
                 minor_radius: radius,
                 u_ref: radial,
