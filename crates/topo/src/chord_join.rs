@@ -1534,16 +1534,6 @@ impl<T: Real> SectionCurve<T> {
         }
     }
 
-    /// **The curve's period**: a conic's own ([`Conic::period`]) or a
-    /// spiric oval's ([`geom::spiric_period`]). Total: a section curve
-    /// closes.
-    fn period(&self) -> geom_core::period::Period<T> {
-        match self {
-            Self::Conic(c) => c.conic().period(),
-            Self::Oval(_) => geom::spiric_period(),
-        }
-    }
-
     /// The carrier itself.
     fn carrier(&self) -> &geom::Curve3<T> {
         match self {
@@ -2047,7 +2037,12 @@ fn oriented_arc<T: Decide>(
     to: ArcEnd<T>,
     ccw: bool,
 ) -> Result<(geom::Curve3<T>, T, T), SplitJoinError> {
-    let turn = conic.period();
+    let Some(turn) = conic.carrier().period() else {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a chord's section curve does not close",
+        });
+    };
     // The span forward from `th1` to a distinct end, in `[0, τ)`: a
     // chord may span more than half the conic. Its window jumps at a
     // span of zero, two ends sharing a conic parameter, which is either
@@ -2099,7 +2094,12 @@ fn chord_arc<T: Decide>(
     let seamed = match curve {
         SectionCurve::Conic(conic) => {
             let half = T::from_f64(0.5);
-            let turn = conic.conic().period();
+            let Some(turn) = conic.carrier.period() else {
+                return Err(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "a chord's section conic does not close",
+                });
+            };
             let th1 = conic.param(p1);
             let middle = match p2 {
                 None => th1,

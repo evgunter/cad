@@ -95,6 +95,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("k_stats.rs: decide_passing: name", FORWARDS),
     ("k_stats.rs: prove: name", PROVE_DOOR),
     (
+        "ladder.rs: a_differing_ladder_answers_on_two_decided_answers_that_differ: name",
+        LOOP_ROWS,
+    ),
+    (
         "ladder.rs: an_agreeing_ladder_reads_every_rung_and_checks_its_answers: name",
         LOOP_ROWS,
     ),

@@ -23,6 +23,9 @@
 //!   rather than stopping at the first answer, and hands back
 //!   [`Disagree`] where two decided answers differ. Its caller says what
 //!   a disagreement means.
+//! - [`climb_differing`] is the **differing ladder**: two decided answers
+//!   that differ are its answer, past any kept rung; the agreement stands
+//!   only where every rung decided.
 //! - [`Evidence`] is **the one ranking of what a ladder kept** when nothing
 //!   answered: a limit no tolerance moves ahead of an in-band reading.
 //! - [`Refusal`] is **a refusal's standing**, stated by its own type: a
@@ -33,17 +36,19 @@
 //!   return type is the type's claim about whether it can abort.
 //!
 //! The ladders own the recording, through one private discipline (`Held`)
-//! that [`climb_evidence`] (and so [`climb`]) and [`climb_agreeing`]
-//! share: each rung's run is held until the outcome is known, and a pass
-//! ahead of every kept rung is spliced at once. The caller declares what
-//! an answer may do with the kept readings ahead of it ([`Answering`]):
+//! that [`climb_evidence`] (and so [`climb`]), [`climb_agreeing`] and
+//! [`climb_differing`] share: each rung's run is held until the outcome
+//! is known, and a pass ahead of every kept rung is spliced at once. The
+//! caller declares what an answer may do with the kept readings ahead of
+//! it ([`Answering`]):
 //! where every answering rung gives one answer, a kept reading's run is
 //! spliced superseded ([`crate::k_stats::splice_superseded`]), since
 //! the answer does not rest on it; where which rung answers chooses the
 //! answer, it stays live, since a kept rung ahead may truly have answered
 //! first. An agreeing ladder's answer supersedes its kept rungs as `Any`
-//! does; its disagreement and an abort keep every run live. Every run is
-//! spliced in rung order.
+//! does; its disagreement and an abort keep every run live. A differing
+//! ladder's difference supersedes its kept rungs the same way. Every run
+//! is spliced in rung order.
 
 use crate::k_stats::{
     Detached, Magnitude, decide_magnitude_reported, decide_reported, detached, splice,
@@ -581,7 +586,8 @@ pub fn climb_evidence<I, A, E>(
 
 /// **The runs a ladder has read, held in rung order** until its outcome
 /// is known, and what its kept rungs kept ([`Evidence`]): the one
-/// recording discipline of [`climb_evidence`] and [`climb_agreeing`].
+/// recording discipline of [`climb_evidence`], [`climb_agreeing`] and
+/// [`climb_differing`].
 struct Held<E> {
     kept: Evidence<E>,
     /// Each run read since the first kept one, with whether it was kept.
@@ -679,6 +685,14 @@ pub fn climb_agreeing<I, A, E>(
     for (at, rung) in rungs.into_iter().enumerate() {
         let (got, log) = detached(|| read(rung));
         let Some((answer, aborts)) = held.take(got, log) else {
+            // The first-refusal mutant (`climb_evidence`'s).
+            #[cfg(any_first_mutant)]
+            if !held.kept.is_empty() {
+                return Ok(held
+                    .splice_all(false)
+                    .refusal()
+                    .map_or(Climb::Passed, Climb::Undecided));
+            }
             continue;
         };
         if aborts {
@@ -707,6 +721,83 @@ pub fn climb_agreeing<I, A, E>(
             .refusal()
             .map_or(Climb::Passed, Climb::Undecided),
     })
+}
+
+/// What a differing ladder read ([`climb_differing`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Differing<A, E> {
+    /// Two decided answers differ, which is the answer: the first answer
+    /// read that the later one differs from, and that later one.
+    Differ(Disagree<A>),
+    /// Every rung decided and no two answers differ: each answer, in rung
+    /// order (a passing rung gives none).
+    Agreed(Vec<A>),
+    /// A rung refused the whole question, with the answer it stopped on.
+    Aborted(A),
+    /// No two decided answers differ and at least one rung was kept: the
+    /// one it refuses on ([`Evidence`]'s ranking).
+    Undecided(E),
+}
+
+/// **The ladder where two decided answers that differ are the answer**:
+/// a mixed reading (a face's bounds on both sides of a plane, rides of
+/// both signs over one point) is a theorem of any two rungs, whatever the
+/// others read, so the first decided pair that differs answers, past
+/// every rung kept ahead of it or between. Only where none differ does
+/// the agreement stand, and it needs every rung: an answer is
+/// [`Differing::Agreed`] only where no rung was kept.
+///
+/// `differ` says whether two answers differ. It need not be an
+/// equivalence's complement (a side `On` differs from neither `In` nor
+/// `Out`), so each answer is read against every earlier one, and the
+/// pair it gives is the earliest later answer with the earliest earlier
+/// one it differs from.
+///
+/// [`climb_agreeing`] reads the same rungs where a disagreement is the
+/// caller's to judge (a fault, or an answer it maps itself) and the
+/// decided agreement answers past a kept rung; here the disagreement is
+/// the answer and the agreement does not answer past one.
+///
+/// Recording: a difference supersedes every kept rung's run (the answer
+/// rests on the two decided rungs alone); an agreement has none kept; an
+/// abort and an undecided outcome keep every run live. Every run is
+/// spliced in rung order.
+pub fn climb_differing<I, A, E>(
+    rungs: impl IntoIterator<Item = I>,
+    mut read: impl FnMut(I) -> Rung<A, E>,
+    differ: impl Fn(&A, &A) -> bool,
+) -> Differing<A, E> {
+    let mut held = Held::default();
+    let mut answers: Vec<A> = Vec::new();
+    for rung in rungs {
+        let (got, log) = detached(|| read(rung));
+        let Some((answer, aborts)) = held.take(got, log) else {
+            // The first-refusal mutant (`climb_evidence`'s).
+            #[cfg(any_first_mutant)]
+            if !held.kept.is_empty() {
+                return held
+                    .splice_all(false)
+                    .refusal()
+                    .map_or(Differing::Agreed(answers), Differing::Undecided);
+            }
+            continue;
+        };
+        if aborts {
+            held.splice_all(false);
+            return Differing::Aborted(answer);
+        }
+        if let Some(i) = answers.iter().position(|seen| differ(seen, &answer)) {
+            held.splice_all(true);
+            return Differing::Differ(Disagree {
+                first: answers.swap_remove(i),
+                other: answer,
+            });
+        }
+        answers.push(answer);
+    }
+    held.splice_all(false)
+        .refusal()
+        .map_or(Differing::Agreed(answers), Differing::Undecided)
 }
 
 /// What an identity ladder's data answer ([`read_identity`]): a
@@ -1468,6 +1559,118 @@ mod tests {
             "the kept reading is superseded, every answer's verdict stands: \
              {verdicts:?} {escalations:?}"
         );
+    }
+
+    /// **A differing ladder answers on two decided answers that differ**,
+    /// past a rung kept ahead of them; the agreement stands only where
+    /// every rung decided; otherwise the kept readings rank. `On` differs
+    /// from nothing, so the pair is read against every earlier answer.
+    #[test]
+    fn a_differing_ladder_answers_on_two_decided_answers_that_differ() {
+        use super::{Differing, Disagree, climb_differing};
+        let rung = |r: Rung<&'static str, &'static str>| r;
+        let differ = |a: &&str, b: &&str| *a != "on" && *b != "on" && a != b;
+        assert_eq!(
+            climb_differing(
+                [
+                    Rung::InBand("kept"),
+                    Rung::Answers("in"),
+                    Rung::Answers("on"),
+                    Rung::Answers("out"),
+                    Rung::Aborts("never read")
+                ],
+                rung,
+                differ
+            ),
+            Differing::Differ(Disagree {
+                first: "in",
+                other: "out"
+            }),
+            "two decided answers that differ answer past a kept rung, \
+             and nothing after them is read"
+        );
+        assert_eq!(
+            climb_differing(
+                [
+                    Rung::Answers("in"),
+                    Rung::Passes,
+                    Rung::Answers("on"),
+                    Rung::Answers("in")
+                ],
+                rung,
+                differ
+            ),
+            Differing::Agreed(vec!["in", "on", "in"]),
+            "every rung decided and none differ: the agreement, each answer"
+        );
+        assert_eq!(
+            climb_differing(
+                [
+                    Rung::Answers("in"),
+                    Rung::InBand("in band"),
+                    Rung::Blocked("limit"),
+                    Rung::Answers("in")
+                ],
+                rung,
+                differ
+            ),
+            Differing::Undecided("limit"),
+            "an agreement with a rung kept does not answer: the kept rank"
+        );
+        assert_eq!(
+            climb_differing(
+                [
+                    Rung::InBand("kept"),
+                    Rung::Aborts("corrupt"),
+                    Rung::Answers("out")
+                ],
+                rung,
+                differ
+            ),
+            Differing::Aborted("corrupt"),
+            "an abort stops the reading"
+        );
+        assert_eq!(
+            climb_differing(Vec::<Rung<&str, &str>>::new(), rung, differ),
+            Differing::Agreed(vec![]),
+            "no rungs: the empty agreement"
+        );
+        let (got, verdicts, escalations) = recorded(|| {
+            climb_differing(
+                [("a", 5e-9), ("b", 1.0), ("c", -1.0)],
+                |(name, m): (&'static str, f64)| {
+                    Rung::<Sign, crate::predicate::Indeterminate>::decide(
+                        name,
+                        Margin::of(m),
+                        band(),
+                        |d| Some(d.sign),
+                    )
+                },
+                |a: &Sign, b: &Sign| a != b,
+            )
+        });
+        assert!(matches!(got, Differing::Differ(_)), "{got:?}");
+        assert!(
+            escalations.is_empty() && verdicts.contains(&"b") && verdicts.contains(&"c"),
+            "the kept reading is superseded, both answers' verdicts stand: \
+             {verdicts:?} {escalations:?}"
+        );
+        let (got, _, escalations) = recorded(|| {
+            climb_differing(
+                [("a", 5e-9), ("b", 1.0)],
+                |(name, m): (&'static str, f64)| {
+                    Rung::<Sign, crate::predicate::Indeterminate>::decide(
+                        name,
+                        Margin::of(m),
+                        band(),
+                        |d| Some(d.sign),
+                    )
+                },
+                |a: &Sign, b: &Sign| a != b,
+            )
+        });
+        assert!(matches!(got, Differing::Undecided(_)), "{got:?}");
+        assert_eq!(escalations, ["a"], "undecided rests on the kept reading");
     }
 
     /// **A later definite datum answers past an earlier in-band one**,
