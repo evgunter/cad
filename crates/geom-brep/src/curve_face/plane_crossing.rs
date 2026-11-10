@@ -490,7 +490,7 @@ fn near_span<T: Decide>(candidates: [Option<T>; 2], (t0, t1): (T, T)) -> impl It
     candidates
         .into_iter()
         .flatten()
-        .map(move |c| Period::new(T::tau()).near(c, mid))
+        .map(move |c| Period::angle().near(c, mid))
 }
 
 /// **Whether a graze's roots can reach the span** ([`span_plane_meet`]):

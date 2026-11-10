@@ -72,6 +72,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SITE_AT_NODE"),
     NameCarrier::Const("SITE_IN_SPAN"),
     NameCarrier::Const("SITE_PAST_SPAN"),
+    NameCarrier::Const("SITE_PAST_SPAN_NEAR"),
+    NameCarrier::Const("SITE_PAST_SPAN_STRADDLE"),
     NameCarrier::Const("ST_GAP"),
     NameCarrier::Const("SWING"),
     NameCarrier::Const("TILT"),

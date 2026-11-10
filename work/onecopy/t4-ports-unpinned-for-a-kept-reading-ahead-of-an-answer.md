@@ -1,7 +1,7 @@
 ---
 id: t4-ports-unpinned-for-a-kept-reading-ahead-of-an-answer
 kind: issue
-title: 26 of 45 production Any ladders have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
+title: 33 of 55 production ladders that answer past a kept rung have no pin for a kept reading ahead of an answer; the any-climb-pins register names each
 status: open
 opened: 2026-11-10
 priority: P3
@@ -31,7 +31,9 @@ These four are not pinned, because no cheap fixture reaches a kept rung ahead of
 **QML T6 adds one** (`onecopy/refusal-standing`). The reach probe saw it answer past no kept reading in-suite.
 - **`census::span_clear`** (`crates/topo/src/census.rs`, the edge–face pierce census's clearance). **Fixture:** an edge whose span runs over a face, the face's boundary holding first a side whose end reads in band of the span (`on_edge_interior_reading` escalates), then a side whose interior meets it (`interiors_meet`). `span_clear` answers "not clear" and pushes nothing. A first-refusal loop pushed the first member's escalation and returned `None`.
 
-## Not yet ported: `vtxfac::partner_side` (filed 2026-11-10, measured)
+## Ported: `vtxfac::partner_side` (filed 2026-11-10, measured; ported on `the-ladder-has-no-climb-for-a-disagreement-that-answers`)
+
+**Ported** onto `geom_core::ladder::climb_differing`, with the fixture below as its pin (in `a_partners_side_of_a_face_is_read_off_its_bounds`, `h = 3 · band.zero()`, a lift that test already shows in band). What follows is the row as filed.
 
 `topo::boolean::vtxfac::partner_side` reads every bound's side with `?`, so a bound read in band refuses the whole read. It does so even where two other bounds are *decided* on opposite sides, which by itself is `PartnerRead::Across` (a theorem). That is the kept-reading-ahead-of-an-answer shape. It is not a `climb_agreeing` port, since there a disagreement is an answer (PR 6750's site comment). Its port is its own: answer `Across` where two decided bounds differ, else refuse on a kept bound, else the side.
 
@@ -71,7 +73,15 @@ The 19 beyond the seven above (18 at filing, and `loop_circle` since), each with
 - `topo` `side_reader::cast_aims`: an aimed ray's `Pair` in band ahead of a ray that decides (the door row's cheapest-named case; no fixture builds the pair today).
 - `topo` `splitting::finish::shell_side`: a shell whose first witness reads in band.
 
+**The agreeing ladders** (fixtures sketched from each rung's reader, not yet built; `climb_agreeing`, registered since `climb_differing` joined the gate: an entry point that takes no `Answering` supersedes its kept rungs on every answer). A mutant run with only `climb_agreeing` and `climb_differing` mutated found a pin for `chord_join::IslandReading::read_paths` (`cone_ring_rows`' winding row) and none for these seven. Each needs one rung kept in band beside decided rungs that agree, with the agreement as the answer:
+- `geom-brep` `props::curved::unanimous_rim_side`: a band whose rims all decide one side but one, read in band.
+- `topo` `boolean::join::seam_germ_side`: a seam's chord pairs, one in band beside two decided alike.
+- `topo` `boolean::sectors::tangent_lump`: a tangent lump's bounds, one in band of the tangent plane beside two decided on one side.
+- `topo` `link::second_order::thorns`: a link's arm pairs, one pair in band beside agreeing decided pairs.
+- `topo` `loop_side::inside_at_every_vertex`: a loop whose vertices all place inside but one, read in band.
+- `topo` `offset_nappe::group_nappe`: a group of faces whose nappes agree but one, read in band.
+- `topo` `stands::ladder_agreeing`: a witness cell read in band beside agreeing cells.
+
 ## Done when
 
 - No entry of `scripts/gates/any-climb-pins.counts` names this row: each has a pin as described, red under a first-refusal loop, or the register names a stated reason it cannot be reached.
-- `partner_side` is ported as above, with the fixture as its pin.

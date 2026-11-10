@@ -2780,7 +2780,10 @@ impl<T: Decide> CarriedComponent<T> {
     /// and only a fitted component has one, on a spline carrier, which
     /// returns above. A conic component with a pad is a desync.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
-        let Some(conic) = self.carrier.conic().filter(|_| !self.closed()) else {
+        // An open conic component, read in its carrier's own period.
+        let (Some(_), Some(turn), false) =
+            (self.carrier.conic(), self.carrier.period(), self.closed())
+        else {
             return Ok(Some(t));
         };
         if self.pad > 0.0 {
@@ -2788,7 +2791,7 @@ impl<T: Decide> CarriedComponent<T> {
                 "a conic component carries a pad: its witness can stand past the band from its foot",
             ));
         }
-        let t = conic.period().at_or_above(t, self.span.0);
+        let t = turn.at_or_above(t, self.span.0);
         use crate::curve_pair::{GapMeter, Span, SpanEnd};
         use geom_core::k_stats::{decide_nonzero, decide_nonzero_reported, straddle};
         use geom_core::{Decided, NonzeroSign, Sign};
