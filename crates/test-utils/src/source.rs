@@ -1570,7 +1570,7 @@ pub struct PredicateCensus {
 /// carrier. Both are read here; anything still unread is reported, not
 /// dropped.
 ///
-/// **`geom_brep::ladder::read_identity` is a funnel too**, deciding each
+/// **`geom_core::ladder::read_identity` is a funnel too**, deciding each
 /// datum under the name it is handed beside it, and its data are an
 /// iterator this reader cannot follow. Every call of it is therefore an
 /// `indirect` site, `<file>: read_identity(<its first argument's head>)`,
@@ -2457,7 +2457,7 @@ mod tests {
         let raw = "use ladder::{read_identity};\n\
                    /// [`read_identity`] reads data.\n\
                    pub fn read_identity<T>(d: T) {}\n\
-                   fn f() { geom_brep::ladder::read_identity(\n    [(\"lit\", m)], band); \
+                   fn f() { geom_core::ladder::read_identity(\n    [(\"lit\", m)], band); \
                    read_identity(\n    [(\"other\", m)], band); \
                    read_identity(xs.map(|x| (NAME, x)), band); }\n";
         let dir = std::env::temp_dir().join(format!("tu-identity-{}", std::process::id()));
