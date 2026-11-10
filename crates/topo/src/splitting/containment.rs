@@ -798,20 +798,7 @@ fn walk_schedule<T: Decide>(
 /// the plane door's own (`plane_crossing_*`, [`conic_crossings`]).
 const ARC_LOOP_ROWS: ParityRows = crate::rows::ARC_LOOP;
 
-/// The rows a caller reads a conic edge under — its own, so each
-/// caller's population stays separable in the telemetry: the arc's width
-/// against a period (`turn`, [`ConicArc::of`]'s turn rule) and the name
-/// an ellipse's span escalation carries where its two readings straddle
-/// the band ([`geom_core::k_stats::straddle`]), which no margin of `turn`
-/// says, so it is not charged to it.
-///
-/// **No row registry, and why**: it is [`geom_core::period::TurnRows`]; a registered bundle that holds one ([`crate::rows::BoundaryRows`]) lists its names in its own roster entry. It carries a name minted
-/// elsewhere (a caller's parameter, a closed decision's `predicate()`, a
-/// shared site's const) rather than minting its own, so it is a plain site
-/// in a wrapper, not a row bundle; a crate's `rows` registry holds bundles
-/// alone. Plain sites' uniqueness is the tree-wide census's question
-/// (`work/onecopy/funnel-row-bundles-have-no-cross-reader-roster.md`).
-pub(crate) type ConicRows = TurnRows<&'static str>;
+pub(crate) use crate::rows::ConicRows;
 
 /// [`point_in_loop`]'s rows for a loop's boundary.
 const WALK_ROWS: BoundaryRows = crate::rows::ARC_LOOP_WALK;
@@ -932,14 +919,14 @@ impl<T: Decide> ConicArc<T> {
         // read as over-wound.
         let (turn, recording) = geom_core::k_stats::detached(|| match carrier {
             geom::Curve3::Circle(_) => one_turn.turn(
-                TurnRows::exact(rows.turn),
+                TurnRows::exact(rows.rows().turn),
                 extent,
                 Exact::new(floor.get()),
                 band,
             ),
             _ => {
                 let rate = geom::carrier_speed::turn_defect_rate(carrier, t0, extent);
-                one_turn.turn(rows, extent, rate, band)
+                one_turn.turn(rows.rows(), extent, rate, band)
             }
         });
         // An arc kept on an unsettled turn rests on no escalation: its
@@ -2479,7 +2466,7 @@ mod tests {
             assert_straddle(
                 got,
                 &recorded,
-                (LoopDecision::ArcSpan, WALK_ROWS.conic().straddle),
+                (LoopDecision::ArcSpan, WALK_ROWS.conic().rows().straddle),
                 (gap * sup, gap * inf),
                 &format!("overlap √({k}ε)"),
             );
@@ -2815,7 +2802,7 @@ mod tests {
         let lever = a.min(b);
         let gap = T::tau() - (t1 - t0);
         let low = decide_reported(
-            rows.turn,
+            rows.rows().turn,
             Margin::metered(gap, geom_core::InfSpeed::new(lever)),
             band,
         );
@@ -2834,7 +2821,7 @@ mod tests {
                 sign: Sign::Negative,
                 ..
             }) = decide_reported(
-                rows.turn,
+                rows.rows().turn,
                 Margin::metered_sup(gap, geom_core::SupSpeed::new(speed)),
                 band,
             )

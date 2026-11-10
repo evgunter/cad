@@ -306,7 +306,7 @@ pub type Jet<'a, T> = dyn Fn(T) -> [geom_core::Rounded<T>; 4] + 'a;
 /// shared site's const) rather than minting its own, so it is a plain site
 /// in a wrapper, not a row bundle; a crate's `rows` registry holds bundles
 /// alone. Plain sites' uniqueness is the tree-wide census's question
-/// (`work/onecopy/funnel-row-bundles-have-no-cross-reader-roster.md`).
+/// (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`).
 pub struct RootSlack<'a, T> {
     /// The row the slack is decided under.
     pub row: &'static str,

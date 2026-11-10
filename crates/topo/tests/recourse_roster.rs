@@ -336,7 +336,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("RayRows"),
     NameCarrier::Call("RoleNames"),
     NameCarrier::Call("SegmentRows"),
-    NameCarrier::Call("SubdivisionRows"),
     NameCarrier::Call("WedgeNames"),
     // `geom_brep`'s `ConicRows::bounded`, a row and its straddle row.
     NameCarrier::Call("bounded"),

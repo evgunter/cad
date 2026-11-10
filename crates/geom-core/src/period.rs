@@ -682,12 +682,14 @@ impl Turn {
 /// two bounds on one quantity, so one row holds them, as the site's own
 /// spelling did.
 ///
-/// **No row registry, and why**: [`TurnRows::exact`] and [`TurnRows::bounded`] take the site's names. It carries a name minted
-/// elsewhere (a caller's parameter, a closed decision's `predicate()`, a
-/// shared site's const) rather than minting its own, so it is a plain site
-/// in a wrapper, not a row bundle; a crate's `rows` registry holds bundles
-/// alone. Plain sites' uniqueness is the tree-wide census's question
-/// (`work/onecopy/funnel-row-bundles-have-no-cross-reader-roster.md`).
+/// **Where its names are registered**: a reader that mints its own two
+/// names into one is a row bundle, registered in its crate's `rows`
+/// registry behind a type of that crate's (`topo::rows::ConicRows`). A
+/// caller of [`TurnRows::exact`] or [`TurnRows::bounded`] with a name
+/// minted elsewhere (a parameter, a closed decision's `predicate()`, a
+/// shared site's const) is a plain site in this wrapper, whose uniqueness
+/// is the plain-site census's question
+/// (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`).
 #[derive(Clone, Copy, Debug)]
 pub struct TurnRows<S> {
     /// The headroom's row, `(period − extent)` at the rate.

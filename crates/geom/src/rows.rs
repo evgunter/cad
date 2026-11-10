@@ -132,11 +132,7 @@ impl SpiricRegimeSites {
     /// Where two of the names are equal: each names its own margin. In a
     /// `const` item the panic is a compile error.
     #[must_use]
-    pub(crate) const fn new(
-        off_axis: &'static str,
-        far: &'static str,
-        floor: &'static str,
-    ) -> Self {
+    const fn new(off_axis: &'static str, far: &'static str, floor: &'static str) -> Self {
         assert!(
             !str_eq(off_axis, far) && !str_eq(off_axis, floor) && !str_eq(far, floor),
             "a spiric regime's three rows need three names"

@@ -14,24 +14,94 @@
 //!   module**, read through their accessors: no code outside this module
 //!   builds one field by field.
 //! - **Every reader's bundle is a `const` here**, named for its reader.
-//! - **[`ROSTER`] lists every const's names**, hand-kept beside them, and a
-//!   `const` assertion fails this crate's build on a name used twice
-//!   ([`geom_core::rows::first_shared_in`]); the test-only consts have
-//!   their own roster, checked the same way in a test build. editor-core's
+//! - **[`ROSTER`] lists every const's names, derived**: the consts are
+//!   given to [`geom_core::row_registry!`], which builds the roster from
+//!   exactly them and fails this crate's build on a name used twice
+//!   ([`geom_core::rows::first_shared_in`]); the test-only consts are a
+//!   second invocation with a roster of their own. editor-core's
 //!   tree-wide test walks this roster with every other crate's.
 //!
-//! **Not here, and why.** A carrier of rows passed through from names
-//! minted elsewhere is a plain site in a wrapper, not a bundle:
-//! `props::RoleNames` (whose `one(name)` takes a caller's name, as every
-//! reader but check 7 builds it), `props::SignNames` (two of those), and
-//! `splitting::containment::ConicRows`, which is `geom_core::period::
-//! TurnRows` (named here as itself). A bundle here that holds one (a [`BoundaryRows`]'s conic)
-//! lists its names in its own entry.
+//! **Not here, and why.** A carrier of a name minted elsewhere is a
+//! plain site in a wrapper, not a bundle: [`RoleNames::one`] (one caller's
+//! name at both ends), `props::SignNames` (two `RoleNames`, each a const
+//! of its reader's), and `geom_core::period::TurnRows::exact` /
+//! `::bounded` called with a passed-in name. Their uniqueness is the
+//! plain-site census's question
+//! (`work/onecopy/plain-predicate-sites-have-no-tree-wide-census.md`).
+//! A reader minting its own two role names (check 7's [`PLUS_V`]) or its
+//! own conic rows ([`ConicRows`]) is a bundle here.
 
-/// A loop boundary's conic rows: [`geom_core::period::TurnRows`] with a
-/// straddle row, the type the splitting engine names `ConicRows`.
-type BoundaryConic = geom_core::period::TurnRows<&'static str>;
-use geom_brep::half_angle::SubdivisionRows;
+/// **A loop boundary's conic rows**: the turn row a conic arc's span is
+/// read against a period under, and the straddle row an ellipse's span
+/// escalation carries where its two readings straddle the band. Read as
+/// a [`geom_core::period::TurnRows`] ([`Self::rows`]); minted only here.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ConicRows(geom_core::period::TurnRows<&'static str>);
+
+impl ConicRows {
+    /// The rows for the span's turn and its straddle. Private: a reader
+    /// names its rows at a const below.
+    const fn bounded(turn: &'static str, straddle: &'static str) -> Self {
+        Self(geom_core::period::TurnRows::bounded(turn, straddle))
+    }
+
+    /// The rows, as the period door reads them.
+    #[must_use]
+    pub(crate) const fn rows(self) -> geom_core::period::TurnRows<&'static str> {
+        self.0
+    }
+
+    /// Every row the bundle names, for the roster.
+    #[must_use]
+    pub(crate) const fn names(&self) -> [&'static str; 2] {
+        [self.0.turn, self.0.straddle]
+    }
+}
+
+/// **The names a role read decides under**: the bracket's high end (and
+/// an exact volume) under `high`, its low end under `low`. Its fields are
+/// private here. A reader with two names of its own (check 7's) is a
+/// const below; [`Self::one`] is the door for one name at both ends,
+/// which a caller's own name passes through (a plain site, not a bundle:
+/// its uniqueness is the plain-site census's).
+#[derive(Clone, Copy, Debug)]
+pub struct RoleNames {
+    /// The name the high end, and an exact volume, are decided under.
+    high: &'static str,
+    /// The name the low end is decided under.
+    low: &'static str,
+}
+
+impl RoleNames {
+    /// One name for both ends: every decision but check 7's, which keeps
+    /// its two historical names ([`PLUS_V`]).
+    #[must_use]
+    pub const fn one(name: &'static str) -> Self {
+        Self {
+            high: name,
+            low: name,
+        }
+    }
+
+    /// The high end's name.
+    #[must_use]
+    pub const fn high(&self) -> &'static str {
+        self.high
+    }
+
+    /// The low end's name.
+    #[must_use]
+    pub const fn low(&self) -> &'static str {
+        self.low
+    }
+
+    /// Every row the bundle names, for the roster.
+    #[must_use]
+    pub(crate) const fn names(&self) -> [&'static str; 2] {
+        [self.high, self.low]
+    }
+}
+use geom_brep::rows::SubdivisionRows;
 
 /// The four K rows one consumer meters its walk through. Distinct
 /// names per consumer are the point: see the module docs.
@@ -346,7 +416,7 @@ pub(crate) struct BoundaryRows {
     /// A straight edge's rows.
     line: &'static ParityRows,
     /// A conic edge's rows.
-    conic: BoundaryConic,
+    conic: ConicRows,
     /// A spiric edge's rows.
     spiric: ArcRows,
     /// A spline edge's rows.
@@ -362,7 +432,7 @@ impl BoundaryRows {
 
     /// The `conic` rows.
     #[must_use]
-    pub(crate) const fn conic(&self) -> BoundaryConic {
+    pub(crate) const fn conic(&self) -> ConicRows {
         self.conic
     }
 
@@ -384,8 +454,8 @@ impl BoundaryRows {
     pub(crate) const fn names(&self) -> [&'static str; 10] {
         let (s, p) = (self.spiric.names(), self.spline.names());
         [
-            self.conic.turn,
-            self.conic.straddle,
+            self.conic.0.turn,
+            self.conic.0.straddle,
             s[0],
             s[1],
             s[2],
@@ -447,298 +517,289 @@ impl ChartRows {
     }
 }
 
-// ------------------------------------------------- the ray walk
+geom_core::row_registry! {
+    /// **Every registered bundle's rows**, one entry per const below,
+    /// derived from the consts given here, so none can be left out of it.
+    pub const ROSTER;
 
-/// The chart region's polygon walk (`chart_region`): chart-space
-/// margins, metered apart from the 3-D loop's, though the walk is one.
-pub(crate) const CHART_REGION: ParityRows = ParityRows {
-    segment: "chart_region_segment",
-    boundary: "chart_region_boundary",
-    side: "chart_region_side",
-    advance: "chart_region_advance",
-};
+    // ------------------------------------------------- the ray walk
 
-/// The point-in-loop walk (`splitting::containment`).
-pub(crate) const POINT_IN_LOOP: ParityRows = ParityRows {
-    segment: "point_in_loop_segment",
-    boundary: "point_in_loop_boundary",
-    side: "point_in_loop_side",
-    advance: "point_in_loop_advance",
-};
+    /// The chart region's polygon walk (`chart_region`): chart-space
+    /// margins, metered apart from the 3-D loop's, though the walk is one.
+    pub(crate) const CHART_REGION: ParityRows = ParityRows {
+        segment: "chart_region_segment",
+        boundary: "chart_region_boundary",
+        side: "chart_region_side",
+        advance: "chart_region_advance",
+    };
 
-/// The point-in-arc-loop walk's line edges (`splitting::containment`).
-pub(crate) const ARC_LOOP: ParityRows = ParityRows {
-    segment: "point_in_arc_loop_segment",
-    boundary: "point_in_arc_loop_boundary",
-    side: "point_in_arc_loop_side",
-    advance: "point_in_arc_loop_advance",
-};
+    /// The point-in-loop walk (`splitting::containment`).
+    pub(crate) const POINT_IN_LOOP: ParityRows = ParityRows {
+        segment: "point_in_loop_segment",
+        boundary: "point_in_loop_boundary",
+        side: "point_in_loop_side",
+        advance: "point_in_loop_advance",
+    };
 
-/// The Boolean's contact pre-pass's line edges (`boolean::contain`): it
-/// reads `segment` and `boundary` alone, so `side` and `advance` are
-/// never minted.
-pub(crate) const CONTACT_EDGE: ParityRows = ParityRows {
-    segment: "bool_contact_edge_length",
-    boundary: "bool_contact_edge",
-    side: "bool_contact_edge_side",
-    advance: "bool_contact_edge_advance",
-};
+    /// The point-in-arc-loop walk's line edges (`splitting::containment`).
+    pub(crate) const ARC_LOOP: ParityRows = ParityRows {
+        segment: "point_in_arc_loop_segment",
+        boundary: "point_in_arc_loop_boundary",
+        side: "point_in_arc_loop_side",
+        advance: "point_in_arc_loop_advance",
+    };
 
-/// A ruled region's line edge (`boolean::ruled_region`).
-pub(crate) const RULED_REGION_LINE: SegmentRows = SegmentRows {
-    segment: "bool_ruled_region_edge_length",
-    boundary: "bool_ruled_region_edge",
-};
+    /// The Boolean's contact pre-pass's line edges (`boolean::contain`): it
+    /// reads `segment` and `boundary` alone, so `side` and `advance` are
+    /// never minted.
+    pub(crate) const CONTACT_EDGE: ParityRows = ParityRows {
+        segment: "bool_contact_edge_length",
+        boundary: "bool_contact_edge",
+        side: "bool_contact_edge_side",
+        advance: "bool_contact_edge_advance",
+    };
 
-// ------------------------------------------------- loop boundaries
+    /// A ruled region's line edge (`boolean::ruled_region`).
+    pub(crate) const RULED_REGION_LINE: SegmentRows = SegmentRows {
+        segment: "bool_ruled_region_edge_length",
+        boundary: "bool_ruled_region_edge",
+    };
 
-/// The point-in-arc-loop walk's boundary rows (`splitting::containment`).
-pub(crate) const ARC_LOOP_WALK: BoundaryRows = BoundaryRows {
-    line: &ARC_LOOP,
-    conic: BoundaryConic::bounded(
-        "point_in_arc_loop_conic_span",
-        "point_in_arc_loop_conic_straddle",
-    ),
-    spiric: ArcRows {
-        end: "point_in_arc_loop_spiric_end",
-        clear: "point_in_arc_loop_spiric_clear",
-        on: "point_in_arc_loop_spiric_on",
-        leaf: "point_in_arc_loop_spiric_leaf",
-    },
-    spline: ArcRows {
-        end: "point_in_arc_loop_spline_end",
-        clear: "point_in_arc_loop_spline_clear",
-        on: "point_in_arc_loop_spline_on",
-        leaf: "point_in_arc_loop_spline_leaf",
-    },
-};
+    // ------------------------------------------------- loop boundaries
 
-/// The Boolean's contact pre-pass's boundary rows (`boolean::contain`).
-pub(crate) const CONTACT: BoundaryRows = BoundaryRows {
-    line: &CONTACT_EDGE,
-    conic: BoundaryConic::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
-    spiric: ArcRows {
-        end: "bool_contact_spiric_end",
-        clear: "bool_contact_spiric_clear",
-        on: "bool_contact_spiric",
-        leaf: "bool_contact_spiric_leaf",
-    },
-    spline: ArcRows {
-        end: "bool_contact_spline_end",
-        clear: "bool_contact_spline_clear",
-        on: "bool_contact_spline",
-        leaf: "bool_contact_spline_leaf",
-    },
-};
+    /// The point-in-arc-loop walk's boundary rows (`splitting::containment`).
+    pub(crate) const ARC_LOOP_WALK: BoundaryRows = BoundaryRows {
+        line: &ARC_LOOP,
+        conic: ConicRows::bounded(
+            "point_in_arc_loop_conic_span",
+            "point_in_arc_loop_conic_straddle",
+        ),
+        spiric: ArcRows {
+            end: "point_in_arc_loop_spiric_end",
+            clear: "point_in_arc_loop_spiric_clear",
+            on: "point_in_arc_loop_spiric_on",
+            leaf: "point_in_arc_loop_spiric_leaf",
+        },
+        spline: ArcRows {
+            end: "point_in_arc_loop_spline_end",
+            clear: "point_in_arc_loop_spline_clear",
+            on: "point_in_arc_loop_spline_on",
+            leaf: "point_in_arc_loop_spline_leaf",
+        },
+    };
 
-/// A torus region's oval edge (`boolean::torus_region`).
-pub(crate) const TORUS_REGION_SPIRIC: ArcRows = ArcRows {
-    end: "bool_torus_region_spiric_end",
-    clear: "bool_torus_region_spiric_clear",
-    on: "bool_torus_region_spiric_on",
-    leaf: "bool_torus_region_spiric_leaf",
-};
+    /// The Boolean's contact pre-pass's boundary rows (`boolean::contain`).
+    pub(crate) const CONTACT: BoundaryRows = BoundaryRows {
+        line: &CONTACT_EDGE,
+        conic: ConicRows::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
+        spiric: ArcRows {
+            end: "bool_contact_spiric_end",
+            clear: "bool_contact_spiric_clear",
+            on: "bool_contact_spiric",
+            leaf: "bool_contact_spiric_leaf",
+        },
+        spline: ArcRows {
+            end: "bool_contact_spline_end",
+            clear: "bool_contact_spline_clear",
+            on: "bool_contact_spline",
+            leaf: "bool_contact_spline_leaf",
+        },
+    };
 
-// ------------------------------------------------- wedges
+    /// A torus region's oval edge (`boolean::torus_region`).
+    pub(crate) const TORUS_REGION_SPIRIC: ArcRows = ArcRows {
+        end: "bool_torus_region_spiric_end",
+        clear: "bool_torus_region_spiric_clear",
+        on: "bool_torus_region_spiric_on",
+        leaf: "bool_torus_region_spiric_leaf",
+    };
 
-/// The split's cone-corner reading (`splitting::section_cones`).
-pub(crate) const CONE_CORNER: WedgeNames = WedgeNames {
-    after_leaving: "split_cone_corner_after_leaving",
-    before_arriving: "split_cone_corner_before_arriving",
-    turn: "split_cone_corner_turn",
-    straight: "split_cone_corner_straight",
-    straddle: "split_cone_corner_straddle",
-};
+    /// A torus region's circle edge (`boolean::torus_region`).
+    pub(crate) const TORUS_REGION_CONIC: ConicRows =
+        ConicRows::bounded("bool_torus_region_arc_span", "bool_torus_region_arc_straddle");
 
-/// The census's overlap-corner reading (`census::corners_meet`).
-pub(crate) const OVERLAP_CORNER: WedgeNames = WedgeNames {
-    after_leaving: "pm_census_overlap_corner_after_leaving",
-    before_arriving: "pm_census_overlap_corner_before_arriving",
-    turn: "pm_census_overlap_corner_turn",
-    straight: "pm_census_overlap_corner_straight",
-    straddle: "pm_census_overlap_corner_straddle",
-};
+    /// A sphere region's boundary reading (`boolean::sphere_region`).
+    pub(crate) const SPHERE_REGION_CONIC: ConicRows =
+        ConicRows::bounded("bool_sphere_region_arc_span", "bool_sphere_region_arc_straddle");
 
-/// The census's line-wedge reading (`census::strictly_inside`): tier 3's
-/// pinch-corner reading, asked of a line's wedges under names of its
-/// own, so the K stream keeps the two questions apart. Its `straddle`
-/// never records: `strictly_inside` hands only exact departures, so no
-/// sign is read at two bounds; it names the row only because every
-/// `WedgeNames` carries one.
-pub(crate) const LINE_WEDGE: WedgeNames = WedgeNames {
-    after_leaving: "pm_census_wedge_after_leaving",
-    before_arriving: "pm_census_wedge_before_arriving",
-    turn: "pm_census_wedge_turn",
-    straight: "pm_census_wedge_straight",
-    straddle: "pm_census_wedge_straddle",
-};
+    /// A ruled region's conic edge (`boolean::ruled_region`).
+    pub(crate) const RULED_REGION_CONIC: ConicRows =
+        ConicRows::bounded("bool_ruled_region_arc_span", "bool_ruled_region_arc_straddle");
 
-/// Tier 3's pinch-corner reading (`validate::wedge_holds`).
-pub(crate) const PINCH_CORNER: WedgeNames = WedgeNames {
-    after_leaving: "pinch_corner_after_leaving",
-    before_arriving: "pinch_corner_before_arriving",
-    turn: "pinch_corner_turn",
-    straight: "pinch_corner_straight",
-    straddle: "pinch_corner_straddle",
-};
+    /// The census's edge-face crossing, a conic arc's span read by
+    /// `splitting::containment::carrier_loop` (`census`).
+    pub(crate) const EF_CROSS_CONIC: ConicRows =
+        ConicRows::bounded("pm_census_ef_cross_arc_span", "pm_census_ef_cross_arc_straddle");
 
-// ------------------------------------------------- rays through a solid
+    // ------------------------------------------------- wedges
 
-/// A schedule ray through a solid (`boolean::solid_contain`).
-pub(crate) const SCHEDULE_RAY: RayRows = RayRows {
-    advance: "bool_point_in_solid_advance",
-    denom: "bool_point_in_solid_denom",
-    clearance: "bool_point_in_solid_clearance",
-    beside: "bool_point_in_solid_beside",
-    order: "bool_point_in_solid_order",
-    vertex: "bool_point_in_solid_vertex",
-    edge: "bool_point_in_solid_edge",
-    edge_span: "bool_point_in_solid_edge_span",
-    winding: "bool_point_in_solid_winding",
-    represents: "bool_point_in_solid_met_edge_represents",
-    reaches: "bool_point_in_solid_met_edge_reaches",
-};
+    /// The split's cone-corner reading (`splitting::section_cones`).
+    pub(crate) const CONE_CORNER: WedgeNames = WedgeNames {
+        after_leaving: "split_cone_corner_after_leaving",
+        before_arriving: "split_cone_corner_before_arriving",
+        turn: "split_cone_corner_turn",
+        straight: "split_cone_corner_straight",
+        straddle: "split_cone_corner_straddle",
+    };
 
-/// An aimed ray to infinity (`side_reader::side_at_infinity`).
-pub(crate) const AIMED_RAY: RayRows = RayRows {
-    advance: "side_at_infinity_advance",
-    denom: "side_at_infinity_denom",
-    clearance: "side_at_infinity_clearance",
-    beside: "side_at_infinity_beside",
-    order: "side_at_infinity_order",
-    vertex: "side_at_infinity_vertex",
-    edge: "side_at_infinity_edge",
-    edge_span: "side_at_infinity_edge_span",
-    winding: "side_at_infinity_winding",
-    represents: "side_at_infinity_met_edge_represents",
-    reaches: "side_at_infinity_met_edge_reaches",
-};
+    /// The census's overlap-corner reading (`census::corners_meet`).
+    pub(crate) const OVERLAP_CORNER: WedgeNames = WedgeNames {
+        after_leaving: "pm_census_overlap_corner_after_leaving",
+        before_arriving: "pm_census_overlap_corner_before_arriving",
+        turn: "pm_census_overlap_corner_turn",
+        straight: "pm_census_overlap_corner_straight",
+        straddle: "pm_census_overlap_corner_straddle",
+    };
 
-// ------------------------------------------------- section ruling charts
+    /// The census's line-wedge reading (`census::strictly_inside`): tier 3's
+    /// pinch-corner reading, asked of a line's wedges under names of its
+    /// own, so the K stream keeps the two questions apart. Its `straddle`
+    /// never records: `strictly_inside` hands only exact departures, so no
+    /// sign is read at two bounds; it names the row only because every
+    /// `WedgeNames` carries one.
+    pub(crate) const LINE_WEDGE: WedgeNames = WedgeNames {
+        after_leaving: "pm_census_wedge_after_leaving",
+        before_arriving: "pm_census_wedge_before_arriving",
+        turn: "pm_census_wedge_turn",
+        straight: "pm_census_wedge_straight",
+        straddle: "pm_census_wedge_straddle",
+    };
 
-/// The cone × cylinder ruling chart (`boolean::section_cert`).
-pub(crate) const SECTION_CONE_CYLINDER: ChartRows = ChartRows {
-    fold: "section_cone_cylinder_fold",
-    asymptote: "section_cone_cylinder_asymptote",
-    precision: "section_cone_cylinder_precision",
-    walk: geom_brep::rows::SECTION_RULING_WALK,
-};
+    /// Tier 3's pinch-corner reading (`validate::wedge_holds`).
+    pub(crate) const PINCH_CORNER: WedgeNames = WedgeNames {
+        after_leaving: "pinch_corner_after_leaving",
+        before_arriving: "pinch_corner_before_arriving",
+        turn: "pinch_corner_turn",
+        straight: "pinch_corner_straight",
+        straddle: "pinch_corner_straddle",
+    };
 
-/// The cylinder × cone ruling chart (`boolean::section_cert`).
-pub(crate) const SECTION_CYLINDER_CONE: ChartRows = ChartRows {
-    fold: "section_cylinder_cone_fold",
-    asymptote: "section_cylinder_cone_asymptote",
-    precision: "section_cylinder_cone_precision",
-    walk: geom_brep::rows::SECTION_RULING_WALK,
-};
+    // ------------------------------------------------- rays through a solid
 
-/// The cone pair's ruling chart (`boolean::section_cert`).
-pub(crate) const SECTION_CONE_PAIR: ChartRows = ChartRows {
-    fold: "section_cone_pair_fold",
-    asymptote: "section_cone_pair_asymptote",
-    precision: "section_cone_pair_precision",
-    walk: geom_brep::rows::SECTION_RULING_WALK,
-};
+    /// A schedule ray through a solid (`boolean::solid_contain`).
+    pub(crate) const SCHEDULE_RAY: RayRows = RayRows {
+        advance: "bool_point_in_solid_advance",
+        denom: "bool_point_in_solid_denom",
+        clearance: "bool_point_in_solid_clearance",
+        beside: "bool_point_in_solid_beside",
+        order: "bool_point_in_solid_order",
+        vertex: "bool_point_in_solid_vertex",
+        edge: "bool_point_in_solid_edge",
+        edge_span: "bool_point_in_solid_edge_span",
+        winding: "bool_point_in_solid_winding",
+        represents: "bool_point_in_solid_met_edge_represents",
+        reaches: "bool_point_in_solid_met_edge_reaches",
+    };
 
-// ------------------------------------------------- the roster
+    /// An aimed ray to infinity (`side_reader::side_at_infinity`).
+    pub(crate) const AIMED_RAY: RayRows = RayRows {
+        advance: "side_at_infinity_advance",
+        denom: "side_at_infinity_denom",
+        clearance: "side_at_infinity_clearance",
+        beside: "side_at_infinity_beside",
+        order: "side_at_infinity_order",
+        vertex: "side_at_infinity_vertex",
+        edge: "side_at_infinity_edge",
+        edge_span: "side_at_infinity_edge_span",
+        winding: "side_at_infinity_winding",
+        represents: "side_at_infinity_met_edge_represents",
+        reaches: "side_at_infinity_met_edge_reaches",
+    };
 
-/// **Every registered bundle's rows**, one entry per const above, kept
-/// beside them by hand: a const left out of it is the one way a name
-/// escapes the check, so a new const lands in this list in the same
-/// change.
-pub const ROSTER: &[&[&str]] = &[
-    &CHART_REGION.names(),
-    &POINT_IN_LOOP.names(),
-    &ARC_LOOP.names(),
-    &CONTACT_EDGE.names(),
-    &RULED_REGION_LINE.names(),
-    &ARC_LOOP_WALK.names(),
-    &CONTACT.names(),
-    &TORUS_REGION_SPIRIC.names(),
-    &CONE_CORNER.names(),
-    &OVERLAP_CORNER.names(),
-    &LINE_WEDGE.names(),
-    &PINCH_CORNER.names(),
-    &SCHEDULE_RAY.names(),
-    &AIMED_RAY.names(),
-    &SECTION_CONE_CYLINDER.names(),
-    &SECTION_CYLINDER_CONE.names(),
-    &SECTION_CONE_PAIR.names(),
-];
+    // ------------------------------------------------- section ruling charts
 
-const _: () = assert!(
-    geom_core::rows::first_shared_in(ROSTER).is_none(),
-    "two of topo's registered row bundles share a row name"
-);
+    /// The cone × cylinder ruling chart (`boolean::section_cert`).
+    pub(crate) const SECTION_CONE_CYLINDER: ChartRows = ChartRows {
+        fold: "section_cone_cylinder_fold",
+        asymptote: "section_cone_cylinder_asymptote",
+        precision: "section_cone_cylinder_precision",
+        walk: geom_brep::rows::SECTION_RULING_WALK,
+    };
 
-// ------------------------------------------------- test-only readers
+    /// The cylinder × cone ruling chart (`boolean::section_cert`).
+    pub(crate) const SECTION_CYLINDER_CONE: ChartRows = ChartRows {
+        fold: "section_cylinder_cone_fold",
+        asymptote: "section_cylinder_cone_asymptote",
+        precision: "section_cylinder_cone_precision",
+        walk: geom_brep::rows::SECTION_RULING_WALK,
+    };
 
-/// The ray walk's own rows (`ray_walk`'s tests).
+    /// The cone pair's ruling chart (`boolean::section_cert`).
+    pub(crate) const SECTION_CONE_PAIR: ChartRows = ChartRows {
+        fold: "section_cone_pair_fold",
+        asymptote: "section_cone_pair_asymptote",
+        precision: "section_cone_pair_precision",
+        walk: geom_brep::rows::SECTION_RULING_WALK,
+    };
+
+    // ------------------------------------------------- role reads
+
+    /// Check 7's names (`validate`): the bracket's high end under
+    /// `positive_volume`, the refusal this check has always made, and its
+    /// low end under `positive_volume_enclosure`.
+    pub const PLUS_V: RoleNames = RoleNames {
+        high: "positive_volume",
+        low: "positive_volume_enclosure",
+    };
+}
+
 #[cfg(test)]
-pub(crate) const TEST_RAY_WALK: ParityRows = ParityRows {
-    segment: "test_ray_walk_segment",
-    boundary: "test_ray_walk_boundary",
-    side: "test_ray_walk_side",
-    advance: "test_ray_walk_advance",
-};
+geom_core::row_registry! {
+    /// The test-only bundles' rows, checked with the shipped roster in a
+    /// test build: a test reader's names are distinct from every shipped
+    /// reader's too.
+    const TEST_ROSTER;
 
-/// The spline arc's own rows (`splitting::spline_arc`'s tests).
-#[cfg(test)]
-pub(crate) const TEST_SPLINE_ARC: ArcRows = ArcRows {
-    end: "test_spline_end",
-    clear: "test_spline_clear",
-    on: "test_spline_on",
-    leaf: "test_spline_leaf",
-};
+    // ------------------------------------------------- test-only readers
 
-/// The spiric arc's own rows (`splitting::spiric_arc`'s tests).
-#[cfg(test)]
-pub(crate) const TEST_SPIRIC_ARC: ArcRows = ArcRows {
-    end: "test_spiric_end",
-    clear: "test_spiric_clear",
-    on: "test_spiric_on",
-    leaf: "test_spiric_leaf",
-};
+    /// The ray walk's own rows (`ray_walk`'s tests).
+    pub(crate) const TEST_RAY_WALK: ParityRows = ParityRows {
+        segment: "test_ray_walk_segment",
+        boundary: "test_ray_walk_boundary",
+        side: "test_ray_walk_side",
+        advance: "test_ray_walk_advance",
+    };
 
-/// The spline arc fuzz's rows (`splitting::spline_arc::fuzz`).
-#[cfg(test)]
-pub(crate) const FUZZ_SPLINE_ARC: ArcRows = ArcRows {
-    end: "fuzz_spline_end",
-    clear: "fuzz_spline_clear",
-    on: "fuzz_spline_on",
-    leaf: "fuzz_spline_leaf",
-};
+    /// The spline arc's own rows (`splitting::spline_arc`'s tests).
+    pub(crate) const TEST_SPLINE_ARC: ArcRows = ArcRows {
+        end: "test_spline_end",
+        clear: "test_spline_clear",
+        on: "test_spline_on",
+        leaf: "test_spline_leaf",
+    };
 
-/// The spiric arc fuzz's rows (`splitting::spiric_arc::fuzz`).
-#[cfg(test)]
-pub(crate) const FUZZ_SPIRIC_ARC: ArcRows = ArcRows {
-    end: "fuzz_spiric_end",
-    clear: "fuzz_spiric_clear",
-    on: "fuzz_spiric_on",
-    leaf: "fuzz_spiric_leaf",
-};
+    /// The spiric arc's own rows (`splitting::spiric_arc`'s tests).
+    pub(crate) const TEST_SPIRIC_ARC: ArcRows = ArcRows {
+        end: "test_spiric_end",
+        clear: "test_spiric_clear",
+        on: "test_spiric_on",
+        leaf: "test_spiric_leaf",
+    };
 
-/// The ruling chart's own rows (`boolean::section_cert::ruling`'s tests).
-#[cfg(test)]
-pub(crate) const TEST_RULING: ChartRows = ChartRows {
-    fold: "test_ruling_fold",
-    asymptote: "test_ruling_asymptote",
-    precision: "test_ruling_precision",
-    walk: geom_brep::rows::SECTION_RULING_WALK,
-};
+    /// The spline arc fuzz's rows (`splitting::spline_arc::fuzz`).
+    pub(crate) const FUZZ_SPLINE_ARC: ArcRows = ArcRows {
+        end: "fuzz_spline_end",
+        clear: "fuzz_spline_clear",
+        on: "fuzz_spline_on",
+        leaf: "fuzz_spline_leaf",
+    };
 
-/// The test-only bundles' rows, checked with the shipped roster in a
-/// test build: a test reader's names are distinct from every shipped
-/// reader's too.
-#[cfg(test)]
-const TEST_ROSTER: &[&[&str]] = &[
-    &TEST_RAY_WALK.names(),
-    &TEST_SPLINE_ARC.names(),
-    &TEST_SPIRIC_ARC.names(),
-    &FUZZ_SPLINE_ARC.names(),
-    &FUZZ_SPIRIC_ARC.names(),
-    &TEST_RULING.names(),
-];
+    /// The spiric arc fuzz's rows (`splitting::spiric_arc::fuzz`).
+    pub(crate) const FUZZ_SPIRIC_ARC: ArcRows = ArcRows {
+        end: "fuzz_spiric_end",
+        clear: "fuzz_spiric_clear",
+        on: "fuzz_spiric_on",
+        leaf: "fuzz_spiric_leaf",
+    };
+
+    /// The ruling chart's own rows (`boolean::section_cert::ruling`'s tests).
+    pub(crate) const TEST_RULING: ChartRows = ChartRows {
+        fold: "test_ruling_fold",
+        asymptote: "test_ruling_asymptote",
+        precision: "test_ruling_precision",
+        walk: geom_brep::rows::SECTION_RULING_WALK,
+    };
+}
 
 #[cfg(test)]
 mod roster_rows {

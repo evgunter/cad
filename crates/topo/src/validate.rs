@@ -6906,10 +6906,7 @@ pub(crate) enum PlusVVerdict {
 /// Check 7's names: the bracket's high end under `positive_volume`, the
 /// refusal this check has always made, and its low end under
 /// `positive_volume_enclosure`, whether the sign is already certain.
-pub(crate) const PLUS_V: crate::props::RoleNames = crate::props::RoleNames {
-    high: "positive_volume",
-    low: "positive_volume_enclosure",
-};
+pub(crate) const PLUS_V: crate::props::RoleNames = crate::rows::PLUS_V;
 
 /// Check 7's name on the interval re-derivation, which reads the exact
 /// value of the stored geometry ([`crate::props::Round::certify`]).

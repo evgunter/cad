@@ -4636,11 +4636,7 @@ struct Cell<T: Real> {
 /// conic arc's span by [`crate::splitting::containment::carrier_loop`].
 /// The crossings themselves are the meeting reading's
 /// ([`edge_crossings`]).
-const EF_CROSS_CONIC: crate::splitting::containment::ConicRows =
-    crate::splitting::containment::ConicRows::bounded(
-        "pm_census_ef_cross_arc_span",
-        "pm_census_ef_cross_arc_straddle",
-    );
+const EF_CROSS_CONIC: crate::rows::ConicRows = crate::rows::EF_CROSS_CONIC;
 
 /// The cells of edge `e` lying in face `f`'s interior: the edge cut at
 /// every face vertex on its interior ([`on_edge_interior_reading`]) and

@@ -16,10 +16,12 @@
 //!   (the conic × quadric ladder, the ray × torus quartic, the section
 //!   ruling walk). They are named here as strings only: those names are
 //!   global to the `k_stats` stream and the ledger already.
-//! - **[`ROSTER`] lists every const's names**, hand-kept beside them, and a
-//!   `const` assertion fails this crate's build on a name used twice
-//!   ([`geom_core::rows::first_shared_in`]). editor-core's tree-wide test
-//!   walks this roster with every other crate's.
+//! - **[`ROSTER`] lists every const's names, derived**: the consts are
+//!   given to [`geom_core::row_registry!`], which builds the roster from
+//!   exactly them and adds the `const` assertion that fails this crate's
+//!   build on a name used twice ([`geom_core::rows::first_shared_in`]).
+//!   editor-core's tree-wide test walks this roster with every other
+//!   crate's.
 //!
 //! A bundle with one reader (`TouchRows`, `FirstHarmonicRows`) has no
 //! enum of readers: its one const here is its registration.
@@ -382,147 +384,129 @@ impl GapRows {
     }
 }
 
-// ------------------------------------------------- this crate's readers
+geom_core::row_registry! {
+    /// **Every registered bundle's rows**, one entry per const below, derived
+    /// from the consts given here, so none can be left out of it.
+    pub const ROSTER;
 
-/// The circle × torus lane's ladder rows (`curve_face::circle_torus`).
-pub const CIRCLE_TORUS: HalfAngleRows = HalfAngleRows {
-    pole: "circle_torus_pole",
-    conditioning: "circle_torus_pole_conditioning",
-    noise: "circle_torus_noise",
-    quartic: QuarticRows {
-        disc: "circle_torus_disc",
-        shape: "circle_torus_shape",
-        depth: "circle_torus_depth",
-        odd: "circle_torus_odd",
-        split: "circle_torus_split",
-        split_lead: "circle_torus_split_lead",
-    },
-    verify: SubdivisionRows {
-        clear: "circle_torus_sub_clear",
-        monotone: "circle_torus_sub_monotone",
-        side: "circle_torus_sub_side",
-        width: "circle_torus_sub_width",
-    },
-};
+    // ------------------------------------------------- this crate's readers
 
-/// The ellipse × torus arm's subdivision rows (`curve_face::ellipse_torus`).
-pub const ELLIPSE_TORUS: SubdivisionRows = SubdivisionRows {
-    clear: "ellipse_torus_sub_clear",
-    monotone: "ellipse_torus_sub_monotone",
-    side: "ellipse_torus_sub_side",
-    width: "ellipse_torus_sub_width",
-};
+    /// The circle × torus lane's ladder rows (`curve_face::circle_torus`).
+    pub const CIRCLE_TORUS: HalfAngleRows = HalfAngleRows {
+        pole: "circle_torus_pole",
+        conditioning: "circle_torus_pole_conditioning",
+        noise: "circle_torus_noise",
+        quartic: QuarticRows {
+            disc: "circle_torus_disc",
+            shape: "circle_torus_shape",
+            depth: "circle_torus_depth",
+            odd: "circle_torus_odd",
+            split: "circle_torus_split",
+            split_lead: "circle_torus_split_lead",
+        },
+        verify: SubdivisionRows {
+            clear: "circle_torus_sub_clear",
+            monotone: "circle_torus_sub_monotone",
+            side: "circle_torus_sub_side",
+            width: "circle_torus_sub_width",
+        },
+    };
 
-/// The coplanar conic pair's subdivision rows (`curve_pair::pose`).
-pub const COPLANAR: SubdivisionRows = SubdivisionRows {
-    clear: "curve_pair_coplanar_sub_clear",
-    monotone: "curve_pair_coplanar_sub_monotone",
-    side: "curve_pair_coplanar_sub_side",
-    width: "curve_pair_coplanar_sub_width",
-};
+    /// The ellipse × torus arm's subdivision rows (`curve_face::ellipse_torus`).
+    pub const ELLIPSE_TORUS: SubdivisionRows = SubdivisionRows {
+        clear: "ellipse_torus_sub_clear",
+        monotone: "ellipse_torus_sub_monotone",
+        side: "ellipse_torus_sub_side",
+        width: "ellipse_torus_sub_width",
+    };
 
-/// The coplanar subdivision's touch rows (`curve_pair::pose`, module docs,
-/// "A touch in the subdivision").
-pub const COPLANAR_TOUCH: TouchRows = TouchRows {
-    convex: "curve_pair_coplanar_sub_convex",
-    stretch: "curve_pair_coplanar_sub_touch",
-};
+    /// The coplanar conic pair's subdivision rows (`curve_pair::pose`).
+    pub const COPLANAR: SubdivisionRows = SubdivisionRows {
+        clear: "curve_pair_coplanar_sub_clear",
+        monotone: "curve_pair_coplanar_sub_monotone",
+        side: "curve_pair_coplanar_sub_side",
+        width: "curve_pair_coplanar_sub_width",
+    };
 
-/// The cylinder × torus gap's rows (`pair_section::torus`).
-pub(crate) const CT_GAP: GapRows = GapRows {
-    gap: "ct_critical_gap",
-    clear: "ct_critical_gap_clear",
-    monotone: "ct_critical_gap_monotone",
-    smooth: "ct_critical_gap_smooth",
-    turn: "ct_critical_gap_turn",
-    floor: "ct_critical_gap_floor",
-    straddle: "ct_critical_gap_straddle",
-};
+    /// The coplanar subdivision's touch rows (`curve_pair::pose`, module docs,
+    /// "A touch in the subdivision").
+    pub const COPLANAR_TOUCH: TouchRows = TouchRows {
+        convex: "curve_pair_coplanar_sub_convex",
+        stretch: "curve_pair_coplanar_sub_touch",
+    };
 
-/// The torus × torus gap's rows (`pair_section::torus`).
-pub(crate) const TT_GAP: GapRows = GapRows {
-    gap: "tt_critical_gap",
-    clear: "tt_critical_gap_clear",
-    monotone: "tt_critical_gap_monotone",
-    smooth: "tt_critical_gap_smooth",
-    turn: "tt_critical_gap_turn",
-    floor: "tt_critical_gap_floor",
-    straddle: "tt_critical_gap_straddle",
-};
+    /// The cylinder × torus gap's rows (`pair_section::torus`).
+    pub(crate) const CT_GAP: GapRows = GapRows {
+        gap: "ct_critical_gap",
+        clear: "ct_critical_gap_clear",
+        monotone: "ct_critical_gap_monotone",
+        smooth: "ct_critical_gap_smooth",
+        turn: "ct_critical_gap_turn",
+        floor: "ct_critical_gap_floor",
+        straddle: "ct_critical_gap_straddle",
+    };
 
-// ------------------------------------------------- topo's readers
+    /// The torus × torus gap's rows (`pair_section::torus`).
+    pub(crate) const TT_GAP: GapRows = GapRows {
+        gap: "tt_critical_gap",
+        clear: "tt_critical_gap_clear",
+        monotone: "tt_critical_gap_monotone",
+        smooth: "tt_critical_gap_smooth",
+        turn: "tt_critical_gap_turn",
+        floor: "tt_critical_gap_floor",
+        straddle: "tt_critical_gap_straddle",
+    };
 
-/// `topo`'s conic × quadric first-harmonic arm's rows
-/// (`topo::boolean::conic_quadric`).
-pub const CONIC_QUADRIC_FIRST: FirstHarmonicRows = FirstHarmonicRows {
-    noise: "bool_conic_quadric_first_noise",
-    coaxial: "bool_conic_quadric_first_constant",
-    extreme: "bool_conic_quadric_first_extreme",
-    root_slack: "bool_conic_quadric_first_root_slack",
-};
+    // ------------------------------------------------- topo's readers
 
-/// `topo`'s conic × quadric ladder's rows
-/// (`topo::boolean::conic_quadric`); its noise row is also the arm
-/// switch's ladder meter there.
-pub const CONIC_QUADRIC_LADDER: HalfAngleRows = HalfAngleRows {
-    pole: "bool_conic_quadric_pole",
-    conditioning: "bool_conic_quadric_pole_conditioning",
-    noise: "bool_conic_quadric_ladder_noise",
-    quartic: QuarticRows {
-        disc: "bool_conic_quadric_disc",
-        shape: "bool_conic_quadric_shape",
-        depth: "bool_conic_quadric_depth",
-        odd: "bool_conic_quadric_odd",
-        split: "bool_conic_quadric_split",
-        split_lead: "bool_conic_quadric_split_lead",
-    },
-    verify: SubdivisionRows {
-        clear: "bool_conic_quadric_sub_clear",
-        monotone: "bool_conic_quadric_sub_monotone",
-        side: "bool_conic_quadric_sub_side",
-        width: "bool_conic_quadric_sub_width",
-    },
-};
+    /// `topo`'s conic × quadric first-harmonic arm's rows
+    /// (`topo::boolean::conic_quadric`).
+    pub const CONIC_QUADRIC_FIRST: FirstHarmonicRows = FirstHarmonicRows {
+        noise: "bool_conic_quadric_first_noise",
+        coaxial: "bool_conic_quadric_first_constant",
+        extreme: "bool_conic_quadric_first_extreme",
+        root_slack: "bool_conic_quadric_first_root_slack",
+    };
 
-/// `topo`'s ray × torus quartic rows (`topo::boolean::solid_contain`).
-pub const RAY_TORUS: QuarticRows = QuarticRows {
-    disc: "bool_ray_torus_disc",
-    shape: "bool_ray_torus_shape",
-    depth: "bool_ray_torus_depth",
-    odd: "bool_ray_torus_odd",
-    split: "bool_ray_torus_split",
-    split_lead: "bool_ray_torus_split_lead",
-};
+    /// `topo`'s conic × quadric ladder's rows
+    /// (`topo::boolean::conic_quadric`); its noise row is also the arm
+    /// switch's ladder meter there.
+    pub const CONIC_QUADRIC_LADDER: HalfAngleRows = HalfAngleRows {
+        pole: "bool_conic_quadric_pole",
+        conditioning: "bool_conic_quadric_pole_conditioning",
+        noise: "bool_conic_quadric_ladder_noise",
+        quartic: QuarticRows {
+            disc: "bool_conic_quadric_disc",
+            shape: "bool_conic_quadric_shape",
+            depth: "bool_conic_quadric_depth",
+            odd: "bool_conic_quadric_odd",
+            split: "bool_conic_quadric_split",
+            split_lead: "bool_conic_quadric_split_lead",
+        },
+        verify: SubdivisionRows {
+            clear: "bool_conic_quadric_sub_clear",
+            monotone: "bool_conic_quadric_sub_monotone",
+            side: "bool_conic_quadric_sub_side",
+            width: "bool_conic_quadric_sub_width",
+        },
+    };
 
-/// The subdivision rows every `topo` section ruling chart walks under
-/// (`topo::boolean::section_cert`).
-pub const SECTION_RULING_WALK: SubdivisionRows = SubdivisionRows {
-    clear: "section_ruling_clear",
-    monotone: "section_ruling_monotone",
-    side: "section_ruling_side",
-    width: "section_ruling_width",
-};
+    /// `topo`'s ray × torus quartic rows (`topo::boolean::solid_contain`).
+    pub const RAY_TORUS: QuarticRows = QuarticRows {
+        disc: "bool_ray_torus_disc",
+        shape: "bool_ray_torus_shape",
+        depth: "bool_ray_torus_depth",
+        odd: "bool_ray_torus_odd",
+        split: "bool_ray_torus_split",
+        split_lead: "bool_ray_torus_split_lead",
+    };
 
-// ------------------------------------------------- the roster
-
-/// **Every registered bundle's rows**, one entry per const above, kept
-/// beside them by hand: a const left out of it is the one way a name
-/// escapes the check, so a new const lands in this list in the same
-/// change.
-pub const ROSTER: &[&[&str]] = &[
-    &CIRCLE_TORUS.names(),
-    &ELLIPSE_TORUS.names(),
-    &COPLANAR.names(),
-    &COPLANAR_TOUCH.names(),
-    &CT_GAP.names(),
-    &TT_GAP.names(),
-    &CONIC_QUADRIC_FIRST.names(),
-    &CONIC_QUADRIC_LADDER.names(),
-    &RAY_TORUS.names(),
-    &SECTION_RULING_WALK.names(),
-];
-
-const _: () = assert!(
-    geom_core::rows::first_shared_in(ROSTER).is_none(),
-    "two of geom-brep's registered row bundles share a row name"
-);
+    /// The subdivision rows every `topo` section ruling chart walks under
+    /// (`topo::boolean::section_cert`).
+    pub const SECTION_RULING_WALK: SubdivisionRows = SubdivisionRows {
+        clear: "section_ruling_clear",
+        monotone: "section_ruling_monotone",
+        side: "section_ruling_side",
+        width: "section_ruling_width",
+    };
+}

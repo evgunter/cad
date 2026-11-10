@@ -2,8 +2,9 @@
 //! predicate rows a reader in this crate decides under, held here alone,
 //! as `geom_brep::rows` and `topo::rows` hold theirs. The bundle type's
 //! fields are private to this module; every reader's bundle is a `const`
-//! here; [`ROSTER`] lists their names, and a `const` assertion fails this
-//! crate's build on a name used twice ([`geom_core::rows::first_shared_in`]).
+//! here, given to [`geom_core::row_registry!`], which derives [`ROSTER`]
+//! from them and fails this crate's build on a name used twice
+//! ([`geom_core::rows::first_shared_in`]).
 //! editor-core's tree-wide test walks this roster with every other crate's.
 
 /// The predicate names one verb's cosurface decision reports under —
@@ -43,23 +44,20 @@ impl CosurfaceNames {
     }
 }
 
-/// The extrude's side walls (`extrude`).
-pub(crate) const SIDE_COSURFACE: CosurfaceNames = CosurfaceNames {
-    lines: "side_planes_cosurface",
-    arcs: "side_cylinders_cosurface",
-};
+geom_core::row_registry! {
+    /// **Every registered bundle's rows**, one entry per const below,
+    /// derived from the consts given here, so none can be left out of it.
+    pub const ROSTER;
 
-/// The revolve's walls (`revolve`).
-pub(crate) const WALL_COSURFACE: CosurfaceNames = CosurfaceNames {
-    lines: "wall_lines_cosurface",
-    arcs: "wall_arcs_cosurface",
-};
+    /// The extrude's side walls (`extrude`).
+    pub(crate) const SIDE_COSURFACE: CosurfaceNames = CosurfaceNames {
+        lines: "side_planes_cosurface",
+        arcs: "side_cylinders_cosurface",
+    };
 
-/// **Every registered bundle's rows**, one entry per const above, kept
-/// beside them by hand.
-pub const ROSTER: &[&[&str]] = &[&SIDE_COSURFACE.names(), &WALL_COSURFACE.names()];
-
-const _: () = assert!(
-    geom_core::rows::first_shared_in(ROSTER).is_none(),
-    "two of sweep's registered row bundles share a row name"
-);
+    /// The revolve's walls (`revolve`).
+    pub(crate) const WALL_COSURFACE: CosurfaceNames = CosurfaceNames {
+        lines: "wall_lines_cosurface",
+        arcs: "wall_arcs_cosurface",
+    };
+}

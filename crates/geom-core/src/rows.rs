@@ -6,11 +6,10 @@
 //! (`docs/predicate-dimension-audit.md`), so two readers sharing one
 //! would merge their samples under it. Each crate that mints row bundles
 //! holds them in one `rows` module: the bundle types, whose fields are
-//! private to it, every reader's bundle as a `const`, and a hand-listed
-//! `ROSTER` of their names. A `const` assertion there,
-//! `assert!(first_shared_in(ROSTER).is_none())`, fails the crate's build
-//! on a name used twice, and editor-core's tree-wide test walks every
-//! crate's roster together.
+//! private to it, and every reader's bundle as a `const` given to
+//! [`row_registry!`], which derives the `ROSTER` of their names and the
+//! `const` assertion that fails the crate's build on a name used twice.
+//! editor-core's tree-wide test walks every crate's roster together.
 
 /// `a == b`, in a `const` context.
 #[must_use]
@@ -71,6 +70,42 @@ pub const fn first_shared_in(roster: &[&[&str]]) -> Option<((usize, usize), (usi
         i += 1;
     }
     None
+}
+
+/// **A crate's row registry, its roster derived**: every `const` bundle
+/// given here, and a `ROSTER` of their names that lists exactly those
+/// consts, with the `const` assertion that fails the build on a name used
+/// twice ([`first_shared_in`]). A const added here is in the roster by
+/// construction: there is no hand-kept list to leave it out of.
+///
+/// ```ignore
+/// geom_core::row_registry! {
+///     /// Every registered bundle's rows.
+///     pub const ROSTER;
+///     /// A reader's rows.
+///     pub(crate) const A_READER: SomeRows = SomeRows { .. };
+/// }
+/// ```
+///
+/// Each bundle type gives `const fn names(&self) -> [&'static str; N]`.
+/// Test-only bundles go in a second invocation under `#[cfg(test)]`, with
+/// a roster of their own.
+#[macro_export]
+macro_rules! row_registry {
+    (
+        $(#[$rmeta:meta])* $rvis:vis const $roster:ident;
+        $( $(#[$meta:meta])* $vis:vis const $name:ident: $ty:ty = $value:expr; )+
+    ) => {
+        $( $(#[$meta])* $vis const $name: $ty = $value; )+
+
+        $(#[$rmeta])*
+        $rvis const $roster: &[&[&str]] = &[ $( &$name.names() ),+ ];
+
+        const _: () = assert!(
+            $crate::rows::first_shared_in($roster).is_none(),
+            concat!("two bundles of ", stringify!($roster), " share a row name")
+        );
+    };
 }
 
 #[cfg(test)]

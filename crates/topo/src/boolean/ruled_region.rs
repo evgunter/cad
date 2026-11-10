@@ -127,10 +127,7 @@ use crate::splitting::containment::ConicRows;
 use crate::validate::decide;
 
 /// A conic edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded(
-    "bool_ruled_region_arc_span",
-    "bool_ruled_region_arc_straddle",
-);
+const BOUNDARY: ConicRows = crate::rows::RULED_REGION_CONIC;
 
 /// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
 const LINE: SegmentRows = crate::rows::RULED_REGION_LINE;
