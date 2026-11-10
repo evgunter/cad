@@ -1482,7 +1482,7 @@ mod tests {
     /// a quarter turn and a smaller one.
     #[test]
     fn the_ladder_reads_two_tori_as_their_pose_does() {
-        use crate::boolean::boxes::tests::torus_wall;
+        use crate::boxes::tests::torus_wall;
         let b = band();
         let e = b.zero();
         let surface = |(center, axis, major, minor): (Point3<f64>, Vec3<f64>, f64, f64)| {

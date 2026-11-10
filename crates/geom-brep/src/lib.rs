@@ -139,7 +139,7 @@ pub use dihedral::{
 };
 pub use dihedral_side::{
     ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
-    SideRole, chart_normal_at, chart_point_normal, dihedral_side, regular_jet,
+    SideRole, chart_normal_at, chart_normal_beside, chart_point_normal, dihedral_side, regular_jet,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
