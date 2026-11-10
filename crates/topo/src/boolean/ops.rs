@@ -1938,7 +1938,11 @@ fn overlap_reach<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ChartCache::describes`]'s, for a torn face.
+/// The first refusal the certificate's two readers meet, in the order it
+/// asks them (per component, a side's description before the witness):
+/// [`ChartCache::describes`]'s, for a torn face; or
+/// [`BooleanError::ClassificationInvariant`] (`WITNESS_OFF_CARRIER`),
+/// where a witness reads off a curved face's carrier ([`witness_pair`]).
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
@@ -1997,27 +2001,45 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             charts
                 .describes(operand, body, row.face, &row.surface, band)
                 .unwrap_or_else(|e| {
-                    torn.borrow_mut().get_or_insert(e);
+                    tear(&torn, e);
                     Sheet::Unread
                 })
         },
         |p, band| {
-            [
-                place_witness(a, fa.face, p, band),
-                place_witness(b, fb.face, p, band),
-            ]
-            .map(|placed| {
-                placed.unwrap_or_else(|e| {
-                    torn.borrow_mut().get_or_insert(e);
-                    None
-                })
-            })
+            witness_pair(
+                [
+                    place_witness(a, fa.face, p, band),
+                    place_witness(b, fb.face, p, band),
+                ],
+                &torn,
+            )
         },
     );
     match torn.into_inner() {
         Some(e) => Err(e),
         None => Ok(verdict),
     }
+}
+
+/// Keeps `e` for [`pair_verdict`] to return, if it is the first refusal
+/// either of the certificate's readers met: the first one met wins.
+fn tear(torn: &core::cell::RefCell<Option<BooleanError>>, e: BooleanError) {
+    torn.borrow_mut().get_or_insert(e);
+}
+
+/// The witness pair's placements as the certificate reads them: a
+/// placement, or no verdict where the witness's placement refused, that
+/// refusal kept ([`tear`]) for [`pair_verdict`] to return.
+fn witness_pair(
+    placed: [Result<Option<FaceContainment>, BooleanError>; 2],
+    torn: &core::cell::RefCell<Option<BooleanError>>,
+) -> [Option<FaceContainment>; 2] {
+    placed.map(|placed| {
+        placed.unwrap_or_else(|e| {
+            tear(torn, e);
+            None
+        })
+    })
 }
 
 /// **Whether a boundary edge of `face` may meet `circle`**: some edge of
@@ -3658,15 +3680,16 @@ pub(super) enum DoorInBand {
     Containment,
 }
 
-/// Whether `face` holds `q` strictly inside it, placed as the census
-/// confirms a vertex-on-face record, typing an in-band margin of the
-/// containment door as `door` says. The census put `q` on the face's
-/// carrier when it certified the record, deciding it there with no
-/// margin carried here, so `q` is held in band
-/// ([`crate::held::Held::in_band`]) and placed with no on-plane decision
-/// ([`super::contain::placement_on_carrier`]); a reading definitely off
-/// a curved face's carrier (a planar face's placement never says so)
-/// contradicts the census's certificate, a kernel defect.
+/// Whether `face` holds `q` strictly inside it, typing an in-band margin
+/// of the containment door as `door` says. `q` is the midpoint of a
+/// piece of an edge whose carrier the slit's parting decided lies on the
+/// face's surface (`slit::holding`, after `carrier_on_surface` read
+/// `Placed::On`), on it to within the band with no margin carried here,
+/// so `q` is held in band ([`crate::held::Held::in_band`]) and placed
+/// with no on-plane decision ([`super::contain::placement_on_carrier`]).
+/// A reading definitely off a curved face's carrier (a planar face's
+/// placement never says so) contradicts that decision, a kernel defect
+/// ([`piece_reads`]).
 ///
 /// # Errors
 ///
@@ -3680,15 +3703,30 @@ pub(super) fn piece_reading<T: Decide>(
     band: Band,
     door: DoorInBand,
 ) -> Result<PieceRead, BooleanError> {
-    use super::contain::CurvedPlacement;
     let held = crate::held::Held::in_band(q);
-    match super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at) {
+    piece_reads(
+        super::contain::placement_on_carrier(body, face, held, band).map(|(at, ..)| at),
+        door,
+    )
+}
+
+/// [`piece_reading`]'s reading of the door's answer.
+///
+/// # Errors
+///
+/// As [`piece_reading`].
+fn piece_reads(
+    read: Result<super::contain::CurvedPlacement, ContainError>,
+    door: DoorInBand,
+) -> Result<PieceRead, BooleanError> {
+    use super::contain::CurvedPlacement;
+    match read {
         Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => Ok(PieceRead::In),
         Ok(CurvedPlacement::Trim(Some(
             FaceContainment::Out | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
         ))) => Ok(PieceRead::NotIn),
         Ok(CurvedPlacement::OffCarrier) => Err(BooleanError::ClassificationInvariant {
-            what: CARRIED_OFF_CARRIER,
+            what: PIECE_OFF_CARRIER,
         }),
         Ok(CurvedPlacement::Trim(None)) => Ok(PieceRead::Unread(None)),
         Err(ContainError::Escalated {
@@ -3718,10 +3756,10 @@ pub(super) fn piece_reading<T: Decide>(
     }
 }
 
-/// [`piece_reading`]'s invariant where a carried record's point reads
-/// off the curved face's carrier the census put it on.
-const CARRIED_OFF_CARRIER: &str = "a carried vertex-on-face record's point reads off the curved face's carrier the census \
-     certified it on";
+/// [`piece_reading`]'s invariant where a piece's midpoint reads off the
+/// curved face's carrier the slit's parting decided its edge lies on.
+const PIECE_OFF_CARRIER: &str = "a piece of an edge reads off the curved face's carrier its edge \
+     was decided to lie on";
 
 /// **What a result's records are carried from**, read off the reduction
 /// before its finish: each operand's carried records as the cell pairs
@@ -11244,6 +11282,71 @@ mod witness_rows {
         assert!(
             matches!(witness_reads(Err(ContainError::RayExhausted)), Ok(None)),
             "a door's refusal is no verdict"
+        );
+    }
+
+    /// **A witness's defect leaves the pair's verdict**
+    /// ([`super::witness_pair`]): the witness reads no verdict and the
+    /// defect is kept for `pair_verdict` to return, the first one met
+    /// winning.
+    #[test]
+    fn a_witness_defect_is_kept_for_the_pairs_verdict() {
+        let torn = core::cell::RefCell::new(None);
+        let defect = || {
+            Err(BooleanError::ClassificationInvariant {
+                what: WITNESS_OFF_CARRIER,
+            })
+        };
+        assert!(
+            matches!(
+                super::witness_pair([defect(), Ok(Some(FaceContainment::In))], &torn),
+                [None, Some(FaceContainment::In)]
+            ),
+            "the torn witness reads no verdict, its partner its own"
+        );
+        super::witness_pair(
+            [
+                Err(BooleanError::ClassificationInvariant { what: "later" }),
+                Ok(None),
+            ],
+            &torn,
+        );
+        assert!(
+            matches!(
+                torn.into_inner(),
+                Some(BooleanError::ClassificationInvariant {
+                    what: WITNESS_OFF_CARRIER
+                })
+            ),
+            "the first defect met is the one kept"
+        );
+    }
+
+    /// **A piece off a curved face's carrier is the parting's defect**
+    /// ([`super::piece_reads`]), in every build: never `NotIn`.
+    #[test]
+    fn a_piece_off_a_curved_carrier_reads_as_the_invariant() {
+        assert!(
+            matches!(
+                super::piece_reads(
+                    Ok(CurvedPlacement::OffCarrier),
+                    super::DoorInBand::Containment
+                ),
+                Err(BooleanError::ClassificationInvariant {
+                    what: super::PIECE_OFF_CARRIER
+                })
+            ),
+            "off the carrier: the defect"
+        );
+        assert!(
+            matches!(
+                super::piece_reads(
+                    Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
+                    super::DoorInBand::Containment
+                ),
+                Ok(super::PieceRead::NotIn)
+            ),
+            "a trim's Out is NotIn"
         );
     }
 }

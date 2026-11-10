@@ -1949,8 +1949,11 @@ fn face_cone<T: Decide>(
 /// placement, the point checked on the face's carrier in debug builds
 /// ([`crate::held::Held::check`]) and placed with no on-carrier decision
 /// (a planar face by its plane, [`contfp`]; a curved one by its region,
-/// [`crate::boolean::curved_face_containment`]). `Some(None)` where no
-/// door reads it; `None` where the door refused (pushed).
+/// [`crate::boolean::curved_face_placement`]). A point read definitely
+/// off a curved face's carrier (a planar face's placement never says so)
+/// breaks the caller's premise, the kernel's fault ([`census_fault`]),
+/// as the boolean's held door answers it. `Some(None)` where no door
+/// reads it; `None` where the door refused (pushed).
 fn placed<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -1968,11 +1971,17 @@ fn placed<T: Decide>(
     let q = held.point();
     match plane {
         Some(normal) => contain(body, (f, normal), q, band, errors).map(Some),
-        _ => read_containment(
+        _ => match read_containment(
             f,
-            crate::boolean::curved_face_containment(body, f, q, band),
+            crate::boolean::curved_face_placement(body, f, q, band),
             errors,
-        ),
+        )? {
+            crate::boolean::CurvedPlacement::Trim(at) => Some(at),
+            crate::boolean::CurvedPlacement::OffCarrier => census_fault(
+                format_args!("face {f:?}"),
+                "a point the census holds on the face's carrier reads definitely off it",
+            ),
+        },
     }
 }
 
