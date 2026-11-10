@@ -1506,3 +1506,4 @@
 - 02:50Z Merged 6686 (aac331f2; gate green at fd54cbbb, main moved only by onehome text). 6701 merged with main (incl. 6686) → 88a23b0f, check+gates clean, gating (prior head 31655de7 was green).
 - 02:53Z PR 6709 crease-at (76d8b436; prove-door Crease read, kept_edge, 0 moves) → FULL review session_013mPGJ4t6C8MSEJymSxuJiG. Warned roster-reach of overlap on the raw-sign row/register.
 - 02:55Z Ev on [ev] 6570: "what consumes the things that meet returns?" → curve-pair-tidy lane to answer with the consumer list.
+- 02:58Z 6570: curve-pair-tidy lane answered Ev (8 consumers, none reads an extent; body unchanged) → lane on onecopy/meet-tilt (meet-refuses-a-near-tangent-tilt-in-both-orders). 6698 fold 95128966 → same reviewer.
