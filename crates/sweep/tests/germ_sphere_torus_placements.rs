@@ -6,20 +6,21 @@
 //! - the donut turned 0.7 rad about `x` and moved to `(0.1, 0.35, 0.2)`
 //!   (ball ∪ donut): a carried chord closes a ring on a torus face
 //!   (`RingClosure::Chord` on the torus's ring path). The union passes
-//!   the join and stops at the result gate's volume, on one face trimmed
-//!   by spline chords on a sphere or torus chart
-//!   (`work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md`),
-//!   which turns this row red the day it lands; the face is pinned, so a
-//!   change to the matcher shows;
+//!   the join, its chorded sphere faces measure through the rotational
+//!   lane, and it stops at the result gate's volume on that torus face's
+//!   ring (`RingOnCurvedFace`), read by the refused face's own kind
+//!   ([`torus_stop`]);
 //! - the ball turned 1.1 rad about `(0.3, 1, 0.2)` and moved to
 //!   `(0.42, −0.15, 0.3)` (donut ∪ ball): a spline edge in the run of a
-//!   torus ring (`run_loop_arcs` on the torus), the same door;
+//!   torus ring (`run_loop_arcs` on the torus), stopping on a torus face's
+//!   trim
+//!   (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`);
 //! - the donut turned 0.9 rad about `(1, 1, 0)` and moved to
 //!   `(0.05, 0.1, 0.02)`, ∪ in both member orders: the ball cuts both
 //!   tube circles of its meridian, two curves about the donut's axis
 //!   that no plane or meridian tells apart; each germ's component is its
-//!   site's foot on the carried section, and the union stops at the same
-//!   volume door.
+//!   site's foot on the carried section, and the union stops on a torus
+//!   face's trim too.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -85,24 +86,34 @@ fn placed(b: &Body<f64>, axis: Vec3<f64>, angle: f64, t: Vec3<f64>) -> AtRestBod
     finished("the placed operand", moved, tol)
 }
 
-/// Whether `e` is the result gate's volume refusal on the one face
-/// `face` (its key's rendering), a conic or spline trim on a sphere or
-/// torus chart.
-fn trim_refusal_on(e: &BooleanError, face: &str) -> bool {
-    matches!(
-        e,
-        BooleanError::ResultInvalid { findings: errors } if matches!(
-            errors.as_slice(),
-            [ValidationError::VolumeUncomputable {
-                source: MassPropsError::Face {
-                    face: f,
-                    source: geom_brep::PropsError::QuadratureUnsupported { what },
-                },
+/// Where `e` stops, where it is the result gate's volume refusal on a
+/// torus face, the refused face's own kind read
+/// (`topo::boolean::refused_face_kind`): `"torus trim"`, a trim the chart
+/// table has no lane for
+/// (`work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md`),
+/// or `"torus ring"`, a ring the torus reads only bounded by rims and
+/// rulings or beside a spiric (`MassPropsError::RingOnCurvedFace`). Read
+/// right after the boolean that refused.
+fn torus_stop(e: &BooleanError) -> Option<&'static str> {
+    if topo::boolean::refused_face_kind(e) != Some(geom::SurfaceKind::Torus) {
+        return None;
+    }
+    let BooleanError::ResultInvalid { findings: errors } = e else {
+        return None;
+    };
+    match errors.as_slice() {
+        [ValidationError::VolumeUncomputable { source, .. }] => match source {
+            MassPropsError::Face {
+                source: geom_brep::PropsError::QuadratureUnsupported { what },
                 ..
-            }] if format!("{f:?}") == face
-                && what.starts_with("a trimmed face with no volume lane on its chart")
-        )
-    )
+            } if what.starts_with("a trimmed face with no volume lane on its chart") => {
+                Some("torus trim")
+            }
+            MassPropsError::RingOnCurvedFace { .. } => Some("torus ring"),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 #[test]
@@ -118,7 +129,7 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_stops_at_the_volume() {
     let e = topo::union(&ball0, &ring, tol)
         .err()
         .unwrap_or_else(|| panic!("a torus ring: the union built; re-pin it"));
-    assert!(trim_refusal_on(&e, "FaceKey(2v1)"), "a torus ring: {e:?}");
+    assert_eq!(torus_stop(&e), Some("torus ring"), "a torus ring: {e:?}");
     // A spline edge in a torus ring's run.
     let moved = placed(
         &ball(),
@@ -129,8 +140,9 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_stops_at_the_volume() {
     let e = topo::union(&donut0, &moved, tol)
         .err()
         .unwrap_or_else(|| panic!("a torus ring's run: the union built; re-pin it"));
-    assert!(
-        trim_refusal_on(&e, "FaceKey(5v5)"),
+    assert_eq!(
+        torus_stop(&e),
+        Some("torus trim"),
         "a torus ring's run: {e:?}"
     );
     // Two curves about the axis, which no closed-form reading tells apart.
@@ -157,19 +169,10 @@ fn a_ball_against_a_donut_carries_onto_the_torus_and_stops_at_the_volume() {
         let e = topo::union(x, y, tol)
             .err()
             .unwrap_or_else(|| panic!("about the axis, {order}: the union built; re-pin it"));
-        let trims = matches!(
-            &e,
-            BooleanError::ResultInvalid { findings: errors } if matches!(
-                errors.as_slice(),
-                [ValidationError::VolumeUncomputable {
-                    source: MassPropsError::Face {
-                        source: geom_brep::PropsError::QuadratureUnsupported { what },
-                        ..
-                    },
-                    ..
-                }] if what.starts_with("a trimmed face with no volume lane on its chart")
-            )
+        assert_eq!(
+            torus_stop(&e),
+            Some("torus trim"),
+            "about the axis, {order} ({kinds:?}): {e:?}"
         );
-        assert!(trims, "about the axis, {order} ({kinds:?}): {e:?}");
     }
 }

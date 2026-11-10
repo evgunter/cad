@@ -31,6 +31,22 @@ mod wall_probes_run_here {
         let (r, ev) = evaluated(Tol::witness());
         wall_probes(&ev, &r);
     }
+
+    /// **Wall 2 stops on the handle's torus face**, read by the refused
+    /// face's own kind (`topo::boolean::refused_face_kind`, the result
+    /// gate's record of the face it refused), not by its message: the
+    /// vessel's chorded sphere face measures, and a regression onto it
+    /// reads as the sphere's.
+    #[test]
+    fn wall_2_refuses_on_the_handles_torus_face() {
+        let (r, ev) = evaluated(Tol::witness());
+        let e = wall2_refusal(&ev, &r).expect("wall 2 refuses");
+        assert_eq!(
+            pncad::topo::boolean::refused_face_kind(e),
+            Some(pncad::geom::SurfaceKind::Torus),
+            "{e:?}"
+        );
+    }
 }
 
 mod spout_belly_section_probe {

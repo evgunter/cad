@@ -316,6 +316,9 @@ fn face(
             out.push(EdgeTermQ::Projected(
                 ProjectedEdgeQ::of_image(
                     projected,
+                    RotationalChartQ::Cylinder {
+                        radius: pt(chart.r),
+                    },
                     (pt(0.0), pt(1.0)),
                     e.harmonic.forward,
                     [at(0.0), at(1.0)],
@@ -653,3 +656,4 @@ fn a_projected_line_holds_the_closed_form() {
 
 mod framed;
 mod pads;
+mod sphere;
