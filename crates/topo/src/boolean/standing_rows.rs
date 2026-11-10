@@ -372,7 +372,7 @@ fn in_face(gap: super::slit::EdgeInFaceGap) -> BooleanError {
 /// limit stops the pass as an abort.
 #[test]
 fn the_pierce_pass_ranks_a_then_b() {
-    use geom_brep::ladder::{Answering, Evidence, climb_evidence};
+    use geom_core::ladder::{Answering, Evidence, climb_evidence};
     let climb = |errors: Vec<BooleanError>| -> Result<Evidence<BooleanError>, BooleanError> {
         match climb_evidence(Answering::First, errors, super::pierce_rung) {
             Ok((_, aborted)) => Err(aborted),

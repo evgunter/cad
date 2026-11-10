@@ -8497,7 +8497,7 @@ fn locus_through_both_faces<T: Decide>(
 
 /// [`FaceUnread::Fault`]'s invariant where a station of the locus reads
 /// off a face's carrier.
-pub(crate) const STATION_OFF_CARRIER: &str = "a station of a tangent locus is off a face's carrier";
+const STATION_OFF_CARRIER: &str = "a station of a tangent locus is off a face's carrier";
 
 /// Why one face left a point of a tangent line unread
 /// ([`line_through_both_faces`]).
