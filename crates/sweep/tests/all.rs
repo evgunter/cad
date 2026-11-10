@@ -463,6 +463,8 @@ mod band_dihedral_cups;
 mod band_mixed_vertex;
 #[path = "band_one_cycle_members.rs"]
 mod band_one_cycle_members;
+#[path = "band_open_mixed_chain.rs"]
+mod band_open_mixed_chain;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]

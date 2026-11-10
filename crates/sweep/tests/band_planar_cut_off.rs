@@ -614,10 +614,11 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
 /// tangent, so chain G1 breaks the closed chain into ONE open chain
 /// whose head and tail are both the corner; the end there names two of
 /// the corner's three edges, an isosceles turn, so the verdict admits
-/// it, and the open chain — lines joined to an arc — refuses typed at
-/// the open-chain door, which carves no chain whose links mix arms.
+/// it, and the open chain — lines joined to an arc at two junctions —
+/// builds, its two lines meeting in the mitre (its volume is
+/// `band_open_mixed_chain`'s).
 #[test]
-fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
+fn a_closed_rim_with_one_turn_breaks_there_into_one_open_mixed_chain() {
     let s3 = 3f64.sqrt();
     let body = sweep::test_support::extruded(
         profile::SketchPlane::xy(),
@@ -660,8 +661,15 @@ fn a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain() {
         p.equals_exactly(Point3::new(0.0, 0.0, 1.0)),
         "the turn is the teardrop's corner, got {p:?}"
     );
-    match Verb::Fillet.run(&body, &rim) {
-        Err(BlendError::UnsupportedChain { .. }) => {}
-        other => panic!("a rim that turns once refuses its mixed chain, got {other:?}"),
+    let [chain] = &verdict.chains[..] else {
+        panic!("one chain, got {}", verdict.chains.len());
+    };
+    assert!(
+        matches!(chain.closure, sweep::blend::battery::ChainClosure::Open { head, tail }
+            if head == turn.vertex && tail == turn.vertex),
+        "one open chain, both of whose ends are the turn"
+    );
+    if let Err(e) = Verb::Fillet.run(&body, &rim) {
+        panic!("a rim that turns once fillets as one open mixed chain, got {e:?}");
     }
 }

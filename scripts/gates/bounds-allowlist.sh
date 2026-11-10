@@ -861,7 +861,12 @@ BOUNDS_ALLOWLIST=(
   #   only when it is certainly one, since an uncertain read takes the
   #   whole circle, a sound bound. Its margins are `max`es of the
   #   pieces' extents, arithmetic, and `ring_clearance` decides them.
-  'crates/sweep/src/blend/surgery.rs 24 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 24 -> 26: `level_clearance` and `cycles_clearance` are
+  # `support_boundary_clearance`'s per-face read split out so the open
+  # band's torus link reads its supports through it too (arm (e) of
+  # `ring_clearance_pass`); they read brackets only through
+  # `StripLevel::clearance` and `ring_clearance`, as that arm did.
+  'crates/sweep/src/blend/surgery.rs 26 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
@@ -910,6 +915,14 @@ BOUNDS_ALLOWLIST=(
   #   of `CapSliver::inside_point` or `ring_inside`, which only `sure`
   #   decides, so it inherits that door's disposition and no other.
   'crates/sweep/src/blend/open/end_face.rs 9 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # junction.rs new at 2: the junction's moves left `surgery.rs`'s
+  # mixed rim for their own file when the open band took them too.
+  # `split_mate` reads brackets only through `seam_split_param`'s window
+  # test, as the mixed rim's split did; `feet_clear` meters a straight
+  # link's two feet along it, deciding only through `classify`, as
+  # `shared_rims_clear` meters two cut-offs'. The same seam and the same
+  # reads, moved and shared; no new decision reads a bracket.
+  'crates/sweep/src/blend/junction.rs 2 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   # The fitted door's fourth body is `projected_hull_lane` (`Decide +
   # Bounds + CertifiedEnclosure`, the bound its three siblings carry):

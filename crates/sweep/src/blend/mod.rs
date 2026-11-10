@@ -147,6 +147,7 @@ pub mod arms;
 pub mod battery;
 pub mod build;
 mod consume;
+mod junction;
 pub mod naming;
 mod open;
 pub(crate) mod reach;
@@ -319,7 +320,9 @@ pub enum BlendDecision {
     CapTransverse,
     /// `fillet3_cut_off_feet`: two cut-offs at the two ends of one rim
     /// put their feet on it in order and definitely apart, so the
-    /// second split lands on the piece the first leaves.
+    /// second split lands on the piece the first leaves; and a straight
+    /// link's two ends, one of them a junction, put theirs in order on
+    /// each trimline, so the chord between them runs forward.
     CutOffFeet,
     /// `fillet3_turn_feet_gap`: at a turn, how far apart the two bands'
     /// feet on the unrequested edge stand, signed by which is further.
@@ -453,7 +456,9 @@ impl BlendDecision {
                  the sine of the tilt, levered at the link's length)"
             }
             Self::CutOffFeet => {
-                "whether two cut-offs' feet on the rim they share stand definitely apart"
+                "whether a band's two ends put their feet in order and definitely apart: two \
+                 cut-offs' on the rim they share, or a straight link's on each trimline where one \
+                 end is a junction"
             }
             Self::TurnFeetGap => {
                 "whether the two bands turning at a vertex meet its third edge at one point \
@@ -1197,7 +1202,10 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// viewer can act on — it names the ends that DO carve: all three
 /// edges where they round alike, two that round alike (meeting in the
 /// mitre where their feet on the third edge are one point, the far band
-/// overrunning it where they stand clearly apart), and one alone. Its last clause, "in one
+/// overrunning it where they stand clearly apart), and one alone; and
+/// it asks for the whole of a smooth run, since a band that stops where
+/// its edge runs on tangentially into an unrequested one stops against
+/// a face tangent to it, which no end builds. Its last clause, "in one
 /// operation", answers the four-edge vertex a mitre leaves where the third
 /// edge ends: that edge blended in a later call ends at a valence-4
 /// vertex, and requested in the mitre's own call it builds the corner
@@ -1215,7 +1223,8 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// and `band_planar_cut_off`, which build each end it names.
 pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner, \
      blending all three edges where they round alike, two that round alike meeting on the third \
-     or clearly apart, or one ending at a flat face, in one operation";
+     or clearly apart, or one ending at a flat face, with every edge it runs on into smoothly \
+     requested too, in one operation";
 /// The recourse at a mixed-convexity corner whose odd edge is requested
 /// with another of its edges ([`CornerConfig::MixedConvexity`]). It
 /// names the two requests there that build, one edge alone (the

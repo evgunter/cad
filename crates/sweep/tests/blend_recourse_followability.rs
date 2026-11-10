@@ -845,10 +845,10 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // several other `UnsupportedChain` arms also satisfy.
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
-            if *detail == "an open chain's supports are neither a plane–plane nor a ruled \
-                 cylinder pair"),
-        "an open chain whose supports are neither plane–plane nor ruled has no built \
-         termination: {err:?}"
+            if *detail == "an open chain's link is neither plane–plane, nor a ruled cylinder \
+                 pair, nor a torus between two junctions with links on other supports"),
+        "an open chain whose link is neither plane–plane, nor ruled, nor a torus between two \
+         junctions has no built termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
     // The corner clause's two conditions, each true of every corner the
