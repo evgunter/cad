@@ -6937,9 +6937,10 @@ pub trait AtRestPolicy: Decide {
     /// no verdict (DUAL-DESIGN DL3).
     type Finished: crate::FinishedBody<Scalar = Self>;
 
-    /// **The one constructor of a finished body**: tier 3, whose first
-    /// act is tiers 1 and 2, with the verdict kept beside the body, at a
-    /// certifying scalar; tier 2 alone at a dual.
+    /// **The one place a body's verdict is derived**: tier 3, whose
+    /// first act is tiers 1 and 2, with the verdict kept beside the body,
+    /// at a certifying scalar; tier 2 alone at a dual. A finished body
+    /// moved by an isometry stays finished ([`crate::FinishedBody::moved`]).
     ///
     /// # Errors
     ///
@@ -6960,9 +6961,9 @@ pub trait AtRestPolicy: Decide {
     /// The final state is every door finishing its own result
     /// ([`AtRestPolicy::finish`]). The doors behind the switch end in
     /// this leaf instead: the sweep doors (extrude, revolve, loft, sweep,
-    /// the tube) and, in the evaluator, the computing frame's twist, the
-    /// mirror and the `⊔` graft, so at the box scalars a twisted or
-    /// mirrored Boolean result is a [`crate::Replay`] too. At the box
+    /// the tube) and, in the evaluator, the `⊔` graft. A move of a leaf
+    /// is a leaf of the same kind ([`crate::LeafBody::moved`]), so a
+    /// twisted or mirrored Boolean result stays finished. At the box
     /// scalars the leaf is tier 2 alone ([`crate::Replay`]): it does not
     /// run tier 3, and the consumer that takes a finished body runs it
     /// there, at the one taker door ([`crate::take`]): a Boolean's, a

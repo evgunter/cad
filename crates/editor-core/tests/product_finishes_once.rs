@@ -2,10 +2,10 @@
 //!
 //! The gather reads its sources and takes none: a source in the
 //! product's frame is read as its value holds it, and one standing under
-//! another frame is mapped into the product's as construction state
-//! (`Framed::read_in`, `ReadIn::Mapped`), which nothing finishes on its
-//! own. The aggregate is what finishes, once, and a refusal of it names
-//! the product, not a placement (`ProductError::ProductInvalid`).
+//! another frame is what its value holds, moved into the product's
+//! (`Framed::read_in`, `Held::moved`), which finishes nothing. The
+//! aggregate is what finishes, once, and a refusal of it names the
+//! product, not a placement (`ProductError::ProductInvalid`).
 //!
 //! The finish is counted where it runs (`topo::finishes_on_this_thread`),
 //! so a finish reached through the read (a mapped source ended as a leaf)

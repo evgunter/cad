@@ -29,7 +29,6 @@ use geom_core::{
 };
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
-use topo::transform::transform_rigid;
 use topo::{Body, BooleanInputs, POSE_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
@@ -641,16 +640,17 @@ fn twisted<T: Decide + topo::AtRestPolicy>(
             .for_node(id)
             .at::<T>(tol)
             .map_err(NodeErrorKind::Motion)?;
-        let turned = transform_rigid(body.body(), &twist, tol).map_err(NodeErrorKind::Transform)?;
-        // The twisted copy is its scalar's leaf (`topo::AtRestPolicy::leaf`):
-        // finished at `f64`, tier 2 at the box scalars, as its source is.
-        let turned =
-            T::leaf(turned, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+        // The twisted copy is what its source holds, moved: of the same
+        // kind, its verdict carried.
+        let turned = body
+            .holding()
+            .moved(&topo::Isometry::Proper(twist), tol)
+            .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
         let back = super::Frame::Own
             .moved(&twist.inverse().map_err(NodeErrorKind::Motion)?)
             .map_err(NodeErrorKind::Motion)?;
         return Ok(OpOut {
-            payload: ValuePayload::Body(super::Framed::in_frame_leaf(Arc::new(turned), back)),
+            payload: ValuePayload::Body(super::Framed::held(turned, back)),
             ..out
         });
     }
@@ -2673,7 +2673,7 @@ impl Witnessing<'_> {
         &self,
         sides: [(RecipeNodeId, u32); 2],
         tol: Tol,
-    ) -> Result<[super::ReadIn<f64>; 2], String> {
+    ) -> Result<[super::Held<f64>; 2], String> {
         let framed = |(at, index): (RecipeNodeId, u32)| {
             let value = value_of(self.results, at)
                 .map_err(|kind| format!("the f64 rebuild has no value for a seat: {kind}"))?;
@@ -2856,8 +2856,8 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 }
 
 /// **A mirror** (D10 `[repetition]`): the body `source` defines,
-/// reflected across `plane` by the kernel's reflection door
-/// (`topo::mirror_body`), a construction, not a copy. The door keeps
+/// reflected across `plane` ([`super::Held::moved`] at a reflection),
+/// a construction, not a copy. The door keeps
 /// every arena key, so the image carries the source's names verbatim,
 /// and carries what the source carries as a copy carries it
 /// ([`super::Carry::copied`]): its records, findings and census, each
@@ -2881,20 +2881,19 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     };
     let reflection =
         topo::Reflection::across_unit(PoseValue::plane_foot(*normal, *offset), *normal);
-    let image = topo::mirror_body(body.body(), &reflection, tol).map_err(NodeErrorKind::Mirror)?;
-    // The image is its scalar's leaf (`topo::AtRestPolicy::leaf`), as
-    // its source is.
-    let image = T::leaf(image, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    // The image is what its source holds, moved by the reflection: of
+    // the same kind, its verdict carried.
+    let image = body
+        .holding()
+        .moved(&topo::Isometry::Improper(reflection), tol)
+        .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let value = value_of(results, source)?;
     let table = read_table(value)
         .project(0)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &image, 0).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::in_frame_leaf(
-            Arc::new(image),
-            body.frame().clone(),
-        )),
+        ValuePayload::Body(super::Framed::held(image, body.frame().clone())),
         Arc::new(table),
     )
     .carrying(value.carry.copied(
@@ -3298,14 +3297,14 @@ struct Member<T: topo::AtRestPolicy + Decide> {
 
 impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
     /// **This member read into `computing`'s frame and taken**: what it
-    /// holds where the two are one frame, else its body mapped once at
-    /// the placement's door ([`super::Framed::read_in`]); taken as the
+    /// holds where the two are one frame, else what it holds moved once
+    /// at the placement's door ([`super::Framed::read_in`]); taken as the
     /// Boolean takes it ([`super::Held::finished`]).
     fn taken_in(&self, computing: &super::Framed<T>, tol: Tol) -> Result<Member<T>, NodeErrorKind> {
         let read = computing.read_in(&self.framed, tol)?;
-        let own = read.held().is_some();
+        let own = read.same(self.framed.holding());
         let body = read
-            .taken(tol)
+            .finished(tol)
             .map_err(NodeErrorKind::unfinished(self.node))?;
         let framed = if own {
             self.framed.clone()

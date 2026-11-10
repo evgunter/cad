@@ -45,7 +45,7 @@ pub use carry::Carry;
 pub use class::NodeErrorClass;
 pub use counters::EvalCounters;
 pub(crate) use framed::Frame;
-pub use framed::{Framed, Held, ReadIn};
+pub use framed::{Framed, Held};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::DirectionRefusal;
 
@@ -1652,20 +1652,20 @@ pub enum NodeErrorKind {
         at: Vec<(crate::VarId, i64)>,
     },
     /// The body this operation produced is not a finished body: an
-    /// operation that maps or assembles a body itself (a placement's
-    /// read into a frame, a mirror, a graft of pieces) finishes it at its
-    /// own end ([`topo::AtRestPolicy::finish`]). Every finding, each read
-    /// through its family.
+    /// operation that assembles a body itself (a graft of pieces)
+    /// finishes it at its own end ([`topo::AtRestPolicy::finish`]), and
+    /// one that moves a finished body (a placement's read into a frame,
+    /// a mirror, the twist) asks the session box again
+    /// ([`topo::FinishedBody::moved`]). Every finding, each read through
+    /// its family.
     NotFinished {
         /// The finish's findings.
         findings: topo::NotFinished,
     },
     /// **An operand that does not finish where this operation takes a
     /// finished body**: a leaf ([`topo::AtRestPolicy::leaf`], the switch:
-    /// tier 2 alone at the box scalars), or a body read into this
-    /// operation's frame through a placement's map, construction state
-    /// ([`super::ReadIn::Mapped`]); the operation that takes it runs
-    /// tier 3 on it ([`super::ReadIn::taken`]).
+    /// tier 2 alone at the box scalars); the operation that takes it
+    /// runs tier 3 on it ([`super::Held::finished`]).
     UnfinishedLeaf {
         /// The operand's node: the node whose value this operation took.
         input: RecipeNodeId,
@@ -2039,7 +2039,7 @@ pub enum NodeErrorKind {
 }
 
 impl NodeErrorKind {
-    /// **A taker's refusal** ([`ReadIn::taken`], [`Held::finished`]):
+    /// **A taker's refusal** ([`Held::finished`]):
     /// `input`'s body does not finish where a node takes it. A node's
     /// own finish of what it produced names [`NodeErrorKind::NotFinished`].
     pub(crate) fn unfinished(input: RecipeNodeId) -> impl FnOnce(topo::NotFinished) -> Self {
