@@ -76,12 +76,11 @@ fn nurbs_seed<T: Decide>() -> (Body<T>, FaceKey) {
     )))
 }
 
-fn turned<T: Real>() -> Affine3<T> {
-    Affine3::rotation_about_axis(
-        Point3::new(T::zero(), T::zero(), T::zero()),
-        Vec3::new(T::zero(), T::zero(), T::from_f64(1.0)),
-        T::from_f64(0.7),
-    )
+/// A turn about `z`, admitted at `f64` and entered at `T` as the computed
+/// values it is.
+fn turned<T: Real>() -> geom_core::RigidMotion<T> {
+    let map = Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 0.7);
+    geom_core::test_support::rigid(&map, tol()).computed_at::<T>()
 }
 
 /// The public doors at one scalar. `lane` is the name the transform
@@ -118,11 +117,7 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
     }
 
     // The transform door DOES reach the seam.
-    match topo::transform_rigid(
-        &body,
-        &geom_core::test_support::rigid(&turned::<T>(), tol()),
-        tol(),
-    ) {
+    match topo::transform_rigid(&body, &turned::<T>(), tol()) {
         Ok(_) => assert!(
             lane.is_none(),
             "{label}: this scalar has no fit, so the map may not carry the certificate"

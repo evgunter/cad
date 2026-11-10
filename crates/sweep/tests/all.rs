@@ -1360,6 +1360,8 @@ mod a_closed_conic_in_the_partners_face;
 mod a_cone_with_a_tilted_seam;
 #[path = "a_cylinder_through_a_hole_tangent_to_its_wall.rs"]
 mod a_cylinder_through_a_hole_tangent_to_its_wall;
+#[path = "a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses.rs"]
+mod a_frame_within_its_rounding_is_kept_and_one_beyond_it_refuses;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
