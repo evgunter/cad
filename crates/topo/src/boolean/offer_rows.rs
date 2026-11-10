@@ -2218,6 +2218,7 @@ fn offering_arms() -> std::collections::BTreeSet<(String, bool)> {
             let diag = Indeterminate {
                 margin: MarginDiag::value(m),
                 band,
+                // UNDECIDED-NAME: the cause every BooleanErrorKind is quoted on to read its offers
                 predicate: Some("census"),
                 terminal_sliver: false,
             };

@@ -1251,6 +1251,7 @@ mod tests {
         let diag = |margin| Indeterminate {
             margin,
             band,
+            // UNDECIDED-NAME: the margin's cause an escalation's ending is read for
             predicate: Some("a_margin"),
             terminal_sliver: false,
         };

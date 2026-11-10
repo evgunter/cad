@@ -45,8 +45,10 @@
 #     within 8 lines before or 40 after), or a name bound to one: a
 #     `let H = … .he_plus;` read to its `;` across lines (rustfmt's
 #     wrapped `body\n.get_edge(k)…\n.he_plus;`), or a destructured
-#     `let Edge { he_plus, .. } = …` (`he_plus: H` too), each read over
-#     the 40 lines after it. And an edge's twin starts,
+#     `let Edge { he_plus, .. } = …` (`he_plus: H` too), or a tuple
+#     `let (A, B) = (X.he_plus, X.he_minus);` (any order and arity: A is
+#     the `he_plus`, B its twin, whose start is the edge's other end),
+#     each read over the 40 lines after it. And an edge's twin starts,
 #     `get_half_edge(E.he_plus)….start` and `get_half_edge(E.he_minus)
 #     ….start`, in either order within 12 lines of each other. A half-edge's
 #     own start and end are not this shape unless it is an edge's
@@ -68,9 +70,12 @@
 #    `MalformedBody` refusal (ENCL's
 #    `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`);
 #  - the outer loop and the rings read in separate statements;
-#  - shape 4's half-edge reaching the reads other than by a `let` or a
-#    destructuring of `he_plus` (a parameter, a struct field, a closure
-#    argument, a `match` arm), or its reads further than 40 lines from
+#  - shape 4's half-edge reaching the reads other than by one of the
+#    three bindings it reads (a `let H = ….he_plus;`, a destructured
+#    `Edge { he_plus, .. }`, a `let (A, B) = (….he_plus, ….he_minus);`):
+#    a parameter, a struct field, a closure argument, a `match` arm, a
+#    tuple whose right side is not a tuple literal (`let (a, b) =
+#    halves(e);`), or a reassignment; or its reads further than 40 lines from
 #    the binding; twin starts more than 12 lines apart; a `.start` more
 #    than 80 characters after its `get_half_edge(..)`.
 set -euo pipefail
@@ -118,6 +123,9 @@ def ends(text, h):
 # `let Edge { he_plus, .. } = …` (or `he_plus: H`).
 BIND = re.compile(r"\blet\s+(?:mut\s+)?(\w+)\s*(?::[^=;]*)?=\s*[^;]*?(?:\.he_plus|\bplus\.half_edge)\s*;")
 DESTRUCT = re.compile(r"\blet\s+(?:[\w:]+\s*)?\{[^}]*?\bhe_plus\b(?:\s*:\s*(\w+))?[^}]*\}\s*=")
+# A tuple binding `let (A, B) = (X.he_plus, X.he_minus);` (either order,
+# any arity): A is the edge`s he_plus, B its twin.
+TUPLE = re.compile(r"\blet\s+(?:mut\s+)?\(([^)]*)\)\s*=\s*\(([^;]*)\)\s*;")
 DIRECT = re.compile(r"half_edge_end\(\s*&?([A-Za-z_][\w.]*\.(?:he_plus|plus\.half_edge))\s*\)")
 TWIN = re.compile(r"get_half_edge\(\s*&?(\w+(?:\.\w+)*)\.he_(plus|minus)\s*\)")
 out = set()
@@ -158,6 +166,26 @@ for f, ls in lines.items():
         e = next(ends(seg, h), None)
         if e is not None and next(starts(seg, h), None) is not None:
             record(lo + e, "an edge end read through a destructured he_plus")
+    for m in TUPLE.finditer(text):
+        binds = [x.strip().removeprefix("mut ").strip() for x in m.group(1).split(",")]
+        vals = [x.strip() for x in m.group(2).split(",")]
+        if len(binds) != len(vals):
+            continue
+        plus = [b for b, v in zip(binds, vals) if re.fullmatch(r"&?[\w.]+\.he_plus", v)]
+        minus = [b for b, v in zip(binds, vals) if re.fullmatch(r"&?[\w.]+\.he_minus", v)]
+        lo, hi = m.end(), window(m.start())[1]
+        seg = text[lo:hi]
+        for h in plus:
+            s0 = next(starts(seg, h), None)
+            if s0 is None:
+                continue
+            e = next(ends(seg, h), None)
+            if e is not None:
+                record(lo + e, "an edge end read through a tuple-bound he_plus")
+            for t in minus:
+                s1 = next(starts(seg, t), None)
+                if s1 is not None:
+                    record(lo + s1, "an edge end read off a tuple-bound twin")
     # The edge`s he_plus spelled at the read itself.
     for m in DIRECT.finditer(text):
         lo, hi = window(m.start())
@@ -347,6 +375,18 @@ plant_ends_twins_reversed_and_apart() {
   } > "$1/crates/planted/tests/a.rs"
 }
 
+plant_ends_tuple() {
+  mkdir -p "$1/crates/planted/tests"
+  {
+    printf 'fn e(body: &B, d: &Edge) -> bool {\n'
+    printf '    let (hp, hm) = (d.he_plus, d.he_minus);\n'
+    printf '    let start = body.get_half_edge(hp).unwrap().start;\n'
+    printf '    let end = body.get_half_edge(hm).unwrap().start;\n'
+    printf '    start == end\n'
+    printf '}\n'
+  } > "$1/crates/planted/tests/a.rs"
+}
+
 # A loop walk reading a half-edge's own two ends is not an edge's ends.
 plant_half_edge_own_ends() {
   mkdir -p "$1/crates/planted/src"
@@ -395,6 +435,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_ends_local_wrapped
   gate_selftest_case "$want" plant_ends_destructured
   gate_selftest_case "$want" plant_ends_twins_reversed_and_apart
+  gate_selftest_case "$want" plant_ends_tuple
   gate_selftest_passes "a half-edge's own two ends in a loop walk" plant_half_edge_own_ends
   gate_selftest_passes "the doors, prose, string literals, a chart's surface key, the halves read for their faces, and the homes' own walks" plant_near_misses
   printf '%s selftest OK: passes a clean fixture and the near misses; fires on an inline loop walk (one line, and rustfmt-wrapped in a demo root), a nested and an and_then face-to-surface walk, an inline edge-ends array in a test root, a closure spelling inside topo and a rustfmt-wrapped twin-starts array; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"

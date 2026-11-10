@@ -353,7 +353,7 @@ enum Cell<T: Real> {
 }
 
 impl<T: Decide> Sweep<'_, T> {
-    fn positive(&self, name: &'static str, m: Margin<T>) -> bool {
+    fn positive_as(&self, name: &'static str, m: Margin<T>) -> bool {
         matches!(decide(name, m, self.band), Ok(Sign::Positive))
     }
 
@@ -383,7 +383,7 @@ impl<T: Decide> Sweep<'_, T> {
         let far = r.reach + reach;
         match (self.spine, r.kink) {
             (Spine::Circle { radius, .. }, Some(rho)) => {
-                if !self.positive(self.rows.smooth(), Margin::of(rho - reach)) {
+                if !self.positive_as(self.rows.smooth(), Margin::of(rho - reach)) {
                     return None;
                 }
                 let lo = rho - reach;
@@ -425,7 +425,7 @@ impl<T: Decide> Sweep<'_, T> {
         let two = T::from_f64(2.0);
         let reach = big * w;
         let r = read(self.core, self.spine, far, m);
-        if self.positive(
+        if self.positive_as(
             self.rows.clear(),
             Margin::of(nearest(r.d, self.levels) - reach - r.err.d),
         ) {
@@ -456,7 +456,7 @@ impl<T: Decide> Sweep<'_, T> {
             + r.swing_rounding(w);
         let (d_lo, d_hi) = ((g - swing).max(T::zero()).sqrt(), (g + swing).sqrt());
         let apart = |level: T| (level - d_hi).max(d_lo - level);
-        if self.positive(
+        if self.positive_as(
             self.rows.clear(),
             Margin::of(apart(self.levels[0]).min(apart(self.levels[1]))),
         ) {
@@ -465,7 +465,7 @@ impl<T: Decide> Sweep<'_, T> {
         // The least `|G′|` over the cell, less its rounding, as the least
         // crossing it bounds against `D`'s most over the cell.
         let least = r.g1.abs() - r.err.g1 - (r.g2.abs() + r.err.g2) * w - third * w.powi(2) / two;
-        if self.positive(
+        if self.positive_as(
             self.rows.monotone(),
             self.slope(least, r.d + r.err.d + reach),
         ) {

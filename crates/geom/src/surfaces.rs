@@ -556,11 +556,11 @@ pub fn torus_tube<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
 ) -> Result<geom_core::Decided, geom_core::Indeterminate> {
-    tube_half(RingReader::Convention.sites().tube(), minor_radius, band)
+    tube_half_as(RingReader::Convention.sites().tube(), minor_radius, band)
 }
 
 /// The tube half's one spelling, `r` as a length, under `name`.
-fn tube_half<T: geom_core::Decide>(
+fn tube_half_as<T: geom_core::Decide>(
     name: &'static str,
     minor_radius: T,
     band: Band,
@@ -691,7 +691,7 @@ impl<T: geom_core::Decide> RingTorus<T> {
         band: Band,
     ) -> Result<Self, NotARing> {
         let positive = |d: &Result<geom_core::Decided, geom_core::Indeterminate>| matches!(d, Ok(d) if d.sign == geom_core::Sign::Positive);
-        let tube = tube_half(sites.tube(), minor_radius, band);
+        let tube = tube_half_as(sites.tube(), minor_radius, band);
         if !positive(&tube) {
             return Err(NotARing::Tube {
                 site: sites.tube(),
@@ -799,16 +799,16 @@ pub fn spindle_sheet<T: geom_core::Decide>(
         Ok(d) if passes.contains(&d.sign) => Ok(()),
         _ => Err(SpindleMiss { end, verdict }),
     };
-    let read = |name, margin: T| {
+    let read_as = |name, margin: T| {
         geom_core::k_stats::decide_reported(name, geom_core::Margin::of(margin), band)
     };
     held(
-        read("spindle_far_end", major_radius + minor_radius),
+        read_as("spindle_far_end", major_radius + minor_radius),
         SpindleEnd::Far,
         &[Positive],
     )?;
     held(
-        read("spindle_not_sphere", major_radius),
+        read_as("spindle_not_sphere", major_radius),
         SpindleEnd::Sphere,
         &[Positive, Negative],
     )?;

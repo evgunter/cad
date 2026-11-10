@@ -29,3 +29,18 @@ None of them checks one name across two crates' readers. PR 6715 (roster-reach) 
 ## What closing it takes
 
 Feed the plain sites the census already reads into editor-core's tree-wide test. It is named for the question so they can join it. Then refuse a name two readers spell, unless the ledger says they are one reading. Read the per-crate censuses' output rather than walking the sources a second time.
+
+## Two notes from the confirm review of PR 6723
+
+Both are non-gating and are to be closed with this row.
+
+- **N1:** the `types` lists each registry hands
+  `geom_core::rows::consts_outside_registry` are hand-kept. A new bundle
+  type left out of its crate's list escapes the "no bundle const outside
+  the `row_registry!` block" check. Derive them instead, for instance
+  from the types that implement `fn names`.
+- **N2:** editor-core's `only_a_registry_mints_a_two_row_turn_bundle`
+  matches the text `TurnRows::registered(`, so an import alias (`use
+  geom_core::period::TurnRows as T;` then `T::registered(`) slips past
+  it. Read the call through the census's path resolution, or make the
+  door unreachable outside a registry by type.

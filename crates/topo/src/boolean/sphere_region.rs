@@ -368,7 +368,8 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, foot: QueryFoot<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
-        let curve = SurfaceCurve::great_circle(&self.charted, foot.uv(), t);
+        let curve = SurfaceCurve::great_circle(&self.charted, foot.uv(), t)
+            .map(|c| c.starting_at(foot.at()));
         Leg::whole(Round::on(region::built(curve)))
     }
 
@@ -454,7 +455,8 @@ impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
         // The parallel about `a` through the corner, starting along
         // `side`; the corner is a foot of its own, read on the sphere.
         let corner = QueryFoot::read(self.charted.surface(), corner, band);
-        let curve = SurfaceCurve::about(&self.charted, p.uv(), corner.uv(), then_forward);
+        let curve = SurfaceCurve::about(&self.charted, p.uv(), corner.uv(), then_forward)
+            .map(|c| c.starting_at(corner.at()));
         let then = move || Leg::whole(Round::on(region::built(curve)));
         Ok((first, end, then))
     }

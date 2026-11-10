@@ -254,9 +254,11 @@ pub(super) fn lex_cmp<T: Decide>(
 ) -> Result<core::cmp::Ordering, Indeterminate> {
     use core::cmp::Ordering;
     let (wp, wq) = (*p - *origin, *q - *origin);
+    const SPLIT_JOIN_ORDER_U: &str = "split_join_order_u";
+    const SPLIT_JOIN_ORDER_V: &str = "split_join_order_v";
     for (name, a, b) in [
-        ("split_join_order_u", wp.dot(frame.0), wq.dot(frame.0)),
-        ("split_join_order_v", wp.dot(frame.1), wq.dot(frame.1)),
+        (SPLIT_JOIN_ORDER_U, wp.dot(frame.0), wq.dot(frame.0)),
+        (SPLIT_JOIN_ORDER_V, wp.dot(frame.1), wq.dot(frame.1)),
     ] {
         match decide(name, Margin::of(a - b), exact)? {
             Sign::Negative => return Ok(Ordering::Less),

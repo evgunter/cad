@@ -166,6 +166,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     let diag = Indeterminate {
         margin: MarginDiag::value(3.0e-10),
         band,
+        // UNDECIDED-NAME: the cause this row renders; the sentence is under test
         predicate: Some("side_of_plane"),
         terminal_sliver: false,
     };

@@ -7078,12 +7078,16 @@ fn line_unread(
                        not read",
             },
         )),
-        crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::OnPlane(cause)) => {
-            held.push(ValidationError::CensusEscalated { cause });
-        }
-        crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
+        crate::boolean::FaceUnread::Placement(e) => {
             read_containment([a, b][i], Err::<(), _>(e), held);
         }
+        crate::boolean::FaceUnread::Fault(what) => census_fault(
+            format_args!(
+                "face {:?} of the two-carrier pair ({a:?}, {b:?})",
+                [a, b][i]
+            ),
+            what,
+        ),
         crate::boolean::FaceUnread::Boundary(refusal) => {
             use geom_brep::curve_face::BoundaryRefusal;
             held.push(match refusal {
@@ -7104,14 +7108,6 @@ fn line_unread(
                 ),
             });
         }
-        crate::boolean::FaceUnread::Uncertified => census_fault(
-            format_args!(
-                "face {:?} of the two-carrier pair ({a:?}, {b:?})",
-                [a, b][i]
-            ),
-            "its boundary holds an edge with no certified curve, and tier 2 refuses a null edge \
-             at rest (`NullEdgeAtRest`)",
-        ),
     }
 }
 
@@ -10794,9 +10790,13 @@ pub(crate) fn in_both<E>(
     }
 }
 
-/// Where `face` holds `q`, a point on its carrier: the boolean's own
-/// placement ([`crate::boolean::face_placement`]), a point decided off a
-/// planar face's plane read `Out`. `Some(None)` where the curved door
+/// Where `face` holds `q`: the boolean's own placement
+/// ([`crate::boolean::face_placement`]), which decides `q` against the
+/// face's carrier rather than holding it there, a point decided off a
+/// planar face's plane read `Out`. Two callers state that `q` is on the
+/// carrier (`curved_overlap_cells`, `census/point.rs` `in_face`) and are
+/// rowed with the other unheld carrier-held sites
+/// (`work/onecopy/two-ops-placements-state-a-carrier-held-premise-unheld.md`). `Some(None)` where the curved door
 /// leaves the point unread; `None` where a decision escalated or the door
 /// refused (pushed).
 pub(crate) fn face_holds<T: Decide>(
@@ -14047,12 +14047,14 @@ mod tests {
         });
     }
 
-    /// **A census face whose boundary holds no certified curve panics**:
-    /// tier 2, which the census runs behind, refuses a null edge at rest.
+    /// **A broken premise of a census face pair's line reading panics**
+    /// (`FaceUnread::Fault`): the census reads a body tier 2 admitted, so
+    /// the invariant the reading names (a boundary edge with no certified
+    /// curve, a station off a carrier) is the kernel's.
     #[test]
-    #[should_panic(expected = "tier 2 refuses a null edge at rest")]
-    fn an_uncertified_boundary_on_a_census_pair_panics() {
-        let why = crate::boolean::FaceUnread::Uncertified;
+    #[should_panic(expected = "the two-carrier pair")]
+    fn a_broken_premise_on_a_census_pair_panics() {
+        let why = crate::boolean::FaceUnread::Fault("a planted premise");
         line_unread(FaceKey::default(), FaceKey::default())(1, why, &mut Vec::new());
     }
 
@@ -15894,6 +15896,7 @@ mod tests {
                     !cause.margin.is_invalid()
                         && !matches!(
                             cause.predicate,
+                            // UNDECIDED-NAME: retired escalations, asserted absent
                             Some("pm_census_containment" | "bool_contfp_boundary")
                         ),
                     "a census escalation over a margin nothing metred: {e:?}"
