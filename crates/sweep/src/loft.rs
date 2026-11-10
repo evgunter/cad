@@ -250,7 +250,7 @@ pub enum LoftError {
     /// kernel bug happened.
     SeamStructure {
         /// The iso-extraction refusal, carried rather than discarded.
-        source: SplineError,
+        source: geom_core::spline::Built<SplineError>,
     },
     /// A section's loop/segment structure disagrees with the skinned
     /// geometry's, or two sections disagree with each other —
@@ -535,8 +535,8 @@ impl LoftError {
             Self::Pcurve(e) => write!(f, "{}", geom_brep::recourse::read_at(e, at)),
             Self::SeamStructure { source } => write!(
                 f,
-                "a wall's boundary curve failed to re-wrap (kernel bug, not an input \
-                 fault): {source}"
+                "a wall's boundary curve failed to re-wrap: {source}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::SectionStructure => write!(
                 f,
@@ -776,7 +776,9 @@ fn lift_loop_walls<T: geom_core::spline::SpanLocate>(
                 w.weights().iter().map(|&x| T::from_computed(x)).collect(),
             )
             .map(Arc::new)
-            .map_err(|source| LoftError::SeamStructure { source })
+            .map_err(|e| LoftError::SeamStructure {
+                source: geom_core::spline::Built::new(e),
+            })
         })
         .collect()
 }
@@ -1108,10 +1110,14 @@ fn slab_walls<T: geom_core::spline::SpanLocate>(
             let control = rows.clone().map(|i| wall.control()[i]).collect();
             let weights = rows.map(|i| wall.weights()[i]).collect();
             let knots_v = geom_core::spline::Knots::new(vec![(T::zero(), two), (T::one(), two)], 1)
-                .map_err(|source| LoftError::SeamStructure { source })?;
+                .map_err(|e| LoftError::SeamStructure {
+                    source: geom_core::spline::Built::new(e),
+                })?;
             NurbsSurface::new(wall.knot_values_u().clone(), knots_v, control, weights)
                 .map(Arc::new)
-                .map_err(|source| LoftError::SeamStructure { source })
+                .map_err(|e| LoftError::SeamStructure {
+                    source: geom_core::spline::Built::new(e),
+                })
         })
         .collect()
 }

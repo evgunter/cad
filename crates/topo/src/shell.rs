@@ -3840,12 +3840,12 @@ mod mint_endings {
     fn the_shell_ops_mint_refusal_ends_by_its_own_ending() {
         let mint = |margin| PcurveMintError::Certify {
             half_edge: HalfEdgeKey::default(),
-            error: PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "WHY",
+            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "WHY",
                 margin,
-            },
+            )),
         };
         let in_band = Some(OffMargin::InBand(MarginDiag::value(4e-9)));
         for (margin, defect) in [(in_band, false), (None, true)] {
@@ -4347,7 +4347,6 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
         | ReplaceFaceError::CarrierLaneUnsupported { edge, .. }
         | ReplaceFaceError::IsoRow { edge, .. }
-        | ReplaceFaceError::Structure { edge, .. }
         | ReplaceFaceError::Op {
             edge: Some(edge), ..
         } => face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus),

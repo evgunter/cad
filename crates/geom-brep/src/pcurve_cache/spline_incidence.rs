@@ -115,8 +115,9 @@ const CELL_VISITS: usize = 1 << 12;
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::Escalated`] ([`super::PcurveCheck::ChartIncidence`])
-/// where no sample is shown off and some sample is unsettled: in band,
+/// [`PcurveCertifyError::Incidence`] read in band
+/// ([`crate::IncidenceRead::Undecided`]) where no sample is shown off and
+/// some sample is unsettled: in band,
 /// at a straddle, or with an unreadable floor (the cell structure does
 /// not decompose, or a weight not shown positive).
 pub(super) fn spline_incidence<T: Decide>(

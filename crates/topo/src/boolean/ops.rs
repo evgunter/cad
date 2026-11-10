@@ -1684,25 +1684,19 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         | M::JointWithoutRoom { .. }
         | M::Band(_) => WalkRefusal::Unread,
         M::Unminted { .. } => WalkRefusal::NotRaised,
-        // An incidence refusal is read by the one classifier and its one
-        // policy: a definite read (decided off, or a margin that could
-        // not be read) is torn, a read in band unread.
-        M::Certify { error, .. } => match geom_brep::IncidenceRead::of(error) {
-            Some(read) if read.is_definite() => WalkRefusal::Torn,
-            Some(_) => WalkRefusal::Unread,
-            None => walk_certify_refusal(error),
-        },
+        M::Certify { error, .. } => walk_certify_refusal(error),
     }
 }
 
-/// [`walk_refusal`] of a certification refusal that carries no incidence
-/// read (the incidence variants are listed for the match, and read by
-/// the classifier before they reach it).
+/// [`walk_refusal`] of a certification refusal.
 fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
     use geom_brep::PcurveCertifyError as C;
     match error {
+        // By the one incidence policy: a definite read (decided off, or a
+        // margin that could not be read) is torn, a read in band unread.
+        C::Incidence(refusal) if refusal.read().is_definite() => WalkRefusal::Torn,
+        C::Incidence(_) => WalkRefusal::Unread,
         C::PlaceholderChart
-        | C::CarrierOffChart { .. }
         | C::ChartRow { .. }
         | C::ImageMismatch { .. }
         | C::ChannelKindMismatch { .. }
@@ -8234,12 +8228,12 @@ mod tests {
         use geom_brep::{OffMargin, PcurveCertifyError};
         let off = |margin| crate::pcurves::PcurveMintError::Certify {
             half_edge: crate::HalfEdgeKey::default(),
-            error: PcurveCertifyError::CarrierOffChart {
-                chart: geom::SurfaceKind::Cone,
-                carrier: geom::CurveKind::Circle,
-                why: "a circle no cone holds here",
+            error: PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::off_chart(
+                geom::SurfaceKind::Cone,
+                geom::CurveKind::Circle,
+                "a circle no cone holds here",
                 margin,
-            },
+            )),
         };
         let m = geom_core::MarginDiag::value(4e-10);
         let poisoned = geom_core::MarginDiag::INVALID;
@@ -8257,22 +8251,20 @@ mod tests {
             half_edge: crate::HalfEdgeKey::default(),
             error,
         };
-        let undecided = |margin| PcurveCertifyError::Escalated {
-            check: geom_brep::PcurveCheck::ChartIncidence,
-            sample: 0,
-            cause: geom_core::Indeterminate {
-                margin,
-                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("pcurve_cone_chart_incident"),
-                terminal_sliver: false,
-            },
+        let undecided = |margin| {
+            PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::undecided(
+                0,
+                geom_core::Indeterminate {
+                    margin,
+                    band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some("pcurve_cone_chart_incident"),
+                    terminal_sliver: false,
+                },
+            ))
         };
         for (error, want) in [
             (
-                PcurveCertifyError::ResidualExceeded {
-                    check: geom_brep::PcurveCheck::ChartIncidence,
-                    sample: 0,
-                },
+                PcurveCertifyError::Incidence(geom_brep::IncidenceRefusal::exceeded(0, None)),
                 WalkRefusal::Torn,
             ),
             (
