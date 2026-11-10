@@ -1523,3 +1523,4 @@
 - 03:52Z Merged 6690 bracket-mid (gate green at 028ea772; main moved only by onehome docs, disjoint).
 - 03:54Z PR 6712 torus-charge follow-up (17ef9d14, docs+row; stacked on 6711) → merge after 6711. S3 (f_per_metre_lo floor on rounded k) left as a decision on the new P3 row.
 - 03:56Z PR 6713 placement-holders (c0b4d0ed; 8 holders ported, 2 kept, rows parked on stage 3) → FULL review. Bracket lane idle.
+- 03:58Z argmin split: one keep_own move (first_pair_rows K-gate fixture now refuses JoinPartnersTied). Ruled 1+3: new non-tying fixture for the K-gate claim, old fixture re-pinned as the tie-refuses row. Open now; tie-last probe running independently.
