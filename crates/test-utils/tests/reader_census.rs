@@ -1325,8 +1325,9 @@ fn scope_needle_hits(code: &str) -> Vec<(usize, &'static str)> {
 /// and every `const` and `static` item with its whole extent: the items
 /// a scope-ledger line names.
 fn fn_bodies(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
-    let mut out = Vec::new();
-    for keyword in ["fn ", "const ", "static "] {
+    let mut out = test_utils::source::fn_items(code)
+        .unwrap_or_else(|why| panic!("the walk cannot place a function: {why}"));
+    for keyword in ["const ", "static "] {
         for (at, _) in code.match_indices(keyword) {
             if !test_utils::source::boundary_before(code, at) {
                 continue;
@@ -1336,17 +1337,11 @@ fn fn_bodies(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
             if name.is_empty() || name == "fn" || name == "mut" {
                 continue;
             }
-            let extent = match test_utils::source::item_body(code, at) {
-                test_utils::source::ItemBody::Body(body) if keyword == "fn " => body,
-                // A `const`/`static` runs to its `;`, through any brace in
-                // its initializer.
-                _ if keyword != "fn " => match code[at..].find(";\n") {
-                    Some(end) => at..at + end + 1,
-                    None => continue,
-                },
-                _ => continue,
-            };
-            out.push((name.to_string(), extent));
+            // A `const`/`static` runs to its `;`, through any brace in
+            // its initializer.
+            if let Some(end) = code[at..].find(";\n") {
+                out.push((name.to_string(), at..at + end + 1));
+            }
         }
     }
     out

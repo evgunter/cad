@@ -1522,10 +1522,10 @@ pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
 };
 pub use splitting::{
-    ApexSectionReading, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite, LoopContainment,
-    LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
-    SectionEdge, SectionEndReading, SectionError, SectionGermFault, SectionGermReading,
-    SectionPinMiss, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind, SectorReading,
+    ApexSectionReading, BoundClass, ConicCrossingsCase, Escalation, KnifeEdge, KnifeEdgeSite,
+    LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
+    PointInLoopError, Section, SectionEdge, SectionEndReading, SectionError, SectionGermFault,
+    SectionGermReading, SectionPinMiss, SectionPolygon, SectionRegion, SectorReading,
     SplitContacts, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane,
     SplitReduceError, SplitReduction, SplitResult, TangencyReadings, Uncrossable,
     UncrossableCarrier, classify_neighborhood, plane_section, point_in_loop, split, split_reduce,
