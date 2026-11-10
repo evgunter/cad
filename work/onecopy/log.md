@@ -1508,3 +1508,4 @@
 - 02:55Z Ev on [ev] 6570: "what consumes the things that meet returns?" → curve-pair-tidy lane to answer with the consumer list.
 - 02:58Z 6570: curve-pair-tidy lane answered Ev (8 consumers, none reads an extent; body unchanged) → lane on onecopy/meet-tilt (meet-refuses-a-near-tangent-tilt-in-both-orders). 6698 fold 95128966 → same reviewer.
 - 03:00Z curve-pair-tidy lane can push only its own branch (6570 head) → meet-tilt to new implementer session_013mPGJ3k7SqJTgEmAEycXmG.
+- 03:03Z PR 6710 edge-ends-turns (beefe837; closes 4 rows) → FULL review session_013mPGJ69asoFPpDxVjhqdBa. Lane files a main-red row for review_pinch_corner_split chained_fusions (Parted record 0, 1e-9/1e-6). Process finding: cargo here fingerprints workspace crates path-blind, so a shared target dir across worktrees silently reuses another worktree's artifacts; give every worktree its own target.
