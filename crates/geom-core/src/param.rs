@@ -24,7 +24,7 @@ use crate::Real;
 /// Each end enters once, so at `T = Interval` the enclosure is as tight
 /// as the ends allow (`t0 + (t1 − t0)·½` reads `t0` twice and widens by
 /// its width). At `f64` the result lies in `[t0, t1]`; it overflows
-/// when `t0 + t1` does, two same-sign ends past `f64::MAX / 2`. At an
+/// when `t0 + t1` does, two same-sign ends that sum past `f64::MAX`. At an
 /// infinite point `(∞, ∞)` it is that infinity, where [`bracket_mid`]
 /// is NaN.
 ///

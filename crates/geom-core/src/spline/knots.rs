@@ -1656,8 +1656,8 @@ pub(crate) fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
     knots.get(1..knots.len().saturating_sub(1)).unwrap_or(&[])
 }
 
-/// **The largest magnitude a knot may have**, `f64::MAX / 2`. Below it
-/// every parameter a knot vector bounds has a finite middle
+/// **The largest magnitude a knot may have**, `f64::MAX / 2`. Within
+/// it every parameter a knot vector bounds has a finite middle
 /// ([`crate::mid_param`]: two ends' sum stays finite) and a finite
 /// width, so a reading of a parameter bracket's middle never meets an
 /// overflowed `∞`. Every knot vector is admitted through
@@ -1665,12 +1665,18 @@ pub(crate) fn derivative_knot_slice(knots: &[f64]) -> &[f64] {
 /// revalidation) or `Knots::new`, which both refuse past it.
 pub const KNOT_MAGNITUDE_MAX: f64 = f64::MAX / 2.0;
 
+/// Whether a knot lies past [`KNOT_MAGNITUDE_MAX`] in magnitude: the
+/// one spelling of the magnitude clause, which [`end_clamped`] reads on
+/// each knot and [`bracket_past_half_max`] on a bracket's ends.
+pub(crate) fn past_half_max(k: f64) -> bool {
+    k.abs() > KNOT_MAGNITUDE_MAX
+}
+
 /// Whether a knot's bracket `(lo, hi)` reaches past
-/// [`KNOT_MAGNITUDE_MAX`] at either end: the one spelling of the
-/// magnitude clause, which [`end_clamped`] reads on each knot (its
-/// bracket the knot itself) and `Knots::new` on each run's bracket.
-pub(crate) fn past_half_max((lo, hi): (f64, f64)) -> bool {
-    lo.abs() > KNOT_MAGNITUDE_MAX || hi.abs() > KNOT_MAGNITUDE_MAX
+/// [`KNOT_MAGNITUDE_MAX`] at either end ([`past_half_max`] on each):
+/// `Knots::new`'s clause on each run.
+pub(crate) fn bracket_past_half_max((lo, hi): (f64, f64)) -> bool {
+    past_half_max(lo) || past_half_max(hi)
 }
 
 /// The clauses a clamped knot list keeps at every degree, its interior
@@ -1689,7 +1695,7 @@ fn end_clamped(knots: &[f64], degree: usize) -> Result<(), SplineError> {
         if !k.is_finite() {
             return issue(KnotVectorIssue::NonFinite { index });
         }
-        if past_half_max((*k, *k)) {
+        if past_half_max(*k) {
             return issue(KnotVectorIssue::PastHalfMax { index });
         }
     }

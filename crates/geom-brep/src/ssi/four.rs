@@ -291,7 +291,7 @@ fn mean_value_excludes<T: CertifiedBounds>(
         m = m.holding(k, mid(x.0[k]));
     }
     let f = pair.residual(m);
-    let col = |c: usize| [0, 1, 2].map(|r| 0.5 * (jac[r][c].lo() + jac[r][c].hi()));
+    let col = |c: usize| [0, 1, 2].map(|r| geom::mid_param(jac[r][c].lo(), jac[r][c].hi()));
     let cross = |a: [f64; 3], b: [f64; 3]| {
         [
             a[1] * b[2] - a[2] * b[1],

@@ -587,6 +587,11 @@ fn a_carrier_domain_the_door_refuses_refuses_as_the_domain_door() {
                 refused(&r),
                 "[{lo:e}, {hi:e}] {name} mint: domain and fault: {r:?}"
             );
+            let text = r.to_string();
+            assert!(
+                text.contains(says),
+                "[{lo:e}, {hi:e}] {name} mint: the door's own condition: {text}"
+            );
         };
         let knots = match KnotVector::clamped(vec![lo, lo, hi, hi], 1) {
             Ok(knots) => knots,

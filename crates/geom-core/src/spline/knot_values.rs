@@ -236,7 +236,7 @@ impl<T: SpanLocate> Knots<T> {
             }
             if value
                 .structure_bracket()
-                .is_some_and(super::knots::past_half_max)
+                .is_some_and(super::knots::bracket_past_half_max)
             {
                 return Err(SplineError::KnotVectorInvalid {
                     reason: super::knots::KnotVectorIssue::PastHalfMax { index: at },

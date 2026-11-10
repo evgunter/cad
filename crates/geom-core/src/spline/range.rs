@@ -113,7 +113,7 @@ impl ParamRange {
     /// finite domain first. Clamped to a knot vector's domain it is
     /// finite: a knot lies within [`crate::spline::KNOT_MAGNITUDE_MAX`],
     /// so two ends never sum past `f64::MAX`. An unclamped range whose
-    /// ends lie past `f64::MAX / 2` on one side reads `±∞`.
+    /// ends sum past `f64::MAX` reads `±∞`.
     pub fn mid(self) -> f64 {
         crate::mid_param(self.start.0, self.end.0)
     }
