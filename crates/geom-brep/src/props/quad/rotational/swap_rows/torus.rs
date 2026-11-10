@@ -448,7 +448,11 @@ fn a_patch_across_the_inner_equator_holds_its_closed_form() {
     let about = Point3::new(0.1, 0.5, -0.2);
     let (us, vs) = ((-0.4, 0.8), (2.6, 3.9));
     let inside = d.rectangle(us, vs);
-    for swap in [[true; 4], [false, true, false, true], [true, false, true, false]] {
+    for swap in [
+        [true; 4],
+        [false, true, false, true],
+        [true, false, true, false],
+    ] {
         torus_holds(
             &format!("across ±π (swapped {swap:?})"),
             d,
@@ -603,7 +607,13 @@ fn the_toruss_arm_refuses_what_it_cannot_read() {
     let mut face = torus_face(
         d,
         true,
-        &patch(d, (0.3, 1.9), (-0.7, 1.1), true, [true, false, false, false]),
+        &patch(
+            d,
+            (0.3, 1.9),
+            (-0.7, 1.1),
+            true,
+            [true, false, false, false],
+        ),
         about,
     )
     .unwrap();
@@ -763,7 +773,11 @@ fn a_spiric_loop_measures_the_region_it_bounds() {
         .unwrap_or_else(|e| panic!("σ {sigma}: {e:?}"));
         let s = if outward { 1.0 } else { -1.0 };
         let near = |x: Interval, w: f64| x.lo() - 1e-8 <= w && w <= x.hi() + 1e-8;
-        assert!(near(got.area, area.abs()), "σ {sigma}: area {:?} vs {area}", got.area);
+        assert!(
+            near(got.area, area.abs()),
+            "σ {sigma}: area {:?} vs {area}",
+            got.area
+        );
         assert!(
             near(got.flux, s * sigma * flux),
             "σ {sigma}: flux {:?} vs {flux}",
@@ -816,11 +830,20 @@ fn the_spiric_arms_junctions_close_as_the_lanes_do() {
     for r in [0.5, 0.6] {
         let rho = 1.0 - r;
         let face = |gap: f64, wide: f64| {
-            spiric_face(1.0, r, true, vec![oval_loop(1.0, r, 0.05, PI, gap / rho, wide)])
+            spiric_face(
+                1.0,
+                r,
+                true,
+                vec![oval_loop(1.0, r, 0.05, PI, gap / rho, wide)],
+            )
         };
         let near = face(2.0 * eps, 0.0);
-        let at_f64 =
-            rotational_cut_face_rounds::<f64>(&near, band, RoundWindow::SCHEDULE, &mut to_target(eps));
+        let at_f64 = rotational_cut_face_rounds::<f64>(
+            &near,
+            band,
+            RoundWindow::SCHEDULE,
+            &mut to_target(eps),
+        );
         assert!(at_f64.is_ok(), "r = {r}, f64: {at_f64:?}");
         let at_iv = rotational_cut_face_rounds::<Interval>(
             &near,
@@ -940,7 +963,12 @@ fn the_spiric_arms_residual_pad_pays_the_area_the_envelope_moves() {
             big,
             r,
             true,
-            vec![vec![spiric_arm(spiric(big, r, d, (t0, t1), true), 1.0, 0.0, env)]],
+            vec![vec![spiric_arm(
+                spiric(big, r, d, (t0, t1), true),
+                1.0,
+                0.0,
+                env,
+            )]],
         );
         let chart = face.chart;
         let entry = edge_entry(&face.loops[0][0], chart).unwrap();

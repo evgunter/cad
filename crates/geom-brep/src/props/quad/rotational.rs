@@ -264,7 +264,12 @@ fn face_cost(face: &RotationalFaceQ, round: usize) -> usize {
             },
         })
         .sum();
-    let terms: usize = face.chart_term.rationals.iter().map(rational).sum::<usize>()
+    let terms: usize = face
+        .chart_term
+        .rationals
+        .iter()
+        .map(rational)
+        .sum::<usize>()
         + W_SPIRIC * face.chart_term.spirics.len();
     (edges + terms) * (EDGE_INIT_PIECES << round)
 }
@@ -555,8 +560,7 @@ fn torus_forms(major: Interval, minor: Interval, level: Interval) -> [Interval; 
     let (c, s) = trig_of(level);
     let [kf, kg] = torus_slopes(major, minor);
     [
-        minor * ((major.sqr() + minor.sqr()) * s + pt(0.5) * major * minor * s * c)
-            + kf * level,
+        minor * ((major.sqr() + minor.sqr()) * s + pt(0.5) * major * minor * s * c) + kf * level,
         minor.sqr() * s + kg * level,
     ]
 }
@@ -1073,7 +1077,9 @@ fn projected_metric_length(e: &ProjectedEdgeQ, chart: RotationalChartQ) -> f64 {
         }
     };
     match &e.carrier {
-        FramedQ::Net(net) => rational_rate_bound(net, PROJECTED_ENTRY_PIECES, |j| rate(&net_rate(j))),
+        FramedQ::Net(net) => {
+            rational_rate_bound(net, PROJECTED_ENTRY_PIECES, |j| rate(&net_rate(j)))
+        }
         FramedQ::Circle { cuts, .. } | FramedQ::Line { cuts, .. } => rate_bound_over(
             cut_intervals(cuts),
             PROJECTED_ENTRY_PIECES,
@@ -1824,7 +1830,11 @@ fn torus_face(
 /// alone, and the loops that wind the torus together (at most two,
 /// [`loop_windings`]), each group's signed area read under the face's
 /// sense, `s_f·ΣA`.
-fn torus_group_areas(outward: bool, areas: &[Interval], turns: &[[i64; 2]]) -> Vec<(Interval, Vec<usize>)> {
+fn torus_group_areas(
+    outward: bool,
+    areas: &[Interval],
+    turns: &[[i64; 2]],
+) -> Vec<(Interval, Vec<usize>)> {
     let sense = pt(if outward { 1.0 } else { -1.0 });
     let mut groups: Vec<(Interval, Vec<usize>)> = Vec::new();
     let mut winding = (Interval::zero(), Vec::new());

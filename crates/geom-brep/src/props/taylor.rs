@@ -258,13 +258,11 @@ pub(super) fn primitive_over<S, C, const N: usize>(
             let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
             let x = geom::bracket_mid((p, q));
             let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
-            let moment = |e: i32, hi: Interval, lo: Interval| {
-                (hi.powi(e) - lo.powi(e)) / pt(f64::from(e))
-            };
+            let moment =
+                |e: i32, hi: Interval, lo: Interval| (hi.powi(e) - lo.powi(e)) / pt(f64::from(e));
             // `∫_p^q (t − x)ᵏ dt` and `∫_p^x (t − x)ᵏ dt`, `k = 0..=4`.
             #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let weight: [Interval; ORDER] =
-                core::array::from_fn(|k| moment(k as i32 + 1, ri, le));
+            let weight: [Interval; ORDER] = core::array::from_fn(|k| moment(k as i32 + 1, ri, le));
             #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
             let left: [Interval; ORDER] =
                 core::array::from_fn(|k| moment(k as i32 + 1, Interval::zero(), le));
@@ -285,10 +283,7 @@ pub(super) fn primitive_over<S, C, const N: usize>(
                 Jet([value, t[0], t[1], t[2], t[3]])
             };
             let y_at = jet(y_x, &at.rate);
-            let y_over = jet(
-                y_x + over.rate.0[0] * Interval::hull(le, ri),
-                &over.rate,
-            );
+            let y_over = jet(y_x + over.rate.0[0] * Interval::hull(le, ri), &over.rate);
             let h = (pt(q) - pt(p)).hi();
             for k in 0..N {
                 let g_at = at.own[k].add(y_at.mul(at.by[k]));

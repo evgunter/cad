@@ -704,9 +704,10 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             if let Pcurve::Spiric {
                 major,
                 minor,
-                image: SpiricImage::Wall {
-                    v0, sense, torus, ..
-                },
+                image:
+                    SpiricImage::Wall {
+                        v0, sense, torus, ..
+                    },
                 ..
             } = image
             {
@@ -866,7 +867,9 @@ fn spiric_wall_edge<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<quad::SpiricWallQ, PropsError> {
     let unsupported = |what| PropsError::QuadratureUnsupported { what };
     let quad::RotationalChartQ::Torus { major, minor, .. } = chart else {
-        return Err(unsupported("a spiric wall image on a chart other than a torus"));
+        return Err(unsupported(
+            "a spiric wall image on a chart other than a torus",
+        ));
     };
     let edge = spiric_edge_q(&lift_edge(le), origin)
         .ok_or_else(|| unsupported("a spiric wall image on an edge whose carrier is no spiric"))?;
@@ -891,7 +894,11 @@ fn spiric_wall_edge<T: Decide + Bounds + CertifiedEnclosure>(
     }
     let sense = match exact_point(sense) {
         Some(s) if s == 1.0 || s == -1.0 => s,
-        _ => return Err(unsupported("a spiric wall image whose sense is not exactly ±1")),
+        _ => {
+            return Err(unsupported(
+                "a spiric wall image whose sense is not exactly ±1",
+            ));
+        }
     };
     Ok(quad::SpiricWallQ {
         edge,
