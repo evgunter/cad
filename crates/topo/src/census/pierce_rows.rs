@@ -403,7 +403,7 @@ fn a_curved_edge_meeting_one_half_of_the_span_is_not_read_clear() {
 ///
 /// The clearance is decided in band, so the refusal is that decision's
 /// own escalation (`pm_census_ef_pierce_curve_clear`), kept by
-/// `span_clear`'s ladder (PR 6739's review, F1). Before, an undecided
+/// `span_clear_as`'s ladder (PR 6739's review, F1). Before, an undecided
 /// clearance read as "not clear", and the census refused on the span's
 /// straddle row instead.
 #[test]

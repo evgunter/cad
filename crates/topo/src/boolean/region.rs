@@ -1026,7 +1026,7 @@ impl<T: Decide> Round<T> {
 /// Places round the circle are arc lengths in `[0, 2π·radius)`: a
 /// circle has no behind.
 impl<T: Decide> Course<T> for Round<T> {
-    /// Read the shorter way round ([`ray_walk::apart`]), then as a turn
+    /// Read the shorter way round ([`ray_walk::apart_as`]), then as a turn
     /// ahead.
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
         let s = self.swept(y);

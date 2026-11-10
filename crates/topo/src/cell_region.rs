@@ -275,7 +275,7 @@ fn clear_of_singular(
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:
-/// what [`clear_of_boundary`] decides, in the order it decides it.
+/// what [`clear_of_boundary_as`] decides, in the order it decides it.
 #[derive(Debug, Clone)]
 pub(crate) enum BoundaryStop {
     /// A vertex's point.

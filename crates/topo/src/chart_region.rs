@@ -1719,7 +1719,7 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     }
 }
 
-/// The fold [`period_fold`] decides.
+/// The fold [`period_fold_as`] decides.
 enum Fold<T> {
     /// The one shift `k·τ`.
     One(T),
@@ -1733,7 +1733,7 @@ enum Fold<T> {
 /// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
 /// half-period marks ([`geom_brep::Period::decide`]) metered at the
 /// radius, so it is a literal at every scalar. Where a mark misses, the
-/// two branches astride it (`pcurves::branches_astride`), each a literal.
+/// two branches astride it (`pcurves::branches_astride_as`), each a literal.
 ///
 /// # Errors
 ///
@@ -2841,7 +2841,7 @@ fn certified_arms<T: Decide + Bounds>(
 /// The row a chart's inf-side lever arm is gated on.
 const ARM_INF: &str = "chart_region_arm_inf";
 
-/// Why [`gate_arm`] gates no rate.
+/// Why [`gate_arm_as`] gates no rate.
 #[derive(Clone, Debug)]
 pub(crate) enum ArmGate {
     /// The chart has no certified extent in that channel.
@@ -2890,7 +2890,7 @@ pub(crate) fn gate_arm_as<T: Decide>(
     }
 }
 
-/// **A spline chart's two inf-side lever arms, gated** ([`gate_arm`] on
+/// **A spline chart's two inf-side lever arms, gated** ([`gate_arm_as`] on
 /// `name`, each arm's floor read by `floor`): the per-axis infs of its
 /// stretch reading ([`geom_brep::chart_stretch_inf`]) gated FIRST, since
 /// they are the assembly's divisors and only a definitely-positive one

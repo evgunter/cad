@@ -35,7 +35,7 @@
 //!   validation's ring nesting rely on. Served to a planar loop in
 //!   3-space (`splitting::containment`) and a chart-space polygon
 //!   (`chart_region`).
-//! - **The closest crossing** ([`Crossings`], [`advance`]): keep the
+//! - **The closest crossing** ([`Crossings`], [`advance_as`]): keep the
 //!   crossing nearest `q` and read the material side from the ray's
 //!   heading there — the 3-D sweep (`boolean::solid_contain`) and a
 //!   trimmed sphere face's great circles (`boolean::sphere_region`).
@@ -48,7 +48,7 @@
 //!
 //! Every decision here funnels through [`crate::validate::decide`]
 //! under a name the caller supplies ([`ParityRows`], or the row passed
-//! to [`advance`] and [`Crossings::closest`]). The K ledger meters each
+//! to [`advance_as`] and [`Crossings::closest`]). The K ledger meters each
 //! consumer's margins separately — a 3-D loop's metres and a chart
 //! polygon's metres are different populations — so the shared code
 //! must not pool them under one name. Sharing the walk and sharing the
@@ -226,13 +226,13 @@ pub(crate) fn advance_as<T: Decide>(
     crossing_side(decide(row, at, band))
 }
 
-/// [`advance`]'s reading of a crossing's side already decided (a
+/// [`advance_as`]'s reading of a crossing's side already decided (a
 /// [`geom::Ray::ahead`]): a `Zero` grazes, an undecided one sets the ray
 /// aside.
 ///
 /// # Errors
 ///
-/// As [`advance`].
+/// As [`advance_as`].
 pub(crate) fn crossing_side(
     decided: Result<Sign, Indeterminate>,
 ) -> Result<Sign, RayFault<Indeterminate>> {
@@ -248,7 +248,7 @@ pub(crate) fn crossing_side(
 /// `at` the crossing's distance from `q` (nonnegative: a magnitude, the
 /// shorter way round). Only that distance is read: a `Zero` is a
 /// crossing at `q`, which the boundary pre-pass has ruled out, so it
-/// grazes, as in [`advance`].
+/// grazes, as in [`advance_as`].
 ///
 /// # Errors
 ///
@@ -269,7 +269,7 @@ pub(crate) fn apart_as<T: Decide>(
 /// **One ray's crossings ahead of `q`, read to the closest** — the fold
 /// the closest-crossing readers share. Each crossing is offered with its
 /// distance along the ray in metres, already decided ahead of `q`
-/// ([`advance`]), and whether its material side cannot be read there.
+/// ([`advance_as`]), and whether its material side cannot be read there.
 pub(crate) struct Crossings<T, H> {
     ahead: Vec<(T, H, bool)>,
     /// Each crossing's span along the ray, `[from, to]`: the point `at`
@@ -297,7 +297,7 @@ impl<T: Decide, H> Crossings<T, H> {
 
     /// A crossing `at` metres ahead of `q` that lies somewhere in
     /// `[from, to]` along the ray, as [`Self::push`] offers one:
-    /// [`Self::first_count`] orders it against another only where the
+    /// [`Self::first_count_as`] orders it against another only where the
     /// whole span lies definitely before or after it.
     pub(crate) fn push_span(&mut self, at: T, (from, to): (T, T), hit: H, sideless: bool) {
         self.ahead.push((at, hit, sideless));
@@ -1018,7 +1018,7 @@ mod tests {
         );
     }
 
-    /// [`Crossings::first_count`] over `(advance, count, a pair's party,
+    /// [`Crossings::first_count_as`] over `(advance, count, a pair's party,
     /// sideless)` crossings: a pair is two parties in band of each other.
     fn count_of(hits: &[(f64, i32, bool, bool)]) -> Result<Option<Sign>, &'static str> {
         let mut c = Crossings::new();

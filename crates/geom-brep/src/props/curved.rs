@@ -1049,7 +1049,7 @@ fn level_coincides_as<T: Decide>(
 /// meters for [`RimLevel::Length`] (already a point deviation) and the
 /// dimensionless direction CHORD for [`RimLevel::Unit`] (a point
 /// deviation once levered). `None` for a mixed pair, which
-/// [`level_coincides`] turns into a refusal.
+/// [`level_coincides_as`] turns into a refusal.
 fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
     match (a, b) {
         (RimLevel::Length(la), RimLevel::Length(lb)) => Some((la - lb).abs()),
@@ -1130,7 +1130,7 @@ fn mixed_levels(name: &'static str) -> PropsError {
 /// `ends` are the two extreme levels in the SAME representation the
 /// rims carry ([`RimLevel`]) — the torus's from its anchor meridian's
 /// stored span, the linearly-leveled kinds' from `min_max`. Every
-/// decision below is [`level_coincides`], including the fail
+/// decision below is [`level_coincides_as`], including the fail
 /// direction.
 ///
 /// **The margin is not always exactly zero.** On the ordinary
@@ -6279,7 +6279,7 @@ mod rim_level_review_probe {
 
     /// **One rule, so one fail direction** (#714's review asked for the
     /// two to point the same way; S81 gave them one home). Both call
-    /// sites of [`level_coincides`] refuse a mixed representation, and
+    /// sites of [`level_coincides_as`] refuse a mixed representation, and
     /// the predicate's own entry is pinned here in both orders:
     /// whatever the poisoned classify does, a mixed-representation face
     /// never measures and never groups.
@@ -6374,7 +6374,7 @@ mod rim_level_review_probe {
 }
 
 /// **A torus rim's lift is its whole turns as a theorem over a box**
-/// ([`torus_lift`]): at `Sym<Interval>`, a running angle `k` turns from
+/// ([`torus_lift_as`]): at `Sym<Interval>`, a running angle `k` turns from
 /// the rim's, both polynomials in a parameter over `[0.2, 0.4]` that are
 /// not constants (`a = p² + p + k·τ`, `b = p·(p + 1)`, whose value
 /// channels' difference is `≈ 0.64` rad wide with the dependency lost),

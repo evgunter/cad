@@ -568,7 +568,7 @@ enum SlackRefusal {
 }
 
 /// Why a reading with no curvature charge read no side: the first
-/// order ([`first_order`]) or the descent ([`Tie::descend`]). Every arm
+/// order ([`first_order_as`]) or the descent ([`Tie::descend`]). Every arm
 /// carries the indeterminate it was read on.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ReadFault<T: geom_core::Real> {
@@ -630,7 +630,7 @@ pub(crate) enum BoundSideFault<T: geom_core::Real> {
     ChargeEscalated(Indeterminate),
 }
 
-/// [`first_order`]'s reading: a side with the bound's displacement off
+/// [`first_order_as`]'s reading: a side with the bound's displacement off
 /// the face's tangent plane, in metres, and the predicate and decision
 /// it was read on; or a tie.
 type Settled<T> = Result<(Side, T, &'static str, Decided), Tie<T>>;

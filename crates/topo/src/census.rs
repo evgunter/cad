@@ -2964,7 +2964,7 @@ fn gap_is_zero_as<T: Decide>(
     gap_zero_reading(name, margin, band, errors).map(|zero| zero.is_some())
 }
 
-/// [`gap_is_zero`], keeping the Zero's reading: `Some(Some(margin))`
+/// [`gap_is_zero_as`], keeping the Zero's reading: `Some(Some(margin))`
 /// zero, `Some(None)` definitely positive, `None` escalated (pushed).
 fn gap_zero_reading<T: Decide>(
     name: &'static str,
@@ -3299,7 +3299,7 @@ fn signed_is_zero_as<T: Decide>(
     signed_zero_reading(name, margin, band, errors).map(|zero| zero.is_some())
 }
 
-/// [`signed_is_zero`], keeping the Zero's reading, as
+/// [`signed_is_zero_as`], keeping the Zero's reading, as
 /// [`gap_zero_reading`] does.
 fn signed_zero_reading<T: Decide>(
     name: &'static str,
@@ -4023,7 +4023,7 @@ fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
 ///   - `L/2` at most ε ([`enclosure_reading`] of `[0, L/2]` through the
 ///     magnitude door, `pm_census_ef_pierce_span`): every point of `S`
 ///     lies within ε of an end, so no boundary point does;
-///   - else [`span_clear`].
+///   - else [`span_clear_as`].
 ///
 ///   Otherwise the crossing may lie within `L` of the boundary, refused
 ///   below.
@@ -4296,7 +4296,7 @@ fn first_escalation(report: &[ValidationError]) -> Option<Indeterminate> {
     })
 }
 
-/// One member of a face's boundary as [`span_clear`] reads it against `S`.
+/// One member of a face's boundary as [`span_clear_as`] reads it against `S`.
 enum Member<T: Decide> {
     /// The height gate: `S`'s height under its bound, the premise the
     /// curved sides' clearance rests on.
@@ -4320,7 +4320,7 @@ fn reported_rung<A>(report: Vec<ValidationError>) -> Rung<A, Vec<ValidationError
     }
 }
 
-/// [`span_clear`]'s reach `g·(1 + σ)`, `g = ℓ·(hi − lo) + 2c + ε`, charged
+/// [`span_clear_as`]'s reach `g·(1 + σ)`, `g = ℓ·(hi − lo) + 2c + ε`, charged
 /// its rounding. `c` is the rounding charge of `e.p0 + chord·t` against
 /// `e.p0 + dir·(t·len)` over `[lo, hi]`, a few `u` of the point's
 /// coordinates and of `t·len`.
