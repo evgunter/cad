@@ -3217,7 +3217,7 @@ impl Node {
     fn drawn_profile(
         py: Python<'_>,
         frame: OperandArg,
-        faces: Vec<(OperandArg, String)>,
+        faces: Vec<(BodyArg, String)>,
         outline: super::trace::Outline,
     ) -> PyResult<Self> {
         super::trace::drawn_profile(py, frame, faces, outline)

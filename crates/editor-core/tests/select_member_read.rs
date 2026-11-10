@@ -83,7 +83,11 @@ fn a_member_is_selected_by_its_own_names_and_carried_as_the_familys() {
         Node::fillet(member(xs, 2), len(0.1), vec![edge.clone()]),
     );
     let select = selection_of(&doc, fillet);
-    assert_eq!(select.names, [edge.clone()], "the member's own name");
+    assert_eq!(
+        select.names,
+        std::slice::from_ref(&edge),
+        "the member's own name"
+    );
     assert_eq!(select.body.at.len(), 1, "the selection holds its one index");
     assert_eq!(
         doc.written(&editor_core::Expr::var(select.body.at[0], Dimension::Count)),
