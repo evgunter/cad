@@ -281,24 +281,23 @@ fn entered_faces<T: Decide>(
             StarFault::Face(e) => VertexRefusal::Sector(e),
             fault => VertexRefusal::Walk(fault.split_refusal(vertex, band)),
         })?;
-    let sides = star
-        .bounds
-        .iter()
-        .zip(&star.sectors)
-        .map(|(bound, sector)| {
-            bound_side(body, bound, plane.reference, far, band).map_err(|fault| match fault {
-                EntryFault::Far(e) => e,
-                EntryFault::Undecided(diag) => {
-                    VertexRefusal::Walk(SplitReduceError::SliverSector {
-                        vertex,
-                        face: sector.face,
-                        reading: SectorReading::Escalated(diag),
-                    })
-                }
-            })
+    // Each bound's side, read only where the trace's question needs it:
+    // every real edge's, and a corner's dividers only where its edges
+    // leave on one side.
+    let side = |k: usize| {
+        bound_side(body, &star.bounds[k], plane.reference, far, band).map_err(|fault| match fault {
+            EntryFault::Far(e) => e,
+            EntryFault::Undecided(diag) => VertexRefusal::Walk(SplitReduceError::SliverSector {
+                vertex,
+                face: star.sectors[k].face,
+                reading: SectorReading::Escalated(diag),
+            }),
         })
-        .collect::<Result<Vec<_>, _>>()?;
+    };
     let m = star.bounds.len();
+    let edges = (0..m)
+        .map(|k| star.bounds[k].real.then(|| side(k)).transpose())
+        .collect::<Result<Vec<_>, _>>()?;
     let mut entered = Vec::new();
     for k in (0..m).filter(|&k| star.bounds[k].real) {
         let face = star.sectors[k].face;
@@ -310,14 +309,23 @@ fn entered_faces<T: Decide>(
         let mut next = (k + 1) % m;
         let mut inner = Vec::new();
         while !star.bounds[next].real {
-            inner.push(sides[next]);
+            inner.push(next);
             next = (next + 1) % m;
         }
-        let (a, b) = (sides[k], sides[next]);
+        let (Some(a), Some(b)) = (edges[k], edges[next]) else {
+            unreachable!("a real bound has its side read")
+        };
         let holds = match (a, b) {
             (PlaneSide::Above, PlaneSide::Below) | (PlaneSide::Below, PlaneSide::Above) => true,
             (PlaneSide::Above, PlaneSide::Above) | (PlaneSide::Below, PlaneSide::Below) => {
-                inner.iter().any(|&side| opposes(side, a))
+                let mut opposed = false;
+                for &j in &inner {
+                    if opposes(side(j)?, a) {
+                        opposed = true;
+                        break;
+                    }
+                }
+                opposed
             }
             _ => false,
         };
