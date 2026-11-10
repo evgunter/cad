@@ -1179,6 +1179,7 @@ version = "0.0.0"
 dependencies = [
  "bvh",
  "curvo",
+ "geom",
  "geom-core",
  "nalgebra 0.35.0",
  "num-bigint",
@@ -1195,6 +1196,7 @@ version = "0.0.0"
 dependencies = [
  "bvh",
  "geom",
+ "geom-brep",
  "geom-core",
  "num-bigint",
  "proptest",
@@ -1207,6 +1209,7 @@ dependencies = [
 name = "geom-core"
 version = "0.0.0"
 dependencies = [
+ "geom-core",
  "interval-transcendentals",
  "libm",
  "num-bigint",
@@ -1215,6 +1218,7 @@ dependencies = [
  "num-traits",
  "proptest",
  "rayon",
+ "source-scope",
  "strum",
  "test-utils",
 ]
@@ -3662,6 +3666,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd538fb6910ac1099850255cf94a94df6551fbdd602454387d0adb2d1ca6dead"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "source-scope"
+version = "0.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+ "test-utils",
 ]
 
 [[package]]

@@ -74,3 +74,51 @@ fn explicit_init_commits_once_and_ignores_env() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// **A document reloaded into a run committed at another K is asked at
+/// that K** (PR 6380's delta review): a run committed at
+/// `(1.5e-13, K = 100)` admits ε = 1.5e-13 (`eps_min(100)` is the
+/// coordinate floor, 1.1e-13), so a document recording it reloads as the
+/// benign `AlreadyInitialized` with a bit-equal ε, not as `BelowFloor`
+/// at the env or default K = 10 (`eps_min(10)` ≈ 1.97e-13), which the
+/// persist layer's reconcile reads as unreachable.
+#[test]
+#[ignore]
+fn document_reload_at_the_committed_k_probe() {
+    let committed = Tolerance {
+        eps: 1.5e-13,
+        k: 100.0,
+    };
+    assert_eq!(Tolerance::init(committed), Ok(()));
+    assert!(geom_core::tolerance::eps_admissible(1.5e-13));
+    assert!(!geom_core::tolerance::admissible(
+        1.5e-13,
+        geom_core::tolerance::DEFAULT_K
+    ));
+    match Tolerance::init_document_eps(1.5e-13) {
+        Err(ToleranceError::AlreadyInitialized { current, .. }) => {
+            assert_eq!(current, committed);
+        }
+        other => panic!("a reload at the committed K is benign: {other:?}"),
+    }
+    println!("DOCUMENT_RELOAD_PROBE_OK");
+}
+
+#[test]
+fn a_document_reload_is_asked_at_the_committed_k() {
+    let exe = std::env::current_exe().unwrap();
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::document_reload_at_the_committed_k_probe"),
+        None => "document_reload_at_the_committed_k_probe".to_string(),
+    };
+    let out = std::process::Command::new(&exe)
+        .args([probe.as_str(), "--ignored", "--exact", "--nocapture"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success() && text.contains("DOCUMENT_RELOAD_PROBE_OK"),
+        "document-reload probe failed in its fresh process:\n{text}\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}

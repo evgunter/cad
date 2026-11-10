@@ -73,6 +73,7 @@ use super::march::{
 use super::section::{BandVerdict, band_verdict};
 use super::system::LocalSystem;
 use super::{BranchBound, SSI_FIT_DEGREE, SsiError};
+use crate::ladder::{Answering, Climb, Rung, climb};
 
 /// Where refinement stopped short of a certificate
 /// ([`SsiError::RefinementExhausted`]).
@@ -446,23 +447,44 @@ where
                 .total_cmp(&chord(&states, i))
                 .then(i.cmp(&j))
         });
-        let mut in_band = None;
+        // The round is a ladder over the gaps, longest first: the first
+        // whose midpoint settles is where the sample goes, and a near
+        // tangency refuses the fit. The refusal where none settles is a
+        // census of every gap, so each is counted beside the ladder.
         let (mut halves_in_band, mut unsettled, mut off_domain) = (0usize, 0usize, 0usize);
-        for &i in &gaps {
+        let round = climb(Answering::First, &gaps, |&i| {
             match halve(sys, &states[i], &states[i + 1], ctx, band) {
-                Halving::Settled(mid) => {
-                    states.insert(i + 1, mid);
-                    continue 'round;
-                }
+                Halving::Settled(mid) => Rung::Answers(Ok((i, mid))),
+                Halving::Tangent(tangent) => Rung::Aborts(Err(tangent)),
                 Halving::InBand(verdict) => {
                     halves_in_band += 1;
-                    in_band.get_or_insert(verdict);
+                    Rung::InBand(verdict)
                 }
-                Halving::Unsettled => unsettled += 1,
-                Halving::OffDomain => off_domain += 1,
-                Halving::Tangent(tangent) => return Err(tangent),
+                Halving::Unsettled => {
+                    unsettled += 1;
+                    Rung::Passes
+                }
+                Halving::OffDomain => {
+                    off_domain += 1;
+                    Rung::Passes
+                }
             }
-        }
+        });
+        let in_band = match round {
+            Climb::Answered {
+                answer: Ok((i, mid)),
+                ..
+            } => {
+                states.insert(i + 1, mid);
+                continue 'round;
+            }
+            Climb::Answered {
+                answer: Err(tangent),
+                ..
+            } => return Err(tangent),
+            Climb::Undecided(verdict) => Some(verdict),
+            Climb::Passed => None,
+        };
         // Every gap's half in the band: the branch is short.
         if let (Some(verdict), 0, 0) = (in_band, unsettled, off_domain) {
             return Err(SsiError::ShortBranchUncertified {
@@ -539,7 +561,7 @@ where
     if let Some(verdict) = band_verdict("ssi_refine_halving", Margin::of(half), band) {
         return Halving::InBand(verdict);
     }
-    let mid: [f64; N] = core::array::from_fn(|i| 0.5 * (a[i] + b[i]));
+    let mid: [f64; N] = core::array::from_fn(|i| geom::mid_param(a[i], b[i]));
     match newton_refine(sys, mid, ctx.tol) {
         Some(settled) if within(&settled, &ctx.domain) && settled != *a && settled != *b => {
             Halving::Settled(settled)

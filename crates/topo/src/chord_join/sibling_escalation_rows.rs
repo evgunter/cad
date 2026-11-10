@@ -80,10 +80,7 @@ pub(super) fn ring_at(
             .collect();
         assert!(
             points.len() == want.len()
-                && points
-                    .iter()
-                    .zip(&want)
-                    .all(|(a, b)| (*a - *b).norm() == 0.0),
+                && points.iter().zip(&want).all(|(a, b)| a.equals_exactly(*b)),
             "the ring's vertices, in order: {points:?}"
         );
     }

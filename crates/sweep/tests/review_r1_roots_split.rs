@@ -217,8 +217,7 @@ pub(crate) fn review3_locate(
     };
     let e = x.get_edge(*edge).expect("the edge is the operand's");
     let c = x.get_curve_geom(e.curve).expect("its curve");
-    let f = y.get_face(*face).expect("the face is the other's");
-    let s = y.get_surface(f.surface).expect("its surface");
+    let s = y.face_surface(*face).expect("its surface");
     let short = |s: String| s.chars().take(90).collect::<String>();
     println!(
         "{label}: {operand:?} {decision:?} {:?}\n  edge {edge:?}: {}\n  face {face:?}: {}",

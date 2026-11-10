@@ -79,20 +79,14 @@ fn tilt_raised_cap(
         .find_map(|he| {
             let h = body.get_half_edge(he)?;
             let f = body.get_loop(h.parent_loop)?.face;
-            matches!(
-                body.get_surface(body.get_face(f)?.surface)?,
-                geom::Surface::Plane { .. }
-            )
-            .then_some(f)
+            matches!(body.face_surface(f)?, geom::Surface::Plane { .. }).then_some(f)
         })
         .expect("the cap side of the rim");
     let geom::Surface::Plane {
         origin,
         normal,
         u_ref,
-    } = *body
-        .get_surface(body.get_face(cap).expect("the cap resolves").surface)
-        .expect("the cap's plane")
+    } = *body.face_surface(cap).expect("the cap's plane")
     else {
         panic!("the cap side is a plane")
     };
@@ -136,10 +130,7 @@ fn verdict(body: &Body<f64>, rim: EdgeKey) -> Result<(), BlendError> {
 fn r1_tilted_cap_departure_is_the_meridian_reading() {
     for departure in [1e-3, in_band(), 2.0 * tol().eps(), 0.5 * tol().eps()] {
         let (body, _, cap, axis, lever) = tilted_cap(departure);
-        let geom::Surface::Plane { normal, .. } = *body
-            .get_surface(body.get_face(cap).unwrap().surface)
-            .unwrap()
-        else {
+        let geom::Surface::Plane { normal, .. } = *body.face_surface(cap).unwrap() else {
             panic!("a plane")
         };
         let read = normal.cross(axis).norm() * lever;

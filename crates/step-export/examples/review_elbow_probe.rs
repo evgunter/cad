@@ -25,7 +25,7 @@ const H: f64 = 0.25;
 const STATIONS: usize = 9;
 const V_DEGREE: usize = 3;
 
-fn duplicate_elbow(tol: Tol) -> topo::Body<f64> {
+fn duplicate_elbow(tol: Tol) -> topo::AtRestBody<f64> {
     // LIB-U3: the profile vocabulary — same square, loop form.
     let profile = vec![ProfileLoop::polygon(
         [(-H, -H), (H, -H), (H, H), (-H, H)].map(|(x, y)| Point2::new(x, y)),
@@ -67,8 +67,7 @@ fn main() {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    let elbow =
-        topo::AtRestBody::validate(duplicate_elbow(tol), tol).expect("the elbow is at rest");
+    let elbow = duplicate_elbow(tol);
     let text = step_string(&elbow, &options, tol).expect("exports");
     let committed = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/swept_elbow.step"),

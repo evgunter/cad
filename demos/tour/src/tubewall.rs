@@ -132,7 +132,7 @@ fn hollow(window: TubeWindow<f64>, tol: Tol) -> pncad::sweep::Revolved<f64> {
 /// Every torus wall's stored minor radius, as the body holds it.
 fn stored_minors(body: &Body<f64>) -> Vec<f64> {
     body.faces()
-        .filter_map(|(_, face)| match body.get_surface(face.surface) {
+        .filter_map(|(fk, _)| match body.face_surface(fk) {
             Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
@@ -169,9 +169,9 @@ fn assert_intent_stored_bit_exact(body: &Body<f64>, what: &str) {
 fn wall_triangles(body: &Body<f64>, mesh: &pncad::mesh::Mesh, r: f64) -> Vec<usize> {
     let mut counts: Vec<usize> = body
         .faces()
-        .filter(|(_, face)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(face.surface),
+                body.face_surface(*fk),
                 Some(Surface::Torus { minor_radius, .. }) if minor_radius.to_bits() == r.to_bits()
             )
         })
@@ -348,7 +348,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         bodies: vec![SceneBody::plain(
             "hollowelbow",
             [0.72, 0.55, 0.38],
-            elbow.body,
+            elbow.body.into_body(),
         )],
     });
 
@@ -470,7 +470,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             up: 'y',
         },
         bodies: vec![
-            SceneBody::plain("hollowtorus", [0.52, 0.60, 0.78], torus.body)
+            SceneBody::plain("hollowtorus", [0.52, 0.60, 0.78], torus.body.into_body())
                 .transparent(45)
                 .step_at_frontier(
                     |e| {

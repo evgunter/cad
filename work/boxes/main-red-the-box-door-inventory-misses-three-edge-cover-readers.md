@@ -2,10 +2,12 @@
 id: main-red-the-box-door-inventory-misses-three-edge-cover-readers
 kind: issue
 title: Main red: the box-door inventory pin misses three edge-cover readers since 928e6189
-status: open
+status: closed
 opened: 2026-11-03
 priority: P0
 cost: E
+closed: 2026-11-06
+pr: 6553
 ---
 
 
@@ -35,3 +37,17 @@ did not run it.
 Add the three entries to `PINNED` and, as the assertion asks, give
 each door's direction (pruning or refusing) in the module docs' DOOR
 list; read S234 first. RESTREAD touches none of these files.
+
+## Closed (2026-11-06, PR 6553)
+
+The three files are in `PINNED`. Each door's direction is in
+`boolean/boxes.rs`'s module docs:
+- `shell`'s wall-clearance gate grants on non-overlap, so looseness
+  refuses;
+- `shell`'s moved walls prune;
+- `splitting::containment`'s loop extent and `boolean::ruled_region`'s
+  reach bound size a lever, so looseness can only refuse more.
+
+The header's door counts ("four of the thirteen …") are gone in favour
+of the inventory. S234, the per-door rows that would execute the
+direction column, stays open.

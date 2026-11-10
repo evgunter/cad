@@ -26,7 +26,7 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs`; `crates/geom-brep/src/intersect/section_bounds.rs` (the bounds a classified pair's section states, which retire the tube) |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk,on_surface}.rs`; for a curve against a face `crates/geom-brep/src/curve_face.rs` (`route`, `boundary`) and its doors `curve_face/{plane_crossing,circle_torus,ellipse_torus,circle_roots,composite,spline_face}.rs` |
 | C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
@@ -907,6 +907,23 @@ again.
 A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
+Two curves on one surface record are not a curve pair to this table.
+Their 3D gap is identically zero in the model, so a contact decision on
+it reads only the construction's rounding against the band. They meet
+where one crosses the other's plane, through the plane door
+(`curve_face::plane_crossing`), at a root on the curve's own section of
+that plane, read through the surface's chart: the co-surface arm
+(`curve_pair::on_surface`), whose plane door shares `meet`'s transverse
+harmonic (`pose::height`). A curve on a surface is built from chart
+coordinates on a surface record: its key, and its surface as stored or
+on another chart of it. An edge carries its face's record, and the arm
+refuses a pair on two records whichever way it reads the pair. That the
+key and the surface are one record's stays the caller's: the region
+doors and the sphere cut-in read both off one face, and the planar loop
+walk names its own premise for the ray's plane. Every consumer holding
+two curves on one surface reads that arm (the region doors' landings,
+the sphere cut-in, the planar loop walk's ray against a conic arc), and
+none hands the pair to `meet`.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
@@ -1237,10 +1254,9 @@ are cases): a surface pair along a declared tangency and the boolean's
 bound-against-bound readings alike (`topo::boolean::sectors`, `fate`,
 `slit`). An edge bound of a vertex's sector against a face is read
 through the one bound-side reading (`topo::bound_side`), taken by
-`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, and
-so is a bisector bound in the boolean's sector passes; the split's
-subdivision bisectors (`wide_entries`, `split_bisector_side`) read
-their side of the plane outside it. A conic edge against a plane
+`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, over
+one vertex's star (`topo::star`), and so is every divider bound, in
+both verbs. A conic edge against a plane
 descends through `conic_bend_side`, its lift certified from the
 carrier's curvature bounds less the first-order residue. Any other
 tied bound descends by the parting of its bend past the face's normal

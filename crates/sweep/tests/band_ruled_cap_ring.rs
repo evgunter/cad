@@ -158,9 +158,9 @@ fn assert_consumed(body: &Body<f64>, a: f64, what: &str) {
     let creases = rod_creases(&body);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                body.get_surface(f.surface),
+                body.face_surface(*fk),
                 Some(geom::Surface::Cylinder { radius, .. }) if (radius - a).abs() < 1e-12
             )
         })
@@ -215,22 +215,6 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_the_closed_form() {
 /// the faces of the unbored rod's carve.
 #[test]
 fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval() {
-    // Pinned red since PR 5227: at ε = 1e-12 the curve-pair polish meters its
-    // iterate's accumulated width and refuses the cap ring's meeting
-    // (`work/cpair/curve-pair-polish-at-interval-reads-the-iterates-width`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the bore at Interval",
-        &[
-            "Interval: tier 3′, [CensusUnsupported { subject: Entity(Edge(EdgeKey(1v3))), cause: ContactLane(NotCertifiable { what: \"the meeting reading of two curved edges could not settle a count\" }) }",
-        ],
-        a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval_row,
-    );
-}
-
-/// The row [`a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`] runs, under its pin.
-fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval_row() {
     let tol = tol();
     let body = sweep::test_support::finished(
         "bored",
@@ -254,12 +238,7 @@ fn a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval_row() {
     let rec = out.naming.as_ref().expect("the surgery records its births");
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .filter(|k| out.body.get_face(*k).is_none())
         .collect();
@@ -682,7 +661,7 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
             assert!(
                 f.rings.is_empty()
                     && matches!(
-                        body.get_surface(f.surface),
+                        body.face_surface(face),
                         Some(geom::Surface::Plane { normal, .. }) if normal.z.abs() > 0.5
                     ),
                 "the face named is a cap, the channel in its outer cycle"

@@ -30,17 +30,26 @@ use geom_core::k_stats::{start_recording, take_samples};
 use sweep::loft_body;
 use topo::Body;
 
-/// The arc loft at the recording scalar, scaled with ε as its f64
-/// twins in both origin suites are.
-fn probe_arc_loft() -> Body<Probe> {
+/// **The loft's unit** ([`crate::common::box_unit`]): ε, or less where
+/// the loft, reaching `√2·1e9` units (its bulge's crest), would pass
+/// the far end of the session box (at ε = 1e-6).
+fn unit() -> f64 {
     let eps = Tol::witness().get().eps;
+    crate::common::box_unit(
+        core::f64::consts::SQRT_2 * 1.0e9,
+        crate::common::FAR_END,
+        eps / 1024.0,
+    )
+}
+
+/// The arc loft at the recording scalar, scaled with ε as its f64
+/// twins in both origin suites are, in the session box's unit.
+fn probe_arc_loft() -> Body<Probe> {
+    let s = 1.0e9 * unit();
     loft_body::<Probe>(
-        &sweep::test_support::lift_sections::<Probe>(&[
-            arc_section(1.0e9 * eps),
-            arc_section(1.0e9 * eps),
-        ]),
+        &sweep::test_support::lift_sections::<Probe>(&[arc_section(s), arc_section(s)]),
         &sweep::test_support::lift_places::<Probe>(
-            &stacked(&[0.0, 1.0], 1.0e9 * eps),
+            &stacked(&[0.0, 1.0], s),
             geom_core::Tol::witness(),
         ),
         1,
@@ -48,6 +57,7 @@ fn probe_arc_loft() -> Body<Probe> {
     )
     .expect("the probe arc loft lofts")
     .body
+    .into_body()
 }
 
 /// The samples `walk` records on a pool of `threads` threads.
@@ -86,7 +96,7 @@ fn the_mass_props_sample_population_is_identical_at_one_and_four_threads() {
         let _ = topo::mass_properties(
             &body,
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            crate::common::unit_resolution(unit()),
         );
     });
 }

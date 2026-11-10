@@ -102,7 +102,7 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 
     let outward = |face: topo::FaceKey| -> Vec3<f64> {
         let f = body.get_face(face).expect("a support face");
-        let Some(Surface::Plane { normal, .. }) = body.get_surface(f.surface) else {
+        let Some(Surface::Plane { normal, .. }) = body.face_surface(face) else {
             panic!("a cavity support face is a plane");
         };
         OutwardNormal::from_chart(*normal, f.sense).vec()
@@ -112,15 +112,14 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
         std::collections::BTreeMap::new();
     for e in &edges {
         let ed = body.get_edge(*e).expect("edge");
-        let h = body.get_half_edge(ed.he_plus).expect("half-edge");
-        let end = body.half_edge_end(ed.he_plus).expect("end");
+        let (start, end) = body.edge_vertices(*e).expect("edge ends");
         let pt = |v| {
             *body
                 .get_vertex(v)
                 .and_then(|x| body.get_point(x.point))
                 .expect("point")
         };
-        let (a, b) = (pt(h.start), pt(end));
+        let (a, b) = (pt(start), pt(end));
         let mid = Point3::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0.5 * (a.z + b.z));
         // The two support faces via the edge's half-edges' parent loops.
         let face_of = |he| {

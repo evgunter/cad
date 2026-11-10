@@ -1216,7 +1216,7 @@ fn name_split_edges_vertices<T: Decide>(
                     let joined = EdgeCarrier::of_edge(body, e)?;
                     for &r in roots {
                         let same = EdgeCarrier::of_edge(target_body, r)?
-                            .runs_with(&joined, ON_MEMBER_EDGE, bnd)?
+                            .runs_with_as(&joined, ON_MEMBER_EDGE, bnd)?
                             .ok_or(NamingError::JoinedPieceOffRoot { edge: e })?;
                         pieces_of.entry(r).or_default().push((e, same));
                     }
@@ -3315,7 +3315,7 @@ fn flush_lines<T: Decide>(
 /// their least edges: an edge lies on a line where it runs along the
 /// carrier of the line's least edge through [`ON_MEMBER_EDGE`], a
 /// straight edge on its straight line, a curved one on its certified
-/// carrier ([`EdgeCarrier::runs_with`]). `line` reads an edge's carrier;
+/// carrier ([`EdgeCarrier::runs_with_as`]). `line` reads an edge's carrier;
 /// an edge it answers `None` for (the pair's edge its operand's table
 /// does not name once, `flush_lines`), and an [`EdgeCarrier::Unread`]
 /// one, is a line of its own. No edge on a line is chosen over another:
@@ -3335,7 +3335,7 @@ pub(super) fn sets_per_line<E: Ord, T: Decide>(
         if let Some(carrier) = &on_line {
             for (i, (_, of)) in lines.iter().enumerate() {
                 let Some(of) = of else { continue };
-                if of.runs_with(carrier, ON_MEMBER_EDGE, bnd)?.is_some() {
+                if of.runs_with_as(carrier, ON_MEMBER_EDGE, bnd)?.is_some() {
                     on = Some(i);
                     break;
                 }
@@ -3918,7 +3918,7 @@ pub(super) enum OnSegment {
 }
 
 /// **An edge's closed segment, start to end** — the one place a point's
-/// position against an edge is read: [`Segment::place`] says whether it
+/// position against an edge is read: [`Segment::place_as`] says whether it
 /// lies on the segment.
 pub(super) struct Segment<T: Decide> {
     edge: EdgeKey,
@@ -3957,13 +3957,15 @@ impl<T: Decide> Segment<T> {
     /// its ends may each lie up to a zero band off this line, so for a
     /// small enough K (any finite K > 1 is accepted) its projection on the
     /// line can fall in the zero band.
-    pub(super) fn runs_with(
+    pub(super) fn runs_with_as(
         &self,
         other: &Self,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Option<bool>, NamingError> {
-        if !(self.on_line(other.q0, predicate, bnd)? && self.on_line(other.q1, predicate, bnd)?) {
+        if !(self.on_line_as(other.q0, predicate, bnd)?
+            && self.on_line_as(other.q1, predicate, bnd)?)
+        {
             return Ok(None);
         }
         let way = decide(
@@ -3971,7 +3973,7 @@ impl<T: Decide> Segment<T> {
             Margin::over_lever(self.d.dot(other.d), self.len),
             bnd,
         )
-        .map_err(|source| NamingError::Escalated { predicate, source })?;
+        .map_err(|source| NamingError::Escalated { source })?;
         match way {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
@@ -3984,8 +3986,8 @@ impl<T: Decide> Segment<T> {
 
     /// Whether `p` lies on the segment's LINE, decided through
     /// `predicate` over its distance off it: the first verdict
-    /// [`Segment::place`] takes.
-    pub(super) fn on_line(
+    /// [`Segment::place_as`] takes.
+    pub(super) fn on_line_as(
         &self,
         p: Point3<T>,
         predicate: &'static str,
@@ -3996,7 +3998,7 @@ impl<T: Decide> Segment<T> {
             Margin::over_lever((p - self.q0).cross(self.d).norm(), self.len),
             bnd,
         )
-        .map_err(|source| NamingError::Escalated { predicate, source })?;
+        .map_err(|source| NamingError::Escalated { source })?;
         Ok(off == Sign::Zero)
     }
 
@@ -4005,17 +4007,17 @@ impl<T: Decide> Segment<T> {
     /// distances past each end (a `Negative` one is off the segment, a
     /// `Zero` one at that end). A point off the line costs one verdict.
     /// An in-band margin escalates typed.
-    pub(super) fn place(
+    pub(super) fn place_as(
         &self,
         p: Point3<T>,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<OnSegment, NamingError> {
-        if !self.on_line(p, predicate, bnd)? {
+        if !self.on_line_as(p, predicate, bnd)? {
             return Ok(OnSegment::Off);
         }
         let sign = |m: Margin<T>| {
-            decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { predicate, source })
+            decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { source })
         };
         let past0 = sign(Margin::over_lever((p - self.q0).dot(self.d), self.len))?;
         let past1 = sign(Margin::over_lever((self.q1 - p).dot(self.d), self.len))?;
@@ -4029,7 +4031,7 @@ impl<T: Decide> Segment<T> {
 
     /// The sign of `p − q` along the segment's direction, decided
     /// through `predicate` over the length between them.
-    fn ahead(
+    fn ahead_as(
         &self,
         p: Point3<T>,
         q: Point3<T>,
@@ -4041,7 +4043,7 @@ impl<T: Decide> Segment<T> {
             Margin::over_lever((p - q).dot(self.d), self.len),
             bnd,
         )
-        .map_err(|source| NamingError::Escalated { predicate, source })
+        .map_err(|source| NamingError::Escalated { source })
     }
 
     /// **How this segment lies along `candidates`**, each a key and its
@@ -4049,7 +4051,7 @@ impl<T: Decide> Segment<T> {
     /// a length, those of them it lies within, and whether together
     /// they cover it end to end ([`walk_cover`]). Every verdict goes
     /// through `predicate`.
-    pub(super) fn cover<K>(
+    pub(super) fn cover_as<K>(
         &self,
         candidates: impl IntoIterator<Item = (K, Point3<T>, Point3<T>)>,
         predicate: &'static str,
@@ -4058,8 +4060,8 @@ impl<T: Decide> Segment<T> {
         let mut read = Vec::new();
         for (k, p0, p1) in candidates {
             let stretch =
-                if self.on_line(p0, predicate, bnd)? && self.on_line(p1, predicate, bnd)? {
-                    match self.ahead(p0, p1, predicate, bnd)? {
+                if self.on_line_as(p0, predicate, bnd)? && self.on_line_as(p1, predicate, bnd)? {
+                    match self.ahead_as(p0, p1, predicate, bnd)? {
                         Sign::Positive => vec![(p1, p0)],
                         _ => vec![(p0, p1)],
                     }
@@ -4069,14 +4071,14 @@ impl<T: Decide> Segment<T> {
             read.push((k, stretch, true));
         }
         walk_cover(read, (self.q0, self.q1), |p, q| {
-            Ok(self.ahead(p, q, predicate, bnd)? == Sign::Positive)
+            Ok(self.ahead_as(p, q, predicate, bnd)? == Sign::Positive)
         })
     }
 }
 
 /// **The flush rule's walk** (`names/README.md`, "Flush edges"), one
-/// for a straight edge ([`Segment::cover`]) and a curved one
-/// ([`Track::cover`]): over an edge's span from `start` to `end`, where
+/// for a straight edge ([`Segment::cover_as`]) and a curved one
+/// ([`Track::cover_as`]): over an edge's span from `start` to `end`, where
 /// `ahead(p, q)` says `p` lies strictly past `q` along the edge. Each
 /// candidate comes as the stretches of the span's parameter it holds
 /// (a segment's one; an arc's, and that arc a period back) and whether
@@ -4138,7 +4140,7 @@ fn walk_cover<K, S: Copy>(
     Ok(out)
 }
 
-/// What [`Segment::cover`] found: the candidates the segment lies
+/// What [`Segment::cover_as`] found: the candidates the segment lies
 /// within, those it only overlaps, and whether all of them together
 /// cover it.
 pub(super) struct Cover<K> {
@@ -4147,7 +4149,7 @@ pub(super) struct Cover<K> {
     pub(super) covered: bool,
 }
 
-/// A candidate for [`Track::cover`]: an edge's two end points, the
+/// A candidate for [`Track::cover_as`]: an edge's two end points, the
 /// point halfway along it, and whether it is closed (one vertex at
 /// both ends, structurally).
 #[derive(Clone, Debug)]
@@ -4167,7 +4169,7 @@ pub(super) struct CarrierArc<T: Decide> {
 /// ([`geom::carrier_speed::speed_range`]), so no verdict depends on
 /// which edge of the carrier reads it, and a stretch decided zero is
 /// within the zero band in metres. A closed edge is its carrier's whole
-/// period: nothing [`Track::cover`] says of it depends on where its
+/// period: nothing [`Track::cover_as`] says of it depends on where its
 /// vertex sits, which has no identity of its own (`docs/DESIGN.md`,
 /// maximal edges).
 pub(super) struct Track<T: Decide> {
@@ -4230,14 +4232,14 @@ impl<T: Decide> Track<T> {
 
     /// The sign of the stretch `x` along the carrier, metered by its
     /// greatest speed.
-    fn sign(
+    fn sign_as(
         &self,
         x: T,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Sign, NamingError> {
         decide(predicate, Margin::metered_sup(x, self.rate), bnd)
-            .map_err(|source| NamingError::Escalated { predicate, source })
+            .map_err(|source| NamingError::Escalated { source })
     }
 
     /// `p`'s offset from the start along the carrier, where `p` lies on
@@ -4250,14 +4252,14 @@ impl<T: Decide> Track<T> {
     /// point whose reading the anchor cuts, and where the reduction
     /// jumps, is the start.
     /// A closed arc's whole turn is `arc.closed`, which
-    /// [`Self::stretches`] answers from whatever its offsets read.
+    /// [`Self::stretches_as`] answers from whatever its offsets read.
     ///
     /// # Errors
     ///
     /// [`NamingError::CarrierUnplaced`] on a carrier that recovers no
     /// parameter for a point (a spline), where "off it" would be a
     /// guess.
-    fn offset(
+    fn offset_as(
         &self,
         p: Point3<T>,
         predicate: &'static str,
@@ -4265,7 +4267,7 @@ impl<T: Decide> Track<T> {
     ) -> Result<Option<T>, NamingError> {
         let gap = |q: Point3<T>| {
             decide(predicate, Margin::of((p - q).norm()), bnd)
-                .map_err(|source| NamingError::Escalated { predicate, source })
+                .map_err(|source| NamingError::Escalated { source })
         };
         let anchor = match self.period {
             Some(per) => {
@@ -4318,21 +4320,21 @@ impl<T: Decide> Track<T> {
     /// `arc.p1`. On a periodic carrier the arc runs from the end it
     /// starts at through its middle. `None` where the arc is off the
     /// carrier.
-    fn span(
+    fn span_as(
         &self,
         arc: &CarrierArc<T>,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Option<(T, T, bool)>, NamingError> {
         let (Some(a0), Some(am), Some(a1)) = (
-            self.offset(arc.p0, predicate, bnd)?,
-            self.offset(arc.mid, predicate, bnd)?,
-            self.offset(arc.p1, predicate, bnd)?,
+            self.offset_as(arc.p0, predicate, bnd)?,
+            self.offset_as(arc.mid, predicate, bnd)?,
+            self.offset_as(arc.p1, predicate, bnd)?,
         ) else {
             return Ok(None);
         };
         let Some(per) = self.period else {
-            return Ok(Some(match self.sign(a1 - a0, predicate, bnd)? {
+            return Ok(Some(match self.sign_as(a1 - a0, predicate, bnd)? {
                 Sign::Negative => (a1, a0, true),
                 _ => (a0, a1, false),
             }));
@@ -4340,24 +4342,24 @@ impl<T: Decide> Track<T> {
         let (d1, dm) = (self.forward(a1 - a0), self.forward(am - a0));
         // The middle is half the arc from either end, so this verdict
         // is never near its band.
-        Ok(Some(match self.sign(d1 - dm, predicate, bnd)? {
+        Ok(Some(match self.sign_as(d1 - dm, predicate, bnd)? {
             Sign::Positive => (a0, a0 + d1, false),
             _ => (a1, a1 + per - d1, true),
         }))
     }
 
-    /// The stretches of offsets `arc` holds ([`Track::span`]): one on
+    /// The stretches of offsets `arc` holds ([`Track::span_as`]): one on
     /// an open carrier; on a periodic one the arc and that arc a period
     /// back, so a stretch through the start reads whole on one side or
     /// the other, and a closed arc's whole period. `None` where the arc
     /// is off the carrier.
-    fn stretches(
+    fn stretches_as(
         &self,
         arc: &CarrierArc<T>,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Option<Vec<(T, T)>>, NamingError> {
-        let Some((lo, hi, _)) = self.span(arc, predicate, bnd)? else {
+        let Some((lo, hi, _)) = self.span_as(arc, predicate, bnd)? else {
             return Ok(None);
         };
         Ok(Some(match self.period {
@@ -4371,34 +4373,34 @@ impl<T: Decide> Track<T> {
     /// its span, the ends included. A closed edge holds every point of
     /// its carrier, and a point just short of a periodic edge's start
     /// reads a period on, at the start.
-    fn holds(
+    fn holds_as(
         &self,
         p: Point3<T>,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<bool, NamingError> {
-        let Some(u) = self.offset(p, predicate, bnd)? else {
+        let Some(u) = self.offset_as(p, predicate, bnd)? else {
             return Ok(false);
         };
         if self.closed {
             return Ok(true);
         }
         if let Some(per) = self.period
-            && self.sign(per - u, predicate, bnd)? == Sign::Zero
+            && self.sign_as(per - u, predicate, bnd)? == Sign::Zero
         {
             return Ok(true);
         }
-        Ok(self.sign(u, predicate, bnd)? != Sign::Negative
-            && self.sign(self.len - u, predicate, bnd)? != Sign::Negative)
+        Ok(self.sign_as(u, predicate, bnd)? != Sign::Negative
+            && self.sign_as(self.len - u, predicate, bnd)? != Sign::Negative)
     }
 
-    /// **How this edge lies along `candidates`** — [`Segment::cover`]
+    /// **How this edge lies along `candidates`** — [`Segment::cover_as`]
     /// over the carrier's parameter ([`walk_cover`]): the candidates on
     /// the carrier that overlap the edge over a length, those it lies
     /// within, and whether together they cover it end to end. A closed
     /// edge lies within a closed candidate only, and is covered over
     /// its whole period.
-    pub(super) fn cover<K>(
+    pub(super) fn cover_as<K>(
         &self,
         candidates: impl IntoIterator<Item = (K, CarrierArc<T>)>,
         predicate: &'static str,
@@ -4406,11 +4408,11 @@ impl<T: Decide> Track<T> {
     ) -> Result<Cover<K>, NamingError> {
         let mut read = Vec::new();
         for (k, arc) in candidates {
-            let stretches = self.stretches(&arc, predicate, bnd)?.unwrap_or_default();
+            let stretches = self.stretches_as(&arc, predicate, bnd)?.unwrap_or_default();
             read.push((k, stretches, arc.closed || !self.closed));
         }
         walk_cover(read, (T::zero(), self.len), |p, q| {
-            Ok(self.sign(p - q, predicate, bnd)? == Sign::Positive)
+            Ok(self.sign_as(p - q, predicate, bnd)? == Sign::Positive)
         })
     }
 }
@@ -4446,20 +4448,22 @@ impl<T: Decide> EdgeCarrier<T> {
     }
 
     /// Whether `other` lies on this edge's line, and if so whether the
-    /// two run the same way along it: [`Segment::runs_with`] for two
-    /// straight edges, [`Track::runs_with`] for two curved ones. A
+    /// two run the same way along it: [`Segment::runs_with_as`] for two
+    /// straight edges, [`Track::runs_with_as`] for two curved ones. A
     /// straight edge lies on no curved one's carrier, nor a curved one
     /// on a straight one's line, and an [`EdgeCarrier::Unread`] edge
     /// lies on no other's line, nor another on its.
-    pub(super) fn runs_with(
+    pub(super) fn runs_with_as(
         &self,
         other: &Self,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Option<bool>, NamingError> {
         match (self, other) {
-            (EdgeCarrier::Straight(a), EdgeCarrier::Straight(b)) => a.runs_with(b, predicate, bnd),
-            (EdgeCarrier::Curved(a), EdgeCarrier::Curved(b)) => a.runs_with(b, predicate, bnd),
+            (EdgeCarrier::Straight(a), EdgeCarrier::Straight(b)) => {
+                a.runs_with_as(b, predicate, bnd)
+            }
+            (EdgeCarrier::Curved(a), EdgeCarrier::Curved(b)) => a.runs_with_as(b, predicate, bnd),
             (EdgeCarrier::Unread, _) | (_, EdgeCarrier::Unread) => Ok(None),
             (EdgeCarrier::Straight(_), EdgeCarrier::Curved(_))
             | (EdgeCarrier::Curved(_), EdgeCarrier::Straight(_)) => Ok(None),
@@ -4496,7 +4500,7 @@ impl<T: Decide> Track<T> {
     /// Whether edge `other` lies on this edge's carrier, and if so
     /// whether the two run the same way along it, read off `other`'s
     /// points a quarter, half and three quarters of the way along it:
-    /// it lies on the carrier when all three do ([`Track::offset`]),
+    /// it lies on the carrier when all three do ([`Track::offset_as`]),
     /// and runs this edge's way when, going forward along the carrier
     /// from the first, the second comes before the third. The two
     /// stretches compared differ by a quarter of `other`'s length in
@@ -4509,10 +4513,10 @@ impl<T: Decide> Track<T> {
     ///
     /// # Errors
     ///
-    /// As [`Track::offset`]; [`NamingError::Escalated`] where the band
+    /// As [`Track::offset_as`]; [`NamingError::Escalated`] where the band
     /// cannot decide the two stretches; [`NamingError::WayInZeroBand`]
     /// where it decides them equal.
-    pub(super) fn runs_with(
+    pub(super) fn runs_with_as(
         &self,
         other: &Self,
         predicate: &'static str,
@@ -4524,13 +4528,13 @@ impl<T: Decide> Track<T> {
         let mut at = Vec::with_capacity(3);
         for f in [T::from_f64(0.25), T::from_f64(0.5), T::from_f64(0.75)] {
             let t = other.t0 + other.len * f;
-            match self.offset(other.carrier.eval(t), predicate, bnd)? {
+            match self.offset_as(other.carrier.eval(t), predicate, bnd)? {
                 Some(o) => at.push(o),
                 None => return Ok(None),
             }
         }
         let ahead = self.forward(at[2] - at[0]) - self.forward(at[1] - at[0]);
-        match self.sign(ahead, predicate, bnd)? {
+        match self.sign_as(ahead, predicate, bnd)? {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
             Sign::Zero => Err(NamingError::WayInZeroBand {
@@ -4554,7 +4558,7 @@ fn chord_on_rim<T: Decide>(
     let seg = Segment::of_edge(op_body, rim);
     let (c0, c1) = edge_ends(body, chord);
     for v in [c0, c1] {
-        if seg.place(vertex_point(body, v), CHORD_ON_RIM, bnd)? == OnSegment::Off {
+        if seg.place_as(vertex_point(body, v), CHORD_ON_RIM, bnd)? == OnSegment::Off {
             return Ok(false);
         }
     }
@@ -4565,7 +4569,7 @@ fn chord_on_rim<T: Decide>(
 /// `op_body`, read along their common carrier: a straight chord within
 /// a straight rim when both its ends lie on the rim's segment
 /// ([`chord_on_rim`]); a curved one within a curved rim when it lies
-/// within the rim along the chord's carrier ([`Track::cover`]), the
+/// within the rim along the chord's carrier ([`Track::cover_as`]), the
 /// reading a pair boolean's joined edge takes on a curved carrier
 /// (`names/README.md`, "Flush edges"). A straight chord lies within no
 /// curved rim, nor a curved chord within a straight one.
@@ -4579,7 +4583,7 @@ fn chord_within<T: Decide>(
     match (is_straight(body, chord), is_straight(op_body, rim)) {
         (true, true) => chord_on_rim(body, chord, op_body, rim, bnd),
         (false, false) => Ok(!Track::of_edge(body, chord)?
-            .cover([(rim, carrier_arc(op_body, rim))], CHORD_ON_RIM, bnd)?
+            .cover_as([(rim, carrier_arc(op_body, rim))], CHORD_ON_RIM, bnd)?
             .within
             .is_empty()),
         _ => Ok(false),
@@ -4888,7 +4892,7 @@ pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
 /// through `predicate`: on its closed [`Segment`] where it is straight,
 /// and within its span along its certified carrier where it is curved
 /// ([`Track`]), never by a curved edge's chord.
-pub(super) fn edge_holds<T: Decide>(
+pub(super) fn edge_holds_as<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     p: Point3<T>,
@@ -4896,9 +4900,9 @@ pub(super) fn edge_holds<T: Decide>(
     bnd: geom_core::Band,
 ) -> Result<bool, NamingError> {
     if is_straight(body, e) {
-        Ok(Segment::of_edge(body, e).place(p, predicate, bnd)? != OnSegment::Off)
+        Ok(Segment::of_edge(body, e).place_as(p, predicate, bnd)? != OnSegment::Off)
     } else {
-        Track::of_edge(body, e)?.holds(p, predicate, bnd)
+        Track::of_edge(body, e)?.holds_as(p, predicate, bnd)
     }
 }
 
@@ -4932,8 +4936,8 @@ pub(super) fn joined_candidates<'b, T: Decide + 'b, S: Copy + Ord>(
 }
 
 /// **How joined edge `e` lies along `candidates`**: along its line
-/// ([`Segment::cover`]) where it is straight, along its certified
-/// carrier ([`Track::cover`]) where it is curved, through
+/// ([`Segment::cover_as`]) where it is straight, along its certified
+/// carrier ([`Track::cover_as`]) where it is curved, through
 /// [`ON_MEMBER_EDGE`].
 pub(super) fn joined_along<T: Decide, K>(
     body: &Body<T>,
@@ -4942,18 +4946,18 @@ pub(super) fn joined_along<T: Decide, K>(
     bnd: geom_core::Band,
 ) -> Result<Cover<K>, NamingError> {
     if is_straight(body, e) {
-        Segment::of_edge(body, e).cover(
+        Segment::of_edge(body, e).cover_as(
             candidates.into_iter().map(|(k, arc)| (k, arc.p0, arc.p1)),
             ON_MEMBER_EDGE,
             bnd,
         )
     } else {
-        Track::of_edge(body, e)?.cover(candidates, ON_MEMBER_EDGE, bnd)
+        Track::of_edge(body, e)?.cover_as(candidates, ON_MEMBER_EDGE, bnd)
     }
 }
 
 /// The edges of `set`, each with its source's body, that hold point
-/// `p` ([`edge_holds`] through [`ON_MEMBER_EDGE`]), in `set`'s order: a
+/// `p` ([`edge_holds_as`] through [`ON_MEMBER_EDGE`]), in `set`'s order: a
 /// vertex of a joined edge cites the edges of its set it lies on, never
 /// the whole set (N2).
 pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
@@ -4963,7 +4967,7 @@ pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
 ) -> Result<Vec<K>, NamingError> {
     let mut held = Vec::new();
     for (k, body, e) in set {
-        if edge_holds(body, e, p, ON_MEMBER_EDGE, bnd)? {
+        if edge_holds_as(body, e, p, ON_MEMBER_EDGE, bnd)? {
             held.push(k);
         }
     }
@@ -5898,7 +5902,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let mut body = built.body.clone();
+        let mut body = built.body.clone().into_body();
         let e0 = body.edges().next().map(|(k, _)| k).unwrap();
         let e1 = body
             .split_edge(e0, 0.25, Tol::witness())
@@ -5980,7 +5984,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let mut body = built.body.clone();
+        let mut body = built.body.clone().into_body();
         let e0 = body.edges().next().map(|(k, _)| k).unwrap();
         let e1 = body
             .split_edge(e0, 0.25, Tol::witness())
@@ -7146,11 +7150,7 @@ mod wavy_loft {
         // A face is read in the loft, the first member, and the B face
         // in the box.
         assert!(
-            matches!(
-                body.get_face(*face)
-                    .and_then(|f| body.get_surface(f.surface)),
-                Some(geom::Surface::Nurbs(_))
-            ),
+            matches!(body.face_surface(*face), Some(geom::Surface::Nurbs(_))),
             "the refusal names a spline wall of the loft"
         );
         let block = ev
@@ -7161,10 +7161,7 @@ mod wavy_loft {
             .expect("the placed box");
         // Where the placed box stands: its body is its source's, in its
         // own coordinates, under its frame (D10 `[placement.frame]`).
-        let plane = block
-            .body()
-            .get_face(*pierced)
-            .and_then(|f| block.body().get_surface(f.surface));
+        let plane = block.body().face_surface(*pierced);
         assert!(
             matches!(
                 plane,
@@ -7394,7 +7391,7 @@ mod edge_pieces_of_one_line_tie {
 
 #[cfg(test)]
 mod track_cover {
-    //! **The flush rule along a curved carrier** ([`Track::cover`]).
+    //! **The flush rule along a curved carrier** ([`Track::cover_as`]).
     //! A closed edge's vertex is conventional and has no identity of
     //! its own (`docs/DESIGN.md`, maximal edges), so the same circle
     //! with its vertex anywhere, its candidates in either order, reads
@@ -7470,7 +7467,7 @@ mod track_cover {
             mut within,
             mut along,
             covered,
-        } = t.cover(arcs, ON_MEMBER_EDGE, band).unwrap();
+        } = t.cover_as(arcs, ON_MEMBER_EDGE, band).unwrap();
         within.sort_unstable();
         along.sort_unstable();
         (within, along, covered)
@@ -8494,7 +8491,8 @@ mod rim_holding_rows {
         let line = |(b, e): (Body<f64>, EdgeKey)| EdgeCarrier::of_edge(&b, e).unwrap();
         let base = line(chord_arc(0.0, 90.0));
         let runs = |other: (Body<f64>, EdgeKey)| {
-            base.runs_with(&line(other), ON_MEMBER_EDGE, bnd).unwrap()
+            base.runs_with_as(&line(other), ON_MEMBER_EDGE, bnd)
+                .unwrap()
         };
         let clockwise = circle_of([0.0, 0.0], 1.0, -Vec3::unit_z());
         assert_eq!(
@@ -8561,7 +8559,7 @@ mod rim_holding_rows {
         let base = line(chord_arc(0.0, 90.0));
         let t = 30.0 * DEG;
         let short = line(arc_on(&circle(), t, t + 2.0 * bnd.escalate()));
-        let way = base.runs_with(&short, ON_MEMBER_EDGE, bnd);
+        let way = base.runs_with_as(&short, ON_MEMBER_EDGE, bnd);
         assert!(
             matches!(way, Err(NamingError::Escalated { .. })),
             "an arc two escalate bands long escalates its way, got {way:?}"
@@ -8586,7 +8584,7 @@ mod rim_holding_rows {
         let base = line(chord_arc(0.0, 90.0));
         let t = 30.0 * DEG;
         let short = line(arc_on(&circle(), t, t + 2.0 * bnd.escalate()));
-        let way = base.runs_with(&short, ON_MEMBER_EDGE, bnd);
+        let way = base.runs_with_as(&short, ON_MEMBER_EDGE, bnd);
         assert!(
             matches!(
                 way,
@@ -8625,7 +8623,7 @@ mod rim_holding_rows {
             Point3::new(0.5, 0.9 * zero, 0.0),
             Point3::new(0.5, -0.9 * zero, 0.0),
         ));
-        let way = base.runs_with(&across, ON_MEMBER_EDGE, bnd);
+        let way = base.runs_with_as(&across, ON_MEMBER_EDGE, bnd);
         assert!(
             matches!(
                 way,
@@ -8672,7 +8670,9 @@ mod rim_holding_rows {
             "every spline edge reads as Unread"
         );
         assert_eq!(
-            lines[0].runs_with(&lines[0], ON_MEMBER_EDGE, bnd).unwrap(),
+            lines[0]
+                .runs_with_as(&lines[0], ON_MEMBER_EDGE, bnd)
+                .unwrap(),
             None,
             "a spline edge runs with nothing, itself included"
         );

@@ -264,6 +264,13 @@ pub enum Unexaminable {
         /// print.
         at: StructureRead,
     },
+    /// The loop is a lone vertex: no edge, so no coordinate to compare.
+    /// Tier 1 admits it; tier 2 refuses it at rest
+    /// ([`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)).
+    LoneLoop {
+        /// The loop.
+        r#loop: LoopKey,
+    },
     /// An edge of the loop carries construction scaffolding rather
     /// than a certified curve, so it states no coordinate to compare.
     NullScaffoldEdge {
@@ -291,8 +298,6 @@ pub enum Unexaminable {
 pub enum StructureRead {
     /// The loop key does not resolve.
     Loop,
-    /// The loop carries no cycle — construction scaffolding at rest.
-    EmptyLoop,
     /// The half-edge cycle from the loop's first half-edge is broken.
     Cycle,
     /// A half-edge key in the cycle does not resolve.
@@ -407,8 +412,9 @@ fn traversals(body: &Body<f64>, chart: &Chart, lk: LoopKey) -> Result<Vec<Trav>,
             .copied()
     };
     let lp = body.get_loop(lk).ok_or(corrupt(StructureRead::Loop))?;
-    let LoopBoundary::Cycle { first } = lp.boundary else {
-        return Err(corrupt(StructureRead::EmptyLoop));
+    let first = match lp.boundary {
+        LoopBoundary::Cycle { first } => first,
+        LoopBoundary::Empty { vertex: _ } => return Err(Unexaminable::LoneLoop { r#loop: lk }),
     };
     let cycle: Vec<HalfEdgeKey> = body
         .loop_cycle(first)
@@ -541,7 +547,7 @@ fn loop_findings(
             let o = &travs[opens[k]];
             match (&o.kind, &t.kind) {
                 (TravKind::Rim { v_raw: opened }, TravKind::Rim { v_raw: own }) => {
-                    let gap = if chart.v_periodic() {
+                    let gap = if chart.v_domain_wraps() {
                         wrapped(*own, *opened)
                     } else {
                         (own - opened).abs()

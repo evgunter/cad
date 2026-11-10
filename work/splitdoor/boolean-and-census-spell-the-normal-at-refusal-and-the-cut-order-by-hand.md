@@ -16,7 +16,11 @@ of that PR's scope by the orchestrator's ruling.
   `crate::face_normal::face_outward_normal_at`'s refusal mapped to a
   caller's error (`Escalated` → an escalation, the rest → a typed
   no-normal), `boolean/slit.rs::walls_inside`'s `normal_at` among them.
-  One door per error family would keep them from drifting.
+  One door per error family would keep them from drifting. Which ending
+  an abort takes (a kernel fault, row 4, or an invalid input, row 1(a))
+  is scheduled on its own row,
+  `work/onecopy/a-normals-abort-is-labelled-the-kernels-without-its-kind.md`,
+  whose method such a door would read.
 - **Cut orders by hand.** `census.rs`'s `order_cuts` serves pass 4's
   straight cuts and the curved arm; `along` (`pm_census_arc_cut_order`,
   a metered step along an arc) and any other insertion sort read through

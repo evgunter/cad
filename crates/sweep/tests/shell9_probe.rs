@@ -149,8 +149,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
             continue;
         }
         circles += 1;
-        let start_v = reverted.get_half_edge(e.he_plus).unwrap().start;
-        let end_v = reverted.half_edge_end(e.he_plus).unwrap();
+        let (start_v, end_v) = reverted.edge_vertices(ek).unwrap();
         let spec_with = |image: Option<geom_brep::Pcurve<f64>>| geom_brep::EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Chart {
                 surface: c.surface,

@@ -1400,10 +1400,6 @@ BOUND_AS = {
     "ProfilePieces": "Doc.pieces",
     "ProductReadFault": "EditError.inner_variant",
     "Pick": "PickRead",
-    # What a `PieceInvalid` refusal lists, one per failing source body;
-    # the arm crosses as its tag word, its first failing piece as
-    # `node`, and every piece, output and finding in its message.
-    "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
@@ -1444,10 +1440,6 @@ BOUND_AS = {
     "SettleVerdict": "MassMeasurement.verdict",
     # A sign's verdict: `"outer"` or `"void"`, the same words.
     "ShellRole": "MassMeasurement.verdict",
-    # The imported body held with the import gate's certificate of it:
-    # Python's report hands out the body and measures through the pair,
-    # and never holds the pair apart from the report.
-    "CertifiedBody": ("ImportReport.body", "ImportReport.measure"),
     # `MassMeasurement::met`'s refusal: Python raises `ValidationError`
     # with `measure_refusal == "unmet"` and the `stop`.
     "Unmet": "MassMeasurement.met",
@@ -2700,6 +2692,8 @@ NOT_BOUND = {
     "Breach": INTERIOR,
     # The boolean doors' operand type: the evaluator finishes each
     # operand at the boolean seat, so Python hands it no body to finish.
+    # The import report holds the imported one and measures through it
+    # (`ImportReport.measure`), never handing it out apart from the report.
     "AtRestBody": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanResult": INTERIOR,
@@ -2783,13 +2777,23 @@ NOT_BOUND = {
     # (the `path` door is one of the six it names), and not a missing
     # binding for these five types. `ArcCheck` is the sixth, on the
     # same footing: `InconsistentArc`'s payload, crossing as the word
-    # `inconsistent_arc` with its check left behind.
+    # `inconsistent_arc` with its check left behind. `Gate`,
+    # `EscalatedAt` and `ArcRead` are the same footing: the escalation
+    # arms' gate and site, and the read-back arms' read, crossing as
+    # the arm's word with the field left behind.
     "ArcCheck": INTERIOR,
+    "ArcRead": INTERIOR,
     "ContactKind": INTERIOR,
+    "EscalatedAt": INTERIOR,
     "EscalationSite": INTERIOR,
+    "Gate": INTERIOR,
     "FilletLeg": INTERIOR,
     "FilletLegCarrier": INTERIOR,
     "SegmentRef": INTERIOR,
+    # `PathNoCornerReason::TurnWithinTolerance`'s lever: the reason
+    # itself crosses nowhere (`no_corner_for_fillet` is the whole
+    # word), so its lever kind does not either.
+    "TurnLever": INTERIOR,
     "ContentBits": INTERIOR,
     # `BlendError::ConvexitySignFlip`'s payload and
     # `UnsupportedCorner`'s, the other two of the blend four.
@@ -2917,6 +2921,14 @@ NOT_BOUND = {
     # the composing door export and the viewer's picture call, which
     # Python reaches through `export_step`.
     "Framed": INTERIOR,
+    # What a body value holds, a finished body or the box scalars' sweep
+    # leaf (the switch at `topo::AtRestPolicy::leaf`): Python reads it as
+    # the `Body` it derefs to, never as the enum.
+    "Held": INTERIOR,
+    # A body read into a frame (`Framed::read_in`, the read-out
+    # `body_in_space`): a value's own `Held`, or its body mapped as
+    # construction state. Python reads it as the `Body` it derefs to.
+    "ReadIn": INTERIOR,
     "in_space": INTERIOR,
     "Composing": INTERIOR,
     # What an evaluation built, counted (debug builds only): a row's
@@ -3484,6 +3496,19 @@ NOT_BOUND = {
     # would add a name to import for no question it answers, which is
     # `Point2`'s argument at the top of this roster.
     "OffsetInterval": SHAPE,
+    # A dual's build-of-record door (DUAL-DESIGN DL3) and its plumbing:
+    # `evaluate_recorded` answers only at a dual, the two marker traits
+    # say which scalar takes which door, and `RecordMispairing` is the
+    # payload of a refusal only that door raises. Python evaluates at
+    # `f64` alone, which is its own record, so none of the four is a
+    # door a caller can reach; the refusal's class still crosses as its
+    # tag (`record_mispaired`), with its sentence, should one ever
+    # arrive. The same day as the certified half above: a Python surface
+    # that evaluates at a dual owes each a spelling.
+    "evaluate_recorded": SHAPE,
+    "BoundToRecord": SHAPE,
+    "OwnRecord": SHAPE,
+    "RecordMispairing": SHAPE,
 }
 
 
@@ -3558,7 +3583,6 @@ MEMBERS_BOUND_AS = {
     "AtRestEvidence::Malformed": "AtRestEvidence.variant",
     "AtRestEvidence::InsideArrival": "AtRestEvidence.variant",
     "AtRestEvidence::NotGathered": "AtRestEvidence.variant",
-    "AtRestEvidence::NotRun": "AtRestEvidence.variant",
     # A part's own census findings, carried: a route is three facts and
     # Python reads all three without holding the type, and the
     # finding's nodes are said from the part's (`str(row.finding)`), a
@@ -3783,6 +3807,7 @@ MEMBERS_BOUND_AS = {
     "ParseError::Dimension": "ParseError.variant",
     "PathError::JunctionTangent": "PathError.variant",
     "PathError::JunctionCusp": "PathError.variant",
+    "PathError::CuspDoublesBackOverLeg": "PathError.variant",
     "PathError::SeamTangent": "PathError.variant",
     "PathError::SeamArrivalOffDirection": "PathError.variant",
     "PathError::SeamArrivalLeverTooShort": "PathError.variant",
@@ -3835,7 +3860,6 @@ MEMBERS_BOUND_AS = {
     "ProductError::StrandedProduct": "ProductError.variant",
     "ProductError::ProductOutsideWorld": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::PieceInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ProductError::Frame": "ProductError.variant",
@@ -3941,6 +3965,7 @@ MEMBERS_BOUND_AS = {
     # the FINDING rather than the exception: `len(findings) ==
     # failure_count`, one `variant` each (`crates/pncad-py/src/
     # validation.rs`).
+    "ValidationError::OutsideSessionBox": "ValidationFinding.variant",
     "ValidationError::Band": "ValidationFinding.variant",
     "ValidationError::DanglingDescription": "ValidationFinding.variant",
     "ValidationError::UncertifiableSurface": "ValidationFinding.variant",
@@ -4017,6 +4042,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SameSideInterference": "ValidationFinding.variant",
     "ValidationError::TouchInterference": "ValidationFinding.variant",
     "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
+    "ValidationError::MaterialOnBothSides": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",
     "ValidationError::NextPrevMismatch": "ValidationFinding.variant",

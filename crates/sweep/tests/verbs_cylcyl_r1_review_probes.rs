@@ -35,6 +35,7 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
@@ -312,12 +313,7 @@ fn off_carrier_points_are_out_at_every_probed_radius() {
     let body = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     assert_eq!(walls.len(), 2);
@@ -360,9 +356,9 @@ fn a_steeply_tilted_cut_wall_is_read_by_its_outline() {
     };
     let walls: Vec<topo::FaceKey> = below
         .faces()
-        .filter(|(_, f)| {
+        .filter(|(fk, _)| {
             matches!(
-                below.get_surface(f.surface),
+                below.face_surface(*fk),
                 Some(geom::Surface::Cylinder { .. })
             )
         })
@@ -408,6 +404,7 @@ fn revolved_cyl(r: f64, h: f64) -> Body<f64> {
     sweep::revolve(&vp, axis, sweep::Revolution::Full, tol)
         .unwrap()
         .body
+        .into_body()
 }
 
 /// The gate catches a crossing pose built from REVOLVE-minted
@@ -453,12 +450,7 @@ fn a_revolved_walls_two_half_turns_place_an_on_wall_point_in_one() {
     let body = revolved_cyl(1.0, 2.0);
     let walls: Vec<topo::FaceKey> = body
         .faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. })))
         .map(|(k, _)| k)
         .collect();
     let q = Point3::new(2.0_f64.cos(), 1.0, -(2.0_f64.sin()));
@@ -511,7 +503,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     // the corpus `rounded_plate` above carries.
     let pocket = finished(
         "the pocket",
-        brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        brick::<f64>((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
         tol,
     );
 
@@ -521,9 +513,9 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     // The corner round at (5, 5), by geometry rather than by key.
     let corner = plate
         .faces()
-        .find(|(_, f)| {
+        .find(|(fk, _)| {
             matches!(
-                plate.get_surface(f.surface),
+                plate.face_surface(*fk),
                 Some(geom::Surface::Cylinder { origin: o, radius, .. })
                     if (*radius - 6.0).abs() < 1e-9
                         && (o.x - 6.0).abs() < 1e-9
@@ -614,6 +606,7 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// The D5 trap stays closed through the PUBLIC boolean door: the

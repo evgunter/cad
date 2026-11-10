@@ -1,4 +1,4 @@
-//! **The split at each interior C⁰ knot** (`docs/DESIGN.md` [topology]:
+//! **The split at each interior C⁰ knot** (`docs/DESIGN.md` `[topology]`:
 //! every face chart and edge carrier is C¹ by its knot structure
 //! strictly inside its cell, and import splits at its door).
 //!
@@ -546,7 +546,7 @@ fn clear_of(
     // The region's knot cells: an enclosure is tightest inside one.
     let breaks = |kv: &Knots<f64>, (a, b): (f64, f64)| -> Vec<f64> {
         let mut out = vec![a];
-        out.extend(kv.runs().map(|(k, _)| k).filter(|&k| a < k && k < b));
+        out.extend(kv.breakpoints().filter(|&k| a < k && k < b));
         out.push(b);
         out
     };
@@ -588,7 +588,7 @@ fn clear_of(
             worst(corners.map(|c| segment_reach(c, ends))) + bent <= eps_in
         });
         across || {
-            let mid = |c: &Interval| 0.5 * (c.lo() + c.hi());
+            let mid = |c: &Interval| geom::mid_param(c.lo(), c.hi());
             let centre = Point3::new(mid(&bx[0]), mid(&bx[1]), mid(&bx[2]));
             let Ok(foot) = s.project(centre) else {
                 return false;
@@ -654,7 +654,11 @@ fn iso_row(s: &NurbsSurface<f64>, knot: f64, along_v: bool) -> Option<Vec<Point3
 /// length.
 fn segment_reach(p: Point3<f64>, (a, b): (Point3<f64>, Point3<f64>)) -> f64 {
     let chord = b - a;
-    let t = ((p - a).dot(chord) / chord.dot(chord)).clamp(0.0, 1.0);
+    let t = geom::Line {
+        origin: a,
+        dir: chord,
+    }
+    .param_within(p, (0.0, 1.0));
     if !t.is_finite() {
         return f64::NAN;
     }
@@ -723,7 +727,7 @@ fn parts(
     }
     let mut finer = Vec::with_capacity(4 * hit.len());
     for c in &hit {
-        let (um, vm) = (0.5 * (c.u.0 + c.u.1), 0.5 * (c.v.0 + c.v.1));
+        let (um, vm) = (geom::mid_param(c.u.0, c.u.1), geom::mid_param(c.v.0, c.v.1));
         for u in [(c.u.0, um), (um, c.u.1)] {
             for v in [(c.v.0, vm), (vm, c.v.1)] {
                 let Some(q) = cell(u, v) else {
@@ -733,7 +737,7 @@ fn parts(
             }
         }
     }
-    let m = 0.5 * (a + b);
+    let m = geom::mid_param(a, b);
     parts(piece, near, (a, m), finer.clone(), pad, cell)
         && parts(piece, near, (m, b), finer, pad, cell)
 }

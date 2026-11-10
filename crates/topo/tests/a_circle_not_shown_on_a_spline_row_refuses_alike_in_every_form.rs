@@ -5,9 +5,9 @@
 //! chart's incidence read (`geom_brep::read_edge_incidence`, the control
 //! hulls' lower bound). A circle the pick does not show, or whose row the
 //! certificate refuses or reads in band, ends as that read: shown off the
-//! wall, `CarrierOffChart`; in band of it, `Escalated`
-//! (`PcurveCheck::ChartIncidence`); not shown off, it takes the general
-//! lane, which a circle on a spline chart does not have (the mint's
+//! wall, its incidence read decided off (`IncidenceRead::Off`); in
+//! band of it, undecided (`IncidenceRead::Undecided`); not shown off, it
+//! takes the general lane, which a circle on a spline chart does not have (the mint's
 //! `General` producer is degree 1, so a circle's image refuses at its
 //! map wherever its foot path bends), and refuses `NoGeneralLane`, "not
 //! yet". Each is the same whatever form its description takes.
@@ -214,16 +214,15 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
             T::NAME
         );
         // Bent past the band: the wall is off the rim, and the circle
-        // ends as the incidence read.
+        // ends as the incidence read, decided off. The rim and the wall
+        // are a circle and a spline: the "not yet" row below names them.
         let off = derived::<T>((OFF_PUSH, 0.0), form);
         assert!(
             matches!(
-                refused(&off),
-                Some(PcurveCertifyError::CarrierOffChart {
-                    chart: geom::SurfaceKind::Nurbs,
-                    carrier: geom::CurveKind::Circle,
-                    ..
-                })
+                refused(&off)
+                    .as_ref()
+                    .and_then(geom_brep::IncidenceRead::of),
+                Some(geom_brep::IncidenceRead::Off(_))
             ),
             "{form:?}: a rim the wall is bent off ends off the chart, at {}: {off:?}",
             T::NAME
@@ -246,11 +245,10 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
         let near = derived::<T>((in_band_push, 0.0), form);
         assert!(
             matches!(
-                refused(&near),
-                Some(PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartIncidence,
-                    ..
-                })
+                refused(&near)
+                    .as_ref()
+                    .and_then(geom_brep::IncidenceRead::of),
+                Some(geom_brep::IncidenceRead::Undecided(_))
             ),
             "{form:?}: a rim the wall is bent from in band ends in band, at {}: {near:?}",
             T::NAME
@@ -258,14 +256,15 @@ fn rim_image_on_the_ring<T: AtRestPolicy + geom_core::Bounds>() {
         // On the lowered ring the rim is on the wall and no row holds it:
         // "not yet".
         let middle = derived::<T>((0.0, -0.5), form);
-        assert_eq!(
-            refused(&middle),
-            Some(PcurveCertifyError::NoGeneralLane {
-                chart: geom::SurfaceKind::Nurbs,
-                carrier: geom::CurveKind::Circle,
-                gap: geom_brep::LaneGap::Unwritten,
-            }),
-            "{form:?}: a rim on the wall that no row holds refuses \"not yet\", at {}",
+        let middle = refused(&middle);
+        assert!(
+            middle
+                .as_ref()
+                .and_then(PcurveCertifyError::chart_carrier_kinds)
+                == Some((geom::SurfaceKind::Nurbs, geom::CurveKind::Circle))
+                && middle.as_ref().and_then(PcurveCertifyError::refused_check)
+                    == Some(geom_brep::PcurveCheck::ChartClass),
+            "{form:?}: a rim on the wall that no row holds refuses \"not yet\", at {}: {middle:?}",
             T::NAME
         );
     }

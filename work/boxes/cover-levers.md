@@ -2,11 +2,11 @@
 id: cover-levers
 kind: unit
 title: The levers read the cover: the split and join reaches, the carrier doors, the tangent witness span, the containment selection reach and side reader, and geom_brep::Reach built from cover queries
-status: parked
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: H
-blocked_on: [cover-topo-faces]
+branch: boxes/cover-levers
 ---
 
 
@@ -43,3 +43,7 @@ Coordinate with their owners in the PR.
 ONEHOME's PR 6391 (`onehome/one-extent`, merged 2026-11-02T23:05Z) made `geom_brep::Reach` the one consumed-extent type, as `crates/geom-core/README.md` "Float rounding" ratifies. That is the type this unit builds from cover queries.
 
 It also gave `ExtentBall` per-kind region constructors: `of_sphere`, `of_circle`, `of_conic`, `of_control_net(_from)` and `of_spiric_oval`. It re-added `of_torus`, which PR 6383 had retired onto `of_cover`. Each is a second reading of a region beside the cover (`[one-way.places]`, "The region a carrier, an edge or a face can occupy"). This unit folds them into `ExtentBall::of_cover` of the consumed entity's cover, keeping the geometric-source discipline PR 6391's `Lever` and `lever-sources.sh` gate enforce. Coordinate with ONEHOME in the PR: the lever-sources gate's home list may need `geom/src/cover*`.
+
+## Added 2026-11-08 (PR 6579 review)
+
+- `splitting::rules::cone_axial_window` keeps its own boundary fold for a cone face's axial range and reads null scaffolding as its chord, which `EdgeUncovered::Scaffold` says "is not a bound". It reads the face cover's `range_along`. (BOXES orchestrator)

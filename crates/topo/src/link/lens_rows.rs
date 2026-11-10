@@ -175,7 +175,7 @@ fn read<T: Decide>(p: Point3<T>, pieces: Vec<TangentPiece<T>>) -> TouchVerdict {
 /// is read the other way round, the region round it is not read, a pair
 /// facing one way is taken for a lens, or a sheet crossing it is passed.
 fn a_lens_is_the_void_or_the_sliver_its_sheets_bend_to<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     for (at, p) in apexes::<T>().into_iter().enumerate() {
         let k = edges(4);
         let pair = |i: usize| [k[i], k[i + 1]];
@@ -295,7 +295,7 @@ fn a_lens_is_the_void_or_the_sliver_its_sheets_bend_to_interval() {
 /// for a side, sheets merely on each other are refused as planes on
 /// each other, or the lean is not charged.
 fn a_lens_the_bends_do_not_decide_is_not_read<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     let zero = band().zero();
     for p in apexes::<T>() {
         let k = edges(4);
@@ -665,7 +665,7 @@ fn thorn<T: Decide>(
 /// where the remainder leaves out its horns, reads their region as
 /// material, or a horn on the wedge is passed.
 fn a_lens_beside_a_thorn_is_read_against_its_region<T: Decide>() {
-    let unread = TouchVerdict::Unread(TouchUnread::Unreadable);
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
     for p in apexes::<T>() {
         let k = edges(5);
         let with = |sheets| {
