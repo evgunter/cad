@@ -7954,6 +7954,8 @@ fn run_fitted_checks<T: Decide>(
 struct ArcRimWeight<T> {
     /// The sub-arc angle `h`.
     h: T,
+    /// `sin(h/2)`, which [`arc_rim_weight_miss`] reads.
+    sin_half: T,
     /// `cos(h/2)`, the rational-quadratic arc's interior weight.
     cos_half: T,
     /// The chart column's held interior weight `w` (its second, the
@@ -8023,16 +8025,58 @@ fn arc_rim_weight<T: SpanLocate>(
 ) -> ArcRimWeight<T> {
     #[allow(clippy::cast_precision_loss)]
     let h = angle / T::from_f64(spans as f64);
-    let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
+    let (sin_half, cos_half) = (h * T::from_f64(0.5)).sin_cos();
     let margin = match arc_rim_ratio(column) {
         Some(w) => w - cos_half,
         None => T::from_f64(f64::NAN),
     };
     ArcRimWeight {
         h,
+        sin_half,
         cos_half,
         margin,
     }
+}
+
+/// **The miss a sub-arc's weight error costs**: a sup bound on
+/// `|Ĉ_w(s) − Ĉ_c(s)|` over the sub-arc, where `Ĉ_w` is the sub-arc of
+/// radius `R` and half-angle `α = h/2` built at normalized interior
+/// weight `w` and `Ĉ_c` the circle's own, `c = cos α`, both read at one
+/// parameter `s`. That is the arc-rim certificate's third term: the map
+/// places `C(t)` at `Ĉ_c(g(t))`, while the chart's column is `Ĉ_w`. A
+/// Möbius change of parameter that depends on the end weights alone
+/// moves both curves alike, so the bound holds at any held end weights.
+///
+/// Both curves lie on the segment from `Q(s)`, the end points' weighted
+/// mean, to the tangent point `P₁`, at fractions `bw/(a + bw)` and
+/// `bc/(a + bc)` (`a = (1−s)² + s²`, `b = 2s(1−s)`). With `v = (2s−1)²`
+/// the miss is exactly
+///
+/// ```text
+/// R·|w − c|·sin α·(1 − v)·√(tan²α·(1 + v)² + 4v)
+///   / (((1 + w) + v(1 − w))·((1 + c) + v(1 − c)))
+/// ```
+///
+/// radial at the middle (`v = 0`, `R·|w − c|·(1 − c²)/(c(1 + w)(1 + c))`)
+/// and mostly tangential off it on a short sub-arc. Over `v ∈ [0, 1]`,
+/// `(1 − v)²(1 + v)² ≤ 1`, `v(1 − v)² ≤ 4/27` and each factor below is at
+/// least `1 + min(x, 1)` for a positive weight `x`, so
+///
+/// ```text
+/// miss ≤ R·|w − c|·sin α·√(tan²α + 16/27) / ((1 + min(w, 1))·(1 + min(c, 1)))
+/// ```
+///
+/// within 13% of the sup at every `α` (`scripts/oracles/iso_arc_weight_miss_mpmath.py`).
+/// It grows as `1/c`: under the radius alone up to a sub-arc of about
+/// 129°, over it past that. A sub-arc of a half turn or
+/// more, `c ≤ 0`, has no positive-weight arc to compare, and costs
+/// an unbounded miss.
+fn arc_rim_weight_miss<T: Real>(radius: T, sin_half: T, cos_half: T, w: T) -> T {
+    let one = T::one();
+    let lever = sin_half
+        * (sin_half * sin_half + T::from_f64(16.0 / 27.0) * cos_half * cos_half).sqrt()
+        / (cos_half * (one + w.min(one)) * (one + cos_half.min(one)));
+    radius * (w - cos_half).abs() * cos_half.select_le_zero(T::from_f64(f64::INFINITY), lever)
 }
 
 /// **The turn a chart column's arc weight states**: `m` sub-arcs of
@@ -8079,7 +8123,7 @@ pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
 /// sup |S(P(t)) − C(t)|
 ///   ≤ |S(g, v) − B(g)|          (the v-snap slack, exactly `side_of`'s)
 ///   + |B(g)    − Ĉ(g)|          (the RATIONAL control-difference hull)
-///   + |Ĉ(g(t)) − C(t)|          (= 0: the variant's own algebraic identity)
+///   + |Ĉ(g(t)) − C(t)|          (the weight's miss, `arc_rim_weight_miss`)
 /// ```
 ///
 /// `Ĉ` is the carrier circle re-expressed in **B's own spline space**
@@ -8101,7 +8145,9 @@ pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
 /// arc through each sub-arc's Möbius change of parameter, which the
 /// image's map applies, so `Ĉ` keeps its control points and shares
 /// `B`'s weights. That each sub-arc's `w` at unit end weights really is
-/// `cos(h/2)` is the DECIDED margin, metered into metres by the radius.
+/// `cos(h/2)` is the DECIDED margin, metered into metres by the radius;
+/// where it is, the third term is zero by the variant's own identity,
+/// and the margin the band admits is paid as that term's sup bound.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 #[allow(clippy::too_many_lines)] // one class, kept whole like its siblings
 fn run_iso_arc_checks<T: Decide>(
@@ -8353,6 +8399,7 @@ fn run_iso_arc_checks<T: Decide>(
     // --- The decided margins: `w = cos(h/2)`. ---
     let ArcRimWeight {
         h,
+        sin_half,
         cos_half,
         margin,
     } = arc_rim_weight(&b, angle, spans);
@@ -8365,6 +8412,22 @@ fn run_iso_arc_checks<T: Decide>(
             })
             .collect()
     };
+    // Each decided margin is paid into the envelope below at the miss
+    // it costs ([`arc_rim_weight_miss`]): `Ĉ` shares B's weights, so the
+    // hull does not see a weight that is not `cos(h/2)`.
+    let mut slack_weight = T::zero();
+    for &margin in &margins {
+        slack_weight = slack_weight.max(arc_rim_weight_miss(
+            *radius,
+            sin_half,
+            cos_half,
+            cos_half + margin,
+        ));
+    }
+    #[cfg(test)]
+    if mutants::arc_rim_weight_unpaid() {
+        slack_weight = T::zero();
+    }
     for margin in margins {
         match decide(
             "pcurve_iso_boundary",
@@ -8478,7 +8541,7 @@ fn run_iso_arc_checks<T: Decide>(
         (p0.x + pd.x - cu0).abs()
     };
     let slack_affine = slack_start.max(stretch_u.to_meters(far));
-    let envelope = hull + slack_v + slack_affine + slack_knots;
+    let envelope = hull + slack_v + slack_affine + slack_knots + slack_weight;
     envelope_verdict(envelope, band, || PcurveCheck::Envelope)?;
 
     Ok(PcurveCertificate::closed(
@@ -12579,6 +12642,12 @@ mod cylinder_line_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod harmonic_sup_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod iso_arc_weight_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod iso_arc_weight_search;
 mod line_incidence;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
