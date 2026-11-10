@@ -6,10 +6,9 @@ two `#[ignore]` probes in `closed_form_limb2.rs`, one in `a_conical_ended_footba
 
 ## Verdict: APPROVE-WITH-FIXES
 
-The new reading (`Meters::at_height`) is sound, and so is the least-of fold. Every guard
-reaches its gate, and the lunes' oracles are independent. One MINOR is falsified by
-execution: the sheet's `v` window fix is half done. The pcurve placement still names a
-wide apple's `v` in the latitude window. The PR's sweep says that reader does not exist.
+`Meters::at_height` and the least-of fold are sound; every guard reaches its gate; the lune
+oracles are independent. One MINOR, by execution: the `v` window fix is half done (the pcurve
+placement still names a wide apple's `v` in the latitude window, a reader the sweep denies).
 
 ## Findings
 
@@ -107,9 +106,8 @@ The one failure is `a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_
 (a cone). It fails identically at the unmutated head and is outside the diff. It cites
 `work/splitdoor/tier-3-prime-cannot-settle-…`; that is for the orchestrator, not this PR.
 
-Not run under MG: the remaining slow-set rows, which have no sheet and cannot reach the
-mutated arm. A first full run was abandoned because debug spline rows (none on a sheet)
-ran 20+ minutes. MG survives every row, and it is equivalent (proof checked plus numeric slack).
+Not run under MG: the other slow-set rows, which have no sheet and cannot reach the arm (a
+full run was abandoned: debug spline rows ran 20+ min). MG survives; it is equivalent.
 
 ## Style
 Questions exercised: Q1, Q2, Q3, Q4, Q5, Q6, Q7. Q8: partly; I read `projected.rs`'s
@@ -141,16 +139,13 @@ Questions exercised: Q1, Q2, Q3, Q4, Q5, Q6, Q7. Q8: partly; I read `projected.r
   since the floor refuses first (NOTE 1). sure.
 - **Q3:** `limb_2_against_a_horn…` accepts `KernelLimit | Limb`, and only `Limb` is
   reachable at both bands. A disjunction no run exercises. sure.
-- **Q2:** `at_height`'s 14-line doc argues the tangency and the digit-keeping form at
-  length for 20 lines of code; the PR body already carries that argument. unsure.
+- **Q2:** `at_height`'s 14-line doc argues at length for 20 lines of code. unsure.
 - **Q6:** "No `Interval` row reads a horn's cusp `v`" (PR body, Unproven) is disclosed
   without a schedule. unsure.
 
 ## Disclosures
 - I read no other `spiricarm-rev6806-*` branch and no PR comments or reviews. I had no
   glimpses.
-- Two background waits were mine: a cargo run the harness auto-backgrounded, and an
-  until-loop I wrote wrongly. Both finished or were killed (my own PID) before I went on.
-  The MG suite ran `setsid`-detached with its PID recorded and was polled in the
-  foreground. No background work remains.
+- Background: one harness-backgrounded cargo run and one bad until-loop of mine, both
+  finished or killed (my PIDs); the MG suite ran `setsid`-detached and polled. None remains.
 - Probes are on the probes branch; nothing was posted to GitHub.
