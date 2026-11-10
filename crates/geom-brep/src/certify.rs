@@ -3435,7 +3435,10 @@ impl<T: Decide> IntersectionDraft<T> {
     /// and for a draft that drew a chord: no row is stated over one.
     ///
     /// Asked of the geometry alone: the images are what the walls' charts
-    /// state for this carrier, whoever built the edge.
+    /// state for this carrier, whoever built the edge. An image handed in
+    /// [`crate::ChartImage::Certified`] was certified on its wall over the
+    /// edge's own carrier and interval, which a kept draft states, and is
+    /// not certified again ([`side_row_certifies`]).
     ///
     /// Built for boundary rows, which a rim between two walls grafted at a
     /// shared section needs. D2's structural selector covers any row or
@@ -3444,7 +3447,7 @@ impl<T: Decide> IntersectionDraft<T> {
     pub fn shared_row(
         &self,
         pair: SurfacePair,
-        walls: [(SurfaceKey, &Surface<T>, Pcurve<T>); 2],
+        walls: [(SurfaceKey, &Surface<T>, crate::ChartImage<T>); 2],
         band: Band,
     ) -> Option<CurveSelector<T>> {
         if !self.kept {
@@ -3452,13 +3455,17 @@ impl<T: Decide> IntersectionDraft<T> {
         }
         let [(ka, wa, ia), (kb, wb, ib)] = walls;
         let span = (self.param_start, self.param_end);
-        let on_side = |wall: &Surface<T>, image: &Pcurve<T>| {
+        let on_side = |wall: &Surface<T>, image: &crate::ChartImage<T>| {
             side_row_certifies(wall, image, (&self.carrier, span), band)
         };
         if !(on_side(wa, &ia) && on_side(wb, &ib)) {
             return None;
         }
-        let row = crate::description::SharedRow::new(pair, (ka, ia), (kb, ib))?;
+        let row = crate::description::SharedRow::new(
+            pair,
+            (ka, ia.into_pcurve()),
+            (kb, ib.into_pcurve()),
+        )?;
         Some(CurveSelector::Structural(Structural::SharedRow(row)))
     }
 }
@@ -3469,16 +3476,43 @@ impl<T: Decide> IntersectionDraft<T> {
 /// ([`crate::PcurveCache::certify`]). [`IntersectionDraft::shared_row`]
 /// reads each wall by it, and so does the boolean's interior-loop guard
 /// when it hands a rim two spline faces share to their section's reading.
+///
+/// A [`ChartImage::Certified`] image whose certificate is over exactly
+/// `span` (the same scalars, [`geom_core::bit_identity::eq_bits`]) is
+/// one its derivation already certified on this wall over this carrier
+/// at this band, and is not certified again. Over any other interval it
+/// is certified here like an uncertified image: a certificate minted
+/// for another span does not pass by agreeing with the image alone.
+/// The identity only chooses between the two sound paths; a false "no"
+/// costs the certify.
 pub fn side_row_certifies<T: Decide>(
     wall: &Surface<T>,
-    image: &Pcurve<T>,
+    image: &crate::ChartImage<T>,
     (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
     band: Band,
 ) -> bool {
     wall.spline_chart()
-        .is_some_and(|chart| crate::description::on_domain_side(chart, image))
-        && crate::pcurve_cache::PcurveCache::certify(image.clone(), t0, t1, carrier, wall, band)
-            .is_ok()
+        .is_some_and(|chart| crate::description::on_domain_side(chart, image.pcurve()))
+        && match image {
+            crate::ChartImage::Certified(cache) if same_span(cache.params(), (t0, t1)) => true,
+            other => crate::pcurve_cache::PcurveCache::certify(
+                other.pcurve().clone(),
+                t0,
+                t1,
+                carrier,
+                wall,
+                band,
+            )
+            .is_ok(),
+        }
+}
+
+/// Whether two carrier intervals are the same scalars, end for end
+/// ([`geom_core::bit_identity::eq_bits`]): an identity that picks the
+/// certificate over a certify, never a geometric verdict.
+fn same_span<T: Decide>((a0, a1): (T, T), (b0, b1): (T, T)) -> bool {
+    use geom_core::bit_identity::eq_bits;
+    eq_bits(&a0, &b0) == Some(true) && eq_bits(&a1, &b1) == Some(true)
 }
 
 /// An [`IntersectionDraft`]'s `Intersection`, by whose carrier it is
