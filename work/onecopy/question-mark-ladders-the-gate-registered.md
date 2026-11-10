@@ -67,7 +67,7 @@ measured yet.
 | ~~`boolean::sectors::rays_within`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(Any)` over the sectors, an identity | — |
 | ~~`boolean::sectors::crescent` (its callee reads, beside its decide sites)~~ | **ported** (`onecopy/refusal-standing`, QML T2), with its decide sites | — |
 | `boolean::rim_wedge::departures` (its cover reads) | **WHICH** (`onecopy/refusal-standing`, QML T4): the first piece whose covers settle the kind answers, and two pieces can settle different kinds (`EdgeKindUnread`, `Mixed`, `NoEdge`); its `?` stays, and the site and register say so | — |
-| `census::span_clear` | anything meeting answers "not clear" | **blocked** (`onecopy/refusal-standing`, QML T4): its readers push their refusal as they read; `census-span-clear-readers-push-their-refusal-as-they-read` (P3) |
+| ~~`census::span_clear`~~ | **ported** (`onecopy/refusal-standing`, QML T6): `climb(Any)` over the boundary's members, a theorem (anything meeting answers "not clear"); each member's reader reports into a buffer of its own, and only the ranked kept member's report reaches `errors` (`census-span-clear-readers-push-their-refusal-as-they-read`) | — |
 | ~~`chart_region::polygon_relation`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(First)` over the vertices, an input premise (uniform only where the boundaries do not cross), `Alike` once 6592 lands; `ChartRegionError::refusal`, new and exhaustive, is the standing | — |
 | ~~`ray_walk::on_boundary`~~ | **ported** (`onecopy/refusal-standing`, QML T4): `climb(Any)` over the segments, a theorem | — |
 | ~~`replace_face::carried_alike`~~ | **ported** (`onecopy/refusal-standing`, QML T1): `climb(Any)`, any sample past ε answers "not alike" (a theorem) | — |
@@ -121,32 +121,7 @@ A unique-holder read is not the agreeing shape: two holders are a
 contradiction, so the read needs every element, and a `?` in band
 refuses what the uniqueness needs.
 
-## Other agreeing copies (PR 6606's review)
+## Moved out at closing
 
-Loops that read every element and compare the answers, beside the
-three in the table above. Each is a candidate for `ladder::climb_agreeing`;
-read each before porting it. In two of them a disagreement is a valid
-answer of its own, not a fault (`climb_agreeing` leaves that to its
-caller):
-
-- `topo::link::second_order` (≈`link/second_order.rs:151`);
-- `geom_brep::curve_face::composite::one_signed` (≈`composite.rs:462`);
-- `geom_brep::ssi::section` (≈`ssi/section.rs:424`);
-- `topo::boolean::vtxfac` (≈`vtxfac.rs:301`): a disagreement maps to a
-  valid answer;
-- `topo::boolean::rim_wedge` (≈`rim_wedge.rs:500`): a disagreement maps
-  to a valid answer.
-
-
-## The `?` inside a rung (PR 6675's review)
-
-A port moves a loop's reads inside one rung of a `climb`. A `?` that stays inside that rung's reader is registered nowhere afterwards: the register reads `?`s in a search loop, and the rung's reader is a closure the gate does not see as one. This is a second hiding place for the T1 review's F3 class (a sequential `?` outside any loop).
-
-**Today's in-rung `?`s are premises.** Each is needed by the reads after it, so the first refusal is the rung's own refusal, not a kept reading another rung answers past:
-- `boolean::sectors::crescent`'s pair: `parallel_same(..)?`, then `bool_sector_crescent_across`, then `coincident_run(..)?`, each read only where the one before it held;
-- `ring_path::path_parity`'s pair: `misses_in_plane`, `segment_misses` and `spline_crossings`, each read on what the pair's previous reads placed;
-- `shell::walls_cross`: no `?` inside the rung; its pieces are built before the climb from topology only.
-
-**What would not be a premise:** a later conjunct inside a rung that is independent of the earlier ones, so it could answer for the rung on its own. That is a search inside the rung, and it is the F3 shape again.
-
-**A cheap gate shape, proposed and not built:** inside the closure passed to `climb`/`climb_evidence`/`climb_agreeing`, count `?` on a band reading (the register's own matcher, run on the closure's body) and register each closure's count with a disposition (`PREMISE`: each read needs the one before; `SEARCH`: port it). The closure is bounded by the call's argument list, so the existing statement view finds it, and the register file is `escalation-question-marks-callee.counts`'s format with a `rung:` prefix.
+- The agreeing loops PR 6606's review listed: `agreeing-loops-left-beside-climb-agreeing` (P3).
+- The `?` inside a rung, and the `rung:` register proposed for it (PR 6675's review): `a-question-mark-inside-a-rung-is-registered-nowhere` (P3).

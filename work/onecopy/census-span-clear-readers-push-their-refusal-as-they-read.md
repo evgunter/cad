@@ -20,3 +20,11 @@ So a reading in band cannot be kept and superseded by a later member that meets:
 ## Done when
 
 The two readers return their cause (`Result<_, Cause>`) instead of pushing it. `span_clear` then climbs the boundary's members under `Any` and pushes only the ranked refusal where no member answers. Its line leaves `scripts/gates/escalation-question-marks-callee.counts`. The census has other readers of the same push-as-you-read shape: sweep them in the same pass.
+
+## Closed by QML T6 (`onecopy/refusal-standing`)
+
+The readers keep their contract ("`None`: escalated, pushed"), so their other callers are unchanged. `span_clear` hands each boundary member's reader a buffer of its own (`census.rs`, `span_clear` and `reported_rung`):
+- a member meeting `S` answers "not clear" past a member read in band, dropping its buffer;
+- where none meets `S`, the ranked kept member's report is pushed whole. It is ranked by its first escalation, so a poisoned margin is a limit and any other in band.
+
+The register line `census.rs 3` leaves `escalation-question-marks-callee.counts`. This does the work of returning a `Result<_, Cause>`, without changing the 29 callers of the two readers.

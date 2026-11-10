@@ -329,8 +329,8 @@ use std::collections::BTreeSet;
 use crate::live::NAMES_ONLY_LIVE;
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, Span as CarrierSpan, meet};
-use geom_brep::ladder::{Aborts, Answering, Climb, Evidence, Refusal, Rung, climb, climb_evidence};
 use geom_core::k_stats::{Magnitude, decide_reported, straddle};
+use geom_core::ladder::{Aborts, Answering, Climb, Evidence, Refusal, Rung, climb, climb_evidence};
 use geom_core::one_line::on_one_line;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3,
@@ -4182,6 +4182,9 @@ fn span_clear<T: Decide>(
     let Some(face) = body.get_face(f.key) else {
         return Some(false);
     };
+    // The boundary's members, read as points and sides of `S`'s face: a
+    // member whose entities do not resolve does not clear.
+    let mut members = Vec::new();
     for read in body.unchecked_face_boundary(face) {
         let cycle = match read {
             Ok(crate::live::UncheckedLoop::Cycle(cycle)) => cycle,
@@ -4191,9 +4194,7 @@ fn span_clear<T: Decide>(
                 let Some(&p) = geo.vmap.get(&vertex) else {
                     return Some(false);
                 };
-                if on_edge_interior_reading(p, &s, band, errors)?.is_some() {
-                    return Some(false);
-                }
+                members.push(Member::Point(p));
                 continue;
             }
             Err(_) => return Some(false),
@@ -4209,30 +4210,78 @@ fn span_clear<T: Decide>(
             let (Some(&p), Some(&q)) = (geo.vmap.get(&a), geo.vmap.get(&b)) else {
                 return Some(false);
             };
-            if on_edge_interior_reading(p, &s, band, errors)?.is_some() {
-                return Some(false);
-            }
-            if edge_is_line(body, edge) {
+            members.push(Member::Point(p));
+            members.push(if edge_is_line(body, edge) {
                 let mut side = segment((p, q));
                 // The side's ends are the face's stored vertices: their
                 // point keys go with them, as an edge's do.
                 side.points = [a, b].map(|v| geo.vpoint.get(&v).copied());
-                if interiors_meet(&s, &side, band, errors)? {
-                    return Some(false);
-                }
+                Member::Side(side)
             } else {
-                let Ok(bound) = crate::link::clearance(body, he, middle) else {
-                    return Some(false);
-                };
-                let gap = Margin::of(bound - half - reach);
-                let name = "pm_census_ef_pierce_curve_clear";
-                if geom_core::k_stats::decide(name, gap, band) != Ok(Sign::Positive) {
-                    return Some(false);
-                }
-            }
+                Member::Curve(he)
+            });
         }
     }
-    Some(true)
+    // Anything meeting `S` answers "not clear", whatever another member
+    // read ([`climb`], [`Answering::Any`]: a theorem). A member read in
+    // band is kept with what its reader reported, into its own buffer,
+    // so a later member meeting `S` supersedes it; only the ranked kept
+    // member's report reaches `errors`, where no member meets `S`.
+    let met = climb(Answering::Any, members, |member| {
+        let mut report = Vec::new();
+        let read = match member {
+            Member::Point(p) => {
+                on_edge_interior_reading(p, &s, band, &mut report).map(|on| on.is_some())
+            }
+            Member::Side(side) => interiors_meet(&s, &side, band, &mut report),
+            Member::Curve(he) => Some(crate::link::clearance(body, he, middle).map_or(
+                true,
+                |bound| {
+                    let gap = Margin::of(bound - half - reach);
+                    let name = "pm_census_ef_pierce_curve_clear";
+                    geom_core::k_stats::decide(name, gap, band) != Ok(Sign::Positive)
+                },
+            )),
+        };
+        match read {
+            Some(true) => Rung::Answers(()),
+            Some(false) => Rung::Passes,
+            None => reported_rung(report),
+        }
+    });
+    match met {
+        Climb::Answered { .. } => Some(false),
+        Climb::Passed => Some(true),
+        Climb::Undecided(report) => {
+            errors.extend(report);
+            None
+        }
+    }
+}
+
+/// One member of a face's boundary as [`span_clear`] reads it against `S`.
+enum Member<T: Decide> {
+    /// A point of the boundary: a lone vertex, or a side's end.
+    Point(Point3<T>),
+    /// A straight side.
+    Side(EdgeGeo<T>),
+    /// A curved side, cleared by its distance from `S`'s middle.
+    Curve(HalfEdgeKey),
+}
+
+/// A census reader's refused reading as a kept rung, its report carried
+/// whole: ranked by the first escalation it reported ([`Refusal::Margin`]),
+/// so a poisoned margin is a limit and any other in band; a report with
+/// no escalation in it is in band.
+fn reported_rung<A>(report: Vec<ValidationError>) -> Rung<A, Vec<ValidationError>> {
+    let first = report.iter().find_map(|e| match e {
+        ValidationError::CensusEscalated { cause } => Some(*cause),
+        _ => None,
+    });
+    match first {
+        Some(cause) => Refusal::Margin(cause).rung(report),
+        None => Rung::InBand(report),
+    }
 }
 
 /// [`span_clear`]'s reach `g·(1 + σ)`, `g = ℓ·(hi − lo) + 2c + ε`, charged
@@ -9395,7 +9444,7 @@ pub(crate) fn probe_vertices<P: Copy>(
                 Rung::Passes
             }
             Err(_) if exempt(v) => Rung::Passes,
-            Err(e) => geom_brep::ladder::rung_or_abort(
+            Err(e) => geom_core::ladder::rung_or_abort(
                 e.refusal(),
                 Undecided::of_point_in_solid(&e).what(),
                 Err,
