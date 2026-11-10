@@ -2,10 +2,12 @@
 id: main-red-dual-corpus-reshaped-rod-census-disagrees-at-1e-12
 kind: issue
 title: m10_di_dual_corpus at_rest_census_verdicts_match_f64_at_interval is red at ε 1e-12 on main: reshaped_rod's census disagrees between f64 and Interval
-status: open
+status: closed
 opened: 2026-10-28
 priority: P3
 cost: M
+closed: 2026-11-10
+pr: 6687
 ---
 
 
@@ -41,3 +43,12 @@ on `reshaped_rod: the census disagreed across certifying scalars`; it
 goes red the day the row passes. Not bisected here.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured.
+
+## Closed by `onecopy/needle-basin` (PR 6687)
+
+Measured at ε 1e-12, each on its own fresh build:
+- main (`7c1424abbfb`): the pin stops where it says.
+- PR 6687's head (`1179cda7d7c`): the pin's stop no longer occurs, and the row passes.
+- Unpinned (on `onecopy/edge-ends-turns`, which carries PR 6687): every corpus document's census reads alike at f64 and Interval. `reshaped_rod` reads `Some(false)` at both, so the Interval census now looks where it could not. The witness the row needs, a document Interval cannot look at, is still there: `kitchen_sink` and `cut_cylinder` read `Some(true)` at both.
+
+The re-measure the pin owed is that unpinned run: the whole row, every document. Not bisected within PR 6687. Its change to at-rest reading is check 9's arc window, now `curve_pair::Span::place` (the point's foot) rather than `arc_trim`'s chordal defects, so that is the likely cause. The pin is removed.
