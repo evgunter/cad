@@ -187,3 +187,11 @@
   - Should-fix: the in-band `CornerCrossing` arm unpinned (mutant to `escalate` survives); rows and a test still naming the retired `bool_sector_coplanar` (close the honepair vtxfac row, evidence on honeone's three-ways row, the needle-cavity test's dead arm); the slack straddle pairs a nominal reading with a moved one (pair `d−s`, `d+s`); the two defect refusals and the slack/Zero conventions made unrepresentable (`glued_relation` carried by `pair_search`, a non-optional `CornerOn`, vtxfac's `Tie | Bend` entry, `TiedBy::Slack(Hidden)`).
   - Nits: two broken doc links, stale prose (README C4's "steeper" is vtxfac's only), `fan_germ_dir`'s literal `false`, `resolve_edge_sector`'s `idx == f_s`, `same_door` parsing `Debug` text, the slow-set move undisclosed.
   - Main's offer-row red confirmed main's; filed `work/green/main-red-two-offer-rows-quote-a-positive-margin-against-a-negative-case.md` (P2). Fix pass sent to the same implementer.
+- 2026-11-10 — **PR 6693 fix pass in** (head `9aedca00ce`, CI `gate ok`). All items done.
+  - **Pushback, upheld:** the needle-cavity test's expectation was not set to the `Containment` it yields, which would close FLUSH's P1 red by fiat.
+  - **New finding:** the previous head refused an unglued parallel pair before checking that its sectors overlap. Sweep's slow crescent row caught it: two coplanar faces touching at a vertex refused where main skips them. Now `pair_search` refuses only where `sector_overlap` holds.
+  - **Also:**
+    - the arm-tilt test stands down above ε 1e-7, where another containment reads in band first;
+    - the slack enclosure's sign is corrected to `[−3.3z, 0.3z]`.
+  - Main's chord-arc rung red is already filed (ONECOPY `main-red-the-chord-arc-rung-count-reads-zero-through-a-const`).
+  - **Delta review dispatched** (the fix pass changed behaviour and types, so not the orchestrator's read alone). Its claims lead with whether `sector_overlap` is decided, since a silent skip on an undecided overlap would be a wrong answer. Target reclaimed.
