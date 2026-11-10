@@ -312,14 +312,14 @@ impl<T: Decide> Azimuth<T> {
     /// read's one jump is the window's cut. A direction of no length reads
     /// `0`, in every window.
     pub fn principal_in(self, window: Window, band: Band) -> T {
-        self.read_in(window, "pcurve_chart_cut_side", band)
+        self.read_in_as(window, "pcurve_chart_cut_side", band)
     }
 
     /// The angle window's read ([`Azimuth::principal`]) for a reader
     /// that is not a chart's, its cut-side decision recorded under `row`,
     /// the reader's own predicate.
     pub fn principal_as(self, row: &'static str, band: Band) -> T {
-        self.read_in(Window::Angle, row, band)
+        self.read_in_as(Window::Angle, row, band)
     }
 
     /// **The angle's copy within half a turn of `reference`**: the
@@ -378,7 +378,7 @@ impl<T: Decide> Azimuth<T> {
         Period::angle().near(read, reference)
     }
 
-    fn read_in(self, window: Window, row: &'static str, band: Band) -> T {
+    fn read_in_as(self, window: Window, row: &'static str, band: Band) -> T {
         // Poison first, as `near` reads it: a NaN or infinite component
         // names no direction, so it reads no angle rather than the chart's
         // `u_ref`, which is what a zero length reads.

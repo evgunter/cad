@@ -664,7 +664,7 @@ impl Coincide {
     }
 }
 
-/// **A same-direction parallelism reading** ([`super::sectors::parallel_same`]):
+/// **A same-direction parallelism reading** ([`super::sectors::parallel_same_as`]):
 /// the name its levered sine is decided under, and the coincidence an
 /// in-band reading refuses as. Each reading's one home: the sites that
 /// read it pass it, [`super::decision_words`] states its words, and the

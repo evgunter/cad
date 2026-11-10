@@ -4031,7 +4031,7 @@ impl<T: Decide> Segment<T> {
 
     /// The sign of `p − q` along the segment's direction, decided
     /// through `predicate` over the length between them.
-    fn ahead(
+    fn ahead_as(
         &self,
         p: Point3<T>,
         q: Point3<T>,
@@ -4061,7 +4061,7 @@ impl<T: Decide> Segment<T> {
         for (k, p0, p1) in candidates {
             let stretch =
                 if self.on_line_as(p0, predicate, bnd)? && self.on_line_as(p1, predicate, bnd)? {
-                    match self.ahead(p0, p1, predicate, bnd)? {
+                    match self.ahead_as(p0, p1, predicate, bnd)? {
                         Sign::Positive => vec![(p1, p0)],
                         _ => vec![(p0, p1)],
                     }
@@ -4071,7 +4071,7 @@ impl<T: Decide> Segment<T> {
             read.push((k, stretch, true));
         }
         walk_cover(read, (self.q0, self.q1), |p, q| {
-            Ok(self.ahead(p, q, predicate, bnd)? == Sign::Positive)
+            Ok(self.ahead_as(p, q, predicate, bnd)? == Sign::Positive)
         })
     }
 }
