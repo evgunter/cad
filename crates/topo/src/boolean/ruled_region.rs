@@ -500,7 +500,7 @@ impl<T: Decide> RuledFaceRegion<T> {
         Ok(
             crate::validate::decide_nonzero("bool_ruled_region_nappe", Margin::of(h), band)
                 .map_err(RegionRefusal::Escalated)?
-                == geom_core::k_stats::NonzeroSign::Positive,
+                == geom_core::NonzeroSign::Positive,
         )
     }
 

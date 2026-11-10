@@ -356,7 +356,10 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
     ] {
         let e = certify(wall(1.0, 0.0), &surface, band()).unwrap_err_or_else_msg(what);
         assert!(
-            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+            matches!(
+                geom_brep::IncidenceRead::of(&e),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "{what}: {e:?}"
         );
     }
@@ -516,7 +519,10 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     ] {
         let e = geom_brep::chart_pcurve(&c, &surface, band()).unwrap_err_or_else_msg(what);
         assert!(
-            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+            matches!(
+                geom_brep::IncidenceRead::of(&e),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "{what}: {e:?}"
         );
     }
@@ -533,7 +539,10 @@ fn the_mint_refuses_every_chart_a_spiric_does_not_lie_on() {
     let e = geom_brep::chart_pcurve(&c, &perpendicular, band())
         .unwrap_err_or_else_msg("perpendicular torus");
     assert!(
-        matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+        matches!(
+            geom_brep::IncidenceRead::of(&e),
+            Some(geom_brep::IncidenceRead::Off(_))
+        ),
         "{e:?}"
     );
 }
@@ -684,7 +693,10 @@ fn a_wall_image_names_one_torus_and_is_refused_on_the_other() {
     for (what, image) in [("own", own), ("mirror", mirrored)] {
         let e = certify(image, &neither, band()).unwrap_err_or_else_msg(what);
         assert!(
-            matches!(e, PcurveCertifyError::CarrierOffChart { .. }),
+            matches!(
+                geom_brep::IncidenceRead::of(&e),
+                Some(geom_brep::IncidenceRead::Off(_))
+            ),
             "the {what} image on a third torus: {e:?}"
         );
     }
@@ -762,15 +774,13 @@ fn a_chart_with_a_datum_apart_is_read_off_before_its_ladder() {
     let control = chart(mirror, Vec3::unit_y(), R + inside, RR);
     let got = certify(wall(1.0, 0.0), &control, band());
     if !matches!(
-        got,
-        Err(PcurveCertifyError::Escalated {
-            check: geom_brep::PcurveCheck::ChartIncidence,
-            cause: geom_core::Indeterminate {
+        got.as_ref().err().and_then(geom_brep::IncidenceRead::of),
+        Some(geom_brep::IncidenceRead::Undecided(
+            geom_core::Indeterminate {
                 predicate: Some("pcurve_torus_chart_incident"),
                 ..
-            },
-            ..
-        })
+            }
+        ))
     ) {
         wrong.push(format!(
             "control: the mirror with only its major radius in band escalates on the read: {got:?}"
