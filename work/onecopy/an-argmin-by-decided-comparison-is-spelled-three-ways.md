@@ -107,3 +107,164 @@ per-germ incumbent scan that `own_nearest` replaced. Whether an
 all-mutual round needs it at all is the follow-up's to settle, on the
 prover's theorem that such a round's matching is free of the commit
 order at any `K`.
+
+## The tie with a conic germ in the round (`onecopy/first-pair-conic-counterexample`, 2026-11-10)
+
+### A tie between mutual pairs is not enough
+
+The row `boolean::join::first_pair_rows::a_tie_between_mutual_conic_pairs_can_move_the_matching`
+is a counterexample. It runs through `Turn::facing`, `germ_arm`,
+`own_nearest` and `first_pair` as they are.
+
+**The configuration.** Six germs lie on one ellipse loop of aspect 10.
+In counterclockwise order their senses read `+ + − + − −`:
+- z+ at −80°
+- q+, placed so that chord(q, p) = chord(h, g) = 5.00 m
+- p− at 30°
+- h+ at 60°
+- g− at 90°
+- w− at 150°
+
+**The first round.** The nearest partners are z→p, q↔p, h↔g and w→h, so
+the two tied pairs are both mutual.
+- **`(q, p)` first:** z turns to its next partner by travel, g. Their
+  chord is 2.64 m, shorter than the tie: the chord is not monotone in
+  travel. So `(z, g)` is committed ahead of `(h, g)` and takes g from h.
+  The matching is `{(z, g), (q, p), (h, w)}`.
+- **`(h, g)` first:** the matching is `{(h, g), (q, p), (z, w)}`.
+
+Both runs complete. This is where the straight draft above breaks: its
+second step needs a germ's next partner to rank past the tie by chord.
+Along a conic it ranks past it by travel, and the chord can be shorter.
+
+### What does hold: an all-mutual round
+
+**Premise.** Every germ that has a nearest partner in the round is that
+partner's nearest partner: the map from each germ to its nearest
+(`own_nearest`'s result, `first_pair`'s `own`) is an involution. Call
+its pairs `S`. This is the mutual test `first_pair` already makes on
+`own` (`join.rs:2417`).
+
+**Theorem.** Every run from such a round that completes commits exactly
+`S`, in some order. This holds whichever pair `first_pair` commits on a
+tie or an in-band order, in either lane, at any `K`, and for any mix of
+straight germs, conic germs (ranked by travel) and germs running along
+an edge (ranked by foot travel).
+
+**What the code guarantees.**
+- **G1: a round is a function of the unused slots.** `find_match` reads
+  `partners` over the slots `slots` leaves unused (`join.rs:2321`,
+  `join.rs:2336`). `partners` reads the records' germs, the reduction
+  and the two `Sides`, and never a used flag (`join.rs:2448`).
+  `matched_records` changes nothing between rounds but the two flags of
+  the committed pair's slots, in both solids (`join.rs:871`).
+- **G2: a germ's candidates keep their order.** A germ's partners are
+  met in the fixed enumeration order of records and slots. A later
+  round's candidates for that germ are a filtered subsequence of an
+  earlier round's. So `argmin_decided` reads each pair of them with the
+  same roles in every round, and `along_sign` is a pure function of
+  those two `PartnerDistance`s and the band.
+- **G3: the set rule** (`geom_core::ladder::argmin_decided`,
+  `ladder.rs:1042`).
+  - Every pair is compared.
+  - A candidate drops out only where some candidate is decided nearer
+    than it.
+  - At `FreeOf::Nothing` (`own_nearest`), the result is the one
+    candidate left, or none where none is left. Two or more left refuse
+    `Contested`, and an `Aborts` reading stops the argmin.
+- **G4:** `first_pair` returns one of `own`'s matches, or `None` only
+  where `own` is empty. The commit consumes exactly that match's two
+  slots.
+
+**Lemma (a germ's nearest stands while its partner does).** Let germ
+`y`'s nearest in round `U` be `x`, and let `U' ⊂ U` hold both `x` and
+`y`. Then round `U'` gives `y` the nearest `x`, or it refuses.
+- By G1 and G2, `y`'s candidates in `U'` are a subset of those in `U`,
+  and every pair among them reads as it did in `U`.
+- No reading in `U'` aborts: it would have aborted `U`.
+- `x` was decided nearer-free in `U`, meaning no candidate was decided
+  nearer than it. So it is nearer-free in `U'`, and at least one
+  candidate is left.
+- By G3, either `x` is the only candidate left, or the round refuses
+  `Contested` (`JoinPartnersTied`, or the in-band reading).
+- A germ with no partner in `U` has none in `U'`.
+
+**Proof of the theorem**, by induction on `|S|`.
+- **Base.** `S` empty: `first_pair` returns `None` and the run ends with
+  nothing committed.
+- **Step.** By G4 the round commits some `P ∈ S`. Let `U' = U ∖ P`, and
+  take any `y` with a nearest, outside `P`.
+  - `y`'s nearest `n(y)` is not in `P`: if it were, `y = n(n(y))` would
+    be too.
+  - By the lemma, `y` keeps `n(y)` in `U'`, or the run refuses.
+  - A germ with no nearest in `U` has none in `U'`.
+- So a completing run's next round has the involution `own` restricted
+  to `S ∖ {P}`, and the induction applies. ∎
+
+**Scope.**
+- **The matching is free of the order; the run is not.** An
+  intermediate state can refuse under one order and not another: the
+  lemma's "or it refuses" can hold for a germ whose dominators leave
+  before its own pair is committed. The order still picks which pair
+  the surgery joins first.
+- **Nothing here reads chords, travel or `K`.** So for an all-mutual
+  round, the free lane's conditions `turn.is_none()`,
+  `along.is_none()` and `band.escalate() > 2·zero` (`join.rs:2407`)
+  carry nothing.
+  - The `K > 2` step of the doc at `first_pair` bounded the old
+    incumbent scan in `keep_own`. The set rule's lemma replaces it.
+  - The row
+    `first_pair_rows::an_all_mutual_rounds_matching_is_free_of_the_commit_order`
+    shows this on the `K = 1.1` fixture. Its first round is all mutual,
+    and folded with every in-band order kept, in scan order and in
+    reverse, it commits that round's four pairs both ways.
+  - `at_k_at_most_2_first_pair_reads_the_order_among_mutual_pairs`
+    still pins today's gate, which escalates there.
+- **Rounds that are not all mutual** (a tie among mutual pairs beside a
+  germ whose nearest lies in one of them) are outside the theorem.
+  - The counterexample above is one, with conic germs.
+  - The straight draft above covers such a round only where every germ
+    whose nearest lies in a committed pair ranks by chord, at `K > 2`.
+    That holds where those germs are straight: a germ's partners share
+    its loci (`partners` requires equal `a_locus` and `b_locus`), so
+    the conic germs of other locus pairs in the round do not reach it.
+  - That draft was written against the old scan, and the set rule has
+    not been re-checked against it here.
+
+### Alternation, and how a check would read it
+
+**The geometric premise.** For each locus pair `(a_locus, b_locus)` and
+each loop of its section (the frame `germ_loops` picks by the germ's
+`branch`), take that loop's unused germs in rotational order about the
+frame's axis. Their rotational senses (`rotational_sense`) alternate
+around the loop.
+
+**Alternation implies every round is all mutual, where every reading is
+decided.**
+- A `+` germ's nearest by travel is the next germ counterclockwise. That
+  germ is `−`, and none of its other `−` candidates comes before it.
+  - If the neighbour is `Ahead`, it ranks first.
+  - If it is `Behind`, so is every other candidate, and travel ranks it
+    first among them.
+- A `−` germ's nearest is likewise the next germ clockwise, the same
+  neighbour.
+- Committing a neighbour pair leaves the loop alternating.
+
+So the checkable premise is the weaker one: the mutual test on `own`.
+A check of alternation itself would have to run in `find_match`, not in
+`first_pair`. `own` holds only germs that have a nearest, and carries no
+locus or branch. Run in `find_match`, it would:
+1. Group the unused slots of `open` by `(a_locus, b_locus, branch)`.
+2. Order each group by angle about the loop's frame. That is a decided
+   reading, so a tie or an in-band reading refuses.
+3. Read each germ's sense by `rotational_sense`.
+4. Require the senses to alternate cyclically.
+
+It costs a sort per loop and a new decision, and it frees nothing that
+the mutual test does not.
+
+**Recommendation to the argmin lane.**
+- Free `first_pair`'s tie (and its in-band order) exactly where `own` is
+  all mutual, citing the theorem above.
+- Otherwise, refuse a tie between pairs with a named cause, and pin it
+  with the counterexample row.
