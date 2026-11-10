@@ -1256,7 +1256,7 @@ fn circular_reach<T: Decide + Bounds>(
     body: &Body<T>,
     link: &Link<T>,
     st: &Station<T>,
-    request: &[VertexKey],
+    (request, sections): (&[VertexKey], &[VertexKey]),
     chain: usize,
     band: Band,
 ) -> Result<Stretch<T>, BlendError> {
@@ -1328,9 +1328,26 @@ fn circular_reach<T: Decide + Bounds>(
         };
         bounds.push((role, in_sheet(circle, T::zero())));
     }
+    // An arc running between two sections of a mixed rim is taken over
+    // its own wedge, when it sweeps less than a half turn: the half-spaces
+    // through the axis behind its start and ahead of its end, on the side
+    // of its middle, which hold the band's material and its strips.
+    let mut wedge = Vec::new();
+    if sections.contains(&link.start) && sections.contains(&link.end) {
+        let (c, t0, t1) = carrier_of(body, link.edge)?;
+        if let Some(circle) = c.as_circle() {
+            if (t1 - t0).lo() > 0.0 && ((t1 - t0) - T::pi()).hi() < 0.0 {
+                let o = circle.frame.origin;
+                for t in [t0, t1] {
+                    wedge.push(half_space(o, c.deriv(t), st.p));
+                }
+            }
+        }
+    }
+    bounds.extend(wedge.iter().map(|b| (Role::Other, b.clone())));
     // Per support, the disk of the chord about the rim in the meridian
     // sheet: a closed rim bounds its planar support, so the face lies on
-    // one side of the rim alone.
+    // one side of the rim alone; within the wedge, where there is one.
     let mut replaces = Vec::new();
     for (f, foot) in [(link.face_a, st.fa), (link.face_b, st.fb)] {
         let chord = (foot - st.p).norm();
@@ -1346,16 +1363,10 @@ fn circular_reach<T: Decide + Bounds>(
         let gap = |p: Point3<T>| ring.at(p) + chord;
         // The disk has no one-sided form to narrow to: `screened`
         // refuses a vertex in it, and its vacancy changes nothing here.
-        let _vacant = screened(
-            body,
-            (request, &[]),
-            f,
-            core::slice::from_ref(&ring),
-            None,
-            gap,
-            band,
-        )?;
-        replaces.push((f, vec![ring]));
+        let mut region = vec![ring.clone()];
+        region.extend(wedge.iter().cloned());
+        let _vacant = screened(body, (request, &[]), f, &region, None, gap, band)?;
+        replaces.push((f, region));
     }
     // Over line traces (a plane, a cylinder) a whole closed rim's bounds
     // are its band's own cross-section revolved, and `at_strict` takes
@@ -2665,7 +2676,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     for (ci, link) in &all {
         let st = station(body, link)?;
         let mut r = if link.arm.is_coaxial_torus() {
-            circular_reach(body, link, &st, &ends_all, *ci, band)?
+            circular_reach(body, link, &st, (&ends_all, &sections), *ci, band)?
         } else {
             straight_reach(
                 body,

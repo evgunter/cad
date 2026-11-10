@@ -556,7 +556,14 @@ re-bases the split piece into the SECTION, the ball's circle between
 the two feet. Each link keeps its own band face, and the section is
 described as the shared row of the two bands' charts (a cylinder's
 transverse circle, a torus's meridian;
-`geom_brep::analytic_shared_row`). A convex rim removes, and a concave
+`geom_brep::analytic_shared_row`); a section whose row does not certify
+at the scalar refuses `UnsupportedGeometry` at its link. Each link's
+strip is read within its own window, the slab between a straight
+link's end normals or an arc's wedge, by the support-boundary meter and
+by the reach; and two links of one closed chain joined along it by
+links turning less than a half turn are not a clearance pair of the
+battery's support screen, their windows lying on either side of that
+run. A convex rim removes, and a concave
 one adds, the section `r²(1 − π/4)` along the path its centroid takes
 (`band_closed_mixed_chain`). A run of two links on one support pair
 inside such a chain, a chain sharing no one face, and an OPEN mixed
