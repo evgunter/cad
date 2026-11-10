@@ -14,7 +14,7 @@
 //! discarded face lost (`lift`). The lineage only routes the verdicts,
 //! where a superset is harmless; what a face holds is read from the
 //! records and, where a piece's source face holds several member faces,
-//! from the piece's own region ([`super::overlap`]).
+//! from the piece's own region ([`super::overlap`](fn@super::overlap)).
 //!
 //! **What depends on member order** (`[operations.operators]`): the
 //! holdings do not, since each reading is the geometric truth of a

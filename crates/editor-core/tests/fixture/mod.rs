@@ -3308,10 +3308,8 @@ pub fn point(body: &Body<f64>, v: VertexKey) -> Point3<f64> {
 
 /// An edge's two end vertices.
 pub fn ends(body: &Body<f64>, e: EdgeKey) -> [VertexKey; 2] {
-    let edge = body.get_edge(e).expect("a live edge");
-    let h = body.get_half_edge(edge.he_plus).expect("a live half-edge");
-    let far = body.half_edge_end(edge.he_plus).expect("a forward half");
-    [h.start, far]
+    let (start, far) = body.edge_vertices(e).expect("a live edge");
+    [start, far]
 }
 
 /// Every vertex on `f`'s boundary — the face's own EXTENT, read out of

@@ -403,8 +403,10 @@ mod tests {
 
     fn core(radius: f64) -> Around<f64> {
         Around::Circle(geom::cover::Core {
-            center: p(0.0, 0.0, 0.0),
-            axis: v(0.0, 0.0, 1.0),
+            axis: geom::Line {
+                origin: p(0.0, 0.0, 0.0),
+                dir: v(0.0, 0.0, 1.0),
+            },
             radius,
         })
     }

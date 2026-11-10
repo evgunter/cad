@@ -730,7 +730,7 @@ pub enum SectionError {
         predicate: &'static str,
     },
     /// A plane and a spline's section is a march, and the reader handed
-    /// no march door ([`crate::pair_section`]): the scalar named
+    /// no march door ([`crate::pair_section`](fn@crate::pair_section)): the scalar named
     /// does not march.
     NoMarch {
         /// The scalar.
@@ -805,8 +805,8 @@ impl SectionError {
             Self::CoincidentSurfaces => write!(
                 f,
                 "the surfaces are coincident (the same cylinder or the same sphere), so \
-                 they share a surface rather than meet along a curve. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 they share a surface rather than meet along a curve. {}",
+                geom_core::MOVE_RECOURSE
             ),
             Self::DegenerateTorus(refusal) => {
                 write!(f, "{}", crate::recourse::read_at(refusal, at))

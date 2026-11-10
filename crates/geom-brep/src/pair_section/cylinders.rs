@@ -471,12 +471,10 @@ impl<T: Decide> CylinderCylinderPose<T> {
             pick(foot.z, other.z),
         );
         let (axis, partner) = (pick3(a1, a2), pick3(a2, a1));
-        let v = axis.cross(normal);
+        let frame = geom::Frame::new(foot, axis, normal);
+        let v = frame.v_ref();
         Some(RuledCylinders {
-            foot,
-            n: normal,
-            v,
-            axis,
+            frame,
             rho: pick(r1, r2),
             r: pick(r2, r1),
             gap: pick(gap, T::zero() - gap),

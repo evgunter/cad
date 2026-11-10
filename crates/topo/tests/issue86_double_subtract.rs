@@ -115,8 +115,7 @@ fn kef_cascade_reports_killed_surface() {
 
     // Upgrade just this edge to an honest Intersection description:
     // its two surfaces are now description-referenced by this curve.
-    let start = body.get_half_edge(edge.he_plus).unwrap().start;
-    let end = body.half_edge_end(edge.he_plus).unwrap();
+    let (start, end) = body.edge_vertices(edge_key).unwrap();
     let p0 = *body
         .get_point(body.get_vertex(start).unwrap().point)
         .unwrap();

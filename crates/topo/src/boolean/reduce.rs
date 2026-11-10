@@ -587,7 +587,7 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
 /// may meet the author has DECLARED.
 ///
 /// Nothing about the operands' own validity is read here: each is a
-/// finished body ([`crate::finish`]), or, on the sphere re-cut's
+/// finished body ([`crate::finish`](fn@crate::finish)), or, on the sphere re-cut's
 /// re-entry, one carved, turned, grafted and cut from a finished body
 /// by operators that keep tier 2. Edge carriers are not gated either: a
 /// lane that reads one refuses a kind it has no row for at its own
