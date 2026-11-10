@@ -8077,13 +8077,13 @@ fn arc_rim_weight_miss<T: Real>(radius: T, sin_half: T, cos_half: T, w: T) -> T 
     let one = T::one();
     #[cfg(test)]
     let tangent = if mutants::arc_rim_tangent_under() {
-        12.0 / 27.0
+        T::from_f64(12.0 / 27.0)
     } else {
-        16.0 / 27.0
+        T::from_f64(16.0 / 27.0)
     };
     #[cfg(not(test))]
-    let tangent = 16.0 / 27.0;
-    let lever = sin_half * (sin_half.powi(2) + T::from_f64(tangent) * cos_half.powi(2)).sqrt()
+    let tangent = T::from_f64(16.0 / 27.0);
+    let lever = sin_half * (sin_half.powi(2) + tangent * cos_half.powi(2)).sqrt()
         / (cos_half * (one + w.min(one)) * (one + cos_half.min(one)));
     radius * (w - cos_half).abs() * cos_half.select_le_zero(T::from_f64(f64::INFINITY), lever)
 }
