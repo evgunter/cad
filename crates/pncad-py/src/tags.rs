@@ -1604,6 +1604,7 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::Band(_) => "band",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcSweepUndecided { .. } => "arc_sweep_undecided",
+        SkinError::ParametersInvalid { .. } => "parameters_invalid",
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",

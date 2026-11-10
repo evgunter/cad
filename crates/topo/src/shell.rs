@@ -4347,7 +4347,6 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
         | ReplaceFaceError::CarrierLaneUnsupported { edge, .. }
         | ReplaceFaceError::IsoRow { edge, .. }
-        | ReplaceFaceError::Structure { edge, .. }
         | ReplaceFaceError::Op {
             edge: Some(edge), ..
         } => face_of_he(proven(&body.edges, *edge, EntityId::Edge).he_plus),
