@@ -458,6 +458,11 @@ pub enum Answering {
     /// does not matter: an identity's "apart", a side every off-plane
     /// point reads alike. A kept reading ahead of the answer could only
     /// have given the same answer, so its run is spliced superseded.
+    ///
+    /// The answer may carry which rung gave it (its witness), but only as
+    /// a diagnostic: a name a refusal or a record shows, never a value a
+    /// later decision reads. A payload that decides anything downstream
+    /// makes the ladder [`Self::First`].
     Any,
     /// Which rung answers chooses the answer: the first candidate within,
     /// the first member that projects. A kept reading ahead of the answer
