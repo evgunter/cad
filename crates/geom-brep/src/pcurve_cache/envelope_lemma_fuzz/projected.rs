@@ -676,7 +676,7 @@ fn a_spindle_toruss_floor_is_its_inner_sheets_distance() {
 #[test]
 fn a_spindle_toruss_bound_asks_its_lever_positive() {
     use super::super::projected::Meters;
-    let ask = |lever: f64| if lever > 0.0 { Ok(lever) } else { Err(lever) };
+    let ask = |lever: f64, _| if lever > 0.0 { Ok(lever) } else { Err(lever) };
     let spindle = Meters::Torus {
         major: 1.0,
         minor: 2.0,
@@ -712,7 +712,7 @@ fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
     if major + minor * (rho - major) / m >= 0.0 {
         (m - minor).abs()
     } else {
-        let h = (minor * minor - major * major).sqrt();
+        let h = geom::sheet_apex(major, minor).height;
         (rho * rho + (z - h).powi(2))
             .sqrt()
             .min((rho * rho + (z + h).powi(2)).sqrt())
@@ -721,11 +721,10 @@ fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
 
 /// **A spindle sheet's bound is this sheet's distance**: wherever
 /// [`Meters::certified`] reads a box in a sheet's meridian half-plane
-/// ([`Meters::over`], or the apex reading where that refuses), and
-/// wherever limb 2 reads it past a lever the band does not decide
-/// ([`Meters::apex_part`]), the distance of every point of the box from
-/// THIS sheet (not the torus's other sheet, and not its circle past the
-/// apexes) is at most the bound. Lemons and apples of every proportion, the box seeded on the
+/// ([`Meters::over`], or the apex reading where that refuses), the
+/// distance of every point of the box from THIS sheet (not the torus's
+/// other sheet, and not its circle past the apexes) is at most the
+/// bound. Lemons and apples of every proportion, the box seeded on the
 /// sheet, on the other sheet, at an apex, on the axis or anywhere near,
 /// at scales from `1e-9` to `1e-1`, as a point or a small box; `|f|`'s
 /// sup is read on a grid of the box and doubled, so a miss is the
@@ -734,17 +733,18 @@ fn sheet_distance(major: f64, minor: f64, rho: f64, z: f64) -> f64 {
 /// The side check (`|m − r|·|R| ≤ r·ρ`) is what selects the sheet, and
 /// this row is what holds it: without it the lever alone certifies
 /// parts near the other sheet and past the apexes, and the bound
-/// under-reads them by the thousand (`a_parts_past_a_sheets_apex_is_refused_by_the_side_check`
-/// is one, written down). The apex reading is the distance from the
-/// nearer apex, the box's far corner from it; reading `|f|` there instead,
-/// as the cone does, under-reads every box on the other sheet.
+/// under-reads them by the thousand
+/// (`a_parts_past_a_sheets_apex_is_refused_by_the_side_check` is one,
+/// written down, and `closed_form_limb2`'s
+/// `past_a_thin_lemons_apex_limb_2_reads_the_sheet_not_its_circle` one at
+/// limb 2). The apex reading is the distance from the nearer apex, the
+/// box's far corner from it.
 ///
 /// [`Meters::over`]: super::super::projected::Meters::over
 /// [`Meters::certified`]: super::super::projected::Meters::certified
-/// [`Meters::apex_part`]: super::super::projected::Meters::apex_part
 #[test]
 fn a_spindle_bound_is_this_sheets_distance() {
-    use super::super::projected::{Meters, SpanHull};
+    use super::super::projected::Meters;
     let mut s = fuzz::start("a_spindle_bound_is_this_sheets_distance");
     for i in 0..fuzz::scaled(40_000) {
         let minor = s.range(0.2, 2.0);
@@ -800,29 +800,104 @@ fn a_spindle_bound_is_this_sheets_distance() {
             }
         }
         let f_sup = 2.0 * f_sup + 1e-300;
-        let meters = Meters::Spindle { major, minor };
-        let read = meters.certified(f_sup, (rho_lo, rho_hi), (z_lo, z_hi), |x| x > 0.0);
-        let span = SpanHull {
-            range: (0.0, 1.0),
+        let read = Meters::Spindle { major, minor }.certified(
             f_sup,
-            rho_lo,
-            rho_hi,
-            z: (z_lo, z_hi),
-            meters: read.unwrap_or(f64::INFINITY),
-            floors: (0.0, 0.0),
-        };
-        for (what, bound) in [
-            ("the hull's reading", read),
-            ("limb 2's apex reading", meters.apex_part(f_sup, &span)),
-        ] {
-            let Some(bound) = bound else { continue };
+            (rho_lo, rho_hi),
+            (z_lo, z_hi),
+            |x| x > 0.0,
+        );
+        if let Some(bound) = read {
             assert!(
                 far <= bound * (1.0 + 1e-9) + 1e-15,
                 "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
-                 a point {far} from the sheet past {what} {bound}; {}",
+                 a point {far} from the sheet past the bound {bound}; {}",
                 fuzz::replay()
             );
         }
+    }
+}
+
+/// **[`a_spindle_bound_is_this_sheets_distance`] at `Interval`, near the
+/// apexes**, as `spans_of` reads it (each lever certified positive when
+/// its enclosure's lower end is): boxes seeded on this sheet, on the
+/// other, or at an apex, at scales `1e-12` to `1e-3`, on sheets from a
+/// fat lemon or apple to within `1e-9` of the horn. The bound's upper
+/// end bounds every sampled point's distance from this sheet.
+#[test]
+fn a_spindle_bound_is_this_sheets_distance_at_interval() {
+    use super::super::projected::Meters;
+    let mut s = fuzz::start("a_spindle_bound_is_this_sheets_distance_at_interval");
+    for i in 0..fuzz::scaled(60_000) {
+        let minor = s.range(0.2, 2.0);
+        let gap = s.log_uniform(1e-9, 0.9);
+        let sign = if s.unit() < 0.5 { -1.0 } else { 1.0 };
+        let major = sign * minor * (1.0 - gap);
+        let h = geom::sheet_apex(major, minor).height;
+        let apex = if s.unit() < 0.5 { h } else { -h };
+        let scale = s.log_uniform(1e-12, 1e-3);
+        let up = |v: f64| if apex > 0.0 { v } else { -v };
+        let (rho0, z0) = match i % 3 {
+            0 => {
+                let vs = (-major / minor).acos();
+                let v = up(vs - s.unit() * (scale / minor).min(vs));
+                (major + minor * v.cos(), minor * v.sin())
+            }
+            1 => {
+                let vs = (major / minor).acos();
+                let v = up(vs - s.unit() * (scale / minor).min(vs));
+                (-major + minor * v.cos(), minor * v.sin())
+            }
+            _ => (0.0, apex),
+        };
+        let rho_c = (rho0 + scale * s.range(-1.0, 1.0)).max(0.0);
+        let z_c = z0 + scale * s.range(-1.0, 1.0);
+        let point = s.unit() < 0.3;
+        let (dr, dz) = if point {
+            (0.0, 0.0)
+        } else {
+            (scale * s.unit(), scale * s.unit())
+        };
+        let (rho_lo, rho_hi) = ((rho_c - dr).max(0.0), rho_c + dr);
+        let (z_lo, z_hi) = (z_c - dz, z_c + dz);
+        let n = if point { 0 } else { 12 };
+        let (mut f_sup, mut far) = (0.0_f64, 0.0_f64);
+        for a in 0..=n {
+            for b in 0..=n {
+                let at = |k: u32| {
+                    if n == 0 {
+                        0.0
+                    } else {
+                        f64::from(k) / f64::from(n)
+                    }
+                };
+                let rho = rho_lo + (rho_hi - rho_lo) * at(a);
+                let z = z_lo + (z_hi - z_lo) * at(b);
+                f_sup = f_sup.max(sheet_form(major, minor, rho, z).abs());
+                far = far.max(sheet_distance(major, minor, rho, z));
+            }
+        }
+        let f_sup = 2.0 * f_sup + 1e-300;
+        let pt = |x: f64| Interval::from_bounds(x, x);
+        let meters = Meters::Spindle {
+            major: pt(major),
+            minor: pt(minor),
+        };
+        let read = meters.certified(pt(f_sup), (pt(rho_lo), pt(rho_hi)), (z_lo, z_hi), |l| {
+            l.is_certified() && l.lo() > 0.0
+        });
+        let Some(bound) = read else {
+            panic!(
+                "draw {i}: a sheet's reading always reads; {}",
+                fuzz::replay()
+            )
+        };
+        assert!(
+            far <= bound.hi() * (1.0 + 1e-9) + 1e-15,
+            "draw {i}: R {major} r {minor}, box ρ [{rho_lo}, {rho_hi}] z [{z_lo}, {z_hi}]: \
+             a point {far} from the sheet past {}; {}",
+            bound.hi(),
+            fuzz::replay()
+        );
     }
 }
 
@@ -840,7 +915,7 @@ fn a_spindle_bound_is_this_sheets_distance() {
 /// [`Meters::over`]: super::super::projected::Meters::over
 #[test]
 fn a_parts_past_a_sheets_apex_is_refused_by_the_side_check() {
-    use super::super::projected::Meters;
+    use super::super::projected::{Lever, Meters};
     let (major, minor, rho, z) = (0.9_f64, 1.0_f64, 0.1_f64, 0.2_f64);
     let lever = (rho + major).powi(2) + z * z - minor * minor;
     assert!(lever > 0.0, "the lever reads {lever}, which certifies");
@@ -853,9 +928,9 @@ fn a_parts_past_a_sheets_apex_is_refused_by_the_side_check() {
     );
     assert!(whole * major.abs() > minor * rho, "the side check fails");
     let f = sheet_form(major, minor, rho, z).abs();
-    let positive = |x: f64| if x > 0.0 { Ok(x) } else { Err(x) };
+    let positive = |x: f64, which| if x > 0.0 { Ok(x) } else { Err(which) };
     let got = Meters::Spindle { major, minor }.over(f, (rho, rho), (z, z), positive);
-    assert!(got.is_err(), "the side check refuses: {got:?}");
+    assert_eq!(got, Err(Lever::Side), "the side check refuses");
 }
 
 /// One respect a dominance row moves.

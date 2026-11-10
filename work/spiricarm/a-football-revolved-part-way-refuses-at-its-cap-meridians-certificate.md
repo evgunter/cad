@@ -28,9 +28,9 @@ edge that reaches an apex has no positive lever anywhere near it.
 
 The full revolve does not mint such an edge between a plane and a sheet
 (its meridians are sheet-sheet `Chart` edges), so it builds; a partial
-revolve does. Pinned typed by
+revolve does. The lune is now
 `crates/sweep/tests/the_football_revolves.rs`
-`a_football_revolved_part_way_refuses_typed` (lemon and apple, θ = 2).
+`a_football_revolved_part_way_is_its_lune`.
 
 The message reads as a kernel defect ("an Euler operation refused")
 rather than a lane not written.

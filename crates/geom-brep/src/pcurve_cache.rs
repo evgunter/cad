@@ -3458,6 +3458,8 @@ fn spans_of(
                     .certified(point(f_sup), (point(rho_lo), point(rho_hi)), z, |lever| {
                         lower(lever, true) > 0.0
                     })
+                    // `+∞` off the cone and the sheet only: on them the
+                    // apex reading always reads.
                     .map_or(f64::INFINITY, |m| upper(m, true))
             } else {
                 f64::NAN
@@ -3661,13 +3663,14 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
         unreachable!("an analytic chart has a frame")
     };
     let frame = crate::carrier_net::Frame::of(o, te);
-    let (domain, grid, per_span) = match carrier {
+    let (domain, mut grid, per_span) = match carrier {
         Curve3::Nurbs(net) => (net.domain(), Vec::new(), projected::INCIDENCE_CUTS),
         _ => {
             let (lo, hi) = crate::carrier_net::outer_ends(window);
             ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
         }
     };
+    grid.extend(apex_grading(carrier, window, surface));
     let round_over =
         |grid: &[f64],
          cuts: &[f64]|
@@ -4182,6 +4185,48 @@ mod limb2_quick {
         };
         Some((hull, size))
     }
+}
+
+/// **Breaks graded toward a sheet's apexes**: on a spindle sheet, at
+/// `2⁻ᵏ` of the window from each of its ends that lies on the axis
+/// (within `10⁻⁶ r` of it, read in `f64`). Only the part at an apex reads
+/// its distance from the apex ([`projected::Meters::apex_root`]), which
+/// falls only as that part shrinks; with these breaks the first round
+/// holds it at the window's `2⁻⁶⁰`, where the rounds' halving would take
+/// one round per level. A schedule of cuts, not a decision: any cuts
+/// give a sound bound. Empty off a sheet.
+fn apex_grading<T: Decide + geom_core::Bounds>(
+    carrier: &Curve3<T>,
+    window: (T, T),
+    surface: &Surface<T>,
+) -> Vec<f64> {
+    const LEVELS: i32 = 60;
+    let Surface::Spindle {
+        center,
+        axis,
+        minor_radius,
+        ..
+    } = *surface
+    else {
+        return Vec::new();
+    };
+    let mid = |x: T| 0.5 * (x.lo() + x.hi());
+    let on_axis = |t: T| {
+        let d = carrier.eval(t) - center;
+        let along = d.dot(axis);
+        let rho2 = mid(d.dot(d)) - mid(along * along) / mid(axis.dot(axis));
+        rho2 <= (1e-6 * mid(minor_radius)).powi(2)
+    };
+    let (lo, hi) = crate::carrier_net::outer_ends(window);
+    let length = hi - lo;
+    let ends = [(window.0, lo, 1.0), (window.1, hi, -1.0)];
+    ends.into_iter()
+        .filter(|&(t, _, _)| on_axis(t))
+        .flat_map(|(_, end, toward)| {
+            (1..=LEVELS).map(move |k| end + toward * length * 2f64.powi(-k))
+        })
+        .filter(|&c| lo < c && c < hi)
+        .collect()
 }
 
 /// The breaks a closed-form carrier's first net is cut at inside

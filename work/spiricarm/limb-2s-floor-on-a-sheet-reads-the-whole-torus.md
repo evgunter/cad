@@ -20,8 +20,10 @@ whole torus's (`Meters::divisor`'s `Torus | Spindle` arm): `|f|` vanishes
 on both sheets, so a carrier on the other sheet has floor zero everywhere.
 Its bound (this sheet's, `Meters::over` with the side check, or the
 distance from an apex) does not clear, and limb 2 refuses
-`KernelLimit` ("the kernel's approximation limit") for a carrier that is
-off the sheet by `√3` at `R = −½, r = 1`. Witnessed by
+`KernelLimit` ("the kernel's approximation limit") for a carrier that
+reaches `1` off the sheet at `R = −½, r = 1` (the other sheet's widest
+point, `(3/2, 0)`, against the lemon's `(1/2, 0)`; the bound reads `√3`,
+the apexes' distance apart). Witnessed by
 `crates/geom-brep/tests/closed_form_limb2.rs`
 `limb_2_against_a_sheet_reads_that_sheet_up_to_its_apexes`, which pins
 that `KernelLimit`.

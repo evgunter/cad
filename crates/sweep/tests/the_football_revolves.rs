@@ -102,6 +102,9 @@ fn holds_by(
         .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
     mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{what}: the mesh: {e:?}"));
     crate::common::differential::assert_meshed_geometry(what, &built.body, &mesh, delta);
+    if let Revolution::Partial(theta) = by {
+        in_its_wedge(what, &mesh, theta);
+    }
     let body = built.body;
     let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{what}: {e:?}"));
@@ -284,6 +287,8 @@ fn a_football_revolved_part_way_is_its_lune() {
         ("a slim lemon", -0.9, 1.0, 1.0),
         ("a lemon past a half turn", -0.5, 1.0, 4.5),
         ("a small apple", 0.3, 0.7, -2.5),
+        ("a near-sphere lemon", -0.01, 1.0, 2.0),
+        ("a near-sphere apple", 0.01, 1.0, 2.0),
     ] {
         let (volume, area) = pappus(big, r);
         let d = big.abs();
@@ -302,6 +307,38 @@ fn a_football_revolved_part_way_is_its_lune() {
             (share * volume, share * area + 2.0 * cap),
         );
     }
+}
+
+/// Every point of `mesh` off the axis lies in the wedge a turn by
+/// `theta` about the `y` axis sweeps from the sketch's `+x` half-plane:
+/// its azimuth, read right-handed about `+y` (`+x` toward `−z`), between
+/// `0` and `theta`. Some point reaches past `|theta|/2`, so a lune turned
+/// the other way, or not turned at all, fails.
+fn in_its_wedge(what: &str, mesh: &mesh::Mesh, theta: f64) {
+    let azimuths: Vec<f64> = mesh
+        .positions
+        .iter()
+        .filter(|p| p.x.hypot(p.z) > 1e-6)
+        .map(|p| {
+            let phi = (-p.z).atan2(p.x);
+            if theta > 0.0 && phi < -1e-9 {
+                phi + 2.0 * PI
+            } else if theta < 0.0 && phi > 1e-9 {
+                phi - 2.0 * PI
+            } else {
+                phi
+            }
+        })
+        .collect();
+    let (lo, hi) = (theta.min(0.0) - 1e-9, theta.max(0.0) + 1e-9);
+    assert!(
+        azimuths.iter().all(|&phi| lo <= phi && phi <= hi),
+        "{what}: a point off the wedge from 0 to {theta}"
+    );
+    assert!(
+        azimuths.iter().any(|&phi| phi.abs() > theta.abs() / 2.0),
+        "{what}: no point past half the turn {theta}"
+    );
 }
 
 /// The sheet's arc band `v₀ ≤ v ≤ v₁` of the circle `(R, r)`:

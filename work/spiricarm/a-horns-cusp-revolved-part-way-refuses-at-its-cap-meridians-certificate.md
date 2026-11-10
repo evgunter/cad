@@ -4,7 +4,7 @@ kind: issue
 title: A horn's cusp revolved part way refuses at its cap meridians: the horn's two sheets are tangent at the cusp, so limb 2 reads only the distance from it over a stretch near it
 status: open
 opened: 2026-11-04
-priority: P2
+priority: P1
 cost: H
 ---
 
