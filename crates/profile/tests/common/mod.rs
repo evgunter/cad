@@ -1233,6 +1233,90 @@ pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
     }
 }
 
+/// The least ε a CI row runs at, where grid A's anchor-fit census is read
+/// whole: no overrun on the grid lies inside that row's band.
+const LEAST_ROW_EPS: f64 = 1e-12;
+
+/// The environment [`child_grid_a_anchor_fits`] reads.
+const GRID_A_CHILD_OUT: &str = "PROFILE_GRID_A_ANCHOR_FITS_OUT";
+
+/// **Grid A's anchor-fit entries this row's band takes, by side**:
+/// `(incoming, outgoing, refusals)`, the last the authorings whose
+/// refusals they were. A leg's run is decided on the band validation
+/// reads a segment's length on, which widens with ε, so a refusal whose
+/// candidates' runs a setback overruns by less than K·ε is, at this row,
+/// an in-band `fillet_leg_fit` escalation instead, and its anchor-fit
+/// entries leave the census. Computed, not pinned: grid A's entries are
+/// read whole at [`LEAST_ROW_EPS`] in a child process, and those of the
+/// authorings that escalate on `fillet_leg_fit` at this row are counted.
+pub fn grid_a_overruns_inside_the_band() -> (usize, usize, usize) {
+    let out =
+        std::env::temp_dir().join(format!("profile_grid_a_anchor_fits_{}", std::process::id()));
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::child_grid_a_anchor_fits"),
+        None => "child_grid_a_anchor_fits".to_string(),
+    };
+    let status = std::process::Command::new(std::env::current_exe().expect("test exe path"))
+        .args([probe.as_str(), "--exact", "--nocapture"])
+        .env("CAD_TOLERANCE_EPS", format!("{LEAST_ROW_EPS:e}"))
+        .env("CAD_AMBIGUITY_K", format!("{}", tol().k()))
+        .env(GRID_A_CHILD_OUT, &out)
+        .status()
+        .expect("the child spawns");
+    assert!(
+        status.success(),
+        "the grid-A child at ε = {LEAST_ROW_EPS:e} failed"
+    );
+    let read = std::fs::read_to_string(&out).expect("the child wrote");
+    std::fs::remove_file(&out).expect("the child's file is removed");
+    let mut taken = std::collections::BTreeSet::new();
+    grid_a(|n, _, _, res| {
+        if let Err(PathError::Escalated { source, .. }) = res
+            && source.predicate == Some("fillet_leg_fit")
+        {
+            taken.insert(n);
+        }
+    });
+    let (mut incoming, mut outgoing) = (0, 0);
+    let mut refusals = std::collections::BTreeSet::new();
+    for line in read.lines() {
+        let (n, side) = line.split_once(' ').expect("an authoring and a side");
+        let n: usize = n.parse().expect("an authoring");
+        if taken.contains(&n) {
+            refusals.insert(n);
+            match side {
+                "in" => incoming += 1,
+                "out" => outgoing += 1,
+                other => panic!("no side {other:?}"),
+            }
+        }
+    }
+    (incoming, outgoing, refusals.len())
+}
+
+/// CHILD MODE (no-op unless [`GRID_A_CHILD_OUT`] is set): writes every
+/// grid-A anchor-fit entry at THIS process's ε, one `authoring side`
+/// per line ([`grid_a_overruns_inside_the_band`]).
+#[test]
+fn child_grid_a_anchor_fits() {
+    let Ok(out) = std::env::var(GRID_A_CHILD_OUT) else {
+        return;
+    };
+    let mut lines = Vec::new();
+    grid_a(|n, _, _, res| {
+        if let Err(e) = res {
+            for (_, side, _, _) in anchor_fit_entries(e) {
+                let side = match side {
+                    FilletLeg::Incoming => "in",
+                    FilletLeg::Outgoing => "out",
+                };
+                lines.push(format!("{n} {side}"));
+            }
+        }
+    });
+    std::fs::write(out, lines.join("\n")).expect("the child's file is writable");
+}
+
 /// How many grid-A recourse entries [`past_the_corner`] answers at the
 /// run's ε row, pinned per row so a fillet answer cannot slide into
 /// that bucket unnoticed. A row CI does not gate has no pin.
