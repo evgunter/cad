@@ -225,3 +225,80 @@ fn a_frame_with_no_axis_or_no_plane_refuses_typed() {
         "the wall is no plane"
     );
 }
+
+/// **A frame traced on one member of a family, `xs[i]`, stands on that
+/// member, and a member read the evaluation cannot answer refuses
+/// typed** (REFERENCES DM3; `mate::corner::read_of_member`). The
+/// cylinder patterned three times along `x` at spacing 2: the frame
+/// traced on member 2's bottom cap and wall stands on member 2's axis,
+/// so a boss drawn on it starts at `x = 4`. Read at `xs[3]`, which the
+/// family does not have, the frame refuses `NoMember`; read at an
+/// index written as an expression, `UnwrittenIndex`.
+///
+/// *Breaks if* a member read is read as its family (its first member)
+/// and a frame is made for a member the family does not have, or at an
+/// index no count the document holds.
+#[test]
+fn a_frame_traced_on_a_member_stands_on_that_member() {
+    let (doc, cylinder) = cylinder_at(0.0);
+    let (doc, _k, xs) = fixture::linear(doc, cylinder, [1.0, 0.0, 0.0], 2.0, 3);
+    let ev = eval(&doc);
+    let bottom = cap(cylinder, editor_core::CapEnd::Start);
+    let wall = face(&ev, cylinder, SurfaceKind::Cylinder);
+    let at = |index: Formula, name: &StableName| {
+        Operand::select(
+            editor_core::BodyRead::indexed(Operand::output(xs, 0), vec![index]),
+            vec![name.clone()],
+        )
+    };
+    let read = |index: Formula| {
+        editor_core::traced_frame(
+            &doc,
+            &ev,
+            &at(index.clone(), &bottom),
+            &at(index, &wall),
+            Tol::witness(),
+        )
+    };
+    let frame = read(Formula::count(2)).expect("a frame reads off member 2");
+    let (doc, footprint) = fixture::insert(
+        doc.clone(),
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Chain(boss_steps())],
+            ids: Vec::new(),
+            on: Some(editor_core::DrawnOn {
+                frame,
+                faces: vec![at(Formula::count(2), &wall)],
+            }),
+        }),
+    );
+    let (doc, boss) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: footprint.into(),
+            distance: len(BOSS_H),
+        },
+    );
+    near(
+        min_at(&doc, boss, 0),
+        4.0,
+        "the boss starts on member 2's axis",
+    );
+    near(min_at(&doc, boss, 2), 0.0, "on member 2's base");
+    assert!(
+        matches!(
+            read(Formula::count(3)),
+            Err(TracedFrameFault::Body(editor_core::PinRefusal::NoMember { node, .. })) if node == xs
+        ),
+        "no member 3"
+    );
+    assert!(
+        matches!(
+            read(Formula::modulo(Formula::count(5), Formula::count(3)).expect("a count")),
+            Err(TracedFrameFault::Body(
+                editor_core::PinRefusal::UnwrittenIndex
+            ))
+        ),
+        "an expression index"
+    );
+}

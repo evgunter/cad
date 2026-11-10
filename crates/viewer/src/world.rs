@@ -122,7 +122,7 @@ fn taken_by(
             };
             Some((*node, covers))
         }
-        VarDef::Select(select) => taken_by(doc, reader, select.body, &[]),
+        VarDef::Select(select) => taken_by(doc, reader, select.body.read, &select.body.at),
         VarDef::Pick(pick) => taken_by(doc, reader, pick.placement, &[]),
         _ => None,
     }

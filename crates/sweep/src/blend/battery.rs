@@ -1033,8 +1033,8 @@ pub fn chain_g1<T: Decide + Bounds>(
 // ---------------------------------------------------------------
 
 /// **`fillet3_corner_independence`** — is a chain termination a corner
-/// configuration some band builds (OQ6): a valence-three vertex whose
-/// three incident edges carry ONE convexity, either side, and whose
+/// configuration the corner patch builds (OQ6): a valence-three vertex
+/// whose three incident edges carry ONE convexity, either side, and whose
 /// three support normals are definitely independent?
 ///
 /// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
@@ -1058,9 +1058,11 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// predicate admits it on both, for both verbs: the chamfer's ruled
 /// strip and flat patch take no convexity argument, and the rolling
 /// ball's corner — its ball, its contact feet, its octant chart —
-/// folds the side as one verdict. A MIXED corner is out of scope for
-/// every band there is, because the band would change sides
-/// mid-corner.
+/// folds the side as one verdict. A MIXED corner has no patch, because
+/// the patch would change sides mid-corner, and no rule of its own yet:
+/// [`corner_at`] asks this predicate at a mixed vertex only where the
+/// request wants one of those, and reads the independence alone where
+/// a uniform rule's cut-off or mitre ends the band.
 ///
 /// # Errors
 ///
@@ -1081,9 +1083,9 @@ pub fn corner_config<T: Decide + Bounds>(
     if valence != 3 {
         return Err(refuse(CornerConfig::NEdgeVertex { valence }));
     }
-    // A uniform trihedron is a configuration some band carves; a mixed
-    // one is a configuration none does. Which of the two uniform sides
-    // the RUNNING band carves is decided by the caller that knows it.
+    // A uniform trihedron is a configuration the patch carves; a mixed
+    // one is not. Which of the two uniform sides the RUNNING band carves
+    // is decided by the caller that knows it.
     if !matches!(convex, 0 | 3) {
         return Err(refuse(CornerConfig::MixedConvexity { convex }));
     }
@@ -2951,17 +2953,23 @@ fn point_at<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Point3<T>, B
 /// section picked by [`cap_transverse`] — and where that is the
 /// ellipse, the cap's three face normals independent
 /// ([`corner_independence`]). Any other link's end is classified as a
-/// trivalent vertex of one convexity with independent support normals,
-/// and then by how many of its three edges the request names: all
-/// three, the corner patch; two, the [`CornerConfig::Turn`], whose two
-/// bands' feet on the third edge [`turn_at`] decides one point or apart;
-/// one, [`CornerConfig::EndFace`] — its end face a plane, cutting a
-/// chord from a chamfer and from a fillet the section
-/// [`cap_transverse`] picks. The uniform trihedron returns
-/// `None`: the carved trihedral configuration has no tag of its own
-/// ([`CornerConfig::ThreeConvexEdges`] names the convex one and no name
-/// exists for the concave one — evgunter/cad issue 1355), so it is the
-/// ONE carved configuration the battery admits without tagging.
+/// trivalent vertex with independent support normals, and then by how
+/// many of its three edges the request names: all three, the corner
+/// patch; two, the [`CornerConfig::Turn`], whose two bands' feet on the
+/// third edge [`turn_at`] decides one point or apart; one,
+/// [`CornerConfig::EndFace`] — its end face a plane, cutting a chord
+/// from a chamfer and from a fillet the section [`cap_transverse`]
+/// picks. The patch needs the vertex's three edges of one convexity;
+/// at a plane–plane end where they mix, one edge and the two that round
+/// alike end as they do at a uniform vertex, and any other request
+/// refuses [`CornerConfig::MixedConvexity`] through [`corner_config`]
+/// ([`mixed_end_is_built`]). A curved link's end at a mixed vertex is
+/// judged as at a uniform one: its open-chain door refuses it.
+/// The uniform trihedron returns `None`: the carved trihedral
+/// configuration has no tag of its own ([`CornerConfig::ThreeConvexEdges`]
+/// names the convex one, and by Ev's ruling on PR 1935 none names the
+/// concave one), so it is the ONE carved configuration the battery
+/// admits without tagging.
 fn corner_at<T: Decide + Bounds>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -3134,7 +3142,16 @@ fn corner_at<T: Decide + Bounds>(
             )
         })?;
     }
-    corner_config(vertex, valence, convex, normals, radius, band)?;
+    // A mixed vertex wants the patch's uniformity only where the request
+    // asks for the patch or for the mixed corner's own rule; a curved
+    // link's end is judged as at a uniform vertex, where its open-chain
+    // door says what it builds.
+    if matches!(convex, 0 | 3) || (plane_plane && !mixed_end_is_built(&resolved, requested, convex))
+    {
+        corner_config(vertex, valence, convex, normals, radius, band)?;
+    } else {
+        corner_independence(vertex, normals, radius, band)?;
+    }
     if !plane_plane {
         return Ok(None);
     }
@@ -3162,6 +3179,27 @@ fn corner_at<T: Decide + Bounds>(
             EntityId::Vertex(vertex),
             "a chain end's edge fan does not carry the requested link that reaches it",
         )),
+    }
+}
+
+/// **Whether a plane–plane end at a vertex whose three edges mix
+/// convexity is one the uniform rules already build.** The ODD edge is
+/// the one whose convexity differs from the other two, the PAIR. One
+/// requested edge, odd or of the pair, ends in the cut-off; the pair
+/// alone meets in the mitre, which at the reflex sector of their shared
+/// face is a join over the corner's wedge. The odd edge together with
+/// any other edge there wants the mixed corner's own rule (the odd band
+/// cut off, the pair carried through), which is not built. `convex` is
+/// the vertex's count of convex edges, `1` or `2`.
+fn mixed_end_is_built<T: Real>(links: &[Link<T>], requested: &[EdgeKey], convex: usize) -> bool {
+    let odd_is_convex = convex == 1;
+    let mut named = links.iter().filter(|l| requested.contains(&l.edge));
+    match (named.next(), named.next(), named.next()) {
+        (Some(_), None, None) => true,
+        (Some(a), Some(b), None) => [a, b]
+            .iter()
+            .all(|l| matches!(l.convexity, Convexity::Convex) != odd_is_convex),
+        _ => false,
     }
 }
 
