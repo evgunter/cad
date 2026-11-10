@@ -2775,7 +2775,8 @@ impl<T: Decide> CarriedComponent<T> {
     /// returns above. A conic component with a pad is a desync.
     fn within_span(&self, t: T, band: Band) -> Result<Option<T>, SiteRefusal> {
         // An open conic component, read in its carrier's own period.
-        let (Some(_), Some(turn), false) = (self.carrier.conic(), self.carrier.period(), self.closed())
+        let (Some(_), Some(turn), false) =
+            (self.carrier.conic(), self.carrier.period(), self.closed())
         else {
             return Ok(Some(t));
         };

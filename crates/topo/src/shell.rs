@@ -5311,8 +5311,8 @@ impl<T: Decide> MovedWall<T> {
                     }
                     // A piece in the half-turn after `φ` holds `φ + root`,
                     // one in the half-turn before it `φ − root`.
-                    let half = geom_core::period::Period::angle()
-                        .run_from(phi, geom::mid_param(lo, hi));
+                    let half =
+                        geom_core::period::Period::angle().run_from(phi, geom::mid_param(lo, hi));
                     let theta = (half - T::pi()).select_le_zero(phi + root, phi - root);
                     crossings.push(line.height(at(theta)));
                 }

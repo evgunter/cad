@@ -1833,9 +1833,11 @@ fn chart_v_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<VPeriod
     if let Some((_, v)) = surface.angle_periods() {
         return v.map(|period| VPeriod::Angle {
             period,
-            polar: SupSpeed::new(polar_arm(surface).unwrap_or_else(|| {
-                unreachable!("a chart whose `v` is an angle has a polar arm")
-            })),
+            polar: SupSpeed::new(
+                polar_arm(surface).unwrap_or_else(|| {
+                    unreachable!("a chart whose `v` is an angle has a polar arm")
+                }),
+            ),
         });
     }
     let payload = surface.spline_chart()?;

@@ -2,8 +2,10 @@
 id: an-axis-reads-its-direction-as-unit-by-convention-not-type
 kind: issue
 title: A unit axis is a convention to ε/arm, not a type, so Line's metric readings divide by |dir| and six sites read an axis never decided nonzero
-status: open
+status: closed
 opened: 2026-11-06
+closed: 2026-11-10
+pr: 6697
 ---
 
 
@@ -29,3 +31,22 @@ Filed by `onecopy/feet-and-params` (PR 6568's fix pass). `geom::Line`'s metric r
 The other 50 or so ported sites read a stored at-rest carrier axis, an axis normalized at the site, or a `UnitVec3`. Those would mint an `Axis` from a value already decided, or checked at rest to the convention's tolerance.
 
 Before you fix it, decide the type's home and its mint. One option is a `Frame::axis_line`-shaped door returning the typed axis. Say also whether an at-rest carrier's stored axis mints by renormalizing, and accepts the convention's `ε/arm` move, or by deciding it unit within the band.
+
+## Decided, and done
+
+**No typed unit axis** (option A, orchestrator ruling, 2026-11-09).
+- `Line::height` and `Line::distance` divide by `|dir|`, which is the renormalized reading `w·(dir/|dir|)`. A typed axis minted by renormalizing a stored axis would read the same answers, to rounding.
+- What it would add is width only: about 1.5× on `height` and 1.7× on `distance`, and only where the axis alone carries width (the tables in their docs). No `f64` answer moves.
+- Option B (`geom::Axis { origin, dir: UnitVec3 }`) is rejected. Its mint is a banded decision, so about 50 readers of tier-3-certified at-rest axes would each gain a refusal arm and a K row for a value already certified.
+- Option C (`Line.dir: UnitVec3`) is rejected. `Line` also carries chords and `Ray`'s units-of-`|dir|` contract (PR 6665), step-import stores unnormalized line carriers, and geom's crate docs keep carrier direction fields bare.
+- If a band reading ever needs the narrower width, file it as a measured follow-up.
+
+**The six sites.** Traced to where each direction is minted, none of them reads a computed direction that could be zero. So each comment names its construction and adds no arm:
+- **The cone's apex-line pair** is two rulings of the cone's squared frame, `a·cos α + (u·cos φ + v·sin φ)·sin α` over orthonormal `a, u, v`, unit to rounding. Its readers are `join.rs` `line_of` (`ApexLines`), `offset_axial` `mint_carrier` (`ConeCapSection::Generators`) and `splitting/join.rs` `ruling_pairs`. The construction is stated once, at geom-brep's `ApexFan::ruling` and `PlaneConeSection::ApexLinePair`.
+- **The plane×cylinder parallel and tangent rulings, and the parallel cylinders' tangent line**, run along the cylinder's stored axis, which tier 3's check 1 refuses zero at rest. Their readers are `ruling_pairs` and `rim_wedge`'s tangent locus (`boolean/mod.rs` `verify_tangency`, which normalizes it).
+- **`Curve3::clearance`'s Line arm** carries the carrier's precondition, as the conic arms carry their axis's. Its doc names it.
+- **`end_face` `line_clearance`'s chord** is `dir·(tb − ta)` over a certified edge's window.
+  - The window is decided forward at certification.
+  - The one hole was certification itself: `EdgeCurve::certify` decided a Line's span forward in parameter, not in metres, so a line of zero `dir` certified.
+  - Where `dir` is the zero vector, it now also decides the span in metres, at the line's speed `|dir|` (`Margin::metered` with `carrier_speed::speed_range`), as the Nurbs arm does. The margin is an exact zero, and the line refuses as `IntervalNotForward`, so no certified line edge carries a zero `dir`. Every other line is decided once, in parameter, as before, so neither its K stream nor its symbolic forms move.
+  - Pinned by `certify::tests::a_lines_span_is_forward_in_metres`, which is red on main.

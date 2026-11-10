@@ -322,8 +322,31 @@ pub struct RootSlack<'a, T> {
 pub struct Touching<T> {
     /// The simple roots.
     pub roots: TrigRoots<T>,
-    /// The touches' parameters.
-    pub touches: Vec<T>,
+    /// The touches, each with its spread.
+    pub touches: Vec<Touch<T>>,
+}
+
+/// **A touch the subdivision placed** ([`certified_subdivision_touching`]):
+/// the parameter it is reported at, and how far in metres along the
+/// carrier that point can lie from the extremum's own.
+///
+/// `at` is the midpoint of a bisection bracket on `F′`, and `G″ ≥ c > 0`
+/// on the piece, read. So `|G′(θ*) − G′(θ_ext)| ≥ c·|θ* − θ_ext|`, and
+/// since `G′(θ_ext) = 0`, `θ*` lies within `(|G′(θ*)| + e₁)/c` of the
+/// extremum, `e₁` the bound on `F′`'s rounding. At the carrier's top
+/// speed that is `speed_hi·(|G′(θ*)| + e₁)/c` metres: the `spread`. Two
+/// readings of one `F` therefore place the touch within twice that of
+/// each other, which the reader holds to its band
+/// (`work/onecopy/touch-point-spread.md`). Read with the operands swapped,
+/// `F` is the other carrier's, and its point lies from this one's by up
+/// to twice the spread and the carriers' gap there (at most the zero
+/// band).
+#[derive(Clone, Copy, Debug)]
+pub struct Touch<T> {
+    /// The touch's parameter, within `π` of the arc's midpoint.
+    pub at: T,
+    /// How far in metres the reported point can lie from the extremum's.
+    pub spread: T,
 }
 
 /// Where [`half_angle_roots`] works: the subdivision's frame (`walk`)
@@ -831,7 +854,7 @@ fn subdivision<T: Decide>(
     let mid = geom::mid_param(t0, t1);
     let reported = |t: T| geom_core::period::Period::angle().near(t, mid);
     let mut roots: Vec<T> = Vec::new();
-    let mut touches: Vec<T> = Vec::new();
+    let mut touches: Vec<Touch<T>> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
         let half = (r - l) / two;
         let m = l + half;
@@ -948,7 +971,10 @@ fn subdivision<T: Decide>(
                     let fall = (e0 - toward * g0).max(T::zero()) + slope_hi.powi(2) / (two * curve);
                     match decide(touch.stretch(), Margin::of(fall / f_per_metre), band) {
                         Ok(Sign::Zero) => {
-                            touches.push(reported(at));
+                            touches.push(Touch {
+                                at: reported(at),
+                                spread: speed_hi * slope_hi / curve,
+                            });
                             return Step::Settled;
                         }
                         Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),

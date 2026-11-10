@@ -91,6 +91,34 @@ impl Q {
         if self.le(&o) { o } else { self }
     }
 
+    /// `self / o` as an `f64`, to a few ulps: a measurement's read-out
+    /// (how far an exact excess stands below its charge), never a
+    /// decision. `o` is nonzero.
+    pub(crate) fn ratio(&self, o: &Self) -> f64 {
+        // n₁d₂ / (n₂d₁), both sides shifted to 64 significant bits.
+        let (num, den) = (&self.n * &o.d, &o.n * &self.d);
+        let top = |x: &BigInt| -> (f64, i64) {
+            let bits = i64::try_from(x.bits()).unwrap();
+            let shift = (bits - 64).max(0);
+            let head = (x >> usize::try_from(shift).unwrap()).to_u64_digits().1;
+            let mut v = 0.0;
+            for (k, d) in head.iter().enumerate() {
+                v += *d as f64 * 2f64.powi(64 * i32::try_from(k).unwrap());
+            }
+            (v, shift)
+        };
+        let ((a, ea), (b, eb)) = (top(&num), top(&den));
+        if b == 0.0 {
+            return f64::INFINITY;
+        }
+        let sign = if (num.sign() == Sign::Minus) == (den.sign() == Sign::Minus) {
+            1.0
+        } else {
+            -1.0
+        };
+        sign * a / b * 2f64.powi(i32::try_from(ea - eb).unwrap())
+    }
+
     /// `lo ≤ self ≤ hi`, exactly.
     pub(crate) fn within(&self, lo: f64, hi: f64) -> bool {
         let (lo, hi) = (Self::of(lo), Self::of(hi));

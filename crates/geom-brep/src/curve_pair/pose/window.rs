@@ -21,7 +21,9 @@
 //! escalation rather than its zero: it answers to no found meeting, so a
 //! point within the gap there is a near-miss the band leaves undecided,
 //! and the root goes to the polish, which escalates on it (the parent
-//! module's docs). **Off there is off `b`'s span**, not only its carrier:
+//! module's docs). A piece receding up `θ` or down it reads off there
+//! where its point at the near end does: `d` is least at that end.
+//! **Off there is off `b`'s span**, not only its carrier:
 //! where `b`'s carrier runs on past its span beside `a`, a piece whose
 //! carrier readings fail is read against the span by its carrier's point
 //! walk (`curve_pair_window_off_span`), and one that does not is halved.
@@ -241,9 +243,6 @@ impl<T: Decide> Window<'_, T> {
         let h = taylor(self.height_jet(m), [z0; 4], self.height_fourth(), w);
         let f = taylor(level.jet_at(m), [z0; 4], level.fourth(), w);
         let (big, small) = (self.b.speed_hi(), self.b.speed_lo());
-        let height_recedes = positive(row, h.lo)
-            && positive(row, h.slope_lo)
-            && same_way(row, h.at, h.slope_at, away.unwrap_or(true));
         // `D` from the level, read locally (module docs, (ii)).
         let s2 = small.powi(2);
         let (six, twelve) = (T::from_f64(6.0), T::from_f64(12.0));
@@ -265,18 +264,23 @@ impl<T: Decide> Window<'_, T> {
         // `|(D²)′| ≤ D·L·(|F′| + 2D·|Q′|/s²)`.
         let level_drift = d_hi * big * (f.slope_hi + two * d_hi * speed / s2);
         let level_negligible = positive(row, two * h.lo * h.slope_lo - level_drift);
-        let level_recedes = positive(row, f.lo)
-            && positive(row, f.slope_lo)
-            && same_way(row, f.at, f.slope_at, away.unwrap_or(true))
-            && positive(row, f.slope_lo - two * d_hi * speed / s2);
-        // `(D²)′ ≥ 2D·(|F′| − 2D·|Q′|/s²)/|∇F(q*)|`.
-        let level_way =
-            positive(row, f.lo) && same_way(row, f.at, f.slope_at, away.unwrap_or(true));
         let foot_grad = (two / small).min(g_hi + two * d_hi / s2);
+        // `(D²)′ ≥ 2D·(|F′| − 2D·|Q′|/s²)/|∇F(q*)|`.
         let level_growth = two * d_lo * (f.slope_lo - two * d_hi * speed / s2) / foot_grad;
-        let level_dominates = level_way
-            && positive(row, f.slope_lo)
-            && positive(row, level_growth - two * h.hi * h.slope_hi);
+        // Whether `d` grows strictly up `θ` (`up`) or down it over the piece.
+        let recedes = |up: bool| {
+            let height_recedes = positive(row, h.lo)
+                && positive(row, h.slope_lo)
+                && same_way(row, h.at, h.slope_at, up);
+            let level_way = positive(row, f.lo) && same_way(row, f.at, f.slope_at, up);
+            let level_recedes = level_way
+                && positive(row, f.slope_lo)
+                && positive(row, f.slope_lo - two * d_hi * speed / s2);
+            let level_dominates = level_way
+                && positive(row, f.slope_lo)
+                && positive(row, level_growth - two * h.hi * h.slope_hi);
+            (height_recedes && (level_recedes || level_negligible)) || level_dominates
+        };
         let z = match away {
             Some(_) => T::from_f64(band.zero()),
             None => T::from_f64(band.escalate()),
@@ -303,8 +307,21 @@ impl<T: Decide> Window<'_, T> {
                 SpanRead::Unread => None,
             };
         }
-        if (height_recedes && (level_recedes || level_negligible)) || level_dominates {
-            return Some(Read::Recedes);
+        match away {
+            Some(up) if recedes(up) => return Some(Read::Recedes),
+            Some(_) => {}
+            // With no ring, a piece along which `d` grows is off past `z`
+            // where its near end is: `d` is least there.
+            None => {
+                if (recedes(true) && self.point_off(l, z))
+                    || (recedes(false) && self.point_off(r, z))
+                {
+                    return Some(Read::Off);
+                }
+                if recedes(true) {
+                    return Some(Read::Recedes);
+                }
+            }
         }
         let foot = self.span_b.carrier().foot(q, self.foot_seed(q));
         let gap = foot.gap() + reach;
@@ -315,6 +332,17 @@ impl<T: Decide> Window<'_, T> {
         }
         (away.is_some() && past() && self.off_span(q, reach, z, band) == SpanRead::Off)
             .then_some(Read::OffSpan)
+    }
+
+    /// **Whether `a(t)` itself reads off `b`'s carrier past `z`** ((i), at a
+    /// piece of no reach).
+    fn point_off(&self, t: T, z: T) -> bool {
+        let q = self.a.point_at(t);
+        let clear = self.span_b.carrier().clearance(q).unwrap_or_else(T::zero);
+        positive(
+            "curve_pair_window_off",
+            self.height_jet(t)[0].abs().max(clear) - z,
+        )
     }
 
     /// **(i) off `b`'s span**, on an arc no ring bounds (module docs):
