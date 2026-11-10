@@ -118,10 +118,7 @@ use crate::swept::{
 /// The predicate names this verb's cosurface decision reports under
 /// (the side walls of an extrusion: planes from lines, cylinders from
 /// arcs).
-const SIDE_COSURFACE: CosurfaceNames = CosurfaceNames {
-    lines: "side_planes_cosurface",
-    arcs: "side_cylinders_cosurface",
-};
+const SIDE_COSURFACE: CosurfaceNames = crate::rows::SIDE_COSURFACE;
 
 /// How far (and which way) to extrude — the operation's second input.
 #[derive(Clone, Copy, Debug)]
