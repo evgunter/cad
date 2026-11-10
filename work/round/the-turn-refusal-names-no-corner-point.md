@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-06
 priority: P3
 cost: E
+rides_with: anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction
 ---
 
 ## Finding

@@ -27,6 +27,18 @@
 //! chord past the band escalates as their straddle
 //! (`curve_pair_span_end_straddle`).
 //!
+//! **A parameter a turn away.** At an enclosure scalar the parameter's
+//! copy about the middle ([`geom::Period::near`]) is one name for the
+//! whole box, so a box astride the middle's antipode is renamed whole
+//! onto one copy, and where the span leaves a gap narrower than the box,
+//! part of the box is inside the span on the copy a turn away. So on a
+//! closed carrier each end's side is the greater of the parameter's own
+//! and its copy's a turn away against the other end: the side of a
+//! parameter past the stop end is also its copy a turn back against the
+//! start. At `f64` a parameter within half a turn of the middle is no
+//! nearer the other end a turn away, so the side is its own to rounding;
+//! on a span of a whole turn the two read alike, the nearer end's.
+//!
 //! **Past needs a nearest foot.** That the foot lies past the span says
 //! the point lies off it only where the foot is the point's nearest point
 //! of the carrier, which it is on a line and a circle
@@ -436,6 +448,27 @@ impl<'a, T: Decide> Span<'a, T> {
             return Ok(EndsPlace::Decided(Place::Inside));
         }
         let ends = [(SpanEnd::Start, t - self.t0), (SpanEnd::Stop, self.t1 - t)];
+        // On a closed carrier each end's side is also read on the copy a
+        // turn away, against the other end: past the stop end only where
+        // the copy a turn back is also before the start (module docs, "A
+        // parameter a turn away"). At `f64` the copy is no nearer.
+        // Through this span's own naming (`Self::branch`) only the stop
+        // arm moves anything: a box needs its copy only where it straddles
+        // the middle's antipode, and there `Period::near`'s mark is
+        // undecided and takes the upper copy, past the stop end. Every
+        // reading here is so named (`place_param` and `place_at` both read
+        // `branch`), so the start arm moves nothing today: it is the same
+        // reading for a parameter on the lower copy, kept so the side does
+        // not rest on which copy the tie takes.
+        let ends = if self.carrier.is_periodic() {
+            let tau = T::tau();
+            [
+                (SpanEnd::Start, ends[0].1.max(self.t1 - (t + tau))),
+                (SpanEnd::Stop, ends[1].1.max((t - tau) - self.t0)),
+            ]
+        } else {
+            ends
+        };
         // An end at the point first, on its raw chord: no side matters
         // beside it.
         let mut chords = Vec::with_capacity(2);

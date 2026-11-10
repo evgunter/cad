@@ -3164,7 +3164,7 @@ fn seamed_band<T: Decide + crate::props::AtRestPolicy>(
             band,
             designated,
         )?;
-        if strictly_inside(&reach, p_boundary, p_pole, corner, band)?.is_none() {
+        if strictly_inside(&reach, corner, band)?.is_none() {
             return Err(not_expressible(
                 "the cavity counterpart's corner does not project onto the designated chart's \
                  seam between its boundary and the pole, so the rim is not a band of the \
@@ -3370,8 +3370,8 @@ fn band_between_boundaries<T: Decide + crate::props::AtRestPolicy>(
         let (q_start, q_end) = (point(body, b_start), point(body, b_end));
         let reach = along(body, seam, q_start, q_end, host_surface, band, designated)?;
         let (Some(s_start), Some(s_end)) = (
-            strictly_inside(&reach, q_start, q_end, p_start, band)?,
-            strictly_inside(&reach, q_start, q_end, p_end, band)?,
+            strictly_inside(&reach, p_start, band)?,
+            strictly_inside(&reach, p_end, band)?,
         ) else {
             return Err(not_expressible(
                 "the cavity counterpart's corners do not project onto the designated chart's \
@@ -3562,19 +3562,16 @@ fn guest_corner<T: Real>(
         .find(|&g| twins.vertices.get(g) == Some(&v) || twins.vertices.get(v) == Some(&g))
 }
 
-/// Where `corner` projects onto `stretch` — an [`along`] answer, from
-/// `from` to `to` — when it lands strictly inside it: its parameter on
-/// the stretch's carrier. Each gap to an end is metered at the
-/// stretch's average speed (the chord over the parameter span), so the
-/// margin is a length. Both band surgeries place a counterpart corner on
-/// a seam through this one predicate; the two-boundary band then asks
-/// one more question of its two corners, their order
-/// (`shell_band_corners_ordered`), which a pole's seam, holding one
-/// corner, has no use for.
+/// Where `corner` projects onto `stretch` — an [`along`] answer — when
+/// it lands strictly inside it: its parameter on the stretch's carrier,
+/// read about the stretch's middle and placed against its ends by the one
+/// span reading ([`geom_brep::curve_pair::Span::place_param`]), inside
+/// and at no end. Both band surgeries place a counterpart corner on a
+/// seam through it; the two-boundary band then asks one more question of
+/// its two corners, their order (`shell_band_corners_ordered`), which a
+/// pole's seam, holding one corner, has no use for.
 fn strictly_inside<T: Decide>(
     stretch: &geom_brep::EdgeCurveSpec<T>,
-    from: geom_core::Point3<T>,
-    to: geom_core::Point3<T>,
     corner: geom_core::Point3<T>,
     band: Band,
 ) -> Result<Option<T>, ShellError<T>> {
@@ -3582,15 +3579,14 @@ fn strictly_inside<T: Decide>(
     let Some(s) = stretch.carrier.param_near(corner, geom::mid_param(s0, s1)) else {
         return Ok(None);
     };
-    let scale = (to - from).norm() / (s1 - s0);
-    for gap in [s - s0, s1 - s] {
-        let sign = decide("shell_seam_corner_inside", Margin::of(gap * scale), band)
-            .map_err(|source| ShellError::Escalated { source })?;
-        if sign != Sign::Positive {
-            return Ok(None);
-        }
+    let span = geom_brep::curve_pair::Span::new(&stretch.carrier, (s0, s1));
+    match span
+        .place_param(s, band)
+        .map_err(|source| ShellError::Escalated { source })?
+    {
+        geom_brep::curve_pair::Place::Inside => Ok(Some(s)),
+        _ => Ok(None),
     }
-    Ok(Some(s))
 }
 
 /// A scaffold edge's spec: the stretch of `edge`'s own carrier from
