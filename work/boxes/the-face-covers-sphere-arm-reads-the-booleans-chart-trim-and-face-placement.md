@@ -100,8 +100,14 @@ the moved `placement_on_carrier`, with the census mapping its
 `cell_region.rs` `place` holds a station of the face's own stored chart
 (`Held::constructed`) and placed a curved one through
 `curved_face_containment`, which reads `OffCarrier` as `Out`. It now
-reads `curved_face_placement`, and a curved `OffCarrier` panics as the
-kernel's defect, so every held door has one policy. That raised
+reads `curved_face_placement`. An analytic carrier's `OffCarrier` panics
+as the kernel's defect, in every build, through the public
+`station_region` too: the policy every held door has. A spline face's
+reads `None` (the cell kept): `Held::check` does not read a spline, so
+the spline region's own search is the only reading of its station. A
+spline-station row (`spline_region_rows`'s
+`a_spline_faces_stations_read_on_its_own_chart`) reads none off the
+carrier on a 21 × 21 grid. That raised
 `cell_region.rs`'s `names-boolean` pin from 11 to 14
 (`curved_face_placement` and `CurvedPlacement`'s two arms, where it
 named `curved_face_containment`), cited here. When containment moves to

@@ -69,3 +69,11 @@ kernel's defect, as at every other held door. Its `names-boolean` pin
 rises 11 → 14, cited to
 `work/boxes/the-face-covers-sphere-arm-reads-the-booleans-chart-trim-and-face-placement.md`,
 which records it.
+
+**Review (6773).**
+- **What pins it.** Nothing in the suites reached a tilt the arm could move, so two rows now do:
+  - topo `carrier_pair::lever_rows::the_pair_arm_is_the_arm_the_cylinder_tilt_is_levered_at`: a tilt put mid-band by the door's arm escalates at `carrier_pair_decided`, and its margin is `|a1 × a2|` times exactly `carrier_pair_arm`. A door returning the extent's radius instead fails it.
+  - editor-core `coincide::replay::tests::the_axis_tilt_is_levered_at_the_pairs_reach_not_a_metre`: a `2·escalate` tilt on a 1 cm cylinder decides Zero at the reach and Positive at a metre. With the metre put back, the row reads `[Positive]` and fails.
+- **The unread extent keeps its reason.** `one_cylinder`'s refusal is `Unestablished::ExtentUnread(PairUnread)`, and it reaches the row as `Unreplayed::Extent(PairUnread)`, not as a numeric Zero.
+- **The offset and the radii** are still the replay's own spelling of the kernel's cylinder data, filed as `work/onecopy/the-replays-cylinder-offset-and-radii-are-a-second-spelling-of-the-kernels-data.md`.
+- **`cell_region` on a spline.** A spline station's `OffCarrier` is `None`, not a panic, as the boxes row now records.

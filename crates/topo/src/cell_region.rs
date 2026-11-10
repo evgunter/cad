@@ -207,22 +207,21 @@ fn place<T: Decide>(
             // its off-carrier answer is a reading the door could not
             // settle, not a contradiction of a checked premise. The cell
             // is kept, the direction a subdivision consumer's looseness
-            // runs.
-            CurvedPlacement::OffCarrier
-                if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) =>
-            {
-                None
+            // runs. An analytic carrier's station is the face's own
+            // chart's (`constructed`), which `Held::check` reads in debug
+            // and the closed form decides here, so its off-carrier reading
+            // is the kernel's defect, as at every held door, never a
+            // reading of `Out`.
+            CurvedPlacement::OffCarrier => {
+                if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                    return None;
+                }
+                unreachable!(
+                    "cell region: face {face:?}: a station of the face's own stored chart reads \
+                     definitely off its carrier. {}",
+                    geom_core::kernel_defect_ending!()
+                )
             }
-            // An analytic carrier's station is the face's own chart's
-            // (`constructed`), which `Held::check` reads in debug and the
-            // closed form decides here, so a curved door's off-carrier
-            // reading is the kernel's defect, as at every held door, never
-            // a reading of `Out`.
-            CurvedPlacement::OffCarrier => unreachable!(
-                "cell region: face {face:?}: a station of the face's own stored chart reads \
-                 definitely off its carrier. {}",
-                geom_core::kernel_defect_ending!()
-            ),
         },
     }
 }
@@ -377,50 +376,4 @@ fn clear_of_boundary(
         }),
         BoundaryStop::Unreadable => false,
     })
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
-mod tests {
-    use super::*;
-    use crate::boolean::spline_region::rows::{sheet, twisted};
-    use geom_core::Tol;
-
-    /// **A spline face's stations read on its own chart, never off its
-    /// carrier.** The twisted bilinear patch `(u, v, u·v)`, a sheet over
-    /// `[0.1, 0.9]²` of it: every station of a 21 × 21 grid over the
-    /// whole chart is placed by the curved door, and none reads
-    /// `OffCarrier` (a station is a point of the chart; the spline arm
-    /// reads it by its own search, which `Held::check` does not guard).
-    /// `station_region` answers `In` well inside the sheet and `Out` well
-    /// outside it, and panics nowhere.
-    #[test]
-    fn a_spline_faces_stations_read_on_its_own_chart() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let (body, face) = sheet(
-            &twisted(1.0),
-            &[(0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)],
-        );
-        let surface = body.face(face).unwrap().surface().clone();
-        let n = 20;
-        for i in 0..=n {
-            for j in 0..=n {
-                let (u, v) = (f64::from(i) / f64::from(n), f64::from(j) / f64::from(n));
-                let at = curved_face_placement(&body, face, surface.eval(u, v), band);
-                assert!(
-                    !matches!(at, Ok(CurvedPlacement::OffCarrier)),
-                    "the station ({u}, {v}) reads off its own carrier: {at:?}"
-                );
-                let _ = station_region(&body, face, (u, v), band);
-            }
-        }
-        assert_eq!(
-            station_region(&body, face, (0.5, 0.5), band),
-            Some(FaceContainment::In)
-        );
-        assert_eq!(
-            station_region(&body, face, (0.02, 0.5), band),
-            Some(FaceContainment::Out)
-        );
-    }
 }
