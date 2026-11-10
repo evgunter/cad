@@ -994,6 +994,10 @@ pub enum SectorChannel {
     /// (the span reaches the apex or the other nappe), or a torus's
     /// `(ρ + R)² − r²` (the span reaches a spindle torus's inner sheet).
     Lever,
+    /// On a spindle sheet, the span's nearest points on its meridian
+    /// circle lie across the axis, past an apex ([`Meters::over`]'s side
+    /// check), so the circle's distance is not the sheet's.
+    Side,
 }
 
 impl SectorChannel {
@@ -1010,6 +1014,9 @@ impl SectorChannel {
             Self::Lever => {
                 "its metre lever is not positive: it reaches the cone's apex or other nappe, \
                  or a spindle torus's inner sheet"
+            }
+            Self::Side => {
+                "its meridian circle's nearest points lie across the axis, past the sheet's apex"
             }
         }
     }
@@ -1535,9 +1542,8 @@ pub(crate) struct SpanHull {
     /// The range of `z` over the part's points.
     pub(crate) z: (f64, f64),
     /// A certified upper bound in metres on the part's distance from
-    /// the chart ([`Meters::over`] in certification arithmetic): `+∞`
-    /// where the cone's lever is not certified positive, NaN where a
-    /// bound above is not certified.
+    /// the chart ([`Meters::certified`]): `+∞` where it does not read,
+    /// NaN where a bound above is not certified.
     pub(crate) meters: f64,
     /// Certified lower bounds in metres on the distance from the chart
     /// at the part's two ends ([`Meters::divisor`]), `0` where none is.
@@ -1667,6 +1673,15 @@ fn off_period<T: Real>(angle: T, shift: T, period: super::Period<T>) -> T {
         .abs()
 }
 
+/// Which of [`Meters::over`]'s conditions a positivity is asked of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Lever {
+    /// A divisor: the cone's or a torus's lever, or a sheet's `σ(M² − r²)`.
+    Divisor,
+    /// A sheet's side check, `r·ρ − |m − r|·|R|`.
+    Side,
+}
+
 /// A chart's conversion between its canonical form's magnitude `|f|`
 /// and the distance from it in metres ([`net_incidence`]'s list), at
 /// scalar `S`: the twin's own scalars, and on a cone the stored nappe.
@@ -1728,15 +1743,75 @@ impl<S: Real> Meters<S> {
         })
     }
 
-    /// **The apex root**: on a cone, `√|f|` bounds a part's distance from
-    /// the cone's implicit surface wherever the lever does not decide
-    /// positive (a part reaching the apex). In the meridian half-plane
-    /// `f = a·b`, with `a = ρ cos α − z sin α` and `b = ρ cos α + z sin α`
-    /// the distances from the two generator lines, both on the implicit
-    /// cone, so the distance is at most `min(|a|, |b|) ≤ √|f|`. `None` off
-    /// the cone.
-    pub(crate) fn apex_root(self, f: S) -> Option<S> {
-        matches!(self, Self::Cone { .. }).then(|| f.sqrt())
+    /// **The apex reading**: a bound on a part's distance wherever the
+    /// lever does not decide positive (a part reaching an apex), for a
+    /// part whose `|f|` is at most `f`, whose `ρ` is at most `rho_hi` and
+    /// whose `z` ranges over `z`. `None` off the cone and the sheet.
+    ///
+    /// - On a cone, `√|f|` bounds the distance from the implicit cone. In
+    ///   the meridian half-plane `f = a·b`, with `a = ρ cos α − z sin α`
+    ///   and `b = ρ cos α + z sin α` the distances from the two generator
+    ///   lines, both on the implicit cone, so the distance is at most
+    ///   `min(|a|, |b|) ≤ √|f|`.
+    /// - On a spindle sheet, the distance from the nearer apex
+    ///   `(0, ±√(r² − R²))`: each apex is a point of the sheet, so a part
+    ///   is no farther from the sheet than from it. `|f|` cannot stand in
+    ///   for it, since it vanishes on the other sheet too, which meets
+    ///   this one at the apexes.
+    pub(crate) fn apex_root(self, f: S, rho_hi: S, z: (f64, f64)) -> Option<S> {
+        match self {
+            Self::Cone { .. } => Some(f.sqrt()),
+            Self::Spindle { major, minor } => {
+                let height = geom::sheet_apex(major, minor).height;
+                let (z0, z1) = (S::from_computed(z.0), S::from_computed(z.1));
+                let reach = |apex: S| {
+                    let along = (z0 - apex).abs().max((z1 - apex).abs());
+                    (rho_hi.powi(2) + along.powi(2)).sqrt()
+                };
+                Some(reach(height).min(reach(-height)))
+            }
+            _ => None,
+        }
+    }
+
+    /// **A part's reading in certification arithmetic**
+    /// ([`SpanHull::meters`]): [`Self::over`] with each lever taken where
+    /// `positive` certifies it, else [`Self::apex_root`]; `None` where
+    /// neither reads.
+    pub(crate) fn certified(
+        self,
+        f: S,
+        rho: (S, S),
+        z: (f64, f64),
+        positive: impl Fn(S) -> bool,
+    ) -> Option<S> {
+        self.over(
+            f,
+            rho,
+            z,
+            |lever, _| if positive(lever) { Ok(lever) } else { Err(()) },
+        )
+        .ok()
+        .or_else(|| self.apex_root(f, rho.1, z))
+    }
+
+    /// **Limb 2's reading of a part whose lever the band does not decide
+    /// positive** (refused or escalated): on a cone [`Self::apex_root`];
+    /// on a sheet the hull's reading ([`SpanHull::meters`],
+    /// [`Self::certified`]). Each bounds the part's distance from the
+    /// chart's zero set whatever the band said of the lever, and on a
+    /// sheet from this sheet alone, so taking it in the band's place
+    /// certifies no part the band would read off the sheet. `None` off
+    /// the cone and the sheet, and on a sheet where the hull's reading is
+    /// NaN (a part whose composite did not certify).
+    pub(crate) fn apex_part(self, f: S, span: &SpanHull) -> Option<S> {
+        match self {
+            Self::Spindle { .. } => span
+                .meters
+                .is_finite()
+                .then(|| S::from_computed(span.meters)),
+            _ => self.apex_root(f, S::from_computed(span.rho_hi), span.z),
+        }
     }
 
     /// An upper bound in metres on the distance of a part whose `|f|` is
@@ -1770,7 +1845,7 @@ impl<S: Real> Meters<S> {
         f: S,
         rho: (S, S),
         z: (f64, f64),
-        positive: impl Fn(S) -> Result<S, E>,
+        positive: impl Fn(S, Lever) -> Result<S, E>,
     ) -> Result<S, E> {
         let axial = match self {
             Self::Cone { nappe, .. } => axial_floor(z, nappe),
@@ -1787,7 +1862,7 @@ impl<S: Real> Meters<S> {
         rho: (S, S),
         axial: S,
         z: (f64, f64),
-        positive: impl Fn(S) -> Result<S, E>,
+        positive: impl Fn(S, Lever) -> Result<S, E>,
     ) -> Result<S, E> {
         let (rho, rho_hi) = rho;
         let torus = |outer: S, minor: S| {
@@ -1799,10 +1874,11 @@ impl<S: Real> Meters<S> {
             Self::Cylinder { radius } | Self::Sphere { radius } => {
                 f / (radius + rho.max(radius - f / radius))
             }
-            Self::Cone { sin, cos, .. } => f / positive(rho * cos + axial * sin)?,
-            Self::Torus { major, minor } => {
-                torus(positive((rho + major).powi(2) - minor.powi(2))?, minor)
-            }
+            Self::Cone { sin, cos, .. } => f / positive(rho * cos + axial * sin, Lever::Divisor)?,
+            Self::Torus { major, minor } => torus(
+                positive((rho + major).powi(2) - minor.powi(2), Lever::Divisor)?,
+                minor,
+            ),
             Self::Spindle { major, minor } => {
                 // `M² − r²` over the box: its least value where `ρ + R`
                 // keeps one sign (every apple), its greatest everywhere,
@@ -1820,8 +1896,8 @@ impl<S: Real> Meters<S> {
                 let sigma = geom::meridian_side(major);
                 let half = S::from_f64(0.5);
                 let outer = ((S::one() + sigma) * least - (S::one() - sigma) * most) * half;
-                let d = torus(positive(outer)?, minor);
-                positive(minor * rho - d * major.abs())?;
+                let d = torus(positive(outer, Lever::Divisor)?, minor);
+                positive(minor * rho - d * major.abs(), Lever::Side)?;
                 d
             }
         })
@@ -1977,10 +2053,10 @@ pub(crate) fn window_of<T: Decide>(
 /// # Errors
 ///
 /// [`PcurveCertifyError::ImageMismatch`] when no part meets the window,
-/// or one that does has no certified composite bound or floor; a cone's
-/// or a torus's lever that does not decide positive refuses
+/// or one that does has no certified composite bound or floor; a cone's,
+/// a torus's or a sheet's lever that does not decide positive refuses
 /// [`SectorChannel::Lever`] at the part, except where `apex` reads such
-/// a cone part through [`Meters::apex_root`] (limb 2's reading).
+/// a cone or sheet part through [`Meters::apex_part`] (limb 2's reading).
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),
@@ -2023,17 +2099,30 @@ pub(super) fn net_incidence<T: Decide>(
         rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
         let f = T::from_computed(span.f_sup);
         let disp = meters
-            .over(f, (rho, T::from_computed(span.rho_hi)), span.z, |lever| {
-                require_positive_as(
-                    "pcurve_projected_lever",
-                    lever,
-                    band,
-                    PcurveCheck::Sector,
-                    j,
-                    sector_refused(j, SectorChannel::Lever),
-                )
-            })
-            .or_else(|refusal| apex.then(|| meters.apex_root(f)).flatten().ok_or(refusal))?;
+            .over(
+                f,
+                (rho, T::from_computed(span.rho_hi)),
+                span.z,
+                |lever, which| {
+                    let channel = match which {
+                        Lever::Divisor => SectorChannel::Lever,
+                        Lever::Side => SectorChannel::Side,
+                    };
+                    require_positive_as(
+                        "pcurve_projected_lever",
+                        lever,
+                        band,
+                        PcurveCheck::Sector,
+                        j,
+                        sector_refused(j, channel),
+                    )
+                },
+            )
+            .or_else(|refusal| {
+                apex.then(|| meters.apex_part(f, span))
+                    .flatten()
+                    .ok_or(refusal)
+            })?;
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {
@@ -2312,12 +2401,10 @@ pub(crate) fn line_off_cylinder_sup<T: Real>(q0: Vec3<T>, q1: Vec3<T>, r: T) -> 
     let chord = (q1.x - q0.x).powi(2) + (q1.y - q0.y).powi(2);
     let terms = radial_sq(q0) + radial_sq(q1) + r.powi(2) + chord;
     let big = segment_form_sup(form(q0), form(q1), chord, terms);
-    let Ok(sup) = Meters::Cylinder { radius: r }.over(
-        big,
-        (T::zero(), T::zero()),
-        (0.0, 0.0),
-        Ok::<T, core::convert::Infallible>,
-    );
+    let Ok(sup) =
+        Meters::Cylinder { radius: r }.over(big, (T::zero(), T::zero()), (0.0, 0.0), |x, _| {
+            Ok::<T, core::convert::Infallible>(x)
+        });
     sup
 }
 
@@ -2406,7 +2493,7 @@ fn closed_form_meters<T: Decide>(
     part: usize,
     band: Band,
 ) -> Result<T, PcurveCertifyError> {
-    meters.over_at(f, (rho, rho), axial, (0.0, 0.0), |lever| {
+    meters.over_at(f, (rho, rho), axial, (0.0, 0.0), |lever, _| {
         require_positive_as(
             "pcurve_projected_lever",
             lever,

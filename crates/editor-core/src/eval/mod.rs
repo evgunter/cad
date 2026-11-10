@@ -919,8 +919,8 @@ impl<T: topo::AtRestPolicy + Decide> NodeValue<T> {
 
     /// **This value read whole**: in a member's view of its family, the
     /// family; else this. A seat that takes a family whole
-    /// ([`crate::repetition::takes_whole`]) and a selection naming its
-    /// members read it so.
+    /// ([`crate::repetition::takes_whole`]) and a selection of one
+    /// member read it so.
     pub(crate) fn whole(&self) -> &Self {
         self.family.as_deref().unwrap_or(self)
     }
@@ -1558,9 +1558,8 @@ pub enum NodeErrorKind {
     /// The mirror refused: the kernel's reflection door
     /// (`topo::mirror_body`), its refusal verbatim.
     Mirror(TransformError),
-    /// A placement's rigid motion was not minted (a part of it is not
-    /// a finite number) or not admitted (a literal frame, or a map the
-    /// mate solve composed, that the decided door refuses).
+    /// A placement's rigid motion was not minted: a part of it, or of a
+    /// motion the mate solve composed, is not a finite number.
     Motion(geom_core::RigidMotionError),
     /// The §10.3/§10.4 construction refused (M5 PR 10 §2's typed
     /// compatibility door): section shapes that do not correspond,
@@ -3775,8 +3774,29 @@ pub fn traced_faces<T: EvalScalar + crate::mate::SolveScalar>(
     program: &ProfileProgram,
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
-    Ok(wire::trace::drawn(doc, &ev.nodes, program, &ev.env, tol)?
-        .map_or_else(Vec::new, |d| d.faces))
+    // `doc` may be `ev`'s document with a probe lowered into it, whose
+    // member reads mint their indices as counts `ev` never bound: each
+    // is a count the document holds (`edit::written_count`), bound here
+    // as the run binds it.
+    let unbound: Vec<(crate::VarId, i64)> = doc
+        .var_ids()
+        .into_iter()
+        .filter(|var| !ev.env.bindings.contains_key(var) && !ev.env.refused.contains_key(var))
+        .filter_map(|var| Some((var, crate::edit::written_count(doc, var)?)))
+        .collect();
+    let env = match unbound.is_empty() {
+        true => std::borrow::Cow::Borrowed(&ev.env),
+        false => {
+            let mut env = ev.env.clone();
+            env.bindings.extend(
+                unbound
+                    .into_iter()
+                    .map(|(var, value)| (var, crate::expr::ParamValue::Count(value))),
+            );
+            std::borrow::Cow::Owned(env)
+        }
+    };
+    Ok(wire::trace::drawn(doc, &ev.nodes, program, &env, tol)?.map_or_else(Vec::new, |d| d.faces))
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box

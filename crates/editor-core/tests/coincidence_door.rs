@@ -1021,7 +1021,7 @@ fn a_corner_the_tool_passes_through_is_not_on_it_by_construction() {
                 .into_iter()
                 .flat_map(move |y| [0.0, 1.0].map(|z| [x, y, z]))
         })
-        .map(|[x, y, z]| turn.affine::<f64>().transform_point(Point3::new(x, y, z)).z)
+        .map(|[x, y, z]| turn.affine().transform_point(Point3::new(x, y, z)).z)
         .collect();
     heights.sort_by(f64::total_cmp);
     let level = heights[3];

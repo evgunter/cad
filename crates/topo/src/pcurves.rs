@@ -2182,10 +2182,10 @@ impl<T: Real, K> Walked<T, K> {
 
     /// The certified row, where the derivation's lane choice already
     /// read the certificate; the walked row back otherwise.
-    fn into_certified(self) -> Result<(K, PcurveCache<T>, Option<JointElement>), Self> {
+    fn into_certified(self) -> Result<(K, PcurveCache<T>, Option<JointElement>), Box<Self>> {
         match self.image {
             ChartImage::Certified(cache) => Ok((self.key, cache, self.element)),
-            image @ ChartImage::Image { .. } => Err(Self { image, ..self }),
+            image @ ChartImage::Image { .. } => Err(Box::new(Self { image, ..self })),
         }
     }
 
@@ -3172,7 +3172,17 @@ fn restate<T: Decide>(
                 band,
                 lane,
             ),
-            None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+            // No door, so the image refuses, and the carrier's incidence
+            // read ends that refusal as at every certificate door.
+            None => geom_brep::incidence_ended_unwitnessed(
+                carrier,
+                (t0, t1),
+                (t0, t1),
+                surface,
+                band,
+                |read| read,
+                || Err(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME }),
+            ),
         },
         Pcurve::General(image) => PcurveCache::certify_general(
             std::sync::Arc::clone(image),
@@ -3364,7 +3374,7 @@ fn certify_walked<T: Decide, K: Copy>(
                 rows.push(row);
                 continue;
             }
-            Err(w) => w,
+            Err(w) => *w,
         };
         let (t0, t1) = w.window();
         let cache = match (w.pcurve().certifying_door(), fitted) {
