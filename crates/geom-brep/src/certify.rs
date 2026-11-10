@@ -3941,18 +3941,22 @@ fn decide_turn<T: Decide>(
                 turn: wound(turn)?,
             })
         }
-        // A line's span is forward in metres, at its speed `|dir|`
-        // (`geom::carrier_speed::speed_range`, exact on a line): a line
-        // whose `dir` is the zero vector names a point at every parameter,
-        // so no span on it is forward, and it refuses here as
-        // `IntervalNotForward` rather than certifying a direction its
-        // readers take as nonzero
+        // A line's span is forward in parameter, and then in metres where
+        // its `dir` is the zero vector: such a line names one point at
+        // every parameter, so no span on it is forward, and it refuses as
+        // `IntervalNotForward` (its metred margin is an exact zero) rather
+        // than certifying a direction its readers take as nonzero
         // (`work/onecopy/an-axis-reads-its-direction-as-unit-by-convention-not-type.md`).
-        line @ Curve3::Line(_) => {
-            forward(Margin::metered(
-                span,
-                geom::carrier_speed::speed_range(line).0,
-            ))?;
+        // The metres decision runs on that line alone, so every other
+        // line's span is decided once, as before.
+        line @ Curve3::Line(geom::Line { dir, .. }) => {
+            forward(Margin::of(span))?;
+            if matches!(dir.checked_direction(), Err(geom_core::NoDirection::Zero)) {
+                forward(Margin::metered(
+                    span,
+                    geom::carrier_speed::speed_range(line).0,
+                ))?;
+            }
             None
         }
         // Rung-3 carriers (M5 PR 9): the span is metered through the
