@@ -89,11 +89,12 @@ crates/topo/src/boolean/sectors.rs 4
 crates/topo/src/boolean/slit.rs 1
 # vtxfac: germ_order, a sort: NOT A SEARCH.
 crates/topo/src/boolean/vtxfac.rs 1
-# census: span_clear's two reads (anything meeting answers "not clear"):
-# HAND-ROLLED, blocked: its readers push their refusal into `errors` as
-# they read, so a kept reading cannot be superseded until they return it
+# census: span_clear's three reads, a lone vertex's and a side's end and
+# interior (anything meeting answers "not clear"): HAND-ROLLED, blocked:
+# its readers push their refusal into `errors` as they read, so a kept
+# reading cannot be superseded until they return it
 # (work/onecopy/census-span-clear-readers-push-their-refusal-as-they-read.md).
-crates/topo/src/census.rs 2
+crates/topo/src/census.rs 3
 # pcurves: site_rows reads every half's pcurve: NOT A SEARCH.
 crates/topo/src/pcurves.rs 1
 # containment: place_off (WHICH, ruled). conic_crossings reads its roots

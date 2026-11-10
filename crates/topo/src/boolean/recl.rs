@@ -2903,7 +2903,7 @@ mod tests {
     ///
     /// - **planar flanks** (two prisms' shared side plane): the door
     ///   verifies `Rest` there, and the tie refuses the declared pair
-    ///   all the same; it refuses `Tangent` (the conformal screen). No
+    ///   all the same; it glues them under no `Tangent`. No
     ///   admitted declaration settles it, so none is offered, and the
     ///   refusal ends in the corner's lever. The flanks overlap on this
     ///   side, so a smaller tolerance leads to the door asking whether
@@ -2912,7 +2912,8 @@ mod tests {
     ///   `flanks_along_a_short_arm` and its `_declared_rest` twin).
     /// - **curved flanks** (a cylinder resting on a plane along the
     ///   line): the door refuses `Tangent` there
-    ///   (`verify_tangent_declaration`), so no declaration is offered;
+    ///   (`glue::decided_glue` glues them under no `Tangent`), so no
+    ///   declaration is offered;
     ///   either sense goes on to the curved flank, which the Boolean
     ///   cannot yet meet (executed: `offer_rows`'
     ///   `membership_along_a_curved_flank`), so no tolerance is offered
@@ -3010,12 +3011,24 @@ mod tests {
         );
         let (fa, fb) = (pa.side_faces[1], pb.side_faces[3]);
         assert!(
-            crate::boolean::rest_pair_verdict(&pa.body, fa, &pb.body, fb, band).is_ok(),
+            matches!(
+                crate::boolean::rest_pair_verdict(&pa.body, fa, &pb.body, fb, band),
+                Ok(crate::contact::RestVerdict::Rest(_))
+            ),
             "the door verifies Rest on the planar flanks"
         );
         assert!(
-            crate::boolean::verify_tangent_declaration(&pa.body, fa, &pb.body, fb, band).is_err(),
-            "the door refuses Tangent on the planar flanks"
+            !crate::boolean::glue::decided_glue(
+                &pa.body,
+                &pb.body,
+                &crate::boolean::Glue::none(),
+                band
+            )
+            .expect("the door reads every pair")
+            .pairs
+            .iter()
+            .any(|p| (p.a, p.b) == (fa, fb) && p.class() == GlueClass::Tangent),
+            "the glue door glues the planar flanks under no Tangent"
         );
         for (arm, label) in arms {
             for (class, read) in [
@@ -3085,8 +3098,12 @@ mod tests {
         });
         let (cb, fcb) = face_on(crate::test_support_fixtures::plane(&[o, o + x, o + z], tol));
         assert!(
-            crate::boolean::verify_tangent_declaration(&ca, fca, &cb, fcb, band).is_err(),
-            "the door refuses Tangent on the curved flanks"
+            !crate::boolean::glue::decided_glue(&ca, &cb, &crate::boolean::Glue::none(), band)
+                .expect("the door reads every pair")
+                .pairs
+                .iter()
+                .any(|p| (p.a, p.b) == (fca, fcb) && p.class() == GlueClass::Tangent),
+            "the glue door glues the curved flanks under no Tangent"
         );
         for (arm, label) in arms {
             let err = run((&ca, fca), (&cb, fcb), arm, None).expect_err("the tie refuses");

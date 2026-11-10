@@ -38,7 +38,7 @@ use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
 use crate::pcurve_cache::{BranchMiss, Period, Ruling, ruling_miss};
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 use geom_core::ladder::{Answering, Climb, Rung, climb, climb_agreeing};
 
 /// The flux and area of a curved face from its **outer** loop:
@@ -4028,7 +4028,9 @@ fn agreed_side<T: Decide>(
     let mut reading: Option<Sign> = None;
     // The sphere's singular points, from their one home, as directions.
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
-    for (_, pole) in crate::chart_singularity::sphere_poles(origin, up, T::one()) {
+    for (_, pole) in
+        crate::chart_singularity::sphere_poles(geom::Line { origin, dir: up }, T::one())
+    {
         let pole = pole - origin;
         let side = match read(pole) {
             Ok(side) => side,

@@ -360,9 +360,9 @@ impl core::fmt::Display for RigidMotionError {
         match self {
             Self::NonFinite(part) => write!(
                 f,
-                "a rigid motion's {} is not a finite number. Recourse: {}",
+                "a rigid motion's {} is not a finite number. {}",
                 part.noun(),
-                crate::predicate::RANGE_RECOURSE
+                crate::predicate::RANGE_ENDING
             ),
             Self::NotRigid { check } => write!(
                 f,
@@ -1180,9 +1180,9 @@ impl core::fmt::Display for TurnError {
                 .fmt(f),
             Self::NonFinite(part) => write!(
                 f,
-                "a rigid motion's {} is not a finite number. Recourse: {}",
+                "a rigid motion's {} is not a finite number. {}",
                 part.noun(),
-                crate::predicate::RANGE_RECOURSE
+                crate::predicate::RANGE_ENDING
             ),
         }
     }

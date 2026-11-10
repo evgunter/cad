@@ -10930,6 +10930,22 @@ impl IncidenceRead {
         }
     }
 
+    /// **The chart and carrier kinds an incidence refusal names**, beside
+    /// its read ([`Self::of`]): the chart kind its description named and
+    /// the carrier's, where the refusal carries them (a carrier read off
+    /// its chart, decided or at a pose); `None` for an escalated or
+    /// residual incidence read, which names neither, and for a refusal of
+    /// anything else. A reader checks a refusal names the face and edge
+    /// it was read of here, against the body's own kinds, never on the
+    /// variant's fields.
+    #[must_use]
+    pub fn kinds_of(error: &PcurveCertifyError) -> Option<(geom::SurfaceKind, geom::CurveKind)> {
+        match error {
+            PcurveCertifyError::CarrierOffChart { chart, carrier, .. } => Some((*chart, *carrier)),
+            _ => None,
+        }
+    }
+
     /// The read a decided incidence refusal's margin names.
     #[must_use]
     pub fn of_margin(margin: Option<OffMargin>) -> Self {
@@ -11252,7 +11268,7 @@ fn torus_oblique_circle<T: Decide>(
             Margin::levered(part, geom_core::Lever::unsourced(big)),
             band,
         )
-        .map(geom_core::k_stats::NonzeroSign::unit)
+        .map(geom_core::NonzeroSign::unit)
         .map_err(reread)
     };
     let vl = decided_sense("pcurve_torus_villarceau_tube_rate", axis)?;
@@ -11317,7 +11333,16 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
             axis,
             half_angle,
             ..
-        } => crate::implicit::cone_elevation(apex, axis, half_angle, None, p).abs(),
+        } => crate::implicit::cone_elevation(
+            geom::Line {
+                origin: apex,
+                dir: axis,
+            },
+            half_angle,
+            None,
+            p,
+        )
+        .abs(),
         Surface::Torus {
             center,
             axis,

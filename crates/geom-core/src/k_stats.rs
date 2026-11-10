@@ -629,9 +629,12 @@ pub fn straddle(name: &'static str, lower: Decided, upper: Decided, band: Band) 
 /// The log is the verdict-diff engine's (the witness's certification
 /// verdicts against the leaf's, row for row) and the subdivision
 /// driver's (an escalation is its cue to refine). A reading belongs
-/// here when no outcome of it can change what the caller certifies:
-/// logged, it would put rows in one lane's vector that the other lane
-/// cannot have, or hand the driver a cue that refining cannot answer.
+/// here when logging it would mislead one of them: it would put rows in
+/// one lane's vector that the other lane cannot have, or hand the driver
+/// a cue that refining cannot answer. Whether an outcome can change what
+/// the caller certifies is not the test: F20's cross-check refuses a
+/// certificate on a bad sample, and is read here for the vectors'
+/// parity.
 ///
 /// `ledger_row` is the obligation [`decide_flagged`] carries: the audit
 /// row in `docs/predicate-dimension-audit.md` that argues why the
@@ -917,48 +920,7 @@ pub fn decide_negative<T: Decide>(
     )
 }
 
-/// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
-/// one of its values, which is what lets a caller match the gate's
-/// outcome exhaustively without an arm for an answer the gate escalated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NonzeroSign {
-    /// The margin classified definitely positive.
-    Positive,
-    /// The margin classified definitely negative.
-    Negative,
-}
-
-impl NonzeroSign {
-    /// **The decided side's unit value**, `+1` or `−1` at `T`: the one
-    /// spelling of a ±1 read off a sign already decided. Its hull twin,
-    /// read off a value rather than a decision, is
-    /// [`crate::Real::unit_sign`].
-    #[must_use]
-    pub fn unit<T: Real>(self) -> T {
-        match self {
-            Self::Positive => T::one(),
-            Self::Negative => -T::one(),
-        }
-    }
-
-    /// The other side.
-    #[must_use]
-    pub fn flip(self) -> Self {
-        match self {
-            Self::Positive => Self::Negative,
-            Self::Negative => Self::Positive,
-        }
-    }
-}
-
-impl From<NonzeroSign> for Sign {
-    fn from(side: NonzeroSign) -> Self {
-        match side {
-            NonzeroSign::Positive => Self::Positive,
-            NonzeroSign::Negative => Self::Negative,
-        }
-    }
-}
+use crate::predicate::NonzeroSign;
 
 /// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
 /// for a predicate that reads a SIDE off the margin's sign and has no

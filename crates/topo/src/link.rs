@@ -85,6 +85,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
+use crate::live::UncheckedLoop;
 
 /// K name: a point's signed distance from the plane of a link's face
 /// through the touch point `p`, in metres — which side of the face's
@@ -478,10 +479,11 @@ pub(crate) enum TouchVerdict {
 ///
 /// Each variant states its standing to a ladder over the faces or
 /// sectors that read it ([`Self::refusal`]), with its reason.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum TouchUnread {
     /// A sign the analysis needed is in band. In band.
+    #[default]
     InBand,
     /// A face's piece at the touch did not build: a choice in building
     /// it was in band, or its readings contradicted each other within
@@ -525,13 +527,42 @@ pub enum TouchUnread {
     /// interior, where the touch was held inside the edge: two readings
     /// of one fact disagree. An abort.
     OffInterior,
+    /// A face's outward normal at the touch point refuses the whole
+    /// reading ([`crate::face_normal::NormalAtError::refusal`] aborts): the
+    /// point read off the face's surface, or a torus outside the ring
+    /// convention, which tier 3 refuses before the census runs
+    /// (`ValidationError::DegenerateTorus`). Either is the kernel's: an
+    /// abort.
+    NormalFault,
     /// The topology around the touch did not read. The census runs only
     /// on bodies tier 1 admits (loops closed, every key resolving), so
     /// this is a kernel defect. An abort.
     Corrupt,
+    /// A face holds a lone-vertex loop where this reading takes none: at
+    /// the touch point, or in a planar face read as the polygon its
+    /// rings bound. Tier 1 admits the loop; tier 2 refuses it at rest
+    /// ([`ScaffoldingEmptyLoop`](crate::ValidationError::ScaffoldingEmptyLoop)).
+    /// Its standing is the crate's one lone-loop standing
+    /// (`live::LONE_LOOP_REFUSAL`).
+    LoneLoop,
 }
 
 impl TouchUnread {
+    /// **The touch refusal a kept standing reads as**, for a reading whose
+    /// standing has its home elsewhere ([`Refusal::of_apex`]): a reading
+    /// in band, by margin or not, or unsettled, is [`Self::InBand`]; a
+    /// limit is [`Self::Unanalysed`]. **Lossy**, not an inverse of
+    /// [`Self::refusal`]: a margin's diagnostics are dropped (no arm here
+    /// carries one, and the type is `Eq`), and an unsettled reading reads
+    /// back as in band, ranked ahead of where it stood.
+    #[must_use]
+    pub const fn kept(standing: Refusal) -> Self {
+        match standing {
+            Refusal::Margin(_) | Refusal::InBand | Refusal::Unsettled => Self::InBand,
+            Refusal::Limit => Self::Unanalysed,
+        }
+    }
+
     /// What this refusal is to a ladder over the faces or sectors that
     /// read it, as each variant's docs state it.
     ///
@@ -543,8 +574,9 @@ impl TouchUnread {
         match self {
             Self::InBand | Self::PieceInBand => Ok(Refusal::InBand),
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
+            Self::LoneLoop => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::EdgeTangent(why) => Ok(why.refusal()),
-            Self::Unreadable | Self::OffInterior | Self::Corrupt => Err(Aborts),
+            Self::Unreadable | Self::OffInterior | Self::NormalFault | Self::Corrupt => Err(Aborts),
         }
     }
 }
@@ -1350,9 +1382,13 @@ fn foot<T: Real>(p: Point3<T>, (a, b): Segment<T>) -> Point3<T> {
     .foot_within(p, (T::zero(), T::one()))
 }
 
-/// `p`'s distance from the segment `a`–`b` ([`foot`]).
+/// `p`'s distance from the segment `a`–`b` ([`geom::Line::distance_within`]).
 pub(crate) fn to_segment<T: Real>(p: Point3<T>, seg: Segment<T>) -> T {
-    (foot(p, seg) - p).norm()
+    geom::Line {
+        origin: seg.0,
+        dir: seg.1 - seg.0,
+    }
+    .distance_within(p, (T::zero(), T::one()))
 }
 
 /// **Where a parity arc's reference is read** ([`Cone::reads_given`],
@@ -2409,7 +2445,7 @@ pub(crate) struct Planar<'a, T: Real> {
 }
 
 /// Vertex `v`'s position in `body`.
-fn position<T: Real>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, TouchUnread> {
+pub(crate) fn position<T: Real>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, TouchUnread> {
     let point = body.vertices.get(v).ok_or(TouchUnread::Corrupt)?.point;
     body.points.get(point).copied().ok_or(TouchUnread::Corrupt)
 }
@@ -2436,8 +2472,11 @@ impl<T: Decide> FaceSector<T> {
             .vec();
         let mut loops = Vec::new();
         let mut rings = Vec::new();
-        for cycle in body.unchecked_face_cycles(face.record()) {
-            let cycle = cycle.map_err(|_| TouchUnread::Corrupt)?;
+        for read in body.unchecked_face_boundary(face.record()) {
+            let cycle = match read.map_err(|_| TouchUnread::Corrupt)? {
+                UncheckedLoop::Cycle(cycle) => cycle,
+                UncheckedLoop::Lone(_) => return Err(TouchUnread::LoneLoop),
+            };
             let mut keys = Vec::with_capacity(cycle.len());
             let mut ring = Vec::with_capacity(cycle.len());
             for he in cycle {
@@ -2522,8 +2561,18 @@ impl<T: Decide> FaceSector<T> {
             None => None,
         };
         let mut passes = Vec::new();
-        for cycle in body.unchecked_face_cycles(face.record()) {
-            for he in cycle.map_err(|_| TouchUnread::Corrupt)? {
+        for read in body.unchecked_face_boundary(face.record()) {
+            let cycle = match read.map_err(|_| TouchUnread::Corrupt)? {
+                UncheckedLoop::Cycle(cycle) => cycle,
+                // A lone vertex is a point of the boundary the disc meets
+                // none of.
+                UncheckedLoop::Lone(vertex) => {
+                    let c = (position(body, vertex)? - p).norm();
+                    radius = Some(radius.map_or(c, |r| r.min(c)));
+                    continue;
+                }
+            };
+            for he in cycle {
                 let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
                 let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;
                 if let Some((a, b)) = edge

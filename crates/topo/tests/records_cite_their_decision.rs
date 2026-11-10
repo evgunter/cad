@@ -500,7 +500,7 @@ fn a_pinch_records_the_vertex_identity_that_made_it() {
     let at_corner = |r: &BooleanBody<f64>| -> Vec<topo::VertexKey> {
         r.body
             .vertex_points()
-            .filter(|(_, p)| (p.x, p.y, p.z) == (PINCH_AT[0], PINCH_AT[1], PINCH_AT[2]))
+            .filter(|(_, p)| p.equals_exactly(geom_core::Point3::from_array(PINCH_AT)))
             .map(|(v, _)| v)
             .collect()
     };
@@ -642,7 +642,7 @@ fn at_pinch(r: &BooleanBody<f64>) -> (Vec<topo::PointKey>, usize) {
     let keys = r
         .body
         .vertex_points()
-        .filter(|(_, p)| (p.x, p.y, p.z) == (PINCH_AT[0], PINCH_AT[1], PINCH_AT[2]))
+        .filter(|(_, p)| p.equals_exactly(geom_core::Point3::from_array(PINCH_AT)))
         .map(|(v, _)| r.body.get_vertex(v).expect("a live vertex").point)
         .collect();
     let rows = r
@@ -660,7 +660,7 @@ fn corner_rows(r: &BooleanBody<f64>, x: &Body<f64>, y: &Body<f64>) -> Vec<(bool,
     let at_corner = |input: Operand, v| {
         let body = if input == Operand::A { x } else { y };
         body.vertex_points()
-            .any(|(k, p)| k == v && (p.x, p.y, p.z) == (PINCH_AT[0], PINCH_AT[1], PINCH_AT[2]))
+            .any(|(k, p)| k == v && p.equals_exactly(geom_core::Point3::from_array(PINCH_AT)))
     };
     r.coincidences
         .iter()

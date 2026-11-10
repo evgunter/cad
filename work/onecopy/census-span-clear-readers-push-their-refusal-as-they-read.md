@@ -13,7 +13,7 @@ Found by QML T4 (`onecopy/refusal-standing`), on the callee register's `census::
 
 ## What
 
-`topo::census::span_clear` asks whether anything of a face's boundary meets an edge's span: anything meeting answers "not clear", a theorem of the rule, so the ladder's `Any`. Its two reads, `on_edge_interior_reading(..)?` and `interiors_meet(..)?`, return `Option` and **push their refusal into the census's `errors` list as they read**. `None` means "refused, already reported".
+`topo::census::span_clear` asks whether anything of a face's boundary meets an edge's span: anything meeting answers "not clear", a theorem of the rule, so the ladder's `Any`. Its three reads (`on_edge_interior_reading(..)?` at a lone vertex and at a side's end, and `interiors_meet(..)?` along a side) are by two readers, which return `Option` and **push their refusal into the census's `errors` list as they read**. `None` means "refused, already reported".
 
 So a reading in band cannot be kept and superseded by a later member that meets: by the time the ladder would know an answer came, the refusal is already in `errors`, and the record already rests on it.
 

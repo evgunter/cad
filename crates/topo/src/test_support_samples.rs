@@ -37,19 +37,23 @@
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
 
 use geom_brep::certify::{CertCheck, CertifyError};
+use geom_brep::curve_pair::MeetFault;
 use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OFFSET_FIT_SAMPLE_CAP, OFFSET_FIT_WORK, OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedEnding, FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
 use geom_brep::recourse::{Classified, Refused};
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
+use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag, Sign};
 use strum::IntoEnumIterator as _;
 
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactFinding, ContactPair, ContactRefusal, GlueClass};
+use crate::contact::{
+    ContactFinding, ContactPair, ContactRefusal, ContactVerdict, GlueClass, RestRow, RestRuling,
+    TangentRow, TangentRuling,
+};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -114,15 +118,60 @@ fn negative_verdict(margin: f64) -> Refused {
     }
 }
 
-/// The margin every `ContactRefusal::Contradicted` raise site carries:
-/// invalid, naming the contact predicate that decided.
-fn contradiction_margin(predicate: &'static str) -> Indeterminate {
-    Indeterminate {
-        margin: MarginDiag::INVALID,
-        band: band(),
-        predicate: Some(predicate),
-        terminal_sliver: false,
+/// Every tangent ruling, at each row: what
+/// [`ValidationError::ContactContradicted`] and
+/// [`ValidationError::MaterialOnBothSides`] carry.
+fn tangent_rulings() -> Vec<TangentRuling> {
+    let mut v: Vec<TangentRuling> = [
+        TangentRow::SensesAligned,
+        TangentRow::Independent,
+        TangentRow::Parallel,
+        TangentRow::Overlap,
+        TangentRow::Gap,
+        TangentRow::Off(geom_brep::PairSide::First),
+        TangentRow::Off(geom_brep::PairSide::Second),
+    ]
+    .map(|row| TangentRuling::Row {
+        row,
+        by: decided(Sign::Positive),
+    })
+    .into();
+    v.push(TangentRuling::SidesMixed {
+        at: [decided(Sign::Negative), decided(Sign::Positive)],
+    });
+    v
+}
+
+fn decided(sign: Sign) -> geom_core::Decided {
+    geom_core::Decided {
+        sign,
+        margin: MarginDiag::value(3e-6),
     }
+}
+
+/// Every verdict [`ValidationError::ContactContradicted`] carries, at
+/// each row and each fact its sentence states.
+fn contact_verdicts() -> Vec<ContactVerdict> {
+    let mut v = vec![
+        ContactVerdict::Rest(RestRuling {
+            row: RestRow::SensesAligned,
+            by: None,
+        }),
+        ContactVerdict::Rest(RestRuling {
+            row: RestRow::TwoCarriers,
+            by: Some(decided(Sign::Positive)),
+        }),
+        ContactVerdict::NotTangent {
+            apart: true,
+            by: decided(Sign::Negative),
+        },
+        ContactVerdict::NotTangent {
+            apart: false,
+            by: decided(Sign::Positive),
+        },
+    ];
+    v.extend(tangent_rulings().into_iter().map(ContactVerdict::Tangent));
+    v
 }
 
 fn band_errors() -> Vec<BandError> {
@@ -183,15 +232,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
 }
 
 fn contact_refusals() -> Vec<ContactRefusal> {
-    let mut v = vec![
-        ContactRefusal::Contradicted {
-            diag: contradiction_margin("contact_rest_senses_opposed"),
-        },
-        ContactRefusal::Contradicted {
-            diag: contradiction_margin("carrier_cyl_radius"),
-        },
-        ContactRefusal::Escalated { diag: diag() },
-    ];
+    let mut v = vec![ContactRefusal::Escalated { diag: diag() }];
     // The longest `what`s the raise sites write.
     v.extend(
         [
@@ -232,6 +273,7 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
         }),
         S::Loop(L::RayExhausted { r#loop }),
         S::Loop(L::CorruptLoop { r#loop }),
+        S::Loop(L::LoneLoop { r#loop }),
         S::Loop(L::Uncrossable(uncrossable())),
         S::Loop(L::OffPlane(OffPlane {
             r#loop,
@@ -1579,6 +1621,27 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     ] {
         s.push((label("", &e).trim_start_matches('/').to_owned(), e));
     }
+    // A part's material on both sides of a face: each ruling that says
+    // so, the senses' row and mixed sides.
+    for ruling in tangent_rulings().into_iter().filter(|r| {
+        matches!(
+            r,
+            TangentRuling::Row {
+                row: TangentRow::SensesAligned,
+                ..
+            } | TangentRuling::SidesMixed { .. }
+        )
+    }) {
+        s.push((
+            label("MaterialOnBothSides", &ruling),
+            ValidationError::MaterialOnBothSides {
+                a: face,
+                b: face,
+                witness: "(0.0, 2.0, 0.5)".to_owned(),
+                ruling,
+            },
+        ));
+    }
 
     // A surface datum, poisoned or outside its range: every datum, at
     // each end of the range.
@@ -1840,31 +1903,22 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::StaleContactDeclaration { declaration },
         ));
     }
-    // Door 1's whole-surface verdict (a Rest record) and the tangent
-    // line of a face-face record on two carriers (a Tangent record),
-    // each.
-    for (class, witness, predicate) in [
-        (
-            GlueClass::Rest,
-            crate::census::CARRIER_COMPARISON_WITNESS,
-            "carrier_sphere_radius",
-        ),
-        (
-            GlueClass::Tangent,
-            crate::census::TANGENT_LOCUS_WITNESS,
-            "contact_tangent_opposed",
-        ),
-    ] {
+    // Every verdict a face–face record is contradicted by, each fact its
+    // sentence states.
+    for (i, verdict) in contact_verdicts().into_iter().enumerate() {
+        let class = match verdict {
+            ContactVerdict::Rest(_) => GlueClass::Rest,
+            ContactVerdict::NotTangent { .. } | ContactVerdict::Tangent(_) => GlueClass::Tangent,
+        };
         s.push((
-            format!("ContactContradicted/{}", class.name()),
+            format!("{}/{i}", label("ContactContradicted", &verdict)),
             ValidationError::ContactContradicted {
-                declaration: ContactPair {
+                record: ContactPair {
                     a: face,
                     b: face,
                     class,
                 },
-                witness: witness.to_owned(),
-                margin: contradiction_margin(predicate),
+                verdict,
             },
         ));
     }
@@ -1891,16 +1945,28 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         "CensusUnsupported/FaceUnboundable".to_owned(),
         CensusUnsupportedCause::FaceUnboundable,
     ));
-    for why in [
-        crate::validate::EdgeTangentUnread::NoCurve,
-        crate::validate::EdgeTangentUnread::NoReach,
-        crate::validate::EdgeTangentUnread::NoLength,
-        crate::validate::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Exhausted),
-        crate::validate::EdgeTangentUnread::Unwalked(geom::PieceWalkRefusal::Unbounded),
-    ] {
+    for why in edge_tangent_reasons() {
         causes.push((
             format!("CensusUnsupported/CurvedEdge/{why:?}"),
             CensusUnsupportedCause::CurvedEdge(why),
+        ));
+    }
+    for why in [
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::Exhausted),
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::AtApex),
+        MeetFault::Unsettled(geom_brep::roots::Unsettled::Crease),
+        MeetFault::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        MeetFault::Unwalked(geom::PieceWalkRefusal::Unbounded),
+        MeetFault::Unsupported {
+            pose: "one curve whose two runs read square to each other",
+        },
+    ]
+    .into_iter()
+    .filter_map(geom_brep::curve_pair::MeetUnread::of)
+    {
+        causes.push((
+            format!("CensusUnsupported/Meeting/{why:?}"),
+            CensusUnsupportedCause::Meeting(why),
         ));
     }
     for (l, cause) in causes {
@@ -1911,7 +1977,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             CensusUnsupportedCause::Containment(_) | CensusUnsupportedCause::FaceUnboundable => {
                 CensusSubject::Entity(EntityId::Face(face))
             }
-            CensusUnsupportedCause::CurvedEdge(_) => {
+            CensusUnsupportedCause::CurvedEdge(_) | CensusUnsupportedCause::Meeting(_) => {
                 CensusSubject::Entity(EntityId::Edge(crate::entity::EdgeKey::default()))
             }
         };
@@ -1921,7 +1987,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     // it on (`Undecided` is their one source).
     let carried = crate::splitting::LoopDecision::ALL
         .map(|decision| Undecided::WitnessTooClose(Some(decision)));
-    for why in Undecided::iter().chain(carried) {
+    // Every touch reason the backstop waits on, each edge-tangent reason
+    // its own (`Undecided::iter` yields one touch, the default).
+    let touches = crate::link::TouchUnread::iter()
+        .filter(|why| !matches!(why, crate::link::TouchUnread::Corrupt))
+        .chain(
+            edge_tangent_reasons()
+                .into_iter()
+                .map(crate::link::TouchUnread::EdgeTangent),
+        )
+        .map(Undecided::Touch);
+    for why in Undecided::iter()
+        .filter(|why| !matches!(why, Undecided::Touch(_)))
+        .chain(carried)
+        .chain(touches)
+    {
         let (a, b) = if why.on_faces() {
             (EntityId::Face(face), EntityId::Face(face))
         } else {
@@ -2035,7 +2115,9 @@ where
 pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     use crate::boolean::ContainErrorKind;
     use crate::chart_region::ChartRegionErrorKind;
-    use crate::contact::ContactRefusalKind;
+    use crate::contact::{
+        ContactRefusalKind, ContactVerdictKind, TangentRowKind, TangentRulingKind,
+    };
     use crate::pcurves::PcurveMintErrorKind;
     use crate::props::MassPropsErrorKind;
     use crate::validate::{
@@ -2069,6 +2151,22 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     out.extend(gaps::<_, ContactRefusalKind>(
         "ContactRefusal",
         &contact_refusals(),
+    ));
+    out.extend(gaps::<_, ContactVerdictKind>(
+        "ContactVerdict",
+        &contact_verdicts(),
+    ));
+    let rows: Vec<TangentRow> = tangent_rulings()
+        .into_iter()
+        .filter_map(|r| match r {
+            TangentRuling::Row { row, .. } => Some(row),
+            TangentRuling::SidesMixed { .. } => None,
+        })
+        .collect();
+    out.extend(gaps::<_, TangentRowKind>("TangentRow", &rows));
+    out.extend(gaps::<_, TangentRulingKind>(
+        "TangentRuling",
+        &tangent_rulings(),
     ));
     out.extend(gaps::<_, ContainErrorKind>(
         "ContainError",
@@ -2140,6 +2238,36 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &ring_pair_contacts(),
     ));
     out
+}
+
+/// Every reason the census refuses a curved edge for, each walk refusal
+/// its own: the samples' list, kept whole by [`listed`].
+fn edge_tangent_reasons() -> [crate::validate::EdgeTangentUnread; 5] {
+    use crate::validate::EdgeTangentUnread as E;
+    let reasons = [
+        E::NoCurve,
+        E::NoReach,
+        E::NoLength,
+        E::Unwalked(geom::PieceWalkRefusal::Exhausted),
+        E::Unwalked(geom::PieceWalkRefusal::Unbounded),
+    ];
+    for why in reasons {
+        listed(why);
+    }
+    reasons
+}
+
+/// [`edge_tangent_reasons`]'s guard: a match over every reason, so a new
+/// one does not compile until it is matched here, beside the list it
+/// must join.
+const fn listed(why: crate::validate::EdgeTangentUnread) {
+    use crate::validate::EdgeTangentUnread as E;
+    match why {
+        E::NoCurve
+        | E::NoReach
+        | E::NoLength
+        | E::Unwalked(geom::PieceWalkRefusal::Exhausted | geom::PieceWalkRefusal::Unbounded) => {}
+    }
 }
 
 #[cfg(test)]

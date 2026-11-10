@@ -30,7 +30,7 @@ use super::carrier_eq::{CarrierVerdict, CoincidenceMeasure, ConsumedExtent};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::validate::{decide, decide_nonzero, decide_reported};
-use geom_core::k_stats::NonzeroSign;
+use geom_core::NonzeroSign;
 
 /// The relation between two oriented planes — the PLANE SPELLING of
 /// the one carrier verdict.
@@ -436,7 +436,6 @@ mod tests {
                 for door in [
                     PlaneDoor::Neighbours,
                     PlaneDoor::OnPair(DeclarationRead::Moot),
-                    PlaneDoor::Screen(DeclarationRead::Moot),
                 ] {
                     let text = |d| BooleanError::plane_identity(PlaneRung::Orientation, door, d);
                     assert_eq!(

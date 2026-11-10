@@ -341,8 +341,10 @@ fn a_cone_ring_run_winds_its_island_as_the_oracle_does() {
 }
 
 /// **An island that leaves its face is refused, not read by its first
-/// reference**: a sheet narrower than the lune, whose outer-loop corners
-/// lie on both sides of it (by its membership oracle), reads opposite
+/// reference**: a sheet narrower than the lune, whose outer-loop
+/// references (its corners and its edges' midpoints, the points the
+/// reading takes) lie on both sides of it by its membership oracle, reads
+/// opposite
 /// windings from its references, and the reading refuses with
 /// `SectionInvariant` rather than answering with whichever reference it
 /// asks first.
@@ -360,18 +362,22 @@ fn an_island_that_leaves_its_face_is_refused() {
         (0.1, 2.0),
         (0.4, 2.5),
     ] {
-        let corners = [(0.05, -a), (0.05, a), (hi, -a), (hi, a)].map(|(h, az)| on_nappe(f, h, az));
-        let inside = corners.iter().filter(|&&p| (island.inside)(p)).count();
-        if inside == 0 || inside == corners.len() {
+        let (mut body, face, key) = sheet_up_to(f, surface.clone(), true, ((-a, a), hi));
+        // The references the reading takes: the corners and the edges'
+        // midpoints.
+        let references = outer_references(&body, face, &[]).unwrap();
+        let inside = references.iter().filter(|&&p| (island.inside)(p)).count();
+        if inside == 0 || inside == references.len() {
             continue;
         }
-        let (mut body, face, key) = sheet_up_to(f, surface.clone(), true, ((-a, a), hi));
         let (run, closing) = run_from_unchecked(&mut body, (face, key), &island, 0);
         let spec = edge_spec(&mut body, key, &closing);
         let got = path_island_winding(&body, face, run, Some(&spec), band());
         assert!(
             matches!(got, Err(SplitJoinError::SectionInvariant { .. })),
-            "a sheet of half-width {a} up to {hi}, {inside} of its corners in the lune: {got:?}"
+            "a sheet of half-width {a} up to {hi}, {inside} of its {} references in the lune: \
+             {got:?}",
+            references.len()
         );
         planted += 1;
     }

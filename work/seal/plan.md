@@ -19,7 +19,7 @@ with a dated `## Slate triage` note. Nothing is dispatched.
 
 | pri | status | item | cost | title |
 |---|---|---|---|---|
-| P1 | open | `a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted` | H | glue step 3: the tangent table and the Rest door return typed verdicts; only a record read at rest is contradicted |
+| P1 | dispatched | `a-tangent-reading-returns-a-verdict-and-only-a-record-is-contradicted` | H | glue step 3: the tangent table and the Rest door return typed verdicts; only a record read at rest is contradicted |
 | P1 | open | `a-corner-reads-only-its-own-sectors` | M | glue step 4: a corner meeting an unglued pair reads only its own sectors |
 | P1 | parked | `glue-disagreements-and-held-contradictions-after-stage-4` | H | the umbrella: the glue door's disagreements and the held contradictions, parked on steps 1-4 |
 | P1 | open | `a-cut-across-its-tools-seat-leaves-a-sliver-between-the-seats-two-sections` | H | a cut across its tool's declared seat leaves a sliver between the seat's two sections |

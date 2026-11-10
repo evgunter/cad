@@ -552,11 +552,7 @@ fn a_sub_tolerance_arc_lofts_as_a_line() {
             place.to_world(Point2::new(1.0, 0.0)),
         ];
         for (got, want) in [(control[0], want[0]), (control[control.len() - 1], want[1])] {
-            assert_eq!(
-                got.to_array().map(f64::to_bits),
-                want.to_array().map(f64::to_bits),
-                "section {i}: {got:?} vs {want:?}"
-            );
+            assert!(got.same_bits(want), "section {i}: {got:?} vs {want:?}");
         }
     }
 }

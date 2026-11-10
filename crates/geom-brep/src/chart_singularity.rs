@@ -60,8 +60,9 @@
 //! face's structure (`topo::surface_boundary`): this home sees no keys.
 
 use geom::{ChartArm, ChartInverse, Curve3, Surface};
+use geom_core::NonzeroSign;
 use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
-use geom_core::k_stats::{NonzeroSign, decide, decide_nonzero};
+use geom_core::k_stats::{decide, decide_nonzero};
 use geom_core::predicate::Band;
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SizedPass, Vec3};
 
@@ -135,11 +136,14 @@ pub enum Singularity {
 /// its one home). On a horn (`R = r`, or a hair past it in band) the two
 /// are its one cusp, the centre.
 pub fn sheet_apexes<T: Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
+    axis: geom::Line<T>,
     major: T,
     minor: T,
 ) -> [(Singularity, Point3<T>); 2] {
+    let geom::Line {
+        origin: center,
+        dir: axis,
+    } = axis;
     let height = geom::sheet_apex(major, minor).height;
     [
         (Singularity::SheetApexUp, center + axis * height),
@@ -150,11 +154,11 @@ pub fn sheet_apexes<T: Real>(
 /// **A sphere's two poles**, north first: its centre plus and minus its
 /// unit `axis` times its radius. The one spelling of them, which
 /// [`singular_points`] states for a sphere's chart.
-pub fn sphere_poles<T: Real>(
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-) -> [(Singularity, Point3<T>); 2] {
+pub fn sphere_poles<T: Real>(axis: geom::Line<T>, radius: T) -> [(Singularity, Point3<T>); 2] {
+    let geom::Line {
+        origin: center,
+        dir: axis,
+    } = axis;
     [
         (Singularity::North, center + axis * radius),
         (Singularity::South, center - axis * radius),
@@ -168,9 +172,24 @@ pub fn sphere_poles<T: Real>(
 pub fn singular_points<T: Real>(chart: &ChartInverse<T>) -> Vec<(Singularity, Point3<T>)> {
     let (anchor, axis) = (chart.frame().origin, chart.frame().axis);
     match chart.arm() {
-        ChartArm::Sphere { radius } => sphere_poles(anchor, axis, radius).to_vec(),
+        ChartArm::Sphere { radius } => sphere_poles(
+            geom::Line {
+                origin: anchor,
+                dir: axis,
+            },
+            radius,
+        )
+        .to_vec(),
         ChartArm::Cone { .. } => vec![(Singularity::Apex, anchor)],
-        ChartArm::Spindle { major, minor } => sheet_apexes(anchor, axis, major, minor).to_vec(),
+        ChartArm::Spindle { major, minor } => sheet_apexes(
+            geom::Line {
+                origin: anchor,
+                dir: axis,
+            },
+            major,
+            minor,
+        )
+        .to_vec(),
         ChartArm::Plane | ChartArm::Cylinder { .. } | ChartArm::Torus { .. } => Vec::new(),
     }
 }
