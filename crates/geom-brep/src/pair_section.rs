@@ -785,6 +785,15 @@ impl<T: Real> SectionNode<T> {
             .unwrap_or_else(|| unreachable!("every line and sense is a ray"))
     }
 
+    /// **The ray nearest a direction**, by index in [`Self::RAYS`], from
+    /// its dots with the four rays: the largest, the first of equals
+    /// (D9). The one home of the rule; what decides its lead is the
+    /// caller's.
+    #[must_use]
+    pub fn nearest_ray(dots: [f64; 4]) -> usize {
+        (1..4).fold(0, |best, i| if dots[i] > dots[best] { i } else { best })
+    }
+
     /// The four rays, unit, in their turn ([`Self::RAYS`]).
     #[must_use]
     pub fn rays(&self) -> [Vec3<T>; 4] {
@@ -1111,6 +1120,39 @@ pub struct NodeSet {
     /// Whether the set proves it winds about each surface's carrier, in
     /// the order the section was asked of; `false` claims nothing.
     pub winds: [bool; 2],
+}
+
+/// **The node-joined sets of `listed`** ([`NodeSet`]): arcs joined where
+/// they share a node, each set claiming `winds`.
+pub(super) fn node_joined<T: Real>(
+    listed: &[SectionComponent<T>],
+    nodes: usize,
+    winds: [bool; 2],
+) -> Vec<NodeSet> {
+    let ends = |c: &SectionComponent<T>| match c.shape {
+        ComponentShape::Open { ends } => ends.nodes.nodes(),
+        ComponentShape::Loop | ComponentShape::Point => [None, None],
+    };
+    let mut sets: Vec<NodeSet> = Vec::new();
+    for node in 0..nodes {
+        let arcs: Vec<usize> = (0..listed.len())
+            .filter(|&i| ends(&listed[i]).contains(&Some(node)))
+            .collect();
+        if arcs.is_empty() {
+            continue;
+        }
+        // Merge every set already holding one of these arcs.
+        let (mut joined, rest): (Vec<NodeSet>, Vec<NodeSet>) = sets
+            .into_iter()
+            .partition(|set| set.arcs.iter().any(|a| arcs.contains(a)));
+        let mut all: Vec<usize> = joined.drain(..).flat_map(|set| set.arcs).collect();
+        all.extend(arcs);
+        all.sort_unstable();
+        all.dedup();
+        sets = rest;
+        sets.push(NodeSet { arcs: all, winds });
+    }
+    sets
 }
 
 /// **The pose a section was built over**, one per pair it serves.
@@ -2088,9 +2130,9 @@ impl<T: Decide> FittedCarrier<T> {
                     "the march left the ball's box, which holds the whole section",
                 ));
             }
-            (BranchEnd::Rim { .. }, _) => {
+            (BranchEnd::Rim { .. } | BranchEnd::Node { .. }, _) => {
                 return Err(CarryError::Desync(
-                    "an ℝ³ march ended on a chart's side, which it does not trace",
+                    "an ℝ³ march ended on a chart's side or at a node, which it does not trace",
                 ));
             }
         };
@@ -2883,28 +2925,53 @@ impl<T: Decide> CarriedComponent<T> {
         }
     }
 
-    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]).
+    /// **This component's end at the node `n`** ([`ArcPlace::AtEnd`]),
+    /// the one leaving along `ray` where the germ reading it names one
+    /// (its line and sense, [`NodeEnd`]): an arc with both ends at one
+    /// node is read at it by the end its germ leaves along, and a germ
+    /// naming a ray reads an arc's one end there only where it is that
+    /// end's own.
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Desync`] where it has no end at `n`, or both: an
-    /// arc with both ends at one node is read at it by the end its germ
-    /// leaves along, which no germ names yet.
-    pub fn end_at(&self, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
-        match node_of_ends(self) {
-            [Some(a), Some(b)] if a == n && b == n => Err(SiteRefusal::Desync(
-                "an arc with both ends at one node is read at it by the end its germ leaves \
-                 along, which no germ names",
+    /// [`SiteRefusal::Desync`] where it has no end at `n`; where both are
+    /// at `n` and `ray` names neither, or none is named; and where `ray`
+    /// is named and the one end at `n` leaves along another.
+    pub fn end_at(
+        &self,
+        n: usize,
+        ray: Option<(NodeLine, RaySense)>,
+    ) -> Result<ArcPlace<T>, SiteRefusal> {
+        let ComponentShape::Open { ends } = self.shape else {
+            return Err(SiteRefusal::Desync(
+                "a site at a node lies on a component with no end there",
+            ));
+        };
+        let at = |end: Option<NodeEnd>| end.filter(|e| e.node == n);
+        let named = |end: NodeEnd| ray.is_none_or(|r| r == (end.line, end.sense));
+        let start = ArcPlace::AtEnd {
+            t: self.span.0,
+            end: SpanEnd::Start,
+        };
+        let finish = ArcPlace::AtEnd {
+            t: self.span.1,
+            end: SpanEnd::End,
+        };
+        match (at(ends.nodes.start), at(ends.nodes.end)) {
+            (Some(a), Some(b)) => match ray {
+                Some(_) if named(a) && !named(b) => Ok(start),
+                Some(_) if named(b) && !named(a) => Ok(finish),
+                _ => Err(SiteRefusal::Desync(
+                    "an arc with both ends at one node is read at it by the end its germ \
+                     leaves along, and the germ names neither",
+                )),
+            },
+            (Some(a), None) if named(a) => Ok(start),
+            (None, Some(b)) if named(b) => Ok(finish),
+            (Some(_), None) | (None, Some(_)) => Err(SiteRefusal::Desync(
+                "a site at a node is read off the end its germ does not leave along",
             )),
-            [Some(a), _] if a == n => Ok(ArcPlace::AtEnd {
-                t: self.span.0,
-                end: SpanEnd::Start,
-            }),
-            [_, Some(b)] if b == n => Ok(ArcPlace::AtEnd {
-                t: self.span.1,
-                end: SpanEnd::End,
-            }),
-            _ => Err(SiteRefusal::Desync(
+            (None, None) => Err(SiteRefusal::Desync(
                 "a site at a node lies on a component with no end there",
             )),
         }
@@ -2926,7 +2993,7 @@ impl<T: Decide> CarriedComponent<T> {
         band: Band,
     ) -> Result<ArcPlace<T>, SiteRefusal> {
         if let (Some(n), _) = at_node(nodes, p, band)? {
-            return self.end_at(n);
+            return self.end_at(n, None);
         }
         self.reads(p, band)?
             .map(ArcPlace::At)
@@ -3176,18 +3243,39 @@ impl<T: Decide> CarriedSection<T> {
         ))
     }
 
-    /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]).
+    /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]),
+    /// the one leaving along `ray` where the germ names it
+    /// ([`CarriedComponent::end_at`]).
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Desync`] where `k` has no end at `n`, or both: an
-    /// arc with both ends at one node is read at it by the end its germ
-    /// leaves along, which no germ names yet.
-    pub fn end_at(&self, k: usize, n: usize) -> Result<ArcPlace<T>, SiteRefusal> {
+    /// [`SiteRefusal::Desync`] as [`CarriedComponent::end_at`] reads it,
+    /// and for a component not in the section.
+    pub fn end_at(
+        &self,
+        k: usize,
+        n: usize,
+        ray: Option<(NodeLine, RaySense)>,
+    ) -> Result<ArcPlace<T>, SiteRefusal> {
         let c = self.components.get(k).ok_or(SiteRefusal::Desync(
             "a site's component is not in its section",
         ))?;
-        c.end_at(n)
+        c.end_at(n, ray)
+    }
+
+    /// **The ray of node `n` a germ leaving along `dir` names**, by its
+    /// line and sense ([`SectionNode::RAYS`]): the ray nearest `dir`
+    /// ([`SectionNode::nearest_ray`]), as a germ minted from an arc end
+    /// there leaves along that end's ray, exactly. `None` for a node not
+    /// in the section, and where a dot is not a point the scalar holds: a
+    /// germ whose ray is not read names none, and [`Self::end_at`] reads
+    /// it so.
+    pub fn ray_along(&self, n: usize, dir: Vec3<T>) -> Option<(NodeLine, RaySense)> {
+        let node = self.nodes.get(n)?;
+        let rays = node.rays();
+        let dots = [0, 1, 2, 3].map(|i| dir.dot(rays[i]).point_value());
+        let dots = [dots[0]?, dots[1]?, dots[2]?, dots[3]?];
+        Some(SectionNode::<T>::RAYS[SectionNode::<T>::nearest_ray(dots)])
     }
 }
 
@@ -4019,7 +4107,7 @@ mod wiring {
             &[1e-6],
             "the close rings",
             &[
-                "δ 3e-4, counted: March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 206 })",
+                "δ 3e-4, counted: Refused(March(TubeStraddles { verdict: Zero(Classified { margin: MarginDiag(Value(0.0, None, ZeroWord(0))), band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 } }), boxes: 206 }))",
             ],
             close_rings_carry_counted_row,
         );
@@ -4079,5 +4167,130 @@ mod wiring {
             Ok(()),
             "`SsiLane::marched()` holds something other than its march"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+mod end_at_rows {
+    use geom::{Curve3, Line};
+    use geom_core::{Point3, Vec3};
+
+    use super::{
+        ArcPlace, CarriedComponent, ComponentEnds, ComponentShape, NodeEnd, NodeEnds, NodeLine,
+        RaySense, SiteRefusal, SpanEnd,
+    };
+
+    /// An arc over `[0, 1]` with both ends at node 0: it starts along
+    /// `+lines[0]` and ends along `+lines[1]`.
+    fn loop_at_node() -> CarriedComponent<f64> {
+        let ends = NodeEnds {
+            start: Some(NodeEnd {
+                node: 0,
+                line: NodeLine::First,
+                sense: RaySense::Along,
+            }),
+            end: Some(NodeEnd {
+                node: 0,
+                line: NodeLine::Second,
+                sense: RaySense::Along,
+            }),
+        };
+        CarriedComponent {
+            carrier: Curve3::Line(Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(1.0, 0.0, 0.0),
+            }),
+            span: (0.0, 1.0),
+            shape: ComponentShape::Open {
+                ends: ComponentEnds {
+                    nodes: ends,
+                    ..ComponentEnds::default()
+                },
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 0.0,
+            reach: 0.0,
+            witness: Point3::new(0.5, 0.0, 0.0),
+        }
+    }
+
+    /// **An arc with both ends at one node is read by the end its germ
+    /// names** (D2): the ray `(First, Along)` reads the start, `(Second,
+    /// Along)` the end, no ray or another ray neither; an arc with one end
+    /// there is read at it with no ray named or its own, and refused on
+    /// another. Red against the start read whatever the ray, and against
+    /// a single end read whatever the ray.
+    #[test]
+    fn an_arc_with_both_ends_at_one_node_is_read_by_its_ray() {
+        let c = loop_at_node();
+        assert!(matches!(
+            c.end_at(0, Some((NodeLine::First, RaySense::Along))),
+            Ok(ArcPlace::AtEnd {
+                end: SpanEnd::Start,
+                ..
+            })
+        ));
+        assert!(matches!(
+            c.end_at(0, Some((NodeLine::Second, RaySense::Along))),
+            Ok(ArcPlace::AtEnd {
+                end: SpanEnd::End,
+                ..
+            })
+        ));
+        for ray in [None, Some((NodeLine::First, RaySense::Against))] {
+            assert!(
+                matches!(c.end_at(0, ray), Err(SiteRefusal::Desync(_))),
+                "{ray:?}"
+            );
+        }
+        assert!(matches!(c.end_at(1, None), Err(SiteRefusal::Desync(_))));
+        // The arc's end alone at the node, and its start alone.
+        let mut one = loop_at_node();
+        if let ComponentShape::Open { ends } = &mut one.shape {
+            ends.nodes.start = None;
+        }
+        let mut first = loop_at_node();
+        if let ComponentShape::Open { ends } = &mut first.shape {
+            ends.nodes.end = None;
+        }
+        for ray in [None, Some((NodeLine::First, RaySense::Along))] {
+            assert!(
+                matches!(
+                    first.end_at(0, ray),
+                    Ok(ArcPlace::AtEnd {
+                        end: SpanEnd::Start,
+                        ..
+                    })
+                ),
+                "{ray:?}"
+            );
+        }
+        assert!(matches!(
+            first.end_at(0, Some((NodeLine::First, RaySense::Against))),
+            Err(SiteRefusal::Desync(_))
+        ));
+        for ray in [None, Some((NodeLine::Second, RaySense::Along))] {
+            assert!(
+                matches!(
+                    one.end_at(0, ray),
+                    Ok(ArcPlace::AtEnd {
+                        end: SpanEnd::End,
+                        ..
+                    })
+                ),
+                "{ray:?}"
+            );
+        }
+        for ray in [
+            Some((NodeLine::Second, RaySense::Against)),
+            Some((NodeLine::First, RaySense::Along)),
+        ] {
+            assert!(
+                matches!(one.end_at(0, ray), Err(SiteRefusal::Desync(_))),
+                "{ray:?}"
+            );
+        }
     }
 }

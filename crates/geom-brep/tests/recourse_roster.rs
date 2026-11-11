@@ -387,6 +387,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pair_section/ruling.rs: ruled: a", NOT_A_NAME),
     (
+        "pair_section/spline_implicit.rs: ray_of: name",
+        CLOSURE_FORWARDS,
+    ),
+    (
         "pair_section/spline_implicit/sweep.rs: sweep: jets",
         NOT_A_NAME,
     ),
