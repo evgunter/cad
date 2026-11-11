@@ -952,7 +952,7 @@ const RAY_FLOOR: f64 = core::f64::consts::FRAC_1_SQRT_2;
 ///
 /// - each node listed (C5): its point, the wall's normal, its two lines
 ///   and the side of each other the surfaces lie on in sector 0, read off
-///   the Hessian that decided it; refused ([`NODE_BOX`]) where its point
+///   the Hessian that decided it; refused ([`sweep::NODE_BOX`]) where its point
 ///   is not placed within the band;
 /// - each arc end at a node named by the ray it leaves along: the ray of
 ///   the four nearest the end's direction, by the largest `t·ray`, its
