@@ -185,7 +185,7 @@ pub(crate) enum Hand {
 /// every finding but the session box decides a fact of the shape up to
 /// isometry. A map that is not one (a scale, a shear, an offset) has no
 /// spelling here, so its image is construction state and only
-/// [`crate::finish`] makes it a finished body: a scale changes every
+/// [`crate::finish()`] makes it a finished body: a scale changes every
 /// length the gate compares against ε.
 ///
 /// Both arms are exact by construction or re-minted at their door
