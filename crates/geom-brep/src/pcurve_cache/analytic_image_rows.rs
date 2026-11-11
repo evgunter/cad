@@ -300,12 +300,14 @@ impl Door {
 }
 
 /// How a refusal ended: the stated image's miss shown, its read in band,
-/// or anything else.
+/// its bound over the span past the band with no miss located, or
+/// anything else.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Ended {
     Certified,
     Missed,
     InBand,
+    Unsettled,
     Other,
 }
 
@@ -313,6 +315,7 @@ fn ended(got: &Result<(), CertifyError>) -> Ended {
     match got {
         Ok(()) => Ended::Certified,
         Err(CertifyError::StatedImageMissed { .. }) => Ended::Missed,
+        Err(CertifyError::StatedImageUnsettled) => Ended::Unsettled,
         Err(CertifyError::Escalated {
             check: CertCheck::StatedImage,
             ..
@@ -689,6 +692,21 @@ fn a_wrong_image_through_its_pcurve_door_ends_as_its_miss() {
         );
         for got in &got {
             assert_eq!(ended(got), want, "projected ruling, h = {h}: {got:?}");
+            // Its fidelity term is read over the span: the refusal names
+            // no sample, where the image meets its carrier at `t = 0`.
+            if let Err(e) = got {
+                assert!(
+                    matches!(
+                        e,
+                        CertifyError::StatedImageMissed {
+                            sample: crate::certify::NOT_A_SAMPLE,
+                            ..
+                        }
+                    ) && e.to_string().contains("not a sampled check")
+                        && !e.to_string().contains("at sample"),
+                    "projected ruling, h = {h}: {e}"
+                );
+            }
         }
     }
     let (o, a, b) = (
@@ -857,4 +875,75 @@ fn an_iso_line_whose_u_is_an_enclosure_certifies_on_its_ruling() {
         &carrier,
     );
     assert!(got.is_ok(), "the iso line certifies on its ruling: {got:?}");
+}
+
+/// **An iso line on a spline wall that leaves its carrier between the
+/// samples ends in its lever, never as the lane's gap** (the review's
+/// column probe): an affine bilinear wall whose `v` knots crowd `3/16`,
+/// the carrier its column `u₀` in the column's own spline space with one
+/// control moved 1 mm along `v`. The iso door certifies the class and
+/// reads the bump only through its envelope, a sum of upper bounds (the
+/// control-difference hull and the snap slacks) that locates no point,
+/// so the reading is unsettled: the lever at every door. On its column
+/// the carrier certifies.
+#[test]
+fn an_iso_line_off_its_column_between_the_samples_ends_in_its_lever() {
+    let knots = vec![
+        0.0, 0.0, 0.05, 0.17, 0.18, 0.1875, 0.195, 0.205, 0.5, 0.7, 1.0, 1.0,
+    ];
+    let at: Vec<f64> = knots[1..knots.len() - 1].to_vec();
+    let bumped = at
+        .iter()
+        .enumerate()
+        .min_by(|a, b| (a.1 - 0.1875).abs().total_cmp(&(b.1 - 0.1875).abs()))
+        .map(|(i, _)| i)
+        .unwrap();
+    let (o, a, b) = (
+        Point3::origin(),
+        Vec3::new(2.0, 0.0, 0.0),
+        Vec3::new(0.0, 3.0, 0.5),
+    );
+    let kv = KnotVector::clamped(knots, 1).unwrap();
+    let mut control = Vec::new();
+    for u in [0.0, 1.0] {
+        for &v in &at {
+            control.push(o + a * u + b * v);
+        }
+    }
+    let count = control.len();
+    let wall = Surface::Nurbs(Arc::new(
+        geom::NurbsSurface::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            kv.clone(),
+            control,
+            vec![1.0; count],
+        )
+        .unwrap(),
+    ));
+    for u0 in [0.0, 0.3] {
+        for (h, want) in [(1e-3, Ended::Unsettled), (0.0, Ended::Certified)] {
+            let net: Vec<Point3<f64>> = at
+                .iter()
+                .enumerate()
+                .map(|(j, &v)| wall.eval(u0, v + if j == bumped { h } else { 0.0 }))
+                .collect();
+            let carrier = Curve3::Nurbs(Arc::new(
+                NurbsCurve3::new(kv.clone(), net, vec![1.0; at.len()]).unwrap(),
+            ));
+            let iso = Image::Iso([u0, 0.0], [0.0, 1.0]);
+            for got in certify_both(&wall, iso.at(), iso.at(), &carrier) {
+                assert_eq!(ended(&got), want, "column {u0}, h = {h}: {got:?}");
+                if let Err(e) = got {
+                    for at in [Reading::Build, Reading::AtRest] {
+                        let ending = e.ending(at).unwrap();
+                        assert!(
+                            ending.starts_with(geom_core::MOVE_RECOURSE)
+                                && !ending.contains(geom_core::NOT_YET_ENDING),
+                            "column {u0}, h = {h}, {at:?}: {ending}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

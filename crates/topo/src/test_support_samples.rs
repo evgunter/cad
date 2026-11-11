@@ -545,6 +545,7 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: geom_brep::certify::NOT_A_SAMPLE,
             margin: None,
         },
+        CertifyError::StatedImageUnsettled,
         CertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Ellipse,

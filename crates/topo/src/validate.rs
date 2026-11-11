@@ -3456,6 +3456,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::StatedImageMissed { .. } => {
             "the chart image it states does not follow its carrier"
         }
+        CertifyError::StatedImageUnsettled => {
+            geom_core::undecided!("whether the chart image it states follows it")
+        }
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -3651,6 +3654,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::StatedImageMissed { .. }
+            | CertifyError::StatedImageUnsettled
             | CertifyError::NoGeneralLane { .. }
             | CertifyError::Incidence(_)
             | CertifyError::ResidualExceeded { .. }
