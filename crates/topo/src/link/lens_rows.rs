@@ -1528,3 +1528,56 @@ fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read_f64() {
 fn a_curved_pinch_whose_polar_value_reads_zero_is_not_read_interval() {
     a_curved_pinch_whose_polar_value_reads_zero_is_not_read::<Interval>();
 }
+
+/// **A narrow lens is read by its middle's gap**: the rod of curvature
+/// `kr` along `z` and the bore of curvature `kb = 100·kr` along `y`,
+/// pinched on `tan ψ = √(kr/kb)` either side of `z`, their rays √2 long
+/// (`l²/2 = 1`). The gap at the middle is `kr`, the form's polar value on
+/// the two bounds `2kr·cos²ψ`, nearly twice it. With the middle's gap at
+/// 0.55, 0.7 and 0.9 of the escalation the lens is in band and not read;
+/// at 1.2 it rests. Red where the polar value is read raw, not as the gap
+/// it makes at the middle.
+fn a_narrow_lens_is_read_by_its_middles_gap<T: Decide>() {
+    let unread = TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::Unreadable));
+    let e = band().escalate();
+    for p in apexes::<T>() {
+        for (frac, rests) in [(0.55, false), (0.7, false), (0.9, false), (1.2, true)] {
+            let kr = frac * e;
+            let kb = 100.0 * kr;
+            let psi = (kr / kb).sqrt().atan();
+            let s2 = core::f64::consts::SQRT_2;
+            let d0 = v::<T>(0.0, -s2 * psi.sin(), s2 * psi.cos());
+            let d1 = v::<T>(0.0, s2 * psi.sin(), s2 * psi.cos());
+            let k = edges(2);
+            let pieces: Vec<_> = lens(
+                p,
+                rod_and_bore_of(p, 1.0 / kr, 1.0 / kb),
+                (d1, d0),
+                [k[0], k[1]],
+            )
+            .into();
+            let got = read(p, pieces);
+            if rests {
+                assert!(
+                    matches!(got, TouchVerdict::Rest(_)),
+                    "a narrow lens past the escalation at {p:?}: {got:?}"
+                );
+            } else {
+                assert_eq!(
+                    got, unread,
+                    "a narrow lens {frac} of the escalation at {p:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_narrow_lens_is_read_by_its_middles_gap_f64() {
+    a_narrow_lens_is_read_by_its_middles_gap::<f64>();
+}
+
+#[test]
+fn a_narrow_lens_is_read_by_its_middles_gap_interval() {
+    a_narrow_lens_is_read_by_its_middles_gap::<Interval>();
+}

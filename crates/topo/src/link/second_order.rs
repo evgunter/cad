@@ -627,7 +627,8 @@ fn developable<T: Decide>(link: &Link<T>, k: usize) -> bool {
 /// `b₂ = q(u₁)`, `b₁` its polar value
 /// ([`crate::bound_side::FaceBend::section`], polarised). A pinch reads
 /// its `b` Zero; a cap or a mouth reads its `b` decided, one sign `σ` for
-/// all of them; `b₁` reads `σ`, or Zero where every pinch is two lines on
+/// all of them; `b₁`, as the gap it makes along the unit middle, reads
+/// `σ`, or Zero where every pinch is two lines on
 /// developable faces ([`developable`]); where no end is open, `b₁` alone
 /// decides `σ` (a lens). Each sign is read at the arm with the two planes'
 /// parting along its ray charged. `σ` positive is a void, each sheet on
@@ -697,7 +698,14 @@ fn kind<T: Decide>(
     // form is `b₀(1 − t)² + b₂t²` there, of one sign.
     let flat = !pinched || (straight && developable(link, i) && developable(link, j));
     let mid = (u0 + u1).normalize();
-    let polar = (rise(u0 + u1)? - rise(u0)? - rise(u1)?) * T::from_f64(0.5);
+    // `b₁` as the separation it makes at the middle: the middle direction
+    // `(u₀ + u₁)/2` is `√((1 + cos φ)/2)` long, so a polar value `b₁` is a
+    // gap of `b₁/(1 + cos φ)` along the unit middle (a lens's whole gap
+    // there, its `b₀` and `b₂` zero), and that bounds the dip it can make
+    // anywhere along `W`. Read raw, it overstates a wedge under a quarter
+    // turn by up to twice.
+    let polar =
+        (rise(u0 + u1)? - rise(u0)? - rise(u1)?) * T::from_f64(0.5) / (T::one() + u0.dot(u1));
     let sigma = match (
         metric::settle_as(LINK_SECOND_ORDER, gap(polar), parting(mid)),
         sigma,

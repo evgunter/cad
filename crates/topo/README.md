@@ -1303,27 +1303,32 @@ inside the band. Left unread:
 - a curved sheet holding a tied ray inside it whose face has no
   certified bend.
 
-Two sectors bounded at the point by the same two edges, of opposed
-outward normals and not both planes, are one wedge to first order: a
-**lens** (`second_order::lenses`). One order down each is its face's
-graph over the wedge, `h(u)·s²/2` along the first's outward normal `m`
-at distance `s` along the unit `u`, `h` the face's normal section's
-acceleration (`bound_side::FaceBend::section`). Both faces hold both
-edges, so each edge's curvature vector along `m` is both faces' normal
-section along it (Meusnier), and `q = h₂ − h₁`, a quadratic form on the
-plane, vanishes along both bounds `u₀`, `u₁`: it is a multiple of
-`(u × u₀)·(u × u₁)` along `m`, of one sign across a wedge under half a
-turn. That sign, read as the form's polar value on the two bounds at the
-arm with the two planes' parting at the wedge's middle charged, is the
-lens's: positive,
-each sheet on the other's outward side, a void between them; negative,
-a sliver of material. Each bound must read `q` Zero. Read along the
-wedge, `q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²` with the
-bounds' `|b₀|, |b₂|` within the band's zero `z` at the arm, so a sign
-other than the middle's `q` takes by at most `z`: there the sheets lie
-within the band of each other, beside the edges they share. A face with
-no certified bend, a sector of more than one wedge, a polar value in band,
-normals not decidedly opposed, or a sector in two pairs is left unread.
+Two sectors of one wedge each, lying on each other the other way round
+(each one's rays on the other's, on its plane, so their outward normals
+are opposed), not both planes, and bounded at both ends as their faces
+keep it (by one edge, or by two lines on one line), are one wedge to
+first order: a **lens** (`second_order::lenses`). One order down each is
+its face's graph over the wedge, `h(u)·s²/2` along the first's outward
+normal `m` at distance `s` along the unit `u`, `h` the face's normal
+section's acceleration (`bound_side::FaceBend::section`). Both faces
+hold both bounds' curves, so each curve's curvature vector along `m` is
+both faces' normal section along it (Meusnier), and `q = h₂ − h₁`, a
+quadratic form on the plane, vanishes along both bounds `u₀`, `u₁`: it
+is a multiple of `(u × u₀)·(u × u₁)` along `m`, of one sign across a
+wedge under half a turn. Read along the wedge,
+`q((1 − t)u₀ + t·u₁) = b₀(1 − t)² + 2b₁t(1 − t) + b₂t²`; each bound must
+read its `b` Zero, and the lens's sign is the polar value `b₁` read as
+the gap it makes along the unit middle, `b₁/(1 + cos φ)` (`φ` the
+wedge's angle; the middle direction `(u₀ + u₁)/2` is shorter than a
+unit), at the arm with the two planes' parting at the middle charged:
+positive, each sheet on the other's outward side, a void between them;
+negative, a sliver of material. With `|b₀|, |b₂|` within the band's
+zero `z` at the arm, a sign other than the middle's takes by at most
+`z`: there the sheets lie within the band of each other, beside the
+edges they share. A face with no certified bend, a bound not read Zero,
+a middle in band, or a sector in two pairs is left unread; a pair one
+of whose sectors runs on past the wedge, or is capped by a horn, is a
+lune (below).
 
 A link with lenses is read as its remainder, its other sectors and its
 horns (the horns read as thorns against the remainder's cone, which the
@@ -1369,9 +1374,10 @@ A lens is the pair with both ends pinched; one reader takes both
 `b₀ = q(u₀)`, `b₂ = q(u₁)` and `b₁` the form's polar value on `u₀` and
 `u₁`. A pinch reads its `b` Zero; a cap or a mouth reads its `b` decided,
 one sign `σ` for both, at the arm with the two planes' parting along
-that ray charged (the ray's distance off each); and `b₁` reads `σ` with
-the parting at the wedge's middle charged, deciding `σ` where no end is
-open. Then `σ·q` falls below zero by at most the band's zero `z` at the
+that ray charged (the ray's distance off each); and `b₁`, read as the
+gap `b₁/(1 + cos φ)` it makes along the unit middle, reads `σ` with the
+parting at the wedge's middle charged, deciding `σ` where no end is
+open. That gap bounds the dip `b₁` can make anywhere along `W`. Then `σ·q` falls below zero by at most the band's zero `z` at the
 arm, and only beside a pinch, so the sheets do not cross over `W` to
 second order: positive `σ` is a void between them, negative a sliver.
 Reading the ends alone would not do: a form positive at both ends of a
