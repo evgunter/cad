@@ -202,6 +202,24 @@ fn a_nappe_off_every_plane_is_the_thorn_or_needle_it_bounds<T: Decide>() {
             two.push(whole(p, up));
             assert_eq!(read(p, two), unread, "{what} at {p:?}");
         }
+        // One half twice over, along four edges: no nappe whole.
+        let e = edges(4);
+        let (a, b) = (ruling::<T>(0.0), ruling::<T>(core::f64::consts::PI));
+        let lobe = |ends| {
+            TangentPiece::Apex(ApexLobe {
+                cone: cone(p, false),
+                carrier: k[0],
+                vertex: p,
+                ends,
+                spur: false,
+            })
+        };
+        let doubled = vec![
+            lobe([(a, e[0]), (b, e[1])]),
+            lobe([(a, e[2]), (b, e[3])]),
+            whole(p, up),
+        ];
+        assert_eq!(read(p, doubled), unread, "one half twice at {p:?}");
         let mut twice = halves(p, 0.0, [k[0], k[0]], [false; 2])
             .into_iter()
             .collect::<Vec<_>>();
@@ -392,6 +410,166 @@ fn two_arcs_of_one_circle_are_kept_as_one<T: Decide>() {
             "the hole's rim tighter at {p:?}"
         );
     }
+}
+
+/// A planar face's corner at `p` of outward unit `m` along one ray
+/// `d`, from the edge `ends[0]` round to `ends[1]`: a horn, where the two
+/// bend apart.
+fn horn<T: Decide>(p: Point3<T>, m: Vec3<T>, d: Vec3<T>, ends: [Bound<T>; 2]) -> TangentPiece<T> {
+    let surface = geom::Surface::Plane {
+        origin: p,
+        normal: m,
+        u_ref: m.cross(v::<T>(1.0, 0.3, 0.7)).normalize(),
+    };
+    let fan = TangentFan::Corner {
+        d0: d,
+        d1: d,
+        bounds: ends,
+        spur: false,
+    };
+    let piece = FaceSector::tangent(surface, true, m, p, fan, band()).expect("a corner's piece");
+    assert!(matches!(piece, TangentPiece::Horn(_)), "a horn");
+    piece
+}
+
+/// The three horns of a needle of void along `+x` from `p`, one order
+/// down the triangle of a line edge at `0` and two arcs bending toward
+/// `y` and `z`: `second_order_rows`' thorn, every normal and loop turned
+/// round.
+fn needle<T: Decide>(p: Point3<T>, keys: [EdgeKey; 3]) -> Vec<TangentPiece<T>> {
+    let d = v::<T>(2.0, 0.0, 0.0);
+    let bound = |edge, bend: Vec3<T>, line| Bound {
+        edge,
+        line,
+        circle: false,
+        bend,
+    };
+    let l = bound(keys[0], Vec3::zero(), true);
+    let a = bound(keys[1], v(0.0, 1.0, 0.0), false);
+    let b = bound(keys[2], v(0.0, 0.0, 1.0), false);
+    let s = core::f64::consts::FRAC_1_SQRT_2;
+    vec![
+        horn(p, v(0.0, 0.0, 1.0), d, [l, a]),
+        horn(p, v(0.0, 1.0, 0.0), d, [b, l]),
+        horn(p, v(0.0, -s, -s), d, [a, b]),
+    ]
+}
+
+/// **A nappe is read only beside a rest of one material and no horn.**
+/// Two whole planes crossing, each holding the nappe off, cross. A needle
+/// of void along one of the nappe's rulings, in the plane's material with
+/// the nappe, rests without the nappe and is not read beside it: its
+/// sheets straddle the nappe one order down. Red where the rest of the
+/// link is not read, or a horn is read beside a nappe.
+fn a_nappe_is_read_only_beside_a_rest_and_no_horn<T: Decide>() {
+    let (s, c) = ALPHA.sin_cos();
+    for p in apexes::<T>() {
+        let tilt = 10f64.to_radians();
+        let crossed = vec![
+            spur(p, false),
+            whole(p, v(tilt.sin(), tilt.cos(), 0.0)),
+            whole(p, v(-tilt.sin(), tilt.cos(), 0.0)),
+        ];
+        assert_eq!(
+            read(p, crossed),
+            TouchVerdict::Crossing,
+            "two planes crossing at {p:?}"
+        );
+        let e = edges(4);
+        let plane = || whole(p, v::<T>(-0.5, 1.0, 0.0).normalize());
+        let mut alone = needle(p, [e[0], e[1], e[2]]);
+        alone.push(plane());
+        let got = read(p, alone);
+        assert!(
+            matches!(got, TouchVerdict::Rest(_)),
+            "the needle alone at {p:?}: {got:?}"
+        );
+        // The nappe about `(cos α, −sin α, 0)`, its ruling along `+x`.
+        let lobe = TangentPiece::Apex(ApexLobe {
+            cone: crate::sector_face::ConeApex {
+                apex: p,
+                axis: v(c, -s, 0.0),
+                half_angle: T::from_f64(ALPHA),
+                u_ref: v(0.0, 0.0, 1.0),
+                sense: false,
+            },
+            carrier: carriers(1)[0],
+            vertex: p,
+            ends: [(v(1.0, 0.0, 0.0), e[3]), (v(1.0, 0.0, 0.0), e[3])],
+            spur: true,
+        });
+        let mut beside = needle(p, [e[0], e[1], e[2]]);
+        beside.extend([lobe, plane()]);
+        assert_eq!(
+            read(p, beside),
+            TouchVerdict::Unread(TouchUnread::Curved(CurvedUnread::NoTangentPlane)),
+            "a needle along a ruling at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn a_nappe_is_read_only_beside_a_rest_and_no_horn_f64() {
+    a_nappe_is_read_only_beside_a_rest_and_no_horn::<f64>();
+}
+
+#[test]
+fn a_nappe_is_read_only_beside_a_rest_and_no_horn_interval() {
+    a_nappe_is_read_only_beside_a_rest_and_no_horn::<Interval>();
+}
+
+/// **Two arcs are one circle only where their bends agree both ways**
+/// ([`second_order::one_circle`]): along `−y` in the plane `z = 0`, two
+/// circles' arcs bending alike are one circle; bending apart off the
+/// plane, or across the ray in it, by twice the escalation at the arm,
+/// they are not, and two arcs bending alike that are not both circles'
+/// are not. Red where either way is not read, or an arc of another conic
+/// is kept.
+fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways<T: Decide>() {
+    let e = band().escalate();
+    let rd = metric::Reading::plain(band());
+    for p in apexes::<T>() {
+        let k = edges(2);
+        let at = p + v::<T>(0.0, -0.2, 0.0);
+        let arc = |edge, bend: Vec3<T>, circle| Bound {
+            edge,
+            line: false,
+            circle,
+            bend,
+        };
+        let bend = v::<T>(-1.0 / 0.3, 0.0, 0.0);
+        let off = 2.0 * 2.0 * e / 0.04;
+        let one = |b: Bound<T>, c: Bound<T>| {
+            second_order::one_circle(p, (at, b), (at, c), v(0.0, 0.0, 1.0), rd)
+        };
+        assert!(
+            one(arc(k[0], bend, true), arc(k[1], bend, true)),
+            "one circle at {p:?}"
+        );
+        for (what, apart) in [
+            ("off the plane", v(0.0, 0.0, off)),
+            ("across the ray", v(off, 0.0, 0.0)),
+        ] {
+            assert!(
+                !one(arc(k[0], bend, true), arc(k[1], bend + apart, true)),
+                "bending apart {what} at {p:?}"
+            );
+        }
+        assert!(
+            !one(arc(k[0], bend, true), arc(k[1], bend, false)),
+            "an arc of no circle at {p:?}"
+        );
+    }
+}
+
+#[test]
+fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways_f64() {
+    two_arcs_are_one_circle_only_where_their_bends_agree_both_ways::<f64>();
+}
+
+#[test]
+fn two_arcs_are_one_circle_only_where_their_bends_agree_both_ways_interval() {
+    two_arcs_are_one_circle_only_where_their_bends_agree_both_ways::<Interval>();
 }
 
 #[test]

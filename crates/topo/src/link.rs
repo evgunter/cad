@@ -4766,22 +4766,21 @@ pub(crate) mod rest {
             ) {
                 continue;
             }
-            // The two rulings farthest off the plane either way.
+            // The two rulings farthest off the plane either way, read only
+            // for a straddle: both on one side is the charged reading above.
             let w = (m - axis * m.dot(axis)).normalize();
             let far = [c + w * rho, c - w * rho].map(|q| link.cone.side(t, q, rd));
-            match far {
-                [Some(Sign::Positive), Some(Sign::Positive)]
-                | [Some(Sign::Negative), Some(Sign::Negative)] => {}
+            return match far {
                 [Some(Sign::Positive), Some(Sign::Negative)]
                 | [Some(Sign::Negative), Some(Sign::Positive)] => {
-                    return if t.closed {
+                    if t.closed {
                         TouchVerdict::Crossing
                     } else {
                         unread
-                    };
+                    }
                 }
-                _ => return TouchVerdict::Unread(TouchUnread::InBand),
-            }
+                _ => TouchVerdict::Unread(TouchUnread::InBand),
+            };
         }
         let pieces: Vec<_> = (0..link.cone.sectors.len())
             .map(|k| {
