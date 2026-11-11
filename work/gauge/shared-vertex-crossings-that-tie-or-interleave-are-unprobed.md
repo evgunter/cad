@@ -2,9 +2,8 @@
 id: shared-vertex-crossings-that-tie-or-interleave-are-unprobed
 kind: issue
 title: "SharedVertexCrossings: a pair paired along its Out arcs, with other pieces on both ways round, has no run; which pairing a shared vertex takes is open"
-status: closed
+status: dispatched
 opened: 2026-10-03
-closed: 2026-11-11
 priority: P1
 cost: M
 pr: 6832
@@ -263,37 +262,35 @@ Three designers (fork-log row 261) were unanimous on their first reports. No rat
 
 GAUGE orchestrator. One implementer in lane `gauge-svc`, branch `gauge/in-arc-pairing`. Review tier: a single full review. The change deletes mechanism more than it adds, and it is measured over the whole battery, the slow sets and the cleave witness. But it moves the pairing of every `∪` and `∖` vertex pair with four or more crossings, so the review carries correctness claims.
 
-## Closed (GAUGE, lane `gauge-svc`, PR 6832, 2026-11-11)
+## Reopened (the build stopped, 2026-11-11)
 
-Built as decided. Each crossing pair pairs along the In arcs of its
-lead vertex's link (`insert::in_arc_pairs`, `insert::pairing_leads`),
-and each solid's runs nest as arcs of its own walk
-(`insert::run_holders`). `pairing_start_turns` retired, and the
-insertion reads no op. `setopfinish`'s vertex-set shape check retired;
-`zip::split_cones` reads the cones.
+The build of the decision above, PR 6832 at `0fd699740c`, stopped at a design question. The battery built 5,190 of 5,190 sound, and the cleave witness built all six ops. But two families that build on main failed:
 
-- **Dead arms, measured.** A local probe counted the reconcile's turns,
-  `hang_at_shared`'s re-read holders and its cover arm over the topo
-  and sweep `ci` profiles (372 shared-vertex readings): none fired. The
-  turning loop and `hang_at_shared` are removed. A run at a shared
-  vertex that holds another pair's cut is now a
-  `ClassificationInvariant` (two pieces of one operand overlap), and
-  `SharedVertexCrossings` is left to two runs on one arc whose ends
-  nothing reads apart (`insert::tied_held`), which no pose reaches.
-- **Battery.** `four_pairs_battery`: 5,190 lines `OK SOUND`, 0 `ERR`
-  (main `da005e4b27`: 4,208 `OK SOUND`, 982 `ERR SharedVertexCrossings`).
-  The 4,208 lines that built before have the same faces, edges,
-  vertices, volumes and one-vertex-per-cone findings, line for line.
-- **The cleave witness builds every op**:
-  `three_corners_alternating_round_the_cube_build_every_op`, at
-  `cube ∪ y` = 1.0336378, `cube ∩ y` = 0.0285733, `cube ∖ y` =
-  0.9714267, tier 2, 3′ and the certificate.
-- **Mutants**, each red on that witness: the op-chosen start, the
-  vertex-set check restored, and Out-arc pairing at a shared vertex.
-- **What the old check caught.** It dates from PR5, when the seam
-  correspondence was a function and the zip could not take a vertex
-  with two correspondents; every recorded firing was a refusal the
-  pre-split zip shared (`Euler(SelfLoopEdge)`), and no test pinned it.
-  No case where it stood before a wrong body was found.
+- **Nested cones at a shared vertex.** The four editor-core `names::emit_topo::touch_reread_rows` tests, `x − y` of `over_a_void`. `y` is a pyramid less a nested pyramid at the same apex, so its two vertices there bound nested cones. The lead's In arc against the inner vertex holds the outer pair's cuts, and the build's invariant fired. The premise "one operand's pieces at a point are disjoint" is false: its curves at a point never cross, but the regions they bound can overlap.
+- **A tangent ellipse rim in `∪`.** Four `a_closed_conic_in_the_partners_face` tests refused `UnpairedLooseEnds { count: 4 }`. The vertex is not shared. Its In arcs are slivers of the coincident crescent, coded In for `∪` by `recl` (Eq. 15.3). Pairing along them joins germs of two result cones, which the join's one-site rim lane cannot close.
 
-Filed: `a-run-only-struts-hold-has-no-pose-past-the-unit-row` (P3).
+The orchestrator ran two more reconciliation rounds with the same three designers. They were shown the build's evidence (round 2), then each other's reports (round 3). Rounds and token counts are on `analysis/design-fork/shared-vertex-pairing`.
+
+## Decided, revised (fork `shared-vertex-pairing`, round 3, 2026-11-11)
+
+All three converged in round 3, each having measured its own prototype. No ratified text governs the pairing, so the orchestrator decides it again, with no `[ev]` PR. This replaces the pairing and reconcile bullets of `## Decided` above. The finish bullet stands.
+
+- **The default start is the kept side (main's rule).** A vertex pair pairs consecutively from the start whose runs lie on the side the op keeps. The op contributes only that fact, which is the one the result is selected by. Two reasons:
+  - a kept arc is a stretch of one cone of the result, so a null edge along it joins germs of one cone, which the join's one-site rim lane needs;
+  - the codes the pairing reads already carry the op at coincident faces, so an op-free rule over them is not free of it.
+  - The Out default was measured wrong. On a pin hanging into a pocket with the rims tangent (the mirror of family 2), Out refuses `∩` with `UnpairedLooseEnds { count: 4 }`, where main and the kept start build.
+- **At a shared vertex, a blocked pair takes the other start.** A pair whose kept-side runs would hold another pair's crossings takes its other start, where that is clear. The pairs at one vertex choose together, by the fewest departures from the kept side. Designer B measured that flipping one blamed pair at a time dead-ends on the cleave witness's `y ∪ cube`.
+  - A and C argued that a clearance test reading only germs makes each pair's choice independent. If the built reading is that, the joint choice reduces to a per-pair one. The build measures which holds.
+- **Turning retires**, and `hang_at_shared` with it: taking the other start covers every turn that clears a run. The tie reading (`tied_held`), strut-in-strut (`holds_whole`) and forced struts stay.
+- **`SharedVertexCrossings` stays typed where no choice is clear.** That happens only where a pair's curve has other curves on both sides: three nested cones of one operand at an apex, or a shell beside a separate piece. No witness of either exists. The known way to build them is B's round-2 construction: pair along the partner's kept arcs, and place a vertex's chords as one non-crossing family. It is filed as a limit row.
+- **Withdrawn:** pairing along the lead's In arcs; "the op leaves the insertion"; and the premise that one operand's pieces at a point are disjoint. The insertion contract states instead that partner curves are disjoint curves, not disjoint disks.
+- **Measured by the designers** (debug, prototypes on `0fd699740c`):
+  - the battery at 5,190 sound, line for line equal across two runs;
+  - the cleave-witness file at 27 of 27;
+  - family 1 at 4 of 4 and family 2 at 22 of 22;
+  - topo, sweep and editor-core `ci` green under A's variant.
+  - Not run: the slow set beyond the family-2 file, and the gates.
+
+## Dispatch (the rebuild, 2026-11-11)
+
+GAUGE orchestrator. The same implementer, in lane `gauge-svc`, rebuilds PR 6832 to the revised decision. Review tier: unchanged, a single full review with correctness claims.
