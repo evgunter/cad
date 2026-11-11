@@ -438,7 +438,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "`rational_patch_face`'s 3 are weight reads (`net.rs`'s note) in a function that asks of \
          other values",
     ),
-    ("crates/geom-brep/src/props/quad/rotational.rs", 2, 2, ""),
+    (
+        "crates/geom-brep/src/props/quad/rotational.rs",
+        4,
+        3,
+        "3 read after asking by name. The remainder is `piece_reach`'s 1, the chart radius's \
+         upper end scaled to the length a rational chart term's round-0 piece may span: a \
+         schedule (`term_schedule`, whose pieces each ask their own speed's `is_certified()`, \
+         feeding the rounds' cost), so a refused radius moves how finely the term is first cut, \
+         never what a piece certifies",
+    ),
     (
         "crates/geom-brep/src/props/quad/trimmed.rs",
         6,
