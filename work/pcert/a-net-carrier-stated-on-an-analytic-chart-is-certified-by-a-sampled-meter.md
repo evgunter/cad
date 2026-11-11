@@ -2,10 +2,11 @@
 id: a-net-carrier-stated-on-an-analytic-chart-is-certified-by-a-sampled-meter
 kind: issue
 title: A spline net stated on an analytic chart is certified by a sampled meter, so a net off its plane, cylinder or cone between the samples gets an edge certificate
-status: open
+status: closed
 opened: 2026-11-11
 priority: P1
 cost: M
+closed: 2026-11-11
 ---
 
 Filed by `pcert/stated-image-bounded` (PR 6815, review fix LL1), from the
@@ -72,3 +73,38 @@ projected image's parts (`ProjectedHull`), which is a sup where the
 sampled read is not. Two same-named functions of opposite natures (one a
 sampled lower bound, one a bound over the span) are worth a rename in the
 fix, whichever it takes.
+
+## Closed (2026-11-11)
+
+The fix took the first shape: the read of a net stated on an analytic
+chart is a supremum over the span at the edge certificate. `certify.rs`
+`stated_analytic_bound` reads a `Curve3::Nurbs` carrier through
+`pcurve_cache::read_net_bound`. That read runs the sampled read first,
+and a definite miss at a sample ends there. It then reads limb 2's bound
+of the net's distance from the chart over `[t0, t1]`
+(`limb2_offset_sup`: the chart's canonical composite along the net, a
+bound per part, the parts halved where the bound does not clear). The
+bound is decided by the edge certificate's own limb-2 decider
+(`edge_nurbs::limb2`), so there is one home for "a net's distance from
+an analytic chart over a span", and `projected.rs`'s hull-composite
+`net_incidence` is its per-part metre conversion. The sampled read is
+renamed `net_sampled_incidence`: it is a lower bound, kept for the mint's
+and the lane choices' reads, whose images are then bounded by their
+pcurve certificates.
+
+Endings:
+- a measured miss past the band ends `Incidence(Off)` (`CarrierOffChart`);
+- a bound or floor in the band, an enclosure that neither clears nor
+  misses, an upper bound past the band with no miss, or no certified
+  bound at all (a logged straddle, `pcurve_net_bound_straddle`, in
+  `net_bound_refusal`) ends `Incidence(Undecided)`, the lever;
+- a net with no certified enclosing net (its data not finite) ends
+  unreadable, as the spline chart's cell read does.
+
+Rows (`pcurve_cache/analytic_net_rows.rs`):
+- the witness, three charts × two images × two scalars;
+- the bump narrowed toward the band;
+- a net beside a cone's apex (the P2's row);
+- the no-false-Off search against an exact supremum, on all five charts.
+
+The mutant `net-bound-sampled` turns the witness and the narrowed bump red.

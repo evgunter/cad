@@ -96,7 +96,13 @@ impl Ruled {
             ),
             // The ruling from slant 1 to slant 2; the normal lies in its
             // meridian plane.
-            Self::Cone => ([s, 0.0, c], [s, 0.0, c], [c, 0.0, -s], [0.0, 1.0], [0.0, 2.0]),
+            Self::Cone => (
+                [s, 0.0, c],
+                [s, 0.0, c],
+                [c, 0.0, -s],
+                [0.0, 1.0],
+                [0.0, 2.0],
+            ),
         }
     }
 }
@@ -395,7 +401,11 @@ fn draw_ruled(g: &mut fuzz::Rng) -> Net {
 /// quadratic net (four quarter arcs) refined at random knots, read over a
 /// random window: on the sphere a great circle of radius `R + miss`, on
 /// the torus a tube circle of radius `r + miss` about the core.
-fn draw_round(g: &mut fuzz::Rng, torus: bool, miss: f64) -> (Surface<f64>, NurbsCurve3<f64>, (f64, f64)) {
+fn draw_round(
+    g: &mut fuzz::Rng,
+    torus: bool,
+    miss: f64,
+) -> (Surface<f64>, NurbsCurve3<f64>, (f64, f64)) {
     let (big, small) = (2.0, 0.5);
     let phi = g.range(0.0, std::f64::consts::TAU);
     let radial = Vec3::new(phi.cos(), phi.sin(), 0.0);
@@ -427,7 +437,17 @@ fn draw_round(g: &mut fuzz::Rng, torus: bool, miss: f64) -> (Surface<f64>, Nurbs
     };
     let b = Vec3::unit_z();
     let w = std::f64::consts::FRAC_1_SQRT_2;
-    let corners = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (-1.0, 1.0), (-1.0, 0.0), (-1.0, -1.0), (0.0, -1.0), (1.0, -1.0), (1.0, 0.0)];
+    let corners = [
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (-1.0, 0.0),
+        (-1.0, -1.0),
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.0),
+    ];
     let control = corners
         .iter()
         .map(|&(x, y)| center + a * (radius * x) + b * (radius * y))
@@ -435,7 +455,9 @@ fn draw_round(g: &mut fuzz::Rng, torus: bool, miss: f64) -> (Surface<f64>, Nurbs
     let weights = (0..9).map(|i| if i % 2 == 0 { 1.0 } else { w }).collect();
     let circle = NurbsCurve3::new(
         KnotVector::clamped(
-            vec![0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0],
+            vec![
+                0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+            ],
             2,
         )
         .unwrap(),
@@ -443,7 +465,9 @@ fn draw_round(g: &mut fuzz::Rng, torus: bool, miss: f64) -> (Surface<f64>, Nurbs
         weights,
     )
     .unwrap();
-    let mut add: Vec<f64> = (0..g.below(30)).map(|_| g.range(1e-6, 1.0 - 1e-6)).collect();
+    let mut add: Vec<f64> = (0..g.below(30))
+        .map(|_| g.range(1e-6, 1.0 - 1e-6))
+        .collect();
     add.sort_by(f64::total_cmp);
     let net = circle.refine_knots(&add).unwrap();
     let (x, y) = (g.unit(), g.unit());
@@ -568,7 +592,8 @@ fn beside_the_apex<T: Decide + geom_core::CertifiedBounds>() {
         assert!(
             match ends {
                 Apex::Off => matches!(read, Some(IncidenceRead::Off(_))),
-                Apex::Lever => matches!(read, Some(IncidenceRead::Undecided(c)) if !c.margin.is_invalid()),
+                Apex::Lever =>
+                    matches!(read, Some(IncidenceRead::Undecided(c)) if !c.margin.is_invalid()),
                 Apex::On => got.is_ok(),
             },
             "at {}, {shift:e} beside the apex over [{lo}, {hi}] (a knot there: {knot}) ends \
@@ -586,4 +611,38 @@ fn a_net_beside_a_cones_apex_ends_off_f64() {
 #[test]
 fn a_net_beside_a_cones_apex_ends_off_interval() {
     beside_the_apex::<Interval>();
+}
+
+/// **A bound limb 2 cannot read ends in the lever** (`net_bound_refusal`):
+/// an upper bound past the band with no miss, or no certified bound at
+/// all, is a straddle read in band with a margin, never a poisoned read
+/// (which ends as a defect) and never off.
+#[test]
+fn a_bound_that_does_not_read_ends_in_the_lever() {
+    use crate::edge_nurbs::AnalyticRung3Refusal as R;
+    let surface = Ruled::Plane.surface::<f64>();
+    let carrier = Curve3::Nurbs(Arc::new(witness(0.0).curve(Ruled::Plane)));
+    let b = band();
+    let limit = R::KernelLimit {
+        operand: surface.kind(),
+        bound: 4.0 * b.escalate(),
+        margin: geom_core::MarginDiag::value(4.0 * b.escalate()),
+        width: 0.0,
+        extent: 1.0,
+    };
+    let unbounded = R::NoOffsetBound {
+        operand: surface.kind(),
+        why: "a row's",
+    };
+    for refusal in [limit, unbounded] {
+        let got = super::net_bound_refusal(refusal, &surface, &carrier, b);
+        let read = match &got {
+            PcurveCertifyError::Incidence(r) => Some(r.read()),
+            _ => None,
+        };
+        assert!(
+            matches!(read, Some(IncidenceRead::Undecided(c)) if !c.margin.is_invalid()),
+            "{refusal:?} ends in the lever with a margin: {got:?}"
+        );
+    }
 }
