@@ -48,13 +48,17 @@ the wrap edge) is tier-3 valid and refused `SingleColumnCurvedFace` at
 mints two bands; import's flip is parked), so the row builds it with Euler
 operators. `mesh::walk::wrap_strip` reads the loop through
 `topo::surface_boundary::chart_image`: an empty image whose two tips are
-the chart's two singular points is the whole surface, and the walk places
-the edge's two sides a period apart (`strip_columns`), wound by the face's
-sense, with no turn read at the tip. Pinned in
-`crates/mesh/tests/the_one_face_ball.rs`: watertight, within δ·area of
-4π/3 and of the two-band ball's signed volume, the reverted ball the void;
-the wrap edge split off the poles meshes too (on main it panicked at the
-census); the hemisphere and cone wrap-tip caps mesh byte-identically to
-main. Mutants (zero-width column, sense dropped, sign flipped) each kill a
+vertices on the chart's two singular points (`vertex_at_singular_point` at
+the run's band) is the whole surface, and the walk places the edge's two
+sides a period apart, the far side opening at the far tip, wound by the
+face's sense, with no turn read at the tip. Pinned in
+`crates/mesh/tests/the_one_face_ball.rs`: the ball and its reversal from
+either pole (all four pairings of side direction and sense), the wrap edge
+split off the poles (on main it panicked at the census), a slit between
+the tips that is not the strip, and the hemisphere and cone wrap-tip caps
+byte-identical to main. Mutants (zero-width column, sense dropped, rising
+dropped, sign flipped, constant period, image guard dropped) each kill a
 named row. The one-seam sphere in `loops_with_no_rim.rs` moves from the
-single-column class to the strip.
+single-column class to the strip, recorded as behaviour outside the
+contract. The spline wrap edge the trimmed lane would meet is filed:
+`a-one-face-ball-on-a-spline-wrap-edge-meets-the-trimmed-lane-unmeasured`.
