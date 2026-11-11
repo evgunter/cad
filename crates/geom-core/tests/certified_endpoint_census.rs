@@ -377,10 +377,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
-        31,
-        26,
-        "the 26 that ask are `krawczyk`'s (12) and the critical-value door's (`decide`, 14). Of \
-         the other 5, `read`'s 2 are the value's ceiling in metres, which that door decides only \
+        37,
+        28,
+        "the 28 that ask are `krawczyk`'s (12), the critical-value door's (`decide`, 14) and \
+         `node_frame`'s width (2), read only where all three of `S(b)`'s coordinates certify and \
+         NaN otherwise, which the listing refuses (`NODE_BOX`). Of the other 9, `grown`'s 4 are \
+         its doubling's seed half-widths, every box it keeps proved again by `krawczyk`; \
+         `read`'s 2 are the value's ceiling in metres, which that door decides only \
          after it asks `at.value.is_certified()`; `mid`'s 2 are the Krawczyk box's centre, a \
          seed; and `along_line`'s 1, its norm, is minted a fresh point, but the slope's \
          numerator carries the gradient's and the direction's decoration, which its caller asks \
@@ -551,6 +554,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          which refuses an uncertified enclosure by name. `row_cover`'s 1 reads the graph \
          margin's sign only after `tube_margin` has answered `Some`, which it does only for a \
          margin that certifies",
+    ),
+    (
+        "crates/geom-brep/src/ssi/implicit_chart.rs",
+        2,
+        0,
+        "both are `pass_key`'s, the partner's lift rendered into the key a boundary pass is \
+         carried over by. They are an identity, not a bound: `{:e}` renders each end exactly, \
+         nothing compares them or takes a branch on them, and a pass carries only between \
+         sections whose keys are equal",
     ),
     (
         "crates/geom-brep/src/ssi/one_arc.rs",
