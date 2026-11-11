@@ -4893,14 +4893,9 @@ pub(crate) mod rest {
     }
 
     /// **Whether sector `k` lies in sector `j`'s plane**: every ray of
-    /// its fan reads on that plane. The first-order half of two sectors
-    /// lying on each other ([`slit`], [`super::second_order::lenses`]).
-    pub(super) fn in_plane_of<T: Decide>(
-        link: &Link<T>,
-        k: usize,
-        j: usize,
-        rd: Reading<T>,
-    ) -> bool {
+    /// its fan reads on that plane. The first-order half of two planar
+    /// sectors lying on each other ([`slit`]).
+    fn in_plane_of<T: Decide>(link: &Link<T>, k: usize, j: usize, rd: Reading<T>) -> bool {
         let t = &link.cone.sectors[j];
         link.cone.sectors[k].wedges.iter().all(|&(a, b)| {
             [a, b]

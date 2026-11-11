@@ -513,11 +513,10 @@ enum Close {
 }
 
 /// **The pair `(i, j)` on one wedge** ([`lenses`]): `None` where it is no
-/// candidate — `j` not one wedge, `W`, `i` not holding `W` the other way
-/// round as its first or last wedge, both planes, not on each other, both
-/// ends pinches by `i`'s one edge, or an end that does not close
-/// ([`Close`]); `Some(None)` where it is one and does not read
-/// ([`kind`]).
+/// candidate — `j` not one wedge, `W`, `i` not holding `W` on its plane
+/// the other way round as its first or last wedge, both planes, or an
+/// end that does not close ([`Close`]); `Some(None)` where it is one and
+/// does not read ([`kind`]).
 fn pair<T: Decide>(
     link: &Link<T>,
     [i, j]: [usize; 2],
@@ -532,11 +531,12 @@ fn pair<T: Decide>(
     else {
         return None;
     };
-    if (super::rest::planar(link, i) && super::rest::planar(link, j))
-        || !on_each_other(link, [i, j], rd)
-    {
+    if super::rest::planar(link, i) && super::rest::planar(link, j) {
         return None;
     }
+    // `j`'s two rays on two of `i`'s, on `i`'s plane, the other way round:
+    // the two sectors lie on one plane, turned over, so their outward
+    // normals are opposed.
     let along = |(a, b): Segment<T>| {
         super::on_ray(p, s.outward, a, d, rd) && super::on_ray(p, s.outward, b, c, rd)
     };
@@ -568,10 +568,6 @@ fn pair<T: Decide>(
     };
     let at_d = close(at_first.then_some(i0), j1, x)?;
     let at_y = close((!at_first || only).then_some(i1), j0, y)?;
-    // A sector bounded both ways by one closed edge is no lens.
-    if matches!((at_d, at_y), (Close::Pinch { .. }, Close::Pinch { .. })) && i0.edge == i1.edge {
-        return None;
-    }
     let ends = [(y, at_y), (x, at_d)];
     let rest = ends
         .iter()
@@ -723,18 +719,4 @@ fn kind<T: Decide>(
     } else {
         Lens::Sliver
     })
-}
-
-/// Whether sectors `i` and `j` are one wedge to first order: their
-/// outward normals decidedly opposed, and `i` in `j`'s plane
-/// ([`super::rest::in_plane_of`]; two bounds on one line leave the
-/// planes free to differ).
-fn on_each_other<T: Decide>(link: &Link<T>, [i, j]: [usize; 2], rd: Reading<T>) -> bool {
-    let p = link.cone.p;
-    let (s, t) = (&link.cone.sectors[i], &link.cone.sectors[j]);
-    let Some(&(a, _)) = s.wedges.first() else {
-        return false;
-    };
-    toward(p, reach(p, a - p).length(), t.outward, s.outward, rd) == Some(Sign::Negative)
-        && super::rest::in_plane_of(link, i, j, rd)
 }
