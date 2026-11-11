@@ -217,7 +217,7 @@ impl SmoothAcross {
 impl<T: Decide> Body<T> {
     /// **The dihedral across `edge` between its faces' records
     /// `surfaces`**, read at the edge's stored carrier's mid-parameter
-    /// point and levered at its faces' extent ([`crate::wedge_reach`]):
+    /// point and levered at its faces' extent ([`crate::wedge_reach()`]):
     /// [`geom_brep::dihedral_decided`], the reading a sweep takes at an
     /// edge it wrote. A smooth join of two planes comes back with the
     /// verdict that its two faces are one carrier ([`SmoothAcross`]).

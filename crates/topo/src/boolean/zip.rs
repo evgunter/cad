@@ -190,8 +190,8 @@ pub(super) fn point_classes<T: geom_core::Real>(
 
 /// **The vertices of each class sit on one point key**: where a
 /// class's live vertices sit on several of its keys, they move onto
-/// the smallest live key holding the glue's kept side's point
-/// (`ops::PointOwners`, [`super::glue::KEPT`]), or the smallest live
+/// the smallest live key holding the first-written side's point
+/// (`ops::PointOwners`, [`super::glue::FIRST_WRITTEN`]), or the smallest live
 /// key where the class holds none of that side's ([`Body::share_point`]);
 /// elsewhere nothing moves. Either way the class keeps one of its keys'
 /// points, and those may differ inside the band, so the choice is which
