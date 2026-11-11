@@ -18,13 +18,19 @@
 
 use core::f64::consts::PI;
 
-use crate::common::differential::VOLUME_PAD_BUDGET;
 use crate::common::germ_pair::cyl;
 use crate::conic_edge_curved_face::ball;
-use crate::cylinder_sphere_frame::{Ends, FULL, at_its_volume, oracle, run};
+use crate::cylinder_sphere_frame::{Ends, FULL, at_its_volume, oracle, pad_ceiling, run};
 use geom_core::Tol;
 use sweep::test_support::finished;
 use topo::BooleanOp;
+
+/// Regression guards on each run's volume half-width, `(ε, width)`, not
+/// soundness bounds: four times the widest measured over the six runs
+/// (debug, 2026-11-11), rounded up: `2.943e-7` at ε 1e-6, `1.0315e-10`
+/// at 1e-9 and `1.3935e-12` at 1e-12. Any other ε reads the resolution
+/// ceiling alone.
+const RINGED_PAD_GUARDS: [(f64, f64); 3] = [(1e-6, 1.2e-6), (1e-9, 4.2e-10), (1e-12, 5.6e-12)];
 
 /// **Every run of the two balls against the drum builds at its volume**,
 /// in the order ∪, ∩, ∖, each drum first and then the balls first.
@@ -32,7 +38,8 @@ use topo::BooleanOp;
 fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
     let tol = Tol::witness();
     let (big, c) = (0.25, [0.5, 0.0, 0.4]);
-    let drum = finished("the drum", cyl(0.5, 1.0), tol);
+    let (r, h) = (0.5, 1.0);
+    let drum = finished("the drum", cyl(r, h), tol);
     let balls = topo::union(&ball(big, c), &ball(big, [-c[0], -c[1], -c[2]]), tol)
         .unwrap()
         .body()
@@ -54,6 +61,10 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
         ("A ∖ B", BooleanOp::Subtract, false, va - vi),
         ("B ∖ A", BooleanOp::Subtract, true, vb - vi),
     ];
+    // The operands' area: the drum's wall (`z ∈ [−h, h]`) and caps, and
+    // the two balls' spheres.
+    let ceiling =
+        pad_ceiling(2.0 * PI * r * 2.0 * h + 2.0 * PI * r * r + 2.0 * 4.0 * PI * big * big);
     let mut off = Vec::new();
     for (label, op, swapped, want) in runs {
         let (x, y) = if swapped {
@@ -61,15 +72,13 @@ fn a_wall_holding_one_balls_ring_is_divided_by_the_others_chord() {
         } else {
             (&drum, &balls)
         };
-        // A guard at four times the widest half-width measured at ε 1e-9
-        // (9.9e-11), not a soundness bound.
         off.extend(at_its_volume(
             label,
             run(op, x, y),
             want,
             Ends::Builds,
-            VOLUME_PAD_BUDGET,
-            Some(4.0e-10),
+            ceiling,
+            &RINGED_PAD_GUARDS,
         ));
     }
     assert!(off.is_empty(), "{off:#?}");
