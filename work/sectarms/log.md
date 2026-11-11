@@ -570,3 +570,4 @@ and bodies unchanged. No orchestrator yet.
   - **Also:** counter to the `cfg(any(test, feature = "test-support"))` precedent if small; PR body narrowed ("one home" holds for the plane only; curved pass-vs-limb-3 split predates, file P2); differential cited.
   - **Fix-or-skip:** fifth `flat_wall` helper; one spelling of the plane gradient.
   - Fix pass sent to the plane-partial lane; review session archived. Tier M, no row; merge on green after the fix pass.
+- **2026-11-11 03:45 — PR 6814 merged** (head fa9ea9c1, merge 2fe95590) on green CI. Fix pass: the guard counts derivative-box reads (reviewer's fall-through mutant, pA, pB, pC all red); counter on the `test-support` precedent; one plane-gradient spelling; `bilinear` helper reused. Curved-partner split filed P2: `work/sectarms/a-curved-partners-partial-is-read-two-ways.md`. The stage-4 slowdown is retired. Lane target `/home/user/sectarms-cylsph-target` deleted.
